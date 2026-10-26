@@ -1,5 +1,5 @@
 ---
-source_sha: "9025a904cc03"
+source_sha: "5bf6eb0fde8e"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -201,10 +201,10 @@ ehrlich ist — wählen Sie `all` für einen Server, den Sie nicht kontrollieren
 Die eigene Vorlage des Architect verlangt `writes` für den Server der Plattform, damit
 er nichts ohne die Person entwirft, für die er handelt. Das Binding jedes Agents an
 diesen Server gilt mindestens als `writes`, auch bei `none`: Seine Tools handeln mit
-der Berechtigung dessen, der fragt, auch eines Admins. Ein Lesezugriff wartet wie
-eine Änderung: `read_conversation`, das dem Modell eine ganze frühere Unterhaltung
-gibt - eine Seite, die der Agent gelesen hat, könnte ihn sonst eine abrufen und
-weiterschicken lassen.
+der Berechtigung dessen, der fragt, auch eines Admins. Zwei Lesezugriffe warten
+wie Änderungen: `read_conversation` gibt eine ganze frühere Unterhaltung frei,
+`get_project` die Anweisungen eines ausgewählten Projekts. Eine gelesene Seite
+darf keine dieser Offenlegungen unbemerkt auslösen.
 
 Im Builder sagen die Einstellungen eines Servers das je
 Gruppe: **Lesen** und **Ändern** laufen jeweils ohne Rückfrage oder fragen erst.
@@ -1054,6 +1054,8 @@ Tool-Fehler zurück, der die fehlende Berechtigung nennt.
 | `whoami` | — |
 | `list_agents`, `get_agent`, `list_capabilities`, `list_models`, `search_mcp_servers` | `agents:view` |
 | `create_agent_draft`, `update_agent_draft`, `test_agent_draft` | `agents:edit` |
+| `list_sandbox_connections`, `list_sandbox_runtimes`, `get_sandbox_policy` | `connections:view` |
+| `list_org_connections` | `mcp:manage` |
 | `publish_agent` | `agents:publish` auf diesem Agent |
 | `discard_agent_draft` | `agents:edit`, für Ihren eigenen, nie veröffentlichten Entwurf |
 | `run_agent` | `agents:run` |
@@ -1066,9 +1068,18 @@ Tool-Fehler zurück, der die fehlende Berechtigung nennt.
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
 | `create_skill` | `skills:edit` |
+| `list_projects` | `projects:view` |
+| `get_project` | Zugriff auf das Projekt |
+| `create_project` | `projects:edit` |
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` und `roles:manage` |
 | `list_my_connections`, `set_my_language`, `set_my_profile` | — (die eigenen des Aufrufers) |
+
+Die Suche mit `list_projects` liefert nur Projekt-IDs und Namen, ohne
+Beschreibungen, Anweisungen und weitere bearbeitbare Bezeichnungen. `get_project` liest ein
+ausgewähltes Projekt einschließlich seiner Anweisungen und wartet unter `writes`
+wie `read_conversation` auf Freigabe. Anweisungen eines anderen geteilten Projekts
+sollen nicht allein durch die Suche nach einem Arbeitsbereich ins Modell gelangen.
 
 Ein Agent lässt sich hier von Anfang bis Ende bauen: entwerfen, bearbeiten, mit
 `test_agent_draft` als unveröffentlichter Entwurf ausprobieren - ein Test-Run,
@@ -1088,6 +1099,24 @@ eines versehentlichen Entwurfs - oder einer Routine.
 Verbundene Anwendungen stehen unter **Einstellungen → MCP-Clients**, wo das
 Trennen ihren Zugriff samt jedem Token beendet. Aufrufe, die etwas ändern,
 warten auf eine Freigabe, wie [oben](#which-calls-wait-for-a-person) beschrieben.
+
+Die Entwurfswerkzeuge akzeptieren konfigurierte Fähigkeitenbindungen und reine IDs.
+Zum Beispiel gibt `capabilities: [{id: sandbox, config: {backend: service,
+include_execute: true}}]` einem Programmieragenten eine Shell auf dem Standardhost
+der Organisation. `list_capabilities` liefert das jeweilige `config_schema`;
+`list_sandbox_connections`, `list_sandbox_runtimes` und `get_sandbox_policy`
+zeigen verfügbare Hosts, Laufzeitaliasse und Hostlimits vor der Konfiguration.
+Eine reine Datei-Sandbox (`state`) führt keine Befehle aus.
+
+`update_agent_draft.add_capabilities` ergänzt oder aktualisiert Bindungen:
+ausgelassene Felder behalten ihren Wert, ein angegebenes `config` ersetzt die
+gesamte Konfiguration. Lesen Sie zuerst den Entwurf, um benötigte Einstellungen
+zu erhalten. Beide Werkzeuge akzeptieren `mcp_servers`: Organisationsverbindungs-IDs
+aus `list_org_connections` oder persönliche Katalogschlüssel aus
+`search_mcp_servers`. Persönliche Verbindungs-IDs gehören nie in eine gemeinsame
+Spezifikation. Die MCP-Bindungsliste wird vollständig ersetzt; `[]` trennt alle.
+Beim Erstellen sind auch `skill_ids` und `collection_ids` möglich. Tests und
+Veröffentlichung behalten dieselben Validierungs- und Freigaberegeln.
 
 ### Ihn einem Agent geben { #giving-it-to-an-agent }
 
@@ -1145,3 +1174,9 @@ Routine einrichtet oder die Sprache der Konsole umstellt, wenn man ihn darum bit
   keines heraus, und eine zu löschen meldet ab, was sie angemeldet hat.
 - Ein nicht erreichbarer Server wird **übersprungen**, nicht ausgelöst — der Zug
   antwortet ohne diese Tools.
+
+Jede geplante Prüfung umfasst höchstens 64 aktive Organisationsserver, beginnend mit der ältesten Prüfung, und führt höchstens acht Verbindungsprüfungen gleichzeitig aus. Auch unbrauchbare Zugangsdaten aktualisieren den Prüfzeitpunkt, ohne einen Ausfall zu melden. Größere Installationen prüfen dadurch alle Server über mehrere Durchläufe.
+
+Die OAuth-Erneuerung besitzt eine eigene kurze Transaktion: Sie sperrt und prüft das Konto erneut, rotiert die Zugangsdaten und bestätigt den Commit vor der Token-Rückgabe. Ein Abbruch wartet auf diesen Abschluss; ein späteres Run-Rollback macht ihn nicht rückgängig. Scheitert die Speicherung nach der Rotation beim Anbieter, schlägt die Anfrage ausdrücklich fehl und eine erneute Autorisierung kann nötig sein. Mailbox-Polling verwendet eine separate Advisory-Sperre pro Konto; Cursor und eingereihte Jobs werden gemeinsam bestätigt, und eine fehlerhafte Antwort rollt nur die Arbeit dieser Mailbox zurück.
+
+Die Warteschlange der Zustandsprüfung verwendet einen eigenen indizierten Zeitstempel. Weder die OAuth-Erneuerung noch das Mailbox-Polling verschieben die nächste Serverprüfung. Bestehende Server werden nach der Migration als noch nicht geprüft eingereiht.

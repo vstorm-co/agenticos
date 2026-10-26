@@ -1,5 +1,5 @@
 ---
-source_sha: "a43a833ec82f"
+source_sha: "0a268874d05a"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -40,7 +40,62 @@ Spec agenta wskazuje jeden przez `model_profile_id`, a run go rozwiązuje.
     rozgrzana, a pole, które nie potrafi wyrazić „o ten”, to pole, które ludzie
     obchodzą, edytując speca ręcznie.
 
+### Profil, na którym agent nie może działać { #a-profile-an-agent-cannot-run-on }
+
+Profil może wskazywać model, który nie prowadzi rozmowy: model zamiany tekstu na
+mowę, taki jak `gpt-4o-mini-tts`, model rozmów głosowych realtime, model
+transkrypcji, model obrazów, model wideo
+albo model embeddingów. Agent na takim modelu zawodzi już przy pierwszej turze.
+Zamiana tekstu na mowę, generowanie obrazów i transkrypcja nie korzystają z
+profili: każda z tych funkcji wskazuje własnego providera i model.
+
+Platforma zna te modele z własnych katalogów (list modeli rozmów realtime, zamiany tekstu na mowę,
+transkrypcji, obrazów, wideo i embeddingów). `GET /providers/model-profiles`
+oznacza każdy profil polami `chat_capable` i `output_modalities`, a
+`GET /providers/{provider}/models` oznacza każdą sugestię polem `chat_capable`.
+Te dwa pola czytają też listing providera, który podaje, co emituje każdy model
+(robią to OpenRouter i router Hugging Face), jeśli proces API już go pobrał. Ten
+listing zmienia tylko to, co oferuje picker. Nigdy nie odrzuca publikacji, bo inny
+proces API mógł go nie pobrać. Konsola aktualizuje też zapisane profile po
+późniejszym nadejściu listingu. Aliasy providerów, takie jak `openai_codex`
+i `google_cloud`, korzystają z katalogów odpowiednich dostawców. Wtedy:
+
+- Panel modelu w Builderze, pickery recenzenta i specjalisty, pola modelu
+  kolejnych kroków i modelu kroków przeglądarki oraz picker modelu do opisywania
+  obrazów w bazie wiedzy nie oferują takiego modelu. Jeśli agent już go wskazuje,
+  Builder nadal go pokazuje, oznaczony jako model, który nie jest modelem czatu.
+  Członkowi, który zarządza połączeniami, Builder wymienia też pozostałe takie
+  modele, oznaczone i bez możliwości wyboru, żeby dało się je usunąć.
+- Picker modelu w czacie i formularz dodawania modelu w Builderze nie podpowiadają
+  takiego modelu i odrzucają wpisany ręcznie.
+- Publikacja odrzuca taki model jako model agenta, recenzenta, specjalisty, model
+  kroków przeglądarki albo model kolejnych kroków i podaje jego nazwę. Odrzuca też
+  profil, którego fallbacki obejmują taki model. To samo sprawdzenie działa przy
+  powrocie do wersji, przy sprawdzaniu szkicu, przy testowym uruchomieniu w
+  Builderze i przy włączaniu capability z czatu. Zapisana wersja na takim modelu
+  nadal się wczytuje, ale nie można jej przywrócić, dopóki jej profil wskazuje
+  model, który nie jest modelem czatu, albo wymienia go jako fallback. Wskaż w tym
+  profilu model czatu albo opublikuj nową wersję.
+- Run pomija taki fallback w swoim łańcuchu, tak jak usunięty, jeśli dodano go do
+  profilu po publikacji.
+- Rozmowa, która wskazuje taki model zamiast modelu agenta, z czatu albo przez
+  API, jest odrzucana, zanim run się zacznie.
+- Model, którego katalogi nie klasyfikują, taki jak model w Ollamie albo model
+  wydany dziś rano, jest dozwolony. Nieznany model nie jest odmową. Profil z
+  własnym endpointem (`base_url`) nigdy nie jest klasyfikowany, niezależnie od id
+  modelu: katalogi opisują własne API providera, a serwer zgodny z OpenAI może
+  serwować model czatu pod dowolną nazwą.
+
+Picker modelu proaktywności stosuje tę samą zasadę. Sprawdzenie stałych katalogów
+działa też przy konfiguracji proaktywności i przy rozwiązywaniu profilu do zwykłego
+żądania tekstowego, w tym przy konfiguracji opisu obrazów i w workerze. Stare
+konfiguracje nadal się wczytują; przed użyciem trzeba zastąpić niezgodny model.
+Wyłączenie funkcji pozostaje możliwe. Nazwy wdrożeń Azure nie są klasyfikowane
+na podstawie identyfikatorów modeli bazowych z katalogu.
+
 ### Fallbacki { #fallbacks }
+
+Runner używa tylko pierwszych trzech fallbacków; tylko te są sprawdzane przy publikacji.
 
 Profil może wymienić profile zapasowe, wypróbowywane po kolei. Awaria jednego
 providera nie powinna kłaść agentów organizacji, gdy ma ona drugi klucz albo

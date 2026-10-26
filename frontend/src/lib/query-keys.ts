@@ -79,6 +79,11 @@ export const qk = {
     // create a trigger anywhere". Its own key, not a list page's, and under
     // "agents" so the same invalidations that move the list refresh the answer.
     anyRunnable: () => ["agents", "any-runnable"] as const,
+    // The agent limit and the count against it - its own key, not a list
+    // page's, so a filter change cannot unset it; under "agents" so whatever
+    // moves the list refreshes it.
+    ceiling: () => ["agents", "ceiling"] as const,
+    create: () => ["agents", "create"] as const,
     detail: (id: string) => ["agents", id] as const,
     templates: () => ["agents", "templates"] as const,
     // The page is part of the key: a history past its page size is several
@@ -199,6 +204,8 @@ export const qk = {
   },
   runs: {
     all: () => ["runs"] as const,
+    canStop: (orgId: string | null, accountId: string | null, runId: string) =>
+      ["runs", "can-stop", orgId, accountId, runId] as const,
     // The AI Architect's bubble: approvals waiting, no agents yet, the reader's
     // failed run. Under `runs` because two of the three are run events.
     assistantSignals: (orgId: string) => ["runs", "assistant-signals", orgId] as const,
@@ -241,6 +248,7 @@ export const qk = {
         opts.modality ?? "any-modality",
         opts.modelLabel ?? "any-model",
         opts.userId ?? "anyone",
+        opts.conversationId ?? "any-conversation",
         opts.agentVersionId ?? "any-version",
         opts.isTest ?? "tests-included",
         opts.skip ?? 0,
@@ -422,6 +430,8 @@ export const qk = {
     syncSources: (id: string) => ["kb", id, "sync-sources"] as const,
     orgIntegrations: (id: string) => ["kb", id, "org-integrations"] as const,
     connectors: (id: string) => ["kb", id, "connectors"] as const,
+    // Whether the KB's documents are still indexing, from `/kb/{id}/ingestion`.
+    ingestion: (id: string) => ["kb", id, "ingestion"] as const,
     // One document's stored file, as the viewer reads it. Text and bytes keyed
     // apart because they are two different bodies for one download route, and a
     // viewer showing a PDF must not be handed a cached string for it.

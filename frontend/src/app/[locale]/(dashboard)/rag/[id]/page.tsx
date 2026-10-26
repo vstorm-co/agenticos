@@ -72,6 +72,8 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
     documents,
     documentsTotal,
     hasMoreDocuments,
+    ingestion,
+    ingestionPending,
     syncSources,
     orgIntegrations,
     connectors,
@@ -83,6 +85,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
     uploadProgress,
     error,
     refresh,
+    refreshIngestion,
     loadMoreDocuments,
     updateIngestion,
     updateEmbeddings,
@@ -168,7 +171,9 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
     refresh();
   }, [refresh]);
 
-  usePollWhileIngesting(documents, refresh);
+  // The loaded documents alone stop the poll as soon as their page has settled,
+  // which a large batch does long before the rest of it (#2486).
+  usePollWhileIngesting(documents, refreshIngestion, ingestionPending);
 
   const handleFiles = async (files: FileList | null) => {
     if (!mayEdit || !files || files.length === 0) return;
@@ -222,6 +227,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
         documentsTotal={documentsTotal}
         loadedVectors={loadedVectors}
         hasMoreDocuments={hasMoreDocuments}
+        ingestion={ingestion}
       />
 
       {/* Reached only with a `kb` in hand, so this is a refresh that failed, with

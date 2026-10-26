@@ -86,6 +86,13 @@ export interface ModelProfile {
    * that already exists.
    */
   context_length?: number | null;
+  /**
+   * Whether an agent can run on this model (#2487). False only for one the
+   * platform knows is something else - text to speech, transcription, image,
+   * video or embeddings. Absent reads as true: a model nothing classifies is
+   * never hidden.
+   */
+  chat_capable?: boolean;
   created_at?: string;
 }
 
@@ -127,6 +134,8 @@ export interface Skill {
 }
 
 export interface SkillSummary {
+  /** Effective edit access in listings; absent on older deployments or write responses. */
+  can_edit?: boolean;
   id: string;
   name: string;
   description: string;
@@ -180,6 +189,8 @@ export interface ContextFile {
 
 /** A context file as the listing shows it - the body is a byte count only. */
 export interface ContextFileSummary {
+  /** Effective edit access in listings; absent on older deployments or write responses. */
+  can_edit?: boolean;
   id: string;
   name: string;
   description: string | null;

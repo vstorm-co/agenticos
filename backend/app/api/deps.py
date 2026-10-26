@@ -1392,7 +1392,7 @@ def _extract_ws_auth(websocket: WebSocket) -> tuple[str | None, str | None]:
 
 async def get_current_user_ws(
     websocket: WebSocket,
-    access_token: str | None = Cookie(None),
+    access_token: str | None = Cookie(None, alias="agenticos_access_token"),
 ) -> User:
     """Authenticate a WebSocket connection.
 
@@ -1400,7 +1400,7 @@ async def get_current_user_ws(
     1. `Sec-WebSocket-Protocol` header, in the form `access_token.<JWT>`.
        The chosen application subprotocol (e.g. `chat`) is echoed back on
        `accept()` via `websocket.state.accept_subprotocol`.
-    2. Same-origin `access_token` cookie (fallback for same-origin clients).
+    2. Same-origin `agenticos_access_token` cookie (fallback for same-origin clients).
 
     Tokens in query strings are NOT accepted - they leak into logs and
     Referer headers.

@@ -138,7 +138,8 @@ describe("ProjectChip", () => {
     chip("c-1");
     expect(await screen.findByRole("link", { name: "Treasury" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Start outside/ })).not.toBeInTheDocument();
-    expect(apiClient.get).toHaveBeenCalledWith("/conversations/c-1");
+    expect(apiClient.get).toHaveBeenCalledWith("/conversations/c-1/metadata");
+    expect(apiClient.get).not.toHaveBeenCalledWith("/conversations/c-1");
   });
 
   it("shows nothing for a chat outside any project", async () => {
@@ -192,4 +193,12 @@ it("does not apply a computer's project folder in a browser or to an existing co
   chip("c-existing");
   await screen.findByRole("link");
   expect(useWorkOnStore.getState().targetFor("c-existing")).toBeNull();
+});
+
+it("clears the inherited folder when a desktop draft has no project", async () => {
+  desktop.enabled = true;
+  useWorkOnStore.getState().applyProject("alice:org:p-old", { folder: "/old", mode: "read_only" });
+  chip(null);
+  await waitFor(() => expect(useWorkOnStore.getState().draftProjectKey).toBeNull());
+  expect(useWorkOnStore.getState().targetFor(null)).toBeNull();
 });

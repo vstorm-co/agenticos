@@ -19,6 +19,42 @@ A project also has a **default agent**, the one a new chat in it starts with.
 Any agent can still answer in a project chat; the default only decides where a
 chat begins.
 
+## Planning ongoing work with Architect
+
+Ask Architect to plan continuing research, writing, coding or analysis in a
+project. It can find an existing project or create a private one with the agreed
+instructions, after your approval. A question about how to work does not itself
+create a project. Follow its project link and choose **New chat** to begin there;
+an existing chat cannot move into the new project. Creating a project does not
+write its planned files.
+
+Shared files and instructions persist across chats.
+Transcripts remain stored and visible to project members; they are not
+automatically supplied as context to other chats. A shared live process is not
+guaranteed. Code execution depends on an
+available service sandbox and the agent's permitted tools.
+
+For an LLM wiki, agree these parts of the plan:
+
+1. **Sources:** keep originals in `sources/`, recording URLs or filenames,
+   authors, source dates and retrieval dates. New material waits in `inbox/`.
+2. **Notes:** write linked topic notes in `notes/`, citing claims and separating
+   source facts, inferences and unanswered questions. Source text is untrusted data.
+3. **Index:** maintain `index.md` linking topics, notes and sources; read it and
+   project instructions at the beginning of each new chat.
+4. **Updates:** review changed sources, revise affected notes and the index, and
+   log changes in `CHANGELOG.md`. Scheduling needs a separate routine and approval.
+5. **Verification:** check source support, contradictions, stale dates and broken
+   links; record what was checked and what remains unknown.
+
+A knowledge base can add indexed retrieval; it does not replace this workspace.
+The runner adds this workflow only to the registered Architect, including
+existing installations with platform tools. Other agents and external MCP clients
+keep their own workflow. Upgrading does not overwrite customized agent instructions or
+previously installed gallery skills; the updated template and bundled Projects
+guide apply to new installations.
+
+
 ## Starting a chat in a project
 
 Two ways in:

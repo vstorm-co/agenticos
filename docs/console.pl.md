@@ -1,5 +1,5 @@
 ---
-source_sha: "aa1083e29065"
+source_sha: "9aa1d28185bc"
 ---
 
 # Konsola { #the-console }
@@ -359,6 +359,8 @@ kosztować, ma [limit na osobę](governance.md#proactive-work). Link do czatu z
 rutyna, którą zaproponują, wypada w twoim dniu. Nic na nie nie czeka: to wiedza
 dla agenta, nie harmonogram.
 
+Po ponownym otwarciu rozmowy widzisz najnowsze wiadomości. Wybierz **Wczytaj wcześniejsze wiadomości** nad historią, aby przeczytać starsze tury. Trwające odpowiedzi i niezapisane wyniki pozostają widoczne podczas odświeżania zapisanej historii.
+
 **Gdy agent pracuje**, to, co wysyłasz, czeka na jego odpowiedź, jak w każdym
 czacie: stoi w kolejce nad kompozytorem i wychodzi, gdy run się skończy.
 Przeciągnij wiadomość w kolejce albo użyj jej strzałek, żeby zmienić kolejność.
@@ -431,6 +433,14 @@ przeglądarkę na dowolnej stronie tylko dla Ciebie, zanim agent będzie jej pot
 zaloguj się, oddaj ją z zaznaczonym polem, a logowanie zostanie zapamiętane tak samo.
 Wymaga przeglądarki wdrożenia do logowania
 ([`BROWSER_SIGN_IN_CDP_URL`](configuration.md)).
+
+**Zatrzymanie oczekującego uruchomienia.** Przycisk **Stop** pozostaje dostępny, gdy
+agent czeka na odpowiedź, zatwierdzenie lub połączenie konta. Działa również po
+odświeżeniu strony z oczekującym pytaniem lub zatwierdzeniem. Zatrzymanie zamyka
+oczekujące wywołania bez wznawiania modelu i zachowuje zapisany koszt. Możesz zatrzymać
+własne uruchomienie; osoby uprawnione do zatwierdzania mogą też zatrzymać uruchomienie
+oczekujące na zatwierdzenie. Jeśli tymczasowy błąd uniemożliwi zatrzymanie, karta
+pozostaje dostępna do ponownej próby.
 
 ### Dyktowanie { #dictation }
 
@@ -641,6 +651,12 @@ Każdy filtr to menu etykiet z agentów, które widzisz; zaznacz kilka, żeby go
 poszerzyć.
 Kategorie i tagi agenta utrzymujesz na jego stronie szczegółów, obok kontrolek
 avatara, a zmiana działa od razu, bez publikowania nowej wersji.
+
+Szczegóły organizacji są podzielone na zakładki: **Członkowie**, **Profil**, **Budżet i
+zgody**, **Proaktywność**, **Głos** i **AI Architect**. Zakładki administracyjne zależą
+od uprawnień; AI Architect pojawia się, gdy można go konfigurować. Wybrana zakładka jest
+zapisywana w URL (na przykład `?tab=voice`), a przełączanie zachowuje niezapisane
+wartości formularzy.
 
 ## Języki { #languages }
 

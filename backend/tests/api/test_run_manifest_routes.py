@@ -70,6 +70,7 @@ async def test_the_record_is_served_as_it_was_stored() -> None:
             "settings": {"temperature": 0.2},
             "requests": [{"index": 0, "duration_ms": 812, "input_tokens": 1200}],
             "messages": [{"kind": "request", "parts": []}],
+            "transcript": [{"kind": "response", "parts": [{"content": "A finding"}]}],
         }
     )
     service = MagicMock(get_run_manifest=AsyncMock(return_value=record))
@@ -85,6 +86,7 @@ async def test_the_record_is_served_as_it_was_stored() -> None:
     assert body["settings"] == {"temperature": 0.2}
     assert body["requests"][0]["duration_ms"] == 812
     assert body["truncated"] is False
+    assert body["transcript"][0]["parts"][0]["content"] == "A finding"
 
 
 async def test_a_record_from_an_older_build_still_serializes() -> None:

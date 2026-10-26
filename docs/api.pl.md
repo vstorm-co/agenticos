@@ -1,5 +1,5 @@
 ---
-source_sha: "d77cb23fa679"
+source_sha: "d47df7fd8c9b"
 ---
 
 # API HTTP { #the-http-api }
@@ -55,6 +55,12 @@ wyszukiwania jego dawnych rozmów, ani do stron, na których przeglądarka trzym
 jego logowania, ani do przestrzeni roboczej sandboxa przypisanej do użytkownika.
 Ten, kto trzyma klucz, jest skryptem, nie tą osobą, więc run odpowiada tak jak
 na publicznym widgecie.
+
+Odczyt połączeń jest też publiczny: `GET /sandbox-connections`,
+`GET /sandbox-connections/runtimes` i `GET /sandbox-connections/{id}/policy`
+wymagają `connections:view`; `GET /mcp-connections` wymaga `mcp:manage`.
+Nadal obowiązują organizacja i zakresy klucza. Zapisy połączeń oraz operacje
+na poświadczeniach pozostają dostępne tylko w sesji.
 
 ```bash
 curl "$BASE/api/v1/me/permissions" \
@@ -309,7 +315,8 @@ wymienia; konsola pokaże klucz raz.
 **Wgraj dokument do bazy wiedzy i przeszukaj ją** — klucz z `collections:view` i
 `collections:edit` (preset *Zasilanie bazy wiedzy*). Ingest działa w tle, więc
 wyszukiwanie zaraz po wgraniu może jeszcze nie znaleźć dokumentu; jego status
-pokazuje `GET /api/v1/kb/$KB_ID/documents`.
+pokazuje `GET /api/v1/kb/$KB_ID/documents`, a `GET /api/v1/kb/$KB_ID/ingestion`
+odpowiada `complete`, gdy żaden nie jest już przetwarzany.
 
 ```bash
 # Find the knowledge base, upload a file into it, and search it.

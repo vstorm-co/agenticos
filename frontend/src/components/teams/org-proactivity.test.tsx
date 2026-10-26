@@ -14,6 +14,13 @@ import { Perm, type Permission } from "@/types/permissions";
 
 const state = vi.hoisted(() => ({
   held: [] as string[],
+  profiles: [] as {
+    id: string;
+    label: string;
+    provider: string;
+    model: string;
+    chat_capable?: boolean;
+  }[],
   setProactivity: vi.fn(),
   setWelcomeDm: vi.fn(),
 }));
@@ -27,7 +34,7 @@ vi.mock("@/hooks", () => ({
     setWelcomeDm: state.setWelcomeDm,
   }),
   useModelProviders: () => ({
-    profiles: [{ id: "mp-1", label: "Haiku", provider: "anthropic", model: "claude-haiku" }],
+    profiles: state.profiles,
   }),
   useMcpCatalog: () => ({
     servers: [
@@ -63,6 +70,7 @@ const ON = {
 
 beforeEach(() => {
   state.held = [Perm.budgetsManage, Perm.orgSettings];
+  state.profiles = [{ id: "mp-1", label: "Haiku", provider: "anthropic", model: "claude-haiku" }];
   state.setProactivity.mockReset().mockResolvedValue(undefined);
   state.setWelcomeDm.mockReset().mockResolvedValue(undefined);
   refusal.value = null;
@@ -87,6 +95,12 @@ describe("OrgProactivity", () => {
     ).toBeInTheDocument();
   });
 
+  it("explains fixed attribution and the separate proactivity model", () => {
+    render(<OrgProactivity org={org()} />);
+    expect(screen.getByText(/This assignment is fixed by the platform/)).toBeVisible();
+    expect(screen.getByText(/independently of the agent’s own model/)).toBeVisible();
+  });
+
   it("starts off, and is not turned on without a model to run on", async () => {
     render(<OrgProactivity org={org()} />);
     const nightly = screen.getByRole("switch", { name: "Nightly suggestions" });
@@ -98,6 +112,33 @@ describe("OrgProactivity", () => {
 
     expect(screen.getByText("Choose the model it runs on before turning it on.")).toBeVisible();
     expect(state.setProactivity).not.toHaveBeenCalled();
+  });
+
+  it("does not offer known non-chat profiles for proactive text work", async () => {
+    state.profiles.push({
+      id: "voice",
+      label: "Voice",
+      provider: "openai",
+      model: "gpt-4o-mini-tts",
+      chat_capable: false,
+    });
+    render(<OrgProactivity org={org(ON)} />);
+    await userEvent.click(screen.getByLabelText("Model"));
+    expect(screen.getByRole("option", { name: "Haiku" })).toBeVisible();
+    expect(screen.queryByRole("option", { name: /Voice/ })).toBeNull();
+  });
+
+  it("keeps an already selected non-chat profile visible but disabled", async () => {
+    state.profiles.push({
+      id: "voice",
+      label: "Voice",
+      provider: "openai",
+      model: "gpt-4o-mini-tts",
+      chat_capable: false,
+    });
+    render(<OrgProactivity org={org({ ...ON, proactive_model_profile_id: "voice" })} />);
+    await userEvent.click(screen.getByLabelText("Model"));
+    expect(screen.getByRole("option", { name: /Voice/ })).toHaveAttribute("aria-disabled", "true");
   });
 
   it("saves the whole schedule: model, limit, days, when and the hour", async () => {

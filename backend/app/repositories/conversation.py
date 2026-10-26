@@ -22,11 +22,11 @@ from sqlalchemy import delete as sql_delete
 from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import load_only, raiseload, selectinload
+from sqlalchemy.orm import defer, load_only, raiseload, selectinload
 from sqlalchemy.orm.attributes import set_committed_value
 
 from app.db.models.agent import Agent
-from app.db.models.agent_run import AgentRun, RunStatus
+from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.channel_session import ChannelSession
 from app.db.models.chat_file import ChatFile
@@ -188,6 +188,7 @@ async def get_conversation_by_id(
     conversation_id: UUID,
     *,
     include_messages: bool = False,
+    include_summary: bool = False,
 ) -> Conversation | None:
     """Get a conversation by ID without a tenant filter.
 
@@ -196,21 +197,27 @@ async def get_conversation_by_id(
     :meth:`app.services.conversation.ConversationService.get_conversation`, which
     takes the active organization and enforces it. Grep for this function when
     auditing cross-tenant reads.
+
+    The large model summary is excluded and refuses implicit loading unless
+    `include_summary` is requested. Only model-history reconstruction needs it.
     """
-    if include_messages:
+    summary_options = (
+        () if include_summary else (defer(Conversation.summary_messages, raiseload=True),)
+    )
+    if include_messages or include_summary:
         query = (
-            select(Conversation)
-            .options(
+            select(Conversation).options(*summary_options).where(Conversation.id == conversation_id)
+        )
+        if include_messages:
+            query = query.options(
                 selectinload(Conversation.messages).selectinload(Message.tool_calls),
                 selectinload(Conversation.messages)
                 .selectinload(Message.files)
                 .load_only(*_MESSAGE_FILE_COLUMNS, raiseload=True),
             )
-            .where(Conversation.id == conversation_id)
-        )
         result = await db.execute(query)
         return result.scalar_one_or_none()
-    return await db.get(Conversation, conversation_id)
+    return await db.get(Conversation, conversation_id, options=summary_options)
 
 
 def _list_filters(
@@ -470,6 +477,7 @@ async def running_since(
             AgentRun.conversation_id.in_(list(conversation_ids)),
             AgentRun.parent_run_id.is_(None),
             AgentRun.status == RunStatus.RUNNING,
+            AgentRun.surface != RunSurface.FOLLOW_UPS.value,
             AgentRun.ended_at.is_(None),
             AgentRun.started_at >= datetime.now(UTC) - RUNNING_HORIZON,
         )
@@ -492,6 +500,7 @@ async def running_users(db: AsyncSession, conversation_ids: Collection[UUID]) ->
             AgentRun.conversation_id.in_(list(conversation_ids)),
             AgentRun.parent_run_id.is_(None),
             AgentRun.status == RunStatus.RUNNING,
+            AgentRun.surface != RunSurface.FOLLOW_UPS.value,
             AgentRun.ended_at.is_(None),
             AgentRun.started_at >= datetime.now(UTC) - RUNNING_HORIZON,
             AgentRun.user_id.is_not(None),
@@ -1062,6 +1071,8 @@ async def get_messages_by_conversation(
     skip: int = 0,
     limit: int = 100,
     include_tool_calls: bool = False,
+    latest: bool = False,
+    before: UUID | None = None,
 ) -> list[Message]:
     """Get messages for a conversation, in the order they were written.
 
@@ -1076,9 +1087,18 @@ async def get_messages_by_conversation(
     query = query.options(
         selectinload(Message.files).load_only(*_MESSAGE_FILE_COLUMNS, raiseload=True)
     )
-    query = query.order_by(Message.ordinal.asc()).offset(skip).limit(limit)
+    if before is not None:
+        boundary = (
+            select(Message.ordinal)
+            .where(Message.id == before, Message.conversation_id == conversation_id)
+            .scalar_subquery()
+        )
+        query = query.where(Message.ordinal < boundary)
+    order = Message.ordinal.desc() if latest else Message.ordinal.asc()
+    query = query.order_by(order).offset(skip).limit(limit)
     result = await db.execute(query)
-    return list(result.scalars().all())
+    items = list(result.scalars().all())
+    return list(reversed(items)) if latest else items
 
 
 async def count_messages(db: AsyncSession, conversation_id: UUID) -> int:
@@ -1106,16 +1126,31 @@ async def conversation_cost(
     floor. It stays `None` where no turn recorded the flag at all, which is the
     honest "nobody knows" rather than "exact".
     """
-    # `type_coerce` states what `coalesce(..., 0)` guarantees: the column is
-    # nullable, the total is not.
+    # Follow-up runs have no transcript message of their own. Count them once
+    # beside the measured messages, without changing the main answer's cost.
+    costs = union_all(
+        select(
+            Message.input_tokens, Message.output_tokens, Message.cost_usd, Message.cost_is_partial
+        ).where(Message.conversation_id == conversation_id),
+        select(
+            AgentRun.input_tokens,
+            AgentRun.output_tokens,
+            AgentRun.cost_usd,
+            AgentRun.cost_is_partial,
+        ).where(
+            AgentRun.conversation_id == conversation_id,
+            AgentRun.surface == RunSurface.FOLLOW_UPS.value,
+            AgentRun.ended_at.is_not(None),
+        ),
+    ).subquery()
     result = await db.execute(
         select(
-            type_coerce(func.coalesce(func.sum(Message.input_tokens), 0), Integer),
-            type_coerce(func.coalesce(func.sum(Message.output_tokens), 0), Integer),
-            type_coerce(func.coalesce(func.sum(Message.cost_usd), 0), Numeric),
-            func.bool_or(Message.cost_is_partial),
-            func.count(Message.input_tokens),
-        ).where(Message.conversation_id == conversation_id)
+            type_coerce(func.coalesce(func.sum(costs.c.input_tokens), 0), Integer),
+            type_coerce(func.coalesce(func.sum(costs.c.output_tokens), 0), Integer),
+            type_coerce(func.coalesce(func.sum(costs.c.cost_usd), 0), Numeric),
+            func.bool_or(costs.c.cost_is_partial),
+            func.count(costs.c.input_tokens),
+        )
     )
     input_tokens, output_tokens, cost_usd, partial, measured = result.one()
     if not measured:
@@ -1361,6 +1396,7 @@ async def create_message(
     conversation_id: UUID,
     role: str,
     content: str,
+    client_message_id: str | None = None,
     thinking: str | None = None,
     parts: list[dict[str, object]] | None = None,
     model_name: str | None = None,
@@ -1385,6 +1421,7 @@ async def create_message(
         conversation_id=conversation_id,
         role=role,
         content=content,
+        client_message_id=client_message_id,
         attachment_context=attachment_context,
         channel_identity_id=channel_identity_id,
         author_user_id=author_user_id,
@@ -1608,3 +1645,86 @@ async def complete_tool_call(
     await db.flush()
     await db.refresh(db_tool_call)
     return db_tool_call
+
+
+async def prompt_for_answer(db: AsyncSession, message: Message) -> str:
+    """The prompt of this run, never a different person's interleaved question."""
+    result = await db.execute(
+        select(Message.content)
+        .where(
+            Message.run_id == message.run_id,
+            Message.conversation_id == message.conversation_id,
+            Message.role == "user",
+            Message.ordinal < message.ordinal,
+        )
+        .order_by(Message.ordinal.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none() or ""
+
+
+async def store_next_steps(
+    db: AsyncSession, *, message_id: UUID, organization_id: UUID, steps: list[str]
+) -> bool:
+    """Append one persisted synthetic call, scoped and locked against duplicate completion."""
+    import json
+
+    result = await db.execute(
+        select(Message)
+        .join(Conversation, Message.conversation_id == Conversation.id)
+        .where(
+            Message.id == message_id,
+            Conversation.organization_id == organization_id,
+            Conversation.is_archived.is_(False),
+        )
+        .with_for_update(of=Message)
+        .execution_options(populate_existing=True)
+    )
+    message = result.scalar_one_or_none()
+    if message is None:
+        return False
+    call_id = f"next_steps_{message_id}"
+    found = await db.execute(
+        select(ToolCall.id).where(
+            ToolCall.message_id == message_id, ToolCall.tool_call_id == call_id
+        )
+    )
+    if found.scalar_one_or_none() is not None:
+        return False
+    now = datetime.now(UTC)
+    call = await create_tool_call(
+        db,
+        message_id=message_id,
+        tool_call_id=call_id,
+        tool_name="suggest_next_steps",
+        args={"steps": steps},
+        started_at=now,
+    )
+    await complete_tool_call(
+        db,
+        db_tool_call=call,
+        result=json.dumps({"steps": steps}, ensure_ascii=False),
+        completed_at=now,
+    )
+    if message.parts is not None:
+        message.parts = [*message.parts, {"type": "tool", "tool_call_id": call_id}]
+        await db.flush()
+    return True
+
+
+async def last_answer_message(
+    db: AsyncSession, run_id: UUID, *, organization_id: UUID
+) -> Message | None:
+    """The latest saved answer of this tenant's run, regardless of transcript length."""
+    result = await db.execute(
+        select(Message)
+        .join(Conversation, Message.conversation_id == Conversation.id)
+        .where(
+            Message.run_id == run_id,
+            Message.role == "assistant",
+            Conversation.organization_id == organization_id,
+        )
+        .order_by(Message.ordinal.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()

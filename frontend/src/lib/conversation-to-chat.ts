@@ -35,6 +35,7 @@ export interface RawMessagePart {
 }
 
 export interface RawMessage {
+  client_message_id?: string | null;
   id: string;
   conversation_id: string;
   role: "user" | "assistant" | "system";
@@ -195,6 +196,7 @@ export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
 
   return {
     id: msg.id,
+    clientMessageId: msg.client_message_id ?? undefined,
     role: msg.role,
     content: msg.content,
     thinking: msg.thinking ?? undefined,

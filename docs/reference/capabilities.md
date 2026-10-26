@@ -142,6 +142,16 @@ asks *what* to search, never *where*: collections are resolved from the spec
 before the run and handed to the capability, so an agent cannot reach a collection
 nobody connected to it.
 
+Each result names its document and where in it the match is. A PDF, a presentation
+or a word-processing file such as `.doc`, `.odt` or `.rtf` gives the page. A
+Markdown file, a spreadsheet, a web page or an image has no page a reader can open.
+It gives only the document name, as do plain-text and `.docx` files. Chunks do not
+retain reliable section boundaries, so a leading hash line is not inferred to be
+a heading: it may be a code comment from a block that began in a previous chunk.
+
+This is decided from the document's type when the result is shown, so a collection
+ingested earlier needs no re-ingestion.
+
 | Config | Default | Range |
 |---|---|---|
 | `default_top_k` | 5 | 1–50 |
@@ -402,6 +412,11 @@ API answers what a *question* matches, not what a store holds. Those agents are
 **named** on the page rather than left out, because a list of native notes
 presented as a complete inventory would be worse than one that says what it
 misses. Erasure does reach mem0; reading does not.
+
+Memory erasure checks drafts and every retained agent version, including former
+mem0 endpoints. Clearing an agent also removes all its owners' mem0 namespaces.
+A missing credential, provider failure or incomplete namespace listing returns an
+error; restore access and retry rather than treating a partial wipe as complete.
 
 ## Memory (mem0)
 
@@ -1429,6 +1444,14 @@ every run uses it, whoever asked - and anything a task runs can read it. Bind a
 key that everyone who may run the agent may share.
 Running on a personal subscription is subject to Anthropic's and OpenAI's terms for
 those plans, which may not allow it on a shared deployment.
+
+**The key fits the harness.** The picker offers Claude Code only keys stored for
+Anthropic, and Codex only OpenAI keys and ChatGPT sign-ins. A key stored for
+`custom` fits either, and so does the key already bound. Publish refuses a key
+stored for another provider and names the ones the harness takes: an OpenAI key
+bound to Claude Code would publish and then fail at every task. With `base_url`
+set, the key is the gateway's - OpenRouter, LiteLLM or any other - so Claude Code
+takes any key there.
 
 **Delegating to a coding agent.** A delegate that binds `sandbox` itself runs in a
 fresh in-memory workspace with no shell, so a coding agent reached by delegation has
@@ -2463,23 +2486,40 @@ the person did not answer in time.
 
 ## Follow-ups { #follow-ups }
 
-At the end of an answer, `suggest_next_steps` offers up to three next steps as
-buttons under it, each at most 80 characters and phrased as the person would say
-it: "Make it a table", "Do this every Monday at 9:00". A click sends the step as
-their next message. Only the latest answer offers them, and none while a turn is
-running. The agent skips them after small talk or a question of its own, and
-does not repeat the steps in its answer. In Slack, Teams, Telegram and Mattermost
-the steps arrive as a message of buttons under the answer, and a press is the
-presser saying that step - [Channels](../channels.md#next-steps-as-buttons) has
-the detail.
+Buttons are supported in console chat and the messaging channels above.
+Public widgets, hosted pages and raw embed sockets do not consume suggestion
+cards, so they do not start a paid follow-up run. Channel writers recheck the
+recorded sender identity, bot binding, current access policy and room membership
+before generation and delivery; an admitted unlinked room sender remains distinct
+from the publisher used for accounting.
 
-**Model for next steps** (`model_profile_id`) hands the steps to a model of their
-own: the agent is no longer offered `suggest_next_steps`, and once its answer is in
-that model reads the request and the answer and writes up to three steps, or none.
-A small, cheap model is enough for three short buttons, and the agent no longer
-spends a request on them. The call is checked against the budgets first and booked
-on the run like any other; one that cannot be made costs the buttons, never the
-answer. Empty, the agent offers them itself.
+Next-step buttons are written only by a separate model selected in **Model for
+next steps** (`model_profile_id`). An empty selection disables suggestions.
+After upgrading, select a profile in the Follow-ups capability to keep using
+buttons. The main model never receives `suggest_next_steps` and does not wait
+for suggestions before finishing its answer or accepting the next prompt.
+
+After the assistant message commits, the optional background task reads that
+run's question and saved answer. It returns up to three short steps in the
+person's language, or none. The console receives a late event naming the exact
+conversation and assistant message; a newer turn is left intact. Stored buttons
+survive reopening the conversation. Slack, Teams, Telegram and Mattermost start
+this work after posting the main reply, and send the buttons separately.
+
+The helper has no tools or main-agent instructions. Its own run checks the
+agent, department and organization budgets, inherits tracing privacy, and books
+its cost independently, including failures. The main answer's cost is unchanged.
+Each process allows four helpers at once; excess work is skipped. Model work
+is limited to 15 seconds, two requests at most and 512 output tokens. There is
+no automatic retry. Suggestions may be lost on shutdown or connection loss;
+they never replace the answer with an error.
+
+Activity labels the auxiliary run **Follow-ups**. It keeps the source
+conversation’s read permissions and contributes to that conversation’s total
+cost, without marking it as busy or replacing its latest foreground run.
+
+`suggest_next_steps` remains the recorded identity of generated buttons, for
+history and existing spec overrides; it is not a callable tool of the main model.
 
 `propose_setup` proposes up to three things to set up, drawn as cards under the
 answer: an agent of the person's own, a routine, or a service to connect. A card

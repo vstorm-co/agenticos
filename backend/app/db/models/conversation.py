@@ -204,6 +204,12 @@ class Message(Base, TimestampMixin):
         nullable=False,
         index=True,
     )
+    client_message_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    """The submitting tab's correlation id, scoped by conversation and author.
+
+    Lets a transcript reconcile a prompt even when its persistence frame was lost.
+    It grants no authority and is not an idempotency key.
+    """
     role: Mapped[str] = mapped_column(String(20), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     thinking: Mapped[str | None] = mapped_column(Text, nullable=True)

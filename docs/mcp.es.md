@@ -1,5 +1,5 @@
 ---
-source_sha: "9025a904cc03"
+source_sha: "5bf6eb0fde8e"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -200,9 +200,9 @@ La propia plantilla del Architect pide `writes` para el servidor
 de la plataforma, así que no crea nada sin la persona en cuyo nombre actúa. La
 vinculación de cualquier agent a ese servidor queda en al menos `writes`, también
 con `none`: sus herramientas actúan con la autoridad de quien pregunta, la de un
-Admin incluida. Una lectura espera como un cambio: `read_conversation`, que entrega
-al modelo una conversación pasada entera - una página que el agent leyó podría si
-no hacer que la pida y la envíe fuera.
+Admin incluida. Dos lecturas esperan como cambios: `read_conversation` revela una
+conversación pasada completa y `get_project` las instrucciones de un proyecto
+elegido. Una página leída no debe provocar ninguna de esas revelaciones sin aviso.
 
 En el Builder, los ajustes de un servidor lo dicen por
 grupos: sus **lecturas** y las herramientas que **cambian cosas** se ejecutan sin
@@ -1035,6 +1035,8 @@ permiso que faltaba.
 | `whoami` | — |
 | `list_agents`, `get_agent`, `list_capabilities`, `list_models`, `search_mcp_servers` | `agents:view` |
 | `create_agent_draft`, `update_agent_draft`, `test_agent_draft` | `agents:edit` |
+| `list_sandbox_connections`, `list_sandbox_runtimes`, `get_sandbox_policy` | `connections:view` |
+| `list_org_connections` | `mcp:manage` |
 | `publish_agent` | `agents:publish` sobre ese agent |
 | `discard_agent_draft` | `agents:edit`, sobre un borrador tuyo que nunca se publicó |
 | `run_agent` | `agents:run` |
@@ -1047,9 +1049,18 @@ permiso que faltaba.
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
 | `create_skill` | `skills:edit` |
+| `list_projects` | `projects:view` |
+| `get_project` | acceso al proyecto |
+| `create_project` | `projects:edit` |
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` y `roles:manage` |
 | `list_my_connections`, `set_my_language`, `set_my_profile` | — (los de quien llama) |
+
+La búsqueda con `list_projects` devuelve solo identificadores y nombres,
+omitiendo descripciones, instrucciones y otras etiquetas editables. `get_project` lee un
+proyecto elegido con sus instrucciones y espera aprobación bajo `writes`, igual
+que `read_conversation`. Las instrucciones de otro proyecto compartido no deben
+llegar al modelo solo por buscar un espacio de trabajo.
 
 Aquí se puede construir un agent de principio a fin: esbozarlo, editarlo, probarlo
 como borrador sin publicar con `test_agent_draft` - un run de prueba, con
@@ -1070,6 +1081,24 @@ una rutina. Las aplicaciones conectadas
 aparecen en **Settings → MCP clients**, donde desconectar una termina su acceso y
 el de cada token que tiene. Las llamadas que cambian
 algo esperan aprobación, como explica [la sección de arriba](#which-calls-wait-for-a-person).
+
+Las herramientas de borradores aceptan vínculos de capacidades configurados e IDs.
+Por ejemplo, `capabilities: [{id: sandbox, config: {backend: service,
+include_execute: true}}]` da al agent programador una shell en el host de sandbox
+predeterminado de la organización. `list_capabilities` devuelve cada `config_schema`;
+`list_sandbox_connections`, `list_sandbox_runtimes` y `get_sandbox_policy`
+muestran hosts disponibles, alias de entornos y límites antes de configurarlos.
+Un sandbox de solo archivos (`state`) no ejecuta comandos.
+
+`update_agent_draft.add_capabilities` añade o actualiza vínculos: los campos
+omitidos conservan sus valores, pero un `config` explícito reemplaza toda la
+configuración. Lee primero el borrador para conservar los ajustes necesarios.
+Ambas herramientas aceptan `mcp_servers`: IDs de conexiones de organización de
+`list_org_connections` o claves de catálogo personales de `search_mcp_servers`.
+Un ID de conexión personal nunca pertenece a una especificación compartida.
+La lista MCP se reemplaza por completo; `[]` desconecta todo. La creación también
+acepta `skill_ids` y `collection_ids`. Pruebas y publicación mantienen las mismas
+reglas de validación y aprobación.
 
 ### Dárselo a un agent { #giving-it-to-an-agent }
 
@@ -1126,3 +1155,9 @@ rutina o cambia el idioma de la consola cuando se lo piden.
   reparte ninguno, y borrar una da de baja lo que registró.
 - Un servidor inalcanzable se **salta**, no lanza un error — el turno responde sin
   esas herramientas.
+
+Cada comprobación programada incluye como máximo 64 servidores activos de la organización, empezando por los comprobados hace más tiempo, y ejecuta hasta ocho sondeos simultáneos. Las credenciales inutilizables también actualizan la fecha de comprobación sin declarar una caída. Las instalaciones más grandes cubren así todos los servidores en ciclos sucesivos.
+
+La renovación OAuth tiene una transacción breve e independiente: bloquea y comprueba de nuevo la cuenta, rota la credencial y confirma su almacenamiento antes de devolver el token. La cancelación espera a que termine; un rollback posterior de la ejecución no la deshace. Si falla la persistencia después de la rotación del proveedor, la solicitud falla explícitamente y puede ser necesario autorizar la cuenta otra vez. El sondeo de buzones utiliza un bloqueo asesor separado por cuenta; el cursor y los trabajos encolados se confirman juntos, y una respuesta incorrecta revierte solo el trabajo de ese buzón.
+
+La cola de comprobaciones de estado utiliza su propia fecha indexada. La renovación OAuth y el sondeo de buzones no retrasan la siguiente comprobación del servidor. Tras la migración, los servidores existentes entran en la cola como no comprobados.

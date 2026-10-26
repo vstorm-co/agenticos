@@ -1,5 +1,5 @@
 ---
-source_sha: "8b29d490f872"
+source_sha: "e084d213e2b5"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -381,6 +381,23 @@ existe hasta que el worker lo ha indexado.
 Una de las dos omitía la clave en lugar de enviarla nula, así que un cliente que
 normalizara la respuesta recibía una forma distinta de cada una
 ([#560](https://github.com/vstorm-co/agenticos/issues/560)).
+
+**Espera a `complete`, no a los vectores.** `GET /rag/collections/{name}/info`
+deriva `indexing_status` de los documentos registrados de la colección:
+`indexing` mientras alguno siga en `processing` - en cola o en ingesta - y
+`complete` cuando ya no queda ninguno. `processing_count`, `indexed_count` y
+`failed_count` indican cuántos documentos hay en cada estado. Un documento
+fallido está en un estado final, así que no mantiene la colección en
+`indexing`; aparece en `failed_count`. El campo era antes la constante
+`complete`, y `total_vectors` crece mientras el worker procesa un lote, así que
+un script que esperara cualquiera de los dos consultaba una colección a medio
+construir ([#2486](https://github.com/vstorm-co/agenticos/issues/2486)).
+`GET /kb/{kb_id}/ingestion` responde lo mismo para una base de conocimiento y
+cuenta los documentos que lista su página, no todo lo que hay bajo su nombre de
+colección, que otra base puede compartir; la página de la base de conocimiento
+muestra ese estado junto al número de documentos. Un documento que se queda en
+`processing` mantiene ambas respuestas en `indexing` hasta que se elimine o, si
+es un documento sincronizado, hasta que su fuente vuelva a sincronizarse.
 
 !!! danger "La tarea se inicia después de que la transacción de la petición haga commit"
 

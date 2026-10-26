@@ -1,5 +1,5 @@
 ---
-source_sha: "7772e57485bb"
+source_sha: "61c600201ea6"
 ---
 
 # Governance { #governance }
@@ -502,6 +502,20 @@ registró su último heartbeat, a diferencia de un run de texto, cuyo gasto muer
 con su proceso.
 
 ### Trabajo por iniciativa propia { #proactive-work }
+
+Las ejecuciones proactivas se atribuyen al agente inicial **AgenticOS**
+publicado de la organización (slug `agenticos`). Esta asociación está fijada por
+la plataforma; no selecciona el modelo ni ejecuta las instrucciones del agente
+inicial.
+
+El modelo independiente y los límites se eligen en **Organizaciones →
+Miembros → Proactividad**. Activity muestra el icono y filtro **Proactivo**, las
+solicitudes al modelo y sus costes, y el intercambio registrado con resultados
+de herramientas y respuesta estructurada final. Las comprobaciones fallidas
+conservan el intercambio disponible antes del error. Como los demás registros
+de Activity, requieren `runs:view` y no crean conversaciones en Chat. No se
+pueden recuperar intercambios antiguos que nunca se registraron; los registros
+demasiado grandes indican explícitamente que se recortaron.
 
 La plataforma puede hacer un poco por iniciativa propia, y no hace nada de eso
 hasta que una organización lo activa: la tarjeta **Proactividad** en su página de
@@ -1765,10 +1779,10 @@ ellos; la página de la organización es donde se fijan los periodos por tenant.
 
 | Clase | Qué se va con ella | Medido desde |
 |---|---|---|
-| Conversaciones | Mensajes, llamadas a herramientas y los archivos de chat colgados de ellos — los bytes **antes** que las filas, de modo que un archivo que no se pudo desenlazar conserva su fila para la siguiente pasada en vez de sobrevivirla sin que nada pueda encontrarlo | La última actividad del hilo, para que uno al que alguien vuelve no sea viejo |
+| Conversaciones | Mensajes, llamadas a herramientas y archivos; un lote bloqueado excluye conversaciones con runs sin terminar, y la tarea duradera de borrar archivos se confirma junto con las filas | La última actividad del hilo, para que uno al que alguien vuelve no sea viejo |
 | Runs | La fila del run, su manifiesto y sus aprobaciones de herramientas | El inicio del run |
 | Workspaces | El registro que la plataforma tiene de los archivos de un agente. Con el backend `state` la fila *es* el almacenamiento; los archivos de un backend de sandbox los recoge el TTL del propio sandbox. Los de un proyecto se conservan mientras exista el proyecto | El último uso |
-| Aplicaciones | Una [página publicada](artifacts.md) con todas sus versiones, sus bytes almacenados (**antes** que las filas, como en las conversaciones), sus grants y su enlace público | La última publicación, para que un informe que una programación vuelve a publicar no sea viejo |
+| Aplicaciones | Una [página publicada](artifacts.md), todas sus versiones, grants y enlace público; el borrado de archivos se encola en la misma transacción | La última publicación, para que un informe que una programación vuelve a publicar no sea viejo |
 | Memoria | Los archivos de memoria de un agente | La última escritura, porque una nota se escribe una vez y se lee durante meses |
 | Documentos subidos | La fila, sus vectores y el archivo subido | El momento de la subida |
 | Auditoría | Entradas en el rastro de esta organización | El momento de la entrada |
@@ -1845,6 +1859,11 @@ Los borrados van en lotes de 500, hasta cuarenta pasadas por clase y barrido. Un
 organización que llega a una política de noventa días tras dos años se quita el
 atraso a lo largo de varios días, en vez de en un barrido que retiene un bloqueo
 durante una hora con todos los demás flujos periódicos haciendo cola detrás.
+
+Cada clase usa un savepoint: un error SQL revierte sus cambios y tareas de
+limpieza sin abortar las clases siguientes. Las tareas duraderas borran los
+archivos tras el commit. Los fallos del almacenamiento y los reintentos aparecen
+en Background jobs. Revertir el borrado conserva los archivos intactos.
 
 ### Adónde no llega { #what-this-does-not-reach }
 

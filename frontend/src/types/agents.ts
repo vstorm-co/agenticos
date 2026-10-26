@@ -530,6 +530,23 @@ export interface AgentDetail extends Agent {
   draft_spec: AgentSpec;
 }
 
+/**
+ * The deployment's agents-per-organization limit, and whether this organization
+ * is at it - from `GET /agents/ceiling`. Mirrors the backend `AgentCeiling`.
+ */
+export interface AgentCeiling {
+  /** Agents the deployment allows per organization; null is no limit. */
+  limit: number | null;
+  /**
+   * Agents the organization holds, archived ones excluded - including ones the
+   * caller cannot see, which is why it is null unless the caller sees every
+   * agent in the organization. Null too when there is no limit.
+   */
+  held: number | null;
+  /** Whether a new agent would be refused for the limit. */
+  at_limit: boolean;
+}
+
 export interface AgentList {
   items: Agent[];
   total: number;

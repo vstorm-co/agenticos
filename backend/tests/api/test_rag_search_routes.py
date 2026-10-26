@@ -21,6 +21,7 @@ from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.resource_grant import Visibility
 from app.main import app
 from app.services.rag.filters import TenantScope
+from app.services.rag.models import SearchResult
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
@@ -191,3 +192,32 @@ class TestFilterValuesFacet:
         scope = store.distinct_metadata_values.await_args.args[2]
         assert isinstance(scope, TenantScope)
         assert scope.organization_id == _ORGANIZATION
+
+
+class TestCitedPage:
+    """Each result carries the page a citation may name, by the backend's one rule (#2489)."""
+
+    async def test_a_paged_format_keeps_its_page_and_a_markdown_file_has_none(
+        self, client: AsyncClient, access: MagicMock, retrieval: MagicMock
+    ) -> None:
+        retrieval.retrieve.return_value = [
+            SearchResult(
+                content="Vacations are requested through the portal.",
+                score=0.9,
+                metadata={"filename": "handbook.pdf", "filetype": "pdf", "page_num": 12},
+                parent_doc_id="vec-1",
+            ),
+            SearchResult(
+                content="# Install",
+                score=0.8,
+                metadata={"filename": "capabilities.pl.md", "filetype": "md", "page_num": 1},
+                parent_doc_id="vec-2",
+            ),
+        ]
+        resp = await client.post(_SEARCH, json={"query": "x", "collection_name": "handbook"})
+        assert resp.status_code == 200
+        pdf, markdown = resp.json()["results"]
+        assert pdf["page"] == 12
+        assert markdown["page"] is None
+        # The stored number is still there for whatever reads it as structure.
+        assert markdown["metadata"]["page_num"] == 1

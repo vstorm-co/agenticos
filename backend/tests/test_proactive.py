@@ -7,6 +7,7 @@ person early in their own morning, a role pack makes each routine once, and a
 welcome that fails on one platform still greets on the next.
 """
 
+import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -167,10 +168,19 @@ class TestTheLimits:
 
 def _session() -> MagicMock:
     """A session the thinker can commit its run on."""
-    return MagicMock(commit=AsyncMock())
+    db = MagicMock(commit=AsyncMock())
+    db.begin_nested.return_value.__aenter__ = AsyncMock()
+    db.begin_nested.return_value.__aexit__ = AsyncMock(return_value=False)
+    return db
 
 
 class TestThinking:
+    @pytest.fixture(autouse=True)
+    def recorded_manifest(self, monkeypatch):
+        record = AsyncMock()
+        monkeypatch.setattr(_thinker.run_manifest_repo, "record", record)
+        return record
+
     @staticmethod
     def _patches(model, *, version=True, resolve_error=None):
         request = SimpleNamespace(
@@ -200,7 +210,7 @@ class TestThinking:
             patch(f"{THINKER}.agent_run_repo.finish_run", new=AsyncMock()),
         )
 
-    async def test_an_answer_is_returned_and_the_run_is_written_down(self):
+    async def test_an_answer_is_returned_and_the_run_is_written_down(self, recorded_manifest):
         get_slug, limits, version, profiles, create, finish = self._patches(TestModel())
         with (
             get_slug,
@@ -228,6 +238,12 @@ class TestThinking:
         # The test model is not priced: recorded as zero and marked partial, not lost.
         assert finished["cost_usd"] == Decimal(0)
         assert finished["cost_is_partial"] is True
+        payload = recorded_manifest.await_args.kwargs["payload"]
+        assert payload["instructions"] == "Read."
+        assert payload["messages"][0]["kind"] == "request"
+        responses = [message for message in payload["transcript"] if message["kind"] == "response"]
+        assert responses[-1]["parts"][0]["tool_name"] == "final_result"
+        assert payload["requests"][0]["input_tokens"] > 0
 
     async def test_a_watch_reads_through_the_tools_it_is_given_before_answering(self):
         from pydantic_ai.toolsets import FunctionToolset
@@ -253,7 +269,7 @@ class TestThinking:
         assert isinstance(answer, NightlyReading)
         assert read == ["listed"]
 
-    async def test_a_model_that_fails_leaves_a_failed_run_and_no_answer(self):
+    async def test_a_model_that_fails_leaves_a_failed_run_and_no_answer(self, recorded_manifest):
         def broken(_messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
             raise ModelHTTPError(status_code=500, model_name="claude")
 
@@ -270,6 +286,9 @@ class TestThinking:
         assert answer is None
         assert finish_run.await_args.kwargs["status"] == RunStatus.FAILED.value
         assert finish_run.await_args.kwargs["error"]
+        payload = recorded_manifest.await_args.kwargs["payload"]
+        assert payload["requests"][0]["failed"] == "ModelHTTPError"
+        assert payload["transcript"][0]["kind"] == "request"
 
     async def test_the_run_is_committed_before_the_model_is_called(self):
         """A worker killed mid-call must leave the run behind for the limit to count."""
@@ -315,6 +334,56 @@ class TestThinking:
         assert finished["status"] == RunStatus.FAILED.value
         assert finished["input_tokens"] > 0
         assert finished["output_tokens"] > 0
+
+    async def test_tool_discovery_failure_does_not_create_an_empty_manifest(
+        self, recorded_manifest
+    ):
+        from pydantic_ai.toolsets import FunctionToolset
+
+        class BrokenTools(FunctionToolset):
+            async def get_tools(self, ctx):
+                raise RuntimeError("connection unavailable")
+
+        patches = self._patches(TestModel())
+        from contextlib import ExitStack
+
+        with ExitStack() as stack:
+            for item in patches:
+                stack.enter_context(item)
+            with pytest.raises(RuntimeError, match="connection unavailable"):
+                await ProactiveThinker(_session()).think(
+                    _ctx(),
+                    feature="watches",
+                    output_type=NightlyReading,
+                    instructions="Read.",
+                    prompt="{}",
+                    toolsets=[BrokenTools()],
+                )
+        recorded_manifest.assert_not_awaited()
+
+    async def test_a_tool_failure_retains_the_model_call_that_selected_it(self, recorded_manifest):
+        from contextlib import ExitStack
+
+        from pydantic_ai.toolsets import FunctionToolset
+
+        def lookup():
+            raise RuntimeError("connection unavailable")
+
+        with ExitStack() as stack:
+            for item in self._patches(TestModel()):
+                stack.enter_context(item)
+            with pytest.raises(RuntimeError, match="connection unavailable"):
+                await ProactiveThinker(_session()).think(
+                    _ctx(),
+                    feature="watches",
+                    output_type=NightlyReading,
+                    instructions="Read.",
+                    prompt="{}",
+                    toolsets=[FunctionToolset([lookup])],
+                )
+        payload = recorded_manifest.await_args.kwargs["payload"]
+        assert payload["transcript"][-1]["kind"] == "response"
+        assert payload["transcript"][-1]["parts"][0]["tool_name"] == "lookup"
 
     async def test_a_model_nobody_may_use_spends_nothing(self):
         get_slug, limits, version, profiles, create, finish = self._patches(
@@ -945,3 +1014,112 @@ def test_suggestion_kinds_match_what_the_look_proposes():
         "role_pack",
         "finding",
     }
+
+
+@pytest.mark.parametrize("settlement_fails", [False, True])
+async def test_cancellation_settles_a_paid_response_even_if_shutdown_cancels_twice(
+    settlement_fails: bool,
+) -> None:
+    from pydantic_ai.toolsets import FunctionToolset
+
+    entered, settling, release = asyncio.Event(), asyncio.Event(), asyncio.Event()
+
+    async def read_account() -> str:
+        entered.set()
+        await asyncio.Event().wait()
+        return "unreachable"
+
+    async def finish(*args: object, **kwargs: object) -> None:
+        settling.set()
+        await release.wait()
+        if settlement_fails:
+            raise OSError("database unavailable")
+
+    get_slug, limits, version, profiles, create, stored = TestThinking._patches(TestModel())
+    session = _session()
+    with get_slug, limits, version, profiles, create as made, stored as finished:
+        finished.side_effect = finish
+        task = asyncio.create_task(
+            ProactiveThinker(session).think(
+                _ctx(),
+                feature="watches",
+                output_type=str,
+                instructions="Read.",
+                prompt="Read.",
+                toolsets=[FunctionToolset([read_account])],
+            )
+        )
+        try:
+            await asyncio.wait_for(entered.wait(), 2)
+            run_id = made.return_value.id
+            assert any(t.get_name() == f"run-heartbeat:{run_id}" for t in asyncio.all_tasks())
+            task.cancel()
+            await asyncio.wait_for(settling.wait(), 2)
+            task.cancel()
+            await asyncio.sleep(0)
+            assert not task.done()
+            release.set()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+        finally:
+            release.set()
+            if not task.done():
+                task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+    recorded = finished.await_args.kwargs
+    assert recorded["status"] == RunStatus.CANCELLED.value
+    assert recorded["input_tokens"] > 0 and recorded["output_tokens"] > 0
+    assert recorded["cost_is_partial"] is True
+    assert session.commit.await_count == (1 if settlement_fails else 2)
+    assert not any(t.get_name() == f"run-heartbeat:{run_id}" for t in asyncio.all_tasks())
+
+
+async def test_proactive_spend_uses_each_response_model_not_the_profile_name() -> None:
+    from pydantic_ai.usage import RequestUsage
+
+    def answer(_messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+        return ModelResponse(
+            parts=[TextPart("done")],
+            model_name="gpt-4.1-mini",
+            usage=RequestUsage(input_tokens=100, output_tokens=5),
+        )
+
+    get_slug, limits, version, profiles, create, stored = TestThinking._patches(
+        FunctionModel(answer, model_name="gpt-4.1-mini")
+    )
+    with get_slug, limits, version, profiles, create, stored as finished:
+        assert (
+            await ProactiveThinker(_session()).think(
+                _ctx(), feature="nightly", output_type=str, instructions="Read.", prompt="Read."
+            )
+            == "done"
+        )
+    assert finished.await_args.kwargs["cost_usd"] > 0
+    assert finished.await_args.kwargs["cost_is_partial"] is False
+
+
+@pytest.mark.parametrize("provider_fails", [False, True])
+async def test_terminal_persistence_errors_surface_without_masking_a_provider_bug(
+    provider_fails: bool,
+) -> None:
+    def answer(_messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+        if provider_fails:
+            raise RuntimeError("provider bug")
+        return ModelResponse(parts=[TextPart("done")])
+
+    get_slug, limits, version, profiles, create, stored = TestThinking._patches(
+        FunctionModel(answer)
+    )
+    with get_slug, limits, version, profiles, create, stored as finished:
+        finished.side_effect = OSError("database unavailable")
+        with pytest.raises(
+            RuntimeError if provider_fails else OSError,
+            match="provider bug" if provider_fails else "database unavailable",
+        ):
+            await ProactiveThinker(_session()).think(
+                _ctx(), feature="nightly", output_type=str, instructions="Read.", prompt="Read."
+            )
+    assert (
+        finished.await_args.kwargs["status"]
+        == (RunStatus.FAILED if provider_fails else RunStatus.COMPLETED).value
+    )

@@ -18,9 +18,13 @@ from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.services.rag.config import get_supported_formats
 from app.services.rag.documents import has_indexable_text
 from app.services.rag.ingestion import IngestionService
+from app.services.rag.models import CollectionInfo
 from app.services.rag.vectorstore import BaseVectorStore
 from app.repositories import collection_teardown_repo, knowledge_base_repo, rag_document_repo
+from app.repositories.rag_document import IngestionCounts
 from app.schemas.rag import (
+    RAGCollectionInfo,
+    RAGIngestionStatus,
     RAGIngestResponse,
     RAGParsedContent,
     RAGParsedPage,
@@ -40,6 +44,16 @@ from app.services.ingestion_config import (
 from app.worker.jobs import INGEST_DOCUMENT, IngestDocument
 
 logger = logging.getLogger(__name__)
+
+
+def _ingestion_status(counts: IngestionCounts) -> RAGIngestionStatus:
+    """`indexing` while any document is processing; a failed one is terminal."""
+    return RAGIngestionStatus(
+        indexing_status="indexing" if counts.processing else "complete",
+        processing_count=counts.processing,
+        indexed_count=counts.indexed,
+        failed_count=counts.failed,
+    )
 
 
 def _tracked_item(doc: RAGDocument) -> RAGTrackedDocumentItem:
@@ -106,6 +120,29 @@ class RAGDocumentService:
             items=[_tracked_item(d) for d in rows],
             total=total,
         )
+
+    async def collection_info(
+        self, info: CollectionInfo, *, organization_id: UUID | None
+    ) -> RAGCollectionInfo:
+        """The vector store's statistics, with where the collection's documents stand.
+
+        `organization_id` is the knowledge base's, which scopes the count the way
+        `get_all` scopes a listing.
+        """
+        counts = await rag_document_repo.ingestion_counts(
+            self.db, collection_name=info.name, organization_id=organization_id
+        )
+        return RAGCollectionInfo(
+            name=info.name,
+            total_vectors=info.total_vectors,
+            dim=info.dim,
+            **_ingestion_status(counts).model_dump(),
+        )
+
+    async def ingestion_for_kb(self, kb_id: UUID) -> RAGIngestionStatus:
+        """Where one knowledge base's documents stand - the rows `list_for_kb` lists."""
+        counts = await rag_document_repo.ingestion_counts_for_kb(self.db, kb_id)
+        return _ingestion_status(counts)
 
     async def get_document(self, doc_id: str) -> RAGDocument:
         """Get a RAG document by ID.

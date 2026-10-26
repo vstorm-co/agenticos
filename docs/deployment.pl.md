@@ -1,5 +1,5 @@
 ---
-source_sha: "12eb1406746c"
+source_sha: "b0a3cf294555"
 ---
 
 # Samo wdrożenie { #the-deployment-itself }
@@ -169,11 +169,11 @@ i ją zaprasza.
 
 Jeszcze trzy rzeczy, które łatwo tu pomylić — i które pomylono:
 
-**Pierwszy użytkownik zawsze zostaje wpuszczony.** Świeża instalacja nie ma kont,
-więc jej administrator jeszcze nie istnieje; zamknięte wdrożenie, które odrzuca
-także osobę, która miałaby je otworzyć, to wdrożenie, do którego nikt nie wejdzie
-i którego nie ma z czego naprawić. `register` i tak podnosi to pierwsze konto do
-`is_app_admin`, a polityka opiera się na tym samym fakcie.
+**Pierwszy użytkownik jest zawsze przyjmowany.** Nowa instalacja nie ma kont.
+Pierwsze zatwierdzone konto zostaje administratorem wdrożenia (`is_app_admin`),
+niezależnie od rejestracji hasłem lub przez OAuth. Blokada transakcyjna przyznaje ten
+wyjątek tylko jednej równoczesnej rejestracji. Kolejne muszą spełniać politykę
+wdrożenia; jeśli pierwsza zostanie wycofana, inna może przejąć uprawnienia startowe.
 
 **`invite_only` istnieje dlatego, że zamknięcie rejestracji zepsułoby inaczej
 zaproszenia.** `InvitationService.accept` wymaga istniejącego, zalogowanego
@@ -539,6 +539,24 @@ Odrzucenie nazywa pułap i liczbę, względem której go zmierzono
 (`{"limit": 5, "held": 5}`), więc na „dlaczego nie mogę” odpowiada odpowiedź,
 a nie pamięć administratora. Jest podnoszone w serwisie, który tworzy daną rzecz,
 a nie na trasie, bo trasa nie jest jedyną drogą do środka.
+
+Konsola nie czeka na tę odmowę. `GET /agents/ceiling`, dostępne dla wywołującego
+z `agents:edit`, zwraca limit (`limit`, null, gdy nie jest ustawiony) oraz to, czy
+utworzenie agenta by go przekroczyło (`at_limit`), a na limicie strona Agenci
+wyłącza **Nowy agent (New agent)** i instalowanie szablonów i mówi dlaczego, zanim
+ktokolwiek wypełni formularz.
+
+Jeśli inna operacja zapełni limit podczas tworzenia agenta z przewodnikiem,
+przewodnik kończy się zamiast blokować stronę wokół wyłączonego przycisku.
+Udane utworzenie agenta w tym przewodniku jest zapisywane przed odświeżeniem
+limitu, więc zajęcie ostatniego miejsca nie przerywa dalszych kroków w Builderze.
+
+Sam licznik (`held`) dostaje tylko wywołujący,
+którego `agents:view` obejmuje wszystkich agentów organizacji: licznik obejmuje
+agentów, których Członek (Member) nie widzi, a zestawiony z jego własną listą
+mówiłby, ilu przed nim ukryto. **Duplikuj (Duplicate)** i **Przywróć (Restore)**
+są nadal odrzucane dopiero przy próbie. Gwarancją pozostaje odmowa: licznik jest
+prognozą, czytaną bez blokady.
 
 Zero jest odrzucane przez schemat: konto, które nie może posiadać żadnej
 organizacji, to konto, którego nie da się utworzyć, skoro rejestracja daje każdemu

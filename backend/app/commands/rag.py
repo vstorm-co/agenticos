@@ -29,6 +29,7 @@ from app.db.models.knowledge_base import KBScope
 from app.db.session import get_db_context
 from app.repositories import knowledge_base_repo, organization_repo
 from app.schemas.sync_source import SyncSourceCreate
+from app.services.rag.citation import citation_locator
 from app.services.rag.config import DEFAULT_COLLECTION_NAME, DocumentExtensions, RAGSettings
 from app.services.rag.documents import DocumentProcessor
 from app.services.rag.embeddings import EmbeddingService
@@ -97,7 +98,6 @@ async def list_collections_async(vector_store: BaseVectorStore) -> None:
             click.echo(f"  {name}")
             click.echo(f"    Vectors: {info_obj.total_vectors:,}")
             click.echo(f"    Dimension: {info_obj.dim}")
-            click.echo(f"    Status: {info_obj.indexing_status}")
             click.echo()
         except Exception as e:
             warning(f"Could not get info for '{name}': {e}")
@@ -370,8 +370,8 @@ async def search_async(
 
         if result.metadata:
             filename = result.metadata.get("filename", "Unknown")
-            page_num = result.metadata.get("page_num", "?")
-            click.echo(f"Source: {filename} (page {page_num})")
+            locator = citation_locator(result.metadata)
+            click.echo(f"Source: {filename}{locator}")
 
         content = result.content[:500]
         if len(result.content) > 500:

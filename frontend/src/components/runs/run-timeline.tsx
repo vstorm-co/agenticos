@@ -3,13 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { ChevronRight, MessagesSquare, Paperclip, ThumbsDown } from "lucide-react";
+import { ChevronRight, Paperclip, ThumbsDown } from "lucide-react";
 
 import { CopyButton } from "@/components/chat/copy-button";
 import { MarkdownContent } from "@/components/chat/markdown-content";
 import { MessageCost } from "@/components/chat/message-cost";
 import { FileCard, FileViewer } from "@/components/files";
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/states";
 import { useRunTranscript } from "@/hooks";
 import { toolDisplayName } from "@/lib/agent-step-captions";
 import { conversationMessageToChatMessage } from "@/lib/conversation-to-chat";
@@ -19,6 +20,7 @@ import { glideOrJump } from "@/lib/motion";
 import { cn, formatDateTime } from "@/lib/utils";
 import type { ChatMessage, ChatMessageFile, ToolCall } from "@/types";
 import type { RunTranscriptMessage } from "@/types/runs";
+import { StandaloneRunTimeline } from "./standalone-run-timeline";
 
 /**
  * The whole conversation the run sits in, scrolled to the run - the trace the
@@ -50,21 +52,26 @@ import type { RunTranscriptMessage } from "@/types/runs";
  */
 export function RunTimeline({ runId }: { runId: string }) {
   const t = useTranslations("pages.runs");
+  const ts = useTranslations("states");
   const locale = useLocale();
   const { transcript, isLoading, error } = useRunTranscript(runId, "conversation");
 
-  if (isLoading) return <LoadingState variant="skeleton-panel" rows={3} />;
+  if (isLoading)
+    return (
+      <ol className="space-y-4" role="status" aria-label={ts("loading")}>
+        {[0, 1, 2].map((turn) => (
+          <li key={turn} className="border-border space-y-2 border-l-2 pl-4" aria-hidden>
+            <Skeleton className="h-4 w-48" />
+            <Skeleton className="h-16 w-full" />
+          </li>
+        ))}
+      </ol>
+    );
   if (error || transcript === undefined) {
     return <ErrorState title={t("transcriptCouldNotBeRead")} />;
   }
   if (transcript.conversation_id === null) {
-    return (
-      <EmptyState
-        icon={MessagesSquare}
-        title={t("noTranscriptRecorded")}
-        description={t("thisRunRanWithNoConversation")}
-      />
-    );
+    return <StandaloneRunTimeline runId={transcript.run_id} />;
   }
 
   // The anchor is the answer's own, not the id asked for. Stepping through a

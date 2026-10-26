@@ -39,6 +39,7 @@ from app.core.vault import VaultScope
 from app.db.models.credential import ModelProfile
 from app.repositories import credential_repo, organization_repo, organization_secret_repo
 from app.services.model_catalog import models_for
+from app.services.model_outputs import model_outputs, not_chat_refusal
 from app.services.openai_codex import VaultCodexCredentials
 from app.services.organization_secret import OrganizationSecretService
 
@@ -401,9 +402,15 @@ class ModelProfileService:
         spec = await self._resolve_in(ctx.organization_id, profile_id=profile_id)
         # Only somebody actually asking: a publisher standing in for a visitor,
         # and a key's issuer standing behind whoever holds it, are an account to
-        # bill, not the person whose subscription it is.
+        # bill, not the person whose subscription it is. Persisted run contexts
+        # retain a key's scope ceiling even without its live credential object;
+        # losing that object must never turn a key holder into a signed-in person.
         person = (
-            None if ctx.subject_is_publisher_fallback or ctx.api_key_id is not None else ctx.user_id
+            None
+            if ctx.subject_is_publisher_fallback
+            or ctx.api_key_id is not None
+            or ctx.key_scopes is not None
+            else ctx.user_id
         )
         if not await _may_spend(spec.credential, person):
             raise AuthorizationError(
@@ -489,16 +496,22 @@ class ModelProfileService:
         unseal the same key. Taking the organization directly says that plainly,
         instead of inventing a caller for the sake of a signature.
 
-        Precedence, most specific first: the profile that was asked for, then
-        the organization's default. There is deliberately no environment
-        fallback - a deployment serving several tenants must never quietly bill
-        one organization's run to a platform-wide key.
+        An explicit profile is required. There is no organization or environment
+        default: a deployment serving several tenants must never quietly swap
+        the model somebody chose or bill a platform-wide key.
 
         Raises:
-            NotFoundError: If neither a named profile nor a default exists.
+            NotFoundError: If the named profile is missing or none was selected.
+            BadRequestError: If the profile names a known non-chat model.
         """
         profile = await self.profile_for_organization(organization_id, profile_id=profile_id)
 
+        outputs = model_outputs(profile.provider, profile.model, base_url=profile.base_url)
+        if not outputs.chat:
+            raise BadRequestError(
+                message=not_chat_refusal(profile.label, profile.model, outputs),
+                details={"profile_id": str(profile.id)},
+            )
         credential = await self.resolve_credential(organization_id, profile)
 
         fallbacks: list[tuple[ResolvedCredential, str]] = []
@@ -513,6 +526,18 @@ class ModelProfileService:
                     # A deleted fallback should degrade the chain, not the run.
                     logger.warning(
                         "Model profile %s lists missing fallback %s", profile.id, fallback_id
+                    )
+                    continue
+                if not model_outputs(
+                    fallback.provider, fallback.model, base_url=fallback.base_url
+                ).chat:
+                    # A speech or embedding model cannot take over a conversation
+                    # (#2487): publish refuses one, and a fallback added to the
+                    # profile afterwards degrades the chain the same way.
+                    logger.warning(
+                        "Model profile %s lists fallback %s, which is not a chat model; skipping",
+                        profile.id,
+                        fallback.id,
                     )
                     continue
                 try:

@@ -1,5 +1,5 @@
 ---
-source_sha: "7772e57485bb"
+source_sha: "61c600201ea6"
 ---
 
 # Governance { #governance }
@@ -544,6 +544,18 @@ Kosten, die sein letzter Heartbeat festgehalten hat — anders als einen Text-Ru
 dessen Ausgaben mit seinem Prozess sterben.
 
 ### Arbeit aus eigener Initiative { #proactive-work }
+
+Proaktive Läufe werden dem veröffentlichten **AgenticOS**-Startagenten der
+Organisation zugeordnet (Slug `agenticos`). Diese Zuordnung ist in der Plattform
+festgelegt; sie wählt weder das Modell noch die Anweisungen des Startagenten.
+Das separate Modell und die Limits stehen unter **Organisationen → Mitglieder →
+Proaktivität**. Activity zeigt das Symbol und den Filter **Proaktiv**, die
+Modellanfragen und ihre Kosten sowie den aufgezeichneten Austausch mit
+Werkzeugergebnissen und strukturierter Endantwort. Fehlgeschlagene Prüfungen
+behalten den vor dem Fehler verfügbaren Austausch. Wie andere Activity-Einträge
+erfordern diese Aufzeichnungen `runs:view` und erzeugen keine Chats. Nicht
+aufgezeichnete ältere Abläufe lassen sich nicht wiederherstellen; übergroße
+Aufzeichnungen werden ausdrücklich als gekürzt gekennzeichnet.
 
 Die Plattform kann ein wenig aus eigener Initiative tun, und tut nichts davon,
 bis eine Organisation es einschaltet: die Karte **Proaktivität** auf ihrer
@@ -1899,10 +1911,10 @@ Ort für die Fristen je Tenant.
 
 | Klasse | Was mitgeht | Gemessen ab |
 |---|---|---|
-| Gespräche | Nachrichten, Tool-Aufrufe und die daran hängenden Chat-Dateien — die gespeicherten Bytes **vor** den Zeilen, sodass eine Datei, die sich nicht entfernen ließ, ihre Zeile für den nächsten Durchlauf behält, statt sie unauffindbar zu überleben | Der letzten Aktivität des Threads, damit einer, zu dem jemand zurückkehrt, nicht alt ist |
+| Gespräche | Nachrichten, Tool-Aufrufe und Dateien; eine gesperrte Charge lässt Gespräche mit nicht abgeschlossenen Runs aus, und ein dauerhafter Auftrag zur Dateilöschung wird zusammen mit den Zeilen bestätigt | Der letzten Aktivität des Threads, damit einer, zu dem jemand zurückkehrt, nicht alt ist |
 | Runs | Die Run-Zeile, ihr Manifest und ihre Tool-Freigaben | Dem Start des Runs |
 | Workspaces | Die Aufzeichnung der Plattform über die Dateien eines Agenten. Beim `state`-Backend *ist* die Zeile der Speicher; die Dateien eines Sandbox-Backends räumt dessen eigene TTL ab. Die eines Projekts bleiben, solange das Projekt besteht | Der letzten Nutzung |
-| Apps | Eine [veröffentlichte Seite](artifacts.md) mit jeder Version, ihren gespeicherten Bytes (**vor** den Zeilen, wie bei Gesprächen), ihren Grants und ihrem öffentlichen Link | Der letzten Veröffentlichung, damit ein Bericht, den ein Zeitplan neu veröffentlicht, nicht alt ist |
+| Apps | Eine [veröffentlichte Seite](artifacts.md), alle Versionen, Grants und der öffentliche Link; die Dateilöschung wird in derselben Transaktion eingereiht | Der letzten Veröffentlichung, damit ein Bericht, den ein Zeitplan neu veröffentlicht, nicht alt ist |
 | Gedächtnis | Die Gedächtnisdateien eines Agenten | Dem letzten Schreiben, denn eine Notiz wird einmal geschrieben und monatelang gelesen |
 | Hochgeladene Dokumente | Die Zeile, ihre Vektoren und die hochgeladene Datei | Dem Zeitpunkt des Hochladens |
 | Audit | Einträge auf der Spur dieser Organisation | Dem Zeitpunkt des Eintrags |
@@ -1981,6 +1993,11 @@ Gelöscht wird in Chargen von 500, bis zu vierzig Durchläufe je Klasse und Swee
 Eine Organisation, die nach zwei Jahren auf neunzig Tage stellt, arbeitet ihren
 Rückstand über mehrere Tage ab statt in einem Sweep, der eine Stunde lang eine
 Sperre hält, mit allen anderen periodischen Flows dahinter in der Schlange.
+
+Jede Klasse läuft in einem Savepoint: Ein SQL-Fehler nimmt ihre Änderungen und
+Löschaufträge zurück, ohne spätere Klassen abzubrechen. Dauerhafte Jobs entfernen
+Dateien erst nach dem Commit. Speicherfehler und Wiederholungen sind unter
+Background jobs sichtbar. Ein Rollback der Löschung lässt die Dateien intakt.
 
 ### Was das nicht erreicht { #what-this-does-not-reach }
 

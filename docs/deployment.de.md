@@ -1,5 +1,5 @@
 ---
-source_sha: "12eb1406746c"
+source_sha: "b0a3cf294555"
 ---
 
 # Das Deployment selbst { #the-deployment-itself }
@@ -180,10 +180,10 @@ aufnehmen muss, wechselt also zu `invite_only` und lädt sie ein.
 Drei weitere Dinge daran sind leicht falsch zu machen und waren es:
 
 **Der erste Nutzer wird immer zugelassen.** Eine frische Installation hat keine
-Konten, ihr Administrator existiert also noch nicht; ein geschlossenes Deployment,
-das auch die Person abweist, die es öffnen würde, ist eines, das niemand betreten
-kann, ohne Konsole, um es zu reparieren. `register` befördert dieses erste Konto
-ohnehin zu `is_app_admin`, und die Policy beugt sich derselben Tatsache.
+Konten. Das erste bestätigte Konto wird zum Deployment-Administrator (`is_app_admin`),
+bei Registrierung mit Passwort ebenso wie über OAuth. Eine Transaktionssperre
+gewährt diese Ausnahme nur einer gleichzeitigen Registrierung. Weitere müssen die
+Policy erfüllen. Wird die erste zurückgerollt, kann eine andere das Startrecht erhalten.
 
 **`invite_only` existiert, weil das Schließen der Registrierung sonst Einladungen
 kaputtmachen würde.** `InvitationService.accept` verlangt einen bestehenden,
@@ -580,6 +580,25 @@ wurde (`{"limit": 5, "held": 5}`), „warum kann ich nicht" wird also von der
 Antwort beantwortet und nicht vom Gedächtnis eines Administrators. Sie wird in dem
 Service ausgelöst, der die Sache anlegt, und nicht an der Route, denn die Route
 ist nicht der einzige Weg hinein.
+
+Die Konsole wartet nicht auf diese Ablehnung. `GET /agents/ceiling`, offen für
+einen Aufrufer mit `agents:edit`, liefert das Limit (`limit`, null, wo keines
+gesetzt ist) und ob eine Erstellung daran scheitern würde (`at_limit`), und am
+Limit deaktiviert die Seite Agenten **Neuer Agent (New agent)** und das
+Installieren von Vorlagen und sagt, warum, bevor jemand ein Formular ausfüllt.
+
+Wenn eine andere Erstellung während der geführten Agent-Erstellung das Limit
+erreicht, endet die Anleitung, statt die Seite um einen deaktivierten Button
+zu sperren. Ein erfolgreich in dieser Anleitung erstellter Agent wird vor der
+Aktualisierung des Limits erfasst. Der letzte freie Platz unterbricht deshalb
+nicht die weiteren Schritte im Builder.
+
+Die Zählung selbst (`held`) erhält nur ein Aufrufer, dessen `agents:view` jeden Agenten
+der Organisation erreicht: Sie umfasst Agenten, die ein Mitglied (Member) nicht
+sieht, und neben seiner eigenen Liste würde sie verraten, wie viele vor ihm
+verborgen sind. **Duplizieren (Duplicate)** und **Wiederherstellen (Restore)**
+werden weiterhin erst beim Versuch abgelehnt. Die Garantie bleibt die Ablehnung:
+Die Zählung ist eine Vorhersage, gelesen ohne die Sperre.
 
 Null wird vom Schema abgelehnt: ein Konto, das keine Organisation besitzen darf,
 ist ein Konto, das nicht angelegt werden kann, denn die Anmeldung gibt jedem von

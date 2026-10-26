@@ -30,7 +30,7 @@ vi.mock("@/hooks", () => ({
   useKnowledgeBases: () => ({ kbs: state.collections, isLoading: false }),
   useSkills: () => ({ skills: state.skills, total: state.skills.length, isLoading: false }),
   useSecrets: () => ({ secrets: [], isLoading: false, listError: null }),
-  useProviderModels: () => ({ models: [], source: null, isLoading: false }),
+  useProviderModels: () => ({ models: [], refused: [], source: null, isLoading: false }),
   useSecretPurposes: () => ({ purposes: [], isLoading: false }),
   useAgents: () => ({ promote: state.promote }),
   usePermissions: () => ({ can: () => state.canEdit }),

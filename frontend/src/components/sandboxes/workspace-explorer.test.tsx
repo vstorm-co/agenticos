@@ -570,3 +570,20 @@ describe("a set of files somebody may change", () => {
     expect(screen.queryByRole("button", { name: /^Remove/ })).toBeNull();
   });
 });
+
+it("keeps both file explorer panes while the listing loads", () => {
+  const files = state.files;
+  state.files = null;
+  state.filesLoading = true;
+  const { container, rerender } = render(<WorkspaceExplorer workspaceId="ws-1" />);
+  const grid = container.querySelector(".lg\\:grid-cols-\\[20rem_1fr\\]");
+  expect(grid).not.toBeNull();
+  const panes = Array.from(grid?.children ?? []);
+  expect(panes).toHaveLength(2);
+  expect(screen.getByRole("textbox")).toBeDisabled();
+  state.files = files;
+  state.filesLoading = false;
+  rerender(<WorkspaceExplorer workspaceId="ws-1" />);
+  expect(Array.from(grid?.children ?? [])).toEqual(panes);
+  expect(screen.getByRole("textbox")).toBeEnabled();
+});

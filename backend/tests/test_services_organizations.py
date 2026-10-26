@@ -551,6 +551,7 @@ class TestOrganizationService:
             service,
             org,
             OrganizationUpdate(proactive_watches_enabled=True, proactive_watch_min_minutes=30),
+            profile=MagicMock(provider="openai", model="gpt-4.1", base_url=None),
         )
 
         assert proactivity.await_args.kwargs["enabled"] is False
@@ -559,7 +560,12 @@ class TestOrganizationService:
     @pytest.mark.anyio
     async def test_leaving_the_switch_out_keeps_it(self, service, mock_db):
         org = self._stored(proactive_watches_enabled=True, proactive_model_profile_id=uuid.uuid4())
-        await self._update(service, org, OrganizationUpdate(proactive_watch_min_minutes=120))
+        await self._update(
+            service,
+            org,
+            OrganizationUpdate(proactive_watch_min_minutes=120),
+            profile=MagicMock(provider="openai", model="gpt-4.1", base_url=None),
+        )
         assert self.watch_policy.await_args.kwargs == {"enabled": True, "min_minutes": 120}
 
     @pytest.mark.anyio
@@ -592,6 +598,60 @@ class TestOrganizationService:
         assert refused.value.details["fields"][0]["field"] == "proactive_model_profile_id"
 
     @pytest.mark.anyio
+    @pytest.mark.parametrize("setting", ["proactive_enabled", "proactive_watches_enabled"])
+    async def test_proactivity_refuses_a_non_chat_model(self, service, setting):
+        model = uuid.uuid4()
+        profile = MagicMock(
+            provider="openai", model="gpt-4o-mini-tts", base_url=None, label="Voice"
+        )
+        with pytest.raises(BadRequestError, match="not a chat model") as refusal:
+            await self._update(
+                service,
+                self._stored(),
+                OrganizationUpdate.model_validate(
+                    {setting: True, "proactive_model_profile_id": model}
+                ),
+                profile=profile,
+            )
+        assert refusal.value.details["fields"][0]["field"] == "proactive_model_profile_id"
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("enabling", [False, True])
+    async def test_a_non_chat_profile_is_refused_even_without_a_switch_or_model_change(
+        self, service, enabling: bool
+    ):
+        model = uuid.uuid4()
+        org = self._stored(proactive_model_profile_id=model if enabling else None)
+        data = (
+            OrganizationUpdate(proactive_enabled=True)
+            if enabling
+            else OrganizationUpdate(proactive_model_profile_id=model)
+        )
+        with pytest.raises(BadRequestError, match="not a chat model"):
+            await self._update(
+                service,
+                org,
+                data,
+                profile=MagicMock(
+                    provider="openai", model="gpt-4o-mini-tts", base_url=None, label="Voice"
+                ),
+            )
+
+    @pytest.mark.anyio
+    async def test_incompatible_proactivity_can_still_be_turned_off(self, service):
+        model = uuid.uuid4()
+        org = self._stored(proactive_enabled=True, proactive_model_profile_id=model)
+        changed, _ = await self._update(
+            service,
+            org,
+            OrganizationUpdate(proactive_enabled=False, proactive_model_profile_id=model),
+            profile=MagicMock(
+                provider="openai", model="gpt-4o-mini-tts", base_url=None, label="Voice"
+            ),
+        )
+        assert changed.await_args.kwargs["enabled"] is False
+
+    @pytest.mark.anyio
     async def test_turned_on_with_its_model_and_its_schedule_and_the_rest_kept(
         self, service, mock_db
     ):
@@ -621,7 +681,10 @@ class TestOrganizationService:
         model = uuid.uuid4()
         org = self._stored(proactive_enabled=True, proactive_model_profile_id=model)
         proactivity, _ = await self._update(
-            service, org, OrganizationUpdate(proactive_hour=7, proactive_days=[1])
+            service,
+            org,
+            OrganizationUpdate(proactive_hour=7, proactive_days=[1]),
+            profile=MagicMock(provider="openai", model="gpt-4.1", base_url=None),
         )
 
         assert proactivity.await_args.kwargs == {
@@ -1274,6 +1337,7 @@ class TestUserServiceRegistrationWithOrg:
         result = MagicMock()
         result.scalar_one_or_none.return_value = None
         db.execute = AsyncMock(return_value=result)
+        db.scalar = AsyncMock(return_value=False)
         db.add = MagicMock()
         db.flush = AsyncMock()
         db.refresh = AsyncMock()
@@ -1282,9 +1346,10 @@ class TestUserServiceRegistrationWithOrg:
     @pytest.mark.anyio
     async def test_register_creates_personal_org(self, mock_db):
         mock_user = MagicMock()
-        mock_user.id = MagicMock()
+        mock_user.id = uuid.uuid4()
 
         with (
+            patch.object(UserService, "_queue_welcome", new=AsyncMock()),
             patch("app.services.user.user_repo.get_by_email", new=AsyncMock(return_value=None)),
             patch("app.services.user.user_repo.create", new=AsyncMock(return_value=mock_user)),
             patch(

@@ -34,9 +34,61 @@ An agent's spec names one by `model_profile_id`, and the run resolves it.
     field that cannot express "that one" is a field people work around by editing
     the spec by hand.
 
+### A profile an agent cannot run on
+
+A profile can name a model that cannot hold a conversation: a text-to-speech model
+such as `gpt-4o-mini-tts`, a realtime voice model, a transcription model, an image
+model, a video model or an embedding model. An agent on one fails on its first turn. Text to speech, image
+generation and transcription do not use profiles: each feature names its own
+provider and model.
+
+The platform knows these models from its own catalogs (the realtime voice, text-to-speech,
+transcription, image, video and embedding lists). `GET /providers/model-profiles`
+marks each profile with `chat_capable` and `output_modalities`, and
+`GET /providers/{provider}/models` marks each suggestion with `chat_capable`.
+Those two fields also read a provider listing that states what each model emits
+(OpenRouter and the Hugging Face router do), when the API process has already
+fetched it. That listing only changes what a picker offers. It never refuses a
+publish, because another API process may not have fetched it. The console also
+updates saved profiles when a listing arrives later. Provider aliases such as
+`openai_codex` and `google_cloud` use the corresponding vendor catalogs. Then:
+
+- The Builder's model panel, the reviewer and specialist pickers, the follow-ups
+  and browser step model fields and the knowledge-base image-description picker do
+  not offer such a model. If an agent already names one, the Builder still shows
+  it, marked as not a chat model. For a member who can manage connections, the
+  Builder also lists the others, marked and not selectable, so they can be
+  removed.
+- The chat's model picker and the Builder's form for adding a model do not
+  suggest such a model, and refuse one that is typed in.
+- Publish refuses such a model as the agent's model, a reviewer's, a specialist's,
+  the browser step model or the follow-ups model, and names it. It also refuses a
+  profile whose fallbacks include such a model. The same check runs on rollback,
+  on the draft check, on the Builder's test run and when a capability is enabled
+  from chat. A stored version on such a model still loads, but it cannot be
+  restored while its profile names a non-chat model or lists one as a fallback.
+  Point that profile at a chat model, or publish a new version.
+- A run leaves such a fallback out of its chain, the same as a deleted one, when
+  it was added to the profile after publish.
+- A conversation that names such a model in place of the agent's own, from the
+  chat or through the API, is refused before the run starts.
+- A model that the catalogs do not classify, such as an Ollama model or a model
+  released this morning, is allowed. An unknown model is not a refusal. A profile
+  with its own endpoint (`base_url`) is never classified, whatever its model id:
+  the catalogs describe the provider's own API, and an OpenAI-compatible server
+  can serve a chat model under any name.
+
+The proactivity model picker follows the same rule. The stable catalog check also
+runs when proactivity is configured and whenever a profile is resolved for an
+ordinary text request, including image description at configuration and worker
+time. Old configurations still load; replace an incompatible model before using
+them. Switching off remains possible. Azure deployment names are not classified
+from the catalog's base-model IDs.
+
 ### Fallbacks
 
-A profile may list fallback profiles, tried in order. One provider's outage should
+A profile may list fallback profiles, tried in order. Only the first three are
+used by the runner and checked at publish. One provider's outage should
 not take an organization's agents down when it has a second key or a second
 provider configured.
 

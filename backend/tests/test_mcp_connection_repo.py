@@ -335,6 +335,15 @@ class TestListOauthConnections:
         assert await mcp_connection_repo.list_oauth_connections(session) == rows
 
 
+class TestTokenRefreshLock:
+    async def test_refresh_lock_preserves_foreign_key_readers_and_reloads_the_row(self):
+        row = _connection()
+        session = _RecordingSession(_Result(scalar=row))
+        assert await mcp_connection_repo.get_for_token_refresh(session, row.id) is row
+        assert "FOR NO KEY UPDATE" in _sql(session)
+        assert session.statements[0].get_execution_options()["populate_existing"] is True
+
+
 class TestOrgServersToCheck:
     async def test_only_enabled_organization_servers_are_dialled(self):
         """A member's own connection is theirs to test, a disabled server is one
@@ -346,6 +355,10 @@ class TestOrgServersToCheck:
         sql = _sql(session)
         assert "mcp_connections.scope = %(scope_1)s" in sql
         assert "mcp_connections.is_enabled IS true" in sql
+        assert "health_checked_at ASC" in sql
+        assert "ORDER BY mcp_connections.last_checked_at" not in sql
+        assert "LIMIT" in sql
+        assert 64 in _filters(session).values()
         assert set(_filters(session).values()) >= {"org", "mcp"}
 
 
@@ -683,37 +696,51 @@ class TestPortalGrants:
         assert found is grant
         assert set(_filters(session).values()) == {organization_id, "google", "portal"}
 
-    async def test_the_claim_locks_and_skips_what_another_tick_holds(self):
-        """`FOR UPDATE SKIP LOCKED`, so a tick that outruns its own minute cannot be
-        double-claimed by the next - the protocol the trigger heartbeat uses."""
-        from datetime import UTC, datetime
-
+    async def test_poll_candidates_are_bounded_without_credential_locks(self):
         session = _RecordingSession(_Result(rows=[]))
-
-        await mcp_connection_repo.claim_portal_grants_to_poll(
+        await mcp_connection_repo.portal_poll_candidates(
             session, portal_keys=["google"], not_polled_since=datetime.now(UTC), limit=5
         )
-
         sql = _sql(session)
-        assert "FOR UPDATE" in sql
-        assert "SKIP LOCKED" in sql
+        assert "FOR UPDATE" not in sql
+        assert "LIMIT" in sql
+        assert "polled_at ASC NULLS FIRST" in sql
+        assert session.flushes == 0
 
-    async def test_the_claim_advances_polled_at_under_the_lock(self):
-        """Advanced in the claim rather than after the work, so a crash mid-poll
-        does not leave the mailbox claimable again in the same second."""
-        from datetime import UTC, datetime
+    async def test_one_poll_claim_uses_an_advisory_lock_not_a_credential_lock(self, monkeypatch):
+        from unittest.mock import AsyncMock
 
-        grant = _connection(purpose="portal", portal_key="google")
-        grant.polled_at = None
-        session = _RecordingSession(_Result(rows=[grant]))
-
-        claimed = await mcp_connection_repo.claim_portal_grants_to_poll(
-            session, portal_keys=["google"], not_polled_since=datetime.now(UTC), limit=5
+        grant = _connection(purpose="portal", portal_key="google", polled_at=None)
+        session = _RecordingSession(_Result(scalar=grant))
+        lock = AsyncMock(return_value=True)
+        monkeypatch.setattr(mcp_connection_repo, "try_hold_name", lock)
+        claimed = await mcp_connection_repo.claim_portal_grant_to_poll(
+            session,
+            connection_id=grant.id,
+            portal_keys=["google"],
+            not_polled_since=datetime.now(UTC),
         )
+        assert claimed is grant
+        assert grant.polled_at is None
+        assert "FOR UPDATE" not in _sql(session)
+        assert session.flushes == 0
+        assert lock.await_args.args[2] == str(grant.id)
 
-        assert claimed == [grant]
-        assert grant.polled_at is not None
-        assert session.flushes == 1
+    async def test_an_already_owned_poll_is_skipped_without_reading(self, monkeypatch):
+        from unittest.mock import AsyncMock
+
+        session = _RecordingSession()
+        monkeypatch.setattr(mcp_connection_repo, "try_hold_name", AsyncMock(return_value=False))
+        assert (
+            await mcp_connection_repo.claim_portal_grant_to_poll(
+                session,
+                connection_id=uuid.uuid4(),
+                portal_keys=["google"],
+                not_polled_since=datetime.now(UTC),
+            )
+            is None
+        )
+        assert session.statements == []
 
     async def test_no_polled_portals_asks_the_database_nothing(self):
         """A deployment whose catalog ships no polled portal must not run a query a
@@ -722,7 +749,7 @@ class TestPortalGrants:
 
         session = _RecordingSession()
 
-        claimed = await mcp_connection_repo.claim_portal_grants_to_poll(
+        claimed = await mcp_connection_repo.portal_poll_candidates(
             session, portal_keys=[], not_polled_since=datetime.now(UTC), limit=5
         )
 
@@ -736,7 +763,7 @@ class TestPortalGrants:
 
         session = _RecordingSession(_Result(rows=[]))
 
-        await mcp_connection_repo.claim_portal_grants_to_poll(
+        await mcp_connection_repo.portal_poll_candidates(
             session, portal_keys=["google"], not_polled_since=datetime.now(UTC), limit=5
         )
 

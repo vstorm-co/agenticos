@@ -86,6 +86,15 @@ def _in_no_group(monkeypatch: pytest.MonkeyPatch) -> None:
 RUNNER = "app.services.agent_runner"
 
 
+@pytest.fixture(autouse=True)
+def _no_registered_architect(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These hand-built delegates are ordinary agents, not the organization assistant."""
+    monkeypatch.setattr(
+        "app.services.agent_registry.organization_assistant_repo.for_agent",
+        AsyncMock(return_value=None),
+    )
+
+
 def _ctx() -> AuthContext:
     return AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.OWNER)
 
@@ -1096,6 +1105,19 @@ class TestASpecialistTheModelInvents:
         prepared = await _prepare(
             _delegating(allow_dynamic=True),
             profiles=[_profile("fast"), _profile(UNUSABLE_PROFILE)],
+        )
+
+        dynamic = prepared.runtime.dynamic
+        assert dynamic is not None
+        assert dynamic.allowed_models == ("fast",)
+
+    async def test_a_speech_model_is_not_one_a_specialist_can_be_invented_on(self):
+        """A text-to-speech profile is for text to speech; a model offered it as a
+        specialist's model would invent one that fails on its first turn (#2487)."""
+        speech = _profile("voice")
+        speech.provider, speech.model, speech.base_url = "openai", "gpt-4o-mini-tts", None
+        prepared = await _prepare(
+            _delegating(allow_dynamic=True), profiles=[_profile("fast"), speech]
         )
 
         dynamic = prepared.runtime.dynamic

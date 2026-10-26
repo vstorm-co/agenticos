@@ -183,9 +183,9 @@ server is honest — choose `all` for a server you do not control.
 The Architect's own template asks `writes` of the platform's server, so it drafts nothing without
 the person it acts for. Any agent's binding to that server is held to at least
 `writes`, `none` included: its tools act with the authority of whoever is asking,
-an Admin's too. One read waits like a write: `read_conversation`, which hands a
-whole past conversation to the model - a page the agent read could otherwise
-have it fetch one and send it on.
+an Admin's too. Two reads wait like writes: `read_conversation` releases a
+whole past conversation, and `get_project` releases a chosen project's
+instructions. A page the agent read must not silently trigger either disclosure.
 
 In the Builder, a server's settings say this
 per group: its **Reads** and the tools that **Change things** each run freely
@@ -615,6 +615,8 @@ that the description is honest — and a mirrored registry cannot make that prom
     because nobody looked; it is the length it is because a hand-checked list of
     things a company actually uses converges at about a hundred.
 
+Each scheduled check takes at most 64 enabled organization servers, oldest check first, and runs at most eight probes at once. Unusable credentials also advance the check time, without creating an outage. Larger deployments therefore cover all servers over successive checks.
+
 ### The registry is in the same list, and in the database
 
 So the mirror is shipped too, and **/mcp is one list of all of them** — the
@@ -970,6 +972,8 @@ would be; a refusal comes back as a tool error naming the missing permission.
 | `whoami` | — |
 | `list_agents`, `get_agent`, `list_capabilities`, `list_models`, `search_mcp_servers` | `agents:view` |
 | `create_agent_draft`, `update_agent_draft`, `test_agent_draft` | `agents:edit` |
+| `list_sandbox_connections`, `list_sandbox_runtimes`, `get_sandbox_policy` | `connections:view` |
+| `list_org_connections` | `mcp:manage` |
 | `publish_agent` | `agents:publish` on that agent |
 | `discard_agent_draft` | `agents:edit`, on a draft you own that was never published |
 | `run_agent` | `agents:run` |
@@ -982,9 +986,18 @@ would be; a refusal comes back as a tool error naming the missing permission.
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
 | `create_skill` | `skills:edit` |
+| `list_projects` | `projects:view` |
+| `get_project` | access to that project |
+| `create_project` | `projects:edit` |
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` and `roles:manage` |
 | `list_my_connections`, `set_my_language`, `set_my_profile` | — (the caller's own) |
+
+Project discovery with `list_projects` returns only project ids and names,
+excluding descriptions, instructions and other authored labels. Reading one chosen
+project with `get_project` includes them and waits for approval under the `writes`
+policy, just like `read_conversation`. Instructions from another shared project
+should not enter the model merely because it searched for a workspace.
 
 An agent can be built end to end here: drafted, edited, tried as the unpublished
 draft with `test_agent_draft` - a test run, budgeted and recorded, refused with the
@@ -1002,6 +1015,23 @@ mistake - or a routine.
 Connected applications are listed under **Settings → MCP clients**, where
 disconnecting one ends its access and every token it holds. Calls that change
 something wait for approval, as [below](#which-calls-wait-for-a-person) explains.
+
+Draft tools accept configured capability bindings as well as plain ids. For
+example, `capabilities: [{id: sandbox, config: {backend: service,
+include_execute: true}}]` gives a coding agent a shell on the organization's
+default sandbox host. `list_capabilities` returns each `config_schema`;
+`list_sandbox_connections`, `list_sandbox_runtimes` and `get_sandbox_policy`
+identify available hosts, runtime aliases and host limits before choosing settings.
+A files-only (`state`) sandbox cannot execute commands.
+
+`update_agent_draft.add_capabilities` upserts bindings: omitted fields retain
+their values, while an explicitly supplied `config` replaces that whole config.
+Read the current draft first to preserve settings you still need. Both draft
+tools accept `mcp_servers`: organization connection ids from
+`list_org_connections`, or personal catalog keys from `search_mcp_servers`.
+A personal connection id never belongs in a shared spec. The MCP binding list is
+replaced as a whole; `[]` disconnects all. Creation also accepts `skill_ids` and
+`collection_ids`. Testing and publishing retain the same validation and approval rules.
 
 ### Giving it to an agent { #giving-it-to-an-agent }
 
@@ -1054,3 +1084,7 @@ console's language when asked - out of the box.
   deleting one deregisters what it registered.
 - An unreachable server is **skipped**, not raised — the turn answers without those
   tools.
+
+OAuth refresh owns a short, independent transaction: it locks and rechecks the account, rotates the credential and commits before returning a token. Cancellation waits for this unit to settle; a later run rollback cannot undo it. If persistence fails after the provider rotates, the request fails explicitly and the account may need authorization again. Mailbox polling holds a separate per-account advisory lock; each mailbox commits its cursor together with queued fires, and a malformed response rolls back only that mailbox’s work.
+
+Health admission uses its own indexed timestamp. Renewing OAuth credentials or polling a mailbox cannot postpone a server’s next health check. Existing servers enter the queue as never checked after the migration.

@@ -19,6 +19,8 @@ const state = vi.hoisted(() => ({
   remove: vi.fn(),
   dialog: vi.fn(),
   loading: false,
+  error: null as Error | null,
+  refetch: vi.fn(),
   push: vi.fn(),
 }));
 const toastSuccess = vi.hoisted(() => vi.fn());
@@ -37,6 +39,8 @@ vi.mock("@/hooks/use-watches", () => ({
   useWatches: () => ({
     watches: state.watches,
     isLoading: state.loading,
+    error: state.error,
+    refetch: state.refetch,
     update: state.update,
     remove: state.remove,
   }),
@@ -87,6 +91,8 @@ beforeEach(() => {
   state.remove.mockReset().mockResolvedValue(undefined);
   state.dialog.mockReset();
   state.loading = false;
+  state.error = null;
+  state.refetch.mockReset();
   state.push.mockReset();
   toastSuccess.mockReset();
   toastError.mockReset();
@@ -209,4 +215,13 @@ describe("useCanWatch", () => {
     rerender(<Probe />);
     expect(screen.getByText("false")).toBeInTheDocument();
   });
+});
+
+it("does not present a failed watch read as a prompt to create a new watch", async () => {
+  state.error = new Error("unavailable");
+  render(<WatchesCard onNew={vi.fn()} />);
+  expect(screen.queryByText("Nothing watched yet")).toBeNull();
+  expect(screen.getByText("Something went wrong")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(state.refetch).toHaveBeenCalledOnce();
 });

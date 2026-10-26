@@ -150,7 +150,9 @@ class ConversationService:
         before the run so a refusal cannot lose it, so it is a row by the time
         this reads - and left in, the model is asked the same question twice.
         """
-        conversation = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
+        conversation = await conversation_repo.get_conversation_by_id(
+            self.db, conversation_id, include_summary=True
+        )
         summary = None if conversation is None else conversation.summary_messages
         if conversation is None or summary is None or conversation.summary_ordinal is None:
             return await self._from_transcript(
@@ -1240,6 +1242,8 @@ class ConversationService:
         *,
         skip: int = 0,
         limit: int = 100,
+        latest: bool = False,
+        before: UUID | None = None,
         organization_id: UUID,
         include_tool_calls: bool = False,
         user_id: UUID | None = None,
@@ -1277,6 +1281,8 @@ class ConversationService:
             skip=skip,
             limit=limit,
             include_tool_calls=include_tool_calls,
+            latest=latest,
+            before=before,
         )
         total = await conversation_repo.count_messages(self.db, conversation_id)
         await self._attach_senders(items, conversation)
@@ -1386,11 +1392,12 @@ class ConversationService:
                 raise refused_field(
                     "reply_to_message_id", "Reply to a message in this conversation"
                 )
-        return await conversation_repo.create_message(
+        message = await conversation_repo.create_message(
             self.db,
             conversation_id=conversation_id,
             role=data.role,
             content=data.content,
+            client_message_id=data.client_message_id,
             thinking=data.thinking,
             # Dumped without its empty fields, so a text part is `{"type": "text",
             # "text": ...}` rather than that plus a null `tool_call_id`. What comes
@@ -1424,6 +1431,14 @@ class ConversationService:
             author_user_id=user_id if data.role == "user" else None,
             reply_to_message_id=data.reply_to_message_id,
         )
+
+        if data.role == "assistant" and run_id is not None and data.content.strip():
+            # Only IDs cross the commit boundary; a failed transcript write must
+            # not start a paid suggestion request for an answer nobody can read.
+            from app.services.follow_ups import queue_next_steps
+
+            queue_next_steps(self.db, message.id, organization_id)
+        return message
 
     async def delete_message(self, message_id: UUID) -> bool:
         deleted = await conversation_repo.delete_message(self.db, message_id)

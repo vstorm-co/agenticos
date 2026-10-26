@@ -1,5 +1,5 @@
 ---
-source_sha: "30ddbe03546d"
+source_sha: "ffaede8f0604"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -156,6 +156,17 @@ Durchsucht die Collections, die der Spec des Agents bindet, und belegt, was es
 verwendet hat. Das Modell bestimmt, *was* gesucht wird, niemals *wo*: Die
 Collections werden vor dem Run aus dem Spec aufgelöst und der Capability übergeben,
 sodass ein Agent keine Collection erreichen kann, die ihm niemand zugeordnet hat.
+
+Jedes Ergebnis nennt sein Dokument und die Stelle des Treffers darin. Ein PDF, eine
+Präsentation oder eine Textverarbeitungsdatei wie `.doc`, `.odt` oder `.rtf` nennt
+die Seite. Eine Markdown-Datei, eine Tabelle, eine Webseite oder ein Bild hat keine
+Seite, die ein Leser öffnen kann. Sie nennt nur den Dokumentnamen, ebenso wie
+Textdateien und `.docx`-Dateien. Chunks bewahren keine verlässlichen Abschnittsgrenzen.
+Eine Zeile mit einer Raute wird deshalb nicht als Überschrift interpretiert: Sie
+kann ein Kommentar in einem Codeblock sein, der im vorherigen Chunk begann.
+
+Das entscheidet der Dokumenttyp, wenn das Ergebnis angezeigt wird, sodass eine
+früher ingestierte Collection keine erneute Ingestion braucht.
 
 | Konfiguration | Standard | Bereich |
 |---|---|---|
@@ -452,6 +463,12 @@ von mem0 beantwortet, was zu einer *Frage* passt, nicht was ein Speicher enthäl
 Solche Agenten werden auf der Seite **genannt** statt weggelassen, denn eine Liste
 nativer Notizen, als vollständiges Inventar präsentiert, wäre schlimmer als eine,
 die sagt, was ihr fehlt. Das Löschen erreicht mem0; das Lesen nicht.
+
+Das Löschen des Speichers prüft Entwürfe und alle aufbewahrten Agentenversionen,
+auch frühere mem0-Endpunkte. Das Leeren eines Agenten entfernt außerdem seine
+mem0-Namensräume für alle Besitzer. Fehlende Zugangsdaten, Anbieterfehler oder
+unvollständige Listen führen zu einem Fehler. Stellen Sie den Zugriff wieder her
+und wiederholen Sie den Vorgang, um die Löschung abzuschließen.
 
 ## Gedächtnis (mem0) { #memory-mem0 }
 
@@ -1592,6 +1609,15 @@ Aufgabe ausführt, kann ihn lesen. Binde einen Key, den alle teilen dürfen, die
 Agent ausführen dürfen. Die Arbeit auf
 einem persönlichen Abo unterliegt den Bedingungen von Anthropic und OpenAI für diese
 Pläne, die das auf einem geteilten Deployment womöglich nicht erlauben.
+
+**Der Key passt zum Harness.** Die Auswahl bietet Claude Code nur Keys an, die für
+Anthropic gespeichert sind, und Codex nur OpenAI-Keys und ChatGPT-Anmeldungen. Ein
+als `custom` gespeicherter Key passt zu beiden, ebenso der schon gebundene. Die
+Veröffentlichung lehnt einen Key ab, der für einen anderen Anbieter gespeichert
+ist, und nennt die, die das Harness annimmt: Ein OpenAI-Key an Claude Code würde
+veröffentlicht und dann bei jeder Aufgabe scheitern. Ist `base_url` gesetzt,
+gehört der Key dem Gateway - OpenRouter, LiteLLM oder einem anderen -, daher nimmt
+Claude Code dort jeden Key an.
 
 **An einen Coding Agent delegieren.** Ein Delegierter, der `sandbox` selbst bindet,
 läuft in einem frischen Workspace im Speicher ohne Shell, sodass ein per Delegation
@@ -2767,25 +2793,44 @@ geantwortet hat.
 
 ## Nächste Schritte { #follow-ups }
 
-Am Ende einer Antwort bietet `suggest_next_steps` darunter bis zu drei nächste
-Schritte als Schaltflächen an, jeder höchstens 80 Zeichen lang und so formuliert,
-wie die Person ihn sagen würde: „Mach eine Tabelle daraus“, „Mach das jeden Montag
-um 9:00“. Ein Klick sendet den Schritt als ihre nächste Nachricht. Nur die neueste
-Antwort bietet sie an, und keine, solange ein Durchgang läuft. Nach Smalltalk oder
-einer eigenen Frage lässt der Agent sie weg, und er wiederholt die Schritte nicht
-in seiner Antwort. In Slack, Teams, Telegram und Mattermost kommen die Schritte
-als Nachricht mit Schaltflächen unter der Antwort, und ein Druck ist die Person,
-die diesen Schritt sagt - die Einzelheiten stehen unter
-[Kanäle](../channels.md#next-steps-as-buttons).
+Schaltflächen werden im Konsolenchat und den genannten Nachrichtenkanälen
+unterstützt. Öffentliche Widgets, gehostete Seiten und reine Embed-Sockets
+verarbeiten keine Vorschlagskarten und starten daher keinen kostenpflichtigen
+Follow-up-Lauf. Vor Generierung und Zustellung prüfen Kanalaufgaben die
+aufgezeichnete Absenderidentität, Bot-Bindung, aktuelle Zugriffsrichtlinie und
+Raummitgliedschaft erneut. Zugelassene Raumteilnehmer ohne verknüpftes Konto
+bleiben vom Herausgeber getrennt, dem die Kosten zugerechnet werden.
 
-**Modell für nächste Schritte** (`model_profile_id`) übergibt die Schritte einem
-eigenen Modell: Der Agent bekommt `suggest_next_steps` nicht mehr angeboten, und
-sobald seine Antwort da ist, liest dieses Modell die Anfrage und die Antwort und
-schreibt bis zu drei Schritte oder keinen. Für drei kurze Schaltflächen reicht ein
-kleines, günstiges Modell, und der Agent verbraucht dafür keine Anfrage mehr. Der
-Aufruf wird zuerst gegen die Budgets geprüft und wie jeder andere auf dem Run
-gebucht; einer, der nicht gemacht werden kann, kostet die Schaltflächen, nie die
-Antwort. Leer bietet der Agent sie selbst an.
+Die Schaltflächen für nächste Schritte erstellt ausschließlich ein separates
+Modell, ausgewählt unter **Modell für nächste Schritte** (`model_profile_id`).
+Ohne Auswahl sind Vorschläge deaktiviert. Wählen Sie nach dem Upgrade ein Profil
+in Follow-ups aus, um die Schaltflächen weiter zu nutzen. Das Hauptmodell erhält
+`suggest_next_steps` nicht und wartet weder beim Abschluss seiner Antwort noch
+bei der Annahme der nächsten Nachricht auf Vorschläge.
+
+Nachdem die Antwort gespeichert und die Transaktion bestätigt wurde, liest eine
+optionale Hintergrundaufgabe die Frage dieses Runs und die gespeicherte Antwort.
+Sie liefert bis zu drei kurze Schritte in der Sprache der Person oder keine.
+Die Konsole erhält später ein Ereignis mit der genauen Unterhaltung und Antwort;
+ein neuerer Turn bleibt unberührt. Gespeicherte Schaltflächen bleiben nach dem
+Wiederöffnen erhalten. Slack, Teams, Telegram und Mattermost beginnen diese Arbeit
+nach dem Senden der Hauptantwort und senden die Schaltflächen separat.
+
+Das Hilfsmodell hat keine Tools und keine Anweisungen des Hauptagenten. Sein
+eigener Run prüft Agenten-, Abteilungs- und Organisationsbudgets, übernimmt den
+Datenschutz beim Tracing und erfasst seine Kosten separat, auch bei Fehlern.
+Die Kosten der Hauptantwort bleiben unverändert. Jeder Prozess erlaubt vier
+solche Aufgaben gleichzeitig; weitere werden übersprungen. Die Modellarbeit ist
+auf 15 Sekunden, höchstens zwei Anfragen und 512 Ausgabetokens begrenzt. Es gibt
+keine automatische Wiederholung. Beim Herunterfahren oder Verbindungsverlust
+können Vorschläge verloren gehen; die Antwort wird niemals durch einen Fehler ersetzt.
+
+Activity kennzeichnet den Hilfs-Run als **Nächste Schritte**. Er behält die
+Leseberechtigungen der ursprünglichen Unterhaltung und zählt zu deren Gesamtkosten,
+ohne sie als beschäftigt zu markieren oder ihren letzten Haupt-Run zu ersetzen.
+
+`suggest_next_steps` bleibt für Verlauf und bestehende Spec-Einstellungen die
+gespeicherte Identität der Schaltflächen; das Hauptmodell kann es nicht aufrufen.
 
 `propose_setup` schlägt bis zu drei Dinge zum Einrichten vor, als Karten unter
 der Antwort: einen eigenen Agent der Person, eine Routine oder einen Dienst zum

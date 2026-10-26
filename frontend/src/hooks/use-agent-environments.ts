@@ -22,7 +22,7 @@ export function useAgentEnvironments(agentId: string | null) {
   const queryClient = useQueryClient();
   const base = `/agents/${agentId}/environments`;
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.environments.list(agentId ?? ""),
     queryFn: () => apiClient.get<AgentEnvironmentList>(base),
     enabled: agentId !== null,
@@ -98,6 +98,8 @@ export function useAgentEnvironments(agentId: string | null) {
   return {
     environments: data?.items ?? [],
     isLoading,
+    error,
+    refetch,
     create,
     promote,
     setReleaseMode,

@@ -1,5 +1,5 @@
 ---
-source_sha: "d843b5decb0b"
+source_sha: "dc7308008f49"
 title: "Conversaciones de voz"
 seo_title: "Conversaciones de voz: habla con un agent publicado"
 description: "Llama a un agent publicado y habla con él: modelos realtime, aprobaciones en la llamada, límites de tiempo y budgets, redes de seguridad y transcripciones."
@@ -28,6 +28,11 @@ termina la llamada. Una página alojada usa una barra de llamada sin los
 controles de aprobación, y el widget carga una propia, más pequeña. Ver
 [Consola](console.md#voice-calls) y
 [Canales](channels.md#voice-calls-on-a-widget-or-a-hosted-page).
+
+Cambiar de organización o cuenta finaliza la llamada de la consola y cancela
+la preparación y las reconexiones pendientes. Si el permiso del micrófono llega
+después, sus pistas se detienen sin abrir la llamada de la organización anterior.
+Las inserciones públicas conservan su ámbito independiente de visitante.
 
 ## Activarlo { #turn-it-on }
 

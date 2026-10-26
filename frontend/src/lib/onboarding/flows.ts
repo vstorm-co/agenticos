@@ -113,6 +113,8 @@ export interface OrgState {
   hasOrgMcp: boolean;
   hasPublishedAgent: boolean;
   hasRunnableAgent: boolean;
+  /** Below the organization's agent limit, or no limit: New agent is enabled. */
+  hasRoomForAgent: boolean;
 }
 
 /**
@@ -824,7 +826,10 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         // hold - so a Member accepting this hand-off built a draft, lost the tail to
         // the filter, and never returned to the chat walk the fork exists to unblock.
         // Without publish they get the descriptive tour instead, which works.
-        include: (state, can) => !state.hasPublishedAgent && can(Perm.agentsPublish),
+        // At the agent limit New agent is disabled, and the create-agent coach
+        // would wait on it with no way forward.
+        include: (state, can) =>
+          !state.hasPublishedAgent && state.hasRoomForAgent && can(Perm.agentsPublish),
         question: true,
         opensFlow: "create-agent",
       },

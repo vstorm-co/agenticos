@@ -11,6 +11,7 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
@@ -77,6 +78,51 @@ def _job() -> ClaimedJob:
         organization_id=None,
         schedule_name=None,
     )
+
+
+@pytest.mark.parametrize(
+    "outages,cap,expected",
+    [
+        (1, 30.0, 1.0),
+        (5, 30.0, 16.0),
+        (6, 30.0, 30.0),
+        (1101, 30.0, 30.0),
+        (1101, 3000.0, 3000.0),
+        (1101, 0.5, 0.5),
+        (1101, 0.0, 0.0),
+    ],
+)
+def test_outage_backoff_caps_the_exponent_before_it_can_overflow(
+    monkeypatch: pytest.MonkeyPatch, outages: int, cap: float, expected: float
+) -> None:
+    sessions, _ = _sessions()
+    worker = _worker(sessions)
+    worker.settings = replace(worker.settings, outage_cap=cap)
+    monkeypatch.setattr(runtime.random, "uniform", lambda _low, _high: 0.75)
+
+    assert worker._outage_pause(outages) == expected * 0.75
+
+
+async def test_upkeep_survives_more_than_1100_database_failures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sessions, _ = _sessions()
+    worker = _worker(sessions)
+    work = AsyncMock(side_effect=OSError("database offline"))
+    pauses: list[float] = []
+
+    async def pause(seconds: float) -> None:
+        pauses.append(seconds)
+        if len(pauses) == 1101:
+            raise asyncio.CancelledError
+
+    monkeypatch.setattr(runtime.asyncio, "sleep", pause)
+    monkeypatch.setattr(runtime, "logger", MagicMock())
+    with pytest.raises(asyncio.CancelledError):
+        await worker._every("heartbeat", 15.0, work)
+
+    assert work.await_count == 1101
+    assert all(0.0 < delay <= worker.settings.outage_cap for delay in pauses)
 
 
 _ANSWERS: dict[object, dict[str, object]] = {
@@ -425,3 +471,21 @@ async def test_a_rescued_death_counts_in_its_organizations_scope(repos: MagicMoc
     await _worker(sessions)._rescue()
 
     assert repos.record_death.await_args.args[1:] == ("ingest-document", organization)
+
+
+async def test_executor_whose_start_fails_is_still_closed(repos: MagicMock) -> None:
+    sessions, _ = _sessions()
+    executor = MagicMock(
+        start=AsyncMock(side_effect=RuntimeError("partial startup")), close=AsyncMock()
+    )
+    worker = Worker(
+        settings=WorkerSettings(worker_id="test-worker", hostname="test"),
+        sessions=sessions,
+        tasks={},
+        executors={Pool.INGEST: executor},
+        on_pause=AsyncMock(),
+        on_ended=AsyncMock(),
+    )
+    with pytest.raises(RuntimeError, match="partial startup"):
+        await worker.run(asyncio.Event())
+    executor.close.assert_awaited_once()

@@ -1,18 +1,22 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import messages from "../../../messages/en.json";
 import { ReviewersCard } from "./reviewers-card";
 import type { RunReviewerSpec } from "@/types/agents";
 
-vi.mock("@/hooks", () => ({
-  useModelProviders: () => ({
-    profiles: [{ id: "haiku", label: "Claude Haiku" }],
-    profilesStatus: "ready",
-  }),
+const HAIKU = { id: "haiku", label: "Claude Haiku" };
+const listed = vi.hoisted(() => ({
+  profiles: [] as { id: string; label: string; chat_capable?: boolean }[],
 }));
+vi.mock("@/hooks", () => ({
+  useModelProviders: () => ({ profiles: listed.profiles, profilesStatus: "ready" }),
+}));
+beforeEach(() => {
+  listed.profiles = [HAIKU];
+});
 vi.mock("@/components/agents/model-profile-picker", () => ({
   ModelProfilePicker: ({ onChange }: { onChange: (id: string | null) => void }) => (
     <button type="button" onClick={() => onChange(null)}>
@@ -51,6 +55,16 @@ describe("ReviewersCard", () => {
         window: 20000,
       },
     ]);
+  });
+
+  it("adds a reviewer on the first model it can review with, not a speech one (#2487)", async () => {
+    listed.profiles = [
+      { id: "tts", label: "OpenAI · gpt-4o-mini-tts", chat_capable: false },
+      HAIKU,
+    ];
+    const onChange = show(undefined);
+    await userEvent.click(screen.getByRole("button", { name: "Add a reviewer" }));
+    expect(onChange).toHaveBeenCalledWith([expect.objectContaining({ model_profile_id: "haiku" })]);
   });
 
   it("edits each field of a reviewer, and removes one", async () => {

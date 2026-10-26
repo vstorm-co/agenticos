@@ -162,6 +162,14 @@ function serve() {
     if (path.endsWith("/sync-sources")) return { items: [SOURCE], total: 1 };
     if (path.includes("/sync-sources")) return { items: [], total: 0 };
     if (path === "/kb") return { items: [COLLECTION], total: 1 };
+    if (path.endsWith("/ingestion")) {
+      return {
+        indexing_status: "complete",
+        processing_count: 0,
+        indexed_count: 1,
+        failed_count: 0,
+      };
+    }
     if (!path.startsWith("/kb/kb-1")) return { items: [], total: 0 };
     return COLLECTION;
   });

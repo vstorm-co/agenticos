@@ -7,6 +7,7 @@ share: an outage is opened and closed once, so a server failing every check
 for a day is one notification, and the next outage is another.
 """
 
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -180,7 +181,7 @@ class TestTheScheduledCheck:
             AsyncMock(return_value=[answering, dead, unauthorized]),
         )
 
-        async def headers(db: object, connection: McpConnection) -> dict[str, str] | None:
+        async def headers(connection: McpConnection) -> dict[str, str] | None:
             return None if connection is unauthorized else {}
 
         async def probe(url: str, headers: dict[str, str]) -> list[McpToolInfo]:
@@ -200,9 +201,45 @@ class TestTheScheduledCheck:
         written = {
             call.kwargs["db_connection"].name: call.kwargs["update_data"]["last_status"]
             for call in update.call_args_list
+            if "last_status" in call.kwargs["update_data"]
         }
         assert written == {"a": "ok", "b": "error"}
         assert [(kind, server_id) for kind, server_id, *_ in notices.said] == [("down", dead.id)]
+
+    async def test_probe_fanout_is_bounded_and_skipped_rows_advance(self, monkeypatch):
+        servers = [_server() for _ in range(25)]
+        candidates = AsyncMock(return_value=servers)
+        monkeypatch.setattr(service.mcp_connection_repo, "list_org_servers_to_check", candidates)
+        monkeypatch.setattr(service, "_resolve_auth_headers", AsyncMock(return_value={}))
+        active = peak = 0
+
+        async def probe(url: str, headers: dict[str, str]) -> list[McpToolInfo]:
+            nonlocal active, peak
+            active += 1
+            peak = max(active, peak)
+            try:
+                await asyncio.sleep(0)
+                return []
+            finally:
+                active -= 1
+
+        monkeypatch.setattr(service, "probe_mcp_server", probe)
+        update = AsyncMock(side_effect=lambda db, *, db_connection, update_data: db_connection)
+        monkeypatch.setattr(service.mcp_connection_repo, "update", update)
+        monkeypatch.setattr(service, "record_reachability", AsyncMock())
+        counts = await service.check_organization_servers(AsyncMock())
+        assert counts["answered"] == 25
+        assert peak == 8
+        assert candidates.call_args.kwargs == {"limit": 64}
+        monkeypatch.setattr(service, "_resolve_auth_headers", AsyncMock(return_value=None))
+        update.reset_mock()
+        counts = await service.check_organization_servers(AsyncMock())
+        assert counts["skipped"] == 25
+        assert update.await_count == 25
+        assert all(
+            set(call.kwargs["update_data"]) == {"last_checked_at", "health_checked_at"}
+            for call in update.call_args_list
+        )
 
 
 class TestARunsProbe:

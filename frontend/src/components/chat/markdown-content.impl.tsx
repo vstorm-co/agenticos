@@ -1,6 +1,6 @@
 "use client";
 
-import { Children, isValidElement, useLayoutEffect, useMemo, useRef } from "react";
+import { Children, isValidElement, memo, useLayoutEffect, useMemo, useRef } from "react";
 import type { Components } from "react-markdown";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -17,6 +17,10 @@ import { CollapsibleBlock } from "./collapsible-block";
 import { MarkdownQuote } from "./markdown-quote";
 import { MarkdownTable } from "./markdown-table";
 import type { MarkdownContentProps } from "./markdown-content";
+
+const REMARK_PLUGINS = [remarkGfm];
+const REHYPE_PLUGINS = [rehypeHighlight];
+const STREAM_PLUGINS = [rehypeHighlight, rehypeStreamWords];
 
 /** Parse `language-xyz` from a `<code>` className that rehype-highlight emits. */
 function languageLabel(className: string | undefined): string | null {
@@ -119,7 +123,7 @@ function textOf(node: React.ReactNode): string {
   return "";
 }
 
-export function MarkdownContent({
+export const MarkdownContent = memo(function MarkdownContent({
   content,
   onCiteClick,
   bareCode,
@@ -397,11 +401,11 @@ export function MarkdownContent({
 
   return (
     <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      rehypePlugins={streaming ? [rehypeHighlight, rehypeStreamWords] : [rehypeHighlight]}
+      remarkPlugins={REMARK_PLUGINS}
+      rehypePlugins={streaming ? STREAM_PLUGINS : REHYPE_PLUGINS}
       components={components}
     >
       {processed}
     </ReactMarkdown>
   );
-}
+});

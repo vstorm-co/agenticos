@@ -283,57 +283,97 @@ beforeEach(() => {
   voiceCall.call = initialCall;
 });
 
+describe("the chat container - Stop without a restored decision card", () => {
+  it.each(["awaiting_answer", "awaiting_approval"] as const)(
+    "offers Stop after restoring %s fails",
+    async (status) => {
+      const fallback = get.getMockImplementation()!;
+      get.mockImplementation((url: string) => {
+        if (url === "/me/permissions")
+          return Promise.resolve({
+            organization_id: "org-1",
+            role: "admin",
+            is_app_admin: false,
+            permissions: [{ permission: "approvals:decide", scope: "all" }],
+          });
+        if (url.endsWith("/can-stop")) return Promise.resolve(true);
+        if (url.endsWith("/questions") || url.endsWith("/parked"))
+          return Promise.reject(new Error("offline"));
+        return fallback(url);
+      });
+      vi.mocked(apiClient.post).mockResolvedValue("Not performed: the run was stopped.");
+      mount();
+      await screen.findByRole("button", { name: "Voice input" });
+      act(() =>
+        useChatStore.getState().addMessage({
+          id: "parked-message",
+          role: "assistant",
+          content: "Waiting",
+          timestamp: new Date(),
+          runId: "parked-run",
+          toolCalls: [{ id: "call", name: "execute", args: {}, status }],
+        }),
+      );
+      const stop = await screen.findByRole("button", { name: "Stop generating" });
+      await userEvent.click(stop);
+      await waitFor(() => expect(apiClient.post).toHaveBeenCalledWith("/runs/parked-run/cancel"));
+      await waitFor(() => expect(useChatStore.getState().messages[0]?.wasStopped).toBe(true));
+    },
+  );
+});
+
+/**
+ * Every ResizeObserver the chat makes, so a test can say an element changed
+ * size. The dock's height is padding under the transcript, not content, so
+ * the transcript's own observer never hears of it.
+ */
+function observeSizes() {
+  const observers: { grew: () => void; targets: Element[] }[] = [];
+  class FakeResize {
+    private readonly seen: { grew: () => void; targets: Element[] };
+    constructor(callback: () => void) {
+      this.seen = { grew: callback, targets: [] };
+      observers.push(this.seen);
+    }
+    observe(element: Element) {
+      this.seen.targets.push(element);
+    }
+    unobserve() {}
+    disconnect() {}
+  }
+  vi.stubGlobal("ResizeObserver", FakeResize);
+  return observers;
+}
+
 describe("the chat container - following the transcript", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("scrolls the transcript's own scroller to a new message, never the page around it", async () => {
+  it("follows actual size changes without measuring the transcript on every text delta", async () => {
+    const observers = observeSizes();
     const scrollTo = vi.spyOn(Element.prototype, "scrollTo");
     const scrollIntoView = vi.spyOn(Element.prototype, "scrollIntoView");
-    mount();
-    await screen.findByRole("button", { name: "Voice input" });
+    const { dock, scroller } = await scrollerAndDock();
+    const readHeight = vi.fn(() => 2000);
+    Object.defineProperty(scroller, "scrollHeight", { configurable: true, get: readHeight });
     scrollTo.mockClear();
+    scrollIntoView.mockClear();
     act(() =>
-      useChatStore.getState().addMessage({
-        id: "m-1",
-        role: "user",
-        content: "Send the invoice",
-        timestamp: new Date(),
-      }),
+      useChatStore
+        .getState()
+        .updateMessage("m-1", (message) => ({ ...message, content: "Still the same height" })),
     );
-    // `scrollIntoView` scrolls every scrollable ancestor, and the page column
-    // around the chat is one: during a call it scrolled the whole chat up and out.
-    await waitFor(() => expect(scrollTo).toHaveBeenCalled());
-    const scroller = scrollTo.mock.contexts.at(-1) as HTMLElement;
-    expect(scroller).toHaveClass("overflow-y-auto");
-    expect(scroller).toContainElement(await screen.findByText("Send the invoice"));
-    expect(scrollTo).toHaveBeenLastCalledWith({ top: scroller.scrollHeight, behavior: "smooth" });
+    expect(readHeight).not.toHaveBeenCalled();
+    expect(scrollTo).not.toHaveBeenCalled();
+    const follow = observers.find(
+      (observer) => observer.targets.includes(scroller) && !observer.targets.includes(dock),
+    )!;
+    act(() => follow.grew());
+    expect(scroller.scrollTop).toBe(2000);
+    expect(readHeight).toHaveBeenCalledTimes(1);
     expect(scrollIntoView).not.toHaveBeenCalled();
     scrollTo.mockRestore();
     scrollIntoView.mockRestore();
   });
-
-  /**
-   * Every ResizeObserver the chat makes, so a test can say an element changed
-   * size. The dock's height is padding under the transcript, not content, so
-   * the transcript's own observer never hears of it.
-   */
-  function observeSizes() {
-    const observers: { grew: () => void; targets: Element[] }[] = [];
-    class FakeResize {
-      private readonly seen: { grew: () => void; targets: Element[] };
-      constructor(callback: () => void) {
-        this.seen = { grew: callback, targets: [] };
-        observers.push(this.seen);
-      }
-      observe(element: Element) {
-        this.seen.targets.push(element);
-      }
-      unobserve() {}
-      disconnect() {}
-    }
-    vi.stubGlobal("ResizeObserver", FakeResize);
-    return observers;
-  }
 
   /**
    * The transcript's scroller, a screen long and scrolled to its end, and the
@@ -783,7 +823,9 @@ describe("the chat container - a voice call (#54)", () => {
     const loading = vi.fn();
     const stop = useConversationStore.subscribe((state) => loading(state.isLoading));
     act(() => voiceCall.options.onTurnSaved?.());
-    await waitFor(() => expect(get).toHaveBeenCalledWith("/conversations/c-a/messages"));
+    await waitFor(() =>
+      expect(get).toHaveBeenCalledWith("/conversations/c-a/messages?latest=true&limit=101"),
+    );
     stop();
     // Not the select path: nothing is cleared and no skeleton is drawn.
     expect(loading).not.toHaveBeenCalledWith(true);
@@ -797,7 +839,9 @@ describe("the chat container - a voice call (#54)", () => {
     expect(useConversationStore.getState().currentConversationId).toBe("c-new");
     get.mockClear();
     act(() => voiceCall.options.onTurnSaved?.());
-    await waitFor(() => expect(get).toHaveBeenCalledWith("/conversations/c-new/messages"));
+    await waitFor(() =>
+      expect(get).toHaveBeenCalledWith("/conversations/c-new/messages?latest=true&limit=101"),
+    );
     expect(voiceCall.end).not.toHaveBeenCalled();
   });
 
@@ -812,7 +856,7 @@ describe("the chat container - a voice call (#54)", () => {
     // A saved turn from the old call no longer reloads the conversation on screen.
     get.mockClear();
     act(() => voiceCall.options.onTurnSaved?.());
-    expect(get).not.toHaveBeenCalledWith("/conversations/c-b/messages");
+    expect(get).not.toHaveBeenCalledWith("/conversations/c-b/messages?latest=true&limit=101");
   });
 
   it("hangs up a call started in a new chat when another conversation is opened before it is named", async () => {
@@ -894,6 +938,7 @@ describe("the chat container - where an empty conversation is scrolled", () => {
     // In the Architect's narrow window the welcome is taller than the pane, and
     // following the foot of an empty conversation scrolled its greeting and the
     // face above it out of view.
+    const observers = observeSizes();
     const scrollTo = vi.spyOn(Element.prototype, "scrollTo");
     mount();
     expect(scrollTo).toHaveBeenCalledWith({ top: 0 });
@@ -909,7 +954,15 @@ describe("the chat container - where an empty conversation is scrolled", () => {
     // was detached by the time it was asserted on (230 ms, well inside the
     // timeout), so what is checked is the message on screen, not one node.
     await waitFor(() => expect(screen.getByText("Hi.")).toBeInTheDocument());
-    expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ behavior: "smooth" }));
+    const dock = screen.getByRole("textbox").closest(".absolute") as HTMLElement;
+    const scroller = dock.previousElementSibling as HTMLElement;
+    Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: 1500 });
+    const follow = observers.find(
+      (observer) => observer.targets.includes(scroller) && !observer.targets.includes(dock),
+    )!;
+    act(() => follow.grew());
+    expect(scroller.scrollTop).toBe(1500);
+    expect(scrollTo).not.toHaveBeenCalledWith(expect.objectContaining({ behavior: "smooth" }));
     scrollTo.mockRestore();
   });
 });
@@ -1055,7 +1108,7 @@ describe("the chat container - an answer still being written after its person le
           ],
           total: 1,
         });
-      if (url === `/conversations/${LEFT}/messages`) {
+      if (url === `/conversations/${LEFT}/messages?latest=true&limit=101`) {
         answered();
         const question = {
           id: "m-1",
@@ -1098,7 +1151,10 @@ describe("the chat container - an answer still being written after its person le
     );
 
     expect(await screen.findByText(/still answering when you left/)).toBeInTheDocument();
-    const reads = () => get.mock.calls.filter(([url]) => url === `/conversations/${LEFT}/messages`);
+    const reads = () =>
+      get.mock.calls.filter(
+        ([url]) => url === `/conversations/${LEFT}/messages?latest=true&limit=101`,
+      );
     const before = reads().length;
 
     // The run ends: the next read of the list no longer says it is at work.
@@ -1268,4 +1324,169 @@ describe("the chat container - @-mentions (#2189)", () => {
     // On the question, where it was written.
     expect(await screen.findByTitle("Finance Analyst")).toBeInTheDocument();
   });
+});
+
+describe("the chat container - late transcript reconciliation", () => {
+  function stored(id: string, role: "user" | "assistant", content: string) {
+    return { id, role, content, conversation_id: "c-race", created_at: "2026-10-01T12:00:00Z" };
+  }
+
+  async function openQuestion() {
+    useConversationStore.getState().setCurrentConversationId("c-race");
+    useConversationStore
+      .getState()
+      .setCurrentMessages([stored("question", "user", "Initial question")]);
+    mount();
+    await screen.findByText("Initial question");
+    receive("turn_attached", { conversation_id: "c-race" });
+    receive("model_request_start", {});
+  }
+
+  it("keeps the next streamed bubble when the previous turn's late history lands", async () => {
+    await openQuestion();
+    receive("text_delta", { index: 0, content: "First answer" });
+    receive("message_saved", { message_id: "first-answer" });
+    receive("complete", {});
+    let finish!: (value: unknown) => void;
+    const fallback = get.getMockImplementation()!;
+    get.mockImplementation((path: string) =>
+      path.includes("/messages")
+        ? new Promise((resolve) => {
+            finish = resolve;
+          })
+        : fallback(path),
+    );
+    receive("turn_followed_to_end", { conversation_id: "c-race" });
+    receive("turn_attached", { conversation_id: "c-race" });
+    receive("turn_prompt", {
+      conversation_id: "c-race",
+      message_id: "second-question",
+      content: "Next question",
+      sender: { user_id: "u-1", name: "Kacper" },
+    });
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "Second answer" });
+    await act(async () =>
+      finish({
+        items: [
+          stored("question", "user", "Initial question"),
+          stored("first-answer", "assistant", "First answer"),
+        ],
+        total: 2,
+        cost: null,
+      }),
+    );
+    receive("text_delta", { index: 0, content: " continues" });
+    expect(useChatStore.getState().messages.at(-1)?.content).toBe("Second answer continues");
+    receive("final_result", { output: "Second answer continues" });
+    receive("complete", {});
+    expect(await screen.findByText("Second answer continues")).toBeVisible();
+  });
+
+  it("renders one prompt and answer when a transcript recovers a lost persistence acknowledgement", async () => {
+    const sender = { user_id: "u-1", name: "Kacper", has_avatar: false, avatar_color: null };
+    useConversationStore.getState().setCurrentConversationId("c-race");
+    useConversationStore.getState().setCurrentMessages([stored("anchor", "user", "Earlier")]);
+    mount();
+    await screen.findByText("Earlier");
+    act(() => {
+      useChatStore.getState().addMessage({
+        id: "local-question",
+        role: "user",
+        content: "Question after reconnect",
+        timestamp: new Date(),
+        conversationId: "c-race",
+        sender,
+        clientMessageId: "nonce",
+        isTemporaryId: true,
+      });
+      useChatStore.getState().addMessage({
+        id: "local-answer",
+        role: "assistant",
+        content: "Partial result",
+        timestamp: new Date(),
+        conversationId: "c-race",
+        isTemporaryId: true,
+      });
+    });
+    act(() =>
+      useConversationStore.getState().setCurrentMessages([
+        stored("anchor", "user", "Earlier"),
+        {
+          ...stored("saved-question", "user", "Question after reconnect"),
+          sender,
+          client_message_id: "nonce",
+        },
+        stored("saved-answer", "assistant", "Finished result"),
+      ]),
+    );
+    expect(await screen.findByText("Finished result")).toBeVisible();
+    expect(screen.getAllByText("Question after reconnect")).toHaveLength(1);
+    expect(screen.queryByText("Partial result")).not.toBeInTheDocument();
+    expect(useChatStore.getState().messages.map((message) => message.id)).toEqual([
+      "anchor",
+      "saved-question",
+      "saved-answer",
+    ]);
+  });
+
+  it("retains an unsaved result and its error when following ends", async () => {
+    await openQuestion();
+    receive("text_delta", { index: 0, content: "Unsaved answer" });
+    receive("error", { message: "Could not persist this answer" });
+    const fallback = get.getMockImplementation()!;
+    get.mockImplementation((path: string) =>
+      path.includes("/messages")
+        ? Promise.resolve({
+            items: [stored("question", "user", "Initial question")],
+            total: 1,
+            cost: null,
+          })
+        : fallback(path),
+    );
+    receive("complete", {});
+    receive("turn_followed_to_end", { conversation_id: "c-race" });
+    await waitFor(() =>
+      expect(get).toHaveBeenCalledWith(
+        expect.stringContaining("/conversations/c-race/messages?latest=true"),
+      ),
+    );
+    await act(async () => {});
+    expect(useChatStore.getState().messages.at(-1)?.content).toContain("Unsaved answer");
+    expect(useChatStore.getState().messages.at(-1)?.content).toContain(
+      "Could not persist this answer",
+    );
+    expect(screen.getByText(/Could not persist this answer/)).toBeVisible();
+  });
+});
+
+it("loads earlier messages from the transcript control without losing the current page", async () => {
+  const current = {
+    id: "m-2",
+    role: "user" as const,
+    content: "Current page",
+    conversation_id: "paged",
+    created_at: "2026-10-01T12:00:00Z",
+  };
+  useConversationStore.getState().setCurrentConversationId("paged");
+  useConversationStore.getState().setCurrentMessages([current], null, true);
+  const fallback = get.getMockImplementation()!;
+  let finish!: (value: unknown) => void;
+  get.mockImplementation((path: string) =>
+    path.includes("before=m-2")
+      ? new Promise((resolve) => {
+          finish = resolve;
+        })
+      : fallback(path),
+  );
+  mount();
+  const button = await screen.findByRole("button", { name: "Load earlier messages" });
+  fireEvent.click(button);
+  expect(button).toBeDisabled();
+  await act(async () =>
+    finish({ items: [{ ...current, id: "m-1", content: "Earlier page" }], total: 2, cost: null }),
+  );
+  expect(await screen.findByText("Earlier page")).toBeVisible();
+  expect(screen.getByText("Current page")).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Load earlier messages" })).not.toBeInTheDocument();
 });

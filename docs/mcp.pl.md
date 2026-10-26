@@ -1,5 +1,5 @@
 ---
-source_sha: "9025a904cc03"
+source_sha: "5bf6eb0fde8e"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -196,9 +196,9 @@ Własny szablon Architekta prosi
 o `writes` dla serwera platformy, więc nie tworzy niczego bez osoby, w której
 imieniu działa. Powiązanie każdego agenta z tym serwerem trzyma co najmniej
 `writes`, także przy `none`: jego narzędzia działają z uprawnieniami osoby, która
-pyta, również administratora. Jeden odczyt czeka jak zmiana: `read_conversation`,
-który oddaje modelowi całą wcześniejszą rozmowę - strona przeczytana przez agenta
-mogłaby inaczej kazać mu ją pobrać i wysłać dalej.
+pyta, również administratora. Dwa odczyty czekają jak zmiany: `read_conversation`
+udostępnia całą wcześniejszą rozmowę, a `get_project` instrukcje wybranego projektu.
+Przeczytana strona nie może po cichu wywołać żadnego z tych ujawnień.
 
 W Builderze
 ustawienia serwera mówią to osobno dla grup: **Odczyt** i **Zmiany** działają bez
@@ -1006,6 +1006,8 @@ odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
 | `whoami` | — |
 | `list_agents`, `get_agent`, `list_capabilities`, `list_models`, `search_mcp_servers` | `agents:view` |
 | `create_agent_draft`, `update_agent_draft`, `test_agent_draft` | `agents:edit` |
+| `list_sandbox_connections`, `list_sandbox_runtimes`, `get_sandbox_policy` | `connections:view` |
+| `list_org_connections` | `mcp:manage` |
 | `publish_agent` | `agents:publish` na tym agencie |
 | `discard_agent_draft` | `agents:edit`, dla twojego draftu, który nigdy nie był opublikowany |
 | `run_agent` | `agents:run` |
@@ -1018,9 +1020,18 @@ odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
 | `create_skill` | `skills:edit` |
+| `list_projects` | `projects:view` |
+| `get_project` | dostęp do projektu |
+| `create_project` | `projects:edit` |
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` i `roles:manage` |
 | `list_my_connections`, `set_my_language`, `set_my_profile` | — (własne wywołującego) |
+
+Wyszukiwanie przez `list_projects` zwraca tylko ID i nazwy projektów,
+pomijając opisy, instrukcje i pozostałe edytowalne etykiety. Odczyt wybranego projektu
+przez `get_project` zawiera je i przy polityce `writes` czeka na akceptację, tak
+jak `read_conversation`. Instrukcje innego udostępnionego projektu nie powinny
+trafiać do modelu wyłącznie dlatego, że szukał przestrzeni roboczej.
 
 Agenta da się tu zbudować od początku do końca: utworzyć szkic, edytować go,
 wypróbować jako nieopublikowany draft przez `test_agent_draft` - run testowy,
@@ -1039,6 +1050,23 @@ draftu utworzonego przez pomyłkę - albo rutyną. Podłączone aplikacje są
 widoczne w **Ustawienia → Klienci MCP**, gdzie odłączenie kończy ich dostęp razem
 z każdym tokenem. Wywołania, które coś
 zmieniają, czekają na zatwierdzenie, jak wyjaśnia [sekcja wyżej](#which-calls-wait-for-a-person).
+
+Narzędzia draftów przyjmują skonfigurowane wiązania możliwości oraz same identyfikatory.
+Na przykład `capabilities: [{id: sandbox, config: {backend: service,
+include_execute: true}}]` daje agentowi programistycznemu powłokę na domyślnym
+hoście sandboxa organizacji. `list_capabilities` zwraca `config_schema`;
+`list_sandbox_connections`, `list_sandbox_runtimes` i `get_sandbox_policy`
+pozwalają sprawdzić hosty, aliasy runtime’ów i ograniczenia przed wyborem ustawień.
+Sandbox tylko na pliki (`state`) nie wykonuje poleceń.
+
+`update_agent_draft.add_capabilities` dodaje lub aktualizuje wiązania: pominięte
+pola zachowują wartości, a podany `config` zastępuje całą konfigurację. Najpierw
+odczytaj draft, żeby zachować potrzebne ustawienia. Oba narzędzia przyjmują
+`mcp_servers`: identyfikatory połączeń organizacji z `list_org_connections` albo
+osobiste klucze katalogowe z `search_mcp_servers`. Identyfikator osobistego
+połączenia nie należy do współdzielonej specyfikacji. Lista wiązań MCP jest
+zastępowana w całości; `[]` odłącza wszystkie. Tworzenie przyjmuje też `skill_ids`
+i `collection_ids`. Testowanie i publikowanie zachowują te same zasady walidacji i akceptacji.
 
 ### Udostępnienie go agentowi { #giving-it-to-an-agent }
 
@@ -1094,3 +1122,9 @@ konsoli, gdy się go o to poprosi.
   żadnego, a usunięcie połączenia wyrejestrowuje to, co ono zarejestrowało.
 - Nieosiągalny serwer zostaje **pominięty**, a nie podnosi wyjątku — tura
   odpowiada bez tych narzędzi.
+
+Każda zaplanowana kontrola obejmuje najwyżej 64 aktywne serwery organizacji, zaczynając od najdawniej sprawdzanych, i wykonuje najwyżej osiem prób równocześnie. Nieużyteczne poświadczenia również aktualizują czas kontroli, bez zgłaszania awarii. Większe instalacje sprawdzają więc wszystkie serwery w kolejnych cyklach.
+
+Odświeżenie OAuth ma osobną krótką transakcję: blokuje i ponownie sprawdza konto, wymienia poświadczenie i zatwierdza zapis przed zwróceniem tokena. Anulowanie czeka na zakończenie tej operacji; późniejszy rollback uruchomienia jej nie cofa. Błąd zapisu po wymianie u dostawcy jawnie przerywa żądanie i może wymagać ponownej autoryzacji konta. Polling skrzynek używa osobnej blokady doradczej konta; pozycja odczytu i zlecone zadania zatwierdzają się razem, a nieprawidłowa odpowiedź wycofuje tylko pracę tej skrzynki.
+
+Kolejka kontroli stanu korzysta z osobnego, indeksowanego znacznika czasu. Odświeżenie OAuth ani polling skrzynki nie przesuwają kolejnej kontroli serwera. Po migracji istniejące serwery trafiają do kolejki jako jeszcze niesprawdzone.

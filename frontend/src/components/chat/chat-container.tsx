@@ -196,7 +196,7 @@ export function ChatContainer({
     currentCost,
     isLoading: isConversationLoading,
   } = useConversationStore();
-  const { addMessage: addChatMessage, rereadMessages } = useChatStore();
+  const { rereadMessages } = useChatStore();
   // The model override the picker holds, mirrored here because the context gauge
   // is a share of *its* window rather than of the agent's default.
   const [modelProfileId, setModelProfileId] = useState<string | null>(null);
@@ -215,6 +215,9 @@ export function ChatContainer({
     refreshConversations,
     selectConversation,
     rereadConversation,
+    hasEarlierMessages,
+    isLoadingEarlier,
+    loadEarlierMessages,
     markRead,
   } = useConversations();
   const prevConversationIdRef = useRef<string | null | undefined>(undefined);
@@ -385,8 +388,8 @@ export function ChatContainer({
   // whenever the reader presses the notice, because the turn finishes when it
   // finishes and there is nothing to be told about it.
   const handleTurnInterrupted = useCallback(() => {
-    if (currentConversationId) void selectConversation(currentConversationId);
-  }, [currentConversationId, selectConversation]);
+    if (currentConversationId) void rereadConversation(currentConversationId);
+  }, [currentConversationId, rereadConversation]);
 
   const {
     messages,
@@ -395,6 +398,8 @@ export function ChatContainer({
     notifyTyping,
     isConnected,
     isProcessing,
+    isStopping,
+    canStopParked,
     compacting,
     compactionImpossible,
     sandboxPreparing,
@@ -576,33 +581,33 @@ export function ChatContainer({
   }, [currentConversationId, clearMessages, clearQueued]);
 
   useEffect(() => {
-    if (currentMessages.length > 0) {
+    if (
+      currentMessages.length > 0 &&
+      currentMessages[0]?.conversation_id === currentConversationId
+    ) {
       // Not `clearMessages`: a re-read of this same conversation - a followed
       // turn ending, a teammate's answer landing - must not drop the reply
       // somebody is in the middle of writing. A switch has already cleared it.
-      rereadMessages();
-      currentMessages.forEach((msg) => {
-        const message = conversationMessageToChatMessage(msg);
-        addChatMessage({
-          ...message,
-          // The row is what says which agent produced a turn. When it says nothing -
-          // every message written before the API recorded it - and the conversation
-          // had exactly *one* agent, that agent answered every turn in it, and the
-          // transcript can show its face instead of a generic robot. With two the
-          // guess would relabel half the thread, so it is not made.
-          agentId: message.agentId ?? soleAgentId,
-        });
-      });
+      rereadMessages(
+        currentMessages.map((msg) => {
+          const message = conversationMessageToChatMessage(msg);
+          return {
+            ...message,
+            // The row is what says which agent produced a turn. When it says nothing -
+            // every message written before the API recorded it - and the conversation
+            // had exactly *one* agent, that agent answered every turn in it, and the
+            // transcript can show its face instead of a generic robot. With two the
+            // guess would relabel half the thread, so it is not made.
+            agentId: message.agentId ?? soleAgentId,
+          };
+        }),
+      );
     }
-  }, [currentMessages, addChatMessage, rereadMessages]);
+  }, [currentMessages, currentConversationId, rereadMessages, soleAgentId]);
 
   // Whether the reader has moved up to read, so the transcript stops following.
   useReaderScrolledUp(scrollContainerRef, userScrolledUpRef);
 
-  // Auto-scroll on every messages update unless user has scrolled up. The
-  // transcript scrolls itself rather than calling `scrollIntoView`, which also
-  // scrolls every page framing the chat - the Builder under its test panel
-  // jumped to its foot on each answer (#2074).
   // An empty conversation is not followed at all: its welcome reads from the
   // top, and in a narrow window - the Architect's, the test panel - following
   // the foot scrolled the greeting and the face above it out of view. A call is
@@ -616,9 +621,7 @@ export function ChatContainer({
       container?.scrollTo({ top: 0 });
       return;
     }
-    if (userScrolledUpRef.current) return;
-    container?.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
-  }, [messages, empty]);
+  }, [empty]);
   // And on growth the messages do not announce: an answer's last words are
   // revealed over frames after its message has stopped changing.
   const holdFollow = useCallback(() => emptyRef.current || userScrolledUpRef.current, []);
@@ -697,6 +700,9 @@ export function ChatContainer({
 
   return (
     <ChatUI
+      hasEarlierMessages={hasEarlierMessages}
+      isLoadingEarlier={isLoadingEarlier}
+      loadEarlierMessages={loadEarlierMessages}
       messages={messages}
       present={present}
       typing={typing}
@@ -772,6 +778,8 @@ export function ChatContainer({
       pendingConnection={pendingConnection}
       onConnectionResponse={sendConnectionResponse}
       onStop={stopGeneration}
+      isStopping={isStopping}
+      canStopParked={canStopParked}
       voice={voice}
       onStartCall={startCall}
       emptyState={emptyState}
@@ -784,6 +792,9 @@ export function ChatContainer({
 }
 
 interface ChatUIProps {
+  hasEarlierMessages: boolean;
+  isLoadingEarlier: boolean;
+  loadEarlierMessages: () => Promise<void>;
   /** Tell the running turn how one of its drawings rendered. */
   onVisualReport?: (toolCallId: string, errors: string[]) => void;
   /** Replaces the generic empty-conversation suggestions. */
@@ -889,6 +900,8 @@ interface ChatUIProps {
   pendingConnection?: ConnectionRequest | null;
   onConnectionResponse?: (connected: boolean) => void;
   onStop?: () => void;
+  isStopping?: boolean;
+  canStopParked?: boolean;
   /** The voice call this page holds (#54): its bar stands in for the composer while it is on. */
   voice: VoiceSession;
   /** Start a call to the selected agent, in this conversation. */
@@ -896,6 +909,9 @@ interface ChatUIProps {
 }
 
 function ChatUI({
+  hasEarlierMessages,
+  isLoadingEarlier,
+  loadEarlierMessages,
   messages,
   present,
   typing,
@@ -947,6 +963,8 @@ function ChatUI({
   pendingConnection,
   onConnectionResponse,
   onStop,
+  isStopping = false,
+  canStopParked = false,
   voice,
   onStartCall,
   emptyState,
@@ -972,7 +990,7 @@ function ChatUI({
   const { can } = usePermissions();
   const voiceSettingsHref =
     activeOrgId !== null && can(Perm.orgSettings)
-      ? `${ROUTES.ORG_MEMBERS(activeOrgId)}#org-voice`
+      ? `${ROUTES.ORG_MEMBERS(activeOrgId)}?tab=voice`
       : null;
   // The agent's own override is the other way to set it up, for whoever may
   // edit agents - the Voice card sits on the agent's Build tab.
@@ -1283,6 +1301,16 @@ function ChatUI({
                   onCompose={(text) => setIncoming({ id: Date.now(), files: [], text })}
                   onSend={isArchived ? undefined : (text) => sendMessage(text)}
                 >
+                  {hasEarlierMessages && (
+                    <button
+                      type="button"
+                      className="text-muted-foreground hover:text-foreground mx-auto block px-4 py-2 text-sm"
+                      disabled={isLoadingEarlier}
+                      onClick={() => void loadEarlierMessages()}
+                    >
+                      {t("loadEarlierMessages")}
+                    </button>
+                  )}
                   <MessageList messages={messages} onRegenerate={onRegenerate} pins={pins} />
                 </ConversationVisualsProvider>
               </LiveBrowsesProvider>
@@ -1374,7 +1402,7 @@ function ChatUI({
                 actionRequests={pendingApproval.actionRequests}
                 reviewConfigs={pendingApproval.reviewConfigs}
                 onDecisions={onResumeDecisions}
-                disabled={!isConnected}
+                disabled={!isConnected || isStopping}
               />
             </div>
           )}
@@ -1382,7 +1410,7 @@ function ChatUI({
             <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
               <ConnectAccountPrompt
                 request={pendingConnection}
-                disabled={!isConnected}
+                disabled={!isConnected || isStopping}
                 onRespond={onConnectionResponse}
               />
             </div>
@@ -1391,7 +1419,7 @@ function ChatUI({
             <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
               <QuestionPrompt
                 questions={pendingQuestions}
-                disabled={!isConnected}
+                disabled={!isConnected || isStopping}
                 onComplete={onAnswerQuestions}
               />
             </div>
@@ -1543,6 +1571,7 @@ function ChatUI({
                           mentionsFromDraft={testingDraft}
                           hints={messages.length === 0}
                           disabled={
+                            isStopping ||
                             (!isConnected && !keepsOutbox) ||
                             isArchived ||
                             onCall ||
@@ -1550,7 +1579,16 @@ function ChatUI({
                             !!(pendingQuestions && pendingQuestions.length)
                           }
                           isProcessing={isProcessing}
+                          canStop={
+                            isStopping ||
+                            canStopParked ||
+                            isProcessing ||
+                            !!pendingApproval ||
+                            !!pendingQuestions?.length ||
+                            !!pendingConnection
+                          }
                           onStop={onStop}
+                          stopDisabled={isStopping}
                           slashContext={slashContext}
                           commands={slashCommands}
                           attachmentSlot={attachmentSlot}

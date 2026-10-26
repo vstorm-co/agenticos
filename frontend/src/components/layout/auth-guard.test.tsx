@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -69,6 +69,20 @@ describe("the dashboard guard, offline in the apps (#2097)", () => {
 });
 
 describe("the dashboard guard, refusing", () => {
+  it("redirects an already open agent page when the session is revoked", async () => {
+    window.history.replaceState(null, "", "/agents/a-1?tab=spec");
+    useAuthStore.setState({ isAuthenticated: true });
+    vi.mocked(apiClient.get).mockRejectedValue(new Error("401"));
+    renderGuard();
+    expect(screen.getByText("the dashboard")).toBeInTheDocument();
+    await act(async () => useAuthStore.getState().logout());
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith(
+        `${ROUTES.LOGIN}?returnTo=${encodeURIComponent("/agents/a-1?tab=spec")}`,
+      ),
+    );
+  });
+
   it("carries the whole address to login - path, query and fragment", async () => {
     window.history.replaceState(null, "", "/agents/a-1?tab=spec#monthly");
     vi.mocked(apiClient.get).mockRejectedValue(new Error("401"));

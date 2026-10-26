@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "1.16.0"
+version = "1.22.0"
 description = "OS for your agents."
 requires-python = ">=3.15"
 license = { text = "Apache-2.0" }
@@ -58,9 +58,9 @@ dependencies = [
     # whatever is current, which is fine as long as the lock resolves to at least
     # as new: this group's bump once locked 2.30.0 while `main` already held
     # 2.31.0, and the image installs the lock verbatim (`uv sync --frozen`).
-    "pydantic-ai-slim[openrouter,anthropic,google,duckduckgo,web-fetch,groq,mistral,cohere,huggingface,xai,openai-realtime,google-realtime,xai-realtime]>=2.57.0",
+    "pydantic-ai-slim[openrouter,anthropic,google,duckduckgo,web-fetch,groq,mistral,cohere,huggingface,xai,openai-realtime,google-realtime,xai-realtime]>=2.59.0",
     "genai-prices>=0.1.10",
-    "pydantic-ai-slim[mcp]>=2.57.0",
+    "pydantic-ai-slim[mcp]>=2.59.0",
     # The MCP SDK. Uncapped since #1820 moved the one path where our code and
     # the SDK exchange HTTP objects onto `httpx2`, which 2.0 migrated the whole
     # SDK to: `PinnedAsyncClient` (`app/core/pinned_http.py`) and the MCP OAuth
@@ -80,7 +80,7 @@ dependencies = [
     # search all build and send their own requests.
     "mcp>=2.3.0",
     # The platform's own MCP server and its OAuth endpoints (#2058, #2059).
-    "fastmcp>=4.1.0",
+    "fastmcp>=4.1.2",
     # Wrapped by three capabilities: `guardrails` (the ready-made secret/PII
     # detectors and the input/output/tool guard edges), `planning` (the plan
     # store, tools and cache-safe tail reminder) and `compaction` (the
@@ -682,6 +682,7 @@ include = [
     # held to rather than reporting it.
     "app/services/rate_limit.py",
     "app/services/agent_chat.py",
+    "app/services/follow_ups.py",
     "app/services/mentions.py",
     "app/services/agent_environment.py",
     "app/services/agent_exposure.py",
@@ -720,6 +721,7 @@ include = [
     "app/services/sandbox_connection.py",
     "app/services/sandbox_runtimes.py",
     "app/services/sandbox_workspace.py",
+    "app/services/sandboxd_compat.py",
     "app/services/usage_report.py",
     "app/services/skill_proposal.py",
     "app/services/skill_workspace.py",
@@ -796,6 +798,10 @@ include = [
     # would empty that picker without a single test failing.
     "app/services/image_models.py",
     "app/services/model_profile.py",
+    # Whether an agent can run on a model. A classification that quietly widens
+    # hides chat models from every picker; one that narrows lets a speech model
+    # through publish (#2487).
+    "app/services/model_outputs.py",
     "app/services/organization_secret.py",
     "app/services/openai_codex.py",
     # Same shape and the same reason as `image_models`: what a picker offers is
@@ -847,6 +853,8 @@ include = [
     # pipeline is only reported.
     "app/services/rag/filters.py",
     "app/services/rag/parent_context.py",
+    # Whether a citation may name a page: a Markdown file was cited as "page 1" (#2489).
+    "app/services/rag/citation.py",
     "app/services/sharing.py",
     "app/services/skills.py",
     "app/services/exporting.py",
@@ -1195,6 +1203,7 @@ include = [
     # held to rather than reporting it.
     "app/services/rate_limit.py",
     "app/services/agent_chat.py",
+    "app/services/follow_ups.py",
     "app/services/mentions.py",
     "app/services/agent_environment.py",
     "app/services/agent_exposure.py",
@@ -1236,6 +1245,7 @@ include = [
     "app/services/sandbox_connection.py",
     "app/services/sandbox_runtimes.py",
     "app/services/sandbox_workspace.py",
+    "app/services/sandboxd_compat.py",
     "app/services/usage_report.py",
     "app/services/skill_proposal.py",
     "app/services/skill_workspace.py",
@@ -1342,6 +1352,10 @@ include = [
     # would empty that picker without a single test failing.
     "app/services/image_models.py",
     "app/services/model_profile.py",
+    # Whether an agent can run on a model. A classification that quietly widens
+    # hides chat models from every picker; one that narrows lets a speech model
+    # through publish (#2487).
+    "app/services/model_outputs.py",
     "app/services/organization_secret.py",
     "app/services/openai_codex.py",
     # Same shape and the same reason as `image_models`: what a picker offers is
@@ -1393,6 +1407,8 @@ include = [
     # pipeline is only reported.
     "app/services/rag/filters.py",
     "app/services/rag/parent_context.py",
+    # Whether a citation may name a page: a Markdown file was cited as "page 1" (#2489).
+    "app/services/rag/citation.py",
     "app/services/sharing.py",
     "app/services/skills.py",
     "app/services/exporting.py",

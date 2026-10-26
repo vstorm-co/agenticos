@@ -1,5 +1,5 @@
 ---
-source_sha: "d77cb23fa679"
+source_sha: "d47df7fd8c9b"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -59,6 +59,12 @@ Suche in ihren früheren Unterhaltungen, keine Seiten, auf denen der Browser ihr
 Anmeldungen hält, und keinen benutzerbezogenen Sandbox-Arbeitsbereich. Wer den
 Schlüssel hält, ist ein Skript, nicht diese Person, also antwortet der Run wie
 auf einem öffentlichen Widget.
+
+Auch die Verbindungssuche ist lesend öffentlich: `GET /sandbox-connections`,
+`GET /sandbox-connections/runtimes` und `GET /sandbox-connections/{id}/policy`
+erfordern `connections:view`; `GET /mcp-connections` erfordert `mcp:manage`.
+Organisations- und Schlüsselberechtigungen gelten weiterhin. Schreibzugriffe auf
+Verbindungen und Zugangsdatenoperationen bleiben Sitzungen vorbehalten.
 
 ```bash
 curl "$BASE/api/v1/me/permissions" \
@@ -334,7 +340,8 @@ ihn einmal.
 mit `collections:view` und `collections:edit` (die Vorlage *Wissen einspeisen*).
 Das Einlesen läuft im Hintergrund, eine Suche direkt nach dem Hochladen findet das
 Dokument also womöglich noch nicht; `GET /api/v1/kb/$KB_ID/documents` zeigt seinen
-Status.
+Status, und `GET /api/v1/kb/$KB_ID/ingestion` antwortet `complete`, sobald keines
+mehr verarbeitet wird.
 
 ```bash
 # Find the knowledge base, upload a file into it, and search it.

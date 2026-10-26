@@ -76,6 +76,40 @@ describe("the knowledge search", () => {
     });
   });
 
+  it("reads a passage cited by its section rather than a page (#2489)", () => {
+    // The backend names the heading a Markdown chunk opens with; a parser that
+    // only knew `page` dropped every such passage from the card and Sources.
+    const result = [
+      '[1] Source: guide.md, section "Install", chunk 2 [docs] (score: 0.900)',
+      "# Install",
+      "Run make dev.",
+      "[2] Source: handbook.pdf, page 4 (score: 0.800)",
+      "Refunds.",
+    ].join("\n");
+
+    const items = parseRAGResults(result);
+
+    expect(items).toHaveLength(2);
+    expect(items[0]).toMatchObject({
+      source: "guide.md",
+      section: "Install",
+      page: undefined,
+      chunk: "2",
+      collection: "docs",
+      content: "# Install\nRun make dev.",
+    });
+    expect(items[1]).toMatchObject({ page: "4", section: undefined });
+  });
+
+  it("reads a passage given with its surrounding text", () => {
+    const result =
+      "[1] Source: guide.md, chunk 2 [docs], with surrounding text (score: 0.900)\nBefore. Match.";
+
+    expect(parseRAGResults(result)).toEqual([
+      expect.objectContaining({ source: "guide.md", chunk: "2", collection: "docs" }),
+    ]);
+  });
+
   it("finds nothing in text that is not a result list", () => {
     expect(parseRAGResults("No relevant documents found.")).toEqual([]);
   });

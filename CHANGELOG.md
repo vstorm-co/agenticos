@@ -19,43 +19,6 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
-### Changed
-
-- Remote browser previews coalesce pending images and disconnect stalled viewers;
-  live-view images are no longer duplicated in the resumable chat stream.
-
-- **Interactive browser navigation.** While holding a browser, edit its address,
-  move back or forward and reload within the agent's allowed domains. Direct
-  browser tools keep the preview streaming between calls. Input no longer waits
-  for a screenshot after every character, and navigation avoids duplicate fixed
-  pauses and URL-change timeouts when reopening the same address. Large-screen
-  resize requests stay within server limits so the first frame is not delayed.
-
-- **Styles in the account menu.** Appearance now offers Standard, Glass, Graphite,
-  Midnight and Paper beside Light, Dark and System, with previews and the active
-  style on the trigger. Settings use larger previews and a selection tick;
-  Graphite, Midnight and Paper have softer surface borders in both color modes.
-
-- **Desktop shortcuts in native menus.** Open AgenticOS has a configurable global
-  shortcut (`CmdOrCtrl+Shift+O`), and its menu entry, Quick Ask and Screenshot to
-  New Chat show their active bindings, including changes made in Settings.
-
-- **Clearer desktop work location controls.** Cloud and This computer share a
-  segmented selector; folder access has a labelled dropdown and explanation,
-  followed by a full-width folder picker.
-
-- **Switch servers from the console sidebar.** Change server opens the native
-  connection form directly, including when the sidebar is collapsed.
-- **Link a desktop from the chat.** Choosing This computer under Work on now
-  offers native pairing and folder selection without a detour through Settings.
-- **A more comfortable console on desktop and phone.** Search is labelled above
-  navigation, touch controls are larger, table headings and form feedback are
-  easier to read, and dashboard figures adapt to the widget's width. Dialogs fit
-  above the on-screen keyboard, side panels trap and restore focus, and Escape
-  clears a list search before dismissing its panel. Menus and notifications stay
-  within the available screen height. Streaming text and page/card entrances use
-  shorter motion without per-word blur.
-
 ### Added
 
 - Native desktop browser panels with conversation-scoped private tabs, exclusive
@@ -299,6 +262,54 @@ Two things are versioned separately from this file and worth knowing about:
   travel. The Devices list says which sign-ins receive push. In a browser that
   can install the console, a strip offers to (on an iPhone it says how).
 
+- `GET /agents/ceiling`, for a caller with `agents:edit`: the deployment's
+  agents-per-organization limit (`limit`, null for none) and whether a create
+  would hit it (`at_limit`). The organization's count against it (`held`) is
+  given only to a caller whose `agents:view` reaches every agent, since it
+  includes agents others cannot see (#2488).
+
+- `GET /kb/{kb_id}/ingestion` says whether one knowledge base's documents are
+  still indexing, with `processing_count`, `indexed_count` and `failed_count`,
+  counted over the documents its page lists. It is part of the public API
+  (#2486).
+
+### Changed
+
+- Remote browser previews coalesce pending images and disconnect stalled viewers;
+  live-view images are no longer duplicated in the resumable chat stream.
+
+- **Interactive browser navigation.** While holding a browser, edit its address,
+  move back or forward and reload within the agent's allowed domains. Direct
+  browser tools keep the preview streaming between calls. Input no longer waits
+  for a screenshot after every character, and navigation avoids duplicate fixed
+  pauses and URL-change timeouts when reopening the same address. Large-screen
+  resize requests stay within server limits so the first frame is not delayed.
+
+- **Styles in the account menu.** Appearance now offers Standard, Glass, Graphite,
+  Midnight and Paper beside Light, Dark and System, with previews and the active
+  style on the trigger. Settings use larger previews and a selection tick;
+  Graphite, Midnight and Paper have softer surface borders in both color modes.
+
+- **Desktop shortcuts in native menus.** Open AgenticOS has a configurable global
+  shortcut (`CmdOrCtrl+Shift+O`), and its menu entry, Quick Ask and Screenshot to
+  New Chat show their active bindings, including changes made in Settings.
+
+- **Clearer desktop work location controls.** Cloud and This computer share a
+  segmented selector; folder access has a labelled dropdown and explanation,
+  followed by a full-width folder picker.
+
+- **Switch servers from the console sidebar.** Change server opens the native
+  connection form directly, including when the sidebar is collapsed.
+- **Link a desktop from the chat.** Choosing This computer under Work on now
+  offers native pairing and folder selection without a detour through Settings.
+- **A more comfortable console on desktop and phone.** Search is labelled above
+  navigation, touch controls are larger, table headings and form feedback are
+  easier to read, and dashboard figures adapt to the widget's width. Dialogs fit
+  above the on-screen keyboard, side panels trap and restore focus, and Escape
+  clears a list search before dismissing its panel. Menus and notifications stay
+  within the available screen height. Streaming text and page/card entrances use
+  shorter motion without per-word blur.
+
 ### Fixed
 
 - **Notifications on phones.** Both bell controls open a full-width bottom sheet
@@ -383,6 +394,277 @@ Two things are versioned separately from this file and worth knowing about:
   recorded as the image's Python representation, bytes and all, in the run's
   history and the chat's tool row. The row says which kind of picture it
   was instead.
+
+- The coding agent's key picker offers only keys for the chosen harness - Anthropic
+  for Claude Code, OpenAI keys and ChatGPT sign-ins for Codex - plus `custom` keys
+  and the one already bound, and publish refuses a key stored for another
+  provider, naming the ones the harness takes. Claude Code behind `base_url` still
+  takes any key, the gateway's. Republishing an agent refused here means its key
+  was going to the wrong vendor and failing every task; rebind it, or store it as
+  `custom` if it is right. A capability can now map a config field's values to
+  the purposes its key may have (#2485). The picker respects endpoint defaults,
+  preserves sign-ins accepted by other capabilities and marks a retained key
+  that no longer fits after a harness change.
+
+- Knowledge citations name a page only for sources that have pages, such as PDF,
+  presentations and paginated office formats. Markdown, text, `.docx`, HTML,
+  spreadsheets and images name only the document; a stored structural page 1 or
+  a header-like code comment is not a location. The rule applies when results
+  are shown, so existing collections need no re-ingestion. Knowledge search in
+  the console follows the same rule (#2489).
+
+- Say an organization is at its agent limit before a create is attempted. At
+  the limit the Agents page disables **New agent** and template installs with
+  the reason, instead of refusing the create after the dialog is filled in, and
+  onboarding no longer offers to guide a create there. The server-side refusal
+  is unchanged (#2488).
+
+- Keep known realtime voice, text-to-speech, transcription, image, video and
+  embedding models out of agent and chat model pickers. Profiles and provider
+  suggestions report `chat_capable`; saved profiles also update when a provider
+  listing arrives later. Publish, rollback, draft checks and test runs reject
+  incompatible primary, reviewer, specialist and capability models, including
+  the first three fallbacks the runner can use. Runs reject incompatible
+  conversation overrides before starting, skip incompatible fallbacks and avoid
+  inventing specialists on them. Architect chooses a chat model. Provider
+  aliases share their vendor's classifications; unknown models and custom
+  endpoints remain allowed. Stored specs still load; a version on an incompatible
+  model must be corrected before republishing or restoring it (#2487).
+
+- Report a collection as `indexing` on `GET /rag/collections/{name}/info` while
+  any of its documents is still queued or being ingested, and `complete` only
+  once none is. The response adds `processing_count`, `indexed_count` and
+  `failed_count`; a failed document is counted there rather than holding the
+  collection at `indexing`. The knowledge base page shows its own state from
+  `GET /kb/{kb_id}/ingestion` and keeps refreshing until the whole batch has
+  settled (#2486).
+
+- Pin `sandboxd` to `ghcr.io/vstorm-co/sandboxd:0.2.37`, the version of the
+  backend's `pydantic-ai-backend` client, in every compose file. A cached
+  `sandboxd:0.2` older than the client answered every command with a 404 that the
+  platform reported as a lost session. A sandbox service that does not serve a
+  route the client needs now fails the tool call with a version mismatch that
+  names the image to run, including legacy conflicts when attaching saved session
+  references. The conversation reopens its session by name on the next turn.
+  `agenticos cmd doctor` checks each sandbox connection's routes. To
+  upgrade, redeploy with `scripts/deploy.sh` or `make dev`, which pull the pinned
+  tag. `make prod` does not start the `sandbox` profile, so on a stack started
+  with it, pull and recreate `sandboxd` with `--profile sandbox` (#2484).
+
+## [1.22.0] - 2026-10-26
+
+### Added
+
+- Architect recommends Projects for continuing research, writing, coding and
+  analysis, with a complete LLM wiki workflow for sources, linked notes, an index,
+  updates and verification. Platform MCP can find, inspect and create private
+  projects through the caller's existing permissions and approval flow. Architect runtime
+  guidance reaches existing installations without replacing customized instructions
+  or changing other agents and external MCP clients.
+
+
+## [1.21.0] - 2026-10-26
+
+### Added
+
+- Independent light and dark controls in signed-in and public app viewers.
+  Start app frames with a light preference instead of inheriting the console
+  theme; preserve authored colors, page state and stored versions.
+
+## [1.20.1] - 2026-10-26
+
+### Fixed
+
+- Explain why existing private provider keys or ChatGPT sign-ins cannot be
+  selected for organization speech to text, instead of implying the vault
+  has no credentials for the provider. Show provider icons and consistent masked
+  key hints in Voice calls and Dictation key selectors.
+
+## [1.20.0] - 2026-10-26
+
+### Added
+
+- Organize organization settings into permission-aware tabs, with shareable
+  tab URLs and form drafts preserved when switching sections.
+
+## [1.19.0] - 2026-10-26
+
+### Changed
+
+- Generate follow-up buttons only with an explicitly selected separate model,
+  after the answer is saved. Suggestions no longer block turn completion or the
+  next prompt; late results attach to their original answer. Channel buttons
+  are generated after the main reply is posted. Auxiliary requests retain
+  budget checks, privacy settings and independent cost accounting.
+  **Upgrade:** select **Model for next steps** in the Follow-ups capability to
+  enable suggestions. An empty profile now disables them; the main agent no
+  longer receives `suggest_next_steps`.
+
+## [1.18.1] - 2026-10-26
+
+### Fixed
+
+- Show proactive runs with their own icon and filter in Activity and Dashboard.
+  Record their model requests, tool results and final answer for inspection,
+  and explain the fixed AgenticOS attribution beside organization settings.
+
+## [1.18.0] - 2026-10-26
+
+### Fixed
+
+- Read chat project metadata without downloading the transcript, and load model
+  summaries only for model-history reconstruction. Coalesce streamed text updates,
+  reuse unchanged Markdown and tool output, follow content size changes, and release
+  completed visual frames outside the viewport (#2469).
+
+## [1.17.0] - 2026-10-25
+
+### Added
+
+- Configure capability bindings and MCP services through AgenticOS MCP draft
+  tools, with sandbox connection, runtime and policy discovery. The Architect
+  can set up an executable sandbox and test it instead of handing configuration
+  back to the user.
+
+### Fixed
+
+- Reconcile persisted chat prompts by their submission id after a lost socket
+  acknowledgement, without merging repeated prompts or discarding live deltas.
+- Keep loading layouts aligned with forms, queue sections, dashboard placements,
+  editors, API reference, sharing controls, spend cards, file explorers and run
+  and artifact previews.
+
+- Do not enqueue pending approval requests when a workspace save failure ends
+  the run; retain standing-consent audit records for calls already authorized.
+
+- Select the service-backed sandbox when installing the Architect on a deployment
+  with a sandbox host, so its code tools are executable rather than files-only.
+
+- Recheck parked run state under the row lock before continuing after Stop. Keep
+  Stop available when restoring question or approval cards fails, and settle
+  waiting delegate panels when their run is cancelled.
+
+- Apply dashboard period, view, group and section filters when navigating to a
+  report without remounting the dashboard page.
+
+- Wait for chat session readiness before sending queued prompts, cancel pending
+  sends on context changes, and retain live or unsaved answers during transcript
+  refreshes. Reopen long conversations at their newest page, with earlier-message
+  pagination, and retain terminal trace metadata beyond the content budget.
+
+- Keep worker outage backoff bounded through prolonged database failures, and
+  retry lost LISTEN registrations and connection cleanup without stopping the
+  worker or swallowing cancellation.
+
+- Preserve database pool exhaustion as a retryable 503 during agent execution,
+  without masking it by reading a run expired by a failed transaction.
+
+- Enforce the state workspace cap after concurrent merges, preserve rejected snapshots as access-controlled recovery copies, cascade their deletion and report persistence failures to runs and project uploads.
+
+- Commit rotating OAuth credentials independently of agent preparation, drain cancellation through persistence, and serialize mailbox polls without holding credential row locks.
+
+- Bound scheduled MCP health checks to 64 oldest-first servers and eight simultaneous probes; advance unauthorized accounts so they cannot starve the queue; use a separate indexed health clock so OAuth renewal cannot postpone probes.
+
+- Serialize draft saves, publish/rollback version allocation and environment
+  changes per agent. Preserve edits waiting behind a publication, refresh
+  serving pointers after lock waits and allow new runs to start during
+  publication validation.
+
+- Use effective per-resource edit access for context, skill and vault controls.
+  Honor explicit edit grants and hide write actions on private resources
+  shared read-only, while keeping collection creation gated by its permission.
+
+- End console voice calls and pending microphone/setup/reconnect work on
+  tenant or account changes. Ignore stale media and transcript callbacks,
+  and keep late failures from ending a newer call. Public embeds retain
+  their separate visitor scope.
+
+- Show failed context-detail, retention-policy, environment and watch reads
+  with retry controls instead of endless loading or misleading empty states.
+
+- Serialize first-account bootstrap across password and OAuth signup so only
+  one account gets deployment-administrator authority. Grant that authority
+  to the first OAuth account and recheck the signup policy after contention.
+  Hash passwords before taking the bootstrap lock and send best-effort welcome
+  mail only after account creation commits.
+
+- Heartbeat proactive model runs while they execute, meter each response,
+  and durably settle consumed tokens on failure or cancellation, including
+  repeated cancellation during terminal persistence.
+
+- Batch knowledge-source audience reads by resource type so the Builder does
+  not make one grant query per private skill, context file or connection.
+
+- Prepare chat grouping, turn usage and request context in linear time per
+  stream update, and skip rendering unchanged message items between deltas.
+
+- Report truncated host workspace trees in the flat Documents listing.
+
+- Retain conversations with unfinished runs and purge one locked batch of
+  conversation rows and files. Commit durable file-cleanup jobs with retention
+  deletes, and isolate each retention class so a SQL failure cannot abort
+  the remaining classes or unlink files whose row deletion rolled back.
+
+- Erase mem0 memory using the SDK's supported user identifier. Include draft
+  and retained version destinations, clear all owners when clearing an agent,
+  and report unavailable credentials or incomplete erasure as failures.
+
+- Keep trigger histories in separate conversation-specific cache entries,
+  ignore stale admin-user search responses and own file-preview blob URLs
+  through committed subscriptions so Strict Mode cannot revoke a live preview.
+
+- Reap partially started worker pools on failure or cancellation. Keep job
+  deadlines and memory watchdogs active while writing to a child's stdin,
+  and stop a child that closes its pipes without exiting.
+
+- Run synchronous RAG embedding calls on the bounded I/O pool so retrieval
+  and ingestion leave the event loop responsive. Preserve the caller's spend
+  context and settle an in-flight response before propagating cancellation.
+
+- Keep voice-history summaries and image generation under the host agent's
+  tracing policy. Refuse new image requests after a run exhausts its budget,
+  meter image retries individually and price nested fallback requests using
+  the model that actually answered, including streamed responses.
+
+- Update FastMCP to 4.1.2, filelock to 4.2.1, virtualenv to 21.14.13 and
+  Pydantic AI harness to 0.59.0 to address the dependency audit advisories.
+  Pydantic AI and its graph package resolve to 2.59.0 for the harness and the
+  web-fetch security fix.
+  Update the frontend tooling lock to zod 4.6.6 and undici 8.12.2 for its
+  validation and HTTP decoding advisories.
+
+- **Session cookies no longer overwrite another app's login cookies on the same
+  hostname.** The console uses `agenticos_access_token` and
+  `agenticos_refresh_token` for sign-in, refresh and logout. **After upgrading,
+  sign in again once:** existing cookies with the generic names are ignored and
+  left untouched. Migration `0173_revoke_cookie_sessions.py` revokes
+  existing login sessions, including refresh chains and impersonations;
+  session-based API clients must also sign in again. API keys and HTTP API token
+  fields are unchanged. Downgrading does not reactivate sessions. Use separate hostnames
+  for unrelated apps to keep authentication cookies from reaching another app's
+  server; different ports and cookie names do not provide that isolation.
+
+- Sandbox launchers use Docker Desktop's VM socket group on macOS, retain the
+  socket group on Linux and respect explicit `DOCKER_GID` overrides (#2296).
+
+- Return to sign-in when refreshed session cookies are still refused, including
+  when another tab recently refreshed, instead of leaving agent pages loading (#2269).
+
+- Connect the worker wake-up listener with PostgreSQL TLS settings and cap its
+  reconnect delay without overflowing during a long database outage (#2453).
+
+- End live chat traces even when setup is cancelled before the model starts,
+  discard dead writers and show completed replayed answers from the transcript
+  without typing them out again when a conversation is reopened (#2454).
+
+- Organization usage reports open the organization Dashboard for the report
+  window and tenant; the shared email button accurately says Open console (#2455).
+
+- Keep Stop available while chat waits on a question, approval or account
+  connection, including reloaded parked runs. Cancelling a parked run closes
+  pending calls without continuing the model and preserves its recorded spend.
+
+- Treat OAuth grants with `expires_in=0` as already expired so they can be refreshed instead of reused indefinitely.
 
 ## [1.16.0] - 2026-10-23
 
@@ -17063,7 +17345,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.32...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.22.0...HEAD
+[1.22.0]: https://github.com/vstorm-co/agenticos/compare/v1.21.0...v1.22.0
 [0.0.32]: https://github.com/vstorm-co/agenticos/compare/v0.0.31...v0.0.32
 [0.0.31]: https://github.com/vstorm-co/agenticos/compare/v0.0.30...v0.0.31
 [0.0.30]: https://github.com/vstorm-co/agenticos/compare/v0.0.29...v0.0.30

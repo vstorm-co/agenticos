@@ -700,6 +700,37 @@ class SecretCondition(BaseModel):
         return str(getattr(config, self.field, None)) in self.equals
 
 
+class PurposesByValue(BaseModel):
+    """Which services a key may be for, by the value of one config field.
+
+    `required_when` doubles as the purpose where the gating field's values *are*
+    service ids - web search's `tavily`. A field whose values are not, and that
+    decides the key on every value, needs the translation written down: the coding
+    agent's `claude_code` runs on an Anthropic key and its `codex` on an OpenAI key
+    or a ChatGPT sign-in. Data for the same reason a condition is: the Builder's
+    picker narrows on exactly what publish will accept (#2485).
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    field: str = Field(description="Which config field decides")
+    purposes: dict[str, tuple[str, ...]] = Field(
+        description=(
+            "For each value of that field, the purposes a key for it may have. "
+            "`custom` is always accepted besides these; a value missing here "
+            "narrows nothing."
+        )
+    )
+    open_when_set: dict[str, str] = Field(
+        default_factory=dict,
+        description=(
+            "For a value of that field, another config field which, once set, "
+            "points the key at an endpoint the platform cannot name - Claude "
+            "Code's `base_url` - so any key fits."
+        ),
+    )
+
+
 class SecretRequirement(BaseModel):
     """A secret a capability needs, as it declares it in `register(...)`.
 
@@ -739,6 +770,13 @@ class SecretRequirement(BaseModel):
             "with a username and password or be reached without one."
         ),
     )
+    purposes_by: PurposesByValue | None = Field(
+        default=None,
+        description=(
+            "Which services the key may be for, by a config field whose values are "
+            "not service ids themselves. Read before `required_when` and `purpose`."
+        ),
+    )
     also_accepts: tuple[SecretKind, ...] = Field(
         default=(),
         description=(
@@ -751,18 +789,29 @@ class SecretRequirement(BaseModel):
         """Whether a secret of `kind` satisfies this requirement."""
         return kind == self.kind.value or kind in {also.value for also in self.also_accepts}
 
-    def purpose_for(self, config: BaseModel | None) -> str | None:
-        """Which service a key for this configuration has to be for, or `None`.
+    def purposes_for(self, config: BaseModel | None) -> tuple[str, ...] | None:
+        """Which services a key for this configuration may be for, or `None`.
 
-        The Builder's `purposeOf` reads the same two sources in the same order: a
-        capability offering several services gates its key on the choice, so the
-        conditional field *is* the service; one with a single service names it.
+        The Builder's `purposesOf` reads the same three sources in the same order.
+        A field mapped to purposes says so outright, unless the endpoint field
+        named for its value is set, when nothing narrows. Otherwise a capability
+        offering several services gates its key on the choice, so the conditional
+        field *is* the service; and one with a single service names it. `custom`
+        fits any of them, which is the caller's to allow.
         """
+        if self.purposes_by is not None and config is not None:
+            value = str(getattr(config, self.purposes_by.field, None))
+            endpoint = self.purposes_by.open_when_set.get(value)
+            if endpoint is not None and getattr(config, endpoint, None):
+                return None
+            mapped = self.purposes_by.purposes.get(value)
+            if mapped is not None:
+                return mapped
         if self.required_when is not None and config is not None:
             chosen = getattr(config, self.required_when.field, None)
             if isinstance(chosen, str) and chosen:
-                return chosen
-        return self.purpose
+                return (chosen,)
+        return None if self.purpose is None else (self.purpose,)
 
     @model_validator(mode="after")
     def _a_requirement_is_for_a_real_secret(self) -> SecretRequirement:

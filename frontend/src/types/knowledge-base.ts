@@ -276,6 +276,19 @@ export interface KBDocumentList {
 }
 
 /**
+ * Whether a KB's documents are still indexing - all of them, not one loaded page.
+ *
+ * `indexing` while any is queued or being ingested and `complete` once none is;
+ * a failed document is terminal and shows in `failed_count` instead (#2486).
+ */
+export interface KBIngestion {
+  indexing_status: "indexing" | "complete";
+  processing_count: number;
+  indexed_count: number;
+  failed_count: number;
+}
+
+/**
  * One page of a document as the parser left it, chunk by chunk.
  *
  * Chunks arrive separately rather than joined because that is what was actually

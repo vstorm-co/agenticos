@@ -40,7 +40,7 @@ describe("the projects client", () => {
   it("reads which project a conversation is in, and none for one outside", async () => {
     vi.mocked(apiClient.get).mockResolvedValueOnce({ id: "c-1", project_id: "p-1" });
     expect(await api.projectOfConversation("c-1")).toBe("p-1");
-    expect(apiClient.get).toHaveBeenLastCalledWith("/conversations/c-1");
+    expect(apiClient.get).toHaveBeenLastCalledWith("/conversations/c-1/metadata");
     vi.mocked(apiClient.get).mockResolvedValueOnce({ id: "c-2" });
     expect(await api.projectOfConversation("c-2")).toBeNull();
   });

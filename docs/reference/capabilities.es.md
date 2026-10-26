@@ -1,5 +1,5 @@
 ---
-source_sha: "30ddbe03546d"
+source_sha: "ffaede8f0604"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -156,6 +156,18 @@ Busca en las colecciones que vincula el spec del agent y cita lo que ha usado. E
 modelo pide *qué* buscar, nunca *dónde*: las colecciones se resuelven desde el spec
 antes del run y se entregan a la capability, así que un agent no puede alcanzar una
 colección que nadie le conectó.
+
+Cada resultado nombra su documento y dónde está la coincidencia en él. Un PDF, una
+presentación o un archivo de procesador de textos como `.doc`, `.odt` o `.rtf` da la
+página. Un archivo Markdown, una hoja de cálculo, una página web o una imagen no
+tiene una página que un lector pueda abrir. Da solo el nombre del documento, igual
+que los archivos de texto y `.docx`. Los chunks no conservan límites de sección
+fiables, por lo que una línea que empieza por una almohadilla no se interpreta
+como encabezado: puede ser un comentario de un bloque de código que empezó en el
+chunk anterior.
+
+Lo decide el tipo del documento al mostrar el resultado, así que una colección
+ingerida antes no necesita volver a ingerirse.
 
 | Configuración | Valor por defecto | Rango |
 |---|---|---|
@@ -436,6 +448,12 @@ de mem0 responde a qué coincide con una *pregunta*, no a qué contiene un almac
 Esos agentes se **nombran** en la página en vez de omitirse, porque una lista de
 notas nativas presentada como un inventario completo sería peor que una que dice
 lo que le falta. El borrado sí llega a mem0; la lectura no.
+
+El borrado de memoria comprueba los borradores y todas las versiones conservadas
+del agente, incluidos los endpoints anteriores de mem0. Vaciar un agente también
+elimina sus espacios de mem0 para todos los propietarios. Si faltan credenciales,
+falla el proveedor o la lista está incompleta, se devuelve un error. Restablece el
+acceso y repite la operación para completar el borrado.
 
 ## Memoria (mem0) { #memory-mem0 }
 
@@ -1526,6 +1544,15 @@ sea quien preguntó - y todo lo que ejecuta una tarea puede leerla. Vincula una
 clave que puedan compartir todos los que pueden ejecutar el agent. Trabajar con una suscripción
 personal está sujeto a las condiciones de Anthropic y OpenAI para esos planes, que
 pueden no permitirlo en un despliegue compartido.
+
+**La clave encaja con el harness.** El selector ofrece a Claude Code solo claves
+guardadas para Anthropic, y a Codex solo claves de OpenAI e inicios de sesión de
+ChatGPT. Una clave guardada como `custom` encaja con los dos, igual que la clave
+ya vinculada. Publicar rechaza una clave guardada para otro proveedor y nombra los
+que acepta el harness: una clave de OpenAI vinculada a Claude Code se publicaría y
+luego fallaría en cada tarea. Con `base_url` definido, la clave es de la
+pasarela - OpenRouter, LiteLLM u otra -, así que Claude Code acepta ahí cualquier
+clave.
 
 **Delegar en un coding agent.** Un delegado que enlaza `sandbox` por sí mismo se
 ejecuta en un workspace nuevo en memoria, sin shell, así que un coding agent al que se
@@ -2634,23 +2661,44 @@ cancelado y el paso registra que la persona no respondió a tiempo.
 
 ## Follow-ups { #follow-ups }
 
-Al final de una respuesta, `suggest_next_steps` ofrece debajo hasta tres pasos
-siguientes como botones, cada uno de 80 caracteres como mucho y dicho como lo
-diría la persona: «Hazlo una tabla», «Haz esto cada lunes a las 9:00». Un clic
-envía el paso como su siguiente mensaje. Solo la respuesta más reciente los
-ofrece, y ninguna mientras un turno está en marcha. El agent los omite tras una
-charla trivial o una pregunta suya, y no repite los pasos en su respuesta. En
-Slack, Teams, Telegram y Mattermost los pasos llegan bajo la respuesta como un
-mensaje de botones, y pulsar uno es quien pulsa diciendo ese paso - el detalle
-está en [Canales](../channels.md#next-steps-as-buttons).
+Los botones funcionan en el chat de la consola y los canales de mensajería
+indicados. Los widgets públicos, las páginas alojadas y los sockets embed
+no procesan tarjetas de sugerencias, por lo que no inician una ejecución de
+seguimiento de pago. Antes de generar y entregar, los canales vuelven a comprobar
+la identidad registrada del remitente, la vinculación del bot, la política de
+acceso actual y la pertenencia a la sala. Un remitente admitido sin cuenta
+vinculada sigue siendo distinto del publicador usado para contabilizar costes.
 
-**Modelo para los pasos siguientes** (`model_profile_id`) entrega los pasos a un
-modelo propio: al agent ya no se le ofrece `suggest_next_steps`, y cuando su
-respuesta está lista ese modelo lee la petición y la respuesta y escribe hasta tres
-pasos, o ninguno. Para tres botones cortos basta un modelo pequeño y barato, y el
-agent ya no gasta una petición en ellos. La llamada se comprueba antes contra los
-budgets y se anota en el run como cualquier otra; una que no se puede hacer cuesta
-los botones, nunca la respuesta. Vacío, el agent los ofrece él mismo.
+Los botones de siguientes pasos los genera exclusivamente un modelo separado,
+elegido en **Modelo para siguientes pasos** (`model_profile_id`). Sin selección,
+las sugerencias están desactivadas. Después de actualizar, selecciona un perfil
+en Follow-ups para seguir usando los botones. El modelo principal nunca recibe
+`suggest_next_steps` ni espera las sugerencias para terminar su respuesta o
+aceptar el siguiente mensaje.
+
+Después de confirmar la transacción de la respuesta, una tarea opcional en segundo
+plano lee la pregunta de ese run y la respuesta guardada. Devuelve hasta tres pasos
+breves en el idioma de la persona, o ninguno. La consola recibe después un evento
+que identifica la conversación y la respuesta exactas; un turno posterior queda
+intacto. Los botones guardados se conservan al volver a abrir la conversación.
+Slack, Teams, Telegram y Mattermost inician este trabajo después de publicar la
+respuesta principal y envían los botones por separado.
+
+El modelo auxiliar no tiene herramientas ni instrucciones del agente principal.
+Su propio run comprueba los presupuestos del agente, departamento y organización,
+hereda la privacidad del tracing y registra su coste por separado, también tras
+un error. El coste de la respuesta principal no cambia. Cada proceso permite
+cuatro tareas simultáneas; las demás se omiten. El trabajo del modelo está limitado
+a 15 segundos, como máximo dos peticiones y 512 tokens de salida. No hay reintentos
+automáticos. Las sugerencias pueden perderse al cerrar el proceso o la conexión;
+nunca sustituyen la respuesta por un error.
+
+Activity identifica el run auxiliar como **Siguientes pasos**. Conserva los
+permisos de lectura de la conversación original y cuenta en su coste total, sin
+marcarla como ocupada ni sustituir su último run principal.
+
+`suggest_next_steps` conserva la identidad registrada de los botones para el
+historial y los ajustes existentes del spec; el modelo principal no puede invocarlo.
 
 `propose_setup` propone hasta tres cosas que configurar, dibujadas como tarjetas
 bajo la respuesta: un agent propio de la persona, una rutina o un servicio que

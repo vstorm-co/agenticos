@@ -1,5 +1,5 @@
 ---
-source_sha: "30ddbe03546d"
+source_sha: "ffaede8f0604"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -153,6 +153,17 @@ Przeszukuje kolekcje, które wiąże spec agenta, i cytuje to, czego użył. Mod
 pyta, *czego* szukać, nigdy *gdzie*: kolekcje są rozwiązywane ze speca przed
 runem i przekazywane capability, więc agent nie sięgnie do kolekcji, której nikt
 do niego nie podłączył.
+
+Każdy wynik podaje swój dokument i miejsce dopasowania w nim. PDF, prezentacja lub
+plik edytora tekstu taki jak `.doc`, `.odt` czy `.rtf` podaje stronę. Plik Markdown,
+arkusz kalkulacyjny, strona internetowa lub obraz nie ma strony, którą czytelnik
+może otworzyć. Podaje tylko nazwę dokumentu, podobnie jak pliki tekstowe i `.docx`.
+Chunki nie zachowują wiarygodnych granic sekcji, więc wiersz zaczynający się od
+krzyżyka nie jest traktowany jako nagłówek: może być komentarzem w bloku kodu,
+którego początek znalazł się w poprzednim chunku.
+
+O tym decyduje typ dokumentu w chwili pokazania wyniku, więc kolekcja zaindeksowana
+wcześniej nie wymaga ponownej ingestii.
 
 | Konfiguracja | Domyślnie | Zakres wartości |
 |---|---|---|
@@ -428,6 +439,11 @@ w cudzej usłudze i ta strona ich nie listuje — API mem0 odpowiada, co pasuje 
 *pytania*, a nie co magazyn trzyma. Tacy agenci są na stronie **nazwani**, a nie
 pominięci, bo lista notatek natywnych podana jako pełny inwentarz byłaby gorsza
 niż taka, która mówi, czego jej brakuje. Wymazywanie sięga mem0; czytanie nie.
+
+Wymazywanie pamięci sprawdza szkice i wszystkie zachowane wersje agenta, także
+dawne endpointy mem0. Czyszczenie agenta usuwa również przestrzenie mem0 wszystkich
+jego właścicieli. Brak poświadczenia, błąd dostawcy lub niepełna lista przestrzeni
+zwraca błąd; przywróć dostęp i ponów operację, aby dokończyć wymazywanie.
 
 ## Pamięć (mem0) { #memory-mem0 }
 
@@ -1494,6 +1510,14 @@ Slacku, więc używa go każdy run, ktokolwiek pytał - i wszystko, co uruchomi
 zadanie, może go odczytać. Podpinaj klucz, który mogą dzielić wszyscy, którzy mogą
 uruchamiać agenta. Praca na prywatnej subskrypcji podlega warunkom Anthropic i OpenAI dla tych
 planów, które mogą na to nie pozwalać we współdzielonym wdrożeniu.
+
+**Klucz pasuje do harnessu.** Picker proponuje Claude Code tylko klucze zapisane
+dla Anthropic, a Codex tylko klucze OpenAI i logowania ChatGPT. Klucz zapisany
+jako `custom` pasuje do obu, tak samo jak klucz już podpięty. Publikacja odrzuca
+klucz zapisany dla innego dostawcy i nazywa tych, których harness przyjmuje: klucz
+OpenAI podpięty do Claude Code przeszedłby publikację, a potem zawodził przy
+każdym zadaniu. Gdy `base_url` jest ustawiony, klucz należy do bramki - OpenRouter,
+LiteLLM czy innej - więc Claude Code przyjmuje tam dowolny klucz.
 
 **Delegowanie do coding agenta.** Delegat, który sam wiąże `sandbox`, działa w świeżym
 workspace w pamięci, bez shella, więc coding agent osiągany przez delegowanie nie ma
@@ -2571,23 +2595,40 @@ osoba nie odpowiedziała na czas.
 
 ## Następne kroki { #follow-ups }
 
-Na końcu odpowiedzi `suggest_next_steps` proponuje pod nią do trzech następnych
-kroków jako przyciski, każdy najwyżej 80 znaków i sformułowany tak, jak
-powiedziałaby to osoba: „Zrób z tego tabelę”, „Rób to w każdy poniedziałek o
-9:00”. Kliknięcie wysyła krok jako jej następną wiadomość. Proponuje je tylko
-najnowsza odpowiedź, a w trakcie tury żadna. Agent pomija je po small talku albo
-po własnym pytaniu i nie powtarza kroków w odpowiedzi. W Slacku, Teams,
-Telegramie i Mattermost kroki przychodzą pod odpowiedzią jako wiadomość z
-przyciskami, a naciśnięcie jednego to naciskający mówiący ten krok - szczegóły są
-w [Kanałach](../channels.md#next-steps-as-buttons).
+Przyciski są obsługiwane w czacie konsoli i wymienionych kanałach wiadomości.
+Publiczne widgety, strony hostowane i surowe sockety embed nie obsługują kart
+propozycji, więc nie uruchamiają płatnego przebiegu follow-up. Przed generowaniem
+i dostarczeniem kanały ponownie sprawdzają zapisaną tożsamość nadawcy, powiązanie
+bota, aktualną politykę dostępu i członkostwo w pokoju. Dopuszczony nadawca bez
+podpiętego konta pozostaje odrębny od publikującego używanego do rozliczeń.
 
-**Model do następnych kroków** (`model_profile_id`) oddaje kroki osobnemu modelowi:
-agent nie dostaje już `suggest_next_steps`, a gdy jego odpowiedź jest gotowa, ten
-model czyta prośbę i odpowiedź i pisze do trzech kroków albo żadnego. Na trzy
-krótkie przyciski wystarczy mały, tani model, a agent nie wydaje już na nie
-zapytania. Wywołanie najpierw przechodzi przez budżety i jest księgowane na runie
-jak każde inne; takie, którego nie da się wykonać, kosztuje przyciski, nigdy
-odpowiedź. Puste pole zostawia kroki agentowi.
+Przyciski następnych kroków generuje wyłącznie osobny model wybrany w polu
+**Model następnych kroków** (`model_profile_id`). Puste pole wyłącza sugestie.
+Po aktualizacji wybierz profil w możliwości Follow-ups, aby nadal używać
+przycisków. Główny model nie dostaje `suggest_next_steps` i nie czeka na sugestie,
+aby zakończyć odpowiedź lub przyjąć następny prompt.
+
+Po zatwierdzeniu zapisu odpowiedzi opcjonalne zadanie w tle czyta pytanie tego
+runu i zapisaną odpowiedź. Zwraca do trzech krótkich kroków w języku użytkownika
+albo pustą listę. Konsola dostaje późniejsze zdarzenie z identyfikatorem rozmowy
+i konkretnej odpowiedzi; nowsza tura pozostaje bez zmian. Zapisane przyciski
+wracają po otwarciu rozmowy. Slack, Teams, Telegram i Mattermost rozpoczynają to
+zadanie po wysłaniu głównej odpowiedzi i osobno wysyłają przyciski.
+
+Model pomocniczy nie ma narzędzi ani instrukcji głównego agenta. Jego osobny run
+sprawdza budżety agenta, działu i organizacji, dziedziczy prywatność trace’ów i
+osobno zapisuje koszt, również po błędzie. Koszt głównej odpowiedzi się nie
+zmienia. Jeden proces dopuszcza cztery takie zadania naraz; nadmiar pomija.
+Wywołanie modelu ma limit 15 sekund, najwyżej dwóch żądań i 512 tokenów wyjścia.
+Nie ma automatycznego retry. Sugestie mogą przepaść przy zamykaniu procesu lub
+utracie połączenia; nigdy nie zastępują odpowiedzi błędem.
+
+Activity oznacza run pomocniczy jako **Następne kroki**. Dziedziczy on
+prawo odczytu rozmowy źródłowej i wchodzi do jej łącznego kosztu, ale nie oznacza
+rozmowy jako zajętej i nie zastępuje jej ostatniego głównego runu.
+
+`suggest_next_steps` pozostaje identyfikatorem zapisanych przycisków, dla historii
+i istniejących ustawień specyfikacji; główny model nie może wywołać tego narzędzia.
 
 `propose_setup` proponuje do trzech rzeczy do ustawienia, rysowanych jako karty
 pod odpowiedzią: własnego agenta osoby, rutynę albo usługę do podłączenia. Karta

@@ -50,7 +50,7 @@ def _tool_error(message: str) -> dict[str, Any]:
 
 INSTRUCTIONS = """\
 Tools for operating an AgenticOS organization: its agents, runs, knowledge bases,
-skills and members. Every call acts as the person who issued the connection's key,
+skills, projects and members. Every call acts as the person who issued the connection's key,
 within that key's permissions - a refusal names the permission that was missing.
 Start with `whoami` to see the organization and what this connection may do.
 """

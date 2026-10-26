@@ -60,13 +60,15 @@ async def _member(db: AsyncSession, organization: Organization, role: str) -> Au
     return AuthContext(user_id=person.id, organization_id=organization.id, role=role)
 
 
-async def _model(db: AsyncSession, organization: Organization) -> ModelProfile:
+async def _model(
+    db: AsyncSession, organization: Organization, model: str = "gpt-4.1"
+) -> ModelProfile:
     profile = ModelProfile(
         id=uuid.uuid4(),
         organization_id=organization.id,
         label=f"Model {uuid.uuid4().hex[:6]}",
         provider="openai",
-        model="gpt-4.1",
+        model=model,
     )
     db.add(profile)
     await db.flush()
@@ -110,6 +112,70 @@ async def test_a_viewer_s_first_look_installs_it_and_a_model_publishes_it(
     assert len(spec.skill_ids) == 8
     # What the chat offers somebody opening it there with nothing said yet (#2301).
     assert spec.starters[0] == "Build me an agent that answers questions from our documents"
+
+
+async def test_a_speech_model_is_not_one_it_publishes_on(db: AsyncSession) -> None:
+    # Publish refuses a text-to-speech model (#2487), so an organization whose only
+    # profile is one is still waiting for a model, and the first chat model it
+    # adds is the one chosen - not the speech model that came first.
+    organization, _owner = await _organization(db)
+    viewer = await _member(db, organization, OrgRoleName.VIEWER)
+    service = AssistantService(db)
+    await _model(db, organization, model="gpt-4o-mini-tts")
+
+    assert (await service.state(viewer)).status == "needs_model"
+
+    chat = await _model(db, organization)
+    ready = await service.state(viewer)
+
+    assert ready.status == "ready"
+    agent = (await db.execute(select(Agent).where(Agent.id == ready.agent_id))).scalar_one()
+    assert AgentSpec.model_validate(agent.draft_spec).model_profile_id == chat.id
+
+
+@pytest.mark.parametrize("has_valid_model", [False, True])
+async def test_architect_skips_a_chat_profile_with_an_incompatible_fallback(
+    db: AsyncSession, has_valid_model: bool
+) -> None:
+    organization, _owner = await _organization(db)
+    viewer = await _member(db, organization, OrgRoleName.VIEWER)
+    bad = await _model(db, organization)
+    bad.label = "A chat with invalid fallback"
+    speech = await _model(db, organization, model="gpt-4o-mini-tts")
+    bad.fallback_profile_ids = [str(speech.id)]
+    valid = await _model(db, organization) if has_valid_model else None
+    await db.flush()
+
+    state = await AssistantService(db).state(viewer)
+
+    assert state.status == ("ready" if valid else "needs_model")
+    agent = (await db.execute(select(Agent).where(Agent.id == state.agent_id))).scalar_one()
+    assert AgentSpec.model_validate(agent.draft_spec).model_profile_id == (
+        valid.id if valid else None
+    )
+
+
+@pytest.mark.parametrize("compatible", [False, True])
+async def test_an_explicit_architect_draft_model_is_preserved(
+    db: AsyncSession, compatible: bool
+) -> None:
+    organization, owner = await _organization(db)
+    ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
+    service = AssistantService(db)
+    installed = await service.state(ctx)
+    agent = (await db.execute(select(Agent).where(Agent.id == installed.agent_id))).scalar_one()
+    chosen = await _model(db, organization, model="gpt-4.1" if compatible else "gpt-4o-mini-tts")
+    chosen.label = "Z deliberately selected"
+    spec = AgentSpec.model_validate(agent.draft_spec).model_copy(
+        update={"model_profile_id": chosen.id}
+    )
+    await AgentRegistryService(db).save_draft(ctx, agent.id, spec)
+    alternative = await _model(db, organization)
+    alternative.label = "A otherwise preferred"
+    await db.flush()
+    state = await service.state(ctx)
+    assert state.status == ("ready" if compatible else "needs_model")
+    assert AgentSpec.model_validate(agent.draft_spec).model_profile_id == chosen.id
 
 
 async def test_one_organization_gets_one_assistant(db: AsyncSession) -> None:
@@ -316,6 +382,7 @@ async def test_a_deployment_with_a_sandbox_gives_it_files_and_code(
     """Reading a pasted agent and running it needs one (#2069, #2070)."""
     from unittest.mock import AsyncMock, MagicMock
 
+    from app.agents.capabilities.sandbox import SandboxConfig
     from app.services.sandbox_connection import SandboxConnectionService
 
     monkeypatch.setattr(
@@ -330,4 +397,7 @@ async def test_a_deployment_with_a_sandbox_gives_it_files_and_code(
     sandbox = [
         b for b in AgentSpec.model_validate(agent.draft_spec).capabilities if b.id == "sandbox"
     ]
-    assert sandbox and sandbox[0].config == {"include_execute": True}
+    assert sandbox
+    config = SandboxConfig.model_validate(sandbox[0].config)
+    assert config.backend == "service"
+    assert config.include_execute

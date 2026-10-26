@@ -24,6 +24,7 @@ from app.agents.capabilities.budget import (
     metered_by,
     record_ambient_usage,
 )
+from app.agents.observability import inherited_instrumentation
 from app.repositories import conversation_repo
 from app.services.message_history import HistoryMessage, build_message_history
 
@@ -89,6 +90,7 @@ def summariser(prepared: PreparedRun) -> Summarise:
             if not await can_afford_ambient_call():
                 return ""
             agent = PydanticAgent(prepared.built.agent.model, instructions=_SUMMARY_PROMPT)
+            agent.instrument = inherited_instrumentation(prepared.built.agent)
             result = await agent.run(transcript)
             record_ambient_usage(
                 result.response.model_name or "summary",

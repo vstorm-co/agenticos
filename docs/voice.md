@@ -26,6 +26,11 @@ controls, and the widget loads a smaller one of its own. See
 [Console](console.md#voice-calls) and
 [Channels](channels.md#voice-calls-on-a-widget-or-a-hosted-page).
 
+Switching organization or signing into another account ends a console call and
+cancels pending setup or reconnects. If microphone permission arrives afterwards,
+its tracks are stopped without opening the old organization's call. Public
+embeds keep their separate visitor scope.
+
 ## Turn it on
 
 **Calls are switched on in the agent.** The organization has no call settings:

@@ -38,6 +38,7 @@ from app.repositories.agent_run import RunFilters
 from app.schemas.assistant import AssistantRead, AssistantSignals, AssistantUpdate
 from app.services import agent_templates
 from app.services.agent_registry import AgentRegistryService, slugify
+from app.services.model_outputs import model_outputs
 from app.services.sandbox_connection import SandboxConnectionService
 
 logger = logging.getLogger(__name__)
@@ -168,7 +169,9 @@ class AssistantService:
         # deployment has a sandbox to give it. Not in the template: bound there, an
         # organization with none could never publish its assistant (#2069, #2070).
         if await SandboxConnectionService(self.db).ensure_local_connection(organization_id):
-            capabilities.append({"id": "sandbox", "config": {"include_execute": True}})
+            capabilities.append(
+                {"id": "sandbox", "config": {"backend": "service", "include_execute": True}}
+            )
         spec = AgentSpec(
             name=name,
             description=template.description,
@@ -189,15 +192,39 @@ class AssistantService:
         )
 
     async def _publish_when_possible(self, organization_id: UUID, agent: Agent) -> Agent:
-        """Publish the draft on the organization's first model, once it has one."""
-        profiles = await credential_repo.list_profiles(self.db, organization_id=organization_id)
+        """Publish the draft on the organization's first chat model, once it has one.
+
+        A text-to-speech or embedding profile is not one: publish refuses it
+        (#2487), so the assistant waits for a model it can run on.
+        """
+        profiles = [
+            profile
+            for profile in await credential_repo.list_profiles(
+                self.db, organization_id=organization_id
+            )
+            if model_outputs(profile.provider, profile.model, base_url=profile.base_url).chat
+        ]
         if not profiles:
             return agent
         installer = await self._installer(organization_id)
+        for profile in profiles:
+            if not profile.fallback_profile_ids or not await self.registry.model_profile_problems(
+                installer, profile.id
+            ):
+                selected_id = profile.id
+                break
+        else:
+            return agent
+        agent = await self.registry.get(installer, agent.id, perm=Perm.AGENTS_EDIT, for_update=True)
+        if agent.current_version_id is not None:
+            return agent
         spec = AgentSpec.model_validate(agent.draft_spec)
         if spec.model_profile_id is None:
-            spec = spec.model_copy(update={"model_profile_id": profiles[0].id})
+            spec = spec.model_copy(update={"model_profile_id": selected_id})
             agent = await self.registry.save_draft(installer, agent.id, spec)
+        elif await self.registry.model_profile_problems(installer, spec.model_profile_id):
+            # A deliberately selected model is the author's to replace.
+            return agent
         await self.registry.publish(installer, agent.id, note="Installed")
         return await self.registry.get(installer, agent.id)
 

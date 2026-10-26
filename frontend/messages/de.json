@@ -367,6 +367,9 @@
     "noInstructionsWritten": "Keine Instruktionen geschrieben",
     "noKey": "kein Schlüssel",
     "noKey2": "kein Schlüssel",
+    "notAChatModel": "kein Chat-Modell",
+    "notAChatModelHint": "{model} ist kein Chat-Modell - es dient der Sprachausgabe, Transkription, Bildern oder Embeddings, und ein Agent kann nicht darauf laufen. Wählen Sie vor dem Veröffentlichen ein Chat-Modell.",
+    "notAChatModelRefused": "{model} ist kein Chat-Modell - ein Agent kann nicht darauf laufen. Wählen Sie ein Chat-Modell.",
     "noMembersChooseFrom": "Keine Mitglieder zur Auswahl – diese Organisation sind nur Sie.",
     "noModelAskAdmin": "Modelle werden im Builder von einem Mitglied hinzugefügt, das Verbindungen verwaltet. Sobald eines besteht, lässt es sich hier wählen.",
     "noNote": "Keine Notiz",
@@ -513,6 +516,7 @@
     "searchSkills": "Skills suchen …",
     "secret": "Secret",
     "secretMissingFromVault": "Das hier gewählte Secret liegt nicht im Vault dieser Organisation – es wurde gelöscht, oder der Spec wurde für eine andere Organisation geschrieben. Das Veröffentlichen lehnt es ab.",
+    "secretForDifferentService": "Der Schlüssel „{name}“ ist für einen anderen Dienst bestimmt. Wählen Sie einen Schlüssel für diese Konfiguration.",
     "secretOfWrongKind": "„{name}“ ist von der Art {kind}; diese Capability braucht {needed}. Das Veröffentlichen lehnt es ab.",
     "secretUnchanged": "Leer lassen, um das gespeicherte Secret zu behalten",
     "separateWithCommas": "Mit Kommas trennen",
@@ -908,7 +912,7 @@
     "embedVoiceUnavailable": "Sprachanrufe setzen eine eingerichtete Stimme auf der Karte „Stimme“ dieses Agents voraus.",
     "embedVoiceDrift": "Besucher sehen keine Anruftaste, bis dieser Agent wieder Anrufe annehmen kann.",
     "embedVoiceUnchecked": "Sprachanrufe lassen sich gerade nicht prüfen: Der Anrufstatus dieses Agents konnte nicht geladen werden. Laden Sie die Seite neu, um es erneut zu versuchen.",
-    "voiceProviderNoKey": "{name} (noch kein Schlüssel)",
+    "voiceProviderNoKey": "{name} (kein geeigneter Schlüssel)",
     "voiceConversationEnabled": "Sprachanrufe erlauben",
     "voiceConversationEnabledHint": "Aus, bis Sie es einschalten. Wirkt, sobald der Agent veröffentlicht ist.",
     "voiceConversationProvider": "Provider für Anrufe",
@@ -1068,6 +1072,7 @@
     "title": "Abrechnung"
   },
   "chat": {
+    "loadEarlierMessages": "Ältere Nachrichten laden",
     "accessLevel": "Zugriffsstufe",
     "accessRevoked": "Zugriff widerrufen",
     "agentPicker": {
@@ -1339,6 +1344,7 @@
       "model": "Modell",
       "needsConnectionsManage": "Ein anderes Modell zu wählen braucht eine Berechtigung, die Sie nicht haben. Jemand, der die Verbindungen dieser Organisation verwalten darf, kann es ändern.",
       "noProviderKey": "Noch kein {provider}-Schlüssel im Vault.",
+      "notAChatModel": "{model} ist kein Chat-Modell, daher kann diese Unterhaltung nicht darauf laufen. Wählen Sie ein anderes Modell.",
       "provider": "Provider",
       "runModel": "Auf diesem Modell ausführen",
       "thisChat": "Nur dieser Chat"
@@ -2576,13 +2582,15 @@
         },
         "names": {
           "api": "HTTP-API",
+          "follow_ups": "Nächste Schritte",
           "embed": "Widget",
           "mattermost": "Mattermost",
           "playground": "Playground",
           "schedule": "Zeitplan",
           "slack": "Slack",
           "telegram": "Telegram",
-          "web": "Web-Chat"
+          "web": "Web-Chat",
+          "proactive": "Proaktiv"
         },
         "title": "Woher die Runs kommen",
         "description": "Woher Runs kommen - Web-Chat, API, Kanäle.",
@@ -4523,6 +4531,14 @@
       "inbox-filters": {
         "title": "Was von selbst zu Ihnen kam",
         "body": "Funde Ihrer Beobachtungen und die nächtlichen Vorschläge, Dringendes zuerst. Nach Herkunft filtern oder unter Erledigt einen abgelehnten zurückholen."
+      },
+      "org-governance": {
+        "title": "Budget und Freigaben",
+        "body": "Lege das Ausgabenlimit der Organisation fest und verwalte Freigabeausnahmen. Die verfügbaren Optionen hängen von deinen Berechtigungen ab."
+      },
+      "org-proactivity": {
+        "title": "Proaktivität",
+        "body": "Konfiguriere nächtliche Vorschläge, die Überwachung von Verbindungen und proaktive Chatbegrüßungen. Wähle hier Modell, Zeitplan und Budget pro Person."
       }
     },
     "chooseLanguage": "Sprache",
@@ -5045,7 +5061,7 @@
       "transcriptionPair": "{provider} · {model}",
       "transcriptionEngine": "Provider",
       "transcriptionMistralFormat": "{platform, select, slack {Die Desktop-App von Slack nimmt Audioclips als WebM auf} other {Telegram sendet Sprachnachrichten als Ogg/Opus}}, und Mistral führt dieses Format nicht als unterstützt auf. Die Transkription kann fehlschlagen; wählen Sie in diesem Fall einen anderen Provider für diesen Bot.",
-      "transcriptionProviderNoKey": "{name} (noch kein Schlüssel)",
+      "transcriptionProviderNoKey": "{name} (kein geeigneter Schlüssel)",
       "transcriptionInheritedNoKey": "Wo dieses Paar festgelegt ist, ist kein Schlüssel gewählt, daher werden Sprachnachrichten erst transkribiert, wenn einer gewählt wird."
     },
     "invitations": {
@@ -5156,7 +5172,10 @@
       "uploading": "Wird hochgeladen …",
       "uploading2": "Wird hochgeladen …",
       "vectorCount": "{count, plural, =1 {1 Vektor} other {# Vektoren}}",
-      "vectorCountLoaded": "{count, plural, =1 {1 Vektor} other {# Vektoren}} in den geladenen Dokumenten"
+      "vectorCountLoaded": "{count, plural, =1 {1 Vektor} other {# Vektoren}} in den geladenen Dokumenten",
+      "indexingInProgress": "{count, plural, =1 {Indexierung: 1 Dokument in Bearbeitung} other {Indexierung: # Dokumente in Bearbeitung}}",
+      "indexingComplete": "Indexierung abgeschlossen",
+      "indexingFailed": "{count, plural, =1 {1 Dokument fehlgeschlagen} other {# Dokumente fehlgeschlagen}}"
     },
     "mcp-servers": {
       "catalogCompiledIntoBackend": "Der Katalog ist ins Backend kompiliert, und niemand hat einen eigenen Server hinzugefügt. Eine leere Liste hier heißt, dass dieses Deployment keinen mitliefert.",
@@ -5249,7 +5268,12 @@
       "workspaceProfile": "Organisationsprofil",
       "workspaces": "Organisationen",
       "you": "(Sie)",
-      "yourRoleHere": "Ihre Rolle hier ist <badge>{role}</badge>"
+      "yourRoleHere": "Ihre Rolle hier ist <badge>{role}</badge>",
+      "tabProfile": "Profil",
+      "tabGovernance": "Budget und Freigaben",
+      "tabProactivity": "Proaktivität",
+      "tabVoice": "Sprache",
+      "tabAssistant": "AI Architect"
     },
     "rag": {
       "active": "Aktiv",
@@ -5460,6 +5484,7 @@
       "surfaceMattermost": "Mattermost",
       "surfaceA2a": "A2A",
       "surfaceTeams": "Microsoft Teams",
+      "surfaceFollowUps": "Nächste Schritte",
       "surfaceSchedule": "Zeitplan",
       "surfaceSlack": "Slack",
       "surfaceTelegram": "Telegram",
@@ -5531,7 +5556,10 @@
       "anyModality": "Jede Art",
       "modalityText": "Text",
       "modalityVoiceCalls": "Sprachanrufe",
-      "reconnected": "{count, plural, one {Einmal neu verbunden} other {# Mal neu verbunden}}"
+      "reconnected": "{count, plural, one {Einmal neu verbunden} other {# Mal neu verbunden}}",
+      "surfaceProactive": "Proaktiv",
+      "standaloneRequest": "Modellanfrage",
+      "standaloneResponse": "Modellantwort"
     },
     "sandboxes": {
       "addConnection": "Verbindung hinzufügen",
@@ -6539,7 +6567,7 @@
       "cancel": "Abbrechen",
       "save": "Änderungen speichern",
       "saved": "Spracheinstellungen gespeichert",
-      "providerNoKey": "{name} (noch kein Schlüssel)",
+      "providerNoKey": "{name} (kein geeigneter Schlüssel)",
       "notReadyNoKey": "Für {provider} ist kein Schlüssel gewählt. Agents und Bots, die ihn erben, können erst über einen Provider transkribieren, wenn Sie unten einen wählen."
     },
     "proactive": {
@@ -6572,7 +6600,8 @@
       "watches": "Verbindungen der Mitglieder beobachten",
       "watchesHint": "Jede Person wählt, was in ihren eigenen verbundenen Konten beobachtet wird - Pull Requests, die auf sie warten, eine überfällige Rechnung - und erfährt, was neu ist. Es wird nur gelesen, und Funde sind für jede Person privat.",
       "watchMinutes": "Höchstens",
-      "watchMinutesHint": "Wie oft eine einzelne Beobachtung höchstens nachsehen darf. Häufiger kostet mehr."
+      "watchMinutesHint": "Wie oft eine einzelne Beobachtung höchstens nachsehen darf. Häufiger kostet mehr.",
+      "runAttribution": "Hintergrundprüfungen erscheinen in Activity unter dem veröffentlichten AgenticOS-Startagenten. Diese Zuordnung ist in der Plattform festgelegt. Sie verwenden das unten gewählte Proaktivitätsmodell, unabhängig vom eigenen Modell des Agenten."
     }
   },
   "theme": {
@@ -6726,7 +6755,6 @@
     "speechKey": {
       "label": "Schlüssel",
       "choose": "Schlüssel wählen",
-      "option": "{name} (…{hint})",
       "orgHint": "Ein organisationsweiter API-Schlüssel für diesen Provider. Er wird für alle verwendet, daher kann hier kein Schlüssel gewählt werden, den nur einige sehen können.",
       "agentHint": "Ein API-Schlüssel für diesen Provider, den Sie sehen können. Mit dem Veröffentlichen stellen Sie ihn allen zur Verfügung, die diesen Agent ausführen dürfen.",
       "stale": "Der gewählte Schlüssel wurde gelöscht oder kann hier nicht mehr verwendet werden. Wählen Sie einen Schlüssel.",
@@ -6734,7 +6762,9 @@
       "noneOrg": "Im Vault gibt es noch keine organisationsweiten Schlüssel für {provider}. Fügen Sie unten einen hinzu oder teilen Sie einen vorhandenen mit der ganzen Organisation.",
       "cannotList": "Sie können die Schlüssel im Vault nicht auflisten, daher kann hier kein Schlüssel gewählt werden. Bitten Sie jemanden, der Verbindungen verwaltet.",
       "suggestedName": "{provider} Spracherkennung",
-      "noneInVault": "Im Vault gibt es noch keine {provider}-Schlüssel. Fügen Sie einen im Vault hinzu und wählen Sie ihn dann hier."
+      "noneInVault": "Im Vault gibt es noch keine {provider}-Schlüssel. Fügen Sie einen im Vault hinzu und wählen Sie ihn dann hier.",
+      "notShared": "{name} ist bereits im Vault, muss aber für die gesamte Organisation freigegeben werden, bevor der Schlüssel hier verwendet werden kann. Ändern Sie den Zugriff im Vault.",
+      "chatGPTSignIn": "{name} ist eine ChatGPT-Anmeldung für den Modellzugriff über ein ChatGPT-Abonnement. Sprachfunktionen benötigen einen OpenAI-API-Schlüssel; diese Anmeldung kann hier nicht verwendet werden."
     }
   },
   "context": {
@@ -7073,6 +7103,12 @@
       "general": "Allgemeiner Einsatz"
     }
   },
+  "agentLimit": {
+    "title": "Diese Organisation hat ihr Agenten-Limit erreicht",
+    "body": "Dieses Deployment erlaubt {limit, plural, =1 {1 Agenten} other {# Agenten}} pro Organisation, und diese hat {held}. Archivieren Sie einen Agenten, den Sie nicht mehr nutzen, um Platz für einen neuen zu schaffen, oder bitten Sie einen Administrator, das Limit zu erhöhen.",
+    "bodyReached": "Dieses Deployment erlaubt {limit, plural, =1 {1 Agenten} other {# Agenten}} pro Organisation, und diese hat das Limit erreicht. Archivieren Sie einen Agenten, den Sie nicht mehr nutzen, um Platz für einen neuen zu schaffen, oder bitten Sie einen Administrator, das Limit zu erhöhen.",
+    "emptyGallery": "Keiner der Agenten dieser Organisation ist mit Ihnen geteilt, und sie hat bereits so viele, wie dieses Deployment erlaubt."
+  },
   "notifications": {
     "markAllRead": "Alle als gelesen markieren",
     "loadMore": "Mehr laden",
@@ -7172,7 +7208,10 @@
     "follow": "Folgen",
     "unfollow": "Nicht mehr folgen",
     "followed": "Sie werden benachrichtigt, wenn eine neue Version veröffentlicht wird",
-    "unfollowed": "Sie werden über diese App nicht mehr benachrichtigt"
+    "unfollowed": "Sie werden über diese App nicht mehr benachrichtigt",
+    "appTheme": "App-Design",
+    "lightTheme": "Helles App-Design verwenden",
+    "darkTheme": "Dunkles App-Design verwenden"
   },
   "groups": {
     "title": "Gruppen",
@@ -8413,7 +8452,7 @@
     "follow_ups": {
       "model_profile_id": {
         "title": "Modell für nächste Schritte",
-        "description": "Ein Modellprofil, das die nächsten Schritte schreibt, sobald die Antwort da ist, statt dass das Modell des Agents sie als Tool anbietet. Für drei kurze Schaltflächen reicht ein kleines, günstiges Modell, und der Agent verbraucht dafür keine Anfrage mehr. Leer lässt der Agent sie selbst anbieten."
+        "description": "Ein separates Modellprofil erstellt Schaltflächen für nächste Schritte im Hintergrund, nachdem die Antwort gespeichert wurde. Es verzögert weder die Antwort noch die nächste Nachricht. Ein kleines, günstiges Modell reicht aus. Ohne Auswahl sind Vorschläge deaktiviert."
       }
     },
     "computer_use": {

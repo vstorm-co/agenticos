@@ -82,6 +82,7 @@ from app.repositories import (
     rag_document_repo,
 )
 from app.repositories.agent_run import RunFilters
+from app.repositories.rag_document import IngestionCounts
 from app.schemas.agent_environment import EnvironmentCreate, EnvironmentUpdate
 from app.schemas.api_key import ApiKeyCreate
 from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseUpdate
@@ -1837,6 +1838,92 @@ class TestWhatACollectionReportsItHolds:
         assert counts[collection.collection_name].documents == 2
         assert counts[collection.collection_name].indexed == 1
         assert counts[collection.collection_name].chunks == 7
+
+    async def test_ingestion_counts_report_each_status_and_hold_indexing_on_processing(
+        self, db
+    ) -> None:
+        """What `GET /rag/collections/{name}/info` reads to say `indexing` (#2486).
+
+        One aggregate with a `FILTER` per status - checked here because a mock
+        cannot say whether a filter counts the value the pipeline writes.
+        """
+        tenant = await _tenant(db, name="Ingesting")
+        collection = await _collection_with(db, tenant, name="ingesting", config=IngestionConfig())
+        for status, count in (
+            (DocumentStatus.PROCESSING, 3),
+            (DocumentStatus.DONE, 2),
+            (DocumentStatus.ERROR, 1),
+        ):
+            for index in range(count):
+                doc = await _rag_document(
+                    db,
+                    collection_name=collection.collection_name,
+                    filename=f"{status}-{index}.txt",
+                    tenant=tenant,
+                )
+                doc.status = status
+        await db.flush()
+
+        counts = await rag_document_repo.ingestion_counts(
+            db,
+            collection_name=collection.collection_name,
+            organization_id=tenant.organization.id,
+        )
+
+        assert counts == IngestionCounts(processing=3, indexed=2, failed=1)
+
+    @pytest.mark.security
+    async def test_ingestion_counts_do_not_include_another_tenants_same_named_collection(
+        self, db
+    ) -> None:
+        """A shared name must not hold one tenant's collection at `indexing`.
+
+        Two organizations can pick the same collection name. The other tenant's
+        upload still processing is theirs; counted here it would report this
+        collection as indexing for as long as theirs takes. A deployment-wide
+        base (`None`) counts on the name alone, as the document listing does.
+        """
+        ours = await _tenant(db, name="Ours")
+        theirs = await _tenant(db, name="Theirs")
+        await _rag_document(db, collection_name="shared_name", filename="ours.txt", tenant=ours)
+        busy = await _rag_document(
+            db, collection_name="shared_name", filename="theirs.txt", tenant=theirs
+        )
+        busy.status = DocumentStatus.PROCESSING
+        await db.flush()
+
+        mine = await rag_document_repo.ingestion_counts(
+            db, collection_name="shared_name", organization_id=ours.organization.id
+        )
+        deployment_wide = await rag_document_repo.ingestion_counts(
+            db, collection_name="shared_name", organization_id=None
+        )
+
+        assert mine == IngestionCounts(processing=0, indexed=1, failed=0)
+        assert deployment_wide == IngestionCounts(processing=1, indexed=1, failed=0)
+
+    async def test_a_knowledge_bases_ingestion_counts_only_its_own_documents(self, db) -> None:
+        """What `GET /kb/{kb_id}/ingestion` reads - the rows its page lists.
+
+        Counted by the base, not by the collection its rows are filed under: a
+        batch still processing in another base's rows in the same collection
+        must not hold this base's page at `indexing`.
+        """
+        tenant = await _tenant(db, name="Siblings")
+        ours = await _collection_with(db, tenant, name="ours_kb")
+        theirs = await _collection_with(db, tenant, name="theirs_kb")
+        # Both rows in one collection, as two bases sharing its name file them.
+        for kb, status in ((ours, DocumentStatus.DONE), (theirs, DocumentStatus.PROCESSING)):
+            doc = await _rag_document(
+                db, collection_name="shared_kb", filename=f"{kb.id}.txt", tenant=tenant
+            )
+            doc.knowledge_base_id = kb.id
+            doc.status = status
+        await db.flush()
+
+        counts = await rag_document_repo.ingestion_counts_for_kb(db, ours.id)
+
+        assert counts == IngestionCounts(processing=0, indexed=1, failed=0)
 
     async def test_the_pipeline_marking_a_document_done_makes_it_count_as_indexed(self, db) -> None:
         """The writer and the reader, in one test, with no status written by hand.

@@ -176,8 +176,16 @@ class SecretRead(BaseSchema, TimestampSchema):
     )
 
 
+class SecretSummary(SecretRead):
+    """Safe vault metadata with this caller's effective actions."""
+
+    can_edit: bool = Field(
+        default=False, description="Whether this caller may rotate, delete or share this secret"
+    )
+
+
 class SecretList(BaseSchema):
-    items: list[SecretRead]
+    items: list[SecretSummary]
     total: int
 
 

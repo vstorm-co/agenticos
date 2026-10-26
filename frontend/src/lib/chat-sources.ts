@@ -48,7 +48,11 @@ export function extractSources(message: ChatMessage, t: Translate): SourceItem[]
           type: "rag",
           title: item.source,
           subtitle:
-            [item.page && `p.${item.page}`, item.chunk && t("chunkNumber", { number: item.chunk })]
+            [
+              item.page && `p.${item.page}`,
+              item.section,
+              item.chunk && t("chunkNumber", { number: item.chunk }),
+            ]
               .filter(Boolean)
               .join(" · ") || undefined,
           content: item.content,

@@ -30,7 +30,7 @@ import {
   useSecretPurposes,
   useSecrets,
 } from "@/hooks";
-import { modelDetail } from "@/lib/model-profiles";
+import { modelDetail, runsAgents } from "@/lib/model-profiles";
 import type { PublishedModel } from "@/types/agents";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
@@ -85,17 +85,28 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
 
   const providers = purposes.filter((entry) => entry.category === "model_provider");
   const provider = providers.find((entry) => entry.id === providerId);
-  const { models: suggestions, source, isLoading: loadingModels } = useProviderModels(providerId);
+  const {
+    models: suggestions,
+    refused,
+    source,
+    isLoading: loadingModels,
+  } = useProviderModels(providerId);
   // An override profile and the agent's published model both carry
   // provider/model/label, so one summary renders whichever is current.
   const current = value === null ? agentModel : (profiles.find((p) => p.id === value) ?? null);
   const currentDetail = current ? modelDetail(current) : null;
 
+  const matching = profiles.filter(
+    (profile) => profile.provider === providerId && profile.model === model.trim(),
+  );
+  const hasCustomEndpoint = matching.some((profile) => !!profile.base_url && runsAgents(profile));
+
   const canApply =
     provider !== undefined &&
     model.trim() !== "" &&
     modelIdIsWellFormed(provider.id, model.trim()) &&
-    !createProfile.isPending;
+    !createProfile.isPending &&
+    (!loadingModels || hasCustomEndpoint);
 
   const apply = async () => {
     if (provider === undefined) return;
@@ -104,11 +115,19 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
 
     // The organization may already have this exact model as a profile - reuse
     // it rather than minting a duplicate row per conversation.
-    const existing = profiles.find(
-      (profile) => profile.provider === provider.id && profile.model === modelId,
+    // Several profiles can name the same vendor/model. Prefer one that can
+    // chat, including a custom endpoint whose names the vendor cannot classify.
+    const listingRefuses = refused.includes(modelId);
+    const existing = matching.find(
+      (profile) =>
+        runsAgents(profile) && (!!profile.base_url || (!loadingModels && !listingRefuses)),
     );
     if (existing) {
       onChange(existing.id);
+      return;
+    }
+    if (matching.length > 0 || listingRefuses) {
+      setFailure(t("notAChatModel", { model: modelId }));
       return;
     }
 
@@ -127,6 +146,12 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
         model: modelId,
         secret_id: key.id,
       });
+      // An id the listing did not classify still reaches here: the server
+      // classifies the new profile, and a conversation cannot run on it either.
+      if (!runsAgents(profile)) {
+        setFailure(t("notAChatModel", { model: modelId }));
+        return;
+      }
       onChange(profile.id);
     } catch (error) {
       // Caught, not left to reject: every refusal this endpoint gives is about

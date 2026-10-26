@@ -12,17 +12,23 @@ beside it is a queue people approve blind, which is the failure this feature
 exists to prevent.
 """
 
+import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
+from unittest.mock import patch
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, RunSurface, ToolApproval
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
+from app.repositories import agent_run_repo
 from app.repositories.agent_run import ApprovalFilters
+from app.services.agent_runner import AgentRunnerService
 from app.services.approvals import ApprovalService
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
@@ -408,3 +414,91 @@ class TestDecidingTwiceIsRefused:
                 .where(AppAdminAuditLog.target_id == str(approval.id))
             )
             assert audit_rows == 1
+
+
+async def test_expiry_waits_for_a_stop_before_locking_its_approvals(
+    db: AsyncSession, engine: AsyncEngine
+) -> None:
+    org, owner = await _org(db)
+    agent = await _agent(db, org)
+    run = await _run(db, org, agent, started_by=owner)
+    approval = await _approval(db, org, run)
+    run.cost_usd = Decimal("2.50")
+    run.input_tokens = 7
+    run.output_tokens = 3
+    run.paused_state = {"messages": [], "tool_call_ids": {str(approval.id): "call-1"}}
+    await db.commit()
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    waiting_for_run = asyncio.Event()
+    claim_run = agent_run_repo.claim_parked_run
+
+    async def claim(
+        session: AsyncSession, run_id: uuid.UUID, *, organization_id: uuid.UUID
+    ) -> AgentRun | None:
+        waiting_for_run.set()
+        return await claim_run(session, run_id, organization_id=organization_id)
+
+    async def sweep() -> int:
+        async with factory() as session:
+            result = await ApprovalService(session).expire_stale()
+            await session.commit()
+            return result
+
+    async with factory() as stopping:
+        service = AgentRunnerService(stopping)
+        await service.cancel_parked(_ctx(org, owner), run.id)
+        # Stop still owns the run and approval locks. The sweeper must wait on
+        # the run before locking any approval, then re-read its committed status.
+        with patch.object(agent_run_repo, "claim_parked_run", claim):
+            task = asyncio.create_task(sweep())
+            try:
+                async with asyncio.timeout(10):
+                    await waiting_for_run.wait()
+                    assert not task.done()
+                    await stopping.commit()
+                    assert await task == 0
+            finally:
+                if not task.done():
+                    task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+        await service.cancel_parked(_ctx(org, owner), run.id)
+        await stopping.commit()
+    async with factory() as session:
+        ended = await session.get(AgentRun, run.id)
+        decided = await session.get(ToolApproval, approval.id)
+        assert ended is not None and decided is not None
+        assert ended.status == RunStatus.CANCELLED.value
+        assert ended.cost_usd == Decimal("2.50")
+        assert (ended.input_tokens, ended.output_tokens) == (7, 3)
+        assert ended.paused_state is None
+        assert decided.status == ApprovalStatus.EXPIRED.value
+
+
+@pytest.mark.parametrize("status", [RunStatus.AWAITING_ANSWER, RunStatus.AWAITING_APPROVAL])
+async def test_continuation_refreshes_a_preloaded_run_after_stop(
+    db: AsyncSession, engine: AsyncEngine, status: RunStatus
+) -> None:
+    """A second tab must observe Stop even with the run in its identity map."""
+    from app.core.exceptions import BadRequestError
+
+    org, owner = await _org(db)
+    agent = await _agent(db, org)
+    run = await _run(db, org, agent, started_by=owner)
+    run.status = status.value
+    run.paused_state = {"messages": [], "tool_call_ids": {}}
+    await db.commit()
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as answering, factory() as stopping:
+        service = AgentRunnerService(answering)
+        loaded = await service.get_run(_ctx(org, owner), run.id)
+        assert loaded.status == status.value
+        await AgentRunnerService(stopping).cancel_parked(_ctx(org, owner), run.id)
+        await stopping.commit()
+        assert loaded.status == status.value
+        with pytest.raises(BadRequestError) as refused:
+            if status == RunStatus.AWAITING_ANSWER:
+                await service.answer(_ctx(org, owner), run.id, {})
+            else:
+                await service.resume(_ctx(org, owner), run.id)
+        assert loaded.status == RunStatus.CANCELLED.value
+        assert refused.value.details["status"] == RunStatus.CANCELLED.value

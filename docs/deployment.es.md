@@ -1,5 +1,5 @@
 ---
-source_sha: "12eb1406746c"
+source_sha: "b0a3cf294555"
 ---
 
 # El despliegue en sí { #the-deployment-itself }
@@ -172,11 +172,11 @@ una persona más cambia a `invite_only` y la invita.
 
 Tres cosas más sobre esto que es fácil equivocar, y que se equivocaron:
 
-**El primer usuario siempre se admite.** Una instalación recién hecha no tiene
-cuentas, así que su administrador todavía no existe; un despliegue cerrado que
-además rechaza a la persona que lo abriría es uno en el que nadie puede entrar,
-sin consola desde la que arreglarlo. `register` ya promueve esa primera cuenta a
-`is_app_admin`, y la política se remite al mismo hecho.
+**El primer usuario siempre se admite.** Una instalación nueva no tiene cuentas.
+La primera cuenta confirmada obtiene la autoridad de administrador (`is_app_admin`),
+tanto con contraseña como por OAuth. Un bloqueo transaccional concede esta excepción
+a un solo registro concurrente. Los demás deben cumplir la política configurada;
+si el primero se revierte, otro puede obtener la autoridad inicial.
 
 **`invite_only` existe porque cerrar el registro rompería si no las
 invitaciones.** `InvitationService.accept` exige un usuario ya autenticado, así
@@ -548,6 +548,24 @@ El rechazo nombra el techo y el recuento contra el que se midió
 (`{"limit": 5, "held": 5}`), así que «por qué no puedo» lo responde la respuesta y
 no la memoria de un administrador. Se lanza en el servicio que crea la cosa, no en
 la ruta, porque la ruta no es la única entrada.
+
+La consola no espera a ese rechazo. `GET /agents/ceiling`, abierto a quien llama
+con `agents:edit`, devuelve el límite (`limit`, null donde no hay ninguno) y si
+una creación chocaría con él (`at_limit`), y, en el límite, la página Agentes
+desactiva **New agent** y la instalación de plantillas y dice por qué, antes de
+que nadie rellene un formulario.
+
+Si otra creación alcanza el límite durante la creación guiada de un agent,
+la guía termina en vez de bloquear la página alrededor de un botón desactivado.
+Una creación exitosa de esa guía se registra antes de actualizar el límite,
+por lo que ocupar la última plaza no interrumpe los pasos restantes del Builder.
+
+El recuento en sí (`held`) solo lo recibe quien
+llama con un `agents:view` que alcanza a todos los agentes de la organización:
+incluye agentes que un miembro (Member) no ve, y comparado con su propio listado
+diría cuántos se le ocultan. **Duplicate** y **Restore** se siguen rechazando solo
+al intentarlo. La garantía sigue siendo el rechazo: el recuento es una previsión,
+leída sin el bloqueo.
 
 El schema rechaza el cero: una cuenta que no puede poseer ninguna organización es
 una cuenta que no se puede crear, ya que el registro da a cada una su propia

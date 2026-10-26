@@ -1505,13 +1505,10 @@ async def test_a_caller_gone_while_the_call_is_set_up_never_opens_the_provider_s
     started.prepared.realtime_session = realtime_session
 
     async def slow_seed(own, *, conversation_id, context_window, summarise):
-        await asyncio.sleep(2)
-        return []
+        await anyio.sleep_forever()
 
-    began = time.monotonic()
     _, repo = await _run(socket, started, seed=slow_seed)
 
-    assert time.monotonic() - began < 1
     opened.assert_not_called()
     started.prepared.answer_offer.assert_not_awaited()
     assert "ready" not in [frame["type"] for frame in socket.sent]

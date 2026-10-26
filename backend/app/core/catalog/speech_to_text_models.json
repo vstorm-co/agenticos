@@ -54,7 +54,8 @@
       {
         "id": "voxtral-mini-latest",
         "name": "Voxtral Mini Transcribe 2",
-        "description": "Mistral's transcription model, among the cheapest per minute. European hosting, which is sometimes the deciding factor."
+        "description": "Mistral's transcription model, among the cheapest per minute. European hosting, which is sometimes the deciding factor.",
+        "chat": true
       }
     ]
   }

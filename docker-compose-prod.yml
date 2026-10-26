@@ -302,12 +302,15 @@ services:
           memory: ${WORKER_MEMORY_LIMIT:-2560M}
 
   # The only service holding the Docker socket. See docker-compose.yml for the
-  # reasoning; the differences here are that it is not on by default (mounting
-  # the socket on a shared host is a deliberate act) and that the image tag is
-  # pinned rather than tracking a minor.
+  # reasoning; the difference here is that it is not on by default (mounting
+  # the socket on a shared host is a deliberate act).
   sandboxd:
     logging: *logging
-    image: ghcr.io/vstorm-co/sandboxd:0.2
+    # Exactly the `pydantic-ai-backend` version in backend/uv.lock: the backend's
+    # client and this service ship together, and a client newer than the service
+    # calls routes it does not have (#2484). Bump both at once;
+    # backend/tests/test_sandboxd_compat.py fails when they differ.
+    image: ghcr.io/vstorm-co/sandboxd:0.2.37
     profiles: [sandbox]
     # Without an init the server is PID 1, and Python reaps only the children it
     # waits on: anything orphaned under it stays a zombie for the container's

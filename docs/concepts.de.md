@@ -1,5 +1,5 @@
 ---
-source_sha: "81640adee89c"
+source_sha: "3687810ec1b7"
 ---
 
 # Begriffe { #concepts }
@@ -75,14 +75,20 @@ Der Spec hält zwei Regeln ein, und sie sind es, die ihn nützlich machen.
 
 **Ein eingefrorener Spec.**
 
-Das Veröffentlichen kopiert den Draft in eine Version und richtet den Agent
-darauf aus. Runs halten fest, welche Version ausgeführt wurde.
+Das Veröffentlichen kopiert den Draft in eine Version. Umgebungen bestimmen,
+welche Version eine Oberfläche bedient. Runs halten die ausgeführte Version fest.
 
 Deshalb bleibt *was hat dieser Agent letzten Dienstag getan* auch nach einem
 Dutzend Bearbeitungen beantwortbar. Deshalb veröffentlicht ein Rollback auch eine
 **neue** Version, kopiert aus der alten, statt Historie zu löschen — die
 Zeitleiste zeigt, dass ein Rollback stattgefunden hat, statt so zu tun, als habe
 es die schlechte Version nie gegeben.
+
+Draft-Speicherung, Veröffentlichung, Rollback und Umgebungsänderungen werden pro
+Agent nacheinander ausgeführt. Eine Speicherung, die auf eine Veröffentlichung
+wartet, bleibt danach als Draft erhalten. Gleichzeitige Veröffentlichungen
+erhalten eigene Versionsnummern. Die Standardumgebung und die ausführbare Version
+des Agenten bleiben synchron. Neue Runs können während der Validierung starten.
 
 ### Environments { #environments }
 

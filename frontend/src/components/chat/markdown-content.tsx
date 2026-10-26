@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { memo } from "react";
 
 export interface MarkdownContentProps {
   content: string;
@@ -52,7 +53,7 @@ const MarkdownContentImpl = dynamic(
   },
 );
 
-export function MarkdownContent({
+export const MarkdownContent = memo(function MarkdownContent({
   content,
   onCiteClick,
   bareCode,
@@ -68,4 +69,4 @@ export function MarkdownContent({
       streaming={streaming}
     />
   );
-}
+});

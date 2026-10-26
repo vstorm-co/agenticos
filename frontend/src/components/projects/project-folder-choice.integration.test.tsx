@@ -82,3 +82,15 @@ it("does not pick when device linking was cancelled", async () => {
   expect(native.pick).not.toHaveBeenCalled();
   expect(view.change).not.toHaveBeenCalled();
 });
+
+it("disconnects the approved folder without opening a picker", async () => {
+  const change = vi.fn();
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <ProjectFolderChoice value={{ folder: "/approved", mode: "read_only" }} onChange={change} />
+    </QueryClientProvider>,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Disconnect" }));
+  expect(change).toHaveBeenCalledWith(null);
+  expect(native.pick).not.toHaveBeenCalled();
+});

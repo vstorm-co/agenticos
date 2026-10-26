@@ -17,6 +17,7 @@ import {
   type ContextDraftFields,
 } from "@/components/context/file-name";
 import { FileDropOverlay } from "@/components/files";
+import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import {
   Button,
@@ -107,7 +108,12 @@ export default function ContextPage() {
 
   const [selected, setSelected] = useState<ContextFileSummary | null>(null);
   const [pendingDelete, setPendingDelete] = useState<ContextFileSummary | null>(null);
-  const { file, save } = useContextFile(selected?.id ?? null);
+  const {
+    file,
+    error: fileError,
+    refetch: refetchFile,
+    save,
+  } = useContextFile(selected?.id ?? null);
   const [createOpen, setCreateOpen] = useState(false);
   // Files somebody dropped, oldest first. Each one opens the create dialog
   // prefilled and is taken off the queue once it has been created, because the
@@ -115,7 +121,7 @@ export default function ContextPage() {
   // must not answer it for anybody.
   const [dropped, setDropped] = useState<ContextDraft[]>([]);
 
-  const canEdit = can(Perm.contextEdit);
+  const canCreate = can(Perm.contextEdit);
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const isSearching = search.trim() !== "";
   const isFiltering = isSearching || groupId !== null;
@@ -171,7 +177,7 @@ export default function ContextPage() {
     setDropped(drafts);
   }
 
-  const { isDragging } = useFileDrop({ onFiles: acceptDropped, disabled: !canEdit });
+  const { isDragging } = useFileDrop({ onFiles: acceptDropped, disabled: !canCreate });
   const draft = dropped[0] ?? null;
 
   const isBusy = isLoading || isLoadingPermissions;
@@ -181,7 +187,7 @@ export default function ContextPage() {
       title={t("context")}
       description={t("contextStandingKnowledge")}
       actions={
-        canEdit ? (
+        canCreate ? (
           <Button data-tour="context-new" onClick={() => setCreateOpen(true)}>
             <Plus className="h-4 w-4" />
             {t("newContext")}
@@ -289,12 +295,12 @@ export default function ContextPage() {
               description={
                 isFiltering
                   ? t("namesDescriptionsSearched")
-                  : canEdit
+                  : canCreate
                     ? t("addSomethingYourAgents")
                     : t("nobodyHasAddedContext")
               }
               cta={
-                canEdit && !isFiltering
+                canCreate && !isFiltering
                   ? {
                       label: (
                         <>
@@ -314,7 +320,7 @@ export default function ContextPage() {
                   <ContextCard
                     key={entry.id}
                     file={entry}
-                    canEdit={canEdit}
+                    canEdit={entry.can_edit === true}
                     onOpen={() => setSelected(entry)}
                     onDelete={() => setPendingDelete(entry)}
                   />
@@ -345,13 +351,32 @@ export default function ContextPage() {
               <DialogTitle className="font-mono">{selected.name}</DialogTitle>
               <DialogDescription>{t("nameHowItIsReferred")}</DialogDescription>
             </DialogHeader>
-            {file === undefined ? (
-              <LoadingState variant="skeleton-panel" rows={2} />
+            {fileError ? (
+              <ErrorState
+                description={getErrorMessage(fileError, tErrors)}
+                cta={{ label: tc("retry"), onClick: () => void refetchFile() }}
+              />
+            ) : file === undefined ? (
+              <div
+                className="flex min-h-0 flex-1 flex-col gap-3"
+                role="status"
+                aria-label={tc("loading")}
+              >
+                <div className="space-y-4 rounded-md border p-3" aria-hidden>
+                  <div className="flex flex-wrap gap-4">
+                    <Skeleton className="h-20 w-40" />
+                    <Skeleton className="h-20 w-32" />
+                    <Skeleton className="h-20 w-16" />
+                  </div>
+                  <Skeleton className="h-20 w-full" />
+                </div>
+                <Skeleton className="min-h-[22rem] w-full flex-1" />
+              </div>
             ) : (
               <ContextEditor
                 key={file.id}
                 file={file}
-                canEdit={canEdit}
+                canEdit={selected.can_edit === true}
                 isSaving={save.isPending}
                 onSave={handleSave}
                 onCancel={() => setSelected(null)}

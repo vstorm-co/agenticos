@@ -1,5 +1,5 @@
 ---
-source_sha: "7a628dbf307e"
+source_sha: "d4203a010ad0"
 ---
 
 # Installation { #install }
@@ -49,6 +49,22 @@ es gibt keinen Schritt darin, den Sie nicht machen können.
 
     Das Makefile und die Shell-Helfer setzen bash voraus. **WSL2** oder **Git Bash**.
     Sobald Sie in einem davon sind, ist alles Weitere identisch.
+
+!!! note "Login-Cookies und gemeinsam genutzte Hosts"
+
+    Die Konsole verwendet die Cookies `agenticos_access_token` und
+    `agenticos_refresh_token`, damit Apps mit allgemeinen Cookie-Namen sie nicht
+    versehentlich überschreiben. Melden Sie sich nach einem Upgrade von den alten
+    Namen einmal neu an. Die Migration `0173_revoke_cookie_sessions.py` beendet
+    bestehende Anmeldesitzungen, einschließlich rotierter Refresh-Ketten und
+    Identitätswechsel. Sitzungsbasierte API-Clients müssen sich ebenfalls neu
+    anmelden; API-Schlüssel bleiben gültig. Ein Downgrade reaktiviert keine
+    widerrufenen Sitzungen.
+
+    Geben Sie unabhängigen Apps eigene Hostnamen. Cookies werden über die Ports
+    desselben Hostnamens hinweg geteilt; app-spezifische Namen verhindern
+    versehentliche Kollisionen, aber nicht, dass eine andere App unter demselben
+    Hostnamen Ihre Tokens erhält.
 
 ## Aus den veröffentlichten Images betreiben { #run-it-from-the-published-images }
 

@@ -30,6 +30,7 @@ vi.mock("@/components/chat/markdown-content", () => ({
 
 vi.mock("@/hooks", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks")>()),
+  useRunManifest: () => ({ manifest: undefined, error: null, isLoading: false }),
   useRunTranscript: (runId: string, scope?: string) => useRunTranscriptMock(runId, scope),
 }));
 

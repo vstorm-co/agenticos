@@ -1,5 +1,5 @@
 ---
-source_sha: "6073011135ba"
+source_sha: "0d818897d85d"
 ---
 
 # Sandbox { #the-sandbox }
@@ -50,6 +50,56 @@ z tokenem w `SANDBOXD_TOKEN`. Pozostałe backendy sandboksa — połączenia `da
 i `e2b` oraz `state` — to usługi hostowane i dokument w Postgresie i żaden z nich
 nie ma nic wspólnego z powyższym; własny komputer osoby też nie (zobacz
 [Poza sandboxd](#beyond-sandboxd)).
+
+### Usługa i backend zmieniają się razem { #the-service-and-the-backend-move-together }
+
+Usługa i klient backendu pochodzą z tego samego wydania `pydantic-ai-backend`,
+a klient wywołuje ścieżki, które obsługuje tylko jego własne wydanie. Dlatego
+każdy plik compose przypina obraz dokładnie do wersji z `backend/uv.lock`, a test
+backendu nie przechodzi, gdy pliki compose albo inwentarz licencji podają inną.
+Podbijaj lock, pliki compose i inwentarz w jednej zmianie. Nowy pin to tag,
+którego host jeszcze nie ma, więc `make dev` i `scripts/deploy.sh` pobierają go
+przy następnym starcie.
+
+Ruchomy tag już raz to zepsuł (#2484). Zapisany w pamięci podręcznej
+`sandboxd:0.2` obsługiwał starsze API niż to, którym mówił klient, i każde
+polecenie kończyło się błędem `sandboxd session '…' is gone`, choć sesja żyła.
+Platforma odróżnia teraz te dwa przypadki. Gdy 404 niesie gołe
+`{"detail":"Not Found"}` FastAPI zamiast własnego `No such session` usługi,
+platforma czyta indeks usługi pod `/`. Jeśli w indeksie brakuje ścieżki, której
+klient potrzebuje, wywołanie narzędzia kończy się błędem, a agent dostaje
+komunikat:
+
+```text
+The sandbox service does not serve /sessions/{session_id}/run,
+/sessions/{session_id}/runs/{run_id}/stop - its version does not match this
+platform (expected <version>). Run ghcr.io/vstorm-co/sandboxd:<version> and
+redeploy it
+```
+
+To samo sprawdzenie obsługuje `409` przy podłączaniu referencji sesji zapisanej
+przed aktualizacją: stara usługa może ją odrzucić, choć sesja nadal istnieje. Tylko
+potwierdzony brak endpointu zmienia konflikt w błąd wersji; zwykłe konflikty
+i niedostępny indeks zachowują pierwotny błąd.
+
+Komunikat pomija adres usługi, którego członkowie i model mogą nie mieć prawa
+widzieć; backend zapisuje go w logu jako `sandboxd_version_mismatch`. Sesja nie
+jest zgłaszana jako utracona, ale rozmowa zapomina zapisane odwołanie do niej:
+starsza usługa odmawia dołączenia do żywej sesji po odwołaniu. Następna tura
+otwiera sesję po nazwie, więc po aktualizacji rozmowa wraca do tej samej sesji,
+jeśli usługa ją zachowała.
+
+`agenticos cmd doctor` robi to samo sprawdzenie dla
+każdego zarejestrowanego połączenia i podaje obraz, który trzeba uruchomić.
+Wdróż ponownie stos, który uruchamia usługę: `scripts/deploy.sh` w produkcji
+(uruchamia profil `sandbox`, gdy ustawiony jest `SANDBOXD_TOKEN`), `make dev` na
+laptopie. `make prod` nie rusza usługi, bo nie uruchamia tego profilu; na stosie
+uruchomionym w ten sposób pobierz i odtwórz ją sam:
+
+```bash
+docker compose --env-file backend/.env -f docker-compose-prod.yml --profile sandbox pull sandboxd
+docker compose --env-file backend/.env -f docker-compose-prod.yml --profile sandbox up -d sandboxd
+```
 
 !!! danger "Ten token jest równoważny rootowi"
 
@@ -649,3 +699,5 @@ ani sesji do sprzątania.
   Zużycie dysku tylko rośnie.
 - **E2B i własny komputer osoby** to też sandboksy: jeden na własnym kluczu
   organizacji, drugi trzymany tego, co osoba na nim przyznała.
+
+Backend `state` wlicza pliki i puste katalogi do limitu przechowywania, również przy końcowym scalaniu równoległych zmian. Jeśli osobno zaakceptowane dokumenty nie mieszczą się razem, wspólny dokument pozostaje bez zmian, a późniejszy zapis trafia do kopii odzyskiwania w **Documents**. Run zapisuje błąd z identyfikatorem kopii; operacja na projekcie zwraca konflikt zamiast sukcesu. Kopie projektów wymagają uprawnień do przeglądania i używania projektu. Klucz obcy usuwa kopię wraz ze źródłem, także przy równoczesnym usuwaniu danych. Obniżenie limitu poniżej rozmiaru istniejącego dokumentu nadal pozwala go zmniejszać.

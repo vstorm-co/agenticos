@@ -1,5 +1,5 @@
 ---
-source_sha: "6073011135ba"
+source_sha: "0d818897d85d"
 ---
 
 # La sandbox { #the-sandbox }
@@ -51,6 +51,56 @@ con el token que hay en `SANDBOXD_TOKEN`. Los demás backends de sandbox -las
 conexiones `daytona` y `e2b`, y `state`- son servicios alojados y un documento en
 Postgres, y ninguno implica nada de lo anterior; tampoco el ordenador propio de la
 persona (ver [Más allá de sandboxd](#beyond-sandboxd)).
+
+### El servicio y el backend cambian juntos { #the-service-and-the-backend-move-together }
+
+El servicio y el cliente del backend salen de la misma versión de
+`pydantic-ai-backend`, y un cliente llama a rutas que solo sirve su propia
+versión. Por eso cada archivo compose fija la imagen exactamente en la versión de
+`backend/uv.lock`, y una prueba del backend falla cuando los archivos compose o el
+inventario de licencias nombran otra. Sube el lock, los archivos compose y el
+inventario en un solo cambio. Un pin nuevo es una etiqueta que el host todavía no
+tiene, así que `make dev` y `scripts/deploy.sh` la descargan en el siguiente
+arranque.
+
+Una etiqueta móvil ya lo rompió una vez (#2484). Un `sandboxd:0.2` en caché
+servía una API más antigua que la que hablaba el cliente, y cada comando fallaba
+como `sandboxd session '…' is gone`, aunque la sesión seguía viva. La plataforma
+ahora distingue los dos casos. Cuando un 404 trae el `{"detail":"Not Found"}`
+desnudo de FastAPI en lugar del `No such session` propio del servicio, lee el
+índice del servicio en `/`. Si al índice le falta una ruta que el cliente
+necesita, la llamada a la herramienta falla y al agente se le dice:
+
+```text
+The sandbox service does not serve /sessions/{session_id}/run,
+/sessions/{session_id}/runs/{run_id}/stop - its version does not match this
+platform (expected <version>). Run ghcr.io/vstorm-co/sandboxd:<version> and
+redeploy it
+```
+
+La misma comprobación trata un `409` al conectar una referencia de sesión guardada
+antes de actualizar: un servicio antiguo puede rechazarla aunque la sesión exista.
+Solo un endpoint ausente confirmado convierte el conflicto en un error de versión;
+los conflictos normales y los índices inaccesibles conservan el error original.
+
+El mensaje omite la dirección del servicio, que los miembros y el modelo quizá no
+puedan ver; el backend la registra como `sandboxd_version_mismatch`. La sesión no
+se da por perdida, pero la conversación olvida la referencia que guardaba: un
+servicio más antiguo se niega a adjuntarse por referencia a una sesión viva. El
+siguiente turno abre la sesión por su nombre, así que tras la actualización la
+conversación retoma la misma sesión si el servicio la conservó.
+
+`agenticos cmd doctor` hace la misma comprobación en cada conexión registrada y
+nombra la imagen que hay que ejecutar. Vuelve a desplegar la pila que ejecuta el
+servicio: `scripts/deploy.sh` en producción (arranca el perfil `sandbox` cuando
+`SANDBOXD_TOKEN` está definido), `make dev` en un portátil. `make prod` no toca el
+servicio, porque no arranca ese perfil; en una pila arrancada así, descárgalo y
+recréalo tú mismo:
+
+```bash
+docker compose --env-file backend/.env -f docker-compose-prod.yml --profile sandbox pull sandboxd
+docker compose --env-file backend/.env -f docker-compose-prod.yml --profile sandbox up -d sandboxd
+```
 
 !!! danger "El token equivale a root"
 
@@ -669,3 +719,5 @@ sesión que limpiar.
   `SANDBOXD_WORKSPACE_TTL`. El uso de disco solo crece.
 - **E2B y el ordenador propio de la persona** también son sandboxes: una con la
   clave propia de la organización, el otro sujeto a lo que la persona concedió en él.
+
+El backend `state` incluye archivos y directorios vacíos en el límite de almacenamiento, también al fusionar cambios simultáneos. Si los documentos aceptados por separado no caben juntos, el documento compartido no cambia y el estado posterior se confirma como copia de recuperación en **Documents**. La ejecución registra un error con el identificador de la copia; una modificación del proyecto devuelve un conflicto en lugar de éxito. Las copias de proyectos requieren permisos de visualización y uso. Una clave foránea elimina la copia junto con su origen, incluso durante una eliminación de datos simultánea. Reducir el límite por debajo del tamaño de un documento existente permite seguir reduciendo ese documento.

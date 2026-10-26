@@ -76,6 +76,19 @@ from tests.workspaces import document_workspace
 pytestmark = pytest.mark.anyio
 
 
+@pytest.fixture(autouse=True)
+def no_project_recovery_copies(monkeypatch):
+    monkeypatch.setattr(workspace_repo, "project_recovery_candidates", AsyncMock(return_value=[]))
+
+
+@pytest.fixture
+def mock_db_session() -> AsyncMock:
+    session = AsyncMock()
+    session.info = {}
+    session.begin_nested = MagicMock(return_value=MagicMock())
+    return session
+
+
 def _ctx(organization_id: UUID | None = None) -> AuthContext:
     return AuthContext(
         user_id=uuid4(),
@@ -933,7 +946,7 @@ class TestOpeningAndClosing:
 
         assert mock_db_session.get.await_args.kwargs["populate_existing"] is True
         # Held to the commit, so a second flush waits and merges onto this one.
-        assert mock_db_session.get.await_args.kwargs["with_for_update"] is True
+        assert mock_db_session.get.await_args.kwargs["with_for_update"] == {"key_share": True}
 
     async def test_a_turn_that_wrote_nothing_stores_nothing(self, monkeypatch, mock_db_session):
         """Storing it anyway rewrote the whole column, and its WAL, every message."""
@@ -1654,6 +1667,27 @@ class TestOneFlatListOfFiles:
             "/report.csv",
         ]
         assert listing.truncated is False
+
+    @pytest.mark.parametrize("truncated", [False, True])
+    async def test_host_tree_truncation_is_reported_in_the_flat_listing(
+        self, monkeypatch, mock_db_session, truncated: bool
+    ) -> None:
+        from app.repositories import agent as agent_repo
+
+        monkeypatch.setattr(
+            workspace_repo, "list_for_reader", AsyncMock(return_value=[_row(files={})])
+        )
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+        service = SandboxWorkspaceService(mock_db_session)
+        monkeypatch.setattr(
+            service,
+            "_entries_of",
+            AsyncMock(return_value=[WorkspaceContents(entries=[], truncated=truncated)]),
+        )
+        listing = await service.flat_files(_ctx())
+        assert listing.truncated is truncated
+        assert listing.workspaces_read == 1
 
     async def test_directories_are_not_files(self, monkeypatch, mock_db_session):
         from app.repositories import agent as agent_repo
@@ -2496,6 +2530,7 @@ class _Sandboxes:
                 super().__init__(**kwargs)
                 self.provider = str(kwargs["provider"])
                 self.name = str(kwargs["session_name"])
+                self.service_url = str(kwargs["service_url"])
 
         class _Daytona(_Provider):
             def __init__(self, **kwargs: object) -> None:
@@ -3088,6 +3123,61 @@ class TestASessionAcrossRuns:
         with pytest.raises(WorkspaceUnavailableError):
             await workspace.workspace.write_text("notes.txt", "into an empty directory")
         assert not (sandboxes.root / "notes.txt").exists()
+
+    async def test_a_service_of_another_version_is_not_reported_as_a_lost_session(
+        self, monkeypatch, mock_db_session, sandboxes
+    ):
+        """A 404 from a service lacking the route reads as "gone" to the client
+        (#2484). The session is alive, so it is not reported lost - but its ref is
+        forgotten, because an older service answers an attach by ref with a 409
+        while the session lives, and the next turn would fail on that instead."""
+        from app.services import sandbox_workspace
+        from app.services.sandboxd_compat import SandboxdVersionMismatchError
+
+        sandboxes.gone = True
+        mismatch = SandboxdVersionMismatchError(message="the service does not serve /run")
+        explain = AsyncMock(return_value=mismatch)
+        monkeypatch.setattr(sandbox_workspace, "explain_unavailable", explain)
+        _serve(monkeypatch, _resolved())
+        recorded = self._row_with(monkeypatch, mock_db_session, "xc-recorded")
+        service = SandboxWorkspaceService(mock_db_session)
+
+        workspace = await service.open(_spec(backend="service"), ctx=_ctx(), identity=_identity())
+
+        assert workspace is not None
+        assert isinstance(workspace.workspace, RecordingWorkspace)
+        with pytest.raises(SandboxdVersionMismatchError):
+            await workspace.workspace.write_text("notes.txt", "x")
+        assert explain.await_args.kwargs["base_url"] == "http://sandboxd:8080"
+        assert not workspace.workspace.lost
+        assert workspace.workspace.mismatched
+
+        await service.close(workspace)
+
+        assert recorded.await_args.kwargs["session_id"] is None
+
+    async def test_a_daytona_sandbox_found_gone_is_not_asked_about_a_version(
+        self, monkeypatch, mock_db_session, sandboxes
+    ):
+        """Only `sandboxd` has an index to ask; Daytona's loss stays a loss."""
+        from app.services import sandbox_workspace
+
+        sandboxes.gone = True
+        explain = AsyncMock()
+        monkeypatch.setattr(sandbox_workspace, "explain_unavailable", explain)
+        _serve(monkeypatch, _resolved(kind="daytona", base_url=None, token="dtn-live-key"))
+        self._row_with(monkeypatch, mock_db_session, "dt-recorded")
+
+        workspace = await SandboxWorkspaceService(mock_db_session).open(
+            _spec(backend="service"), ctx=_ctx(), identity=_identity()
+        )
+
+        assert workspace is not None
+        assert isinstance(workspace.workspace, RecordingWorkspace)
+        with pytest.raises(WorkspaceUnavailableError):
+            await workspace.workspace.write_text("notes.txt", "x")
+        explain.assert_not_awaited()
+        assert workspace.workspace.lost
 
     async def test_the_model_is_told_its_files_are_gone(
         self, monkeypatch, mock_db_session, sandboxes

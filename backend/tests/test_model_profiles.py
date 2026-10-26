@@ -34,7 +34,7 @@ from app.core.exceptions import (
     BadRequestError,
     NotFoundError,
 )
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.core.secret_kinds import (
     ApiKeySecret,
     AwsCredentialsSecret,
@@ -678,6 +678,35 @@ class TestResolution:
         assert isinstance(spec.build(), FallbackModel)
 
     @pytest.mark.anyio
+    async def test_a_fallback_on_a_speech_model_is_left_out_of_the_chain(self):
+        """A provider failure must not hand the conversation to a model that
+        cannot hold one (#2487). Publish refuses such a fallback; this covers one
+        added to the profile afterwards. A custom endpoint is unknown, so kept."""
+        ctx = _ctx()
+        secret = _vault_secret(ctx)
+        speech = _profile(ctx, secret, model="gpt-4o-mini-tts")
+        custom = _profile(ctx, secret, model="whisper-1", base_url="http://vllm:8000/v1")
+        profile = _profile(ctx, secret, fallbacks=[speech.id, custom.id])
+
+        with (
+            patch(
+                "app.services.model_profile.credential_repo.get_profile",
+                new=AsyncMock(return_value=profile),
+            ),
+            patch(
+                "app.services.model_profile.organization_secret_repo.get",
+                new=AsyncMock(return_value=secret),
+            ),
+            patch(
+                "app.services.model_profile.credential_repo.get_profiles_by_ids",
+                new=AsyncMock(return_value={speech.id: speech, custom.id: custom}),
+            ),
+        ):
+            spec = await ModelProfileService(_db()).resolve(ctx, profile_id=profile.id)
+
+        assert [model for _, model in spec.fallbacks] == ["whisper-1"]
+
+    @pytest.mark.anyio
     async def test_a_fallback_whose_key_is_gone_is_skipped_not_raised(self):
         """A fallback exists to survive an outage; it must not cause one itself."""
         ctx = _ctx()
@@ -797,9 +826,20 @@ class TestASignInIsItsOwnersAlone:
     @pytest.mark.anyio
     @pytest.mark.parametrize(
         "stand_in",
-        [{"subject_is_publisher_fallback": True}, {"api_key_id": uuid.uuid4()}],
-        ids=["visitor-as-publisher", "key-holder-as-issuer"],
+        [
+            {"subject_is_publisher_fallback": True},
+            {"api_key_id": uuid.uuid4()},
+            {"key_scopes": frozenset({Perm.AGENTS_RUN})},
+            {"key_scopes": frozenset()},
+        ],
+        ids=[
+            "visitor-as-publisher",
+            "key-holder-as-issuer",
+            "persisted-key-ceiling",
+            "empty-key-ceiling",
+        ],
     )
+    @pytest.mark.security
     async def test_a_stand_in_for_somebody_else_reaches_nobody_s(self, stand_in):
         """The publisher behind a public page, or a key's issuer, is the account a
         run is billed to - not the person asking, whose subscription it is not."""
@@ -808,6 +848,19 @@ class TestASignInIsItsOwnersAlone:
         )
         with pytest.raises(AuthorizationError):
             await self._resolve(self._spec(self._sign_in()), sees=True, ctx=ctx)
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_restored_key_keeps_api_credentials_but_not_a_private_fallback(self):
+        ctx = AuthContext(
+            user_id=uuid.uuid4(),
+            organization_id=uuid.uuid4(),
+            role=OrgRoleName.OWNER,
+            key_scopes=frozenset({Perm.AGENTS_RUN}),
+        )
+        key = self._key()
+        resolved = await self._resolve(self._spec(key, self._sign_in(), key), sees=True, ctx=ctx)
+        assert [credential for credential, _ in resolved.fallbacks] == [key]
 
     @pytest.mark.anyio
     async def test_background_work_never_runs_on_one(self):

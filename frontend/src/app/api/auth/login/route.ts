@@ -7,7 +7,7 @@ import {
   forwardedFor,
   forwardRateLimit,
 } from "@/lib/server-api";
-import { secureCookies } from "@/lib/session-cookie";
+import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE, secureCookies } from "@/lib/session-cookie";
 import type { LoginResponse } from "@/types";
 
 export async function POST(request: NextRequest) {
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
       access_token: data.access_token,
     });
 
-    response.cookies.set("access_token", data.access_token, {
+    response.cookies.set(ACCESS_TOKEN_COOKIE, data.access_token, {
       httpOnly: true,
       secure: secureCookies(request),
       sameSite: "lax",
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
       path: "/",
     });
 
-    response.cookies.set("refresh_token", data.refresh_token, {
+    response.cookies.set(REFRESH_TOKEN_COOKIE, data.refresh_token, {
       httpOnly: true,
       secure: secureCookies(request),
       sameSite: "lax",

@@ -1,5 +1,5 @@
 ---
-source_sha: "8b29d490f872"
+source_sha: "e084d213e2b5"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -370,6 +370,23 @@ worker go nie zaindeksuje.
 Jeden z tych dwóch pomijał kiedyś ten klucz, zamiast wysyłać go jako null, więc
 klient normalizujący odpowiedź dostawał z każdego inny kształt
 ([#560](https://github.com/vstorm-co/agenticos/issues/560)).
+
+**Czekaj na `complete`, nie na wektory.** `GET /rag/collections/{name}/info`
+wylicza `indexing_status` ze śledzonych dokumentów kolekcji: `indexing`, dopóki
+którykolwiek z nich ma status `processing` - czeka w kolejce albo jest w
+trakcie ingestii - i `complete`, gdy żaden go nie ma. `processing_count`,
+`indexed_count` i `failed_count` mówią, ile dokumentów jest w każdym stanie.
+Dokument z błędem jest w stanie końcowym, więc nie trzyma kolekcji w
+`indexing`; widać go w `failed_count`. Pole było kiedyś stałą `complete`, a
+`total_vectors` rośnie, gdy worker przerabia partię, więc skrypt czekający na
+którekolwiek z nich odpytywał w połowie zbudowaną kolekcję
+([#2486](https://github.com/vstorm-co/agenticos/issues/2486)).
+`GET /kb/{kb_id}/ingestion` odpowiada na to samo dla jednej bazy wiedzy i
+liczy dokumenty, które wyświetla jej strona, a nie wszystko pod nazwą jej
+kolekcji, którą może współdzielić inna baza; strona bazy wiedzy pokazuje ten
+stan obok liczby dokumentów. Dokument, który utknie w `processing`, trzyma obie
+odpowiedzi w `indexing`, dopóki nie zostanie usunięty albo, w przypadku
+dokumentu synchronizowanego, dopóki jego źródło nie zsynchronizuje się ponownie.
 
 !!! danger "Zadanie startuje po zatwierdzeniu transakcji requestu"
 

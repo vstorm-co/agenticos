@@ -825,3 +825,40 @@ describe("ChatInput inserting a transcript", () => {
     expect(messageOf(screen.getByRole("textbox"))).toBe("");
   });
 });
+
+describe("a run waiting for its person", () => {
+  it("disables Stop while cancelling without showing Call", async () => {
+    const stop = vi.fn();
+    render(
+      <ChatInput
+        onSend={vi.fn()}
+        canStop
+        stopDisabled
+        onStop={stop}
+        idleSlot={<button>Call</button>}
+      />,
+    );
+    const button = screen.getByRole("button", { name: "Stop generating" });
+    expect(button).toBeDisabled();
+    await userEvent.click(button);
+    expect(stop).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Call" })).not.toBeInTheDocument();
+  });
+
+  it("offers Stop instead of Call even though the parked turn is not streaming", async () => {
+    const stop = vi.fn();
+    render(
+      <ChatInput
+        onSend={vi.fn()}
+        disabled
+        isProcessing={false}
+        canStop
+        onStop={stop}
+        idleSlot={<button>Call</button>}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Stop generating" }));
+    expect(stop).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("button", { name: "Call" })).not.toBeInTheDocument();
+  });
+});

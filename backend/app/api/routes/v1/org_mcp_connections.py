@@ -23,6 +23,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.agents.mcp_oauth import OAuthError
 from app.api.deps import Auth, McpConnectionSvc, require
+from app.api.public_api import PUBLIC
 from app.core.permissions import Perm
 from app.schemas.mcp_connection import (
     GithubAppInstall,
@@ -44,7 +45,7 @@ router = APIRouter()
 @router.get(
     "",
     response_model=OrgMcpConnectionList,
-    dependencies=[Depends(require(Perm.MCP_MANAGE))],
+    dependencies=[PUBLIC, Depends(require(Perm.MCP_MANAGE))],
 )
 async def list_org_mcp_connections(service: McpConnectionSvc, ctx: Auth) -> Any:
     """The MCP servers this organization has connected."""

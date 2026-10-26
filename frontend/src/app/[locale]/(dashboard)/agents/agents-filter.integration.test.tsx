@@ -218,6 +218,10 @@ describe("the agents gallery filter", () => {
     render(<AgentsPage />, { wrapper });
 
     expect(await screen.findByText("No agents yet")).toBeInTheDocument();
+    // The empty-state create waits for the agent limit to be known.
+    await waitFor(() =>
+      expect(screen.getAllByRole("button", { name: "New agent" })).toHaveLength(2),
+    );
     const create = screen.getAllByRole("button", { name: "New agent" });
     await userEvent.click(create[create.length - 1]!);
 

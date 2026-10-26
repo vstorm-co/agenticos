@@ -18,34 +18,38 @@ gets what a run gets where it matters:
   this month. At either, nothing is called.
 """
 
+import asyncio
 import logging
 from collections.abc import Sequence
 from datetime import UTC, datetime
-from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
 import httpx
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import AgentRunError
+from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
 from pydantic_ai.toolsets import AbstractToolset
 from pydantic_ai.usage import RunUsage, UsageLimits
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.capabilities.budget import price_request
+from app.agents.capabilities._metered import MeteredModel
+from app.agents.capabilities.budget import SpendLedger, metered_by
 from app.agents.failures import run_failure_summary
+from app.agents.manifest import RecordingModel, RunRecorder, as_payload, fit
 from app.core.exceptions import AppException
 from app.core.permissions import AuthContext
 from app.db.models.agent import Agent as AgentRow
-from app.db.models.agent_run import RunStatus, RunSurface
-from app.repositories import agent_repo, agent_run_repo, organization_repo
+from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
+from app.repositories import agent_repo, agent_run_repo, organization_repo, run_manifest_repo
 from app.services.model_profile import ModelProfileService
+from app.services.run_heartbeat import run_heartbeat
 from app.services.spend import month_start, organization_monthly_spend
 
 logger = logging.getLogger(__name__)
 
 STARTER_SLUG = "agenticos"
-"""The starter agent whose model and whose run history background work goes through.
+"""The starter agent used to attribute background runs, never to select their model.
 
 `facade._STARTER_SLUG` repeats it; `test_proactive` holds the two equal."""
 
@@ -110,7 +114,7 @@ class ProactiveThinker:
         prompt: str,
         toolsets: Sequence[AbstractToolset[object]] = (),
     ) -> OutputT | None:
-        """Ask the starter agent's model one structured question, as a run of its own.
+        """Ask the organization's proactivity model, attributed to its starter agent.
 
         `toolsets` are what it may read before answering - a watch's connection,
         narrowed to the tools that only read.
@@ -156,41 +160,108 @@ class ProactiveThinker:
         # worker killed mid-call must leave a run behind, or the spend check and
         # `last_proactive_run_at` never learn the call was made.
         await self.db.commit()
-        # Accumulates across the run's requests, so a run that fails after the
-        # provider answered - output validation out of retries - still books
-        # what was charged against the person's proactive limit.
         usage = RunUsage()
+        ledger = SpendLedger(run_id=run.id, agent_id=agent.id, organization_id=ctx.organization_id)
+        recorder = RunRecorder()
+        status = RunStatus.FAILED
+        error: str | None = None
+        propagating = False
+        transcript: list[ModelMessage] | None = None
         try:
-            result = await Agent(
-                request.build(),
-                output_type=output_type,
-                instructions=instructions,
-                toolsets=toolsets,
-            ).run(prompt, usage=usage, usage_limits=_WITH_TOOLS if toolsets else _LIMITS)
+            with metered_by(ledger):
+                async with run_heartbeat(run.id):
+                    result = await Agent(
+                        RecordingModel(MeteredModel(request.build()), recorder),
+                        output_type=output_type,
+                        instructions=instructions,
+                        toolsets=toolsets,
+                    ).run(prompt, usage=usage, usage_limits=_WITH_TOOLS if toolsets else _LIMITS)
+        except asyncio.CancelledError:
+            status = RunStatus.CANCELLED
+            propagating = True
+            raise
         except (AgentRunError, httpx.HTTPError) as exc:
             logger.exception("proactive_run_failed", extra={"run_id": str(run.id)})
-            cost = price_request(usage, request.model, request.provider)
-            await agent_run_repo.finish_run(
-                self.db,
-                run=run,
-                status=RunStatus.FAILED.value,
-                input_tokens=usage.input_tokens,
-                output_tokens=usage.output_tokens,
-                cost_usd=cost if cost is not None else Decimal(0),
-                cost_is_partial=True,
-                ended_at=datetime.now(UTC),
-                error=run_failure_summary(exc),
-            )
+            error = run_failure_summary(exc)
             return None
-        cost = price_request(usage, result.response.model_name or request.model, request.provider)
+        except Exception as exc:
+            error = run_failure_summary(exc)
+            propagating = True
+            raise
+        else:
+            status = RunStatus.COMPLETED
+            transcript = result.all_messages()
+            return result.output
+        finally:
+            # The outer job rolls back on cancellation. Own and commit the
+            # terminal write here, and drain it even if shutdown cancels again.
+            settlement = asyncio.create_task(
+                self._finish(run, ledger, status, error, recorder, transcript)
+            )
+            cancelled = False
+            try:
+                while not settlement.done():
+                    try:
+                        await asyncio.wait({settlement})
+                    except asyncio.CancelledError:
+                        cancelled = True
+                settlement.result()
+            except Exception:
+                logger.exception("proactive_run_settlement_failed", extra={"run_id": str(run.id)})
+                if not propagating:
+                    raise
+            if cancelled:
+                raise asyncio.CancelledError
+
+    async def _finish(
+        self,
+        run: AgentRun,
+        ledger: SpendLedger,
+        status: RunStatus,
+        error: str | None,
+        recorder: RunRecorder,
+        transcript: list[ModelMessage] | None,
+    ) -> None:
         await agent_run_repo.finish_run(
             self.db,
             run=run,
-            status=RunStatus.COMPLETED.value,
-            input_tokens=usage.input_tokens,
-            output_tokens=usage.output_tokens,
-            cost_usd=cost if cost is not None else Decimal(0),
-            cost_is_partial=cost is None,
+            status=status.value,
+            input_tokens=ledger.input_tokens,
+            output_tokens=ledger.output_tokens,
+            cost_usd=ledger.total_usd,
+            cost_is_partial=status != RunStatus.COMPLETED or ledger.has_unpriced_models,
             ended_at=datetime.now(UTC),
+            error=error,
         )
-        return result.output
+        await self._record(run, recorder, transcript)
+        await self.db.commit()
+
+    async def _record(
+        self, run: AgentRun, recorder: RunRecorder, transcript: list[ModelMessage] | None
+    ) -> None:
+        if not recorder.requests and recorder.instructions is None:
+            return
+        # Keep a failed trace write from rolling back the paid run's settlement.
+        try:
+            payload = as_payload(recorder)
+            if transcript is not None:
+                payload["transcript"] = ModelMessagesTypeAdapter.dump_python(
+                    transcript, mode="json"
+                )
+            else:
+                payload["transcript"] = recorder.messages + (
+                    []
+                    if recorder.last_response is None
+                    else ModelMessagesTypeAdapter.dump_python([recorder.last_response], mode="json")
+                )
+            payload, truncated = fit(payload)
+            async with self.db.begin_nested():
+                await run_manifest_repo.record(
+                    self.db,
+                    run_id=run.id,
+                    organization_id=run.organization_id,
+                    payload=payload,
+                    truncated=truncated,
+                )
+        except Exception:
+            logger.exception("proactive_manifest_write_failed", extra={"run_id": str(run.id)})

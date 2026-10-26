@@ -98,19 +98,19 @@ esac
 PROFILES=()
 if [ -n "$(env_value SANDBOXD_TOKEN)" ]; then
   PROFILES=(--profile sandbox)
-  # The group that owns the Docker socket, which the sandbox needs as a
-  # supplementary group to reach it. `docker-compose-prod.yml` interpolates
-  # `${DOCKER_GID:-0}` and nothing anywhere set it, so the service came up in
-  # group 0 - root on this host, and not the socket's owner on any Linux
-  # distribution that ships a `docker` group. Read from the socket rather than
-  # configured, because the socket is the only thing that knows (#1506).
-  if [ -S /var/run/docker.sock ]; then
-    DOCKER_GID="$(stat -c '%g' /var/run/docker.sock)"
-    export DOCKER_GID
-  else
+  if [ ! -S /var/run/docker.sock ]; then
     echo "no /var/run/docker.sock, but SANDBOXD_TOKEN is set - the sandbox cannot start" >&2
     exit 1
   fi
+  # Docker Desktop's mounted socket belongs to VM group 0, not the Mac's group.
+  if [ -z "${DOCKER_GID+x}" ]; then
+    if [ "$(uname -s)" = Linux ]; then
+      DOCKER_GID="$(stat -Lc '%g' /var/run/docker.sock)"
+    else
+      DOCKER_GID=0
+    fi
+  fi
+  export DOCKER_GID
 fi
 
 say "Fetching $SHA"

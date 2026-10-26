@@ -37,7 +37,7 @@ from functools import partial
 from io import BytesIO
 from pathlib import PurePosixPath
 from typing import Any, Literal, cast
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import httpx
 from PIL import Image, ImageOps
@@ -68,24 +68,28 @@ from app.agents.spec import AgentSpec
 from app.core.background import spawn_after_commit
 from app.core.blocking import run_blocking
 from app.core.config import settings
-from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.exceptions import (
+    BadRequestError,
+    ExternalServiceError,
+    NotFoundError,
+    WorkspaceCapacityError,
+)
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.project import Project
-from app.db.session import get_db_context
+from app.db.session import get_db_context, get_worker_db_context
 from app.repositories import agent as agent_repo
 from app.repositories import agent_workspace as workspace_repo
 from app.repositories import conversation as conversation_repo
 from app.repositories import member as member_repo
 from app.repositories import pending_sandbox_destroy as pending_destroy_repo
+from app.repositories import project_repo
 from app.services import device_hub
+from app.services.access import PROJECT, accessible_ids, resolve_access
 from app.services.device_hub import DeviceWorkspace, LocalTarget
 from app.services.sandbox_connection import ResolvedConnection, SandboxConnectionService
-from app.services.sandbox_runtimes import (
-    CATALOG,
-    runtime_briefing,
-    runtime_parses_documents,
-)
+from app.services.sandbox_runtimes import CATALOG, runtime_briefing, runtime_parses_documents
+from app.services.sandboxd_compat import explain_unavailable
 from app.services.skill_workspace import LEGACY_SKILLS_ROOT, RESERVED_SKILL_PREFIXES
 
 ServiceSandbox = SandboxdWorkspace | DaytonaWorkspace | E2BWorkspace
@@ -407,6 +411,13 @@ class _OpeningNotice:
         if self.announced:
             self.announced = False
             await self.sink(False)
+
+
+@dataclass(frozen=True)
+class WorkspaceFlushFailure:
+    """A visible failure to persist the run's workspace, with recovery when possible."""
+
+    error: WorkspaceCapacityError | ExternalServiceError
 
 
 @dataclass
@@ -891,6 +902,11 @@ class SandboxWorkspaceService:
             agent_id=identity.agent_id,
             run_id=identity.run_id,
             on_settled=notice.settled if notice is not None else None,
+            explain_unavailable=(
+                partial(explain_unavailable, base_url=sandbox.service_url, client=_sandboxd_http())
+                if isinstance(sandbox, SandboxdWorkspace)
+                else None
+            ),
         )
         return OpenWorkspace(
             workspace=recorder,
@@ -1066,12 +1082,15 @@ class SandboxWorkspaceService:
             if row.backend != "state":
                 await self._purge_remote(ctx, row)
 
-    async def close(self, workspace: OpenWorkspace | None, *, keep_spills: bool = False) -> None:
+    async def close(
+        self, workspace: OpenWorkspace | None, *, keep_spills: bool = False
+    ) -> WorkspaceFlushFailure | None:
         """Persist or release what the run was using.
 
-        Never raises. This is called from the same `finally` that records the
-        run's cost, and an exception here would replace whatever actually
-        happened to the run with a storage error.
+        Return a typed failure rather than raising past terminal accounting.
+        Callers must report that failure after recording the run's cost or
+        before acknowledging a project mutation. A rejected concurrent merge
+        includes a separately committed recovery workspace in its error.
 
         Args:
             keep_spills: Leave this run's spilled tool returns where they are -
@@ -1085,18 +1104,27 @@ class SandboxWorkspaceService:
                 the session is reaped.
         """
         if workspace is None or workspace.local:
-            return
+            return None
         try:
             if workspace.kind == "state":
-                await self._flush_state(workspace, keep_spills=keep_spills)
-            elif workspace.scope == "run":
+                async with self.db.begin_nested():
+                    return await self._flush_state(workspace, keep_spills=keep_spills)
+            if workspace.scope == "run":
                 await self._release(workspace)
             elif not await self._settle_session(workspace) and not keep_spills:
                 await self._prune_spills(workspace)
         except Exception:
             logger.exception("workspace_close_failed", extra={"scope_key": workspace.scope_key})
+            return WorkspaceFlushFailure(
+                ExternalServiceError(
+                    message="The workspace could not be saved. Check the run logs."
+                )
+            )
+        return None
 
-    async def _flush_state(self, workspace: OpenWorkspace, *, keep_spills: bool) -> None:
+    async def _flush_state(
+        self, workspace: OpenWorkspace, *, keep_spills: bool
+    ) -> WorkspaceFlushFailure | None:
         document = workspace.document
         if document is None:  # pragma: no cover - `open` sets one on every `state` workspace
             raise RuntimeError("A state workspace was opened without its document")
@@ -1116,7 +1144,7 @@ class SandboxWorkspaceService:
             # workspace had reached, and bumped the version so a concurrent run
             # merged against a change that was not there.
             await workspace_repo.mark_used(self.db, workspace_id=workspace.row_id)
-            return
+            return None
         # `populate_existing`, so this is a read of what is *committed* rather than
         # of what this session loaded at `open`. Without it the identity map answers
         # with the row as it was, and a flush by another run - another person under
@@ -1129,22 +1157,87 @@ class SandboxWorkspaceService:
             None
             if workspace.row_id is None
             else await self.db.get(
-                AgentWorkspace, workspace.row_id, populate_existing=True, with_for_update=True
+                AgentWorkspace,
+                workspace.row_id,
+                populate_existing=True,
+                with_for_update={"key_share": True},
             )
         )
         if row is None:
             # The conversation was deleted while the run was in flight. The files
             # belonged to it, so there is nothing to keep.
-            return
+            return None
+        own_files, own_directories = files, directories
         if workspace.opened_version is not None and row.version != workspace.opened_version:
             files, directories = self._merged(workspace, row, files, directories)
+        size = document_size(files, directories)
+        # A lowered setting must still allow an existing larger document to shrink.
+        ceiling = max(
+            settings.SANDBOX_STATE_MAX_BYTES,
+            document_size(row.files or {}, row.directories or ()),
+        )
+        if size > ceiling:
+            recovery_id = await self._recover_state(row, own_files, own_directories)
+            return WorkspaceFlushFailure(
+                WorkspaceCapacityError(
+                    message=(
+                        "Concurrent changes filled the shared workspace. This operation's files "
+                        f"are preserved in Documents as recovery workspace {recovery_id}. "
+                        "Free space before copying them back."
+                    ),
+                    details={"recovery_workspace_id": str(recovery_id)},
+                )
+            )
         await workspace_repo.save_files(
             self.db,
             workspace=row,
             files=files,
             directories=directories,
-            bytes_total=document_size(files, directories),
+            bytes_total=size,
         )
+        return None
+
+    @staticmethod
+    async def _recover_state(
+        source: AgentWorkspace, files: dict[str, FileData], directories: list[str]
+    ) -> UUID:
+        """Commit the losing snapshot with the source's exact visibility and lifetime.
+
+        Separate from the caller: an upload returning a conflict rolls its request
+        back, and must not roll back the only recoverable copy with it. Recovery
+        keys are never opened by runs. A source foreign key also removes the copy
+        when source deletion was waiting for this merge's lock. Existing tenant
+        and scope filters govern every read.
+        """
+        size = document_size(files, directories)
+        if size > settings.SANDBOX_STATE_MAX_BYTES:
+            raise RuntimeError("A recovery snapshot exceeds the workspace storage limit")
+        async with get_worker_db_context() as db:
+            recovery = await workspace_repo.create(
+                db,
+                organization_id=source.organization_id,
+                agent_id=source.agent_id,
+                project_id=source.project_id,
+                conversation_id=source.conversation_id,
+                owner_ref=source.owner_ref,
+                scope=source.scope,
+                scope_key=f"recovery-{uuid4().hex}",
+                recovery_of_id=source.id,
+                backend="state",
+            )
+            await workspace_repo.save_files(
+                db,
+                workspace=recovery,
+                files=files,
+                directories=directories,
+                bytes_total=size,
+            )
+            recovery_id = recovery.id
+        logger.warning(
+            "workspace_capacity_conflict",
+            extra={"workspace_id": str(source.id), "recovery_id": str(recovery_id)},
+        )
+        return recovery_id
 
     @staticmethod
     def _merged(
@@ -1197,7 +1290,7 @@ class SandboxWorkspaceService:
         return merged, sorted(merged_dirs)
 
     async def _settle_session(self, workspace: OpenWorkspace) -> bool:
-        """Record which session this workspace is now, and whether it was lost.
+        """Record which session this workspace is now, or forget a lost or mismatched one.
 
         A session the run opened is recorded on the row, so the next run attaches
         to it rather than opening one by name - which is what lets a purged one
@@ -1206,9 +1299,13 @@ class SandboxWorkspaceService:
         the tool or the staging that hit it, and the turn after it should not hit
         it again.
 
+        A session on a service of another version is forgotten the same way,
+        though it is alive (see the branch below).
+
         Returns:
-            Whether the session was lost, in which case there is nothing on the
-            host to prune.
+            Whether the session was lost or mismatched. Either way its spills are
+            not pruned: a lost session has none left, and a mismatched one is on a
+            service that cannot run the prune.
         """
         row = (
             None
@@ -1228,6 +1325,16 @@ class SandboxWorkspaceService:
                 await self._discard_lost_sandbox(
                     workspace.sandbox, row.session_id or workspace.scope_key
                 )
+            await workspace_repo.record_session(self.db, workspace=row, session_id=None)
+            return True
+        if isinstance(recorder, RecordingWorkspace) and recorder.mismatched:
+            # Alive, but on a service of another version (#2484). Its ref is
+            # forgotten so the next run opens the scope by name: an older service
+            # ignores attach-by-ref and refuses a live session with a 409.
+            logger.warning(
+                "workspace_session_version_mismatch",
+                extra={"scope_key": workspace.scope_key, "session_id": row.session_id},
+            )
             await workspace_repo.record_session(self.db, workspace=row, session_id=None)
             return True
         ref = workspace.workspace.ref
@@ -1402,6 +1509,25 @@ class SandboxWorkspaceService:
             user_id=ctx.user_id,
             see_all=self._sees_every_workspace(ctx),
         )
+        recoveries = await workspace_repo.project_recovery_candidates(
+            self.db, organization_id=ctx.organization_id
+        )
+        if recoveries:
+            projects = await project_repo.get_many(
+                self.db,
+                [row.project_id for row in recoveries if row.project_id is not None],
+                organization_id=ctx.organization_id,
+            )
+            visible = await accessible_ids(
+                self.db, ctx, projects, Perm.PROJECTS_VIEW, resource_type=PROJECT
+            )
+            usable = await accessible_ids(
+                self.db, ctx, projects, Perm.PROJECTS_USE, resource_type=PROJECT
+            )
+            rows.extend(row for row in recoveries if row.project_id in visible & usable)
+            rows.sort(
+                key=lambda row: row.last_used_at or datetime.min.replace(tzinfo=UTC), reverse=True
+            )
         if not rows:
             return []
         agents = await agent_repo.get_many(
@@ -1437,7 +1563,16 @@ class SandboxWorkspaceService:
             overviews.append(
                 WorkspaceOverview(
                     row=row,
-                    agent_name=agent.name if agent is not None else "a deleted agent",
+                    agent_name=(
+                        (
+                            agent.name
+                            if agent is not None
+                            else "Project files"
+                            if row.project_id is not None
+                            else "a deleted agent"
+                        )
+                        + (" (recovery copy)" if row.recovery_of_id is not None else "")
+                    ),
                     agent_slug=agent.slug if agent is not None else "",
                     agent_has_avatar=agent.has_avatar if agent is not None else False,
                     conversation_title=head.title if head is not None else None,
@@ -1616,7 +1751,7 @@ class SandboxWorkspaceService:
             files=files,
             workspaces_read=len(readable),
             unreadable=len(opened) - len(readable),
-            truncated=len(overviews) > limit,
+            truncated=len(overviews) > limit or any(contents.truncated for contents in listed),
         )
 
     async def _entries_of(
@@ -1838,12 +1973,25 @@ class SandboxWorkspaceService:
         reimplemented for exactly that reason: two copies of "who can see this"
         disagree eventually, and the one that is wrong is the one nobody reads.
 
-        Never a project's, whoever asks: it is read through the project, whose
-        sharing decides who may - `connections:manage` included, since the
-        listing leaves it out for them too.
+        Normal project files are read through the project. Recovery copies are
+        also discoverable here, but require both project view and use access;
+        managing sandbox connections alone never grants access to a project.
         """
         if row.project_id is not None:
-            return False
+            if row.recovery_of_id is None:
+                return False
+            project = await project_repo.get(
+                self.db, row.project_id, organization_id=ctx.organization_id
+            )
+            return (
+                project is not None
+                and await resolve_access(
+                    self.db, ctx, project, Perm.PROJECTS_VIEW, resource_type=PROJECT
+                )
+                and await resolve_access(
+                    self.db, ctx, project, Perm.PROJECTS_USE, resource_type=PROJECT
+                )
+            )
         if self._sees_every_workspace(ctx):
             return True
         visible = await workspace_repo.list_for_reader(

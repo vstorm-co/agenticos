@@ -6,6 +6,7 @@ import { useOnboardingStore, useOrgStore } from "@/stores";
 import { useAgentSelectionStore } from "@/stores/agent-selection-store";
 import { useChatStore } from "@/stores/chat-store";
 import { useConversationStore } from "@/stores/conversation-store";
+import type { AgentCeiling } from "@/types/agents";
 import { Perm, type Permission } from "@/types/permissions";
 
 // The pathname the arrived-signal reads; a test moves it to fake a navigation.
@@ -18,7 +19,11 @@ const rig = vi.hoisted(() => ({
   agentsLoading: false,
   agentsList: [] as { id?: string; status: string }[],
   agentDetail: null as { status: string; draft_spec: { model_profile_id: string | null } } | null,
-  profiles: [] as { secret_id: string | null; base_url?: string | null }[],
+  profiles: [] as {
+    secret_id: string | null;
+    base_url?: string | null;
+    chat_capable?: boolean;
+  }[],
   modelsLoading: false,
   skillTotal: 0,
   skillLoading: false,
@@ -34,7 +39,16 @@ const rig = vi.hoisted(() => ({
   anyRunnable: true,
   anyRunnableLoading: false,
   anyRunnableFetching: false,
+  ceiling: null as AgentCeiling | null,
+  ceilingKnown: true,
+  pendingCreates: 0,
+  ceilingEnabled: true,
   can: (_permission: Permission): boolean => true,
+}));
+
+vi.mock("@tanstack/react-query", async () => ({
+  ...(await vi.importActual<typeof import("@tanstack/react-query")>("@tanstack/react-query")),
+  useIsMutating: () => rig.pendingCreates,
 }));
 
 vi.mock("@/hooks/use-agents", () => ({
@@ -44,6 +58,10 @@ vi.mock("@/hooks/use-agents", () => ({
     isLoading: rig.agentsLoading,
     isFetching: rig.agentsLoading,
   }),
+  useAgentCeiling: (options?: { enabled?: boolean }) => {
+    rig.ceilingEnabled = options?.enabled ?? true;
+    return { ceiling: rig.ceiling, known: rig.ceilingKnown };
+  },
   // Disabled when no id is captured, mirroring `enabled: !!agentId` in the real hook.
   useAgent: (id: string | null) => ({ agent: id ? rig.agentDetail : undefined }),
 }));
@@ -124,6 +142,9 @@ vi.mock("@/lib/onboarding/flows", async () => {
 });
 
 beforeEach(() => {
+  rig.ceiling = null;
+  rig.pendingCreates = 0;
+  rig.ceilingKnown = true;
   rig.agentTotal = 0;
   rig.agentsLoading = false;
   rig.agentsList = [];
@@ -202,6 +223,103 @@ describe("useOnboardingFlow", () => {
     rig.agentsLoading = false;
     rerender();
     expect(result.current.isActive).toBe(true);
+  });
+
+  it("waits for the agent limit, then skips the build-an-agent fork at it", () => {
+    // The fork hands off to create-agent, whose first target - New agent - is
+    // disabled at the limit; a coach waiting on it would have no way forward.
+    rig.ceilingKnown = false;
+    rig.ceiling = { limit: 1, held: 1, at_limit: true };
+    const { result, rerender } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("explore-chat"));
+    expect(result.current.isActive).toBe(false);
+
+    rig.ceilingKnown = true;
+    rerender();
+    expect(result.current.isActive).toBe(true);
+    expect(result.current.steps.map((step) => step.id)).not.toContain("flow-chat-needs-agent");
+  });
+
+  it.each([0, 1])(
+    "stops a create walk when another agent fills the limit (visible count %s)",
+    (visible) => {
+      nav.pathname = "/agents";
+      rig.ceiling = { limit: 1, held: 0, at_limit: false };
+      const { result, rerender } = renderHook(() => useOnboardingFlow());
+      act(() => useOnboardingStore.getState().openFlow("create-agent"));
+      expect(result.current.isActive).toBe(true);
+
+      rig.agentTotal = visible;
+      rig.ceiling = { limit: 1, held: 1, at_limit: true };
+      rerender();
+
+      expect(result.current.isActive).toBe(false);
+      expect(useOnboardingStore.getState().isOpen).toBe(false);
+    },
+  );
+
+  it("continues after its own successful creation fills the last slot", () => {
+    rig.ceiling = { limit: 1, held: 0, at_limit: false };
+    const { result, rerender } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-agent"));
+    act(() => useOnboardingStore.getState().setFlowAgentId("new-agent"));
+    rig.ceiling = { limit: 1, held: 1, at_limit: true };
+    rig.agentTotal = 1;
+    rerender();
+    expect(result.current.isActive).toBe(true);
+    expect(result.current.signalMet).toBe(true);
+    act(() => result.current.next());
+    expect(result.current.step?.id).toBe("flow-agent-instructions");
+    expect(useOnboardingStore.getState().isOpen).toBe(true);
+  });
+
+  it.each(["success", "refused"])(
+    "waits for a local create when the change feed wins the race: %s",
+    (outcome) => {
+      rig.ceiling = { limit: 1, held: 0, at_limit: false };
+      const { result, rerender } = renderHook(() => useOnboardingFlow());
+      act(() => useOnboardingStore.getState().openFlow("create-agent"));
+      rig.pendingCreates = 1;
+      rig.agentTotal = 1;
+      rig.ceiling = { limit: 1, held: 1, at_limit: true };
+      rerender();
+      expect(result.current.isActive).toBe(true);
+      expect(result.current.signalMet).toBe(false);
+      if (outcome === "success") {
+        act(() => useOnboardingStore.getState().setFlowAgentId("new-agent"));
+      }
+      expect(result.current.signalMet).toBe(false);
+      rig.pendingCreates = 0;
+      rerender();
+      expect(result.current.signalMet).toBe(outcome === "success");
+      expect(result.current.isActive).toBe(outcome === "success");
+      expect(useOnboardingStore.getState().isOpen).toBe(outcome === "success");
+    },
+  );
+
+  it("does not stop other creation walks when the agent limit is full", () => {
+    rig.ceiling = { limit: 1, held: 1, at_limit: true };
+    const { result } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-skill"));
+    expect(result.current.isActive).toBe(true);
+  });
+
+  it("asks for the agent limit only of a caller who may create agents", () => {
+    // The route refuses a caller without `agents:edit`; they have no create to gate.
+    rig.can = (permission) => permission !== Perm.agentsEdit;
+    renderHook(() => useOnboardingFlow());
+    expect(rig.ceilingEnabled).toBe(false);
+
+    rig.can = () => true;
+    renderHook(() => useOnboardingFlow());
+    expect(rig.ceilingEnabled).toBe(true);
+  });
+
+  it("offers the build-an-agent fork below the limit", () => {
+    rig.ceiling = { limit: 2, held: 1, at_limit: false };
+    const { result } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("explore-chat"));
+    expect(result.current.step?.id).toBe("flow-chat-needs-agent");
   });
 
   it("waits for the runnable-agent answer, then runs the routine flow inert-free", () => {
@@ -337,6 +455,8 @@ describe("useOnboardingFlow", () => {
 
     rig.agentTotal = 1;
     rerender();
+    expect(result.current.signalMet).toBe(false);
+    act(() => useOnboardingStore.getState().setFlowAgentId("our-agent"));
     expect(result.current.signalMet).toBe(true);
   });
 
@@ -371,6 +491,17 @@ describe("useOnboardingFlow", () => {
     const ids = result.current.steps.map((step) => step.id);
     expect(ids).toContain("flow-agent-model-pick");
     expect(ids).not.toContain("flow-agent-model-add");
+  });
+
+  it("teaches adding a model when the only keyed one is not a chat model", () => {
+    // A speech or embedding profile is hidden from the picker (#2487), so the
+    // pick step would have nothing to select and its signal could never fire.
+    rig.profiles = [{ secret_id: "sec-1", chat_capable: false }];
+    const { result } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-agent"));
+    const ids = result.current.steps.map((step) => step.id);
+    expect(ids).toContain("flow-agent-model-add");
+    expect(ids).not.toContain("flow-agent-model-pick");
   });
 
   it("counts a self-hosted model with a base URL as runnable", () => {
