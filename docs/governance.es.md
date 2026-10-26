@@ -1,5 +1,5 @@
 ---
-source_sha: "013d401f2eeb"
+source_sha: "04e64984d3f5"
 ---
 
 # Governance { #governance }
@@ -1661,7 +1661,7 @@ debe fallar otra vez porque SMTP estuviera caído.
 
 ## Asistencia de IA { #ai-assistance }
 
-Un interruptor, en los ajustes de la organización en su página de miembros,
+Un interruptor, en la pestaña **Budget and approvals** de la página de la organización,
 decide si los modelos asisten en las evals y la autoría de la organización: el
 juez de evals que califica las [puntuaciones de datasets](datasets.md#judge), el
 redactor que escribe el contenido que le falta a una [laguna de

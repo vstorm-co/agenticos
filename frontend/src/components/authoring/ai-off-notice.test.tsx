@@ -18,7 +18,7 @@ describe("AiOffNotice", () => {
     render(<AiOffNotice orgId="org-1" />);
     expect(screen.getByRole("link", { name: "Turn it on" })).toHaveAttribute(
       "href",
-      "/orgs/org-1/members",
+      "/orgs/org-1/members?tab=governance#org-ai-assistance",
     );
   });
 

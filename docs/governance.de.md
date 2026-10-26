@@ -1,5 +1,5 @@
 ---
-source_sha: "013d401f2eeb"
+source_sha: "04e64984d3f5"
 ---
 
 # Governance { #governance }
@@ -1781,7 +1781,7 @@ bereits geendet hat, darf nicht noch einmal scheitern, weil SMTP ausgefallen war
 
 ## KI-Unterstützung { #ai-assistance }
 
-Ein Schalter in den Einstellungen der Organisation auf ihrer Mitgliederseite
+Ein Schalter auf dem Tab **Budget und Freigaben** der Organisationsseite
 entscheidet, ob Modelle die Evals und das Authoring der Organisation
 unterstützen: den Eval-Judge, der [Dataset-Scores](datasets.md#judge) bewertet,
 den Entwerfer, der den Inhalt schreibt, der einer

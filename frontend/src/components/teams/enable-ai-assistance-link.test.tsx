@@ -12,7 +12,7 @@ describe("EnableAiAssistanceLink", () => {
     render(<EnableAiAssistanceLink orgId="o1">Enable</EnableAiAssistanceLink>);
 
     const link = screen.getByRole("link", { name: "Enable" });
-    expect(link).toHaveAttribute("href", `/orgs/o1/members#${AI_ASSISTANCE_ANCHOR}`);
+    expect(link).toHaveAttribute("href", `/orgs/o1/members?tab=governance#${AI_ASSISTANCE_ANCHOR}`);
     await userEvent.click(link);
     expect(pointAt).toHaveBeenCalledWith(AI_ASSISTANCE_ANCHOR);
   });

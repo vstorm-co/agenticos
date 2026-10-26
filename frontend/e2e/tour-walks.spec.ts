@@ -44,3 +44,31 @@ test("a dataset's tour opens each tab it describes and runs to its end", async (
     expect.arrayContaining(["Write a case", "How cases are graded", "The judge", "Review"]),
   );
 });
+
+test("an organization's tour opens each settings tab it describes", async ({ page }) => {
+  await page.goto("/dashboard");
+  const organizationId = await page.evaluate(() => {
+    const value: unknown = JSON.parse(localStorage.getItem("org-storage") ?? "null");
+    if (typeof value !== "object" || value === null || !("state" in value)) return "";
+    const state = value.state as { activeOrgId?: unknown };
+    return typeof state.activeOrgId === "string" ? state.activeOrgId : "";
+  });
+  expect(organizationId).not.toBe("");
+
+  await page.goto(`/orgs/${organizationId}/members`);
+  const tabFor: Record<string, string> = {
+    "Name and face": "Profile",
+    "Budget and approvals": "Budget and approvals",
+    Proactivity: "Proactivity",
+    Voice: "Voice",
+    "The AI Architect": "AI Architect",
+  };
+  const seen = await walkPageTour(page, async (title) => {
+    const tab = tabFor[title];
+    if (tab)
+      await expect(page.getByRole("tab", { name: tab })).toHaveAttribute("data-state", "active");
+  });
+  expect(seen).toEqual(
+    expect.arrayContaining(["Name and face", "Budget and approvals", "Proactivity", "Voice"]),
+  );
+});

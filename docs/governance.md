@@ -1556,7 +1556,7 @@ ended must not fail again because SMTP was down.
 
 ## AI assistance { #ai-assistance }
 
-One switch, in the organization's settings on its members page, decides whether
+One switch, on the organization page's **Budget and approvals** tab, decides whether
 models assist the organization's evals and authoring: the eval judge that
 grades [dataset scores](datasets.md#judge), the drafter that writes the content
 a [knowledge gap](knowledge-gaps.md#drafting-the-missing-content) is missing,

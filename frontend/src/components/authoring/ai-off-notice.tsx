@@ -5,7 +5,7 @@ import { Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { usePermissions } from "@/hooks/use-permissions";
-import { ROUTES } from "@/lib/constants";
+import { aiAssistanceHref } from "@/components/teams/enable-ai-assistance-link";
 import { Perm } from "@/types/permissions";
 
 /**
@@ -22,7 +22,7 @@ export function AiOffNotice({ orgId }: { orgId: string }) {
       <span>
         {t("body")}{" "}
         {can(Perm.orgSettings) ? (
-          <Link href={ROUTES.ORG_MEMBERS(orgId)} className="font-medium underline">
+          <Link href={aiAssistanceHref(orgId)} className="font-medium underline">
             {t("enable")}
           </Link>
         ) : (

@@ -1,5 +1,5 @@
 ---
-source_sha: "013d401f2eeb"
+source_sha: "04e64984d3f5"
 ---
 
 # Governance { #governance }
@@ -1674,7 +1674,7 @@ niedostępny.
 
 ## Wsparcie AI { #ai-assistance }
 
-Jeden przełącznik, w ustawieniach organizacji na jej stronie członków, decyduje,
+Jeden przełącznik, na zakładce **Budżet i zgody** strony organizacji, decyduje,
 czy modele wspierają ewaluacje i tworzenie treści w organizacji: sędziego evali,
 który ocenia [wyniki datasetów](datasets.md#judge), agenta piszącego szkic
 treści, której brakuje przy [luce w
