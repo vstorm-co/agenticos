@@ -7,6 +7,8 @@ transition without repeating a model call. Only an explicit human finish accepts
 
 import hashlib
 import json
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -567,57 +569,67 @@ class ImprovementPipelineService:
                     "budget_usd": str(data.budget_usd),
                 },
             )
-        try:
-            async with self.db.begin_nested():
-                run = await improvement_repo.create_run(
-                    self.db,
-                    organization_id=ctx.organization_id,
-                    agent_id=agent_id,
-                    created_by_user_id=ctx.subject_id,
-                    created_by_api_key_id=ctx.api_key_id,
-                    base_version_id=inputs.base_version_id,
-                    base_draft_hash=inputs.pins.draft_hash,
-                    dataset_id=inputs.request.dataset_id,
-                    dataset_version=inputs.request.dataset_version or 1,
-                    suite_id=data.suite_id,
-                    suite_hash=inputs.suite_hash,
-                    scoring_hash=inputs.current_scoring_hash,
-                    window_days=data.window_days,
-                    estimate_usd=estimate.total_usd,
-                    budget_usd=data.budget_usd,
-                    max_iterations=data.max_iterations,
-                )
-                await improvement_repo.update_run(
-                    self.db,
-                    run=run,
-                    values={
-                        "pinned_scoring": inputs.scoring.model_dump(mode="json"),
-                        "chat_evidence_run_ids": [
-                            item.run_id for item in pack.runs if item.evidence_kind == "chat"
-                        ],
-                        "improver_agent_id": data.improver_agent_id,
-                        "judge_version_id": inputs.judge_version_id,
-                    },
-                )
-        except IntegrityError as exc:
-            if (
-                getattr(exc.orig, "constraint_name", None) != "uq_improvement_runs_active"
-                and getattr(getattr(exc.orig, "__cause__", None), "constraint_name", None)
-                != "uq_improvement_runs_active"
-            ):
-                raise
-            active = await improvement_repo.get_active(
-                self.db, organization_id=ctx.organization_id, agent_id=agent_id
+        async with self._sole_active(organization_id=ctx.organization_id, agent_id=agent_id):
+            run = await improvement_repo.create_run(
+                self.db,
+                organization_id=ctx.organization_id,
+                agent_id=agent_id,
+                created_by_user_id=ctx.subject_id,
+                created_by_api_key_id=ctx.api_key_id,
+                base_version_id=inputs.base_version_id,
+                base_draft_hash=inputs.pins.draft_hash,
+                dataset_id=inputs.request.dataset_id,
+                dataset_version=inputs.request.dataset_version or 1,
+                suite_id=data.suite_id,
+                suite_hash=inputs.suite_hash,
+                scoring_hash=inputs.current_scoring_hash,
+                window_days=data.window_days,
+                estimate_usd=estimate.total_usd,
+                budget_usd=data.budget_usd,
+                max_iterations=data.max_iterations,
             )
-            if active is None:
-                raise
-            raise self._already_running(active) from exc
+            await improvement_repo.update_run(
+                self.db,
+                run=run,
+                values={
+                    "pinned_scoring": inputs.scoring.model_dump(mode="json"),
+                    "chat_evidence_run_ids": [
+                        item.run_id for item in pack.runs if item.evidence_kind == "chat"
+                    ],
+                    "improver_agent_id": data.improver_agent_id,
+                    "judge_version_id": inputs.judge_version_id,
+                },
+            )
         await improvement_repo.create_iteration(
             self.db, organization_id=ctx.organization_id, run_id=run.id, number=1
         )
         await self._audit(run, "started")
         await self._queue(run)
         return await self._read(ctx, run)
+
+    @asynccontextmanager
+    async def _sole_active(self, *, organization_id: UUID, agent_id: UUID) -> AsyncGenerator[None]:
+        """Make a session active, refusing as a conflict when another took the agent first.
+
+        One active session per agent is a unique index; two requests that both
+        found none still race to it, and the loser is told who won rather than
+        answered with a database error.
+        """
+        try:
+            async with self.db.begin_nested():
+                yield
+        except IntegrityError as exc:
+            if "uq_improvement_runs_active" not in {
+                getattr(exc.orig, "constraint_name", None),
+                getattr(getattr(exc.orig, "__cause__", None), "constraint_name", None),
+            }:
+                raise
+            active = await improvement_repo.get_active(
+                self.db, organization_id=organization_id, agent_id=agent_id
+            )
+            if active is None:
+                raise
+            raise self._already_running(active) from exc
 
     @staticmethod
     def _already_running(run: ImprovementRun) -> ConcurrentChangeError:
@@ -1041,6 +1053,8 @@ class ImprovementPipelineService:
         """
         await self.authoring._editable(ctx, agent_id)
         self.authoring._require_runs_view(ctx)
+        if await agent_repo.lock(self.db, agent_id, organization_id=ctx.organization_id) is None:
+            raise NotFoundError(message="Agent not found")
         run = await self._row(ctx, agent_id, run_id, lock=True)
         self._require_requester(ctx, run)
         if Status(run.status).active:
@@ -1058,16 +1072,17 @@ class ImprovementPipelineService:
         assert iteration is not None
         # A refusal rolls this transaction back, including this temporary status.
         self._allow(run, Status.RUNNING)
-        await improvement_repo.update_run(
-            self.db,
-            run=run,
-            values={
-                "status": Status.RUNNING.value,
-                "error": None,
-                "stop_reason": None,
-                "finished_at": None,
-            },
-        )
+        async with self._sole_active(organization_id=ctx.organization_id, agent_id=agent_id):
+            await improvement_repo.update_run(
+                self.db,
+                run=run,
+                values={
+                    "status": Status.RUNNING.value,
+                    "error": None,
+                    "stop_reason": None,
+                    "finished_at": None,
+                },
+            )
         await self.ensure_current(ctx, run.id)
         if run.stage == Stage.PROPOSING:
             await improvement_repo.update_iteration(
@@ -1356,7 +1371,8 @@ class ImprovementPipelineService:
             step_estimate_usd=quote.total_usd,
             quote_hash=quote.candidate_hash,
         )
-        await self._move(run, rules.Transition(Status.RUNNING, stage))
+        async with self._sole_active(organization_id=ctx.organization_id, agent_id=agent_id):
+            await self._move(run, rules.Transition(Status.RUNNING, stage))
         if stage == Stage.EVALUATING:
             await self._evaluate(ctx, plan.inputs, run, iteration, force_new=True)
         return await self._read(ctx, run)
