@@ -1,5 +1,5 @@
 ---
-source_sha: "9b53018f30fe"
+source_sha: "b0a3cf294555"
 ---
 
 # Das Deployment selbst { #the-deployment-itself }
@@ -586,6 +586,12 @@ einen Aufrufer mit `agents:edit`, liefert das Limit (`limit`, null, wo keines
 gesetzt ist) und ob eine Erstellung daran scheitern würde (`at_limit`), und am
 Limit deaktiviert die Seite Agenten **Neuer Agent (New agent)** und das
 Installieren von Vorlagen und sagt, warum, bevor jemand ein Formular ausfüllt.
+
+Wenn eine andere Erstellung während der geführten Agent-Erstellung das Limit
+erreicht, endet die Anleitung, statt die Seite um einen deaktivierten Button
+zu sperren. Ein erfolgreich in dieser Anleitung erstellter Agent wird vor der
+Aktualisierung des Limits erfasst. Der letzte freie Platz unterbricht deshalb
+nicht die weiteren Schritte im Builder.
 
 Die Zählung selbst (`held`) erhält nur ein Aufrufer, dessen `agents:view` jeden Agenten
 der Organisation erreicht: Sie umfasst Agenten, die ein Mitglied (Member) nicht

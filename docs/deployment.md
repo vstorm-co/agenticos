@@ -516,6 +516,11 @@ set) and whether a create would hit it (`at_limit`), and at the limit the Agents
 page disables **New agent** and template installs and says why, before anybody
 fills in a form.
 
+If another create fills the limit during a guided agent creation, the walk ends
+instead of freezing the page around a disabled button. A successful creation
+from that walk is recorded before the ceiling refresh, so taking the last slot
+does not interrupt its remaining Builder steps.
+
 The count itself (`held`) goes only to a caller whose
 `agents:view` reaches every agent in the organization: it includes agents a
 Member cannot see, and set against their own listing it would say how many are

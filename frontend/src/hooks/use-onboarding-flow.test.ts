@@ -37,8 +37,14 @@ const rig = vi.hoisted(() => ({
   anyRunnableFetching: false,
   ceiling: null as AgentCeiling | null,
   ceilingKnown: true,
+  pendingCreates: 0,
   ceilingEnabled: true,
   can: (_permission: Permission): boolean => true,
+}));
+
+vi.mock("@tanstack/react-query", async () => ({
+  ...(await vi.importActual<typeof import("@tanstack/react-query")>("@tanstack/react-query")),
+  useIsMutating: () => rig.pendingCreates,
 }));
 
 vi.mock("@/hooks/use-agents", () => ({
@@ -133,6 +139,7 @@ vi.mock("@/lib/onboarding/flows", async () => {
 
 beforeEach(() => {
   rig.ceiling = null;
+  rig.pendingCreates = 0;
   rig.ceilingKnown = true;
   rig.agentTotal = 0;
   rig.agentsLoading = false;
@@ -227,6 +234,66 @@ describe("useOnboardingFlow", () => {
     rerender();
     expect(result.current.isActive).toBe(true);
     expect(result.current.steps.map((step) => step.id)).not.toContain("flow-chat-needs-agent");
+  });
+
+  it.each([0, 1])(
+    "stops a create walk when another agent fills the limit (visible count %s)",
+    (visible) => {
+      nav.pathname = "/agents";
+      rig.ceiling = { limit: 1, held: 0, at_limit: false };
+      const { result, rerender } = renderHook(() => useOnboardingFlow());
+      act(() => useOnboardingStore.getState().openFlow("create-agent"));
+      expect(result.current.isActive).toBe(true);
+
+      rig.agentTotal = visible;
+      rig.ceiling = { limit: 1, held: 1, at_limit: true };
+      rerender();
+
+      expect(result.current.isActive).toBe(false);
+      expect(useOnboardingStore.getState().isOpen).toBe(false);
+    },
+  );
+
+  it("continues after its own successful creation fills the last slot", () => {
+    rig.ceiling = { limit: 1, held: 0, at_limit: false };
+    const { result, rerender } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-agent"));
+    act(() => useOnboardingStore.getState().setFlowAgentId("new-agent"));
+    rig.ceiling = { limit: 1, held: 1, at_limit: true };
+    rig.agentTotal = 1;
+    rerender();
+    expect(result.current.isActive).toBe(true);
+    expect(result.current.signalMet).toBe(true);
+    act(() => result.current.next());
+    expect(result.current.step?.id).toBe("flow-agent-instructions");
+    expect(useOnboardingStore.getState().isOpen).toBe(true);
+  });
+
+  it.each(["success", "refused"])(
+    "waits for a local create when the change feed wins the race: %s",
+    (outcome) => {
+      rig.ceiling = { limit: 1, held: 0, at_limit: false };
+      const { result, rerender } = renderHook(() => useOnboardingFlow());
+      act(() => useOnboardingStore.getState().openFlow("create-agent"));
+      rig.pendingCreates = 1;
+      rig.ceiling = { limit: 1, held: 1, at_limit: true };
+      rerender();
+      expect(result.current.isActive).toBe(true);
+      if (outcome === "success") {
+        act(() => useOnboardingStore.getState().setFlowAgentId("new-agent"));
+      }
+      rig.pendingCreates = 0;
+      rerender();
+      expect(result.current.isActive).toBe(outcome === "success");
+      expect(useOnboardingStore.getState().isOpen).toBe(outcome === "success");
+    },
+  );
+
+  it("does not stop other creation walks when the agent limit is full", () => {
+    rig.ceiling = { limit: 1, held: 1, at_limit: true };
+    const { result } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-skill"));
+    expect(result.current.isActive).toBe(true);
   });
 
   it("asks for the agent limit only of a caller who may create agents", () => {

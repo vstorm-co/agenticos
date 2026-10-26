@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
+import { useIsMutating } from "@tanstack/react-query";
+import { qk } from "@/lib/query-keys";
 
 import { isAtAgentLimit } from "@/components/agents/agent-limit-notice";
 import { useAgent, useAgentCeiling, useAgents } from "@/hooks/use-agents";
@@ -110,6 +112,7 @@ function settled(loading: boolean, fetching: boolean, count: number): MaybeCount
 function useOrgSnapshot(): {
   counts: Record<FlowResource, MaybeCount>;
   liveState: OrgState | null;
+  agentLimitReached: boolean;
 } {
   const agents = useAgents();
   const { can } = usePermissions();
@@ -144,6 +147,7 @@ function useOrgSnapshot(): {
     !anyRunnable.isFetching &&
     agentCeiling.known;
   return {
+    agentLimitReached: isAtAgentLimit(agentCeiling.ceiling),
     counts: {
       agent: settled(agents.isLoading, agents.isFetching, agents.total),
       model: settled(models.isLoading, models.isFetching, models.profiles.length),
@@ -229,13 +233,14 @@ export function useOnboardingFlow(): OnboardingFlowState {
   const flowAgentId = useOnboardingStore((state) => state.flowAgentId);
   const setFlowAgentId = useOnboardingStore((state) => state.setFlowAgentId);
   const { can } = usePermissions();
-  const { counts, liveState } = useOrgSnapshot();
+  const { counts, liveState, agentLimitReached } = useOrgSnapshot();
   // The live draft of the agent this flow built, for the steps that gate on its
   // state rather than a list: the model step waits for its draft to gain a model,
   // the publish step for it to gain a published version. Disabled until an id is
   // captured (`flowAgentId` null), and it shares the builder's own query key, so
   // the builder's autosave and publish invalidations refresh it here too.
   const agentDetail = useAgent(flowAgentId);
+  const creatingAgent = useIsMutating({ mutationKey: qk.agents.create() }) > 0;
   const here = pageKey(stripLocale(usePathname()));
   // The chat run's tail keys off the chat stores rather than a list: which agent
   // is selected, and how many messages are *on screen* — sending appends one
@@ -278,6 +283,16 @@ export function useOnboardingFlow(): OnboardingFlowState {
   const clamped = Math.min(index, Math.max(steps.length - 1, 0));
   const step = steps[clamped];
   const isLast = clamped === steps.length - 1;
+
+  // Unlike the adaptive choices, creation availability must stay live. A
+  // successful local create records its id before invalidating the ceiling.
+  // A change-feed refresh can beat the create response, so wait for a pending
+  // local mutation to settle before deciding whose create filled the limit.
+  const creationBlocked =
+    step?.id === "flow-agent-create" && agentLimitReached && flowAgentId === null && !creatingAgent;
+  useEffect(() => {
+    if (isOpen && creationBlocked) close();
+  }, [isOpen, creationBlocked, close]);
 
   const signal = step?.signal;
   const resource = signal?.kind === "created" ? signal.resource : null;
@@ -341,7 +356,7 @@ export function useOnboardingFlow(): OnboardingFlowState {
   );
 
   return {
-    isActive: isOpen && flow !== null && stateReady && steps.length > 0,
+    isActive: isOpen && flow !== null && stateReady && steps.length > 0 && !creationBlocked,
     flowId: flow ? flowId : null,
     steps,
     step,

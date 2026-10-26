@@ -1,6 +1,7 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useIsMutating } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
+import { useOnboardingStore } from "@/stores/onboarding-store";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
@@ -53,6 +54,10 @@ function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
+
+beforeEach(() => {
+  useOnboardingStore.setState({ isOpen: false, flowId: null, flowAgentId: null, index: 0 });
+});
 
 describe("useAgents", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -480,6 +485,86 @@ describe("useAgents mutations", () => {
 
     expect(toast.success).toHaveBeenCalledWith("Created Support");
   });
+
+  it("records its own created agent before refreshing a guided create's ceiling", async () => {
+    let created = false;
+    let seenDuringRefresh: string | null = null;
+    vi.mocked(apiClient.get).mockImplementation(async () => {
+      if (created) seenDuringRefresh = useOnboardingStore.getState().flowAgentId;
+      return { items: [], total: 0 };
+    });
+    vi.mocked(apiClient.post).mockImplementation(async () => {
+      created = true;
+      return { id: "new-agent", name: "New" };
+    });
+    useOnboardingStore.getState().openFlow("create-agent");
+    const { result } = renderHook(() => useAgents(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await result.current.create.mutateAsync({ spec: SPEC });
+    expect(seenDuringRefresh).toBe("new-agent");
+    expect(useOnboardingStore.getState().flowAgentId).toBe("new-agent");
+  });
+
+  it("exposes a pending create to the coach until its response settles", async () => {
+    const response = Promise.withResolvers<{ id: string; name: string }>();
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(apiClient.post).mockReturnValue(response.promise);
+    const { result } = renderHook(
+      () => ({
+        agents: useAgents(),
+        creating: useIsMutating({ mutationKey: qk.agents.create() }),
+      }),
+      { wrapper },
+    );
+    const pending = result.current.agents.create.mutateAsync({ spec: SPEC });
+    await waitFor(() => expect(result.current.creating).toBe(1));
+    response.resolve({ id: "new-agent", name: "New" });
+    await pending;
+    await waitFor(() => expect(result.current.creating).toBe(0));
+  });
+
+  it.each(["closed", "other-flow", "later-step", "already-bound"])(
+    "does not replace a guided agent for an unrelated create: %s",
+    async (state) => {
+      const flow = useOnboardingStore.getState();
+      flow.openFlow(state === "other-flow" ? "create-skill" : "create-agent");
+      if (state === "closed") flow.close();
+      if (state === "later-step") flow.setIndex(1);
+      if (state === "already-bound") flow.setFlowAgentId("original-agent");
+      vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+      vi.mocked(apiClient.post).mockResolvedValue({ id: "unrelated-agent", name: "Other" });
+      const { result } = renderHook(() => useAgents(), { wrapper });
+      await result.current.create.mutateAsync({ spec: SPEC });
+      expect(useOnboardingStore.getState().flowAgentId).toBe(
+        state === "already-bound" ? "original-agent" : null,
+      );
+    },
+  );
+
+  it.each(["closed", "reopened", "other-flow", "page-tour", "later-step", "already-bound"])(
+    "ignores a late create after its original walk changes: %s",
+    async (transition) => {
+      const response = Promise.withResolvers<{ id: string; name: string }>();
+      vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+      vi.mocked(apiClient.post).mockReturnValue(response.promise);
+      const flow = useOnboardingStore.getState();
+      flow.openFlow("create-agent");
+      const { result } = renderHook(() => useAgents(), { wrapper });
+      const pending = result.current.create.mutateAsync({ spec: SPEC });
+      await waitFor(() => expect(apiClient.post).toHaveBeenCalledOnce());
+      if (transition === "closed") flow.close();
+      if (transition === "reopened") flow.openFlow("create-agent");
+      if (transition === "other-flow") flow.openFlow("create-skill");
+      if (transition === "page-tour") flow.openPage();
+      if (transition === "later-step") flow.setIndex(1);
+      if (transition === "already-bound") flow.setFlowAgentId("original-agent");
+      response.resolve({ id: "late-agent", name: "Late" });
+      await pending;
+      expect(useOnboardingStore.getState().flowAgentId).toBe(
+        transition === "already-bound" ? "original-agent" : null,
+      );
+    },
+  );
 
   it("leaves a failed creation to the dialog rather than toasting it", async () => {
     // The regression this guards: a toast here duplicates the field-level

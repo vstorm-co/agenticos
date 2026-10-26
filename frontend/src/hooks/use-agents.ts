@@ -11,6 +11,7 @@ import { fieldProblems, getErrorMessage, problemList } from "@/lib/api-error";
 import type { FieldProblem } from "@/lib/api-error";
 import { invalidateSpeechSettings } from "@/lib/dictation-api";
 import { qk } from "@/lib/query-keys";
+import { useOnboardingStore } from "@/stores/onboarding-store";
 import { useCapabilityGuide } from "./use-capability-guide";
 import type { Visibility } from "@/types/sharing";
 import type {
@@ -139,6 +140,7 @@ export function useAgents({
   // here would put the same message somewhere it cannot be acted on, and then
   // take it away again.
   const create = useMutation({
+    mutationKey: qk.agents.create(),
     // Visibility is not part of the spec and never has been: a spec is what the
     // agent *is*, and who can find it is a fact about the row - the same reason
     // its avatar and its colour live beside the spec rather than in it.
@@ -169,7 +171,27 @@ export function useAgents({
         tags,
         from_starter,
       }),
-    onSuccess: async (agent) => {
+    onMutate: () => {
+      const flow = useOnboardingStore.getState();
+      // Choices are reset for each flow. Their identity keeps a late create
+      // from attaching to a walk reopened while the request was in flight.
+      return flow.isOpen && flow.flowId === "create-agent" && flow.index === 0
+        ? flow.choices
+        : null;
+    },
+    onSuccess: async (agent, _variables, guidedFlow) => {
+      const flow = useOnboardingStore.getState();
+      if (
+        guidedFlow === flow.choices &&
+        flow.isOpen &&
+        flow.flowId === "create-agent" &&
+        flow.index === 0 &&
+        flow.flowAgentId === null
+      ) {
+        // Refreshing the ceiling may fill its last slot. Record our success
+        // first so the coach does not mistake it for another person's create.
+        flow.setFlowAgentId(agent.id);
+      }
       await invalidate();
       toast.success(t("created", { name: agent.name }));
     },

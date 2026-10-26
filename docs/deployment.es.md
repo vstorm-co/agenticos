@@ -1,5 +1,5 @@
 ---
-source_sha: "9b53018f30fe"
+source_sha: "b0a3cf294555"
 ---
 
 # El despliegue en sí { #the-deployment-itself }
@@ -554,6 +554,11 @@ con `agents:edit`, devuelve el límite (`limit`, null donde no hay ninguno) y si
 una creación chocaría con él (`at_limit`), y, en el límite, la página Agentes
 desactiva **New agent** y la instalación de plantillas y dice por qué, antes de
 que nadie rellene un formulario.
+
+Si otra creación alcanza el límite durante la creación guiada de un agent,
+la guía termina en vez de bloquear la página alrededor de un botón desactivado.
+Una creación exitosa de esa guía se registra antes de actualizar el límite,
+por lo que ocupar la última plaza no interrumpe los pasos restantes del Builder.
 
 El recuento en sí (`held`) solo lo recibe quien
 llama con un `agents:view` que alcanza a todos los agentes de la organización:

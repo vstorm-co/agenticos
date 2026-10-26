@@ -1,5 +1,5 @@
 ---
-source_sha: "9b53018f30fe"
+source_sha: "b0a3cf294555"
 ---
 
 # Samo wdrożenie { #the-deployment-itself }
@@ -545,6 +545,11 @@ z `agents:edit`, zwraca limit (`limit`, null, gdy nie jest ustawiony) oraz to, c
 utworzenie agenta by go przekroczyło (`at_limit`), a na limicie strona Agenci
 wyłącza **Nowy agent (New agent)** i instalowanie szablonów i mówi dlaczego, zanim
 ktokolwiek wypełni formularz.
+
+Jeśli inna operacja zapełni limit podczas tworzenia agenta z przewodnikiem,
+przewodnik kończy się zamiast blokować stronę wokół wyłączonego przycisku.
+Udane utworzenie agenta w tym przewodniku jest zapisywane przed odświeżeniem
+limitu, więc zajęcie ostatniego miejsca nie przerywa dalszych kroków w Builderze.
 
 Sam licznik (`held`) dostaje tylko wywołujący,
 którego `agents:view` obejmuje wszystkich agentów organizacji: licznik obejmuje

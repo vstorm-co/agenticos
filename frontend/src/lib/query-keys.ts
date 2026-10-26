@@ -83,6 +83,7 @@ export const qk = {
     // page's, so a filter change cannot unset it; under "agents" so whatever
     // moves the list refreshes it.
     ceiling: () => ["agents", "ceiling"] as const,
+    create: () => ["agents", "create"] as const,
     detail: (id: string) => ["agents", id] as const,
     templates: () => ["agents", "templates"] as const,
     // The page is part of the key: a history past its page size is several
