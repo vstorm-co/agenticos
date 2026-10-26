@@ -9,7 +9,7 @@ import { useImprovementEvidence } from "@/hooks/use-improvements";
 import { getErrorMessage } from "@/lib/api-error";
 import type { EvidenceDecision, Improvement, ImprovementEvidenceItem } from "@/types/improvement";
 import { StepError } from "./step-error";
-import { Details, Proportion, StateBadge } from "./widgets";
+import { Details, Proportion } from "./widgets";
 
 type Column = "agent" | "missing_knowledge" | "not_a_problem";
 
@@ -62,11 +62,6 @@ export function Understand({ session }: { session: Improvement }) {
       key={group[0]!.run_id}
       items={group}
       busy={sources.decide.isPending}
-      onMove={
-        canSort && (column === "agent" || column === "missing_knowledge")
-          ? () => void decide(group, column === "agent" ? "missing_knowledge" : "agent")
-          : undefined
-      }
       onIgnore={canSort && column !== "ignored" ? () => void decide(group, "ignored") : undefined}
       onRestore={canSort && column === "ignored" ? () => void decide(group, null) : undefined}
     />
@@ -163,20 +158,17 @@ export function Understand({ session }: { session: Improvement }) {
 function TopicCard({
   items,
   busy,
-  onMove,
   onIgnore,
   onRestore,
 }: {
   items: ImprovementEvidenceItem[];
   busy: boolean;
-  onMove?: () => void;
   onIgnore?: () => void;
   onRestore?: () => void;
 }) {
   const t = useTranslations("improvement");
   const [item, ...others] = items as [ImprovementEvidenceItem, ...ImprovementEvidenceItem[]];
   const sortable = items.some((entry) => entry.kind === "chat");
-  const moved = item.decision === "agent" || item.decision === "missing_knowledge";
   return (
     <article className="bg-background rounded-xl border text-sm">
       <details>
@@ -196,7 +188,6 @@ function TopicCard({
                 {t("widgets.comments", { count: item.comments.length })}
               </span>
             )}
-            {moved && <StateBadge tone="neutral">{t("movedByYou")}</StateBadge>}
           </span>
         </summary>
         <div className="space-y-3 border-t p-3">
@@ -251,13 +242,8 @@ function TopicCard({
           )}
         </div>
       </details>
-      {sortable && (onMove || onIgnore || onRestore) && (
+      {sortable && (onIgnore || onRestore) && (
         <div className="flex flex-wrap gap-2 border-t p-3">
-          {onMove && (
-            <Button variant="outline" size="sm" disabled={busy} onClick={onMove}>
-              {t("moveColumn")}
-            </Button>
-          )}
           {onIgnore && (
             <Button variant="ghost" size="sm" disabled={busy} onClick={onIgnore}>
               {t("ignoreExample")}

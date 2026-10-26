@@ -481,19 +481,12 @@ it("groups examples by topic into problems and says how many each column holds",
   ).toContain("/chat/c5");
 });
 
-it("moves, ignores and restores a problem for the next attempt", async () => {
+it("ignores and puts back a problem for the next attempt, and moves none between columns", async () => {
   sortable();
-  state.sources!.items[0]!.decision = "agent";
   state.sources!.items.push({ ...state.sources!.items[0]!, run_id: "r6", decision: "ignored" });
   render(<Understand session={SESSION} />);
-  expect(screen.getByText(/moved by you/)).toBeInTheDocument();
-  const moves = screen.getAllByRole("button", { name: "Move to the other column" });
-  expect(moves).toHaveLength(2);
-  await userEvent.click(moves[0]!);
-  expect(state.decide).toHaveBeenLastCalledWith({ runId: "r1", decision: "missing_knowledge" });
-  await userEvent.click(moves[1]!);
-  expect(state.decide).toHaveBeenCalledWith({ runId: "r3", decision: "agent" });
-  expect(state.decide).toHaveBeenLastCalledWith({ runId: "r5", decision: "agent" });
+  expect(screen.getByText(/If an example should not count, ignore it/)).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /other column/ })).not.toBeInTheDocument();
   await userEvent.click(screen.getAllByRole("button", { name: "Ignore this" })[0]!);
   expect(state.decide).toHaveBeenLastCalledWith({ runId: "r1", decision: "ignored" });
   await userEvent.click(screen.getByText("Ignored (1)"));
@@ -507,7 +500,7 @@ it("moves, ignores and restores a problem for the next attempt", async () => {
 it("offers no sorting once the session is decided", () => {
   render(<Understand session={{ ...SESSION, status: "published" }} />);
   expect(screen.queryByRole("button", { name: "Ignore this" })).not.toBeInTheDocument();
-  expect(screen.queryByText(/If we sorted a problem wrongly/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/If an example should not count/)).not.toBeInTheDocument();
 });
 
 it("says nothing about ungraded questions when every question was graded", () => {

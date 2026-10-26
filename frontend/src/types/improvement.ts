@@ -134,7 +134,7 @@ export interface ImprovementEvidenceItem {
   /** A person's move to the other column, or "ignored"; later rounds follow it. */
   decision?: EvidenceDecision | null;
 }
-export type EvidenceDecision = "agent" | "missing_knowledge" | "ignored";
+export type EvidenceDecision = "ignored";
 export interface ImprovementEvidence {
   items: ImprovementEvidenceItem[];
   sample_limit: number;
