@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.20.1] - 2026-10-26
+
 ### Fixed
 
 - Explain why existing private provider keys or ChatGPT sign-ins cannot be
