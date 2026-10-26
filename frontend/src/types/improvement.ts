@@ -28,6 +28,8 @@ export interface ImprovementEstimate {
   max_iterations: number;
   cases: number;
   evidence_runs: number;
+  /** About how long the session takes if every round runs. */
+  estimated_minutes: number;
   affordable: boolean;
   reason: string | null;
 }

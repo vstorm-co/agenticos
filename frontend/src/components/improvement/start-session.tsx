@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
@@ -48,6 +48,29 @@ export function StartSession({ agentId }: { agentId: string }) {
   };
   const asked = JSON.stringify(body);
   const quote = quoted?.key === asked ? quoted.value : null;
+  const [refusal, setRefusal] = useState<{ key: string; message: string } | null>(null);
+  const refused = refusal?.key === asked ? refusal.message : null;
+  const estimateSession = sessions.estimate.mutateAsync;
+  // An estimate spends nothing, so the price and the time are on screen as soon
+  // as there is something to price; only starting asks for a click.
+  useEffect(() => {
+    if (!target) return;
+    let current = true;
+    estimateSession(JSON.parse(asked)).then(
+      (priced) => {
+        if (!current) return;
+        setQuote({ key: asked, value: priced });
+        setBudget(priced.total_usd);
+      },
+      (failure: unknown) => {
+        if (!current) return;
+        setRefusal({ key: asked, message: getErrorMessage(failure, tErrors) });
+      },
+    );
+    return () => {
+      current = false;
+    };
+  }, [asked, target, estimateSession, tErrors]);
   async function act(action: () => Promise<void>) {
     setError(null);
     try {
@@ -156,23 +179,33 @@ export function StartSession({ agentId }: { agentId: string }) {
             setQuote(null);
           }}
         />
-        <Button
-          variant="outline"
-          disabled={!target || sessions.estimate.isPending}
-          onClick={() =>
-            void act(async () => {
-              const priced = await sessions.estimate.mutateAsync(body);
-              setQuote({ key: asked, value: priced });
-              setBudget(priced.total_usd);
-            })
-          }
-        >
-          {t("estimate")}
-        </Button>
+        {refused !== null && (
+          <>
+            <p role="alert" className="text-destructive text-sm">
+              {refused}
+            </p>
+            <Button
+              variant="outline"
+              disabled={sessions.estimate.isPending}
+              onClick={() =>
+                void act(async () => {
+                  const priced = await sessions.estimate.mutateAsync(body);
+                  setRefusal(null);
+                  setQuote({ key: asked, value: priced });
+                  setBudget(priced.total_usd);
+                })
+              }
+            >
+              {t("estimate")}
+            </Button>
+          </>
+        )}
+        {target && !quote && refused === null && <p role="status">{t("estimating")}</p>}
         {quote && (
           <section className="space-y-3 rounded-lg border p-4">
             <p>
               {t("sessionQuote", {
+                minutes: quote.estimated_minutes,
                 cost: usd(quote.total_usd, locale),
                 count: quote.cases,
                 rounds: quote.max_iterations,

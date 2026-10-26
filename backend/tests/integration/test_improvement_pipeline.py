@@ -301,6 +301,7 @@ async def test_second_start_is_a_conflict_and_estimate_writes_nothing(db):
     )
     assert estimate.total_usd == estimate.per_round_usd * 2
     assert estimate.per_round_usd == estimate.proposal_usd + 2 * estimate.eval_usd
+    assert estimate.estimated_minutes >= 3
     assert await db.scalar(select(func.count()).select_from(ImprovementRun)) == 1
 
 

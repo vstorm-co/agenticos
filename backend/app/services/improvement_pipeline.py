@@ -8,7 +8,7 @@ transition without repeating a model call. Only an explicit human finish accepts
 import hashlib
 import json
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Literal
 from uuid import UUID
@@ -54,6 +54,7 @@ from app.db.models.improvement import (
 )
 from app.repositories import (
     agent_repo,
+    agent_run_repo,
     authoring_repo,
     dataset_repo,
     improvement_repo,
@@ -64,6 +65,7 @@ from app.repositories import (
 from app.repositories import (
     background_job as background_job_repo,
 )
+from app.repositories.agent_run import RunFilter
 from app.schemas.authoring import AuthoringStart, HunkDecision, ProposalCheck
 from app.schemas.change_event import ChangeEvent
 from app.schemas.eval_run import (
@@ -123,6 +125,9 @@ from app.worker.jobs import (
     ClassifyGaps,
     DraftGaps,
 )
+
+ANSWER_TIME_WINDOW = timedelta(days=30)
+"""How far back the agent's answers are read to time a session's checks."""
 
 
 @dataclass(frozen=True)
@@ -475,6 +480,14 @@ class ImprovementPipelineService:
             )
         total = per_round * target.max_iterations + knowledge
         org_left = await self.evals._org_left(ctx)
+        now = datetime.now(UTC)
+        answer_ms, _ = await agent_run_repo.latency_percentiles_ms(
+            self.db,
+            organization_id=ctx.organization_id,
+            start=now - ANSWER_TIME_WINDOW,
+            end=now,
+            where=RunFilter(agent_id=inputs.agent.id),
+        )
         return ImprovementEstimate(
             proposal_usd=proposal.estimate_usd,
             knowledge_usd=knowledge,
@@ -484,6 +497,12 @@ class ImprovementPipelineService:
             max_iterations=target.max_iterations,
             cases=check.cases,
             evidence_runs=proposal.runs,
+            estimated_minutes=rules.estimated_minutes(
+                rounds=target.max_iterations,
+                answers=check.cases * len(check.arms),
+                answer_seconds=None if answer_ms is None else answer_ms / 1000,
+                concurrency=settings.EVAL_RUN_CONCURRENCY,
+            ),
             affordable=proposal.affordable
             and check.affordable
             and (org_left is None or total <= org_left),

@@ -39,6 +39,7 @@ from app.services.improvement_states import (
     before_evaluating,
     can_move,
     checked,
+    estimated_minutes,
     judge,
     stale,
     stall,
@@ -552,3 +553,14 @@ def test_round_stop_conditions(verdicts, maximum, reason) -> None:
         )
         == reason
     )
+
+
+def test_a_session_is_timed_by_its_rounds_and_how_many_answers_run_at_once() -> None:
+    assert estimated_minutes(rounds=1, answers=12, answer_seconds=10.0, concurrency=3) == 3
+    assert estimated_minutes(rounds=3, answers=12, answer_seconds=10.0, concurrency=3) == 7
+    assert estimated_minutes(rounds=1, answers=12, answer_seconds=10.0, concurrency=12) == 2
+
+
+def test_an_agent_with_no_recent_answers_is_timed_by_the_default() -> None:
+    assert estimated_minutes(rounds=1, answers=6, answer_seconds=None, concurrency=3) == 3
+    assert estimated_minutes(rounds=1, answers=0, answer_seconds=0.0, concurrency=0) == 2
