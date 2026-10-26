@@ -62,6 +62,19 @@ describe("activateTab", () => {
   });
 });
 
+describe("activateTab on a plain button", () => {
+  it("clicks a wizard's step, which listens for nothing else", () => {
+    const onClick = vi.fn();
+    render(
+      <button type="button" onClick={onClick}>
+        Result
+      </button>,
+    );
+    act(() => activateTab(screen.getByRole("button", { name: "Result" })));
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("spotlightPath", () => {
   it("cuts a hole into a full-viewport rectangle", () => {
     const d = spotlightPath(1000, 800, 100, 100, 200, 50, 12);

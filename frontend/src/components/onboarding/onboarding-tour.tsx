@@ -265,7 +265,13 @@ export function OnboardingTour() {
           void show(undefined);
           return;
         }
-      } else if (step.page && here !== step.page) {
+      } else if (step.page && pageKey(here) !== step.page) {
+        // A detail page with no example to resolve - an eval run, an Improve
+        // session - names no route, so there is nowhere to go but where we are.
+        if (!step.page.startsWith("/")) {
+          void show(undefined);
+          return;
+        }
         await reveal(`a[href$="${step.page}"]`);
         if (signal.aborted) return;
         router.push(step.page);
@@ -287,7 +293,11 @@ export function OnboardingTour() {
         // builder's Build, its Toolbox) each named it, so the light climbed to the
         // tab bar, pressed a tab that was already selected and dropped back down —
         // a detour on every step that read as the light jumping around.
-        if (trigger instanceof HTMLElement && trigger.getAttribute("data-state") !== "active") {
+        if (
+          trigger instanceof HTMLElement &&
+          trigger.getAttribute("data-state") !== "active" &&
+          !trigger.closest('[aria-current="step"]')
+        ) {
           await show(trigger, true);
           if (signal.aborted) return;
           await pulse(trigger, signal, REVEAL_MS);

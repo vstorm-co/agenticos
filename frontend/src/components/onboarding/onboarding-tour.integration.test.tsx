@@ -326,6 +326,36 @@ describe("OnboardingTour", () => {
     expect(toast.info).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["/agents/agent-1/improve/session-1", "Test questions"],
+    ["/agents/agent-1/improve/new", "Improve"],
+    ["/agents/agent-1/evals/run-1", "The verdict"],
+  ])("walks the '?' on %s where it was opened, never to its page id", async (path, title) => {
+    servePermissions(OWNER);
+    nav.pathname = path;
+    useOnboardingStore.setState({ isOpen: true, index: 0, mode: "page" });
+    render(<OnboardingTour />, { wrapper });
+    await waitFor(() => expect(spotlight.highlight).toHaveBeenCalled());
+
+    expect(shownStep().popover?.title).toBe(title);
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
+  it("describes a session's stop where the reader is once they have left it", async () => {
+    servePermissions(OWNER);
+    nav.pathname = "/agents/agent-1/improve/session-1";
+    useOnboardingStore.setState({ isOpen: true, index: 0, mode: "page" });
+    const view = render(<OnboardingTour />, { wrapper });
+    await waitFor(() => expect(spotlight.highlight).toHaveBeenCalled());
+    spotlight.highlight.mockClear();
+
+    nav.pathname = "/agents/agent-1";
+    view.rerender(<OnboardingTour />);
+    await waitFor(() => expect(spotlight.highlight).toHaveBeenCalled());
+    expect(shownStep().element).toBeUndefined();
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
   it("asks for the detail lists only when the walk has somewhere to open", async () => {
     // Three list queries stand behind the detail stops. The vault section has no
     // detail view, so a "?" there used to fetch agents, collections and
@@ -401,6 +431,23 @@ describe("OnboardingTour's light", () => {
     // be asked for more than once — but the light never goes anywhere else.
     expect(light.focus.mock.calls.every(([element]) => element === target)).toBe(true);
     expect(pulse).not.toHaveBeenCalled();
+    expect(activateTab).not.toHaveBeenCalled();
+  });
+
+  it("goes straight to the target when the wizard is already on its step", async () => {
+    const step = document.createElement("li");
+    step.setAttribute("aria-current", "step");
+    const button = step.appendChild(document.createElement("button"));
+    button.dataset.tour = "improvement-step-testSet";
+    const target = document.createElement("div");
+    target.dataset.tour = "improvement-test-questions";
+    serveElements(button, target);
+    servePermissions(OWNER);
+    nav.pathname = "/agents/agent-1/improve/session-1";
+    useOnboardingStore.setState({ isOpen: true, index: 0, mode: "page" });
+    render(<OnboardingTour />, { wrapper });
+
+    await waitFor(() => expect(light.focus).toHaveBeenCalledWith(target));
     expect(activateTab).not.toHaveBeenCalled();
   });
 
