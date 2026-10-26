@@ -1,7 +1,14 @@
 "use client";
 
-import { useCallback } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useMemo } from "react";
+import {
+  queryOptions,
+  skipToken,
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api-error";
@@ -85,6 +92,34 @@ export function useModelProviders() {
     queryFn: () => apiClient.get<ModelProfileList>("/providers/model-profiles"),
   });
 
+  const providerIds = useMemo(
+    () => [...new Set(profiles.data?.items.map((profile) => profile.provider) ?? [])],
+    [profiles.data?.items],
+  );
+  // Observe listings already fetched by model forms, without making requests.
+  // A profile may have arrived before its listing, or from another API replica
+  // that has not cached it; saved-model pickers must still honor the answer.
+  const listings = useQueries({
+    queries: providerIds.map((provider) =>
+      queryOptions<ProviderModelList>({
+        queryKey: qk.providers.models(provider),
+        queryFn: skipToken,
+      }),
+    ),
+    combine: (queries) => queries.map((query) => query.data),
+  });
+  const classifiedProfiles = useMemo(
+    () =>
+      (profiles.data?.items ?? []).map((profile) => {
+        const listing = listings[providerIds.indexOf(profile.provider)];
+        const refused = listing?.items.some(
+          (model) => model.id === profile.model && !runsAgents(model),
+        );
+        return !profile.base_url && refused ? { ...profile, chat_capable: false } : profile;
+      }),
+    [profiles.data?.items, providerIds, listings],
+  );
+
   const invalidate = useCallback(
     // Not `providers.all()`: that prefix covers the catalog, which no mutation
     // can change and which every dialog on the page needs to stay open. Speech
@@ -119,7 +154,7 @@ export function useModelProviders() {
 
   return {
     catalog: catalog.data?.items ?? [],
-    profiles: profiles.data?.items ?? [],
+    profiles: classifiedProfiles,
     /**
      * What `profiles` currently is: the organization's answer, a placeholder
      * while the read is in flight, or a read that failed.

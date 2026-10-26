@@ -33,6 +33,9 @@ def _listed(provider: str, *models: CatalogModel) -> None:
         ("openai", "gpt-image-1", ("image",), "an image model"),
         ("openai", "text-embedding-3-small", ("embedding",), "an embedding model"),
         ("openai", "whisper-1", ("text",), "a transcription model"),
+        ("openai_codex", "gpt-image-1", ("image",), "an image model"),
+        ("google_cloud", "gemini-omni-1.1-flash", ("video",), "a video model"),
+        ("openai", "gpt-realtime", ("text", "audio"), "a realtime voice model"),
         ("google", "gemini-omni-1.1-flash", ("video",), "a video model"),
         # OpenRouter's namespaced id is the upstream model under another name.
         ("openrouter", "openai/gpt-4o-mini-tts", ("audio",), "a text-to-speech model"),
@@ -193,3 +196,8 @@ def test_a_profile_on_a_custom_endpoint_is_chat_capable():
     body = _read("gpt-4o-mini-tts", base_url="http://vllm:8000/v1").model_dump(mode="json")
 
     assert (body["chat_capable"], body["output_modalities"]) == (True, [])
+
+
+@pytest.mark.parametrize("provider", ["openai", "openai_codex", "google_cloud"])
+def test_a_custom_endpoint_keeps_aliases_and_realtime_ids_opaque(provider: str):
+    assert model_outputs(provider, "gpt-realtime", base_url="http://local/v1").chat

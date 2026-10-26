@@ -136,6 +136,7 @@ from app.services.file_storage import (
     get_file_storage,
 )
 from app.services.model_outputs import model_outputs, not_chat_refusal
+from app.services.model_profile import MAX_FALLBACK_DEPTH
 from app.services.notifications import NotificationService
 from app.services.resource_usage import groups_sharing
 from app.services.sandbox_connection import SandboxConnectionService
@@ -1635,7 +1636,7 @@ class AgentRegistryService:
         if not outputs.chat:
             return [not_chat_refusal(profile.label, profile.model, outputs)]
         problems: list[str] = []
-        fallback_ids = [UUID(pid) for pid in profile.fallback_profile_ids]
+        fallback_ids = [UUID(pid) for pid in profile.fallback_profile_ids[:MAX_FALLBACK_DEPTH]]
         fallbacks = await credential_repo.get_profiles_by_ids(
             self.db, fallback_ids, organization_id=ctx.organization_id
         )

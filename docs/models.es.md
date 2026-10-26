@@ -1,5 +1,5 @@
 ---
-source_sha: "7e1535d984a6"
+source_sha: "b193e7454f93"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -43,21 +43,26 @@ El spec de un agent nombra uno con `model_profile_id`, y el run lo resuelve.
 ### Un perfil en el que un agent no puede ejecutarse { #a-profile-an-agent-cannot-run-on }
 
 Un perfil puede nombrar un modelo que no mantiene una conversación: un modelo de
-texto a voz como `gpt-4o-mini-tts`, un modelo de transcripción, un modelo de
+texto a voz como `gpt-4o-mini-tts`, un modelo de voz en tiempo real, un modelo de
+transcripción, un modelo de
 imágenes, un modelo de vídeo o un modelo de embeddings. Un agent en uno de ellos
 falla en su primer turno. El texto a voz, la generación de imágenes y la
 transcripción no usan perfiles: cada función nombra su propio provider y su propio
 modelo.
 
 La plataforma conoce estos modelos por sus propios catálogos (las listas de texto
-a voz, transcripción, imágenes, vídeo y embeddings).
+a voz, voz en tiempo real, transcripción, imágenes, vídeo y embeddings).
 `GET /providers/model-profiles` marca cada perfil con `chat_capable` y
 `output_modalities`, y `GET /providers/{provider}/models` marca cada sugerencia
 con `chat_capable`. Esos dos campos también leen el listado de un provider que
 indica qué emite cada modelo (OpenRouter y el router de Hugging Face lo hacen),
 cuando el proceso de la API ya lo ha obtenido. Ese listado solo cambia lo que
 ofrece un selector. Nunca rechaza una publicación, porque otro proceso de la API
-puede no haberlo obtenido. Entonces:
+puede no haberlo obtenido.
+
+La consola también actualiza los perfiles guardados
+cuando el listado llega después. Los alias de provider como `openai_codex` y
+`google_cloud` usan los catálogos del proveedor correspondiente. Entonces:
 
 - El panel de modelo del Builder, los selectores de revisor y de especialista, los
   campos del modelo de los pasos siguientes y del modelo de pasos del navegador y
@@ -88,6 +93,8 @@ puede no haberlo obtenido. Entonces:
   nombre.
 
 ### Fallbacks { #fallbacks }
+
+El runner usa solo los tres primeros fallbacks; solo esos se comprueban al publicar.
 
 Un perfil puede listar perfiles de fallback, probados en orden. La caída de un
 provider no debería tumbar los agents de una organización cuando esta tiene una

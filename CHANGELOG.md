@@ -21,7 +21,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- Keep text-to-speech, transcription, image, video and embedding models out of the
+- Keep realtime voice, text-to-speech, transcription, image, video and embedding models out of the
   model pickers for agents, reviewers, specialists, the follow-ups and browser step
   model fields, knowledge-base image description and chat, and out of the models a
   run may invent a specialist on. A model profile now reports `chat_capable` and

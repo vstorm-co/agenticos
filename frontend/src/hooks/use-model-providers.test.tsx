@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -106,6 +106,69 @@ describe("useModelProviders", () => {
 
     expect(result.current.profiles).toEqual([]);
   });
+
+  it.each([null, "https://gateway.example/v1"])(
+    "reclassifies saved models after a late listing without overriding endpoint %s",
+    async (baseUrl) => {
+      const listing = Promise.withResolvers<{
+        items: { id: string; name: string; chat_capable: boolean }[];
+        total: number;
+        source: string;
+      }>();
+      vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+        if (path === "/providers/openrouter/models") return listing.promise;
+        if (path === "/providers/model-profiles") {
+          return {
+            items: [
+              {
+                id: "p1",
+                label: "Painter",
+                provider: "openrouter",
+                model: "acme/painter",
+                base_url: baseUrl,
+                secret_id: "s1",
+                params: {},
+                fallback_profile_ids: [],
+                chat_capable: true,
+              },
+            ],
+            total: 1,
+          };
+        }
+        return { items: [], total: 0 };
+      });
+      const { result } = renderHook(
+        () => {
+          const profiles = useModelProviders();
+          useProviderModels("openrouter");
+          return profiles;
+        },
+        { wrapper },
+      );
+      await waitFor(() => expect(result.current.profilesStatus).toBe("loaded"));
+      expect(result.current.profiles[0]?.chat_capable).toBe(true);
+
+      await act(async () =>
+        listing.resolve({
+          items: [{ id: "acme/painter", name: "Painter", chat_capable: false }],
+          total: 1,
+          source: "live",
+        }),
+      );
+      await waitFor(() => expect(result.current.profiles[0]?.chat_capable).toBe(baseUrl !== null));
+      // A different API replica can still answer unknown. The browser's known
+      // listing must continue to apply after such a refetch.
+      await act(async () => {
+        await result.current.refetchProfiles();
+      });
+      expect(result.current.profiles[0]?.chat_capable).toBe(baseUrl !== null);
+      expect(
+        vi
+          .mocked(apiClient.get)
+          .mock.calls.filter(([path]) => path === "/providers/openrouter/models"),
+      ).toHaveLength(1);
+    },
+  );
 
   it("removes a model", async () => {
     vi.mocked(apiClient.delete).mockResolvedValue(undefined);

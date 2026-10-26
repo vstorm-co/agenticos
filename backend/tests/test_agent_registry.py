@@ -1822,6 +1822,45 @@ class TestValidateSpec:
         ]
 
     @pytest.mark.anyio
+    async def test_an_unused_fallback_beyond_the_runtime_depth_does_not_block_publish(self):
+        """Only the first three fallback slots can serve a run."""
+        speech = MagicMock(
+            id=uuid.uuid4(),
+            label="Voice",
+            provider="openai",
+            model="gpt-4o-mini-tts",
+            base_url=None,
+        )
+        custom = MagicMock(
+            id=uuid.uuid4(),
+            label="Local",
+            provider="openai",
+            model="whisper-1",
+            base_url="http://vllm:8000/v1",
+        )
+        chat = MagicMock(
+            label="Chat",
+            provider="openai",
+            model="gpt-4.1",
+            base_url=None,
+            fallback_profile_ids=[str(custom.id), str(custom.id), str(custom.id), str(speech.id)],
+        )
+
+        with (
+            patch(f"{REGISTRY_PATH}.credential_repo.get_profile", new=AsyncMock(return_value=chat)),
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profiles_by_ids",
+                new=AsyncMock(return_value={speech.id: speech, custom.id: custom}),
+            ) as counted,
+        ):
+            await AgentRegistryService(_db()).validate_spec(
+                _ctx(), _spec(model_profile_id=uuid.uuid4())
+            )
+
+        fetched = counted.await_args.args[1]
+        assert fetched == [custom.id, custom.id, custom.id]
+
+    @pytest.mark.anyio
     async def test_a_custom_endpoint_is_not_classified_by_its_model_id(self):
         """An OpenAI-compatible server may serve a chat model under an id the
         vendor uses for speech: the catalogs describe the vendor's API only."""

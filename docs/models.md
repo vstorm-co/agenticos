@@ -37,19 +37,21 @@ An agent's spec names one by `model_profile_id`, and the run resolves it.
 ### A profile an agent cannot run on
 
 A profile can name a model that cannot hold a conversation: a text-to-speech model
-such as `gpt-4o-mini-tts`, a transcription model, an image model, a video model or
-an embedding model. An agent on one fails on its first turn. Text to speech, image
+such as `gpt-4o-mini-tts`, a realtime voice model, a transcription model, an image
+model, a video model or an embedding model. An agent on one fails on its first turn. Text to speech, image
 generation and transcription do not use profiles: each feature names its own
 provider and model.
 
-The platform knows these models from its own catalogs (the text-to-speech,
+The platform knows these models from its own catalogs (the realtime voice, text-to-speech,
 transcription, image, video and embedding lists). `GET /providers/model-profiles`
 marks each profile with `chat_capable` and `output_modalities`, and
 `GET /providers/{provider}/models` marks each suggestion with `chat_capable`.
 Those two fields also read a provider listing that states what each model emits
 (OpenRouter and the Hugging Face router do), when the API process has already
 fetched it. That listing only changes what a picker offers. It never refuses a
-publish, because another API process may not have fetched it. Then:
+publish, because another API process may not have fetched it. The console also
+updates saved profiles when a listing arrives later. Provider aliases such as
+`openai_codex` and `google_cloud` use the corresponding vendor catalogs. Then:
 
 - The Builder's model panel, the reviewer and specialist pickers, the follow-ups
   and browser step model fields and the knowledge-base image-description picker do
@@ -78,7 +80,8 @@ publish, because another API process may not have fetched it. Then:
 
 ### Fallbacks
 
-A profile may list fallback profiles, tried in order. One provider's outage should
+A profile may list fallback profiles, tried in order. Only the first three are
+used by the runner and checked at publish. One provider's outage should
 not take an organization's agents down when it has a second key or a second
 provider configured.
 

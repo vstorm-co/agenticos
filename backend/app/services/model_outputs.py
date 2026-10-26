@@ -7,7 +7,7 @@ on one fails on its first turn.
 
 Two sources say which is which, and neither is asked over the network here:
 
-**The catalog files.** The text-to-speech, transcription, video and embedding
+**The catalog files.** The realtime voice, text-to-speech, transcription, video and embedding
 catalogs, and the image catalog's entries whose model is drawn *with* rather than
 talked to (OpenAI's, where a separate `caller` invokes the tool). A model listed
 there is known to be one of those and nothing else. They are the same in every
@@ -32,7 +32,13 @@ for one.
 from dataclasses import dataclass
 from functools import cache
 
-from app.services import image_models, speech_to_text, text_to_speech_models, video_models
+from app.services import (
+    image_models,
+    realtime_models,
+    speech_to_text,
+    text_to_speech_models,
+    video_models,
+)
 from app.services.model_catalog import cached_listing
 from app.services.rag import embedding_providers
 
@@ -78,6 +84,11 @@ def _from_catalogs() -> dict[tuple[str, str], ModelOutputs]:
             for model in entry.models:
                 record(entry.provider, model.id, drawing)
 
+    realtime = ModelOutputs(modalities=("text", "audio"), chat=False, kind="a realtime voice model")
+    for entry in realtime_models.CATALOG:
+        for model in entry.models:
+            record(entry.provider, model.id, realtime)
+
     video = ModelOutputs(modalities=("video",), chat=False, kind="a video model")
     for entry in video_models.CATALOG:
         for model in entry.models:
@@ -110,6 +121,9 @@ def model_outputs(provider: str, model: str, *, base_url: str | None = None) -> 
     """
     if base_url:
         return _UNKNOWN
+    # These transports share the vendor's model ids; pricing's other aliases
+    # (for example Bedrock) do not imply an identical model namespace.
+    provider = {"openai_codex": "openai", "google_cloud": "google"}.get(provider, provider)
     known = _from_catalogs()
     found = known.get((provider, model))
     if found is None and provider == "openrouter" and "/" in model:

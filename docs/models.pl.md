@@ -1,5 +1,5 @@
 ---
-source_sha: "7e1535d984a6"
+source_sha: "b193e7454f93"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -43,19 +43,22 @@ Spec agenta wskazuje jeden przez `model_profile_id`, a run go rozwiązuje.
 ### Profil, na którym agent nie może działać { #a-profile-an-agent-cannot-run-on }
 
 Profil może wskazywać model, który nie prowadzi rozmowy: model zamiany tekstu na
-mowę, taki jak `gpt-4o-mini-tts`, model transkrypcji, model obrazów, model wideo
+mowę, taki jak `gpt-4o-mini-tts`, model rozmów głosowych realtime, model
+transkrypcji, model obrazów, model wideo
 albo model embeddingów. Agent na takim modelu zawodzi już przy pierwszej turze.
 Zamiana tekstu na mowę, generowanie obrazów i transkrypcja nie korzystają z
 profili: każda z tych funkcji wskazuje własnego providera i model.
 
-Platforma zna te modele z własnych katalogów (list modeli zamiany tekstu na mowę,
+Platforma zna te modele z własnych katalogów (list modeli rozmów realtime, zamiany tekstu na mowę,
 transkrypcji, obrazów, wideo i embeddingów). `GET /providers/model-profiles`
 oznacza każdy profil polami `chat_capable` i `output_modalities`, a
 `GET /providers/{provider}/models` oznacza każdą sugestię polem `chat_capable`.
 Te dwa pola czytają też listing providera, który podaje, co emituje każdy model
 (robią to OpenRouter i router Hugging Face), jeśli proces API już go pobrał. Ten
 listing zmienia tylko to, co oferuje picker. Nigdy nie odrzuca publikacji, bo inny
-proces API mógł go nie pobrać. Wtedy:
+proces API mógł go nie pobrać. Konsola aktualizuje też zapisane profile po
+późniejszym nadejściu listingu. Aliasy providerów, takie jak `openai_codex`
+i `google_cloud`, korzystają z katalogów odpowiednich dostawców. Wtedy:
 
 - Panel modelu w Builderze, pickery recenzenta i specjalisty, pola modelu
   kolejnych kroków i modelu kroków przeglądarki oraz picker modelu do opisywania
@@ -84,6 +87,8 @@ proces API mógł go nie pobrać. Wtedy:
   serwować model czatu pod dowolną nazwą.
 
 ### Fallbacki { #fallbacks }
+
+Runner używa tylko pierwszych trzech fallbacków; tylko te są sprawdzane przy publikacji.
 
 Profil może wymienić profile zapasowe, wypróbowywane po kolei. Awaria jednego
 providera nie powinna kłaść agentów organizacji, gdy ma ona drugi klucz albo

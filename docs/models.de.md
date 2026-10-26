@@ -1,5 +1,5 @@
 ---
-source_sha: "7e1535d984a6"
+source_sha: "b193e7454f93"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -46,21 +46,25 @@ auf.
 ### Ein Profil, auf dem kein Agent laufen kann { #a-profile-an-agent-cannot-run-on }
 
 Ein Profil kann ein Modell benennen, das kein Gespräch führen kann: ein
-Sprachausgabe-Modell wie `gpt-4o-mini-tts`, ein Transkriptionsmodell, ein
+Sprachausgabe-Modell wie `gpt-4o-mini-tts`, ein Realtime-Sprachmodell, ein
+Transkriptionsmodell, ein
 Bildmodell, ein Videomodell oder ein Embedding-Modell. Ein Agent darauf scheitert
 schon an seinem ersten Zug. Sprachausgabe, Bildgenerierung und Transkription
 nutzen keine Profile: Jede dieser Funktionen benennt ihren eigenen Provider und ihr
 eigenes Modell.
 
 Die Plattform kennt diese Modelle aus ihren eigenen Katalogen (den Listen für
-Sprachausgabe, Transkription, Bilder, Video und Embeddings).
+Realtime-Sprache, Sprachausgabe, Transkription, Bilder, Video und Embeddings).
 `GET /providers/model-profiles` markiert jedes Profil mit `chat_capable` und
 `output_modalities`, und `GET /providers/{provider}/models` markiert jeden
 Vorschlag mit `chat_capable`. Diese beiden Felder lesen auch das Listing eines
 Providers, das angibt, was jedes Modell ausgibt (OpenRouter und der Hugging Face
 Router tun das), sofern der API-Prozess es bereits abgerufen hat. Dieses Listing
 ändert nur, was eine Auswahl anbietet. Es lehnt nie eine Veröffentlichung ab, weil
-ein anderer API-Prozess es vielleicht nicht abgerufen hat. Dann gilt:
+ein anderer API-Prozess es vielleicht nicht abgerufen hat. Die Konsole aktualisiert
+auch gespeicherte Profile, wenn das Listing später eintrifft. Provider-Aliase wie
+`openai_codex` und `google_cloud` verwenden die Kataloge des jeweiligen Anbieters.
+Dann gilt:
 
 - Das Modell-Panel im Builder, die Auswahl für Reviewer und Spezialisten, die
   Felder für das Modell der Folgeschritte und das Schrittmodell des Browsers und
@@ -92,6 +96,8 @@ ein anderer API-Prozess es vielleicht nicht abgerufen hat. Dann gilt:
   unter jedem Namen anbieten.
 
 ### Fallbacks { #fallbacks }
+
+Der Runner verwendet nur die ersten drei Fallbacks; nur diese werden bei der Veröffentlichung geprüft.
 
 Ein Profile kann Fallback-Profiles auflisten, die der Reihe nach versucht werden.
 Der Ausfall eines Providers sollte die Agents einer Organisation nicht lahmlegen,
