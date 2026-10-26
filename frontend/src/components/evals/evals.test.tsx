@@ -726,7 +726,11 @@ describe("CaseDetail", () => {
     expect(screen.getByText("contains 30 days")).toBeInTheDocument();
     expect(screen.getByText("Rerun 1")).toBeInTheDocument();
     expect(screen.getByText("boom")).toBeInTheDocument();
-    expect(screen.getByText("undecided")).toBeInTheDocument();
+    expect(screen.getByText("undecided")).toHaveClass("bg-secondary");
+    expect(screen.getAllByText("pass")[0]).toHaveClass("bg-success/10");
+    expect(screen.getByText("not graded: The judge's run did not finish.")).toHaveClass(
+      "whitespace-normal",
+    );
     // The judge's rule and an unverified top grade read as they do in Review.
     expect(screen.getByText("Rule: A refusal names the policy")).toBeInTheDocument();
     expect(
@@ -762,7 +766,10 @@ describe("CaseDetail", () => {
     expect(screen.getByText("90 days.")).toBeInTheDocument();
     expect(screen.getByText("Expected calls, In this order:")).toBeInTheDocument();
     expect(screen.getByText('lookup_policy({"topic":"returns"})')).toBeInTheDocument();
-    expect(screen.getByText('contains {"value":"30 days"}')).toBeInTheDocument();
+    expect(screen.getByText("Mentions “30 days” (any case)")).toHaveAttribute(
+      "title",
+      "contains 30 days",
+    );
     expect(screen.getByRole("link", { name: "Open this case in its dataset" })).toHaveAttribute(
       "href",
       "/datasets/ds-1?tab=cases&case=case-1",

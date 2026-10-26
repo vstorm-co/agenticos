@@ -8973,7 +8973,18 @@
         "counterExample": "Nie tak:",
         "calls": "Oczekiwane wywołania, {order}:",
         "checks": "Checki:",
-        "openDataset": "Otwórz ten przypadek w datasecie"
+        "openDataset": "Otwórz ten przypadek w datasecie",
+        "check": {
+          "contains": "{exact, select, true {Wspomina „{value}” (z rozróżnieniem wielkości liter)} other {Wspomina „{value}” (bez względu na wielkość liter)}}",
+          "not_contains": "{exact, select, true {Nie wspomina „{value}” (z rozróżnieniem wielkości liter)} other {Nie wspomina „{value}” (bez względu na wielkość liter)}}",
+          "equals": "{exact, select, true {Brzmi dokładnie „{value}” (z rozróżnieniem wielkości liter)} other {Brzmi dokładnie „{value}” (bez względu na wielkość liter)}}",
+          "pattern": "{exact, select, true {Pasuje do wzorca „{value}” (z rozróżnieniem wielkości liter)} other {Pasuje do wzorca „{value}” (bez względu na wielkość liter)}}",
+          "atPath": "W {path}: {rule}",
+          "maxCost": "Kosztuje najwyżej {amount}",
+          "maxLatency": "Odpowiada w ciągu {duration}",
+          "jsonSchema": "Odpowiedź pasuje do schematu JSON",
+          "judge": "Kryterium sędziego: {criterion}"
+        }
       },
       "notGraded": "bez oceny: {reason}",
       "whatTheModelSaw": "Zobacz, co widział model"

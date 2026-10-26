@@ -9801,7 +9801,18 @@
         "counterExample": "Not like this:",
         "calls": "Expected calls, {order}:",
         "checks": "Checks:",
-        "openDataset": "Open this case in its dataset"
+        "openDataset": "Open this case in its dataset",
+        "check": {
+          "contains": "{exact, select, true {Mentions “{value}” (exact case)} other {Mentions “{value}” (any case)}}",
+          "not_contains": "{exact, select, true {Does not mention “{value}” (exact case)} other {Does not mention “{value}” (any case)}}",
+          "equals": "{exact, select, true {Is exactly “{value}” (exact case)} other {Is exactly “{value}” (any case)}}",
+          "pattern": "{exact, select, true {Matches the pattern “{value}” (exact case)} other {Matches the pattern “{value}” (any case)}}",
+          "atPath": "In {path}: {rule}",
+          "maxCost": "Costs at most {amount}",
+          "maxLatency": "Answers within {duration}",
+          "jsonSchema": "The answer matches a JSON schema",
+          "judge": "Judged on: {criterion}"
+        }
       },
       "notGraded": "not graded: {reason}",
       "whatTheModelSaw": "See what the model saw"

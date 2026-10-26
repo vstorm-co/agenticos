@@ -9684,7 +9684,18 @@
         "counterExample": "Nicht so:",
         "calls": "Erwartete Aufrufe, {order}:",
         "checks": "Checks:",
-        "openDataset": "Diesen Fall im Dataset öffnen"
+        "openDataset": "Diesen Fall im Dataset öffnen",
+        "check": {
+          "contains": "{exact, select, true {Erwähnt „{value}“ (Groß-/Kleinschreibung beachtet)} other {Erwähnt „{value}“ (Groß-/Kleinschreibung egal)}}",
+          "not_contains": "{exact, select, true {Erwähnt „{value}“ nicht (Groß-/Kleinschreibung beachtet)} other {Erwähnt „{value}“ nicht (Groß-/Kleinschreibung egal)}}",
+          "equals": "{exact, select, true {Lautet genau „{value}“ (Groß-/Kleinschreibung beachtet)} other {Lautet genau „{value}“ (Groß-/Kleinschreibung egal)}}",
+          "pattern": "{exact, select, true {Passt zum Muster „{value}“ (Groß-/Kleinschreibung beachtet)} other {Passt zum Muster „{value}“ (Groß-/Kleinschreibung egal)}}",
+          "atPath": "In {path}: {rule}",
+          "maxCost": "Kostet höchstens {amount}",
+          "maxLatency": "Antwortet innerhalb von {duration}",
+          "jsonSchema": "Die Antwort passt zu einem JSON-Schema",
+          "judge": "Bewerter-Kriterium: {criterion}"
+        }
       },
       "notGraded": "nicht bewertet: {reason}",
       "whatTheModelSaw": "Sehen, was das Modell sah"

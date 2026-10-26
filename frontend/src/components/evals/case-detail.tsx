@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { CheckCircle2, XCircle, AlertTriangle, MinusCircle, ChevronRight } from "lucide-react";
+import { AlertTriangle, ChevronRight } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Badge } from "@/components/ui";
@@ -10,8 +10,10 @@ import { reasonKeyOf } from "@/lib/scoring";
 import type { DatasetCaseContent } from "@/types/datasets";
 import type { ScorerStatus } from "@/types/scoring";
 import type { CallOutcome, EvalAttempt, EvalRunArm } from "@/types/eval-runs";
+import { CheckSummary } from "./check-summary";
 import { percent, seconds, usd } from "./format";
 import { sideName } from "./names";
+import { SCORER_TONE, VerdictBadge, VerdictIcon, type VerdictTone } from "./verdict-badge";
 
 const CALL_TONE: Record<CallOutcome, "secondary" | "warning" | "outline"> = {
   executed: "secondary",
@@ -21,12 +23,11 @@ const CALL_TONE: Record<CallOutcome, "secondary" | "warning" | "outline"> = {
 };
 
 const SCORER_ORDER: Record<ScorerStatus, number> = { fail: 0, error: 1, skipped: 2, pass: 3 };
-const SCORER_ICON = {
-  pass: CheckCircle2,
-  fail: XCircle,
-  error: AlertTriangle,
-  skipped: MinusCircle,
-};
+
+function outcomeTone(outcome: boolean | null): VerdictTone {
+  if (outcome === null) return "undecided";
+  return outcome ? "pass" : "fail";
+}
 
 function Attempt({ attempt }: { attempt: EvalAttempt }) {
   const t = useTranslations("evals.case");
@@ -36,76 +37,87 @@ function Attempt({ attempt }: { attempt: EvalAttempt }) {
   const why = attempt.outcome === null ? (attempt.score?.unscored_reason ?? null) : null;
   const known = reasonKeyOf(why);
   return (
-    <div className="space-y-2 rounded-md border p-3">
-      <p className="text-muted-foreground flex flex-wrap gap-x-3 text-xs">
-        <span>{attempt.attempt === 0 ? t("firstAnswer") : t("rerun", { n: attempt.attempt })}</span>
-        <span>
+    <div className="overflow-hidden rounded-md border">
+      <div className="bg-muted/40 flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-3 py-2">
+        <p className="text-sm font-semibold">
+          {attempt.attempt === 0 ? t("firstAnswer") : t("rerun", { n: attempt.attempt })}
+        </p>
+        <VerdictBadge
+          tone={why === null ? outcomeTone(attempt.outcome) : "undecided"}
+          className={why === null ? undefined : "whitespace-normal"}
+        >
           {why === null
             ? t(`outcome.${String(attempt.outcome)}`)
             : t("notGraded", { reason: known ? tScoring(known) : why })}
+        </VerdictBadge>
+        <span className="text-muted-foreground text-xs tabular-nums">
+          {usd(attempt.cost_usd, locale)}
         </span>
-        <span>{usd(attempt.cost_usd, locale)}</span>
-        <span>{seconds(attempt.latency_ms, locale)}</span>
-      </p>
-      {attempt.answer !== null && (
-        <p className="text-foreground text-sm whitespace-pre-wrap">{attempt.answer}</p>
-      )}
-      {attempt.error && <p className="text-destructive text-xs">{attempt.error}</p>}
-      {attempt.calls.length > 0 && (
-        <ul className="space-y-1">
-          {attempt.calls.map((call, index) => (
-            <li key={index} className="flex flex-wrap items-center gap-2 text-xs">
-              <Badge variant={CALL_TONE[call.outcome]}>{t(`call.${call.outcome}`)}</Badge>
-              <code className="break-all">
-                {call.tool}({JSON.stringify(call.args)})
-              </code>
-            </li>
-          ))}
-        </ul>
-      )}
-      {attempt.agent_run_id && (
-        <Link
-          href={`${ROUTES.RUNS}?run=${attempt.agent_run_id}&view=input`}
-          className="text-muted-foreground block text-xs underline underline-offset-4"
-        >
-          {t("whatTheModelSaw")}
-        </Link>
-      )}
-      {attempt.score && (
-        <ul className="divide-border divide-y rounded-md border text-sm">
-          {[...attempt.score.results]
-            .sort((a, b) => SCORER_ORDER[a.status] - SCORER_ORDER[b.status])
-            .map((result, index) => {
-              const Icon = SCORER_ICON[result.status];
-              return (
-                <li key={index}>
-                  <details className="group">
-                    <summary className="hover:bg-muted/40 flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 py-2">
-                      <Icon className="h-4 w-4 shrink-0" aria-hidden />
-                      <span className="min-w-0 flex-1 font-medium">{result.name}</span>
-                      <Badge variant={result.status === "fail" ? "destructive" : "secondary"}>
-                        {t(`scorer.${result.status}`)}
-                      </Badge>
-                      {result.score !== null && (
-                        <span className="text-muted-foreground tabular-nums">
-                          {percent(result.score, locale)}
+        <span className="text-muted-foreground text-xs tabular-nums">
+          {seconds(attempt.latency_ms, locale)}
+        </span>
+      </div>
+      <div className="space-y-2 p-3">
+        {attempt.answer !== null && (
+          <p className="text-foreground text-sm whitespace-pre-wrap">{attempt.answer}</p>
+        )}
+        {attempt.error && <p className="text-destructive text-xs">{attempt.error}</p>}
+        {attempt.calls.length > 0 && (
+          <ul className="space-y-1">
+            {attempt.calls.map((call, index) => (
+              <li key={index} className="flex flex-wrap items-center gap-2 text-xs">
+                <Badge variant={CALL_TONE[call.outcome]}>{t(`call.${call.outcome}`)}</Badge>
+                <code className="break-all">
+                  {call.tool}({JSON.stringify(call.args)})
+                </code>
+              </li>
+            ))}
+          </ul>
+        )}
+        {attempt.agent_run_id && (
+          <Link
+            href={`${ROUTES.RUNS}?run=${attempt.agent_run_id}&view=input`}
+            className="text-muted-foreground block text-xs underline underline-offset-4"
+          >
+            {t("whatTheModelSaw")}
+          </Link>
+        )}
+        {attempt.score && (
+          <ul className="divide-border divide-y rounded-md border text-sm">
+            {[...attempt.score.results]
+              .sort((a, b) => SCORER_ORDER[a.status] - SCORER_ORDER[b.status])
+              .map((result, index) => {
+                const tone = SCORER_TONE[result.status];
+                return (
+                  <li key={index}>
+                    <details className="group">
+                      <summary className="hover:bg-muted/40 flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 py-2">
+                        <VerdictIcon tone={tone} />
+                        <span className="text-foreground min-w-0 flex-1 font-semibold">
+                          {result.name}
                         </span>
-                      )}
-                      <ChevronRight
-                        className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90"
-                        aria-hidden
-                      />
-                    </summary>
-                    <div className="text-muted-foreground space-y-1 px-3 pb-3 text-xs">
-                      <p className="whitespace-pre-wrap">{result.reason}</p>
-                      {result.rule && <p>{tScoring("rule", { rule: result.rule })}</p>}
-                    </div>
-                  </details>
-                </li>
-              );
-            })}
-        </ul>
-      )}
+                        <VerdictBadge tone={tone}>{t(`scorer.${result.status}`)}</VerdictBadge>
+                        {result.score !== null && (
+                          <span className="text-muted-foreground tabular-nums">
+                            {percent(result.score, locale)}
+                          </span>
+                        )}
+                        <ChevronRight
+                          className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90"
+                          aria-hidden
+                        />
+                      </summary>
+                      <div className="text-muted-foreground space-y-1 px-3 pb-3 text-xs">
+                        <p className="whitespace-pre-wrap">{result.reason}</p>
+                        {result.rule && <p>{tScoring("rule", { rule: result.rule })}</p>}
+                      </div>
+                    </details>
+                  </li>
+                );
+              })}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }
@@ -125,7 +137,7 @@ function Expectation({
   const calls = expectation.expected_tool_calls;
   return (
     <div className="bg-muted/40 space-y-2 rounded-md border p-3 text-sm">
-      <p className="text-muted-foreground text-xs font-medium">{t("title")}</p>
+      <p className="text-sm font-semibold">{t("title")}</p>
       {expectation.reference_answer && (
         <p>
           <span className="text-muted-foreground text-xs">{t("reference")} </span>
@@ -157,12 +169,10 @@ function Expectation({
       {expectation.checks.length > 0 && (
         <div className="space-y-1">
           <p className="text-muted-foreground text-xs">{t("checks")}</p>
-          <ul className="space-y-0.5 text-xs">
-            {expectation.checks.map(({ type, ...parameters }, index) => (
+          <ul className="list-disc space-y-0.5 pl-5 text-sm">
+            {expectation.checks.map((check, index) => (
               <li key={index}>
-                <code className="break-all">
-                  {type} {JSON.stringify(parameters)}
-                </code>
+                <CheckSummary check={check} />
               </li>
             ))}
           </ul>
@@ -217,7 +227,7 @@ export function CaseDetail({
           const own = attempts.filter((attempt) => attempt.arm_id === arm.id);
           return (
             <div key={arm.id} className="space-y-2">
-              <p className="text-muted-foreground text-xs font-medium">
+              <p className="text-sm font-semibold">
                 {t("sideModel", { name: sideName(arm, t), model: arm.model_label })}
               </p>
               {own.map((attempt) => (

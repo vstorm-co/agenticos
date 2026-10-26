@@ -32,6 +32,7 @@ import type {
 } from "@/types/eval-runs";
 import { CaseDetail } from "./case-detail";
 import { sideName } from "./names";
+import { VerdictBadge, type VerdictTone } from "./verdict-badge";
 
 export const ALL = "all";
 const PAGE = 25;
@@ -63,6 +64,12 @@ export function FilterSelect({
     </Select>
   );
 }
+
+const FLIP_TONE: Record<Exclude<CaseFlip["flip"], "unchanged">, VerdictTone> = {
+  regression: "fail",
+  fixed: "pass",
+  incomplete: "undecided",
+};
 
 type DotState = "passed" | "failed" | "undecided" | "incomplete" | "pending";
 
@@ -258,8 +265,8 @@ export function CaseTable({
                       <Badge variant="outline">{t("corrected")}</Badge>
                     )}
                     {flip && flip.flip !== "unchanged" && (
-                      <Badge
-                        variant={flip.flip === "regression" ? "destructive" : "secondary"}
+                      <VerdictBadge
+                        tone={FLIP_TONE[flip.flip]}
                         title={flip.candidate_error ?? undefined}
                       >
                         {flip.flip === "regression" && flip.candidate_error !== null
@@ -268,7 +275,7 @@ export function CaseTable({
                               confirmed: String(flip.confirmed),
                               side: flip.side,
                             })}
-                      </Badge>
+                      </VerdictBadge>
                     )}
                   </button>
                   {expanded && (
