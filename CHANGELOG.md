@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.19.0] - 2026-10-26
+
 ### Changed
 
 - Generate follow-up buttons only with an explicitly selected separate model,
