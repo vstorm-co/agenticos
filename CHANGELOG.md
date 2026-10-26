@@ -182,6 +182,12 @@ environment without a person's decision.
   publishing a fix clears its badge until the new version earns its own. The
   greeting counts everything waiting on the reader, and spend on improvements
   is shown apart from evals.
+- Architect recommends Projects for continuing research, writing, coding and
+  analysis, with a complete LLM wiki workflow for sources, linked notes, an index,
+  updates and verification. Platform MCP can find, inspect and create private
+  projects through the caller's existing permissions and approval flow. Architect runtime
+  guidance reaches existing installations without replacing customized instructions
+  or changing other agents and external MCP clients.
 
 ### Changed
 

@@ -88,6 +88,15 @@ def _in_no_group(monkeypatch: pytest.MonkeyPatch) -> None:
 RUNNER = "app.services.agent_runner"
 
 
+@pytest.fixture(autouse=True)
+def _no_registered_architect(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These hand-built delegates are ordinary agents, not the organization assistant."""
+    monkeypatch.setattr(
+        "app.services.agent_registry.organization_assistant_repo.for_agent",
+        AsyncMock(return_value=None),
+    )
+
+
 def _ctx() -> AuthContext:
     return AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.OWNER)
 
