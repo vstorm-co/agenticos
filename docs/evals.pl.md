@@ -1,5 +1,5 @@
 ---
-source_sha: "c2af761c32c9"
+source_sha: "86a0e965d1ca"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -332,7 +332,7 @@ próbie, zamiast pytać agenta. Werdykt osoby w
 przypadku, a liczby runa idą za nim.
 
 Sędzia, który przeszukuje - [Knowledge search](concepts.md#system-agent-spec)
-na jego stronie - sprawdza fakty w odpowiedzi względem baz wiedzy agenta, który
+na jego zakładce Narzędzia - sprawdza fakty w odpowiedzi względem baz wiedzy agenta, który
 jej udzielił, a każda jego ocena wymienia pod uzasadnieniem, co tam znalazł:
 dokument i początek fragmentu. Dopóki jego runy nie dadzą historii, wycena liczy
 każde ocenianie jako tyle żądań, ile kroków ma sędzia. Sędzia startuje z

@@ -1,5 +1,5 @@
 ---
-source_sha: "e27701f841bb"
+source_sha: "895997e8e886"
 ---
 
 # Begriffe { #concepts }
@@ -667,13 +667,14 @@ ihn, und seine Seite sagt, warum die Bedienelemente gesperrt sind. Geöffnet wir
 er aus dem Band oder, beim Drafter, über **Anweisungen des Drafters bearbeiten**
 an einem Entwurf, und seine Kopfzeile nennt **System-Agent** und seine Art.
 
-Die Seite eines Bewerters enthält seine Instruktionen, sein Modell, die
-Kontextdateien und Skills, die er liest, seine Limits, seinen Verlauf und die
-Datasets, die ihn gewählt haben, mit Bewertung oder ohne - jedes klappt seine
-letzten Bewertungen dort und die Eval-Runs auf, aus denen sie stammen - samt der
-Angabe, wie oft Menschen ihm bei den von ihm bewerteten und von ihnen
-entschiedenen Ergebnissen zustimmten, und sonst nichts. Die des Drafters und des
-Klassifizierers enthalten dasselbe ohne die Datasets.
+Seine Seite hat die Tabs eines Agents, nur weniger: **Bauen** für seine
+Instruktionen und sein Modell, **Toolbox** für das, was er binden darf -
+Knowledge search, Context und Skills -, **Limits** für sein Budget und
+**Historie**. Die eines Bewerters hat außerdem **Datasets**, die ihn gewählt
+haben, mit Bewertung oder ohne - jedes klappt seine letzten Bewertungen dort und
+die Eval-Runs auf, aus denen sie stammen - samt der Angabe, wie oft Menschen ihm
+bei den von ihm bewerteten und von ihnen entschiedenen Ergebnissen zustimmten.
+Die Toolbox eines Klassifizierers hat keine Skills.
 
 **New agent** → **Systemagent** erstellt jeden der fünf Typen: Bewerter,
 Fallgenerator, Lücken-Drafter, Lücken-Klassifizierer oder Verbesserungsassistent

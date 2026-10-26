@@ -161,12 +161,13 @@ environment without a person's decision.
 - **System agents** can be created from **New agent** → **System agent**, and
   each place that uses one (dataset grading, Generate cases, a knowledge base's
   gaps tab, Improve) can choose a published one instead of the default. A
-  system agent is held to its job: it may use only thinking, context and
-  skills, needs instructions and a large enough `max_tokens` to publish, runs
+  system agent is held to its job: it may use only thinking, context, skills
+  and knowledge search, needs instructions and a large enough `max_tokens` to publish, runs
   on its default environment only, and is refused as the subject of evals,
   Improve and A2A. The seeded default of each kind cannot be archived or
-  deleted, and its page shows what kind it is. **Use the knowledge base** on
-  its Build tab lets it search the knowledge bases its run is about - the
+  deleted, and its page shows what kind it is, with an agent's tabs but only
+  Build, Toolbox, Limits, History and, for a judge, Datasets. **Knowledge
+  search** on its Toolbox tab lets it search the knowledge bases its run is about - the
   graded agent's for a judge, the gap's for the drafter and classifier, the
   sources for the case generator, the improved agent's for the assistant -
   and only those the person the run is for may read, within its step limit (3

@@ -1,5 +1,5 @@
 ---
-source_sha: "c2af761c32c9"
+source_sha: "86a0e965d1ca"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -326,7 +326,7 @@ de una persona en la [cola de revisión](datasets.md#review) sustituye el
 resultado de los evaluadores para ese caso, y las cifras del run lo siguen.
 
 Un juez que busca - [Knowledge search](concepts.md#system-agent-spec) en su
-página - comprueba los hechos de una respuesta contra las bases de conocimiento
+pestaña Toolbox - comprueba los hechos de una respuesta contra las bases de conocimiento
 del agent que la dio, y cada una de sus calificaciones lista bajo su razón lo
 que encontró allí: el documento y el comienzo del pasaje. Hasta que sus runs le
 den un historial, la estimación cuenta cada calificación por los pasos del

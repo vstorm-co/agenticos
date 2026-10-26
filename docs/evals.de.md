@@ -1,5 +1,5 @@
 ---
-source_sha: "c2af761c32c9"
+source_sha: "86a0e965d1ca"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -350,7 +350,7 @@ Antwort, statt den Agent zu fragen. Das Urteil einer Person bei der
 und die Zahlen des Runs folgen ihm.
 
 Ein Bewerter, der sucht - [Knowledge search](concepts.md#system-agent-spec) auf
-seiner Seite -, prüft die Fakten einer Antwort an den Wissensbasen des Agents,
+seinem Toolbox-Tab -, prüft die Fakten einer Antwort an den Wissensbasen des Agents,
 der sie gab, und jede seiner Bewertungen führt unter ihrer Begründung auf, was
 er dort fand: das Dokument und den Anfang der Stelle. Bis seine Runs ihm einen
 Verlauf geben, bepreist die Schätzung jede Bewertung mit den Schritten des

@@ -1,5 +1,5 @@
 ---
-source_sha: "e27701f841bb"
+source_sha: "895997e8e886"
 ---
 
 # Conceptos { #concepts }
@@ -636,12 +636,14 @@ controles están bloqueados. Se abre desde la banda o, para el drafter, desde
 **Edit the drafter's instructions** en un borrador, y su cabecera dice **System
 agent** y su tipo.
 
-La página de un juez contiene sus instrucciones, su modelo, los archivos de
-contexto y skills que lee, sus límites, su historial y los datasets que lo
-eligieron, califiquen o no (cada uno se abre en sus últimas calificaciones allí
-y los runs de eval de los que salieron), con cuántas veces las personas
-coincidieron con él en los resultados que calificó y ellas decidieron, y nada
-más. Las del drafter y del clasificador contienen lo mismo sin los datasets.
+Su página tiene las pestañas de un agent, solo que menos: **Build** para sus
+instrucciones y su modelo, **Toolbox** para lo que puede enlazar - Knowledge
+search, Context y Skills -, **Limits** para su budget e **History**. La de un
+juez tiene además **Datasets**, los datasets que lo eligieron, califiquen o no
+(cada uno se abre en sus últimas calificaciones allí y los runs de eval de los
+que salieron), con cuántas veces las personas coincidieron con él en los
+resultados que calificó y ellas decidieron. El Toolbox de un clasificador no
+tiene Skills.
 
 **New agent** → **System agent** crea cualquiera de los cinco tipos: juez,
 generador de casos, redactor de lagunas, clasificador de lagunas o asistente de

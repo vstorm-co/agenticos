@@ -1,5 +1,5 @@
 ---
-source_sha: "e27701f841bb"
+source_sha: "895997e8e886"
 ---
 
 # Koncepcje { #concepts }
@@ -630,12 +630,13 @@ mówi, dlaczego kontrolki są zablokowane. Otwiera się go z pasa albo, w przypa
 draftera, przez **Edytuj instrukcje draftera** przy szkicu, a jego nagłówek
 mówi **Agent systemowy** i podaje rodzaj.
 
-Strona sędziego zawiera jego instrukcje, model, pliki kontekstu i skille, które
-czyta, jego limity, historię i datasety, które go wybrały, z włączonym
-ocenianiem albo bez - każdy rozwija się na jego ostatnie oceny i runy ewaluacji,
-z których pochodzą - wraz z tym, jak często ludzie zgodzili się z nim w
-wynikach, które ocenił, a oni rozstrzygnęli, i nic więcej. Strony draftera i
-klasyfikatora zawierają to samo bez datasetów.
+Jego strona ma zakładki zwykłego agenta, tylko mniej: **Budowa** z
+instrukcjami i modelem, **Narzędzia** z tym, co może wiązać - Knowledge search,
+Context i Skills - **Limity** z budżetem i **Historia**. Strona sędziego ma też
+zakładkę **Datasety** z datasetami, które go wybrały, z włączonym ocenianiem
+albo bez - każdy rozwija się na jego ostatnie oceny i runy ewaluacji, z których
+pochodzą - wraz z tym, jak często ludzie zgodzili się z nim w wynikach, które
+ocenił, a oni rozstrzygnęli. Zakładka Narzędzia klasyfikatora nie ma Skills.
 
 **Nowy agent** → **Agent systemowy** tworzy dowolny z pięciu rodzajów: sędziego,
 generator przypadków, autora szkiców luk, klasyfikator luk lub asystenta

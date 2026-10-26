@@ -305,7 +305,7 @@ attempt rather than asking the agent. A person's verdict in the
 and the run's numbers follow it.
 
 A judge that searches - [Knowledge search](concepts.md#system-agent-spec) on
-its page - checks an answer's facts against the knowledge bases of the agent
+its Toolbox tab - checks an answer's facts against the knowledge bases of the agent
 that gave it, and each of its grades lists what it found there, the document and
 the start of the passage, under its reason. Until its runs give it a history,
 the estimate prices each grading at the judge's steps. A judge starts at

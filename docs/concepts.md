@@ -606,12 +606,13 @@ locked. It is opened from the band or, for the drafter, from **Edit the
 drafter's instructions** on a draft, and its header says **System agent** and
 its kind.
 
-A judge's page holds its instructions, model, the context files and skills it
-reads, its limits, its history and the datasets that picked it, grading or not -
-each opening on its latest grades there and the eval runs they came from - with
-how often people agreed with it on the results it graded and they decided, and
-nothing else. The drafter's and the classifier's hold the same without the
-datasets.
+Its page has an agent's own tabs, fewer of them: **Build** for its
+instructions and model, **Toolbox** for what it may bind - Knowledge search,
+Context and Skills - **Limits** for its budget, and **History**. A judge's also
+has **Datasets**, the datasets that picked it, grading or not - each opening on
+its latest grades there and the eval runs they came from - with how often
+people agreed with it on the results it graded and they decided. A classifier's
+Toolbox has no Skills.
 
 **New agent** → **System agent** creates any of the five kinds: judge, case
 generator, gap drafter, gap classifier or authoring assistant (`POST /agents/system`).
