@@ -5839,7 +5839,7 @@
       "anyPerson": "Anyone",
       "anyRating": "Any rating",
       "anyStatus": "Any status",
-      "anySurface": "Any surface but evals",
+      "anySurface": "Any surface",
       "anyVersion": "Any version",
       "approvalCount": "{count, plural, =1 {1 request} other {# requests}}",
       "approvals": "Approvals",
@@ -6019,7 +6019,6 @@
       "whereTheMoneyWent": "Where the money went",
       "whoIsSpendingCouldNotBeRead": "Who is spending could not be read.",
       "widenTheWindowAbove": "Nothing ran in the window above. Widen it, or run an agent.",
-      "everySurface": "Every surface, evals included",
       "evalCase": "Eval case: {dataset} · {input}",
       "evalCaseTitle": "A case from an eval run",
       "evalCaseBody": "This run answered one case of an eval run, which keeps no conversation. Its answer and how it was graded are on the eval run.",
@@ -6066,7 +6065,29 @@
       "modalityText": "Text",
       "modalityVoiceCalls": "Voice calls",
       "reconnected": "{count, plural, one {Reconnected once} other {Reconnected # times}}",
-      "surfaceTeams": "Microsoft Teams"
+      "surfaceTeams": "Microsoft Teams",
+      "sourceFilter": "Filter by source",
+      "anySource": "Any source",
+      "sourceConversations": "Conversations",
+      "sourceEvaluation": "Improve and evals",
+      "sourceSystem": "System agents",
+      "source": {
+        "kind": {
+          "eval": "Eval",
+          "grader": "Grader",
+          "improve": "Improve",
+          "knowledge_gaps": "Knowledge gaps",
+          "test_questions": "Test questions"
+        },
+        "open": {
+          "openEvalRun": "Open the eval run",
+          "openSession": "Open the Improve session",
+          "openAgent": "Open the agent",
+          "openTopic": "Open the topic",
+          "openGaps": "Open the knowledge gaps",
+          "openDataset": "Open the dataset"
+        }
+      }
     },
     "sandboxes": {
       "addConnection": "Add connection",

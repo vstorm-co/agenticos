@@ -9,6 +9,7 @@ import { MessageSquare, ThumbsDown } from "lucide-react";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { RunStatusBadge } from "@/components/agents/status-badge";
 import { displayName, type IdentifiedMember } from "@/components/orgs/member-identity";
+import { RunSourceTag } from "@/components/runs/run-source";
 import { ModalityBadge, SurfaceIcon, surfaceLabel } from "@/components/runs/surface-icon";
 import { clock } from "@/lib/voice/clock";
 import { ProviderIcon } from "@/components/vault/provider-icon";
@@ -87,7 +88,14 @@ export function RunTable({
   /** The agent's face and name, or nothing when the reader cannot resolve it. */
   const agentLabel = (run: AgentRun) => {
     const agent = agentsById?.get(run.agent_id);
-    if (agent === undefined) return null;
+    if (agent === undefined) {
+      // A platform agent - the judge, the assistant - is in no agent list.
+      return run.origin ? (
+        <span className="truncate" title={run.origin.agent_name}>
+          {run.origin.agent_name}
+        </span>
+      ) : null;
+    }
     return (
       <>
         <span aria-hidden>
@@ -223,6 +231,7 @@ export function RunTable({
               {surfaceLabel(run.surface, t)}
               <ModalityBadge modality={run.modality} />
             </span>
+            <RunSourceTag run={run} />
             {asked && (
               <span className="block max-w-56 truncate text-xs" title={asked}>
                 {asked}

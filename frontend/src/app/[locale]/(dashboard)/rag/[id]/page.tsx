@@ -70,6 +70,8 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
   // hydration mismatch and flashes the documents before the named section
   // appears.
   const [tabParam, setTabParam] = useUrlState("tab");
+  // A run in Activity links to the gap topic it drafted.
+  const [topicParam, setTopicParam] = useUrlState("topic");
   const setTab = (next: KBTab) => setTabParam(next === "documents" ? null : next);
   const {
     kb,
@@ -382,7 +384,11 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
               </div>
             )}
             <div className="mb-8" data-tour="kb-gaps">
-              <KnowledgeGapsPanel scope={{ kind: "collection", id }} />
+              <KnowledgeGapsPanel
+                scope={{ kind: "collection", id }}
+                topicId={topicParam}
+                onTopicChange={setTopicParam}
+              />
             </div>
           </TabsContent>
         )}

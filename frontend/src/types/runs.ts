@@ -33,6 +33,21 @@ export interface VoiceChain {
   cost_usd: string;
 }
 
+/** Whose work a run was, as Activity's Source filter asks. */
+export type RunSource = "conversation" | "evaluation" | "system";
+
+/** Which platform agent a run was, and where its work is read. */
+export interface RunOrigin {
+  kind: "grader" | "improve" | "knowledge_gaps" | "test_questions";
+  agent_name: string;
+  /** The agent an assistant request was about. */
+  agent_id?: string | null;
+  improvement_id?: string | null;
+  topic_id?: string | null;
+  knowledge_base_id?: string | null;
+  dataset_id?: string | null;
+}
+
 export interface AgentRun {
   id: string;
   agent_id: string;
@@ -81,6 +96,8 @@ export interface AgentRun {
    * only when the caller may see the dataset. Such a run keeps no conversation.
    */
   eval_case?: EvalCaseLink | null;
+  /** For a platform agent's run - the judge, the assistant, the knowledge-gap and case helpers. */
+  origin?: RunOrigin | null;
   /**
    * One line of what the run was asked: its first user turn, or the eval
    * case's question. Sent on the listing; null for a run with no conversation.

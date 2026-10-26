@@ -17,11 +17,13 @@
 import { formatPeriodParam, type Period } from "@/lib/dashboard/period";
 import { ROUTES } from "@/lib/constants";
 import { setUrlParam } from "@/lib/utils";
-import type { RunStatus } from "@/types/runs";
+import type { RunSource, RunStatus } from "@/types/runs";
 
 export interface RunFilters {
   status: RunStatus | "all" | "problems";
   surface: string;
+  /** Conversations, an agent answering evals, or a platform agent at work. */
+  source: RunSource | "all";
   rated: "all" | "up" | "down";
   userId: string;
   versionId: string;
@@ -36,6 +38,7 @@ export interface RunFilters {
 export const DEFAULT_RUN_FILTERS: RunFilters = {
   status: "all",
   surface: "all",
+  source: "all",
   rated: "all",
   userId: "all",
   versionId: "all",
@@ -48,6 +51,7 @@ export const DEFAULT_RUN_FILTERS: RunFilters = {
 const PARAM: Record<keyof RunFilters, string> = {
   status: "status",
   surface: "surface",
+  source: "source",
   rated: "rated",
   userId: "person",
   versionId: "version",
@@ -59,6 +63,7 @@ const PARAM: Record<keyof RunFilters, string> = {
 const RATINGS = new Set(["up", "down"]);
 const MODALITIES = new Set(["text", "voice"]);
 const TESTS = new Set(["only", "hide"]);
+const SOURCES = new Set(["conversation", "evaluation", "system"]);
 
 /** Activity's three tabs, in the order the strip draws them. */
 export const RUNS_TABS = ["runs", "approvals", "spend"] as const;
@@ -94,9 +99,13 @@ export function parseRunFilters(params: URLSearchParams): RunFilters {
   const rated = read("rated");
   const modality = read("modality");
   const test = read("test");
+  const source = read("source");
+  // A pasted link may still carry `every`, which named every surface: no filter.
+  const surface = read("surface");
   return {
     status: read("status") as RunFilters["status"],
-    surface: read("surface"),
+    surface: surface === "every" ? "all" : surface,
+    source: SOURCES.has(source) ? (source as RunSource) : "all",
     rated: RATINGS.has(rated) ? (rated as RunFilters["rated"]) : "all",
     userId: read("userId"),
     versionId: read("versionId"),

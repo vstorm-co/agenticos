@@ -5721,7 +5721,7 @@
       "anyPerson": "Alle",
       "anyRating": "Beliebige Bewertung",
       "anyStatus": "Beliebiger Status",
-      "anySurface": "Jede Oberfläche außer Evals",
+      "anySurface": "Jede Oberfläche",
       "anyVersion": "Beliebige Version",
       "approvalCount": "{count, plural, =1 {1 Anfrage} other {# Anfragen}}",
       "approvals": "Freigaben",
@@ -5901,7 +5901,6 @@
       "whereTheMoneyWent": "Wohin das Geld geflossen ist",
       "whoIsSpendingCouldNotBeRead": "Wer ausgibt, konnte nicht gelesen werden.",
       "widenTheWindowAbove": "Im Zeitraum oben lief nichts. Weiten Sie ihn, oder führen Sie einen Agent aus.",
-      "everySurface": "Jede Oberfläche, Evals eingeschlossen",
       "evalCase": "Eval-Fall: {dataset} · {input}",
       "evalCaseTitle": "Ein Fall aus einem Eval-Run",
       "evalCaseBody": "Dieser Run hat einen Fall eines Eval-Runs beantwortet, der kein Gespräch speichert. Die Antwort und ihre Bewertung stehen im Eval-Run.",
@@ -5948,7 +5947,29 @@
       "modalityText": "Text",
       "modalityVoiceCalls": "Sprachanrufe",
       "reconnected": "{count, plural, one {Einmal neu verbunden} other {# Mal neu verbunden}}",
-      "surfaceTeams": "Microsoft Teams"
+      "surfaceTeams": "Microsoft Teams",
+      "sourceFilter": "Nach Herkunft filtern",
+      "anySource": "Jede Herkunft",
+      "sourceConversations": "Unterhaltungen",
+      "sourceEvaluation": "Improve und Evals",
+      "sourceSystem": "System-Agents",
+      "source": {
+        "kind": {
+          "eval": "Eval",
+          "grader": "Bewerter",
+          "improve": "Improve",
+          "knowledge_gaps": "Wissenslücken",
+          "test_questions": "Testfragen"
+        },
+        "open": {
+          "openEvalRun": "Eval-Run öffnen",
+          "openSession": "Improve-Sitzung öffnen",
+          "openAgent": "Agent öffnen",
+          "openTopic": "Thema öffnen",
+          "openGaps": "Wissenslücken öffnen",
+          "openDataset": "Dataset öffnen"
+        }
+      }
     },
     "sandboxes": {
       "addConnection": "Verbindung hinzufügen",

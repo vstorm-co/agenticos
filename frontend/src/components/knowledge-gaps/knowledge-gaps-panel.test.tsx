@@ -169,4 +169,25 @@ describe("KnowledgeGapsPanel", () => {
     await userEvent.click(screen.getByRole("button", { name: "dialog t1" }));
     expect(screen.queryByRole("button", { name: "dialog t1" })).toBeNull();
   });
+
+  it("opens the topic a page holds in its URL, and hands the close back to it", async () => {
+    const onTopicChange = vi.fn();
+    const { rerender } = render(
+      <KnowledgeGapsPanel
+        scope={{ kind: "collection", id: "kb1" }}
+        topicId="t9"
+        onTopicChange={onTopicChange}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "dialog t9" }));
+    expect(onTopicChange).toHaveBeenCalledWith(null);
+
+    rerender(
+      <KnowledgeGapsPanel
+        scope={{ kind: "collection", id: "kb1" }}
+        onTopicChange={onTopicChange}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: /^dialog/ })).toBeNull();
+  });
 });

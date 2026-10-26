@@ -5609,7 +5609,7 @@
       "anyPerson": "Ktokolwiek",
       "anyRating": "Dowolna ocena",
       "anyStatus": "Dowolny status",
-      "anySurface": "Każde źródło poza ewaluacjami",
+      "anySurface": "Każde źródło",
       "anyVersion": "Dowolna wersja",
       "approvalCount": "{count, plural, one {1 prośba} few {# prośby} many {# próśb} other {# prośby}}",
       "approvals": "Zatwierdzenia",
@@ -5632,7 +5632,6 @@
       "cost": "Koszt",
       "currentVersion": "Bieżąca",
       "dearestAgent": "Wydaje najwięcej",
-      "everySurface": "Każde źródło, z ewaluacjami",
       "evalCase": "Przypadek ewaluacji: {dataset} · {input}",
       "evalCaseTitle": "Przypadek z runu ewaluacji",
       "evalCaseBody": "Ten run odpowiadał na jeden przypadek runu ewaluacji, który nie zapisuje rozmowy. Odpowiedź i jej ocena są w runie ewaluacji.",
@@ -5835,7 +5834,29 @@
       "modalityText": "Tekst",
       "modalityVoiceCalls": "Rozmowy głosowe",
       "reconnected": "{count, plural, one {Połączenie wznowiono raz} few {Połączenie wznowiono # razy} many {Połączenie wznowiono # razy} other {Połączenie wznowiono # razy}}",
-      "surfaceTeams": "Microsoft Teams"
+      "surfaceTeams": "Microsoft Teams",
+      "sourceFilter": "Filtruj według pochodzenia",
+      "anySource": "Dowolne pochodzenie",
+      "sourceConversations": "Rozmowy",
+      "sourceEvaluation": "Improve i ewaluacje",
+      "sourceSystem": "Agenci systemowi",
+      "source": {
+        "kind": {
+          "eval": "Ewaluacja",
+          "grader": "Oceniający",
+          "improve": "Improve",
+          "knowledge_gaps": "Luki w wiedzy",
+          "test_questions": "Pytania testowe"
+        },
+        "open": {
+          "openEvalRun": "Otwórz ewaluację",
+          "openSession": "Otwórz sesję Improve",
+          "openAgent": "Otwórz agenta",
+          "openTopic": "Otwórz temat",
+          "openGaps": "Otwórz luki w wiedzy",
+          "openDataset": "Otwórz dataset"
+        }
+      }
     },
     "sandboxes": {
       "addConnection": "Dodaj połączenie",

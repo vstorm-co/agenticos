@@ -31,11 +31,22 @@ const EMPTY = {
  * Nothing is ingested on its own: a topic that needs a document is closed by a
  * person adding its content from the topic, or a document of their own.
  */
-export function KnowledgeGapsPanel({ scope }: { scope: KnowledgeGapPanelScope }) {
+export function KnowledgeGapsPanel({
+  scope,
+  topicId,
+  onTopicChange,
+}: {
+  scope: KnowledgeGapPanelScope;
+  /** The open topic, held by a page that keeps it in its URL; the panel holds its own otherwise. */
+  topicId?: string | null;
+  onTopicChange?: (topicId: string | null) => void;
+}) {
   const t = useTranslations("knowledgeGaps");
   const [status, setStatus] = useState<KnowledgeGapStatus>("open");
   const [page, setPage] = useState(0);
-  const [openTopic, setOpenTopic] = useState<string | null>(null);
+  const [ownTopic, setOwnTopic] = useState<string | null>(null);
+  const openTopic = onTopicChange ? (topicId ?? null) : ownTopic;
+  const setOpenTopic = onTopicChange ?? setOwnTopic;
   const { topics, total, ungrouped, canRegroup, unchecked, isLoading, error, refetch } =
     useKnowledgeGaps(scope, {
       status,

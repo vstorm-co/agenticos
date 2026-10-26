@@ -87,6 +87,28 @@ describe("a run history row", () => {
     expect(within(api!).queryByText(/\?/)).toBeNull();
   });
 
+  it("names a platform agent no agent list holds, and says what it worked on", () => {
+    render(
+      <RunTable
+        runs={[
+          run({
+            surface: "eval",
+            agent_id: "improver-1",
+            origin: { kind: "improve", agent_name: "Improver", agent_id: "agent-1" },
+          }),
+        ]}
+        agentsById={new Map()}
+      />,
+    );
+
+    expect(within(row()).getAllByText("Improver").length).toBeGreaterThan(0);
+    expect(within(row()).getByText("Improve")).toBeInTheDocument();
+    expect(within(row()).getByRole("link", { name: "Open the agent" })).toHaveAttribute(
+      "href",
+      "/agents/agent-1",
+    );
+  });
+
   it("says nothing about delegation for a run somebody started", () => {
     render(<RunTable runs={[run()]} />);
 

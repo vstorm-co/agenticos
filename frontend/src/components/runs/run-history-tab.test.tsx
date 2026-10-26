@@ -163,8 +163,8 @@ describe("run history controls", () => {
       rated: undefined,
       statuses: undefined,
       surface: undefined,
-      // The eval traffic is left out until asked for.
-      excludeSurface: "eval",
+      // Every run, so a link to a platform agent's run lands on a listed row.
+      source: undefined,
       userId: undefined,
       agentVersionId: undefined,
       skip: 0,
@@ -270,16 +270,18 @@ describe("run history controls", () => {
     expect(screen.getAllByText("Eval judge").length).toBeGreaterThan(0);
   });
 
-  it("puts the eval traffic back, or shows it alone, when asked", async () => {
+  it("narrows to conversations, to Improve and evals, or to system agents", async () => {
     renderTab();
 
-    await userEvent.click(screen.getByRole("combobox", { name: "Filter by surface" }));
-    await userEvent.click(screen.getByRole("option", { name: "Every surface, evals included" }));
-    expect(lastOptions()).toMatchObject({ surface: undefined, excludeSurface: undefined });
-
-    await userEvent.click(screen.getByRole("combobox", { name: "Filter by surface" }));
-    await userEvent.click(screen.getByRole("option", { name: "Eval" }));
-    expect(lastOptions()).toMatchObject({ surface: "eval", excludeSurface: undefined });
+    for (const [option, source] of [
+      ["Conversations", "conversation"],
+      ["Improve and evals", "evaluation"],
+      ["System agents", "system"],
+    ]) {
+      await userEvent.click(screen.getByRole("combobox", { name: "Filter by source" }));
+      await userEvent.click(screen.getByRole("option", { name: option }));
+      expect(lastOptions()).toMatchObject({ source });
+    }
   });
 
   it("narrows to one surface", async () => {
