@@ -159,6 +159,7 @@ import {
   readSubagentsConfig,
   PERSONAL_CAPABILITIES,
   SANDBOX_ID,
+  SKILLS_ID,
   SUBAGENTS_ID,
   THINKING_ID,
   withCapability,
@@ -178,10 +179,13 @@ import { cn } from "@/lib/utils";
 import type { AgentSpec, CapabilityBindingSpec, McpServerRef } from "@/types/agents";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 import {
+  chosenOnly,
   forSystemAgent,
+  holdsSkills,
   isSystemAgent,
   sharedWithOrganization,
   systemAgentOffers,
+  takesSkillsOffOnly,
   verdictKind,
 } from "@/lib/system-agents";
 // The module, not the `@/stores` barrel, which this page's tests stub in part.
@@ -857,15 +861,20 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // and there was no way to grant the tools without picking one first.
   //
   // A system agent's save refuses every capability but the few it may bind, so
-  // its Toolbox offers only those.
+  // its Toolbox offers only those - and skills it may only take off, while it
+  // still holds some.
   const kind = agent?.kind;
+  const skillsHeld = spec !== null && holdsSkills(spec);
   const grantable = useMemo(
     () =>
       capabilities.filter(
         (entry) =>
-          entry.id !== THINKING_ID && (!isSystemAgent(kind) || systemAgentOffers(kind, entry.id)),
+          entry.id !== THINKING_ID &&
+          (!isSystemAgent(kind) ||
+            systemAgentOffers(kind, entry.id) ||
+            (entry.id === SKILLS_ID && takesSkillsOffOnly(kind) && skillsHeld)),
       ),
-    [capabilities, kind],
+    [capabilities, kind, skillsHeld],
   );
 
   // A failed read leaves `agent` undefined with `isLoading` false - the skeleton guard
@@ -899,6 +908,10 @@ export default function AgentBuilderPage({ params }: PageProps) {
   };
 
   const toggleCapability = (capabilityId: string) => {
+    if (capabilityId === SKILLS_ID && isSystemAgent(agent.kind) && takesSkillsOffOnly(agent.kind)) {
+      update(withSkills(spec, []));
+      return;
+    }
     const on = spec.capabilities.some((binding) => binding.id === capabilityId);
     if (capabilityId === VISUALS_ID && !on) {
       update(withVisuals(spec, skills));
@@ -925,9 +938,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const offeredContext = isSystem
     ? sharedWithOrganization(contextFiles, contextCount, spec.context_ids)
     : { items: contextFiles, total: contextCount };
-  const offeredSkills = isSystem
-    ? sharedWithOrganization(skills, skillCount, spec.skill_ids)
-    : { items: skills, total: skillCount };
+  const offeredSkills = !isSystemAgent(agent.kind)
+    ? { items: skills, total: skillCount }
+    : takesSkillsOffOnly(agent.kind)
+      ? chosenOnly(skills, skillCount, spec.skill_ids)
+      : sharedWithOrganization(skills, skillCount, spec.skill_ids);
   const resources: AgentResources = {
     contextFiles: offeredContext.items,
     contextTotal: offeredContext.total,

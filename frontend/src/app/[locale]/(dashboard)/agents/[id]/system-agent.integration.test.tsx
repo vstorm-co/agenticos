@@ -461,12 +461,54 @@ describe("a system agent's Toolbox", () => {
     expect(offered().sort()).toEqual(["Context", "Knowledge search", "Skills"]);
   });
 
-  it("offers a classifier no skills", async () => {
+  it("offers a classifier no skills while it holds none", async () => {
     viewing("classifier");
     await mount();
 
     expect(offered().sort()).toEqual(["Context", "Knowledge search"]);
   });
+
+  it("offers a classifier the skills it still holds only to take off", async () => {
+    viewing("classifier");
+    page.skills = [skill("s1", "rubric-writing", "org"), skill("s2", "team-style", "org")];
+    page.draft = {
+      ...CLEAN_DRAFT,
+      capabilities: [binding("thinking"), binding("skills")],
+      skill_ids: ["s1"],
+    };
+    await mount();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+
+    expect(offered().sort()).toEqual(["Context", "Knowledge search", "Skills"]);
+    const panel = await openPanel("Skills");
+    expect(within(panel).getByText(/A classifier reads no skills/)).toBeVisible();
+    expect(within(panel).queryByText("team-style")).toBeNull();
+
+    fireEvent.click(within(panel).getByRole("checkbox", { name: "rubric-writing" }));
+    await settle();
+    expect(saveDraft).toHaveBeenLastCalledWith(CLEAN_DRAFT);
+    expect(screen.queryByRole("switch", { name: "Give this agent Skills" })).toBeNull();
+  });
+
+  it.each([
+    ["bound and picked", [binding("thinking"), binding("skills")], ["s1"]],
+    ["picked with the capability off", [binding("thinking")], ["s1"]],
+    ["bound with nothing picked", [binding("thinking"), binding("skills")], []],
+  ])(
+    "takes every skill off a classifier from the card's switch, %s",
+    async (_state, capabilities, skillIds) => {
+      viewing("classifier");
+      page.skills = [skill("s1", "rubric-writing", "org")];
+      page.draft = { ...CLEAN_DRAFT, capabilities, skill_ids: skillIds };
+      await mount();
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+
+      fireEvent.click(screen.getByRole("switch", { name: "Give this agent Skills" }));
+      await settle();
+      expect(saveDraft).toHaveBeenLastCalledWith(CLEAN_DRAFT);
+      expect(offered().sort()).toEqual(["Context", "Knowledge search"]);
+    },
+  );
 
   it("offers an ordinary agent the whole catalog but thinking", async () => {
     viewing("agent");

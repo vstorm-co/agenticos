@@ -1,5 +1,5 @@
 ---
-source_sha: "895997e8e886"
+source_sha: "cb3e6295d032"
 ---
 
 # Begriffe { #concepts }
@@ -674,7 +674,8 @@ Knowledge search, Context und Skills -, **Limits** für sein Budget und
 haben, mit Bewertung oder ohne - jedes klappt seine letzten Bewertungen dort und
 die Eval-Runs auf, aus denen sie stammen - samt der Angabe, wie oft Menschen ihm
 bei den von ihm bewerteten und von ihnen entschiedenen Ergebnissen zustimmten.
-Die Toolbox eines Klassifizierers hat keine Skills.
+Die Toolbox eines Klassifizierers hat keine Skills, es sei denn, sein Entwurf
+enthält noch welche - dann lassen sie sich nur entfernen.
 
 **New agent** → **Systemagent** erstellt jeden der fünf Typen: Bewerter,
 Fallgenerator, Lücken-Drafter, Lücken-Klassifizierer oder Verbesserungsassistent

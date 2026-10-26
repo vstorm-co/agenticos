@@ -18,6 +18,7 @@ import {
   KNOWLEDGE_ID,
   SKILLS_ID,
 } from "@/lib/agent-spec";
+import { takesSkillsOffOnly } from "@/lib/system-agents";
 import type { KnowledgeBase } from "@/types";
 import type { ContextFileSummary, SkillSummary } from "@/types/providers";
 import { useTranslations } from "next-intl";
@@ -142,6 +143,21 @@ export function CapabilityResources({
   }
 
   if (capabilityId === SKILLS_ID) {
+    if (system !== undefined && takesSkillsOffOnly(system.kind)) {
+      return (
+        <ResourceGroup detail={t("systemAgentSkillsUnused")} warning={null}>
+          {resources.skillIds.length > 0 && (
+            <SkillGallery
+              skills={resources.skills}
+              total={resources.skillTotal}
+              selectedIds={resources.skillIds}
+              onToggle={resources.onSkillToggle}
+              disabled={disabled}
+            />
+          )}
+        </ResourceGroup>
+      );
+    }
     return (
       <ResourceGroup
         detail={t("skillsDetail")}

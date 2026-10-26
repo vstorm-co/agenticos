@@ -1050,6 +1050,7 @@
     "systemAgentBadge": "{kind, select, judge {Systemagent · Bewerter} drafter {Systemagent · Lücken-Entwerfer} generator {Systemagent · Fallgenerator} classifier {Systemagent · Lücken-Klassifizierer} improver {Systemagent · Authoring-Assistent} other {Systemagent}}",
     "systemAgentBadgeHint": "Die Plattform führt ihn für die ganze Organisation aus; niemand chattet mit ihm.",
     "systemAgentSharedOnly": "Angeboten wird nur, was mit der ganzen Organisation geteilt ist: Die Plattform führt diesen Agent für alle aus.",
+    "systemAgentSkillsUnused": "Ein Klassifizierer liest keine Skills, daher lässt sich hier keiner hinzufügen. Wählen Sie die ab, die er noch hat, oder nehmen Sie mit seinem Schalter alle auf einmal weg.",
     "systemAgentRouteTitle": "{name} ist ein Systemagent",
     "systemAgentRouteBody": "Die Plattform führt ihn für die ganze Organisation aus, und niemand chattet mit ihm. Deshalb wird er weder in einem Eval getestet noch hier verbessert. Wie er arbeitet, ändern Sie auf seiner eigenen Seite.",
     "systemAgentRouteBack": "Seine Seite öffnen",

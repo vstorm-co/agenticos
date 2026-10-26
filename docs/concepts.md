@@ -612,7 +612,8 @@ Context and Skills - **Limits** for its budget, and **History**. A judge's also
 has **Datasets**, the datasets that picked it, grading or not - each opening on
 its latest grades there and the eval runs they came from - with how often
 people agreed with it on the results it graded and they decided. A classifier's
-Toolbox has no Skills.
+Toolbox has no Skills, unless its draft still holds some, and then only to take
+them off.
 
 **New agent** → **System agent** creates any of the five kinds: judge, case
 generator, gap drafter, gap classifier or authoring assistant (`POST /agents/system`).

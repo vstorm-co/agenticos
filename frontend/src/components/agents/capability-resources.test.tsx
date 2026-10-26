@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { CapabilityResources, resourceTabKey, type AgentResources } from "./capability-resources";
 import type { KnowledgeBase } from "@/types";
+import type { SystemAgentKind } from "@/types/agents";
 import type { ContextFileSummary, SkillSummary } from "@/types/providers";
 
 /**
@@ -232,15 +233,22 @@ describe("what the context capability will actually attach", () => {
  * organization - the page narrows the lists, and the panels say so.
  */
 describe("what a system agent's capability panels offer", () => {
-  function mountSystem(capabilityId: string, enabled = true) {
+  function mountSystem(
+    capabilityId: string,
+    {
+      enabled = true,
+      kind = "classifier",
+      resources = RESOURCES,
+    }: { enabled?: boolean; kind?: SystemAgentKind; resources?: AgentResources } = {},
+  ) {
     const onMaxSteps = vi.fn();
     render(
       <CapabilityResources
         capabilityId={capabilityId}
         enabled={enabled}
-        resources={RESOURCES}
+        resources={resources}
         disabled={!enabled}
-        system={{ kind: "classifier", maxSteps: 2, onMaxSteps }}
+        system={{ kind, maxSteps: 2, onMaxSteps }}
       />,
     );
     return onMaxSteps;
@@ -255,7 +263,7 @@ describe("what a system agent's capability panels offer", () => {
   });
 
   it("leaves the steps inert until the search is switched on", () => {
-    mountSystem("knowledge", false);
+    mountSystem("knowledge", { enabled: false });
 
     expect(screen.getByRole("spinbutton", { name: "Max steps" })).toBeDisabled();
   });
@@ -264,7 +272,7 @@ describe("what a system agent's capability panels offer", () => {
     ["context", "glossary"],
     ["skills", "refund-policy"],
   ])("says the %s it offers are what the whole organization shares", (id, offered) => {
-    mountSystem(id);
+    mountSystem(id, { kind: "judge" });
 
     expect(screen.getByText(offered)).toBeInTheDocument();
     expect(
@@ -272,6 +280,26 @@ describe("what a system agent's capability panels offer", () => {
         "Only what is shared with the whole organization is offered: the platform runs this agent for everyone.",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("offers a classifier's skills it still holds only to take off", async () => {
+    const onSkillToggle = vi.fn();
+    mountSystem("skills", { resources: { ...RESOURCES, skillIds: ["s1"], onSkillToggle } });
+
+    expect(
+      screen.getByText(/A classifier reads no skills, so none can be added here/),
+    ).toBeVisible();
+    expect(screen.queryByText(/Only what is shared with the whole organization/)).toBeNull();
+    await userEvent.click(screen.getByRole("checkbox", { name: "refund-policy" }));
+    expect(onSkillToggle).toHaveBeenCalledWith("s1");
+  });
+
+  it("lists nothing to pick for a classifier that holds only the switch", () => {
+    mountSystem("skills", { enabled: false });
+
+    expect(screen.getByText(/A classifier reads no skills/)).toBeVisible();
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(screen.queryByText(/Write one/)).toBeNull();
   });
 
   it("says nothing of it on an ordinary agent's panel", () => {

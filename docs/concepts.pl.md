@@ -1,5 +1,5 @@
 ---
-source_sha: "895997e8e886"
+source_sha: "cb3e6295d032"
 ---
 
 # Koncepcje { #concepts }
@@ -636,7 +636,8 @@ Context i Skills - **Limity** z budżetem i **Historia**. Strona sędziego ma te
 zakładkę **Datasety** z datasetami, które go wybrały, z włączonym ocenianiem
 albo bez - każdy rozwija się na jego ostatnie oceny i runy ewaluacji, z których
 pochodzą - wraz z tym, jak często ludzie zgodzili się z nim w wynikach, które
-ocenił, a oni rozstrzygnęli. Zakładka Narzędzia klasyfikatora nie ma Skills.
+ocenił, a oni rozstrzygnęli. Zakładka Narzędzia klasyfikatora nie ma Skills,
+chyba że jego szkic wciąż jakieś ma - wtedy można je tylko zdjąć.
 
 **Nowy agent** → **Agent systemowy** tworzy dowolny z pięciu rodzajów: sędziego,
 generator przypadków, autora szkiców luk, klasyfikator luk lub asystenta

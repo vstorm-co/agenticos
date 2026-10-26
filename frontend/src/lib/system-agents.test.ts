@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  chosenOnly,
   forSystemAgent,
+  holdsSkills,
   isSystemAgent,
   sharedWithOrganization,
   SYSTEM_AGENT_KINDS,
   systemAgentOffers,
+  takesSkillsOffOnly,
   verdictKind,
 } from "./system-agents";
 import type { AgentSpec, CapabilityBindingSpec } from "@/types/agents";
@@ -54,6 +57,33 @@ describe("systemAgentOffers", () => {
     for (const id of ["web_search", "sandbox", "subagents", "memory_files"]) {
       expect(systemAgentOffers("judge", id)).toBe(false);
     }
+  });
+});
+
+describe("takesSkillsOffOnly", () => {
+  it("is a classifier, which reads no skill, and no other kind", () => {
+    expect(SYSTEM_AGENT_KINDS.filter(takesSkillsOffOnly)).toEqual(["classifier"]);
+  });
+});
+
+describe("holdsSkills", () => {
+  it("holds skills while a skill is picked or the capability reading them is bound", () => {
+    expect(holdsSkills({ skill_ids: ["s1"], capabilities: [] })).toBe(true);
+    expect(holdsSkills({ skill_ids: [], capabilities: [binding("skills")] })).toBe(true);
+    expect(holdsSkills({ skill_ids: [], capabilities: [binding("context")] })).toBe(false);
+  });
+});
+
+describe("chosenOnly", () => {
+  const PICKED = { id: "s1" };
+  const OTHER = { id: "s2" };
+
+  it("keeps only what is already chosen", () => {
+    expect(chosenOnly([PICKED, OTHER], 2, ["s1"])).toEqual({ items: [PICKED], total: 1 });
+  });
+
+  it("keeps the total of a set it holds only part of", () => {
+    expect(chosenOnly([PICKED, OTHER], 40, ["s1"])).toEqual({ items: [PICKED], total: 40 });
   });
 });
 

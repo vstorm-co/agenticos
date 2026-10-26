@@ -1,5 +1,5 @@
 ---
-source_sha: "895997e8e886"
+source_sha: "cb3e6295d032"
 ---
 
 # Conceptos { #concepts }
@@ -643,7 +643,8 @@ juez tiene además **Datasets**, los datasets que lo eligieron, califiquen o no
 (cada uno se abre en sus últimas calificaciones allí y los runs de eval de los
 que salieron), con cuántas veces las personas coincidieron con él en los
 resultados que calificó y ellas decidieron. El Toolbox de un clasificador no
-tiene Skills.
+tiene Skills, salvo que su borrador aún tenga alguno, y entonces solo para
+quitarlo.
 
 **New agent** → **System agent** crea cualquiera de los cinco tipos: juez,
 generador de casos, redactor de lagunas, clasificador de lagunas o asistente de

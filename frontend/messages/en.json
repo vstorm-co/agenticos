@@ -1050,6 +1050,7 @@
     "systemAgentBadge": "{kind, select, judge {System agent · Judge} drafter {System agent · Gap drafter} generator {System agent · Case generator} classifier {System agent · Gap classifier} improver {System agent · Authoring assistant} other {System agent}}",
     "systemAgentBadgeHint": "The platform runs it for the whole organization; nobody chats with it.",
     "systemAgentSharedOnly": "Only what is shared with the whole organization is offered: the platform runs this agent for everyone.",
+    "systemAgentSkillsUnused": "A classifier reads no skills, so none can be added here. Unpick the ones it still holds, or use its switch to take them all off.",
     "systemAgentRouteTitle": "{name} is a system agent",
     "systemAgentRouteBody": "The platform runs it for the whole organization and nobody chats with it, so it is never tested in an eval or improved here. Change how it works on its own page.",
     "systemAgentRouteBack": "Open its page",

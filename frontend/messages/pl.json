@@ -1050,6 +1050,7 @@
     "systemAgentBadge": "{kind, select, judge {Agent systemowy · Sędzia} drafter {Agent systemowy · Autor szkiców luk} generator {Agent systemowy · Generator przypadków} classifier {Agent systemowy · Klasyfikator luk} improver {Agent systemowy · Asystent tworzenia} other {Agent systemowy}}",
     "systemAgentBadgeHint": "Uruchamia go platforma dla całej organizacji; nikt z nim nie rozmawia.",
     "systemAgentSharedOnly": "Do wyboru jest tylko to, co udostępniono całej organizacji: platforma uruchamia tego agenta dla wszystkich.",
+    "systemAgentSkillsUnused": "Klasyfikator nie korzysta ze skilli, więc nie można tu dodać żadnego. Odznacz te, które jeszcze ma, albo użyj jego przełącznika, żeby zdjąć wszystkie naraz.",
     "systemAgentRouteTitle": "{name} to agent systemowy",
     "systemAgentRouteBody": "Uruchamia go platforma dla całej organizacji i nikt z nim nie rozmawia, więc nie jest testowany w ewaluacji ani ulepszany tutaj. Sposób jego działania zmienisz na jego stronie.",
     "systemAgentRouteBack": "Otwórz jego stronę",

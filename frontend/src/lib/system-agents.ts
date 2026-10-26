@@ -33,30 +33,64 @@ const SYSTEM_AGENT_CAPABILITIES: readonly string[] = [
 ];
 
 /**
+ * Whether a system agent of `kind` is offered skills only to take them off.
+ *
+ * A classifier reads no skill, yet its save accepts them: refusing would leave a
+ * draft that already binds some with no way to publish. So what it holds is
+ * offered for removal, and nothing is offered to add.
+ */
+export function takesSkillsOffOnly(kind: SystemAgentKind): boolean {
+  return kind === "classifier";
+}
+
+/**
  * Whether a system agent of `kind` is offered the capability `capabilityId`: any
- * of the four it may bind, except skills for a classifier.
+ * of the four it may bind, except skills where it may only take them off.
  */
 export function systemAgentOffers(kind: SystemAgentKind, capabilityId: string): boolean {
-  if (kind === "classifier" && capabilityId === SKILLS_ID) return false;
+  if (capabilityId === SKILLS_ID && takesSkillsOffOnly(kind)) return false;
   return SYSTEM_AGENT_CAPABILITIES.includes(capabilityId);
+}
+
+/** Whether `spec` still binds skills: a skill picked, or the capability that reads them. */
+export function holdsSkills(spec: Pick<AgentSpec, "skill_ids" | "capabilities">): boolean {
+  return spec.skill_ids.length > 0 || spec.capabilities.some((binding) => binding.id === SKILLS_ID);
+}
+
+/**
+ * `items` narrowed to those `keep` accepts, with `total` following: a gallery
+ * names a chosen id it does not list as deleted only while it holds the whole
+ * set, which the narrowed list still is when nothing was left unfetched.
+ */
+function narrowed<T>(
+  items: T[],
+  total: number,
+  keep: (item: T) => boolean,
+): { items: T[]; total: number } {
+  const kept = items.filter(keep);
+  return { items: kept, total: items.length >= total ? kept.length : total };
 }
 
 /**
  * What a system agent may be given out of `items`: only what is shared with the
  * whole organization, since its publish refuses anything narrower - plus what it
  * already holds, so a pick made before that can still be taken off.
- *
- * `total` follows: a gallery names a chosen id it does not list as deleted only
- * while it holds the whole set, which the narrowed list still is when nothing was
- * left unfetched.
  */
 export function sharedWithOrganization<T extends { id: string; visibility: string }>(
   items: T[],
   total: number,
   chosen: string[],
 ): { items: T[]; total: number } {
-  const kept = items.filter((item) => item.visibility === "org" || chosen.includes(item.id));
-  return { items: kept, total: items.length >= total ? kept.length : total };
+  return narrowed(items, total, (item) => item.visibility === "org" || chosen.includes(item.id));
+}
+
+/** Only what is already chosen out of `items`, for a picker that may take off and not add. */
+export function chosenOnly<T extends { id: string }>(
+  items: T[],
+  total: number,
+  chosen: string[],
+): { items: T[]; total: number } {
+  return narrowed(items, total, (item) => chosen.includes(item.id));
 }
 
 /** The model requests a system agent that searches makes when `max_steps` is unset. */
