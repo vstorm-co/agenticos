@@ -384,7 +384,7 @@ def _make_toolset(spec: McpServerSpec) -> Any:
         spec.url,
         headers=None if spec.in_process else spec.headers or None,
         http_client=_in_process_client(spec.headers) if spec.in_process else None,
-        id=f"mcp-{tool_prefix(spec.name)}",
+        id=f"mcp:{spec.name}",
         init_timeout=CONNECT_TIMEOUT_SECS,
         tool_error_behavior="failed",
         include_instructions=spec.include_instructions,
@@ -630,7 +630,6 @@ def platform_spec(
         allowed_tools=allowed_tools,
         approval=approval,
         in_process=True,
-        include_instructions=True,
         ungated=PLATFORM_UNGATED_TOOLS,
     )
 

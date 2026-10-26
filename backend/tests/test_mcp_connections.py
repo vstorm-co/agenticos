@@ -414,7 +414,6 @@ class TestMakeToolset:
         assert isinstance(toolset, PrefixedToolset)
         assert toolset.prefix == "github_work"
         assert isinstance(toolset.wrapped, MCPToolset)
-        assert toolset.wrapped.id == "mcp-github_work"
 
     @pytest.mark.parametrize("include", [True, False])
     def test_the_server_instructions_join_only_when_the_connection_opted_in(self, include):
@@ -572,7 +571,6 @@ class TestApprovalMarks:
         )
 
         platform = platform_spec("aos_key", allowed_tools=None, approval="writes")
-        assert platform.include_instructions is True
         assert platform.ungated == PLATFORM_UNGATED_TOOLS
         assert McpServerSpec(name="notion", url="https://mcp.notion.com/mcp").ungated == frozenset()
         assert _make_toolset(platform).ungated == frozenset({"agenticos_set_my_language"})

@@ -26,8 +26,12 @@ project. It can find an existing project or create a private one with the agreed
 instructions, after your approval. A question about how to work does not itself
 create a project. Follow its project link and choose **New chat** to begin there;
 an existing chat cannot move into the new project. Creating a project does not
-write its planned files. Shared files and instructions persist across chats;
-complete transcripts and live processes do not. Code execution depends on an
+write its planned files.
+
+Shared files and instructions persist across chats.
+Transcripts remain stored and visible to project members; they are not
+automatically supplied as context to other chats. A shared live process is not
+guaranteed. Code execution depends on an
 available service sandbox and the agent's permitted tools.
 
 For an LLM wiki, agree these parts of the plan:
@@ -44,8 +48,9 @@ For an LLM wiki, agree these parts of the plan:
    links; record what was checked and what remains unknown.
 
 A knowledge base can add indexed retrieval; it does not replace this workspace.
-The deployment's platform MCP instructions provide this workflow to existing
-Architects too. Upgrading does not overwrite customized agent instructions or
+The runner adds this workflow only to the registered Architect, including
+existing installations with platform tools. Other agents and external MCP clients
+keep their own workflow. Upgrading does not overwrite customized agent instructions or
 previously installed gallery skills; the updated template and bundled Projects
 guide apply to new installations.
 

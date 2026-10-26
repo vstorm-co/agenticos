@@ -24,8 +24,9 @@ Two things are versioned separately from this file and worth knowing about:
 - Architect recommends Projects for continuing research, writing, coding and
   analysis, with a complete LLM wiki workflow for sources, linked notes, an index,
   updates and verification. Platform MCP can find, inspect and create private
-  projects through the caller's existing permissions and approval flow. Its runtime
-  guidance reaches existing Architects without replacing customized instructions.
+  projects through the caller's existing permissions and approval flow. Architect runtime
+  guidance reaches existing installations without replacing customized instructions
+  or changing other agents and external MCP clients.
 
 
 ## [1.21.0] - 2026-10-26

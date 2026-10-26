@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "ca74cb266ead"
+source_sha: "3ddef12560ae"
 ---
 
 # Projekty { #projects }
@@ -27,8 +27,12 @@ rozwijanej przez wiele rozmów w projekcie. Może znaleźć istniejący projekt 
 po Twojej akceptacji stworzyć prywatny z uzgodnionymi instrukcjami. Samo pytanie
 „jak to zrobić” nie tworzy projektu. Otwórz otrzymany link i wybierz **New chat**;
 istniejącej rozmowy nie można przenieść do nowego projektu. Utworzenie projektu
-nie zapisuje jeszcze planowanych plików. Wspólne pliki i instrukcje pozostają
-między rozmowami, pełne transkrypty i działające procesy nie. Uruchamianie kodu
+nie zapisuje jeszcze planowanych plików.
+
+Wspólne pliki i instrukcje pozostają
+między rozmowami. Transkrypty nadal są przechowywane i dostępne członkom projektu,
+ale nie trafiają automatycznie do kontekstu innych rozmów. Wspólny działający
+proces nie jest gwarantowany. Uruchamianie kodu
 wymaga dostępnego sandboxa usługowego i dozwolonych narzędzi agenta.
 
 Dla LLM wiki uzgodnij następujący plan:
@@ -45,8 +49,9 @@ Dla LLM wiki uzgodnij następujący plan:
 5. **Weryfikacja:** sprawdzaj oparcie w źródłach, sprzeczności, aktualność dat
    i niedziałające linki; zapisuj, co sprawdzono i czego nadal nie wiadomo.
 
-Baza wiedzy może uzupełniać projekt o wyszukiwanie indeksowane. Instrukcje
-platformowego MCP udostępniają ten sposób pracy również istniejącym Architectom.
+Baza wiedzy może uzupełniać projekt o wyszukiwanie indeksowane. Runner dodaje ten sposób pracy wyłącznie zarejestrowanemu Architectowi, także
+w istniejących instalacjach korzystających z platformowego MCP. Inne agenty
+i zewnętrzni klienci MCP zachowują własny sposób pracy.
 Aktualizacja nie nadpisuje własnych instrukcji agentów ani zainstalowanych
 skillów z galerii; nowy szablon i dołączony przewodnik Projects dotyczą nowych
 instalacji.

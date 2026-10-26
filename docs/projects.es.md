@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "ca74cb266ead"
+source_sha: "3ddef12560ae"
 ---
 
 # Proyectos { #projects }
@@ -29,8 +29,11 @@ continuos en un proyecto. Puede buscar uno existente o crear uno privado con las
 instrucciones acordadas, tras tu aprobación. Preguntar cómo trabajar no crea un
 proyecto. Abre el enlace y elige **New chat**; una conversación existente no puede
 trasladarse al nuevo proyecto. Crearlo todavía no escribe los archivos previstos.
-Los archivos y las instrucciones persisten entre conversaciones; los historiales
-completos y los procesos en ejecución no. Ejecutar código requiere un sandbox de
+
+Los archivos y las instrucciones persisten entre conversaciones. Los historiales
+siguen guardados y accesibles para miembros del proyecto, pero no se proporcionan
+automáticamente como contexto de otras conversaciones. No se garantiza un proceso
+en ejecución compartido. Ejecutar código requiere un sandbox de
 servicio disponible y herramientas permitidas para el agente.
 
 Para una wiki LLM, acuerda este plan:
@@ -49,8 +52,9 @@ Para una wiki LLM, acuerda este plan:
    antigua y enlaces rotos; registrar lo comprobado y lo que sigue sin saberse.
 
 Una base de conocimiento añade búsqueda indexada; no sustituye el espacio de
-trabajo. Las instrucciones del MCP de la plataforma proporcionan este flujo
-también a Architects existentes. Actualizar no sobrescribe instrucciones propias
+trabajo. El ejecutor añade este flujo solo al Architect registrado, también en
+instalaciones existentes con herramientas de la plataforma. Otros agentes y
+clientes MCP externos mantienen su propio flujo. Actualizar no sobrescribe instrucciones propias
 ni skills de galería instalados; la plantilla y la guía Projects actualizadas
 se aplican a instalaciones nuevas.
 

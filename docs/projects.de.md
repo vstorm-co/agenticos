@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "ca74cb266ead"
+source_sha: "3ddef12560ae"
 ---
 
 # Projekte { #projects }
@@ -29,9 +29,12 @@ einem Projekt zu planen. Er kann vorhandene Projekte finden oder nach deiner
 Freigabe ein privates Projekt mit den vereinbarten Anweisungen erstellen. Eine
 Frage nach dem Vorgehen erstellt noch kein Projekt. Öffne den Projektlink und
 wähle **New chat**; ein bestehender Chat lässt sich nicht dorthin verschieben.
-Die Erstellung schreibt noch keine geplanten Dateien. Dateien und Anweisungen
-bleiben über Chats hinweg erhalten, vollständige Verläufe und laufende Prozesse
-nicht. Codeausführung braucht einen verfügbaren Service-Sandbox und erlaubte
+Die Erstellung schreibt noch keine geplanten Dateien.
+
+Dateien und Anweisungen
+bleiben über Chats hinweg erhalten. Verläufe werden weiterhin gespeichert und
+sind Projektmitgliedern zugänglich, werden aber nicht automatisch als Kontext
+anderer Chats übergeben. Ein gemeinsamer laufender Prozess ist nicht garantiert. Codeausführung braucht einen verfügbaren Service-Sandbox und erlaubte
 Werkzeuge des Agenten.
 
 Vereinbare für ein LLM-Wiki diesen Arbeitsplan:
@@ -50,8 +53,9 @@ Vereinbare für ein LLM-Wiki diesen Arbeitsplan:
    prüfen; geprüfte und weiterhin unbekannte Punkte dokumentieren.
 
 Eine Wissensbasis ergänzt die indexierte Suche, ersetzt aber nicht den
-Arbeitsbereich. Die Anweisungen des Plattform-MCP vermitteln diesen Ablauf auch
-bestehenden Architects. Ein Upgrade überschreibt weder eigene Agentenanweisungen
+Arbeitsbereich. Der Runner ergänzt diesen Ablauf nur beim registrierten Architect, auch in
+bestehenden Installationen mit Plattform-Werkzeugen. Andere Agenten und externe
+MCP-Clients behalten ihren eigenen Ablauf. Ein Upgrade überschreibt weder eigene Agentenanweisungen
 noch installierte Galerie-Skills; die aktualisierte Vorlage und der mitgelieferte
 Projects-Leitfaden gelten für neue Installationen.
 

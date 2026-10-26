@@ -161,12 +161,11 @@ async def test_an_agent_bound_to_the_platform_reaches_it_in_process_as_the_asker
     `/mcp`, with no network, and its writes marked for approval (#2063, #2060)."""
     from pydantic_ai import Agent as PydanticAgent
     from pydantic_ai.messages import ModelResponse, TextPart, ToolCallPart, ToolReturnPart
-    from pydantic_ai.models.function import AgentInfo, FunctionModel
+    from pydantic_ai.models.function import FunctionModel
 
     from app.agents.mcp import NEEDS_APPROVAL
     from app.agents.spec import PlatformMcpServerRef
     from app.services.mcp_connection import build_toolsets_for_agent
-    from app.services.platform_mcp import INSTRUCTIONS
 
     key, organization = await _owner_key(db, Perm.AGENTS_VIEW, Perm.AGENTS_EDIT)
     resolved = await build_toolsets_for_agent(
@@ -177,8 +176,7 @@ async def test_an_agent_bound_to_the_platform_reaches_it_in_process_as_the_asker
     )
     [toolset] = resolved.toolsets
 
-    def asks_whoami(messages: list[Any], info: AgentInfo) -> ModelResponse:
-        assert info.instructions is not None and INSTRUCTIONS.strip() in info.instructions
+    def asks_whoami(messages: list[Any], _info: Any) -> ModelResponse:
         returned = [
             part
             for message in messages
