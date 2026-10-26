@@ -1,5 +1,5 @@
 ---
-source_sha: "ba5f85fd6e9a"
+source_sha: "e1ff41f78543"
 ---
 
 # La consola { #the-console }
@@ -697,6 +697,12 @@ cada agent. Cada filtro es un menú de las etiquetas de los agents que puedes ve
 marca varias para ampliarlo. Las categories y los tags de un agent los mantienes desde su página
 de detalle, junto a los controles del avatar, y el cambio surte efecto al
 momento, sin publicar una nueva versión.
+
+La pestaña **History** de un agente reúne sus versiones publicadas y sus entornos
+con nombre y, para quien puede leer sus runs, su **Improvement history**: cada
+sesión de Improve, qué midió, qué se decidió y cuánto costó. Una sesión terminada
+abre su asistente solo para leer, con lo decidido en su último paso; consulte el
+[historial de mejoras](authoring.md#improvement-history).
 
 Los detalles de la organización se dividen en pestañas: **Members**, **Profile**,
 **Budget and approvals**, **Proactivity**, **Voice** y **AI Architect**. Las

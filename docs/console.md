@@ -659,6 +659,12 @@ labels on the agents you can see; tick several to widen it. You maintain an agen
 categories and tags from its detail page, beside the avatar controls, and the
 change takes effect at once, without publishing a new version.
 
+An agent's **History** tab holds its published versions and named environments
+and, for whoever may read its runs, its **Improvement history**: each Improve
+session, what it measured, what was decided and what it cost. A finished session
+opens its wizard to be read, with what was decided on its last step; see
+[Improvement history](authoring.md#improvement-history).
+
 Organization details use tabs: **Members**, **Profile**, **Budget and approvals**,
 **Proactivity**, **Voice** and **AI Architect**. Administrative tabs follow your
 permissions; AI Architect appears when it can be configured. The selected tab is stored
