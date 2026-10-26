@@ -1379,6 +1379,13 @@ class ImprovementPipelineService:
         batch = await authoring_repo.get_batch(
             self.db, selected.batch_id, organization_id=run.organization_id
         )
+        if batch is not None and batch.status == BatchStatus.SUPERSEDED:
+            current = await authoring_repo.get_open_batch(
+                self.db, organization_id=run.organization_id, agent_id=run.agent_id
+            )
+            # Exposing another of its own rounds is not a person's decision.
+            if current is not None and current.improvement_run_id == run.id:
+                return
         if batch is None or batch.status == BatchStatus.SUPERSEDED:
             status = Status.REJECTED
         else:
@@ -2250,7 +2257,13 @@ class ImprovementPipelineService:
                 return
             transition = rules.Transition(Status.STOPPED, Stage.JUDGING, reason)
         if transition.status == Status.READY:
-            transition = await self._expose(run, iteration)
+            # The waiting candidate is the best round, which an equal later round does not displace.
+            exposed = best or iteration
+            transition = await self._expose(run, exposed)
+            if run.best_iteration_id != exposed.id:
+                await improvement_repo.update_run(
+                    self.db, run=run, values={"best_iteration_id": exposed.id}
+                )
         await self._move(run, transition)
 
     async def _expose(
