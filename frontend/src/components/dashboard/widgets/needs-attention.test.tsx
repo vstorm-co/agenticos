@@ -66,6 +66,10 @@ describe("NeedsAttentionWidget", () => {
     const improve = screen.getAllByRole("link", { name: "Improve" });
     expect(improve).toHaveLength(1);
     expect(improve[0]).toHaveAttribute("href", "/agents/a1/improve/new?resume=1");
+    expect(improve[0]!.querySelector("svg.lucide-trending-up")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
     await userEvent.click(improve[0]!);
   });
 

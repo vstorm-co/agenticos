@@ -16,6 +16,7 @@ import {
   Network,
   Plug,
   Trash2,
+  TrendingUp,
   Upload,
   Radio,
   UserPlus,
@@ -2003,7 +2004,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
             <TabsContent value="gaps" className="mt-6">
               <div data-tour="agent-gaps" className="space-y-4">
                 {canEdit && (
-                  <ImproveLink agentId={id} className="text-sm underline underline-offset-4">
+                  <ImproveLink
+                    agentId={id}
+                    className="inline-flex items-center gap-1.5 text-sm underline underline-offset-4"
+                  >
+                    <TrendingUp className="h-4 w-4" aria-hidden />
                     {t("improveFromGaps")}
                   </ImproveLink>
                 )}

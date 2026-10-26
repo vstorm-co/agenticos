@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { CircleCheck } from "lucide-react";
+import { CircleCheck, TrendingUp } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { ImproveLink } from "@/components/agents/improve-link";
@@ -58,7 +58,10 @@ export function NeedsAttentionWidget({ title, hint, period, options }: Dashboard
               </span>
               {item.can_edit && (
                 <Button asChild size="sm" variant="outline" className="shrink-0">
-                  <ImproveLink agentId={item.agent_id}>{t("improve")}</ImproveLink>
+                  <ImproveLink agentId={item.agent_id}>
+                    <TrendingUp className="h-4 w-4" aria-hidden />
+                    {t("improve")}
+                  </ImproveLink>
                 </Button>
               )}
             </li>

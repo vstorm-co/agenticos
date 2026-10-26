@@ -277,7 +277,10 @@ describe("the detail page's way into Improve", () => {
   it("sits among the header's other actions, Publish staying the primary one", async () => {
     allowed = new Set([Perm.runsView]);
     await mount();
-    expect(await screen.findByRole("button", { name: "Improve" })).not.toHaveClass("bg-primary");
+    const improve = await screen.findByRole("button", { name: "Improve" });
+    expect(improve).not.toHaveClass("bg-primary");
+    expect(improve.querySelector("svg.lucide-trending-up")).toBeInTheDocument();
+    expect(improve.className).toBe(screen.getByRole("button", { name: "Share" }).className);
     expect(screen.getByRole("button", { name: "Publish" })).toHaveClass("bg-primary");
   });
 
@@ -289,6 +292,7 @@ describe("the detail page's way into Improve", () => {
       name: "Needs attention: 7 answers rated down, 1 failed run. Improve this agent",
     });
     expect(improve).not.toHaveClass("bg-primary");
+    expect(improve.className).toBe(screen.getByRole("button", { name: "Share" }).className);
     expect(screen.getByRole("button", { name: "Publish" })).toHaveClass("bg-primary");
   });
 
@@ -296,9 +300,9 @@ describe("the detail page's way into Improve", () => {
     allowed = new Set([Perm.runsView]);
     page.params = "tab=gaps";
     await mount();
-    expect(
-      await screen.findByRole("link", { name: "Improve this agent from these gaps" }),
-    ).toHaveAttribute("href", "/agents/a1/improve/new?resume=1");
+    const link = await screen.findByRole("link", { name: "Improve this agent from these gaps" });
+    expect(link).toHaveAttribute("href", "/agents/a1/improve/new?resume=1");
+    expect(link.querySelector("svg.lucide-trending-up")).toHaveAttribute("aria-hidden", "true");
   });
 });
 

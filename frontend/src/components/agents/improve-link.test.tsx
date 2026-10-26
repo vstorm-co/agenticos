@@ -29,6 +29,9 @@ it("starts a new session when none is open, after storing the page's draft", asy
   const button = screen.getByRole("button", { name: "Improve" });
   expect(button).not.toHaveClass("bg-primary");
   expect(screen.queryByTestId("improve-attention")).not.toBeInTheDocument();
+  const icon = button.querySelector("svg.lucide-trending-up")!;
+  expect(icon).toBeInTheDocument();
+  expect(icon.closest('[aria-hidden="true"]')).not.toBeNull();
   await userEvent.click(button);
   expect(persist).toHaveBeenCalled();
   expect(state.push).toHaveBeenCalledWith("/agents/a1/improve/new");
@@ -45,7 +48,9 @@ it("reopens the session still open, marking an agent that needs it without leadi
     name: "Needs attention: 1 failed run. Improve this agent",
   });
   expect(button).not.toHaveClass("bg-primary");
+  expect(button).toHaveClass("border");
   expect(screen.getByTestId("improve-attention")).toBeInTheDocument();
+  expect(button.querySelector("svg.lucide-trending-up")).toBeInTheDocument();
   expect(button).toHaveAttribute("data-tour", "strip-improve");
   await userEvent.click(button);
   expect(state.push).toHaveBeenCalledWith("/agents/a1/improve/open");
