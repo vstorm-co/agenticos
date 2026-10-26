@@ -1,5 +1,5 @@
 ---
-source_sha: "127345b7e025"
+source_sha: "4ff10ed3b024"
 ---
 
 # Workflows { #workflows }
@@ -126,8 +126,8 @@ fügen einen Schritt auf vier Wegen hinzu:
 - **+** neben dem Ausgang eines Schritts öffnet die Auswahl für den Schritt, der nach
   diesem Ausgang kommt.
 - **Rechtsklick** auf die Zeichenfläche: dieselbe Auswahl öffnet sich dort, wo Sie
-  geklickt haben, und der Schritt landet dort. Darunter **Add a note** und, sobald
-  etwas kopiert ist, **Paste**.
+  geklickt haben, und der Schritt landet dort. Darunter **Notiz hinzufügen** (Add a note) und, sobald
+  etwas kopiert ist, **Einfügen** (Paste).
 - **Ziehen** Sie einen Schritt aus der Auswahl, um ihn dort abzulegen, wo Sie ihn
   fallen lassen, ohne Verbindung.
 
@@ -158,7 +158,7 @@ Fällen abgeschlossen.
 
 ### Notizen, Aufräumen und Tastenkürzel { #notes-tidying-and-shortcuts }
 
-**Add a note** unter der Auswahl, die ein Rechtsklick öffnet, setzt eine Notiz neben die
+**Notiz hinzufügen** (Add a note) unter der Auswahl, die ein Rechtsklick öffnet, setzt eine Notiz neben die
 Schritte: Markdown, per Doppelklick oder Stift geschrieben, durch Ziehen verschoben und
 an den Ecken in der Größe geändert; ausgewählt klappt ihre Palettenschaltfläche
 Farbfelder zum Einfärben aus - Grau, Gelb, Grün, Blau, Lila oder Rot -, damit sich eine Warnung von einer Aufgabe abhebt. Eine
@@ -166,7 +166,7 @@ Notiz wird im Graphen gespeichert, sodass
 Versionen, Wiederherstellungen und Kopien des Workflows sie behalten, aber nichts führt
 sie aus oder prüft sie. Eine ausgewählte Verbindung bietet ein **+**, das den nächsten
 gewählten Schritt in ihre Mitte setzt, auf beiden Seiten verbunden, wo die Ports passen.
-**Tidy up** in der Werkzeugleiste ordnet die sichtbaren Schritte von links nach rechts
+**Aufräumen** (Tidy up) in der Werkzeugleiste ordnet die sichtbaren Schritte von links nach rechts
 als eine rückgängig machbare Bearbeitung, die Kartenschaltfläche zeigt eine Minikarte,
 die Palettenschaltfläche schaltet die Schritte zwischen Farbe und Schlicht um (siehe [Wie ein Schritt gezeichnet wird](#how-a-step-is-drawn)),
 und die Tastaturschaltfläche - oder **?** - listet jedes Kürzel; **Tab** öffnet die
@@ -183,10 +183,10 @@ denselben Abschnitten, die die Schrittauswahl verwendet:
 |---|---|
 | **Start** | In der Schriftfarbe - dunkel im hellen Design, hell im dunklen - und rund, auf einer Karte mit abgerundetem linken Ende |
 | **KI** | Volles Violett |
-| **Ablauf** | Grau |
-| **Daten** | Petrol (Teal) |
+| **Ablauf** (Flow) | Grau |
+| **Daten** (Data) | Petrol (Teal) |
 | **Apps** | Weiß mit blauem Rand, damit das Zeichen einer Marke unverändert darauf sitzt |
-| **Fehler** | Rot |
+| **Fehler** (Error) | Rot |
 
 Die Familien unterscheiden sich in Helligkeit und Form, nicht nur in der Farbe, sodass
 sie auch bei Farbfehlsichtigkeit und auf einer so weit herausgezoomten Canvas, dass
@@ -223,6 +223,17 @@ graue Etikett, das abgerundete Ende des Starts und ein neutrales Band. Umgeschal
 es mit der Palettenschaltfläche in der Werkzeugleiste der Canvas oder unter
 **Einstellungen → Profil → Darstellung (Settings → Profile → Appearance) →
 Workflow-Schritte**; es wird pro Browser gespeichert, wie das Design.
+
+Ziehen Sie die rechte Kante, die untere Kante oder die untere rechte Ecke eines
+ausgewählten Schritts, um seine Größe zu ändern. Eine Karte ist 200 bis 560 px breit und
+bis zu 400 px hoch und nie niedriger, als ihr Inhalt braucht. Mehr Breite nimmt mehr vom
+Namen und von der Zusammenfassung auf; mehr Höhe lässt den Namen auf bis zu drei Zeilen
+umbrechen und danach die Zusammenfassung auf zwei, und die Ports bleiben am unteren Rand
+der Karte. Die Größe wird mit dem Entwurf gespeichert, daher bleibt sie bei Rückgängig,
+Kopieren, Einfügen, Duplizieren, veröffentlichten Versionen und Export erhalten.
+**Größe zurücksetzen** (Reset size) im Kontextmenü des Schritts stellt die Standardgröße wieder her,
+und **Aufräumen** (Tidy up) ordnet die Schritte um ihre Größen herum an. Eine veröffentlichte
+Version, ein Run und ein Vergleich zeigen die gespeicherte Größe ohne Anfasser.
 
 ## Einen Knoten konfigurieren { #configuring-a-node }
 

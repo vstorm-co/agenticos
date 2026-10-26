@@ -8134,6 +8134,7 @@
     "stepIsSwitchedOff": "Ausgeschaltet: wird übersprungen, wenn der Lauf ihn erreicht",
     "stepHasNote": "Hat eine Notiz",
     "menuSwitchOff": "Ausschalten",
+    "menuResetSize": "Größe zurücksetzen",
     "menuSwitchOn": "Einschalten",
     "nodeFormMoreOptions": "{count, plural, one {# weitere Option} other {# weitere Optionen}}",
     "nodeFormFewerOptions": "Weniger Optionen",

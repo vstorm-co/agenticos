@@ -33,12 +33,23 @@ class NodePosition(BaseModel):
     a Python `float`. PostgreSQL's `jsonb` follows the JSON RFC and has no
     such tokens, so that value reaching the `draft_graph` column turns an
     otherwise valid draft write into a database error instead of a 422.
+
+    `width` and `height` are the size a person dragged the step to; absent
+    means the editor's default and is left out of a dump, so a client never
+    receives a `null` size. The bounds are loose guards, the editor
+    enforces the real limits.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     x: float = Field(allow_inf_nan=False)
     y: float = Field(allow_inf_nan=False)
+    width: float | None = Field(
+        default=None, ge=120, le=1200, allow_inf_nan=False, exclude_if=lambda size: size is None
+    )
+    height: float | None = Field(
+        default=None, ge=40, le=1200, allow_inf_nan=False, exclude_if=lambda size: size is None
+    )
 
 
 MAX_PINNED_BYTES = 64_000

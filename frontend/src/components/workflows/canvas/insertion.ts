@@ -13,6 +13,7 @@ import type {
 
 import { isTrigger, triggerNodeOf } from "@/lib/workflows/triggers";
 
+import { NODE_HEIGHT, NODE_WIDTH, cardHeight, stepFootprint, type Footprint } from "./node-size";
 import { autoBindings, isConnectionValid, isErrorPort } from "./graph-adapter";
 import { currentScopeId, scopedGraph } from "./scope-view";
 
@@ -36,17 +37,6 @@ import { currentScopeId, scopedGraph } from "./scope-view";
  * drop out of the body the user is looking at and reappear at the top level.
  */
 
-/** The footprint a node card takes on the canvas, for placement only. */
-export const NODE_WIDTH = 240;
-export const NODE_HEIGHT = 88;
-/**
- * The height one row is given when steps are stacked: the tallest card a flow
- * commonly holds - a waits band over two labelled ports, an Approval at about
- * 129 px - with a little to spare, so a card never touches the one below it.
- * A plain card is 76 px; a step with more outputs than that is taller still and
- * is the builder's to space.
- */
-export const ROW_HEIGHT = 136;
 /** The space left between one step and the next along a flow, and between rows. */
 const GAP_X = 80;
 const GAP_Y = 24;
@@ -88,18 +78,66 @@ export function withLiveScopes(
   return { ...graph, scopes: deriveScopes(graph, definitions) };
 }
 
-function overlaps(a: NodePosition, b: NodePosition): boolean {
-  return Math.abs(a.x - b.x) < NODE_WIDTH + GAP_X / 2 && Math.abs(a.y - b.y) < ROW_HEIGHT;
+/** A step's footprint when nothing says otherwise: the size it was given, else the default. */
+function defaultFootprint(node: NodeInstance): Footprint {
+  return { width: node.layout.width ?? NODE_WIDTH, height: node.layout.height ?? NODE_HEIGHT };
 }
 
-/** `preferred`, or the first spot below it that no node in `nodes` covers. */
-export function clearOf(nodes: readonly NodeInstance[], preferred: NodePosition): NodePosition {
+/** Whether a card of size `own` at `at` would touch `node`, or come closer than the gaps: room for a wire between columns. */
+function overlaps(node: NodeInstance, size: Footprint, at: NodePosition, own: Footprint): boolean {
+  return (
+    at.x < node.layout.x + size.width + GAP_X / 2 &&
+    node.layout.x < at.x + own.width + GAP_X / 2 &&
+    at.y < node.layout.y + size.height + GAP_Y &&
+    node.layout.y < at.y + own.height + GAP_Y
+  );
+}
+
+/**
+ * `preferred`, or the first spot below it that no node in `nodes` covers - a card
+ * of size `own`, against each node's own `footprint`. A spot is moved to just
+ * under the lowest card in its way.
+ */
+export function clearOf(
+  nodes: readonly NodeInstance[],
+  preferred: NodePosition,
+  footprint: (node: NodeInstance) => Footprint = defaultFootprint,
+  own: Footprint = { width: NODE_WIDTH, height: NODE_HEIGHT },
+): NodePosition {
   let position = preferred;
   for (let row = 0; row < MAX_ROWS; row += 1) {
-    if (!nodes.some((node) => overlaps(node.layout, position))) return position;
-    position = { x: position.x, y: position.y + ROW_HEIGHT + GAP_Y };
+    const at = position;
+    const blocking = nodes.filter((node) => overlaps(node, footprint(node), at, own));
+    if (blocking.length === 0) return position;
+    const bottom = Math.max(...blocking.map((node) => node.layout.y + footprint(node).height));
+    position = { x: position.x, y: bottom + GAP_Y };
   }
   return position;
+}
+
+/** Each node's footprint as the canvas draws it, and the one a new `definition` would take. */
+function footprintsFor(
+  graph: WorkflowGraph,
+  definitions: Map<string, NodeDefinition | null>,
+  definition: NodeDefinition,
+): { footprint: (node: NodeInstance) => Footprint; own: Footprint } {
+  return {
+    footprint: (node) => stepFootprint(node, definitions.get(node.id) ?? null, graph.bindings),
+    own: {
+      width: NODE_WIDTH,
+      height: cardHeight(
+        {
+          id: "",
+          definition_id: definition.id,
+          definition_version: definition.version,
+          config: {},
+          layout: { x: 0, y: 0 },
+        },
+        definition,
+        [],
+      ),
+    },
+  };
 }
 
 function outputsOf(definition: NodeDefinition | null): Port[] {
@@ -203,12 +241,17 @@ export function planInsertion(request: InsertionRequest): NodeInsertion {
   const definitions = new Map(request.definitions);
   definitions.set(id, definition);
   const input = inputsOf(definition)[0];
+  const { footprint, own } = footprintsFor(graph, definitions, definition);
 
   if (input === undefined && isTrigger(definition) && scopePath.length === 0) {
     const current = triggerNodeOf(graph, request.definitions);
     if (current !== null) {
       return {
-        node: { ...blank(definition, id), layout: dropAt ?? current.layout },
+        // The old trigger's size is its own: the new one starts at the default.
+        node: {
+          ...blank(definition, id),
+          layout: dropAt ?? { x: current.layout.x, y: current.layout.y },
+        },
         edge: null,
         bindings: [],
         becomesEntry: current.id === graph.entry_node_id,
@@ -230,6 +273,8 @@ export function planInsertion(request: InsertionRequest): NodeInsertion {
         entry === undefined
           ? { x: 0, y: 0 }
           : { x: entry.layout.x - NODE_WIDTH - GAP_X, y: entry.layout.y },
+        footprint,
+        own,
       );
     const node = { ...blank(definition, id), layout: position };
     const output = outputsOf(definition).find((port) => !isErrorPort(port));
@@ -263,7 +308,7 @@ export function planInsertion(request: InsertionRequest): NodeInsertion {
       ? null
       : anchorFor(request, graph, visible);
   const after = (node: NodeInstance): NodePosition => ({
-    x: node.layout.x + NODE_WIDTH + GAP_X,
+    x: node.layout.x + footprint(node).width + GAP_X,
     y: node.layout.y,
   });
   const rightmost = visible.reduce<NodeInstance | null>(
@@ -275,6 +320,8 @@ export function planInsertion(request: InsertionRequest): NodeInsertion {
     clearOf(
       visible,
       anchor !== null ? after(anchor.node) : rightmost !== null ? after(rightmost) : { x: 0, y: 0 },
+      footprint,
+      own,
     );
   const link =
     anchor === null
@@ -316,6 +363,7 @@ function splitting(
   const target = byId.get(edge.target_node_id);
   const input = inputsOf(definition)[0];
   if (source === undefined || target === undefined || input === undefined) return null;
+  const { footprint, own } = footprintsFor(graph, definitions, definition);
   // Judged as if the old wire were gone, since it is about to be: a port takes one.
   const without = { ...graph, edges: graph.edges.filter((item) => item.id !== edge.id) };
   const head = wire(
@@ -340,7 +388,7 @@ function splitting(
     y: (source.layout.y + target.layout.y) / 2,
   };
   return {
-    node: { ...blank(definition, id), layout: clearOf(visible, middle) },
+    node: { ...blank(definition, id), layout: clearOf(visible, middle, footprint, own) },
     edge: head.edge,
     bindings: head.bindings,
     becomesEntry: false,

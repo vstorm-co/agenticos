@@ -28,6 +28,24 @@ vi.mock("./node-resource", async (original) => ({
   ResourceLine: ({ pin }: { pin: { id: string } }) => <>uses {pin.id}</>,
 }));
 
+// The resize controls with their floor readable: `minHeight` is a prop, not a DOM attribute.
+vi.mock("@xyflow/react", async (original) => {
+  const real = await original<typeof import("@xyflow/react")>();
+  return {
+    ...real,
+    NodeResizeControl: (props: React.ComponentProps<typeof real.NodeResizeControl>) => (
+      <>
+        <span
+          hidden
+          data-resize-position={props.position}
+          data-resize-min-height={props.minHeight}
+        />
+        <real.NodeResizeControl {...props} />
+      </>
+    ),
+  };
+});
+
 const store = useWorkflowEditorStore;
 
 const IO = [port("in", "input", null), port("out", "output", null)];
@@ -893,5 +911,159 @@ describe("a node card in a run being watched", () => {
       ended_at: "2026-10-19T10:00:01.400Z",
     });
     expect(draw([done], false, false).pill("a")).toHaveTextContent("1.4 s");
+  });
+});
+
+describe("a resizable node card", () => {
+  const card = (container: HTMLElement, id: string) =>
+    container.querySelector(`[data-node-id="${id}"]`) as HTMLElement;
+  const handles = (container: HTMLElement) =>
+    container.querySelectorAll(".react-flow__resize-control");
+  const draw = (nodes: NodeInstance[], selected: string[] = [], readOnly = false) => {
+    seed(nodes);
+    store.getState().setSelection({ nodeIds: selected, edgeIds: [] });
+    return render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} readOnly={readOnly} />)
+      .container;
+  };
+  const sized = (height?: number, width?: number) =>
+    instance("a", "http.request", {
+      config: { url: "https://api.example.com/x" },
+      layout: {
+        x: 0,
+        y: 0,
+        ...(width !== undefined ? { width } : {}),
+        ...(height !== undefined ? { height } : {}),
+      },
+    });
+
+  it("shows handles on the right edge, the bottom edge and the corner of a selected step", () => {
+    const container = draw([sized()], ["a"]);
+
+    const kinds = [...handles(container)].map((handle) =>
+      [...handle.classList].filter((name) => !/^(react-flow__|nodrag)/.test(name)).join(" "),
+    );
+    expect(kinds).toEqual(["right line", "bottom line", "bottom right handle"]);
+  });
+
+  it("shows none on a step that is not selected, nor on a canvas that cannot be edited", () => {
+    expect(handles(draw([sized()], []))).toHaveLength(0);
+    cleanup();
+    expect(handles(draw([sized()], ["a"], true))).toHaveLength(0);
+  });
+
+  it("keeps the default card at the default size, one line each", () => {
+    const container = draw([sized()]);
+
+    expect(card(container, "a").className).toContain("w-60");
+    expect(card(container, "a").className).not.toContain("h-full");
+    expect(screen.getByText("HTTP")).toHaveClass("truncate");
+    expect(screen.getByText("GET api.example.com")).toHaveClass("truncate");
+  });
+
+  it("fills the size it was given, and keeps its ports at the bottom of a taller card", () => {
+    const container = draw([sized(200, 320)]);
+
+    expect(card(container, "a").className).toContain("w-full");
+    expect(card(container, "a").className).toContain("h-full");
+    expect(container.querySelector(".react-flow__node")).toHaveStyle({
+      width: "320px",
+      height: "200px",
+    });
+  });
+
+  it("draws a step whose layout has null sizes exactly as one with none", () => {
+    // The API once sent `width: null, height: null` for every step.
+    const container = draw([
+      instance("a", "http.request", {
+        config: { url: "https://api.example.com/x" },
+        layout: { x: 0, y: 0, width: null, height: null },
+      }),
+    ]);
+
+    expect(card(container, "a").className).toContain("w-60");
+    expect(card(container, "a").className).not.toContain("w-full");
+    expect(card(container, "a").className).not.toContain("h-full");
+    expect(screen.getByText("HTTP")).toHaveClass("truncate");
+    expect(container.querySelector(".react-flow__node")).not.toHaveStyle({ width: "0px" });
+    fireEvent.contextMenu(card(container, "a"));
+    expect(screen.queryByText("Reset size")).not.toBeInTheDocument();
+  });
+
+  describe("its height floor", () => {
+    const floor = (container: HTMLElement) =>
+      container
+        .querySelector("[data-resize-position='bottom']")
+        ?.getAttribute("data-resize-min-height");
+
+    it("is the card's own height once sized: 60 px with no summary line", () => {
+      const plain = instance("a", "data.map", { layout: { x: 0, y: 0, height: 200 } });
+      expect(floor(draw([plain], ["a"]))).toBe("60");
+    });
+
+    it("is 76 px with a summary line", () => {
+      expect(floor(draw([sized(200)], ["a"]))).toBe("76");
+    });
+
+    it("counts a loop's enter row, 45 px under its output rows", () => {
+      // The head and its summary line (76), two labelled outputs (13 + 32 + 2), the 45 px enter row.
+      const loop = instance("a", "control.foreach", { layout: { x: 0, y: 0, height: 300 } });
+      expect(floor(draw([loop], ["a"]))).toBe(String(76 + 47 + 45));
+    });
+
+    it("counts the policy badges, and the row they wrap onto", () => {
+      const badges = instance("a", "data.map", {
+        layout: { x: 0, y: 0, height: 300 },
+        policy: { timeout_seconds: 30, retry: { max_attempts: 3 }, on_error: "route" },
+      } as Partial<NodeInstance>);
+      // Three badges wrap onto two rows; the error port makes the output rows labelled.
+      expect(floor(draw([badges], ["a"]))).toBe(String(60 + 28.5 + 22.5 + 13 + 32 + 2));
+    });
+
+    it("is what xyflow measured while the card is unsized, not the estimate", () => {
+      // jsdom measures nothing, so xyflow hands over the 88 px it started from.
+      const plain = instance("a", "data.map");
+      expect(floor(draw([plain], ["a"]))).toBe("88");
+    });
+  });
+
+  it("grows a sized card for a row it did not count, instead of spilling out of it", () => {
+    const container = draw([sized(200), instance("b", "data.map")]);
+    const button = (label: string) =>
+      container.querySelector(`button[aria-label="${label}"]`) as HTMLElement;
+    fireEvent.click(button("Start a connection from Map port out"));
+
+    expect(button("Complete the connection to HTTP port in")).not.toBeNull();
+    expect(card(container, "a").className).toContain("min-h-full");
+    expect(card(container, "a").className).not.toMatch(/(^|\s)h-full/);
+  });
+
+  it("lets the name wrap onto more lines, then the summary, as the card grows", () => {
+    // A plain card measures 76 px; each extra 20 px is a line for the name.
+    const lines = (height?: number) => {
+      cleanup();
+      draw([sized(height)]);
+      return [
+        screen.getByText("HTTP").className.match(/line-clamp-\d|truncate/)?.[0],
+        screen.getByText("GET api.example.com").className.match(/line-clamp-\d|truncate/)?.[0],
+      ];
+    };
+
+    expect(lines(76)).toEqual(["truncate", "truncate"]);
+    expect(lines(96)).toEqual(["line-clamp-2", "truncate"]);
+    expect(lines(116)).toEqual(["line-clamp-3", "truncate"]);
+    expect(lines(132)).toEqual(["line-clamp-3", "line-clamp-2"]);
+    expect(lines(400)).toEqual(["line-clamp-3", "line-clamp-2"]);
+  });
+
+  it("counts a taller natural height - a waits band - before it gives text more lines", () => {
+    // An Approval with no summary line needs 82 px (60 and a 22 px band): lines start 20 px beyond that.
+    const name = (height: number) => {
+      cleanup();
+      draw([instance("a", "human.approval", { layout: { x: 0, y: 0, height } })]);
+      return screen.getByText("Approval").className;
+    };
+
+    expect(name(101)).toContain("truncate");
+    expect(name(102)).toContain("line-clamp-2");
   });
 });

@@ -84,27 +84,33 @@ function fieldsChanged(
   return fields;
 }
 
-/** How far apart two cards have to be not to cover each other. */
+/** A card's size when nobody resized it, and how far a shifted step moves each time. */
 const CARD_WIDTH = 240;
 const CARD_HEIGHT = 80;
 const SHIFT = 120;
 
+/** Whether two steps' cards, each as large as it was drawn, would cover each other. */
+function covers(a: NodeInstance, b: NodeInstance, y: number): boolean {
+  const aWidth = a.layout.width ?? CARD_WIDTH;
+  const bWidth = b.layout.width ?? CARD_WIDTH;
+  const aHeight = a.layout.height ?? CARD_HEIGHT;
+  const bHeight = b.layout.height ?? CARD_HEIGHT;
+  return (
+    a.layout.x < b.layout.x + bWidth &&
+    b.layout.x < a.layout.x + aWidth &&
+    y < b.layout.y + bHeight &&
+    b.layout.y < y + aHeight
+  );
+}
+
 /**
  * A removed step where it stood, or below it when a step of the draft stands
- * there now - the two would otherwise be drawn one over the other.
+ * there now - the two would otherwise be drawn one over the other. It keeps its size.
  */
 function besideTheDraft(node: NodeInstance, taken: NodeInstance[]): NodeInstance {
-  const { x } = node.layout;
   let { y } = node.layout;
-  while (
-    taken.some(
-      (other) =>
-        Math.abs(other.layout.x - x) < CARD_WIDTH && Math.abs(other.layout.y - y) < CARD_HEIGHT,
-    )
-  ) {
-    y += SHIFT;
-  }
-  return y === node.layout.y ? node : { ...node, layout: { x, y } };
+  while (taken.some((other) => covers(node, other, y))) y += SHIFT;
+  return y === node.layout.y ? node : { ...node, layout: { ...node.layout, y } };
 }
 
 function edgeKey(edge: WorkflowEdge): string {

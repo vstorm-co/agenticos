@@ -111,7 +111,7 @@ export function pasteClipboard(
   const nodes = source.nodes.map((node) => ({
     ...node,
     id: remapNode(node.id),
-    layout: { x: node.layout.x + offset.x, y: node.layout.y + offset.y },
+    layout: { ...node.layout, x: node.layout.x + offset.x, y: node.layout.y + offset.y },
   }));
 
   const edges = source.edges.map((edge) => ({

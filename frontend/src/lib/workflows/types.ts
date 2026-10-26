@@ -162,6 +162,13 @@ export interface Binding {
 export interface NodePosition {
   x: number;
   y: number;
+  /**
+   * The size a person gave a step; absent until it is resized, and then the
+   * default. `null` reads as absent: the API leaves a size out, but a draft
+   * saved by an earlier build may hold one.
+   */
+  width?: number | null;
+  height?: number | null;
 }
 
 /**

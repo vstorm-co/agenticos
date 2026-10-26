@@ -104,6 +104,26 @@ describe("graph-adapter", () => {
     expect(flow[2]?.data.definition).toBeNull();
   });
 
+  it("hands a resized step's size to the node, and the default size to the rest", () => {
+    const graph = graphOf([
+      instance("a", "act", 1),
+      { ...instance("b", "act", 1), layout: { x: 0, y: 0, width: 320, height: 160 } },
+      { ...instance("c", "act", 1), layout: { x: 0, y: 0, width: 300 } },
+    ]);
+    const flow = toFlowNodes(graph, definitionsByNode(graph, buildCatalogMap([ACTION])), false);
+    expect(flow[0]).toMatchObject({ initialWidth: 240, initialHeight: 88 });
+    expect(flow[0]).not.toHaveProperty("width");
+    expect(flow[0]).not.toHaveProperty("height");
+    expect(flow[1]).toMatchObject({
+      width: 320,
+      height: 160,
+      initialWidth: 320,
+      initialHeight: 160,
+    });
+    expect(flow[2]).toMatchObject({ width: 300, initialHeight: 88 });
+    expect(flow[2]).not.toHaveProperty("height");
+  });
+
   it("classifies an edge as error, branch or data", () => {
     expect(edgeVariant(ERROR_PORT_ID, ACTION)).toEqual({ variant: "error", label: null });
     expect(edgeVariant("then", CONTROL)).toEqual({ variant: "branch", label: "Then" });

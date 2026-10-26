@@ -8,7 +8,8 @@ import type {
   WorkflowGraph,
 } from "@/lib/workflows/types";
 
-import { clearOf, NODE_WIDTH, planInsertion, ROW_HEIGHT, withLiveScopes } from "./insertion";
+import { clearOf, planInsertion, withLiveScopes } from "./insertion";
+import { NODE_HEIGHT, NODE_WIDTH } from "./node-size";
 
 const OBJECT = { type: "object", properties: { text: { type: "string" } } };
 
@@ -106,9 +107,9 @@ const RIGHT = NODE_WIDTH + 80;
 
 describe("clearOf", () => {
   it("keeps a free spot, and moves an occupied one down a row until it is free", () => {
-    const taken = [node("a", STEP, 0, 0), node("b", STEP, 0, ROW_HEIGHT + 24)];
+    const taken = [node("a", STEP, 0, 0), node("b", STEP, 0, NODE_HEIGHT + 24)];
     expect(clearOf([], { x: 5, y: 5 })).toEqual({ x: 5, y: 5 });
-    expect(clearOf(taken, { x: 0, y: 0 })).toEqual({ x: 0, y: 2 * (ROW_HEIGHT + 24) });
+    expect(clearOf(taken, { x: 0, y: 0 })).toEqual({ x: 0, y: 2 * (NODE_HEIGHT + 24) });
   });
 
   it("clears the tallest common card: a step is never dropped within reach of an Approval", () => {
@@ -116,15 +117,37 @@ describe("clearOf", () => {
     // two labelled ports (47) taller than the text beside them - about 129 px.
     const APPROVAL = 129;
     const approval = [node("a", STEP, 0, 0)];
-    const placed = clearOf(approval, { x: 0, y: APPROVAL - 1 });
+    const placed = clearOf(approval, { x: 0, y: APPROVAL - 1 }, () => ({
+      width: NODE_WIDTH,
+      height: APPROVAL,
+    }));
     expect(placed.y - APPROVAL).toBeGreaterThan(0);
+  });
+
+  it("clears a resized step by its own width and height, not the default", () => {
+    const wide = { ...node("w", STEP, 0, 0), layout: { x: 0, y: 0, width: 500, height: 200 } };
+    // A column over, but still inside the wide card: pushed under it.
+    expect(clearOf([wide], { x: 400, y: 10 })).toEqual({ x: 400, y: 224 });
+    // Beyond its right edge and the gap there: free.
+    expect(clearOf([wide], { x: 500 + 80, y: 10 })).toEqual({ x: 580, y: 10 });
+    // A taller new card reaches down into a step below it.
+    const below = node("b", STEP, 0, 100);
+    expect(clearOf([below], { x: 0, y: 0 }, undefined, { width: NODE_WIDTH, height: 150 }).y).toBe(
+      100 + NODE_HEIGHT + 24,
+    );
+  });
+
+  it("keeps the vertical gap too: a step is never dropped a few pixels from one below it", () => {
+    // 100 px down is 12 px clear of a default card dropped at 0, inside the 24 px gap.
+    const below = node("b", STEP, 0, 100);
+    expect(clearOf([below], { x: 0, y: 0 })).toEqual({ x: 0, y: 100 + NODE_HEIGHT + 24 });
   });
 
   it("settles anyway once it has looked far enough down", () => {
     const column = Array.from({ length: 60 }, (_, i) =>
-      node(`n${i}`, STEP, 0, i * (ROW_HEIGHT + 24)),
+      node(`n${i}`, STEP, 0, i * (NODE_HEIGHT + 24)),
     );
-    expect(clearOf(column, { x: 0, y: 0 }).y).toBe(40 * (ROW_HEIGHT + 24));
+    expect(clearOf(column, { x: 0, y: 0 }).y).toBe(40 * (NODE_HEIGHT + 24));
   });
 });
 
@@ -154,6 +177,12 @@ describe("planInsertion", () => {
     expect(planned.becomesEntry).toBe(false);
   });
 
+  it("lands beyond the right edge of a step somebody widened", () => {
+    const wide = { ...node("a", STEP), layout: { x: 0, y: 0, width: 500, height: 300 } };
+    const planned = plan(graph([wide]), STEP, { selectedIds: ["a"] });
+    expect(planned.node.layout).toEqual({ x: 500 + 80, y: 0 });
+  });
+
   it("appends to the end of the flow when nothing is selected, or the selection's output is taken", () => {
     const g = graph([node("a", STEP), node("b", STEP, RIGHT, 0)], [edge("a", "out", "b")]);
     expect(plan(g, STEP).edge?.source_node_id).toBe("b");
@@ -166,7 +195,7 @@ describe("planInsertion", () => {
     const planned = plan(g, STEP, { from: { nodeId: "a", portId: "out" } });
     expect(planned.edge).toMatchObject({ source_node_id: "a", source_port: "out" });
     // Clear of `b`, which already sits where it would have gone.
-    expect(planned.node.layout).toEqual({ x: RIGHT, y: ROW_HEIGHT + 24 });
+    expect(planned.node.layout).toEqual({ x: RIGHT, y: 76 + 24 });
   });
 
   it("places a step asked for after a node that is gone after the rightmost one, unwired", () => {
@@ -282,6 +311,12 @@ describe("planInsertion with triggers", () => {
       replaces: "m",
     });
     expect(planWith(g, WEBHOOK, { dropAt: { x: 7, y: 8 } }).node.layout).toEqual({ x: 7, y: 8 });
+  });
+
+  it("does not carry the replaced trigger's size over to the new one", () => {
+    const old = { ...node("m", MANUAL, 40, 60), layout: { x: 40, y: 60, width: 400, height: 200 } };
+    const g = graph([old, node("a", STEP, RIGHT, 0)], [edge("m", "out", "a")]);
+    expect(planWith(g, WEBHOOK).node.layout).toEqual({ x: 40, y: 60 });
   });
 
   it("replaces a trigger that is not the start without making the new one the start", () => {

@@ -8788,6 +8788,7 @@
     "stepIsSwitchedOff": "Wyłączony: pomijany, gdy przebieg do niego dotrze",
     "stepHasNote": "Ma notatkę",
     "menuSwitchOff": "Wyłącz",
+    "menuResetSize": "Przywróć rozmiar",
     "menuSwitchOn": "Włącz",
     "nodeFormMoreOptions": "{count, plural, one {# dodatkowa opcja} few {# dodatkowe opcje} many {# dodatkowych opcji} other {# dodatkowej opcji}}",
     "nodeFormFewerOptions": "Mniej opcji",

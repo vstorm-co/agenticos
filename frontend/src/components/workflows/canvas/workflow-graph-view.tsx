@@ -43,7 +43,8 @@ import {
   toFlowNodes,
   type WorkflowFlowEdge,
 } from "./graph-adapter";
-import { NODE_HEIGHT, NODE_WIDTH, withLiveScopes } from "./insertion";
+import { withLiveScopes } from "./insertion";
+import { NODE_HEIGHT, NODE_WIDTH } from "./node-size";
 import { scopedGraph } from "./scope-view";
 import { useInsertNode } from "./use-insert-node";
 import { useCanvasShortcuts } from "./use-canvas-shortcuts";
@@ -241,8 +242,8 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
     const bounds = region.getBoundingClientRect();
     const topLeft = flowToScreenPosition(node.layout);
     const bottomRight = flowToScreenPosition({
-      x: node.layout.x + NODE_WIDTH,
-      y: node.layout.y + NODE_HEIGHT,
+      x: node.layout.x + (node.layout.width ?? NODE_WIDTH),
+      y: node.layout.y + (node.layout.height ?? NODE_HEIGHT),
     });
     const inView =
       topLeft.x >= bounds.left &&
@@ -415,7 +416,7 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
               const between = graph?.edges.find((edge) => edge.id === splitEdgeId);
               insert(definition, between === undefined ? {} : { between });
             }}
-            onTidy={() => moveNodes(tidyLayout(activeGraph))}
+            onTidy={() => moveNodes(tidyLayout(activeGraph, definitions))}
           />
           <ShortcutSheet />
           <PanePicker

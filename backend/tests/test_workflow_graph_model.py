@@ -128,6 +128,47 @@ def test_a_layout_position_rejects_a_non_finite_coordinate(coordinate):
         NodePosition(x=0.0, y=coordinate)
 
 
+def test_an_old_layout_without_a_size_still_loads_and_dumps_without_one():
+    position = NodePosition.model_validate({"x": 1, "y": 2})
+    assert position.width is None
+    assert position.height is None
+    assert position.model_dump(mode="json") == {"x": 1.0, "y": 2.0}
+
+
+def test_a_sized_layout_dumps_both_sizes():
+    position = NodePosition(x=1, y=2, width=320.0, height=140.0)
+    assert position.model_dump(mode="json") == {
+        "x": 1.0,
+        "y": 2.0,
+        "width": 320.0,
+        "height": 140.0,
+    }
+
+
+def test_a_layout_size_round_trips_through_a_graph():
+    node = _node(layout=NodePosition(x=0, y=0, width=320.0, height=140.0))
+    graph = WorkflowGraph(entry_node_id=node.id, nodes=(node,))
+    restored = WorkflowGraph.model_validate(graph.model_dump(mode="json"))
+    assert restored.nodes[0].layout.width == 320.0
+    assert restored.nodes[0].layout.height == 140.0
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("width", 119.0),
+        ("width", 1201.0),
+        ("height", 39.0),
+        ("height", 1201.0),
+        ("width", float("nan")),
+        ("height", float("inf")),
+    ],
+)
+def test_a_layout_size_outside_its_bounds_is_refused(field, value):
+    with pytest.raises(ValidationError):
+        NodePosition.model_validate({"x": 0, "y": 0, field: value})
+
+
 def test_layout_differences_alone_do_not_change_the_graphs_edges_or_bindings():
     """AC3: layout moves do not alter execution semantics.
 

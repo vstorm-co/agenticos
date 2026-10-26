@@ -193,6 +193,15 @@ grey, the start's rounded end and a neutral band. Switch it with the palette but
 on the canvas toolbar or under **Settings → Profile → Appearance → Workflow steps**;
 it is remembered per browser, like the theme.
 
+Drag the right edge, the bottom edge or the bottom-right corner of a selected step to
+resize it. A card is 200 to 560 px wide and up to 400 px tall, and never shorter than its
+own content needs. More width fits more of the name and the summary; more height lets the
+name wrap onto up to three lines and then the summary onto two, and the ports stay at the
+bottom of the card. The size is saved with the draft, so undo, copy, paste, duplicate,
+published versions and export keep it. **Reset size** in the step's right-click menu puts
+it back to the default, and **Tidy up** spaces the steps around the sizes they have. A
+published version, a run and a comparison show the saved size without handles.
+
 ## Configuring a node { #configuring-a-node }
 
 What each node does, what it is configured with and what its failures mean is in

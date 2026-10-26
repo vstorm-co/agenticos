@@ -4,7 +4,7 @@ import { portSchema, portShapesCompatible, UNKNOWN } from "@/components/workflow
 import { ERROR_PORT, effectiveDefinition } from "@/lib/workflows/ports";
 import type { Binding, NodeDefinition, NodeInstance, WorkflowGraph } from "@/lib/workflows/types";
 
-import { NODE_HEIGHT, NODE_WIDTH } from "./insertion";
+import { NODE_HEIGHT, NODE_WIDTH } from "./node-size";
 
 /**
  * The pure projection between the store's `WorkflowGraph` and the controlled
@@ -113,8 +113,11 @@ export function toFlowNodes(
       position: instance.layout,
       // What the minimap and the first fit go by until the card is measured: a
       // controlled node is handed over without the size xyflow measured for it.
-      initialWidth: NODE_WIDTH,
-      initialHeight: NODE_HEIGHT,
+      initialWidth: instance.layout.width ?? NODE_WIDTH,
+      initialHeight: instance.layout.height ?? NODE_HEIGHT,
+      // A step somebody resized: the size is the node's, so the card fills it.
+      ...(instance.layout.width != null ? { width: instance.layout.width } : {}),
+      ...(instance.layout.height != null ? { height: instance.layout.height } : {}),
       selected: selectedIds.has(instance.id),
       data: { instance, definition, readOnly, bodySize: bodySizes.get(instance.id) ?? 0 },
     };

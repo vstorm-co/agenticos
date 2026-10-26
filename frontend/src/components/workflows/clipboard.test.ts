@@ -212,6 +212,28 @@ describe("pasteClipboard", () => {
     });
   });
 
+  it("keeps the size of a resized step through copy and paste", () => {
+    const sized: NodeInstance = {
+      ...node("a"),
+      layout: { x: 10, y: 20, width: 320, height: 150 },
+    };
+    const graph: WorkflowGraph = {
+      entry_node_id: "a",
+      nodes: [sized],
+      edges: [],
+      bindings: [],
+      scopes: [],
+    };
+    const clip = copySelection(graph, { nodeIds: ["a"], edgeIds: [] })!;
+    expect(clip.nodes[0]?.layout).toEqual({ x: 10, y: 20, width: 320, height: 150 });
+    expect(pasteClipboard(clip, minter(), { x: 40, y: 0 }).clipboard.nodes[0]?.layout).toEqual({
+      x: 50,
+      y: 20,
+      width: 320,
+      height: 150,
+    });
+  });
+
   it("never inspects config, so a new node kind needs no clipboard change", () => {
     // `config` holds a string equal to a copied node id; a config-reading remap
     // would corrupt it. The remap keys only on the binding list, so it is kept.

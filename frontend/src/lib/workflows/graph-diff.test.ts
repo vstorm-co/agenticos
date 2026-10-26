@@ -71,6 +71,31 @@ describe("diffGraphs", () => {
     expect(diffGraphs(before, after).union.nodes[1]).toBe(far);
   });
 
+  it("keeps a removed step's size when it moves out from under a draft step", () => {
+    const sized = {
+      ...node("gone", "debug.echo"),
+      layout: { x: 0, y: 0, width: 300, height: 120 },
+    };
+    const before = graph({ entry: "a", nodes: [node("a", "debug.echo"), sized] });
+    const after = graph({ entry: "a", nodes: [node("a", "debug.echo")] });
+    expect(diffGraphs(before, after).union.nodes[1]?.layout).toEqual({
+      x: 0,
+      y: 120,
+      width: 300,
+      height: 120,
+    });
+  });
+
+  it("judges a removed step against the size of the draft step it would cover", () => {
+    // A draft step resized to 400 px tall still covers a spot 120 px down, which
+    // the default 80 px card would have cleared.
+    const big = { ...node("a", "debug.echo"), layout: { x: 0, y: 0, width: 240, height: 400 } };
+    const gone = { ...node("gone", "debug.echo"), layout: { x: 0, y: 100 } };
+    const before = graph({ entry: "a", nodes: [node("a", "debug.echo"), gone] });
+    const after = graph({ entry: "a", nodes: [big] });
+    expect(diffGraphs(before, after).union.nodes[1]?.layout).toEqual({ x: 0, y: 460 });
+  });
+
   it("finds nothing between a graph and itself moved about", () => {
     const before = graph({ entry: "a", nodes: [node("a", "debug.echo", { list: [1, null] })] });
     const after = graph({

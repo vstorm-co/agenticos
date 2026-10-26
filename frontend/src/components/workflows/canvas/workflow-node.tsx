@@ -1,6 +1,12 @@
 "use client";
 
-import { Handle, type NodeProps, Position } from "@xyflow/react";
+import {
+  Handle,
+  NodeResizeControl,
+  type NodeProps,
+  Position,
+  ResizeControlVariant,
+} from "@xyflow/react";
 import { CanvasNoteCard } from "./canvas-note";
 import {
   ArrowUpRight,
@@ -31,6 +37,13 @@ import { RunPill } from "./run-pill";
 import { isErrorPort, type WorkflowFlowNode } from "./graph-adapter";
 import { ProblemBadge } from "./problem-badge";
 import { QuickAdd } from "./quick-add";
+import {
+  cardHeight,
+  MAX_NODE_HEIGHT,
+  MAX_NODE_WIDTH,
+  MIN_NODE_WIDTH,
+  textLines,
+} from "./node-size";
 import { waitsBand } from "./waits-band";
 import { type ConditionOp, parseCondition, takesNoValue } from "@/lib/workflows/conditions";
 
@@ -233,6 +246,10 @@ const RUN_CARD: Record<NodeRunState, string> = {
   notReached: "opacity-50",
 };
 
+/** How a card's name and summary are cut once they pass the lines the card gives them. */
+const NAME_LINES = { 1: "truncate", 2: "line-clamp-2 break-words", 3: "line-clamp-3 break-words" };
+const SUMMARY_LINES = { 1: "truncate", 2: "line-clamp-2 break-words" };
+
 /**
  * One workflow node on the canvas - the single component every catalog `kind`
  * bucket renders through (`nodeTypes` maps all three to it).
@@ -251,7 +268,7 @@ const RUN_CARD: Record<NodeRunState, string> = {
  * every input completes a keyboard connection through a labelled button, one per
  * port, shown on hover and focus so the card stays quiet otherwise.
  */
-export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
+export function WorkflowNode({ data, selected, height }: NodeProps<WorkflowFlowNode>) {
   const t = useTranslations("workflows");
   const { instance, definition, readOnly, bodySize } = data;
   const {
@@ -282,7 +299,21 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
   const outputs: Port[] = definition?.ports.filter((port) => port.kind === "output") ?? [];
   const connecting = connectSource !== null;
   const summary = nodeSummary(instance, t);
+  // Sized by a person: the card then fills the box xyflow gives the node, and the
+  // height above what the card needs goes to its text.
+  const { width: sizedWidth, height: sizedHeight } = instance.layout;
   const pin = resourcePin(instance);
+  const natural = cardHeight(
+    instance,
+    definition,
+    graph?.bindings ?? [],
+    summary !== null || pin !== null,
+  );
+  const lines = textLines(sizedHeight, natural);
+  const resizable = selected && !readOnly;
+  // Until it is sized the card is what xyflow measured, to the pixel, wrapped
+  // badges and all; once sized, `height` is the box, so the floor is the estimate.
+  const floor = sizedHeight == null && height ? height : natural;
   const tile = (
     <NodeTile
       definitionId={instance.definition_id}
@@ -356,7 +387,11 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
       data-node-kind={kind}
       data-node-family={family}
       className={cn(
-        "group bg-card text-card-foreground relative w-60 rounded-xl border shadow-sm transition-shadow",
+        "group bg-card text-card-foreground relative rounded-xl border shadow-sm transition-shadow",
+        sizedWidth == null ? "w-60" : "w-full",
+        // Taller than it needs: the ports sit at the bottom, the text at the top. A row
+        // the estimate misses (Connect to, run counts) grows the card, never spills out.
+        sizedHeight != null && "flex min-h-full flex-col",
         // A run starts here: the card's left end is rounded like a start cap, in either style.
         family === "start" && "rounded-l-[2rem]",
         selected ? "ring-primary/60 border-primary/40 ring-2" : "hover:shadow-md",
@@ -374,6 +409,41 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
         change === "changed" && "border-[var(--domain-use)] ring-2 ring-[var(--domain-use-line)]",
       )}
     >
+      {resizable && (
+        // First, so the handles painted after it stay on top of its edges.
+        <>
+          <NodeResizeControl
+            position="right"
+            variant={ResizeControlVariant.Line}
+            resizeDirection="horizontal"
+            minWidth={MIN_NODE_WIDTH}
+            maxWidth={MAX_NODE_WIDTH}
+            // The edges drag but draw nothing: the corner square is the one visible
+            // handle, and the resize cursor says an edge can be pulled too.
+            color="transparent"
+            // Wide to grab, on the card's own edge: xyflow centres the box on it.
+            style={{ width: 8, transform: "translate(calc(-100% + 0.5px), 0)" }}
+          />
+          <NodeResizeControl
+            position="bottom"
+            variant={ResizeControlVariant.Line}
+            resizeDirection="vertical"
+            minHeight={floor}
+            maxHeight={Math.max(MAX_NODE_HEIGHT, floor)}
+            color="transparent"
+            style={{ height: 8, transform: "translate(0, calc(-100% + 0.5px))" }}
+          />
+          <NodeResizeControl
+            position="bottom-right"
+            minWidth={MIN_NODE_WIDTH}
+            maxWidth={MAX_NODE_WIDTH}
+            minHeight={floor}
+            maxHeight={Math.max(MAX_NODE_HEIGHT, floor)}
+            color="var(--color-primary)"
+            style={{ width: 9, height: 9 }}
+          />
+        </>
+      )}
       {inputs.map((port) => (
         <Handle
           key={port.id}
@@ -424,7 +494,9 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
             {cardLabel}
           </p>
           <div className="flex items-baseline justify-between gap-2">
-            <span className="truncate text-sm leading-5 font-medium">{name}</span>
+            <span className={cn("text-sm leading-5 font-medium", NAME_LINES[lines.name])}>
+              {name}
+            </span>
             <span className="flex shrink-0 items-center gap-1">
               {instance.disabled && (
                 <span
@@ -481,7 +553,8 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
             <p
               title={definition?.description}
               className={cn(
-                "text-muted-foreground truncate text-xs",
+                "text-muted-foreground text-xs",
+                SUMMARY_LINES[lines.summary],
                 summary !== null && summaryIsCode(instance) && "font-mono",
               )}
             >
@@ -548,7 +621,7 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
         )}
 
       {labelledOutputs ? (
-        <ul className="border-border space-y-0.5 border-t py-1.5">
+        <ul className="border-border mt-auto space-y-0.5 border-t py-1.5">
           {outputs.map((port) => (
             <li
               key={port.id}

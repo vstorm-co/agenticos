@@ -245,6 +245,8 @@ export interface WorkflowEditorState {
   toggleMinimap: () => void;
   /** Move steps to new places at once - one undoable edit. */
   moveNodes: (layouts: ReadonlyMap<Uuid, NodePosition>) => void;
+  /** Give a step a size - or `null` to put it back to the default - as one undoable edit. */
+  resizeNode: (nodeId: Uuid, size: { width: number; height: number } | null) => void;
   /** A run or a publish was tried: say every problem from now on. */
   revealProblems: () => void;
   /** Follow a test run's steps into `stepData`; `testing` names the step a step test is for. */
@@ -417,9 +419,14 @@ function foldSelection(ids: string[], changes: ReadonlyArray<NodeChange | EdgeCh
   return next.size === ids.length && ids.every((id) => next.has(id)) ? ids : [...next];
 }
 
-/** A stable signature over node identity and layout, to tell a real edit from a re-select. */
+/** A stable signature over node identity, place and size, to tell a real edit from a re-select. */
 function nodesSignature(nodes: NodeInstance[]): string {
-  return nodes.map((node) => `${node.id}:${node.layout.x}:${node.layout.y}`).join("|");
+  return nodes
+    .map(
+      (node) =>
+        `${node.id}:${node.layout.x}:${node.layout.y}:${node.layout.width ?? ""}:${node.layout.height ?? ""}`,
+    )
+    .join("|");
 }
 
 export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) => {
@@ -488,15 +495,34 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
       const flowNodes: FlowNode[] = graph.nodes.map((node) => ({
         id: node.id,
         position: node.layout,
+        // The size rides along so a resize is applied to it, never invented.
+        ...(node.layout.width != null ? { width: node.layout.width } : {}),
+        ...(node.layout.height != null ? { height: node.layout.height } : {}),
         data: {},
       }));
+      const resized = new Set(
+        stepChanges.flatMap((change) =>
+          change.type === "dimensions" && change.resizing ? [change.id] : [],
+        ),
+      );
       const applied = rfApplyNodeChanges(stepChanges, flowNodes);
       const byId = new Map(graph.nodes.map((node) => [node.id, node] as const));
       const nodes: NodeInstance[] = [];
       for (const flow of applied) {
         const instance = byId.get(flow.id);
         if (instance === undefined) continue;
-        nodes.push({ ...instance, layout: { x: flow.position.x, y: flow.position.y } });
+        // A size is taken only from a drag of a resize handle: xyflow also reports
+        // a card's measured size, which is the layout's business only once a person chose it.
+        const size = resized.has(flow.id)
+          ? {
+              ...(flow.width !== undefined ? { width: flow.width } : {}),
+              ...(flow.height !== undefined ? { height: flow.height } : {}),
+            }
+          : {};
+        nodes.push({
+          ...instance,
+          layout: { ...instance.layout, x: flow.position.x, y: flow.position.y, ...size },
+        });
       }
       const nodesChanged = nodesSignature(nodes) !== nodesSignature(graph.nodes);
       if (!nodesChanged && notes === graph.notes) return;
@@ -667,7 +693,21 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
       if (graph === null) return;
       const nodes = graph.nodes.map((node) => {
         const layout = layouts.get(node.id);
-        return layout === undefined ? node : { ...node, layout };
+        // Only the place moves: a step keeps the size it was given.
+        return layout === undefined
+          ? node
+          : { ...node, layout: { ...node.layout, x: layout.x, y: layout.y } };
+      });
+      commit({ ...graph, nodes });
+    },
+
+    resizeNode: (nodeId, size) => {
+      const { graph } = get();
+      if (graph === null) return;
+      const nodes = graph.nodes.map((node) => {
+        if (node.id !== nodeId) return node;
+        const { x, y } = node.layout;
+        return { ...node, layout: size === null ? { x, y } : { x, y, ...size } };
       });
       commit({ ...graph, nodes });
     },

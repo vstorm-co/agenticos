@@ -8251,6 +8251,7 @@
     "stepIsSwitchedOff": "Switched off: skipped when the run reaches it",
     "stepHasNote": "Has a note",
     "menuSwitchOff": "Switch off",
+    "menuResetSize": "Reset size",
     "menuSwitchOn": "Switch on",
     "nodeFormMoreOptions": "{count, plural, one {# more option} other {# more options}}",
     "nodeFormFewerOptions": "Fewer options",

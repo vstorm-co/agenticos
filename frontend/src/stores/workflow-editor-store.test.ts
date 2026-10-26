@@ -1058,6 +1058,80 @@ describe("arranging the canvas", () => {
     ]);
   });
 
+  it("keeps a step's size when it moves, and a size from the resize handle only", () => {
+    const state = useWorkflowEditorStore.getState;
+    state().seedGraph(seededGraph());
+    state().resizeNode("b", { width: 300, height: 150 });
+    const sized = { x: 100, y: 0, width: 300, height: 150 };
+    expect(state().graph?.nodes[1]?.layout).toEqual(sized);
+
+    // Moving it by a drag, or by Tidy, leaves the size alone.
+    state().applyNodeChanges([{ type: "position", id: "b", position: { x: 5, y: 6 } }]);
+    expect(state().graph?.nodes[1]?.layout).toEqual({ ...sized, x: 5, y: 6 });
+    state().moveNodes(new Map([["b", { x: 9, y: 9 }]]));
+    expect(state().graph?.nodes[1]?.layout).toEqual({ ...sized, x: 9, y: 9 });
+
+    // xyflow reports a card's measured size all the time; only a resize drag is a choice.
+    const before = state().graph;
+    state().applyNodeChanges([
+      { type: "dimensions", id: "a", dimensions: { width: 1, height: 1 } },
+    ]);
+    state().applyNodeChanges([
+      { type: "dimensions", id: "a", dimensions: { width: 1, height: 1 }, setAttributes: true },
+    ]);
+    expect(state().graph).toBe(before);
+  });
+
+  it("takes a size from a resize drag, one direction at a time", () => {
+    const state = useWorkflowEditorStore.getState;
+    state().seedGraph(seededGraph());
+    state().applyNodeChanges([
+      {
+        type: "dimensions",
+        id: "a",
+        dimensions: { width: 320, height: 76 },
+        resizing: true,
+        setAttributes: "width",
+      },
+    ]);
+    expect(state().graph?.nodes[0]?.layout).toEqual({ x: 0, y: 0, width: 320 });
+    state().applyNodeChanges([
+      {
+        type: "dimensions",
+        id: "a",
+        dimensions: { width: 320, height: 160 },
+        resizing: true,
+        setAttributes: "height",
+      },
+    ]);
+    expect(state().graph?.nodes[0]?.layout).toEqual({ x: 0, y: 0, width: 320, height: 160 });
+    // The end of the drag carries no size and changes nothing.
+    const before = state().graph;
+    state().applyNodeChanges([{ type: "dimensions", id: "a", resizing: false }]);
+    expect(state().graph).toBe(before);
+  });
+
+  it("resizes a step as one undoable edit, and resets it", () => {
+    const state = useWorkflowEditorStore.getState;
+    state().resizeNode("a", { width: 300, height: 150 });
+    expect(state().graph).toBeNull();
+
+    state().seedGraph(seededGraph());
+    state().resizeNode("a", { width: 300, height: 150 });
+    expect(state().graph?.nodes[0]?.layout).toEqual({ x: 0, y: 0, width: 300, height: 150 });
+    expect(state().graph?.nodes[1]?.layout).toEqual({ x: 100, y: 0 });
+    expect(state().isDirty).toBe(true);
+
+    state().undo();
+    expect(state().graph?.nodes[0]?.layout).toEqual({ x: 0, y: 0 });
+    state().redo();
+    expect(state().graph?.nodes[0]?.layout).toEqual({ x: 0, y: 0, width: 300, height: 150 });
+
+    state().resizeNode("a", null);
+    expect(state().graph?.nodes[0]?.layout).toEqual({ x: 0, y: 0 });
+    expect(Object.keys(state().graph?.nodes[0]?.layout ?? {})).toEqual(["x", "y"]);
+  });
+
   it("keeps the connection a step is for while the picker stays open", () => {
     const state = useWorkflowEditorStore.getState;
     state().beginSplit("e1");

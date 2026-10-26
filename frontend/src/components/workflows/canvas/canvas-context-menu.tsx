@@ -1,6 +1,6 @@
 "use client";
 
-import { CirclePause, CirclePlay, Copy, Settings2, Trash2 } from "lucide-react";
+import { CirclePause, CirclePlay, Copy, RotateCcw, Settings2, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -15,9 +15,9 @@ import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 import { copyToClipboard, pasteFromClipboard } from "./use-canvas-shortcuts";
 
 /**
- * A step's right-click menu: open it, duplicate it, switch it off or on, delete
- * it. A right click on the empty canvas opens the step picker instead
- * (`PanePicker`).
+ * A step's right-click menu: open it, duplicate it, switch it off or on, put it
+ * back to its default size, delete it. A right click on the empty canvas opens
+ * the step picker instead (`PanePicker`).
  */
 export function CanvasContextMenu({
   nodeId,
@@ -30,6 +30,7 @@ export function CanvasContextMenu({
   const t = useTranslations("workflows");
   const editNode = useWorkflowEditorStore((state) => state.editNode);
   const applyNodeChanges = useWorkflowEditorStore((state) => state.applyNodeChanges);
+  const resizeNode = useWorkflowEditorStore((state) => state.resizeNode);
   const updateNodeDetails = useWorkflowEditorStore((state) => state.updateNodeDetails);
   const graph = useWorkflowEditorStore((state) => state.graph);
   const store = useWorkflowEditorStore.getState;
@@ -40,6 +41,7 @@ export function CanvasContextMenu({
   // The trigger and a step that decides the way cannot be skipped.
   const switchable =
     node !== undefined && node.id !== graph?.entry_node_id && definition?.kind !== "control";
+  const sized = node !== undefined && (node.layout.width != null || node.layout.height != null);
   return (
     <ContextMenuContent className="w-56">
       <ContextMenuItem onSelect={() => editNode(nodeId)}>
@@ -60,6 +62,12 @@ export function CanvasContextMenu({
         <ContextMenuItem onSelect={() => updateNodeDetails(node.id, { disabled: !node.disabled })}>
           {node.disabled ? <CirclePlay /> : <CirclePause />}
           {node.disabled ? t("menuSwitchOn") : t("menuSwitchOff")}
+        </ContextMenuItem>
+      )}
+      {sized && (
+        <ContextMenuItem onSelect={() => resizeNode(nodeId, null)}>
+          <RotateCcw />
+          {t("menuResetSize")}
         </ContextMenuItem>
       )}
       <ContextMenuSeparator />

@@ -1,5 +1,5 @@
 ---
-source_sha: "127345b7e025"
+source_sha: "4ff10ed3b024"
 ---
 
 # Workflows { #workflows }
@@ -210,6 +210,17 @@ etiqueta en gris, el extremo redondeado del inicio y una banda neutra. Se cambia
 botón de paleta de la barra de herramientas del lienzo o en **Settings →
 Profile → Appearance → Workflow steps**; se recuerda por
 navegador, como el tema.
+
+Arrastra el borde derecho, el borde inferior o la esquina inferior derecha de un paso
+seleccionado para cambiar su tamaño. Una tarjeta mide de 200 a 560 px de ancho y hasta
+400 px de alto, y nunca es más baja de lo que necesita su contenido. Más ancho da cabida a
+más del nombre y del resumen; más alto deja que el nombre se divida hasta en tres líneas
+y después el resumen en dos, y los puertos se quedan en la parte inferior de la tarjeta.
+El tamaño se guarda con el borrador, así que deshacer, copiar, pegar, duplicar, las
+versiones publicadas y la exportación lo conservan. **Reset size** en el menú
+contextual del paso lo devuelve al tamaño predeterminado, y **Tidy up** coloca los pasos
+alrededor de los tamaños que tienen. Una versión publicada, una ejecución y una
+comparación muestran el tamaño guardado sin controles.
 
 ## Configurar un nodo { #configuring-a-node }
 

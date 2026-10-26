@@ -1,5 +1,5 @@
 ---
-source_sha: "127345b7e025"
+source_sha: "4ff10ed3b024"
 ---
 
 # Workflows { #workflows }
@@ -114,7 +114,7 @@ robi, albo po grupie. Krok dodajesz na cztery sposoby:
   start i staje się nim.
 - **+** przy wyjściu kroku otwiera wybór kroku, który idzie po tym wyjściu.
 - **Prawy przycisk** na kanwie: ten sam wybór kroków otwiera się tam, gdzie kliknąłeś,
-  i tam trafia krok. Pod nim **Add a note** oraz, gdy coś skopiowano, **Paste**.
+  i tam trafia krok. Pod nim **Dodaj notatkę** (Add a note) oraz, gdy coś skopiowano, **Wklej** (Paste).
 - **Przeciągnij** krok z wyboru, żeby położyć go tam, gdzie go upuścisz, bez połączeń.
 
 Nowy krok nigdy nie ląduje na innym, zostaje zaznaczony, otwiera swoje ustawienia,
@@ -141,7 +141,7 @@ trwa, w obu trybach i tak się kończy.
 
 ### Notatki, porządkowanie i skróty { #notes-tidying-and-shortcuts }
 
-**Add a note** pod wyborem kroków otwieranym prawym przyciskiem stawia notatkę obok kroków: markdown,
+**Dodaj notatkę** (Add a note) pod wyborem kroków otwieranym prawym przyciskiem stawia notatkę obok kroków: markdown,
 pisany po dwukrotnym kliknięciu lub ołówkiem, przesuwany przeciąganiem i zmieniający
 rozmiar od rogów; gdy jest zaznaczona, jej przycisk palety rozwija próbki kolorów -
 szary, żółty, zielony, niebieski, fioletowy albo czerwony - żeby ostrzeżenie
@@ -149,7 +149,7 @@ odróżniało się od zadania.
 Notatka jest zapisana w grafie, więc wersje, przywrócenia i kopie
 workflow ją zachowują, ale nic jej nie uruchamia ani nie sprawdza. Zaznaczone połączenie
 pokazuje **+**, które wstawia następny wybrany krok w jego środek, połączony z obu stron,
-gdzie porty pasują. **Tidy up** na pasku narzędzi układa widoczne kroki od lewej do prawej
+gdzie porty pasują. **Uporządkuj** (Tidy up) na pasku narzędzi układa widoczne kroki od lewej do prawej
 jako jedną edycję do cofnięcia, przycisk mapy pokazuje minimapę, przycisk palety przełącza kroki między kolorem a trybem Prosty (patrz [Jak rysowany jest krok](#how-a-step-is-drawn)), a przycisk klawiatury -
 albo **?** - wypisuje wszystkie skróty; **Tab** otwiera wybór kroku. Żaden nie działa,
 gdy piszesz w polu.
@@ -164,10 +164,10 @@ leży na kafelku w barwie rodziny kroku, czyli tych samych sekcji, które ma wyb
 |---|---|
 | **Start** | W kolorze tekstu - ciemny w jasnym motywie, jasny w ciemnym - i okrągły, na karcie z zaokrąglonym lewym końcem |
 | **AI** | Pełny fiolet |
-| **Przepływ** | Szary |
-| **Dane** | Morski (teal) |
-| **Aplikacje** | Biały z niebieskim obrysem, żeby znak marki leżał na nim bez zmian |
-| **Błąd** | Czerwony |
+| **Przepływ** (Flow) | Szary |
+| **Dane** (Data) | Morski (teal) |
+| **Aplikacje** (Apps) | Biały z niebieskim obrysem, żeby znak marki leżał na nim bez zmian |
+| **Błąd** (Error) | Czerwony |
 
 Rodziny różnią się jasnością i kształtem, nie tylko kolorem, więc rozróżni je też osoba
 z zaburzeniami widzenia barw i da się je poznać na kanwie oddalonej tak, że nic nie da
@@ -200,6 +200,16 @@ etykietę, zaokrąglony koniec startu i neutralny pasek. Przełączysz go przyci
 palety na pasku narzędzi kanwy albo w **Ustawienia → Profil → Wygląd (Settings →
 Profile → Appearance) → Kroki workflow**; jest zapamiętywany dla każdej przeglądarki,
 jak motyw.
+
+Przeciągnij prawą krawędź, dolną krawędź lub prawy dolny róg zaznaczonego kroku, aby
+zmienić jego rozmiar. Karta ma od 200 do 560 px szerokości i do 400 px wysokości, i nigdy
+nie jest niższa, niż wymaga jej zawartość. Większa szerokość mieści więcej nazwy i
+podsumowania; większa wysokość pozwala zawinąć nazwę do trzech wierszy, a potem
+podsumowanie do dwóch, a porty zostają na dole karty. Rozmiar jest zapisywany razem z
+wersją roboczą, więc cofanie, kopiowanie, wklejanie, duplikowanie, opublikowane wersje i
+eksport go zachowują. **Przywróć rozmiar** (Reset size) w menu kontekstowym kroku przywraca domyślny
+rozmiar, a **Uporządkuj** (Tidy up) rozmieszcza kroki wokół ich rozmiarów. Opublikowana wersja, run
+i porównanie pokazują zapisany rozmiar bez uchwytów.
 
 ## Konfigurowanie węzła { #configuring-a-node }
 
