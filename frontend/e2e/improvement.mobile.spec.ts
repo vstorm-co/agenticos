@@ -1,6 +1,6 @@
 import type { APIRequestContext, Page, TestInfo } from "@playwright/test";
 import { expect, test } from "./fixtures";
-import { AUTH_STATE } from "./helpers";
+import { AUTH_STATE, walkPageTour } from "./helpers";
 
 test.use({ storageState: AUTH_STATE });
 
@@ -323,11 +323,13 @@ test("a first improvement offers the automatic check, and ticking it creates the
     .toBe("ready");
   await page.goto(`/agents/${id(agent)}/improve/${id(session)}`);
   const wizard = page.url();
-  await page.getByRole("button", { name: "Show tips for this page" }).click();
-  await expect(page.locator(".driver-popover-title")).toHaveText("Test questions");
+  const stops = await walkPageTour(page);
+  expect(stops[0]).toBe("Test questions");
+  expect(stops).toEqual(expect.arrayContaining(["Today", "Result"]));
   expect(page.url()).toBe(wizard);
-  await page.locator(".driver-popover-close-btn").click();
   await expect(page.getByText("Something went wrong")).toHaveCount(0);
+  // The walk leaves the wizard on its last stop, under the guided run it offers.
+  await page.goto(wizard);
   await page.getByRole("button", { name: "Accept", exact: true }).click();
   await expect(page.getByLabel(/^Check these questions automatically/)).toBeChecked();
   await page.getByLabel("I have reviewed the selected changes and want to apply them.").check();
