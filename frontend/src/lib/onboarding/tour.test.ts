@@ -309,6 +309,15 @@ describe("stepsForPage", () => {
     );
   });
 
+  it("opens the organization tab before looking for its tour target", () => {
+    const steps = stepsForPage("/orgs/some-id/members", () => true);
+    for (const section of ["profile", "voice", "assistant", "members"]) {
+      expect(steps.find((step) => step.id === `org-${section}`)?.activate).toBe(
+        `org-tab-${section}`,
+      );
+    }
+  });
+
   it("skips the Voice stop for somebody who may not change organization settings", () => {
     // The card is hidden from them, and an ungated step would wait on it.
     expect(

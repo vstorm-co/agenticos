@@ -5300,7 +5300,12 @@
       "workspaceProfile": "Organization profile",
       "workspaces": "Organizations",
       "you": "(you)",
-      "yourRoleHere": "Your role here is <badge>{role}</badge>"
+      "yourRoleHere": "Your role here is <badge>{role}</badge>",
+      "tabProfile": "Profile",
+      "tabGovernance": "Budget and approvals",
+      "tabProactivity": "Proactivity",
+      "tabVoice": "Voice",
+      "tabAssistant": "AI Architect"
     },
     "rag": {
       "active": "Active",

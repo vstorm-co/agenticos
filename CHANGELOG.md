@@ -19,6 +19,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Organize organization settings into permission-aware tabs, with shareable
+  tab URLs and form drafts preserved when switching sections.
+
 ## [1.19.0] - 2026-10-26
 
 ### Changed

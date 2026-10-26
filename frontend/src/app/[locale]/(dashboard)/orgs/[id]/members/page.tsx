@@ -44,9 +44,14 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
   type Column,
 } from "@/components/ui";
 import {
+  useUrlState,
   useAssignableRoles,
   useAuth,
   useInvitations,
@@ -60,6 +65,8 @@ import type { OrganizationMember, OrgRole } from "@/types";
 import { avatarInitials, avatarPalette } from "@/lib/avatar-color";
 import { cn, formatDate, MAX_AVATAR_SIZE_BYTES } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants";
+import { useOrgStore } from "@/stores";
+import { useAssistant } from "@/hooks/use-assistant";
 import { useChanged } from "@/hooks/use-changed";
 
 interface PageProps {
@@ -109,6 +116,26 @@ export default function OrgMembersPage({ params }: PageProps) {
   // so adding a role that may manage members needs no change here.
   const canManage = can(Perm.membersManage);
   const canSettings = can(Perm.orgSettings);
+  const { assistant } = useAssistant();
+  const activeOrgId = useOrgStore((state) => state.activeOrgId);
+  const [tabParam, setTabParam] = useUrlState("tab");
+  const sections = [
+    { id: "members", label: "members", visible: true },
+    { id: "profile", label: "tabProfile", visible: true },
+    {
+      id: "governance",
+      label: "tabGovernance",
+      visible: can(Perm.budgetsManage) || can(Perm.approvalsDecide),
+    },
+    { id: "proactivity", label: "tabProactivity", visible: can(Perm.budgetsManage) || canSettings },
+    { id: "voice", label: "tabVoice", visible: canSettings },
+    {
+      id: "assistant",
+      label: "tabAssistant",
+      visible: activeOrgId === id && !!assistant?.can_configure && !!assistant.agent_id,
+    },
+  ].filter((section) => section.visible);
+  const tab = sections.find((section) => section.id === tabParam)?.id ?? "members";
   const pendingInvitations = invitations.filter((i) => i.status === "pending");
 
   // Workspace profile state - name edits stay local until "Save" lands the
@@ -369,225 +396,267 @@ export default function OrgMembersPage({ params }: PageProps) {
         }
       />
 
-      {org && (
-        <section
-          data-tour="org-profile"
-          className="border-border bg-card flex flex-wrap items-start gap-5 rounded-xl border p-5 sm:p-6"
+      <Tabs value={tab} onValueChange={(next) => setTabParam(next === "members" ? null : next)}>
+        <TabsList data-tour="org-tabs">
+          {sections.map((section) => (
+            <TabsTrigger key={section.id} value={section.id} data-tour={`org-tab-${section.id}`}>
+              {t(section.label)}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        {/* Keep drafts mounted while another section is open. Hidden panels take
+            no layout space and cannot receive keyboard focus. */}
+        <TabsContent
+          value="members"
+          hidden={tab !== "members"}
+          forceMount
+          className="space-y-6 data-[state=inactive]:hidden"
         >
-          <button
-            type="button"
-            onClick={() => avatarInputRef.current?.click()}
-            disabled={!canManage || avatarUploading}
-            className={cn(
-              "group relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl disabled:cursor-default",
-              org.avatar_url
-                ? "bg-muted text-foreground"
-                : avatarPalette(org.id, org.avatar_color).bg,
-            )}
-            title={canManage ? t("changeWorkspaceAvatar") : t("onlyOwnersAdminsCan")}
-          >
-            {org.avatar_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={`/api/orgs/${org.id}/avatar?v=${org.updated_at ?? ""}`}
-                alt=""
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <span
-                className={cn(
-                  avatarPalette(org.id, org.avatar_color).fg,
-                  "text-base font-semibold",
-                )}
-              >
-                {avatarInitials(org.name)}
-              </span>
-            )}
-            {canManage && (
-              <span className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition-opacity group-hover:opacity-100">
-                {avatarUploading ? (
-                  <Loader2 className="h-5 w-5 animate-spin text-white" />
-                ) : (
-                  <Camera className="h-5 w-5 text-white" />
-                )}
-              </span>
-            )}
-          </button>
-          <input
-            ref={avatarInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif"
-            className="hidden"
-            onChange={handleAvatarUpload}
-          />
-
-          <div className="min-w-0 flex-1 space-y-3">
-            <div>
-              <p className="text-muted-foreground font-mono text-xs tracking-wider uppercase">
-                {t("workspaceProfile")}
-              </p>
-              <p className="text-muted-foreground mt-0.5 text-xs">{t("nameAvatarShownAcross")}</p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <Input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                disabled={!canManage || savingName}
-                className="min-w-0 flex-1"
-                placeholder={t("workspaceName")}
-                maxLength={255}
-              />
-              {canManage && name.trim() !== org.name && name.trim() !== "" && (
-                <Button onClick={handleSaveName} disabled={savingName}>
-                  {savingName ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
-                </Button>
-              )}
-            </div>
-            {!canManage && (
-              <p className="text-muted-foreground text-xs">{t("onlyOwnersAdminsCan")}</p>
-            )}
-            {canManage && (
-              <div>
-                <p className="text-muted-foreground mb-2 text-xs">{t("avatarColour")}</p>
-                <AvatarColorPicker value={org.avatar_color} onChange={handleColorChange} />
-              </div>
-            )}
-          </div>
-        </section>
-      )}
-
-      {/* The workspace's own spending ceiling sits with its other settings. It
-          hides itself from anyone who may not change them. */}
-      {org && <OrgSpendingLimit org={org} />}
-      {org && <OrgProactivity org={org} />}
-
-      {/* And whether a chat session here may waive them. Governance, like the
-          ceiling above it, and hidden from anybody who may not decide an
-          approval in the first place. */}
-      {org && <OrgApprovalWaiver org={org} />}
-
-      {/* How people here talk to agents: dictation now, voice conversations next.
-          Hidden from anybody who may not change organization settings. */}
-      {org && <OrgVoiceSettings org={org} />}
-      {/* Whether the organization has its AI Architect, and how it greets people.
-          The agent itself is edited in the Builder, which the card links to. */}
-      <OrgAssistant orgId={id} />
-
-      {/* The table draws its own skeleton from the same column definitions, so
+          {/* The table draws its own skeleton from the same column definitions, so
           the header and every column width are already right while it loads -
           a stand-in list could only approximate them. The shared list card
           keeps the page's shape whether it is empty, loading or full. */}
-      <ListCard
-        data-tour="org-members"
-        title={t("membersCard")}
-        counted={
-          isLoading || permissionsLoading || error
-            ? null
-            : t("memberCount", { count: members.length })
-        }
-        contentClassName="p-0"
-      >
-        {rolesError && !error && (
-          <p className="text-destructive px-5 pt-4 text-sm">{t("rolesUnavailable")}</p>
-        )}
-        {error ? (
-          // Every organization has at least its owner, so "no members yet"
-          // over a failed read is a sentence that cannot be true (#32).
-          <ErrorState description={getErrorMessage(error, tErrors)} className="m-5" />
-        ) : !isLoading && !permissionsLoading && members.length === 0 ? (
-          <ListCardEmpty
-            icon={Users}
-            title={t("noMembersYet")}
-            description={t("inviteTeammatesByEmail")}
-            cta={
-              canManage
-                ? { label: t("inviteTeammate"), onClick: () => setInviteOpen(true) }
-                : undefined
+          <ListCard
+            data-tour="org-members"
+            title={t("membersCard")}
+            counted={
+              isLoading || permissionsLoading || error
+                ? null
+                : t("memberCount", { count: members.length })
             }
-          />
-        ) : (
-          <DataTable<OrganizationMember>
-            columns={columns}
-            rows={members}
-            // Wait on the permission answer too, or the row-action column - built
-            // from `canManage` - draws without its actions and then flickers them
-            // in a beat later once `can()` resolves (safe direction, but a glitch).
-            loading={isLoading || permissionsLoading}
-            skeletonRows={4}
-            getRowKey={(m) => m.id}
-            empty={t("noMembersYet")}
-            className="rounded-none border-0 bg-transparent"
-          />
-        )}
-      </ListCard>
+            contentClassName="p-0"
+          >
+            {rolesError && !error && (
+              <p className="text-destructive px-5 pt-4 text-sm">{t("rolesUnavailable")}</p>
+            )}
+            {error ? (
+              // Every organization has at least its owner, so "no members yet"
+              // over a failed read is a sentence that cannot be true (#32).
+              <ErrorState description={getErrorMessage(error, tErrors)} className="m-5" />
+            ) : !isLoading && !permissionsLoading && members.length === 0 ? (
+              <ListCardEmpty
+                icon={Users}
+                title={t("noMembersYet")}
+                description={t("inviteTeammatesByEmail")}
+                cta={
+                  canManage
+                    ? { label: t("inviteTeammate"), onClick: () => setInviteOpen(true) }
+                    : undefined
+                }
+              />
+            ) : (
+              <DataTable<OrganizationMember>
+                columns={columns}
+                rows={members}
+                // Wait on the permission answer too, or the row-action column - built
+                // from `canManage` - draws without its actions and then flickers them
+                // in a beat later once `can()` resolves (safe direction, but a glitch).
+                loading={isLoading || permissionsLoading}
+                skeletonRows={4}
+                getRowKey={(m) => m.id}
+                empty={t("noMembersYet")}
+                className="rounded-none border-0 bg-transparent"
+              />
+            )}
+          </ListCard>
 
-      {pendingInvitations.length > 0 && (
-        <section className="space-y-3">
-          <div>
-            <p className="text-muted-foreground font-mono text-xs tracking-wider uppercase">
-              {t("pendingInvitations")}
-            </p>
-            <h2 className="text-foreground text-sm font-semibold">
-              {t("waitingOnResponse", { count: pendingInvitations.length })}
-            </h2>
-          </div>
-          <ul className="border-border bg-card divide-border divide-y overflow-hidden rounded-xl border">
-            {pendingInvitations.map((inv) => (
-              <li key={inv.id} className="flex flex-wrap items-center gap-3 px-4 py-3.5">
-                <span className="bg-muted text-muted-foreground inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
-                  <MailPlus className="h-4 w-4" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-foreground truncate text-sm font-medium">
-                    {inv.email ?? t("shareableLink")}
-                  </p>
-                  <p className="text-muted-foreground mt-0.5 truncate text-xs">
-                    {/* A link is not waiting on one person, so "invited" is the
+          {pendingInvitations.length > 0 && (
+            <section className="space-y-3">
+              <div>
+                <p className="text-muted-foreground font-mono text-xs tracking-wider uppercase">
+                  {t("pendingInvitations")}
+                </p>
+                <h2 className="text-foreground text-sm font-semibold">
+                  {t("waitingOnResponse", { count: pendingInvitations.length })}
+                </h2>
+              </div>
+              <ul className="border-border bg-card divide-border divide-y overflow-hidden rounded-xl border">
+                {pendingInvitations.map((inv) => (
+                  <li key={inv.id} className="flex flex-wrap items-center gap-3 px-4 py-3.5">
+                    <span className="bg-muted text-muted-foreground inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
+                      <MailPlus className="h-4 w-4" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-foreground truncate text-sm font-medium">
+                        {inv.email ?? t("shareableLink")}
+                      </p>
+                      <p className="text-muted-foreground mt-0.5 truncate text-xs">
+                        {/* A link is not waiting on one person, so "invited" is the
                         wrong word for it and its limits are what matter. */}
-                    {inv.email === null ? (
-                      <>
-                        {/* The sum, because that is what the ceiling compares:
+                        {inv.email === null ? (
+                          <>
+                            {/* The sum, because that is what the ceiling compares:
                             registering through a link spends a use, since joining
                             needs a session and happens later. */}
-                        {t("usedOfMax", {
-                          used: (inv.used_count ?? 0) + (inv.reserved_count ?? 0),
-                          max: inv.max_uses ?? "∞",
-                        })}
-                        {inv.reserved_count ? (
-                          <> · {t("awaitingSignup", { count: inv.reserved_count })}</>
-                        ) : null}
-                        {inv.email_domain && (
-                          <> · {t("domainOnly", { domain: inv.email_domain })}</>
+                            {t("usedOfMax", {
+                              used: (inv.used_count ?? 0) + (inv.reserved_count ?? 0),
+                              max: inv.max_uses ?? "∞",
+                            })}
+                            {inv.reserved_count ? (
+                              <> · {t("awaitingSignup", { count: inv.reserved_count })}</>
+                            ) : null}
+                            {inv.email_domain && (
+                              <> · {t("domainOnly", { domain: inv.email_domain })}</>
+                            )}
+                          </>
+                        ) : (
+                          <>{t("invitedOn", { date: formatDate(inv.created_at, locale) })}</>
                         )}
-                      </>
+                        {inv.expires_at && (
+                          <> · {t("expiresOn", { date: formatDate(inv.expires_at, locale) })}</>
+                        )}
+                      </p>
+                    </div>
+                    <Badge variant={ROLE_VARIANT[inv.role]} className="capitalize">
+                      {inv.role}
+                    </Badge>
+                    {canManage && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground hover:text-destructive"
+                        onClick={() => revokeInvitation(inv.id)}
+                      >
+                        {t("revoke")}
+                      </Button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </TabsContent>
+        <TabsContent
+          value="profile"
+          hidden={tab !== "profile"}
+          forceMount
+          className="space-y-6 data-[state=inactive]:hidden"
+        >
+          {org && (
+            <section
+              data-tour="org-profile"
+              className="border-border bg-card flex flex-wrap items-start gap-5 rounded-xl border p-5 sm:p-6"
+            >
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={!canManage || avatarUploading}
+                className={cn(
+                  "group relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl disabled:cursor-default",
+                  org.avatar_url
+                    ? "bg-muted text-foreground"
+                    : avatarPalette(org.id, org.avatar_color).bg,
+                )}
+                title={canManage ? t("changeWorkspaceAvatar") : t("onlyOwnersAdminsCan")}
+              >
+                {org.avatar_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={`/api/orgs/${org.id}/avatar?v=${org.updated_at ?? ""}`}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span
+                    className={cn(
+                      avatarPalette(org.id, org.avatar_color).fg,
+                      "text-base font-semibold",
+                    )}
+                  >
+                    {avatarInitials(org.name)}
+                  </span>
+                )}
+                {canManage && (
+                  <span className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition-opacity group-hover:opacity-100">
+                    {avatarUploading ? (
+                      <Loader2 className="h-5 w-5 animate-spin text-white" />
                     ) : (
-                      <>{t("invitedOn", { date: formatDate(inv.created_at, locale) })}</>
+                      <Camera className="h-5 w-5 text-white" />
                     )}
-                    {inv.expires_at && (
-                      <> · {t("expiresOn", { date: formatDate(inv.expires_at, locale) })}</>
-                    )}
+                  </span>
+                )}
+              </button>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="hidden"
+                onChange={handleAvatarUpload}
+              />
+
+              <div className="min-w-0 flex-1 space-y-3">
+                <div>
+                  <p className="text-muted-foreground font-mono text-xs tracking-wider uppercase">
+                    {t("workspaceProfile")}
+                  </p>
+                  <p className="text-muted-foreground mt-0.5 text-xs">
+                    {t("nameAvatarShownAcross")}
                   </p>
                 </div>
-                <Badge variant={ROLE_VARIANT[inv.role]} className="capitalize">
-                  {inv.role}
-                </Badge>
-                {canManage && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-muted-foreground hover:text-destructive"
-                    onClick={() => revokeInvitation(inv.id)}
-                  >
-                    {t("revoke")}
-                  </Button>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <Input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    disabled={!canManage || savingName}
+                    className="min-w-0 flex-1"
+                    placeholder={t("workspaceName")}
+                    maxLength={255}
+                  />
+                  {canManage && name.trim() !== org.name && name.trim() !== "" && (
+                    <Button onClick={handleSaveName} disabled={savingName}>
+                      {savingName ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                    </Button>
+                  )}
+                </div>
+                {!canManage && (
+                  <p className="text-muted-foreground text-xs">{t("onlyOwnersAdminsCan")}</p>
                 )}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+                {canManage && (
+                  <div>
+                    <p className="text-muted-foreground mb-2 text-xs">{t("avatarColour")}</p>
+                    <AvatarColorPicker value={org.avatar_color} onChange={handleColorChange} />
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+        </TabsContent>
+        <TabsContent
+          value="governance"
+          hidden={tab !== "governance"}
+          forceMount
+          className="space-y-6 data-[state=inactive]:hidden"
+        >
+          {org && <OrgSpendingLimit org={org} />}
+          {org && <OrgApprovalWaiver org={org} />}
+        </TabsContent>
+        <TabsContent
+          value="proactivity"
+          hidden={tab !== "proactivity"}
+          forceMount
+          className="space-y-6 data-[state=inactive]:hidden"
+        >
+          {org && <OrgProactivity org={org} />}
+        </TabsContent>
+        <TabsContent
+          value="voice"
+          hidden={tab !== "voice"}
+          forceMount
+          className="space-y-6 data-[state=inactive]:hidden"
+        >
+          {org && <OrgVoiceSettings org={org} />}
+        </TabsContent>
+        <TabsContent
+          value="assistant"
+          hidden={tab !== "assistant"}
+          forceMount
+          className="space-y-6 data-[state=inactive]:hidden"
+        >
+          <OrgAssistant orgId={id} />
+        </TabsContent>
+      </Tabs>
 
       <InviteMemberDialog open={inviteOpen} onOpenChange={setInviteOpen} orgId={id} />
       <InviteLinkDialog open={linkOpen} onOpenChange={setLinkOpen} orgId={id} />

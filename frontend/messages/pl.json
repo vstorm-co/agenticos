@@ -5071,7 +5071,12 @@
       "workspaceProfile": "Profil organizacji",
       "workspaces": "Organizacje",
       "you": "(Ty)",
-      "yourRoleHere": "Twoja rola tutaj to <badge>{role}</badge>"
+      "yourRoleHere": "Twoja rola tutaj to <badge>{role}</badge>",
+      "tabProfile": "Profil",
+      "tabGovernance": "Budżet i zgody",
+      "tabProactivity": "Proaktywność",
+      "tabVoice": "Głos",
+      "tabAssistant": "AI Architect"
     },
     "rag": {
       "active": "Aktywne",

@@ -560,16 +560,16 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: "orgs-new", page: ROUTES.ORGS, target: "orgs-new" },
 
   // The organization detail, entered from the workspaces list. Two routes, one
-  // walk: the members page (profile, then the member list) and then a step
+  // walk: the organization tabs (profile, then the member list) and then a step
   // across into the roles matrix. Ungated — any member reaches both.
-  { id: "org-profile", page: ORG_MEMBERS, target: "org-profile" },
-  // The Voice card sits above the member list on the same page, so it comes
-  // before the list rather than doubling back from the roles matrix. Gated like
+  { id: "org-profile", page: ORG_MEMBERS, target: "org-profile", activate: "org-tab-profile" },
+  // Activate each settings tab before locating its card. Gated like
   // the card, which is hidden from anybody who may not change settings.
   {
     id: "org-voice",
     page: ORG_MEMBERS,
     target: "org-voice",
+    activate: "org-tab-voice",
     permission: Perm.orgSettings,
   },
   // The AI Architect's card: drawn only on the active organization's page, and
@@ -578,10 +578,11 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "org-assistant",
     page: ORG_MEMBERS,
     target: "org-assistant",
+    activate: "org-tab-assistant",
     permission: Perm.orgSettings,
     optional: true,
   },
-  { id: "org-members", page: ORG_MEMBERS, target: "org-members" },
+  { id: "org-members", page: ORG_MEMBERS, target: "org-members", activate: "org-tab-members" },
   { id: "org-roles", page: ORG_ROLES, target: "org-roles" },
   {
     id: "org-retention",

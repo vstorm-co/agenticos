@@ -5182,7 +5182,12 @@
       "workspaceProfile": "Organisationsprofil",
       "workspaces": "Organisationen",
       "you": "(Sie)",
-      "yourRoleHere": "Ihre Rolle hier ist <badge>{role}</badge>"
+      "yourRoleHere": "Ihre Rolle hier ist <badge>{role}</badge>",
+      "tabProfile": "Profil",
+      "tabGovernance": "Budget und Freigaben",
+      "tabProactivity": "Proaktivität",
+      "tabVoice": "Sprache",
+      "tabAssistant": "AI Architect"
     },
     "rag": {
       "active": "Aktiv",

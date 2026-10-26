@@ -1,5 +1,5 @@
 ---
-source_sha: "ebbdbea67616"
+source_sha: "64d1331aaada"
 ---
 
 # La consola { #the-console }
@@ -659,6 +659,12 @@ cada agent. Cada filtro es un menú de las etiquetas de los agents que puedes ve
 marca varias para ampliarlo. Las categories y los tags de un agent los mantienes desde su página
 de detalle, junto a los controles del avatar, y el cambio surte efecto al
 momento, sin publicar una nueva versión.
+
+Los detalles de la organización se dividen en pestañas: **Miembros**, **Perfil**,
+**Presupuesto y aprobaciones**, **Proactividad**, **Voz** y **AI Architect**. Las
+pestañas administrativas dependen de tus permisos; AI Architect aparece cuando se puede
+configurar. La pestaña seleccionada se guarda en la URL (por ejemplo, `?tab=voice`), y
+cambiar de pestaña conserva los valores del formulario sin guardar.
 
 ## Idiomas { #languages }
 
