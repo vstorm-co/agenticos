@@ -1,5 +1,5 @@
 ---
-source_sha: "642a7f01331a"
+source_sha: "2f4a13dbc2a4"
 ---
 
 # Środowiska { #environments }
@@ -64,7 +64,8 @@ przejdzie.
 
 Środowisko może wskazać [suity ewaluacji](evals.md#suites), które go **strzegą**.
 Wtedy przyjmuje wersję dopiero, gdy każdy strażnik przeszedł na dokładnie tej
-wersji, na wersji datasetu i przy scoringu, do których strażnik jest przypięty,
+wersji, na wersji datasetu, przy scoringu i publikacji sędziego, do których
+strażnik jest przypięty,
 oraz przy progu, który ma teraz - zaliczenie sprzed przesunięcia przypięcia albo
 sprzed podniesienia progu się nie liczy. Promocja, która tego nie spełnia, jest odrzucana (`409`,
 `PROMOTION_BLOCKED`), a odmowa wymienia każdego strażnika i jego stan: nie
@@ -77,20 +78,25 @@ zaliczenie obok wersji stagingu nic nie mówi o zastąpieniu wersji produkcji.
 Wstrzymany strażnik zatrzymuje wersję niezależnie od tego, co znalazł przed
 wstrzymaniem.
 
-Suita, która strzeże środowiska, jest **przypięta** do wersji datasetu i
-scoringu, które miała, gdy została strażnikiem. Edycja datasetu - jego przypadków,
+Suita, która strzeże środowiska, jest **przypięta** do wersji datasetu,
+scoringu i opublikowanej wersji sędziego, które miała, gdy została strażnikiem. Edycja datasetu - jego przypadków,
 oceniania, sędziego - zostaje otwarta dla każdego, kto może go edytować, i nie
 zmienia tego, co sprawdza strażnik.
 
-Panel suity mówi, kiedy dataset poszedł
+Panel suity mówi, kiedy dataset albo jego sędzia poszedł
 dalej, a **Move the pin** (`POST /api/v1/agents/{id}/eval-suites/{suite}/pin`)
-przesuwa strażnika na najnowszą wersję i scoring; wymaga `promotions:override`
+przesuwa strażnika na najnowszą wersję, scoring i publikację sędziego; wymaga `promotions:override`
 i jest zapisywane jako zmiana strażników. Suita, która przestaje strzec, znów
 czyta najnowszą wersję, a suita, której dataset nie ma jeszcze przypadków, nie może
 zostać strażnikiem. Strażnik ustawiony, zanim strażnicy byli przypinani, na
 datasecie, który nie miał wtedy przypadków, nie jest przypięty: wstrzymuje każdą
-wersję, dopóki nie przypnie go ktoś, kto może pomijać bramkę promocji. Wersja samego agenta-sędziego nie jest częścią
-przypięcia: ponownie opublikowany sędzia oceni następny run strażnika.
+wersję, dopóki nie przypnie go ktoś, kto może pomijać bramkę promocji.
+
+Sędzia - własny sędzia datasetu albo Eval judge - zostaje przy publikacji, którą
+miał, gdy strażnika przypięto. Ponownie opublikowany sędzia nie ocenia strażnika,
+dopóki przypięcie się nie przesunie, a zaliczenie ocenione inną publikacją się nie
+liczy. Strażnik przypięty, gdy jego sędzia nie miał publikacji, zostawia kryteria
+sędziego bez oceny, dopóki przypięcie się nie przesunie.
 
 Dialog promocji pokazuje to samo i uruchamia strażników, którzy nie przeszli na
 tej wersji, każdego obok wersji, którą środowisko serwuje teraz

@@ -1,5 +1,5 @@
 ---
-source_sha: "642a7f01331a"
+source_sha: "2f4a13dbc2a4"
 ---
 
 # Umgebungen { #environments }
@@ -67,8 +67,8 @@ bis sie besteht.
 
 Eine Umgebung kann die [Eval-Suites](evals.md#suites) nennen, die sie
 **bewachen**. Dann übernimmt sie eine Version erst, wenn jeder Wächter auf genau
-dieser Version bestanden hat, über die Dataset-Version und das Scoring, auf die
-der Wächter festgelegt ist, und unter der Schwelle, die er jetzt hat - ein
+dieser Version bestanden hat, über die Dataset-Version, das Scoring und die
+Veröffentlichung des Bewerters, auf die der Wächter festgelegt ist, und unter der Schwelle, die er jetzt hat - ein
 Bestehen von vor dem Verschieben der Festlegung oder vor einer angehobenen
 Schwelle zählt nicht. Eine Promotion, die das
 nicht erfüllt, wird abgelehnt (`409`, `PROMOTION_BLOCKED`), und die Ablehnung
@@ -81,23 +81,31 @@ Festlegung - eines neben der Version von Staging sagt nichts darüber, die von
 Production zu ersetzen. Ein pausierter Wächter hält die Version zurück, was
 immer er vor der Pause fand.
 
-Eine Suite, die eine Umgebung bewacht, ist auf die Dataset-Version und das
-Scoring **festgelegt**, die sie hatte, als sie Wächter wurde. Das Dataset zu
+Eine Suite, die eine Umgebung bewacht, ist auf die Dataset-Version, das Scoring
+und die veröffentlichte Version des Bewerters **festgelegt**, die sie hatte, als
+sie Wächter wurde. Das Dataset zu
 bearbeiten - seine Fälle, seine Bewertung, seinen Bewerter - bleibt jedem offen,
 der es bearbeiten darf, und ändert nicht, was der Wächter prüft.
 
 Das Panel der
-Suite sagt, wann das Dataset weitergegangen ist, und **Move the pin**
+Suite sagt, wann das Dataset oder sein Bewerter weitergegangen ist, und **Move the pin**
 (`POST /api/v1/agents/{id}/eval-suites/{suite}/pin`) setzt den Wächter auf die
-neueste Version und das aktuelle Scoring; das braucht `promotions:override` und
+neueste Version, das aktuelle Scoring und die aktuelle Veröffentlichung des
+Bewerters; das braucht `promotions:override` und
 wird als Änderung der Wächter verzeichnet. Eine Suite, die nichts mehr bewacht,
 liest wieder die neueste Version, und eine, deren Dataset noch keine Fälle hat,
 kann kein Wächter werden. Ein Wächter, der eingerichtet wurde, bevor Wächter
 festgelegt wurden, auf einem Dataset, das damals keine Fälle hatte, ist nicht
 festgelegt: Er hält jede Version zurück, bis ihn jemand festlegt, der Promotionen
-übergehen darf. Die Version des Bewerter-Agents selbst gehört
-nicht zur Festlegung: Ein neu veröffentlichter Bewerter bewertet den nächsten Run
-des Wächters.
+übergehen darf.
+
+Der Bewerter - der eigene des Datasets oder der Eval judge - bleibt bei der
+Veröffentlichung, die er hatte, als der Wächter festgelegt wurde. Ein neu
+veröffentlichter Bewerter bewertet den Wächter erst, wenn die Festlegung
+verschoben wird, und ein Bestehen, das eine andere Veröffentlichung bewertet hat,
+zählt nicht. Ein Wächter, der festgelegt wurde, als sein Bewerter keine
+Veröffentlichung hatte, lässt die Kriterien des Bewerters unbewertet, bis die
+Festlegung verschoben wird.
 
 Der Promotion-Dialog zeigt dasselbe und lässt die Wächter laufen, die auf der
 Version nicht bestanden haben, jeden neben der Version, die die Umgebung jetzt

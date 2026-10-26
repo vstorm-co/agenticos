@@ -1,5 +1,5 @@
 ---
-source_sha: "642a7f01331a"
+source_sha: "2f4a13dbc2a4"
 ---
 
 # Entornos { #environments }
@@ -65,8 +65,8 @@ solo informa; un entorno que la nombra como
 
 Un entorno puede nombrar las [suites de evals](evals.md#suites) que lo
 **guardan**. Entonces acepta una versión solo cuando cada guardiana ha pasado en
-esa misma versión, sobre la versión del dataset y el scoring a los que la
-guardiana está fijada, y con el umbral que tiene ahora: un aprobado de antes de
+esa misma versión, sobre la versión del dataset, el scoring y la publicación del
+juez a los que la guardiana está fijada, y con el umbral que tiene ahora: un aprobado de antes de
 mover la fijación, o de antes de subir el listón, no cuenta. Una promoción que no lo cumple se rechaza (`409`,
 `PROMOTION_BLOCKED`), y el rechazo nombra cada guardiana y en qué estado está:
 no pasó, sin conclusión, no se ejecutó y por qué, comprobando todavía,
@@ -78,22 +78,28 @@ uno al lado de la versión de staging no dice nada sobre sustituir la de
 producción. Una guardiana en pausa detiene la versión sea lo que sea que
 encontrara antes de la pausa.
 
-Una suite que guarda un entorno queda **fijada** a la versión del dataset y al
-scoring que tenía cuando se convirtió en guardiana. Editar el dataset - sus
+Una suite que guarda un entorno queda **fijada** a la versión del dataset, al
+scoring y a la versión publicada del juez que tenía cuando se convirtió en
+guardiana. Editar el dataset - sus
 casos, su puntuación, su juez - sigue abierto a quien pueda editarlo, y no
 cambia lo que comprueba la guardiana.
 
-El panel de la suite dice cuándo el dataset ha avanzado, y **Move the pin**
+El panel de la suite dice cuándo el dataset o su juez ha avanzado, y **Move the pin**
 (`POST /api/v1/agents/{id}/eval-suites/{suite}/pin`) lleva la guardiana a la
-última versión y al scoring actual; necesita `promotions:override` y se registra
+última versión, al scoring actual y a la publicación actual del juez; necesita `promotions:override` y se registra
 como un cambio de las guardianas.
 
 Una suite que deja de guardar vuelve a leer la
 última versión, y una cuyo dataset aún no tiene casos no puede ser guardiana.
 Una guardiana configurada antes de que las guardianas se fijaran, sobre un
 dataset que entonces no tenía casos, no está fijada: detiene cada versión hasta
-que la fije alguien que pueda pasar por encima de las promociones. La versión del propio agente juez no forma parte de la fijación:
-un juez publicado de nuevo puntúa la siguiente ejecución de la guardiana.
+que la fije alguien que pueda pasar por encima de las promociones.
+
+El juez - el propio del dataset o el Eval judge - se queda en la publicación
+que tenía cuando se fijó la guardiana. Un juez publicado de nuevo no puntúa la
+guardiana hasta que se mueve la fijación, y un aprobado puntuado por otra
+publicación no cuenta. Una guardiana fijada cuando su juez no tenía publicación
+deja sin puntuar los criterios del juez hasta que se mueve la fijación.
 
 El diálogo de promoción muestra lo mismo y ejecuta las guardianas que no han
 pasado en la versión, cada una al lado de la versión que el entorno sirve ahora
