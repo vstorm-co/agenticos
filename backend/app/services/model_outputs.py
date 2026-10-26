@@ -86,6 +86,9 @@ def _from_catalogs() -> dict[tuple[str, str], ModelOutputs]:
 
     realtime = ModelOutputs(modalities=("text", "audio"), chat=False, kind="a realtime voice model")
     for entry in realtime_models.CATALOG:
+        # Azure's model value is a deployment name, not this base-model id.
+        if entry.deployment:
+            continue
         for model in entry.models:
             record(entry.provider, model.id, realtime)
 

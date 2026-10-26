@@ -207,13 +207,24 @@ class AssistantService:
         if not profiles:
             return agent
         installer = await self._installer(organization_id)
+        for profile in profiles:
+            if not profile.fallback_profile_ids or not await self.registry.model_profile_problems(
+                installer, profile.id
+            ):
+                selected_id = profile.id
+                break
+        else:
+            return agent
         agent = await self.registry.get(installer, agent.id, perm=Perm.AGENTS_EDIT, for_update=True)
         if agent.current_version_id is not None:
             return agent
         spec = AgentSpec.model_validate(agent.draft_spec)
         if spec.model_profile_id is None:
-            spec = spec.model_copy(update={"model_profile_id": profiles[0].id})
+            spec = spec.model_copy(update={"model_profile_id": selected_id})
             agent = await self.registry.save_draft(installer, agent.id, spec)
+        elif await self.registry.model_profile_problems(installer, spec.model_profile_id):
+            # A deliberately selected model is the author's to replace.
+            return agent
         await self.registry.publish(installer, agent.id, note="Installed")
         return await self.registry.get(installer, agent.id)
 

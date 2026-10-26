@@ -1,5 +1,5 @@
 ---
-source_sha: "b193e7454f93"
+source_sha: "0a268874d05a"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -85,6 +85,13 @@ i `google_cloud`, korzystają z katalogów odpowiednich dostawców. Wtedy:
   własnym endpointem (`base_url`) nigdy nie jest klasyfikowany, niezależnie od id
   modelu: katalogi opisują własne API providera, a serwer zgodny z OpenAI może
   serwować model czatu pod dowolną nazwą.
+
+Picker modelu proaktywności stosuje tę samą zasadę. Sprawdzenie stałych katalogów
+działa też przy konfiguracji proaktywności i przy rozwiązywaniu profilu do zwykłego
+żądania tekstowego, w tym przy konfiguracji opisu obrazów i w workerze. Stare
+konfiguracje nadal się wczytują; przed użyciem trzeba zastąpić niezgodny model.
+Wyłączenie funkcji pozostaje możliwe. Nazwy wdrożeń Azure nie są klasyfikowane
+na podstawie identyfikatorów modeli bazowych z katalogu.
 
 ### Fallbacki { #fallbacks }
 

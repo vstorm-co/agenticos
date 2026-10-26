@@ -21,6 +21,7 @@ import {
 import { FormField } from "@/components/ui/form-field";
 import { useModelProviders, useOrganizations, usePermissions } from "@/hooks";
 import { useChanged } from "@/hooks/use-changed";
+import { runsAgents } from "@/lib/model-profiles";
 import { submitFailure } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 import { WATCH_INTERVALS, cadenceLabel } from "@/lib/watch-cadence";
@@ -96,6 +97,7 @@ export function OrgProactivity({ org }: { org: Organization }) {
 
 function NightlyForm({ org }: { org: Organization }) {
   const t = useTranslations("teams.proactive");
+  const tAgents = useTranslations("agents");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
   const { setProactivity } = useOrganizations();
@@ -188,11 +190,18 @@ function NightlyForm({ org }: { org: Organization }) {
                 <SelectValue placeholder={t("modelPlaceholder")} />
               </SelectTrigger>
               <SelectContent>
-                {profiles.map((profile) => (
-                  <SelectItem key={profile.id} value={profile.id}>
-                    {profile.label}
-                  </SelectItem>
-                ))}
+                {profiles
+                  .filter((profile) => runsAgents(profile) || profile.id === form.modelId)
+                  .map((profile) => (
+                    <SelectItem key={profile.id} value={profile.id} disabled={!runsAgents(profile)}>
+                      {profile.label}
+                      {!runsAgents(profile) && (
+                        <span className="text-muted-foreground ml-2">
+                          {tAgents("notAChatModel")}
+                        </span>
+                      )}
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
           </FormField>

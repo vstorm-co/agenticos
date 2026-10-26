@@ -133,6 +133,51 @@ async def test_a_speech_model_is_not_one_it_publishes_on(db: AsyncSession) -> No
     assert AgentSpec.model_validate(agent.draft_spec).model_profile_id == chat.id
 
 
+@pytest.mark.parametrize("has_valid_model", [False, True])
+async def test_architect_skips_a_chat_profile_with_an_incompatible_fallback(
+    db: AsyncSession, has_valid_model: bool
+) -> None:
+    organization, _owner = await _organization(db)
+    viewer = await _member(db, organization, OrgRoleName.VIEWER)
+    bad = await _model(db, organization)
+    bad.label = "A chat with invalid fallback"
+    speech = await _model(db, organization, model="gpt-4o-mini-tts")
+    bad.fallback_profile_ids = [str(speech.id)]
+    valid = await _model(db, organization) if has_valid_model else None
+    await db.flush()
+
+    state = await AssistantService(db).state(viewer)
+
+    assert state.status == ("ready" if valid else "needs_model")
+    agent = (await db.execute(select(Agent).where(Agent.id == state.agent_id))).scalar_one()
+    assert AgentSpec.model_validate(agent.draft_spec).model_profile_id == (
+        valid.id if valid else None
+    )
+
+
+@pytest.mark.parametrize("compatible", [False, True])
+async def test_an_explicit_architect_draft_model_is_preserved(
+    db: AsyncSession, compatible: bool
+) -> None:
+    organization, owner = await _organization(db)
+    ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
+    service = AssistantService(db)
+    installed = await service.state(ctx)
+    agent = (await db.execute(select(Agent).where(Agent.id == installed.agent_id))).scalar_one()
+    chosen = await _model(db, organization, model="gpt-4.1" if compatible else "gpt-4o-mini-tts")
+    chosen.label = "Z deliberately selected"
+    spec = AgentSpec.model_validate(agent.draft_spec).model_copy(
+        update={"model_profile_id": chosen.id}
+    )
+    await AgentRegistryService(db).save_draft(ctx, agent.id, spec)
+    alternative = await _model(db, organization)
+    alternative.label = "A otherwise preferred"
+    await db.flush()
+    state = await service.state(ctx)
+    assert state.status == ("ready" if compatible else "needs_model")
+    assert AgentSpec.model_validate(agent.draft_spec).model_profile_id == chosen.id
+
+
 async def test_one_organization_gets_one_assistant(db: AsyncSession) -> None:
     organization, owner = await _organization(db)
     ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role="owner")

@@ -78,6 +78,13 @@ updates saved profiles when a listing arrives later. Provider aliases such as
   the catalogs describe the provider's own API, and an OpenAI-compatible server
   can serve a chat model under any name.
 
+The proactivity model picker follows the same rule. The stable catalog check also
+runs when proactivity is configured and whenever a profile is resolved for an
+ordinary text request, including image description at configuration and worker
+time. Old configurations still load; replace an incompatible model before using
+them. Switching off remains possible. Azure deployment names are not classified
+from the catalog's base-model IDs.
+
 ### Fallbacks
 
 A profile may list fallback profiles, tried in order. Only the first three are

@@ -208,6 +208,23 @@ describe("the chat's two-step model picker", () => {
     expect(onChange).toHaveBeenCalledWith("local");
   });
 
+  it.each([false, true])(
+    "prefers a compatible duplicate regardless of label order: %s",
+    async (localFirst) => {
+      const publicProfile = { ...profile("public", "openai", "whisper-1"), chat_capable: false };
+      const local = { ...profile("local", "openai", "whisper-1"), base_url: "http://vllm:8000/v1" };
+      listedProfiles.mockReturnValue(localFirst ? [local, publicProfile] : [publicProfile, local]);
+      refusedModels.mockReturnValue(["whisper-1"]);
+      const onChange = vi.fn();
+      render(<ChatModelPicker value={null} agentModel={null} onChange={onChange} />);
+      await pickProvider("OpenAI");
+      await typeModel("whisper-1");
+      await userEvent.click(screen.getByRole("button", { name: "Run on this model" }));
+      expect(onChange).toHaveBeenCalledWith("local");
+      expect(mutateAsync).not.toHaveBeenCalled();
+    },
+  );
+
   it("refuses a speech model the listing names before creating a profile for it", async () => {
     refusedModels.mockReturnValue(["gpt-4o-mini-tts"]);
     listedSecrets.mockReturnValue([{ id: "s1", purpose: "openai" }]);

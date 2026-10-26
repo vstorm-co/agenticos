@@ -1,5 +1,5 @@
 ---
-source_sha: "b193e7454f93"
+source_sha: "0a268874d05a"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -94,6 +94,14 @@ Dann gilt:
   eingeordnet, unabhängig von seiner Modell-ID: Die Kataloge beschreiben die
   eigene API des Providers, und ein OpenAI-kompatibler Server kann ein Chat-Modell
   unter jedem Namen anbieten.
+
+Die Modellauswahl für proaktive Arbeit folgt derselben Regel. Die Prüfung der
+festen Kataloge läuft auch bei der Konfiguration proaktiver Arbeit und beim
+Auflösen eines Profils für eine gewöhnliche Textanfrage, einschließlich der
+Bildbeschreibung bei der Konfiguration und im Worker. Alte Konfigurationen laden
+weiterhin; ein inkompatibles Modell muss vor der Nutzung ersetzt werden. Das
+Ausschalten bleibt möglich. Azure-Deployment-Namen werden nicht anhand der
+Basismodell-IDs des Katalogs klassifiziert.
 
 ### Fallbacks { #fallbacks }
 

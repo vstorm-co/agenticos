@@ -1531,14 +1531,14 @@ class AgentRegistryService:
         if spec.model_profile_id is None:
             problems.add(["No model selected - pick one before publishing"])
         else:
-            problems.add(await self._model_profile_problems(ctx, spec.model_profile_id))
+            problems.add(await self.model_profile_problems(ctx, spec.model_profile_id))
         # And each reviewer's, refused here rather than when a run first reaches
         # its cadence and finds nothing to review with.
         for reviewer in spec.reviewers:
             if reviewer.model_profile_id is None:
                 problems.add([f"Reviewer '{reviewer.name}': pick the model it reviews with"])
             else:
-                problems.add(await self._model_profile_problems(ctx, reviewer.model_profile_id))
+                problems.add(await self.model_profile_problems(ctx, reviewer.model_profile_id))
             if not reviewer.instructions.strip():
                 problems.add([f"Reviewer '{reviewer.name}': say what it looks for"])
 
@@ -1598,9 +1598,9 @@ class AgentRegistryService:
         else:
             problems.add(await _browser_problems(config, has_secret=binding.secret_id is not None))
             if isinstance(config, WebBrowserConfig) and config.step_model_profile_id is not None:
-                problems.add(await self._model_profile_problems(ctx, config.step_model_profile_id))
+                problems.add(await self.model_profile_problems(ctx, config.step_model_profile_id))
             if isinstance(config, FollowUpsConfig) and config.model_profile_id is not None:
-                problems.add(await self._model_profile_problems(ctx, config.model_profile_id))
+                problems.add(await self.model_profile_problems(ctx, config.model_profile_id))
             problems.add(ungateable_tool_problems(binding, definition, config))
         # A tool_approval key that matches nothing is the dangerous kind of
         # typo: it is not an error at run time, it is silence - the tool the
@@ -1617,7 +1617,7 @@ class AgentRegistryService:
         problems.add(await self._secret_problems(ctx, binding, definition))
         return problems
 
-    async def _model_profile_problems(self, ctx: AuthContext, profile_id: UUID) -> list[str]:
+    async def model_profile_problems(self, ctx: AuthContext, profile_id: UUID) -> list[str]:
         """Whether a named model profile is still this organization's to run on.
 
         And whether it is a model anything can run *on*: a profile can name a
@@ -2172,7 +2172,7 @@ class AgentRegistryService:
         # already checked - so only a profile it *did* name is a reference that
         # can be broken, or borrowed from another organization.
         if specialist.model_profile_id is not None:
-            problems.add(await self._model_profile_problems(ctx, specialist.model_profile_id))
+            problems.add(await self.model_profile_problems(ctx, specialist.model_profile_id))
         # Its instructions are filled the way the parent's are, so a typo in a
         # variable is refused here too rather than sent to the model as braces.
         problems.merge(_variable_problems(specialist.to_agent_spec(fallback_model_profile_id=None)))

@@ -1,5 +1,5 @@
 ---
-source_sha: "b193e7454f93"
+source_sha: "0a268874d05a"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -91,6 +91,14 @@ cuando el listado llega después. Los alias de provider como `openai_codex` y
   el id del modelo: los catálogos describen la API propia del provider, y un
   servidor compatible con OpenAI puede servir un modelo de chat con cualquier
   nombre.
+
+El selector de modelo de proactividad sigue la misma regla. La comprobación de los
+catálogos estables también se aplica al configurar la proactividad y al resolver
+un perfil para una petición de texto normal, incluida la descripción de imágenes
+al configurar y en el worker. Las configuraciones antiguas siguen cargándose;
+hay que sustituir un modelo incompatible antes de usarlas. Sigue siendo posible
+desactivar la función. Los nombres de despliegues de Azure no se clasifican a
+partir de los identificadores de modelos base del catálogo.
 
 ### Fallbacks { #fallbacks }
 

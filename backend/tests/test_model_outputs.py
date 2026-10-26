@@ -60,6 +60,7 @@ def test_a_google_image_model_is_left_alone_because_it_also_answers_in_text():
         ("openai", "gpt-4.1"),
         ("ollama", "llama3.3:70b"),
         ("openai", "my-fine-tune"),
+        ("azure", "gpt-realtime"),
         ("openrouter", "nobody/knows-this"),
         ("openrouter", "unnamespaced"),
     ],
