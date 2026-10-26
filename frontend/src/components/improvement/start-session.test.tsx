@@ -256,6 +256,16 @@ it("drops an estimate or a refusal that arrives after the screen is gone", async
   expect(state.estimate).toHaveBeenCalledTimes(2);
 });
 
+it.each(["stopped", "failed"])(
+  "takes every link to Improve back to a %s session, which waits for a decision",
+  (status) => {
+    state.sessions = [{ id: "waiting", created_at: "2026-10-25T10:00:00Z", status }];
+    state.params = new URLSearchParams("resume=1");
+    render(<StartSession agentId="a1" />);
+    expect(state.replace).toHaveBeenCalledWith("/agents/a1/improve/waiting");
+  },
+);
+
 it("stays on a new session when the agent's last one was kept as a draft", () => {
   state.sessions = [{ id: "kept", created_at: "2026-10-25T10:00:00Z", status: "accepted" }];
   state.params = new URLSearchParams("resume=1");
