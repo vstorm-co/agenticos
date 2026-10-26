@@ -147,6 +147,12 @@ environment without a person's decision.
 - The agent page's tabs are reordered, with an **Evals** tab that shows results
   first, and **Improve** becomes the header's primary action when the agent had
   rated-down or failed answers in the last 30 days.
+- **Improve** always opens the improvement wizard. In the agent header and on
+  the Build tab's assistant strip it opens the agent's session still in
+  progress, or a new one; the **Needs attention** badge, the dashboard and the
+  **Knowledge gaps** tab land on the same session. The strip keeps reviewing
+  waiting suggestions and **Verify my edits**; a one-off Improve request
+  remains available through the API.
 - A publish refusal offers the one-click fixes it names beside it.
 - Open eval, dataset, suite and improvement pages refresh from live change
   events instead of polling.
