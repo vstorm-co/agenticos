@@ -132,6 +132,7 @@ class TestRun:
             "surface": RunSurface.EVAL,
             "model_profile_id": profile_id,
             "candidate": None,
+            "reports_failure": True,
         }
         # Held like an eval's writes, and answered from no recording.
         assert isinstance(isolation, RunIsolation)
