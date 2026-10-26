@@ -10843,6 +10843,23 @@
       "body": "O wyniku decydują tylko pytania niewykorzystane do pisania zmian. Automatyczne sprawdzenie nadal testuje wszystkie pytania.",
       "excluded": "{count, plural, one {# pytanie pominięto} few {# pytania pominięto} many {# pytań pominięto} other {# pytania pominięto}}, bo powtarzają pytanie użyte do pisania zmian.",
       "needed": "Dodaj {count, plural, one {# pytanie} few {# pytania} many {# pytań} other {# pytania}} niewykorzystane do pisania zmian, by zmierzyć zmianę."
+    },
+    "draftsTooFewAskers": "Bez szkicu: o część tych tematów pytały mniej niż dwie różne osoby. Możesz je napisać samodzielnie w Lukach w wiedzy.",
+    "openKnowledgeGaps": "Otwórz Luki w wiedzy",
+    "decided": {
+      "title": "Decyzje w tym kroku",
+      "started": "{name} rozpoczął(-ęła) tę sesję · {at}",
+      "evidence_decided": "{name} przeniósł(-osła) lub zignorował(a) przykład · {at}",
+      "selection_confirmed": "{name} wybrał(a), które zmiany przetestować · {at}",
+      "round_selected": "{name} wybrał(a) próbę do przejrzenia · {at}",
+      "attribution_started": "{name} przetestował(a) każdą zmianę osobno · {at}",
+      "knowledge_check_started": "{name} przetestował(a) szkic wiedzy · {at}",
+      "review_recomputed": "{name} przejrzał(a) ocenę, więc wynik policzono od nowa · {at}",
+      "continuation_confirmed": "{name} postanowił(a) poprawiać dalej · {at}",
+      "retried": "{name} ponowił(a) krok · {at}",
+      "discarded": "{name} odrzucił(a) sugestie · {at}",
+      "accepted": "{name} zachował(a) zmiany w wersji roboczej · {at}",
+      "published": "{name} opublikował(a) nową wersję · {at}"
     }
   }
 }

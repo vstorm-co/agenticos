@@ -10943,6 +10943,23 @@
       "body": "Nur die nicht zum Schreiben der Änderungen verwendeten Fragen entscheiden das Ergebnis. Eine automatische Prüfung testet weiterhin alle Fragen.",
       "excluded": "{count, plural, one {# Frage bleibt} other {# Fragen bleiben}} außen vor, weil sie eine zum Schreiben verwendete Frage wiederholen.",
       "needed": "Fügen Sie {count, plural, one {# weitere Frage} other {# weitere Fragen}} hinzu, die nicht zum Schreiben der Änderungen verwendet werden, um eine Änderung zu messen."
+    },
+    "draftsTooFewAskers": "Kein Entwurf: Zu einigen dieser Themen haben weniger als zwei verschiedene Personen gefragt. Sie können sie unter Wissenslücken selbst schreiben.",
+    "openKnowledgeGaps": "Wissenslücken öffnen",
+    "decided": {
+      "title": "Hier entschieden",
+      "started": "{name} hat diese Sitzung gestartet · {at}",
+      "evidence_decided": "{name} hat ein Beispiel verschoben oder ignoriert · {at}",
+      "selection_confirmed": "{name} hat gewählt, welche Änderungen getestet werden · {at}",
+      "round_selected": "{name} hat den zu prüfenden Versuch gewählt · {at}",
+      "attribution_started": "{name} hat jede Änderung einzeln getestet · {at}",
+      "knowledge_check_started": "{name} hat einen Wissensentwurf getestet · {at}",
+      "review_recomputed": "{name} hat eine Bewertung geprüft, daher wurde das Ergebnis neu berechnet · {at}",
+      "continuation_confirmed": "{name} hat entschieden, weiter zu verbessern · {at}",
+      "retried": "{name} hat einen Schritt wiederholt · {at}",
+      "discarded": "{name} hat die Vorschläge verworfen · {at}",
+      "accepted": "{name} hat die Änderungen als Entwurf behalten · {at}",
+      "published": "{name} hat die neue Version veröffentlicht · {at}"
     }
   }
 }

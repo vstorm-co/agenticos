@@ -11060,6 +11060,23 @@
       "body": "Only the questions not used to write the changes decide the result. An automatic check still tests every question.",
       "excluded": "{count, plural, one {# question is} other {# questions are}} left out because they repeat a question used to write the changes.",
       "needed": "Add {count, plural, one {# more question} other {# more questions}} not used to write the changes to measure a change."
+    },
+    "draftsTooFewAskers": "Not drafted: fewer than two different people asked about some of these topics. You can write them yourself from Knowledge gaps.",
+    "openKnowledgeGaps": "Open Knowledge gaps",
+    "decided": {
+      "title": "Decided here",
+      "started": "{name} started this session · {at}",
+      "evidence_decided": "{name} moved or ignored an example · {at}",
+      "selection_confirmed": "{name} chose which changes to test · {at}",
+      "round_selected": "{name} chose which attempt to review · {at}",
+      "attribution_started": "{name} tested each change on its own · {at}",
+      "knowledge_check_started": "{name} tested a knowledge draft · {at}",
+      "review_recomputed": "{name} reviewed a grade, so the result was worked out again · {at}",
+      "continuation_confirmed": "{name} chose to improve again · {at}",
+      "retried": "{name} retried a step · {at}",
+      "discarded": "{name} discarded the suggestions · {at}",
+      "accepted": "{name} kept the changes as a draft · {at}",
+      "published": "{name} published the new version · {at}"
     }
   }
 }

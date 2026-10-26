@@ -88,6 +88,10 @@ export interface Improvement {
     stage: string | null;
     status: string | null;
     reason: string | null;
+    /** The person whose action this was; absent for the session's own steps. */
+    actor_user_id?: string | null;
+    /** Their name, for a reader who may see the member directory. */
+    actor_name?: string | null;
   }[];
 }
 export interface AttributionEstimate {

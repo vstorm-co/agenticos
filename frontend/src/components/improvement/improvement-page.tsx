@@ -22,6 +22,7 @@ import { RoundResults, RoundHistory } from "./round-results";
 import { TestQuestions, Today } from "./session-inputs";
 import { Understand } from "./understand";
 import { CheckProgress } from "./check-progress";
+import { StepDecisions } from "./step-decisions";
 import { AcceptSummary, DoneScreen, GuardNote, KnowledgeDocuments, ResultSummary } from "./outcome";
 
 import {
@@ -354,6 +355,7 @@ function Session({
             </Link>
           </section>
         )}
+        <StepDecisions session={session} step={step} />
       </div>
       {selectionDirty && (
         <p role="alert" className="text-sm">

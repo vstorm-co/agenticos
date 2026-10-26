@@ -214,3 +214,29 @@ it("ends on a Done screen that promises a warning only when a check watches the 
     "/agents/a1?tab=evals",
   );
 });
+
+it("explains topics left undrafted because too few people asked, with a way to write them", () => {
+  state.topics = [];
+  const session = {
+    ...SESSION,
+    timeline: [
+      {
+        action: "improvement.drafting_finished",
+        at: SESSION.created_at,
+        stage: "drafting",
+        status: "running",
+        reason: "too_few_askers",
+      },
+    ],
+  };
+  const view = render(<KnowledgeDocuments session={session} />);
+  expect(screen.getByText(/fewer than two different people asked/)).toBeInTheDocument();
+  expect(screen.queryByText("Nothing is missing from the knowledge base.")).toBeNull();
+  expect(screen.getByRole("link", { name: "Open Knowledge gaps" })).toHaveAttribute(
+    "href",
+    "/agents/a1?tab=gaps",
+  );
+  view.rerender(<KnowledgeDocuments session={session} accept />);
+  expect(screen.getByText("In the knowledge base: nothing to add")).toBeInTheDocument();
+  expect(screen.getByText(/fewer than two different people asked/)).toBeInTheDocument();
+});
