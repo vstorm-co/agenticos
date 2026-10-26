@@ -45,6 +45,12 @@ environment without a person's decision.
   **System agents** on the Agents page, are left out of agent pickers and of
   `GET /agents`, and count toward the deployment's agents-per-organization
   limit: an organization at that limit cannot get them until it is raised.
+  Changing one - its draft, publication, rollback, archive, deletion or
+  environments - takes `org:settings`.
+- **`GET /runs` lists every run.** Activity and the runs API now include eval
+  runs and the platform's own agents at work beside conversations. A client
+  that wants people's runs only passes `source=conversation`; the export takes
+  the same filter.
 - **Knowledge searches made during runs are recorded.** Each search an agent
   makes in a run that answers a person is kept (the first 1,000 characters of
   the query, what came back and how close it was) to find knowledge gaps. It is
@@ -72,7 +78,10 @@ environment without a person's decision.
   drafted by the case generator from the agent, its knowledge, real chats and
   red teaming and accepted under **Generated**. Each agent can build its own
   test set from its rated answers. Every edit makes a new version, and a
-  warning appears before a second case asks the same question.
+  warning appears before a second case asks the same question. Leaving a
+  dataset with an unsaved case, grading or details edit asks to save, discard
+  or stay, and an unsaved case or grading edit is kept in the browser and
+  offered back on return.
 - **Grading.** A dataset is graded by checks, expected tool calls and a judge
   with criteria, a scale and a pass mark. A dataset can have a judge of its
   own; criteria can be scoped to case tags. The judge quotes the answer for
@@ -83,8 +92,9 @@ environment without a person's decision.
   dataset version, optionally on several models and beside a baseline version
   in the same run. The estimate comes first and the run starts on a second
   click. Flipped cases are re-asked before a regression counts, and results
-  are compared on quality first, then cost, tokens and latency. **Evals** lists
-  every run in the organization.
+  are compared on quality first, then cost, tokens and latency. Each answer,
+  criterion and flip reads as one pass, fail or undecided badge, and a check
+  reads as a rule. **Evals** lists every run in the organization.
 - **Isolated runs and test connections.** An eval runs the agent without
   touching the outside world: tools that write are held and answered from
   recorded calls, and capabilities declare which tools only read. A named
@@ -134,13 +144,26 @@ environment without a person's decision.
   estimate and expected time before anything is spent, separates problems with
   the agent from missing knowledge, makes up to three rounds within a spending
   limit, can test a knowledge draft in context or through search, and offers
-  more test questions when too few remain. Open it from the agent header, the
-  **Needs attention** badge, the dashboard or the **Knowledge gaps** tab; a
-  first improvement has a guided tour. Background sessions are also available
-  through `/agents/{agent_id}/improvements`.
+  more test questions when too few remain. Each step opens on figures and
+  charts, with full answers, quotes and reasons folded into cards. **Improve**,
+  an outline button with a trending-up icon in the agent header, on the Build
+  tab's assistant strip, the **Needs attention** badge, the dashboard and the
+  **Knowledge gaps** tab, opens the agent's session still in progress or a new
+  one; a dot on it says when the agent needs attention. A first improvement
+  has a guided tour. Background sessions and a one-off Improve request are
+  also available through the API.
 - **System agents** can be created from **New agent** → **System agent**, and
   each place that uses one (dataset grading, Generate cases, a knowledge base's
-  gaps tab, Improve) can choose a published one instead of the default.
+  gaps tab, Improve) can choose a published one instead of the default. A
+  system agent is held to its job: it may use only thinking, context and
+  skills, needs instructions and a large enough `max_tokens` to publish, runs
+  on its default environment only, and is refused as the subject of evals,
+  Improve and A2A. The seeded default of each kind cannot be archived or
+  deleted, and its page shows what kind it is.
+- **Activity shows whose work a run was.** A **Source** filter narrows to
+  conversations, Improve and evals, or system agents, and each platform run
+  names its agent and links the eval run, Improve session, gap topic or
+  dataset it worked on.
 - **Notifications** for a failed or re-evaluated suite, an override, an applied
   shared change, a finished improvement session, eval run and case generation,
   each with a preference under **Settings → Notifications**.
@@ -155,14 +178,7 @@ environment without a person's decision.
 ### Changed
 
 - The agent page's tabs are reordered, with an **Evals** tab that shows results
-  first, and **Improve** becomes the header's primary action when the agent had
-  rated-down or failed answers in the last 30 days.
-- **Improve** always opens the improvement wizard. In the agent header and on
-  the Build tab's assistant strip it opens the agent's session still in
-  progress, or a new one; the **Needs attention** badge, the dashboard and the
-  **Knowledge gaps** tab land on the same session. The strip keeps reviewing
-  waiting suggestions and **Verify my edits**; a one-off Improve request
-  remains available through the API.
+  first.
 - A publish refusal offers the one-click fixes it names beside it.
 - Open eval, dataset, suite and improvement pages refresh from live change
   events instead of polling.
@@ -173,6 +189,9 @@ environment without a person's decision.
   knowledge searches through OpenRouter are no longer booked at $0.
 - Recommend a workspace the organization can publish when creating an agent,
   and ask again when sandbox connections change.
+- Keep a tour's Back and Next live while a tab or popover opens, skip optional
+  stops missing from the page at once, and offer the page's help on the Improve
+  wizard and an eval run.
 - Show an agent page's controls from the reader's access to that agent,
   including edit grants, and stop an agent page of another organization from
   loading forever.
