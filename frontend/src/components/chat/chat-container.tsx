@@ -969,7 +969,7 @@ function ChatUI({
   const { can } = usePermissions();
   const voiceSettingsHref =
     activeOrgId !== null && can(Perm.orgSettings)
-      ? `${ROUTES.ORG_MEMBERS(activeOrgId)}#org-voice`
+      ? `${ROUTES.ORG_MEMBERS(activeOrgId)}?tab=voice`
       : null;
   // The agent's own override is the other way to set it up, for whoever may
   // edit agents - the Voice card sits on the agent's Build tab.

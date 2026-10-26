@@ -25,6 +25,22 @@ Two things are versioned separately from this file and worth knowing about:
   Start app frames with a light preference instead of inheriting the console
   theme; preserve authored colors, page state and stored versions.
 
+## [1.20.1] - 2026-10-26
+
+### Fixed
+
+- Explain why existing private provider keys or ChatGPT sign-ins cannot be
+  selected for organization speech to text, instead of implying the vault
+  has no credentials for the provider. Show provider icons and consistent masked
+  key hints in Voice calls and Dictation key selectors.
+
+## [1.20.0] - 2026-10-26
+
+### Added
+
+- Organize organization settings into permission-aware tabs, with shareable
+  tab URLs and form drafts preserved when switching sections.
+
 ## [1.19.0] - 2026-10-26
 
 ### Changed

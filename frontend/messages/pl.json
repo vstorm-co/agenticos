@@ -908,7 +908,7 @@
     "embedVoiceUnavailable": "Rozmowy głosowe wymagają skonfigurowanego głosu na karcie Głos tego agenta.",
     "embedVoiceDrift": "Odwiedzający nie widzą przycisku rozmowy, dopóki ten agent znów nie będzie mógł przyjmować rozmów.",
     "embedVoiceUnchecked": "Nie można teraz sprawdzić rozmów głosowych: nie udało się wczytać gotowości tego agenta do rozmów. Odśwież stronę, aby spróbować ponownie.",
-    "voiceProviderNoKey": "{name} (brak klucza)",
+    "voiceProviderNoKey": "{name} (brak pasującego klucza)",
     "voiceConversationEnabled": "Zezwól na rozmowy głosowe",
     "voiceConversationEnabledHint": "Wyłączone, dopóki ich nie włączysz. Działa po opublikowaniu agenta.",
     "voiceConversationProvider": "Provider rozmów",
@@ -4344,6 +4344,14 @@
       "inbox-filters": {
         "title": "Co przyszło do ciebie samo",
         "body": "Znaleziska twoich obserwacji i nocne sugestie, pilne najpierw. Filtruj po źródle albo otwórz Załatwione, żeby przywrócić coś, co odrzuciłeś."
+      },
+      "org-governance": {
+        "title": "Budżet i zgody",
+        "body": "Ustaw limit wydatków organizacji i zarządzaj zwolnieniami z akceptacji. Dostępne opcje zależą od Twoich uprawnień."
+      },
+      "org-proactivity": {
+        "title": "Proaktywność",
+        "body": "Skonfiguruj nocne sugestie, obserwowanie połączeń i proaktywne powitania w czacie. Tutaj wybierzesz model, harmonogram i budżet na osobę."
       }
     },
     "chooseLanguage": "Język",
@@ -4867,7 +4875,7 @@
       "transcriptionPair": "{provider} · {model}",
       "transcriptionEngine": "Provider",
       "transcriptionMistralFormat": "{platform, select, slack {Aplikacja desktopowa Slacka nagrywa klipy audio jako WebM} other {Telegram wysyła wiadomości głosowe jako Ogg/Opus}}, a Mistral nie wymienia tego formatu wśród akceptowanych. Transkrypcja może się nie udać; jeśli tak się stanie, wybierz dla tego bota innego providera.",
-      "transcriptionProviderNoKey": "{name} (brak klucza)",
+      "transcriptionProviderNoKey": "{name} (brak pasującego klucza)",
       "transcriptionInheritedNoKey": "Na poziomie, z którego pochodzi ta para, nie wybrano klucza, więc wiadomości głosowe nie są transkrybowane, dopóki ktoś go nie wybierze."
     },
     "invitations": {
@@ -5071,7 +5079,12 @@
       "workspaceProfile": "Profil organizacji",
       "workspaces": "Organizacje",
       "you": "(Ty)",
-      "yourRoleHere": "Twoja rola tutaj to <badge>{role}</badge>"
+      "yourRoleHere": "Twoja rola tutaj to <badge>{role}</badge>",
+      "tabProfile": "Profil",
+      "tabGovernance": "Budżet i zgody",
+      "tabProactivity": "Proaktywność",
+      "tabVoice": "Głos",
+      "tabAssistant": "AI Architect"
     },
     "rag": {
       "active": "Aktywne",
@@ -6301,7 +6314,7 @@
       "cancel": "Anuluj",
       "save": "Zapisz zmiany",
       "saved": "Zapisano ustawienia głosu",
-      "providerNoKey": "{name} (brak klucza)",
+      "providerNoKey": "{name} (brak pasującego klucza)",
       "notReadyNoKey": "Nie wybrano klucza dla {provider}. Agenci i boty, które go dziedziczą, nie mogą transkrybować przez providera, dopóki nie wybierzesz klucza poniżej."
     },
     "proactive": {
@@ -6488,7 +6501,6 @@
     "speechKey": {
       "label": "Klucz",
       "choose": "Wybierz klucz",
-      "option": "{name} (…{hint})",
       "orgHint": "Klucz API tego providera widoczny dla całej organizacji. Korzystają z niego wszyscy, więc nie można tu wybrać klucza widocznego tylko dla części osób.",
       "agentHint": "Klucz API tego providera, który widzisz. Po publikacji będzie z niego korzystał każdy, kto może uruchomić tego agenta.",
       "stale": "Wybrany klucz został usunięty albo nie można go już tu użyć. Wybierz klucz.",
@@ -6496,7 +6508,9 @@
       "noneOrg": "W vaulcie nie ma jeszcze kluczy {provider} widocznych dla całej organizacji. Dodaj klucz poniżej albo udostępnij istniejący całej organizacji.",
       "cannotList": "Nie możesz wyświetlić kluczy z vaulta, więc nie wybierzesz tu klucza. Poproś osobę, która zarządza połączeniami.",
       "suggestedName": "{provider} – zamiana mowy na tekst",
-      "noneInVault": "W vaulcie nie ma jeszcze kluczy {provider}. Dodaj klucz w vaulcie, a potem wybierz go tutaj."
+      "noneInVault": "W vaulcie nie ma jeszcze kluczy {provider}. Dodaj klucz w vaulcie, a potem wybierz go tutaj.",
+      "notShared": "{name} jest już w Vault, ale przed użyciem tutaj wymaga udostępnienia całej organizacji. Zmień dostęp do klucza w Vault.",
+      "chatGPTSignIn": "{name} to logowanie ChatGPT zapewniające dostęp do modeli w ramach subskrypcji ChatGPT. Funkcje głosowe wymagają klucza API OpenAI; tego logowania nie można tu użyć."
     }
   },
   "context": {

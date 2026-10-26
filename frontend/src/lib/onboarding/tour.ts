@@ -117,6 +117,8 @@ export interface TourStep {
   /** A `[data-tour="…"]` to click before spotlighting — a tab that reveals the target. */
   activate?: string;
   permission?: Permission;
+  /** A section visible to holders of any of these grants. */
+  anyPermission?: readonly Permission[];
   /** Part of the curated first-run walkthrough. Omitted means "?"-only. */
   inTour?: boolean;
   /**
@@ -560,16 +562,30 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: "orgs-new", page: ROUTES.ORGS, target: "orgs-new" },
 
   // The organization detail, entered from the workspaces list. Two routes, one
-  // walk: the members page (profile, then the member list) and then a step
+  // walk: the organization tabs (profile, then the member list) and then a step
   // across into the roles matrix. Ungated — any member reaches both.
-  { id: "org-profile", page: ORG_MEMBERS, target: "org-profile" },
-  // The Voice card sits above the member list on the same page, so it comes
-  // before the list rather than doubling back from the roles matrix. Gated like
+  { id: "org-profile", page: ORG_MEMBERS, target: "org-profile", activate: "org-tab-profile" },
+  {
+    id: "org-governance",
+    page: ORG_MEMBERS,
+    target: "org-governance",
+    activate: "org-tab-governance",
+    anyPermission: [Perm.budgetsManage, Perm.approvalsDecide],
+  },
+  {
+    id: "org-proactivity",
+    page: ORG_MEMBERS,
+    target: "org-proactivity",
+    activate: "org-tab-proactivity",
+    anyPermission: [Perm.budgetsManage, Perm.orgSettings],
+  },
+  // Activate each settings tab before locating its card. Gated like
   // the card, which is hidden from anybody who may not change settings.
   {
     id: "org-voice",
     page: ORG_MEMBERS,
     target: "org-voice",
+    activate: "org-tab-voice",
     permission: Perm.orgSettings,
   },
   // The AI Architect's card: drawn only on the active organization's page, and
@@ -578,10 +594,11 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "org-assistant",
     page: ORG_MEMBERS,
     target: "org-assistant",
+    activate: "org-tab-assistant",
     permission: Perm.orgSettings,
     optional: true,
   },
-  { id: "org-members", page: ORG_MEMBERS, target: "org-members" },
+  { id: "org-members", page: ORG_MEMBERS, target: "org-members", activate: "org-tab-members" },
   { id: "org-roles", page: ORG_ROLES, target: "org-roles" },
   {
     id: "org-retention",
@@ -824,12 +841,19 @@ function flowFor(pageId: string): readonly string[] {
   return SECTION_FLOWS.find((flow) => flow.includes(pageId)) ?? [pageId];
 }
 
+function canVisitStep(step: TourStep, can: (permission: Permission) => boolean): boolean {
+  return (
+    (!step.permission || can(step.permission)) &&
+    (!step.anyPermission || step.anyPermission.some(can))
+  );
+}
+
 /**
  * The curated first-run walkthrough: the `inTour` steps, permission-filtered the
  * way the sidebar is, so a Viewer's tour is exactly the sections they can act on.
  */
 export function visibleTourSteps(can: (permission: Permission) => boolean): readonly TourStep[] {
-  return TOUR_STEPS.filter((step) => step.inTour && (!step.permission || can(step.permission)));
+  return TOUR_STEPS.filter((step) => step.inTour && canVisitStep(step, can));
 }
 
 /**
@@ -850,10 +874,7 @@ export function stepsForPage(
   const flow = flowFor(current);
   const reachable = new Set(flow.slice(flow.indexOf(current)));
   return TOUR_STEPS.filter(
-    (step) =>
-      step.page !== undefined &&
-      reachable.has(step.page) &&
-      (!step.permission || can(step.permission)),
+    (step) => step.page !== undefined && reachable.has(step.page) && canVisitStep(step, can),
   );
 }
 
