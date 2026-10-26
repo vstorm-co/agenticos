@@ -155,6 +155,15 @@ function scheduleSummary(config: Record<string, unknown>, t: Translate): string 
   return t(`nodeSummaryEvery.${draft.unit}`, { count: Number(draft.count) });
 }
 
+/**
+ * How many tries the policy badge announces. A run's canvas says what happened
+ * instead (`runAttempts`, once, under the card): the policy's ceiling beside it
+ * reads as if every try had been used.
+ */
+function retryBadgeTries(policy: NonNullable<NodeInstance["policy"]>, run: unknown): number {
+  return run === null ? (policy.retry?.max_attempts ?? 1) : 1;
+}
+
 /** One line saying what this step is set up to do, where its config says it plainly. */
 export function nodeSummary(instance: NodeInstance, t: Translate): string | null {
   const config = instance.config;
@@ -485,9 +494,7 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
       )}
 
       {policy !== null &&
-        (policy.timeout_seconds ||
-          (policy.retry?.max_attempts ?? 1) > 1 ||
-          routesErrors(instance)) && (
+        (policy.timeout_seconds || retryBadgeTries(policy, run) > 1 || routesErrors(instance)) && (
           <div className="text-muted-foreground flex flex-wrap gap-1.5 px-3 pb-2 text-[0.6875rem]">
             {policy.timeout_seconds ? (
               <span className="bg-muted inline-flex items-center gap-1 rounded px-1.5 py-0.5">
@@ -495,10 +502,10 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
                 {t("nodeTimeoutBadge", { seconds: policy.timeout_seconds })}
               </span>
             ) : null}
-            {(policy.retry?.max_attempts ?? 1) > 1 && (
+            {retryBadgeTries(policy, run) > 1 && (
               <span className="bg-muted inline-flex items-center gap-1 rounded px-1.5 py-0.5">
                 <RotateCw aria-hidden="true" className="size-3" />
-                {t("nodeRetryBadge", { count: policy.retry?.max_attempts ?? 1 })}
+                {t("nodeRetryBadge", { count: retryBadgeTries(policy, run) })}
               </span>
             )}
             {routesErrors(instance) && (

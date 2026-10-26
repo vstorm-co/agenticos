@@ -80,7 +80,7 @@ dependencies = [
     # search all build and send their own requests.
     "mcp>=2.3.0",
     # The platform's own MCP server and its OAuth endpoints (#2058, #2059).
-    "fastmcp>=4.1.0",
+    "fastmcp>=4.1.2",
     # Wrapped by three capabilities: `guardrails` (the ready-made secret/PII
     # detectors and the input/output/tool guard edges), `planning` (the plan
     # store, tools and cache-safe tail reminder) and `compaction` (the
@@ -88,7 +88,7 @@ dependencies = [
     # Pydantic AI is: this is where those are maintained, and pinning would
     # freeze the detectors and the model registry they read. 0.52.0 is the
     # floor: the first release on the slim that brought workspaces.
-    "pydantic-ai-harness>=0.57.0",
+    "pydantic-ai-harness>=0.59.0",
     "websockets>=15.0",
     # Required, not optional: hybrid retrieval fuses BM25 with the vector search
     # and a deployment cannot choose otherwise. It is also the only reason

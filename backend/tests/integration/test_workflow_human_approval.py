@@ -333,6 +333,35 @@ class TestTheQueue:
             decided = await service.queue(seeded.ctx, statuses=[WorkflowApprovalStatus.REJECTED])
         assert decided.items[0].status == WorkflowApprovalStatus.REJECTED
 
+    async def test_the_record_reads_newest_first_inside_its_window(
+        self, engine: AsyncEngine, wakes
+    ):
+        seeded = await seed_run(engine, Graph().graph)
+        await drive(seeded)
+        async with seeded.factory() as db:
+            (item,) = (await WorkflowApprovalService(db).queue(seeded.ctx, statuses=[])).items
+        await _decide(seeded, item.id, approved=True)
+        asked = item.created_at
+        decided = [WorkflowApprovalStatus.APPROVED]
+
+        async with seeded.factory() as db:
+            service = WorkflowApprovalService(db)
+            inside = await service.queue(
+                seeded.ctx,
+                statuses=decided,
+                created_from=asked - timedelta(minutes=1),
+                created_to=asked + timedelta(minutes=1),
+                oldest_first=False,
+            )
+            before = await service.queue(
+                seeded.ctx, statuses=decided, created_to=asked - timedelta(minutes=1)
+            )
+            after = await service.queue(
+                seeded.ctx, statuses=decided, created_from=asked + timedelta(minutes=1)
+            )
+        assert [row.id for row in inside.items] == [item.id]
+        assert before.total == 0 and after.total == 0
+
 
 class TestTheStep:
     async def test_a_step_with_nothing_to_ask_says_so_and_routes_nothing(self):

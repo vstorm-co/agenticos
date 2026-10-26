@@ -121,9 +121,9 @@ loop's body, and a loop until loops are nested as deep as publishing allows.
 Right-clicking a step offers **Open settings**, **Duplicate**, **Switch off** and
 **Delete step**. With several steps selected, a bar at the bottom deletes them together.
 
-**View only** in the header shows someone who may edit the workflow what a reader
+**Switch to view only** in the header shows someone who may edit the workflow what a reader
 sees: nothing on the canvas moves, connects or is deleted, a step opens read-only
-on one click, and **Run** and **Publish** are gone. **Edit** turns it back, and the
+on one click, and **Test draft** and **Publish** are gone. **Switch to editing** turns it back, and the
 editor always opens in edit mode. A save still under way finishes either way.
 
 !!! note "The step catalog grows over time"
@@ -522,8 +522,8 @@ introduced cannot be reconstructed.
 
 ## Running a workflow { #running-a-workflow }
 
-**Run** in the editor's header tests the draft at once - `Ctrl`/`Cmd` + `Enter` does
-too - first asking for the fields a Manual or API trigger declares. The run then
+**Test draft** in the editor's header runs the draft at once, never the published
+version - `Ctrl`/`Cmd` + `Enter` does too - first asking for the fields a Manual or API trigger declares. The run then
 shows on the canvas as it happens. A pill on each step's corner says where it is -
 **Pending**, **Starting**, **Running** with a ticking time, **Waiting**, **Failed**,
 **Needs attention**, **Skipped** or **Not reached** - and a step that succeeded shows
@@ -531,9 +531,9 @@ how long it took. The wire into a running step moves, the path taken turns green
 and a branch the run did not take fades. A failed step shows its error under its
 card and shakes once. A connection says how many items went along it when the step
 before handed on a list, and a bar at the bottom says how the run stands, with
-**Open run** for its page. While the run goes on, the square beside **Run** stops
+**Open run** for its page. While the run goes on, the square beside **Test draft** stops
 it, with no question asked. The canvas keeps the run once it ends; the next edit
-hides it and leaves a bar saying the graph changed since, still with **Open run**. A step that waited and went on counts one try, not two. **Run** waits while an edit is still saving, and says why it cannot
+hides it and leaves a bar saying the graph changed since, still with **Open run**. A step that waited and went on counts one try, not two. **Test draft** waits while an edit is still saving, and says why it cannot
 run while the draft has problems.
 
 **Runs** in the editor's header, and the runs icon on a workflow's card, open its
@@ -557,7 +557,7 @@ busiest. Above them it counts the runs waiting for a person now - an approval or
 step that needs attention - whenever they started. Over the API it is
 `GET /api/v1/workflows/summary?from=2026-10-01&to=2026-10-31`.
 
-A run opens on its duration, its cost and how many steps it took, then the error it
+A run opens on its duration, its cost (a spend under $0.0001 reads `<$0.0001`, not zero) and how many steps it took, then the error it
 ended with, if any. Beside them is the graph it executed, drawn as the editor draws
 a run: each step's pill, its tries and its error, and the steps it never reached
 faded. Only a page open while the run went on moves; one opened later is still. **Open loop body** shows a loop's iterations the same way.
@@ -565,7 +565,7 @@ faded. Only a page open while the run went on moves; one opened later is still. 
 The run's answer - its text, its structured result, the passages it drew on and how
 many files it made, with the JSON itself under **Raw output** - and every step it
 took, iteration by iteration, sit alongside. A run still going
-refreshes itself every couple of seconds, and **Cancel run** stops it. Its **Files** list what its steps stored - a download, a rendered page, a script's output - each one downloadable.
+refreshes itself every couple of seconds, and **Cancel run** stops it, and withdraws the timers its waiting steps had queued. Its **Files** list what its steps stored - a download, a rendered page, a script's output - each one downloadable.
 
 
 In the list a test run's version reads **Draft (test)** and a real one's
@@ -606,7 +606,7 @@ and audited like one started here. Those doors start no other trigger, and each
 other trigger has a door of its own. A test run of the draft takes any trigger, and
 **Start a run** opens it on an input in that trigger's shape.
 
-**Manual** is the trigger a person starts with **Run**; **API request** is the one a system calls, and **Trigger** shows its endpoint and a sample request. Give either its **Input fields** and a run asks for what it needs: **Run** and **Start a run** show a form with one box per field instead of the JSON, typed as the
+**Manual** is the trigger a person starts with **Test draft**; **API request** is the one a system calls, and **Trigger** shows its endpoint and a sample request. Give either its **Input fields** and a run asks for what it needs: **Test draft** and **Start a run** show a form with one box per field instead of the JSON, typed as the
 field is, and an API call whose input does not fit is refused with the fields that
 are wrong. See [core.input](reference/workflow-nodes.md#core-input).
 
@@ -653,7 +653,8 @@ nothing, because the id is recorded with the run it admitted, in one transaction
 
 A **Schedule** trigger runs every so often, daily at a set time or on a cron
 expression, in the workflow's timezone (UTC unless its **Settings** name another)
-and at most once a minute. Its **Input** is what every run
+and at most once a minute. It fires at its tick, not at the next minute's sweep
+after it. Its **Input** is what every run
 starts with, handed on as `input` beside the `fired_at` of the tick. A tick that
 finds the last run still going is skipped rather than stacking a second run behind
 it, and a tick the admission quota refuses waits for the next one.

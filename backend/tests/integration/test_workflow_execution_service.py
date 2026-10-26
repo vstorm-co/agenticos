@@ -26,6 +26,7 @@ from app.core.config import settings
 from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.artifact import Artifact
+from app.db.models.background_job import BackgroundJob
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
@@ -41,7 +42,9 @@ from app.db.models.workflow_run import (
 )
 from app.main import app
 from app.repositories import workflow_run as workflow_run_repo
+from app.services.background_jobs import enqueue
 from app.services.workflow_execution import WorkflowExecutionService, dispatcher
+from app.worker.jobs import WORKFLOW_DISPATCH_NODE, DispatchWorkflowNode
 from app.workflows.graph.model import NodeInstance, NodePosition, WorkflowGraph
 
 pytestmark = pytest.mark.anyio
@@ -364,6 +367,55 @@ class TestWhoSeesAndStopsARun:
         by_editor = await service.cancel(_ctx(owner, org), colleagues_run.id)
 
         assert by_initiator.status == by_editor.status == WorkflowRunStatus.CANCELLED.value
+
+
+class TestCancellingWithdrawsTheTimers:
+    async def test_a_cancelled_runs_queued_dispatch_jobs_are_withdrawn_and_no_others(
+        self, db: AsyncSession
+    ):
+        owner = await _user(db)
+        org = await _org(db, owner=owner)
+        workflow = await _workflow(db, org=org, owner=owner)
+        cancelled = await _run_on(db, workflow, started_by=owner)
+        kept = await _run_on(db, workflow, started_by=owner)
+        later = datetime.now(UTC) + timedelta(minutes=5)
+        # Another organization's job naming the same run id is not this run's to withdraw.
+        elsewhere = await _org(db, owner=owner)
+        await enqueue(
+            db,
+            WORKFLOW_DISPATCH_NODE,
+            DispatchWorkflowNode(workflow_run_id=cancelled.id, node_run_id=uuid.uuid4()),
+            organization_id=elsewhere.id,
+            run_after=later,
+        )
+        for run in (cancelled, cancelled, kept):
+            await enqueue(
+                db,
+                WORKFLOW_DISPATCH_NODE,
+                DispatchWorkflowNode(workflow_run_id=run.id, node_run_id=uuid.uuid4()),
+                organization_id=org.id,
+                run_after=later,
+            )
+
+        await WorkflowExecutionService(db).cancel(_ctx(owner, org), cancelled.id)
+
+        jobs = (
+            (await db.execute(select(BackgroundJob).where(BackgroundJob.organization_id == org.id)))
+            .scalars()
+            .all()
+        )
+        foreign = (
+            await db.execute(
+                select(BackgroundJob.status).where(BackgroundJob.organization_id == elsewhere.id)
+            )
+        ).scalar_one()
+        assert foreign == "queued"
+        by_run = {
+            run_id: sorted(job.status for job in jobs if job.payload["workflow_run_id"] == run_id)
+            for run_id in (str(cancelled.id), str(kept.id))
+        }
+        assert by_run == {str(cancelled.id): ["cancelled", "cancelled"], str(kept.id): ["queued"]}
+        assert all(job.settled_at is not None for job in jobs if job.status == "cancelled")
 
 
 class TestDeadline:

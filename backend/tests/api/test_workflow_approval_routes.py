@@ -85,6 +85,25 @@ async def test_the_queue_lists_what_the_statuses_ask_for(service: MagicMock):
     ]
 
 
+async def test_the_record_is_read_newest_first_within_a_window(service: MagicMock):
+    for open_client in _client_for(OrgRoleName.OPERATOR, service):
+        async with open_client() as http:
+            response = await http.get(
+                _url(),
+                params={
+                    "status": ["approved", "rejected"],
+                    "created_from": "2026-10-01T00:00:00Z",
+                    "created_to": "2026-10-31T00:00:00Z",
+                    "oldest_first": "false",
+                },
+            )
+    assert response.status_code == 200
+    kwargs = service.queue.await_args.kwargs
+    assert kwargs["oldest_first"] is False
+    assert kwargs["created_from"] == datetime(2026, 10, 1, tzinfo=UTC)
+    assert kwargs["created_to"] == datetime(2026, 10, 31, tzinfo=UTC)
+
+
 async def test_a_decision_is_handed_to_the_service(service: MagicMock):
     approval_id = uuid.uuid4()
     for open_client in _client_for(OrgRoleName.OWNER, service):

@@ -1,5 +1,5 @@
 ---
-source_sha: "53efc0c8e910"
+source_sha: "6d97552555ab"
 ---
 
 # Workflows { #workflows }
@@ -135,9 +135,9 @@ hondo como permite la publicación.
 Un clic derecho en un paso ofrece **Open settings**, **Duplicate**, **Switch off** y
 **Delete step**. Con varios pasos seleccionados, una barra abajo los borra juntos.
 
-**View only**, en la cabecera, enseña a quien puede editar el workflow lo que ve un
+**Switch to view only**, en la cabecera, enseña a quien puede editar el workflow lo que ve un
 lector: nada en el lienzo se mueve, se conecta ni se borra, un paso se abre en solo
-lectura con un clic, y **Run** y **Publish** desaparecen. **Edit** lo devuelve a la
+lectura con un clic, y **Test draft** y **Publish** desaparecen. **Switch to editing** lo devuelve a la
 edición, y el editor siempre se abre en modo de edición. Un guardado aún en curso
 termina en ambos casos.
 
@@ -552,7 +552,7 @@ Los costes eliminados antes de introducir este registro no se pueden reconstruir
 
 ## Ejecutar un workflow { #running-a-workflow }
 
-**Run**, en la cabecera del editor, prueba el draft al momento - `Ctrl`/`Cmd` +
+**Test draft**, en la cabecera del editor, ejecuta el draft al momento, nunca la versión publicada - `Ctrl`/`Cmd` +
 `Enter` también -, pidiendo antes los campos que declara un trigger Manual o API. El
 run aparece luego en el lienzo mientras ocurre.
 
@@ -565,10 +565,10 @@ no tomó se atenúa. Un paso fallido muestra su error bajo su tarjeta y se sacud
 
 Una conexión dice cuántos elementos pasaron por ella cuando el paso anterior entregó
 una lista, y una barra abajo dice cómo va el run, con **Open run** para su página.
-Mientras el run sigue, el cuadrado junto a **Run** lo detiene, sin preguntar nada. El
+Mientras el run sigue, el cuadrado junto a **Test draft** lo detiene, sin preguntar nada. El
 lienzo conserva el run cuando termina; la siguiente edición lo oculta y deja una barra que dice que el
 grafo cambió desde entonces, aún con **Open run**. Un paso que esperó y siguió cuenta
-un intento, no dos. **Run** espera mientras un cambio se sigue
+un intento, no dos. **Test draft** espera mientras un cambio se sigue
 guardando, y dice por qué no puede ejecutarse mientras el draft tenga problemas.
 
 **Runs** en la cabecera del editor, y el icono de runs en la tarjeta de un
@@ -592,7 +592,7 @@ más activos. Encima cuenta los runs que esperan ahora a una persona - una aprob
 un paso que necesita atención -, empezaran cuando empezaran. Por la API es
 `GET /api/v1/workflows/summary?from=2026-10-01&to=2026-10-31`.
 
-Un run se abre con su duración, su coste y cuántos pasos dio, y luego con el error
+Un run se abre con su duración, su coste (un gasto por debajo de $0.0001 se muestra como `<$0.0001`, no como cero) y cuántos pasos dio, y luego con el error
 con el que terminó, si lo hubo. Junto a ellos está el grafo que ejecutó, dibujado
 como el editor dibuja un run: la píldora de cada paso, sus intentos y su error, y los
 pasos a los que nunca llegó atenuados. Solo se mueve una página abierta mientras el run
@@ -602,7 +602,7 @@ la misma manera.
 La respuesta del run - su texto, su resultado estructurado, los pasajes en que se
 apoyó y cuántos archivos creó, con el JSON en sí bajo **Raw output** - y cada paso
 que dio, iteración a iteración, están al lado. Un run en curso se actualiza cada par de segundos, y **Cancel run** lo
-detiene. Sus **Files** listan lo que guardaron sus pasos - una descarga, una página
+detiene y retira los temporizadores que sus pasos en espera habían puesto en cola. Sus **Files** listan lo que guardaron sus pasos - una descarga, una página
 renderizada, la salida de un script -, cada uno descargable.
 
 
@@ -647,7 +647,7 @@ audita como uno iniciado aquí. Esas vías no inician ningún otro trigger, y ca
 trigger tiene la suya. Un run de prueba del draft acepta cualquier trigger, y **Start
 a run** lo abre con una entrada con la forma de ese trigger.
 
-**Manual** es el trigger que una persona inicia con **Run**; **API request** es el que llama un sistema, y **Trigger** muestra su endpoint y una petición de ejemplo. Dale a cualquiera de los dos **campos de entrada** y un run pide lo que necesita: **Run** y **Start a run** muestran un formulario con una casilla por campo en lugar
+**Manual** es el trigger que una persona inicia con **Test draft**; **API request** es el que llama un sistema, y **Trigger** muestra su endpoint y una petición de ejemplo. Dale a cualquiera de los dos **campos de entrada** y un run pide lo que necesita: **Test draft** y **Start a run** muestran un formulario con una casilla por campo en lugar
 del JSON, con el tipo del campo, y una llamada a la API cuya entrada no encaja se
 rechaza con los campos que están mal. Consulta
 [core.input](reference/workflow-nodes.md#core-input).
@@ -698,7 +698,7 @@ el run que admitió, en una sola transacción.
 
 Un trigger **Schedule** se ejecuta cada cierto tiempo, a diario a una hora fija o
 según una expresión cron, en la zona horaria del workflow (UTC salvo que sus **Settings** indiquen otra)
-y como mucho una vez por minuto. Su **Input** es
+y como mucho una vez por minuto, en su tic y no en el siguiente barrido después de él. Su **Input** es
 aquello con lo que empieza cada run, pasado como `input` junto al `fired_at` del tic.
 Un tic que encuentra el último run aún en marcha se omite en lugar de apilar un
 segundo run detrás, y un tic que la cuota de admisión rechaza espera al siguiente.

@@ -8,6 +8,9 @@ import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { DebugRun } from "./debug-run";
 
+/** The options a routine confirmation goes out with (`toastDone`). */
+const routine = expect.objectContaining({ position: "bottom-center" });
+
 vi.mock("sonner", () => ({ toast: { success: vi.fn() } }));
 const read = vi.hoisted(() => ({ nodes: [] as Partial<WorkflowNodeRunRead>[] }));
 vi.mock("@/hooks", () => ({
@@ -58,7 +61,7 @@ describe("DebugRun", () => {
     const pinned = store.getState().graph?.nodes.map((item) => item.pinned_output);
     expect(pinned).toEqual([{ x: 1 }, undefined, undefined, undefined]);
     expect(store.getState().stepData["a"]?.output).toEqual({ x: 1 });
-    expect(toast.success).toHaveBeenCalledWith("Pinned 1 step's data from the run");
+    expect(toast.success).toHaveBeenCalledWith("Pinned 1 step's data from the run", routine);
     expect(onDone).toHaveBeenCalledTimes(1);
   });
 
@@ -76,6 +79,6 @@ describe("DebugRun", () => {
     ];
     rerender(<DebugRun runId="r" catalog={catalog} onDone={onDone} />);
     expect(store.getState().isDirty).toBe(false);
-    expect(toast.success).toHaveBeenLastCalledWith("Nothing to pin from this run");
+    expect(toast.success).toHaveBeenLastCalledWith("Nothing to pin from this run", routine);
   });
 });

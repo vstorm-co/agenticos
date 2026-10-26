@@ -4858,8 +4858,8 @@
       "runsDescription": "Every run of this workflow, newest first: what started it, how it went and what it cost.",
       "runTitle": "Run {id}",
       "history": "Versions",
-      "viewMode": "View only",
-      "editMode": "Edit",
+      "viewMode": "Switch to view only",
+      "editMode": "Switch to editing",
       "visibility": {
         "org": "Organization",
         "team": "Team",
@@ -5063,8 +5063,8 @@
         "choice": "Choose one of the options."
       },
       "exposureManualDescription": "A person starts it with Run in the editor or Start a run on its runs page.",
-      "runDraft": "Run",
-      "runHint": "Test the draft now (Ctrl or Cmd + Enter)",
+      "runDraft": "Test draft",
+      "runHint": "Runs the draft, not the published version (Ctrl or Cmd + Enter)",
       "runNeedsSteps": "Add a step first",
       "runBlockedByProblems": "{count, plural, one {Fix # problem first} other {Fix # problems first}}",
       "liveRunTitle": "Test run",

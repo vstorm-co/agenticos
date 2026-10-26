@@ -150,7 +150,7 @@ export {
 export { useWorkflowActions } from "./use-workflow-actions";
 export { useWorkflowTables, useWorkflowTable } from "./use-workflow-tables";
 export { useCausingRun, useRunHistory, useWorkflowRun, useWorkflowRuns } from "./use-workflow-runs";
-export { useWorkflowApprovals } from "./use-workflow-approvals";
+export { useWorkflowApprovalHistory, useWorkflowApprovals } from "./use-workflow-approvals";
 export { useWorkflowExposure } from "./use-workflow-exposure";
 export { useWorkflowStats } from "./use-workflow-stats";
 export { useWorkflowsSummary } from "./use-workflows-summary";

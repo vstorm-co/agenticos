@@ -455,6 +455,33 @@ class TestTheSummary:
             ("Limited", 2, 0),
         ]
 
+    @pytest.mark.security
+    async def test_a_member_counts_only_the_workflows_they_can_see(self, db, owner):
+        from app.db.models.organization import OrganizationMember
+
+        shared, _graph_ = await _two_step(db, owner)
+        private, _graph_ = await _two_step(db, owner)
+        private.visibility = Visibility.PRIVATE.value
+        await _ran(db, owner, shared, status="succeeded", seconds=1, cost="1")
+        await _ran(db, owner, private, status="needs_attention", seconds=1, cost="2")
+        colleague, _elsewhere = await seed_member(db)
+        db.add(
+            OrganizationMember(
+                organization_id=owner.organization_id, user_id=colleague.id, role="member"
+            )
+        )
+        await db.flush()
+        today = datetime.now(UTC).date()
+
+        summary = await WorkflowStatsService(db).summary(
+            AuthContext(user_id=colleague.id, organization_id=owner.organization_id, role="member"),
+            first=today,
+            last=today,
+        )
+
+        assert (summary.runs, summary.needs_you) == (1, 0)
+        assert [row.id for row in summary.workflows] == [shared.id]
+
     async def test_with_no_workflow_in_sight_everything_reads_nothing(self, db, owner):
         today = datetime.now(UTC).date()
 

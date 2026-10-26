@@ -26,6 +26,7 @@ import {
   restoreWorkflowVersion,
   updateWorkflowDraft,
 } from "@/lib/workflows/workflows-api";
+import { toastDone } from "@/lib/toast";
 
 /** Create a workflow, optionally seeding its draft graph — a template, or a copy. */
 export interface WorkflowSeed {
@@ -201,7 +202,7 @@ export function useWorkflow(workflowId: string | null) {
     mutationFn: (input: WorkflowPublish) => publishWorkflow(workflowId as string, input),
     onSuccess: async (version) => {
       await invalidate();
-      toast.success(t("publishedVersion", { version: version.version }));
+      toastDone(t("publishedVersion", { version: version.version }));
     },
     onError: (err) => toast.error(getErrorMessage(err, tErrors)),
   });

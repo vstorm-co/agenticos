@@ -1,5 +1,5 @@
 ---
-source_sha: "53efc0c8e910"
+source_sha: "6d97552555ab"
 ---
 
 # Workflows { #workflows }
@@ -127,9 +127,9 @@ Prawy przycisk na kroku daje **Open settings**, **Duplicate**, **Switch off** i
 **Delete step**. Gdy
 zaznaczonych jest kilka kroków, pasek na dole usuwa je razem.
 
-**View only** w nagłówku pokazuje komuś, kto może edytować workflow, to, co widzi
+**Switch to view only** w nagłówku pokazuje komuś, kto może edytować workflow, to, co widzi
 czytelnik: na kanwie nic się nie przesuwa, nie łączy ani nie usuwa, krok otwiera się
-tylko do odczytu po jednym kliknięciu, a **Run** i **Publish** znikają. **Edit**
+tylko do odczytu po jednym kliknięciu, a **Test draft** i **Publish** znikają. **Switch to editing**
 przywraca edycję, a edytor zawsze otwiera się w trybie edycji. Zapis, który jeszcze
 trwa, w obu trybach i tak się kończy.
 
@@ -535,7 +535,7 @@ tego rozliczenia nie można odtworzyć.
 
 ## Uruchamianie workflow { #running-a-workflow }
 
-**Run** w nagłówku edytora od razu testuje szkic - `Ctrl`/`Cmd` + `Enter` też -
+**Test draft** w nagłówku edytora od razu uruchamia szkic, nigdy opublikowaną wersję - `Ctrl`/`Cmd` + `Enter` też -
 najpierw prosząc o pola, które deklaruje wyzwalacz Manual albo API. Run pokazuje się
 potem na kanwie na bieżąco. Plakietka w rogu każdego kroku mówi, na jakim jest etapie -
 **Pending**, **Starting**, **Running** z bieżącym czasem, **Waiting**, **Failed**,
@@ -546,11 +546,11 @@ zawiódł, pokazuje błąd pod swoją kartą i raz się trzęsie.
 
 Połączenie mówi, ile elementów nim przeszło, gdy krok przed nim przekazał listę, a
 pasek na dole mówi, jak run stoi, z **Open run** do jego strony. Dopóki run trwa,
-kwadrat obok **Run** go zatrzymuje, bez pytania. Kanwa zachowuje run po jego końcu;
+kwadrat obok **Test draft** go zatrzymuje, bez pytania. Kanwa zachowuje run po jego końcu;
 następna edycja go ukrywa i zostawia pasek z informacją, że graf się od tego czasu
 zmienił, nadal z **Open run**. Krok,
 który poczekał i poszedł dalej, liczy jedną próbę, nie dwie.
-**Run** czeka, dopóki zmiana się zapisuje, i mówi, czemu nie może ruszyć, gdy szkic
+**Test draft** czeka, dopóki zmiana się zapisuje, i mówi, czemu nie może ruszyć, gdy szkic
 ma problemy.
 
 **Runs** w nagłówku edytora i ikona runów na karcie workflow otwierają jego runy,
@@ -574,7 +574,7 @@ uruchamianych. Nad nimi liczy runy, które czekają teraz na człowieka - na
 zatwierdzenie albo krok wymagający uwagi - niezależnie od tego, kiedy się zaczęły.
 Przez API to `GET /api/v1/workflows/summary?from=2026-10-01&to=2026-10-31`.
 
-Run otwiera się na czasie trwania, koszcie i liczbie wykonanych kroków, a potem na
+Run otwiera się na czasie trwania, koszcie (wydatek poniżej $0.0001 pokazuje się jako `<$0.0001`, nie zero) i liczbie wykonanych kroków, a potem na
 błędzie, którym się zakończył, jeśli taki był. Obok jest graf, który wykonał,
 narysowany tak, jak edytor rysuje run: plakietka każdego kroku, jego próby i błąd oraz
 wyszarzone kroki, do których nigdy nie dotarł. Rusza się tylko strona otwarta w
@@ -584,7 +584,7 @@ sam sposób iteracje pętli.
 Odpowiedź runa - jego tekst, wynik strukturalny, fragmenty, na których się oparł, i
 liczba utworzonych plików, z samym JSON-em pod **Raw output** - oraz każdy wykonany
 krok, iteracja po iteracji, są obok.
-Trwający run odświeża się co kilka sekund, a **Cancel run** go zatrzymuje. Jego **Files** wymieniają to, co zapisały jego kroki - pobrany plik, wyrenderowaną stronę, wynik skryptu - każde do pobrania.
+Trwający run odświeża się co kilka sekund, a **Cancel run** go zatrzymuje i wycofuje liczniki, które ustawiły jego czekające kroki. Jego **Files** wymieniają to, co zapisały jego kroki - pobrany plik, wyrenderowaną stronę, wynik skryptu - każde do pobrania.
 
 
 Na liście wersja testowego przebiegu to **Draft (test)**, a prawdziwego
@@ -629,7 +629,7 @@ rozliczany i audytowany tak samo jak uruchomiony tutaj. Te drogi nie uruchamiaj�
 przyjmuje dowolny wyzwalacz, a **Start a run** otwiera go z wejściem w kształcie
 tego wyzwalacza.
 
-**Manual** to wyzwalacz, który osoba uruchamia przyciskiem **Run**; **API request** to ten, który wywołuje system, a **Trigger** pokazuje jego endpoint i przykładowe żądanie. Daj któremuś **pola wejścia**, a run poprosi o to, czego potrzebuje: **Run** i **Start a run** pokazują formularz z jednym polem na każde pole zamiast
+**Manual** to wyzwalacz, który osoba uruchamia przyciskiem **Test draft**; **API request** to ten, który wywołuje system, a **Trigger** pokazuje jego endpoint i przykładowe żądanie. Daj któremuś **pola wejścia**, a run poprosi o to, czego potrzebuje: **Test draft** i **Start a run** pokazują formularz z jednym polem na każde pole zamiast
 JSON-a, z typem pola, a wywołanie API, którego wejście nie pasuje, jest odrzucane z
 listą błędnych pól. Zobacz [core.input](reference/workflow-nodes.md#core-input).
 
@@ -677,7 +677,8 @@ w jednej transakcji.
 
 Wyzwalacz **Schedule** uruchamia się co jakiś czas, codziennie o ustalonej godzinie
 albo według wyrażenia cron, w strefie czasowej workflow (UTC, chyba że jego **Settings** wskazują inną) i
-najczęściej raz na minutę. Jego
+najczęściej raz na minutę. Rusza w swoim tyknięciu, a nie przy następnym przeglądzie
+po nim. Jego
 **Input** to to, od czego zaczyna każdy run, przekazywane jako `input` obok
 `fired_at` danego tyknięcia. Tyknięcie, które zastaje poprzedni run wciąż trwający,
 jest pomijane, zamiast ustawiać za nim drugi run, a tyknięcie odrzucone przez limit

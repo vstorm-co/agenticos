@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import type { WorkflowApprovalRead } from "@/lib/workflows/types";
 
-import { WorkflowApprovalsCard } from "./workflow-approvals-card";
+import { DecidedWorkflowApproval, WorkflowApprovalsCard } from "./workflow-approvals-card";
 
 vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
@@ -90,5 +90,50 @@ describe("WorkflowApprovalsCard", () => {
     const { container } = render(<WorkflowApprovalsCard />, { wrapper });
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/workflow-approvals"));
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe("DecidedWorkflowApproval", () => {
+  it("shows the answer, its note and when it was given", () => {
+    render(
+      <ul>
+        <DecidedWorkflowApproval
+          approval={{
+            ...ASKING,
+            status: "approved",
+            note: "Looks right",
+            decided_at: "2026-09-30T10:00:00Z",
+          }}
+        />
+      </ul>,
+    );
+
+    expect(screen.getByText("Approved")).toBeTruthy();
+    expect(screen.getByText("Looks right")).toBeTruthy();
+    expect(screen.getByRole("link").getAttribute("href")).toBe("/workflows/wf-1/runs/run-1");
+  });
+
+  it("shows a lapsed request with no note, dated by when it was asked", () => {
+    render(
+      <ul>
+        <DecidedWorkflowApproval approval={{ ...ASKING, status: "expired" }} />
+      </ul>,
+    );
+
+    expect(screen.getByText("Expired")).toBeTruthy();
+    expect(screen.queryByTitle(/./)).toBeNull();
+    expect(screen.getByText(/2026/)).toBeTruthy();
+  });
+
+  it("shows a status this build does not know as the value it is", () => {
+    render(
+      <ul>
+        <DecidedWorkflowApproval
+          approval={{ ...ASKING, status: "escalated" as WorkflowApprovalRead["status"] }}
+        />
+      </ul>,
+    );
+
+    expect(screen.getByText("escalated")).toBeTruthy();
   });
 });

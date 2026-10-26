@@ -1,5 +1,5 @@
 ---
-source_sha: "3db7d5718cd4"
+source_sha: "5243432ac707"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -64,7 +64,7 @@ Veröffentlichen auf seinen Typ geprüft.
 
 ### trigger.manual { #trigger-manual }
 
-**Manual.** Von einer Person gestartet - **Run** im Editor oder **Start a run** auf
+**Manual.** Von einer Person gestartet - **Test draft** im Editor oder **Start a run** auf
 seiner Run-Seite. Er gibt dem Graphen dasselbe wie **API request** und nimmt
 dieselben Eingabefelder, nach denen der Editor vor dem Start fragt.
 

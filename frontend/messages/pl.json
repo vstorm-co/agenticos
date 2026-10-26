@@ -3189,8 +3189,8 @@
       "runsDescription": "Każde uruchomienie tego workflow, od najnowszego: co je rozpoczęło, jak poszło i ile kosztowało.",
       "runTitle": "Uruchomienie {id}",
       "history": "Wersje",
-      "viewMode": "Tylko podgląd",
-      "editMode": "Edytuj",
+      "viewMode": "Przełącz na podgląd",
+      "editMode": "Przełącz na edycję",
       "visibility": {
         "org": "Organizacja",
         "team": "Zespół",
@@ -3423,8 +3423,8 @@
         "choice": "Wybierz jedną z opcji."
       },
       "exposureManualDescription": "Uruchamia go osoba przyciskiem Run w edytorze albo Start a run na stronie runów.",
-      "runDraft": "Run",
-      "runHint": "Przetestuj draft teraz (Ctrl lub Cmd + Enter)",
+      "runDraft": "Testuj draft",
+      "runHint": "Uruchamia draft, a nie opublikowaną wersję (Ctrl lub Cmd + Enter)",
       "runNeedsSteps": "Najpierw dodaj krok",
       "runBlockedByProblems": "{count, plural, one {Najpierw popraw # problem} few {Najpierw popraw # problemy} many {Najpierw popraw # problemów} other {Najpierw popraw # problemu}}",
       "liveRunTitle": "Test run",

@@ -1,5 +1,5 @@
 ---
-source_sha: "3db7d5718cd4"
+source_sha: "5243432ac707"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -62,7 +62,7 @@ al publicar.
 
 ### trigger.manual { #trigger-manual }
 
-**Manual.** Lo inicia una persona - **Run** en el editor, o **Start a run** en su
+**Manual.** Lo inicia una persona - **Test draft** en el editor, o **Start a run** en su
 página de runs. Entrega al grafo lo mismo que **API request** y acepta los mismos
 campos de entrada, que el editor pide antes de empezar el run.
 

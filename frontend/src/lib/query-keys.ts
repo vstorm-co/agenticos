@@ -141,6 +141,9 @@ export const qk = {
     // The decisions workflow steps wait on. Under "workflows" so a decision's
     // invalidation of every run refreshes the queue with them.
     approvals: () => ["workflows", "approvals"] as const,
+    // The record of what was decided over a window: its own question, so its own key.
+    approvalHistory: (from: string, to: string) =>
+      ["workflows", "approvals", "history", from, to] as const,
     // The webhooks and schedules that run a workflow unattended.
     exposure: (id: string) => ["workflows", id, "exposure"] as const,
     webhookTest: (id: string, token: string) => ["workflows", id, "webhook-test", token] as const,

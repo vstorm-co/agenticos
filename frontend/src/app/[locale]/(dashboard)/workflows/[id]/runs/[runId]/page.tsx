@@ -44,7 +44,7 @@ import {
   useWorkflowRun,
 } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
-import { formatDateTime, formatRunDuration } from "@/lib/utils";
+import { formatRunCostUsd, formatDateTime, formatRunDuration } from "@/lib/utils";
 import { stepDataOf } from "@/lib/workflows/step-data";
 import {
   isRunRetryable,
@@ -194,7 +194,7 @@ export default function WorkflowRunPage({ params }: PageProps) {
         <FigureCard
           icon={CircleDollarSign}
           label={t("runCost")}
-          value={`$${run.spent_cost.toFixed(4)}${run.cost_is_partial ? "+" : ""}`}
+          value={formatRunCostUsd(run.spent_cost, run.cost_is_partial)}
           caption={
             run.budget_limit !== null ? t("runBudget", { limit: run.budget_limit }) : undefined
           }

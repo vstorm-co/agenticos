@@ -6,7 +6,11 @@ import { toast } from "sonner";
 
 import { getErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
-import { decideWorkflowApproval, listWorkflowApprovals } from "@/lib/workflows/approvals-api";
+import {
+  decideWorkflowApproval,
+  listDecidedWorkflowApprovals,
+  listWorkflowApprovals,
+} from "@/lib/workflows/approvals-api";
 
 /**
  * The requests workflow steps are waiting on, and deciding one.
@@ -35,4 +39,22 @@ export function useWorkflowApprovals(options?: { enabled?: boolean }) {
     onError: (failure) => toast.error(getErrorMessage(failure, tErrors)),
   });
   return { approvals: data?.items ?? [], total: data?.total ?? 0, isLoading, error, decide };
+}
+
+/**
+ * What workflow steps' requests were decided or lapsed in a window, newest first.
+ *
+ * Its own query, as the tool approvals' record is: a decision refreshes the
+ * queue at once and the record moves with the window.
+ */
+export function useWorkflowApprovalHistory(
+  range: { from: string; to: string },
+  options?: { enabled?: boolean },
+) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: qk.workflows.approvalHistory(range.from, range.to),
+    queryFn: () => listDecidedWorkflowApprovals(range),
+    enabled: options?.enabled ?? true,
+  });
+  return { approvals: data?.items ?? [], total: data?.total ?? 0, isLoading, error };
 }

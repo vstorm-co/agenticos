@@ -69,14 +69,24 @@ class WorkflowApprovalService:
         statuses: list[WorkflowApprovalStatus],
         skip: int = 0,
         limit: int = 50,
+        created_from: datetime | None = None,
+        created_to: datetime | None = None,
+        oldest_first: bool = True,
     ) -> WorkflowApprovalList:
-        """The organization's requests in `statuses` - pending when none - oldest first."""
+        """The organization's requests in `statuses` - pending when none.
+
+        Oldest first, as the queue drains; newest first reads the record of
+        decisions. `created_from` and `created_to` narrow it to a window.
+        """
         rows, total = await approval_repo.list_with_workflow(
             self.db,
             organization_id=ctx.organization_id,
             statuses=[status.value for status in statuses or [WorkflowApprovalStatus.PENDING]],
             skip=skip,
             limit=limit,
+            created_from=created_from,
+            created_to=created_to,
+            oldest_first=oldest_first,
         )
         return WorkflowApprovalList(items=[_read(row, name) for row, name in rows], total=total)
 

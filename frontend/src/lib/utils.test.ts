@@ -7,6 +7,8 @@ import {
   cn,
   EMAIL_RE,
   formatBytes,
+  formatCostUsd,
+  formatRunCostUsd,
   formatDate,
   formatDateTime,
   formatElapsed,
@@ -277,5 +279,28 @@ describe("setUrlParam", () => {
     setUrlParam("agent", null);
 
     expect(window.location.search).toBe("");
+  });
+});
+
+describe("formatCostUsd", () => {
+  it("shows four places, and says so when a real cost is below them", () => {
+    expect(formatCostUsd(0.0123)).toBe("$0.0123");
+    expect(formatCostUsd(9e-6)).toBe("<$0.0001");
+    expect(formatCostUsd(0.0001)).toBe("$0.0001");
+  });
+
+  it("keeps an exact zero as zero", () => {
+    expect(formatCostUsd(0)).toBe("$0.0000");
+  });
+});
+
+describe("formatRunCostUsd", () => {
+  it("marks a partial cost with a plus, and leaves a complete one alone", () => {
+    expect(formatRunCostUsd(0.0123, true)).toBe("$0.0123+");
+    expect(formatRunCostUsd(0.0123, false)).toBe("$0.0123");
+  });
+
+  it("does not put a plus on a cost already shown as a bound", () => {
+    expect(formatRunCostUsd(9e-6, true)).toBe("<$0.0001");
   });
 });

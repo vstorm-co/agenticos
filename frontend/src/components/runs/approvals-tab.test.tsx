@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApprovalsTab } from "./approvals-tab";
 import type { Period } from "@/lib/dashboard/period";
 import { apiClient } from "@/lib/api-client";
+import type { WorkflowApprovalRead } from "@/lib/workflows/types";
 import type { ToolApproval } from "@/types/runs";
 
 /**
@@ -80,11 +81,18 @@ function backend({
   queueTotal,
   decided = [] as ToolApproval[],
   decidedTotal,
+  stepQueue = [] as WorkflowApprovalRead[],
+  stepDecided = [] as WorkflowApprovalRead[],
+  failing = [] as ("queue" | "stepQueue" | "stepDecided" | "toolDecided")[],
 }: {
   queue?: ToolApproval[];
   queueTotal?: number;
   decided?: ToolApproval[];
   decidedTotal?: number;
+  stepQueue?: WorkflowApprovalRead[];
+  stepDecided?: WorkflowApprovalRead[];
+  /** Reads that answer with a failure instead. */
+  failing?: ("queue" | "stepQueue" | "stepDecided" | "toolDecided")[];
 } = {}) {
   vi.mocked(apiClient.get).mockImplementation((path: string, options?: unknown) => {
     if (path === "/me/permissions")
@@ -95,6 +103,14 @@ function backend({
         permissions: [{ permission: "approvals:decide", scope: "all" }],
       });
     const params = (options as { params?: unknown } | undefined)?.params;
+    if (path === "/workflow-approvals") {
+      if (failing.includes(Array.isArray(params) ? "stepDecided" : "stepQueue"))
+        return Promise.reject(new Error("unreadable"));
+      const items = Array.isArray(params) ? stepDecided : stepQueue;
+      return Promise.resolve({ items, total: items.length });
+    }
+    if (failing.includes(Array.isArray(params) ? "toolDecided" : "queue"))
+      return Promise.reject(new Error("unreadable"));
     return Promise.resolve(
       Array.isArray(params)
         ? { items: decided, total: decidedTotal ?? decided.length }
@@ -351,6 +367,149 @@ describe("the decided record in the same table", () => {
 
     await screen.findByText("Rejected");
     expect(screen.queryByText(/Showing the newest/)).toBeNull();
+  });
+});
+
+const STEP: WorkflowApprovalRead = {
+  id: "wa-1",
+  workflow_id: "wf-1",
+  workflow_name: "Refunds",
+  workflow_run_id: "wr-1",
+  node_run_id: "nr-1",
+  title: "Send the refund?",
+  details: null,
+  approver_user_ids: [],
+  status: "approved",
+  expires_at: null,
+  decided_by_user_id: "u-1",
+  decided_at: "2026-08-05T10:00:00Z",
+  note: "Looks right",
+  created_at: "2026-08-05T09:00:00Z",
+};
+
+describe("the workflow steps beside the tool calls", () => {
+  it("keeps a decided step in the record and counts it", async () => {
+    backend({ stepDecided: [STEP] });
+
+    render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
+
+    expect(await screen.findByText("Send the refund?", { exact: false })).toBeVisible();
+    expect(screen.getByText("Refunds")).toBeVisible();
+    expect(screen.getByText("Approved")).toBeVisible();
+    expect(screen.getByText("Looks right")).toBeVisible();
+    expect(screen.getByText(/1 decided in this window/)).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+  });
+
+  it("asks for the record newest first, within the window", async () => {
+    backend({ stepDecided: [STEP] });
+
+    render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
+    await screen.findByText("Looks right");
+
+    const asked = vi
+      .mocked(apiClient.get)
+      .mock.calls.filter(([path, options]) => {
+        const params = (options as { params?: unknown } | undefined)?.params;
+        return path === "/workflow-approvals" && Array.isArray(params);
+      })
+      .map(([, options]) => (options as { params: string[][] }).params);
+    expect(asked).toHaveLength(1);
+    expect(asked[0]).toContainEqual(["oldest_first", "false"]);
+    expect(asked[0]).toContainEqual(["status", "approved"]);
+    expect(asked[0]?.map(([key]) => key)).toContain("created_from");
+  });
+
+  it("does not say nothing waits while a step waits on the person", async () => {
+    backend({ stepQueue: [{ ...STEP, status: "pending" }] });
+
+    render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
+
+    expect(await screen.findByText(/1 waiting/)).toBeVisible();
+    expect(screen.queryByText("Nothing waiting")).toBeNull();
+    expect(screen.queryByText("Agents are running without needing you.")).toBeNull();
+  });
+
+  it("does not say nothing waits when the step queue could not be read", async () => {
+    backend({ failing: ["stepQueue"] });
+
+    render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
+
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/workflow-approvals"));
+    await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
+    expect(screen.queryByText("Agents are running without needing you.")).toBeNull();
+  });
+
+  it("offers a retry when the tool queue could not be read", async () => {
+    backend({ failing: ["queue"] });
+
+    render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
+
+    await userEvent.click(await screen.findByRole("button", { name: "Try again" }));
+    expect(screen.queryByText("Agents are running without needing you.")).toBeNull();
+  });
+
+  it("says the record could not be read when only the steps' half failed", async () => {
+    backend({ decided: [DECIDED], failing: ["stepDecided"] });
+
+    render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
+
+    expect(await screen.findByText("The decided record could not be read.")).toBeVisible();
+  });
+
+  it("says the record could not be read when only the tool calls' half failed", async () => {
+    backend({ stepDecided: [STEP], failing: ["toolDecided"] });
+
+    render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
+
+    expect(await screen.findByText("The decided record could not be read.")).toBeVisible();
+  });
+
+  it("interleaves decided steps and tool calls newest first", async () => {
+    backend({
+      decided: [
+        { ...DECIDED, id: "ap-new", created_at: "2026-08-07T09:00:00Z", tool_id: "newest_tool" },
+        { ...DECIDED, id: "ap-old", created_at: "2026-08-03T09:00:00Z", tool_id: "oldest_tool" },
+        // No timestamp reads as oldest rather than breaking the sort.
+        { ...DECIDED, id: "ap-undated", created_at: undefined, tool_id: "undated_tool" },
+      ],
+      stepDecided: [
+        { ...STEP, id: "wa-mid", title: "Middle step", created_at: "2026-08-05T09:00:00Z" },
+      ],
+    });
+
+    render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
+
+    await screen.findByText("Middle step", { exact: false });
+    const rows = within(screen.getByRole("region", { name: "Decided" })).getAllByRole("listitem");
+    expect(rows).toHaveLength(4);
+    expect(rows[0]).toHaveTextContent("Newest tool");
+    expect(rows[1]).toHaveTextContent("Middle step");
+    expect(rows[2]).toHaveTextContent("Oldest tool");
+    expect(rows[3]).toHaveTextContent("Undated tool");
+  });
+
+  it("shows one page of the merged record and counts both halves in the footnote", async () => {
+    const tools = Array.from({ length: 50 }, (_, i) => ({
+      ...DECIDED,
+      id: `ap-${i}`,
+      created_at: "2026-08-10T09:00:00Z",
+    }));
+    backend({
+      decided: tools,
+      decidedTotal: 200,
+      stepDecided: [{ ...STEP, title: "Weeks old step", created_at: "2026-07-20T09:00:00Z" }],
+    });
+
+    render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
+
+    expect(
+      await screen.findByText(/Showing the newest 50 of 201 decided in this window/),
+    ).toBeVisible();
+    expect(screen.queryByText("Weeks old step", { exact: false })).toBeNull();
+    expect(
+      within(screen.getByRole("region", { name: "Decided" })).getAllByRole("listitem"),
+    ).toHaveLength(50);
   });
 });
 

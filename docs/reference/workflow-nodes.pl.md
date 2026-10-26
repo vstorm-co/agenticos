@@ -1,5 +1,5 @@
 ---
-source_sha: "3db7d5718cd4"
+source_sha: "5243432ac707"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -60,7 +60,7 @@ jest odrzucany przed startem błędem `WORKFLOW_RUN_INPUT_INVALID`, a binding do
 
 ### trigger.manual { #trigger-manual }
 
-**Manual.** Uruchamia go osoba - **Run** w edytorze albo **Start a run** na stronie
+**Manual.** Uruchamia go osoba - **Test draft** w edytorze albo **Start a run** na stronie
 runów. Przekazuje grafowi to samo, co **API request**, i przyjmuje te same pola
 wejścia, o które edytor prosi przed startem runa.
 

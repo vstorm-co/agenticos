@@ -1,5 +1,5 @@
 ---
-source_sha: "e035b57c5e83"
+source_sha: "eb0fc003295c"
 ---
 
 # Governance { #governance }
@@ -1434,7 +1434,8 @@ a nie narzędziem za bramką: krok zapisuje własną prośbę - tytuł, podane m
 szczegóły, kto może zdecydować i do kiedy - a jego run na nią czeka. Zakładka
 **Approvals** pokazuje je nad wywołaniami narzędzi, a decyzja budzi run, który idzie
 dalej według odpowiedzi. Decyzja jest ostateczna i trafia do dziennika audytu razem
-z tym, o co pytano. Krok, który wskazuje zatwierdzających, mogą rozstrzygnąć tylko
+z tym, o co pytano, i zostaje na liście **Decided** razem z zapisem wywołań
+narzędzi. Krok, który wskazuje zatwierdzających, mogą rozstrzygnąć tylko
 oni. Prośba, której nikt nie rozstrzygnie na czas, wygasa, a anulowany run anuluje
 swoje prośby.
 

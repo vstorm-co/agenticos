@@ -1332,7 +1332,8 @@ step rather than a gated tool: the step writes its own request - a title, the
 details it was given, who may decide and until when - and its run waits on it.
 The **Approvals** tab lists these above the tool calls, and deciding one wakes the
 run, which goes on by the answer. A decision is final and is recorded in the audit
-trail with what was asked. A step that names its approvers can be decided only by
+trail with what was asked, and stays listed under **Decided** with the tool calls'
+own record. A step that names its approvers can be decided only by
 them. One nobody decides in time expires, and a cancelled run cancels its requests.
 
 ### Artifact entries

@@ -45,7 +45,12 @@ describe("RunButton", () => {
     const onStarted = vi.fn();
     render(<RunButton workflowId="wf" catalog={CATALOG} onStarted={onStarted} />);
 
-    await userEvent.click(screen.getByRole("button", { name: "Run" }));
+    // It says it runs the draft, so a published workflow's builder does not
+    // mistake it for a run of the live version.
+    expect(screen.getByRole("button", { name: "Test draft" }).getAttribute("title")).toMatch(
+      /not the published version/,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Test draft" }));
     expect(mutate).toHaveBeenCalledWith(
       { workflow_id: "wf", mode: "test", input: {} },
       expect.anything(),
@@ -67,7 +72,7 @@ describe("RunButton", () => {
   it("asks for the declared fields first", async () => {
     seed({ fields: [{ name: "email", type: "text" }] });
     render(<RunButton workflowId="wf" catalog={CATALOG} onStarted={vi.fn()} />);
-    await userEvent.click(screen.getByRole("button", { name: "Run" }));
+    await userEvent.click(screen.getByRole("button", { name: "Test draft" }));
     expect(mutate).not.toHaveBeenCalled();
 
     fireEvent.change(screen.getByLabelText("email"), { target: { value: "ada@example.com" } });
@@ -82,19 +87,19 @@ describe("RunButton", () => {
     const { rerender } = render(
       <RunButton workflowId="wf" catalog={CATALOG} onStarted={vi.fn()} />,
     );
-    expect(screen.getByRole("button", { name: "Run" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Run" }).getAttribute("title")).toBe(
+    expect(screen.getByRole("button", { name: "Test draft" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Test draft" }).getAttribute("title")).toBe(
       "Add a step first",
     );
 
     seed({}, "gone.step");
     rerender(<RunButton workflowId="wf" catalog={CATALOG} onStarted={vi.fn()} />);
-    expect(screen.getByRole("button", { name: "Run" }).getAttribute("title")).toMatch(/Fix/);
+    expect(screen.getByRole("button", { name: "Test draft" }).getAttribute("title")).toMatch(/Fix/);
 
     seed();
     store.setState({ isDirty: true });
     rerender(<RunButton workflowId="wf" catalog={CATALOG} onStarted={vi.fn()} />);
-    expect(screen.getByRole("button", { name: "Run" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Test draft" })).toBeDisabled();
     fireEvent.keyDown(window, { key: "Enter", ctrlKey: true });
     expect(mutate).not.toHaveBeenCalled();
     expect(store.getState().problemsRevealed).toBe(true);

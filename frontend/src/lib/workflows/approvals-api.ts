@@ -20,3 +20,24 @@ export async function decideWorkflowApproval(
 ): Promise<WorkflowApprovalRead> {
   return apiClient.post<WorkflowApprovalRead>(`${ROOT}/${id}`, { approved });
 }
+
+/**
+ * The requests already answered or lapsed in a window, newest first - the record
+ * the Approvals tab keeps beside the tool calls' own. `status` repeats, so the
+ * parameters are pairs.
+ */
+export async function listDecidedWorkflowApprovals(range: {
+  from: string;
+  to: string;
+}): Promise<WorkflowApprovalList> {
+  return apiClient.get<WorkflowApprovalList>(ROOT, {
+    params: [
+      ["status", "approved"],
+      ["status", "rejected"],
+      ["status", "expired"],
+      ["created_from", range.from],
+      ["created_to", range.to],
+      ["oldest_first", "false"],
+    ],
+  });
+}

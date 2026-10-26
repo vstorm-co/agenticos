@@ -17,6 +17,7 @@ import {
 } from "@/components/ui";
 import { useStepEvals } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
+import { formatCostUsd } from "@/lib/utils";
 import { knownInput, knownOutputs } from "@/lib/workflows/step-data";
 import type {
   EvalCase,
@@ -42,7 +43,7 @@ export const MODEL_STEPS: ReadonlySet<string> = new Set([
 const KINDS: EvalExpectation["kind"][] = ["contains", "not_contains", "equals"];
 
 function usd(amount: number): string {
-  return `$${amount.toFixed(4)}`;
+  return formatCostUsd(amount);
 }
 
 /**

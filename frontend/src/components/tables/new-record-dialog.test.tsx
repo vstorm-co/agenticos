@@ -12,6 +12,9 @@ vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
   return { ...actual, apiClient: { post: vi.fn() } };
 });
+/** The options a routine confirmation goes out with (`toastDone`). */
+const routine = expect.objectContaining({ position: "bottom-center" });
+
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const base: Omit<ColumnDef, "id" | "label" | "type"> = {
@@ -96,7 +99,7 @@ describe("NewRecordDialog", () => {
         values: { name: "Acme", paid: false },
       }),
     );
-    expect(toast.success).toHaveBeenCalledWith("Record added.");
+    expect(toast.success).toHaveBeenCalledWith("Record added.", routine);
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 

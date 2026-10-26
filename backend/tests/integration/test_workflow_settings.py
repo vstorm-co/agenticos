@@ -686,6 +686,45 @@ async def test_retention_keeps_file_producers_while_another_run_imports_their_ou
         ]
 
 
+async def test_a_workflows_own_later_run_keeps_its_files_only_when_asked_to_count(
+    engine: AsyncEngine,
+) -> None:
+    from app.repositories import workflow_file as workflow_file_repo
+
+    source = await seed_run(engine, _graph("core.input"))
+    importer = await seed_run(engine, _graph("core.input"), member=(source.principal, source.org))
+    async with source.factory() as db:
+        await workflow_run_repo.update_run(
+            db, run=importer.run, update_data={"workflow_id": source.run.workflow_id}
+        )
+        file_id = uuid.uuid4()
+        db.add(
+            WorkflowFile(
+                id=file_id,
+                organization_id=source.org.id,
+                workflow_run_id=source.run.id,
+                storage_path="retained/own",
+                content_type="text/plain",
+                byte_size=1,
+            )
+        )
+        await db.flush()
+        await workflow_run_repo.create_resource_ref(
+            db,
+            organization_id=source.org.id,
+            workflow_run_id=importer.run.id,
+            kind="file",
+            ref={"file_id": str(file_id)},
+        )
+        scope = {"organization_id": source.org.id, "workflow_id": source.run.workflow_id}
+
+        assert await workflow_file_repo.files_are_referenced(db, **scope) is False
+        assert (
+            await workflow_file_repo.files_are_referenced(db, **scope, include_same_workflow=True)
+            is True
+        )
+
+
 @pytest.mark.security
 async def test_error_workflow_retains_the_configuring_app_admins_current_authority(engine):
     from sqlalchemy import update

@@ -10,6 +10,7 @@ import type { WorkflowRestoreInput } from "@/hooks/use-workflows";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { conflictRevision } from "./use-workflow-autosave";
+import { toastDone } from "@/lib/toast";
 
 /** The graph a restored draft with no graph falls back to. */
 const EMPTY_GRAPH: WorkflowGraph = {
@@ -53,7 +54,7 @@ export function useRestoreVersion(
         const current = useWorkflowEditorStore.getState();
         if (!current.isSaveCurrent(token)) return false;
         current.replaceDraft(detail.draft_graph ?? EMPTY_GRAPH, detail.draft_revision);
-        toast.success(t("versionRestored", { version: version.version }));
+        toastDone(t("versionRestored", { version: version.version }));
         return true;
       } catch (error) {
         const current = useWorkflowEditorStore.getState();

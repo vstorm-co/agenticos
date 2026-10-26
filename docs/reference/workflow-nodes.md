@@ -53,7 +53,7 @@ is refused before it starts with `WORKFLOW_RUN_INPUT_INVALID`, and a binding to
 
 ### trigger.manual { #trigger-manual }
 
-**Manual.** Started by a person - **Run** in the editor, or **Start a run** on its
+**Manual.** Started by a person - **Test draft** in the editor, or **Start a run** on its
 runs page. It hands the graph what **API request** does and takes the same input
 fields, which the editor asks for before the run starts.
 

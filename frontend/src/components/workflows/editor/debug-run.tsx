@@ -2,12 +2,12 @@
 
 import { useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
-import { toast } from "sonner";
 
 import { useWorkflowRun } from "@/hooks";
 import { stepDataOf } from "@/lib/workflows/step-data";
 import type { NodeDefinition } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
+import { toastDone } from "@/lib/toast";
 
 /**
  * **Debug in editor**: a past run's data, brought into the draft. Every step of
@@ -52,7 +52,7 @@ export function DebugRun({
     }
     mergeStepData(stepDataOf(runId, nodes));
     if (Object.keys(pins).length > 0) pinOutputs(pins);
-    toast.success(t("runDebugPinned", { count: Object.keys(pins).length }));
+    toastDone(t("runDebugPinned", { count: Object.keys(pins).length }));
     onDone();
   }, [graph, run, nodes, catalog, runId, pinOutputs, mergeStepData, onDone, t]);
 

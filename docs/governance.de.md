@@ -1,5 +1,5 @@
 ---
-source_sha: "e035b57c5e83"
+source_sha: "eb0fc003295c"
 ---
 
 # Governance { #governance }
@@ -1531,7 +1531,8 @@ statt mit einem abgesicherten Tool: Der Schritt schreibt seine eigene Anfrage -
 einen Titel, die ihm übergebenen Details, wer entscheiden darf und bis wann -, und
 sein Run wartet darauf. Der Tab **Approvals** listet sie über den Tool-Aufrufen,
 und eine Entscheidung weckt den Run, der nach der Antwort weitergeht. Eine
-Entscheidung ist endgültig und wird mit dem Gefragten im Audit-Trail festgehalten.
+Entscheidung ist endgültig und wird mit dem Gefragten im Audit-Trail festgehalten und bleibt unter **Decided** neben dem
+Protokoll der Tool-Aufrufe aufgelistet.
 Einen Schritt, der seine Freigebenden nennt, können nur sie entscheiden. Eine
 Anfrage, die niemand rechtzeitig entscheidet, läuft ab, und ein abgebrochener Run
 bricht seine Anfragen ab.

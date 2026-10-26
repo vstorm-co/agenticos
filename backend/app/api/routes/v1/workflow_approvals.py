@@ -5,6 +5,7 @@ Organization-wide like the tool approvals queue, and gated the same way on
 which the service checks.
 """
 
+from datetime import datetime
 from typing import Annotated, Any
 from uuid import UUID
 
@@ -31,11 +32,26 @@ async def list_workflow_approvals(
     service: WorkflowApprovalSvc,
     ctx: Auth,
     status: Annotated[list[WorkflowApprovalStatus] | None, Query()] = None,
+    created_from: datetime | None = Query(None, description="Asked at or after this instant"),
+    created_to: datetime | None = Query(None, description="Asked at or before this instant"),
+    oldest_first: bool = Query(True, description="The queue drains from the top"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
-    """Requests from workflow steps, oldest first - pending unless `status` asks otherwise."""
-    return await service.queue(ctx, statuses=status or [], skip=skip, limit=limit)
+    """Requests from workflow steps, oldest first - pending unless `status` asks otherwise.
+
+    The decided ones read as a record with `oldest_first=false`, optionally within a
+    `created_from` .. `created_to` window, as the tool approvals' record does.
+    """
+    return await service.queue(
+        ctx,
+        statuses=status or [],
+        skip=skip,
+        limit=limit,
+        created_from=created_from,
+        created_to=created_to,
+        oldest_first=oldest_first,
+    )
 
 
 @router.post(

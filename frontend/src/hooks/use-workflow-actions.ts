@@ -15,6 +15,7 @@ import {
   updateWorkflow,
   updateWorkflowSettings,
 } from "@/lib/workflows/workflows-api";
+import { toastDone } from "@/lib/toast";
 
 /**
  * What can be done to a workflow as a whole - rename or tag it, change its
@@ -50,7 +51,7 @@ export function useWorkflowActions() {
       updateWorkflowSettings(id, settings),
     onSuccess: async (detail) => {
       await settle(detail);
-      toast.success(t("settingsSaved"));
+      toastDone(t("settingsSaved"));
     },
     onError: fail,
   });

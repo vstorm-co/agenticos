@@ -580,6 +580,9 @@ class TestCancel:
             patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=True)),
             patch(f"{FACADE_PATH}.workflow_run_repo.cancel_live_outbox_for_run", new=AsyncMock()),
             patch(
+                f"{FACADE_PATH}.background_job_repo.cancel_queued_for_payload", new=AsyncMock()
+            ) as withdrawn,
+            patch(
                 f"{FACADE_PATH}.workflow_approval_repo.cancel_pending_for_run", new=AsyncMock()
             ) as closed,
             patch(
@@ -597,6 +600,10 @@ class TestCancel:
         delivered.assert_awaited_once_with(service.db, run=cancelled)
         # A step's request the run left pending is closed with it.
         closed.assert_awaited_once_with(service.db, cancelled.id)
+        # And so are the timers its waiting nodes queued.
+        assert withdrawn.await_args.kwargs["kind"] == "workflow-dispatch-node"
+        assert withdrawn.await_args.kwargs["payload_value"] == run.id
+        assert withdrawn.await_args.kwargs["organization_id"] == run.organization_id
 
     async def test_a_run_gone_between_the_read_and_the_lock_is_not_found(self):
         run = _run_row()

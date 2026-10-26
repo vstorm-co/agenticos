@@ -447,6 +447,45 @@ describe("a node card on a run's canvas", () => {
   });
 });
 
+describe("a node card's retry policy on a run's canvas", () => {
+  const retrying = instance("a", "http.request", {
+    policy: { retry: { max_attempts: 3 }, on_error: "fail_run" },
+  });
+  const row = (attempts: number): WorkflowNodeRunRead => ({
+    id: "1",
+    node_instance_id: "a",
+    scope_path: [],
+    status: "failed",
+    waiting_reason: null,
+    attempts,
+    cost: 0,
+    error: { code: "URL_REFUSED", message: "Refused" },
+    output: null,
+    started_at: null,
+    ended_at: null,
+  });
+  const draw = (attempts: number) => {
+    seed([retrying]);
+    render(
+      <NodeRunOverlayProvider
+        value={{ summaries: summarizeNodeRuns([row(attempts)]), live: false, watched: false }}
+      >
+        <WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} readOnly />
+      </NodeRunOverlayProvider>,
+    );
+  };
+
+  it("says the tries that happened once, not the policy's ceiling beside them", () => {
+    draw(3);
+    expect(screen.getAllByText("3 tries")).toHaveLength(1);
+  });
+
+  it("does not read as three tries when a refusal ended it after one", () => {
+    draw(1);
+    expect(screen.queryByText("3 tries")).toBeNull();
+  });
+});
+
 describe("a node card in a run being watched", () => {
   const step = (
     status: WorkflowNodeRunRead["status"],

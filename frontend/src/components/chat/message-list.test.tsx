@@ -611,3 +611,63 @@ it("lays out a long segmented answer in linear work (#2469)", () => {
   expect(result.at(-1)?.groupPosition).toBe("last");
   expect(reads).toBeLessThan(10_000);
 });
+
+describe("what each row is handed by messagePresentation", () => {
+  const USAGE = {
+    input_tokens: 10,
+    output_tokens: 5,
+    cost_usd: "0.0010",
+    cost_is_partial: false,
+    budget_percent: null,
+    agent_budget_percent: null,
+    sandbox: null,
+    context: null,
+  };
+
+  it("carries a turn's figure to its last segment and forgets it at the next turn", () => {
+    const messages = [
+      message({ id: "q1", role: "user", content: "first" }),
+      message({ id: "a1", runId: "r-1", usage: USAGE }),
+      message({ id: "a2", runId: "r-1" }),
+      message({ id: "q2", role: "user", content: "second" }),
+      message({ id: "a3", runId: "r-2" }),
+    ];
+    const rows = messagePresentation(messages);
+
+    expect(rows.map((row) => row.usage)).toEqual([undefined, USAGE, USAGE, undefined, undefined]);
+    expect(rows.map((row) => row.request)).toEqual([
+      undefined,
+      undefined,
+      "first",
+      undefined,
+      "second",
+    ]);
+  });
+
+  it("has no request for an answer whose person sent only a file", () => {
+    const rows = messagePresentation([
+      message({ id: "q", role: "user", content: "" }),
+      message({ id: "a" }),
+    ]);
+
+    expect(rows[1]?.request).toBeUndefined();
+  });
+
+  it("places a grouped message first, middle, last or single in its group", () => {
+    const rows = messagePresentation([
+      message({ id: "a", groupId: "g1" }),
+      message({ id: "b", groupId: "g1" }),
+      message({ id: "c", groupId: "g1" }),
+      message({ id: "d", groupId: "g2" }),
+      message({ id: "e" }),
+    ]);
+
+    expect(rows.map((row) => row.groupPosition)).toEqual([
+      "first",
+      "middle",
+      "last",
+      "single",
+      undefined,
+    ]);
+  });
+});

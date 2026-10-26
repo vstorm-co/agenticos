@@ -21,6 +21,9 @@ vi.mock("@/lib/workflows/runs-api", () => ({
   listRunHistory: vi.fn(),
   retryWorkflowRun: vi.fn(),
 }));
+/** The options a routine confirmation goes out with (`toastDone`). */
+const routine = expect.objectContaining({ position: "bottom-center" });
+
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -41,7 +44,7 @@ describe("useWorkflowRuns", () => {
     const { result } = renderHook(() => useWorkflowRuns("wf"), { wrapper });
     await waitFor(() => expect(result.current.total).toBe(1));
     await act(() => result.current.start.mutateAsync({ workflow_id: "wf" }));
-    expect(toast.success).toHaveBeenCalledWith("Run started");
+    expect(toast.success).toHaveBeenCalledWith("Run started", routine);
   });
 
   it("says why a run could not start", async () => {
@@ -109,7 +112,7 @@ describe("retrying a run", () => {
     const { result } = renderHook(() => useWorkflowRun("r"), { wrapper });
 
     await act(() => result.current.retry.mutateAsync());
-    expect(toast.success).toHaveBeenCalledWith("Retry started");
+    expect(toast.success).toHaveBeenCalledWith("Retry started", routine);
     await act(async () => {
       await result.current.retry.mutateAsync().catch(() => undefined);
     });
@@ -138,7 +141,7 @@ describe("useWorkflowRun", () => {
     expect(result.current.run?.status).toBe("running");
     await act(() => result.current.cancel.mutateAsync());
     await waitFor(() => expect(result.current.run?.status).toBe("cancelled"));
-    expect(toast.success).toHaveBeenCalledWith("Run cancelled");
+    expect(toast.success).toHaveBeenCalledWith("Run cancelled", routine);
   });
 
   it("reads its steps once more when the run ends after they were last read", async () => {

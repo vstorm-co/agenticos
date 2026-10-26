@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { toast } from "sonner";
 
 import {
   Button,
@@ -19,6 +18,7 @@ import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { COMPUTED_TYPES, type CellValue, type ColumnDef } from "@/types/tables";
 
 import { RecordCellEditor } from "./record-cell-editor";
+import { toastDone } from "@/lib/toast";
 
 interface NewRecordDialogProps {
   tableId: string;
@@ -101,7 +101,7 @@ export function NewRecordDialog({
     );
     try {
       await create.mutateAsync({ values: filled });
-      toast.success(t("created"));
+      toastDone(t("created"));
       close(false);
     } catch {
       // The hook already said what went wrong; the form keeps what was typed.

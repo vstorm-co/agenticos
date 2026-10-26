@@ -18,7 +18,7 @@ import json
 import logging
 import secrets
 from collections.abc import Mapping, Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 from uuid import UUID
 
@@ -65,6 +65,7 @@ from app.schemas.workflow_exposure import (
 from app.services import portal_catalog, portals, rate_limit, trigger_events
 from app.services.access import WORKFLOW, resolve_access
 from app.services.agent_trigger import _next_fire
+from app.services.background_jobs import enqueue
 from app.services.channels.base import IncomingMessage, split_thread
 from app.services.mcp_connection import McpConnectionService
 from app.services.workflow_authority import require_human_publisher
@@ -78,6 +79,7 @@ from app.services.workflow_execution.exceptions import (
     WorkflowWebhookUnansweredError,
 )
 from app.services.workflow_execution.facade import WorkflowExecutionService
+from app.worker.jobs import WORKFLOW_SCHEDULES_CHECK, Tick
 from app.workflows.graph.model import WorkflowGraph
 from app.workflows.nodes._triggers import (
     ChannelMessageTriggerOutput,
@@ -167,6 +169,34 @@ def _next_tick(exposure: WorkflowExposure, *, now: datetime) -> datetime:
         cron_expression=exposure.cron_expression,
         now=now,
         timezone=exposure.timezone,
+    )
+
+
+# Past the tick, so the worker's clock cannot read it as not yet due.
+_DUE_CHECK_MARGIN = timedelta(seconds=1)
+
+
+async def _queue_due_check(db: AsyncSession, exposure: WorkflowExposure) -> None:
+    """Queue a one-off schedule check for the instant `exposure` next fires.
+
+    The minute sweep alone fires a schedule up to a minute late, and the first
+    fire of a new one up to two intervals late. This job is the timer; the sweep
+    stays as the backstop for a job that was lost. The check sweeps every
+    schedule, so it is deduped on the instant alone: schedules due together share
+    one job, a clock re-set to the same instant queues nothing twice, and a stale
+    job from an earlier clock finds nothing due and ends. Deployment-wide, it
+    carries no organization - its crashes are not one organization's to answer for.
+    """
+    due = exposure.next_fire_at
+    if not exposure.is_active or exposure.adapter != ExposureAdapter.SCHEDULE.value or due is None:
+        return
+    await enqueue(
+        db,
+        WORKFLOW_SCHEDULES_CHECK,
+        Tick(scheduled_for=due),
+        organization_id=None,
+        run_after=due + _DUE_CHECK_MARGIN,
+        dedupe_key=f"workflow-schedule-due:{due.isoformat()}",
     )
 
 
@@ -453,6 +483,7 @@ class WorkflowExposureService:
                 self.db, exposure=exposure, update_data=fields
             )
             await self._audit(ctx, exposure, "workflow.exposure_updated")
+            await _queue_due_check(self.db, exposure)
             return _read(exposure, version.version)
         exposure = await workflow_exposure_repo.create(
             self.db,
@@ -463,6 +494,7 @@ class WorkflowExposureService:
             **fields,
         )
         await self._audit(ctx, exposure, "workflow.exposure_created")
+        await _queue_due_check(self.db, exposure)
         return _read(exposure, version.version)
 
     async def switch_off(self, ctx: AuthContext, workflow: Workflow) -> None:
@@ -500,6 +532,7 @@ class WorkflowExposureService:
         exposure = await workflow_exposure_repo.update(
             self.db, exposure=exposure, update_data=changes
         )
+        await _queue_due_check(self.db, exposure)
         await self._audit(
             ctx,
             exposure,
@@ -530,7 +563,10 @@ class WorkflowExposureService:
                 now=datetime.now(UTC),
                 timezone=timezone,
             )
-        await workflow_exposure_repo.update(self.db, exposure=exposure, update_data=changes)
+        exposure = await workflow_exposure_repo.update(
+            self.db, exposure=exposure, update_data=changes
+        )
+        await _queue_due_check(self.db, exposure)
 
     async def pause(self, ctx: AuthContext, workflow: Workflow) -> None:
         """Pause the workflow's webhook or schedule, if it has one that is on.
@@ -1109,6 +1145,7 @@ class WorkflowExposureService:
                 exposure=exposure,
                 update_data={"next_fire_at": _next_tick(exposure, now=now)},
             )
+            await _queue_due_check(self.db, exposure)
             if await self._last_run_live(exposure):
                 continue
             fire = await self._fire_context(exposure)

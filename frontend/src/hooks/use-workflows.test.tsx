@@ -29,6 +29,9 @@ vi.mock("@/lib/workflows/workflows-api", () => ({
   exportWorkflow: vi.fn(),
   importWorkflow: vi.fn(),
 }));
+/** The options a routine confirmation goes out with (`toastDone`). */
+const routine = expect.objectContaining({ position: "bottom-center" });
+
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -379,7 +382,7 @@ describe("useWorkflow", () => {
       await result.current.publish.mutateAsync({ note: null, expected_revision: 3 });
     });
 
-    expect(toast.success).toHaveBeenCalledWith("Published version 2");
+    expect(toast.success).toHaveBeenCalledWith("Published version 2", routine);
   });
 
   it("toasts a publish failure", async () => {

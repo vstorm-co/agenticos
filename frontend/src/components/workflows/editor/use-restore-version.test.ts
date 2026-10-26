@@ -22,6 +22,9 @@ function insertAt(x: number, y: number): string {
   return id;
 }
 
+/** The options a routine confirmation goes out with (`toastDone`). */
+const routine = expect.objectContaining({ position: "bottom-center" });
+
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 function graph(entry: string): WorkflowGraph {
@@ -145,7 +148,7 @@ describe("useRestoreVersion", () => {
     expect(store.isDirty).toBe(false);
     // The undo stack starts over from the restored graph.
     expect(store.history).toEqual({ canUndo: false, canRedo: false });
-    expect(toast.success).toHaveBeenCalledWith("Version 1 is the draft again");
+    expect(toast.success).toHaveBeenCalledWith("Version 1 is the draft again", routine);
   });
 
   it("falls back to an empty graph when the restored draft has none", async () => {

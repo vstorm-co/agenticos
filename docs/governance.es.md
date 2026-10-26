@@ -1,5 +1,5 @@
 ---
-source_sha: "e035b57c5e83"
+source_sha: "eb0fc003295c"
 ---
 
 # Governance { #governance }
@@ -1420,8 +1420,11 @@ Un workflow pregunta con un paso [`human.approval`](reference/workflow-nodes.md#
 en lugar de una herramienta protegida: el paso escribe su propia solicitud - un
 título, los detalles que recibió, quién puede decidir y hasta cuándo - y su run la
 espera. La pestaña **Approvals** las lista encima de las llamadas a herramientas, y
-decidir una despierta el run, que sigue según la respuesta. Una decisión es
-definitiva y queda en el registro de auditoría junto con lo que se preguntó. Un
+decidir una despierta el run, que sigue según la respuesta.
+
+Una decisión es
+definitiva y queda en el registro de auditoría junto con lo que se preguntó, y sigue listada en **Decided** junto al registro de
+las llamadas a herramientas. Un
 paso que nombra a quienes aprueban solo puede decidirlo esa gente. Una solicitud
 que nadie decide a tiempo caduca, y un run cancelado cancela sus solicitudes.
 

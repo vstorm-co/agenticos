@@ -264,7 +264,7 @@ describe("the workflow editor page permission gate", () => {
     state.canEdit = true;
     await renderPage();
 
-    await userEvent.click(await screen.findByRole("button", { name: "View only" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Switch to view only" }));
     expect(screen.getByTestId("canvas")).toHaveAttribute("data-readonly", "true");
     expect(screen.getByTestId("node-editor")).toHaveAttribute("data-readonly", "true");
     expect(screen.queryByTestId("publish-dialog")).not.toBeInTheDocument();
@@ -277,7 +277,7 @@ describe("the workflow editor page permission gate", () => {
     expect(screen.getByTestId("version-history")).toHaveAttribute("data-restorable", "false");
     await userEvent.click(screen.getByRole("button", { name: /close/i }));
 
-    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    await userEvent.click(screen.getByRole("button", { name: "Switch to editing" }));
     expect(screen.getByTestId("canvas")).toHaveAttribute("data-readonly", "false");
     expect(screen.getByTestId("publish-dialog")).toBeInTheDocument();
   });
@@ -286,7 +286,7 @@ describe("the workflow editor page permission gate", () => {
     state.canEdit = false;
     await renderPage();
     // Already read-only: nothing to switch.
-    expect(screen.queryByRole("button", { name: "View only" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Switch to view only" })).not.toBeInTheDocument();
 
     const canvas = await screen.findByTestId("canvas");
     expect(canvas).toHaveAttribute("data-readonly", "true");

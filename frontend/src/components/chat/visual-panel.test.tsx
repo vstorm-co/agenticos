@@ -496,6 +496,12 @@ describe("on the server", () => {
     expect(html).not.toContain('data-testid="frame"');
   });
 
+  it("renders a drawing still being written, as not framed elsewhere", () => {
+    const html = renderToString(<TurnVisuals calls={[call({ args: {}, status: "pending" })]} />);
+    expect(html).toContain("Drawing…");
+    expect(html).not.toContain("min-height");
+  });
+
   it("lets go of the page when the panel goes", () => {
     const { unmount } = show([call()]);
     unmount();
@@ -663,5 +669,117 @@ describe("viewport-bound historical drawings (#2469)", () => {
     expect(screen.getByTestId("frame")).toBeInTheDocument();
     act(() => lastFrame().onRendered?.());
     expect(onReport).toHaveBeenCalledWith("d1", []);
+  });
+});
+
+describe("a historical drawing's placeholder", () => {
+  /** An observer pair the test drives: visibility and the measured height. */
+  function drive() {
+    const control = {
+      see: (_visible: boolean) => {},
+      measure: (_entries: { contentRect: { height: number } }[]) => {},
+    };
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(report: (entries: { isIntersecting: boolean }[]) => void) {
+          control.see = (visible) => report([{ isIntersecting: visible }]);
+        }
+        observe() {}
+        disconnect() {}
+        unobserve() {}
+      },
+    );
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(report: (entries: { contentRect: { height: number } }[]) => void) {
+          control.measure = report;
+        }
+        observe() {}
+        disconnect() {}
+        unobserve() {}
+      },
+    );
+    return control;
+  }
+
+  it("keeps the height the drawing was last seen at once it scrolls away", () => {
+    const control = drive();
+    const { container } = show([call()]);
+    act(() => control.see(true));
+    act(() => control.measure([{ contentRect: { height: 321 } }]));
+    act(() => control.see(false));
+
+    expect(screen.queryByTestId("frame")).toBeNull();
+    expect(container.querySelector<HTMLElement>("[style*='min-height']")?.style.minHeight).toBe(
+      "321px",
+    );
+  });
+
+  it("ignores a measurement of nothing, which is what a hidden element reports", () => {
+    const control = drive();
+    const { container } = show([call()]);
+    act(() => control.see(true));
+    act(() => control.measure([{ contentRect: { height: 321 } }]));
+    act(() => control.measure([{ contentRect: { height: 0 } }]));
+    act(() => control.measure([]));
+    act(() => control.see(false));
+
+    expect(container.querySelector<HTMLElement>("[style*='min-height']")?.style.minHeight).toBe(
+      "321px",
+    );
+  });
+
+  it("ignores an observer report with no entries", () => {
+    let report: (entries: { isIntersecting: boolean }[]) => void = () => {};
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(callback: typeof report) {
+          report = callback;
+        }
+        observe() {}
+        disconnect() {}
+        unobserve() {}
+      },
+    );
+    show([call()]);
+    act(() => report([]));
+    expect(screen.queryByTestId("frame")).toBeNull();
+  });
+
+  it("measures nothing, and still draws, where ResizeObserver is missing", () => {
+    vi.stubGlobal("ResizeObserver", undefined);
+    show([call()]);
+    expect(screen.getByTestId("frame")).toBeInTheDocument();
+  });
+
+  it("stops observing when the drawing goes", () => {
+    const disconnected = vi.fn();
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        observe() {}
+        disconnect = disconnected;
+        unobserve() {}
+      },
+    );
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        disconnect = disconnected;
+        unobserve() {}
+      },
+    );
+    show([call()]).unmount();
+    expect(disconnected).toHaveBeenCalledTimes(2);
+  });
+
+  it("draws at once where IntersectionObserver is missing", async () => {
+    vi.stubGlobal("IntersectionObserver", undefined);
+    show([call()]);
+    expect(await screen.findByTestId("frame")).toBeInTheDocument();
   });
 });

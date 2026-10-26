@@ -35,6 +35,7 @@ from app.db.models.workflow_run import (
     WorkflowRunStatus,
     WorkflowRunTrigger,
 )
+from app.repositories import background_job as background_job_repo
 from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_approval as workflow_approval_repo
 from app.repositories import workflow_file as workflow_file_repo
@@ -75,6 +76,7 @@ from app.services.workflow_execution.exceptions import (
     WorkflowRunNotRetryableError,
     WorkflowTriggerMismatchError,
 )
+from app.worker.jobs import WORKFLOW_DISPATCH_NODE
 from app.workflows.contracts.io import TableIORef
 from app.workflows.contracts.payload import json_byte_size
 from app.workflows.graph.errors import GraphValidationError
@@ -632,6 +634,15 @@ class WorkflowExecutionService:
             raise WorkflowRunAlreadyTerminalError(run_id=run.id, status=run.status)
 
         await workflow_run_repo.cancel_live_outbox_for_run(self.db, workflow_run_id=run.id)
+        # Their jobs are the timers of a wait or a retry's backoff: left queued they
+        # would sit in the background-jobs panel until due, to find nothing to do.
+        await background_job_repo.cancel_queued_for_payload(
+            self.db,
+            kind=WORKFLOW_DISPATCH_NODE.kind,
+            organization_id=run.organization_id,
+            payload_key="workflow_run_id",
+            payload_value=run.id,
+        )
         # A `human.approval` request left pending would sit in the queue asking
         # for a decision that can no longer decide anything.
         await workflow_approval_repo.cancel_pending_for_run(self.db, run.id)

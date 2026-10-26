@@ -19,6 +19,7 @@ import {
   startWorkflowRun,
 } from "@/lib/workflows/runs-api";
 import { isRunTerminal, type RunHistoryQuery, type WorkflowRunRead } from "@/lib/workflows/types";
+import { toastDone } from "@/lib/toast";
 
 /** How often a live run is read again - its steps move on their own. */
 const LIVE_POLL_MS = 2000;
@@ -39,7 +40,7 @@ export function useWorkflowRuns(workflowId: string) {
     mutationFn: startWorkflowRun,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: qk.workflows.runs(workflowId) });
-      toast.success(t("runStarted"));
+      toastDone(t("runStarted"));
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
@@ -122,7 +123,7 @@ export function useWorkflowRun(runId: string) {
     onSuccess: (cancelled) => {
       queryClient.setQueryData(qk.workflows.run(runId), cancelled);
       void queryClient.invalidateQueries({ queryKey: qk.workflows.runNodes(runId) });
-      toast.success(t("runCancelled"));
+      toastDone(t("runCancelled"));
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
@@ -130,7 +131,7 @@ export function useWorkflowRun(runId: string) {
     mutationFn: () => retryWorkflowRun(runId),
     onSuccess: (started) => {
       void queryClient.invalidateQueries({ queryKey: qk.workflows.runs(started.workflow_id) });
-      toast.success(t("runRetried"));
+      toastDone(t("runRetried"));
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });

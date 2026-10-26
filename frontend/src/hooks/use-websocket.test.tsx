@@ -623,6 +623,57 @@ describe("bounded chat replay batches (#2469)", () => {
   });
 });
 
+describe("a batch whose socket is gone before it flushes", () => {
+  it("drops the batch when the connection was deliberately ended", () => {
+    const onMessage = vi.fn();
+    const { result } = renderHook(() =>
+      useWebSocket({ url: "wss://api/chat", onMessage, batchMessages: true }),
+    );
+    act(() => result.current.connect());
+    const socket = latest();
+    // Closing while frames wait must not hand them to a consumer that has left:
+    // the close handler flushes first, and the flush finds reconnecting disabled.
+    act(() => {
+      socket.onmessage!(new MessageEvent("message", { data: "late" }));
+      result.current.disconnect();
+      socket.drop(1000);
+    });
+    act(() => vi.advanceTimersByTime(200));
+    expect(onMessage).not.toHaveBeenCalled();
+  });
+
+  it("stops delivering mid-batch when the consumer disconnects from a frame", () => {
+    const seen: string[] = [];
+    const { result } = renderHook(() =>
+      useWebSocket({
+        url: "wss://api/chat",
+        batchMessages: true,
+        onMessage: (event) => {
+          seen.push(event.data);
+          result.current.disconnect();
+        },
+      }),
+    );
+    act(() => result.current.connect());
+    act(() => {
+      latest().onmessage!(new MessageEvent("message", { data: "one" }));
+      latest().onmessage!(new MessageEvent("message", { data: "two" }));
+    });
+    act(() => vi.advanceTimersToNextFrame());
+    expect(seen).toEqual(["one"]);
+  });
+});
+
+it("counts a binary frame as large, so it is delivered without waiting", () => {
+  const onMessage = vi.fn();
+  const { result } = renderHook(() =>
+    useWebSocket({ url: "wss://api/chat", onMessage, batchMessages: true }),
+  );
+  act(() => result.current.connect());
+  act(() => latest().onmessage!(new MessageEvent("message", { data: new ArrayBuffer(8) })));
+  expect(onMessage).toHaveBeenCalledTimes(1);
+});
+
 it("renders one consumer update for a replay frame burst (#2469)", () => {
   let renders = 0;
   const { result } = renderHook(() => {

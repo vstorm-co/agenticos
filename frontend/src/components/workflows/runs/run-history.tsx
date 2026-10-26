@@ -18,7 +18,7 @@ import {
 } from "@/components/ui";
 import { useRunHistory, useUrlState, useWorkflows } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
-import { formatDateTime, formatRunDuration } from "@/lib/utils";
+import { formatRunCostUsd, formatDateTime, formatRunDuration } from "@/lib/utils";
 import { RUN_HISTORY_PAGE } from "@/lib/workflows/runs-api";
 import type { WorkflowRunRead, WorkflowRunStatus } from "@/lib/workflows/types";
 
@@ -141,7 +141,7 @@ export function RunHistory({ workflowId }: { workflowId?: string }) {
       key: "cost",
       header: t("runColumns.cost"),
       align: "right",
-      cell: (run) => `$${run.spent_cost.toFixed(4)}${run.cost_is_partial ? "+" : ""}`,
+      cell: (run) => formatRunCostUsd(run.spent_cost, run.cost_is_partial),
       hideBelow: "md",
     },
   ];

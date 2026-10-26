@@ -35,6 +35,7 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext, Perm
 from app.db.models.audit_log import AppAdminAuditLog
+from app.db.models.background_job import BackgroundJob
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.conversation import Conversation, Message
 from app.db.models.mcp_connection import McpConnection
@@ -641,6 +642,107 @@ class TestWebhookDeliveries:
                 exposure_id, body=body, headers=_signed(secret, body)
             )
         assert await _runs(db) == []
+
+
+async def _due_checks(db: AsyncSession) -> list[BackgroundJob]:
+    """The one-off schedule checks queued for an exposure's tick, oldest first."""
+    rows = await db.execute(
+        select(BackgroundJob)
+        .where(
+            BackgroundJob.kind == "workflow-schedules-check",
+            BackgroundJob.dedupe_key.like("workflow-schedule-due:%"),
+        )
+        .order_by(BackgroundJob.run_after)
+    )
+    return list(rows.scalars().all())
+
+
+class TestScheduleDueChecks:
+    """A schedule fires at its tick, not at the next minute sweep after it."""
+
+    async def test_publishing_queues_a_check_for_the_first_tick_once(self, db, tenant):
+        owner, org, workflow = tenant
+        exposure_id = await _schedule(db, _ctx(owner, org), workflow)
+        stored = await db.get(WorkflowExposure, exposure_id)
+        assert stored is not None and stored.next_fire_at is not None
+
+        (job,) = await _due_checks(db)
+        assert job.run_after == stored.next_fire_at + timedelta(seconds=1)
+        assert job.organization_id is None
+
+        await _publish(
+            db, _ctx(owner, org), workflow, WorkflowGraph.model_validate(workflow.draft_graph)
+        )
+        assert len(await _due_checks(db)) == 1
+
+    async def test_schedules_firing_together_share_one_check_for_their_next_tick(self, db, tenant):
+        owner, org, workflow = tenant
+        first = await _schedule(db, _ctx(owner, org), workflow)
+        second = await _schedule(db, _ctx(owner, org), await _another_workflow(db, org, owner))
+        await _due(db, first)
+        await _due(db, second)
+        now = datetime.now(UTC)
+
+        await WorkflowExposureService(db).fire_due(now=now)
+
+        following = [
+            job
+            for job in await _due_checks(db)
+            if job.run_after == now + timedelta(hours=1, seconds=1)
+        ]
+        (job,) = following
+        assert job.dedupe_key == f"workflow-schedule-due:{(now + timedelta(hours=1)).isoformat()}"
+
+    async def test_firing_queues_the_check_for_the_following_tick(self, db, tenant):
+        owner, org, workflow = tenant
+        exposure_id = await _schedule(db, _ctx(owner, org), workflow)
+        await _due(db, exposure_id)
+        now = datetime.now(UTC)
+
+        await WorkflowExposureService(db).fire_due(now=now)
+
+        first, following = await _due_checks(db)
+        assert following.run_after == now + timedelta(hours=1, seconds=1)
+        assert first.run_after < following.run_after
+
+    async def test_pausing_queues_nothing_and_resuming_queues_the_new_tick(self, db, tenant):
+        owner, org, workflow = tenant
+        exposure_id = await _schedule(db, _ctx(owner, org), workflow)
+        service = WorkflowExposureService(db)
+        await db.execute(delete(BackgroundJob))
+
+        await service.set_active(
+            _ctx(owner, org), workflow.id, exposure_id, WorkflowExposureUpdate(is_active=False)
+        )
+        assert await _due_checks(db) == []
+
+        resumed = await service.set_active(
+            _ctx(owner, org), workflow.id, exposure_id, WorkflowExposureUpdate(is_active=True)
+        )
+        (job,) = await _due_checks(db)
+        assert resumed.next_fire_at is not None
+        assert job.run_after == resumed.next_fire_at + timedelta(seconds=1)
+
+    async def test_a_cron_schedule_moved_to_another_timezone_queues_its_new_tick(self, db, tenant):
+        owner, org, workflow = tenant
+        cron = {"schedule_kind": "cron", "cron_expression": "0 9 * * *"}
+        exposure_id = await _publish(
+            db, _ctx(owner, org), workflow, _graph("trigger.schedule", cron)
+        )
+        await db.execute(delete(BackgroundJob))
+        workflow.settings = {**workflow.settings, "timezone": "Asia/Tokyo"}
+
+        await WorkflowExposureService(db).retime(_ctx(owner, org), workflow)
+
+        stored = await db.get(WorkflowExposure, exposure_id.exposure.id)
+        assert stored is not None and stored.next_fire_at is not None
+        (job,) = await _due_checks(db)
+        assert job.run_after == stored.next_fire_at + timedelta(seconds=1)
+
+    async def test_a_webhook_queues_no_check(self, db, tenant):
+        owner, org, workflow = tenant
+        await _webhook(db, _ctx(owner, org), workflow)
+        assert await _due_checks(db) == []
 
 
 class TestSchedules:

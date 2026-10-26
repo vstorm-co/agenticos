@@ -337,6 +337,7 @@ function ViewportVisual({ call }: { call: ToolCall }) {
   const live = call.status === "pending" || call.status === "running";
   useEffect(() => {
     const element = holder.current;
+    /* v8 ignore next -- the holder div always renders, so the ref is set when the effect runs */
     if (!element) return;
     if (typeof IntersectionObserver === "undefined") {
       queueMicrotask(() => {
@@ -402,12 +403,8 @@ function VisualPanel({ call, active }: { call: ToolCall; active: boolean }) {
   const reported = useRef(false);
   const thumbnailed = useRef(false);
 
-  if (call.status === "error") return null;
-  // Finished without drawing - the tool refused it - is no visual, whatever the
-  // arguments held; a result still on its way is not a refusal yet.
-  if (call.status === "completed" && call.result !== undefined && !drewVisual(call.result)) {
-    return null;
-  }
+  // Errored calls and finished ones that drew nothing (the tool refused them; a
+  // result still on its way is not a refusal yet) are dropped by TurnVisuals.
   const streaming =
     call.status === "pending" || (shown !== null && shown !== "missing" && !shown.done);
   if (shown === null) {

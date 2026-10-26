@@ -93,18 +93,34 @@ async def list_with_workflow(
     statuses: list[str],
     skip: int,
     limit: int,
+    created_from: datetime | None = None,
+    created_to: datetime | None = None,
+    oldest_first: bool = True,
 ) -> tuple[list[tuple[WorkflowApproval, str]], int]:
-    """One organization's requests in `statuses`, oldest first, each with its workflow's name."""
-    where = (
+    """One organization's requests in `statuses`, each with its workflow's name.
+
+    Oldest first unless `oldest_first` is false, and narrowed to those asked
+    within `created_from` .. `created_to` when given.
+    """
+    where = [
         WorkflowApproval.organization_id == organization_id,
         WorkflowApproval.status.in_(statuses),
+    ]
+    if created_from is not None:
+        where.append(WorkflowApproval.created_at >= created_from)
+    if created_to is not None:
+        where.append(WorkflowApproval.created_at <= created_to)
+    ordering = (
+        (WorkflowApproval.created_at, WorkflowApproval.id)
+        if oldest_first
+        else (WorkflowApproval.created_at.desc(), WorkflowApproval.id.desc())
     )
     total = await db.scalar(select(func.count()).select_from(WorkflowApproval).where(*where))
     rows = await db.execute(
         select(WorkflowApproval, Workflow.name)
         .join(Workflow, Workflow.id == WorkflowApproval.workflow_id)
         .where(*where)
-        .order_by(WorkflowApproval.created_at, WorkflowApproval.id)
+        .order_by(*ordering)
         .offset(skip)
         .limit(limit)
     )
