@@ -3962,6 +3962,10 @@
       "first-improvement": {
         "title": "Popraw",
         "body": "Przeczytamy, co poszło źle, zaproponujemy zmiany i sprawdzimy je na osobnych pytaniach. Zmiany wejdą w życie po Twojej akceptacji i publikacji."
+      },
+      "improvement-session": {
+        "title": "Przejdź przez tę sesję",
+        "body": "Zobacz, co zrobił każdy krok: pytania, dzisiejsze odpowiedzi, wynik i co publikacja zmieni tam, gdzie ludzie używają agenta."
       }
     },
     "steps": {
@@ -4723,76 +4727,84 @@
         "body": "Znaleziska twoich obserwacji i nocne sugestie, pilne najpierw. Filtruj po źródle albo otwórz Załatwione, żeby przywrócić coś, co odrzuciłeś."
       },
       "improvement-test-set": {
-        "title": "Pytania testowe",
-        "body": "Wybierz pytania, na których mierzymy zmianę. Część z nich służy do pisania zmian, a pozostałe są odłożone i rozstrzygają, czy zmiana zadziałała."
+        "title": "Czas i koszt",
+        "body": "Pytania testowe agenta są już wybrane i wycenione. Jedyna decyzja tutaj to Zacznij poprawianie; wcześniej nic nie jest wydawane."
       },
       "improvement-start": {
-        "title": "Pytania",
-        "body": "Przeczytamy, co poszło źle, zaproponujemy zmiany i sprawdzimy je na osobnych pytaniach. Zmiany wejdą w życie po Twojej akceptacji i publikacji."
+        "title": "Popraw",
+        "body": "Czytamy, co poszło nie tak, proponujemy zmiany, testujemy je na prawdziwych pytaniach i pokazujemy, co się poprawiło, a co pogorszyło. Nic nie trafia do użytku, dopóki tego nie zaakceptujesz."
       },
       "improvement-questions": {
-        "title": "Pytania i ocenianie",
-        "body": "Pytania i sposób oceniania odpowiedzi są przypinane na starcie sesji. Ocenianie zmienisz w zakładce Ocenianie zestawu pytań; zmiana obowiązuje od następnej sesji."
+        "title": "Pytania testowe",
+        "body": "Pytania, na których testujemy każdą zmianę, w postaci z chwili rozpoczęcia sesji. Część pomaga pisać zmiany, pozostałe są odłożone, by sprawdzić wynik."
       },
       "improvement-today": {
-        "title": "Pierwszy run",
-        "body": "Zanim cokolwiek się zmieni, agent odpowiada na każde pytanie tak, jak dziś. Ten run to punkt odniesienia, z którym porównujemy każdą zmianę."
+        "title": "Dzisiaj",
+        "body": "Zanim cokolwiek się zmieni, agent odpowiada na pytania tak jak dziś. Każdą zmianę porównujemy z tymi odpowiedziami."
       },
       "improvement-review": {
         "title": "Przegląd",
-        "body": "Otwórz pełne sprawdzenie, żeby wysłać wątpliwą odpowiedź do Przeglądu. Werdykt człowieka zastępuje tam ocenę oceniającego, a wynik jest liczony od nowa."
+        "body": "Masz wątpliwości co do oceny? Otwórz pełne sprawdzenie i wyślij odpowiedź do przeglądu. Decyzja człowieka zastępuje ocenę oceniającego, a wynik jest liczony od nowa."
       },
       "improvement-results": {
         "title": "Wynik",
-        "body": "Sprawdzanie trwa w tle. Możesz zamknąć tę stronę — powiadomimy Cię o wyniku."
+        "body": "Werdykt mówi, które pytania są nowo naprawione, a które nowo zepsute, na wszystkich pytaniach i na odłożonych. Każda zmieniona odpowiedź pokazuje stan przed i po wraz ze zdaniem oceniającego."
       },
       "improvement-automatic-check": {
         "title": "Automatyczne sprawdzenie",
-        "body": "W pierwszej sesji zaznacz to pole, żeby sprawdzać te pytania przy każdej publikacji. Wersja, która psuje któreś z nich, nie trafi do chronionego środowiska."
+        "body": "Przy pierwszej sesji zaznacz to, by testować te pytania przy każdej zmianie agenta. Wersja, która któreś z nich psuje, czeka, zanim trafi tam, gdzie ludzie używają agenta."
       },
       "improvement-guard": {
-        "title": "Ochrona",
-        "body": "Środowisko może być chronione automatycznym sprawdzeniem. Publikacja tworzy nową wersję; chronione środowisko przechodzi na nią dopiero, gdy sprawdzenie przejdzie."
+        "title": "Gdzie ludzie go używają",
+        "body": "Każde miejsce, w którym ludzie używają agenta, mówi, co zrobi publikacja: przełączy się od razu, po zaliczeniu automatycznego sprawdzenia albo zostanie przy swojej wersji."
       },
       "improvement-accept": {
         "title": "Akceptacja",
-        "body": "Zaakceptuj do wersji roboczej lub zaakceptuj i opublikuj razem. Publikacja przechodzi standardowe sprawdzenia. Chronione środowisko zachowa obecną wersję, dopóki automatyczne sprawdzenie nie przejdzie."
+        "body": "Opublikuj nową wersję albo zachowaj zmiany w wersji roboczej, by opublikować je później. Nic nie jest akceptowane ani publikowane samo."
       },
       "flow-improvement-test-set": {
-        "title": "Pytania testowe",
-        "body": "Wybierz pytania, na których mierzymy zmianę. Część z nich służy do pisania zmian, a pozostałe są odłożone i rozstrzygają, czy zmiana zadziałała."
+        "title": "Czas i koszt",
+        "body": "Pytania testowe agenta są już wybrane i wycenione. Jedyna decyzja tutaj to Zacznij poprawianie; wcześniej nic nie jest wydawane."
       },
       "flow-improvement-start": {
-        "title": "Pytania",
-        "body": "Przeczytamy, co poszło źle, zaproponujemy zmiany i sprawdzimy je na osobnych pytaniach. Zmiany wejdą w życie po Twojej akceptacji i publikacji."
+        "title": "Popraw",
+        "body": "Czytamy, co poszło nie tak, proponujemy zmiany, testujemy je na prawdziwych pytaniach i pokazujemy, co się poprawiło, a co pogorszyło. Nic nie trafia do użytku, dopóki tego nie zaakceptujesz."
       },
       "flow-improvement-questions": {
-        "title": "Pytania i ocenianie",
-        "body": "Pytania i sposób oceniania odpowiedzi są przypinane na starcie sesji. Ocenianie zmienisz w zakładce Ocenianie zestawu pytań; zmiana obowiązuje od następnej sesji."
+        "title": "Pytania testowe",
+        "body": "Pytania, na których testujemy każdą zmianę, w postaci z chwili rozpoczęcia sesji. Część pomaga pisać zmiany, pozostałe są odłożone, by sprawdzić wynik."
       },
       "flow-improvement-today": {
-        "title": "Pierwszy run",
-        "body": "Zanim cokolwiek się zmieni, agent odpowiada na każde pytanie tak, jak dziś. Ten run to punkt odniesienia, z którym porównujemy każdą zmianę."
+        "title": "Dzisiaj",
+        "body": "Zanim cokolwiek się zmieni, agent odpowiada na pytania tak jak dziś. Każdą zmianę porównujemy z tymi odpowiedziami."
       },
       "flow-improvement-review": {
         "title": "Przegląd",
-        "body": "Otwórz pełne sprawdzenie, żeby wysłać wątpliwą odpowiedź do Przeglądu. Werdykt człowieka zastępuje tam ocenę oceniającego, a wynik jest liczony od nowa."
+        "body": "Masz wątpliwości co do oceny? Otwórz pełne sprawdzenie i wyślij odpowiedź do przeglądu. Decyzja człowieka zastępuje ocenę oceniającego, a wynik jest liczony od nowa."
       },
       "flow-improvement-results": {
         "title": "Wynik",
-        "body": "Sprawdzanie trwa w tle. Możesz zamknąć tę stronę — powiadomimy Cię o wyniku."
+        "body": "Werdykt mówi, które pytania są nowo naprawione, a które nowo zepsute, na wszystkich pytaniach i na odłożonych. Każda zmieniona odpowiedź pokazuje stan przed i po wraz ze zdaniem oceniającego."
       },
       "flow-improvement-automatic-check": {
         "title": "Automatyczne sprawdzenie",
-        "body": "W pierwszej sesji zaznacz to pole, żeby sprawdzać te pytania przy każdej publikacji. Wersja, która psuje któreś z nich, nie trafi do chronionego środowiska."
+        "body": "Przy pierwszej sesji zaznacz to, by testować te pytania przy każdej zmianie agenta. Wersja, która któreś z nich psuje, czeka, zanim trafi tam, gdzie ludzie używają agenta."
       },
       "flow-improvement-guard": {
-        "title": "Ochrona",
-        "body": "Środowisko może być chronione automatycznym sprawdzeniem. Publikacja tworzy nową wersję; chronione środowisko przechodzi na nią dopiero, gdy sprawdzenie przejdzie."
+        "title": "Gdzie ludzie go używają",
+        "body": "Każde miejsce, w którym ludzie używają agenta, mówi, co zrobi publikacja: przełączy się od razu, po zaliczeniu automatycznego sprawdzenia albo zostanie przy swojej wersji."
       },
       "flow-improvement-accept": {
         "title": "Akceptacja",
-        "body": "Zaakceptuj do wersji roboczej lub zaakceptuj i opublikuj razem. Publikacja przechodzi standardowe sprawdzenia. Chronione środowisko zachowa obecną wersję, dopóki automatyczne sprawdzenie nie przejdzie."
+        "body": "Opublikuj nową wersję albo zachowaj zmiany w wersji roboczej, by opublikować je później. Nic nie jest akceptowane ani publikowane samo."
+      },
+      "improvement-details": {
+        "title": "Pokaż szczegóły",
+        "body": "Wybierz inne pytania testowe, zmień limit wydatków albo agenta pomocniczego lub sprawdź, jak agent odpowiada dziś."
+      },
+      "flow-improvement-details": {
+        "title": "Pokaż szczegóły",
+        "body": "Wybierz inne pytania testowe, zmień limit wydatków albo agenta pomocniczego lub sprawdź, jak agent odpowiada dziś."
       }
     },
     "chooseLanguage": "Język",
@@ -7338,7 +7350,24 @@
       "description": "Alerty o budżecie, zatwierdzenia, nieudane runy i więcej pojawią się tutaj."
     },
     "clearAll": "Wyczyść",
-    "dismissRow": "Odrzuć"
+    "dismissRow": "Odrzuć",
+    "outcome": {
+      "improvement": {
+        "ready": "Poprawki agenta {agent} są gotowe do przejrzenia.",
+        "stopped": "Poprawianie agenta {agent} zostało zatrzymane.",
+        "failed": "Poprawiania agenta {agent} nie udało się dokończyć."
+      },
+      "test": {
+        "completed": "Twój test się zakończył.",
+        "failed": "Twojego testu nie udało się dokończyć.",
+        "cancelled": "Twój test został anulowany.",
+        "budget_exceeded": "Twój test zatrzymał się na budżecie."
+      },
+      "questions": {
+        "ready": "Pytania testowe są napisane i czekają na Twój przegląd.",
+        "failed": "Pisanie pytań testowych się nie powiodło."
+      }
+    }
   },
   "artifacts": {
     "title": "Aplikacje",
@@ -8210,7 +8239,8 @@
     "contentAdded": "Dodano do {knowledgeBase}. Dokument jest przetwarzany.",
     "coveredBy": "Uzupełnione dokumentem <link>{name}</link>, dodanym do bazy wiedzy z tego tematu.",
     "alreadyCoveredBy": "Autor szkiców luk uznał, że na te pytania odpowiada już {sources}. Jeśli tak, odrzuć temat zamiast dodawać treść.",
-    "alreadyCovered": "Autor szkiców luk uznał, że na te pytania jest już odpowiedź. Jeśli tak, odrzuć temat zamiast dodawać treść."
+    "alreadyCovered": "Autor szkiców luk uznał, że na te pytania jest już odpowiedź. Jeśli tak, odrzuć temat zamiast dodawać treść.",
+    "draftAgainInSession": "Nowy szkic zastąpi ten, który przetestowano w tej sesji, więc tamten test przestanie go dotyczyć."
   },
   "apiKeys": {
     "title": "Klucze API",
@@ -10328,7 +10358,8 @@
     "badge": "Wymaga uwagi",
     "rated": "{count, plural, one {1 odpowiedź oceniona w dół} few {# odpowiedzi ocenione w dół} many {# odpowiedzi ocenionych w dół} other {# odpowiedzi ocenionej w dół}}",
     "failed": "{count, plural, one {1 nieudany run} few {# nieudane runy} many {# nieudanych runów} other {# nieudanego runu}}",
-    "suites": "{count, plural, one {1 oblana suita} few {# oblane suity} many {# oblanych suit} other {# oblanej suity}}"
+    "suites": "{count, plural, one {1 oblana suita} few {# oblane suity} many {# oblanych suit} other {# oblanej suity}}",
+    "improveLabel": "Wymaga uwagi: {reasons}. Popraw tego agenta"
   },
   "watches": {
     "title": "Obserwacje",
@@ -10561,15 +10592,9 @@
     "title": "Popraw {name}",
     "heading": "Popraw",
     "intro": "Przeczytamy, co poszło źle, zaproponujemy zmiany i sprawdzimy je na osobnych pytaniach. Zmiany wejdą w życie po Twojej akceptacji i publikacji.",
-    "resume": "{date} · {status} — otwórz sesję",
     "testSet": "Pytania testowe",
     "chooseQuestions": "Wybierz pytania testowe",
     "writeQuestions": "Napisz dla mnie pytania testowe",
-    "questionCost": "Możemy wykorzystać ocenione odpowiedzi i napisać więcej pytań. Najpierw sprawdź szacowany koszt.",
-    "estimateQuestions": "Oszacuj koszt napisania pytań",
-    "estimatedCost": "Szacowany koszt: {cost}",
-    "confirmQuestions": "Potwierdź i napisz pytania",
-    "questionsQueued": "Pytania są przygotowywane w tle.",
     "reviewQuestions": "Przejrzyj pytania",
     "baseline": "Sprawdź, jak agent odpowiada dzisiaj",
     "estimate": "Oszacuj ponownie",
@@ -10718,11 +10743,10 @@
     "discardBody": "Odrzucone zostaną tylko oczekujące sugestie z tej sesji. Zastosowane zmiany i inne oczekujące propozycje zostaną zachowane.",
     "confirmDiscard": "Odrzuć oczekujące sugestie",
     "changesReplaced": "Te sugestie nie są już dostępne. Otwórz agenta, aby sprawdzić aktualną wersję roboczą.",
-    "donePublished": "Gotowe. Wersja {version} została opublikowana. Chronione środowiska czekają na sprawdzenia; przypięte zachowują obecną wersję.",
+    "donePublished": "Wersja {version} jest opublikowana.",
     "openVersion": "Otwórz wersję {version}",
     "doneDraft": "Gotowe. Wybrane zmiany zapisano w wersji roboczej. Opublikuj ją z widoku agenta, gdy będzie gotowa.",
     "publishVersion": "Opublikuj wersję {version}",
-    "publishImpact": "Publikacja zapisuje nową wersję. Środowiska śledzące zmiany przechodzą na nią dopiero po zaliczeniu swoich sprawdzeń; przypięte zachowują obecną wersję. Otwórz agenta, aby sprawdzić, gdzie jest używany.",
     "problemsFound": "Znaleźliśmy {total, plural, one {# problem} few {# problemy} many {# problemów} other {# problemu}}: {agent} do poprawy w agencie, {knowledge} to informacje, których brakuje w bazie wiedzy.",
     "sortingBody": "Jeśli źle przypisaliśmy problem, przenieś go do drugiej kolumny albo go zignoruj. Następna próba uwzględni Twój wybór; już zaproponowane zmiany zostają bez zmian.",
     "ignoredExamples": "Zignorowane ({count})",
@@ -10757,7 +10781,7 @@
     "reviewAndAdd": "Przejrzyj i dodaj",
     "notNow": "Nie teraz",
     "acceptAgent": "W agencie: {version, plural, =0 {nowa wersja} other {wersja #}} naprawi {fixed}, zepsuje {broken}{costKnown, select, yes {, koszt odpowiedzi zmieni się o {cost}} other {}}. Przetestowano na {total, plural, one {# pytaniu} other {# pytaniach}}, z czego {heldOut} nie posłużyło do pisania zmian.",
-    "guardedSwitch": "{environment} przełączy się na wersję {version}, gdy automatyczne sprawdzenie przejdzie.",
+    "guardedSwitch": "{environment} przełączy się na wersję {version} po zaliczeniu automatycznego sprawdzenia, zwykle w ciągu kilku minut.",
     "doneTitle": "Gotowe",
     "doneWatching": "Damy znać, jeśli coś się później zepsuje.",
     "noChangesFound": "Nie znaleźliśmy zmiany pasującej do obecnych instrukcji. Oto, co próbowaliśmy:",
@@ -10766,6 +10790,59 @@
     "handledChange": "{before} → {after} z {total} pytań obsłużonych poprawnie.",
     "newlyFixed": "Nowo naprawione",
     "newlyBroken": "Nowo zepsute",
-    "notConfirmedYet": "Jeszcze niepotwierdzone ({count})"
+    "notConfirmedYet": "Jeszcze niepotwierdzone ({count})",
+    "tooFewHeldOut": "Za mało pytań, by zmierzyć zmianę: potrzeba jeszcze {needed, plural, one {# pytania} other {# pytań}} niewykorzystanych do pisania zmian.",
+    "technicalDetails": "Szczegóły techniczne",
+    "startWithNewQuestions": "Rozpocznij nową sesję z tymi pytaniami",
+    "resumeOpen": "Masz poprawianie w toku ({status}, {date}). Otwórz je",
+    "baselineFirst": "Punkt odniesienia: przetestuj dzisiejszą wersję na kilku pytaniach.",
+    "writeQuestionsBody": "Ten agent nie ma jeszcze pytań testowych. Zamienimy ocenione odpowiedzi w pytania i dopiszemy kolejne dla tematów bez przykładu.",
+    "writeQuestionsQuote": "Do {count, plural, one {# pytania} other {# pytań}}, około {cost} (szacunek).",
+    "writeQuestionsUnpriced": "Nie da się wycenić pisania pytań: model, który je pisze, nie ma znanej ceny.",
+    "writtenCounts": "{down} z odpowiedzi ocenionych negatywnie, {liked} z odpowiedzi ocenionych pozytywnie, {written} w trakcie pisania dla tematów bez przykładu.",
+    "questionsWriting": "Piszemy pytania… Szacunek odświeży się, gdy będą gotowe.",
+    "questionsWritingFailed": "Pisanie dodatkowych pytań się nie powiodło; pytania z ocenionych odpowiedzi są gotowe.",
+    "questionsWritten": "Pytania są gotowe.",
+    "generationSkipped": {
+      "enough": "Pytań jest już wystarczająco, więc nie napisano nowych.",
+      "ai_off": "Wsparcie AI jest wyłączone, więc nie napisano pytań.",
+      "unavailable": "Pisanie pytań jest niedostępne, więc nie napisano nowych.",
+      "nothing_to_draft": "Nie było z czego napisać pytań."
+    },
+    "graderReason": {
+      "one_model": "Oceniający używa tego samego modelu co agent, bo skonfigurowano tylko jeden model.",
+      "ai_off": "Przy wyłączonym wsparciu AI odpowiedzi są porównywane z dobrą odpowiedzią zamiast oceniane.",
+      "cannot_publish": "Z Twoimi uprawnieniami nie udało się ustawić oceniającego na innym modelu.",
+      "unknown_model": "Model agenta jest nieznany, więc oceniający może go współdzielić.",
+      "shares_model": "Oceniający używa tego samego modelu co agent i może faworyzować podobne odpowiedzi."
+    },
+    "todayCheckBody": "Zadaj dzisiejszej wersji pytania testowe raz, by zobaczyć, jak radzi sobie, zanim cokolwiek się zmieni.",
+    "todayCheckQuote": "{count, plural, one {# pytanie} few {# pytania} many {# pytań} other {# pytania}}, około {cost} (szacunek).",
+    "todayChecking": "Testujemy dzisiejsze odpowiedzi… Możesz zamknąć tę stronę.",
+    "todayHandled": "Dziś agent dobrze obsługuje {passed} z {total} pytań.",
+    "publishNeedsPermission": "Publikacja wymaga uprawnienia do publikowania tego agenta; poproś właściciela lub administratora. Możesz zachować zmiany w wersji roboczej.",
+    "environmentSwitches": "{environment} przełączy się na wersję {version} od razu.",
+    "environmentStays": "{environment} zostaje przy wersji {version}.",
+    "doneUnwatched": "Żadne automatyczne sprawdzenie nie pilnuje jeszcze tego agenta, więc późniejsza usterka przeszłaby niezauważona.",
+    "setUpAutomaticCheck": "Ustaw automatyczne sprawdzenie",
+    "changeKind": {
+      "instructions": "Instrukcje",
+      "tool": "Opis narzędzia: {tool}",
+      "skill": "Nowy skill",
+      "stale": "Nie pasuje już do obecnych instrukcji"
+    },
+    "basedOnNone": "Dla tej zmiany nie zacytowano rozmowy.",
+    "helper": {
+      "label": "Agent, który pisze zmiany",
+      "hint": "Ten agent czyta oceny i pisze zmiany. Domyślny sprawdza się w większości przypadków."
+    },
+    "split": {
+      "title": "Które pytania zdecydowały o wyniku",
+      "train": "Pytania użyte do pisania zmian",
+      "holdout": "Pytania niewykorzystane do pisania zmian",
+      "body": "O wyniku decydują tylko pytania niewykorzystane do pisania zmian. Automatyczne sprawdzenie nadal testuje wszystkie pytania.",
+      "excluded": "{count, plural, one {# pytanie pominięto} few {# pytania pominięto} many {# pytań pominięto} other {# pytania pominięto}}, bo powtarzają pytanie użyte do pisania zmian.",
+      "needed": "Dodaj {count, plural, one {# pytanie} few {# pytania} many {# pytań} other {# pytania}} niewykorzystane do pisania zmian, by zmierzyć zmianę."
+    }
   }
 }

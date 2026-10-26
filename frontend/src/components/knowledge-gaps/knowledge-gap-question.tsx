@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ThumbsDown } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
+import { useInImproveWizard } from "./wizard-mode";
 
 import { ROUTES } from "@/lib/constants";
 import { timeAgo } from "@/lib/utils";
@@ -14,6 +15,7 @@ import type { KnowledgeGapQuestion } from "@/types/knowledge-gaps";
  * the best match came, or that the answer was read as one.
  */
 export function KnowledgeGapQuestionItem({ question }: { question: KnowledgeGapQuestion }) {
+  const wizard = useInImproveWizard();
   const t = useTranslations("knowledgeGaps");
   const tTime = useTranslations("time");
   const locale = useLocale();
@@ -40,9 +42,11 @@ export function KnowledgeGapQuestionItem({ question }: { question: KnowledgeGapQ
         )}
         {question.agent && <span>{question.agent.name}</span>}
         <span>{timeAgo(question.asked_at, tTime, locale)}</span>
-        <Link href={`${ROUTES.RUNS}?run=${question.run_id}`} className="underline">
-          {t("openRun")}
-        </Link>
+        {!wizard && (
+          <Link href={`${ROUTES.RUNS}?run=${question.run_id}`} className="underline">
+            {t("openRun")}
+          </Link>
+        )}
       </p>
       {question.down_rating_comment && (
         <p className="text-muted-foreground flex items-start gap-1.5 text-xs">

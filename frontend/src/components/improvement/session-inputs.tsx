@@ -5,13 +5,14 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
 import { useImprovementEvidence } from "@/hooks/use-improvements";
-import { GenerateCasesDialog } from "@/components/datasets/generate-cases-dialog";
-import { useDataset, useDatasetCases } from "@/hooks/use-datasets";
+import { useDatasetCases } from "@/hooks/use-datasets";
 import { useEvalRun, useEvalCases } from "@/hooks/use-eval-runs";
 import { useAgentAttention } from "@/hooks/use-usage-stats";
 import { getErrorMessage } from "@/lib/api-error";
 import type { Improvement } from "@/types/improvement";
 import type { DatasetCase } from "@/types/datasets";
+import { WriteQuestions } from "./write-questions";
+import { StepError } from "./step-error";
 
 export function StartSignals({ agentId, datasetId }: { agentId: string; datasetId: string }) {
   const t = useTranslations("improvement");
@@ -71,16 +72,23 @@ function sourceCounts(cases: DatasetCase[]) {
   };
 }
 
-/** Below this, one question changing outcome swings the result too far to read it as a change. */
-const MEASURABLE_QUESTIONS = 3;
 const MORE_QUESTIONS = 5;
+
+/**
+ * How many more questions to write so the session has enough not used to write the
+ * changes. The server's own count of what is missing decides it; a new question
+ * lands on either side, so twice the shortfall is asked for.
+ */
+function questionsToWrite(session: Improvement): number {
+  const missing = Number(session.iterations[0]?.verdict_detail?.missing_holdout ?? 0);
+  return missing > 0 ? Math.max(MORE_QUESTIONS, missing * 2) : 0;
+}
 
 export function TestQuestions({ session }: { session: Improvement }) {
   const t = useTranslations("improvement");
-  const tErrors = useTranslations("errors");
   const [skip, setSkip] = useState(0);
-  const [writing, setWriting] = useState(false);
-  const { dataset } = useDataset(session.dataset_id);
+  const [writtenTo, setWrittenTo] = useState<string | null>(null);
+  const more = questionsToWrite(session);
   const questions = useDatasetCases(session.dataset_id, {
     version: session.dataset_version,
     skip,
@@ -90,7 +98,7 @@ export function TestQuestions({ session }: { session: Improvement }) {
     version: session.dataset_version,
     limit: SOURCE_LIMIT,
   });
-  if (questions.error) return <p role="alert">{getErrorMessage(questions.error, tErrors)}</p>;
+  if (questions.error) return <StepError error={questions.error} retry={questions.refetch} />;
   if (questions.isLoading) return <p role="status">{t("loading")}</p>;
   return (
     <section className="space-y-4" data-tour="improvement-test-questions">
@@ -100,23 +108,24 @@ export function TestQuestions({ session }: { session: Improvement }) {
           : t("questionCount", { count: questions.total })}
       </h2>
       <p className="text-muted-foreground text-sm">{t("pinnedQuestions")}</p>
-      {questions.total < MEASURABLE_QUESTIONS && (
+      {more > 0 && (
         <div className="space-y-3 rounded-lg border p-3 text-sm">
-          <p>{t("tooFewQuestions")}</p>
-          {dataset?.can_edit && (
-            <Button variant="outline" size="sm" onClick={() => setWriting(true)}>
-              {t("writeMoreQuestions", { count: MORE_QUESTIONS })}
-            </Button>
+          <p>
+            {t("tooFewHeldOut", {
+              needed: Number(session.iterations[0]?.verdict_detail?.missing_holdout),
+            })}
+          </p>
+          {writtenTo ? (
+            <Link
+              className="underline underline-offset-4"
+              href={`/agents/${session.agent_id}/improve/new?dataset=${writtenTo}`}
+            >
+              {t("startWithNewQuestions")}
+            </Link>
+          ) : (
+            <WriteQuestions agentId={session.agent_id} more={more} onReady={setWrittenTo} />
           )}
         </div>
-      )}
-      {writing && (
-        <GenerateCasesDialog
-          datasetId={session.dataset_id}
-          open
-          onOpenChange={setWriting}
-          initial={{ agentId: session.agent_id, count: MORE_QUESTIONS }}
-        />
       )}
       <details className="rounded-xl border p-4">
         <summary className="cursor-pointer text-sm font-medium">{t("reviewQuestions")}</summary>
@@ -187,9 +196,8 @@ export function Today({ session }: { session: Improvement }) {
 }
 function BaselineResult({ runId }: { runId: string }) {
   const t = useTranslations("improvement");
-  const tErrors = useTranslations("errors");
-  const { run, error } = useEvalRun(runId);
-  if (error) return <p role="alert">{getErrorMessage(error, tErrors)}</p>;
+  const { run, error, refetch } = useEvalRun(runId);
+  if (error) return <StepError error={error} retry={refetch} />;
   const arm = run?.arms.find((item) => item.role === "baseline");
   if (!run || run.status === "queued" || run.status === "running")
     return <p role="status">{t("baselinePending")}</p>;
@@ -218,9 +226,8 @@ function BaselineQuestions({
   armId: string;
 }) {
   const t = useTranslations("improvement");
-  const tErrors = useTranslations("errors");
   const questions = useEvalCases(runId, { arm: armId, outcome: "failed", limit: 20 });
-  if (questions.error) return <p role="alert">{getErrorMessage(questions.error, tErrors)}</p>;
+  if (questions.error) return <StepError error={questions.error} retry={questions.refetch} />;
   if (questions.isLoading) return <p role="status">{t("loading")}</p>;
   return (
     <div className="space-y-3">

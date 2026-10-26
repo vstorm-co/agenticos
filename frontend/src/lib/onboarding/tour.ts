@@ -17,6 +17,8 @@ export const AGENT_BUILDER = "agent-builder";
  */
 export const EVAL_RUN = "eval-run";
 export const IMPROVEMENT = "improvement";
+/** The Improve wizard before a session exists: choosing, pricing and starting one. */
+export const IMPROVEMENT_START = "improvement-start";
 
 /** The knowledge-base detail view, `/rag/<id>`, collapsed to one identity the same way. */
 export const KB_DETAIL = "kb-detail";
@@ -146,18 +148,23 @@ export interface TourStep {
 
 export const TOUR_STEPS: readonly TourStep[] = [
   {
+    id: "improvement-start",
+    page: IMPROVEMENT_START,
+    target: "improvement-start",
+    permission: Perm.runsView,
+  },
+  {
     id: "improvement-test-set",
-    page: IMPROVEMENT,
-    target: "improvement-test-set",
+    page: IMPROVEMENT_START,
+    target: "improvement-quote",
     permission: Perm.runsView,
     optional: true,
   },
   {
-    id: "improvement-start",
-    page: IMPROVEMENT,
-    target: "improvement-start",
+    id: "improvement-details",
+    page: IMPROVEMENT_START,
+    target: "improvement-details",
     permission: Perm.runsView,
-    optional: true,
   },
   {
     id: "improvement-questions",
@@ -165,7 +172,6 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "improvement-test-questions",
     activate: "improvement-step-testSet",
     permission: Perm.runsView,
-    optional: true,
   },
   {
     id: "improvement-today",
@@ -173,7 +179,6 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "improvement-today",
     activate: "improvement-step-today",
     permission: Perm.runsView,
-    optional: true,
   },
   {
     id: "improvement-review",
@@ -189,7 +194,6 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "improvement-results",
     activate: "improvement-step-result",
     permission: Perm.runsView,
-    optional: true,
   },
   {
     id: "improvement-automatic-check",
@@ -1052,6 +1056,7 @@ const SECTION_FLOWS: readonly (readonly string[])[] = [
 
 /** The page identity a real pathname belongs to; detail routes collapse onto their pseudo-page. */
 export function pageKey(path: string): string {
+  if (/^\/agents\/[^/]+\/improve\/new(\/|$)/.test(path)) return IMPROVEMENT_START;
   if (/^\/agents\/[^/]+\/improve\/[^/]+/.test(path)) return IMPROVEMENT;
   if (/^\/agents\/[^/]+\/evals\/[^/]+/.test(path)) return EVAL_RUN;
   if (path.startsWith(`${ROUTES.AGENTS}/`)) return AGENT_BUILDER;

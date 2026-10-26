@@ -145,6 +145,11 @@ export function useImprovement(agentId: string, runId: string) {
       }),
     onSuccess: refresh,
   });
+  const deferTopic = useMutation({
+    mutationFn: ({ topicId, later }: { topicId: string; later: boolean }) =>
+      apiClient.put<Improvement>(`${base}/topics/${topicId}/later`, { later }),
+    onSuccess: refresh,
+  });
   const discard = useMutation({
     mutationFn: () => apiClient.post<Improvement>(`${base}/discard`, { confirmed: true }),
     onSuccess: refresh,
@@ -158,6 +163,7 @@ export function useImprovement(agentId: string, runId: string) {
     onSuccess: refresh,
   });
   return {
+    deferTopic,
     estimateContinuation,
     continueSession,
     discard,

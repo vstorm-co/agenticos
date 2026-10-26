@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   IMPROVEMENT,
+  IMPROVEMENT_START,
   AGENT_BUILDER,
   DATASET_DETAIL,
   EVAL_RUN,
@@ -500,15 +501,20 @@ describe("voice call stops (#54)", () => {
   );
 });
 
-it("registers the dedicated first improvement journey", () => {
+it("tells the Improve start page from a session's own page", () => {
   expect(pageKey("/agents/a1/improve/s1")).toBe(IMPROVEMENT);
+  expect(pageKey("/agents/a1/improve/new")).toBe(IMPROVEMENT_START);
+});
+
+it("describes the start of an improvement on the page that starts one", () => {
+  expect(
+    TOUR_STEPS.filter((step) => step.page === IMPROVEMENT_START).map((step) => step.target),
+  ).toEqual(["improvement-start", "improvement-quote", "improvement-details"]);
 });
 
 it("describes every stage of an improvement on its own page", () => {
   expect(TOUR_STEPS.filter((step) => step.page === IMPROVEMENT).map((step) => step.target)).toEqual(
     [
-      "improvement-test-set",
-      "improvement-start",
       "improvement-test-questions",
       "improvement-today",
       "improvement-open-check",

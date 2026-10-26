@@ -21,26 +21,31 @@ interface ChoiceProps {
   value: string | null;
   onChange: (value: string | null) => void;
   disabled?: boolean;
+  /** Worded for the Improve wizard, which names the helper by what it does. */
+  wizard?: boolean;
 }
 
 /** Load alternatives only when the person opens this optional configuration. */
 export function SystemAgentChoice(props: ChoiceProps) {
   const t = useTranslations("agents");
+  const tw = useTranslations("improvement.helper");
   const [expanded, setExpanded] = useState(false);
+  const label = props.wizard ? tw("label") : t(`systemKind.${props.kind}`);
   return (
     <details
-      aria-label={t(`systemKind.${props.kind}`)}
+      aria-label={label}
       className="rounded-md border p-3 text-sm"
       onToggle={(event) => setExpanded(event.currentTarget.open)}
     >
-      <summary className="cursor-pointer font-medium">{t(`systemKind.${props.kind}`)}</summary>
+      <summary className="cursor-pointer font-medium">{label}</summary>
       {expanded && <SystemAgentSelect {...props} />}
     </details>
   );
 }
 
-function SystemAgentSelect({ kind, value, onChange, disabled = false }: ChoiceProps) {
+function SystemAgentSelect({ kind, value, onChange, disabled = false, wizard }: ChoiceProps) {
   const t = useTranslations("agents");
+  const tw = useTranslations("improvement.helper");
   const id = useId();
   const { agents, isLoading, error } = useAgentsOfKind(kind);
   const picked =
@@ -95,7 +100,9 @@ function SystemAgentSelect({ kind, value, onChange, disabled = false }: ChoicePr
           )}
         </p>
       )}
-      <p className="text-muted-foreground text-xs">{t("systemChoice.hint")}</p>
+      <p className="text-muted-foreground text-xs">
+        {wizard ? tw("hint") : t("systemChoice.hint")}
+      </p>
     </div>
   );
 }

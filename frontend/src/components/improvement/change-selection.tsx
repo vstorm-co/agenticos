@@ -5,7 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { Button, Checkbox } from "@/components/ui";
 import { ChangePreview } from "@/components/authoring/result-dialog";
 import { usd } from "@/components/evals/format";
-import { useImprovement } from "@/hooks/use-improvements";
+import { useImprovement, useImprovementEvidence } from "@/hooks/use-improvements";
 import { getErrorMessage } from "@/lib/api-error";
 import type { Hunk } from "@/types/authoring";
 import type { Improvement, ImprovementIteration, SelectionEstimate } from "@/types/improvement";
@@ -29,6 +29,10 @@ export function ChangeSelection({
   const tErrors = useTranslations("errors");
   const locale = useLocale();
   const actions = useImprovement(session.agent_id, session.id);
+  const { evidence } = useImprovementEvidence(session.agent_id, { sessionId: session.id });
+  const conversations = Object.fromEntries(
+    (evidence?.items ?? []).map((item) => [item.run_id, item.conversation_id]),
+  );
   const [quoted, setQuoted] = useState<{ key: string; quote: SelectionEstimate } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const key = JSON.stringify({
@@ -71,7 +75,7 @@ export function ChangeSelection({
               {t("includeInTest")}
             </label>
           )}
-          <ChangePreview hunk={hunk} />
+          <ChangePreview hunk={hunk} conversations={conversations} />
           {hunk.expected_effect && (
             <div className="px-4 text-sm">
               <h4 className="text-xs font-medium">{t("shouldFix")}</h4>

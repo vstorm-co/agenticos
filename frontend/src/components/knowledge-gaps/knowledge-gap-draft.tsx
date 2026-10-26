@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { BookCheck, Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useInImproveWizard } from "./wizard-mode";
 
 import { EnableAiAssistanceLink } from "@/components/teams/enable-ai-assistance-link";
 import { Alert, AlertDescription, Button } from "@/components/ui";
@@ -35,6 +36,7 @@ export function KnowledgeGapDraftPanel({ topic }: { topic: KnowledgeGapTopicDeta
   const { can } = usePermissions();
   const draft = useDraftKnowledgeGap();
   const aiOn = activeOrg?.ai_assistance_enabled === true;
+  const wizard = useInImproveWizard();
 
   return (
     <section className="space-y-3">
@@ -51,15 +53,20 @@ export function KnowledgeGapDraftPanel({ topic }: { topic: KnowledgeGapTopicDeta
         aiOn &&
         topic.can_edit &&
         can(Perm.agentsRun) && (
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={draft.isPending}
-            onClick={() => draft.mutate(topic.id)}
-          >
-            <Sparkles className="h-3.5 w-3.5" aria-hidden />
-            {draft.isPending ? t("drafting") : topic.draft ? t("draftAgain") : t("draftContent")}
-          </Button>
+          <div className="space-y-1">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={draft.isPending}
+              onClick={() => draft.mutate(topic.id)}
+            >
+              <Sparkles className="h-3.5 w-3.5" aria-hidden />
+              {draft.isPending ? t("drafting") : topic.draft ? t("draftAgain") : t("draftContent")}
+            </Button>
+            {wizard && topic.draft && (
+              <p className="text-muted-foreground text-xs">{t("draftAgainInSession")}</p>
+            )}
+          </div>
         )
       )}
       {topic.covered_by && (

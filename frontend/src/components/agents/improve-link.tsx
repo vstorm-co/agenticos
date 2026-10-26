@@ -12,13 +12,19 @@ export function ImproveLink({
   agentId,
   className,
   children,
+  "aria-label": label,
 }: {
   agentId: string;
   className?: string;
   children: ReactNode;
+  "aria-label"?: string;
 }) {
   return (
-    <Link href={`${ROUTES.AGENT_DETAIL(agentId)}/improve/new`} className={className}>
+    <Link
+      href={`${ROUTES.AGENT_DETAIL(agentId)}/improve/new`}
+      className={className}
+      aria-label={label}
+    >
       {children}
     </Link>
   );

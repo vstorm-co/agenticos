@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { EyeOff, FlaskConical, MoreHorizontal, RotateCcw } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useInImproveWizard } from "./wizard-mode";
 
 import {
   Button,
@@ -32,7 +33,8 @@ export function KnowledgeGapActions({ topic }: { topic: KnowledgeGapTopic }) {
   const { can } = usePermissions();
   const setStatus = useSetKnowledgeGapStatus();
   const [addingToDataset, setAddingToDataset] = useState(false);
-  const mayAddCases = can(Perm.datasetsView);
+  const wizard = useInImproveWizard();
+  const mayAddCases = can(Perm.datasetsView) && !wizard;
   if (!topic.can_edit && !mayAddCases) return null;
 
   const dismissed = topic.status !== "open";

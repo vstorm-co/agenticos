@@ -53,21 +53,35 @@ export function improvementStepStates(
         ? "skipped"
         : drafting
           ? "running"
-          : active && hasChanges
-            ? "done"
-            : hasChanges || session.stop_reason === "knowledge_only"
-              ? "needs_you"
+          : session.stop_reason === "knowledge_only"
+            ? "needs_you"
+            : hasChanges
+              ? "done"
               : active
                 ? "pending"
                 : "skipped",
     check: testing ? "running" : measured ? "done" : active ? "pending" : "skipped",
-    result: decided ? "done" : active ? "pending" : "needs_you",
+    result: decided
+      ? "done"
+      : active
+        ? "pending"
+        : session.stop_reason === "knowledge_only"
+          ? "skipped"
+          : "needs_you",
+    // While a result waits, it is the one decision; Accept follows from it.
     accept: accepted
       ? "done"
-      : session.status === "ready"
-        ? "needs_you"
-        : ["failed", "cancelled", "stale", "rejected"].includes(session.status)
-          ? "skipped"
-          : "pending",
+      : ["failed", "cancelled", "stale", "rejected"].includes(session.status)
+        ? "skipped"
+        : "pending",
   };
+}
+
+const CLOSED = ["accepted", "published", "rejected", "cancelled", "stale"];
+
+/** The newest session still in progress or waiting for a decision, if the agent has one. */
+export function openImprovement(sessions: Improvement[]): Improvement | undefined {
+  return sessions
+    .filter((session) => !CLOSED.includes(session.status))
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
 }

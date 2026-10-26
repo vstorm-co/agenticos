@@ -90,6 +90,8 @@ import { useTestShortcut } from "@/components/agents/test-panel/use-test-shortcu
 import { VersionHistory } from "@/components/agents/version-history";
 import { KnowledgeGapsPanel } from "@/components/knowledge-gaps/knowledge-gaps-panel";
 import { ImproveLink, useNeedsImprovement } from "@/components/agents/improve-link";
+import { useImprovements } from "@/hooks/use-improvements";
+import { openImprovement } from "@/lib/improvement-steps";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ErrorState } from "@/components/states";
 import {
@@ -385,6 +387,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const needsImprovement = useNeedsImprovement(id, {
     enabled: canEdit && canViewRuns && !isSystem,
   });
+  const openSession = openImprovement(
+    useImprovements(id, { enabled: canEdit && canViewRuns && !isSystem }).sessions,
+  );
   const { runs: publishTests } = useDraftEvalRuns(canViewRuns && !isSystem ? id : null, {
     enabled: publishOpen,
   });
@@ -1046,7 +1051,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   variant={needsImprovement ? "default" : "outline"}
                   onClick={() =>
                     void (async () => {
-                      if (await persist()) router.push(`/agents/${id}/improve/new`);
+                      if (await persist())
+                        router.push(`/agents/${id}/improve/${openSession?.id ?? "new"}`);
                     })()
                   }
                 >
@@ -1438,7 +1444,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             <Button
               size="sm"
               onClick={() => {
-                router.push(`/agents/${id}/improve/new`);
+                router.push(`/agents/${id}/improve/new?baseline=1`);
                 setFirstPublished(false);
               }}
             >

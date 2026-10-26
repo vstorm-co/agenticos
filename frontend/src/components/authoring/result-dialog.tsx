@@ -19,9 +19,9 @@ import { DIALOG_BODY, DIALOG_BROAD, DIALOG_COLUMN } from "@/lib/dialog-sizes";
 import { expectedEffect } from "@/lib/authoring-text";
 import { ROUTES } from "@/lib/constants";
 import type { AuthoringRequest, Hunk, SuggestionBatch } from "@/types/authoring";
-import { EvidenceList } from "./evidence-list";
+import { ConversationEvidence, EvidenceList } from "./evidence-list";
 import { NewSkillPreview } from "./new-skill-preview";
-import { FieldDiff } from "./field-change";
+import { FieldDiff, fieldLabel } from "./field-change";
 import { RejectedChanges } from "./rejected-changes";
 
 /** One request owns the notice, so observing a new request cannot reopen an old result. */
@@ -125,12 +125,31 @@ export function AuthoringResultDialog({
   );
 }
 
-export function ChangePreview({ hunk, quotes = true }: { hunk: Hunk; quotes?: boolean }) {
+export function ChangePreview({
+  hunk,
+  quotes = true,
+  conversations,
+}: {
+  hunk: Hunk;
+  quotes?: boolean;
+  /** In the Improve wizard: each evidence run's conversation, which "Based on" links instead of the run. */
+  conversations?: Record<string, string | null>;
+}) {
   const t = useTranslations("authoring.result");
   const ts = useTranslations("authoring.suggestion");
   const tSkill = useTranslations("authoring.newSkill");
-  const kind =
-    hunk.kind === "create_skill"
+  const tField = useTranslations("authoring.field");
+  const tw = useTranslations("improvement.changeKind");
+  const wizard = conversations !== undefined;
+  const kind = wizard
+    ? hunk.kind === "create_skill"
+      ? tw("skill")
+      : hunk.kind === "instructions"
+        ? tw("instructions")
+        : hunk.kind === "tool_override"
+          ? tw("tool", { tool: hunk.base_name ?? hunk.tool_id ?? "" })
+          : fieldLabel(hunk, tField)
+    : hunk.kind === "create_skill"
       ? tSkill("title")
       : hunk.kind === "instructions"
         ? ts("instructions")
@@ -154,12 +173,12 @@ export function ChangePreview({ hunk, quotes = true }: { hunk: Hunk; quotes?: bo
     <article className="space-y-3 rounded-lg border p-4">
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant="secondary">{kind}</Badge>
-        {!hunk.applies && <Badge variant="warning">{ts("stale")}</Badge>}
+        {!hunk.applies && <Badge variant="warning">{wizard ? tw("stale") : ts("stale")}</Badge>}
       </div>
       {hunk.kind === "create_skill" ? (
         <NewSkillPreview hunk={hunk} />
       ) : hunk.kind === "spec_field" ? (
-        <FieldDiff hunk={hunk} editing={null} />
+        <FieldDiff hunk={hunk} editing={null} expected={!wizard} />
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
           {[
@@ -181,10 +200,14 @@ export function ChangePreview({ hunk, quotes = true }: { hunk: Hunk; quotes?: bo
       </div>
       <div>
         <h4 className="mb-1 text-xs font-medium">{t("basedOn")}</h4>
-        <EvidenceList
-          items={quotes ? hunk.evidence : hunk.evidence.map((item) => ({ ...item, quote: null }))}
-          dropped={hunk.evidence_dropped}
-        />
+        {wizard ? (
+          <ConversationEvidence items={hunk.evidence} conversations={conversations} />
+        ) : (
+          <EvidenceList
+            items={quotes ? hunk.evidence : hunk.evidence.map((item) => ({ ...item, quote: null }))}
+            dropped={hunk.evidence_dropped}
+          />
+        )}
       </div>
     </article>
   );

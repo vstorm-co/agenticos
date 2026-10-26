@@ -175,3 +175,13 @@ it("stores a person's sorting of one example and shows the answer at once", asyn
   });
   await waitFor(() => expect(result.current.evidence?.sample_limit).toBe(21));
 });
+
+it("sets a knowledge document aside for the session and brings it back", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue({ id: "s1", status: "ready" });
+  vi.mocked(apiClient.put).mockResolvedValue({ id: "s1" });
+  const { result } = renderHook(() => useImprovement("a1", "s1"), { wrapper });
+  await result.current.deferTopic.mutateAsync({ topicId: "t1", later: true });
+  expect(apiClient.put).toHaveBeenCalledWith("/agents/a1/improvements/s1/topics/t1/later", {
+    later: true,
+  });
+});

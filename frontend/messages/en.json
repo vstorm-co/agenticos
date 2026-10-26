@@ -4193,6 +4193,10 @@
       "first-improvement": {
         "title": "Improve",
         "body": "We’ll read what went wrong, propose changes and test them on separate questions. Nothing goes live until you accept and publish it."
+      },
+      "improvement-session": {
+        "title": "Walk through this session",
+        "body": "See what each step did: the questions, today's answers, the result, and what publishing changes where people use the agent."
       }
     },
     "steps": {
@@ -4954,76 +4958,84 @@
         "body": "Findings from your watches and the nightly suggestions, urgent first. Filter by where they came from, or open Done to bring back one you declined."
       },
       "improvement-test-set": {
-        "title": "Test questions",
-        "body": "Pick the questions a change is measured on. Some of them are used to write the changes; the rest are held out and decide whether it worked."
+        "title": "Time and cost",
+        "body": "The agent's own test questions are already chosen and priced. Start improving is the one decision here; nothing is spent before it."
       },
       "improvement-start": {
-        "title": "Test set",
-        "body": "We’ll read what went wrong, propose changes and test them on separate questions. Nothing goes live until you accept and publish it."
+        "title": "Improve",
+        "body": "We read what went wrong, propose changes, test them on real questions and show what got better or worse. Nothing goes live until you accept it."
       },
       "improvement-questions": {
-        "title": "Questions and grading",
-        "body": "The questions and how each answer is graded are pinned when the session starts. Change the grading on the question set’s Grading tab; it applies to the next session."
+        "title": "Test questions",
+        "body": "The questions each change is tested on, as they were when the session started. Some help write the changes; the rest are kept aside to check the result."
       },
       "improvement-today": {
-        "title": "The first run",
-        "body": "Before anything changes, the agent answers every question as it is today. That run is the baseline each change is compared with."
+        "title": "Today",
+        "body": "Before anything changes, the agent answers the questions as it is today. Each change is compared with these answers."
       },
       "improvement-review": {
         "title": "Review",
-        "body": "Open the full check to send an answer you doubt to Review. A person’s verdict there replaces the grader’s, and the result is worked out again."
+        "body": "Doubt a grade? Open the full check and send the answer to Review. A person's decision replaces the grader's, and the result is worked out again."
       },
       "improvement-results": {
         "title": "Result",
-        "body": "Testing in the background. You can close this page — we’ll let you know when it is ready."
+        "body": "The verdict says which questions are newly fixed and newly broken, on every question and on those kept aside. Each changed answer shows before and after, with the grader's sentence."
       },
       "improvement-automatic-check": {
         "title": "Automatic check",
-        "body": "On the first session, tick this to test these questions again on every publish. A version that breaks one of them does not reach a guarded environment."
+        "body": "On the first session, tick this to test these questions again whenever the agent changes. A version that breaks one of them waits before it reaches where people use the agent."
       },
       "improvement-guard": {
-        "title": "Guard",
-        "body": "An environment can be guarded by an automatic check. Publishing makes a new version; a guarded environment moves to it only after its check passes."
+        "title": "Where people use it",
+        "body": "Each place people use the agent says what publishing does there: it switches at once, switches after its automatic check passes, or stays on its version."
       },
       "improvement-accept": {
         "title": "Accept",
-        "body": "Accept into the draft, or accept and publish together. Publishing uses the usual checks. A guarded environment keeps its current version until its automatic check passes."
+        "body": "Publish the new version, or keep the changes as a draft to publish later. Nothing is accepted or published by itself."
       },
       "flow-improvement-test-set": {
-        "title": "Test questions",
-        "body": "Pick the questions a change is measured on. Some of them are used to write the changes; the rest are held out and decide whether it worked."
+        "title": "Time and cost",
+        "body": "The agent's own test questions are already chosen and priced. Start improving is the one decision here; nothing is spent before it."
       },
       "flow-improvement-start": {
-        "title": "Test set",
-        "body": "We’ll read what went wrong, propose changes and test them on separate questions. Nothing goes live until you accept and publish it."
+        "title": "Improve",
+        "body": "We read what went wrong, propose changes, test them on real questions and show what got better or worse. Nothing goes live until you accept it."
       },
       "flow-improvement-questions": {
-        "title": "Questions and grading",
-        "body": "The questions and how each answer is graded are pinned when the session starts. Change the grading on the question set’s Grading tab; it applies to the next session."
+        "title": "Test questions",
+        "body": "The questions each change is tested on, as they were when the session started. Some help write the changes; the rest are kept aside to check the result."
       },
       "flow-improvement-today": {
-        "title": "The first run",
-        "body": "Before anything changes, the agent answers every question as it is today. That run is the baseline each change is compared with."
+        "title": "Today",
+        "body": "Before anything changes, the agent answers the questions as it is today. Each change is compared with these answers."
       },
       "flow-improvement-review": {
         "title": "Review",
-        "body": "Open the full check to send an answer you doubt to Review. A person’s verdict there replaces the grader’s, and the result is worked out again."
+        "body": "Doubt a grade? Open the full check and send the answer to Review. A person's decision replaces the grader's, and the result is worked out again."
       },
       "flow-improvement-results": {
         "title": "Result",
-        "body": "Testing in the background. You can close this page — we’ll let you know when it is ready."
+        "body": "The verdict says which questions are newly fixed and newly broken, on every question and on those kept aside. Each changed answer shows before and after, with the grader's sentence."
       },
       "flow-improvement-automatic-check": {
         "title": "Automatic check",
-        "body": "On the first session, tick this to test these questions again on every publish. A version that breaks one of them does not reach a guarded environment."
+        "body": "On the first session, tick this to test these questions again whenever the agent changes. A version that breaks one of them waits before it reaches where people use the agent."
       },
       "flow-improvement-guard": {
-        "title": "Guard",
-        "body": "An environment can be guarded by an automatic check. Publishing makes a new version; a guarded environment moves to it only after its check passes."
+        "title": "Where people use it",
+        "body": "Each place people use the agent says what publishing does there: it switches at once, switches after its automatic check passes, or stays on its version."
       },
       "flow-improvement-accept": {
         "title": "Accept",
-        "body": "Accept into the draft, or accept and publish together. Publishing uses the usual checks. A guarded environment keeps its current version until its automatic check passes."
+        "body": "Publish the new version, or keep the changes as a draft to publish later. Nothing is accepted or published by itself."
+      },
+      "improvement-details": {
+        "title": "Show details",
+        "body": "Choose other test questions, change the spending limit or the helper, or test how the agent answers today."
+      },
+      "flow-improvement-details": {
+        "title": "Show details",
+        "body": "Choose other test questions, change the spending limit or the helper, or test how the agent answers today."
       }
     },
     "chooseLanguage": "Language",
@@ -7565,7 +7577,24 @@
       "description": "Budget alerts, approvals, run failures and more will show up here."
     },
     "clearAll": "Clear all",
-    "dismissRow": "Dismiss"
+    "dismissRow": "Dismiss",
+    "outcome": {
+      "improvement": {
+        "ready": "Your improvement of {agent} is ready to review.",
+        "stopped": "Your improvement of {agent} stopped.",
+        "failed": "Your improvement of {agent} could not finish."
+      },
+      "test": {
+        "completed": "Your test finished.",
+        "failed": "Your test could not finish.",
+        "cancelled": "Your test was cancelled.",
+        "budget_exceeded": "Your test stopped at its budget."
+      },
+      "questions": {
+        "ready": "Your test questions are written and wait for your review.",
+        "failed": "Writing your test questions failed."
+      }
+    }
   },
   "artifacts": {
     "title": "Apps",
@@ -8437,7 +8466,8 @@
     "contentAdded": "Added to {knowledgeBase}. The document is being processed.",
     "coveredBy": "Covered by <link>{name}</link>, added to the knowledge base from this topic.",
     "alreadyCoveredBy": "The drafter found these questions answered already, by {sources}. If so, dismiss the topic instead of adding content.",
-    "alreadyCovered": "The drafter found these questions answered already. If so, dismiss the topic instead of adding content."
+    "alreadyCovered": "The drafter found these questions answered already. If so, dismiss the topic instead of adding content.",
+    "draftAgainInSession": "A new draft replaces the one this session tested, so that test no longer applies to it."
   },
   "apiKeys": {
     "title": "API keys",
@@ -10545,7 +10575,8 @@
     "badge": "Needs attention",
     "rated": "{count, plural, =1 {1 answer rated down} other {# answers rated down}}",
     "failed": "{count, plural, =1 {1 failed run} other {# failed runs}}",
-    "suites": "{count, plural, =1 {1 failing suite} other {# failing suites}}"
+    "suites": "{count, plural, =1 {1 failing suite} other {# failing suites}}",
+    "improveLabel": "Needs attention: {reasons}. Improve this agent"
   },
   "watches": {
     "title": "Watches",
@@ -10778,15 +10809,9 @@
     "title": "Improve {name}",
     "heading": "Improve",
     "intro": "We’ll read what went wrong, propose changes and test them on separate questions. Nothing goes live until you accept and publish it.",
-    "resume": "{date} · {status} — open session",
     "testSet": "Test questions",
     "chooseQuestions": "Choose test questions",
     "writeQuestions": "Write test questions for me",
-    "questionCost": "We can take rated answers and write more questions. Review the estimate before starting.",
-    "estimateQuestions": "Estimate writing questions",
-    "estimatedCost": "Estimated cost: {cost}",
-    "confirmQuestions": "Confirm and write questions",
-    "questionsQueued": "Questions are being prepared in the background.",
     "reviewQuestions": "Review the questions",
     "baseline": "Test how the agent answers today",
     "estimate": "Estimate again",
@@ -10935,11 +10960,10 @@
     "discardBody": "This dismisses only the pending suggestions from this session. Applied changes and other waiting proposals are kept.",
     "confirmDiscard": "Discard pending suggestions",
     "changesReplaced": "These suggestions are no longer available. Open the agent to review the current draft.",
-    "donePublished": "Done. Version {version} has been published. Guarded environments wait for their checks; pinned environments keep their current version.",
+    "donePublished": "Version {version} is published.",
     "openVersion": "Open version {version}",
     "doneDraft": "Done. The selected changes are saved in the draft. Publish from the agent when you are ready.",
     "publishVersion": "Publish version {version}",
-    "publishImpact": "Publishing freezes a new version. Environments that follow it move only after their guards pass; pinned environments stay on their current version. Open the agent to review where people use it.",
     "problemsFound": "We found {total, plural, one {# problem} other {# problems}}: {agent} we can fix in the agent, {knowledge, plural, one {# is information} other {# are information}} missing from the knowledge base.",
     "sortingBody": "If we sorted a problem wrongly, move it to the other column or ignore it. The next attempt follows your choice; changes already proposed stay as they are.",
     "ignoredExamples": "Ignored ({count})",
@@ -10974,7 +10998,7 @@
     "reviewAndAdd": "Review and add",
     "notNow": "Not now",
     "acceptAgent": "In the agent: {version, plural, =0 {the new version} other {version #}} will fix {fixed, plural, one {# question} other {# questions}}, break {broken}{costKnown, select, yes {, cost {cost} per answer} other {}}. Tested on {total, plural, one {# question} other {# questions}}, {heldOut} of them not used to write the changes.",
-    "guardedSwitch": "{environment} switches to version {version} after the automatic check passes.",
+    "guardedSwitch": "{environment} switches to version {version} after the automatic check passes, usually within a few minutes.",
     "doneTitle": "Done",
     "doneWatching": "We'll tell you if it breaks later.",
     "noChangesFound": "We couldn't find a change that fits the current instructions. Here is what we tried:",
@@ -10983,6 +11007,59 @@
     "handledChange": "{before} → {after} of {total} questions handled well.",
     "newlyFixed": "Newly fixed",
     "newlyBroken": "Newly broken",
-    "notConfirmedYet": "Not confirmed yet ({count})"
+    "notConfirmedYet": "Not confirmed yet ({count})",
+    "tooFewHeldOut": "Too few questions to measure a change: {needed, plural, one {# more question} other {# more questions}} not used to write the changes are needed.",
+    "technicalDetails": "Technical details",
+    "startWithNewQuestions": "Start a new session with these questions",
+    "resumeOpen": "You have an improvement in progress ({status}, {date}). Open it",
+    "baselineFirst": "Set a baseline: test today's version on a few questions.",
+    "writeQuestionsBody": "This agent has no test questions yet. We'll turn the answers people rated into questions and write more for topics with no example.",
+    "writeQuestionsQuote": "Up to {count, plural, one {# question} other {# questions}} written, about {cost} (estimate).",
+    "writeQuestionsUnpriced": "Writing questions can't be priced: the question writer's model has no known price.",
+    "writtenCounts": "{down} from answers people rated down, {liked} from answers they liked, {written} being written for topics with no example.",
+    "questionsWriting": "Writing the questions… The estimate updates when they are ready.",
+    "questionsWritingFailed": "Writing more questions failed; the questions taken from rated answers are ready.",
+    "questionsWritten": "The questions are ready.",
+    "generationSkipped": {
+      "enough": "There are enough questions already, so none were written.",
+      "ai_off": "AI assistance is off, so no questions were written.",
+      "unavailable": "The question writer is unavailable, so no questions were written.",
+      "nothing_to_draft": "There was nothing to write questions from."
+    },
+    "graderReason": {
+      "one_model": "The grader uses the same model as the agent, because only one model is set up.",
+      "ai_off": "With AI assistance off, answers are compared with the good answer instead of graded.",
+      "cannot_publish": "The grader could not be set up on another model with your access.",
+      "unknown_model": "The agent's model is unknown, so the grader may share it.",
+      "shares_model": "The grader uses the same model as the agent and may favour answers like its own."
+    },
+    "todayCheckBody": "Ask today's version the test questions once, to see how it does before anything changes.",
+    "todayCheckQuote": "{count, plural, one {# question} other {# questions}}, about {cost} (estimate).",
+    "todayChecking": "Testing today's answers… You can close this page.",
+    "todayHandled": "Today the agent handles {passed} of {total} questions well.",
+    "publishNeedsPermission": "Publishing needs permission to publish this agent; ask an owner or an admin. You can keep the changes as a draft.",
+    "environmentSwitches": "{environment} switches to version {version} right away.",
+    "environmentStays": "{environment} stays on version {version}.",
+    "doneUnwatched": "No automatic check watches this agent yet, so a later break would go unnoticed.",
+    "setUpAutomaticCheck": "Set up an automatic check",
+    "changeKind": {
+      "instructions": "Instructions",
+      "tool": "Tool description: {tool}",
+      "skill": "New skill",
+      "stale": "No longer fits the current instructions"
+    },
+    "basedOnNone": "No conversation is quoted for this change.",
+    "helper": {
+      "label": "Helper that writes the changes",
+      "hint": "The helper reads the feedback and writes the changes. The default suits most agents."
+    },
+    "split": {
+      "title": "Which questions decided the result",
+      "train": "Questions used to write the changes",
+      "holdout": "Questions not used to write the changes",
+      "body": "Only the questions not used to write the changes decide the result. An automatic check still tests every question.",
+      "excluded": "{count, plural, one {# question is} other {# questions are}} left out because they repeat a question used to write the changes.",
+      "needed": "Add {count, plural, one {# more question} other {# more questions}} not used to write the changes to measure a change."
+    }
   }
 }

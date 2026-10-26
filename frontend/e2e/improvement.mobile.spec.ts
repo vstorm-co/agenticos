@@ -242,10 +242,10 @@ test("test questions, review and improvement publish keep a guarded environment 
   });
 
   await page.goto(`/agents/${id(agent)}/improve/new`);
+  await page.getByText("Show details", { exact: true }).click();
   await page.getByLabel("Test questions", { exact: true }).click();
   await page.getByRole("option", { name: String(dataset.name), exact: true }).click();
-  await page.getByText("Show details", { exact: true }).click();
-  await page.getByText("Authoring assistant", { exact: true }).click();
+  await page.getByText("Helper that writes the changes", { exact: true }).click();
   await page.getByRole("combobox", { name: "Run with" }).click();
   await page.getByRole("option", { name: String(helper.name), exact: true }).click();
   await expect(page.getByText(/^About \d+ minutes?, up to .+ \(estimate\)/)).toBeVisible();

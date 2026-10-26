@@ -260,7 +260,7 @@ function DraftFacts({
       >
         {t("reviewKnowledgeDraft")}
       </Button>
-      {open && <KnowledgeGapDialog topicId={topicId} onClose={() => setOpen(false)} />}
+      {open && <KnowledgeGapDialog topicId={topicId} onClose={() => setOpen(false)} wizard />}
     </div>
   );
 }

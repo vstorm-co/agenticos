@@ -34,11 +34,19 @@ it("shows the current check running even if an earlier round was measured", () =
   expect(states.today).toBe("done");
   expect(states.changes).toBe("done");
 });
-it("requires human review of prepared changes and the final decision", () => {
+it("asks for one decision at a time: the result first, then acceptance", () => {
   const states = improvementStepStates({ ...SESSION, status: "ready", stage: "judging" });
-  expect(states.changes).toBe("needs_you");
-  expect(states.result).toBe("needs_you");
-  expect(states.accept).toBe("needs_you");
+  expect(Object.values(states).filter((state) => state === "needs_you")).toHaveLength(1);
+  expect(states).toMatchObject({ changes: "done", result: "needs_you", accept: "pending" });
+});
+it("sends a session that only needs knowledge to its drafts rather than to a result", () => {
+  const states = improvementStepStates({
+    ...SESSION,
+    status: "stopped",
+    stop_reason: "knowledge_only",
+    iterations: [{ ...SESSION.iterations[0]!, batch_id: null, verdict: null }],
+  });
+  expect(states).toMatchObject({ changes: "needs_you", result: "skipped" });
 });
 it.each(["accepted", "published"] as const)(
   "reopens %s sessions at the completed acceptance",

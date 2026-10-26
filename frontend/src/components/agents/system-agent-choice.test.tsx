@@ -65,4 +65,10 @@ describe("a system agent selected where it runs", () => {
     await userEvent.click(screen.getByText("Case generator"));
     expect(screen.getByText("Selected agent is unavailable")).toBeInTheDocument();
   });
+
+  it("names the helper by what it does inside the Improve wizard", async () => {
+    render(<SystemAgentChoice kind="improver" value={null} onChange={vi.fn()} wizard />);
+    await userEvent.click(screen.getByText("Helper that writes the changes"));
+    expect(screen.getByText(/reads the feedback and writes the changes/)).toBeInTheDocument();
+  });
 });

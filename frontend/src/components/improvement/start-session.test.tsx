@@ -1,243 +1,240 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { useOrgStore } from "@/stores/org-store";
 import { StartSession } from "./start-session";
+
 const state = vi.hoisted(() => ({
   estimate: vi.fn(),
   start: vi.fn(),
-  writeEstimate: vi.fn(),
-  write: vi.fn(),
+  push: vi.fn(),
+  params: new URLSearchParams(),
   sessionError: null as Error | null,
   datasetError: null as Error | null,
+  testSetLoading: false,
+  own: [{ id: "own", name: "Refund desk - test questions", can_run: true }] as {
+    id: string;
+    name: string;
+    can_run: boolean;
+  }[],
   sessions: [] as { id: string; created_at: string; status: string }[],
-  built: null as { dataset_id: string } | null,
+  datasetQueries: [] as unknown[],
+}));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: state.push }),
+  useSearchParams: () => state.params,
 }));
 vi.mock("@/hooks/use-datasets", () => ({
-  useDatasets: () => ({
-    error: state.datasetError,
-    datasets: [
-      { id: "d1", name: "Refund questions", can_run: true },
-      { id: "d2", name: "Other questions", can_run: true },
-      { id: "forbidden", name: "Cannot run", can_run: false },
-    ],
-  }),
+  useDatasets: (query: { agent?: string }) => {
+    state.datasetQueries.push(query);
+    return query.agent
+      ? { datasets: state.own, isLoading: state.testSetLoading, error: null }
+      : {
+          error: state.datasetError,
+          datasets: [
+            { id: "d1", name: "Refund questions", can_run: true },
+            { id: "forbidden", name: "Cannot run", can_run: false },
+          ],
+        };
+  },
 }));
 vi.mock("@/hooks/use-improvements", () => ({
   useImprovements: () => ({
     sessions: state.sessions,
     error: state.sessionError,
     estimate: { mutateAsync: state.estimate },
-    start: { mutateAsync: state.start },
+    start: { mutateAsync: state.start, isPending: false },
   }),
 }));
-vi.mock("@/hooks/use-agent-test-set", () => ({
-  useAgentTestSet: () => ({
-    estimate: { mutateAsync: state.writeEstimate },
-    build: { mutateAsync: state.write, data: state.built },
-  }),
+vi.mock("./write-questions", () => ({
+  WriteQuestions: ({ onReady }: { onReady: (id: string) => void }) => (
+    <button onClick={() => onReady("written")}>Write test questions for me</button>
+  ),
 }));
+vi.mock("./today-check", () => ({
+  TodayCheck: ({ datasetId }: { datasetId: string }) => <p>Today on {datasetId}</p>,
+}));
+vi.mock("./session-inputs", () => ({ StartSignals: () => null }));
 vi.mock("@/components/agents/system-agent-choice", () => ({
-  SystemAgentChoice: ({ onChange }: { onChange: (value: string) => void }) => (
-    <button onClick={() => onChange("h1")}>Use custom helper</button>
-  ),
+  SystemAgentChoice: ({
+    onChange,
+    wizard,
+  }: {
+    onChange: (value: string) => void;
+    wizard?: boolean;
+  }) => <button onClick={() => onChange("h1")}>{wizard ? "Use custom helper" : "Wrong"}</button>,
 }));
-vi.mock("@/components/evals/start-eval-dialog", () => ({
-  StartEvalDialog: ({ onOpenChange }: { onOpenChange: (open: boolean) => void }) => (
-    <div role="dialog">
-      <button onClick={() => onOpenChange(false)}>Close baseline</button>
-    </div>
-  ),
-}));
+
+const QUOTE = {
+  total_usd: "0.12",
+  cases: 12,
+  max_iterations: 3,
+  evidence_runs: 5,
+  estimated_minutes: 4,
+  affordable: true,
+  reason: null,
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
+  state.params = new URLSearchParams();
   state.sessionError = state.datasetError = null;
+  state.testSetLoading = false;
+  state.own = [{ id: "own", name: "Refund desk - test questions", can_run: true }];
   state.sessions = [];
-  state.built = null;
-  state.estimate.mockResolvedValue({
-    total_usd: "0.12",
-    cases: 12,
-    max_iterations: 3,
-    evidence_runs: 5,
-    estimated_minutes: 4,
-    affordable: true,
-    reason: null,
-  });
+  state.datasetQueries = [];
+  state.estimate.mockResolvedValue(QUOTE);
   state.start.mockResolvedValue({ id: "s1" });
 });
-it("shows a full estimate before the separate paid start with an explicit limit", async () => {
+
+it("prices the agent's own test set at once, so Start improving is the one decision", async () => {
   render(<StartSession agentId="a1" />);
-  expect(state.start).not.toHaveBeenCalled();
-  await userEvent.click(screen.getByRole("combobox", { name: "Test questions" }));
-  expect(screen.queryByRole("option", { name: "Cannot run" })).not.toBeInTheDocument();
-  await userEvent.click(screen.getByRole("option", { name: "Refund questions" }));
-  expect(await screen.findByText(/About 4 minutes, up to.*0.12.*\(estimate\)/)).toBeInTheDocument();
+  expect(state.datasetQueries).toContainEqual({ agent: "a1", sort: "updated", limit: 5 });
+  expect(
+    await screen.findByText(/About 4 minutes, up to.*0\.12.*\(estimate\)/),
+  ).toBeInTheDocument();
+  expect(state.estimate).toHaveBeenCalledWith({ dataset_id: "own", max_iterations: 3 });
   expect(state.start).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole("button", { name: "Start improving" }));
   expect(state.start).toHaveBeenCalledWith({
-    dataset_id: "d1",
+    dataset_id: "own",
     max_iterations: 3,
     budget_usd: "0.12",
   });
-});
-it("estimates without a click, and drops an estimate when the question set changes", async () => {
-  render(<StartSession agentId="a1" />);
-  expect(state.estimate).not.toHaveBeenCalled();
-  await userEvent.click(screen.getByRole("combobox"));
-  await userEvent.click(screen.getByRole("option", { name: "Refund questions" }));
-  await screen.findByRole("button", { name: "Start improving" });
-  state.estimate.mockImplementationOnce(() => new Promise(() => {}));
-  await userEvent.click(screen.getByRole("combobox"));
-  await userEvent.click(screen.getByRole("option", { name: "Other questions" }));
-  expect(screen.queryByRole("button", { name: "Start improving" })).not.toBeInTheDocument();
-  expect(screen.getByRole("status")).toHaveTextContent("Estimating the time and cost…");
-  expect(state.estimate).toHaveBeenLastCalledWith(expect.objectContaining({ dataset_id: "d2" }));
-});
-it("keeps an estimate that arrives after the question set changed off the screen", async () => {
-  let answer: (value: unknown) => void = () => {};
-  let refuse: (reason: unknown) => void = () => {};
-  state.estimate
-    .mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)))
-    .mockImplementationOnce(() => new Promise((_, reject) => (refuse = reject)))
-    .mockImplementationOnce(() => new Promise(() => {}));
-  render(<StartSession agentId="a1" />);
-  await selectQuestions();
-  await userEvent.click(screen.getByRole("combobox", { name: "Test questions" }));
-  await userEvent.click(screen.getByRole("option", { name: "Other questions" }));
-  await userEvent.click(screen.getByRole("button", { name: "Use custom helper" }));
-  answer({ total_usd: "9", cases: 1, max_iterations: 3, estimated_minutes: 1 });
-  refuse(new Error("Late refusal"));
-  await waitFor(() => expect(state.estimate).toHaveBeenCalledTimes(3));
-  expect(screen.queryByText(/About 1 minute/)).not.toBeInTheDocument();
-  expect(screen.queryByText("Late refusal")).not.toBeInTheDocument();
-});
-it("requires a price and another confirmation before writing questions", async () => {
-  state.writeEstimate.mockResolvedValue({ cost_usd: "0.03", priced: true });
-  state.write.mockResolvedValue({ dataset_id: "d1" });
-  render(<StartSession agentId="a1" />);
-  await userEvent.click(screen.getByText("Write test questions for me"));
-  await userEvent.click(screen.getByRole("button", { name: "Estimate writing questions" }));
-  expect(await screen.findByText(/Estimated cost:.*0.03/)).toBeInTheDocument();
-  expect(state.write).not.toHaveBeenCalled();
-  await userEvent.click(screen.getByRole("button", { name: "Confirm and write questions" }));
-  await waitFor(() => expect(state.write).toHaveBeenCalledWith({ more: 12 }));
+  expect(state.push).toHaveBeenCalledWith("/agents/a1/improve/s1");
 });
 
-vi.mock("./session-inputs", () => ({
-  StartSignals: () => null,
-  Understand: () => <p>Source examples fixture</p>,
-  TestQuestions: () => <p>Pinned questions fixture</p>,
-  Today: () => <p>Baseline fixture</p>,
-}));
-
-it("includes the separately estimated knowledge work before starting", async () => {
-  state.estimate.mockResolvedValue({
-    total_usd: "0.14",
-    knowledge_usd: "0.02",
-    cases: 12,
-    max_iterations: 3,
-    evidence_runs: 5,
-    estimated_minutes: 4,
-    affordable: true,
-    reason: null,
-  });
+it("keeps the question set, the limit, the helper and today's test under Show details", async () => {
   render(<StartSession agentId="a1" />);
-  await userEvent.click(screen.getByRole("combobox", { name: "Test questions" }));
-  await userEvent.click(screen.getByRole("option", { name: "Refund questions" }));
-  expect(await screen.findByText(/Includes.*0.02.*sorting the source answers/)).toBeInTheDocument();
-  expect(state.start).not.toHaveBeenCalled();
-});
-
-async function selectQuestions() {
-  await userEvent.click(screen.getByRole("combobox", { name: "Test questions" }));
-  await userEvent.click(screen.getByRole("option", { name: "Refund questions" }));
-}
-it("keeps prior sessions and generated questions reachable even when fresh reads fail", () => {
-  state.sessions = [{ id: "old", created_at: "2026-10-24T10:00:00Z", status: "ready" }];
-  state.sessionError = new Error("Session read failed");
-  state.datasetError = new Error("Questions read failed");
-  state.built = { dataset_id: "d1" };
-  render(<StartSession agentId="a1" />);
-  expect(screen.getAllByRole("alert")).toHaveLength(2);
-  expect(screen.getByRole("link", { name: /open session/ })).toHaveAttribute(
-    "href",
-    "/agents/a1/improve/old",
-  );
-  expect(screen.getByRole("link", { name: "Review the questions" })).toHaveAttribute(
-    "href",
-    "/datasets/d1",
-  );
-});
-it("shows estimate errors without starting work, and estimates again on request", async () => {
-  state.estimate
-    .mockRejectedValueOnce(new Error("Estimate unavailable"))
-    .mockRejectedValueOnce(new Error("Still unavailable"));
-  render(<StartSession agentId="a1" />);
-  await selectQuestions();
-  expect(await screen.findByRole("alert")).toHaveTextContent("Estimate unavailable");
-  expect(state.start).not.toHaveBeenCalled();
-  await userEvent.click(screen.getByRole("button", { name: "Estimate again" }));
-  expect(await screen.findByText("Still unavailable")).toBeInTheDocument();
-  await userEvent.click(screen.getByRole("button", { name: "Estimate again" }));
-  expect(await screen.findByText(/About 4 minutes/)).toBeInTheDocument();
-  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-});
-it("opens a baseline check, then invalidates the quote when the helper changes", async () => {
-  render(<StartSession agentId="a1" />);
-  await selectQuestions();
-  await userEvent.click(screen.getByRole("button", { name: "Test how the agent answers today" }));
-  expect(screen.getByRole("dialog")).toBeInTheDocument();
-  await userEvent.click(screen.getByRole("button", { name: "Close baseline" }));
   await screen.findByRole("button", { name: "Start improving" });
-  await userEvent.click(screen.getByRole("button", { name: "Use custom helper" }));
-  await screen.findByRole("button", { name: "Start improving" });
-  expect(state.estimate).toHaveBeenLastCalledWith(
-    expect.objectContaining({ improver_agent_id: "h1" }),
-  );
-  const budget = screen.getByRole("spinbutton");
-  await userEvent.clear(budget);
-  expect(screen.getByRole("button", { name: "Start improving" })).toBeDisabled();
-  await userEvent.type(budget, "1");
-  expect(screen.getByRole("button", { name: "Start improving" })).toBeEnabled();
-});
-it("refuses an unpriced generation and an unaffordable session", async () => {
-  state.writeEstimate.mockResolvedValue({ cost_usd: "0", priced: false });
-  state.estimate.mockResolvedValue({
-    total_usd: "0.1",
-    cases: 12,
-    max_iterations: 3,
-    evidence_runs: 0,
-    estimated_minutes: 1,
-    affordable: false,
-    reason: "no_evidence",
-  });
-  render(<StartSession agentId="a1" />);
-  await userEvent.click(screen.getByText("Write test questions for me"));
-  await userEvent.click(screen.getByRole("button", { name: "Estimate writing questions" }));
-  expect(await screen.findByRole("button", { name: "Confirm and write questions" })).toBeDisabled();
-  await selectQuestions();
-  expect(await screen.findByRole("button", { name: "Start improving" })).toBeDisabled();
-});
-it("does not navigate into an old organization after a delayed start response", async () => {
-  state.start.mockImplementation(async () => {
-    useOrgStore.setState({ activeOrgId: "other" });
-    return { id: "late" };
-  });
-  render(<StartSession agentId="a1" />);
-  await selectQuestions();
-  await userEvent.click(await screen.findByRole("button", { name: "Start improving" }));
-  await waitFor(() => expect(state.start).toHaveBeenCalled());
-});
-it("keeps the helper and today's test under a collapsed Show details", async () => {
-  render(<StartSession agentId="a1" />);
-  await selectQuestions();
   const details = screen.getByText("Show details").closest("details")!;
   expect(details).not.toHaveAttribute("open");
-  expect(details).toContainElement(
-    screen.getByRole("button", { name: "Test how the agent answers today" }),
+  expect(details).toContainElement(screen.getByRole("combobox", { name: "Test questions" }));
+  expect(details).toContainElement(screen.getByLabelText("Session spending limit (USD)"));
+  expect(details).not.toContainElement(screen.getByRole("button", { name: "Start improving" }));
+  expect(screen.queryByText("Today on own")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByText("Show details"));
+  expect(await screen.findByText("Today on own")).toBeInTheDocument();
+});
+
+it("prices another question set, a lower limit and another helper when they are chosen", async () => {
+  render(<StartSession agentId="a1" />);
+  await screen.findByRole("button", { name: "Start improving" });
+  await userEvent.click(screen.getByText("Show details"));
+  await userEvent.click(screen.getByRole("combobox", { name: "Test questions" }));
+  expect(screen.queryByRole("option", { name: "Cannot run" })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("option", { name: "Refund questions" }));
+  await userEvent.click(screen.getByRole("button", { name: "Use custom helper" }));
+  expect(state.estimate).toHaveBeenLastCalledWith({
+    dataset_id: "d1",
+    improver_agent_id: "h1",
+    max_iterations: 3,
+  });
+  const limit = await screen.findByLabelText("Session spending limit (USD)");
+  await userEvent.clear(limit);
+  expect(screen.getByRole("button", { name: "Start improving" })).toBeDisabled();
+  await userEvent.type(limit, "0.05");
+  await userEvent.click(screen.getByRole("button", { name: "Start improving" }));
+  expect(state.start).toHaveBeenCalledWith(
+    expect.objectContaining({ dataset_id: "d1", budget_usd: "0.05" }),
   );
-  expect(details).toContainElement(screen.getByRole("button", { name: "Use custom helper" }));
-  expect(details).not.toContainElement(
-    await screen.findByRole("button", { name: "Start improving" }),
-  );
+});
+
+it("writes test questions for an agent without any, then prices the session on them", async () => {
+  state.own = [];
+  render(<StartSession agentId="a1" />);
+  expect(state.estimate).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("button", { name: "Write test questions for me" }));
+  expect(await screen.findByRole("button", { name: "Start improving" })).toBeInTheDocument();
+  expect(state.estimate).toHaveBeenCalledWith({ dataset_id: "written", max_iterations: 3 });
+});
+
+it("waits for the agent's test set before offering to write one", () => {
+  state.testSetLoading = true;
+  state.own = [];
+  render(<StartSession agentId="a1" />);
+  expect(screen.getByRole("status")).toHaveTextContent("Loading the result");
+  expect(screen.queryByRole("button", { name: "Write test questions for me" })).toBeNull();
+});
+
+it("leads with today's test when it was opened to set a baseline", () => {
+  state.params = new URLSearchParams("baseline=1");
+  render(<StartSession agentId="a1" />);
+  expect(screen.getByText(/Set a baseline/)).toBeInTheDocument();
+  expect(screen.getByText("Today on own")).toBeInTheDocument();
+});
+
+it("starts from the question set a link names", async () => {
+  state.params = new URLSearchParams("dataset=d1");
+  render(<StartSession agentId="a1" />);
+  await screen.findByRole("button", { name: "Start improving" });
+  expect(state.estimate).toHaveBeenCalledWith({ dataset_id: "d1", max_iterations: 3 });
+});
+
+it("points to the one session still open instead of every past one", () => {
+  state.sessions = [
+    { id: "old", created_at: "2026-10-20T10:00:00Z", status: "published" },
+    { id: "open", created_at: "2026-10-25T10:00:00Z", status: "ready" },
+    { id: "older", created_at: "2026-10-21T10:00:00Z", status: "stopped" },
+  ];
+  render(<StartSession agentId="a1" />);
+  const links = screen.getAllByRole("link", { name: /in progress/ });
+  expect(links).toHaveLength(1);
+  expect(links[0]).toHaveAttribute("href", "/agents/a1/improve/open");
+});
+
+it("says why an estimate or a read failed, without starting work", async () => {
+  state.estimate.mockRejectedValueOnce(new Error("Estimate unavailable"));
+  state.sessionError = new Error("Sessions unavailable");
+  state.datasetError = new Error("Datasets unavailable");
+  render(<StartSession agentId="a1" />);
+  expect(await screen.findByText("Estimate unavailable")).toBeInTheDocument();
+  expect(screen.getByText("Sessions unavailable")).toBeInTheDocument();
+  expect(screen.getByText("Datasets unavailable")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Start improving" })).toBeNull();
+});
+
+it("keeps the screen and says why when starting is refused", async () => {
+  state.start.mockRejectedValueOnce(new Error("Budget refused"));
+  render(<StartSession agentId="a1" />);
+  await userEvent.click(await screen.findByRole("button", { name: "Start improving" }));
+  expect(await screen.findByText("Budget refused")).toBeInTheDocument();
+  expect(state.push).not.toHaveBeenCalled();
+});
+
+it("refuses an unaffordable session and names the reason", async () => {
+  state.estimate.mockResolvedValue({ ...QUOTE, affordable: false, reason: "no_evidence" });
+  render(<StartSession agentId="a1" />);
+  expect(await screen.findByText(/Nothing to learn from yet/)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Start improving" })).toBeDisabled();
+});
+
+it("does not open a session in an organization the person has since left", async () => {
+  render(<StartSession agentId="a1" />);
+  const start = await screen.findByRole("button", { name: "Start improving" });
+  state.start.mockImplementationOnce(async () => {
+    useOrgStore.setState({ activeOrgId: "another" });
+    return { id: "s1" };
+  });
+  await userEvent.click(start);
+  expect(state.push).not.toHaveBeenCalled();
+});
+
+it("says what sorting the answers and drafting knowledge adds to the estimate", async () => {
+  state.estimate.mockResolvedValue({ ...QUOTE, knowledge_usd: "0.02" });
+  render(<StartSession agentId="a1" />);
+  expect(await screen.findByText(/sorting the source answers/)).toBeInTheDocument();
+});
+
+it("drops an estimate or a refusal that arrives after the screen is gone", async () => {
+  let settle: (value: unknown) => void = () => {};
+  state.estimate.mockReturnValueOnce(new Promise((resolve) => (settle = resolve)));
+  render(<StartSession agentId="a1" />).unmount();
+  settle(QUOTE);
+  let fail: (reason: unknown) => void = () => {};
+  state.estimate.mockReturnValueOnce(new Promise((_, reject) => (fail = reject)));
+  render(<StartSession agentId="a1" />).unmount();
+  fail(new Error("late"));
+  await Promise.resolve();
+  expect(state.estimate).toHaveBeenCalledTimes(2);
 });

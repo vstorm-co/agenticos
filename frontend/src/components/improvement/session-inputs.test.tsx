@@ -30,10 +30,10 @@ const state = vi.hoisted(() => ({
   cases: [] as EvalCase[],
   casesError: null as Error | null,
   casesLoading: false,
-  canEditDataset: true,
   datasetHook: vi.fn(),
   evidenceHook: vi.fn(),
   decide: vi.fn(),
+  refetch: vi.fn(),
 }));
 vi.mock("@/hooks/use-improvements", () => ({
   useImprovementEvidence: (...args: unknown[]) => {
@@ -42,6 +42,7 @@ vi.mock("@/hooks/use-improvements", () => ({
       evidence: state.sources,
       isLoading: state.loading,
       error: state.sourceError,
+      refetch: state.refetch,
       decide: { mutateAsync: state.decide, isPending: false },
     };
   },
@@ -53,22 +54,12 @@ vi.mock("@/hooks/use-usage-stats", () => ({
     error: state.attentionError,
   }),
 }));
-vi.mock("@/components/datasets/generate-cases-dialog", () => ({
-  GenerateCasesDialog: ({
-    initial,
-    onOpenChange,
-  }: {
-    initial: { agentId: string; count: number };
-    onOpenChange: (open: boolean) => void;
-  }) => (
-    <div role="dialog">
-      Write {initial.count} for {initial.agentId}
-      <button onClick={() => onOpenChange(false)}>Close</button>
-    </div>
+vi.mock("./write-questions", () => ({
+  WriteQuestions: ({ more, onReady }: { more: number; onReady: (id: string) => void }) => (
+    <button onClick={() => onReady("d9")}>Write {more} more</button>
   ),
 }));
 vi.mock("@/hooks/use-datasets", () => ({
-  useDataset: () => ({ dataset: { can_edit: state.canEditDataset } }),
   useDatasetCases: (...args: unknown[]) => {
     state.datasetHook(...args);
     return {
@@ -76,15 +67,17 @@ vi.mock("@/hooks/use-datasets", () => ({
       total: state.total,
       isLoading: state.loading,
       error: state.questionError,
+      refetch: state.refetch,
     };
   },
 }));
 vi.mock("@/hooks/use-eval-runs", () => ({
-  useEvalRun: () => ({ run: state.run, error: state.evalError }),
+  useEvalRun: () => ({ run: state.run, error: state.evalError, refetch: state.refetch }),
   useEvalCases: () => ({
     cases: state.cases,
     isLoading: state.casesLoading,
     error: state.casesError,
+    refetch: state.refetch,
   }),
 }));
 beforeEach(() => {
@@ -152,7 +145,6 @@ beforeEach(() => {
   state.loading = state.casesLoading = false;
   state.rated = 5;
   state.total = 21;
-  state.canEditDataset = true;
   state.questions = [
     {
       id: "q1",
@@ -220,7 +212,7 @@ it("does not invent examples when sources are gone or unreadable", () => {
   state.loading = false;
   state.sourceError = new Error("Forbidden");
   view.rerender(<Understand session={SESSION} />);
-  expect(screen.getByRole("alert")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Try reading again" })).toBeInTheDocument();
   state.sourceError = null;
   state.sources = null;
   view.rerender(<Understand session={{ ...SESSION, status: "queued" }} />);
@@ -252,33 +244,48 @@ it("pages the pinned questions and explains train versus holdout", async () => {
     limit: 20,
   });
 });
-it("offers to write more questions when too few can measure a change", async () => {
-  state.total = 2;
-  const view = render(<TestQuestions session={SESSION} />);
-  expect(screen.getByText(/Too few questions to measure a change/)).toBeInTheDocument();
-  await userEvent.click(screen.getByRole("button", { name: "Write 5 more" }));
-  expect(screen.getByRole("dialog")).toHaveTextContent(`Write 5 for ${SESSION.agent_id}`);
-  await userEvent.click(screen.getByRole("button", { name: "Close" }));
-  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  state.canEditDataset = false;
-  view.rerender(<TestQuestions session={SESSION} />);
-  expect(screen.queryByRole("button", { name: "Write 5 more" })).not.toBeInTheDocument();
-  state.total = 3;
+it("offers to write as many questions as the session lacks to measure a change", async () => {
+  const short = {
+    ...SESSION,
+    iterations: [{ ...SESSION.iterations[0]!, verdict_detail: { missing_holdout: 3 } }],
+  };
+  const view = render(<TestQuestions session={short} />);
+  expect(
+    screen.getByText(
+      "Too few questions to measure a change: 3 more questions not used to write the changes are needed.",
+    ),
+  ).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Write 6 more" }));
+  expect(
+    screen.getByRole("link", { name: "Start a new session with these questions" }),
+  ).toHaveAttribute("href", `/agents/${SESSION.agent_id}/improve/new?dataset=d9`);
   view.rerender(<TestQuestions session={SESSION} />);
   expect(screen.queryByText(/Too few questions/)).not.toBeInTheDocument();
 });
-it("explains missing questions and handles their loading or access failure", () => {
+it("asks for at least five questions however few are missing", () => {
+  render(
+    <TestQuestions
+      session={{
+        ...SESSION,
+        iterations: [{ ...SESSION.iterations[0]!, verdict_detail: { missing_holdout: 1 } }],
+      }}
+    />,
+  );
+  expect(screen.getByRole("button", { name: "Write 5 more" })).toBeInTheDocument();
+});
+it("handles missing questions, their loading and a failed read", async () => {
   state.total = 0;
   state.questions = [];
   const view = render(<TestQuestions session={SESSION} />);
-  expect(screen.getByText(/Too few questions to measure a change/)).toBeInTheDocument();
+  expect(screen.getByText("0 test questions")).toBeInTheDocument();
   state.loading = true;
   view.rerender(<TestQuestions session={SESSION} />);
   expect(screen.getByRole("status")).toBeInTheDocument();
   state.loading = false;
   state.questionError = new Error("Forbidden");
   view.rerender(<TestQuestions session={SESSION} />);
-  expect(screen.getByRole("alert")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Try reading again" }));
+  expect(state.refetch).toHaveBeenCalled();
 });
 it("shows the actual baseline and keeps ungraded questions separate", () => {
   render(<Today session={SESSION} />);
@@ -303,7 +310,7 @@ it("does not fetch a nonexistent baseline and handles absent or inaccessible arm
   expect(screen.getByRole("alert")).toBeInTheDocument();
   state.evalError = new Error("Forbidden");
   view.rerender(<Today session={SESSION} />);
-  expect(screen.getByRole("alert")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Try reading again" })).toBeInTheDocument();
 });
 it("shows weak-answer loading and failures rather than a false clean result", () => {
   state.casesLoading = true;
@@ -312,7 +319,7 @@ it("shows weak-answer loading and failures rather than a false clean result", ()
   state.casesLoading = false;
   state.casesError = new Error("Unavailable");
   view.rerender(<Today session={SESSION} />);
-  expect(screen.getByRole("alert")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Try reading again" })).toBeInTheDocument();
   state.casesError = null;
   state.cases = [];
   view.rerender(<Today session={SESSION} />);
@@ -447,14 +454,20 @@ function sortable() {
 
 it("groups examples by topic into problems and says how many each column holds", async () => {
   sortable();
+  state.sources!.items.push({
+    ...state.sources!.items.at(-1)!,
+    run_id: "r7",
+    question: null,
+    conversation_id: null,
+  });
   render(<Understand session={SESSION} />);
   expect(
     screen.getByText(
       "We found 3 problems: 2 we can fix in the agent, 1 is information missing from the knowledge base.",
     ),
   ).toBeInTheDocument();
-  expect(screen.getByText("2 conversations about one topic")).toBeInTheDocument();
-  await userEvent.click(screen.getByText("1 more conversation about this"));
+  expect(screen.getByText("3 conversations about one topic")).toBeInTheDocument();
+  await userEvent.click(screen.getByText("2 more conversations about this"));
   expect(screen.getByText("Shipping to Canada?")).toBeInTheDocument();
   expect(
     screen

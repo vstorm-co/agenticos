@@ -222,7 +222,7 @@ function MeasuredResult({
             {t("measurementDetails")}
           </summary>
           <div className="mt-3">
-            <ImprovementMeasurement measurement={run.proposal_check.measurement} />
+            <ImprovementMeasurement measurement={run.proposal_check.measurement} wizard />
           </div>
         </details>
       )}

@@ -24,6 +24,8 @@ export interface Notification {
   created_at: string;
   /** The agent the row is about, for its face; absent for a row about none. */
   agent?: NotificationAgent | null;
+  /** How a finished improvement, test or question writing ended, as codes to word. */
+  outcome?: { status: string; reason: string | null } | null;
 }
 
 export interface NotificationAgent {

@@ -80,6 +80,8 @@ export interface Improvement {
   finished_at: string | null;
   iterations: ImprovementIteration[];
   knowledge_eval_run_ids?: string[];
+  /** Knowledge documents set aside with Not now in this session. */
+  deferred_topic_ids?: string[];
   timeline: {
     action: string;
     at: string;

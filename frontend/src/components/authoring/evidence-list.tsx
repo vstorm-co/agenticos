@@ -39,3 +39,33 @@ export function EvidenceList({ items, dropped }: { items: EvidenceItem[]; droppe
     </div>
   );
 }
+
+/** The Improve wizard's "Based on": each quote with the conversation it is from, never a run id. */
+export function ConversationEvidence({
+  items,
+  conversations,
+}: {
+  items: EvidenceItem[];
+  conversations: Record<string, string | null>;
+}) {
+  const t = useTranslations("improvement");
+  if (items.length === 0)
+    return <p className="text-muted-foreground text-xs">{t("basedOnNone")}</p>;
+  return (
+    <ul className="space-y-1.5">
+      {items.map((item, index) => {
+        const conversation = conversations[item.run_id];
+        return (
+          <li key={`${item.run_id}-${index}`} className="text-xs">
+            {item.quote !== null && <q className="italic">{item.quote}</q>}{" "}
+            {conversation && (
+              <Link href={`/chat/${conversation}`} className="text-muted-foreground underline">
+                {t("openConversation")}
+              </Link>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}

@@ -82,7 +82,8 @@ export function FieldDiff({
   hunk,
   editing,
   onEdit,
-}: { hunk: Hunk } & (
+  expected = true,
+}: { hunk: Hunk; expected?: boolean } & (
   | { editing: null; onEdit?: (text: string) => void }
   | { editing: string; onEdit: (text: string) => void }
 )) {
@@ -144,7 +145,7 @@ export function FieldDiff({
         </p>
       )}
       {effect?.adds && effect.adds.length > 0 && <AddsAccess adds={effect.adds} names={names} />}
-      {hunk.expected_effect && (
+      {expected && hunk.expected_effect && (
         <p className="text-sm">{t("expects", { effect: hunk.expected_effect })}</p>
       )}
       {hunk.blocked && hunk.status === "pending" && (

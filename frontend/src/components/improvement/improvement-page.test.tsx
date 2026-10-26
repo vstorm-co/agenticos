@@ -15,6 +15,7 @@ const actions = vi.hoisted(() => ({
   retry: { mutateAsync: vi.fn(), isPending: false },
   selectRound: { mutateAsync: vi.fn(), isPending: false },
   finish: { mutateAsync: vi.fn(), isPending: false },
+  deferTopic: { mutateAsync: vi.fn(), isPending: false },
   estimateAttribution: { mutateAsync: vi.fn(), isPending: false },
   attribute: { mutateAsync: vi.fn(), isPending: false },
 }));
@@ -64,7 +65,12 @@ vi.mock("@/hooks/use-improvements", () => ({
     isLoading: state.sessionLoading,
     refetch: state.sessionRefetch,
   }),
+  useImprovementEvidence: () => ({
+    evidence: { items: state.topics.map((topic) => ({ run_id: topic.id, topic_id: topic.id })) },
+    refetch: vi.fn(),
+  }),
 }));
+vi.mock("@/hooks/use-eval-suites", () => ({ useAgentEvalSuites: () => ({ suites: [] }) }));
 vi.mock("./knowledge-drafts", () => ({ KnowledgeDrafts: () => null }));
 vi.mock("@/hooks/use-knowledge-gaps", () => ({
   useKnowledgeGaps: () => ({ topics: state.topics, error: null }),
@@ -295,7 +301,7 @@ it("ends on a Done screen that says a later break will be reported", () => {
   state.session!.published_version = 4;
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
   expect(screen.getByRole("region", { name: "Done" })).toHaveTextContent(
-    "We'll tell you if it breaks later.",
+    "No automatic check watches this agent yet",
   );
 });
 it("says where a guarded environment switches only for a publisher", async () => {
@@ -306,7 +312,9 @@ it("says where a guarded environment switches only for a publisher", async () =>
   const view = render(<ImprovementPage agentId="a1" sessionId="s1" />);
   await userEvent.click(screen.getByRole("button", { name: "Accept these changes" }));
   expect(
-    screen.getByText("Production switches to version 4 after the automatic check passes."),
+    screen.getByText(
+      "Production switches to version 4 after the automatic check passes, usually within a few minutes.",
+    ),
   ).toBeInTheDocument();
   state.publish = false;
   view.rerender(<ImprovementPage agentId="a1" sessionId="s1" />);
@@ -444,6 +452,73 @@ it("keeps a provider failure and recorded round visible without a selected best 
   state.session!.error = "The provider could not complete this check";
   state.session!.best_iteration_id = null;
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
-  expect(screen.getByRole("alert")).toHaveTextContent("The provider could not complete this check");
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect(screen.getByText("Technical details").closest("details")).toHaveTextContent(
+    "The provider could not complete this check",
+  );
   expect(screen.getByText("Attempt 1 of 3")).toBeInTheDocument();
+});
+
+it("says how many more questions a session needs, in words rather than the server's message", () => {
+  state.session!.status = "stopped";
+  state.session!.stop_reason = "no_data";
+  state.session!.error = "Add 2 more held-out test questions to measure a change";
+  state.session!.iterations[0]!.verdict_detail = { missing_holdout: 2 };
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(
+    screen.getByText(
+      "Too few questions to measure a change: 2 more questions not used to write the changes are needed.",
+    ),
+  ).toBeInTheDocument();
+  expect(screen.getByText("Technical details")).toBeInTheDocument();
+});
+it("keeps one row of actions on the result: no Next step beside Accept and Improve again", async () => {
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.queryByRole("button", { name: "Next step" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Accept these changes" })).toHaveClass("bg-primary");
+  await userEvent.click(screen.getByRole("button", { name: "Understand" }));
+  expect(screen.queryByRole("button", { name: "Previous step" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Accept these changes" })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Next step" }));
+  expect(screen.getByRole("button", { name: "Previous step" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Close and return later" })).toHaveAttribute(
+    "href",
+    "/agents/a1",
+  );
+});
+it("moves focus to the heading of the step a person opens", async () => {
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  await userEvent.click(screen.getByRole("button", { name: "Check" }));
+  expect(screen.getByRole("heading", { name: "Testing the changes" })).toHaveFocus();
+});
+it("tells someone who may not publish why, and still lets them keep a draft", async () => {
+  state.publish = false;
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  await userEvent.click(screen.getByRole("button", { name: "Accept these changes" }));
+  expect(screen.getByText(/Publishing needs permission to publish this agent/)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Keep as draft" })).toBeInTheDocument();
+});
+it("refuses with a reason and a way back to the agent", () => {
+  state.runs = false;
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.getByRole("alert")).toHaveTextContent(/viewing runs are required/);
+  expect(screen.getByRole("link", { name: "Open the agent" })).toHaveAttribute(
+    "href",
+    "/agents/a1",
+  );
+});
+it("announces why a step failed, and lists attempts that were never tested", async () => {
+  state.session!.status = "failed";
+  state.session!.stop_reason = "eval";
+  state.session!.best_iteration_id = null;
+  const first = state.session!.iterations[0]!;
+  state.session!.iterations = [
+    { ...first, verdict: null },
+    { ...first, id: "r2", number: 2, verdict: null, batch_id: null },
+  ];
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.getByRole("alert")).toHaveTextContent("The test step failed.");
+  await userEvent.click(screen.getByRole("button", { name: "Changes" }));
+  expect(screen.getByText("Attempt 1: changes proposed, not tested yet.")).toBeInTheDocument();
+  expect(screen.getByText("Attempt 2: no change was proposed.")).toBeInTheDocument();
 });

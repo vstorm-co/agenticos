@@ -10,9 +10,10 @@ import { CheckProgress } from "./check-progress";
 const state = vi.hoisted(() => ({
   run: undefined as EvalRun | undefined,
   error: null as Error | null,
+  refetch: vi.fn(),
 }));
 vi.mock("@/hooks/use-eval-runs", () => ({
-  useEvalRun: () => ({ run: state.run, error: state.error }),
+  useEvalRun: () => ({ run: state.run, error: state.error, refetch: state.refetch }),
 }));
 
 const RUNNING: Improvement = {
@@ -58,7 +59,7 @@ it("walks through asking, grading and re-asking while the test runs", () => {
   expect(stageOf(/Re-asking 2 answers/)).toMatch(/^Done/);
 });
 
-it("says the test is being prepared before it has a run, and shows a failed read", () => {
+it("says the test is being prepared before it has a run, and retries a failed read", async () => {
   const view = render(
     <CheckProgress
       session={{ ...RUNNING, iterations: [{ ...RUNNING.iterations[0]!, eval_run_ids: [] }] }}
@@ -70,7 +71,8 @@ it("says the test is being prepared before it has a run, and shows a failed read
   expect(screen.getByText("Loading the result…")).toBeInTheDocument();
   state.error = new Error("Forbidden");
   view.rerender(<CheckProgress session={RUNNING} onShowResult={vi.fn()} />);
-  expect(screen.getByRole("alert")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Try reading again" }));
+  expect(state.refetch).toHaveBeenCalled();
 });
 
 it("leads to the result once the test has finished", async () => {

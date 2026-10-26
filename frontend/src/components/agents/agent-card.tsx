@@ -332,6 +332,9 @@ function AttentionBadge({ agentId, attention }: { agentId: string; attention: Ag
   return (
     <ImproveLink
       agentId={agentId}
+      aria-label={tAttention("improveLabel", {
+        reasons: attentionParts(attention, tAttention).join(", "),
+      })}
       className="focus-visible:ring-ring pointer-events-auto relative rounded-md outline-none focus-visible:ring-2"
     >
       {badge}

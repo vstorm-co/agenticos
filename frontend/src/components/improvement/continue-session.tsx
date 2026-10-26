@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Button, ConfirmDialog, Input, Label } from "@/components/ui";
 import { usd } from "@/components/evals/format";
@@ -11,9 +11,12 @@ import type { ContinuationEstimate, Improvement } from "@/types/improvement";
 /** A continuation is a new priced decision, with the original source and round bounds. */
 export function ContinueSession({
   session,
+  lead,
   onStarted,
 }: {
   session: Improvement;
+  /** A decision shown first in the same row, so the screen has one row of actions. */
+  lead?: ReactNode;
   onStarted: () => void;
 }) {
   const t = useTranslations("improvement");
@@ -87,6 +90,7 @@ export function ContinueSession({
   return (
     <section className="space-y-4 rounded-xl border p-4 sm:p-6">
       <div className="flex flex-wrap gap-3">
+        {lead}
         <Button
           className="h-auto min-h-9 whitespace-normal"
           variant={primary ? "default" : "outline"}

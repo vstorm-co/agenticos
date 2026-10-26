@@ -7,6 +7,7 @@ import { Button } from "@/components/ui";
 import { useImprovementEvidence } from "@/hooks/use-improvements";
 import { getErrorMessage } from "@/lib/api-error";
 import type { EvidenceDecision, Improvement, ImprovementEvidenceItem } from "@/types/improvement";
+import { StepError } from "./step-error";
 
 type Column = "agent" | "missing_knowledge" | "not_a_problem";
 
@@ -32,7 +33,7 @@ export function Understand({ session }: { session: Improvement }) {
     live: session.status === "running" || session.status === "queued",
   });
   const [error, setError] = useState<string | null>(null);
-  if (sources.error) return <p role="alert">{getErrorMessage(sources.error, tErrors)}</p>;
+  if (sources.error) return <StepError error={sources.error} retry={sources.refetch} />;
   if (sources.isLoading || !sources.evidence) return <p role="status">{t("loading")}</p>;
   const items = sources.evidence.items;
   const kept = items.filter((item) => item.decision !== "ignored");

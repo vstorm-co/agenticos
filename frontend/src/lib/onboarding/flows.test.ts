@@ -11,6 +11,7 @@ import {
 } from "@/lib/onboarding/flows";
 import {
   IMPROVEMENT,
+  IMPROVEMENT_START,
   AGENT_BUILDER,
   DATASET_DETAIL,
   KB_DETAIL,
@@ -640,15 +641,22 @@ describe("canOfferFlow", () => {
   });
 });
 
-it("registers the dedicated first improvement journey", () => {
-  expect(flowForPage(IMPROVEMENT)).toBe("first-improvement");
+it("offers the start of an improvement on its start page and a session's walk on a session", () => {
+  expect(flowForPage(IMPROVEMENT_START)).toBe("first-improvement");
+  expect(flowForPage(IMPROVEMENT)).toBe("improvement-session");
 });
 
-it("walks a first improvement from its questions to the guard that holds a publish", () => {
-  const steps = FLOWS["first-improvement"].steps;
-  expect(steps.map((step) => step.target)).toEqual([
-    "improvement-test-set",
+it("walks the start of an improvement through its one decision", () => {
+  expect(FLOWS["first-improvement"].steps.map((step) => step.target)).toEqual([
     "improvement-start",
+    "improvement-quote",
+    "improvement-details",
+  ]);
+});
+
+it("walks a session from its questions to the guard that holds a publish", () => {
+  const steps = FLOWS["improvement-session"].steps;
+  expect(steps.map((step) => step.target)).toEqual([
     "improvement-test-questions",
     "improvement-today",
     "improvement-open-check",
@@ -657,7 +665,12 @@ it("walks a first improvement from its questions to the guard that holds a publi
     "improvement-guard",
     "improvement-accept",
   ]);
-  expect(steps.every((step) => step.optional && step.permission === Perm.runsView)).toBe(true);
+  expect(steps.every((step) => step.permission === Perm.runsView)).toBe(true);
+  expect(steps.filter((step) => !step.optional).map((step) => step.target)).toEqual([
+    "improvement-test-questions",
+    "improvement-today",
+    "improvement-results",
+  ]);
   expect(steps.find((step) => step.id === "flow-improvement-review")?.activate).toBe(
     "improvement-step-today",
   );

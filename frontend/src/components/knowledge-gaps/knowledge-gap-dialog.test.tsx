@@ -92,4 +92,13 @@ describe("KnowledgeGapDialog", () => {
     await userEvent.keyboard("{Escape}");
     expect(onClose).toHaveBeenCalled();
   });
+
+  it("links no run from a question inside the Improve wizard", () => {
+    answer({ topic: TOPIC });
+    const view = render(<KnowledgeGapDialog topicId="t1" onClose={vi.fn()} />);
+    expect(screen.getAllByRole("link", { name: "Open the run" }).length).toBeGreaterThan(0);
+    view.unmount();
+    render(<KnowledgeGapDialog topicId="t1" onClose={vi.fn()} wizard />);
+    expect(screen.queryByRole("link", { name: "Open the run" })).toBeNull();
+  });
 });

@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { InImproveWizard } from "./wizard-mode";
 
 import { Perm } from "@/types/permissions";
 import type { KnowledgeGapTopic } from "@/types/knowledge-gaps";
@@ -83,5 +84,15 @@ describe("KnowledgeGapActions", () => {
     await userEvent.click(screen.getByRole("menuitem", { name: "Add to dataset" }));
     await userEvent.click(screen.getByRole("button", { name: "choose a dataset for t1" }));
     expect(screen.queryByRole("button", { name: "choose a dataset for t1" })).toBeNull();
+  });
+
+  it("offers no way to a dataset inside the Improve wizard", async () => {
+    state.granted = [Perm.datasetsView];
+    const { container } = render(
+      <InImproveWizard.Provider value>
+        <KnowledgeGapActions topic={TOPIC} />
+      </InImproveWizard.Provider>,
+    );
+    expect(container).toBeEmptyDOMElement();
   });
 });

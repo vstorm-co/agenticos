@@ -11,8 +11,16 @@ const actions = vi.hoisted(() => ({
   estimateSelection: { mutateAsync: vi.fn(), isPending: false },
   checkSelection: { mutateAsync: vi.fn(), isPending: false },
   started: vi.fn(),
+  evidenceLoaded: true,
 }));
-vi.mock("@/hooks/use-improvements", () => ({ useImprovement: () => actions }));
+vi.mock("@/hooks/use-improvements", () => ({
+  useImprovement: () => actions,
+  useImprovementEvidence: () => ({
+    evidence: actions.evidenceLoaded
+      ? { items: [{ run_id: "r1", conversation_id: "c1" }] }
+      : undefined,
+  }),
+}));
 const QUOTE = { suggestions: 1, total_usd: "0.04", affordable: true, candidate_hash: "hash" };
 const HUNKS = [hunk({ id: "h1" }), hunk({ id: "h2" })];
 function Form({ session = SESSION, hunks = HUNKS }: { session?: Improvement; hunks?: Hunk[] }) {
@@ -30,6 +38,7 @@ function Form({ session = SESSION, hunks = HUNKS }: { session?: Improvement; hun
 }
 beforeEach(() => {
   vi.clearAllMocks();
+  actions.evidenceLoaded = true;
   actions.estimateSelection.mutateAsync.mockResolvedValue(QUOTE);
   actions.checkSelection.mutateAsync.mockResolvedValue(SESSION);
   actions.checkSelection.isPending = actions.estimateSelection.isPending = false;
@@ -130,4 +139,64 @@ it("says what each change should fix, and nothing for a change that does not say
   );
   expect(screen.getAllByText("Should fix")).toHaveLength(1);
   expect(screen.getByText("Refund questions get the 30-day window")).toBeInTheDocument();
+});
+it("names each change by what it changes and bases it on conversations, not run ids", () => {
+  render(
+    <Form
+      hunks={[
+        hunk({
+          id: "h1",
+          kind: "instructions",
+          evidence: [{ run_id: "r1", quote: "Refunds take 90 days" }],
+        }),
+        hunk({
+          id: "h2",
+          kind: "tool_override",
+          tool_id: "t1",
+          base_name: "lookup_order",
+          evidence: [],
+        }),
+        hunk({
+          id: "h3",
+          kind: "spec_field",
+          path: "model_profile_id",
+          op: "set",
+          applies: false,
+          evidence: [],
+        }),
+      ]}
+    />,
+  );
+  expect(screen.getByText("Instructions")).toBeInTheDocument();
+  expect(screen.getByText("Tool description: lookup_order")).toBeInTheDocument();
+  expect(screen.getByText("Model")).toBeInTheDocument();
+  expect(screen.getByText("No longer fits the current instructions")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Open conversation" })).toHaveAttribute(
+    "href",
+    "/chat/c1",
+  );
+  expect(screen.queryByText(/run r1/)).not.toBeInTheDocument();
+  expect(screen.getAllByText("No conversation is quoted for this change.")).toHaveLength(2);
+});
+it("quotes the evidence before its conversations are known, without a link", () => {
+  actions.evidenceLoaded = false;
+  render(
+    <Form
+      hunks={[hunk({ id: "h1", evidence: [{ run_id: "r1", quote: "Refunds take 90 days" }] })]}
+    />,
+  );
+  expect(screen.getByText("Refunds take 90 days")).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "Open conversation" })).toBeNull();
+});
+it("names a new skill, and a tool by its id when it has no name", () => {
+  render(
+    <Form
+      hunks={[
+        hunk({ id: "h1", kind: "create_skill", evidence: [] }),
+        hunk({ id: "h2", kind: "tool_override", tool_id: "lookup", base_name: null, evidence: [] }),
+      ]}
+    />,
+  );
+  expect(screen.getByText("New skill")).toBeInTheDocument();
+  expect(screen.getByText("Tool description: lookup")).toBeInTheDocument();
 });

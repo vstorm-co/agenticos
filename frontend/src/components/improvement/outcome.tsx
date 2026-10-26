@@ -6,11 +6,14 @@ import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
 import { KnowledgeGapDialog } from "@/components/knowledge-gaps/knowledge-gap-dialog";
 import { useAgentEnvironments } from "@/hooks/use-agent-environments";
+import { useAgentEvalSuites } from "@/hooks/use-eval-suites";
 import { useDatasetCases } from "@/hooks/use-datasets";
 import { useEvalComparison } from "@/hooks/use-eval-runs";
+import { useImprovement, useImprovementEvidence } from "@/hooks/use-improvements";
 import { useKnowledgeGaps } from "@/hooks/use-knowledge-gaps";
 import { getErrorMessage } from "@/lib/api-error";
 import type { Improvement, ImprovementIteration } from "@/types/improvement";
+import { StepError } from "./step-error";
 
 function counts(round: ImprovementIteration | undefined) {
   const fixed = round?.verdict_detail?.fixed;
@@ -18,10 +21,21 @@ function counts(round: ImprovementIteration | undefined) {
   return fixed == null || broken == null ? null : { fixed: Number(fixed), broken: Number(broken) };
 }
 
-/** The drafts a person may add to the agent's knowledge bases, open and not yet added. */
-function useDrafts(agentId: string) {
-  const { topics, error } = useKnowledgeGaps({ kind: "agent", id: agentId });
-  return { drafts: topics.filter((topic) => topic.has_draft && topic.can_edit), error };
+/**
+ * The drafts this session's own examples led to that a person may add: open, not yet
+ * added, and on a topic one of the session's conversations missed.
+ */
+function useDrafts(session: Improvement) {
+  const gaps = useKnowledgeGaps({ kind: "agent", id: session.agent_id });
+  const sources = useImprovementEvidence(session.agent_id, { sessionId: session.id });
+  const { topics } = gaps;
+  const { evidence } = sources;
+  const ours = new Set(evidence?.items.map((item) => item.topic_id).filter(Boolean));
+  return {
+    drafts: topics.filter((topic) => topic.has_draft && topic.can_edit && ours.has(topic.id)),
+    error: gaps.error ?? sources.error,
+    retry: () => Promise.all([gaps.refetch(), sources.refetch()]),
+  };
 }
 
 /** One sentence for the agent and one for the knowledge base, before the details. */
@@ -33,7 +47,7 @@ export function ResultSummary({
   round: ImprovementIteration | undefined;
 }) {
   const t = useTranslations("improvement");
-  const { drafts } = useDrafts(session.agent_id);
+  const { drafts } = useDrafts(session);
   const measured = counts(round);
   return (
     <div className="space-y-1 rounded-xl border p-4 text-sm">
@@ -45,24 +59,26 @@ export function ResultSummary({
 
 /** The column of knowledge drafts beside the agent's changes, or the list to add on Accept. */
 export function KnowledgeDocuments({
-  agentId,
+  session,
   accept = false,
 }: {
-  agentId: string;
+  session: Improvement;
   accept?: boolean;
 }) {
   const t = useTranslations("improvement");
   const tErrors = useTranslations("errors");
-  const { drafts, error } = useDrafts(agentId);
-  const [later, setLater] = useState<string[]>([]);
+  const { drafts, error, retry } = useDrafts(session);
+  const actions = useImprovement(session.agent_id, session.id);
   const [open, setOpen] = useState<string | null>(null);
-  const shown = drafts.filter((topic) => !later.includes(topic.id));
+  const [failure, setFailure] = useState<string | null>(null);
+  const later = session.deferred_topic_ids ?? [];
+  const shown = accept ? drafts.filter((topic) => !later.includes(topic.id)) : drafts;
   return (
     <section className="min-w-0 space-y-3" data-tour="improvement-knowledge">
       <h3 className="text-sm font-medium">
         {accept ? t("acceptKnowledge", { count: shown.length }) : t("cause.missing_knowledge")}
       </h3>
-      {error && <p role="alert">{getErrorMessage(error, tErrors)}</p>}
+      {error && <StepError error={error} retry={retry} />}
       {!accept && shown.length === 0 && (
         <p className="text-muted-foreground text-sm">{t("noKnowledgeDocuments")}</p>
       )}
@@ -75,14 +91,29 @@ export function KnowledgeDocuments({
               {t(accept ? "reviewAndAdd" : "reviewKnowledgeDraft")}
             </Button>
             {accept && (
-              <Button size="sm" variant="ghost" onClick={() => setLater([...later, topic.id])}>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={actions.deferTopic.isPending}
+                onClick={() =>
+                  void actions.deferTopic.mutateAsync({ topicId: topic.id, later: true }).then(
+                    () => setFailure(null),
+                    (reason: unknown) => setFailure(getErrorMessage(reason, tErrors)),
+                  )
+                }
+              >
                 {t("notNow")}
               </Button>
             )}
           </div>
         </article>
       ))}
-      {open && <KnowledgeGapDialog topicId={open} onClose={() => setOpen(null)} />}
+      {failure && (
+        <p role="alert" className="text-destructive text-sm">
+          {failure}
+        </p>
+      )}
+      {open && <KnowledgeGapDialog topicId={open} onClose={() => setOpen(null)} wizard />}
     </section>
   );
 }
@@ -158,16 +189,20 @@ function AgentSentence({
   );
 }
 
-/** Said only where an environment following new versions waits for its automatic check. */
+/**
+ * Where people use the agent, one sentence each: a place that follows new versions
+ * switches at once or after its automatic check passes, and any other stays put.
+ */
 export function GuardNote({ agentId, version }: { agentId: string; version: number }) {
   const t = useTranslations("improvement");
   const { environments } = useAgentEnvironments(agentId);
-  const guarded = environments.filter(
-    (environment) => environment.tracks_latest && environment.guard_suite_ids.length > 0,
-  );
-  return guarded.map((environment) => (
+  return environments.map((environment) => (
     <p key={environment.id} className="text-sm">
-      {t("guardedSwitch", { environment: environment.name, version })}
+      {!environment.tracks_latest
+        ? t("environmentStays", { environment: environment.name, version: environment.version })
+        : environment.guard_suite_ids.length > 0
+          ? t("guardedSwitch", { environment: environment.name, version })
+          : t("environmentSwitches", { environment: environment.name, version })}
     </p>
   ));
 }
@@ -175,6 +210,7 @@ export function GuardNote({ agentId, version }: { agentId: string; version: numb
 /** The end of the wizard: where the version is, and that a later break will be reported. */
 export function DoneScreen({ session }: { session: Improvement }) {
   const t = useTranslations("improvement");
+  const { suites } = useAgentEvalSuites(session.agent_id);
   return (
     <section
       className="space-y-3 rounded-xl border p-6"
@@ -187,6 +223,7 @@ export function DoneScreen({ session }: { session: Improvement }) {
           <p role="status" className="text-sm">
             {t("donePublished", { version: session.published_version })}
           </p>
+          <GuardNote agentId={session.agent_id} version={session.published_version} />
           <Link
             className="text-sm underline"
             href={`/agents/${session.agent_id}?tab=history&from=${session.published_version}&to=${session.published_version}`}
@@ -199,8 +236,20 @@ export function DoneScreen({ session }: { session: Improvement }) {
           {t("doneDraft")}
         </p>
       )}
-      <p className="text-muted-foreground text-sm">{t("doneWatching")}</p>
-      <KnowledgeDocuments agentId={session.agent_id} accept />
+      {suites.length > 0 ? (
+        <p className="text-muted-foreground text-sm">{t("doneWatching")}</p>
+      ) : (
+        <p className="text-muted-foreground text-sm">
+          {t("doneUnwatched")}{" "}
+          <Link
+            className="underline underline-offset-4"
+            href={`/agents/${session.agent_id}?tab=evals`}
+          >
+            {t("setUpAutomaticCheck")}
+          </Link>
+        </p>
+      )}
+      <KnowledgeDocuments session={session} accept />
     </section>
   );
 }

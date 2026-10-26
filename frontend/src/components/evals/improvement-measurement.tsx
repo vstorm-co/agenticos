@@ -4,8 +4,17 @@ import { useTranslations } from "next-intl";
 import type { ImprovementMeasurement as Measurement } from "@/types/eval-runs";
 
 /** A proposal is learned on train cases and judged on a frozen, separate holdout. */
-export function ImprovementMeasurement({ measurement }: { measurement: Measurement }) {
-  const t = useTranslations("evals.improvementSplit");
+export function ImprovementMeasurement({
+  measurement,
+  wizard = false,
+}: {
+  measurement: Measurement;
+  /** Worded for the Improve wizard: questions used or not used to write the changes. */
+  wizard?: boolean;
+}) {
+  const tEvals = useTranslations("evals.improvementSplit");
+  const tWizard = useTranslations("improvement.split");
+  const t = wizard ? tWizard : tEvals;
   const missing = Math.max(0, measurement.minimum_holdout - measurement.gradable_holdout);
   return (
     <section aria-label={t("title")} className="space-y-2 rounded-lg border p-4">

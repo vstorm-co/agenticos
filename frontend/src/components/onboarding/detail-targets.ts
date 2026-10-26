@@ -115,6 +115,7 @@ export function useDetailTargets(enabled: boolean): Record<string, ResolvedDetai
       editable: false,
       judge: "",
       asksRun: "",
+      agent: "",
     }),
     queryFn: () => apiClient.get<DatasetList>(`/datasets?sort=name&skip=0&limit=${PAGE_SIZE}`),
     enabled,

@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { InImproveWizard } from "./wizard-mode";
 
 import { Perm } from "@/types/permissions";
 import type { KnowledgeGapTopicDetail } from "@/types/knowledge-gaps";
@@ -181,5 +182,15 @@ describe("KnowledgeGapDraftPanel", () => {
 
     rerender(<KnowledgeGapDraftPanel topic={{ ...DRAFTED, draft: { ...covered, sources: [] } }} />);
     expect(screen.getByText(/found these questions answered already\. If so/)).toBeInTheDocument();
+  });
+
+  it("says inside the Improve wizard that drafting again replaces the tested draft", () => {
+    state.granted = [Perm.agentsRun];
+    render(
+      <InImproveWizard.Provider value>
+        <KnowledgeGapDraftPanel topic={DRAFTED} />
+      </InImproveWizard.Provider>,
+    );
+    expect(screen.getByText(/replaces the one this session tested/)).toBeInTheDocument();
   });
 });

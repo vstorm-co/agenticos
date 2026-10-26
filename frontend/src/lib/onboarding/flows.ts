@@ -4,6 +4,7 @@ import {
   DATASET_DETAIL,
   EVAL_RUN,
   IMPROVEMENT,
+  IMPROVEMENT_START,
   KB_DETAIL,
   ORG_GROUPS,
   ORG_MEMBERS,
@@ -40,7 +41,8 @@ export type FlowId =
   | "create-dataset"
   | "explore-chat"
   | "test-change"
-  | "first-improvement";
+  | "first-improvement"
+  | "improvement-session";
 
 /**
  * A resource whose *appearance* ends a step. It is the react-query list the coach
@@ -932,26 +934,38 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
     permission: Perm.runsView,
     steps: [
       {
+        id: "flow-improvement-start",
+        page: IMPROVEMENT_START,
+        target: "improvement-start",
+        permission: Perm.runsView,
+      },
+      {
         id: "flow-improvement-test-set",
-        page: IMPROVEMENT,
-        target: "improvement-test-set",
+        page: IMPROVEMENT_START,
+        target: "improvement-quote",
         permission: Perm.runsView,
         optional: true,
       },
       {
-        id: "flow-improvement-start",
-        page: IMPROVEMENT,
-        target: "improvement-start",
+        id: "flow-improvement-details",
+        page: IMPROVEMENT_START,
+        target: "improvement-details",
         permission: Perm.runsView,
-        optional: true,
       },
+    ],
+  },
+  // A session's own walk: what each step did, from its questions to the guard that
+  // holds a publish. Steps shown only once a result waits stay optional.
+  "improvement-session": {
+    id: "improvement-session",
+    permission: Perm.runsView,
+    steps: [
       {
         id: "flow-improvement-questions",
         page: IMPROVEMENT,
         target: "improvement-test-questions",
         activate: "improvement-step-testSet",
         permission: Perm.runsView,
-        optional: true,
       },
       {
         id: "flow-improvement-today",
@@ -959,7 +973,6 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         target: "improvement-today",
         activate: "improvement-step-today",
         permission: Perm.runsView,
-        optional: true,
       },
       {
         id: "flow-improvement-review",
@@ -975,7 +988,6 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         target: "improvement-results",
         activate: "improvement-step-result",
         permission: Perm.runsView,
-        optional: true,
       },
       {
         id: "flow-improvement-automatic-check",
@@ -1084,8 +1096,10 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
  */
 export function flowForPage(pageId: string): FlowId | null {
   switch (pageId) {
-    case IMPROVEMENT:
+    case IMPROVEMENT_START:
       return "first-improvement";
+    case IMPROVEMENT:
+      return "improvement-session";
     case ROUTES.CHAT:
       return "explore-chat";
     case ROUTES.AGENTS:

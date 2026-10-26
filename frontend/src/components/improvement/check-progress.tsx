@@ -3,9 +3,9 @@
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
 import { useEvalRun } from "@/hooks/use-eval-runs";
-import { getErrorMessage } from "@/lib/api-error";
 import type { EvalRun } from "@/types/eval-runs";
 import type { Improvement } from "@/types/improvement";
+import { StepError } from "./step-error";
 
 type Stage = "asking" | "grading" | "repeating";
 type StageState = "done" | "running" | "pending";
@@ -68,9 +68,8 @@ export function CheckProgress({
 
 function RunStages({ runId, judging }: { runId: string; judging: boolean }) {
   const t = useTranslations("improvement");
-  const tErrors = useTranslations("errors");
-  const { run, error } = useEvalRun(runId);
-  if (error) return <p role="alert">{getErrorMessage(error, tErrors)}</p>;
+  const { run, error, refetch } = useEvalRun(runId);
+  if (error) return <StepError error={error} retry={refetch} />;
   if (!run) return <p role="status">{t("loading")}</p>;
   const state = stages(run, judging);
   return (

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { BookText, Download, FileText, MessageSquare } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
+import { useInImproveWizard } from "./wizard-mode";
 
 import { CopyButton } from "@/components/chat/copy-button";
 import { useAgentsOfKind } from "@/hooks/use-agents";
@@ -33,6 +34,7 @@ function asMarkdown(title: string, content: string): string {
  * the drafter is pointed at its instructions, which decide how the next draft reads.
  */
 export function KnowledgeGapDraftMeta({ draft }: { draft: KnowledgeGapDraft }) {
+  const wizard = useInImproveWizard();
   const t = useTranslations("knowledgeGaps");
   const tTime = useTranslations("time");
   const locale = useLocale();
@@ -63,12 +65,12 @@ export function KnowledgeGapDraftMeta({ draft }: { draft: KnowledgeGapDraft }) {
       )}
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <span>{timeAgo(draft.drafted_at, tTime, locale)}</span>
-        {draft.run_id && (
+        {draft.run_id && !wizard && (
           <Link href={`${ROUTES.RUNS}?run=${draft.run_id}`} className="underline">
             {t("openDraftRun")}
           </Link>
         )}
-        {drafter?.can_edit && (
+        {drafter?.can_edit && !wizard && (
           <Link href={ROUTES.AGENT_DETAIL(drafter.id)} className="underline">
             {t("editDrafter")}
           </Link>
