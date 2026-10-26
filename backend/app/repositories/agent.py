@@ -859,3 +859,84 @@ async def binding_resources(
         )
     ).all()
     return await _attach_agents(db, usage, [(agent_id, ref) for agent_id, ref in rows])
+
+
+async def system_agent_uses(
+    db: AsyncSession, agent_id: UUID, *, organization_id: UUID
+) -> list[str]:
+    """What still runs, or is set to run, on this system agent - as a person reads it.
+
+    A dataset grading with it as its judge, a knowledge base drafting or sorting its
+    gaps with it, and any request, generation, session or eval it is busy with.
+    Empty when nothing would break without it.
+    """
+    from app.db.models.authoring import AuthoringRequest, AuthoringStatus
+    from app.db.models.case_generation import CaseGeneration, GenerationStatus
+    from app.db.models.dataset import Dataset
+    from app.db.models.eval_run import EvalRun, EvalRunStatus
+    from app.db.models.improvement import ACTIVE_STATUSES, ImprovementRun
+    from app.db.models.knowledge_base import KnowledgeBase
+
+    named = str(agent_id)
+    datasets = await db.scalars(
+        select(Dataset.name)
+        .where(
+            Dataset.organization_id == organization_id,
+            Dataset.scoring["judge"]["agent_id"].astext == named,
+        )
+        .order_by(Dataset.name)
+    )
+    bases = await db.scalars(
+        select(KnowledgeBase.name)
+        .where(
+            KnowledgeBase.organization_id == organization_id,
+            or_(
+                KnowledgeBase.gap_drafter_agent_id == agent_id,
+                KnowledgeBase.gap_classifier_agent_id == agent_id,
+            ),
+        )
+        .order_by(KnowledgeBase.name)
+    )
+    uses = [f"the dataset '{name}'" for name in datasets] + [
+        f"the knowledge base '{name}'" for name in bases
+    ]
+    busy = (
+        (
+            select(AuthoringRequest.id).where(
+                AuthoringRequest.organization_id == organization_id,
+                AuthoringRequest.improver_agent_id == agent_id,
+                AuthoringRequest.status.in_(
+                    [AuthoringStatus.QUEUED.value, AuthoringStatus.RUNNING.value]
+                ),
+            ),
+            "a running authoring request",
+        ),
+        (
+            select(CaseGeneration.id).where(
+                CaseGeneration.organization_id == organization_id,
+                CaseGeneration.generator_agent_id == agent_id,
+                CaseGeneration.status == GenerationStatus.RUNNING.value,
+            ),
+            "a running case generation",
+        ),
+        (
+            select(ImprovementRun.id).where(
+                ImprovementRun.organization_id == organization_id,
+                ImprovementRun.improver_agent_id == agent_id,
+                ImprovementRun.status.in_([status.value for status in ACTIVE_STATUSES]),
+            ),
+            "a running improvement session",
+        ),
+        (
+            select(EvalRun.id).where(
+                EvalRun.organization_id == organization_id,
+                EvalRun.scoring["judge"]["agent_id"].astext == named,
+                EvalRun.status.in_([EvalRunStatus.QUEUED.value, EvalRunStatus.RUNNING.value]),
+            ),
+            "a running eval",
+        ),
+    )
+    for statement, what in busy:
+        if await db.scalar(statement.limit(1)) is not None:
+            uses.append(what)
+    return uses

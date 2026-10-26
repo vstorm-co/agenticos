@@ -46,7 +46,7 @@ from app.agents.capabilities.budget import price_request
 from app.agents.capabilities.context import ContextBody
 from app.agents.capabilities.skills import SkillBody
 from app.agents.spec import AgentSpec
-from app.agents.system_agents import JUDGE
+from app.agents.system_agents import JUDGE, refuse_system_agent
 from app.core.config import settings
 from app.core.exceptions import (
     AuthorizationError,
@@ -513,6 +513,9 @@ class EvalRunService:
             raise BadRequestError(
                 message=f"Agent '{agent.name}' is archived", details={"agent_id": agent.id}
             )
+        # A system agent answers its caller's prompt in JSON, never a person's
+        # question, so a dataset's questions measure nothing about it.
+        refuse_system_agent(agent, action="an eval of its own answers")
         source, version, spec = await self._candidate(ctx, agent, request, candidate_spec)
         candidates = [
             replace(

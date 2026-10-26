@@ -34,7 +34,7 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.core.permissions import AuthContext, Perm
-from app.db.models.agent import Agent, AgentVersion
+from app.db.models.agent import Agent, AgentKind, AgentVersion
 from app.db.models.agent_environment import (
     AgentEnvironment,
     AgentEnvironmentConnection,
@@ -63,6 +63,27 @@ from app.services.agent_registry import AgentRegistryService
 from app.services.promotion_gate import PromotionGateService
 
 logger = logging.getLogger(__name__)
+
+
+def _refuse_system_agent_pin(agent: Agent) -> None:
+    """Refuse an environment of its own, a pin or a guard on a system agent.
+
+    The platform runs a system agent on its default environment, which follows
+    every publish: a pinned or second environment would keep what runs apart
+    from what was published, with nobody to promote between them.
+
+    Raises:
+        BadRequestError: The agent is a system agent.
+    """
+    if agent.kind != AgentKind.AGENT.value:
+        raise BadRequestError(
+            message=(
+                f"'{agent.name}' is a system agent: it runs on its default environment, "
+                "which follows every publish. Publish or restore a version to change "
+                "what it runs."
+            ),
+            details={"agent_id": agent.id, "kind": agent.kind},
+        )
 
 
 class AgentEnvironmentService:
@@ -141,6 +162,7 @@ class AgentEnvironmentService:
             AlreadyExistsError: If the name is taken on this agent.
         """
         agent = await self.agents.get(ctx, agent_id, perm=Perm.AGENTS_PUBLISH, for_update=True)
+        _refuse_system_agent_pin(agent)
         if agent.current_version_id is None:
             raise BadRequestError(
                 message=f"Publish '{agent.name}' before adding environments - "
@@ -213,6 +235,8 @@ class AgentEnvironmentService:
                 override promotions.
         """
         agent, environment = await self.get_environment(ctx, agent_id, environment_id)
+        if data.version_id is not None or data.tracks_latest is False or data.guard_suite_ids:
+            _refuse_system_agent_pin(agent)
         # Before `writable`, which drops it: an environment is always pinned, so
         # `version_id: null` is a request to refuse rather than a value to write -
         # and dropping it first turned that refusal into "Nothing to change", which

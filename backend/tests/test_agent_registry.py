@@ -4400,7 +4400,7 @@ class TestACapabilityAgentsMayNotBind:
     @pytest.mark.anyio
     async def test_saving_a_draft_drops_it(self):
         service = AgentRegistryService(_db())
-        service.get = AsyncMock(return_value=MagicMock())
+        service.get = AsyncMock(return_value=MagicMock(kind="agent"))
         spec = _spec(capabilities=[{"id": "clock"}, {"id": "channel_tools"}])
 
         with patch(f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock()) as stored:
@@ -4414,7 +4414,7 @@ class TestACapabilityAgentsMayNotBind:
         """Which is the whole point of doing it on write. A migration cleared
         these once and the next save put one straight back."""
         service = AgentRegistryService(_db())
-        service.get = AsyncMock(return_value=MagicMock())
+        service.get = AsyncMock(return_value=MagicMock(kind="agent"))
 
         with patch(f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock()) as stored:
             await service.save_draft(
@@ -4427,7 +4427,7 @@ class TestACapabilityAgentsMayNotBind:
     async def test_a_spec_that_names_none_is_stored_unchanged(self):
         """No copy, no log line, nothing to explain - which is every save."""
         service = AgentRegistryService(_db())
-        service.get = AsyncMock(return_value=MagicMock())
+        service.get = AsyncMock(return_value=MagicMock(kind="agent"))
         spec = _spec(capabilities=[{"id": "clock"}])
 
         with patch(f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock()) as stored:
@@ -4455,7 +4455,7 @@ class TestACapabilityAgentsMayNotBind:
         """A draft naming an unknown id has to stay saveable - half-finished
         configuration is the whole reason `save_draft` does not validate."""
         service = AgentRegistryService(_db())
-        service.get = AsyncMock(return_value=MagicMock())
+        service.get = AsyncMock(return_value=MagicMock(kind="agent"))
 
         with patch(f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock()) as stored:
             await service.save_draft(
@@ -4978,7 +4978,7 @@ class TestTheAssistantIsSettings:
 
     @pytest.mark.anyio
     async def test_a_builder_may_run_it_but_not_change_it(self, monkeypatch: pytest.MonkeyPatch):
-        agent = MagicMock(id=uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), kind="agent")
         service = self._service(monkeypatch, agent)
         builder = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="builder")
 
@@ -4990,7 +4990,7 @@ class TestTheAssistantIsSettings:
 
     @pytest.mark.anyio
     async def test_an_owner_changes_it_but_cannot_archive_it(self, monkeypatch: pytest.MonkeyPatch):
-        agent = MagicMock(id=uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), kind="agent")
         service = self._service(monkeypatch, agent)
         owner = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="owner")
 

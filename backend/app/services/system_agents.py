@@ -238,8 +238,9 @@ class SystemAgentService:
         the definition's temperature and budget, with its description and
         instructions unless others are given, and is as widely visible as
         `visibility`. It publishes straight away when it has a model and the
-        caller may publish it - a draft otherwise, like a seeded one, for
-        somebody who may. It never carries the definition's key: the seeded one
+        caller may publish it - a draft otherwise, like a seeded one, for an
+        administrator to publish, since every later change to a system agent
+        takes `org:settings`. It never carries the definition's key: the seeded one
         stays the organization's default. The caller has already been allowed to
         create agents.
 
@@ -271,13 +272,15 @@ class SystemAgentService:
             budget=BudgetSpec(monthly_usd=definition.monthly_usd),
         )
         agent = await self.registry.create(ctx, spec, visibility=visibility)
-        agent = await agent_repo.update(
-            self.db, agent=agent, update_data={"kind": definition.kind.value}
-        )
         publishes = model_profile_id is not None and await resolve_access(
             self.db, ctx, agent, Perm.AGENTS_PUBLISH, resource_type=AGENT
         )
-        return await self._publish(ctx, agent, published=publishes, note="Created")
+        # Published before it takes its kind, which puts changes behind org:settings:
+        # making one is its creator's, and a dataset's judge left a draft grades nothing.
+        agent = await self._publish(ctx, agent, published=publishes, note="Created")
+        return await agent_repo.update(
+            self.db, agent=agent, update_data={"kind": definition.kind.value}
+        )
 
     async def create_from_console(self, ctx: AuthContext, data: SystemAgentCreate) -> Agent:
         """A system agent the caller picked in New agent.

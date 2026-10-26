@@ -62,6 +62,12 @@ from app.agents.spec import (
     SubagentRef,
     VoiceSpec,
 )
+from app.agents.system_agents import (
+    SpecPart,
+    incomplete_parts,
+    refuse_system_agent,
+    unusable_parts,
+)
 from app.core.audit import current_impersonator, record_audit
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -321,7 +327,49 @@ def _coding_agent_problems(spec: AgentSpec) -> list[str]:
 
 
 _READ_PERMS = frozenset({Perm.AGENTS_VIEW, Perm.AGENTS_RUN})
-"""What `get` may be asked for on the assistant by anyone who reaches it."""
+"""What `get` may be asked for on the assistant, or a system agent, by anyone who reaches it."""
+
+
+def _may_change_system_agent(ctx: AuthContext, agent: Agent) -> bool:
+    """Whether the caller may change this agent as far as being a system agent goes.
+
+    A system agent grades, drafts or proposes for everyone who uses what it
+    serves, so changing one is an organization setting, whoever owns the row: a
+    Builder reaches the seeded ones through their organization-wide visibility.
+    """
+    return agent.kind == AgentKind.AGENT.value or ctx.has(Perm.ORG_SETTINGS)
+
+
+def _refuse_system_agent_change(agent: Agent) -> None:
+    """Refuse changing a system agent without `org:settings`.
+
+    Raises:
+        AuthorizationError: The agent is a system agent.
+    """
+    if agent.kind != AgentKind.AGENT.value:
+        raise AuthorizationError(
+            message=(
+                f"'{agent.name}' is a system agent the platform runs for the whole "
+                "organization - only an administrator can change it"
+            ),
+            details={"agent_id": agent.id, "kind": agent.kind},
+        )
+
+
+def _refuse_system_parts(parts: Sequence[SpecPart]) -> None:
+    """Refuse a system agent's spec that holds what the platform never lets it use.
+
+    Raises:
+        BadRequestError: In `validate_spec`'s shape - every part as a line and as a field.
+    """
+    if parts:
+        raise BadRequestError(
+            message="A system agent cannot hold this",
+            details={
+                "problems": [part.message for part in parts],
+                "fields": [{"field": part.field, "message": part.message} for part in parts],
+            },
+        )
 
 
 async def _browser_problems(config: BaseModel | None, *, has_secret: bool) -> list[str]:
@@ -891,6 +939,7 @@ class AgentRegistryService:
                 raise NotFoundError(message="Agent not found", details={"agent_id": str(agent_id)})
         if perm not in _READ_PERMS and not ctx.has(Perm.ORG_SETTINGS):
             await self._refuse_the_assistant(agent)
+            _refuse_system_agent_change(agent)
         return agent
 
     async def _refuse_the_assistant(self, agent: Agent) -> None:
@@ -924,11 +973,15 @@ class AgentRegistryService:
 
     async def may_edit(self, ctx: AuthContext, agent: Agent) -> bool:
         """Whether this caller may edit this agent - `may_run`'s counterpart for edit."""
-        return await resolve_access(self.db, ctx, agent, Perm.AGENTS_EDIT, resource_type=AGENT)
+        return _may_change_system_agent(ctx, agent) and await resolve_access(
+            self.db, ctx, agent, Perm.AGENTS_EDIT, resource_type=AGENT
+        )
 
     async def may_publish(self, ctx: AuthContext, agent: Agent) -> bool:
         """Whether this caller may publish this agent - `may_run`'s counterpart for publish."""
-        return await resolve_access(self.db, ctx, agent, Perm.AGENTS_PUBLISH, resource_type=AGENT)
+        return _may_change_system_agent(ctx, agent) and await resolve_access(
+            self.db, ctx, agent, Perm.AGENTS_PUBLISH, resource_type=AGENT
+        )
 
     async def _visible_scope(
         self, ctx: AuthContext, *, shared_with_me: bool
@@ -1072,9 +1125,12 @@ class AgentRegistryService:
         # floor for offering "new trigger" on a card. A grant widens it per row, so
         # a Viewer shared run on one agent sees the control there and nowhere else.
         runnable = await accessible_ids(self.db, ctx, agents, Perm.AGENTS_RUN, resource_type=AGENT)
-        editable = await accessible_ids(self.db, ctx, agents, Perm.AGENTS_EDIT, resource_type=AGENT)
+        changeable = [agent for agent in agents if _may_change_system_agent(ctx, agent)]
+        editable = await accessible_ids(
+            self.db, ctx, changeable, Perm.AGENTS_EDIT, resource_type=AGENT
+        )
         publishable = await accessible_ids(
-            self.db, ctx, agents, Perm.AGENTS_PUBLISH, resource_type=AGENT
+            self.db, ctx, changeable, Perm.AGENTS_PUBLISH, resource_type=AGENT
         )
         groups = await groups_sharing(
             self.db, ctx, resource_type=AGENT, resource_ids=[agent.id for agent in agents]
@@ -1538,10 +1594,18 @@ class AgentRegistryService:
 
         Deliberately does not validate references: half-finished configuration
         must be saveable, or the Builder becomes a form you cannot leave.
-        Validation is publish's job.
+        Validation is publish's job. A system agent's draft is the exception in
+        one respect: what it may never use is refused here, since no amount of
+        finishing would make it publishable; what it still lacks - instructions,
+        room for its answer - waits for publish like any other gap.
+
+        Raises:
+            BadRequestError: A system agent's spec holds what it may never use.
         """
         agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT, for_update=True)
         spec = _without_unselectable(spec)
+        if agent.kind != AgentKind.AGENT.value:
+            _refuse_system_parts(unusable_parts(spec))
         return await agent_repo.update(
             self.db,
             agent=agent,
@@ -1641,6 +1705,15 @@ class AgentRegistryService:
         problems.add(await _sandbox_problems(self.db, ctx, spec), fix=USE_STATE_WORKSPACE)
         problems.add(_coding_agent_problems(spec))
         problems.merge(await self._delegation_problems(ctx, spec, agent_id=agent_id))
+        owner = (
+            None
+            if agent_id is None
+            else await agent_repo.get(self.db, agent_id, organization_id=ctx.organization_id)
+        )
+        if owner is not None and owner.kind != AgentKind.AGENT.value:
+            for part in [*unusable_parts(spec), *incomplete_parts(spec, owner.kind)]:
+                problems.messages.append(part.message)
+                problems.fields.append({"field": part.field, "message": part.message})
 
         if problems.messages:
             # `fields` only when there is one: an empty list is a claim that
@@ -2580,6 +2653,14 @@ class AgentRegistryService:
                 tracks_latest=True,
                 created_by_user_id=ctx.user_id,
             )
+        elif agent.kind != AgentKind.AGENT.value:
+            # A system agent runs on its default environment alone, so a publish
+            # always moves it, pinned or not.
+            default = await agent_environment_repo.update(
+                self.db,
+                environment=default,
+                update_data={"version_id": version.id, "tracks_latest": True},
+            )
         else:
             following = await agent_environment_repo.following_latest(
                 self.db, agent_id=agent.id, organization_id=ctx.organization_id
@@ -2670,6 +2751,7 @@ class AgentRegistryService:
         keep the trail. Real deletion is a separate, deliberate act.
         """
         agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT, for_update=True)
+        await self._refuse_retiring_system_agent(ctx, agent, action="archived")
         if await organization_assistant_repo.for_agent(self.db, agent.id) is not None:
             # Archived, it would still read as ready in the corner and refuse every
             # run; switching it off is the way to retire it.
@@ -2689,6 +2771,41 @@ class AgentRegistryService:
             target_id=str(agent.id),
         )
         return updated
+
+    async def _refuse_retiring_system_agent(
+        self, ctx: AuthContext, agent: Agent, *, action: str
+    ) -> None:
+        """Refuse archiving or deleting a system agent something still runs on.
+
+        The organization's default of a kind is what every dataset, knowledge base
+        and session that picked none falls back to, so it is never retired; one
+        the organization made is, once nothing names it or is busy with it.
+
+        Raises:
+            BadRequestError: The agent is a default, or is still in use.
+        """
+        if agent.kind == AgentKind.AGENT.value:
+            return
+        if agent.system_key is not None:
+            raise BadRequestError(
+                message=(
+                    f"'{agent.name}' is the organization's default {agent.kind}, which "
+                    f"everything that picked no other runs on, so it cannot be {action}. "
+                    "Change its instructions or model instead."
+                ),
+                details={"agent_id": agent.id, "system_key": agent.system_key},
+            )
+        uses = await agent_repo.system_agent_uses(
+            self.db, agent.id, organization_id=ctx.organization_id
+        )
+        if uses:
+            raise BadRequestError(
+                message=(
+                    f"'{agent.name}' is still used by {', '.join(uses)}. Pick another "
+                    f"{agent.kind} there, or let it finish, before it is {action}."
+                ),
+                details={"agent_id": agent.id, "uses": uses},
+            )
 
     async def unarchive(self, ctx: AuthContext, agent_id: UUID) -> Agent:
         """Bring a retired agent back.
@@ -2799,6 +2916,8 @@ class AgentRegistryService:
         agent with no published version cannot be served - it has nothing to run.
         """
         agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_PUBLISH)
+        if enabled:
+            refuse_system_agent(agent, action="serving over A2A")
         if enabled and agent.current_version_id is None:
             raise BadRequestError(
                 message="Publish the agent before serving it over A2A",
@@ -2852,6 +2971,7 @@ class AgentRegistryService:
                 published.
         """
         agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT, for_update=True)
+        await self._refuse_retiring_system_agent(ctx, agent, action="deleted")
         if draft_only and (
             agent.owner_user_id != ctx.subject_id or agent.current_version_id is not None
         ):

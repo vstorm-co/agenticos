@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from typing import Protocol
 from uuid import UUID
 
+from app.agents.spec import AgentSpec
 from app.core.exceptions import SystemAgentRestrictedError
 from app.db.models.agent import AgentKind
 
@@ -48,6 +49,11 @@ class SystemAgentDef:
             whole budget on evaluation by accident. Editable like any agent's.
         kind: What it is for. Agents of its kind are listed with it, and an
             organization may create more of them from this definition.
+        max_tokens_floor: The lowest `model_settings.max_tokens` an agent of
+            this kind may publish with: room for the largest answer its caller
+            asks for, so a cap never cuts the JSON short and every call fails
+            to read. Unset `max_tokens` leaves the model's own, which is not
+            refused.
         temperature: The temperature it starts with, and every agent created
             from it; unset leaves the model's own. A judge starts at 0, so the
             same answer is graded the same way twice.
@@ -59,6 +65,7 @@ class SystemAgentDef:
     instructions: str
     monthly_usd: float
     kind: AgentKind
+    max_tokens_floor: int
     temperature: float | None = None
 
 
@@ -83,6 +90,9 @@ JUDGE = SystemAgentDef(
     ),
     monthly_usd=5.0,
     kind=AgentKind.JUDGE,
+    # A grade per criterion - up to 20 rubric criteria, the reference and the
+    # counter-example - at about 150 tokens each with its reason, rule and quotes.
+    max_tokens_floor=4_096,
     temperature=0.0,
 )
 
@@ -109,6 +119,9 @@ CASE_GENERATOR = SystemAgentDef(
     ),
     monthly_usd=5.0,
     kind=AgentKind.GENERATOR,
+    # Up to 50 drafted cases, at the 400 output tokens the generation's estimate
+    # prices each one at.
+    max_tokens_floor=20_000,
 )
 
 KNOWLEDGE_GAP_DRAFTER = SystemAgentDef(
@@ -135,6 +148,9 @@ KNOWLEDGE_GAP_DRAFTER = SystemAgentDef(
     ),
     monthly_usd=5.0,
     kind=AgentKind.DRAFTER,
+    # One passage at its 20 000-character limit, about 5 000 tokens, with its
+    # title and the numbers of what it cites.
+    max_tokens_floor=6_144,
 )
 
 KNOWLEDGE_GAP_CLASSIFIER = SystemAgentDef(
@@ -160,6 +176,8 @@ KNOWLEDGE_GAP_CLASSIFIER = SystemAgentDef(
     ),
     monthly_usd=5.0,
     kind=AgentKind.CLASSIFIER,
+    # A batch of 20 answers, each a label and a reason of at most 300 characters.
+    max_tokens_floor=2_048,
     temperature=0.0,
 )
 
@@ -197,6 +215,9 @@ IMPROVER = SystemAgentDef(
     ),
     monthly_usd=5.0,
     kind=AgentKind.IMPROVER,
+    # A new skill at its 20 000-character limit, about 5 000 tokens, beside the
+    # instruction changes and quoted evidence of the same proposal.
+    max_tokens_floor=8_192,
     temperature=0.2,
 )
 
@@ -230,3 +251,101 @@ def system_agent(key: str) -> SystemAgentDef:
         if definition.key == key:
             return definition
     raise KeyError(key)
+
+
+SYSTEM_CAPABILITIES = frozenset({"thinking", "context", "skills"})
+"""The capabilities a system agent may bind: how it reasons and what standing text it
+knows, never anything it could call to reach further than its prompt."""
+
+
+@dataclass(frozen=True)
+class SpecPart:
+    """One part of a spec a system agent may not publish with, and why.
+
+    Attributes:
+        field: The spec field, as a form addresses it.
+        message: The refusal, as the reader sees it.
+    """
+
+    field: str
+    message: str
+
+
+def of_kind(kind: str) -> SystemAgentDef:
+    """The definition agents of `kind` are made from.
+
+    Raises:
+        KeyError: When `kind` is not a system agent's.
+    """
+    for definition in SYSTEM_AGENTS:
+        if definition.kind.value == kind:
+            return definition
+    raise KeyError(kind)
+
+
+def unusable_parts(spec: AgentSpec) -> list[SpecPart]:
+    """What a system agent's spec holds that the platform never lets it use.
+
+    Only the platform runs a system agent, isolated, on text nobody vetted - a
+    candidate's answer, a conversation, a document - and what it answers reaches
+    people who may not read what it read. So it reaches nothing beyond its prompt:
+    no tool, knowledge base, server or delegate; and nothing that belongs to a
+    surface it never has - calls, dictation, a chat's starters, a reviewer of a
+    multi-step run, approvals nobody is there to give.
+    """
+    parts: list[SpecPart] = []
+    for binding in spec.capabilities:
+        if binding.id not in SYSTEM_CAPABILITIES:
+            parts.append(
+                SpecPart(
+                    "capabilities",
+                    f"A system agent cannot use '{binding.id}': it reaches nothing beyond "
+                    "the prompt the platform gives it",
+                )
+            )
+        elif binding.approval != "default" or binding.tool_approval:
+            parts.append(
+                SpecPart(
+                    "capabilities",
+                    f"'{binding.id}' on a system agent takes no approvals: nobody is "
+                    "there to give one while it runs",
+                )
+            )
+    refused = (
+        ("collection_ids", spec.collection_ids, "searches no knowledge base"),
+        ("mcp_servers", spec.mcp_servers, "uses no MCP server"),
+        ("subagents", spec.subagents, "delegates to no agent"),
+        ("external_agents", spec.external_agents, "delegates to no external agent"),
+        ("voice", spec.voice, "takes no calls"),
+        ("speech_to_text", spec.speech_to_text, "takes no dictation"),
+        ("starters", spec.starters, "has no chat to start"),
+        ("code_mode", spec.code_mode.enabled, "calls no tools from a script"),
+        ("reviewers", spec.reviewers, "answers in one request, with nothing to review"),
+    )
+    parts.extend(SpecPart(field, f"A system agent {why}") for field, value, why in refused if value)
+    return parts
+
+
+def incomplete_parts(spec: AgentSpec, kind: str) -> list[SpecPart]:
+    """What a system agent of `kind` needs before it publishes.
+
+    Its instructions are what it grades, drafts or proposes by, and its answer is
+    one JSON object that a cap too low cuts short - so every call would fail to
+    read rather than one.
+    """
+    parts: list[SpecPart] = []
+    if not spec.instructions.strip():
+        parts.append(
+            SpecPart("instructions", "A system agent needs instructions: they are what it works by")
+        )
+    floor = of_kind(kind).max_tokens_floor
+    cap = spec.model_settings.max_tokens
+    if cap is not None and cap < floor:
+        parts.append(
+            SpecPart(
+                "model_settings.max_tokens",
+                f"A {kind} needs room for its whole answer: set max tokens to at least "
+                f"{floor}, or leave it unset",
+            )
+        )
+    return parts

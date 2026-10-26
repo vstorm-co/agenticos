@@ -39,7 +39,7 @@ from app.agents.capabilities.budget import price_request
 from app.agents.capabilities.context import ContextBody
 from app.agents.capabilities.skills import SkillBody
 from app.agents.spec import AgentSpec
-from app.agents.system_agents import IMPROVER
+from app.agents.system_agents import IMPROVER, refuse_system_agent
 from app.core.audit import record_audit
 from app.core.config import settings
 from app.core.exceptions import (
@@ -257,6 +257,8 @@ class AuthoringService:
 
     async def _editable(self, ctx: AuthContext, agent_id: UUID) -> Agent:
         agent = await self.registry.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
+        # Its runs are all eval runs, which the assistant never reads as evidence.
+        refuse_system_agent(agent, action="the authoring assistant's suggestions")
         if agent.status == AgentStatus.ARCHIVED.value:
             raise BadRequestError(
                 message=f"Agent '{agent.name}' is archived", details={"agent_id": agent.id}

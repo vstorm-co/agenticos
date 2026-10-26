@@ -19,8 +19,18 @@ from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.settings import ModelSettings
 from sqlalchemy.exc import IntegrityError
 
-from app.agents.spec import ModelSettingsSpec
-from app.agents.system_agents import JUDGE, SYSTEM_AGENTS, system_agent
+from app.agents.spec import AgentSpec, ModelSettingsSpec
+from app.agents.system_agents import (
+    CASE_GENERATOR,
+    IMPROVER,
+    JUDGE,
+    KNOWLEDGE_GAP_DRAFTER,
+    SYSTEM_AGENTS,
+    incomplete_parts,
+    of_kind,
+    system_agent,
+    unusable_parts,
+)
 from app.core.exceptions import BadRequestError, SystemAgentUnavailableError
 from app.repositories import agent_repo, credential_repo, member_repo
 from app.services.system_agents import SystemAgentService, _seed_spec
@@ -159,3 +169,89 @@ async def test_a_judge_s_temperature_reaches_only_a_model_that_takes_one(model, 
 
     temperature = client.chat.completions.create.call_args.kwargs.get("temperature")
     assert (temperature == 0.0) is sent
+
+
+def test_every_kind_finds_its_definition_and_an_ordinary_agent_none() -> None:
+    assert [of_kind(definition.kind.value) for definition in SYSTEM_AGENTS] == list(SYSTEM_AGENTS)
+    with pytest.raises(KeyError):
+        of_kind("agent")
+
+
+def test_a_seeded_spec_holds_nothing_a_system_agent_may_not_use() -> None:
+    for definition in SYSTEM_AGENTS:
+        spec = _seed_spec(definition, model_profile_id=uuid.uuid4())
+        assert unusable_parts(spec) == []
+        assert incomplete_parts(spec, definition.kind.value) == []
+
+
+@pytest.mark.parametrize(
+    ("field", "change"),
+    [
+        ("capabilities", {"capabilities": [{"id": "web_fetch"}]}),
+        ("capabilities", {"capabilities": [{"id": "context", "approval": "required"}]}),
+        ("capabilities", {"capabilities": [{"id": "skills", "tool_approval": {"x": "never"}}]}),
+        ("collection_ids", {"collection_ids": [str(uuid.uuid4())]}),
+        (
+            "mcp_servers",
+            {"mcp_servers": [{"account": "organization", "connection_id": str(uuid.uuid4())}]},
+        ),
+        (
+            "subagents",
+            {"subagents": [{"agent_id": str(uuid.uuid4()), "agent_version_id": str(uuid.uuid4())}]},
+        ),
+        ("external_agents", {"external_agents": [{"external_agent_id": str(uuid.uuid4())}]}),
+        ("voice", {"voice": {"provider": "openai"}}),
+        ("speech_to_text", {"speech_to_text": {"provider": "openai"}}),
+        ("starters", {"starters": ["Hello"]}),
+        ("code_mode", {"code_mode": {"enabled": True}}),
+        ("reviewers", {"reviewers": [{"name": "second-look", "instructions": "Check it."}]}),
+    ],
+)
+def test_what_reaches_past_the_prompt_or_belongs_to_a_surface_is_named(field, change) -> None:
+    spec = AgentSpec.model_validate({"name": "Judge", "instructions": "Grade.", **change})
+
+    assert [part.field for part in unusable_parts(spec)] == [field]
+
+
+def test_how_it_reasons_and_what_standing_text_it_knows_stay_allowed() -> None:
+    spec = AgentSpec.model_validate(
+        {
+            "name": "Judge",
+            "instructions": "Grade.",
+            "capabilities": [{"id": "thinking"}, {"id": "context"}, {"id": "skills"}],
+            "context_ids": [str(uuid.uuid4())],
+            "skill_ids": [str(uuid.uuid4())],
+        }
+    )
+
+    assert unusable_parts(spec) == []
+
+
+@pytest.mark.parametrize("definition", SYSTEM_AGENTS, ids=lambda d: d.kind.value)
+def test_a_cap_below_the_kind_s_floor_is_named_and_one_at_it_is_not(definition) -> None:
+    def parts(cap: int | None) -> list[str]:
+        spec = AgentSpec(
+            name="Helper", instructions="Work.", model_settings=ModelSettingsSpec(max_tokens=cap)
+        )
+        return [part.field for part in incomplete_parts(spec, definition.kind.value)]
+
+    assert parts(definition.max_tokens_floor - 1) == ["model_settings.max_tokens"]
+    assert parts(definition.max_tokens_floor) == []
+    assert parts(None) == []
+
+
+def test_blank_instructions_are_named() -> None:
+    spec = AgentSpec(name="Judge", instructions="  \n")
+
+    assert [part.field for part in incomplete_parts(spec, "judge")] == ["instructions"]
+
+
+def test_each_floor_leaves_room_for_the_largest_answer_its_caller_asks_for() -> None:
+    """The floors are derived from the answers' limits, so a change there moves them."""
+    from app.schemas.case_generation import MAX_GENERATED
+    from app.services.case_generation.estimate import OUTPUT_TOKENS_PER_CASE
+
+    assert CASE_GENERATOR.max_tokens_floor >= MAX_GENERATED * OUTPUT_TOKENS_PER_CASE
+    # A passage, or a new skill, at its 20 000-character limit is about 5 000 tokens.
+    assert KNOWLEDGE_GAP_DRAFTER.max_tokens_floor > 20_000 // 4
+    assert IMPROVER.max_tokens_floor > 20_000 // 4

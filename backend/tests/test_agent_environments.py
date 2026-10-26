@@ -84,6 +84,7 @@ def _agent(*, current_version_id: uuid.UUID | None = None) -> MagicMock:
     return _named(
         id=uuid.uuid4(),
         name="Support",
+        kind="agent",
         current_version_id=current_version_id or uuid.uuid4(),
     )
 

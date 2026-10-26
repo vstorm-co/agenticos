@@ -25,6 +25,7 @@ from app.agents.capabilities.knowledge._capability import KnowledgeConfig
 from app.agents.capabilities.skills import SkillBody
 from app.agents.factory import DEFAULT_MAX_STEPS
 from app.agents.spec import AgentSpec
+from app.agents.system_agents import refuse_system_agent
 from app.core.audit import record_audit
 from app.core.background import spawn_after_commit
 from app.core.config import settings
@@ -219,6 +220,7 @@ class ImprovementPipelineService:
 
     async def _inputs(self, ctx: AuthContext, agent_id: UUID, target: ImprovementTarget) -> Inputs:
         agent = await self.registry.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
+        refuse_system_agent(agent, action="an improvement session")
         if not ctx.has(Perm.RUNS_VIEW):
             raise AuthorizationError(
                 message="Improving an agent needs runs:view",
