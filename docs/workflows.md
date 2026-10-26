@@ -14,7 +14,7 @@ no walkthrough.
 ## Creating and duplicating a workflow { #creating-and-duplicating-a-workflow }
 
 **New workflow** opens a dialog that starts you from a trigger or a template.
-**How does it start?** offers each trigger - **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Gmail**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** and **On failure of a workflow** - each an otherwise
+**How does it start?** offers each trigger - **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Gmail**, **Outlook**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** and **On failure of a workflow** - each an otherwise
 empty canvas that begins with it. The templates are ready-made starting points — **Starter**, a single step to rename
 and wire up, and **Two-step sequence**, two steps already connected for a linear
 flow. Pick one with **Use** and you land in the editor.
@@ -563,8 +563,10 @@ an agent step's cost ceiling among them:
 
 - **Runs under way at once** - a real run started past it is refused with `429`
   until one ends. A webhook's or GitHub's sender is told to retry, a schedule waits
-  for its next tick, a mailbox is read again, and a table event or a form answer
-  past it is refused. Test runs are neither counted nor held back.
+  for its next tick, and a table event or a form answer past it is refused. A mailbox
+  is read again a minute later, so the message waits for the run to end - unless the
+  runs holding the limit are waiting for an approval: the message is then skipped for
+  this workflow and the audit log records it (`workflow.mail_message_skipped`). Test runs are neither counted nor held back.
 - **Most one run may spend** - the run's own budget, the tighter of it and the
   version's: a run that reaches it stops before its next step, out of budget.
 - **Most its runs may spend a month** - counted over the calendar month in UTC,
@@ -655,7 +657,7 @@ test run starts from where that run was. Over the API, `POST
 ## Starting a workflow from outside the console { #starting-a-workflow-from-outside-the-console }
 
 A workflow starts from one **trigger**, the first node on its canvas. The
-**Triggers** group at the top of the step picker holds them all: **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Gmail**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** and **On failure of a workflow**. Adding one to a
+**Triggers** group at the top of the step picker holds them all: **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Gmail**, **Outlook**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** and **On failure of a workflow**. Adding one to a
 workflow that already has a trigger replaces it in place, and the wires and
 bindings that leave the old one leave the new one. **New workflow** starts a
 workflow from the trigger you pick there.
@@ -816,9 +818,49 @@ with DKIM - so a `From` anyone can type does not start a run. Messages labelled
 **Label** names one of those.
 
 The run gets the `sender`, `to`, `subject`, `text`, `snippet`, `labels` and the
-mailbox's `message_id`. A message read twice starts its run once, and one the
-organization had no room to run yet is read again a minute later. See
+mailbox's `message_id`, and the thread the message belongs to: `thread_id`, the
+`rfc_message_id` (the `Message-ID` header), `in_reply_to`, `references`,
+`received_at` and the `html` body. The sender writes the three header fields, so a
+reply can be threaded with them but they prove nothing about who sent it. A message
+read twice starts its run once, and one the organization had no room to run yet is
+read again a minute later. See
 [trigger.gmail](reference/workflow-nodes.md#trigger-gmail).
+
+An **Outlook** trigger does the same for the organization's Microsoft 365 mailbox,
+connected through the **Outlook** portal. Microsoft Graph is read one folder at a
+time, so the step names the **Folder** it watches - the inbox unless it says
+otherwise - and, to read a shared mailbox the connected account can open, a
+**Shared mailbox**. The filters are **Subject contains**, **Sender contains**,
+**Has attachments**, **Importance** and **Category**. The first time a folder is
+read it starts from the moment the workflow was published or last switched on, so
+mail already there starts nothing.
+
+Anyone who can publish a workflow can name any
+shared mailbox the organization's Microsoft grant can open, as Outlook agent triggers
+already can. If Outlook says the folder can no longer be read, the workflow is
+switched off and the audit log says why.
+
+The run gets the same fields as a Gmail
+run, with `labels` holding the message's categories and `mailbox` the shared
+mailbox it came from. See
+[trigger.outlook](reference/workflow-nodes.md#trigger-outlook).
+
+Both mail triggers take outside input: anyone can send the mailbox a message, so
+bind what the run does with it as you would for a webhook.
+
+A message's `attachments` list each file's name, declared type and size; a mailbox
+lists at most 20 per message, and a `text` or `html` body is read up to 20,000
+characters. A run the mailbox started stores them as files of the run, and each one
+carries its `file` and `stored: true`. Of the attachments listed, only the first 10
+are considered, up to 25 MiB together, and each must fit the chat-upload size limit
+and file-type allowlist and the organization's storage quota.
+
+One that is left out carries a `reason`: `too_many` (past the first 10),
+`too_large`, `type_not_allowed`, `quota` or `unreadable` - the mailbox answered 400,
+401, 403 or 404 for it, or its grant is missing, switched off or cannot be renewed.
+A test run reads nothing from the mailbox, so its attachments are `not_fetched`.
+When the mailbox fails in a way a retry may cure, the step fails with
+`MAIL_ATTACHMENT_UNREACHABLE` and is retried.
 
 ### From a channel message { #from-a-channel-message }
 

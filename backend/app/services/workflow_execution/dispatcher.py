@@ -161,6 +161,7 @@ PUBLIC_TRIGGERS = frozenset(
         WorkflowRunTrigger.FORM,
         WorkflowRunTrigger.CHANNEL_MESSAGE,
         WorkflowRunTrigger.GMAIL,
+        WorkflowRunTrigger.OUTLOOK,
         WorkflowRunTrigger.GITHUB,
     }
 )

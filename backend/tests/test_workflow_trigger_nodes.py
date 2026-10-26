@@ -16,24 +16,40 @@ import pytest
 from pydantic import ValidationError
 
 from app.core.permissions import AuthContext
+from app.schemas.agent_trigger import OutlookTriggerConfig as MatcherOutlookConfig
 from app.services.workflow_execution import context
 from app.workflows import _registry
 from app.workflows.contracts.results import Completed, Failed
 from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
 from app.workflows.graph.validate import _rule_1_single_entry
 from app.workflows.nodes._channels import check_listening_bot
-from app.workflows.nodes._triggers import TableRecordTriggerConfig
+from app.workflows.nodes._triggers import (
+    EmailTriggerOutput,
+    MailAttachment,
+    TableRecordTriggerConfig,
+)
 from app.workflows.nodes.trigger_channel_message._handler import ChannelMessageTriggerConfig
 from app.workflows.nodes.trigger_channel_message._handler import handle as channel_message
 from app.workflows.nodes.trigger_chat._handler import handle as chat
 from app.workflows.nodes.trigger_github._handler import GithubTriggerConfig
 from app.workflows.nodes.trigger_github._handler import handle as github
 from app.workflows.nodes.trigger_gmail._handler import handle as gmail
+from app.workflows.nodes.trigger_outlook._handler import OutlookTriggerConfig
+from app.workflows.nodes.trigger_outlook._handler import handle as outlook
 from app.workflows.nodes.trigger_schedule._handler import handle as schedule
 from app.workflows.nodes.trigger_table_record._handler import check_resources
 from app.workflows.nodes.trigger_table_record._handler import handle as table_record
 from app.workflows.nodes.trigger_webhook._handler import handle as webhook
-from app.workflows.triggers import CHAT, MANUAL, SCHEDULE, TABLE_RECORD, WEBHOOK, live_trigger
+from app.workflows.triggers import (
+    CHAT,
+    MANUAL,
+    OUTLOOK,
+    SCHEDULE,
+    TABLE_RECORD,
+    UNATTENDED,
+    WEBHOOK,
+    live_trigger,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -109,6 +125,35 @@ HANDED_ON = [
             "text": "",
             "snippet": "",
             "labels": [],
+            "thread_id": "",
+            "rfc_message_id": "",
+            "in_reply_to": "",
+            "references": [],
+            "received_at": None,
+            "html": "",
+            "mailbox": "",
+            "attachments": [],
+        },
+    ),
+    (
+        outlook,
+        {"message_id": "m1", "subject": "Invoice"},
+        {
+            "message_id": "m1",
+            "sender": "",
+            "to": "",
+            "subject": "Invoice",
+            "text": "",
+            "snippet": "",
+            "labels": [],
+            "thread_id": "",
+            "rfc_message_id": "",
+            "in_reply_to": "",
+            "references": [],
+            "received_at": None,
+            "html": "",
+            "mailbox": "",
+            "attachments": [],
         },
     ),
     (
@@ -148,7 +193,7 @@ HANDED_ON = [
 @pytest.mark.parametrize(
     ("handle", "run_input", "output"),
     HANDED_ON,
-    ids=["chat", "channel", "github", "gmail", "webhook", "schedule", "table"],
+    ids=["chat", "channel", "github", "gmail", "outlook", "webhook", "schedule", "table"],
 )
 async def test_a_trigger_hands_the_graph_what_its_surface_started_the_run_with(
     handle, run_input: dict[str, Any], output: dict[str, Any]
@@ -160,13 +205,67 @@ async def test_a_trigger_hands_the_graph_what_its_surface_started_the_run_with(
 
 
 @pytest.mark.parametrize(
-    "handle", [chat, channel_message, github, gmail, webhook, schedule, table_record]
+    "handle", [chat, channel_message, github, gmail, outlook, webhook, schedule, table_record]
 )
 async def test_a_test_run_started_with_the_wrong_shape_fails_the_trigger(handle):
     with context.dispatching_as(_dispatch({"anything": "else"})):
         result = await handle(None, None)
     assert isinstance(result, Failed)
     assert result.error.code == "TRIGGER_INPUT_INVALID"
+
+
+async def test_a_run_stored_before_the_thread_fields_still_validates():
+    stored = {
+        "message_id": "m1",
+        "sender": "Billing <billing@acme.com>",
+        "to": "ops@example.com",
+        "subject": "Invoice",
+        "text": "Please pay.",
+        "snippet": "Please",
+        "labels": ["INBOX"],
+    }
+    message = EmailTriggerOutput.model_validate(stored)
+    assert message.thread_id == "" and message.received_at is None and message.attachments == []
+    with context.dispatching_as(_dispatch(stored)):
+        result = await gmail(None, None)
+    assert isinstance(result, Completed)
+    assert result.output == message
+
+
+def test_the_outlook_config_takes_only_keys_the_matcher_reads():
+    assert set(OutlookTriggerConfig.model_fields) <= set(MatcherOutlookConfig.model_fields)
+    config = OutlookTriggerConfig(mailbox="shared@acme.com", importance="high")
+    assert config.folder == "inbox"
+    assert config.model_dump(exclude_none=True) == {
+        "folder": "inbox",
+        "mailbox": "shared@acme.com",
+        "importance": "high",
+    }
+
+
+def test_an_unknown_outlook_config_key_is_refused():
+    with pytest.raises(ValidationError):
+        OutlookTriggerConfig.model_validate({"folders": "inbox"})
+    with pytest.raises(ValidationError):
+        OutlookTriggerConfig(mailbox="not a mailbox")
+
+
+def test_the_outlook_trigger_runs_unattended_and_is_in_the_catalog():
+    by_id = {definition.id: definition for definition in _registry.all_node_definitions()}
+    assert OUTLOOK in UNATTENDED
+    definition = by_id[OUTLOOK]
+    assert (definition.category, definition.effect_kind, definition.retry_guarantee) == (
+        "triggers",
+        "read",
+        "idempotent",
+    )
+    assert definition.input_schema is None and definition.output_schema is EmailTriggerOutput
+
+
+def test_an_attachment_reason_outside_the_list_is_refused():
+    with pytest.raises(ValidationError):
+        MailAttachment(attachment_id="a1", reason="virus")
+    assert MailAttachment(attachment_id="a1", reason="too_large").stored is False
 
 
 def test_a_channel_trigger_takes_the_chats_and_words_it_names():

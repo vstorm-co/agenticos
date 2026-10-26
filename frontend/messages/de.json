@@ -6283,6 +6283,7 @@
         "channel_message": "Eine Kanalnachricht",
         "github": "GitHub",
         "gmail": "Gmail",
+        "outlook": "Outlook",
         "app": "Eine Seite"
       },
       "runsCount": "{count, plural, one {# Run} other {# Runs}}",
@@ -6433,6 +6434,10 @@
         "gmail": {
           "name": "Gmail",
           "description": "Eine neue E-Mail im verbundenen Postfach der Organisation startet einen Lauf."
+        },
+        "outlook": {
+          "name": "Outlook",
+          "description": "Eine neue E-Mail in einem Ordner des verbundenen Microsoft-365-Postfachs der Organisation startet einen Lauf."
         }
       },
       "startRunOptional": "optional",
@@ -6585,6 +6590,7 @@
       "githubRegistered": "Über das GitHub-Konto der Organisation in {repository} registriert und bei jeder Veröffentlichung neu registriert.",
       "githubPasteIt": "Fügen Sie diese Adresse in den Einstellungen des Repositorys unter Settings > Webhooks ein, mit dem Inhaltstyp application/json und dem Geheimnis, das beim Veröffentlichen gezeigt wurde. New secret zeigt ein neues.",
       "triggerGmailLive": "Das Gmail-Postfach der Organisation wird jede Minute gelesen, und jede neue Nachricht, die zum Trigger passt, startet einen Lauf als das Mitglied, das ihn veröffentlicht hat. Eine Nachricht startet einmal, wie oft sie auch gelesen wird.",
+      "triggerOutlookLive": "Das Microsoft-365-Postfach der Organisation wird jede Minute gelesen, Ordner für Ordner, und jede neue Nachricht im Ordner des Schritts, die zum Trigger passt, startet einen Lauf als das Mitglied, das ihn veröffentlicht hat. Eine Nachricht startet einmal, wie oft sie auch gelesen wird.",
       "settingsLimits": "Grenzen",
       "settingsLimitsHint": "Was seine Läufe gleichzeitig tun und ausgeben dürfen. Jeder Schritt behält seine eigenen Grenzen - darunter die Kostenobergrenze eines Agentenschritts -, und diese gelten darüber.",
       "settingsConcurrent": "Gleichzeitig laufende Läufe",
@@ -8435,6 +8441,11 @@
         "ready": "Das Postfach der Organisation ist verbunden und wird jede Minute gelesen.",
         "connect": "Noch ist kein Postfach verbunden. Die Veröffentlichung wartet darauf.",
         "reauthorize": "Das Postfach muss neu verbunden werden, bevor es gelesen werden kann."
+      },
+      "microsoft": {
+        "ready": "Das Microsoft-365-Postfach der Organisation ist verbunden und wird jede Minute gelesen.",
+        "connect": "Noch kein Microsoft-365-Postfach verbunden. Das Veröffentlichen wartet darauf.",
+        "reauthorize": "Das Postfach muss erneut verbunden werden, bevor es gelesen werden kann."
       },
       "github": {
         "ready": "Mit der Berechtigung verbunden, Webhooks zu verwalten: Die Veröffentlichung registriert den Hook für Sie.",

@@ -132,9 +132,48 @@ subdomains. With it set, the message must also pass the authenticated-sender che
 (DMARC, or a DKIM signature from the sender's domain). Mail labelled `SENT`,
 `DRAFT`, `SPAM` or `TRASH` is skipped unless **Label** names it.
 
+The output carries the thread - `thread_id`, `rfc_message_id`, `in_reply_to`,
+`references`, `received_at` - and the `html` body, read up to 20,000 characters. The
+sender writes the header fields, so they thread a reply and prove nothing about who
+sent it.
+
+A run the mailbox started stores the message's attachments as files of the run. A
+mailbox lists at most 20 per message and only the first 10 listed are considered, up
+to 25 MiB together, each within the chat-upload size limit and file type allowlist
+and the organization's storage quota. An attachment left out keeps its place in
+`attachments` with a `reason`: `too_many`, `too_large`, `type_not_allowed`, `quota`,
+`unreadable` or `not_fetched`. A run the mailbox did not start - a test run - reads
+nothing, so every attachment is `not_fetched`.
+
+`unreadable` is an answer of 400, 401, 403 or 404 for the attachment, or a mailbox
+grant that is missing, switched off or cannot be renewed. Any other provider failure
+fails the step with `MAIL_ATTACHMENT_UNREACHABLE`, which is retried. Both mail
+triggers take outside input.
+
 ::: app.workflows.nodes.trigger_gmail._handler.GmailTriggerConfig
 
 ::: app.workflows.nodes._triggers.EmailTriggerOutput
+
+::: app.workflows.nodes._triggers.MailAttachment
+
+### trigger.outlook { #trigger-outlook }
+
+**Outlook.** Started by a new message in a folder of the organization's connected
+Microsoft 365 mailbox that fits every filter set, read once a minute. Publishing is
+refused until a mailbox is connected. `triggered_by` is `outlook`. Microsoft Graph
+is read one folder at a time, so **Folder** and **Shared mailbox** are where the
+poll looks as well as a filter, and the first read of a folder starts at the moment
+the workflow was published or last switched on. Anyone who can publish a workflow can
+name any shared mailbox the organization's Microsoft grant can open, as Outlook agent
+triggers already can. **Sender contains** matches the sender's address, as
+for Gmail, and needs mail the sender's domain authenticated or that came from inside
+the tenant. A folder or shared mailbox Outlook says cannot be read switches the
+workflow off, with `mailbox_folder_unreadable` in the audit log. A stored
+configuration that no longer validates is skipped by the poll. The attachments are
+staged as for [trigger.gmail](#trigger-gmail), and `labels` holds the message's
+categories. Its output is the one of [trigger.gmail](#trigger-gmail).
+
+::: app.workflows.nodes.trigger_outlook._handler.OutlookTriggerConfig
 
 ### trigger.channel_message { #trigger-channel-message }
 

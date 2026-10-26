@@ -92,6 +92,14 @@ class TestTheBaseIsManualByDefault:
     async def test_listing_targets_is_empty(self) -> None:
         assert await PortalAdapter().list_preset_targets(access_token="t") == []
 
+    async def test_a_portal_that_reads_no_mail_cannot_read_an_attachment(self) -> None:
+        with pytest.raises(PortalUnreachable) as caught:
+            await PortalAdapter().attachment(
+                access_token="t", message_id="m", attachment_id="a", mailbox=None, max_bytes=10
+            )
+
+        assert caught.value.details == {"portal_key": ""}
+
     async def test_the_account_is_unknown(self) -> None:
         assert await PortalAdapter().account_login(access_token="t") is None
 

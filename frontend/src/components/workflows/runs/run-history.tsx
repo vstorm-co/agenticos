@@ -43,6 +43,7 @@ const TRIGGERS = [
   "channel_message",
   "github",
   "gmail",
+  "outlook",
   "app",
 ] as const;
 const HOUR_MS = 3_600_000;

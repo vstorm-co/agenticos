@@ -118,6 +118,7 @@ const BY_ID: Record<string, NodeIcon> = {
   "trigger.channel_message": MessagesSquare,
   "trigger.github": brandMark("github"),
   "trigger.gmail": brandMark("gmail"),
+  "trigger.outlook": brandMark("microsoft"),
   "logic.switch": Split,
   "flow.wait": Hourglass,
   "flow.resume_link": Link2,

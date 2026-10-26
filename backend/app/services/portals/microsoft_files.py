@@ -12,7 +12,7 @@ cannot read is unreadable, and the triggers on it are turned off with a reason.
 """
 
 import logging
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import quote, unquote, urlsplit
@@ -53,6 +53,7 @@ class MicrosoftFilesPortalAdapter(PortalAdapter):
         access_token: str,
         cursor: dict[str, Any] | None,
         places: Mapping[str, datetime] = NOWHERE,
+        html_places: Collection[str] = (),
     ) -> PolledEvents:
         """Files created or changed in each watched place, and the cursor to resume from.
 

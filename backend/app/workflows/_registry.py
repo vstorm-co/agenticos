@@ -164,6 +164,7 @@ def load_builtins() -> None:
         trigger_github,
         trigger_gmail,
         trigger_manual,
+        trigger_outlook,
         trigger_schedule,
         trigger_table_record,
         trigger_webhook,

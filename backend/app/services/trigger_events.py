@@ -48,6 +48,7 @@ from app.schemas.agent_trigger import (
     ZendeskTriggerConfig,
 )
 from app.services.portals import files_place, outlook_place
+from app.services.portals.mail_thread import MAX_ID_CHARS, clean_text
 
 logger = logging.getLogger(__name__)
 
@@ -285,9 +286,9 @@ def render_context(source: str, *, payload: Mapping[str, Any]) -> str:
     if source == EventSource.GITHUB.value:
         return _github_context(payload)
     if source == EventSource.GMAIL.value:
-        return _gmail_context(payload)
+        return clean_text(_gmail_context(payload))
     if source == EventSource.OUTLOOK.value:
-        return _outlook_context(payload)
+        return clean_text(_outlook_context(payload))
     if source == EventSource.HUBSPOT.value:
         return _hubspot_context(payload)
     if source == EventSource.ZENDESK.value:
@@ -546,13 +547,32 @@ def _github_context(payload: Mapping[str, Any]) -> str:
     ).strip()
 
 
+def _thread_lines(payload: Mapping[str, Any]) -> list[str]:
+    """`Message-ID:` and `Thread:` lines, each only when the mail carried one.
+
+    The Message-ID is the sender's and the thread key the provider's, so each is
+    collapsed onto one line - no CR, LF or Unicode line break can start a line of
+    the prompt. A value longer than `MAX_ID_CHARS` is dropped, never cut: a clipped
+    id would name no message. `references` and `html` stay out of the prompt on
+    purpose.
+    """
+    lines: list[str] = []
+    for label, key in (("Message-ID", "rfc_message_id"), ("Thread", "thread_id")):
+        value = " ".join(str(payload.get(key) or "").split())
+        if value and len(value) <= MAX_ID_CHARS:
+            lines.append(f"{label}: {value}")
+    return lines
+
+
 def _gmail_context(payload: Mapping[str, Any]) -> str:
-    return (
-        "An email arrived.\n"
-        f"From: {payload.get('from', '')}\n"
-        f"Subject: {payload.get('subject', '')}\n\n"
-        f"{_clip(str(payload.get('body') or payload.get('text') or ''))}"
-    ).strip()
+    lines = [
+        "An email arrived.",
+        f"From: {payload.get('from', '')}",
+        f"Subject: {payload.get('subject', '')}",
+        *_thread_lines(payload),
+    ]
+    body = _clip(str(payload.get("body") or payload.get("text") or ""))
+    return ("\n".join(lines) + f"\n\n{body}").strip()
 
 
 def _outlook_context(payload: Mapping[str, Any]) -> str:
@@ -572,6 +592,7 @@ def _outlook_context(payload: Mapping[str, Any]) -> str:
     ]
     if attachments:
         lines.append(f"Attachments: {', '.join(name for name in attachments if name)}")
+    lines.extend(_thread_lines(payload))
     return ("\n".join(lines) + f"\n\n{_clip(str(payload.get('text') or ''))}").strip()
 
 

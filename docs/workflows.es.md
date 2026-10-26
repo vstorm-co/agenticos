@@ -1,5 +1,5 @@
 ---
-source_sha: "9147c4363ad2"
+source_sha: "5aa8aa87f7c5"
 ---
 
 # Workflows { #workflows }
@@ -19,7 +19,7 @@ sí no tiene recorrido.
 ## Crear y duplicar un workflow { #creating-and-duplicating-a-workflow }
 
 **New workflow** abre un diálogo que te deja empezar desde un trigger o desde una
-plantilla. **How does it start?** ofrece cada trigger - **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Gmail**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** y
+plantilla. **How does it start?** ofrece cada trigger - **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Gmail**, **Outlook**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** y
 **On failure of a workflow** -, cada uno un
 lienzo por lo demás vacío que empieza por él. Las plantillas son puntos de partida
 listos — **Starter**, un único paso para
@@ -593,8 +593,11 @@ límites propios de cada paso - el techo de coste de un paso de agente entre ell
 
 - **Runs under way at once** - una ejecución real iniciada por encima se rechaza con
   `429` hasta que termine una. Al remitente de un webhook o de GitHub se le pide que
-  reintente, una programación espera a su siguiente tic, un buzón se vuelve a leer, y
-  un evento de tabla o una respuesta de formulario por encima se rechaza. Las
+  reintente, una programación espera a su siguiente tic, y un evento de tabla o una respuesta de
+  formulario por encima se rechaza. Un buzón se vuelve a leer un minuto después, así que
+  el mensaje espera a que termine una ejecución - salvo que las que ocupan el límite
+  esperen una aprobación: entonces el mensaje se omite para este workflow y el registro
+  de auditoría lo anota (`workflow.mail_message_skipped`). Las
   ejecuciones de prueba ni se cuentan ni se retienen.
 - **Most one run may spend** - el presupuesto propio de la ejecución, el más estricto
   entre él y el de la versión: una ejecución que lo alcanza se detiene antes de su
@@ -698,7 +701,7 @@ acepta `status`, `mode`, `triggered_by`, `created_after` y `created_before`.
 ## Iniciar un workflow desde fuera de la consola { #starting-a-workflow-from-outside-the-console }
 
 Un workflow empieza por un **trigger**, el primer nodo de su lienzo. El grupo
-**Triggers**, arriba en el selector de pasos, los tiene todos: **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Gmail**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** y
+**Triggers**, arriba en el selector de pasos, los tiene todos: **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Gmail**, **Outlook**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** y
 **On failure of a workflow**. Añadir uno a un workflow que ya
 tiene trigger sustituye el anterior en su mismo sitio, y las conexiones y los
 bindings que salían del anterior salen del nuevo. **New workflow** empieza un
@@ -868,9 +871,51 @@ la etiqueta `SENT`, `DRAFT`, `SPAM` o `TRASH` no son llegadas y no inician nada,
 que **Label** nombre una de ellas.
 
 La ejecución recibe `sender`, `to`, `subject`, `text`, `snippet`, `labels` y el
-`message_id` del buzón. Un mensaje leído dos veces inicia su ejecución una vez, y uno
-para el que la organización aún no tenía sitio se vuelve a leer un minuto después.
-Ver [trigger.gmail](reference/workflow-nodes.md#trigger-gmail).
+`message_id` del buzón, además del hilo al que pertenece el mensaje: `thread_id`,
+`rfc_message_id` (la cabecera `Message-ID`), `in_reply_to`, `references`,
+`received_at` y el cuerpo `html`. Los tres campos de cabecera los escribe el
+remitente: sirven para enlazar una respuesta con el hilo, pero no prueban quién envió
+el mensaje. Un mensaje leído dos veces inicia su ejecución una vez, y uno para el que
+la organización aún no tenía sitio se vuelve a leer un minuto después. Ver
+[trigger.gmail](reference/workflow-nodes.md#trigger-gmail).
+
+Un trigger **Outlook** hace lo mismo con el buzón de Microsoft 365 de la
+organización, conectado a través del portal **Outlook**. Microsoft Graph se lee
+carpeta a carpeta, así que el paso nombra el **Folder** que vigila - la bandeja de
+entrada si no dice otra - y, para leer un buzón compartido que la cuenta conectada
+puede abrir, un **Shared mailbox**. Los filtros son **Subject contains**, **Sender
+contains**, **Has attachments**, **Importance** y **Category**.
+
+La primera lectura de
+una carpeta empieza en el momento en que se publicó o se encendió por última vez el workflow, así que el
+correo que ya está allí no inicia nada. Quien puede publicar un workflow puede nombrar
+cualquier buzón compartido que el grant de Microsoft de la organización pueda abrir,
+como ya pueden los triggers de agente de Outlook. Si Outlook dice que la carpeta ya no se puede leer, el
+workflow se apaga y el registro de auditoría dice por qué.
+
+La ejecución recibe los
+mismos campos que una de Gmail, con `labels` con las categorías del mensaje y
+`mailbox` con el buzón compartido del que vino. Ver
+[trigger.outlook](reference/workflow-nodes.md#trigger-outlook).
+
+Los dos triggers de correo aceptan entrada de fuera: cualquiera puede enviar un
+mensaje al buzón, así que enlaza lo que la ejecución hace con él como harías con un
+webhook.
+
+Los `attachments` de un mensaje listan el nombre, el tipo declarado y el tamaño de
+cada archivo; un buzón lista como máximo 20 por mensaje, y un cuerpo `text` o `html`
+se lee hasta 20.000 caracteres. Una ejecución que inició el buzón los guarda como
+archivos del run, y cada uno lleva su `file` y `stored: true`. De los adjuntos
+listados solo se consideran los 10 primeros, hasta 25 MiB en total, y cada uno debe
+caber en el límite de tamaño de subida del chat, en la lista de tipos de archivo
+permitidos y en la cuota de almacenamiento de la organización.
+
+Uno que se deja fuera lleva un `reason`: `too_many` (pasados los 10 primeros),
+`too_large`, `type_not_allowed`, `quota` o `unreadable` - el buzón respondió 400,
+401, 403 o 404 para él, o su grant falta, está apagado o no se puede renovar. Una
+ejecución de prueba no lee nada del buzón, así que sus adjuntos son `not_fetched`.
+Cuando el buzón falla de una manera que un reintento puede curar, el paso falla con
+`MAIL_ATTACHMENT_UNREACHABLE` y se reintenta.
 
 ### Desde un mensaje en un canal { #from-a-channel-message }
 

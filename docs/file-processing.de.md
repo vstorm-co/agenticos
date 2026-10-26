@@ -1,5 +1,5 @@
 ---
-source_sha: "8b29d490f872"
+source_sha: "e7b82f03a0fe"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -327,6 +327,16 @@ Deployment benennt. Die Einstellungen stehen in der
 
 `agenticos cmd doctor` gibt aus, welches Backend ein laufendes Deployment nutzt
 und ob die Verschlüsselung an ist.
+
+### Mail-Anhänge in einem Workflow { #mail-attachments-in-a-workflow }
+
+Ein [Workflow](workflows.md#from-an-email), den eine Gmail- oder Outlook-Nachricht
+gestartet hat, speichert deren Anhänge als Dateien dieses Runs, innerhalb des Runs
+und nie im Poll, der das Postfach gelesen hat. Für sie gelten die Liste erlaubter
+Dateitypen und das Größenlimit für Chat-Uploads: Von den Anhängen, die ein Postfach
+liefert, werden nur die ersten 10 pro Nachricht berücksichtigt, und 25 MiB pro
+Nachricht. Ein ausgelassener Anhang wird mit dem Grund aufgeführt, und ein Testlauf
+holt nichts ab.
 
 ### Das Modell ChatFile { #chatfile-model }
 

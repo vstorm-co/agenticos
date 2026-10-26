@@ -19,7 +19,7 @@ event. What the slack lets through twice, the delivery-id claim suppresses.
 """
 
 import logging
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import quote, unquote
@@ -28,8 +28,9 @@ import httpx
 
 from app.services.portals._api import error_codes
 from app.services.portals.base import NOWHERE, PolledEvent, PolledEvents, PortalAdapter
-from app.services.portals.exceptions import PortalUnreachable
+from app.services.portals.exceptions import AttachmentTooLarge, PortalUnreachable
 from app.services.portals.mail_auth import authenticated
+from app.services.portals.mail_thread import thread_headers
 
 logger = logging.getLogger(__name__)
 
@@ -80,8 +81,9 @@ _SYNC_LOST = frozenset({"syncstatenotfound", "syncstateinvalid", "resyncrequired
 _PREFER_IDS = 'IdType="ImmutableId"'
 _MESSAGE_FIELDS = (
     "id,subject,from,toRecipients,receivedDateTime,hasAttachments,importance,"
-    "categories,body,bodyPreview,isDraft,internetMessageHeaders"
+    "categories,body,bodyPreview,isDraft,internetMessageHeaders,internetMessageId,conversationId"
 )
+_FILE_ATTACHMENT = "#microsoft.graph.fileAttachment"
 # Exchange stamps mail between two of the tenant's own mailboxes `Internal`, and
 # strips this header from anything arriving from outside, so it is the verdict for
 # a sender inside the organization - mail Exchange writes no SPF/DKIM result for.
@@ -154,6 +156,7 @@ class OutlookPortalAdapter(PortalAdapter):
         access_token: str,
         cursor: dict[str, Any] | None,
         places: Mapping[str, datetime] = NOWHERE,
+        html_places: Collection[str] = (),
     ) -> PolledEvents:
         """New messages in each watched place, and the cursor to resume from.
 
@@ -205,16 +208,22 @@ class OutlookPortalAdapter(PortalAdapter):
                     unreadable.add(key)
                     continue
                 found += [(received, key, message_id) for received, message_id in ids]
-            found.sort()
-            if len(found) > _MAX_MESSAGES_PER_POLL:
-                logger.warning(
-                    "outlook_poll_truncated",
-                    extra={"found": len(found), "read": _MAX_MESSAGES_PER_POLL},
-                )
+            # The overflow of earlier ticks goes first: a place's cursor has moved past
+            # those ids, so this list is the only place they are kept.
+            backlog = _backlog(cursor, watched=places.keys() - unreadable)
+            waiting = sorted({*backlog, *found})
+            batch, later = waiting[:_MAX_MESSAGES_PER_POLL], waiting[_MAX_MESSAGES_PER_POLL:]
+            if later:
+                logger.info("outlook_poll_backlog", extra={"read": len(batch), "kept": len(later)})
             events = [
                 event
-                for _received_at, key, message_id in found[-_MAX_MESSAGES_PER_POLL:]
-                if (event := await self._message(client, access_token, key, message_id)) is not None
+                for _received_at, key, message_id in batch
+                if (
+                    event := await self._message(
+                        client, access_token, key, message_id, with_html=key in html_places
+                    )
+                )
+                is not None
             ]
         return PolledEvents(
             events=tuple(events),
@@ -222,6 +231,11 @@ class OutlookPortalAdapter(PortalAdapter):
                 "connected_at": connected.isoformat(),
                 "places": next_states,
                 **({"account": account} if isinstance(account, str) else {}),
+                **(
+                    {"pending": [[at.isoformat(), key, one] for at, key, one in later]}
+                    if later
+                    else {}
+                ),
             },
             unreadable=frozenset(unreadable),
         )
@@ -372,13 +386,20 @@ class OutlookPortalAdapter(PortalAdapter):
             raise
 
     async def _message(
-        self, client: httpx.AsyncClient, access_token: str, key: str, message_id: str
+        self,
+        client: httpx.AsyncClient,
+        access_token: str,
+        key: str,
+        message_id: str,
+        *,
+        with_html: bool,
     ) -> PolledEvent | None:
         """One message, as the payload an Outlook trigger's filter reads.
 
         The body is asked for as text - Exchange converts an HTML message itself -
         so the run reads what a person would rather than markup. A message deleted
-        between the delta and this read is skipped rather than failing the batch.
+        between the delta and this read is skipped rather than failing the batch. The
+        HTML body is a request of its own, read only when `with_html`.
         """
         mailbox, folder = _place(key)
         base = f"{_API_BASE}{_mailbox_path(mailbox)}/messages/{quote(message_id, safe='')}"
@@ -400,25 +421,39 @@ class OutlookPortalAdapter(PortalAdapter):
                 client,
                 access_token,
                 f"{base}/attachments",
-                params={"$select": "name,contentType,size,isInline"},
+                params={"$select": "id,name,contentType,size,isInline"},
             )
             attachments = [
                 {
+                    "attachment_id": entry["id"],
                     "name": str(entry.get("name") or ""),
                     "content_type": str(entry.get("contentType") or ""),
                     "size": entry.get("size") if isinstance(entry.get("size"), int) else None,
                 }
                 for entry in listing.get("value") or []
-                if isinstance(entry, dict) and not entry.get("isInline")
+                if isinstance(entry, dict)
+                and not entry.get("isInline")
+                # An attached message or a cloud link has no bytes to read back, and
+                # an entry without an id could not be read at all. Graph names the
+                # kind in `@odata.type`; an entry that does not say is a file.
+                and entry.get("@odata.type", _FILE_ATTACHMENT) == _FILE_ATTACHMENT
+                and isinstance(entry.get("id"), str)
+                and entry["id"]
             ][:_MAX_ATTACHMENTS]
         body = message.get("body")
         text = str(body.get("content") or "") if isinstance(body, dict) else ""
+        html = await self._html(client, access_token, base) if with_html else ""
         sender = _address(message.get("from"))
         headers = [
             (str(entry.get("name") or ""), str(entry.get("value") or ""))
             for entry in message.get("internetMessageHeaders") or []
             if isinstance(entry, dict)
         ]
+        thread = thread_headers(headers)
+        # Graph's own id is preferred; the header stands in when it gives none. Both
+        # go through the one parser, so the id has the same form from either.
+        graph_id = thread_headers([("Message-ID", str(message.get("internetMessageId") or ""))])
+        rfc_message_id = graph_id["rfc_message_id"] or thread["rfc_message_id"]
         internal = any(
             name.casefold() == _AUTH_AS and value.strip().casefold() == "internal"
             for name, value in headers
@@ -449,8 +484,82 @@ class OutlookPortalAdapter(PortalAdapter):
                 "snippet": str(message.get("bodyPreview") or ""),
                 "message_id": message_id,
                 "received_at": str(message.get("receivedDateTime") or ""),
+                "thread_id": str(message.get("conversationId") or ""),
+                **thread,
+                "rfc_message_id": rfc_message_id,
+                "html": html[:_MAX_BODY_CHARS],
             },
         )
+
+    async def _html(self, client: httpx.AsyncClient, access_token: str, base: str) -> str:
+        """The message's HTML body - Graph answers one form of the body per request.
+
+        The text body is already read, so any failure of this extra request - a message
+        deleted since, a throttled or failing Graph - leaves the HTML empty rather than
+        losing the event or failing the tick.
+        """
+        try:
+            message = await self._get(
+                client,
+                access_token,
+                base,
+                params={"$select": "body"},
+                prefer=f'outlook.body-content-type="html", {_PREFER_IDS}',
+            )
+        except PortalUnreachable:
+            return ""
+        body = message.get("body")
+        return str(body.get("content") or "") if isinstance(body, dict) else ""
+
+    async def attachment(
+        self,
+        *,
+        access_token: str,
+        message_id: str,
+        attachment_id: str,
+        mailbox: str | None,
+        max_bytes: int,
+    ) -> bytes:
+        """One file attachment's bytes, from the mailbox the message was read in.
+
+        Streamed, and abandoned the moment more than `max_bytes` have arrived, so
+        a large file is never held whole.
+
+        Raises:
+            PortalUnreachable: Graph could not be reached or refused, with its
+                status and error codes and none of its text.
+            AttachmentTooLarge: The attachment is over `max_bytes`.
+        """
+        url = (
+            f"{_API_BASE}{_mailbox_path(mailbox)}/messages/{quote(message_id, safe='')}"
+            f"/attachments/{quote(attachment_id, safe='')}/$value"
+        )
+        headers = {"Authorization": f"Bearer {access_token}", "Prefer": _PREFER_IDS}
+        data = bytearray()
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            try:
+                async with client.stream("GET", url, headers=headers) as response:
+                    if not response.is_success:
+                        await response.aread()
+                        details: dict[str, Any] = {
+                            "portal_key": self.portal_key,
+                            "status": response.status_code,
+                        }
+                        if codes := error_codes(response):
+                            details["codes"] = codes
+                        raise PortalUnreachable(
+                            message="Microsoft Graph refused the request", details=details
+                        )
+                    async for chunk in response.aiter_bytes():
+                        data += chunk
+                        if len(data) > max_bytes:
+                            raise AttachmentTooLarge(details={"portal_key": self.portal_key})
+            except httpx.HTTPError as exc:
+                raise PortalUnreachable(
+                    message="Microsoft Graph could not be reached",
+                    details={"portal_key": self.portal_key, "error": exc.__class__.__name__},
+                ) from exc
+        return bytes(data)
 
     async def _get(
         self,
@@ -512,6 +621,26 @@ def _parse(value: Any) -> datetime | None:
     except ValueError:
         return None
     return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
+
+
+def _backlog(
+    cursor: Mapping[str, Any] | None, *, watched: Collection[str]
+) -> list[tuple[datetime, str, str]]:
+    """The messages an earlier tick found but had no room to read, in watched places.
+
+    Kept in the cursor as `[received, place, id]`, the way Gmail keeps
+    `pending_message_ids`. An entry that does not parse, or whose place nobody
+    watches any more, is dropped.
+    """
+    stored = cursor.get("pending") if cursor else None
+    kept: list[tuple[datetime, str, str]] = []
+    for entry in stored if isinstance(stored, list) else []:
+        if not (isinstance(entry, list) and len(entry) == 3):
+            continue
+        received, key, identifier = _parse(entry[0]), entry[1], entry[2]
+        if received is not None and key in watched and isinstance(identifier, str):
+            kept.append((received, key, identifier))
+    return kept
 
 
 def _connected_at(cursor: Mapping[str, Any] | None) -> datetime | None:

@@ -31,6 +31,8 @@ export const CHANNEL_MESSAGE_TRIGGER = "trigger.channel_message";
 export const GITHUB_TRIGGER = "trigger.github";
 /** A message arriving in the organization's connected Gmail mailbox. */
 export const GMAIL_TRIGGER = "trigger.gmail";
+/** A message arriving in a folder of the organization's connected Microsoft 365 mailbox. */
+export const OUTLOOK_TRIGGER = "trigger.outlook";
 
 /** The triggers a person or a caller starts. */
 export const BY_HAND_TRIGGERS: ReadonlySet<string> = new Set([MANUAL_TRIGGER, API_TRIGGER]);
@@ -80,6 +82,16 @@ export function sampleRunInput(graph: WorkflowGraph | null): Record<string, unkn
       return { prompt: "Hello", conversation_id: SAMPLE_ID, user_id: null };
     case WEBHOOK_TRIGGER:
       return { body: {}, delivery_id: "test" };
+    case OUTLOOK_TRIGGER:
+      return {
+        message_id: "sample",
+        sender: "Ada Lovelace <ada@example.com>", // i18n-exempt: sample run data, not console copy
+        to: "",
+        subject: "Hello", // i18n-exempt: sample run data, not console copy
+        text: "",
+        snippet: "",
+        labels: [],
+      };
     case GMAIL_TRIGGER:
       return {
         message_id: "sample",

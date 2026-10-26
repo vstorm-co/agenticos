@@ -6,7 +6,7 @@ meetings expanded into their single occurrences, and keeps the meetings with
 somebody else on them that the account has not declined.
 """
 
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -30,6 +30,7 @@ class GoogleCalendarPortalAdapter(PortalAdapter):
         access_token: str,
         cursor: dict[str, Any] | None,
         places: Mapping[str, datetime] = NOWHERE,
+        html_places: Collection[str] = (),
     ) -> PolledEvents:
         """The meetings due an announcement for the leads in `places`.
 

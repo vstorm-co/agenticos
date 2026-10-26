@@ -1,5 +1,5 @@
 ---
-source_sha: "8b29d490f872"
+source_sha: "e7b82f03a0fe"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -315,6 +315,15 @@ están en la [configuración](configuration.md#uploaded-files-at-rest).
 
 `agenticos cmd doctor` indica qué backend usa un despliegue en marcha y si el
 cifrado está activo.
+
+### Adjuntos de correo en un workflow { #mail-attachments-in-a-workflow }
+
+Un [workflow](workflows.md#from-an-email) iniciado por un mensaje de Gmail o de
+Outlook guarda sus adjuntos como archivos de ese run, dentro del run y nunca en el
+sondeo que leyó el buzón. Siguen la lista de tipos de archivo permitidos y el límite
+de tamaño de subida del chat: de los adjuntos que lista un buzón solo se consideran
+los 10 primeros por mensaje, y 25 MiB por mensaje. Uno que se deja fuera se lista
+con el motivo, y una ejecución de prueba no descarga nada.
 
 ### El modelo ChatFile { #chatfile-model }
 

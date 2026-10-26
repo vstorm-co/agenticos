@@ -1,5 +1,5 @@
 ---
-source_sha: "a88795b71e89"
+source_sha: "79a2c38f7067"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -150,9 +150,51 @@ Nachricht außerdem die Prüfung des authentifizierten Absenders bestehen (DMARC
 eine DKIM-Signatur der Absenderdomain). Nachrichten mit dem Label `SENT`, `DRAFT`,
 `SPAM` oder `TRASH` werden übersprungen, es sei denn, **Label** nennt sie.
 
+Die Ausgabe trägt den Thread - `thread_id`, `rfc_message_id`, `in_reply_to`,
+`references`, `received_at` - und den `html`-Inhalt, bis zu 20.000 Zeichen gelesen.
+Die Header-Felder schreibt der Absender; sie ordnen eine Antwort in den Thread ein
+und beweisen nichts darüber, wer die Nachricht gesendet hat.
+
+Ein Lauf, den das Postfach gestartet hat, speichert die Anhänge der Nachricht als
+Dateien des Runs. Ein Postfach liefert höchstens 20 pro Nachricht, und nur die
+ersten 10 davon werden berücksichtigt, zusammen bis 25 MiB, jeder im Größenlimit für
+Chat-Uploads, in der Liste erlaubter Dateitypen und im Speicherkontingent der
+Organisation. Ein ausgelassener Anhang bleibt mit einem `reason` in `attachments`:
+`too_many`, `too_large`, `type_not_allowed`, `quota`, `unreadable` oder
+`not_fetched`. Ein Lauf, den das Postfach nicht gestartet hat - ein Testlauf - liest
+nichts, daher ist jeder Anhang `not_fetched`.
+
+`unreadable` ist eine Antwort mit 400, 401, 403 oder 404 für den Anhang oder ein
+Postfach-Grant, der fehlt, ausgeschaltet ist oder sich nicht erneuern lässt. Jeder
+andere Ausfall des Anbieters lässt den Schritt mit `MAIL_ATTACHMENT_UNREACHABLE`
+fehlschlagen, was wiederholt wird. Beide Mail-Trigger nehmen Eingaben von außen an.
+
 ::: app.workflows.nodes.trigger_gmail._handler.GmailTriggerConfig
 
 ::: app.workflows.nodes._triggers.EmailTriggerOutput
+
+::: app.workflows.nodes._triggers.MailAttachment
+
+### trigger.outlook { #trigger-outlook }
+
+**Outlook.** Gestartet von einer neuen Nachricht in einem Ordner des verbundenen
+Microsoft-365-Postfachs der Organisation, die zu allen gesetzten Filtern passt,
+einmal pro Minute gelesen. Die Veröffentlichung wird abgelehnt, bis ein Postfach
+verbunden ist. `triggered_by` ist `outlook`. Microsoft Graph wird Ordner für Ordner
+gelesen, deshalb sind **Folder** und **Shared mailbox** zugleich der Ort, an dem der
+Poller sucht, und ein Filter; das erste Lesen eines Ordners beginnt mit dem Zeitpunkt
+der Veröffentlichung oder des letzten Einschaltens des Workflows. Wer einen Workflow
+veröffentlichen darf, kann jedes gemeinsame Postfach nennen, das der Microsoft-Grant
+der Organisation öffnen kann, wie es Outlook-Agent-Trigger schon heute können. **Sender contains** prüft die Adresse des
+Absenders wie bei Gmail und verlangt Post, die die Absenderdomain authentifiziert hat
+oder die aus dem Tenant stammt. Ein Ordner oder gemeinsames Postfach, das Outlook als
+nicht lesbar meldet, schaltet den Workflow aus, mit `mailbox_folder_unreadable` im
+Audit-Log. Eine gespeicherte Konfiguration, die nicht mehr validiert, überspringt der
+Poller. Die Anhänge werden wie bei [trigger.gmail](#trigger-gmail) gespeichert, und
+`labels` enthält die Kategorien der Nachricht. Die Ausgabe ist dieselbe wie bei
+[trigger.gmail](#trigger-gmail).
+
+::: app.workflows.nodes.trigger_outlook._handler.OutlookTriggerConfig
 
 ### trigger.channel_message { #trigger-channel-message }
 

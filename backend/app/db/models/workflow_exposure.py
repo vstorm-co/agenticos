@@ -54,6 +54,7 @@ class ExposureAdapter(enum.StrEnum):
     CHANNEL = "channel"
     GITHUB = "github"
     GMAIL = "gmail"
+    OUTLOOK = "outlook"
 
 
 class ExposureScheduleKind(enum.StrEnum):
@@ -163,7 +164,7 @@ class WorkflowExposure(Base, TimestampMixin):
     __table_args__ = (
         UniqueConstraint("workflow_id", name="uq_workflow_exposure_workflow"),
         CheckConstraint(
-            "adapter IN ('webhook', 'schedule', 'form', 'channel', 'github', 'gmail')",
+            "adapter IN ('webhook', 'schedule', 'form', 'channel', 'github', 'gmail', 'outlook')",
             name="ck_workflow_exposure_adapter",
         ),
         # One shape per adapter: a webhook has a sealed secret and none of the
@@ -186,7 +187,7 @@ class WorkflowExposure(Base, TimestampMixin):
             "AND secret_encrypted IS NULL AND secret_key_version IS NULL "
             "AND schedule_kind IS NULL AND interval_seconds IS NULL "
             "AND cron_expression IS NULL AND next_fire_at IS NULL) "
-            "OR (adapter IN ('channel', 'gmail') AND form_token IS NULL "
+            "OR (adapter IN ('channel', 'gmail', 'outlook') AND form_token IS NULL "
             "AND secret_encrypted IS NULL AND secret_key_version IS NULL "
             "AND schedule_kind IS NULL AND interval_seconds IS NULL "
             "AND cron_expression IS NULL AND next_fire_at IS NULL "

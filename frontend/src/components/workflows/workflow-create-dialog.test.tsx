@@ -40,6 +40,14 @@ describe("WorkflowCreateDialog", () => {
     }
   });
 
+  it("offers Outlook as a way to start", () => {
+    render(
+      wrap(<WorkflowCreateDialog open onOpenChange={vi.fn()} onChoose={vi.fn()} busy={false} />),
+    );
+    expect(screen.getByText("Outlook")).toBeInTheDocument();
+    expect(screen.getByText(/connected Microsoft 365 mailbox starts a run/)).toBeInTheDocument();
+  });
+
   it("starts a new workflow from the trigger chosen, as its entry and only node", async () => {
     const onChoose = vi.fn();
     render(

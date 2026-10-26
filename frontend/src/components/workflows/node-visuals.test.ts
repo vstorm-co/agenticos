@@ -129,6 +129,10 @@ describe("nodeVisual", () => {
     expect(familyLabelClass("error", "colour")).toContain("--family-error-ink");
   });
 
+  it("gives the Outlook trigger a mark of its own", () => {
+    expect(nodeVisual("trigger.outlook", "triggers", "colour").icon).not.toBe(Zap);
+  });
+
   it("falls back to a neutral step for anything it does not know", () => {
     const visual = nodeVisual("custom.thing", "custom", "colour");
     expect(visual.icon).toBe(Zap);

@@ -4930,6 +4930,7 @@
         "channel_message": "A channel message",
         "github": "GitHub",
         "gmail": "Gmail",
+        "outlook": "Outlook",
         "app": "A page"
       },
       "runsCount": "{count, plural, one {# run} other {# runs}}",
@@ -5051,6 +5052,10 @@
         "gmail": {
           "name": "Gmail",
           "description": "A new email in the organization's connected mailbox starts a run."
+        },
+        "outlook": {
+          "name": "Outlook",
+          "description": "A new email in a folder of the organization's connected Microsoft 365 mailbox starts a run."
         }
       },
       "startRunOptional": "optional",
@@ -5203,6 +5208,7 @@
       "githubRegistered": "Registered on {repository} through the organization's GitHub account, and registered again on every publish.",
       "githubPasteIt": "Paste this address into the repository's Settings > Webhooks, with the content type application/json and the secret shown when it was published. New secret shows a new one.",
       "triggerGmailLive": "The organization's Gmail mailbox is read every minute, and each new message that fits the trigger starts a run as the member who published it. A message is run once, however often it is read.",
+      "triggerOutlookLive": "The organization's Microsoft 365 mailbox is read every minute, one folder at a time, and each new message in the step's folder that fits the trigger starts a run as the member who published it. A message is run once, however often it is read.",
       "settingsLimits": "Limits",
       "settingsLimitsHint": "What its runs may do at once and spend. Each step keeps its own limits - an agent step's cost ceiling among them - and these hold above them.",
       "settingsConcurrent": "Runs under way at once",
@@ -8551,6 +8557,11 @@
       "gmail": {
         "ready": "The organization's mailbox is connected, and read every minute.",
         "connect": "No mailbox is connected yet. Publishing waits for one.",
+        "reauthorize": "The mailbox needs connecting again before it can be read."
+      },
+      "microsoft": {
+        "ready": "The organization's Microsoft 365 mailbox is connected, and read every minute.",
+        "connect": "No Microsoft 365 mailbox is connected yet. Publishing waits for one.",
         "reauthorize": "The mailbox needs connecting again before it can be read."
       },
       "github": {

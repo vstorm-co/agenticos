@@ -28,6 +28,24 @@ Two things are versioned separately from this file and worth knowing about:
   toolbar) keeps the neutral look, per browser. A selected step can be resized
   by its right edge, bottom edge or corner, its text wrapping into the space, and
   **Reset size** in its right-click menu undoes it.
+- **Workflows started from Outlook.** An **Outlook** trigger starts a run for each
+  new message in a folder of the organization's connected Microsoft 365 mailbox, or
+  of a shared mailbox, that fits its filter. The poll reads the folders the
+  workflows name and starts a new folder from when the workflow was published. A
+  workflow whose folder cannot be read is switched off, with
+  `mailbox_folder_unreadable` in the audit log. Migration
+  `0234_workflow_outlook_trigger.py`; its downgrade refuses while any `outlook`
+  exposure (switched off ones too) or a run it started exists, so unpublish the
+  workflow and delete its runs first. Both mail triggers take outside input.
+- **Mail threads, HTML and attachments on both mail triggers.** A Gmail or Outlook
+  run gets `thread_id`, `rfc_message_id`, `in_reply_to`, `references`,
+  `received_at` and `html` (up to 20,000 characters), and the message's attachments
+  (a mailbox lists at most 20) stored as files of the run: the first 10 listed and
+  25 MiB per message, within the chat-upload size limit and
+  type allowlist and the storage quota. One left out carries a reason, a test run
+  fetches nothing, and a provider failure fails the step with
+  `MAIL_ATTACHMENT_UNREACHABLE`, retried.
+
 - **`human.approval` can let the approver edit a proposal before approving it.**
   Bind text such as a drafted reply to the step's new `proposal` input and turn on
   `editable`; the Approvals tab shows an editor (`text` or `markdown`, under a
@@ -1058,6 +1076,14 @@ Two things are versioned separately from this file and worth knowing about:
   running work drains. Migration `0185_workflow_run_node_count.py`. (#1907)
 
 ### Changed
+
+- **A mail agent trigger's prompt names the message and its thread.** A Gmail or
+  Outlook trigger's prompt gains a `Message-ID:` and a `Thread:` line, each only when
+  the mail carried one; an id over 998 characters is left out. The Outlook poller
+  makes one more Graph request per message, to read the HTML body, for every
+  Outlook poll, agent triggers included. It also lists only file attachments, so
+  an attached email or a cloud link no longer appears on the prompt's
+  `Attachments:` line.
 
 - **BREAKING: startup refuses more `MCP_ALLOWED_HOSTS` entries.** An entry that
   names `POSTGRES_HOST`, `REDIS_HOST` or the `PUBLIC_BASE_URL` host (which let an

@@ -1,5 +1,5 @@
 ---
-source_sha: "a88795b71e89"
+source_sha: "79a2c38f7067"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -143,9 +143,51 @@ puesto, el mensaje debe además pasar la comprobación de remitente autenticado 
 o una firma DKIM del dominio del remitente). Los mensajes con la etiqueta `SENT`,
 `DRAFT`, `SPAM` o `TRASH` se omiten, salvo que **Label** los nombre.
 
+La salida lleva el hilo - `thread_id`, `rfc_message_id`, `in_reply_to`,
+`references`, `received_at` - y el cuerpo `html`, leído hasta 20.000 caracteres. Los
+campos de cabecera los escribe el remitente: enlazan una respuesta con el hilo y no
+prueban quién envió el mensaje.
+
+Una ejecución que inició el buzón guarda los adjuntos del mensaje como archivos del
+run. Un buzón lista como máximo 20 por mensaje y solo se consideran los 10 primeros
+listados, hasta 25 MiB en total, cada uno dentro del límite de tamaño de subida del
+chat, de la lista de tipos de archivo permitidos y de la cuota de almacenamiento de
+la organización. Un adjunto que se deja fuera conserva su sitio en `attachments` con
+un `reason`: `too_many`, `too_large`, `type_not_allowed`, `quota`, `unreadable` o
+`not_fetched`. Una ejecución que el buzón no inició - una de prueba - no lee nada,
+así que cada adjunto es `not_fetched`.
+
+`unreadable` es una respuesta 400, 401, 403 o 404 para el adjunto, o un grant del
+buzón que falta, está apagado o no se puede renovar. Cualquier otro fallo del
+proveedor hace fallar el paso con `MAIL_ATTACHMENT_UNREACHABLE`, que se reintenta.
+Los dos triggers de correo aceptan entrada de fuera.
+
 ::: app.workflows.nodes.trigger_gmail._handler.GmailTriggerConfig
 
 ::: app.workflows.nodes._triggers.EmailTriggerOutput
+
+::: app.workflows.nodes._triggers.MailAttachment
+
+### trigger.outlook { #trigger-outlook }
+
+**Outlook.** Se inicia con un mensaje nuevo en una carpeta del buzón de Microsoft 365
+conectado de la organización que encaja con todos los filtros puestos, leído una vez
+por minuto. La publicación se rechaza hasta que haya un buzón conectado.
+`triggered_by` es `outlook`. Microsoft Graph se lee carpeta a carpeta, así que
+**Folder** y **Shared mailbox** son a la vez donde mira el poller y un filtro, y la
+primera lectura de una carpeta empieza en el momento en que se publicó o se encendió por última vez el workflow. Quien
+puede publicar un workflow puede nombrar cualquier buzón compartido que el grant de
+Microsoft de la organización pueda abrir, como ya pueden los triggers de agente de
+Outlook.
+**Sender contains** compara la dirección del remitente, como en Gmail, y exige correo
+que el dominio del remitente autenticó o que vino de dentro del tenant. Una carpeta o
+un buzón compartido que Outlook dice que no se pueden leer apaga el workflow, con
+`mailbox_folder_unreadable` en el registro de auditoría. Una configuración guardada
+que ya no valida la omite el poller. Los adjuntos se guardan como en
+[trigger.gmail](#trigger-gmail), y `labels` contiene las categorías del mensaje. Su salida es la misma que la de
+[trigger.gmail](#trigger-gmail).
+
+::: app.workflows.nodes.trigger_outlook._handler.OutlookTriggerConfig
 
 ### trigger.channel_message { #trigger-channel-message }
 

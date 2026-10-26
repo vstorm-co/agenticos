@@ -50,18 +50,29 @@ class _Recorder:
 
     def __init__(self) -> None:
         self.steps: list[str] = []
+        self.places: dict[str, datetime] = {}
+        self.html_places: set[str] = set()
 
 
-def _service(recorder: _Recorder, *, read: object, decisions: list):
+def _service(
+    recorder: _Recorder,
+    *,
+    read: object,
+    decisions: list,
+    portal_key: str = "google",
+    agent_places: dict[str, datetime] | None = None,
+):
     """A connection service and a trigger service that record their calls."""
     connections = MagicMock()
-    grant = _grant()
+    grant = _grant(portal_key=portal_key)
     connections.portal_poll_candidates = AsyncMock(return_value=[grant.id])
     connections.claim_grant_to_poll = AsyncMock(return_value=grant)
     connections.record_poll_processing_failure = AsyncMock()
 
-    async def poll_grant(grant, *, places):
+    async def poll_grant(grant, *, places, html_places):
         recorder.steps.append("poll")
+        recorder.places = dict(places)
+        recorder.html_places = set(html_places)
         return read
 
     async def store_cursor(grant, *, cursor):
@@ -81,20 +92,31 @@ def _service(recorder: _Recorder, *, read: object, decisions: list):
         return 1
 
     triggers.prepare_polled_fires = prepare
-    triggers.polled_places = AsyncMock(return_value={})
+    triggers.polled_places = AsyncMock(return_value=agent_places or {})
     triggers.disable_polled = disable
     return connections, triggers
 
 
-def _workflows(recorder: _Recorder, *, admitted: bool = True) -> MagicMock:
+def _workflows(
+    recorder: _Recorder,
+    *,
+    admitted: bool = True,
+    places: dict[str, datetime] | None = None,
+) -> MagicMock:
     """The workflows listening to the mailbox: every message admitted, or not."""
     workflows = MagicMock()
 
-    async def receive(*, organization_id, events):
-        recorder.steps.append(f"workflows:{len(events)}")
+    async def receive(*, organization_id, source, events):
+        recorder.steps.append(f"workflows:{source}:{len(events)}")
         return admitted
 
+    async def disable_unreadable(*, organization_id, places):
+        recorder.steps.append(f"disable_workflows:{sorted(places)}")
+        return 1
+
     workflows.receive_polled_email = receive
+    workflows.polled_places = AsyncMock(return_value=places or {})
+    workflows.disable_unreadable = disable_unreadable
     return workflows
 
 
@@ -109,11 +131,27 @@ def _queueing(triggers: MagicMock, recorder: _Recorder, dispatch=None) -> None:
     triggers.queue_fire = queue_fire
 
 
-async def _run(recorder: _Recorder, *, read, decisions, dispatch=None, admitted=True):
+async def _run(
+    recorder: _Recorder,
+    *,
+    read,
+    decisions,
+    dispatch=None,
+    admitted=True,
+    portal_key: str = "google",
+    agent_places: dict[str, datetime] | None = None,
+    workflow_places: dict[str, datetime] | None = None,
+):
     """The flow, with its three services and its dispatcher swapped out."""
     from app.worker.tasks import trigger_tasks
 
-    connections, triggers = _service(recorder, read=read, decisions=decisions)
+    connections, triggers = _service(
+        recorder,
+        read=read,
+        decisions=decisions,
+        portal_key=portal_key,
+        agent_places=agent_places,
+    )
     _queueing(triggers, recorder, dispatch)
 
     session = MagicMock()
@@ -135,7 +173,7 @@ async def _run(recorder: _Recorder, *, read, decisions, dispatch=None, admitted=
         patch("app.services.agent_trigger.AgentTriggerService", return_value=triggers),
         patch(
             "app.services.workflow_exposure.WorkflowExposureService",
-            return_value=_workflows(recorder, admitted=admitted),
+            return_value=_workflows(recorder, admitted=admitted, places=workflow_places),
         ),
     ):
         await trigger_tasks.poll_portal_grants()
@@ -163,7 +201,7 @@ class TestTheOrderOfWork:
             "poll",
             "match:gmail:1",
             f"fire:{decision.trigger_id}",
-            "workflows:1",
+            "workflows:gmail:1",
             "cursor:600",
         ]
 
@@ -179,7 +217,7 @@ class TestTheOrderOfWork:
             admitted=False,
         )
 
-        assert "workflows:1" in recorder.steps and "cursor:602" not in recorder.steps
+        assert "workflows:gmail:1" in recorder.steps and "cursor:602" not in recorder.steps
 
     async def test_a_refused_workflow_admission_logs_that_the_cursor_was_retained(self, caplog):
         """The operator's one trace that a mailbox is being re-read on purpose, and an
@@ -240,7 +278,7 @@ class TestTheOrderOfWork:
             recorder, read=PolledEvents(events=(), cursor={"history_id": "700"}), decisions=[]
         )
 
-        assert recorder.steps == ["poll", "match:gmail:0", "workflows:0", "cursor:700"]
+        assert recorder.steps == ["poll", "match:gmail:0", "workflows:gmail:0", "cursor:700"]
 
     async def test_a_revoked_grant_turns_its_triggers_off_and_reads_nothing(self):
         """Retrying a refused grant every minute fires nothing and says nothing
@@ -270,9 +308,102 @@ class TestTheOrderOfWork:
             "poll",
             "disable:mailbox_folder_unreadable:['|invoices']",
             "match:gmail:0",
-            "workflows:0",
+            "workflows:gmail:0",
             "cursor:800",
         ]
+
+
+class TestOutlookWorkflows:
+    """A Microsoft mailbox is read by folder: the folders workflows watch are read too."""
+
+    _EARLY = datetime(2026, 10, 1, tzinfo=UTC)
+    _LATE = datetime(2026, 10, 20, tzinfo=UTC)
+
+    async def test_an_outlook_poll_reads_the_folders_of_workflows_and_agents(self):
+        recorder = _Recorder()
+
+        await _run(
+            recorder,
+            portal_key="microsoft",
+            read=PolledEvents(events=(), cursor={"history_id": "1"}),
+            decisions=[],
+            agent_places={"|inbox": self._LATE, "|agents": self._LATE},
+            workflow_places={"|inbox": self._EARLY, "shared@acme.com|invoices": self._LATE},
+        )
+
+        assert recorder.places == {
+            "|inbox": self._EARLY,
+            "|agents": self._LATE,
+            "shared@acme.com|invoices": self._LATE,
+        }
+        # Only a workflow reads the HTML, so the agents-only folder is read without it.
+        assert recorder.html_places == {"|inbox", "shared@acme.com|invoices"}
+
+    async def test_an_outlook_poll_admits_workflow_runs_before_the_cursor_moves(self):
+        recorder = _Recorder()
+        decision = SimpleNamespace(trigger_id=uuid.uuid4(), event_context="An email arrived.")
+
+        await _run(
+            recorder,
+            portal_key="microsoft",
+            read=PolledEvents(events=(_event("outlook:m1"),), cursor={"history_id": "7"}),
+            decisions=[decision],
+        )
+
+        assert recorder.steps == [
+            "poll",
+            "match:outlook:1",
+            f"fire:{decision.trigger_id}",
+            "workflows:outlook:1",
+            "cursor:7",
+        ]
+
+    async def test_an_outlook_poll_with_no_room_keeps_the_cursor(self):
+        recorder = _Recorder()
+
+        await _run(
+            recorder,
+            portal_key="microsoft",
+            read=PolledEvents(events=(_event("outlook:m1"),), cursor={"history_id": "8"}),
+            decisions=[],
+            admitted=False,
+        )
+
+        assert "workflows:outlook:1" in recorder.steps and "cursor:8" not in recorder.steps
+
+    async def test_an_unreadable_folder_switches_off_the_workflows_watching_it(self):
+        recorder = _Recorder()
+
+        await _run(
+            recorder,
+            portal_key="microsoft",
+            read=PolledEvents(
+                events=(), cursor={"history_id": "9"}, unreadable=frozenset({"|invoices"})
+            ),
+            decisions=[],
+        )
+
+        assert recorder.steps == [
+            "poll",
+            "disable:mailbox_folder_unreadable:['|invoices']",
+            "disable_workflows:['|invoices']",
+            "match:outlook:0",
+            "workflows:outlook:0",
+            "cursor:9",
+        ]
+
+    async def test_a_gmail_poll_reads_no_workflow_places_and_switches_no_workflow_off(self):
+        recorder = _Recorder()
+
+        await _run(
+            recorder,
+            read=PolledEvents(events=(), cursor={"history_id": "10"}, unreadable=frozenset({"|x"})),
+            decisions=[],
+            workflow_places={"|inbox": self._EARLY},
+        )
+
+        assert recorder.places == {} and recorder.html_places == set()
+        assert not any(step.startswith("disable_workflows") for step in recorder.steps)
 
 
 class TestOneMailboxIsOneTenant:
@@ -296,7 +427,7 @@ class TestOneMailboxIsOneTenant:
         connections.claim_grant_to_poll = AsyncMock(side_effect=[one, two])
         connections.record_poll_processing_failure = AsyncMock()
 
-        async def poll_grant(grant, *, places):
+        async def poll_grant(grant, *, places, html_places):
             recorder.steps.append(f"poll:{grant.id}")
             if grant is one and first_raises is not None:
                 raise first_raises
@@ -423,6 +554,15 @@ class TestMatchingAPollAgainstTriggers:
         decisions = await self._prepare([self._trigger({})], [_event()])
 
         assert "An email arrived" in decisions[0].event_context
+
+    async def test_a_message_with_nul_still_fires_with_a_storable_context(self):
+        decisions = await self._prepare(
+            [self._trigger({})], [_event(subject="Inv\x00oice", rfc_message_id="<a\x00@b>")]
+        )
+
+        assert len(decisions) == 1
+        assert "\x00" not in decisions[0].event_context
+        assert "Subject: Invoice" in decisions[0].event_context
 
     async def test_no_triggers_on_the_source_is_no_work(self):
         """A connected mailbox with nothing watching it: the poll still advances the

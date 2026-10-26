@@ -25,6 +25,11 @@ const gmail = (action: string, blocked: string | null = null) => ({
   action,
 });
 
+const outlook = (action: string) => ({
+  portal: { key: "microsoft", name: "Outlook", connect_blocked_by: null },
+  action,
+});
+
 const assign = vi.fn();
 beforeEach(() => {
   state.canManage = true;
@@ -51,6 +56,33 @@ describe("PortalAccount", () => {
     await userEvent.click(screen.getByRole("button", { name: "Connect" }));
 
     expect(assign).toHaveBeenCalledWith("https://google/consent");
+  });
+
+  it("says whether the Outlook mailbox is connected and connects it", async () => {
+    state.items = [outlook("create")];
+    const { unmount } = render(<PortalAccount account={ACCOUNT_TRIGGERS["trigger.outlook"]!} />);
+    expect(screen.getByText(/Microsoft 365 mailbox is connected/)).toBeVisible();
+    expect(screen.queryByRole("button")).toBeNull();
+    unmount();
+
+    state.items = [outlook("connect")];
+    vi.mocked(portalConnectUrl).mockResolvedValue("https://microsoft/consent");
+    const second = render(<PortalAccount account={ACCOUNT_TRIGGERS["trigger.outlook"]!} />);
+    expect(screen.getByText(/No Microsoft 365 mailbox is connected/)).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Connect" }));
+    expect(assign).toHaveBeenCalledWith("https://microsoft/consent");
+    second.unmount();
+
+    state.items = [outlook("reauthorize")];
+    render(<PortalAccount account={ACCOUNT_TRIGGERS["trigger.outlook"]!} />);
+    expect(screen.getByText(/needs connecting again/)).toBeVisible();
+  });
+
+  it("hides connecting the Outlook mailbox from a member without mcp:manage", () => {
+    state.canManage = false;
+    state.items = [outlook("connect")];
+    render(<PortalAccount account={ACCOUNT_TRIGGERS["trigger.outlook"]!} />);
+    expect(screen.queryByRole("button")).toBeNull();
   });
 
   it("says why connecting failed, and offers it again", async () => {

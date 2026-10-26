@@ -1,5 +1,5 @@
 ---
-source_sha: "a88795b71e89"
+source_sha: "79a2c38f7067"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -140,9 +140,50 @@ wiadomość musi też przejść sprawdzenie uwierzytelnienia nadawcy (DMARC albo
 DKIM domeny nadawcy). Wiadomości z etykietą `SENT`, `DRAFT`, `SPAM` lub `TRASH` są
 pomijane, chyba że **Label** je wskazuje.
 
+Wyjście niesie wątek - `thread_id`, `rfc_message_id`, `in_reply_to`, `references`,
+`received_at` - oraz treść `html`, czytaną do 20 000 znaków. Pola nagłówkowe pisze
+nadawca, więc wiążą odpowiedź z wątkiem, ale nic nie dowodzą o tym, kto wysłał
+wiadomość.
+
+Run uruchomiony przez skrzynkę zapisuje załączniki wiadomości jako pliki runa.
+Skrzynka podaje najwyżej 20 na wiadomość, a brane jest pod uwagę tylko pierwsze 10 z
+wymienionych, do 25 MiB łącznie, każdy w limicie rozmiaru uploadu czatu, na liście
+dozwolonych typów plików i w limicie miejsca organizacji. Pominięty załącznik
+zostaje w `attachments` z polem `reason`: `too_many`, `too_large`,
+`type_not_allowed`, `quota`, `unreadable` lub `not_fetched`. Run, którego skrzynka
+nie uruchomiła - testowy - niczego nie czyta, więc każdy załącznik jest
+`not_fetched`.
+
+`unreadable` oznacza odpowiedź 400, 401, 403 lub 404 dla załącznika albo grant
+skrzynki, który jest brakujący, wyłączony lub nie da się go odnowić. Każda inna
+awaria dostawcy kończy krok błędem `MAIL_ATTACHMENT_UNREACHABLE`, który jest
+ponawiany. Oba wyzwalacze poczty przyjmują dane z zewnątrz.
+
 ::: app.workflows.nodes.trigger_gmail._handler.GmailTriggerConfig
 
 ::: app.workflows.nodes._triggers.EmailTriggerOutput
+
+::: app.workflows.nodes._triggers.MailAttachment
+
+### trigger.outlook { #trigger-outlook }
+
+**Outlook.** Startuje od nowej wiadomości w folderze podłączonej skrzynki Microsoft
+365 organizacji, pasującej do wszystkich ustawionych filtrów, czytanej raz na
+minutę. Publikacja jest odrzucana, dopóki skrzynka nie jest podłączona.
+`triggered_by` to `outlook`. Microsoft Graph jest czytany folder po folderze, więc
+**Folder** i **Shared mailbox** są miejscem, w którym poller szuka, a zarazem
+filtrem, a pierwszy odczyt folderu zaczyna się od chwili opublikowania lub ostatniego włączenia workflow. Każdy, kto może
+opublikować workflow, może wskazać dowolną skrzynkę współdzieloną, którą otwiera
+grant Microsoft organizacji, tak jak już mogą to robić triggery agentów Outlook.
+**Sender contains** dopasowuje adres nadawcy, jak w Gmailu, i wymaga poczty,
+którą uwierzytelniła domena nadawcy albo która przyszła z wnętrza tenanta. Folder
+lub skrzynka współdzielona, które według Outlooka nie dają się odczytać,
+wyłączają workflow, z `mailbox_folder_unreadable` w dzienniku audytu. Zapisana konfiguracja,
+która przestała przechodzić walidację, jest pomijana przez poller. Załączniki są
+zapisywane jak w [trigger.gmail](#trigger-gmail), a `labels` zawiera kategorie
+wiadomości. Jej wyjście jest takie samo jak [trigger.gmail](#trigger-gmail).
+
+::: app.workflows.nodes.trigger_outlook._handler.OutlookTriggerConfig
 
 ### trigger.channel_message { #trigger-channel-message }
 

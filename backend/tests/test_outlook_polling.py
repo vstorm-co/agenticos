@@ -18,6 +18,7 @@ import httpx
 import pytest
 
 from app.services.portals import PortalUnreachable, outlook_place
+from app.services.portals.exceptions import AttachmentTooLarge
 from app.services.portals.outlook import OutlookPortalAdapter
 
 pytestmark = pytest.mark.anyio
@@ -55,6 +56,19 @@ def _message(identifier: str, **overrides: Any) -> dict[str, Any]:
     return message
 
 
+class _Chunks(httpx.AsyncByteStream):
+    """A body arriving in chunks, counting how many were pulled off the wire."""
+
+    def __init__(self, chunks: list[bytes]) -> None:
+        self._chunks = chunks
+        self.pulled = 0
+
+    async def __aiter__(self):
+        for chunk in self._chunks:
+            self.pulled += 1
+            yield chunk
+
+
 class _Graph:
     """A Microsoft Graph that answers the requests the adapter makes.
 
@@ -75,10 +89,16 @@ class _Graph:
         self.attachments: dict[str, list[dict[str, Any]]] = {}
         self.status: int | None = None
         self.asked: list[str] = []
+        self.requests: list[httpx.Request] = []
+        self.streams: list[_Chunks] = []
+        self.html: dict[str, str] = {}
+        self.blobs: dict[tuple[str, str], list[bytes]] = {}
+        self.blob_status: int | None = None
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         url = str(request.url)
         self.asked.append(url)
+        self.requests.append(request)
         assert request.headers["Authorization"] == "Bearer t"
         if self.status is not None:
             return httpx.Response(self.status, json={"error": {"code": "nope"}})
@@ -103,12 +123,27 @@ class _Graph:
             if "$skiptoken" in query:
                 return self._page(folder, *self._skip(folder, int(query["$skiptoken"][0])))
             return self._page(folder, *self._skip(folder, 0))
+        if path.endswith("/$value"):
+            if self.blob_status is not None:
+                return httpx.Response(
+                    self.blob_status,
+                    json={"error": {"code": "ErrorItemNotFound", "message": "Bearer t echoed"}},
+                )
+            chunks = self.blobs.get((path.split("/")[2], path.split("/")[4]), [])
+            stream = _Chunks(chunks)
+            self.streams.append(stream)
+            return httpx.Response(200, content=stream)
         if path.endswith("/attachments"):
             return httpx.Response(200, json={"value": self.attachments.get(path.split("/")[2], [])})
         if path.startswith("/messages/"):
             found = self.messages.get(path.split("/")[2])
             if found is None:
                 return httpx.Response(404, json={"error": {"code": "ErrorItemNotFound"}})
+            if "html" in request.headers["Prefer"]:
+                content = self.html.get(path.split("/")[2], "")
+                return httpx.Response(
+                    200, json={"body": {"contentType": "html", "content": content}}
+                )
             return httpx.Response(200, json=found)
         if path.endswith("/childFolders"):
             name = query["$filter"][0].split("'")[1]
@@ -255,9 +290,15 @@ class TestANewPlace:
             "m1", hasAttachments=True, body=None, categories=None, importance=None
         )
         graph.attachments["m1"] = [
-            {"name": "invoice.pdf", "contentType": "application/pdf", "size": 1200},
-            {"name": "logo.png", "contentType": "image/png", "size": 10, "isInline": True},
-            {"name": "notes.txt", "contentType": "text/plain", "size": "big"},
+            {"id": "a1", "name": "invoice.pdf", "contentType": "application/pdf", "size": 1200},
+            {
+                "id": "a2",
+                "name": "logo.png",
+                "contentType": "image/png",
+                "size": 10,
+                "isInline": True,
+            },
+            {"id": "a3", "name": "notes.txt", "contentType": "text/plain", "size": "big"},
         ]
 
         read = await _adapter(graph, monkeypatch).poll(
@@ -276,8 +317,18 @@ class TestANewPlace:
         assert payload["categories"] == []
         assert payload["text"] == ""
         assert payload["attachments"] == [
-            {"name": "invoice.pdf", "content_type": "application/pdf", "size": 1200},
-            {"name": "notes.txt", "content_type": "text/plain", "size": None},
+            {
+                "attachment_id": "a1",
+                "name": "invoice.pdf",
+                "content_type": "application/pdf",
+                "size": 1200,
+            },
+            {
+                "attachment_id": "a3",
+                "name": "notes.txt",
+                "content_type": "text/plain",
+                "size": None,
+            },
         ]
         assert payload["authenticated"] is False
 
@@ -621,20 +672,66 @@ class TestTheWaysAPollerLosesWork:
 
         assert raised.value.details["status"] == 401
 
-    async def test_a_burst_is_bounded_to_the_newest(self, monkeypatch):
+    async def test_a_burst_is_read_over_several_ticks_oldest_first_and_none_is_lost(
+        self, monkeypatch
+    ):
         graph = _Graph()
         graph.deltas["INBOX"] = [
-            [_item(f"m{index:02}", _NOW + timedelta(seconds=index)) for index in range(30)]
+            [_item(f"m{index:02}", _NOW + timedelta(seconds=index)) for index in range(60)]
         ]
-        graph.messages.update({f"m{index:02}": _message(f"m{index:02}") for index in range(30)})
+        graph.messages.update({f"m{index:02}": _message(f"m{index:02}") for index in range(60)})
+        adapter = _adapter(graph, monkeypatch)
 
-        read = await _adapter(graph, monkeypatch).poll(
-            access_token="t", cursor=_cursor(), places={INBOX: _CONNECTED}
+        first = await adapter.poll(access_token="t", cursor=_cursor(), places={INBOX: _CONNECTED})
+        second = await adapter.poll(
+            access_token="t", cursor=first.cursor, places={INBOX: _CONNECTED}
+        )
+        third = await adapter.poll(
+            access_token="t", cursor=second.cursor, places={INBOX: _CONNECTED}
         )
 
-        assert len(read.events) == 25
-        assert read.events[0].delivery_id == "outlook:m05"
-        assert read.events[-1].delivery_id == "outlook:m29"
+        read = [event.delivery_id for poll in (first, second, third) for event in poll.events]
+        assert read == [f"outlook:m{index:02}" for index in range(60)]
+        assert [len(poll.events) for poll in (first, second, third)] == [25, 25, 10]
+        assert len(first.cursor["pending"]) == 35 and len(second.cursor["pending"]) == 10
+        assert "pending" not in third.cursor
+
+    async def test_the_backlog_of_a_place_nobody_watches_or_an_entry_that_is_malformed_is_dropped(
+        self, monkeypatch
+    ):
+        graph = _Graph()
+        stamp = _stamp(_NOW)
+        cursor = _cursor()
+        cursor["pending"] = [
+            [stamp, INBOX, "m1"],
+            [stamp, "gone|place", "m2"],
+            [stamp, INBOX],
+            ["not a time", INBOX, "m3"],
+            [stamp, INBOX, 7],
+            "junk",
+        ]
+        graph.messages["m1"] = _message("m1")
+
+        read = await _adapter(graph, monkeypatch).poll(
+            access_token="t", cursor=cursor, places={INBOX: _CONNECTED}
+        )
+
+        assert [event.delivery_id for event in read.events] == ["outlook:m1"]
+        assert "pending" not in read.cursor
+
+    async def test_the_backlog_of_a_place_that_cannot_be_read_is_dropped(self, monkeypatch):
+        graph = _Graph()
+        graph.unreadable_mailboxes.add("ops@corp.test")
+        shared = outlook_place(mailbox="ops@corp.test", folder="inbox")
+        cursor = _cursor()
+        cursor["pending"] = [[_stamp(_NOW), shared, "m9"]]
+
+        read = await _adapter(graph, monkeypatch).poll(
+            access_token="t", cursor=cursor, places={shared: _CONNECTED, INBOX: _CONNECTED}
+        )
+
+        assert read.unreadable == frozenset({shared})
+        assert read.events == () and "pending" not in read.cursor
 
     async def test_it_follows_pages_and_keeps_the_next_one_past_the_bound(self, monkeypatch):
         """A folder with more pages than one tick may read carries on next tick
@@ -793,3 +890,345 @@ class TestOddAnswers:
         )
 
         assert [event.delivery_id for event in read.events] == ["outlook:m1"]
+
+
+async def _event(
+    graph: _Graph, monkeypatch, place: str = INBOX, *, html_places: tuple[str, ...] = (INBOX,)
+) -> dict[str, Any]:
+    graph.deltas["INBOX"] = [[_item("m1", _NOW)]]
+    read = await _adapter(graph, monkeypatch).poll(
+        access_token="t",
+        cursor=_cursor(),
+        places={place: _CONNECTED},
+        html_places=html_places,
+    )
+    return read.events[0].payload
+
+
+class TestTheThreadItCarries:
+    async def test_the_message_read_selects_the_thread_ids(self, monkeypatch):
+        graph = _Graph()
+        graph.messages["m1"] = _message("m1")
+
+        await _event(graph, monkeypatch)
+
+        [delta] = [one for one in graph.requests if one.url.path.endswith("/messages/delta")][:1]
+        read = next(
+            one
+            for one in graph.requests
+            if one.url.path.endswith("/messages/m1")
+            and "internetMessageId" in one.url.query.decode()
+        )
+        select = read.url.params["$select"]
+        assert "internetMessageId" in select
+        assert "conversationId" in select
+        assert delta.url.params["$select"] == "id,receivedDateTime,isDraft"
+
+    async def test_a_reply_carries_its_thread(self, monkeypatch):
+        graph = _Graph()
+        graph.messages["m1"] = _message(
+            "m1",
+            conversationId="conv-9",
+            internetMessageId="<c@mail.test>",
+            internetMessageHeaders=[
+                {"name": "In-Reply-To", "value": "<b@mail.test>"},
+                {"name": "References", "value": "<a@mail.test> <b@mail.test> <a@mail.test>"},
+                {"name": "Message-ID", "value": "<header@mail.test>"},
+            ],
+        )
+
+        payload = await _event(graph, monkeypatch)
+
+        assert payload["thread_id"] == "conv-9"
+        assert payload["rfc_message_id"] == "<c@mail.test>"
+        assert payload["in_reply_to"] == "<b@mail.test>"
+        assert payload["references"] == ["<a@mail.test>", "<b@mail.test>"]
+
+    @pytest.mark.parametrize(
+        "graph_id", ["no-brackets@mail.test", "", "<" + "x" * 999 + ">", "<a b@mail.test>"]
+    )
+    async def test_a_graph_id_not_in_rfc_form_gives_way_to_the_header(self, monkeypatch, graph_id):
+        graph = _Graph()
+        graph.messages["m1"] = _message(
+            "m1",
+            internetMessageId=graph_id,
+            internetMessageHeaders=[{"name": "Message-ID", "value": "<header@mail.test>"}],
+        )
+
+        assert (await _event(graph, monkeypatch))["rfc_message_id"] == "<header@mail.test>"
+
+    async def test_a_graph_id_with_whitespace_is_trimmed_to_the_id(self, monkeypatch):
+        graph = _Graph()
+        graph.messages["m1"] = _message("m1", internetMessageId="  <c@mail.test>\r\n ")
+
+        assert (await _event(graph, monkeypatch))["rfc_message_id"] == "<c@mail.test>"
+
+    async def test_the_message_id_header_stands_in_when_graph_gives_none(self, monkeypatch):
+        graph = _Graph()
+        graph.messages["m1"] = _message(
+            "m1",
+            internetMessageId=None,
+            internetMessageHeaders=[{"name": "Message-ID", "value": "<header@mail.test>"}],
+        )
+
+        payload = await _event(graph, monkeypatch)
+
+        assert payload["rfc_message_id"] == "<header@mail.test>"
+
+    async def test_a_message_without_thread_ids_gets_empty_values(self, monkeypatch):
+        graph = _Graph()
+        graph.messages["m1"] = _message("m1")
+
+        payload = await _event(graph, monkeypatch)
+
+        assert payload["thread_id"] == ""
+        assert payload["rfc_message_id"] == ""
+        assert payload["in_reply_to"] == ""
+        assert payload["references"] == []
+
+
+class TestTheHtmlItCarries:
+    async def test_the_html_body_is_read_in_a_second_request(self, monkeypatch):
+        graph = _Graph()
+        graph.messages["m1"] = _message("m1")
+        graph.html["m1"] = "<p>Please pay invoice 42.</p>"
+
+        payload = await _event(graph, monkeypatch)
+
+        assert payload["html"] == "<p>Please pay invoice 42.</p>"
+        assert payload["text"] == "Please pay invoice 42."
+        second = [one for one in graph.requests if "html" in one.headers.get("Prefer", "")]
+        [html_read] = second
+        assert (
+            html_read.headers["Prefer"] == 'outlook.body-content-type="html", IdType="ImmutableId"'
+        )
+        assert html_read.url.params["$select"] == "body"
+
+    async def test_no_html_is_asked_for_a_place_no_workflow_listens_to(self, monkeypatch):
+        graph = _Graph()
+        graph.messages["m1"] = _message("m1")
+        graph.html["m1"] = "<p>Please pay invoice 42.</p>"
+
+        payload = await _event(graph, monkeypatch, html_places=())
+
+        assert payload["html"] == "" and payload["text"] == "Please pay invoice 42."
+        assert not [one for one in graph.requests if "html" in one.headers.get("Prefer", "")]
+
+    async def test_html_is_clipped_like_text(self, monkeypatch):
+        graph = _Graph()
+        graph.messages["m1"] = _message("m1")
+        graph.html["m1"] = "x" * 30_000
+
+        payload = await _event(graph, monkeypatch)
+
+        assert len(payload["html"]) == 20_000
+
+    async def test_a_message_deleted_between_the_two_reads_has_empty_html(self, monkeypatch):
+        graph = _Graph()
+        graph.messages["m1"] = _message("m1")
+        original = graph.handler
+
+        def vanish(request: httpx.Request) -> httpx.Response:
+            if "html" in request.headers["Prefer"]:
+                return httpx.Response(404, json={"error": {"code": "ErrorItemNotFound"}})
+            return original(request)
+
+        graph.handler = vanish  # type: ignore[method-assign]
+
+        payload = await _event(graph, monkeypatch)
+
+        assert payload["html"] == ""
+        assert payload["text"] == "Please pay invoice 42."
+
+    @pytest.mark.parametrize("status", [429, 503])
+    async def test_a_throttled_or_failing_html_read_has_empty_html(self, monkeypatch, status):
+        graph = _Graph()
+        graph.messages["m1"] = _message("m1")
+        original = graph.handler
+
+        def broken(request: httpx.Request) -> httpx.Response:
+            if "html" in request.headers["Prefer"]:
+                return httpx.Response(status, json={})
+            return original(request)
+
+        graph.handler = broken  # type: ignore[method-assign]
+
+        payload = await _event(graph, monkeypatch)
+
+        assert payload["html"] == ""
+        assert payload["text"] == "Please pay invoice 42."
+
+    async def test_a_body_that_is_not_an_object_reads_as_empty_html(self, monkeypatch):
+        graph = _Graph()
+        graph.messages["m1"] = _message("m1")
+        original = graph.handler
+
+        def odd(request: httpx.Request) -> httpx.Response:
+            if "html" in request.headers["Prefer"]:
+                return httpx.Response(200, json={"body": None})
+            return original(request)
+
+        graph.handler = odd  # type: ignore[method-assign]
+
+        assert (await _event(graph, monkeypatch))["html"] == ""
+
+
+class TestTheAttachmentsItLists:
+    async def test_listed_attachments_carry_their_ids_and_only_files_are_listed(self, monkeypatch):
+        graph = _Graph()
+        graph.messages["m1"] = _message("m1", hasAttachments=True)
+        graph.attachments["m1"] = [
+            {
+                "@odata.type": "#microsoft.graph.fileAttachment",
+                "id": "a1",
+                "name": "invoice.pdf",
+                "contentType": "application/pdf",
+                "size": 1200,
+            },
+            {
+                "@odata.type": "#microsoft.graph.itemAttachment",
+                "id": "a2",
+                "name": "Forwarded mail",
+                "contentType": "message/rfc822",
+                "size": 40,
+            },
+            {
+                "@odata.type": "#microsoft.graph.fileAttachment",
+                "id": "a3",
+                "name": "logo.png",
+                "isInline": True,
+            },
+            {"@odata.type": "#microsoft.graph.fileAttachment", "name": "no-id.txt"},
+        ]
+
+        payload = await _event(graph, monkeypatch)
+
+        assert payload["attachments"] == [
+            {
+                "attachment_id": "a1",
+                "name": "invoice.pdf",
+                "content_type": "application/pdf",
+                "size": 1200,
+            }
+        ]
+        listing = next(one for one in graph.requests if one.url.path.endswith("/attachments"))
+        assert listing.url.params["$select"] == "id,name,contentType,size,isInline"
+
+
+async def _read(
+    graph: _Graph, monkeypatch, *, mailbox: str | None = None, max_bytes: int = 100
+) -> bytes:
+    return await _adapter(graph, monkeypatch).attachment(
+        access_token="t",
+        message_id="m1",
+        attachment_id="a1",
+        mailbox=mailbox,
+        max_bytes=max_bytes,
+    )
+
+
+class TestReadingAnAttachment:
+    async def test_an_attachment_is_read_from_the_mailbox_it_came_from(self, monkeypatch):
+        graph = _Graph()
+        graph.blobs[("m1", "a1")] = [b"\x00PDF", b" bytes"]
+
+        data = await _read(graph, monkeypatch)
+
+        assert data == b"\x00PDF bytes"
+        [request] = graph.requests
+        assert request.url.raw_path.decode() == "/v1.0/me/messages/m1/attachments/a1/$value"
+        assert request.headers["Prefer"] == 'IdType="ImmutableId"'
+
+    async def test_an_attachment_is_read_from_the_shared_mailbox_it_came_from(self, monkeypatch):
+        graph = _Graph()
+        graph.blobs[("m1", "a1")] = [b"shared"]
+
+        assert await _read(graph, monkeypatch, mailbox="support@x") == b"shared"
+
+        assert (
+            graph.requests[0].url.path == "/v1.0/users/support@x/messages/m1/attachments/a1/$value"
+        )
+
+    async def test_the_ids_are_quoted_whole(self, monkeypatch):
+        graph = _Graph()
+
+        def answer(request: httpx.Request) -> httpx.Response:
+            graph.requests.append(request)
+            return httpx.Response(200, content=b"ok")
+
+        graph.handler = answer  # type: ignore[method-assign]
+
+        await _adapter(graph, monkeypatch).attachment(
+            access_token="t", message_id="m/1", attachment_id="a=1", mailbox=None, max_bytes=9
+        )
+
+        assert graph.requests[0].url.raw_path.decode() == (
+            "/v1.0/me/messages/m%2F1/attachments/a%3D1/$value"
+        )
+
+    async def test_an_attachment_exactly_at_the_limit_is_read(self, monkeypatch):
+        graph = _Graph()
+        graph.blobs[("m1", "a1")] = [b"x" * 60, b"y" * 40]
+
+        assert len(await _read(graph, monkeypatch, max_bytes=100)) == 100
+
+    async def test_an_attachment_past_the_limit_stops_reading(self, monkeypatch):
+        graph = _Graph()
+        graph.blobs[("m1", "a1")] = [b"x" * 40, b"y" * 40, b"z" * 40]
+
+        with pytest.raises(AttachmentTooLarge):
+            await _read(graph, monkeypatch, max_bytes=60)
+
+        # The third chunk was never pulled off the wire.
+        assert graph.streams[0].pulled == 2
+
+    async def test_a_refused_attachment_carries_the_status_and_not_the_text(self, monkeypatch):
+        graph = _Graph()
+        graph.blob_status = 404
+
+        with pytest.raises(PortalUnreachable) as caught:
+            await _read(graph, monkeypatch)
+
+        assert caught.value.details == {
+            "portal_key": "microsoft",
+            "status": 404,
+            "codes": ["erroritemnotfound"],
+        }
+        assert "echoed" not in caught.value.message
+
+    async def test_a_redirect_is_not_an_attachment(self, monkeypatch):
+        graph = _Graph()
+        graph.handler = lambda request: httpx.Response(  # type: ignore[method-assign]
+            302, headers={"Location": "https://elsewhere.test/"}, content=b"<a>moved</a>"
+        )
+
+        with pytest.raises(PortalUnreachable) as caught:
+            await _read(graph, monkeypatch)
+
+        assert caught.value.details == {"portal_key": "microsoft", "status": 302}
+
+    async def test_a_refusal_with_no_error_codes_carries_only_the_status(self, monkeypatch):
+        graph = _Graph()
+
+        def plain(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(502, content=b"Bad gateway Bearer t")
+
+        graph.handler = plain  # type: ignore[method-assign]
+
+        with pytest.raises(PortalUnreachable) as caught:
+            await _read(graph, monkeypatch)
+
+        assert caught.value.details == {"portal_key": "microsoft", "status": 502}
+
+    async def test_a_broken_connection_is_unreachable_without_its_text(self, monkeypatch):
+        graph = _Graph()
+
+        def refuse(request: httpx.Request) -> httpx.Response:
+            raise httpx.ReadTimeout("Bearer t timed out")
+
+        graph.handler = refuse  # type: ignore[method-assign]
+
+        with pytest.raises(PortalUnreachable) as caught:
+            await _read(graph, monkeypatch)
+
+        assert caught.value.details == {"portal_key": "microsoft", "error": "ReadTimeout"}

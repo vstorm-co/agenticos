@@ -20,6 +20,7 @@ import httpx
 import pytest
 
 from app.services.portals import PortalUnreachable
+from app.services.portals.exceptions import AttachmentTooLarge
 from app.services.portals.google import GooglePortalAdapter
 
 pytestmark = pytest.mark.anyio
@@ -29,8 +30,19 @@ def _b64(text: str) -> str:
     return base64.urlsafe_b64encode(text.encode()).decode().rstrip("=")
 
 
-def _message(identifier: str, *, subject: str, sender: str, body: str, labels: list[str]):
-    return {
+def _message(
+    identifier: str,
+    *,
+    subject: str,
+    sender: str,
+    body: str,
+    labels: list[str],
+    thread_id: str | None = None,
+    extra_headers: list[tuple[str, str]] | None = None,
+    parts: list[dict[str, Any]] | None = None,
+    internal_date: str | None = None,
+):
+    message: dict[str, Any] = {
         "id": identifier,
         "labelIds": labels,
         "snippet": body[:40],
@@ -40,13 +52,21 @@ def _message(identifier: str, *, subject: str, sender: str, body: str, labels: l
                 {"name": "Subject", "value": subject},
                 {"name": "From", "value": sender},
                 {"name": "To", "value": "me@acme.test"},
+                *({"name": name, "value": value} for name, value in extra_headers or []),
             ],
-            "parts": [
+            "parts": parts
+            if parts is not None
+            else [
                 {"mimeType": "text/html", "body": {"data": _b64(f"<p>{body}</p>")}},
                 {"mimeType": "text/plain", "body": {"data": _b64(body)}},
             ],
         },
     }
+    if thread_id is not None:
+        message["threadId"] = thread_id
+    if internal_date is not None:
+        message["internalDate"] = internal_date
+    return message
 
 
 class _Gmail:
@@ -67,6 +87,7 @@ class _Gmail:
         self.history_status = history_status
         self.pages = pages
         self.asked: list[str] = []
+        self.raw: list[str] = []
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         self.asked.append(str(request.url.path))
@@ -502,3 +523,373 @@ async def test_history_records_without_a_message_identifier_are_ignored(monkeypa
     read = await _adapter(gmail, monkeypatch).poll(access_token="t", cursor={"history_id": "500"})
     assert read.events == ()
     assert read.cursor["history_id"] == "600"
+
+
+def _polled(gmail: _Gmail, monkeypatch):
+    return _adapter(gmail, monkeypatch).poll(access_token="t", cursor={"history_id": "500"})
+
+
+def _one(message_id: str = "m1", **fields: Any) -> _Gmail:
+    fields.setdefault("subject", "s")
+    fields.setdefault("sender", "a@acme.test")
+    fields.setdefault("body", "hello")
+    fields.setdefault("labels", ["INBOX"])
+    return _Gmail(added=[message_id], messages={message_id: _message(message_id, **fields)})
+
+
+class TestTheThreadItCarries:
+    async def test_a_reply_carries_its_thread(self, monkeypatch):
+        gmail = _one(
+            thread_id="t-77",
+            extra_headers=[
+                ("Message-ID", "<c@mail.test>"),
+                ("In-Reply-To", "<b@mail.test>"),
+                ("References", "<a@mail.test>\r\n <b@mail.test>"),
+            ],
+        )
+
+        [event] = (await _polled(gmail, monkeypatch)).events
+
+        assert event.payload["thread_id"] == "t-77"
+        assert event.payload["rfc_message_id"] == "<c@mail.test>"
+        assert event.payload["in_reply_to"] == "<b@mail.test>"
+        assert event.payload["references"] == ["<a@mail.test>", "<b@mail.test>"]
+
+    async def test_a_message_without_thread_headers_gets_empty_values(self, monkeypatch):
+        [event] = (await _polled(_one(), monkeypatch)).events
+
+        assert event.payload["thread_id"] == ""
+        assert event.payload["rfc_message_id"] == ""
+        assert event.payload["in_reply_to"] == ""
+        assert event.payload["references"] == []
+        assert event.payload["received_at"] == ""
+
+    async def test_the_receipt_time_comes_from_internal_date(self, monkeypatch):
+        # 2026-10-26T09:31:00Z in epoch milliseconds.
+        [event] = (await _polled(_one(internal_date="1793007060000"), monkeypatch)).events
+
+        assert event.payload["received_at"] == "2026-10-26T09:31:00+00:00"
+
+    @pytest.mark.parametrize("raw", ["soon", "-9" * 30, "99999999999999999999999"])
+    async def test_an_unreadable_internal_date_is_empty(self, monkeypatch, raw):
+        [event] = (await _polled(_one(internal_date=raw), monkeypatch)).events
+
+        assert event.payload["received_at"] == ""
+
+
+class TestTheHtmlItCarries:
+    async def test_the_html_part_is_carried_beside_the_text(self, monkeypatch):
+        [event] = (await _polled(_one(body="hello"), monkeypatch)).events
+
+        assert event.payload["html"] == "<p>hello</p>"
+        assert event.payload["text"] == "hello"
+
+    async def test_a_message_with_no_html_part_has_empty_html(self, monkeypatch):
+        parts = [{"mimeType": "text/plain", "body": {"data": _b64("plain")}}]
+
+        [event] = (await _polled(_one(parts=parts), monkeypatch)).events
+
+        assert event.payload["html"] == ""
+
+    async def test_an_html_part_stored_apart_is_fetched(self, monkeypatch):
+        parts = [{"mimeType": "text/html", "body": {"attachmentId": "big"}}]
+        gmail = _one(parts=parts)
+        original = gmail.handler
+
+        def answer(request: httpx.Request) -> httpx.Response:
+            if request.url.path.endswith("/attachments/big"):
+                return httpx.Response(200, json={"data": _b64("<b>stored apart</b>")})
+            return original(request)
+
+        gmail.handler = answer
+
+        [event] = (await _polled(gmail, monkeypatch)).events
+
+        assert event.payload["html"] == "<b>stored apart</b>"
+
+    async def test_a_part_stored_apart_is_fetched_once_for_text_and_html(self, monkeypatch):
+        parts = [{"mimeType": "text/html", "body": {"attachmentId": "big"}}]
+        gmail = _one(parts=parts)
+        original = gmail.handler
+
+        def answer(request: httpx.Request) -> httpx.Response:
+            if request.url.path.endswith("/attachments/big"):
+                gmail.asked.append(request.url.path)
+                return httpx.Response(200, json={"data": _b64("<b>once</b>")})
+            return original(request)
+
+        gmail.handler = answer
+
+        [event] = (await _polled(gmail, monkeypatch)).events
+
+        assert event.payload["html"] == "<b>once</b>"
+        assert event.payload["text"] == "<b>once</b>"
+        assert [one for one in gmail.asked if one.endswith("/attachments/big")] == [
+            "/gmail/v1/users/me/messages/m1/attachments/big"
+        ]
+
+    async def test_html_is_clipped_like_text(self, monkeypatch):
+        parts = [{"mimeType": "text/html", "body": {"data": _b64("x" * 30_000)}}]
+
+        [event] = (await _polled(_one(parts=parts), monkeypatch)).events
+
+        assert len(event.payload["html"]) == 20_000
+
+    async def test_the_html_walk_stops_at_the_depth_bound_and_skips_attached_files(
+        self, monkeypatch
+    ):
+        deep: dict[str, Any] = {"mimeType": "text/html", "body": {"data": _b64("deep")}}
+        for _ in range(10):
+            deep = {"mimeType": "multipart/mixed", "parts": [deep]}
+        attached = {
+            "mimeType": "text/html",
+            "filename": "page.html",
+            "body": {"data": _b64("<i>an attachment</i>")},
+        }
+
+        [event] = (await _polled(_one(parts=[deep, attached, "junk"]), monkeypatch)).events
+
+        assert event.payload["html"] == ""
+
+
+def _file(name: str, attachment_id: str, mime: str = "application/pdf", **extra: Any):
+    return {
+        "mimeType": mime,
+        "filename": name,
+        "body": {"attachmentId": attachment_id, "size": 1200},
+        **extra,
+    }
+
+
+class TestTheAttachmentsItLists:
+    async def test_attachments_are_listed_with_their_ids_and_inline_parts_are_not(
+        self, monkeypatch
+    ):
+        parts = [
+            {"mimeType": "text/plain", "body": {"data": _b64("hi")}},
+            _file("invoice.pdf", "att-1"),
+            _file(
+                "logo.png",
+                "att-2",
+                "image/png",
+                headers=[{"name": "Content-ID", "value": "<logo@x>"}],
+            ),
+            _file(
+                "photo.jpg",
+                "att-3",
+                "image/jpeg",
+                headers=[{"name": "Content-Disposition", "value": "inline; filename=photo.jpg"}],
+            ),
+            _file(
+                "tagged.pdf",
+                "att-6",
+                headers=[
+                    {"name": "Content-ID", "value": "<t@x>"},
+                    {"name": "Content-Disposition", "value": "attachment; filename=tagged.pdf"},
+                ],
+            ),
+            _file(
+                "both.png",
+                "att-7",
+                "image/png",
+                headers=[
+                    {"name": "Content-ID", "value": "<b@x>"},
+                    {"name": "Content-Disposition", "value": "inline"},
+                ],
+            ),
+            {"mimeType": "application/pdf", "filename": "", "body": {"attachmentId": "att-4"}},
+            {"mimeType": "application/pdf", "filename": "inlined.pdf", "body": {"data": "x"}},
+            {
+                "mimeType": "application/zip",
+                "filename": "odd.zip",
+                "body": {"attachmentId": "att-5", "size": "big"},
+                "headers": [
+                    {"name": "Content-Type", "value": "application/zip"},
+                    {"name": "Content-Disposition", "value": "attachment"},
+                    "junk",
+                ],
+            },
+        ]
+
+        [event] = (await _polled(_one(parts=parts), monkeypatch)).events
+
+        assert event.payload["attachments"] == [
+            {
+                "attachment_id": "att-1",
+                "name": "invoice.pdf",
+                "content_type": "application/pdf",
+                "size": 1200,
+            },
+            {
+                "attachment_id": "att-6",
+                "name": "tagged.pdf",
+                "content_type": "application/pdf",
+                "size": 1200,
+            },
+            {
+                "attachment_id": "att-5",
+                "name": "odd.zip",
+                "content_type": "application/zip",
+                "size": None,
+            },
+        ]
+
+    async def test_a_message_without_files_lists_none(self, monkeypatch):
+        [event] = (await _polled(_one(), monkeypatch)).events
+
+        assert event.payload["attachments"] == []
+
+    async def test_attachments_nested_in_a_multipart_are_found(self, monkeypatch):
+        parts = [{"mimeType": "multipart/mixed", "parts": [_file("a.pdf", "att-1"), "junk"]}]
+
+        [event] = (await _polled(_one(parts=parts), monkeypatch)).events
+
+        assert [one["attachment_id"] for one in event.payload["attachments"]] == ["att-1"]
+
+    async def test_at_most_twenty_attachments_are_listed(self, monkeypatch):
+        parts = [_file(f"f{index}.pdf", f"att-{index}") for index in range(25)]
+
+        [event] = (await _polled(_one(parts=parts), monkeypatch)).events
+
+        assert [one["attachment_id"] for one in event.payload["attachments"]] == [
+            f"att-{index}" for index in range(20)
+        ]
+
+    async def test_a_part_tree_deeper_than_the_bound_lists_nothing_past_it(self, monkeypatch):
+        deep = _file("deep.pdf", "att-1")
+        for _ in range(10):
+            deep = {"mimeType": "multipart/mixed", "parts": [deep]}
+
+        [event] = (await _polled(_one(parts=[deep]), monkeypatch)).events
+
+        assert event.payload["attachments"] == []
+
+
+def _attachment_gmail(
+    monkeypatch, *, data: bytes = b"", size: int | None = None, status: int = 200
+) -> tuple[_Gmail, GooglePortalAdapter]:
+    gmail = _Gmail()
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        gmail.raw.append(request.url.raw_path.decode())
+        if status != 200:
+            return httpx.Response(status, json={"error": {"message": "secret-echo Bearer t"}})
+        encoded = base64.urlsafe_b64encode(data).decode().rstrip("=")
+        return httpx.Response(
+            200, json={"size": len(data) if size is None else size, "data": encoded}
+        )
+
+    gmail.handler = answer
+    return gmail, _adapter(gmail, monkeypatch)
+
+
+async def _read(adapter: GooglePortalAdapter, max_bytes: int = 100) -> bytes:
+    return await adapter.attachment(
+        access_token="t",
+        message_id="m/1",
+        attachment_id="a+b/c",
+        mailbox=None,
+        max_bytes=max_bytes,
+    )
+
+
+class TestReadingAnAttachment:
+    async def test_an_attachment_is_read_by_its_id(self, monkeypatch):
+        gmail, adapter = _attachment_gmail(monkeypatch, data=b"\x00PDF bytes\xff")
+
+        assert await _read(adapter) == b"\x00PDF bytes\xff"
+        # Both ids are quoted whole, a slash included.
+        assert gmail.raw == ["/gmail/v1/users/me/messages/m%2F1/attachments/a%2Bb%2Fc"]
+
+    async def test_an_attachment_exactly_at_the_limit_is_read(self, monkeypatch):
+        _, adapter = _attachment_gmail(monkeypatch, data=b"x" * 100)
+
+        assert await _read(adapter, 100) == b"x" * 100
+
+    async def test_an_attachment_declared_over_the_limit_is_not_decoded(self, monkeypatch):
+        _, adapter = _attachment_gmail(monkeypatch, data=b"tiny", size=10_000)
+
+        def forbidden(*_args: Any, **_kwargs: Any) -> bytes:
+            raise AssertionError("decoded an attachment declared over the limit")
+
+        monkeypatch.setattr(base64, "urlsafe_b64decode", forbidden)
+
+        with pytest.raises(AttachmentTooLarge):
+            await _read(adapter)
+
+    async def test_an_attachment_decoding_over_the_limit_is_refused(self, monkeypatch):
+        # Declares nothing over the limit, but the bytes are.
+        _, adapter = _attachment_gmail(monkeypatch, data=b"x" * 101, size=5)
+
+        with pytest.raises(AttachmentTooLarge):
+            await _read(adapter)
+
+    async def test_an_answer_far_past_the_limit_is_not_read_to_the_end(self, monkeypatch):
+        consumed = 0
+
+        class _Endless(httpx.AsyncByteStream):
+            async def __aiter__(self):
+                nonlocal consumed
+                for _ in range(10_000):
+                    consumed += 1
+                    yield b"x" * 1024
+
+        gmail = _Gmail()
+        gmail.handler = lambda request: httpx.Response(200, stream=_Endless())
+        adapter = _adapter(gmail, monkeypatch)
+
+        with pytest.raises(AttachmentTooLarge):
+            await _read(adapter)
+
+        assert consumed < 10
+
+    async def test_a_redirect_is_not_an_attachment(self, monkeypatch):
+        gmail = _Gmail()
+        gmail.handler = lambda request: httpx.Response(302, headers={"Location": "https://x.test/"})
+
+        with pytest.raises(PortalUnreachable) as caught:
+            await _read(_adapter(gmail, monkeypatch))
+
+        assert caught.value.details == {"portal_key": "google", "status": 302}
+
+    async def test_a_gone_attachment_is_unreachable_with_its_status(self, monkeypatch):
+        _, adapter = _attachment_gmail(monkeypatch, status=404)
+
+        with pytest.raises(PortalUnreachable) as caught:
+            await _read(adapter)
+
+        assert caught.value.details["status"] == 404
+        assert "secret-echo" not in str(caught.value.message) + str(caught.value.details)
+
+    async def test_a_broken_connection_is_unreachable_without_its_text(self, monkeypatch):
+        gmail = _Gmail()
+
+        def refuse(request: httpx.Request) -> httpx.Response:
+            raise httpx.ConnectError("Bearer t leaked")
+
+        gmail.handler = refuse
+
+        with pytest.raises(PortalUnreachable) as caught:
+            await _read(_adapter(gmail, monkeypatch))
+
+        assert caught.value.details == {"portal_key": "google", "error": "ConnectError"}
+
+    async def test_an_answer_that_is_not_json_is_unreachable(self, monkeypatch):
+        gmail = _Gmail()
+        gmail.handler = lambda request: httpx.Response(200, content=b"<html>proxy</html>")
+
+        with pytest.raises(PortalUnreachable):
+            await _read(_adapter(gmail, monkeypatch))
+
+    async def test_an_answer_with_no_data_is_an_empty_attachment(self, monkeypatch):
+        gmail = _Gmail()
+        gmail.handler = lambda request: httpx.Response(200, json=["not", "an", "object"])
+
+        assert await _read(_adapter(gmail, monkeypatch)) == b""
+
+    async def test_an_attachment_with_a_broken_encoding_is_unreachable(self, monkeypatch):
+        gmail = _Gmail()
+        gmail.handler = lambda request: httpx.Response(200, json={"data": "a"})
+
+        with pytest.raises(PortalUnreachable):
+            await _read(_adapter(gmail, monkeypatch))

@@ -1,5 +1,5 @@
 ---
-source_sha: "9147c4363ad2"
+source_sha: "5aa8aa87f7c5"
 ---
 
 # Workflows { #workflows }
@@ -19,7 +19,7 @@ abspielt; der Editor selbst hat keine Führung.
 ## Einen Workflow erstellen und duplizieren { #creating-and-duplicating-a-workflow }
 
 **New workflow** öffnet einen Dialog, der Sie mit einem Trigger oder einer Vorlage
-beginnen lässt. **How does it start?** bietet jeden Trigger an - **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Gmail**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** und **On failure of a workflow** -, jeder
+beginnen lässt. **How does it start?** bietet jeden Trigger an - **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Gmail**, **Outlook**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** und **On failure of a workflow** -, jeder
 eine sonst leere Zeichenfläche, die mit ihm beginnt. Die Vorlagen sind fertige
 Ausgangspunkte — **Starter**, ein
 einzelner Schritt zum Umbenennen und Verdrahten, und **Two-step sequence**, zwei
@@ -632,8 +632,11 @@ eigenen Grenzen jedes Schritts - darunter die Kostenobergrenze eines Agentenschr
 - **Runs under way at once** - ein echter Lauf, der darüber hinaus gestartet wird,
   wird mit `429` abgelehnt, bis einer endet. Der Absender eines Webhooks oder GitHub
   wird um einen erneuten Versuch gebeten, ein Zeitplan wartet auf seinen nächsten
-  Takt, ein Postfach wird erneut gelesen, und ein Tabellenereignis oder eine
-  Formularantwort darüber hinaus wird abgelehnt. Testläufe werden weder gezählt noch
+  Takt, und ein Tabellenereignis oder eine Formularantwort darüber hinaus wird
+  abgelehnt. Ein Postfach wird eine Minute später erneut gelesen, die Nachricht wartet
+  also, bis ein Lauf endet - außer die Läufe, die das Limit belegen, warten auf eine
+  Freigabe: Dann wird die Nachricht für diesen Workflow übersprungen, und das Audit-Log
+  hält es fest (`workflow.mail_message_skipped`). Testläufe werden weder gezählt noch
   zurückgehalten.
 - **Most one run may spend** - das eigene Budget des Laufs, das engere aus ihm und dem
   der Version: Ein Lauf, der es erreicht, hält vor seinem nächsten Schritt an,
@@ -742,7 +745,7 @@ hat, sodass ein Testlauf dort beginnt, wo jener war. Über die API wiederholt `P
 ## Einen Workflow von außerhalb der Konsole starten { #starting-a-workflow-from-outside-the-console }
 
 Ein Workflow startet mit einem **Trigger**, dem ersten Knoten auf seiner
-Zeichenfläche. Die Gruppe **Triggers** oben in der Schrittauswahl enthält sie alle: **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Gmail**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** und **On failure of a workflow**. Einen
+Zeichenfläche. Die Gruppe **Triggers** oben in der Schrittauswahl enthält sie alle: **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Gmail**, **Outlook**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** und **On failure of a workflow**. Einen
 davon einem Workflow hinzuzufügen, der schon einen Trigger hat, ersetzt den alten an
 seiner Stelle, und die Verbindungen und Bindings, die den alten verlassen, verlassen
 den neuen. **New workflow** beginnt einen Workflow mit dem Trigger, den Sie dort
@@ -919,9 +922,52 @@ Nachrichten mit dem Label `SENT`, `DRAFT`, `SPAM` oder `TRASH` sind keine Eingä
 starten nichts, es sei denn, **Label** nennt eines davon.
 
 Der Lauf bekommt `sender`, `to`, `subject`, `text`, `snippet`, `labels` und die
-`message_id` des Postfachs. Eine zweimal gelesene Nachricht startet ihren Lauf einmal,
-und eine, für die die Organisation noch keinen Platz hatte, wird eine Minute später
-erneut gelesen. Siehe [trigger.gmail](reference/workflow-nodes.md#trigger-gmail).
+`message_id` des Postfachs sowie den Thread, zu dem die Nachricht gehört: `thread_id`,
+`rfc_message_id` (der `Message-ID`-Header), `in_reply_to`, `references`,
+`received_at` und den `html`-Inhalt. Die drei Header-Felder schreibt der Absender;
+mit ihnen lässt sich eine Antwort in den Thread einordnen, sie beweisen aber nichts
+darüber, wer die Nachricht gesendet hat. Eine zweimal gelesene Nachricht startet
+ihren Lauf einmal, und eine, für die die Organisation noch keinen Platz hatte, wird
+eine Minute später erneut gelesen. Siehe
+[trigger.gmail](reference/workflow-nodes.md#trigger-gmail).
+
+Ein **Outlook**-Trigger tut dasselbe für das Microsoft-365-Postfach der Organisation,
+verbunden über das **Outlook**-Portal. Microsoft Graph wird Ordner für Ordner
+gelesen, deshalb nennt der Schritt den **Folder**, den er beobachtet - ohne Angabe
+den Posteingang - und, um ein gemeinsames Postfach zu lesen, das das verbundene Konto
+öffnen kann, das Feld **Shared mailbox**. Die Filter sind **Subject contains**, **Sender
+contains**, **Has attachments**, **Importance** und **Category**. Das erste Lesen
+eines Ordners beginnt mit dem Zeitpunkt, zu dem der Workflow veröffentlicht oder zuletzt
+eingeschaltet wurde; Post, die schon dort liegt, startet nichts.
+
+Wer einen Workflow
+veröffentlichen darf, kann jedes gemeinsame Postfach nennen, das der Microsoft-Grant
+der Organisation öffnen kann, wie es Outlook-Agent-Trigger schon heute können. Meldet Outlook, dass der Ordner nicht
+mehr gelesen werden kann, wird der Workflow ausgeschaltet, und das Audit-Log nennt
+den Grund.
+
+Der Lauf bekommt dieselben Felder wie ein Gmail-Lauf, wobei `labels` die
+Kategorien der Nachricht enthält und `mailbox` das gemeinsame Postfach, aus dem sie
+kam. Siehe [trigger.outlook](reference/workflow-nodes.md#trigger-outlook).
+
+Beide Mail-Trigger nehmen Eingaben von außen an: Jeder kann dem Postfach eine
+Nachricht schicken, binden Sie also, was der Lauf damit tut, wie bei einem Webhook.
+
+Die `attachments` einer Nachricht nennen Name, angegebenen Typ und Größe jeder
+Datei; ein Postfach liefert höchstens 20 pro Nachricht, und ein `text`- oder
+`html`-Inhalt wird bis zu 20.000 Zeichen gelesen. Ein Lauf, den das Postfach
+gestartet hat, speichert sie als Dateien des Runs, und jede trägt ihr `file` und
+`stored: true`. Von den genannten Anhängen werden nur die ersten 10 berücksichtigt,
+zusammen bis 25 MiB, und jeder muss in das Größenlimit für Chat-Uploads, die Liste
+erlaubter Dateitypen und das Speicherkontingent der Organisation passen.
+
+Ein ausgelassener Anhang trägt einen `reason`: `too_many` (nach den ersten 10),
+`too_large`, `type_not_allowed`, `quota` oder `unreadable` - das Postfach antwortete
+darauf mit 400, 401, 403 oder 404, oder sein Grant fehlt, ist ausgeschaltet oder
+lässt sich nicht erneuern. Ein Testlauf liest nichts aus dem Postfach, seine Anhänge
+sind daher `not_fetched`. Scheitert das Postfach auf eine Weise, die eine
+Wiederholung beheben kann, schlägt der Schritt mit `MAIL_ATTACHMENT_UNREACHABLE`
+fehl und wird wiederholt.
 
 ### Über eine Kanalnachricht { #from-a-channel-message }
 

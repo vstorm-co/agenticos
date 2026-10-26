@@ -13,6 +13,7 @@ from app.services.portals.base import (
     RegisteredWebhook,
 )
 from app.services.portals.exceptions import (
+    AttachmentTooLarge,
     PortalError,
     PortalUnreachable,
     WebhookRegistrationForbidden,
@@ -24,6 +25,7 @@ from app.services.portals.registry import get_adapter
 
 __all__ = [
     "NOWHERE",
+    "AttachmentTooLarge",
     "PolledEvent",
     "PolledEvents",
     "PortalAdapter",

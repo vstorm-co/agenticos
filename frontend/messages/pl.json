@@ -3271,6 +3271,7 @@
         "channel_message": "Wiadomość na kanale",
         "github": "GitHub",
         "gmail": "Gmail",
+        "outlook": "Outlook",
         "app": "Strona"
       },
       "runsCount": "{count, plural, one {# uruchomienie} few {# uruchomienia} many {# uruchomień} other {# uruchomienia}}",
@@ -3421,6 +3422,10 @@
         "gmail": {
           "name": "Gmail",
           "description": "Nowy e-mail w podłączonej skrzynce organizacji uruchamia run."
+        },
+        "outlook": {
+          "name": "Outlook",
+          "description": "Nowy e-mail w folderze podłączonej skrzynki Microsoft 365 organizacji uruchamia run."
         }
       },
       "startRunOptional": "opcjonalne",
@@ -3573,6 +3578,7 @@
       "githubRegistered": "Zarejestrowany w {repository} przez konto GitHub organizacji i rejestrowany ponownie przy każdej publikacji.",
       "githubPasteIt": "Wklej ten adres w ustawieniach repozytorium, w Settings > Webhooks, z typem treści application/json i sekretem pokazanym przy publikacji. New secret pokaże nowy.",
       "triggerGmailLive": "Skrzynka Gmail organizacji jest czytana co minutę, a każda nowa wiadomość pasująca do wyzwalacza uruchamia run jako członek, który go opublikował. Wiadomość uruchamia run raz, niezależnie od tego, ile razy zostanie przeczytana.",
+      "triggerOutlookLive": "Skrzynka Microsoft 365 organizacji jest czytana co minutę, folder po folderze, a każda nowa wiadomość w folderze kroku, pasująca do wyzwalacza, uruchamia run jako członek, który go opublikował. Wiadomość uruchamia run raz, niezależnie od tego, ile razy zostanie przeczytana.",
       "settingsLimits": "Limity",
       "settingsLimitsHint": "Ile jego runów może działać naraz i ile mogą wydać. Każdy krok zachowuje własne limity - w tym pułap kosztu kroku agenta - a te obowiązują ponad nimi.",
       "settingsConcurrent": "Runy działające naraz",
@@ -9089,6 +9095,11 @@
         "ready": "Skrzynka organizacji jest podłączona i czytana co minutę.",
         "connect": "Żadna skrzynka nie jest jeszcze podłączona. Publikacja na nią poczeka.",
         "reauthorize": "Skrzynkę trzeba podłączyć ponownie, zanim da się ją czytać."
+      },
+      "microsoft": {
+        "ready": "Skrzynka Microsoft 365 organizacji jest podłączona i czytana co minutę.",
+        "connect": "Nie podłączono jeszcze skrzynki Microsoft 365. Publikowanie na nią czeka.",
+        "reauthorize": "Skrzynkę trzeba podłączyć ponownie, zanim będzie można ją czytać."
       },
       "github": {
         "ready": "Podłączone z uprawnieniem do zarządzania webhookami: publikacja zarejestruje hook za Ciebie.",
