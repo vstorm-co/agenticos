@@ -168,10 +168,19 @@ class TestTheLimits:
 
 def _session() -> MagicMock:
     """A session the thinker can commit its run on."""
-    return MagicMock(commit=AsyncMock())
+    db = MagicMock(commit=AsyncMock())
+    db.begin_nested.return_value.__aenter__ = AsyncMock()
+    db.begin_nested.return_value.__aexit__ = AsyncMock(return_value=False)
+    return db
 
 
 class TestThinking:
+    @pytest.fixture(autouse=True)
+    def recorded_manifest(self, monkeypatch):
+        record = AsyncMock()
+        monkeypatch.setattr(_thinker.run_manifest_repo, "record", record)
+        return record
+
     @staticmethod
     def _patches(model, *, version=True, resolve_error=None):
         request = SimpleNamespace(
@@ -201,7 +210,7 @@ class TestThinking:
             patch(f"{THINKER}.agent_run_repo.finish_run", new=AsyncMock()),
         )
 
-    async def test_an_answer_is_returned_and_the_run_is_written_down(self):
+    async def test_an_answer_is_returned_and_the_run_is_written_down(self, recorded_manifest):
         get_slug, limits, version, profiles, create, finish = self._patches(TestModel())
         with (
             get_slug,
@@ -229,6 +238,12 @@ class TestThinking:
         # The test model is not priced: recorded as zero and marked partial, not lost.
         assert finished["cost_usd"] == Decimal(0)
         assert finished["cost_is_partial"] is True
+        payload = recorded_manifest.await_args.kwargs["payload"]
+        assert payload["instructions"] == "Read."
+        assert payload["messages"][0]["kind"] == "request"
+        responses = [message for message in payload["transcript"] if message["kind"] == "response"]
+        assert responses[-1]["parts"][0]["tool_name"] == "final_result"
+        assert payload["requests"][0]["input_tokens"] > 0
 
     async def test_a_watch_reads_through_the_tools_it_is_given_before_answering(self):
         from pydantic_ai.toolsets import FunctionToolset
@@ -254,7 +269,7 @@ class TestThinking:
         assert isinstance(answer, NightlyReading)
         assert read == ["listed"]
 
-    async def test_a_model_that_fails_leaves_a_failed_run_and_no_answer(self):
+    async def test_a_model_that_fails_leaves_a_failed_run_and_no_answer(self, recorded_manifest):
         def broken(_messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
             raise ModelHTTPError(status_code=500, model_name="claude")
 
@@ -271,6 +286,9 @@ class TestThinking:
         assert answer is None
         assert finish_run.await_args.kwargs["status"] == RunStatus.FAILED.value
         assert finish_run.await_args.kwargs["error"]
+        payload = recorded_manifest.await_args.kwargs["payload"]
+        assert payload["requests"][0]["failed"] == "ModelHTTPError"
+        assert payload["transcript"][0]["kind"] == "request"
 
     async def test_the_run_is_committed_before_the_model_is_called(self):
         """A worker killed mid-call must leave the run behind for the limit to count."""

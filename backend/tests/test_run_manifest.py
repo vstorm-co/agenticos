@@ -703,3 +703,9 @@ class TestAResumedRunKeepsItsScripts:
         assert [review["after_request"] for review in reviews] == [3, 6]
         codes = [run["tool_call_id"] for run in written.await_args.kwargs["payload"]["code_runs"]]
         assert codes == ["a", "b"]
+
+
+def test_oversized_standalone_transcript_obeys_the_same_size_limit():
+    payload, truncated = fit({"messages": [], "transcript": [{"text": "x" * MAX_PAYLOAD_BYTES}]})
+    assert truncated is True
+    assert payload["transcript"] == []

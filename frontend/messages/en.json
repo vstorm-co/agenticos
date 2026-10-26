@@ -2530,7 +2530,8 @@
           "schedule": "Schedule",
           "slack": "Slack",
           "telegram": "Telegram",
-          "web": "Web chat"
+          "web": "Web chat",
+          "proactive": "Proactive"
         },
         "title": "Where runs come from",
         "description": "Where runs come from - web chat, API, channels.",
@@ -5580,7 +5581,10 @@
       "anyModality": "Any kind",
       "modalityText": "Text",
       "modalityVoiceCalls": "Voice calls",
-      "reconnected": "{count, plural, one {Reconnected once} other {Reconnected # times}}"
+      "reconnected": "{count, plural, one {Reconnected once} other {Reconnected # times}}",
+      "surfaceProactive": "Proactive",
+      "standaloneRequest": "Model request",
+      "standaloneResponse": "Model response"
     },
     "sandboxes": {
       "addConnection": "Add connection",
@@ -6557,7 +6561,8 @@
       "watches": "Watch people's connections",
       "watchesHint": "People choose what to watch in their own connected accounts - pull requests waiting on them, an overdue invoice - and hear what is new. It only reads, and what it finds is private to each person.",
       "watchMinutes": "Most often",
-      "watchMinutesHint": "How often one watch may look at most. More often costs more."
+      "watchMinutesHint": "How often one watch may look at most. More often costs more.",
+      "runAttribution": "Background checks appear under the published AgenticOS starter agent in Activity. This assignment is fixed by the platform. They use the proactivity model selected below, independently of the agent’s own model."
     }
   },
   "theme": {

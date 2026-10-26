@@ -1,5 +1,5 @@
 ---
-source_sha: "f496efc76663"
+source_sha: "61c600201ea6"
 ---
 
 # Governance { #governance }
@@ -502,6 +502,20 @@ registró su último heartbeat, a diferencia de un run de texto, cuyo gasto muer
 con su proceso.
 
 ### Trabajo por iniciativa propia { #proactive-work }
+
+Las ejecuciones proactivas se atribuyen al agente inicial **AgenticOS**
+publicado de la organización (slug `agenticos`). Esta asociación está fijada por
+la plataforma; no selecciona el modelo ni ejecuta las instrucciones del agente
+inicial.
+
+El modelo independiente y los límites se eligen en **Organizaciones →
+Miembros → Proactividad**. Activity muestra el icono y filtro **Proactivo**, las
+solicitudes al modelo y sus costes, y el intercambio registrado con resultados
+de herramientas y respuesta estructurada final. Las comprobaciones fallidas
+conservan el intercambio disponible antes del error. Como los demás registros
+de Activity, requieren `runs:view` y no crean conversaciones en Chat. No se
+pueden recuperar intercambios antiguos que nunca se registraron; los registros
+demasiado grandes indican explícitamente que se recortaron.
 
 La plataforma puede hacer un poco por iniciativa propia, y no hace nada de eso
 hasta que una organización lo activa: la tarjeta **Proactividad** en su página de

@@ -460,6 +460,8 @@ def fit(payload: dict[str, Any], limit: int = MAX_PAYLOAD_BYTES) -> tuple[dict[s
     if _size(payload) <= limit:
         return payload, False
     trimmed = {**payload, "messages": []}
+    if "transcript" in trimmed:
+        trimmed["transcript"] = []
     if _size(trimmed) <= limit:
         return trimmed, True
     # Then each script's calls lose their arguments and its code is clipped: what
