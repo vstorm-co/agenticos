@@ -8,6 +8,7 @@ from app.workflows.nodes.mcp_call._handler import (
     McpCallOutput,
     check_resources,
     handle,
+    retry_guarantee_for,
 )
 
 __all__ = ["McpCallConfig", "McpCallInput", "McpCallOutput"]
@@ -32,5 +33,6 @@ register(
         retry_guarantee="at_least_once",
         handler=handle,
         resource_check=check_resources,
+        retry_guarantee_for=retry_guarantee_for,
     )
 )

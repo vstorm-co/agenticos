@@ -1877,6 +1877,30 @@ class TestValidateSpec:
         assert "no-such-server" in refused.value.details["problems"][0]
 
     @pytest.mark.anyio
+    async def test_an_agent_binding_a_removed_personal_service_is_refused_at_publish(self):
+        """The Work IQ application servers left the catalog, so an agent binding
+        each person's own `m365-mail` is refused at its next publish - bind
+        `ms-365` or `work-iq` instead."""
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(
+                _ctx(),
+                _spec(
+                    mcp_servers=[PersonalMcpServerRef(account="personal", catalog_key="m365-mail")],
+                    model_profile_id=uuid.uuid4(),
+                ),
+            )
+
+        assert refused.value.details["problems"][0].startswith(
+            "No MCP catalog entry is called 'm365-mail'."
+        )
+
+    @pytest.mark.anyio
     async def test_a_service_is_bound_to_each_persons_own_account_once(self):
         """Two personal bindings to one service would present the same tools
         under the same prefix twice."""

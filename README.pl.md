@@ -1,4 +1,4 @@
-<!-- source_sha: 5a4d6fb78011 -->
+<!-- source_sha: f04030a1e1ca -->
 
 <div align="center">
 
@@ -149,9 +149,9 @@ Działa na Twojej infrastrukturze z Docker Compose i współpracuje z 28 dostawc
 
 **Jak AgenticOS wpisuje się w firmę:** działy takie jak finanse, operacje czy zarząd korzystają ze wspólnych agentów w czacie internetowym, Slacku lub prywatnym workspace. Twoje systemy wywołują agentów przez API, a zdarzenia lub harmonogramy uruchamiają ich automatycznie. Każde żądanie przechodzi przez te same kontrole: role, budżety, zatwierdzenia, guardraile i zapis runa. Twoje dane, wektory, sandboxy kodu, vault z poświadczeniami i opcjonalne modele lokalne pozostają na Twojej infrastrukturze. Modele hostowane, narzędzia SaaS i zewnętrzne źródła dokumentów są używane tylko wtedy, gdy je skonfigurujesz.
 
-<img src="docs/assets/readme/figures.webp" alt="29 wbudowanych capabilities, włączanych dla każdego agenta osobno; 8 miejsc, w których agent odpowiada; 28 dostawców modeli: hostowanych, w Twojej chmurze lub lokalnych; 5 źródeł synchronizacji dokumentów; ponad 4700 serwerów MCP w galerii; 29 poradników, każdy ze sprawdzianem, który możesz uruchomić." width="100%">
+<img src="docs/assets/readme/figures.webp" alt="29 wbudowanych capabilities, włączanych dla każdego agenta osobno; 8 miejsc, w których agent odpowiada; 28 dostawców modeli: hostowanych, w Twojej chmurze lub lokalnych; 5 źródeł synchronizacji dokumentów; ponad 4700 serwerów MCP w galerii; 30 poradników, każdy ze sprawdzianem, który możesz uruchomić." width="100%">
 
-<p align="center"><sub><b>W skrócie:</b> 29 wbudowanych capabilities · 8 miejsc, w których agent odpowiada · 28 dostawców modeli · 5 źródeł synchronizacji dokumentów · ponad 4700 serwerów MCP · 29 poradników.</sub></p>
+<p align="center"><sub><b>W skrócie:</b> 29 wbudowanych capabilities · 8 miejsc, w których agent odpowiada · 28 dostawców modeli · 5 źródeł synchronizacji dokumentów · ponad 4700 serwerów MCP · 30 poradników.</sub></p>
 
 ## ✨ Co możesz zrobić
 
@@ -174,7 +174,7 @@ curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/qu
 
 Na Windows uruchom tę samą komendę w WSL2 z włączoną integracją WSL2 w Docker Desktop. Instalator pyta o dostawcę modelu i klucz, login oraz nazwę organizacji, pobiera opublikowane obrazy i uruchamia wdrożenie z działającym agentem. Wystarczy host z 4 vCPU i 8 GB RAM. Następnie otwórz **http://localhost:3000** i zaloguj się loginem wybranym podczas instalacji.
 
-**Twój pierwszy agent:** przejdź [poradnik asystenta dokumentów](https://vstorm-co.github.io/agenticos/pl/howto/first-document-agent/), aby wgrać regulamin, zadawać pytania i sprawdzać odpowiedzi w przywołanych źródłach. Potem wybierz kolejne zadanie spośród [29 poradników](https://vstorm-co.github.io/agenticos/pl/use-cases/), z których każdy ma przykładowe dane wejściowe i sprawdzian do uruchomienia.
+**Twój pierwszy agent:** przejdź [poradnik asystenta dokumentów](https://vstorm-co.github.io/agenticos/pl/howto/first-document-agent/), aby wgrać regulamin, zadawać pytania i sprawdzać odpowiedzi w przywołanych źródłach. Potem wybierz kolejne zadanie spośród [30 poradników](https://vstorm-co.github.io/agenticos/pl/use-cases/), z których każdy ma przykładowe dane wejściowe i sprawdzian do uruchomienia.
 
 <details>
 <summary>Sprawdź instalator lub wybierz inny sposób wdrożenia</summary>
@@ -304,11 +304,11 @@ Bezpieczeństwo jest warstwowe. Poświadczenia są przechowywane w vaulcie z szy
 </details>
 
 <details>
-<summary><b>Szukasz pierwszego zadania</b>: 29 poradników, każdy ze sprawdzianem do uruchomienia</summary>
+<summary><b>Szukasz pierwszego zadania</b>: 30 poradników, każdy ze sprawdzianem do uruchomienia</summary>
 
 <br>
 
-<img src="docs/assets/readme/first-tasks.webp" alt="29 poradników w grupach: dokumenty, obsługa klienta, research i analiza, automatyzacja, treści i produktywność, inżynieria oraz bezpieczeństwo." width="100%">
+<img src="docs/assets/readme/first-tasks.webp" alt="30 poradników w grupach: dokumenty, obsługa klienta, research i analiza, automatyzacja, treści i produktywność, inżynieria oraz bezpieczeństwo." width="100%">
 
 [Wszystkie poradniki](https://vstorm-co.github.io/agenticos/pl/use-cases/). 24 z nich mają referencyjny run przygotowany przez opiekunów projektu; to punkty wyjścia, nie wyniki klientów.
 

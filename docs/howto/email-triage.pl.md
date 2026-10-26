@@ -1,5 +1,5 @@
 ---
-source_sha: "94fe4ff073a5"
+source_sha: "e132a630b16c"
 title: "Segreguj skrzynkę i przygotowuj szkice odpowiedzi"
 description: "Podłącz skrzynkę jako odpytywany trigger zdarzeń i niech agent przygotowuje szkice odpowiedzi albo wyciąga zadania, nigdy niczego nie wysyłając."
 ---
@@ -14,7 +14,7 @@ Przeczytaj to przed podłączeniem czegokolwiek, bo od tego zależy, czy ta stro
 
 **Może czytać.** Trigger Gmaila odpytuje podłączoną skrzynkę raz na minutę i przekazuje agentowi temat, nadawcę i treść nowej wiadomości. Wdrożenie prosi Google wyłącznie o zakres `gmail.readonly`. Na ekranie zgody nie ma prośby o nic więcej, więc nie istnieje szersze uprawnienie, na którym można by przypadkiem polegać.
 
-**Nie może wysyłać ani tworzyć prawdziwego szkicu w Gmailu.** Nie ma narzędzia, ani tutaj, ani w katalogu MCP, które wywołuje API wysyłania albo szkiców Gmaila. To, co szablony poniżej nazywają „szkicem”, jest tekstem odpowiedzi agenta zapisanym w runie, który się uruchomił. Trafia do **Activity**, do rozmowy tego runu, jako wiadomość, którą człowiek musi przeczytać i sam wkleić do wychodzącego maila. Nic nigdy nie jest wysyłane w Twoim imieniu i nic nie jest zapisywane z powrotem w skrzynce.
+**Nie może wysyłać ani tworzyć prawdziwego szkicu w Gmailu.** Agent zbudowany według tej strony nie ma narzędzia, które wywołuje API wysyłania albo szkiców Gmaila. To, co szablony poniżej nazywają „szkicem”, jest tekstem odpowiedzi agenta zapisanym w runie, który się uruchomił. Trafia do **Activity**, do rozmowy tego runu, jako wiadomość, którą człowiek musi przeczytać i sam wkleić do wychodzącego maila. Nic nigdy nie jest wysyłane w Twoim imieniu i nic nie jest zapisywane z powrotem w skrzynce. Jeśli odpowiedź ma trafić do wątku w skrzynce, jako szkic albo wysłana wiadomość, po zatwierdzeniu przez człowieka, użyj workflow: [odpowiedz na pocztę zatwierdzonym szkicem](answer-mail-with-approved-draft.md).
 
 ## Czego potrzebujesz { #what-you-need }
 

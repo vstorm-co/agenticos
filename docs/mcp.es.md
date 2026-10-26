@@ -1,5 +1,5 @@
 ---
-source_sha: "298280a0b011"
+source_sha: "2c6b8d107b99"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -866,8 +866,8 @@ el proveedor emite un endpoint por cuenta.
 |---|---|---|
 | Slack | oauth | `https://mcp.slack.com/mcp` |
 | Microsoft Work IQ | oauth | `https://workiq.svc.cloud.microsoft/mcp` |
-| Outlook Mail (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_MailTools` |
-| Microsoft Teams (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_TeamsServer` |
+| Google Workspace (self-hosted) | oauth | self-hosted |
+| Microsoft 365 (self-hosted) | oauth | self-hosted |
 | Zoom | oauth | self-hosted |
 | Intercom | oauth | `https://mcp.intercom.com/sse` |
 | Notion | oauth | `https://mcp.notion.com/mcp` |
@@ -947,10 +947,6 @@ el proveedor emite un endpoint por cuenta.
 | Composio | token | self-hosted |
 | Activepieces | token | `https://mcp.activepieces.com/mcp` |
 | Cal.com | token | `https://mcp.cal.com/mcp` |
-| Outlook Calendar (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_CalendarTools` |
-| Word (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_WordServer` |
-| SharePoint (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_SharePointRemoteServer` |
-| OneDrive (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_OneDriveRemoteServer` |
 
 ### Cualquier otra cosa { #anything-else }
 
@@ -978,17 +974,49 @@ Para añadir una entrada a la lista, ver
 
 ### Microsoft 365 y Outlook { #microsoft-365-and-outlook }
 
-Microsoft publica sus propios servidores MCP para Microsoft 365, y el catálogo los
-lista: **Work IQ** - un endpoint para correo, reuniones, chats y archivos - y los
-servidores por aplicación de Mail, Calendar, Teams, SharePoint, OneDrive y Word.
-Cada uno necesita una licencia de Microsoft 365 Copilot y una aplicación
-registrada en Microsoft Entra: añade el permiso de Work IQ del servidor (para el
-correo, `WorkIQ-MailServer`) y la URL de redirección de esta consola, que muestra
-el diálogo de conexión, y escribe el client ID de la aplicación al conectar.
+Dos entradas del catálogo llegan a Microsoft 365, y hacen cosas distintas.
 
-Entra no registra un cliente en el acto, así que el client ID no es opcional. Microsoft
-marca los servidores por aplicación como mantenidos por compatibilidad y dirige
-los proyectos nuevos a Work IQ.
+**Microsoft 365 (self-hosted)** es
+[`softeria/ms-365-mcp-server`](https://github.com/softeria/ms-365-mcp-server), un
+servidor que ejecutas tú con `--http` y una aplicación registrada en Microsoft
+Entra. Busca y lee correo de Outlook, crea borradores de respuesta en un hilo, los
+envía y gestiona eventos del calendario. Añade `--org-mode` para llegar a buzones
+compartidos y a Teams. Escribe su dirección, terminada en `/mcp`; cada conexión
+inicia sesión como una cuenta de Microsoft. Un host de tu propia red necesita
+`OUTBOUND_PRIVATE_ALLOWLIST` o `MCP_ALLOWED_HOSTS`, como arriba. Es la entrada que
+usa un workflow para responder al correo: consulta [responde al correo con un
+borrador aprobado](howto/answer-mail-with-approved-draft.md).
+
+**Microsoft Work IQ** es el servidor alojado del propio Microsoft, para preguntar en
+una sola llamada por correo, reuniones, chats y archivos. Se diferencia en lo que
+permite:
+
+- Bloquea los cambios - crear, actualizar, enviar - hasta que un administrador del
+  tenant los permita por política.
+- Se factura en Copilot Credits y devuelve 25 resultados por defecto.
+- Solo inicia sesión mediante Microsoft Entra, como la persona que conecta:
+  registra una aplicación con el permiso de Work IQ
+  y la URL de redirección de esta consola, que muestra el
+  diálogo de conexión, y escribe su client ID al conectar. Entra no registra un
+  cliente en el acto, así que el client ID no es opcional.
+
+Los servidores de Work IQ por aplicación - Mail, Calendar, Teams, SharePoint,
+OneDrive y Word - ya no están en el catálogo, porque Microsoft solo los mantiene
+por compatibilidad. Una conexión ya creada con uno de ellos sigue funcionando, por
+su dirección. Un agent que enlaza uno como servicio propio de cada persona se
+rechaza en su próxima publicación: enlaza en su lugar **Microsoft 365
+(self-hosted)** o **Microsoft Work IQ**.
+
+### Gmail y Google Workspace { #gmail-and-google-workspace }
+
+**Google Workspace (self-hosted)** es
+[`taylorwilsdon/google_workspace_mcp`](https://github.com/taylorwilsdon/google_workspace_mcp),
+ejecutado con `--transport streamable-http` y `MCP_ENABLE_OAUTH21=true`, usando tu
+propio cliente OAuth de Google. Busca y lee Gmail, redacta y envía correo en un
+hilo, y trabaja con Calendar, Drive y Sheets. Escribe su dirección, terminada en
+`/mcp`; cada conexión inicia sesión como una cuenta de Google. [Responde al correo
+con un borrador aprobado](howto/answer-mail-with-approved-draft.md) muestra cómo
+responde al correo desde un workflow.
 
 Outlook también está disponible mediante servicios MCP de terceros. El registro
 incluido contiene entradas de MintMCP para correo y calendario:

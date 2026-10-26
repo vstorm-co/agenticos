@@ -1,12 +1,12 @@
 ---
-source_sha: "ab1e8540de48"
+source_sha: "607874ad6395"
 title: "Elige una primera tarea"
-description: "29 tutoriales: documentos, soporte, investigación, automatización, productividad y contenido, cada uno con una comprobación que puedes ejecutar."
+description: "30 tutoriales: documentos, soporte, investigación, automatización, productividad y contenido, cada uno con una comprobación que puedes ejecutar."
 ---
 
 # Elige una primera tarea { #choose-a-first-task }
 
-Empieza por un trabajo cuyo resultado pueda juzgar alguien del equipo. Cada uno de los 29 tutoriales de abajo te da una entrada sintética, la configuración, el prompt exacto, comprobaciones de referencia, los fallos habituales y qué registrar. Son puntos de partida con runs de referencia, no casos de clientes ni afirmaciones sobre tasas de éxito.
+Empieza por un trabajo cuyo resultado pueda juzgar alguien del equipo. Cada uno de los 30 tutoriales de abajo te da una entrada sintética, la configuración, el prompt exacto, comprobaciones de referencia, los fallos habituales y qué registrar. Son puntos de partida con runs de referencia, no casos de clientes ni afirmaciones sobre tasas de éxito.
 
 La última columna indica cuándo ejecutaron los mantenedores un tutorial por última vez sobre el producto. Un run registrado cubre exactamente lo que describe el bloque de ejemplo de la página: una configuración, una fecha y un modelo. No es una prueba de que tu configuración supere las mismas comprobaciones. Un tutorial que necesita una cuenta de terceros que los mantenedores no conectaron dice *Aún sin registrar*.
 
@@ -29,6 +29,7 @@ La última columna indica cuándo ejecutaron los mantenedores un tutorial por ú
 | [Responde una pregunta sobre el manual en Slack](howto/slack-handbook-assistant.md) | El agent con documentos respondiendo en un hilo de Slack | Aún sin registrar |
 | [Clasifica las solicitudes de soporte entrantes desde tu propia app](howto/support-ticket-triage.md) | Tickets de tu app clasificados mediante un webhook firmado | v0.0.504, 25 de septiembre de 2026 |
 | [Clasifica tu bandeja de entrada y redacta respuestas](howto/email-triage.md) | Correo nuevo leído por un trigger de Gmail y convertido en borradores de respuesta | Aún sin registrar |
+| [Responde al correo con un borrador aprobado](howto/answer-mail-with-approved-draft.md) | Un workflow que redacta una respuesta, pide a una persona que la apruebe y la escribe en el hilo | Aún sin registrar |
 | [Responde preguntas de nuevas incorporaciones con archivos de contexto y skills](howto/onboarding-helpdesk.md) | Contexto permanente y skills de procedimiento para nuevas incorporaciones | v0.0.504, 25 de septiembre de 2026 |
 
 ## Investigación y análisis { #research-and-analysis }

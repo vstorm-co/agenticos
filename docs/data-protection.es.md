@@ -1,5 +1,5 @@
 ---
-source_sha: "f45ad324ccb3"
+source_sha: "69ccdf7108a1"
 ---
 
 # Protección de datos { #data-protection }
@@ -187,6 +187,8 @@ lista completa de destinos, con la configuración que decide cada uno.
 | Los pasos del navegador web | Cada paso de un recorrido va al propio modelo del agente: la URL de la página, su título, las etiquetas de los elementos visibles y hasta 4.000 caracteres de su texto visible, más una captura con `vision` activado — que puede ser el contenido de un sistema interno. Lo que contiene un campo no se repite: la tabla de elementos solo dice que el campo está relleno | La capability `browser_use` en el spec | El proveedor del modelo del agente, como en la conversación |
 | La sandbox, hacia fuera | **Cualquier cosa del workspace, a cualquier host** — la runtime `workbench` tiene red, shell y `curl` | La capability `sandbox` y una runtime con `needs_network`; la aprobación de comandos controla qué se ejecuta, no adónde se conecta | Adonde fuera el comando. El control de salida es el firewall del host de la sandbox, no un ajuste de aquí |
 | Un servidor MCP | Argumentos y resultados de herramientas, de un agent o de un paso [`mcp.call`](reference/workflow-nodes.md#mcp-call) de un workflow | `mcp_connections.url`, por organización o por persona | La del operador del servidor |
+| Google Workspace y Microsoft 365, mediante un servidor que ejecutas tú | Lo que pide el paso `mcp.call` de un agent o de un workflow: términos de búsqueda, ids de mensajes y de hilos, texto de la respuesta, detalles de eventos. Tu propio servidor lo reenvía a las APIs de Google o de Microsoft y guarda además los tokens de la cuenta conectada | Una conexión de la organización o personal, creada desde la entrada de catálogo `google-workspace` o `ms-365` | Tu servidor, y luego Google o Microsoft |
+| Microsoft Work IQ | Lo que pide una llamada de herramienta, y la respuesta, en el servicio alojado de Microsoft; se factura en Copilot Credits | Una conexión creada desde la entrada de catálogo `work-iq` | De Microsoft |
 | Un host de tu propia red | Todo lo que un paso HTTP de workflow, un conector, una llamada A2A o una conexión MCP envía allí | `OUTBOUND_PRIVATE_ALLOWLIST`, vacía por defecto; `MCP_ALLOWED_HOSTS` solo para MCP | El host que listes. Toda cuenta de toda organización alcanza cualquiera de sus puertos |
 | mem0 | Los recuerdos escritos para una persona o un chat | La `base_url` de la capability `memory_mem0`, que tiene que estar en `MEM0_ALLOWED_HOSTS` | La del host de mem0 que permitas |
 | Logfire | Spans de cada petición y cada run | `LOGFIRE_TOKEN` a nivel de deployment; un token `observability` en un spec, o `logfire_token_secret_id` en un entorno, redirige esos runs a otro proyecto. `LOGFIRE_BASE_URL` elige el deployment de EE. UU. o el de la UE. Sin definir en ninguna parte, no se envía nada | La de Pydantic, EE. UU. o UE |

@@ -28,6 +28,20 @@ Two things are versioned separately from this file and worth knowing about:
   toolbar) keeps the neutral look, per browser. A selected step can be resized
   by its right edge, bottom edge or corner, its text wrapping into the space, and
   **Reset size** in its right-click menu undoes it.
+- **Two self-hosted mail servers in the MCP catalog.** `google-workspace` is
+  `taylorwilsdon/google_workspace_mcp` (Gmail, Calendar, Drive and Sheets, over
+  Streamable HTTP with `MCP_ENABLE_OAUTH21`, using your own Google OAuth client);
+  `ms-365` is `softeria/ms-365-mcp-server --http` (Outlook mail and calendar, with
+  `--org-mode` for shared mailboxes and Teams). Each connection signs in as one
+  account.
+- **A how-to, [answer mail with an approved draft](docs/howto/answer-mail-with-approved-draft.md).**
+  A mail trigger, a drafting step, an editable approval and an `mcp.call` that
+  leaves the approved text as a draft in the thread or sends it.
+- **`mcp.call` can send an idempotency key.** **Idempotency key argument** names a
+  tool argument that the step fills with its stable operation key, the same on
+  every retry. The tool must declare it as text: publishing refuses an argument the
+  recorded schema lacks, and a run fails with `MCP_IDEMPOTENCY_ARGUMENT_UNDECLARED`
+  without calling. A keyed step counts as idempotent.
 - **Workflows started from Outlook.** An **Outlook** trigger starts a run for each
   new message in a folder of the organization's connected Microsoft 365 mailbox, or
   of a shared mailbox, that fits its filter. The poll reads the folders the
@@ -1077,6 +1091,19 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **`mcp.call` retries by what could have reached the server.** A failure before
+  the call - the server could not be reached, or did not answer the connection or
+  the tool listing - is a retried `MCP_CALL_FAILED`, for every call. A call that
+  breaks off after it was made is retried when it carries an idempotency key or
+  the tool is marked read-only; any other now ends **Uncertain** and waits for a
+  person, because the tool may have acted. `MCP_CALL_FAILED` used to fail the step
+  without a retry; a failure before the call is now retried.
+- **`work-iq`'s catalog entry states its limits:** changes (create, update, send)
+  are blocked until a tenant administrator allows them by policy, it is billed in
+  Copilot Credits, and it answers 25 results by default. The four watch
+  presets that used the Work IQ mail and Teams servers (`mail-needs-reply`,
+  `mail-invoices`, `mail-newsletters`, `teams-unanswered`) now point at `ms-365`;
+  `teams-unanswered` needs the server to run with `--org-mode`.
 - **A mail agent trigger's prompt names the message and its thread.** A Gmail or
   Outlook trigger's prompt gains a `Message-ID:` and a `Thread:` line, each only when
   the mail carried one; an id over 998 characters is left out. The Outlook poller
@@ -1227,6 +1254,17 @@ Two things are versioned separately from this file and worth knowing about:
   `REVISION_CONFLICT` from `table.record.update`, `.upsert` or `.delete` fails
   the step at once, because the same revision would conflict on every retry;
   route it with `error.handle` to a fresh read instead (#1790).
+
+### Removed
+
+- **The six per-application Work IQ catalog entries** - `m365-mail`,
+  `m365-calendar`, `m365-teams`, `m365-sharepoint`, `m365-onedrive` and
+  `m365-word` - because Microsoft keeps those servers for compatibility only.
+  Connections already made keep working, by their address. An agent spec that binds
+  one as each person's own service still runs, but its next publish is refused with
+  a message naming the entry: bind `ms-365` (the self-hosted server, for mail and
+  calendar) or `work-iq` (to ask across Microsoft 365) instead. **BREAKING:** this
+  needs action only for a spec that binds one of them.
 
 ## [1.17.0] - 2026-10-25
 

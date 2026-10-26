@@ -1,5 +1,5 @@
 ---
-source_sha: "79a2c38f7067"
+source_sha: "c0c3258f9d23"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -560,15 +560,46 @@ powierzasz, wybierz `all`.
 
 Wyjście to `text` odpowiedzi, jej `structured` dane, gdy narzędzie je zwraca, i
 `is_error`. Błąd, którym odpowiada narzędzie, kończy krok błędem
-`MCP_TOOL_ERROR`, chyba że `on_tool_error` to `complete`. MCP nie ma klucza
-idempotencji, więc awaria po wywołaniu powtarza je przy ponowieniu.
+`MCP_TOOL_ERROR`, chyba że `on_tool_error` to `complete`.
+
+MCP nie ma własnego klucza idempotencji. Serwer, który przyjmuje taki klucz jako
+argument narzędzia, można mimo to uczynić bezpiecznym przy ponowieniu: ustaw
+**Idempotency key argument** (`idempotency_key_argument`) na nazwę tego argumentu,
+a krok wyśle tam swój stały klucz operacji - taki sam przy każdej próbie kroku i
+inny w każdej iteracji pętli - bez względu na to, jaką wartość do niego podpięto.
+Narzędzie musi deklarować ten argument jako tekst.
+
+Publikacja odrzuca argument,
+którego brakuje w zapisanym schemacie narzędzia, a narzędzie bez zapisanego
+schematu przechodzi, więc najpierw przetestuj serwer. W czasie runu krok przed
+wywołaniem wypisuje narzędzia serwera i kończy się błędem
+`MCP_IDEMPOTENCY_ARGUMENT_UNDECLARED`, niczego nie wywołując, gdy aktualny schemat
+nie ma takiego argumentu. Krok z kluczem liczy się jako idempotentny: silnik może
+go uruchomić ponownie.
+
+Gdy wywołanie się urwie, dalszy przebieg zależy od tego, czy mogło dotrzeć do
+serwera:
+
+- **Przed wywołaniem** - nie udało się połączyć z serwerem albo nie odpowiedział
+  na połączenie lub listę narzędzi - nic nie wysłano, a krok kończy się
+  ponawianym `MCP_CALL_FAILED`.
+- **Po wywołaniu, wywołanie z kluczem albo narzędzie oznaczone przez serwer jako
+  tylko do odczytu** (w liście, którą krok właśnie odczytał, a w razie braku w tej
+  zapisanej przy teście serwera) - ten sam ponawiany błąd, bo powtórzenie jest
+  bezpieczne.
+- **Po wywołaniu, każde inne narzędzie, bez klucza** - narzędzie mogło zadziałać,
+  a odpowiedź nie nadeszła. Krok kończy się jako **Uncertain** z komunikatem *The
+  tool was called and no answer came back; it may have acted*, a run czeka na
+  człowieka, który sprawdza drugi system, zanim uruchomi krok ponownie.
 
 | Co się stało | Wynik |
 |---|---|
 | Serwera nie ma albo jest wyłączony | `MCP_SERVER_UNAVAILABLE`, nic nie wysłano |
 | Jego poświadczenie trzeba ponownie autoryzować | `MCP_SERVER_UNAUTHORIZED`, nic nie wysłano |
 | Serwer nie oferuje narzędzia | `MCP_TOOL_NOT_FOUND` |
-| Nie udało się połączyć z serwerem albo połączenie zerwało się | `MCP_CALL_FAILED` |
+| Nie udało się połączyć z serwerem albo połączenie zerwało się przed bezpiecznym wywołaniem lub po nim | `MCP_CALL_FAILED`, ponawiany |
+| Połączenie zerwało się po wywołaniu bez klucza narzędzia nieznanego jako tylko do odczytu | Uncertain: run zatrzymuje się dla człowieka |
+| Narzędzie nie deklaruje **Idempotency key argument** | `MCP_IDEMPOTENCY_ARGUMENT_UNDECLARED`, nic nie wysłano |
 | Narzędzie odpowiedziało błędem | `MCP_TOOL_ERROR` albo odpowiedź jako wyjście |
 | Ustrukturyzowana odpowiedź ma ponad 1 MiB | `MCP_RESULT_TOO_LARGE` |
 

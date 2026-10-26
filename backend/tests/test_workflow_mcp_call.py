@@ -22,7 +22,7 @@ from app.core.permissions import AuthContext
 from app.db.models.workflow_approval import WorkflowApprovalStatus
 from app.repositories import mcp_connection_repo
 from app.services.workflow_execution import context
-from app.workflows.contracts.results import Completed, Failed, Waiting
+from app.workflows.contracts.results import Completed, Failed, Uncertain, Waiting
 from app.workflows.nodes.mcp_call import _handler as node
 
 pytestmark = pytest.mark.anyio
@@ -31,7 +31,7 @@ CONNECTION = uuid.uuid4()
 APPROVER = uuid.uuid4()
 
 
-def _dispatch() -> context.DispatchContext:
+def _dispatch(idempotency_key: str = "op-key-1") -> context.DispatchContext:
     org = uuid.uuid4()
     return context.DispatchContext(
         organization_id=org,
@@ -42,13 +42,14 @@ def _dispatch() -> context.DispatchContext:
         auth=AuthContext(user_id=uuid.uuid4(), organization_id=org, role="owner"),
         resumed_agent_run_id=None,
         workflow_id=uuid.uuid4(),
+        idempotency_key=idempotency_key,
     )
 
 
-def _tool(name: str, *, read_only: bool | None) -> Tool:
+def _tool(name: str, *, read_only: bool | None, input_schema: dict[str, Any] | None = None) -> Tool:
     return Tool(
         name=name,
-        input_schema={"type": "object"},
+        input_schema=input_schema or {"type": "object"},
         annotations=None if read_only is None else ToolAnnotations(read_only_hint=read_only),
     )
 
@@ -85,6 +86,9 @@ class _Server:
         )
     )
     failure: BaseException | None = None
+    connect_failure: BaseException | None = None
+    delay: float = 0
+    attempted: int = 0
     approval: Any = None
     calls: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
     asked: list[dict[str, Any]] = field(default_factory=list)
@@ -105,14 +109,19 @@ def server(monkeypatch: pytest.MonkeyPatch) -> _Server:
             return ListToolsResult(tools=state.tools)
 
         async def call_tool(self, name: str, arguments: dict[str, Any]) -> Any:
+            state.attempted += 1
             if state.failure is not None:
                 raise state.failure
+            if state.delay:
+                await asyncio.sleep(state.delay)
             state.calls.append((name, arguments))
             return state.result
 
     @asynccontextmanager
     async def mcp_session(url: str, headers: dict[str, str] | None):
         state.opened_with.append((url, headers))
+        if state.connect_failure is not None:
+            raise state.connect_failure
         yield _Session()
 
     async def create(_db, **kwargs):
@@ -148,8 +157,8 @@ def _config(tool: str = "find_lead", **overrides: Any) -> node.McpCallConfig:
     return node.McpCallConfig(connection_id=CONNECTION, tool=tool, **overrides)
 
 
-async def _run(config: Any, arguments: dict[str, Any] | None = None):
-    with context.dispatching_as(_dispatch()):
+async def _run(config: Any, arguments: dict[str, Any] | None = None, *, key: str = "op-key-1"):
+    with context.dispatching_as(_dispatch(key)):
         return await node.handle(config, node.McpCallInput(arguments=arguments))
 
 
@@ -280,13 +289,113 @@ async def test_an_error_the_tool_answers_with_fails_or_completes_as_configured(s
     assert isinstance(kept, Completed) and kept.output.is_error is True
 
 
-async def test_a_server_that_breaks_mid_call_fails_with_the_root_cause(server):
-    server.failure = ExceptionGroup("task group", [ConnectionError("reset by peer")])
+_BROKEN = ExceptionGroup("task group", [ConnectionError("reset by peer")])
+_KEYED = {
+    "type": "object",
+    "properties": {"request_id": {"type": "string"}, "count": {"type": "integer"}},
+}
 
-    result = await _run(_config())
 
-    assert isinstance(result, Failed) and result.error.code == "MCP_CALL_FAILED"
+def _keyed_tool(name: str = "create_lead", **kwargs: Any) -> Tool:
+    return _tool(name, read_only=False, input_schema=_KEYED, **kwargs)
+
+
+def _failure(result: Any) -> Failed:
+    assert isinstance(result, Failed)
+    return result
+
+
+async def test_a_server_that_cannot_be_reached_fails_for_a_retry(server):
+    server.connect_failure = ExceptionGroup("task group", [ConnectionError("refused")])
+
+    result = _failure(await _run(_config("create_lead", approval="none")))
+
+    assert result.error.code == "MCP_CALL_FAILED" and result.error.retryable is True
+    assert result.error.message == "refused"
+    assert server.attempted == 0
+
+
+async def test_an_unkeyed_write_that_breaks_mid_call_is_uncertain(server):
+    server.failure = _BROKEN
+
+    result = await _run(_config("create_lead", approval="none"))
+
+    assert isinstance(result, Uncertain)
+    assert result.detail == "The tool was called and no answer came back; it may have acted"
+    assert "reset by peer" not in result.detail and server.attempted == 1
+
+
+async def test_a_keyed_write_that_breaks_mid_call_fails_for_a_retry(server):
+    server.failure = _BROKEN
+    server.tools = [_keyed_tool()]
+
+    result = _failure(
+        await _run(_config("create_lead", approval="none", idempotency_key_argument="request_id"))
+    )
+
+    assert result.error.code == "MCP_CALL_FAILED" and result.error.retryable is True
     assert result.error.message == "reset by peer"
+
+
+async def test_a_read_only_tool_that_breaks_mid_call_fails_for_a_retry(server):
+    server.failure = _BROKEN
+
+    result = _failure(await _run(_config()))
+
+    assert result.error.code == "MCP_CALL_FAILED" and result.error.retryable is True
+    assert result.error.message == "reset by peer" and server.attempted == 1
+
+
+async def test_a_tool_recorded_read_only_is_retried_without_listing(server):
+    server.connection.last_tools = [{"name": "find_lead", "read_only": True}]
+    server.failure = _BROKEN
+    server.tools = []  # a listing would say the tool is gone
+
+    result = _failure(await _run(_config(approval="none")))
+
+    assert result.error.retryable is True and server.attempted == 1
+
+
+async def test_the_listing_is_read_before_the_recorded_mark(server):
+    server.connection.last_tools = [{"name": "find_lead", "read_only": False}]
+    server.failure = _BROKEN
+
+    result = _failure(await _run(_config()))  # approval "writes" lists the tools
+
+    assert result.error.retryable is True
+
+
+async def test_a_tool_recorded_read_only_but_listed_a_write_is_asked_not_called(server):
+    # The live listing wins, so an unkeyed call is never made on a stale read-only mark -
+    # and so no failure after the call can be judged retryable by it.
+    server.connection.last_tools = [{"name": "create_lead", "read_only": True}]
+    server.failure = _BROKEN
+
+    result = await _run(_config("create_lead"))
+
+    assert isinstance(result, Waiting) and server.attempted == 0
+
+
+async def test_an_approved_write_resumed_on_a_stale_read_only_record_is_still_a_write(server):
+    # The first dispatch asked because the live listing said "write". The resume
+    # does not list again, so the stale record must not turn the failure after the
+    # call into a retry - that would send the write twice.
+    server.connection.last_tools = [{"name": "create_lead", "read_only": True}]
+    server.failure = _BROKEN
+    server.approval = _decided(WorkflowApprovalStatus.APPROVED)
+
+    result = await _run(_config("create_lead"))
+
+    assert isinstance(result, Uncertain) and server.attempted == 1
+
+
+async def test_a_timeout_after_the_call_is_classified_like_a_break(server):
+    server.delay = 5
+    unkeyed = _config("create_lead", approval="none").model_copy(update={"timeout_seconds": 0.01})
+    read = _config().model_copy(update={"timeout_seconds": 0.01})
+
+    assert isinstance(await _run(unkeyed), Uncertain)
+    assert _failure(await _run(read)).error.retryable is True
 
 
 async def test_cancellation_inside_the_call_is_not_swallowed(server):
@@ -538,3 +647,179 @@ async def test_publish_refuses_a_cached_tool_outside_the_connections_allowlist(s
     assert await node.check_resources(MagicMock(), ctx, _config()) == [
         ("tool", "This tool is not allowed on this MCP connection")
     ]
+
+
+class TestIdempotencyKey:
+    def _keyed(self, server, **overrides: Any) -> node.McpCallConfig:
+        server.tools = [_keyed_tool()]
+        return _config(
+            "create_lead", approval="none", idempotency_key_argument="request_id", **overrides
+        )
+
+    async def test_a_keyed_call_sends_the_steps_key_in_the_named_argument(self, server):
+        result = await _run(self._keyed(server), {"name": "Ada"}, key="op-7")
+
+        assert isinstance(result, Completed)
+        assert server.calls == [("create_lead", {"name": "Ada", "request_id": "op-7"})]
+
+    @pytest.mark.security
+    async def test_the_steps_key_wins_over_a_bound_value_of_the_same_argument(self, server):
+        await _run(self._keyed(server), {"request_id": "chosen-by-a-binding"}, key="op-7")
+
+        assert server.calls == [("create_lead", {"request_id": "op-7"})]
+
+    async def test_a_retry_sends_the_same_key(self, server):
+        config = self._keyed(server)
+
+        await _run(config, key="op-7")
+        await _run(config, key="op-7")
+        await _run(config, key="op-8")
+
+        assert [args["request_id"] for _, args in server.calls] == ["op-7", "op-7", "op-8"]
+
+    @pytest.mark.parametrize(
+        "schema",
+        [
+            {"type": "object"},
+            {"type": "object", "properties": {"request_id": {"type": "integer"}}},
+            {"type": "object", "properties": {"request_id": "string"}},
+        ],
+    )
+    async def test_a_key_argument_the_tool_does_not_declare_fails_before_calling(
+        self, server, schema
+    ):
+        server.tools = [_tool("create_lead", read_only=False, input_schema=schema)]
+
+        result = _failure(
+            await _run(
+                _config("create_lead", approval="none", idempotency_key_argument="request_id")
+            )
+        )
+
+        assert result.error.code == "MCP_IDEMPOTENCY_ARGUMENT_UNDECLARED"
+        assert result.error.retryable is False
+        assert "op-key-1" not in result.error.model_dump_json()
+        assert server.calls == [] and server.attempted == 0
+
+    @pytest.mark.parametrize("schema", [{"properties": ["request_id"]}, {"properties": "x"}])
+    async def test_a_malformed_schema_declares_nothing_at_run_time(self, server, schema):
+        server.tools = [_tool("create_lead", read_only=False, input_schema=schema)]
+
+        result = _failure(
+            await _run(
+                _config("create_lead", approval="none", idempotency_key_argument="request_id")
+            )
+        )
+
+        assert result.error.code == "MCP_IDEMPOTENCY_ARGUMENT_UNDECLARED"
+        assert server.attempted == 0
+
+    @pytest.mark.parametrize("declared", [{}, {"type": ["null", "string"]}, {"type": "string"}])
+    async def test_a_text_or_untyped_property_is_declared(self, server, declared):
+        server.tools = [
+            _tool(
+                "create_lead",
+                read_only=False,
+                input_schema={"properties": {"request_id": declared}},
+            )
+        ]
+
+        result = await _run(
+            _config("create_lead", approval="none", idempotency_key_argument="request_id")
+        )
+
+        assert isinstance(result, Completed)
+
+    async def test_a_keyed_call_lists_the_tools_even_without_approval(self, server):
+        server.tools = []
+
+        result = _failure(
+            await _run(
+                _config("create_lead", approval="none", idempotency_key_argument="request_id")
+            )
+        )
+
+        assert result.error.code == "MCP_TOOL_NOT_FOUND" and server.attempted == 0
+
+    @pytest.mark.security
+    async def test_the_key_never_reaches_the_approval_details(self, server):
+        server.tools = [_keyed_tool()]
+        result = await _run(
+            _config("create_lead", idempotency_key_argument="request_id"),
+            {"name": "Ada"},
+            key="op-secret-key",
+        )
+
+        assert isinstance(result, Waiting)
+        assert "op-secret-key" not in server.asked[0]["details"]
+        assert "request_id" not in server.asked[0]["details"]
+
+    async def test_a_keyed_step_is_idempotent_and_an_unkeyed_one_at_least_once(self):
+        assert node.retry_guarantee_for(_config()) == "at_least_once"
+        assert node.retry_guarantee_for(None) == "at_least_once"
+        assert (
+            node.retry_guarantee_for(_config(idempotency_key_argument="request_id")) == "idempotent"
+        )
+
+    @pytest.mark.parametrize("name", ["a b", "", "1abc", "x" * 65, "a;b"])
+    def test_a_key_argument_that_is_not_a_name_is_refused(self, name):
+        with pytest.raises(ValueError):
+            _config(idempotency_key_argument=name)
+
+
+class TestPublishingAKeyArgument:
+    @pytest.fixture
+    def found(self, monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
+        state = SimpleNamespace(
+            connection=SimpleNamespace(
+                is_enabled=True,
+                visibility="org",
+                allowed_tools=None,
+                last_tools=[{"name": "create_lead", "input_schema": _KEYED}],
+            )
+        )
+        monkeypatch.setattr(
+            mcp_connection_repo,
+            "get_org_scoped_by_id",
+            AsyncMock(side_effect=lambda _db, **_kw: state.connection),
+        )
+        return state
+
+    async def _problems(self, config: Any) -> list[tuple[str, str]]:
+        ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="owner")
+        return await node.check_resources(MagicMock(), ctx, config)
+
+    def _keyed(self, argument: str) -> node.McpCallConfig:
+        return _config("create_lead", idempotency_key_argument=argument)
+
+    async def test_publish_accepts_a_declared_text_argument(self, found):
+        assert await self._problems(self._keyed("request_id")) == []
+
+    @pytest.mark.parametrize("argument", ["missing", "count"])
+    async def test_publish_refuses_a_key_argument_the_recorded_tool_does_not_take(
+        self, found, argument
+    ):
+        assert await self._problems(self._keyed(argument)) == [
+            ("idempotency_key_argument", "The tool does not take this argument as text")
+        ]
+
+    async def test_publish_accepts_a_key_argument_when_the_schema_was_not_recorded(self, found):
+        found.connection.last_tools = [{"name": "create_lead"}]
+        assert await self._problems(self._keyed("anything")) == []
+
+    @pytest.mark.parametrize("schema", [{"properties": ["request_id"]}, {"properties": None}])
+    async def test_publish_refuses_a_malformed_schema_without_raising(self, found, schema):
+        found.connection.last_tools = [{"name": "create_lead", "input_schema": schema}]
+        assert [f for f, _ in await self._problems(self._keyed("request_id"))] == [
+            "idempotency_key_argument"
+        ]
+
+    async def test_publish_does_not_hold_a_server_never_tested_to_a_schema(self, found):
+        found.connection.last_tools = None
+        assert await self._problems(self._keyed("anything")) == []
+
+    async def test_a_tool_the_list_lacks_is_one_problem_not_two(self, found):
+        problems = await self._problems(
+            _config("drop_tables", idempotency_key_argument="request_id")
+        )
+        assert [field for field, _ in problems] == ["tool"]

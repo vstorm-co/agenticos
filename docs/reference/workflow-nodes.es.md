@@ -1,5 +1,5 @@
 ---
-source_sha: "79a2c38f7067"
+source_sha: "c0c3258f9d23"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -570,15 +570,43 @@ confías para hacerla.
 La salida es el `text` de la respuesta, sus datos `structured` cuando la
 herramienta los devuelve, e `is_error`. Un error con el que responde la
 herramienta hace fallar el paso con `MCP_TOOL_ERROR` salvo que `on_tool_error`
-sea `complete`. MCP no tiene clave de idempotencia, así que un fallo tras la
-llamada la repite en el reintento.
+sea `complete`.
+
+MCP no tiene una clave de idempotencia propia. Un servidor que acepta una como
+argumento de la herramienta puede hacerse seguro ante reintentos igualmente:
+pon **Idempotency key argument** (`idempotency_key_argument`) con el nombre de ese
+argumento, y el paso enviará ahí su clave de operación estable - la misma en cada
+intento del paso y distinta en cada iteración de un bucle -, sea cual sea el valor
+que se le hubiera enlazado. La herramienta debe declarar el argumento como texto.
+
+Publicar rechaza un argumento que falta en el esquema registrado de la
+herramienta; una herramienta sin esquema registrado pasa, así que prueba antes el
+servidor. En ejecución el paso lista las herramientas del servidor antes de
+llamar y falla con `MCP_IDEMPOTENCY_ARGUMENT_UNDECLARED`, sin llamar a nada,
+cuando el esquema vigente no tiene ese argumento. Un paso con clave cuenta como
+idempotente: el motor puede ejecutarlo de nuevo.
+
+Cuando la llamada se corta, lo que sigue depende de si pudo llegar al servidor:
+
+- **Antes de la llamada** - no se pudo llegar al servidor, o no respondió a la
+  conexión ni a la lista de herramientas - no se envió nada y el paso falla con un
+  `MCP_CALL_FAILED` que se reintenta.
+- **Tras la llamada, con clave o con una herramienta que el servidor marca como de
+  solo lectura** (en la lista que el paso acaba de leer, o si no en la registrada
+  al probar el servidor) - el mismo fallo reintentado, porque repetirla es seguro.
+- **Tras la llamada, cualquier otra herramienta, sin clave** - la herramienta pudo
+  actuar y no llegó respuesta. El paso termina como **Uncertain** con *The tool was
+  called and no answer came back; it may have acted*, y el run espera a una
+  persona, que mira en el otro sistema antes de volver a ejecutar el paso.
 
 | Qué pasó | Resultado |
 |---|---|
 | El servidor ya no existe o está apagado | `MCP_SERVER_UNAVAILABLE`, nada enviado |
 | Hay que volver a autorizar su credencial | `MCP_SERVER_UNAUTHORIZED`, nada enviado |
 | El servidor no ofrece la herramienta | `MCP_TOOL_NOT_FOUND` |
-| No se pudo llegar al servidor, o cortó | `MCP_CALL_FAILED` |
+| No se pudo llegar al servidor, o cortó antes de una llamada segura o después | `MCP_CALL_FAILED`, reintentado |
+| Cortó tras una llamada sin clave a una herramienta no conocida como de solo lectura | Uncertain: el run se detiene para una persona |
+| La herramienta no declara el **Idempotency key argument** | `MCP_IDEMPOTENCY_ARGUMENT_UNDECLARED`, nada enviado |
 | La herramienta respondió con un error | `MCP_TOOL_ERROR`, o la respuesta como salida |
 | La respuesta estructurada supera 1 MiB | `MCP_RESULT_TOO_LARGE` |
 

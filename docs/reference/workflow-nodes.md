@@ -546,15 +546,43 @@ for a server you do not trust to make it.
 
 The output is the answer's `text`, its `structured` data when the tool returns
 some, and `is_error`. An error the tool answers with fails the step with
-`MCP_TOOL_ERROR` unless `on_tool_error` is `complete`. MCP has no idempotency
-key, so a crash after the call repeats it on the retry.
+`MCP_TOOL_ERROR` unless `on_tool_error` is `complete`.
+
+MCP has no idempotency key of its own. A server that takes one as a tool argument
+can still be made safe to retry: set **Idempotency key argument**
+(`idempotency_key_argument`) to that argument's name, and the step sends its stable
+operation key there - the same on every attempt of the step, and different for each
+iteration of a loop - whatever value was bound to it. The tool must declare the
+argument as text.
+
+Publishing refuses an argument that the tool's recorded
+schema lacks, and a tool whose schema was not recorded passes, so test the server
+first; at run time the step lists the server's tools before calling and fails with
+`MCP_IDEMPOTENCY_ARGUMENT_UNDECLARED`, calling nothing, when the live schema has no
+such argument. A keyed step counts as idempotent: the engine may run it again.
+
+When the call breaks off, what happens next depends on whether it can have reached
+the server:
+
+- **Before the call** - the server could not be reached, or did not answer the
+  connection or the tool listing - nothing was sent, and the step fails with a
+  `MCP_CALL_FAILED` that is retried.
+- **After the call, a keyed call or a tool the server marks read-only** (in the
+  listing the step just read, else in the one recorded when the server was
+  tested) - the same retried failure, because repeating it is safe.
+- **After the call, any other tool, with no key** - the tool may have acted and no
+  answer came back. The step ends **Uncertain** with *The tool was called and no
+  answer came back; it may have acted*, and the run waits for a person, who looks
+  at the other system before running the step again.
 
 | What happened | Result |
 |---|---|
 | The server is gone or turned off | `MCP_SERVER_UNAVAILABLE`, nothing sent |
 | Its credential needs authorizing again | `MCP_SERVER_UNAUTHORIZED`, nothing sent |
 | The server does not offer the tool | `MCP_TOOL_NOT_FOUND` |
-| The server could not be reached, or broke off | `MCP_CALL_FAILED` |
+| The server could not be reached, or broke off, before or after a safe call | `MCP_CALL_FAILED`, retried |
+| It broke off after an unkeyed call to a tool not known read-only | Uncertain: the run stops for a person |
+| The tool does not declare the **Idempotency key argument** | `MCP_IDEMPOTENCY_ARGUMENT_UNDECLARED`, nothing sent |
 | The tool answered with an error | `MCP_TOOL_ERROR`, or the answer as output |
 | The structured answer is over 1 MiB | `MCP_RESULT_TOO_LARGE` |
 

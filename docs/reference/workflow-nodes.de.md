@@ -1,5 +1,5 @@
 ---
-source_sha: "79a2c38f7067"
+source_sha: "c0c3258f9d23"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -585,16 +585,48 @@ nicht zutrauen.
 
 Die Ausgabe ist der `text` der Antwort, ihre `structured` Daten, wenn das Tool
 welche liefert, und `is_error`. Ein Fehler, mit dem das Tool antwortet, lässt den
-Schritt mit `MCP_TOOL_ERROR` scheitern, außer `on_tool_error` ist `complete`. MCP
-hat keinen Idempotenzschlüssel, daher wiederholt ein Absturz nach dem Aufruf ihn
-beim erneuten Versuch.
+Schritt mit `MCP_TOOL_ERROR` scheitern, außer `on_tool_error` ist `complete`.
+
+MCP hat keinen eigenen Idempotenzschlüssel. Ein Server, der einen solchen
+Schlüssel als Tool-Argument annimmt, lässt sich trotzdem wiederholungssicher
+machen: Setzen Sie **Idempotency key argument** (`idempotency_key_argument`) auf
+den Namen dieses Arguments, und der Schritt sendet dort seinen stabilen
+Operationsschlüssel - bei jedem Versuch des Schritts derselbe, in jeder Iteration
+einer Schleife ein anderer -, gleich welcher Wert daran gebunden war. Das Tool
+muss das Argument als Text deklarieren.
+
+Das Veröffentlichen lehnt ein Argument ab,
+das im aufgezeichneten Schema des Tools fehlt; ein Tool ohne aufgezeichnetes
+Schema geht durch, testen Sie den Server also zuerst. Zur Laufzeit listet der
+Schritt vor dem Aufruf die Tools des Servers und scheitert mit
+`MCP_IDEMPOTENCY_ARGUMENT_UNDECLARED`, ohne etwas aufzurufen, wenn das aktuelle
+Schema kein solches Argument hat. Ein Schritt mit Schlüssel gilt als idempotent:
+Die Engine darf ihn erneut ausführen.
+
+Bricht der Aufruf ab, hängt das Weitere davon ab, ob er den Server erreicht haben
+kann:
+
+- **Vor dem Aufruf** - der Server war nicht erreichbar oder antwortete nicht auf
+  die Verbindung oder die Tool-Liste - wurde nichts gesendet, und der Schritt
+  scheitert mit einem wiederholten `MCP_CALL_FAILED`.
+- **Nach dem Aufruf, mit Schlüssel oder bei einem Tool, das der Server als nur
+  lesend markiert** (in der Liste, die der Schritt gerade gelesen hat, sonst in
+  der beim Test des Servers aufgezeichneten) - derselbe wiederholte Fehler, weil
+  eine Wiederholung sicher ist.
+- **Nach dem Aufruf, jedes andere Tool, ohne Schlüssel** - das Tool kann gehandelt
+  haben, und es kam keine Antwort. Der Schritt endet als **Uncertain** mit *The
+  tool was called and no answer came back; it may have acted*, und der Run wartet
+  auf eine Person, die im anderen System nachsieht, bevor sie den Schritt erneut
+  ausführt.
 
 | Was passiert ist | Ergebnis |
 |---|---|
 | Der Server ist weg oder ausgeschaltet | `MCP_SERVER_UNAVAILABLE`, nichts gesendet |
 | Seine Zugangsdaten müssen neu autorisiert werden | `MCP_SERVER_UNAUTHORIZED`, nichts gesendet |
 | Der Server bietet das Tool nicht an | `MCP_TOOL_NOT_FOUND` |
-| Der Server war nicht erreichbar oder brach ab | `MCP_CALL_FAILED` |
+| Der Server war nicht erreichbar oder brach vor einem sicheren Aufruf oder danach ab | `MCP_CALL_FAILED`, wiederholt |
+| Er brach nach einem Aufruf ohne Schlüssel an einem Tool ab, das nicht als nur lesend bekannt ist | Uncertain: Der Run hält für eine Person an |
+| Das Tool deklariert das **Idempotency key argument** nicht | `MCP_IDEMPOTENCY_ARGUMENT_UNDECLARED`, nichts gesendet |
 | Das Tool antwortete mit einem Fehler | `MCP_TOOL_ERROR` oder die Antwort als Ausgabe |
 | Die strukturierte Antwort ist größer als 1 MiB | `MCP_RESULT_TOO_LARGE` |
 
