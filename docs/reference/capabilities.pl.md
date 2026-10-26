@@ -1,5 +1,5 @@
 ---
-source_sha: "278c029caf3d"
+source_sha: "6a55e412c29a"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1363,6 +1363,14 @@ Slacku, więc używa go każdy run, ktokolwiek pytał - i wszystko, co uruchomi
 zadanie, może go odczytać. Podpinaj klucz, który mogą dzielić wszyscy, którzy mogą
 uruchamiać agenta. Praca na prywatnej subskrypcji podlega warunkom Anthropic i OpenAI dla tych
 planów, które mogą na to nie pozwalać we współdzielonym wdrożeniu.
+
+**Klucz pasuje do harnessu.** Picker proponuje Claude Code tylko klucze zapisane
+dla Anthropic albo dla OpenRouter za `base_url`, a Codex tylko klucze OpenAI i
+logowania ChatGPT. Klucz zapisany jako `custom` pasuje do obu, tak samo jak klucz
+już podpięty. Publikacja odrzuca klucz zapisany dla dostawcy drugiego harnessu i
+nazywa obu: klucz OpenAI podpięty do Claude Code przeszedłby publikację, a potem
+zawodził przy każdym zadaniu. Klucz innej bramki zgodnej z API Anthropic zapisuje
+się jako `custom`.
 
 **Delegowanie do coding agenta.** Delegat, który sam wiąże `sandbox`, działa w świeżym
 workspace w pamięci, bez shella, więc coding agent osiągany przez delegowanie nie ma

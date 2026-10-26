@@ -1,5 +1,5 @@
 ---
-source_sha: "278c029caf3d"
+source_sha: "6a55e412c29a"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1391,6 +1391,14 @@ sea quien preguntó - y todo lo que ejecuta una tarea puede leerla. Vincula una
 clave que puedan compartir todos los que pueden ejecutar el agent. Trabajar con una suscripción
 personal está sujeto a las condiciones de Anthropic y OpenAI para esos planes, que
 pueden no permitirlo en un despliegue compartido.
+
+**La clave encaja con el harness.** El selector ofrece a Claude Code solo claves
+guardadas para Anthropic, o para OpenRouter detrás de `base_url`, y a Codex solo
+claves de OpenAI e inicios de sesión de ChatGPT. Una clave guardada como `custom`
+encaja con los dos, igual que la clave ya vinculada. Publicar rechaza una clave
+guardada para el proveedor del otro harness y nombra a ambos: una clave de OpenAI
+vinculada a Claude Code se publicaría y luego fallaría en cada tarea. La clave de
+otra pasarela compatible con Anthropic se guarda como `custom`.
 
 **Delegar en un coding agent.** Un delegado que enlaza `sandbox` por sí mismo se
 ejecuta en un workspace nuevo en memoria, sin shell, así que un coding agent al que se

@@ -1301,6 +1301,13 @@ key that everyone who may run the agent may share.
 Running on a personal subscription is subject to Anthropic's and OpenAI's terms for
 those plans, which may not allow it on a shared deployment.
 
+**The key fits the harness.** The picker offers Claude Code only keys stored for
+Anthropic, or for OpenRouter behind `base_url`, and Codex only OpenAI keys and
+ChatGPT sign-ins. A key stored for `custom` fits either, and so does the key
+already bound. Publish refuses a key stored for the other harness's provider and
+names both: an OpenAI key bound to Claude Code would publish and then fail at
+every task. A key for another Anthropic-compatible gateway is stored as `custom`.
+
 **Delegating to a coding agent.** A delegate that binds `sandbox` itself runs in a
 fresh in-memory workspace with no shell, so a coding agent reached by delegation has
 nowhere to run its harness. Give the delegating agent the `sandbox` capability on a

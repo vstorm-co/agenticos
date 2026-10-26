@@ -1,5 +1,5 @@
 ---
-source_sha: "278c029caf3d"
+source_sha: "6a55e412c29a"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1448,6 +1448,15 @@ Aufgabe ausführt, kann ihn lesen. Binde einen Key, den alle teilen dürfen, die
 Agent ausführen dürfen. Die Arbeit auf
 einem persönlichen Abo unterliegt den Bedingungen von Anthropic und OpenAI für diese
 Pläne, die das auf einem geteilten Deployment womöglich nicht erlauben.
+
+**Der Key passt zum Harness.** Die Auswahl bietet Claude Code nur Keys an, die für
+Anthropic gespeichert sind oder für OpenRouter hinter `base_url`, und Codex nur
+OpenAI-Keys und ChatGPT-Anmeldungen. Ein als `custom` gespeicherter Key passt zu
+beiden, ebenso der schon gebundene. Die Veröffentlichung lehnt einen Key ab, der
+für den Anbieter des anderen Harness gespeichert ist, und nennt beide: Ein
+OpenAI-Key an Claude Code würde veröffentlicht und dann bei jeder Aufgabe
+scheitern. Der Key eines anderen Anthropic-kompatiblen Gateways wird als `custom`
+gespeichert.
 
 **An einen Coding Agent delegieren.** Ein Delegierter, der `sandbox` selbst bindet,
 läuft in einem frischen Workspace im Speicher ohne Shell, sodass ein per Delegation

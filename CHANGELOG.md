@@ -19,6 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- The coding agent's key picker offers only keys for the chosen harness - Anthropic
+  (or OpenRouter) for Claude Code, OpenAI keys and ChatGPT sign-ins for Codex -
+  plus `custom` keys and the one already bound, and publish refuses a key stored
+  for the other harness's provider, naming both. A capability can now map a
+  config field's values to the purposes its key may have (#2485).
+
 ## [1.18.0] - 2026-10-26
 
 ### Fixed

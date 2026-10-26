@@ -555,6 +555,26 @@ function purposeOf(binding: CapabilityBindingSpec, requirement: SecretRequiremen
 }
 
 /**
+ * Which services a key in this slot may be for, or null when nothing says.
+ *
+ * The same order `SecretRequirement.purposes_for` reads on the server, so the
+ * list offers what publish accepts. A field whose values are not service ids
+ * maps each value to its purposes - the coding agent's harness, where Claude
+ * Code takes an Anthropic key and Codex an OpenAI key or a ChatGPT sign-in
+ * (#2485). Otherwise it is the one service `purposeOf` names.
+ */
+function purposesOf(
+  binding: CapabilityBindingSpec,
+  requirement: SecretRequirement,
+): string[] | null {
+  const mapping = requirement.purposes_by;
+  const mapped = mapping ? mapping.purposes[String(binding.config[mapping.field])] : undefined;
+  if (mapped !== undefined) return mapped;
+  const purpose = purposeOf(binding, requirement);
+  return purpose === null ? null : [purpose];
+}
+
+/**
  * Whether a stored key belongs in the list for this slot.
  *
  * Kind alone is too wide: eleven `api_key` rows are eleven indistinguishable
@@ -568,10 +588,17 @@ function purposeOf(binding: CapabilityBindingSpec, requirement: SecretRequiremen
  * a selection vanishing from its own control, on a spec that was saved and is
  * still valid, looks like data loss whatever the reason.
  */
-function fitsPurpose(secret: Secret, purpose: string | null, selectedId: string | null): boolean {
+function fitsPurpose(
+  secret: Secret,
+  purposes: string[] | null,
+  selectedId: string | null,
+): boolean {
   const declared = secret.purpose ?? "custom";
   return (
-    purpose === null || declared === purpose || declared === "custom" || secret.id === selectedId
+    purposes === null ||
+    purposes.includes(declared) ||
+    declared === "custom" ||
+    secret.id === selectedId
   );
 }
 
@@ -605,9 +632,10 @@ function SecretField({ binding, requirement, optional, onChange, disabled }: Sec
   const fieldId = `${binding.id}-secret`;
   const errorId = `${fieldId}-error`;
   const purpose = purposeOf(binding, requirement);
+  const purposes = purposesOf(binding, requirement);
   const usable = secrets.filter(
     (secret) =>
-      acceptsKind(requirement, secret.kind) && fitsPurpose(secret, purpose, binding.secret_id),
+      acceptsKind(requirement, secret.kind) && fitsPurpose(secret, purposes, binding.secret_id),
   );
   const state = vaultState(isLoading, listError, usable.length);
   // Having selected nothing is a fact about the spec, so it is said whatever the
@@ -696,7 +724,9 @@ function SecretField({ binding, requirement, optional, onChange, disabled }: Sec
           kind="api_key"
           // The chosen method *is* the service the key is for - "tavily",
           // "brave". Recording it is what lets the select above offer only the
-          // right keys next time instead of every API key in the vault.
+          // right keys next time instead of every API key in the vault. Not
+          // `purposesOf`: the coding agent's key may be a Claude subscription
+          // token, which stored as `anthropic` would be lent to model calls.
           purpose={purpose ?? "custom"}
           suggestedName={
             signIn === null ? secretNameFor(binding.id) : t("codingAgentKeyName", { signIn })

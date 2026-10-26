@@ -23,7 +23,14 @@ from app.agents.capabilities._registry import (
 from app.agents.capabilities.coding_agent._capability import CodingAgent
 from app.agents.capabilities.coding_agent._toolset import RUN_DESCRIPTION
 from app.agents.capabilities.sandbox import WORKSPACE_SHARED_RESOURCE
-from app.core.secret_kinds import ApiKeySecret, OpenAICodexSecret, SecretKind, SecretRequirement
+from app.core.secret_kinds import (
+    ApiKeySecret,
+    OpenAICodexSecret,
+    PurposesByValue,
+    SecretKind,
+    SecretRequirement,
+)
+from app.services.openai_codex import PURPOSE as OPENAI_CODEX_PURPOSE
 from app.services.openai_codex import VaultCodexCredentials
 
 __all__ = ["CODING_AGENT_ID", "CodingAgent", "CodingAgentConfig"]
@@ -184,6 +191,16 @@ class CodingAgentConfig(BaseModel):
     secret=SecretRequirement(
         kind=SecretKind.API_KEY,
         also_accepts=(SecretKind.OPENAI_CODEX,),
+        # The harness decides the provider, so the picker and publish narrow to
+        # its keys. OpenRouter is the gateway Claude Code is documented behind
+        # (`base_url`); another gateway's key is stored as "Something else".
+        purposes_by=PurposesByValue(
+            field="harness",
+            purposes={
+                "claude_code": ("anthropic", "openrouter"),
+                "codex": ("openai", OPENAI_CODEX_PURPOSE),
+            },
+        ),
         description=(
             "Claude Code: an Anthropic API key or a Claude subscription token. "
             "Codex: an OpenAI API key or a ChatGPT sign-in."

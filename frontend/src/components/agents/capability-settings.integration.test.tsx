@@ -665,6 +665,10 @@ describe("CapabilitySettings coding agent sign-in", () => {
         "Claude Code: an Anthropic key or token. Codex: an OpenAI key or a ChatGPT sign-in.",
       required_when: null,
       purpose: null,
+      purposes_by: {
+        field: "harness",
+        purposes: { claude_code: ["anthropic", "openrouter"], codex: ["openai", "openai_codex"] },
+      },
     },
   };
   const SIGN_IN: Secret = {
@@ -697,6 +701,67 @@ describe("CapabilitySettings coding agent sign-in", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Sign in with ChatGPT" }));
 
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ secret_id: "sec-chatgpt" }));
+  });
+
+  /**
+   * Every API key in the vault was offered whichever harness was chosen, and
+   * Claude Code with an OpenAI key published and failed at run time (#2485).
+   */
+  const VAULT: Secret[] = [
+    { ...API_KEY_SECRET, id: "sec-anthropic", name: "Anthropic", purpose: "anthropic" },
+    { ...API_KEY_SECRET, id: "sec-openai", name: "OpenAI", purpose: "openai" },
+    { ...API_KEY_SECRET, id: "sec-llama", name: "LlamaParse", purpose: "llamaparse" },
+    { ...API_KEY_SECRET, id: "sec-mine", name: "Gateway", purpose: "custom" },
+    { ...SIGN_IN, purpose: "openai_codex" },
+  ];
+
+  it("offers Claude Code its Anthropic keys and custom ones, not OpenAI's", async () => {
+    serve(VAULT);
+    mount(binding({ id: "coding_agent", config: { harness: "claude_code" } }), {
+      definition: CODER,
+    });
+
+    await userEvent.click(await screen.findByLabelText("Key or sign-in"));
+
+    expect(await screen.findByRole("option", { name: /Anthropic/ })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Gateway/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /OpenAI/ })).toBeNull();
+    expect(screen.queryByRole("option", { name: /LlamaParse/ })).toBeNull();
+    expect(screen.queryByRole("option", { name: /My ChatGPT/ })).toBeNull();
+  });
+
+  it("offers Codex its OpenAI keys and ChatGPT sign-ins, not Anthropic's", async () => {
+    serve(VAULT);
+    mount(binding({ id: "coding_agent", config: { harness: "codex" } }), { definition: CODER });
+
+    await userEvent.click(await screen.findByLabelText("Key or sign-in"));
+
+    expect(await screen.findByRole("option", { name: /OpenAI/ })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /My ChatGPT/ })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Gateway/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Anthropic/ })).toBeNull();
+    expect(screen.queryByRole("option", { name: /LlamaParse/ })).toBeNull();
+  });
+
+  it("keeps the bound key offered after the harness changes", async () => {
+    serve(VAULT);
+    mount(
+      binding({ id: "coding_agent", config: { harness: "codex" }, secret_id: "sec-anthropic" }),
+      { definition: CODER },
+    );
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Key or sign-in")).toHaveTextContent("Anthropic"),
+    );
+  });
+
+  it("narrows on nothing for a harness the map does not name", async () => {
+    serve(VAULT);
+    mount(binding({ id: "coding_agent", config: { harness: "aider" } }), { definition: CODER });
+
+    await userEvent.click(await screen.findByLabelText("Key or sign-in"));
+
+    expect(await screen.findByRole("option", { name: /LlamaParse/ })).toBeInTheDocument();
   });
 
   it("tells Claude Code where its subscription token comes from", async () => {

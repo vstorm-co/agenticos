@@ -1862,19 +1862,10 @@ class AgentRegistryService:
                 f"Capability '{binding.id}' needs a {requirement.kind.value} secret, but "
                 f"'{secret.name}' holds a {secret.kind}"
             ]
-        # Kind is not enough: an OpenAI key bound to a Google binding is the same
-        # `api_key`, and would be sent in Google's auth header at every call. A
-        # `custom` key - every key stored before purposes existed, and any for a
-        # service the deployment does not name - is the author's word, as in the
-        # Builder's picker (#2258).
-        purpose = requirement.purpose_for(config)
-        if purpose is not None and secret.purpose not in (purpose, "custom"):
-            return [
-                f"Capability '{binding.id}' is set to use {purpose}, but '{secret.name}' "
-                f"is a key for {secret.purpose}"
-            ]
         # A sign-in is accepted for the coding agent only because Codex runs on
         # one; switched to Claude Code, it would refuse every task at run time.
+        # Ahead of the purpose check, whose refusal would name the purpose rather
+        # than say what a sign-in is.
         if (
             isinstance(config, CodingAgentConfig)
             and secret.kind == SecretKind.OPENAI_CODEX.value
@@ -1883,6 +1874,17 @@ class AgentRegistryService:
             return [
                 f"'{secret.name}' is a ChatGPT sign-in, which only Codex runs on - pick an "
                 "Anthropic key or Claude subscription token for Claude Code"
+            ]
+        # Kind is not enough: an OpenAI key bound to a Google binding is the same
+        # `api_key`, and would be sent in Google's auth header at every call. A
+        # `custom` key - every key stored before purposes existed, and any for a
+        # service the deployment does not name - is the author's word, as in the
+        # Builder's picker (#2258, #2485).
+        purposes = requirement.purposes_for(config)
+        if purposes is not None and secret.purpose not in (*purposes, "custom"):
+            return [
+                f"Capability '{binding.id}' is set to use {' or '.join(purposes)}, but "
+                f"'{secret.name}' is a key for {secret.purpose}"
             ]
         return []
 
