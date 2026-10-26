@@ -1,7 +1,7 @@
 """Improvement routes preserve the actor, resource path and service refusals."""
 
 from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from httpx import AsyncClient
@@ -16,7 +16,7 @@ from app.services.improvement_pipeline import ImprovementPipelineService
 
 pytestmark = pytest.mark.anyio
 
-_AGENT, _RUN, _DATASET, _TOPIC, _CASE, _HUNK = (uuid4() for _ in range(6))
+_AGENT, _RUN, _DATASET, _TOPIC, _CASE, _HUNK = (UUID(int=n) for n in range(1, 7))
 _ROOT = f"/agents/{_AGENT}/improvements"
 _ONE = f"{_ROOT}/{_RUN}"
 _TARGET = {"dataset_id": str(_DATASET)}
