@@ -143,7 +143,8 @@ environment without a person's decision.
   that analyses evidence, proposes changes, tests them on held-out questions,
   and stops at a result for a person to accept and publish. It shows the
   estimate and expected time before anything is spent, separates problems with
-  the agent from missing knowledge, makes up to three rounds within a spending
+  the agent from missing knowledge (a person can leave an example out with
+  **Ignore this**), makes up to three rounds within a spending
   limit, can test a knowledge draft in context or through search, and offers
   more test questions when too few remain. Each step opens on figures and
   charts, with full answers, quotes and reasons folded into cards. **Improve**,
