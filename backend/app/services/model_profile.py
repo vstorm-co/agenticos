@@ -428,9 +428,15 @@ class ModelProfileService:
         spec = await self._resolve_in(ctx.organization_id, profile_id=profile_id)
         # Only somebody actually asking: a publisher standing in for a visitor,
         # and a key's issuer standing behind whoever holds it, are an account to
-        # bill, not the person whose subscription it is.
+        # bill, not the person whose subscription it is. Persisted run contexts
+        # retain a key's scope ceiling even without its live credential object;
+        # losing that object must never turn a key holder into a signed-in person.
         person = (
-            None if ctx.subject_is_publisher_fallback or ctx.api_key_id is not None else ctx.user_id
+            None
+            if ctx.subject_is_publisher_fallback
+            or ctx.api_key_id is not None
+            or ctx.key_scopes is not None
+            else ctx.user_id
         )
         if not await _may_spend(spec.credential, person):
             raise AuthorizationError(

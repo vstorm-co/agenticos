@@ -51,7 +51,6 @@ agent already resolved, and a recorder that writes one row.
 """
 
 import asyncio
-import json
 import logging
 from collections import Counter
 from collections.abc import AsyncGenerator, Awaitable, Callable, Mapping, Sequence
@@ -137,11 +136,6 @@ from app.agents.capabilities.context import (
     CONTEXT_BODIES_RESOURCE,
     CONTEXT_FILES_RESOURCE,
     ContextBody,
-)
-from app.agents.capabilities.follow_ups import (
-    FOLLOW_UPS_CAPABILITY_ID,
-    FOLLOW_UPS_MODEL_RESOURCE,
-    FollowUpsConfig,
 )
 from app.agents.capabilities.guardrails import (
     GuardrailBlocked,
@@ -2548,31 +2542,6 @@ def _browser_step_profile(spec: AgentSpec) -> UUID | None:
     return None
 
 
-def _follow_ups_profile(spec: AgentSpec) -> UUID | None:
-    """The model profile the agent named for writing its next steps, if it named one."""
-    for binding in spec.capabilities:
-        if binding.id == FOLLOW_UPS_CAPABILITY_ID and binding.enabled:
-            return FollowUpsConfig.model_validate(binding.config).model_profile_id
-    return None
-
-
-def _written_next_steps(deps: AgentDeps) -> list[RecordedToolCall]:
-    """The next steps a model of the follow-ups capability's own wrote, as the call
-    the agent would otherwise have made - so a channel offers them as buttons and
-    the run history shows them, exactly as it does the agent's own (#2301)."""
-    written = deps.next_steps
-    if written is None:
-        return []
-    return [
-        RecordedToolCall(
-            tool_call_id=written.call_id,
-            tool_name="suggest_next_steps",
-            args={"steps": written.steps},
-            result=json.dumps({"steps": written.steps}, ensure_ascii=False),
-        )
-    ]
-
-
 def _key_may_continue(ctx: AuthContext, run: AgentRun) -> bool:
     """Whether an organization key may read and answer the questions of its issuer's run.
 
@@ -2827,10 +2796,14 @@ class AgentRunnerService:
         draft: bool = False,
         test: bool = False,
         aside: bool = False,
+        source_run: AgentRun | None = None,
     ) -> PreparedRun:
         """Assemble everything a run needs and open its row.
 
         Args:
+            source_run: A run whose frozen spec an auxiliary call uses.
+                Current access is still checked; its original instructions, budgets
+                and tracing policy cannot drift to a newly published version.
             aside: A question asked on the side of a run still working (#2087):
                 answered from the conversation alone, with the agent's tools,
                 knowledge, servers and delegates taken away - see `_answer_only`.
@@ -2907,6 +2880,12 @@ class AgentRunnerService:
             BadRequestError: If the agent is unpublished, archived, or its spec
                 no longer validates - surfaced before any tokens are spent.
         """
+        if source_run is not None and (
+            source_run.organization_id != ctx.organization_id or source_run.agent_id != agent_id
+        ):
+            raise BadRequestError(
+                message="The source run does not belong to this agent and organization"
+            )
         effective_environment_id = environment_id or (
             exposure.environment_id if exposure is not None else None
         )
@@ -2929,6 +2908,10 @@ class AgentRunnerService:
             agent, spec, version_id = await self.registry.get_candidate_spec(
                 ctx, agent_id, candidate, environment_id=effective_environment_id
             )
+        if source_run is not None:
+            _, spec = await self._parked_spec(ctx, source_run)
+            version_id = source_run.agent_version_id
+            test_spec = source_run.test_spec
         skill_bodies = {} if candidate is None else candidate.skill_bodies
         context_bodies = {} if candidate is None else candidate.context_bodies
         spec = await self._with_environment_observability(
@@ -3247,20 +3230,6 @@ class AgentRunnerService:
             resources[BROWSER_STEP_MODEL_RESOURCE] = (
                 await self.models.resolve(models_ctx, profile_id=step_profile)
             ).build()
-        follow_ups_profile = _follow_ups_profile(spec)
-        if follow_ups_profile is not None:
-            # Optional to the run, as a reviewer's model is: one that no longer
-            # resolves leaves the agent offering the steps itself.
-            try:
-                resources[FOLLOW_UPS_MODEL_RESOURCE] = (
-                    await self.models.resolve(models_ctx, profile_id=follow_ups_profile)
-                ).build()
-            except AppException:
-                logger.warning(
-                    "The next steps' model does not resolve; the agent offers them itself",
-                    exc_info=True,
-                )
-
         # Read off the run on a resume, so a continuation reaches the systems
         # the run began on.
         test_connections = await self._test_connections(
@@ -5234,10 +5203,17 @@ class AgentRunnerService:
             )
             pending = [a for a in approvals if a.status == ApprovalStatus.PENDING.value]
             await notifications.approval_requested(run, agent=agent, spec=spec, approvals=pending)
-        elif RunSurface(run.surface) not in (RunSurface.WEB, RunSurface.EVAL):
-            # A chat user watching `WEB` already sees the outcome on screen, and an
-            # `EVAL` run is one of many its eval reports on as a whole; every other
-            # surface is the "stops silently" gap this module's docstring names.
+        elif RunSurface(run.surface) not in (
+            RunSurface.WEB,
+            RunSurface.EVAL,
+            RunSurface.FOLLOW_UPS,
+        ):
+            # A chat user watching `WEB` already sees the outcome on screen, a
+            # follow-up run is part of the answer it follows, and an `EVAL` run is
+            # one of many its eval reports on as a whole; every other surface is
+            # the "stops silently" gap this module's docstring names.
+            # A routine's own finish is told by the routine, with its name and the
+            # start of its answer, which this point does not have (#2301).
             if status is RunStatus.COMPLETED and RunSurface(run.surface) is not RunSurface.SCHEDULE:
                 await notifications.run_completed(run, agent=agent)
             elif status in (RunStatus.FAILED, RunStatus.LOOP_STOPPED):
@@ -6180,7 +6156,7 @@ class AgentRunnerService:
                     ModelMessagesTypeAdapter.dump_python(result.all_messages(), mode="json"),
                 )
             new_messages = result.new_messages()
-            called = [*tool_calls_in(new_messages), *_written_next_steps(prepared.built.deps)]
+            called = tool_calls_in(new_messages)
             # And what the *inherited* calls returned. On a resume the approved
             # call was made by the previous execution, so only its return is new -
             # `tool_calls_in` has nothing to hang it on and drops it, which left

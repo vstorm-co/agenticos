@@ -2632,6 +2632,7 @@
         },
         "names": {
           "api": "HTTP-API",
+          "follow_ups": "Nächste Schritte",
           "embed": "Widget",
           "eval": "Evals",
           "mattermost": "Mattermost",
@@ -5890,6 +5891,7 @@
       "surfaceFilter": "Nach Oberfläche filtern",
       "surfaceMattermost": "Mattermost",
       "surfaceA2a": "A2A",
+      "surfaceFollowUps": "Nächste Schritte",
       "surfaceSchedule": "Zeitplan",
       "surfaceSlack": "Slack",
       "surfaceTelegram": "Telegram",
@@ -9436,7 +9438,7 @@
     "follow_ups": {
       "model_profile_id": {
         "title": "Modell für nächste Schritte",
-        "description": "Ein Modellprofil, das die nächsten Schritte schreibt, sobald die Antwort da ist, statt dass das Modell des Agents sie als Tool anbietet. Für drei kurze Schaltflächen reicht ein kleines, günstiges Modell, und der Agent verbraucht dafür keine Anfrage mehr. Leer lässt der Agent sie selbst anbieten."
+        "description": "Ein separates Modellprofil erstellt Schaltflächen für nächste Schritte im Hintergrund, nachdem die Antwort gespeichert wurde. Es verzögert weder die Antwort noch die nächste Nachricht. Ein kleines, günstiges Modell reicht aus. Ohne Auswahl sind Vorschläge deaktiviert."
       }
     }
   },

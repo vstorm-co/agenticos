@@ -49,6 +49,7 @@ class TestEveryMemberIsAssignedBySomething:
             "schedule",
             "eval",
             "proactive",
+            "follow_ups",
         }
 
     def test_eval_has_a_writer(self):

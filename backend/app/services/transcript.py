@@ -500,3 +500,8 @@ class TranscriptService:
                     result=call.result,
                     completed_at=now,
                 )
+
+        if answer.strip():
+            from app.services.follow_ups import queue_next_steps
+
+            queue_next_steps(self.db, message.id, run.organization_id)

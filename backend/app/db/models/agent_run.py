@@ -124,6 +124,8 @@ class RunSurface(enum.StrEnum):
     # Work the platform did for a person on its own initiative, in the background
     # (#2301): noticing a request they keep repeating, writing their first
     # messages. Metered against the organization's per-person proactivity limit.
+    FOLLOW_UPS = "follow_ups"
+    """Optional next-step generation after a saved answer; never an active chat turn."""
     PROACTIVE = "proactive"
 
 

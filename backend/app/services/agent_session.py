@@ -1410,6 +1410,16 @@ class AgentSession:
                 return
             if event["type"] == chat_room.PRESENCE:
                 await self._send_presence(conversation_id)
+            elif event["type"] == chat_room.NEXT_STEPS:
+                await send_event(
+                    self.websocket,
+                    "next_steps",
+                    {
+                        "conversation_id": conversation_id,
+                        "message_id": event["message_id"],
+                        "steps": event["steps"],
+                    },
+                )
             elif event["type"] == chat_room.TYPING:
                 await self._send_typing(conversation_id, event.get("by"))
             else:

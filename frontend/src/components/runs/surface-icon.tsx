@@ -7,6 +7,7 @@ import {
   MessageSquare,
   Mic,
   Network,
+  Sparkles,
   Zap,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -33,6 +34,7 @@ const MARKS = {
   web: MessageSquare,
   embed: Globe,
   api: Code2,
+  follow_ups: Sparkles,
   slack: brandMark("slack"),
   telegram: brandMark("telegram"),
   mattermost: brandMark("mattermost"),
@@ -55,6 +57,7 @@ const LABEL_KEYS = {
   web: "surfaceWeb",
   embed: "surfaceEmbed",
   api: "surfaceApi",
+  follow_ups: "surfaceFollowUps",
   slack: "surfaceSlack",
   telegram: "surfaceTelegram",
   mattermost: "surfaceMattermost",

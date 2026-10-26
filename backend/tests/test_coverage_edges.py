@@ -254,11 +254,12 @@ class TestRunNotifications:
         assert [approval.tool_id for approval in passed] == ["send_email"]
 
     @pytest.mark.anyio
-    async def test_a_web_run_notifies_nobody_even_when_it_completes_or_fails(self):
+    @pytest.mark.parametrize("surface", [RunSurface.WEB, RunSurface.FOLLOW_UPS])
+    async def test_a_web_or_helper_run_notifies_nobody_on_completion_or_failure(self, surface):
         """A chat user watching the stream already sees the outcome on screen -
         the whole reason `run_completed`/`run_failed` exist is for the surfaces
         that would otherwise stop silently."""
-        run = MagicMock(surface=RunSurface.WEB.value)
+        run = MagicMock(surface=surface.value)
         for status in (RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.CANCELLED):
             with patch(
                 "app.services.agent_runner.NotificationService", new=_notifier()

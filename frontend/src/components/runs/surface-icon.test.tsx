@@ -28,6 +28,7 @@ describe("SurfaceIcon", () => {
     "schedule",
     "trigger",
     "eval",
+    "follow_ups",
     "proactive",
   ])("draws a decorative mark for %s", (surface) => {
     const { container } = render(<SurfaceIcon surface={surface} />);
@@ -44,10 +45,14 @@ describe("SurfaceIcon", () => {
 
 describe("surfaceLabel", () => {
   it("names the unattended surfaces rather than printing their raw value", () => {
-    const t = (key: string) => ({ surfaceSchedule: "Schedule", surfaceTrigger: "Trigger" })[key]!;
+    const t = (key: string) =>
+      ({ surfaceSchedule: "Schedule", surfaceTrigger: "Trigger", surfaceFollowUps: "Follow-ups" })[
+        key
+      ]!;
 
     expect(surfaceLabel("schedule", t)).toBe("Schedule");
     expect(surfaceLabel("trigger", t)).toBe("Trigger");
+    expect(surfaceLabel("follow_ups", t)).toBe("Follow-ups");
   });
 
   it("falls back to the raw value for a surface this build has no name for", () => {

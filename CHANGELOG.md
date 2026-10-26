@@ -220,6 +220,19 @@ environment without a person's decision.
 - A suite and a promotion override can be set up only by a person signed in as
   themselves, not through an API key or impersonation.
 
+## [1.19.0] - 2026-10-26
+
+### Changed
+
+- Generate follow-up buttons only with an explicitly selected separate model,
+  after the answer is saved. Suggestions no longer block turn completion or the
+  next prompt; late results attach to their original answer. Channel buttons
+  are generated after the main reply is posted. Auxiliary requests retain
+  budget checks, privacy settings and independent cost accounting.
+  **Upgrade:** select **Model for next steps** in the Follow-ups capability to
+  enable suggestions. An empty profile now disables them; the main agent no
+  longer receives `suggest_next_steps`.
+
 ## [1.18.1] - 2026-10-26
 
 ### Fixed
