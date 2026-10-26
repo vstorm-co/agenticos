@@ -82,6 +82,7 @@ async def list_datasets(
         ),
     ),
     judge: UUID | None = Query(None, description="Only the datasets of this judge"),
+    agent: UUID | None = Query(None, description="Only the datasets made to test this agent"),
     asks_run: UUID | None = Query(
         None,
         description=(
@@ -100,6 +101,7 @@ async def list_datasets(
         runnable=runnable,
         search=q,
         judge_id=judge,
+        agent_id=agent,
         asked_by_run=asks_run,
         sort=sort,
         skip=skip,

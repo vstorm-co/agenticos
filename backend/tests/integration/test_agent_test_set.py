@@ -610,3 +610,13 @@ async def test_a_test_set_made_by_hand_keeps_its_grading_as_it_was(db, monkeypat
     scoring = DatasetScoring.model_validate((await DatasetService(db).read(owner, made.id)).scoring)
     assert not scoring.judge.enabled and not scoring.reference.enabled
     assert (await db.execute(select(Agent).where(Agent.kind == "judge"))).first() is None
+
+
+async def test_the_listing_finds_an_agents_test_set_by_the_agent(db) -> None:
+    _, owner, _, agent, _ = await _world(db)
+    made = await DatasetService(db).create(owner, DatasetCreate(name="Mine"), agent_id=agent.id)
+    await DatasetService(db).create(owner, DatasetCreate(name="Somebody else's"))
+
+    found = await DatasetService(db).list_readable(owner, agent_id=agent.id)
+
+    assert [item.id for item in found.items] == [made.id]

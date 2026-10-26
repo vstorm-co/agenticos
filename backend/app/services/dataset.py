@@ -430,6 +430,7 @@ class DatasetService:
         runnable: bool = False,
         search: str | None = None,
         judge_id: UUID | None = None,
+        agent_id: UUID | None = None,
         asked_by_run: UUID | None = None,
         sort: DatasetSort = "name",
         skip: int = 0,
@@ -438,7 +439,8 @@ class DatasetService:
         """A page of the datasets this caller may see, each saying whether they may edit it.
 
         `judge_id` narrows to the datasets that judge grades: those that picked
-        it, and for the seeded default judge those that picked none. `runnable`
+        it, and for the seeded default judge those that picked none. `agent_id`
+        narrows to the datasets made to test that agent - its test set. `runnable`
         narrows to those the caller holds `datasets:run` on that hold a case to
         run, so "is there one to run" is the `total` of one row. It does not ask
         for `runs:view`, which starting an eval also needs: a reader missing only
@@ -495,6 +497,7 @@ class DatasetService:
             search=search,
             judge_id=judge_id,
             judge_is_default=judge_id is not None and await self._is_default_judge(ctx, judge_id),
+            agent_id=agent_id,
             asking=asking,
             sort=sort,
             skip=skip,

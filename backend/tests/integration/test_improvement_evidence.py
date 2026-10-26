@@ -197,3 +197,33 @@ async def test_sorting_an_example_is_refused_outside_its_open_session(db):
     await db.flush()
     with pytest.raises(BadRequestError, match="decided"):
         await service.decide_evidence(ctx, agent.id, session.id, item.run_id, move)
+
+
+async def test_a_knowledge_document_set_aside_stays_aside_for_the_session(db):
+    from app.db.models.knowledge_gap import KnowledgeGapTopic
+    from app.schemas.improvement import TopicDeferral
+
+    ctx, agent, _, session = await _started(db)
+    kb = await _knowledge_base(db, ctx)
+    topic = KnowledgeGapTopic(
+        organization_id=ctx.organization_id,
+        knowledge_base_id=kb.id,
+        centroid=[0.1],
+        embedding_model="m",
+    )
+    db.add(topic)
+    await db.flush()
+    service = ImprovementPipelineService(db)
+    later = await service.defer_topic(
+        ctx, agent.id, session.id, topic.id, TopicDeferral(later=True)
+    )
+    again = await service.defer_topic(
+        ctx, agent.id, session.id, topic.id, TopicDeferral(later=True)
+    )
+    assert later.deferred_topic_ids == again.deferred_topic_ids == [topic.id]
+    back = await service.defer_topic(
+        ctx, agent.id, session.id, topic.id, TopicDeferral(later=False)
+    )
+    assert back.deferred_topic_ids == []
+    with pytest.raises(NotFoundError, match="topic not found"):
+        await service.defer_topic(ctx, agent.id, session.id, uuid4(), TopicDeferral(later=True))

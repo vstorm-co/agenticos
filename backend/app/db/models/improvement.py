@@ -232,6 +232,10 @@ class ImprovementRun(Base):
     evidence_decisions: Mapped[dict[str, EvidenceDecision]] = mapped_column(
         JSONB, nullable=False, default=dict, server_default="{}"
     )
+    # Knowledge documents a person set aside with "Not now"; the topic keeps its draft.
+    deferred_topic_ids: Mapped[list[uuid.UUID]] = mapped_column(
+        ARRAY(PG_UUID(as_uuid=True)), nullable=False, default=list, server_default="{}"
+    )
     judge_version_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     # A suite is edited in place, so its id alone would let a session be judged
     # against a bar other than the one it started with.

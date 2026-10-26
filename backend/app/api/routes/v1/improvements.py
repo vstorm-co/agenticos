@@ -28,6 +28,7 @@ from app.schemas.improvement import (
     KnowledgeCheckTarget,
     SelectionConsent,
     SelectionEstimate,
+    TopicDeferral,
 )
 
 router = APIRouter(prefix="/agents/{agent_id}/improvements")
@@ -105,6 +106,19 @@ async def decide_improvement_evidence(
 ) -> Any:
     """Move one chat example to the other column or ignore it; later rounds follow the decision."""
     return await service.decide_evidence(ctx, agent_id, run_id, evidence_run_id, data)
+
+
+@router.put("/{run_id}/topics/{topic_id}/later", response_model=ImprovementRead)
+async def defer_improvement_topic(
+    agent_id: UUID,
+    run_id: UUID,
+    topic_id: UUID,
+    data: TopicDeferral,
+    service: ImprovementSvc,
+    ctx: Auth,
+) -> Any:
+    """Set a knowledge document aside for this session (Not now), or bring it back."""
+    return await service.defer_topic(ctx, agent_id, run_id, topic_id, data)
 
 
 @router.get("/{run_id}", response_model=ImprovementRead)

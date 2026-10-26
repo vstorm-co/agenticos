@@ -101,6 +101,7 @@ async def list_visible(
     search: str | None = None,
     judge_id: UUID | None = None,
     judge_is_default: bool = False,
+    agent_id: UUID | None = None,
     asking: str | None = None,
     sort: DatasetSort = "name",
     skip: int = 0,
@@ -121,6 +122,7 @@ async def list_visible(
         judge_id: Narrow to the datasets of this judge: the ones that picked
             it, grading or not, and when `judge_is_default` the ones that
             picked none and grade with the judge or the reference comparison.
+        agent_id: Narrow to the datasets made to test this agent.
         asking: Narrow to the datasets whose newest version holds a case asking
             this question, compared as `list_cases`' `same_input` compares.
     """
@@ -189,6 +191,8 @@ async def list_visible(
             if judge_is_default
             else picked == str(judge_id)
         )
+    if agent_id is not None:
+        where.append(Dataset.agent_id == agent_id)
     if asking is not None:
         where.append(
             # The newest version holds exactly the revisions no change has removed yet.

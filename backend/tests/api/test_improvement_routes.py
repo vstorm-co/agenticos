@@ -42,6 +42,7 @@ _HASH = "a" * 64
         ("GET", f"{_ROOT}/preview?dataset_id={_DATASET}", "evidence", None, False),
         ("GET", f"{_ONE}/evidence", "evidence", None, False),
         ("PUT", f"{_ONE}/evidence/{_CASE}", "decide_evidence", {"decision": "ignored"}, False),
+        ("PUT", f"{_ONE}/topics/{_TOPIC}/later", "defer_topic", {"later": True}, False),
         ("GET", _ONE, "read", None, False),
         ("POST", f"{_ONE}/cancel", "cancel", None, False),
         (

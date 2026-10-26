@@ -112,6 +112,16 @@ class ImprovementRead(BaseSchema):
     iterations: list[ImprovementIterationRead] = Field(default_factory=list)
     timeline: list[ImprovementEvent] = Field(default_factory=list)
     knowledge_eval_run_ids: list[UUID] = Field(default_factory=list)
+    deferred_topic_ids: list[UUID] = Field(
+        default_factory=list,
+        description="Knowledge documents set aside with Not now in this session",
+    )
+
+
+class TopicDeferral(BaseSchema):
+    """Set a knowledge document aside for this session, or bring it back."""
+
+    later: bool
 
 
 class ImprovementContinue(BaseSchema):

@@ -953,7 +953,7 @@ class NotificationService:
             event_type=NotificationEventType.EVAL_RUN_FINISHED,
             occurrence_id=run.id,
             status=run.status,
-            summary=f"Your test finished: {run.status}.",
+            summary=_EVAL_SUMMARY.get(run.status, "Your test has ended."),
             path=f"/agents/{run.agent_id}/evals/{run.id}",
         )
 
@@ -967,7 +967,9 @@ class NotificationService:
             event_type=NotificationEventType.CASE_GENERATION_FINISHED,
             occurrence_id=generation.id,
             status=generation.status,
-            summary=f"Writing your test questions finished: {generation.status}.",
+            summary=_GENERATION_SUMMARY.get(
+                generation.status, "Writing your test questions has ended."
+            ),
             path=f"/datasets/{generation.dataset_id}?tab=generated",
         )
 
@@ -1029,7 +1031,7 @@ class NotificationService:
             recipients=list(recipients),
             event_type=NotificationEventType.IMPROVEMENT_FINISHED,
             occurrence_id=f"{run_id}:{end}",
-            summary=f"Improvement of {agent.name}: {status}" + (f" ({reason})" if reason else ""),
+            summary=_improvement_summary(agent.name, status, reason),
             context_url=path,
             render_context={
                 "agent_name": agent.name,
@@ -1784,3 +1786,45 @@ def _reason_text(reason: ThresholdReason) -> str:
             return f"the agent's run failed on {int(value)} case(s)"
         case _:
             return "the comparison is invalid"
+
+
+_EVAL_SUMMARY = {
+    "completed": "Your test finished.",
+    "failed": "Your test could not finish.",
+    "cancelled": "Your test was cancelled.",
+    "budget_exceeded": "Your test stopped at its budget.",
+}
+_GENERATION_SUMMARY = {
+    "ready": "Your test questions are written and wait for your review.",
+    "failed": "Writing your test questions failed.",
+}
+_STOP_SENTENCE = {
+    "no_data": "it needs more test questions or feedback.",
+    "no_proposal": "no change fits the current instructions.",
+    "budget": "the next step does not fit the spending limit.",
+    "inconclusive": "too few answers could be graded reliably.",
+    "regression": "the changes broke questions that worked before.",
+    "no_change": "no change made a measurable difference.",
+    "max_iterations": "it reached its attempt limit.",
+    "repeat_candidate": "it proposed changes it had already tested.",
+    "permission": "the access it needs is no longer available.",
+    "stale": "the agent or its test questions changed.",
+    "stalled": "a step stopped making progress.",
+    "proposal": "writing the changes failed.",
+    "eval": "testing the changes failed.",
+    "superseded": "newer suggestions replaced these.",
+    "knowledge_only": "the problems need knowledge base documents to review.",
+    "draft": "drafting the knowledge documents failed.",
+}
+
+
+def _improvement_summary(agent_name: str, status: str, reason: str | None) -> str:
+    """The bell's English line for a finished session; it names no internal status."""
+    if status == "ready":
+        return f"Your improvement of {agent_name} is ready to review."
+    because = _STOP_SENTENCE.get(reason or "")
+    if status == "failed":
+        head = f"Your improvement of {agent_name} could not finish"
+    else:
+        head = f"Your improvement of {agent_name} stopped"
+    return f"{head}: {because}" if because else f"{head}."

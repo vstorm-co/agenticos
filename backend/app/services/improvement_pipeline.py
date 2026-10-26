@@ -103,6 +103,7 @@ from app.schemas.improvement import (
     KnowledgeCheckTarget,
     SelectionConsent,
     SelectionEstimate,
+    TopicDeferral,
 )
 from app.schemas.scoring import DatasetScoring
 from app.services import authoring_fields, authoring_hunks, change_feed
@@ -751,6 +752,33 @@ class ImprovementPipelineService:
         )
         await self._audit(run, "evidence_decided", actor_user_id=ctx.user_id)
         return await self.evidence(ctx, agent_id, run_id=run_id)
+
+    async def defer_topic(
+        self, ctx: AuthContext, agent_id: UUID, run_id: UUID, topic_id: UUID, data: TopicDeferral
+    ) -> ImprovementRead:
+        """Set a knowledge document aside for this session with Not now, or bring it back.
+
+        The topic and its draft are untouched; the session only stops offering it.
+        """
+        await self.authoring._editable(ctx, agent_id)
+        self.authoring._require_runs_view(ctx)
+        run = await self._row(ctx, agent_id, run_id, lock=True)
+        if (
+            await knowledge_gap_repo.get_topic(
+                self.db, topic_id, organization_id=ctx.organization_id
+            )
+            is None
+        ):
+            raise NotFoundError(
+                message="Knowledge gap topic not found", details={"topic_id": topic_id}
+            )
+        kept = [item for item in run.deferred_topic_ids if item != topic_id]
+        await improvement_repo.update_run(
+            self.db,
+            run=run,
+            values={"deferred_topic_ids": [*kept, topic_id] if data.later else kept},
+        )
+        return await self._read(ctx, run)
 
     async def read(self, ctx: AuthContext, agent_id: UUID, run_id: UUID) -> ImprovementRead:
         await self.registry.get(ctx, agent_id)
