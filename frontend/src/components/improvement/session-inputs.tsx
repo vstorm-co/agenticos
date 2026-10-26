@@ -10,7 +10,8 @@ import { useDataset, useDatasetCases } from "@/hooks/use-datasets";
 import { useEvalRun, useEvalCases } from "@/hooks/use-eval-runs";
 import { useAgentAttention } from "@/hooks/use-usage-stats";
 import { getErrorMessage } from "@/lib/api-error";
-import type { Improvement, ImprovementEvidenceItem } from "@/types/improvement";
+import type { Improvement } from "@/types/improvement";
+import type { DatasetCase } from "@/types/datasets";
 
 export function StartSignals({ agentId, datasetId }: { agentId: string; datasetId: string }) {
   const t = useTranslations("improvement");
@@ -55,106 +56,19 @@ export function StartSignals({ agentId, datasetId }: { agentId: string; datasetI
   );
 }
 
-export function Understand({ session }: { session: Improvement }) {
-  const t = useTranslations("improvement");
-  const tErrors = useTranslations("errors");
-  const sources = useImprovementEvidence(session.agent_id, {
-    sessionId: session.id,
-    live: session.status === "running" || session.status === "queued",
-  });
-  if (sources.error) return <p role="alert">{getErrorMessage(sources.error, tErrors)}</p>;
-  if (sources.isLoading || !sources.evidence) return <p role="status">{t("loading")}</p>;
-  const items = sources.evidence.items;
-  return (
-    <section className="space-y-4" data-tour="improvement-evidence">
-      <h2 className="font-medium">{t("steps.understand")}</h2>
-      <p className="text-muted-foreground text-sm">
-        {t("evidenceSample", { count: items.length, limit: sources.evidence.sample_limit })}
-      </p>
-      {session.timeline.some((event) => event.action === "improvement.classification_failed") && (
-        <p role="status" className="rounded-lg border p-3 text-sm">
-          {t("classificationFailed")}
-        </p>
-      )}
-      {items.length === 0 && <p className="text-sm">{t("noLearningExamples")}</p>}
-      {items.some((item) => item.branch === "unknown") && (
-        <p className="rounded-lg border p-3 text-sm">{t("unknownCauses")}</p>
-      )}
-      <div className="grid gap-4 md:grid-cols-2">
-        {(["agent", "missing_knowledge"] as const).map((branch) => {
-          const selected = items.filter(
-            (item) => item.branch === branch || (branch === "agent" && item.branch === "unknown"),
-          );
-          return (
-            <section key={branch} className="min-w-0 space-y-3">
-              <h3 className="text-sm font-medium">
-                {t(`cause.${branch}`)}{" "}
-                <span className="text-muted-foreground">({selected.length})</span>
-              </h3>
-              {selected.length ? (
-                selected.map((item) => <EvidenceCard key={item.run_id} item={item} />)
-              ) : (
-                <p className="text-muted-foreground text-sm">{t("noExamplesInGroup")}</p>
-              )}
-            </section>
-          );
-        })}
-      </div>
-      <details className="rounded-lg border p-4">
-        <summary className="cursor-pointer text-sm font-medium">
-          {t("cause.not_a_problem")} (
-          {items.filter((item) => item.branch === "not_a_problem").length})
-        </summary>
-        <div className="mt-3 space-y-3">
-          {items
-            .filter((item) => item.branch === "not_a_problem")
-            .map((item) => (
-              <EvidenceCard key={item.run_id} item={item} />
-            ))}
-        </div>
-      </details>
-    </section>
-  );
-}
-function EvidenceCard({ item }: { item: ImprovementEvidenceItem }) {
-  const t = useTranslations("improvement");
-  return (
-    <article className="space-y-3 rounded-xl border p-4 text-sm">
-      <p className="text-muted-foreground text-xs">
-        {t(item.kind === "train_eval" ? "trainExample" : "chatExample")}
-      </p>
-      <p className="font-medium break-words whitespace-pre-wrap">
-        {item.question || t("unavailableAnswer")}
-      </p>
-      <p className="break-words whitespace-pre-wrap">{item.answer || t("unavailableAnswer")}</p>
-      {item.comments.map((comment, index) => (
-        <blockquote
-          key={index}
-          className="text-muted-foreground border-l-2 pl-3 break-words whitespace-pre-wrap"
-        >
-          {comment}
-        </blockquote>
-      ))}
-      <details>
-        <summary className="cursor-pointer">{t("whyCause")}</summary>
-        <p className="text-muted-foreground mt-2 break-words">
-          {item.reason ||
-            t(
-              item.branch === "unknown"
-                ? "causeUnknown"
-                : item.kind === "train_eval"
-                  ? "causeTraining"
-                  : "causeRecorded",
-            )}
-        </p>
-      </details>
-      {item.conversation_id && (
-        <Link className="underline underline-offset-4" href={`/chat/${item.conversation_id}`}>
-          {t("openConversation")}
-        </Link>
-      )}
-    </article>
-  );
+const SOURCE_LIMIT = 100;
+
+/** Rated answers become questions: a thumbs-down keeps the answer to avoid, a thumbs-up the good one. */
+function sourceCounts(cases: DatasetCase[]) {
+  const rated = cases.filter((item) => item.source === "conversation");
+  const down = rated.filter((item) => item.counter_example !== null).length;
+  const written = cases.filter((item) => item.source === "synthetic").length;
+  return {
+    down,
+    liked: rated.length - down,
+    written,
+    other: cases.length - rated.length - written,
+  };
 }
 
 /** Below this, one question changing outcome swings the result too far to read it as a change. */
@@ -172,12 +86,18 @@ export function TestQuestions({ session }: { session: Improvement }) {
     skip,
     limit: 20,
   });
+  const all = useDatasetCases(session.dataset_id, {
+    version: session.dataset_version,
+    limit: SOURCE_LIMIT,
+  });
   if (questions.error) return <p role="alert">{getErrorMessage(questions.error, tErrors)}</p>;
   if (questions.isLoading) return <p role="status">{t("loading")}</p>;
   return (
     <section className="space-y-4" data-tour="improvement-test-questions">
       <h2 className="font-medium">
-        {t("questionCount", { count: questions.total, version: session.dataset_version })}
+        {all.cases.length === questions.total && questions.total > 0
+          ? t("questionSources", { count: questions.total, ...sourceCounts(all.cases) })
+          : t("questionCount", { count: questions.total })}
       </h2>
       <p className="text-muted-foreground text-sm">{t("pinnedQuestions")}</p>
       {questions.total < MEASURABLE_QUESTIONS && (
@@ -210,6 +130,11 @@ export function TestQuestions({ session }: { session: Improvement }) {
               {item.reference_answer && (
                 <p className="break-words whitespace-pre-wrap">
                   {t("goodAnswer", { answer: item.reference_answer })}
+                </p>
+              )}
+              {item.counter_example && (
+                <p className="break-words whitespace-pre-wrap">
+                  {t("answerToAvoid", { answer: item.counter_example })}
                 </p>
               )}
             </li>
@@ -308,7 +233,7 @@ function BaselineQuestions({
               </p>
               {attempt?.score?.results.map((grade, index) => (
                 <p key={index} className="text-muted-foreground break-words">
-                  {grade.reason}
+                  {t("graderSaid", { reason: grade.reason })}
                 </p>
               ))}
             </article>

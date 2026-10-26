@@ -19,7 +19,10 @@ import { ContinueSession } from "./continue-session";
 import { StartSession } from "./start-session";
 import { KnowledgeDrafts } from "./knowledge-drafts";
 import { RoundResults, RoundHistory } from "./round-results";
-import { Understand, TestQuestions, Today } from "./session-inputs";
+import { TestQuestions, Today } from "./session-inputs";
+import { Understand } from "./understand";
+import { CheckProgress } from "./check-progress";
+import { AcceptSummary, DoneScreen, GuardNote, KnowledgeDocuments, ResultSummary } from "./outcome";
 
 import {
   IMPROVEMENT_STEPS as STEPS,
@@ -150,7 +153,7 @@ function Session({
       {step === "testSet" && <TestQuestions session={session} />}
       {step === "today" && <Today session={session} />}
       {step === "changes" && (
-        <section className="space-y-4" data-tour="improvement-changes">
+        <section className="grid gap-6 md:grid-cols-[2fr_1fr]" data-tour="improvement-changes">
           {chosen && selectedBatch?.hunks.length ? (
             <ChangeSelection
               session={session}
@@ -164,53 +167,58 @@ function Session({
                 setConfirm(false);
               }}
             />
+          ) : active ? (
+            <p className="rounded-xl border p-6 text-sm">{t("changesWorking")}</p>
           ) : (
-            <p className="rounded-xl border p-6 text-sm">
-              {t(active ? "changesWorking" : "noChanges")}
-            </p>
+            <section className="space-y-3 rounded-xl border p-6 text-sm">
+              <p>{t("noChangesFound")}</p>
+              <ul className="list-disc space-y-1 pl-5">
+                {session.iterations.map((round) => (
+                  <li key={round.id}>
+                    {t("triedAttempt", {
+                      number: round.number,
+                      verdict: round.verdict ?? (round.batch_id ? "unmeasured" : "none"),
+                      dropped: round.dropped.length,
+                    })}
+                  </li>
+                ))}
+              </ul>
+            </section>
           )}
+          <KnowledgeDocuments agentId={agentId} />
         </section>
       )}
-      {(step === "check" || step === "result") && (
+      {step === "check" && (
+        <CheckProgress session={session} onShowResult={() => setSelected("result")} />
+      )}
+      {step === "result" && (
         <section className="space-y-4" data-tour="improvement-results">
-          {active && <p role="status">{t("background")}</p>}
+          <ResultSummary session={session} round={chosen} />
           {session.iterations.map((round) =>
-            (
-              active
-                ? round.number === session.iteration
-                : round.id === session.best_iteration_id || !session.best_iteration_id
-            ) ? (
+            round.id === session.best_iteration_id || !session.best_iteration_id ? (
               <RoundResults key={round.id} session={session} round={round} />
             ) : (
               <RoundHistory key={round.id} session={session} round={round} />
             ),
           )}
+          <details className="rounded-xl border p-4">
+            <summary className="cursor-pointer text-sm font-medium">
+              {t("knowledgeCheckDetails")}
+            </summary>
+            <div className="mt-4">
+              <KnowledgeDrafts session={session} />
+            </div>
+          </details>
         </section>
       )}
-      {(step === "changes" || step === "result" || step === "accept") && (
-        <KnowledgeDrafts session={session} />
+      {step === "accept" && (session.status === "published" || session.status === "accepted") && (
+        <DoneScreen session={session} />
       )}
-      {step === "accept" && (
+      {step === "accept" && session.status !== "published" && session.status !== "accepted" && (
         <section className="space-y-4 rounded-xl border p-6" data-tour="improvement-accept">
           <h2 className="font-medium">{t("steps.accept")}</h2>
-          <p className="text-sm">{t("acceptBody")}</p>
-          {chosen && <RoundResults session={session} round={chosen} />}
-          {session.status === "published" && session.published_version != null && (
-            <p role="status" className="text-sm">
-              {t("donePublished", { version: session.published_version })}{" "}
-              <Link
-                className="underline"
-                href={`/agents/${agentId}?tab=history&from=${session.published_version}&to=${session.published_version}`}
-              >
-                {t("openVersion", { version: session.published_version })}
-              </Link>
-            </p>
-          )}
-          {session.status === "accepted" && (
-            <p role="status" className="text-sm">
-              {t("doneDraft")}
-            </p>
-          )}
+          <AcceptSummary session={session} round={chosen} />
+          {session.status === "ready" && <KnowledgeDocuments agentId={agentId} accept />}
           {session.status === "ready" && (
             <>
               {missingBatch &&
@@ -241,6 +249,9 @@ function Session({
                   />
                   {t("automatic")}
                 </label>
+              )}
+              {canPublish && session.next_version != null && (
+                <GuardNote agentId={agentId} version={session.next_version} />
               )}
               <p className="text-muted-foreground text-sm" data-tour="improvement-guard">
                 {t("publishImpact")}

@@ -119,3 +119,15 @@ it("keeps another request identity's measured changes readable without restartin
   ).not.toBeInTheDocument();
   expect(screen.getByText(/original account and credentials/)).toBeInTheDocument();
 });
+it("says what each change should fix, and nothing for a change that does not say", () => {
+  render(
+    <Form
+      hunks={[
+        hunk({ id: "h1", expected_effect: "Refund questions get the 30-day window" }),
+        hunk({ id: "h2", expected_effect: "" }),
+      ]}
+    />,
+  );
+  expect(screen.getAllByText("Should fix")).toHaveLength(1);
+  expect(screen.getByText("Refund questions get the 30-day window")).toBeInTheDocument();
+});

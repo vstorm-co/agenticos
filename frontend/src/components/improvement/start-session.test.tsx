@@ -228,3 +228,16 @@ it("does not navigate into an old organization after a delayed start response", 
   await userEvent.click(await screen.findByRole("button", { name: "Start improving" }));
   await waitFor(() => expect(state.start).toHaveBeenCalled());
 });
+it("keeps the helper and today's test under a collapsed Show details", async () => {
+  render(<StartSession agentId="a1" />);
+  await selectQuestions();
+  const details = screen.getByText("Show details").closest("details")!;
+  expect(details).not.toHaveAttribute("open");
+  expect(details).toContainElement(
+    screen.getByRole("button", { name: "Test how the agent answers today" }),
+  );
+  expect(details).toContainElement(screen.getByRole("button", { name: "Use custom helper" }));
+  expect(details).not.toContainElement(
+    await screen.findByRole("button", { name: "Start improving" }),
+  );
+});

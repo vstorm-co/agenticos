@@ -34,7 +34,7 @@ it("estimates and confirms another round separately without publishing", async (
   await userEvent.click(screen.getByRole("button", { name: "Improve again" }));
   expect(state.start).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole("button", { name: "Estimate continuing the session" }));
-  expect(await screen.findByText(/Round 2 of 3.*0.04.*estimate/)).toBeInTheDocument();
+  expect(await screen.findByText(/Attempt 2 of 3.*0.04.*estimate/)).toBeInTheDocument();
   expect(state.start).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole("button", { name: "Confirm the estimate and continue" }));
   expect(state.start).toHaveBeenCalledWith(QUOTE);
@@ -102,7 +102,7 @@ it("keeps paid restarts with their original requester", () => {
 it("shows an explicit stopped state at the round limit", () => {
   render(<ContinueSession session={{ ...SESSION, max_iterations: 1 }} onStarted={vi.fn()} />);
   expect(screen.getByRole("button", { name: "Improve again" })).toBeDisabled();
-  expect(screen.getByText(/No further paid round/)).toBeInTheDocument();
+  expect(screen.getByText(/No further paid attempt/)).toBeInTheDocument();
 });
 it("is absent while work is running or already accepted", () => {
   const view = render(

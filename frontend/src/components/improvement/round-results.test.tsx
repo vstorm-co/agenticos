@@ -70,9 +70,9 @@ it("shows before/after totals, independent results, cost and earlier measurement
     />,
   );
   expect(
-    screen.getByText("Across checked questions: 3 → 4 of 4 handled well."),
+    screen.getByText("Questions not used to write the changes: 3 → 4 of 4 handled well."),
   ).toBeInTheDocument();
-  expect(screen.getByText(/Questions not used to write the changes/)).toBeInTheDocument();
+  expect(screen.getAllByText(/Questions not used to write the changes/)).toHaveLength(1);
   expect(screen.getByText(/Cost per answer/)).toBeInTheDocument();
   await userEvent.click(screen.getByText("Earlier checks"));
   expect(screen.getByRole("link", { name: "Earlier check 2" })).toHaveAttribute(
@@ -85,13 +85,13 @@ it("shows before/after totals, independent results, cost and earlier measurement
 it("does not request older round details until they are opened", async () => {
   render(<RoundHistory session={SESSION} round={ROUND} />);
   expect(state.read).not.toHaveBeenCalled();
-  await userEvent.click(screen.getByText("Round 1 of 3"));
+  await userEvent.click(screen.getByText("Attempt 1 of 3"));
   await waitFor(() => expect(state.read).toHaveBeenCalledWith("main"));
 });
 it("lets a stopped session review its best round and reports selection failures", async () => {
   state.selectRound.mutateAsync.mockRejectedValue(new Error("The base changed"));
   render(<RoundResults session={{ ...SESSION, status: "stopped" }} round={ROUND} />);
-  await userEvent.click(screen.getByRole("button", { name: "Use this round" }));
+  await userEvent.click(screen.getByRole("button", { name: "Use this attempt" }));
   expect(state.selectRound.mutateAsync).toHaveBeenCalledWith(1);
   expect(await screen.findByRole("alert")).toBeInTheDocument();
 });
@@ -226,7 +226,7 @@ it.each(["queued", "running", "failed"] as const)(
   (status) => {
     state.run = evalRun({ status });
     render(<RoundResults session={SESSION} round={ROUND} />);
-    expect(screen.queryByText(/Across checked questions:/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Questions not used to write the changes:/)).not.toBeInTheDocument();
     expect(screen.getByRole(status === "failed" ? "alert" : "status")).toBeInTheDocument();
   },
 );

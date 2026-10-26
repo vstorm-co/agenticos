@@ -89,6 +89,7 @@ import { TestPanel } from "@/components/agents/test-panel/test-panel";
 import { useTestShortcut } from "@/components/agents/test-panel/use-test-shortcut";
 import { VersionHistory } from "@/components/agents/version-history";
 import { KnowledgeGapsPanel } from "@/components/knowledge-gaps/knowledge-gaps-panel";
+import { ImproveLink, useNeedsImprovement } from "@/components/agents/improve-link";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ErrorState } from "@/components/states";
 import {
@@ -381,6 +382,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const isSystem = isSystemAgent(agent?.kind);
   const isJudge = agent?.kind === "judge";
   const canViewRuns = can(Perm.runsView);
+  const needsImprovement = useNeedsImprovement(id, {
+    enabled: canEdit && canViewRuns && !isSystem,
+  });
   const { runs: publishTests } = useDraftEvalRuns(canViewRuns && !isSystem ? id : null, {
     enabled: publishOpen,
   });
@@ -1039,6 +1043,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
               {canEdit && canViewRuns && !isSystem && (
                 <Button
                   data-tour="agent-improve"
+                  variant={needsImprovement ? "default" : "outline"}
                   onClick={() =>
                     void (async () => {
                       if (await persist()) router.push(`/agents/${id}/improve/new`);
@@ -2009,7 +2014,12 @@ export default function AgentBuilderPage({ params }: PageProps) {
           )}
           {canViewRuns && !isSystem && (
             <TabsContent value="gaps" className="mt-6">
-              <div data-tour="agent-gaps">
+              <div data-tour="agent-gaps" className="space-y-4">
+                {canEdit && (
+                  <ImproveLink agentId={id} className="text-sm underline underline-offset-4">
+                    {t("improveFromGaps")}
+                  </ImproveLink>
+                )}
                 <KnowledgeGapsPanel scope={{ kind: "agent", id }} />
               </div>
             </TabsContent>

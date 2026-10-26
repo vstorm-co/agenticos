@@ -70,96 +70,104 @@ export function RoundResults({
               ["queued", "running"].includes(session.status) ? "working" : "attributionUnavailable",
             )}
       </p>
-      {round.id === session.best_iteration_id && (
-        <p className="text-sm font-medium">{t("selected")}</p>
-      )}
-      {selectable &&
-        round.verdict &&
-        (round.id !== session.best_iteration_id || session.status === "stopped") && (
-          <Button
-            variant="outline"
-            disabled={actions.selectRound.isPending}
-            onClick={() =>
-              void act(async () => {
-                await actions.selectRound.mutateAsync(round.number);
-              })
-            }
-          >
-            {t("selectRound")}
-          </Button>
-        )}
       {latestCheck && (
         <MeasuredResult runId={latestCheck} attributions={round.attribution_eval_run_ids} />
       )}
-      {[...round.eval_run_ids.slice(0, -1), ...(round.previous_eval_run_ids ?? [])].length > 0 && (
-        <details className="rounded-lg border p-3">
-          <summary className="cursor-pointer text-sm font-medium">{t("earlierChecks")}</summary>
-          <div className="mt-3 space-y-2">
-            {[...round.eval_run_ids.slice(0, -1), ...(round.previous_eval_run_ids ?? [])].map(
-              (id, index) => (
-                <Link
-                  key={id}
-                  className="block text-sm underline underline-offset-4"
-                  href={`/agents/${session.agent_id}/evals/${id}`}
-                >
-                  {t("earlierCheck", { number: index + 1 })}
-                </Link>
-              ),
-            )}
-          </div>
-        </details>
-      )}
-
-      {selectable && round.verdict && Object.keys(round.attribution_eval_run_ids).length === 0 && (
-        <div className="space-y-3 border-t pt-4">
-          <p className="text-muted-foreground text-sm">{t("attributionBody")}</p>
-          <Button
-            variant="outline"
-            disabled={actions.estimateAttribution.isPending}
-            onClick={() =>
-              void act(async () =>
-                setQuote(await actions.estimateAttribution.mutateAsync(round.number)),
-              )
-            }
-          >
-            {t("estimateAttribution")}
-          </Button>
-          {quote && (
-            <>
-              <p className="text-sm">
-                {t("attributionQuote", {
-                  count: quote.changes,
-                  cost: usd(quote.total_usd, locale),
-                })}
-              </p>
+      <details className="rounded-lg border p-3">
+        <summary className="cursor-pointer text-sm font-medium">{t("showDetails")}</summary>
+        <div className="mt-3 space-y-4">
+          {round.id === session.best_iteration_id && (
+            <p className="text-sm font-medium">{t("selected")}</p>
+          )}
+          {selectable &&
+            round.verdict &&
+            (round.id !== session.best_iteration_id || session.status === "stopped") && (
               <Button
-                disabled={!quote.affordable || actions.attribute.isPending}
+                variant="outline"
+                disabled={actions.selectRound.isPending}
                 onClick={() =>
                   void act(async () => {
-                    await actions.attribute.mutateAsync({
-                      number: round.number,
-                      estimate: quote.total_usd,
-                    });
-                    setQuote(null);
+                    await actions.selectRound.mutateAsync(round.number);
                   })
                 }
               >
-                {t("confirmAttribution")}
+                {t("selectRound")}
               </Button>
-            </>
+            )}
+          {[...round.eval_run_ids.slice(0, -1), ...(round.previous_eval_run_ids ?? [])].length >
+            0 && (
+            <details className="rounded-lg border p-3">
+              <summary className="cursor-pointer text-sm font-medium">{t("earlierChecks")}</summary>
+              <div className="mt-3 space-y-2">
+                {[...round.eval_run_ids.slice(0, -1), ...(round.previous_eval_run_ids ?? [])].map(
+                  (id, index) => (
+                    <Link
+                      key={id}
+                      className="block text-sm underline underline-offset-4"
+                      href={`/agents/${session.agent_id}/evals/${id}`}
+                    >
+                      {t("earlierCheck", { number: index + 1 })}
+                    </Link>
+                  ),
+                )}
+              </div>
+            </details>
           )}
+
+          {selectable &&
+            round.verdict &&
+            Object.keys(round.attribution_eval_run_ids).length === 0 && (
+              <div className="space-y-3 border-t pt-4">
+                <p className="text-muted-foreground text-sm">{t("attributionBody")}</p>
+                <Button
+                  variant="outline"
+                  disabled={actions.estimateAttribution.isPending}
+                  onClick={() =>
+                    void act(async () =>
+                      setQuote(await actions.estimateAttribution.mutateAsync(round.number)),
+                    )
+                  }
+                >
+                  {t("estimateAttribution")}
+                </Button>
+                {quote && (
+                  <>
+                    <p className="text-sm">
+                      {t("attributionQuote", {
+                        count: quote.changes,
+                        cost: usd(quote.total_usd, locale),
+                      })}
+                    </p>
+                    <Button
+                      disabled={!quote.affordable || actions.attribute.isPending}
+                      onClick={() =>
+                        void act(async () => {
+                          await actions.attribute.mutateAsync({
+                            number: round.number,
+                            estimate: quote.total_usd,
+                          });
+                          setQuote(null);
+                        })
+                      }
+                    >
+                      {t("confirmAttribution")}
+                    </Button>
+                  </>
+                )}
+              </div>
+            )}
+          {Object.entries(round.attribution_eval_run_ids).map(([hunkId, runId], index) => (
+            <details key={hunkId} className="rounded-lg border p-3">
+              <summary className="cursor-pointer text-sm font-medium">
+                {t("changeAttribution", { number: index + 1 })}
+              </summary>
+              <div className="mt-3">
+                <AttributionResult runId={runId} agentId={session.agent_id} />
+              </div>
+            </details>
+          ))}
         </div>
-      )}
-      {Object.entries(round.attribution_eval_run_ids).map(([hunkId, runId], index) => (
-        <details key={hunkId} className="rounded-lg border p-3">
-          <summary className="cursor-pointer text-sm font-medium">
-            {t("changeAttribution", { number: index + 1 })}
-          </summary>
-          <div className="mt-3">
-            <AttributionResult runId={runId} agentId={session.agent_id} />
-          </div>
-        </details>
-      ))}
+      </details>
       {error && (
         <p role="alert" className="text-destructive text-sm">
           {error}
@@ -222,18 +230,10 @@ function MeasuredResult({
       {!comparison && !comparisonError && <p role="status">{t("loading")}</p>}
       {baseline && candidate && (
         <p className="text-base font-medium">
-          {t("handledChange", {
+          {t("heldoutResult", {
             before: baseline.summary.passed,
             after: candidate.summary.passed,
             total: candidate.summary.cases,
-          })}
-        </p>
-      )}
-      {comparison && (
-        <p className="text-sm">
-          {t("heldoutResult", {
-            passed: comparison.candidate_summary.passed,
-            total: comparison.candidate_summary.cases,
           })}
         </p>
       )}

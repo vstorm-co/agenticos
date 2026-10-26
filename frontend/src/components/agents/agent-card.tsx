@@ -36,6 +36,7 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { groupsLabel } from "@/components/sharing/audience-chip";
 import { attentionParts } from "@/lib/attention";
+import { ImproveLink } from "@/components/agents/improve-link";
 import type { AgentAttention } from "@/types/stats";
 
 /** Chip labels for the surfaces an agent answers on. Unknown values pass through. */
@@ -102,7 +103,6 @@ export function AgentCard({
   attention?: AgentAttention;
 }) {
   const t = useTranslations("agents");
-  const tAttention = useTranslations("attention");
   const tc = useTranslations("common");
   const locale = useLocale();
   const archived = agent.status === "archived";
@@ -160,15 +160,7 @@ export function AgentCard({
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 <AccessChip agent={agent} />
-                {attention && (
-                  <Badge
-                    variant="warning"
-                    className="font-normal"
-                    title={attentionParts(attention, tAttention).join(" · ")}
-                  >
-                    {tAttention("badge")}
-                  </Badge>
-                )}
+                {attention && <AttentionBadge agentId={agent.id} attention={attention} />}
                 {agent.system_key && agent.kind && isSystemAgent(agent.kind) && (
                   <Badge
                     variant="secondary"
@@ -321,5 +313,28 @@ function IconAction({
     >
       <Icon className="h-4 w-4" />
     </Link>
+  );
+}
+
+/** Leads to the Improve wizard for a reader who may run it, and only describes otherwise. */
+function AttentionBadge({ agentId, attention }: { agentId: string; attention: AgentAttention }) {
+  const tAttention = useTranslations("attention");
+  const badge = (
+    <Badge
+      variant="warning"
+      className="font-normal"
+      title={attentionParts(attention, tAttention).join(" · ")}
+    >
+      {tAttention("badge")}
+    </Badge>
+  );
+  if (!attention.can_edit) return badge;
+  return (
+    <ImproveLink
+      agentId={agentId}
+      className="focus-visible:ring-ring pointer-events-auto relative rounded-md outline-none focus-visible:ring-2"
+    >
+      {badge}
+    </ImproveLink>
   );
 }

@@ -119,6 +119,47 @@ describe("AgentCard", () => {
     );
   });
 
+  it("leads an editor from the attention badge to the Improve wizard", () => {
+    render(
+      <AgentCard
+        agent={agent({ id: "a9", name: "Refund desk" })}
+        canEdit
+        attention={{
+          agent_id: "a9",
+          name: "Refund desk",
+          rated_down: 5,
+          failed_runs: 0,
+          failing_suites: 0,
+          can_edit: true,
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Needs attention").closest("a")).toHaveAttribute(
+      "href",
+      "/agents/a9/improve/new",
+    );
+  });
+
+  it("only describes the attention to a reader who may not improve the agent", () => {
+    render(
+      <AgentCard
+        agent={agent({ name: "Refund desk" })}
+        canEdit={false}
+        attention={{
+          agent_id: "a1",
+          name: "Refund desk",
+          rated_down: 5,
+          failed_runs: 0,
+          failing_suites: 0,
+          can_edit: false,
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Needs attention").closest("a")).toBeNull();
+  });
+
   it("flags nothing without a reason to", () => {
     mount({ name: "Refund desk" });
 

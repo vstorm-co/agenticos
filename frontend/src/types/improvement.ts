@@ -123,7 +123,12 @@ export interface ImprovementEvidenceItem {
   comments: string[];
   branch: "agent" | "missing_knowledge" | "not_a_problem" | "unknown";
   reason: string | null;
+  /** The knowledge gap topic its miss joined; examples sharing one are one problem. */
+  topic_id?: string | null;
+  /** A person's move to the other column, or "ignored"; later rounds follow it. */
+  decision?: EvidenceDecision | null;
 }
+export type EvidenceDecision = "agent" | "missing_knowledge" | "ignored";
 export interface ImprovementEvidence {
   items: ImprovementEvidenceItem[];
   sample_limit: number;

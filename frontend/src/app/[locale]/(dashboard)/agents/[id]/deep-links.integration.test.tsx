@@ -51,6 +51,10 @@ const page = vi.hoisted(() => ({
   params: "",
   validate: (() => undefined) as unknown,
   agent: undefined as unknown,
+  attention: [] as { agent_id: string; rated_down: number; failed_runs: number }[],
+}));
+vi.mock("@/hooks/use-usage-stats", () => ({
+  useAgentAttention: () => ({ agents: page.attention }),
 }));
 
 vi.mock("next/navigation", async (importOriginal) => ({
@@ -189,6 +193,7 @@ beforeEach(() => {
   page.kind = "agent";
   page.validate = vi.fn().mockResolvedValue({ problems: [], fields: [], fixes: [] });
   page.agent = { ...AGENT, can_edit: true, can_publish: true };
+  page.attention = [];
 });
 
 describe("the detail page's Evals tab gate", () => {
@@ -265,6 +270,30 @@ describe("the detail page's Knowledge gaps tab", () => {
       "aria-selected",
       "true",
     );
+  });
+});
+
+describe("the detail page's way into Improve", () => {
+  it("is the primary action only for an agent with answers rated down or failed runs", async () => {
+    allowed = new Set([Perm.runsView]);
+    await mount();
+    expect(await screen.findByRole("button", { name: "Improve" })).not.toHaveClass("bg-primary");
+  });
+
+  it("leads with Improve when people rated answers down", async () => {
+    allowed = new Set([Perm.runsView]);
+    page.attention = [{ agent_id: "a1", rated_down: 2, failed_runs: 0 }];
+    await mount();
+    expect(await screen.findByRole("button", { name: "Improve" })).toHaveClass("bg-primary");
+  });
+
+  it("is linked from the agent's knowledge gaps", async () => {
+    allowed = new Set([Perm.runsView]);
+    page.params = "tab=gaps";
+    await mount();
+    expect(
+      await screen.findByRole("link", { name: "Improve this agent from these gaps" }),
+    ).toHaveAttribute("href", "/agents/a1/improve/new");
   });
 });
 

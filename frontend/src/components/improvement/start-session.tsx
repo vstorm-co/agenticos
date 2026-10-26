@@ -168,19 +168,24 @@ export function StartSession({ agentId }: { agentId: string }) {
             )}
           </div>
         </details>
-        {target && (
-          <Button variant="outline" onClick={() => setBaseline(true)}>
-            {t("baseline")}
-          </Button>
-        )}
-        <SystemAgentChoice
-          kind="improver"
-          value={helper}
-          onChange={(value) => {
-            setHelper(value);
-            setQuote(null);
-          }}
-        />
+        <details className="rounded-lg border p-3" data-tour="improvement-details">
+          <summary className="cursor-pointer text-sm font-medium">{t("showDetails")}</summary>
+          <div className="mt-3 space-y-3">
+            {target && (
+              <Button variant="outline" onClick={() => setBaseline(true)}>
+                {t("baseline")}
+              </Button>
+            )}
+            <SystemAgentChoice
+              kind="improver"
+              value={helper}
+              onChange={(value) => {
+                setHelper(value);
+                setQuote(null);
+              }}
+            />
+          </div>
+        </details>
         {refused !== null && (
           <>
             <p role="alert" className="text-destructive text-sm">

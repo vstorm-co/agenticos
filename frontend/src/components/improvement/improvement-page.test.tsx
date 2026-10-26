@@ -32,6 +32,13 @@ const state = vi.hoisted(() => ({
   publish: true,
   session: null as Improvement | null,
   hunks: [] as Hunk[],
+  topics: [] as { id: string; label: string; has_draft: boolean; can_edit: boolean }[],
+  environments: [] as {
+    id: string;
+    name: string;
+    tracks_latest: boolean;
+    guard_suite_ids: string[];
+  }[],
 }));
 vi.mock("@/hooks/use-agents", () => ({
   useAgent: () => ({
@@ -59,6 +66,15 @@ vi.mock("@/hooks/use-improvements", () => ({
   }),
 }));
 vi.mock("./knowledge-drafts", () => ({ KnowledgeDrafts: () => null }));
+vi.mock("@/hooks/use-knowledge-gaps", () => ({
+  useKnowledgeGaps: () => ({ topics: state.topics, error: null }),
+}));
+vi.mock("@/hooks/use-datasets", () => ({
+  useDatasetCases: () => ({ cases: [], total: 12, isLoading: false, error: null }),
+}));
+vi.mock("@/hooks/use-agent-environments", () => ({
+  useAgentEnvironments: () => ({ environments: state.environments }),
+}));
 vi.mock("./start-session", () => ({ StartSession: () => <p>Start fixture</p> }));
 vi.mock("@/hooks/use-eval-runs", () => ({
   useEvalRun: () => ({ run: null, error: null }),
@@ -76,6 +92,8 @@ beforeEach(() => {
   state.runs = true;
   state.publish = true;
   state.hunks = [];
+  state.topics = [];
+  state.environments = [];
   state.session = {
     offer_automatic_check: true,
     id: "s1",
@@ -217,9 +235,9 @@ it("stops running work and explicitly retries a failed step", async () => {
   expect(actions.continueSession.mutateAsync).toHaveBeenCalledWith(quote);
 });
 
+vi.mock("./understand", () => ({ Understand: () => <p>Source examples fixture</p> }));
 vi.mock("./session-inputs", () => ({
   StartSignals: () => null,
-  Understand: () => <p>Source examples fixture</p>,
   TestQuestions: () => <p>Pinned questions fixture</p>,
   Today: () => <p>Baseline fixture</p>,
 }));
@@ -272,6 +290,40 @@ it("reopens the publication link without offering another publish", () => {
   );
   expect(screen.queryByRole("button", { name: "Accept and publish" })).not.toBeInTheDocument();
 });
+it("ends on a Done screen that says a later break will be reported", () => {
+  state.session!.status = "published";
+  state.session!.published_version = 4;
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.getByRole("region", { name: "Done" })).toHaveTextContent(
+    "We'll tell you if it breaks later.",
+  );
+});
+it("says where a guarded environment switches only for a publisher", async () => {
+  state.session!.next_version = 4;
+  state.environments = [
+    { id: "e1", name: "Production", tracks_latest: true, guard_suite_ids: ["s1"] },
+  ];
+  const view = render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  await userEvent.click(screen.getByRole("button", { name: "Accept these changes" }));
+  expect(
+    screen.getByText("Production switches to version 4 after the automatic check passes."),
+  ).toBeInTheDocument();
+  state.publish = false;
+  view.rerender(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.queryByText(/Production switches/)).not.toBeInTheDocument();
+});
+it("opens the result with one sentence for the agent and one for the knowledge base", async () => {
+  state.topics = [{ id: "t1", label: "Shipping", has_draft: true, can_edit: true }];
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(
+    screen.getByText("In the agent: 3 questions newly fixed, 0 newly broken."),
+  ).toBeInTheDocument();
+  expect(screen.getByText("In the knowledge base: 1 document to review.")).toBeInTheDocument();
+  expect(screen.getByText("Show details: test a knowledge draft")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Check" }));
+  await userEvent.click(screen.getByRole("button", { name: "See the result" }));
+  expect(screen.getByText(/3 questions newly fixed/)).toBeInTheDocument();
+});
 it("shows saved draft completion and the exact next version before publishing", async () => {
   state.session!.next_version = 4;
   state.session!.offer_automatic_check = false;
@@ -316,7 +368,8 @@ it("keeps a failed acceptance visible and shows an empty changes step", async ()
   await userEvent.click(screen.getByRole("button", { name: "Accept and publish" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("publish refused");
   await userEvent.click(screen.getByRole("button", { name: "Changes" }));
-  expect(screen.getByText(/No changes are available/)).toBeInTheDocument();
+  expect(screen.getByText(/couldn't find a change that fits/)).toBeInTheDocument();
+  expect(screen.getByText("Attempt 1: the changes made it better.")).toBeInTheDocument();
 });
 it("shows loading, refusal and retry states for actual resource reads", async () => {
   state.agentLoading = true;
@@ -376,7 +429,9 @@ it("can inspect earlier rounds while another round is running", async () => {
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
   expect(screen.getByText(/preparing changes/)).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Check" }));
-  expect(screen.getByText(/Round 1/)).toBeInTheDocument();
+  expect(screen.getByText("Testing the changes")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Result" }));
+  expect(screen.getByText(/Attempt 1/)).toBeInTheDocument();
 });
 
 it("opens the start screen for an authorized editor", () => {
@@ -390,5 +445,5 @@ it("keeps a provider failure and recorded round visible without a selected best 
   state.session!.best_iteration_id = null;
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
   expect(screen.getByRole("alert")).toHaveTextContent("The provider could not complete this check");
-  expect(screen.getByText("Round 1 of 3")).toBeInTheDocument();
+  expect(screen.getByText("Attempt 1 of 3")).toBeInTheDocument();
 });

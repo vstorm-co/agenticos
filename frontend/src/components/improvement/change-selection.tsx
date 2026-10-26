@@ -72,6 +72,12 @@ export function ChangeSelection({
             </label>
           )}
           <ChangePreview hunk={hunk} />
+          {hunk.expected_effect && (
+            <div className="px-4 text-sm">
+              <h4 className="text-xs font-medium">{t("shouldFix")}</h4>
+              <p className="break-words">{hunk.expected_effect}</p>
+            </div>
+          )}
         </div>
       ))}
       {session.can_restart === false && (

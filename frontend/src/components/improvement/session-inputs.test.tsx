@@ -6,7 +6,8 @@ import { caseScore } from "@/test-utils/scores";
 import { SESSION } from "@/test-utils/improvement";
 import type { EvalRun, EvalCase } from "@/types/eval-runs";
 import type { ImprovementEvidence } from "@/types/improvement";
-import { StartSignals, Understand, TestQuestions, Today } from "./session-inputs";
+import { StartSignals, TestQuestions, Today } from "./session-inputs";
+import { Understand } from "./understand";
 const state = vi.hoisted(() => ({
   sources: null as ImprovementEvidence | null,
   sourceError: null as Error | null,
@@ -32,11 +33,17 @@ const state = vi.hoisted(() => ({
   canEditDataset: true,
   datasetHook: vi.fn(),
   evidenceHook: vi.fn(),
+  decide: vi.fn(),
 }));
 vi.mock("@/hooks/use-improvements", () => ({
   useImprovementEvidence: (...args: unknown[]) => {
     state.evidenceHook(...args);
-    return { evidence: state.sources, isLoading: state.loading, error: state.sourceError };
+    return {
+      evidence: state.sources,
+      isLoading: state.loading,
+      error: state.sourceError,
+      decide: { mutateAsync: state.decide, isPending: false },
+    };
   },
 }));
 vi.mock("@/hooks/use-usage-stats", () => ({
@@ -198,7 +205,7 @@ it("keeps unknown causes explicit and shows quotes, comments, reasons and source
   await userEvent.click(screen.getAllByText("Why we think so")[0]!);
   expect(screen.getByText(/has not been classified/)).toBeInTheDocument();
   expect(screen.getByText("No source passage")).toBeInTheDocument();
-  expect(screen.getByText(/training answer failed/)).toBeInTheDocument();
+  expect(screen.getByText(/test answer failed/)).toBeInTheDocument();
   await userEvent.click(screen.getByText(/Not a problem to fix/));
   expect(screen.getByText(/existing feedback and classification/)).toBeInTheDocument();
 });
@@ -221,23 +228,25 @@ it("does not invent examples when sources are gone or unreadable", () => {
 });
 it("pages the pinned questions and explains train versus holdout", async () => {
   render(<TestQuestions session={SESSION} />);
-  expect(state.datasetHook).toHaveBeenLastCalledWith(SESSION.dataset_id, {
+  expect(state.datasetHook).toHaveBeenCalledWith(SESSION.dataset_id, {
     version: SESSION.dataset_version,
     skip: 0,
     limit: 20,
   });
+  expect(screen.getByText("21 test questions")).toBeInTheDocument();
   await userEvent.click(screen.getByText("Review the questions"));
   expect(screen.getByText("A good answer: 30 days")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Previous questions" })).toBeDisabled();
   await userEvent.click(screen.getByRole("button", { name: "Next questions" }));
-  expect(state.datasetHook).toHaveBeenLastCalledWith(SESSION.dataset_id, {
+  expect(state.datasetHook).toHaveBeenCalledWith(SESSION.dataset_id, {
     version: SESSION.dataset_version,
     skip: 20,
     limit: 20,
   });
   expect(screen.getByRole("button", { name: "Next questions" })).toBeDisabled();
+  state.datasetHook.mockClear();
   await userEvent.click(screen.getByRole("button", { name: "Previous questions" }));
-  expect(state.datasetHook).toHaveBeenLastCalledWith(SESSION.dataset_id, {
+  expect(state.datasetHook).toHaveBeenCalledWith(SESSION.dataset_id, {
     version: SESSION.dataset_version,
     skip: 0,
     limit: 20,
@@ -349,7 +358,7 @@ it("shows the grader reason and handles a missing persisted baseline answer", ()
     }),
   ];
   const view = render(<Today session={SESSION} />);
-  expect(screen.getByText("The answer uses the old deadline")).toBeInTheDocument();
+  expect(screen.getByText("Grader: The answer uses the old deadline")).toBeInTheDocument();
   state.cases = [evalCase({ attempts: [] })];
   view.rerender(<Today session={SESSION} />);
   expect(screen.getByText("No answer is available.")).toBeInTheDocument();
@@ -380,4 +389,103 @@ it("explains a failed classifier while keeping source conversations visible", ()
   );
   expect(screen.getByText(/couldn’t finish grouping the feedback/)).toBeInTheDocument();
   expect(screen.getByText("Refund?")).toBeInTheDocument();
+});
+
+it("counts the test questions by where they came from and shows the answer to avoid", async () => {
+  const question = (id: string, extra: object) => ({
+    id,
+    input: `Question ${id}`,
+    improvement_partition: "holdout",
+    reference_answer: null,
+    counter_example: null,
+    ...extra,
+  });
+  state.questions = [
+    question("q1", { source: "conversation", counter_example: "90 days" }),
+    question("q2", { source: "conversation", reference_answer: "30 days" }),
+    question("q3", { source: "synthetic" }),
+    question("q4", { source: "manual" }),
+  ];
+  state.total = 4;
+  const view = render(<TestQuestions session={SESSION} />);
+  expect(state.datasetHook).toHaveBeenCalledWith(SESSION.dataset_id, {
+    version: SESSION.dataset_version,
+    limit: 100,
+  });
+  expect(
+    screen.getByText(
+      "4 test questions: 1 from answers people rated down, 1 from answers they liked, 1 written for topics with no example, 1 added by hand or imported.",
+    ),
+  ).toBeInTheDocument();
+  await userEvent.click(screen.getByText("Review the questions"));
+  expect(screen.getByText("An answer to avoid: 90 days")).toBeInTheDocument();
+  expect(screen.getAllByText("Not used to write the changes")).toHaveLength(4);
+  state.questions = state.questions.slice(0, 3);
+  state.total = 3;
+  view.rerender(<TestQuestions session={SESSION} />);
+  expect(screen.getByText(/written for topics with no example\.$/)).toBeInTheDocument();
+});
+
+function sortable() {
+  state.sources!.items.push({
+    run_id: "r5",
+    conversation_id: "c5",
+    kind: "chat",
+    status: "completed",
+    rating: -1,
+    question: "Shipping to Canada?",
+    answer: "Unknown",
+    comments: [],
+    branch: "missing_knowledge",
+    reason: null,
+    topic_id: "t1",
+  });
+  state.sources!.items[2]!.topic_id = "t1";
+}
+
+it("groups examples by topic into problems and says how many each column holds", async () => {
+  sortable();
+  render(<Understand session={SESSION} />);
+  expect(
+    screen.getByText(
+      "We found 3 problems: 2 we can fix in the agent, 1 is information missing from the knowledge base.",
+    ),
+  ).toBeInTheDocument();
+  expect(screen.getByText("2 conversations about one topic")).toBeInTheDocument();
+  await userEvent.click(screen.getByText("1 more conversation about this"));
+  expect(screen.getByText("Shipping to Canada?")).toBeInTheDocument();
+  expect(
+    screen
+      .getAllByRole("link", { name: "Open conversation" })
+      .map((link) => link.getAttribute("href")),
+  ).toContain("/chat/c5");
+});
+
+it("moves, ignores and restores a problem for the next attempt", async () => {
+  sortable();
+  state.sources!.items[0]!.decision = "agent";
+  state.sources!.items.push({ ...state.sources!.items[0]!, run_id: "r6", decision: "ignored" });
+  render(<Understand session={SESSION} />);
+  expect(screen.getByText(/moved by you/)).toBeInTheDocument();
+  const moves = screen.getAllByRole("button", { name: "Move to the other column" });
+  expect(moves).toHaveLength(2);
+  await userEvent.click(moves[0]!);
+  expect(state.decide).toHaveBeenLastCalledWith({ runId: "r1", decision: "missing_knowledge" });
+  await userEvent.click(moves[1]!);
+  expect(state.decide).toHaveBeenCalledWith({ runId: "r3", decision: "agent" });
+  expect(state.decide).toHaveBeenLastCalledWith({ runId: "r5", decision: "agent" });
+  await userEvent.click(screen.getAllByRole("button", { name: "Ignore this" })[0]!);
+  expect(state.decide).toHaveBeenLastCalledWith({ runId: "r1", decision: "ignored" });
+  await userEvent.click(screen.getByText("Ignored (1)"));
+  await userEvent.click(screen.getByRole("button", { name: "Put it back" }));
+  expect(state.decide).toHaveBeenLastCalledWith({ runId: "r6", decision: null });
+  state.decide.mockRejectedValueOnce(new Error("Session decided"));
+  await userEvent.click(screen.getAllByRole("button", { name: "Ignore this" })[0]!);
+  expect(await screen.findByRole("alert")).toBeInTheDocument();
+});
+
+it("offers no sorting once the session is decided", () => {
+  render(<Understand session={{ ...SESSION, status: "published" }} />);
+  expect(screen.queryByRole("button", { name: "Ignore this" })).not.toBeInTheDocument();
+  expect(screen.queryByText(/If we sorted a problem wrongly/)).not.toBeInTheDocument();
 });
