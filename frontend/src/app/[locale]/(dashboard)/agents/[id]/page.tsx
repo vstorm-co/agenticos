@@ -89,9 +89,7 @@ import { TestPanel } from "@/components/agents/test-panel/test-panel";
 import { useTestShortcut } from "@/components/agents/test-panel/use-test-shortcut";
 import { VersionHistory } from "@/components/agents/version-history";
 import { KnowledgeGapsPanel } from "@/components/knowledge-gaps/knowledge-gaps-panel";
-import { ImproveLink, useNeedsImprovement } from "@/components/agents/improve-link";
-import { useImprovements } from "@/hooks/use-improvements";
-import { openImprovement } from "@/lib/improvement-steps";
+import { ImproveButton, ImproveLink, useNeedsImprovement } from "@/components/agents/improve-link";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ErrorState } from "@/components/states";
 import {
@@ -387,9 +385,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const needsImprovement = useNeedsImprovement(id, {
     enabled: canEdit && canViewRuns && !isSystem,
   });
-  const openSession = openImprovement(
-    useImprovements(id, { enabled: canEdit && canViewRuns && !isSystem }).sessions,
-  );
   const { runs: publishTests } = useDraftEvalRuns(canViewRuns && !isSystem ? id : null, {
     enabled: publishOpen,
   });
@@ -1046,19 +1041,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           actions={
             <>
               {canEdit && canViewRuns && !isSystem && (
-                <Button
-                  data-tour="agent-improve"
-                  variant={needsImprovement ? "default" : "outline"}
-                  className={needsImprovement ? "max-md:order-first" : undefined}
-                  onClick={() =>
-                    void (async () => {
-                      if (await persist())
-                        router.push(`/agents/${id}/improve/${openSession?.id ?? "new"}`);
-                    })()
-                  }
-                >
-                  {t("improveSession")}
-                </Button>
+                <ImproveButton agentId={id} persist={persist} tour="agent-improve" />
               )}
               {/* Trying the agent happens in the chat, which streams, keeps the
                 conversation and can hand a tool call to the approval queue.

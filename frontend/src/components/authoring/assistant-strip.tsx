@@ -2,10 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { ImproveButton } from "@/components/agents/improve-link";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
 import { NeedsRunsView } from "@/components/evals/needs-runs-view";
 import { specText } from "@/components/agents/version-history";
@@ -16,7 +17,7 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import type { AgentSpec } from "@/types/agents";
-import type { AuthoringKind, Hunk, HunkDecision, ProposedSkill } from "@/types/authoring";
+import type { Hunk, HunkDecision, ProposedSkill } from "@/types/authoring";
 import { Perm } from "@/types/permissions";
 import { AiOffNotice } from "./ai-off-notice";
 import { CheckDialog } from "./check-dialog";
@@ -27,7 +28,7 @@ import { VerifyReport } from "./verify-report";
 import { AuthoringResultNotice } from "./result-dialog";
 
 /**
- * The authoring assistant on the Build tab: ask it to improve the agent or to
+ * The authoring assistant on the Build tab: open the Improve wizard, ask it to
  * verify the draft's edits, check what it suggests with evals, and decide each
  * suggestion. Nothing it suggests reaches the draft without Accept, and nothing
  * reaches anybody without Publish.
@@ -63,7 +64,7 @@ export function AssistantStrip({
   const { can } = usePermissions();
   const canAsk = can(Perm.runsView);
   const assistant = useAgentAuthoring(agentId);
-  const [asking, setAsking] = useState<AuthoringKind | null>(null);
+  const [verifying, setVerifying] = useState(false);
   const [checking, setChecking] = useState(false);
   const { authoring, decide } = assistant;
   const { base } = useDraftBase(agentId);
@@ -115,22 +116,13 @@ export function AssistantStrip({
           </Badge>
         )}
         <div className="flex flex-wrap gap-2">
-          {canAsk && (
-            <Button
-              size="sm"
-              disabled={off || working || unknown}
-              onClick={() => setAsking("improve")}
-            >
-              {working ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
-              {working ? t("working") : t("improve")}
-            </Button>
-          )}
+          {canAsk && <ImproveButton agentId={agentId} persist={persist} size="sm" />}
           {canAsk && draftDiffers && (
             <Button
               size="sm"
               variant="outline"
               disabled={off || working || unknown}
-              onClick={() => setAsking("verify")}
+              onClick={() => setVerifying(true)}
             >
               {t("verify")}
             </Button>
@@ -165,6 +157,11 @@ export function AssistantStrip({
           {latest?.status === "failed" && (
             <p role="alert" className="text-destructive text-sm">
               {latest.error}
+            </p>
+          )}
+          {working && (
+            <p role="status" className="text-muted-foreground text-sm">
+              {t("working")}
             </p>
           )}
           {!working && batch === null && latest === null && (
@@ -206,12 +203,12 @@ export function AssistantStrip({
           )}
         </CardContent>
       )}
-      {asking !== null && (
+      {verifying && (
         <ImproveDialog
-          kind={asking}
+          kind="verify"
           estimate={assistant.estimate.mutateAsync}
           start={assistant.start.mutateAsync}
-          onOpenChange={(open) => !open && setAsking(null)}
+          onOpenChange={(open) => !open && setVerifying(false)}
         />
       )}
       {checking && (

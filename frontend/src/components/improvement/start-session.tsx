@@ -88,6 +88,11 @@ export function StartSession({ agentId }: { agentId: string }) {
     setWritten((count) => count + 1);
   }, []);
   const open = openImprovement(sessions.sessions);
+  const resume = params.get("resume") === "1";
+  // A link to Improve cannot know which session is open, so it lands here to be sent on.
+  useEffect(() => {
+    if (resume && open) router.replace(`/agents/${agentId}/improve/${open.id}`);
+  }, [resume, open, agentId, router]);
   const loading = own.isLoading && !chosen;
   return (
     <div className="space-y-6" data-tour="improvement-start">

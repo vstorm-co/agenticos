@@ -65,7 +65,7 @@ describe("NeedsAttentionWidget", () => {
     expect(screen.getByText("2 failed runs")).toBeInTheDocument();
     const improve = screen.getAllByRole("link", { name: "Improve" });
     expect(improve).toHaveLength(1);
-    expect(improve[0]).toHaveAttribute("href", "/agents/a1/improve/new");
+    expect(improve[0]).toHaveAttribute("href", "/agents/a1/improve/new?resume=1");
     await userEvent.click(improve[0]!);
   });
 

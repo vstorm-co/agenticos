@@ -4704,7 +4704,7 @@
       },
       "agent-assistant-strip": {
         "title": "Asystent tworzenia",
-        "body": "Poproś go o ulepszenie agenta na podstawie negatywnie ocenionych odpowiedzi albo o sprawdzenie Twoich zmian. Każda sugestia czeka, aż przyjmiesz ją do wersji roboczej."
+        "body": "Popraw otwiera kreator poprawy, tak jak w nagłówku. Tutaj przeglądasz sugestie asystenta, prosisz go o sprawdzenie własnych zmian i przyjmujesz każdą sugestię do wersji roboczej."
       },
       "agent-environment-guards": {
         "title": "Strażnicy",
@@ -10041,14 +10041,13 @@
     "strip": {
       "title": "Asystent tworzenia",
       "chip": "{count, plural, one {1 sugestia} few {# sugestie} many {# sugestii} other {# sugestii}} · z {ratedDown, plural, one {1 ocenionej negatywnie odpowiedzi} other {# ocenionych negatywnie odpowiedzi}} w {runs, plural, one {1 runie} other {# runach}}",
-      "working": "Czytam runy…",
-      "improve": "Ulepsz",
       "verify": "Sprawdź moje zmiany",
       "check": "Sprawdź w ewaluacji",
       "dismissAll": "Odrzuć wszystkie",
       "empty": "Asystent czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach i opisach narzędzi. Nic się nie zmienia, dopóki tego nie zaakceptujesz, i nic nie trafia do użytkowników, dopóki nie opublikujesz.",
       "verifyReport": "Co asystent sądzi o Twoich zmianach",
-      "skillCreated": "Utworzono skill {name} i dodano go do wersji roboczej"
+      "skillCreated": "Utworzono skill {name} i dodano go do wersji roboczej",
+      "working": "Czytam runy…"
     },
     "suggestion": {
       "tool": "Narzędzie {tool}",

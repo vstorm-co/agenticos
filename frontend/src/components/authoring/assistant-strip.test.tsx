@@ -2,6 +2,9 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("@/components/agents/improve-link", () => ({
+  ImproveButton: ({ agentId }: { agentId: string }) => <button>Improve {agentId}</button>,
+}));
 import { agentAuthoring, authoringRequest, batch, hunk } from "@/test-utils/authoring";
 import { evalRun } from "@/test-utils/eval-runs";
 import type { AgentAuthoring } from "@/types/authoring";
@@ -160,14 +163,14 @@ describe("AssistantStrip", () => {
     await waitFor(() => expect(toastError).toHaveBeenCalledWith("No longer fits"));
   });
 
-  it("offers Verify once the draft differs, and asks before improving", async () => {
+  it("offers Verify once the draft differs, and Improve as the wizard's own button", async () => {
     state.published = { spec: { ...DRAFT, instructions: "Old." } };
     strip();
     await userEvent.click(screen.getByRole("button", { name: "Verify my edits" }));
     expect(await screen.findByRole("heading", { name: "Verify your edits" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    await userEvent.click(screen.getByRole("button", { name: "Improve" }));
-    expect(await screen.findByRole("heading", { name: "Improve this agent" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Improve agent-1" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Improve this agent" })).toBeNull();
   });
 
   it("dismisses everything waiting and opens the check", async () => {
@@ -191,6 +194,7 @@ describe("AssistantStrip", () => {
       />,
     );
 
+    expect(screen.queryByRole("button", { name: /^Improve/ })).toBeNull();
     const check = screen.getByRole("button", { name: /Check with evals/ });
     expect(check).toHaveAttribute("aria-disabled", "true");
     expect(check).toHaveAttribute("title", "Needs permission to read runs");
@@ -222,20 +226,21 @@ describe("AssistantStrip", () => {
         onDraft={vi.fn()}
       />,
     );
-    expect(screen.getByRole("button", { name: "Improve" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Verify my edits" })).toBeDisabled();
     unmount();
 
     state.isLoading = false;
     state.error = new Error("502");
+    state.published = { spec: { ...DRAFT, instructions: "Old." } };
     strip();
-    expect(screen.getByRole("button", { name: "Improve" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Verify my edits" })).toBeDisabled();
   });
 
   it("is visibly off, with the way to turn it on, while AI assistance is", () => {
     state.enabled = false;
+    state.published = { spec: { ...DRAFT, instructions: "Old." } };
     strip();
-    expect(screen.getByRole("button", { name: "Improve" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Verify my edits" })).toBeDisabled();
     expect(screen.getByRole("link", { name: "Turn it on" })).toBeInTheDocument();
   });
 
@@ -262,7 +267,7 @@ describe("AssistantStrip", () => {
       );
       return result;
     })();
-    expect(screen.getByRole("button", { name: "Reading the runs…" })).toBeDisabled();
+    expect(screen.getByRole("status")).toHaveTextContent("Reading the runs…");
     expect(screen.getByText("What the assistant made of your edits")).toBeInTheDocument();
     unmount();
     state.authoring = agentAuthoring({
@@ -390,7 +395,7 @@ it("keeps the assistant to one line for an agent without learning evidence", () 
     has_evidence: false,
   });
   strip();
-  expect(screen.getByRole("button", { name: "Improve" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Improve agent-1" })).toBeInTheDocument();
   expect(screen.queryByText("No suggestions yet")).not.toBeInTheDocument();
   expect(screen.queryByTestId("suggestion")).not.toBeInTheDocument();
 });

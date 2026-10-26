@@ -8,6 +8,7 @@ const state = vi.hoisted(() => ({
   estimate: vi.fn(),
   start: vi.fn(),
   push: vi.fn(),
+  replace: vi.fn(),
   params: new URLSearchParams(),
   sessionError: null as Error | null,
   datasetError: null as Error | null,
@@ -22,7 +23,7 @@ const state = vi.hoisted(() => ({
   datasetQueries: [] as unknown[],
 }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: state.push }),
+  useRouter: () => ({ push: state.push, replace: state.replace }),
   useSearchParams: () => state.params,
 }));
 vi.mock("@/hooks/use-datasets", () => ({
@@ -253,4 +254,14 @@ it("drops an estimate or a refusal that arrives after the screen is gone", async
   fail(new Error("late"));
   await Promise.resolve();
   expect(state.estimate).toHaveBeenCalledTimes(2);
+});
+
+it("forwards a link to Improve to the session still open, and only a link", () => {
+  state.sessions = [{ id: "open", created_at: "2026-10-25T10:00:00Z", status: "ready" }];
+  const view = render(<StartSession agentId="a1" />);
+  expect(state.replace).not.toHaveBeenCalled();
+  view.unmount();
+  state.params = new URLSearchParams("resume=1");
+  render(<StartSession agentId="a1" />);
+  expect(state.replace).toHaveBeenCalledWith("/agents/a1/improve/open");
 });

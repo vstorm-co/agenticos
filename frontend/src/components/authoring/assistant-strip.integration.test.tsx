@@ -1,6 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("@/components/agents/improve-link", () => ({
+  ImproveButton: ({ agentId }: { agentId: string }) => <button>Improve {agentId}</button>,
+}));
 import { agentAuthoring } from "@/test-utils/authoring";
 import type { AgentSpec } from "@/types/agents";
 import { Perm, type Permission } from "@/types/permissions";
@@ -82,7 +85,7 @@ describe("the assistant's controls, by permission", () => {
   it("offers asking, verifying and checking to a reader of runs", () => {
     held.permissions = new Set([Perm.agentsEdit, Perm.skillsEdit, Perm.runsView]);
     surfaces();
-    expect(screen.getByRole("button", { name: "Improve" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Improve agent-1" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Verify my edits" })).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Check with evals" })).toHaveLength(2);
     expect(screen.getByRole("button", { name: "Improve with the assistant" })).toBeInTheDocument();
@@ -91,7 +94,7 @@ describe("the assistant's controls, by permission", () => {
   it("offers no check on the agent to a reader of runs who may not run its draft on a dataset", () => {
     held.permissions = new Set([Perm.agentsEdit, Perm.skillsEdit, Perm.runsView]);
     surfaces({ canCheck: false });
-    expect(screen.getByRole("button", { name: "Improve" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Improve agent-1" })).toBeInTheDocument();
     // The one left is the skill change's, which checks on an agent of its own.
     expect(screen.getAllByRole("button", { name: "Check with evals" })).toHaveLength(1);
   });

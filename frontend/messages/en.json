@@ -4935,7 +4935,7 @@
       },
       "agent-assistant-strip": {
         "title": "The authoring assistant",
-        "body": "Ask it to improve the agent from rated-down answers, or to check your own edits. Each suggestion waits for you to accept it into the draft."
+        "body": "Improve opens the improvement wizard, the same as in the header. Here you review what the assistant suggested, ask it to check your own edits, and accept each suggestion into the draft."
       },
       "agent-environment-guards": {
         "title": "Guards",
@@ -10258,14 +10258,13 @@
     "strip": {
       "title": "Authoring assistant",
       "chip": "{count, plural, =1 {1 suggestion} other {# suggestions}} · from {ratedDown, plural, =1 {1 rated-down answer} other {# rated-down answers}} across {runs, plural, =1 {1 run} other {# runs}}",
-      "working": "Reading the runs…",
-      "improve": "Improve",
       "verify": "Verify my edits",
       "check": "Check with evals",
       "dismissAll": "Dismiss all",
       "empty": "The assistant reads what people rated down and how runs ended, and suggests changes to the instructions and tool descriptions. Nothing changes until you accept it, and nothing goes live until you publish.",
       "verifyReport": "What the assistant made of your edits",
-      "skillCreated": "Skill {name} created and added to the draft"
+      "skillCreated": "Skill {name} created and added to the draft",
+      "working": "Reading the runs…"
     },
     "suggestion": {
       "tool": "Tool {tool}",

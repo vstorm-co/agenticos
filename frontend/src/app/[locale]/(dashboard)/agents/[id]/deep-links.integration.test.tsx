@@ -295,7 +295,7 @@ describe("the detail page's way into Improve", () => {
     await mount();
     expect(
       await screen.findByRole("link", { name: "Improve this agent from these gaps" }),
-    ).toHaveAttribute("href", "/agents/a1/improve/new");
+    ).toHaveAttribute("href", "/agents/a1/improve/new?resume=1");
   });
 });
 

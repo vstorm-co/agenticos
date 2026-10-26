@@ -4817,7 +4817,7 @@
       },
       "agent-assistant-strip": {
         "title": "Der Authoring-Assistent",
-        "body": "Lassen Sie ihn den Agent anhand negativ bewerteter Antworten verbessern oder Ihre eigenen Änderungen prüfen. Jeder Vorschlag wartet, bis Sie ihn in den Entwurf übernehmen."
+        "body": "Verbessern öffnet den Verbesserungs-Assistenten, wie im Kopfbereich. Hier prüfen Sie die Vorschläge des Assistenten, lassen ihn Ihre eigenen Änderungen prüfen und übernehmen jeden Vorschlag in den Entwurf."
       },
       "agent-environment-guards": {
         "title": "Wächter",
@@ -10141,14 +10141,13 @@
     "strip": {
       "title": "Authoring-Assistent",
       "chip": "{count, plural, =1 {1 Vorschlag} other {# Vorschläge}} · aus {ratedDown, plural, =1 {1 negativ bewerteten Antwort} other {# negativ bewerteten Antworten}} in {runs, plural, =1 {1 Run} other {# Runs}}",
-      "working": "Lese die Runs…",
-      "improve": "Verbessern",
       "verify": "Meine Änderungen prüfen",
       "check": "Mit Evals prüfen",
       "dismissAll": "Alle verwerfen",
       "empty": "Der Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen und Tool-Beschreibungen vor. Nichts ändert sich, bevor Sie es annehmen, und nichts geht live, bevor Sie veröffentlichen.",
       "verifyReport": "Was der Assistent zu Ihren Änderungen sagt",
-      "skillCreated": "Skill {name} erstellt und zum Entwurf hinzugefügt"
+      "skillCreated": "Skill {name} erstellt und zum Entwurf hinzugefügt",
+      "working": "Lese die Runs…"
     },
     "suggestion": {
       "tool": "Tool {tool}",

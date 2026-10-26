@@ -137,7 +137,7 @@ describe("AgentCard", () => {
 
     expect(screen.getByText("Needs attention").closest("a")).toHaveAttribute(
       "href",
-      "/agents/a9/improve/new",
+      "/agents/a9/improve/new?resume=1",
     );
   });
 
