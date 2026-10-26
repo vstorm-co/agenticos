@@ -19,6 +19,19 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- `GET /agents/ceiling`, for a caller with `agents:edit`: the deployment's
+  agents-per-organization limit (`limit`, null for none) and whether a create
+  would hit it (`at_limit`). The organization's count against it (`held`) is
+  given only to a caller whose `agents:view` reaches every agent, since it
+  includes agents others cannot see (#2488).
+
+- `GET /kb/{kb_id}/ingestion` says whether one knowledge base's documents are
+  still indexing, with `processing_count`, `indexed_count` and `failed_count`,
+  counted over the documents its page lists. It is part of the public API
+  (#2486).
+
 ### Fixed
 
 - The coding agent's key picker offers only keys for the chosen harness - Anthropic
@@ -31,6 +44,51 @@ Two things are versioned separately from this file and worth knowing about:
   the purposes its key may have (#2485). The picker respects endpoint defaults,
   preserves sign-ins accepted by other capabilities and marks a retained key
   that no longer fits after a harness change.
+
+- Knowledge citations name a page only for sources that have pages, such as PDF,
+  presentations and paginated office formats. Markdown, text, `.docx`, HTML,
+  spreadsheets and images name only the document; a stored structural page 1 or
+  a header-like code comment is not a location. The rule applies when results
+  are shown, so existing collections need no re-ingestion. Knowledge search in
+  the console follows the same rule (#2489).
+
+- Say an organization is at its agent limit before a create is attempted. At
+  the limit the Agents page disables **New agent** and template installs with
+  the reason, instead of refusing the create after the dialog is filled in, and
+  onboarding no longer offers to guide a create there. The server-side refusal
+  is unchanged (#2488).
+
+- Keep known realtime voice, text-to-speech, transcription, image, video and
+  embedding models out of agent and chat model pickers. Profiles and provider
+  suggestions report `chat_capable`; saved profiles also update when a provider
+  listing arrives later. Publish, rollback, draft checks and test runs reject
+  incompatible primary, reviewer, specialist and capability models, including
+  the first three fallbacks the runner can use. Runs reject incompatible
+  conversation overrides before starting, skip incompatible fallbacks and avoid
+  inventing specialists on them. Architect chooses a chat model. Provider
+  aliases share their vendor's classifications; unknown models and custom
+  endpoints remain allowed. Stored specs still load; a version on an incompatible
+  model must be corrected before republishing or restoring it (#2487).
+
+- Report a collection as `indexing` on `GET /rag/collections/{name}/info` while
+  any of its documents is still queued or being ingested, and `complete` only
+  once none is. The response adds `processing_count`, `indexed_count` and
+  `failed_count`; a failed document is counted there rather than holding the
+  collection at `indexing`. The knowledge base page shows its own state from
+  `GET /kb/{kb_id}/ingestion` and keeps refreshing until the whole batch has
+  settled (#2486).
+
+- Pin `sandboxd` to `ghcr.io/vstorm-co/sandboxd:0.2.37`, the version of the
+  backend's `pydantic-ai-backend` client, in every compose file. A cached
+  `sandboxd:0.2` older than the client answered every command with a 404 that the
+  platform reported as a lost session. A sandbox service that does not serve a
+  route the client needs now fails the tool call with a version mismatch that
+  names the image to run, including legacy conflicts when attaching saved session
+  references. The conversation reopens its session by name on the next turn.
+  `agenticos cmd doctor` checks each sandbox connection's routes. To
+  upgrade, redeploy with `scripts/deploy.sh` or `make dev`, which pull the pinned
+  tag. `make prod` does not start the `sandbox` profile, so on a stack started
+  with it, pull and recreate `sandboxd` with `--profile sandbox` (#2484).
 
 ## [1.22.0] - 2026-10-26
 
