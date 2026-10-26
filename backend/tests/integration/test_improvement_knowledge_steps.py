@@ -513,6 +513,21 @@ async def test_examples_group_by_topic_and_a_persons_triage_reaches_later_rounds
         assert stored.evidence_decisions == {str(sources[0]): "ignored"}
 
 
+async def _advances_queued_later(db, run_id) -> int:
+    from sqlalchemy import func, select
+
+    return await db.scalar(
+        select(func.count())
+        .select_from(BackgroundJob)
+        .where(
+            BackgroundJob.kind == "advance-improvement",
+            BackgroundJob.status == "queued",
+            BackgroundJob.payload["run_id"].astext == str(run_id),
+            BackgroundJob.run_after > func.now(),
+        )
+    )
+
+
 @pytest.mark.parametrize(("askers", "drafted", "reason"), [(1, 0, "too_few_askers"), (2, 1, None)])
 async def test_drafting_says_why_a_topic_one_person_asked_about_is_left_undrafted(
     db, askers, drafted, reason
@@ -527,3 +542,25 @@ async def test_drafting_says_why_a_topic_one_person_asked_about_is_left_undrafte
     timeline = (await ImprovementPipelineService(db).read(ctx, agent.id, read.id)).timeline
     [finished] = [e for e in timeline if e.action == "improvement.drafting_finished"]
     assert finished.reason == reason
+
+
+async def test_a_finished_knowledge_step_wakes_its_session_once_the_queue_records_it(db):
+    from sqlalchemy import update
+
+    ctx, agent, _, dataset, _ = await _world(db)
+    with _providers(db, ctx):
+        read = await _start(db, ctx, agent, dataset)
+        stored = await db.get(ImprovementRun, read.id)
+        _, classify = await _job(db, stored)
+        await db.execute(
+            update(BackgroundJob).where(BackgroundJob.status == "queued").values(status="succeeded")
+        )
+        await classify_knowledge_gaps(classify)
+        assert await _advances_queued_later(db, read.id) == 1
+        stored, _ = await _classify(db, ctx, agent, read)
+        _, draft = await _job(db, stored, draft=True)
+        await db.execute(
+            update(BackgroundJob).where(BackgroundJob.status == "queued").values(status="succeeded")
+        )
+        await draft_knowledge_gaps(draft)
+        assert await _advances_queued_later(db, read.id) == 1

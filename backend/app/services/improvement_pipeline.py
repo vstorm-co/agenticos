@@ -1463,14 +1463,18 @@ class ImprovementPipelineService:
                         now=datetime.now(UTC),
                     )
 
-    async def wake(self, run_id: UUID, *, organization_id: UUID) -> None:
+    async def wake(
+        self, run_id: UUID, *, organization_id: UUID, after: timedelta | None = None
+    ) -> None:
         """Advance a session as soon as a step it waits on has ended, not at the next sweep.
 
-        Called in the transaction that ends the step, so the advance runs on what it wrote.
+        Called in the transaction that ends the step, so the advance runs on what it
+        wrote. A step whose end the queue records only after it returns - a knowledge
+        job's - passes `after`, so the advance reads that end rather than racing it.
         """
         run = await improvement_repo.get_run(self.db, run_id, organization_id=organization_id)
         if run is not None and Status(run.status).active:
-            await self._queue(run)
+            await self._queue(run, run_after=None if after is None else datetime.now(UTC) + after)
 
     async def drafts_written(
         self, run_id: UUID, *, organization_id: UUID, drafted: int, too_few_askers: int
@@ -1496,7 +1500,7 @@ class ImprovementPipelineService:
             },
         )
 
-    async def _queue(self, run: ImprovementRun) -> None:
+    async def _queue(self, run: ImprovementRun, *, run_after: datetime | None = None) -> None:
         # State is part of dedupe: the current job may enqueue its successor.
         children = await improvement_repo.get_iteration(
             self.db, organization_id=run.organization_id, run_id=run.id, number=run.iteration
@@ -1512,6 +1516,7 @@ class ImprovementPipelineService:
             concurrency_key=f"improvement:{run.agent_id}",
             dedupe_key=f"{run.id}:{run.status}:{run.stage}:{run.iteration}:{marker}",
             dedupe_active=True,
+            run_after=run_after,
         )
 
     async def sweep(self) -> int:

@@ -11,6 +11,7 @@ model, so it runs only when a person asks for it, as them.
 
 import logging
 from dataclasses import dataclass
+from datetime import timedelta
 from decimal import Decimal
 from typing import Literal
 from uuid import UUID
@@ -99,7 +100,10 @@ async def classify_knowledge_gaps(job: ClassifyGaps) -> int:
         How many misses were recorded.
     """
     if job.improvement_run_id is not None:
-        return await _classify_session(job)
+        try:
+            return await _classify_session(job)
+        finally:
+            await _wake_session(job)
     await change_feed.connect_in_worker()
     misses = 0
     for kb_id in job.knowledge_base_ids:
@@ -170,7 +174,10 @@ async def draft_knowledge_gaps(job: DraftGaps) -> int:
         How many topics were drafted.
     """
     if job.improvement_run_id is not None:
-        return await _draft_session(job)
+        try:
+            return await _draft_session(job)
+        finally:
+            await _wake_session(job)
     async with get_worker_db_context() as db:
         ctx = await KnowledgeGapService(db).acting_as(
             organization_id=job.organization_id, user_id=job.user_id
@@ -202,6 +209,19 @@ async def draft_knowledge_gaps(job: DraftGaps) -> int:
             continue
         drafted += 1
     return drafted
+
+
+# The queue records a job's end only after its handler returns; the session's
+# advance is queued this far out so it reads that end.
+_JOB_ENDS_WITHIN = timedelta(seconds=3)
+
+
+async def _wake_session(job: ClassifyGaps | DraftGaps) -> None:
+    assert job.improvement_run_id is not None
+    async with get_worker_db_context() as db:
+        await ImprovementPipelineService(db).wake(
+            job.improvement_run_id, organization_id=job.organization_id, after=_JOB_ENDS_WITHIN
+        )
 
 
 @dataclass(frozen=True)
