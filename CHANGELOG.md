@@ -94,6 +94,11 @@ Two things are versioned separately from this file and worth knowing about:
 - **Editing a mail trigger's subject or sender keeps the rest of its filter.**
   Saving the two fields replaced the whole filter, dropping a Gmail label.
 
+- Read chat project metadata without downloading the transcript, and load model
+  summaries only for model-history reconstruction. Coalesce streamed text updates,
+  reuse unchanged Markdown and tool output, follow content size changes, and release
+  completed visual frames outside the viewport (#2469).
+
 ## [1.17.0] - 2026-10-25
 
 ### Added

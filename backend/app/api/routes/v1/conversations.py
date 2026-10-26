@@ -170,6 +170,28 @@ async def get_conversation(
     )
 
 
+@router.get("/{conversation_id}/metadata", response_model=ConversationRead)
+async def get_conversation_metadata(
+    conversation_id: UUID,
+    conversation_service: ConversationSvc,
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+    ctx: Auth,
+) -> Any:
+    """Read conversation metadata without loading its transcript or model summary.
+
+    Uses the same tenant and reader access as the full conversation read.
+    Transcript consumers should page `/conversations/{id}/messages` separately.
+    """
+    return await conversation_service.get_conversation(
+        conversation_id,
+        organization_id=active_org.id,
+        include_messages=False,
+        user_id=current_user.id,
+        ctx=ctx,
+    )
+
+
 @router.post(
     "/{conversation_id}/visuals/{visual_id}/publish",
     response_model=VisualPublished,

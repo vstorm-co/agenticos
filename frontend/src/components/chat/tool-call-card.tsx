@@ -137,12 +137,12 @@ export function ToolCallCard({
   );
   const [showRaw, setShowRaw] = useState(false);
 
-  const resultText =
-    toolCall.result !== undefined
-      ? typeof toolCall.result === "string"
-        ? toolCall.result
-        : JSON.stringify(toolCall.result, null, 2)
-      : "";
+  const resultText = useMemo(() => {
+    if (!expanded || toolCall.result === undefined) return "";
+    return typeof toolCall.result === "string"
+      ? toolCall.result
+      : JSON.stringify(toolCall.result, null, 2);
+  }, [expanded, toolCall.result]);
 
   const isRAGSearch =
     renderer === "rag" && toolCall.status === "completed" && typeof toolCall.result === "string";

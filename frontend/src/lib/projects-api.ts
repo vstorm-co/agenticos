@@ -59,7 +59,9 @@ export async function listProjectChats(
 
 /** The project a conversation was started in, or null for one outside any. */
 export async function projectOfConversation(conversationId: string): Promise<string | null> {
-  const conversation = await apiClient.get<Conversation>(`/conversations/${conversationId}`);
+  const conversation = await apiClient.get<Pick<Conversation, "project_id">>(
+    `/conversations/${conversationId}/metadata`,
+  );
   return conversation.project_id ?? null;
 }
 

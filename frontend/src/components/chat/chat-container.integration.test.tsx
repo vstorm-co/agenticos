@@ -318,57 +318,58 @@ describe("the chat container - Stop without a restored decision card", () => {
   );
 });
 
+/**
+ * Every ResizeObserver the chat makes, so a test can say an element changed
+ * size. The dock's height is padding under the transcript, not content, so
+ * the transcript's own observer never hears of it.
+ */
+function observeSizes() {
+  const observers: { grew: () => void; targets: Element[] }[] = [];
+  class FakeResize {
+    private readonly seen: { grew: () => void; targets: Element[] };
+    constructor(callback: () => void) {
+      this.seen = { grew: callback, targets: [] };
+      observers.push(this.seen);
+    }
+    observe(element: Element) {
+      this.seen.targets.push(element);
+    }
+    unobserve() {}
+    disconnect() {}
+  }
+  vi.stubGlobal("ResizeObserver", FakeResize);
+  return observers;
+}
+
 describe("the chat container - following the transcript", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("scrolls the transcript's own scroller to a new message, never the page around it", async () => {
+  it("follows actual size changes without measuring the transcript on every text delta", async () => {
+    const observers = observeSizes();
     const scrollTo = vi.spyOn(Element.prototype, "scrollTo");
     const scrollIntoView = vi.spyOn(Element.prototype, "scrollIntoView");
-    mount();
-    await screen.findByRole("button", { name: "Voice input" });
+    const { dock, scroller } = await scrollerAndDock();
+    const readHeight = vi.fn(() => 2000);
+    Object.defineProperty(scroller, "scrollHeight", { configurable: true, get: readHeight });
     scrollTo.mockClear();
+    scrollIntoView.mockClear();
     act(() =>
-      useChatStore.getState().addMessage({
-        id: "m-1",
-        role: "user",
-        content: "Send the invoice",
-        timestamp: new Date(),
-      }),
+      useChatStore
+        .getState()
+        .updateMessage("m-1", (message) => ({ ...message, content: "Still the same height" })),
     );
-    // `scrollIntoView` scrolls every scrollable ancestor, and the page column
-    // around the chat is one: during a call it scrolled the whole chat up and out.
-    await waitFor(() => expect(scrollTo).toHaveBeenCalled());
-    const scroller = scrollTo.mock.contexts.at(-1) as HTMLElement;
-    expect(scroller).toHaveClass("overflow-y-auto");
-    expect(scroller).toContainElement(await screen.findByText("Send the invoice"));
-    expect(scrollTo).toHaveBeenLastCalledWith({ top: scroller.scrollHeight, behavior: "smooth" });
+    expect(readHeight).not.toHaveBeenCalled();
+    expect(scrollTo).not.toHaveBeenCalled();
+    const follow = observers.find(
+      (observer) => observer.targets.includes(scroller) && !observer.targets.includes(dock),
+    )!;
+    act(() => follow.grew());
+    expect(scroller.scrollTop).toBe(2000);
+    expect(readHeight).toHaveBeenCalledTimes(1);
     expect(scrollIntoView).not.toHaveBeenCalled();
     scrollTo.mockRestore();
     scrollIntoView.mockRestore();
   });
-
-  /**
-   * Every ResizeObserver the chat makes, so a test can say an element changed
-   * size. The dock's height is padding under the transcript, not content, so
-   * the transcript's own observer never hears of it.
-   */
-  function observeSizes() {
-    const observers: { grew: () => void; targets: Element[] }[] = [];
-    class FakeResize {
-      private readonly seen: { grew: () => void; targets: Element[] };
-      constructor(callback: () => void) {
-        this.seen = { grew: callback, targets: [] };
-        observers.push(this.seen);
-      }
-      observe(element: Element) {
-        this.seen.targets.push(element);
-      }
-      unobserve() {}
-      disconnect() {}
-    }
-    vi.stubGlobal("ResizeObserver", FakeResize);
-    return observers;
-  }
 
   /**
    * The transcript's scroller, a screen long and scrolled to its end, and the
@@ -890,6 +891,7 @@ describe("the chat container - where an empty conversation is scrolled", () => {
     // In the Architect's narrow window the welcome is taller than the pane, and
     // following the foot of an empty conversation scrolled its greeting and the
     // face above it out of view.
+    const observers = observeSizes();
     const scrollTo = vi.spyOn(Element.prototype, "scrollTo");
     mount();
     expect(scrollTo).toHaveBeenCalledWith({ top: 0 });
@@ -905,7 +907,15 @@ describe("the chat container - where an empty conversation is scrolled", () => {
     // was detached by the time it was asserted on (230 ms, well inside the
     // timeout), so what is checked is the message on screen, not one node.
     await waitFor(() => expect(screen.getByText("Hi.")).toBeInTheDocument());
-    expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ behavior: "smooth" }));
+    const dock = screen.getByRole("textbox").closest(".absolute") as HTMLElement;
+    const scroller = dock.previousElementSibling as HTMLElement;
+    Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: 1500 });
+    const follow = observers.find(
+      (observer) => observer.targets.includes(scroller) && !observer.targets.includes(dock),
+    )!;
+    act(() => follow.grew());
+    expect(scroller.scrollTop).toBe(1500);
+    expect(scrollTo).not.toHaveBeenCalledWith(expect.objectContaining({ behavior: "smooth" }));
     scrollTo.mockRestore();
   });
 });

@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { VisualFrameProps } from "./visual-frame";
 import { ConversationVisualsProvider, TurnVisuals } from "./visual-panel";
@@ -12,6 +12,34 @@ import {
 import type { ChatMessage, ToolCall } from "@/types";
 
 const frames: VisualFrameProps[] = [];
+const observerConstructor = globalThis.IntersectionObserver;
+class VisibleObserver extends observerConstructor {
+  constructor(
+    private readonly notify: IntersectionObserverCallback,
+    options?: IntersectionObserverInit,
+  ) {
+    super(notify, options);
+  }
+  observe = (target: Element) => {
+    const rect = target.getBoundingClientRect();
+    this.notify(
+      [
+        {
+          target,
+          isIntersecting: true,
+          intersectionRatio: 1,
+          boundingClientRect: rect,
+          intersectionRect: rect,
+          rootBounds: null,
+          time: 0,
+        },
+      ],
+      this,
+    );
+  };
+}
+beforeEach(() => vi.stubGlobal("IntersectionObserver", VisibleObserver));
+afterEach(() => vi.unstubAllGlobals());
 vi.mock("./visual-frame", () => ({
   VisualFrame: (props: VisualFrameProps) => {
     frames.push(props);
@@ -108,6 +136,12 @@ function show(
 }
 
 describe("TurnVisuals", () => {
+  it("does not start completed drawings in history before they approach the viewport", () => {
+    vi.stubGlobal("IntersectionObserver", observerConstructor);
+    show([call()]);
+    expect(screen.queryByTestId("frame")).toBeNull();
+    expect(screen.getByText("Flow")).toBeInTheDocument();
+  });
   beforeEach(() => {
     frames.length = 0;
     useVisualStreamStore.setState({ args: {} });
@@ -482,7 +516,8 @@ describe("on the server", () => {
   it("renders the framed panel, since no server page is inside another site", () => {
     const html = renderToString(<TurnVisuals calls={[call()]} />);
     expect(html).toContain("Flow");
-    expect(html).toContain('data-testid="frame"');
+    expect(html).not.toContain('data-testid="frame"');
+    expect(html).toContain("height:400px");
   });
 
   it("lets go of the page when the panel goes", () => {

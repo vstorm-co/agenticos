@@ -107,3 +107,36 @@ async def test_latest_messages_carry_the_cursor_and_the_same_reader_scope(
     assert arguments["limit"] == 101
     assert arguments["organization_id"] is not None
     assert arguments["user_id"] is not None
+
+
+async def test_metadata_excludes_history_and_carries_the_reader_scope(service: AsyncMock) -> None:
+    project_id = uuid4()
+    service.get_conversation.return_value = {
+        "id": CONVERSATION_ID,
+        "title": "Long conversation",
+        "project_id": project_id,
+        "created_at": datetime.now(UTC),
+        "updated_at": None,
+    }
+    async with _client() as client:
+        response = await client.get(
+            f"{settings.API_V1_STR}/conversations/{CONVERSATION_ID}/metadata"
+        )
+    assert response.status_code == 200
+    assert response.json()["project_id"] == str(project_id)
+    assert "messages" not in response.json()
+    assert "summary_messages" not in response.json()
+    arguments = service.get_conversation.await_args.kwargs
+    assert arguments["include_messages"] is False
+    assert arguments["user_id"] is not None
+    assert arguments["organization_id"] is not None
+    assert arguments["ctx"] is not None
+
+
+async def test_metadata_is_missing_when_the_reader_cannot_access_it(service: AsyncMock) -> None:
+    service.get_conversation.side_effect = NotFoundError(message="Conversation not found")
+    async with _client() as client:
+        response = await client.get(
+            f"{settings.API_V1_STR}/conversations/{CONVERSATION_ID}/metadata"
+        )
+    assert response.status_code == 404

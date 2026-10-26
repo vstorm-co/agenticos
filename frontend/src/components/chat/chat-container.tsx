@@ -565,10 +565,6 @@ export function ChatContainer({
   // Whether the reader has moved up to read, so the transcript stops following.
   useReaderScrolledUp(scrollContainerRef, userScrolledUpRef);
 
-  // Auto-scroll on every messages update unless user has scrolled up. The
-  // transcript scrolls itself rather than calling `scrollIntoView`, which also
-  // scrolls every page framing the chat - the Builder under its test panel
-  // jumped to its foot on each answer (#2074).
   // An empty conversation is not followed at all: its welcome reads from the
   // top, and in a narrow window - the Architect's, the test panel - following
   // the foot scrolled the greeting and the face above it out of view. A call is
@@ -582,9 +578,7 @@ export function ChatContainer({
       container?.scrollTo({ top: 0 });
       return;
     }
-    if (userScrolledUpRef.current) return;
-    container?.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
-  }, [messages, empty]);
+  }, [empty]);
   // And on growth the messages do not announce: an answer's last words are
   // revealed over frames after its message has stopped changing.
   const holdFollow = useCallback(() => emptyRef.current || userScrolledUpRef.current, []);
