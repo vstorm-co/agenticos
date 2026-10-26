@@ -513,6 +513,7 @@
     "searchSkills": "Szukaj skilli…",
     "secret": "Sekret",
     "secretMissingFromVault": "Sekret wybrany tutaj nie znajduje się w vault tej organizacji - został usunięty albo spec napisano dla innej organizacji. Publikowanie go odrzuca.",
+    "secretForDifferentService": "Klucz „{name}” jest przeznaczony do innej usługi. Wybierz klucz pasujący do tej konfiguracji.",
     "secretOfWrongKind": "„{name}” jest rodzaju {kind}; ta capability potrzebuje {needed}. Publikowanie to odrzuca.",
     "secretUnchanged": "Pozostaw puste, aby zachować zapisany sekret",
     "separateWithCommas": "Oddzielaj przecinkami",

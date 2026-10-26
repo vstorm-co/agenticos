@@ -581,7 +581,13 @@ function purposesOf(
       binding.config[mapping.field] ?? schema?.properties?.[mapping.field]?.default,
     );
     const endpoint = mapping.open_when_set[value];
-    if (endpoint !== undefined && binding.config[endpoint]) return null;
+    if (endpoint !== undefined) {
+      const address =
+        binding.config[endpoint] === undefined
+          ? schema?.properties?.[endpoint]?.default
+          : binding.config[endpoint];
+      if (address) return null;
+    }
     const mapped = mapping.purposes[value];
     if (mapped !== undefined) return mapped;
   }
@@ -656,13 +662,14 @@ function SecretField({
   const purpose = purposeOf(binding, requirement);
   const purposes = purposesOf(binding, requirement, schema);
   const signIn = signInFor(binding);
-  // Publish refuses a ChatGPT sign-in for any harness but Codex whatever its
-  // purpose, so a gateway opening Claude Code's purposes does not offer one.
+  // This additional refusal belongs to the coding agent alone. Other
+  // capabilities may accept ChatGPT credentials through `also_accepts`.
+  const rejectsChatGPT = binding.id === CODING_AGENT_ID && signIn !== "chatgpt";
   const usable = secrets.filter(
     (secret) =>
       acceptsKind(requirement, secret.kind) &&
       fitsPurpose(secret, purposes, binding.secret_id) &&
-      (secret.kind !== "openai_codex" || signIn === "chatgpt" || secret.id === binding.secret_id),
+      (secret.kind !== "openai_codex" || !rejectsChatGPT || secret.id === binding.secret_id),
   );
   const state = vaultState(isLoading, listError, usable.length);
   // Having selected nothing is a fact about the spec, so it is said whatever the
@@ -671,11 +678,19 @@ function SecretField({
   // is what a full vault also looks like - a stored secret would otherwise read
   // as deleted on every load.
   const vaultWasRead = state === "ready" || state === "empty";
+  const selected = secrets.find((secret) => secret.id === binding.secret_id);
+  // Retain the selection so switching harnesses never silently drops a key,
+  // but explain why publish would refuse it at the field that can fix it.
+  const incompatible =
+    selected !== undefined &&
+    (!fitsPurpose(selected, purposes, null) ||
+      (selected.kind === "openai_codex" && rejectsChatGPT));
   const problem =
     optional && binding.secret_id === null
       ? null
       : binding.secret_id === null || vaultWasRead
-        ? secretProblem(requirement, binding.secret_id, secrets, t)
+        ? (secretProblem(requirement, binding.secret_id, secrets, t) ??
+          (incompatible ? t("secretForDifferentService", { name: selected.name }) : null))
         : null;
 
   return (

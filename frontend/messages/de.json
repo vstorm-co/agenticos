@@ -513,6 +513,7 @@
     "searchSkills": "Skills suchen …",
     "secret": "Secret",
     "secretMissingFromVault": "Das hier gewählte Secret liegt nicht im Vault dieser Organisation – es wurde gelöscht, oder der Spec wurde für eine andere Organisation geschrieben. Das Veröffentlichen lehnt es ab.",
+    "secretForDifferentService": "Der Schlüssel „{name}“ ist für einen anderen Dienst bestimmt. Wählen Sie einen Schlüssel für diese Konfiguration.",
     "secretOfWrongKind": "„{name}“ ist von der Art {kind}; diese Capability braucht {needed}. Das Veröffentlichen lehnt es ab.",
     "secretUnchanged": "Leer lassen, um das gespeicherte Secret zu behalten",
     "separateWithCommas": "Mit Kommas trennen",

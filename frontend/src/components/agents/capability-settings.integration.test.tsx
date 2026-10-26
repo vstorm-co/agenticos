@@ -766,6 +766,78 @@ describe("CapabilitySettings coding agent sign-in", () => {
     await waitFor(() =>
       expect(screen.getByLabelText("Key or sign-in")).toHaveTextContent("Anthropic"),
     );
+    expect(screen.getByLabelText("Key or sign-in")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("Key or sign-in")).toHaveAccessibleDescription(
+      expect.stringContaining("Choose a key for this configuration"),
+    );
+  });
+
+  it("opens gateway purposes from the endpoint's schema default", async () => {
+    serve(VAULT);
+    mount(binding({ id: "coding_agent", config: {} }), {
+      definition: {
+        ...CODER,
+        config_schema: {
+          ...CODER.config_schema,
+          properties: {
+            ...CODER.config_schema?.properties,
+            base_url: { type: "string", default: "https://gateway.example/api" },
+          },
+        },
+      },
+    });
+
+    await userEvent.click(await screen.findByLabelText("Key or sign-in"));
+    expect(await screen.findByRole("option", { name: /OpenAI/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /My ChatGPT/ })).toBeNull();
+  });
+
+  it("does not reopen gateway purposes when an explicit null overrides its default", async () => {
+    serve(VAULT);
+    mount(binding({ id: "coding_agent", config: { base_url: null } }), {
+      definition: {
+        ...CODER,
+        config_schema: {
+          ...CODER.config_schema,
+          properties: {
+            ...CODER.config_schema?.properties,
+            base_url: { type: "string", default: "https://gateway.example/api" },
+          },
+        },
+      },
+    });
+
+    await userEvent.click(await screen.findByLabelText("Key or sign-in"));
+    expect(await screen.findByRole("option", { name: /Anthropic/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /OpenAI/ })).toBeNull();
+  });
+
+  it("keeps sign-ins selectable for other capabilities that accept their kind", async () => {
+    serve(VAULT);
+    mount(binding(), {
+      definition: { ...WEATHER, requires_secret: CODER.requires_secret },
+    });
+
+    await userEvent.click(await screen.findByLabelText("Key or sign-in"));
+    expect(await screen.findByRole("option", { name: /My ChatGPT/ })).toBeInTheDocument();
+  });
+
+  it("marks a retained ChatGPT sign-in invalid for Claude Code behind a gateway", async () => {
+    serve(VAULT);
+    mount(
+      binding({
+        id: "coding_agent",
+        config: { harness: "claude_code", base_url: "https://gateway.example/api" },
+        secret_id: SIGN_IN.id,
+      }),
+      { definition: CODER },
+    );
+    await waitFor(() =>
+      expect(screen.getByLabelText("Key or sign-in")).toHaveAttribute("aria-invalid", "true"),
+    );
+    expect(screen.getByLabelText("Key or sign-in")).toHaveAccessibleDescription(
+      expect.stringContaining("Choose a key for this configuration"),
+    );
   });
 
   it("narrows a binding that stores no harness to Claude Code's keys", async () => {

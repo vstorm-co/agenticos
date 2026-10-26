@@ -28,7 +28,9 @@ Two things are versioned separately from this file and worth knowing about:
   takes any key, the gateway's. Republishing an agent refused here means its key
   was going to the wrong vendor and failing every task; rebind it, or store it as
   `custom` if it is right. A capability can now map a config field's values to
-  the purposes its key may have (#2485).
+  the purposes its key may have (#2485). The picker respects endpoint defaults,
+  preserves sign-ins accepted by other capabilities and marks a retained key
+  that no longer fits after a harness change.
 
 ## [1.22.0] - 2026-10-26
 

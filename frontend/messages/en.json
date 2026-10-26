@@ -513,6 +513,7 @@
     "searchSkills": "Search skills…",
     "secret": "Secret",
     "secretMissingFromVault": "The secret selected here is not in this organization's vault - it was deleted, or the spec was written against another organization. Publishing refuses it.",
+    "secretForDifferentService": "Key \"{name}\" is for a different service. Choose a key for this configuration.",
     "secretOfWrongKind": "\"{name}\" is of kind {kind}; this capability needs {needed}. Publishing refuses it.",
     "secretUnchanged": "Leave blank to keep the stored secret",
     "separateWithCommas": "Separate with commas",
