@@ -36,6 +36,18 @@ Two things are versioned separately from this file and worth knowing about:
   `GET /kb/{kb_id}/ingestion` and keeps refreshing until the whole batch has
   settled (#2486).
 
+## [1.22.0] - 2026-10-26
+
+### Added
+
+- Architect recommends Projects for continuing research, writing, coding and
+  analysis, with a complete LLM wiki workflow for sources, linked notes, an index,
+  updates and verification. Platform MCP can find, inspect and create private
+  projects through the caller's existing permissions and approval flow. Architect runtime
+  guidance reaches existing installations without replacing customized instructions
+  or changing other agents and external MCP clients.
+
+
 ## [1.21.0] - 2026-10-26
 
 ### Added
@@ -16918,7 +16930,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.32...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.22.0...HEAD
+[1.22.0]: https://github.com/vstorm-co/agenticos/compare/v1.21.0...v1.22.0
 [0.0.32]: https://github.com/vstorm-co/agenticos/compare/v0.0.31...v0.0.32
 [0.0.31]: https://github.com/vstorm-co/agenticos/compare/v0.0.30...v0.0.31
 [0.0.30]: https://github.com/vstorm-co/agenticos/compare/v0.0.29...v0.0.30
