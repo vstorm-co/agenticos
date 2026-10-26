@@ -810,6 +810,7 @@ class TestASignInIsItsOwnersAlone:
             "empty-key-ceiling",
         ],
     )
+    @pytest.mark.security
     async def test_a_stand_in_for_somebody_else_reaches_nobody_s(self, stand_in):
         """The publisher behind a public page, or a key's issuer, is the account a
         run is billed to - not the person asking, whose subscription it is not."""
@@ -820,6 +821,7 @@ class TestASignInIsItsOwnersAlone:
             await self._resolve(self._spec(self._sign_in()), sees=True, ctx=ctx)
 
     @pytest.mark.anyio
+    @pytest.mark.security
     async def test_a_restored_key_keeps_api_credentials_but_not_a_private_fallback(self):
         ctx = AuthContext(
             user_id=uuid.uuid4(),

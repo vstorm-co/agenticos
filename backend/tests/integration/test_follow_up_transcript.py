@@ -89,6 +89,7 @@ async def test_buttons_are_persisted_on_the_exact_answer_once_and_replayed(db):
     assert next_answer.parts is None
 
 
+@pytest.mark.security
 async def test_missing_archived_and_other_tenant_answers_are_not_mutated(db):
     org, conversation, run, prompt, answer, _ = await fixture_rows(db)
     assert await conversation_repo.last_answer_message(db, run.id, organization_id=uuid4()) is None

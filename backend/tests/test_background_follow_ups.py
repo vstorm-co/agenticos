@@ -138,6 +138,7 @@ async def test_saved_answer_gets_its_own_run_and_targeted_event(scenario):
         "inactive",
     ],
 )
+@pytest.mark.security
 async def test_refusals_never_call_the_model(scenario, missing):
     s = scenario
     if missing == "message":
@@ -364,6 +365,7 @@ async def test_saved_answer_defers_the_helper_until_commit(monkeypatch):
     await db.close()
 
 
+@pytest.mark.security
 async def test_budget_refusal_never_calls_the_suggestion_model(monkeypatch):
     from decimal import Decimal
 
@@ -383,6 +385,7 @@ async def test_budget_refusal_never_calls_the_suggestion_model(monkeypatch):
     assert runner.finish.await_args.kwargs["budget_scope"] == BudgetScope.ORGANIZATION
 
 
+@pytest.mark.security
 async def test_revoked_conversation_access_prevents_model_input_and_writes(scenario):
     s = scenario
     s.mocks["authorize_conversation"].side_effect = NotFoundError(message="Conversation not found")

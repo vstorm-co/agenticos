@@ -4959,6 +4959,7 @@ class TestTheBrowsersStepModel:
         await self._built(current, source_run=source, source_spec=old)
 
     @pytest.mark.anyio
+    @pytest.mark.security
     async def test_an_auxiliary_source_cannot_point_to_another_agent_or_tenant(self):
         service = AgentRunnerService(_db())
         ctx = _ctx()
