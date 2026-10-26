@@ -124,7 +124,7 @@ async def test_session_model_gate_ignores_later_unmeasured_suggestions(db):
     session = await ImprovementPipelineService(db).start(
         ctx,
         agent.id,
-        ImprovementStart(dataset_id=dataset.id, max_iterations=1, budget_usd=Decimal("5")),
+        ImprovementStart(dataset_id=dataset.id, max_iterations=1, budget_usd=Decimal("20")),
     )
     batch = await authoring_repo.get_open_batch(
         db, organization_id=ctx.organization_id, agent_id=agent.id
