@@ -224,3 +224,31 @@ async def test_a_knowledge_or_attribution_check_of_a_finished_session_is_announc
     gone.proposal_check = {"improvement_run_id": str(uuid4())}
     await service.check_finished(gone)
     assert len(await _ends(db, ready.id)) == 3
+
+
+async def test_a_persons_ignore_holds_even_when_nothing_was_classified(db):
+    from app.schemas.improvement import EvidenceDecisionUpdate
+
+    ctx, agent, ready = await _ready_proposal(db)
+    service = ImprovementPipelineService(db)
+    run = await db.get(ImprovementRun, ready.id)
+    [round_one] = await improvement_repo.list_iterations(
+        db, organization_id=ctx.organization_id, run_id=run.id
+    )
+    assert round_one.classify_job_id is None
+    ignored, *kept = run.chat_evidence_run_ids
+    await service.decide_evidence(
+        ctx, agent.id, run.id, ignored, EvidenceDecisionUpdate(decision="ignored")
+    )
+    for other in kept:
+        await service.decide_evidence(
+            ctx, agent.id, run.id, other, EvidenceDecisionUpdate(decision="agent")
+        )
+
+    excluded = await service._knowledge_exclusions(ctx, run)
+    pack = await service.authoring.evidence.for_improvement(
+        ctx, run.id, excluded_message_ids=excluded
+    )
+    assert len(excluded) == 1
+    assert ignored not in {item.run_id for item in pack.runs}
+    assert set(kept) <= {item.run_id for item in pack.runs}

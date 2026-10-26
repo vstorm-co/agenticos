@@ -348,10 +348,20 @@ class ImprovementPipelineService:
             if first and first.classify_job_id
             else None
         )
-        if job is None or job.status != "succeeded":
-            return []
-        _, _, excluded = await self._knowledge_branches(ctx, run)
-        return excluded
+        if job is not None and job.status == "succeeded":
+            _, _, excluded = await self._knowledge_branches(ctx, run)
+            return excluded
+        # Without the classifier's verdicts, a person's own decisions still hold.
+        decided = await knowledge_gap_repo.answers_for_runs(
+            self.db,
+            organization_id=run.organization_id,
+            run_ids=[
+                UUID(key)
+                for key, decision in run.evidence_decisions.items()
+                if decision in {"missing_knowledge", "ignored"}
+            ],
+        )
+        return list(decided.values())
 
     async def _knowledge_step(
         self, ctx: AuthContext, run: ImprovementRun, iteration: ImprovementIteration
