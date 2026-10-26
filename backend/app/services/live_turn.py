@@ -57,7 +57,14 @@ HISTORY_LIMIT = 20_000
 """Frames kept per turn. A long answer is thousands of text deltas; past this the oldest go."""
 
 NOT_KEPT = frozenset(
-    {"ask_user", "connect_account", "user_prompt", "conversation_created", "steer_unapplied"}
+    {
+        "ask_user",
+        "connect_account",
+        "user_prompt",
+        "conversation_created",
+        "steer_unapplied",
+        "session_ready",
+    }
 )
 """Frames meant for the socket that sent the message, not for someone watching.
 
@@ -81,7 +88,7 @@ text and steps, not an archive of what it showed."""
 MAX_TRACE_BYTES = 16 * 1024 * 1024
 """How much one turn's trace keeps in all. Each frame is bounded above, and a
 very long turn was not: its trace grew in the shared Redis until it expired.
-Past this, frames are still announced live and only the closing frame is kept,
+Past this, frames are still announced live; save/error/completion markers are kept,
 so somebody arriving late is shown the start, then what comes next, and reads
 the rest from the transcript once the turn ends."""
 
@@ -229,7 +236,10 @@ async def _numbered_append(turn: Turn, kind: str, data: Any, *, ttl: int) -> Non
     if kind == END or (
         kind not in LIVE_ONLY
         and len(body) <= MAX_KEPT_BYTES
-        and int(kept or 0) + len(body) <= MAX_TRACE_BYTES
+        and (
+            kind in {"message_saved", "complete", "error"}
+            or int(kept or 0) + len(body) <= MAX_TRACE_BYTES
+        )
     ):
         pipe.rpush(trace, body)
         pipe.ltrim(trace, -HISTORY_LIMIT, -1)
@@ -253,16 +263,23 @@ async def live_token(conversation_id: str) -> str | None:
     try:
         async with asyncio.timeout(redis_view.TIMEOUT_SECONDS):
             running = await _redis.list_range(_live_key(conversation_id))
+            for token in reversed(running):
+                if await _alive(Turn(conversation_id, token)):
+                    return token
     except Exception as error:
         # Following is a view, as everything else here: Redis being away must
         # not close the chat socket that asked - it reads as nothing running.
         redis_view.failed(logger, "live_turn_is_live_failed", error)
         return None
-    return running[-1] if running else None
+    return None
 
 
 async def follow(conversation_id: str, token: str) -> AsyncGenerator[dict[str, Any]]:
-    """Every frame of one turn: what it has sent, then what it sends.
+    """Follow an unfinished turn, or tell the reader to reload a finished transcript.
+
+    A terminal trace with a message_saved frame yields only END: its answer is
+    persisted and replaying its earlier frames would animate it as a new answer.
+    Otherwise, send the trace so far and then the frames arriving live.
 
     Ends after the frame that closes the turn. Each frame is `{"seq", "type",
     "data"}`, as the turn's socket sent it. Ends early, without that frame, when
@@ -278,11 +295,22 @@ async def follow(conversation_id: str, token: str) -> AsyncGenerator[dict[str, A
         async with asyncio.timeout(redis_view.TIMEOUT_SECONDS):
             await pubsub.subscribe(turn.key("events"))
             trace = await _redis.list_range(turn.key("trace"))
+        frames = [frame for raw in trace if (frame := _frame(raw)) is not None]
+        finished = next(
+            (frame for frame in reversed(frames) if frame["type"] in {"complete", END}), None
+        )
+        if finished is not None and any(frame["type"] == "message_saved" for frame in frames):
+            # The transcript already holds this answer. Replaying it as live
+            # frames would create an empty bubble and type it out again.
+            await _forget(turn)
+            yield {
+                "seq": finished["seq"],
+                "type": END,
+                "data": {"conversation_id": conversation_id},
+            }
+            return
         last = 0
-        for raw in trace:
-            frame = _frame(raw)
-            if frame is None:
-                continue
+        for frame in frames:
             last = frame["seq"]
             yield frame
             if frame["type"] == END:

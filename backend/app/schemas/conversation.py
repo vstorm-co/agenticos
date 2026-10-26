@@ -142,6 +142,12 @@ class MessageBase(BaseSchema):
 
     role: Literal["user", "assistant", "system"] = Field(..., description="Message role")
     content: str = Field(..., description="Message content")
+    client_message_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=128,
+        description="Submitting tab correlation id; scoped by conversation and author, not an idempotency key",
+    )
     thinking: str | None = Field(default=None, description="Reasoning trace (assistant turns)")
 
 

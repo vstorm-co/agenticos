@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { bffRefusal } from "@/lib/server-api";
+import { ACCESS_TOKEN_COOKIE } from "@/lib/session-cookie";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 
 export async function POST(request: NextRequest) {
   try {
-    const accessToken = request.cookies.get("access_token")?.value;
+    const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
     if (!accessToken) {
       return bffRefusal("NOT_AUTHENTICATED", 401);
     }

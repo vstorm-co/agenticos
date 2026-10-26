@@ -1,5 +1,5 @@
 ---
-source_sha: "ca5cf18cee63"
+source_sha: "a6d439761d0a"
 ---
 
 # Sandbox { #the-sandbox }
@@ -636,3 +636,5 @@ zapomniane, a ich liczba trafi do logu audytu.
   a nigdy zawartości, i przeżywa agenta.
 - **Pliki są trzymane bezterminowo**, chyba że ustawisz `SANDBOXD_WORKSPACE_TTL`.
   Zużycie dysku tylko rośnie.
+
+Backend `state` wlicza pliki i puste katalogi do limitu przechowywania, również przy końcowym scalaniu równoległych zmian. Jeśli osobno zaakceptowane dokumenty nie mieszczą się razem, wspólny dokument pozostaje bez zmian, a późniejszy zapis trafia do kopii odzyskiwania w **Documents**. Run zapisuje błąd z identyfikatorem kopii; operacja na projekcie zwraca konflikt zamiast sukcesu. Kopie projektów wymagają uprawnień do przeglądania i używania projektu. Klucz obcy usuwa kopię wraz ze źródłem, także przy równoczesnym usuwaniu danych. Obniżenie limitu poniżej rozmiaru istniejącego dokumentu nadal pozwala go zmniejszać.

@@ -13,6 +13,7 @@ from unittest.mock import MagicMock, create_autospec, patch
 
 import pytest
 
+from app.core.exceptions import BadRequestError
 from app.services.agent import persist_user_turn
 from app.services.conversation import ConversationService
 
@@ -32,10 +33,10 @@ def _service(attached):
     return service
 
 
-async def _persist(service, message, file_ids):
+async def _persist(service, message, file_ids, client_message_id: str | None = None):
     with (
         patch("app.services.agent.get_db_context", _db_context),
-        patch("app.services.agent.get_conversation_service", return_value=service),
+        patch("app.services.agent.ConversationService", return_value=service),
     ):
         return await persist_user_turn(
             MagicMock(id=uuid.uuid4()),
@@ -44,6 +45,7 @@ async def _persist(service, message, file_ids):
             requested_conversation_id=None,
             current_conversation_id=None,
             organization_id=uuid.uuid4(),
+            client_message_id=client_message_id,
         )
 
 
@@ -89,3 +91,19 @@ async def test_a_blank_message_with_no_files_stays_blank():
 
     assert service.add_message.call_args.args[1].content == ""
     service.list_attached_files.assert_not_called()
+
+
+async def test_submission_correlation_survives_a_lost_persistence_frame():
+    service = _service([])
+    await _persist(service, "same prompt", [], client_message_id="client-123")
+    written = service.add_message.call_args.args[1]
+    assert written.client_message_id == "client-123"
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("value", ["", " ", " padded", "x" * 129, 1, []])
+async def test_invalid_submission_correlation_is_refused_before_persisting(value):
+    service = _service([])
+    with pytest.raises(BadRequestError, match="Invalid client message id"):
+        await _persist(service, "prompt", [], client_message_id=value)
+    service.add_message.assert_not_called()

@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { BackendApiError, backendFetch, bffJson, bffRefusal } from "@/lib/server-api";
-import { secureCookies } from "@/lib/session-cookie";
+import { ACCESS_TOKEN_COOKIE, secureCookies } from "@/lib/session-cookie";
 
 /**
  * Refusals that mean the impersonation is over already, whatever ended it.
@@ -22,7 +22,7 @@ const ALREADY_OVER = new Set([400, 401]);
  * next `/api/auth/me` mints them an access token as themselves (#1044).
  */
 export async function DELETE(request: NextRequest) {
-  const accessToken = request.cookies.get("access_token")?.value;
+  const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
 
   if (accessToken) {
     try {
@@ -41,7 +41,7 @@ export async function DELETE(request: NextRequest) {
   }
 
   const response = bffJson({ ok: true });
-  response.cookies.set("access_token", "", {
+  response.cookies.set(ACCESS_TOKEN_COOKIE, "", {
     httpOnly: true,
     secure: secureCookies(request),
     sameSite: "lax",

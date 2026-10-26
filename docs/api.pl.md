@@ -1,5 +1,5 @@
 ---
-source_sha: "e129ce1f6800"
+source_sha: "3cb7cbd6a52e"
 ---
 
 # API HTTP { #the-http-api }
@@ -55,6 +55,12 @@ wyszukiwania jego dawnych rozmów, ani do stron, na których przeglądarka trzym
 jego logowania, ani do przestrzeni roboczej sandboxa przypisanej do użytkownika.
 Ten, kto trzyma klucz, jest skryptem, nie tą osobą, więc run odpowiada tak jak
 na publicznym widgecie.
+
+Odczyt połączeń jest też publiczny: `GET /sandbox-connections`,
+`GET /sandbox-connections/runtimes` i `GET /sandbox-connections/{id}/policy`
+wymagają `connections:view`; `GET /mcp-connections` wymaga `mcp:manage`.
+Nadal obowiązują organizacja i zakresy klucza. Zapisy połączeń oraz operacje
+na poświadczeniach pozostają dostępne tylko w sesji.
 
 ```bash
 curl "$BASE/api/v1/me/permissions" \

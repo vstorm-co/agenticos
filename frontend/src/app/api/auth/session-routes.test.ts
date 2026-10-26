@@ -113,11 +113,11 @@ describe("signing in", () => {
 
     const response = await login(request({}, { email: "a@example.com", password: "s" }));
 
-    expect(cookie(response, "access_token")).toMatchObject({ value: "at" });
-    expect(cookie(response, "access_token")?.attributes).toContain("HttpOnly");
-    expect(cookie(response, "access_token")?.attributes).toContain("Max-Age=900");
-    expect(cookie(response, "refresh_token")).toMatchObject({ value: "rt" });
-    expect(cookie(response, "refresh_token")?.attributes).toContain("Max-Age=604800");
+    expect(cookie(response, "agenticos_access_token")).toMatchObject({ value: "at" });
+    expect(cookie(response, "agenticos_access_token")?.attributes).toContain("HttpOnly");
+    expect(cookie(response, "agenticos_access_token")?.attributes).toContain("Max-Age=900");
+    expect(cookie(response, "agenticos_refresh_token")).toMatchObject({ value: "rt" });
+    expect(cookie(response, "agenticos_refresh_token")?.attributes).toContain("Max-Age=604800");
   });
 
   it("marks the cookies Secure only where the visitor is on https", async () => {
@@ -128,15 +128,15 @@ describe("signing in", () => {
     const credentials = { email: "a@example.com", password: "s" };
 
     const plain = await login(request({}, credentials));
-    expect(cookie(plain, "access_token")?.attributes).not.toContain("Secure");
-    expect(cookie(plain, "refresh_token")?.attributes).not.toContain("Secure");
+    expect(cookie(plain, "agenticos_access_token")?.attributes).not.toContain("Secure");
+    expect(cookie(plain, "agenticos_refresh_token")?.attributes).not.toContain("Secure");
 
     vi.mocked(backendFetch)
       .mockResolvedValueOnce({ access_token: "at", refresh_token: "rt" })
       .mockResolvedValueOnce({ id: "u-1" });
     const behindTls = await login(request({}, credentials, { "x-forwarded-proto": "https" }));
-    expect(cookie(behindTls, "access_token")?.attributes).toContain("Secure");
-    expect(cookie(behindTls, "refresh_token")?.attributes).toContain("Secure");
+    expect(cookie(behindTls, "agenticos_access_token")?.attributes).toContain("Secure");
+    expect(cookie(behindTls, "agenticos_refresh_token")?.attributes).toContain("Secure");
   });
 
   it("passes the backend's refusal through, status and sentence", async () => {
@@ -148,7 +148,7 @@ describe("signing in", () => {
 
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toEqual({ detail: "Incorrect email or password" });
-    expect(cookie(response, "access_token")).toBeUndefined();
+    expect(cookie(response, "agenticos_access_token")).toBeUndefined();
   });
 
   it("says login failed when the refusal named no reason", async () => {
@@ -174,15 +174,15 @@ describe("signing out", () => {
   it("invalidates the refresh token server-side and clears both cookies", async () => {
     vi.mocked(backendFetch).mockResolvedValue({});
 
-    const response = await logout(request({ refresh_token: "rt" }));
+    const response = await logout(request({ agenticos_refresh_token: "rt" }));
 
     expect(backendFetch).toHaveBeenCalledWith("/api/v1/auth/logout", {
       method: "POST",
       headers: {},
       body: JSON.stringify({ refresh_token: "rt" }),
     });
-    expect(cookie(response, "access_token")?.attributes).toContain("Max-Age=0");
-    expect(cookie(response, "refresh_token")?.attributes).toContain("Max-Age=0");
+    expect(cookie(response, "agenticos_access_token")?.attributes).toContain("Max-Age=0");
+    expect(cookie(response, "agenticos_refresh_token")?.attributes).toContain("Max-Age=0");
   });
 
   it("clears the cookies even when the server could not be told", async () => {
@@ -190,10 +190,10 @@ describe("signing out", () => {
     // is the worse outcome.
     vi.mocked(backendFetch).mockRejectedValue(new BackendApiError(401, "Unauthorized", null));
 
-    const response = await logout(request({ refresh_token: "rt" }));
+    const response = await logout(request({ agenticos_refresh_token: "rt" }));
 
     expect(response.status).toBe(200);
-    expect(cookie(response, "access_token")?.attributes).toContain("Max-Age=0");
+    expect(cookie(response, "agenticos_access_token")?.attributes).toContain("Max-Age=0");
   });
 
   it("logs an unexpected failure rather than swallowing it silently", async () => {
@@ -202,10 +202,10 @@ describe("signing out", () => {
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
     vi.mocked(backendFetch).mockRejectedValue(new Error("ECONNREFUSED"));
 
-    const response = await logout(request({ refresh_token: "rt" }));
+    const response = await logout(request({ agenticos_refresh_token: "rt" }));
 
     expect(logged).toHaveBeenCalled();
-    expect(cookie(response, "refresh_token")?.attributes).toContain("Max-Age=0");
+    expect(cookie(response, "agenticos_refresh_token")?.attributes).toContain("Max-Age=0");
     logged.mockRestore();
   });
 
@@ -213,7 +213,7 @@ describe("signing out", () => {
     const response = await logout(request());
 
     expect(backendFetch).not.toHaveBeenCalled();
-    expect(cookie(response, "access_token")?.attributes).toContain("Max-Age=0");
+    expect(cookie(response, "agenticos_access_token")?.attributes).toContain("Max-Age=0");
   });
 });
 
@@ -221,7 +221,7 @@ describe("refreshing the token", () => {
   it("mints an access token and stores it", async () => {
     vi.mocked(backendFetch).mockResolvedValue({ access_token: "fresh" });
 
-    const response = await refresh(request({ refresh_token: "rt" }));
+    const response = await refresh(request({ agenticos_refresh_token: "rt" }));
 
     expect(backendFetch).toHaveBeenCalledWith("/api/v1/auth/refresh", {
       method: "POST",
@@ -229,24 +229,24 @@ describe("refreshing the token", () => {
       body: JSON.stringify({ refresh_token: "rt" }),
     });
     await expect(response.json()).resolves.toMatchObject({ access_token: "fresh" });
-    expect(cookie(response, "access_token")).toMatchObject({ value: "fresh" });
+    expect(cookie(response, "agenticos_access_token")).toMatchObject({ value: "fresh" });
   });
 
   it("rotates the refresh token when the backend issues a new one", async () => {
     // A rotating refresh token is only rotated if the new one is actually stored.
     vi.mocked(backendFetch).mockResolvedValue({ access_token: "fresh", refresh_token: "rt-2" });
 
-    const response = await refresh(request({ refresh_token: "rt-1" }));
+    const response = await refresh(request({ agenticos_refresh_token: "rt-1" }));
 
-    expect(cookie(response, "refresh_token")).toMatchObject({ value: "rt-2" });
+    expect(cookie(response, "agenticos_refresh_token")).toMatchObject({ value: "rt-2" });
   });
 
   it("leaves the refresh cookie alone when the backend kept the old one", async () => {
     vi.mocked(backendFetch).mockResolvedValue({ access_token: "fresh" });
 
-    const response = await refresh(request({ refresh_token: "rt-1" }));
+    const response = await refresh(request({ agenticos_refresh_token: "rt-1" }));
 
-    expect(cookie(response, "refresh_token")).toBeUndefined();
+    expect(cookie(response, "agenticos_refresh_token")).toBeUndefined();
   });
 
   it("refuses without asking the backend when there is no refresh cookie", async () => {
@@ -261,22 +261,22 @@ describe("refreshing the token", () => {
     // on every request, until somebody clears their storage by hand.
     vi.mocked(backendFetch).mockRejectedValue(new BackendApiError(401, "Unauthorized", null));
 
-    const response = await refresh(request({ refresh_token: "stale" }));
+    const response = await refresh(request({ agenticos_refresh_token: "stale" }));
 
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toEqual({ code: "SESSION_EXPIRED" });
-    expect(cookie(response, "access_token")?.attributes).toContain("Max-Age=0");
-    expect(cookie(response, "refresh_token")?.attributes).toContain("Max-Age=0");
+    expect(cookie(response, "agenticos_access_token")?.attributes).toContain("Max-Age=0");
+    expect(cookie(response, "agenticos_refresh_token")?.attributes).toContain("Max-Age=0");
   });
 
   it("keeps the session when the failure was not a refusal", async () => {
     // A 500 from an unreachable backend is not a reason to sign somebody out.
     vi.mocked(backendFetch).mockRejectedValue(new Error("ECONNREFUSED"));
 
-    const response = await refresh(request({ refresh_token: "rt" }));
+    const response = await refresh(request({ agenticos_refresh_token: "rt" }));
 
     expect(response.status).toBe(500);
-    expect(cookie(response, "access_token")).toBeUndefined();
+    expect(cookie(response, "agenticos_access_token")).toBeUndefined();
   });
 
   it("keeps the session when the backend answered with a failure of its own", async () => {
@@ -285,11 +285,11 @@ describe("refreshing the token", () => {
     // reuse grace forgives only while the browser still holds the cookie.
     vi.mocked(backendFetch).mockRejectedValue(new BackendApiError(502, "Bad Gateway", null));
 
-    const response = await refresh(request({ refresh_token: "rt" }));
+    const response = await refresh(request({ agenticos_refresh_token: "rt" }));
 
     expect(response.status).toBe(502);
-    expect(cookie(response, "access_token")).toBeUndefined();
-    expect(cookie(response, "refresh_token")).toBeUndefined();
+    expect(cookie(response, "agenticos_access_token")).toBeUndefined();
+    expect(cookie(response, "agenticos_refresh_token")).toBeUndefined();
   });
 
   it("refuses to mint the administrator's token under an impersonation cookie", async () => {
@@ -300,12 +300,14 @@ describe("refreshing the token", () => {
     // cookie goes, the refresh cookie stays, and the client is told which it was.
     const impersonation = `h.${Buffer.from(JSON.stringify({ sub: "u-1", act: "a-1" })).toString("base64url")}.s`;
 
-    const response = await refresh(request({ access_token: impersonation, refresh_token: "rt" }));
+    const response = await refresh(
+      request({ agenticos_access_token: impersonation, agenticos_refresh_token: "rt" }),
+    );
 
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toEqual({ code: "IMPERSONATION_ENDED" });
-    expect(cookie(response, "access_token")?.attributes).toContain("Max-Age=0");
-    expect(cookie(response, "refresh_token")).toBeUndefined();
+    expect(cookie(response, "agenticos_access_token")?.attributes).toContain("Max-Age=0");
+    expect(cookie(response, "agenticos_refresh_token")).toBeUndefined();
     expect(backendFetch).not.toHaveBeenCalled();
   });
 
@@ -313,10 +315,12 @@ describe("refreshing the token", () => {
     const ordinary = `h.${Buffer.from(JSON.stringify({ sub: "u-1" })).toString("base64url")}.s`;
     vi.mocked(backendFetch).mockResolvedValue({ access_token: "fresh" });
 
-    const response = await refresh(request({ access_token: ordinary, refresh_token: "rt" }));
+    const response = await refresh(
+      request({ agenticos_access_token: ordinary, agenticos_refresh_token: "rt" }),
+    );
 
     expect(response.status).toBe(200);
-    expect(cookie(response, "access_token")).toMatchObject({ value: "fresh" });
+    expect(cookie(response, "agenticos_access_token")).toMatchObject({ value: "fresh" });
   });
 });
 
@@ -335,7 +339,7 @@ describe("reading the session", () => {
   it("answers with the user and echoes the token the socket needs", async () => {
     vi.mocked(backendFetch).mockResolvedValue({ id: "u-1", email: "kacper@example.com" });
 
-    const response = await get({ access_token: "at" });
+    const response = await get({ agenticos_access_token: "at" });
 
     await expect(response.json()).resolves.toMatchObject({ id: "u-1", access_token: "at" });
   });
@@ -348,11 +352,14 @@ describe("reading the session", () => {
       .mockResolvedValueOnce({ access_token: "fresh", refresh_token: "rt-2" })
       .mockResolvedValueOnce({ id: "u-1" });
 
-    const response = await get({ access_token: "stale", refresh_token: "rt-1" });
+    const response = await get({
+      agenticos_access_token: "stale",
+      agenticos_refresh_token: "rt-1",
+    });
 
     await expect(response.json()).resolves.toMatchObject({ id: "u-1", access_token: "fresh" });
-    expect(cookie(response, "access_token")).toMatchObject({ value: "fresh" });
-    expect(cookie(response, "refresh_token")).toMatchObject({ value: "rt-2" });
+    expect(cookie(response, "agenticos_access_token")).toMatchObject({ value: "fresh" });
+    expect(cookie(response, "agenticos_refresh_token")).toMatchObject({ value: "rt-2" });
   });
 
   it("stores only the access token when the refresh one was not rotated", async () => {
@@ -361,9 +368,12 @@ describe("reading the session", () => {
       .mockResolvedValueOnce({ access_token: "fresh" })
       .mockResolvedValueOnce({ id: "u-1" });
 
-    const response = await get({ access_token: "stale", refresh_token: "rt-1" });
+    const response = await get({
+      agenticos_access_token: "stale",
+      agenticos_refresh_token: "rt-1",
+    });
 
-    expect(cookie(response, "refresh_token")).toBeUndefined();
+    expect(cookie(response, "agenticos_refresh_token")).toBeUndefined();
   });
 
   it("refreshes for somebody who has only the long-lived cookie left", async () => {
@@ -371,7 +381,7 @@ describe("reading the session", () => {
       .mockResolvedValueOnce({ access_token: "fresh" })
       .mockResolvedValueOnce({ id: "u-1" });
 
-    const response = await get({ refresh_token: "rt" });
+    const response = await get({ agenticos_refresh_token: "rt" });
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ access_token: "fresh" });
@@ -383,7 +393,7 @@ describe("reading the session", () => {
       new BackendApiError(403, "Forbidden", { detail: "Inactive user" }),
     );
 
-    const response = await get({ access_token: "at", refresh_token: "rt" });
+    const response = await get({ agenticos_access_token: "at", agenticos_refresh_token: "rt" });
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toEqual({ code: "FAILED_TO_GET_USER" });
@@ -392,7 +402,7 @@ describe("reading the session", () => {
   it("answers 500 when the backend could not be reached at all", async () => {
     vi.mocked(backendFetch).mockRejectedValue(new Error("ECONNREFUSED"));
 
-    const response = await get({ access_token: "at" });
+    const response = await get({ agenticos_access_token: "at" });
 
     expect(response.status).toBe(500);
   });
@@ -411,12 +421,12 @@ describe("reading the session", () => {
       .mockResolvedValueOnce({ access_token: "fresh", refresh_token: "rt-2" })
       .mockRejectedValueOnce(new BackendApiError(503, "Unavailable", null));
 
-    const response = await get({ refresh_token: "rt-1" });
+    const response = await get({ agenticos_refresh_token: "rt-1" });
 
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toEqual({ code: "FAILED_TO_GET_USER" });
-    expect(cookie(response, "access_token")).toMatchObject({ value: "fresh" });
-    expect(cookie(response, "refresh_token")).toMatchObject({ value: "rt-2" });
+    expect(cookie(response, "agenticos_access_token")).toMatchObject({ value: "fresh" });
+    expect(cookie(response, "agenticos_refresh_token")).toMatchObject({ value: "rt-2" });
   });
 
   it("stores the rotated cookies when the read after the refresh never answered", async () => {
@@ -424,11 +434,11 @@ describe("reading the session", () => {
       .mockResolvedValueOnce({ access_token: "fresh" })
       .mockRejectedValueOnce(new Error("ECONNRESET"));
 
-    const response = await get({ refresh_token: "rt-1" });
+    const response = await get({ agenticos_refresh_token: "rt-1" });
 
     expect(response.status).toBe(500);
-    expect(cookie(response, "access_token")).toMatchObject({ value: "fresh" });
-    expect(cookie(response, "refresh_token")).toBeUndefined();
+    expect(cookie(response, "agenticos_access_token")).toMatchObject({ value: "fresh" });
+    expect(cookie(response, "agenticos_refresh_token")).toBeUndefined();
   });
 
   it("stores the rotated cookies when the read after the refresh is rate-limited", async () => {
@@ -436,38 +446,38 @@ describe("reading the session", () => {
       .mockResolvedValueOnce({ access_token: "fresh", refresh_token: "rt-2" })
       .mockRejectedValueOnce(new BackendApiError(429, "Too Many Requests", null));
 
-    const response = await get({ refresh_token: "rt-1" });
+    const response = await get({ agenticos_refresh_token: "rt-1" });
 
     expect(response.status).toBe(429);
-    expect(cookie(response, "refresh_token")).toMatchObject({ value: "rt-2" });
+    expect(cookie(response, "agenticos_refresh_token")).toMatchObject({ value: "rt-2" });
   });
 
   it("keeps the cookies when the refresh failed for a reason that is not the token", async () => {
     vi.mocked(backendFetch).mockRejectedValue(new BackendApiError(502, "Bad Gateway", null));
 
-    const response = await get({ refresh_token: "rt" });
+    const response = await get({ agenticos_refresh_token: "rt" });
 
     expect(response.status).toBe(502);
-    expect(cookie(response, "refresh_token")).toBeUndefined();
+    expect(cookie(response, "agenticos_refresh_token")).toBeUndefined();
   });
 
   it("keeps the cookies when the refresh could not reach the backend", async () => {
     vi.mocked(backendFetch).mockRejectedValue(new Error("ECONNRESET"));
 
-    const response = await get({ refresh_token: "rt" });
+    const response = await get({ agenticos_refresh_token: "rt" });
 
     expect(response.status).toBe(500);
-    expect(cookie(response, "refresh_token")).toBeUndefined();
+    expect(cookie(response, "agenticos_refresh_token")).toBeUndefined();
   });
 
   it("clears the cookies when the refresh fails, because the session is over", async () => {
     vi.mocked(backendFetch).mockRejectedValue(new BackendApiError(401, "Unauthorized", null));
 
-    const response = await get({ refresh_token: "stale" });
+    const response = await get({ agenticos_refresh_token: "stale" });
 
     expect(response.status).toBe(401);
-    expect(cookie(response, "access_token")?.attributes).toContain("Max-Age=0");
-    expect(cookie(response, "refresh_token")?.attributes).toContain("Max-Age=0");
+    expect(cookie(response, "agenticos_access_token")?.attributes).toContain("Max-Age=0");
+    expect(cookie(response, "agenticos_refresh_token")?.attributes).toContain("Max-Age=0");
   });
 });
 
@@ -490,7 +500,10 @@ describe("ending an impersonation", () => {
     // cookie is the administrator's own and is not touched (#1044).
     vi.mocked(backendFetch).mockResolvedValue(null);
 
-    const response = await end({ access_token: "imp", refresh_token: "admin-rt" });
+    const response = await end({
+      agenticos_access_token: "imp",
+      agenticos_refresh_token: "admin-rt",
+    });
 
     expect(response.status).toBe(200);
     expect(backendFetch).toHaveBeenCalledWith(
@@ -500,8 +513,8 @@ describe("ending an impersonation", () => {
         headers: { Authorization: "Bearer imp" },
       }),
     );
-    expect(cookie(response, "access_token")?.attributes).toContain("Max-Age=0");
-    expect(cookie(response, "refresh_token")).toBeUndefined();
+    expect(cookie(response, "agenticos_access_token")?.attributes).toContain("Max-Age=0");
+    expect(cookie(response, "agenticos_refresh_token")).toBeUndefined();
   });
 
   it.each([400, 401])(
@@ -511,32 +524,32 @@ describe("ending an impersonation", () => {
       // nobody acting as anybody. Either way keeping it would keep nothing.
       vi.mocked(backendFetch).mockRejectedValue(new BackendApiError(status, "Refused", null));
 
-      const response = await end({ access_token: "stale" });
+      const response = await end({ agenticos_access_token: "stale" });
 
       expect(response.status).toBe(200);
-      expect(cookie(response, "access_token")?.attributes).toContain("Max-Age=0");
+      expect(cookie(response, "agenticos_access_token")?.attributes).toContain("Max-Age=0");
     },
   );
 
   it("passes any other refusal through, cookie kept", async () => {
     vi.mocked(backendFetch).mockRejectedValue(new BackendApiError(503, "Unavailable", null));
 
-    const response = await end({ access_token: "imp" });
+    const response = await end({ agenticos_access_token: "imp" });
 
     expect(response.status).toBe(503);
-    expect(cookie(response, "access_token")).toBeUndefined();
+    expect(cookie(response, "agenticos_access_token")).toBeUndefined();
   });
 
   it("answers 500 when the backend could not be reached at all", async () => {
     vi.mocked(backendFetch).mockRejectedValue(new Error("ECONNREFUSED"));
 
-    const response = await end({ access_token: "imp" });
+    const response = await end({ agenticos_access_token: "imp" });
 
     expect(response.status).toBe(500);
   });
 
   it("has nothing to tell the backend for a browser holding no access cookie", async () => {
-    const response = await end({ refresh_token: "admin-rt" });
+    const response = await end({ agenticos_refresh_token: "admin-rt" });
 
     expect(response.status).toBe(200);
     expect(backendFetch).not.toHaveBeenCalled();
@@ -597,8 +610,8 @@ describe("signing in without a password", () => {
       // and a link minted without a path says so (#1214).
       return_to: null,
     });
-    expect(cookie(response, "access_token")).toMatchObject({ value: "at" });
-    expect(cookie(response, "refresh_token")).toMatchObject({ value: "rt" });
+    expect(cookie(response, "agenticos_access_token")).toMatchObject({ value: "at" });
+    expect(cookie(response, "agenticos_refresh_token")).toMatchObject({ value: "rt" });
   });
 
   it("passes on the path the link was minted for", async () => {
@@ -631,7 +644,7 @@ describe("signing in without a password", () => {
     await expect(response.json()).resolves.toEqual({
       detail: "Backend API error: 400 Bad Request",
     });
-    expect(cookie(response, "access_token")).toBeUndefined();
+    expect(cookie(response, "agenticos_access_token")).toBeUndefined();
   });
 
   it("answers 500 when the verification could not be made", async () => {
@@ -660,8 +673,8 @@ describe("finishing an OAuth sign-in", () => {
     expect(backendFetch).toHaveBeenNthCalledWith(2, "/api/v1/auth/me", {
       headers: { Authorization: "Bearer at" },
     });
-    expect(cookie(response, "access_token")).toMatchObject({ value: "at" });
-    expect(cookie(response, "refresh_token")).toMatchObject({ value: "rt" });
+    expect(cookie(response, "agenticos_access_token")).toMatchObject({ value: "at" });
+    expect(cookie(response, "agenticos_refresh_token")).toMatchObject({ value: "rt" });
   });
 
   it("refuses a callback carrying no code", async () => {
@@ -669,7 +682,7 @@ describe("finishing an OAuth sign-in", () => {
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({ code: "MISSING_AUTHORIZATION_CODE" });
-    expect(cookie(response, "access_token")).toBeUndefined();
+    expect(cookie(response, "agenticos_access_token")).toBeUndefined();
     expect(backendFetch).not.toHaveBeenCalled();
   });
 
@@ -933,14 +946,14 @@ describe("rate limiting through the BFF", () => {
   it("does not end the session when the refresh bucket is exhausted", async () => {
     vi.mocked(backendFetch).mockRejectedValue(rateLimited());
 
-    const response = await refresh(request({ refresh_token: "rt" }));
+    const response = await refresh(request({ agenticos_refresh_token: "rt" }));
 
     expect(response.status).toBe(429);
     expect(response.headers.get("Retry-After")).toBe("60");
     // A wait, not an expired session: the cookies are left untouched rather than
     // cleared, so the caller stays signed in and can retry.
-    expect(cookie(response, "access_token")).toBeUndefined();
-    expect(cookie(response, "refresh_token")).toBeUndefined();
+    expect(cookie(response, "agenticos_access_token")).toBeUndefined();
+    expect(cookie(response, "agenticos_refresh_token")).toBeUndefined();
   });
 
   it.each([
@@ -976,7 +989,7 @@ describe("rate limiting through the BFF", () => {
         .mockResolvedValueOnce({ id: "u-1" });
 
       await me(
-        request({ access_token: "stale", refresh_token: "rt" }, undefined, {
+        request({ agenticos_access_token: "stale", agenticos_refresh_token: "rt" }, undefined, {
           "x-forwarded-for": "203.0.113.7",
         }),
       );
@@ -997,12 +1010,14 @@ describe("rate limiting through the BFF", () => {
         .mockRejectedValueOnce(new BackendApiError(401, "Unauthorized", null))
         .mockRejectedValueOnce(rateLimited());
 
-      const response = await me(request({ access_token: "stale", refresh_token: "rt" }));
+      const response = await me(
+        request({ agenticos_access_token: "stale", agenticos_refresh_token: "rt" }),
+      );
 
       expect(response.status).toBe(429);
       expect(response.headers.get("Retry-After")).toBe("60");
-      expect(cookie(response, "access_token")).toBeUndefined();
-      expect(cookie(response, "refresh_token")).toBeUndefined();
+      expect(cookie(response, "agenticos_access_token")).toBeUndefined();
+      expect(cookie(response, "agenticos_refresh_token")).toBeUndefined();
     });
 
     it("still clears the cookies when the refresh token is genuinely refused", async () => {
@@ -1010,17 +1025,19 @@ describe("rate limiting through the BFF", () => {
         .mockRejectedValueOnce(new BackendApiError(401, "Unauthorized", null))
         .mockRejectedValueOnce(new BackendApiError(401, "Unauthorized", null));
 
-      const response = await me(request({ access_token: "stale", refresh_token: "rt" }));
+      const response = await me(
+        request({ agenticos_access_token: "stale", agenticos_refresh_token: "rt" }),
+      );
 
       expect(response.status).toBe(401);
-      expect(cookie(response, "access_token")?.value).toBe("");
-      expect(cookie(response, "refresh_token")?.value).toBe("");
+      expect(cookie(response, "agenticos_access_token")?.value).toBe("");
+      expect(cookie(response, "agenticos_refresh_token")?.value).toBe("");
     });
 
     it("forwards a rate limit on the /auth/me hop rather than reporting it as a broken read", async () => {
       vi.mocked(backendFetch).mockRejectedValueOnce(rateLimited());
 
-      const response = await me(request({ access_token: "at" }));
+      const response = await me(request({ agenticos_access_token: "at" }));
 
       expect(response.status).toBe(429);
       expect(response.headers.get("Retry-After")).toBe("60");
@@ -1037,20 +1054,20 @@ describe("rate limiting through the BFF", () => {
     it("keeps the cookies and forwards the wait", async () => {
       vi.mocked(backendFetch).mockRejectedValue(rateLimited());
 
-      const response = await logout(request({ refresh_token: "rt" }));
+      const response = await logout(request({ agenticos_refresh_token: "rt" }));
 
       expect(response.status).toBe(429);
       expect(response.headers.get("Retry-After")).toBe("60");
-      expect(cookie(response, "refresh_token")).toBeUndefined();
+      expect(cookie(response, "agenticos_refresh_token")).toBeUndefined();
     });
 
     it("still clears them when the token was merely already expired", async () => {
       vi.mocked(backendFetch).mockRejectedValue(new BackendApiError(401, "Unauthorized", null));
 
-      const response = await logout(request({ refresh_token: "rt" }));
+      const response = await logout(request({ agenticos_refresh_token: "rt" }));
 
       expect(response.status).toBe(200);
-      expect(cookie(response, "refresh_token")?.value).toBe("");
+      expect(cookie(response, "agenticos_refresh_token")?.value).toBe("");
     });
   });
 });

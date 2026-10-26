@@ -36,6 +36,9 @@ class ContextFileSummary(BaseSchema):
     carries a bounded excerpt instead - enough for a card to show the opening.
     """
 
+    can_edit: bool = Field(
+        default=False, description="Whether this caller may edit, delete or share this resource"
+    )
     id: UUID
     name: str
     description: str | None = None

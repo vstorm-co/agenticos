@@ -1,5 +1,5 @@
 ---
-source_sha: "fa6c64c816ac"
+source_sha: "7a28851f1540"
 ---
 
 # Governance { #governance }
@@ -1853,10 +1853,10 @@ gdzie ustawia się okresy per tenant.
 
 | Klasa | Co odchodzi razem z nią | Liczone od |
 |---|---|---|
-| Rozmowy | Wiadomości, wywołania narzędzi i pliki czatu do nich przypięte — bajty **przed** wierszami, więc plik, którego nie udało się odpiąć, zachowuje swój wiersz na kolejny przebieg, zamiast przeżyć go nieodnajdywalny | Ostatniej aktywności wątku, więc ten, do którego ktoś wraca, nie jest stary |
+| Rozmowy | Wiadomości, wywołania narzędzi i pliki; zablokowana partia pomija rozmowy z niezakończonymi runami, a trwałe zadanie usunięcia plików zatwierdza się razem z usunięciem wierszy | Ostatniej aktywności wątku, więc ten, do którego ktoś wraca, nie jest stary |
 | Runy | Wiersz runu, jego manifest i jego zatwierdzenia narzędzi | Startu runu |
 | Workspace'y | Zapis platformy o plikach agenta. Dla backendu `state` wiersz *jest* magazynem; pliki backendu sandboxowego sprząta własny TTL sandboxa. Pliki projektu zostają, dopóki jest projekt | Ostatniego użycia |
-| Aplikacje | [Opublikowana strona](artifacts.md) z każdą wersją, jej przechowywanymi bajtami (**przed** wierszami, jak przy rozmowach), jej grantami i jej publicznym linkiem | Ostatniej publikacji, więc raport, który harmonogram publikuje ponownie, nie jest stary |
+| Aplikacje | [Opublikowana strona](artifacts.md), wszystkie wersje, granty i publiczny link; usunięcie plików trafia do kolejki w tej samej transakcji | Ostatniej publikacji, więc raport, który harmonogram publikuje ponownie, nie jest stary |
 | Pamięć | Pliki pamięci agenta | Ostatniego zapisu, bo notatka jest pisana raz, a czytana miesiącami |
 | Wgrane dokumenty | Wiersz, jego wektory i wgrany plik | Momentu wgrania |
 | Audyt | Wpisy na ścieżce audytowej tej organizacji | Momentu zapisania wpisu |
@@ -1929,6 +1929,11 @@ Usuwanie idzie partiami po 500, do czterdziestu przebiegów na klasę na sweep.
 Organizacja, która po dwóch latach ustawia dziewięćdziesiąt dni, odrabia zaległość
 przez kilka dni, a nie w jednym sweepie trzymającym locka przez godzinę z całą
 resztą cyklicznych flowów w kolejce za nim.
+
+Każda klasa ma własny savepoint: błąd SQL wycofuje jej zmiany i zadania
+usunięcia plików, nie blokując kolejnych klas. Trwałe zadania usuwają pliki po
+zatwierdzeniu usunięcia wierszy; błędy magazynu i ponowienia są widoczne na stronie
+Background jobs. Wycofanie usunięcia pozostawia pliki nienaruszone.
 
 ### Czego to nie sięga { #what-this-does-not-reach }
 

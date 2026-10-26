@@ -20,7 +20,9 @@ vi.mock("./server-api", async (importOriginal) => ({
  * 401, and a session without the flag is 403.
  */
 function request(cookie?: string): NextRequest {
-  const headers: Record<string, string> = cookie ? { cookie: `access_token=${cookie}` } : {};
+  const headers: Record<string, string> = cookie
+    ? { cookie: `agenticos_access_token=${cookie}` }
+    : {};
   return new NextRequest("http://localhost:3000/api/admin/users", { headers });
 }
 
@@ -43,6 +45,16 @@ describe("requireAdmin", () => {
 
     expect(backendFetch).not.toHaveBeenCalled();
     expect("error" in result && result.error.status).toBe(401);
+  });
+
+  it("does not use another app's generic access-token cookie", async () => {
+    const req = request();
+    req.cookies.set("access_token", "other-app-token");
+
+    const result = await requireAdmin(req);
+
+    expect("error" in result && result.error.status).toBe(401);
+    expect(backendFetch).not.toHaveBeenCalled();
   });
 
   it("refuses a signed-in user who is not an app admin", async () => {

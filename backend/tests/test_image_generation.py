@@ -1,21 +1,31 @@
 """The image generation capability: build, generate, meter, store."""
 
+from decimal import Decimal
 from typing import Any
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
 from pydantic_ai._run_context import RunContext
 from pydantic_ai.exceptions import ModelRetry, UserError
-from pydantic_ai.messages import BinaryImage
+from pydantic_ai.messages import BinaryImage, ModelResponse
+from pydantic_ai.models import Model, ModelRequestParameters
 from pydantic_ai.models.test import TestModel
-from pydantic_ai.usage import RunUsage
+from pydantic_ai.usage import RequestUsage, RunUsage
 from pydantic_ai.workspaces import Workspace
 from pydantic_ai_backends import StateBackend
 
 from app.agents.capabilities import get
 from app.agents.capabilities._generated import WORKSPACE_OUTPUT_DIR
 from app.agents.capabilities._registry import CapabilityBinding
-from app.agents.capabilities.budget import SpendLedger, metered_by
+from app.agents.capabilities.budget import (
+    BudgetGuard,
+    BudgetScope,
+    SpendLedger,
+    SpendLimit,
+    guarded_by,
+    metered_by,
+)
 from app.agents.capabilities.image_generation import ImageGeneration, ImageGenerationConfig
 from app.agents.capabilities.image_generation import _toolset as toolset_module
 from app.agents.capabilities.image_generation._toolset import (
@@ -51,12 +61,14 @@ class _FakeAgent:
     raise_exc: Exception | None = None
     last_capabilities: Any = None
 
-    def __init__(self, model: Any, **kwargs: Any) -> None:
+    def __init__(self, model: Model, **kwargs: Any) -> None:
+        self.model = model
         _FakeAgent.last_capabilities = kwargs.get("capabilities")
 
     async def run(self, prompt: str) -> _FakeResult:
         if _FakeAgent.raise_exc is not None:
             raise _FakeAgent.raise_exc
+        await self.model.request([], None, ModelRequestParameters())
         return _FakeResult(_IMAGE, RunUsage(input_tokens=7, output_tokens=0))
 
 
@@ -67,6 +79,22 @@ def _fakes(monkeypatch: pytest.MonkeyPatch, tmp_path):
     # constructs a provider client with a fake key, no network), so its one
     # branch stays covered.
     monkeypatch.setattr(toolset_module, "PydanticAgent", _FakeAgent)
+    build = toolset_module._build_image_model
+
+    def offline_model(model_id: str, api_key: str) -> Model:
+        model = build(model_id, api_key)
+        monkeypatch.setattr(
+            model,
+            "request",
+            AsyncMock(
+                return_value=ModelResponse(
+                    parts=[], model_name=model.model_name, usage=RequestUsage(input_tokens=7)
+                )
+            ),
+        )
+        return model
+
+    monkeypatch.setattr(toolset_module, "_build_image_model", offline_model)
     _FakeAgent.raise_exc = None
 
 
@@ -291,6 +319,31 @@ async def test_without_an_organization_the_image_is_generated_but_not_stored():
     assert image.url is None
     # Metered regardless: the money was spent whether or not there was somewhere to keep the file.
     assert len(ledger.entries) == 1
+
+
+@pytest.mark.security
+async def test_a_spent_budget_refuses_an_image_before_reserving_storage(
+    generated_media_ledger: list[dict[str, object]],
+    generated_media_reservations: dict[object, dict[str, object]],
+) -> None:
+    guard = BudgetGuard(
+        limits=[
+            SpendLimit(
+                scope=BudgetScope.ORGANIZATION,
+                limit_usd=Decimal("1"),
+                period_spend=AsyncMock(return_value=Decimal("1")),
+            )
+        ]
+    )
+    _FakeAgent.raise_exc = AssertionError("the image provider must not be called")
+    toolset = build_image_toolset(
+        model_id="openai-responses:gpt-5.4", api_key="k", tool_settings={}
+    )
+    with guarded_by(guard):
+        result = await _generate(toolset, _ctx(uuid4()))
+    assert result == "Not made: this run has spent its budget."
+    assert generated_media_ledger == []
+    assert generated_media_reservations == {}
 
 
 async def test_without_a_key_it_refuses_before_spending_or_storing():

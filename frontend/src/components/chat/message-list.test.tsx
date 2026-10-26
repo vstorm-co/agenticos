@@ -7,8 +7,7 @@ import {
   continuesTurn,
   endsTurn,
   lastToolTurnIndex,
-  requestOf,
-  turnUsage,
+  layoutMessages,
 } from "./message-list";
 import type { ChatMessage } from "@/types";
 
@@ -447,7 +446,7 @@ describe("where a turn's time and cost belong", () => {
       message({ id: "b", runId: "r-9" }),
     ];
 
-    expect(turnUsage(messages, 1)).toBe(USAGE);
+    expect(layoutMessages(messages)[1]?.turnUsage).toBe(USAGE);
   });
 
   it("prefers the last figure in the turn, which is the run's total by then", () => {
@@ -457,7 +456,7 @@ describe("where a turn's time and cost belong", () => {
       message({ id: "b", runId: "r-9", usage: later }),
     ];
 
-    expect(turnUsage(messages, 1)).toBe(later);
+    expect(layoutMessages(messages)[1]?.turnUsage).toBe(later);
   });
 
   it("never reaches back past the turn it belongs to", () => {
@@ -467,7 +466,7 @@ describe("where a turn's time and cost belong", () => {
       message({ id: "b", runId: "r-9" }),
     ];
 
-    expect(turnUsage(messages, 1)).toBeUndefined();
+    expect(layoutMessages(messages)[1]?.turnUsage).toBeUndefined();
   });
 });
 
@@ -585,7 +584,7 @@ describe("the request a skill can be made of", () => {
       message({ id: "b", runId: "r-1" }),
     ];
 
-    expect([0, 1, 2].map((i) => requestOf(messages, i))).toEqual([
+    expect([0, 1, 2].map((i) => layoutMessages(messages)[i]?.request)).toEqual([
       undefined,
       undefined,
       "Compare the vendors",
@@ -593,13 +592,13 @@ describe("the request a skill can be made of", () => {
   });
 
   it("has nothing to hand an answer with no request above it", () => {
-    expect(requestOf([message({ id: "a" })], 0)).toBeUndefined();
+    expect(layoutMessages([message({ id: "a" })])[0]?.request).toBeUndefined();
   });
 
   it("has nothing to hand when the request was only a file", () => {
     const messages = [message({ id: "q", role: "user", content: "" }), message({ id: "a" })];
 
-    expect(requestOf(messages, 1)).toBeUndefined();
+    expect(layoutMessages(messages)[1]?.request).toBeUndefined();
   });
 
   it("offers it in a chat but not in the test panel", () => {
@@ -611,4 +610,18 @@ describe("the request a skill can be made of", () => {
     rerender(<MessageList messages={messages} pins={{ pinned: [], toggle: vi.fn() }} />);
     expect(rendered("a")?.request).toBeUndefined();
   });
+});
+
+it("reads group identities linearly even for one long segmented turn", () => {
+  const reads = vi.fn(() => "one-group");
+  const messages = Array.from({ length: 1000 }, (_, index) => {
+    const row = message({ id: String(index), runId: "one-run" });
+    Object.defineProperty(row, "groupId", { get: reads });
+    return row;
+  });
+  const layout = layoutMessages(messages);
+  expect(reads.mock.calls.length).toBeLessThan(10000);
+  expect(layout[0]?.groupPosition).toBe("first");
+  expect(layout[500]?.groupPosition).toBe("middle");
+  expect(layout[999]?.groupPosition).toBe("last");
 });

@@ -77,32 +77,55 @@ async def organizations_with_retention(
     return [(row[0], row[1]) for row in rows.all()]
 
 
-async def stored_paths_for_expiring_conversations(
+async def lock_expiring_conversations(
     db: AsyncSession, *, organization_id: UUID, cutoff: datetime, limit: int
-) -> list[str]:
-    """The chat files and generated media belonging to conversations about to be purged.
+) -> list[UUID]:
+    """One locked batch for both file collection and deletion.
 
-    Read before the delete, because the rows cascade with the conversation and the
-    bytes do not: a purge that removed the row and left the upload on disk would
-    be a retention policy whose files outlive the policy. Generated media's rows
-    do not cascade (`SET NULL`), but its bytes belong to the thread just the same
-    (#2310).
+    Appends update the same conversation row. SKIP LOCKED leaves an in-flight
+    append alone; active and parked runs keep their conversations even when a
+    long approval wait has exceeded the retention period.
     """
-    expiring = (
-        select(Conversation.id)
-        .where(Conversation.organization_id == organization_id, Conversation.updated_at < cutoff)
-        .order_by(Conversation.updated_at)
-        .limit(limit)
-        .scalar_subquery()
+    active_run = (
+        select(AgentRun.id)
+        .where(
+            AgentRun.conversation_id == Conversation.id,
+            AgentRun.organization_id == organization_id,
+            AgentRun.status.not_in(_RETIRABLE),
+        )
+        .exists()
     )
+    rows = await db.execute(
+        select(Conversation.id)
+        .where(
+            Conversation.organization_id == organization_id,
+            Conversation.updated_at < cutoff,
+            ~active_run,
+        )
+        .order_by(Conversation.updated_at, Conversation.id)
+        .limit(limit)
+        .with_for_update(skip_locked=True)
+    )
+    return list(rows.scalars().all())
+
+
+async def stored_paths_for_expiring_conversations(
+    db: AsyncSession, *, organization_id: UUID, conversation_ids: list[UUID]
+) -> list[str]:
+    """Files and generated media for exactly the caller's locked conversations."""
     rows = await db.execute(
         select(ChatFile.storage_path)
         .join(Message, Message.id == ChatFile.message_id)
-        .where(Message.conversation_id.in_(expiring), ChatFile.storage_path.is_not(None))
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(
+            Conversation.organization_id == organization_id,
+            Message.conversation_id.in_(conversation_ids),
+            ChatFile.storage_path.is_not(None),
+        )
         .union_all(
             select(GeneratedMedia.storage_path).where(
                 GeneratedMedia.organization_id == organization_id,
-                GeneratedMedia.conversation_id.in_(expiring),
+                GeneratedMedia.conversation_id.in_(conversation_ids),
             )
         )
     )
@@ -110,24 +133,17 @@ async def stored_paths_for_expiring_conversations(
 
 
 async def delete_conversations(
-    db: AsyncSession, *, organization_id: UUID, cutoff: datetime, limit: int
+    db: AsyncSession, *, organization_id: UUID, conversation_ids: list[UUID]
 ) -> int:
-    """Drop the oldest conversations untouched since `cutoff`. Messages cascade.
-
-    `updated_at`, not `created_at`: a thread somebody is still returning to is not
-    old, however long ago it started, and a policy that deleted it mid-use would
-    be measuring the wrong thing.
-    """
-    expiring = (
-        select(Conversation.id)
-        .where(Conversation.organization_id == organization_id, Conversation.updated_at < cutoff)
-        .order_by(Conversation.updated_at)
-        .limit(limit)
-        .scalar_subquery()
-    )
+    """Delete exactly the locked batch whose files have a durable cleanup intent."""
     result = cast(
         CursorResult[Any],
-        await db.execute(delete(Conversation).where(Conversation.id.in_(expiring))),
+        await db.execute(
+            delete(Conversation).where(
+                Conversation.organization_id == organization_id,
+                Conversation.id.in_(conversation_ids),
+            )
+        ),
     )
     return result.rowcount or 0
 
@@ -335,7 +351,7 @@ async def lock_expiring_artifacts(
     `published_at`, not `created_at`: a report a schedule republishes every week
     is alive however long ago its first version was written.
 
-    Selected once and locked because the sweep removes the bytes before the
+    Selected once and locked because the sweep collects paths before deleting
     rows, and those are two statements. A publish that landed between two
     evaluations of the cutoff would lose its files to the first and keep its
     rows through the second - a page whose versions all point at nothing. A
@@ -434,8 +450,9 @@ async def expiring_documents(
             RAGDocument.source_path.is_(None),
             RAGDocument.status.in_((DocumentStatus.DONE, DocumentStatus.ERROR)),
         )
-        .order_by(RAGDocument.created_at)
+        .order_by(RAGDocument.created_at, RAGDocument.id)
         .limit(limit)
+        .with_for_update(of=RAGDocument, skip_locked=True)
     )
     return [(row[0], row[1], row[2], row[3], row[4]) for row in rows.all()]
 

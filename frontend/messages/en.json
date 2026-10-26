@@ -1163,6 +1163,7 @@
     "title": "Billing"
   },
   "chat": {
+    "loadEarlierMessages": "Load earlier messages",
     "accessLevel": "Access level",
     "accessRevoked": "Access revoked",
     "agentPicker": {

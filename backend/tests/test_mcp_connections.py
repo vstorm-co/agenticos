@@ -2087,7 +2087,7 @@ class TestAWatchedConnection:
         conn = _connection(catalog_key="github", label="Work", allowed_tools=["list_prs"])
         conn.auth_token = _seal_into(conn, "secret-token")
 
-        spec = await watched_connection_spec(AsyncMock(), conn)
+        spec = await watched_connection_spec(conn)
 
         assert spec is not None
         assert spec.name == "github" and spec.account == "Work"
@@ -2096,23 +2096,21 @@ class TestAWatchedConnection:
 
     @pytest.mark.anyio
     async def test_a_custom_server_goes_by_its_name_and_a_dead_credential_by_nothing(self):
-        assert (await watched_connection_spec(AsyncMock(), _connection())).name == "github"
+        assert (await watched_connection_spec(_connection())).name == "github"
         dead = _connection(auth_token="enc:not-valid-ciphertext")
-        assert await watched_connection_spec(AsyncMock(), dead) is None
+        assert await watched_connection_spec(dead) is None
 
 
 class TestAuthHeaders:
     @pytest.mark.anyio
     async def test_no_token_no_headers(self):
-        assert await _resolve_auth_headers(AsyncMock(), _connection()) == {}
+        assert await _resolve_auth_headers(_connection()) == {}
 
     @pytest.mark.anyio
     async def test_token_is_decrypted_into_bearer_header(self):
         conn = _connection()
         conn.auth_token = _seal_into(conn, "secret-token")
-        assert await _resolve_auth_headers(AsyncMock(), conn) == {
-            "Authorization": "Bearer secret-token"
-        }
+        assert await _resolve_auth_headers(conn) == {"Authorization": "Bearer secret-token"}
 
     @pytest.mark.anyio
     async def test_another_members_envelope_does_not_open(self):
@@ -2125,7 +2123,7 @@ class TestAuthHeaders:
         """
         mine = _connection()
         stolen = _connection(auth_token=_seal_into(mine, "secret-token"))
-        assert await _resolve_auth_headers(AsyncMock(), stolen) is None
+        assert await _resolve_auth_headers(stolen) is None
 
     @pytest.mark.anyio
     async def test_a_personal_row_without_an_owner_is_refused_not_guessed(self):
@@ -2138,7 +2136,7 @@ class TestAuthHeaders:
     @pytest.mark.anyio
     async def test_undecryptable_token_yields_none(self):
         conn = _connection(auth_token="enc:not-valid-ciphertext")
-        assert await _resolve_auth_headers(AsyncMock(), conn) is None
+        assert await _resolve_auth_headers(conn) is None
 
     @pytest.mark.anyio
     async def test_an_organization_token_is_opened_with_the_organizations_envelope(self):
@@ -2151,9 +2149,7 @@ class TestAuthHeaders:
             auth_token=sealed.ciphertext,
             secret_key_version=sealed.key_version,
         )
-        assert await _resolve_auth_headers(AsyncMock(), conn) == {
-            "Authorization": "Bearer org-token"
-        }
+        assert await _resolve_auth_headers(conn) == {"Authorization": "Bearer org-token"}
 
     @pytest.mark.anyio
     async def test_another_organizations_envelope_does_not_open(self):
@@ -2168,7 +2164,7 @@ class TestAuthHeaders:
             auth_token=sealed.ciphertext,
             secret_key_version=sealed.key_version,
         )
-        assert await _resolve_auth_headers(AsyncMock(), conn) is None
+        assert await _resolve_auth_headers(conn) is None
 
     @pytest.mark.anyio
     async def test_an_organization_row_without_an_organization_is_refused_not_guessed(self):
@@ -2211,7 +2207,7 @@ class TestAccountAuthorized:
     @pytest.mark.anyio
     async def test_resolve_auth_headers_refuses_a_token_whose_key_is_gone(self):
         conn = _connection(auth_token="sealed", secret_key_version=999)
-        assert await _resolve_auth_headers(AsyncMock(), conn) is None
+        assert await _resolve_auth_headers(conn) is None
 
     def test_the_read_carries_the_server_decided_authorized(self):
         usable = _connection()
@@ -2242,6 +2238,23 @@ class TestAccountAuthorized:
         assert McpConnectionRead.from_model(
             _connection(include_instructions=True)
         ).include_instructions
+
+
+@pytest.fixture(autouse=True)
+def refresh_transaction_context(monkeypatch):
+    @contextlib.asynccontextmanager
+    async def context():
+        db = MagicMock()
+        db.commit = AsyncMock()
+        db.rollback = AsyncMock()
+        try:
+            yield db
+            await db.commit()
+        except BaseException:
+            await db.rollback()
+            raise
+
+    monkeypatch.setattr(mcp_connection_service, "get_worker_db_context", context)
 
 
 def _oauth_connection(payload: McpOAuthPayload, **overrides) -> McpConnection:
@@ -2286,6 +2299,15 @@ class TestOAuthTokens:
         assert result.refresh_token.get_secret_value() == "keep-me"
         assert result.expires_at is None
 
+    def test_a_zero_lifetime_grant_is_not_treated_as_non_expiring(self, monkeypatch):
+        monkeypatch.setattr(mcp_connection_service, "_now_epoch", lambda: 1000.0)
+        payload = _apply_token(
+            _base_payload(refresh_token="rotate"),
+            OAuthToken(access_token="already-expired", expires_in=0),
+        )
+        assert payload.expires_at == 1000.0
+        assert not mcp_connection_service._token_is_fresh(payload)
+
     def test_an_oauth_payload_does_not_print_its_tokens(self):
         """The one reader that could log a payload whole catches `Exception` and
         names only the connection; masking the credentials makes the guarantee
@@ -2310,15 +2332,13 @@ class TestOAuthTokens:
     async def test_unauthorized_oauth_yields_none(self):
         # No access_token yet (consent not completed).
         conn = _oauth_connection(_base_payload(code_verifier="v"), oauth_state="state123")
-        assert await _resolve_auth_headers(AsyncMock(), conn) is None
+        assert await _resolve_auth_headers(conn) is None
 
     @pytest.mark.anyio
     async def test_valid_oauth_token_becomes_bearer(self):
         payload = _base_payload(access_token="live-token", expires_at=None)
         conn = _oauth_connection(payload)
-        assert await _resolve_auth_headers(AsyncMock(), conn) == {
-            "Authorization": "Bearer live-token"
-        }
+        assert await _resolve_auth_headers(conn) == {"Authorization": "Bearer live-token"}
 
     @pytest.mark.anyio
     async def test_expired_token_is_refreshed_and_persisted(self, monkeypatch):
@@ -2331,12 +2351,12 @@ class TestOAuthTokens:
         monkeypatch.setattr(mcp_oauth, "refresh_tokens", refresh_mock)
         lock_mock = AsyncMock(return_value=conn)
         monkeypatch.setattr(
-            mcp_connection_service.mcp_connection_repo, "get_by_id_for_update", lock_mock
+            mcp_connection_service.mcp_connection_repo, "get_for_token_refresh", lock_mock
         )
         update_mock = AsyncMock()
         monkeypatch.setattr(mcp_connection_service.mcp_connection_repo, "update", update_mock)
 
-        headers = await _resolve_auth_headers(AsyncMock(), conn)
+        headers = await _resolve_auth_headers(conn)
         assert headers == {"Authorization": "Bearer fresh-token"}
         refresh_mock.assert_awaited_once()
         # The stored address, never the stored token endpoint, scopes the refresh.
@@ -2364,19 +2384,21 @@ class TestOAuthTokens:
                 access_token="fresh-token",
                 refresh_token="rt2",
                 expires_at=datetime.now(UTC).timestamp() + 3600,
-            )
+            ),
+            id=stale.id,
+            user_id=stale.user_id,
         )
         refresh_mock = AsyncMock()
         monkeypatch.setattr(mcp_oauth, "refresh_tokens", refresh_mock)
         monkeypatch.setattr(
             mcp_connection_service.mcp_connection_repo,
-            "get_by_id_for_update",
+            "get_for_token_refresh",
             AsyncMock(return_value=refreshed),
         )
         update_mock = AsyncMock()
         monkeypatch.setattr(mcp_connection_service.mcp_connection_repo, "update", update_mock)
 
-        headers = await _resolve_auth_headers(AsyncMock(), stale)
+        headers = await _resolve_auth_headers(stale)
 
         assert headers == {"Authorization": "Bearer fresh-token"}
         refresh_mock.assert_not_awaited()
@@ -2386,7 +2408,7 @@ class TestOAuthTokens:
     async def test_expired_token_without_refresh_yields_none(self):
         payload = _base_payload(access_token="stale", refresh_token=None, expires_at=0.0)
         conn = _oauth_connection(payload)
-        assert await _resolve_auth_headers(AsyncMock(), conn) is None
+        assert await _resolve_auth_headers(conn) is None
 
     @pytest.mark.anyio
     async def test_a_connection_awaiting_first_consent_has_no_payload_to_read(self):
@@ -2395,7 +2417,7 @@ class TestOAuthTokens:
         a licence to reach the server anonymously - the plugin is simply not
         usable until the callback lands."""
         conn = _connection(auth_type="oauth", oauth_payload=None, oauth_state="pending")
-        assert await _resolve_auth_headers(AsyncMock(), conn) is None
+        assert await _resolve_auth_headers(conn) is None
 
 
 class TestRefreshUnderLock:
@@ -2408,11 +2430,16 @@ class TestRefreshUnderLock:
     read before the lock, the locked row is the one that is true.
     """
 
-    @staticmethod
-    def _expired() -> McpConnection:
+    _id = uuid4()
+    _user_id = uuid4()
+
+    @classmethod
+    def _expired(cls) -> McpConnection:
         """The pre-lock copy: expired access token, refresh token still there."""
         return _oauth_connection(
-            _base_payload(access_token="stale", refresh_token="rt", expires_at=0.0)
+            _base_payload(access_token="stale", refresh_token="rt", expires_at=0.0),
+            id=cls._id,
+            user_id=cls._user_id,
         )
 
     @staticmethod
@@ -2420,7 +2447,7 @@ class TestRefreshUnderLock:
         """What `SELECT ... FOR UPDATE` finds once the lock is granted."""
         monkeypatch.setattr(
             mcp_connection_service.mcp_connection_repo,
-            "get_by_id_for_update",
+            "get_for_token_refresh",
             AsyncMock(return_value=row),
         )
         refresh = AsyncMock()
@@ -2434,7 +2461,7 @@ class TestRefreshUnderLock:
         provider a credential the user has just withdrawn."""
         refresh = self._locked(monkeypatch, None)
 
-        assert await _resolve_auth_headers(AsyncMock(), self._expired()) is None
+        assert await _resolve_auth_headers(self._expired()) is None
         refresh.assert_not_awaited()
 
     @pytest.mark.anyio
@@ -2444,9 +2471,12 @@ class TestRefreshUnderLock:
         """Moving a connection's URL wipes `oauth_payload`, because tokens
         belong to the host that issued them. A turn holding the pre-lock copy
         must not resurrect them against the new host."""
-        refresh = self._locked(monkeypatch, _connection(auth_type="oauth", oauth_payload=None))
+        refresh = self._locked(
+            monkeypatch,
+            _connection(auth_type="oauth", oauth_payload=None, id=self._id, user_id=self._user_id),
+        )
 
-        assert await _resolve_auth_headers(AsyncMock(), self._expired()) is None
+        assert await _resolve_auth_headers(self._expired()) is None
         refresh.assert_not_awaited()
 
     @pytest.mark.anyio
@@ -2458,11 +2488,13 @@ class TestRefreshUnderLock:
         refresh = self._locked(
             monkeypatch,
             _oauth_connection(
-                _base_payload(access_token="stale", refresh_token=None, expires_at=0.0)
+                _base_payload(access_token="stale", refresh_token=None, expires_at=0.0),
+                id=self._id,
+                user_id=self._user_id,
             ),
         )
 
-        assert await _resolve_auth_headers(AsyncMock(), self._expired()) is None
+        assert await _resolve_auth_headers(self._expired()) is None
         refresh.assert_not_awaited()
 
     @pytest.mark.anyio
@@ -2474,7 +2506,7 @@ class TestRefreshUnderLock:
         the record of what the user needs to re-authorize."""
         monkeypatch.setattr(
             mcp_connection_service.mcp_connection_repo,
-            "get_by_id_for_update",
+            "get_for_token_refresh",
             AsyncMock(return_value=self._expired()),
         )
         monkeypatch.setattr(
@@ -2485,7 +2517,7 @@ class TestRefreshUnderLock:
         update = AsyncMock()
         monkeypatch.setattr(mcp_connection_service.mcp_connection_repo, "update", update)
 
-        assert await _resolve_auth_headers(AsyncMock(), self._expired()) is None
+        assert await _resolve_auth_headers(self._expired()) is None
         update.assert_not_awaited()
 
 
@@ -2505,7 +2537,7 @@ class TestOAuthSweep:
     def repo(self, monkeypatch):
         mock_repo = MagicMock()
         mock_repo.list_oauth_connections = AsyncMock(return_value=[])
-        mock_repo.get_by_id_for_update = AsyncMock()
+        mock_repo.get_for_token_refresh = AsyncMock()
         mock_repo.update = AsyncMock()
         monkeypatch.setattr(mcp_connection_service, "mcp_connection_repo", mock_repo)
         return mock_repo
@@ -2560,7 +2592,7 @@ class TestOAuthSweep:
             _base_payload(access_token="stale", refresh_token="rt", expires_at=0.0)
         )
         repo.list_oauth_connections.return_value = [expiring]
-        repo.get_by_id_for_update.return_value = expiring
+        repo.get_for_token_refresh.return_value = expiring
         monkeypatch.setattr(
             mcp_oauth,
             "refresh_tokens",
@@ -2586,7 +2618,7 @@ class TestOAuthSweep:
             _base_payload(access_token="stale", refresh_token="rt", expires_at=0.0)
         )
         repo.list_oauth_connections.return_value = [revoked]
-        repo.get_by_id_for_update.return_value = revoked
+        repo.get_for_token_refresh.return_value = revoked
         monkeypatch.setattr(
             mcp_oauth,
             "refresh_tokens",
@@ -2617,7 +2649,7 @@ class TestOAuthSweep:
         counts = await mcp_connection_service.sweep_oauth_connections(AsyncMock())
 
         assert counts == {"checked": 1, "refreshed": 0, "needs_authorization": 1, "skipped": 0}
-        repo.get_by_id_for_update.assert_not_awaited()
+        repo.get_for_token_refresh.assert_not_awaited()
         refresh.assert_not_awaited()
         assert self._written(repo)["last_status"] == "error"
 

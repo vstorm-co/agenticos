@@ -257,6 +257,21 @@ class ApprovalService:
         if not stale:
             return 0
 
+        # Terminal paths claim a run before touching its approvals. Use the same
+        # order here, across the whole sweep, before taking any approval lock.
+        for run_id, organization_id in sorted(
+            {(approval.run_id, approval.organization_id) for approval in stale}
+        ):
+            await agent_run_repo.claim_parked_run(self.db, run_id, organization_id=organization_id)
+        still_pending = []
+        for candidate in stale:
+            approval = await agent_run_repo.get_approval(
+                self.db, candidate.id, organization_id=candidate.organization_id, for_update=True
+            )
+            if approval is not None and approval.status == ApprovalStatus.PENDING.value:
+                still_pending.append(approval)
+        stale = still_pending
+
         for approval in stale:
             await agent_run_repo.decide_approval(
                 self.db,

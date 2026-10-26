@@ -8,6 +8,7 @@ import httpx
 import pytest
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
+from fastmcp.exceptions import ValidationError as MCPValidationError
 from fastmcp.server.auth import AccessToken
 
 from app.services.platform_mcp import _unreachable, platform_tool_catalog
@@ -725,3 +726,178 @@ class TestTheCatalogTheBuilderLists:
     async def test_the_api_behind_the_catalog_answers_nothing(self) -> None:
         with pytest.raises(RuntimeError, match="nothing is called"):
             await _unreachable({}, AsyncMock(), AsyncMock())
+
+
+class TestConfiguredDrafts:
+    async def test_create_accepts_configured_capabilities_and_resource_bindings(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        await server.call_tool(
+            "create_agent_draft",
+            {
+                "name": "Developer",
+                "instructions": "Run tests before reporting success.",
+                "capabilities": [
+                    "sandbox",
+                    {
+                        "id": "sandbox",
+                        "config": {
+                            "backend": "service",
+                            "connection_id": str(KB),
+                            "include_execute": True,
+                        },
+                        "approval": "required",
+                    },
+                    "ask_user",
+                ],
+                "mcp_servers": [{"account": "personal", "catalog_key": "github"}],
+                "skill_ids": [str(KB)],
+                "collection_ids": [str(KB)],
+            },
+        )
+        spec = api.request.await_args.kwargs["json"]["spec"]
+        assert spec["capabilities"] == [
+            {"id": "ask_user"},
+            {
+                "id": "sandbox",
+                "config": {
+                    "backend": "service",
+                    "connection_id": str(KB),
+                    "include_execute": True,
+                },
+                "approval": "required",
+            },
+        ]
+        assert spec["mcp_servers"][0]["catalog_key"] == "github"
+        assert spec["skill_ids"] == spec["collection_ids"] == [str(KB)]
+
+    async def test_configuring_an_existing_binding_preserves_other_settings(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        draft = {
+            "name": "Developer",
+            "instructions": "Keep",
+            "capabilities": [
+                {
+                    "id": "sandbox",
+                    "config": {"backend": "state"},
+                    "approval": "required",
+                    "enabled": False,
+                },
+                {"id": "clock"},
+            ],
+            "mcp_servers": [],
+        }
+        api.request.side_effect = [{"draft_spec": draft}, {}]
+        await server.call_tool(
+            "update_agent_draft",
+            {
+                "agent_id": str(AGENT),
+                "add_capabilities": [
+                    {"id": "sandbox", "config": {"backend": "service", "include_execute": True}},
+                    "sandbox",
+                ],
+                "mcp_servers": [
+                    {
+                        "account": "organization",
+                        "connection_id": str(KB),
+                        "allowed_tools": ["get_file"],
+                    }
+                ],
+            },
+        )
+        spec = api.request.await_args.kwargs["json"]["spec"]
+        assert spec["capabilities"] == [
+            {
+                "id": "sandbox",
+                "config": {"backend": "service", "include_execute": True},
+                "approval": "required",
+                "enabled": False,
+            },
+            {"id": "clock"},
+        ]
+        assert spec["instructions"] == "Keep"
+        assert spec["mcp_servers"][0]["connection_id"] == str(KB)
+        assert spec["mcp_servers"][0]["allowed_tools"] == ["get_file"]
+        assert draft["capabilities"][0]["config"] == {"backend": "state"}
+
+    async def test_an_explicit_null_clears_a_binding_secret_reference(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request.side_effect = [
+            {
+                "draft_spec": {
+                    "capabilities": [
+                        {"id": "media", "secret_id": str(KB), "approval": "required"},
+                    ]
+                }
+            },
+            {},
+        ]
+        await server.call_tool(
+            "update_agent_draft",
+            {
+                "agent_id": str(AGENT),
+                "add_capabilities": [{"id": "media", "secret_id": None}],
+            },
+        )
+        spec = api.request.await_args.kwargs["json"]["spec"]
+        assert spec["capabilities"] == [{"id": "media", "secret_id": None, "approval": "required"}]
+
+    async def test_empty_config_and_mcp_list_explicitly_reset_them(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request.side_effect = [
+            {
+                "draft_spec": {
+                    "capabilities": [
+                        {"id": "sandbox", "config": {"backend": "service"}},
+                    ],
+                    "mcp_servers": [{"account": "personal", "catalog_key": "github"}],
+                }
+            },
+            {},
+        ]
+        await server.call_tool(
+            "update_agent_draft",
+            {
+                "agent_id": str(AGENT),
+                "add_capabilities": [{"id": "sandbox", "config": {}}],
+                "mcp_servers": [],
+            },
+        )
+        spec = api.request.await_args.kwargs["json"]["spec"]
+        assert spec["capabilities"] == [{"id": "sandbox", "config": {}}]
+        assert spec["mcp_servers"] == []
+
+    @pytest.mark.parametrize(
+        "tool,arguments,path",
+        [
+            ("list_sandbox_connections", {}, "/sandbox-connections"),
+            ("list_sandbox_runtimes", {}, "/sandbox-connections/runtimes"),
+            ("get_sandbox_policy", {"connection_id": str(KB)}, f"/sandbox-connections/{KB}/policy"),
+            ("list_org_connections", {}, "/mcp-connections"),
+        ],
+    )
+    async def test_discovery_calls_the_public_api_as_a_read(
+        self, server: FastMCP, api: MagicMock, tool: str, arguments: dict[str, str], path: str
+    ) -> None:
+        await server.call_tool(tool, arguments)
+        api.request.assert_awaited_once_with("GET", path)
+        assert not {item.name: item for item in platform_tools(api)}[tool].writes
+
+    async def test_a_personal_connection_id_is_refused_before_writing(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        with pytest.raises(MCPValidationError, match="connection_id"):
+            await server.call_tool(
+                "create_agent_draft",
+                {
+                    "name": "Wrong",
+                    "instructions": "Keep",
+                    "mcp_servers": [
+                        {"account": "personal", "catalog_key": "github", "connection_id": str(KB)},
+                    ],
+                },
+            )
+        api.request.assert_not_awaited()

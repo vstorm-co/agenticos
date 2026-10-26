@@ -83,6 +83,11 @@ def _request(kind: str, payload: dict[str, JsonValue], attempt: Attempt | None) 
     return ChildRequest(kind=kind, payload=payload, attempt=attempt.number, max_attempts=attempt.of)
 
 
+async def _write_request(writer: asyncio.StreamWriter, request: bytes) -> None:
+    writer.write(request)
+    await writer.drain()
+
+
 async def run_handler(
     handlers: Handlers,
     kind: str,
@@ -214,7 +219,23 @@ class ChildPool:
     _closed: bool = field(default=False, init=False)
 
     async def start(self) -> None:
-        children = await asyncio.gather(*(self._spawn() for _ in range(self.size)))
+        starting = [asyncio.create_task(self._spawn()) for _ in range(self.size)]
+        try:
+            children = await asyncio.gather(*starting)
+        except BaseException:
+            for task in starting:
+                task.cancel()
+            # Retrieve sibling failures while preserving the exception that
+            # stopped startup; no process may finish starting after cleanup.
+            for task in starting:
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+                except Exception:
+                    logger.exception("background_child_start_failed")
+            await self.close()
+            raise
         for child in children:
             self._idle.put_nowait(child)
 
@@ -246,12 +267,19 @@ class ChildPool:
         loop = asyncio.get_running_loop()
         deadline = loop.time() + timeout.total_seconds()
         reading = asyncio.create_task(process.stdout.readline())
+        sending = asyncio.create_task(_write_request(process.stdin, request.encode() + b"\n"))
+        waiting = {reading, sending}
         try:
-            process.stdin.write(request.encode() + b"\n")
-            await process.stdin.drain()
             while True:
-                done, _ = await asyncio.wait({reading}, timeout=self.watch_every)
-                if done:
+                done, _ = await asyncio.wait(
+                    waiting,
+                    timeout=min(self.watch_every, max(0, deadline - loop.time())),
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                if sending in done:
+                    sending.result()
+                    waiting.discard(sending)
+                if reading in done:
                     return await self._answer(child, reading.result())
                 used = resident_bytes(process.pid)
                 if self.memory_limit_bytes is not None and used > self.memory_limit_bytes:
@@ -269,10 +297,12 @@ class ChildPool:
             await self._stop(child)
             raise
         finally:
-            if not reading.done():
-                reading.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await reading
+            for task in (reading, sending):
+                if not task.done():
+                    task.cancel()
+            for result in await asyncio.gather(reading, sending, return_exceptions=True):
+                if isinstance(result, Exception):
+                    logger.debug("background_child_io_failed", exc_info=result)
 
     async def close(self) -> None:
         """Stop every child, and every replacement still starting."""
@@ -297,7 +327,11 @@ class ChildPool:
 
     async def _died(self, child: _Child) -> Died:
         child.healthy = False
-        returncode = await child.process.wait()
+        try:
+            returncode = await asyncio.wait_for(child.process.wait(), timeout=self.watch_every)
+        except TimeoutError:
+            await self._stop(child)
+            return Died("the child process closed its connection without exiting; it was stopped")
         return Died(describe_exit(returncode))
 
     async def _stop(self, child: _Child) -> None:
@@ -346,6 +380,16 @@ class ChildPool:
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
         )
+        child = _Child(process)
+        self._children.add(child)
+        try:
+            await self._wait_ready(process)
+        except BaseException:
+            await self._stop(child)
+            raise
+        return child
+
+    async def _wait_ready(self, process: asyncio.subprocess.Process) -> None:
         assert process.stdout is not None
         try:
             line = await asyncio.wait_for(process.stdout.readline(), timeout=self.start_timeout)
@@ -353,16 +397,10 @@ class ChildPool:
             line = b""
         if line.strip() != READY.encode():
             exited = process.returncode
-            with contextlib.suppress(ProcessLookupError):
-                process.kill()
-            await process.wait()
             raise ChildStartFailed(
                 "a child process did not start: "
                 + (describe_exit(exited) if exited is not None else f"it said {line[:200]!r}")
             )
-        child = _Child(process)
-        self._children.add(child)
-        return child
 
 
 @dataclass

@@ -22,6 +22,32 @@ from app.db.models.organization_assistant import OrganizationAssistant
 from app.db.models.resource_grant import Visibility
 
 
+async def memory_erasure_capabilities(
+    db: AsyncSession, *, organization_id: UUID, agent_id: UUID | None = None
+) -> list[tuple[UUID, object]]:
+    """Capability snapshots from drafts and every retained version, tenant-scoped.
+
+    Historical endpoints can still hold memory after a draft or environment
+    moves elsewhere. Project only bindings, not the full versioned prompts.
+    """
+    drafts = select(Agent.id, Agent.draft_spec["capabilities"]).where(
+        Agent.organization_id == organization_id
+    )
+    versions = (
+        select(Agent.id, AgentVersion.spec["capabilities"])
+        .join(AgentVersion, AgentVersion.agent_id == Agent.id)
+        .where(
+            Agent.organization_id == organization_id,
+            AgentVersion.organization_id == organization_id,
+        )
+    )
+    if agent_id is not None:
+        drafts = drafts.where(Agent.id == agent_id)
+        versions = versions.where(Agent.id == agent_id)
+    result = await db.execute(drafts.union(versions))
+    return [(held_id, capabilities) for held_id, capabilities in result.all()]
+
+
 async def get_many(
     db: AsyncSession, agent_ids: Sequence[UUID], *, organization_id: UUID
 ) -> dict[UUID, Agent]:
@@ -63,10 +89,16 @@ async def existing_ids_locked(
     return set(result.scalars().all())
 
 
-async def get(db: AsyncSession, agent_id: UUID, *, organization_id: UUID) -> Agent | None:
-    result = await db.execute(
-        select(Agent).where(Agent.id == agent_id, Agent.organization_id == organization_id)
-    )
+async def get(
+    db: AsyncSession, agent_id: UUID, *, organization_id: UUID, for_update: bool = False
+) -> Agent | None:
+    statement = select(Agent).where(Agent.id == agent_id, Agent.organization_id == organization_id)
+    if for_update:
+        # Re-read after waiting, without blocking new runs' foreign-key key-share locks.
+        statement = statement.with_for_update(key_share=True).execution_options(
+            populate_existing=True
+        )
+    result = await db.execute(statement)
     return result.scalar_one_or_none()
 
 

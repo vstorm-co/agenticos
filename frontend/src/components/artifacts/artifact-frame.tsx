@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { FileX } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { EmptyState, LoadingState } from "@/components/states";
+import { EmptyState } from "@/components/states";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/ui";
 import { useArtifactView } from "@/hooks/use-artifacts";
 import { cn } from "@/lib/utils";
@@ -142,9 +143,17 @@ interface ArtifactFrameProps {
  */
 export function ArtifactFrame({ artifactId, versionId, title, className }: ArtifactFrameProps) {
   const t = useTranslations("artifacts");
+  const ts = useTranslations("states");
   const view = useArtifactView(artifactId, versionId, true);
 
-  if (view.isLoading) return <LoadingState variant="skeleton-panel" rows={4} />;
+  if (view.isLoading)
+    return (
+      <Skeleton
+        role="status"
+        aria-label={ts("loading")}
+        className={cn("h-full min-h-[32rem] w-full rounded-lg border", className)}
+      />
+    );
   if (view.data === undefined) {
     return (
       <EmptyState

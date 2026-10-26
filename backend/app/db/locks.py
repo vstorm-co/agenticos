@@ -68,23 +68,27 @@ class LockScope(IntEnum):
     #: used before its paid generation and recorded its file only after it, so
     #: every call admitted at once passed the same check and together ran past it.
     GENERATED_MEDIA_PER_ORG = 11
+    #: First-account admission and deployment-administrator bootstrap.
+    ACCOUNT_BOOTSTRAP = 12
+    #: One mailbox poll, independent of its separately committed OAuth refresh.
+    PORTAL_POLL = 13
     #: One case's place in its dataset's review queue: a send reads which score
     #: waits, then queues or replaces it, and two at once must not both read none.
-    REVIEW_PER_CASE = 12
+    REVIEW_PER_CASE = 14
     #: How many eval cases one organization runs at once: two workers counting
     #: together would otherwise both start one past the limit.
-    EVAL_CASES_PER_ORGANIZATION = 13
+    EVAL_CASES_PER_ORGANIZATION = 15
     #: One knowledge base's grouping pass: it reads the misses no topic holds
     #: and then places them, so two passes at once would put a question in two
     #: topics.
-    KNOWLEDGE_GAPS_PER_KNOWLEDGE_BASE = 14
+    KNOWLEDGE_GAPS_PER_KNOWLEDGE_BASE = 16
     #: One knowledge base's check of its answers: two at once would pay twice for
     #: the same answers. Session-scoped, since a check spans many runs.
-    KNOWLEDGE_GAP_CHECKS_PER_KNOWLEDGE_BASE = 15
+    KNOWLEDGE_GAP_CHECKS_PER_KNOWLEDGE_BASE = 17
     #: How many case revisions one organization's datasets store. Each edit
     #: locks its own dataset only, so two edits of two datasets would both read
     #: the count under the ceiling and together go past it.
-    DATASET_REVISIONS_PER_ORGANIZATION = 16
+    DATASET_REVISIONS_PER_ORGANIZATION = 18
 
 
 def _key(subject: UUID) -> int:

@@ -2,7 +2,7 @@
 title: "Sprachgespräche"
 seo_title: "Sprachgespräche: mit einem veröffentlichten Agent sprechen"
 description: "Einen veröffentlichten Agent anrufen und mit ihm sprechen: Realtime-Modelle, Freigaben im Anruf, Zeitlimits und Budgets, Auflege-Sicherungen, Transkripte als Text."
-source_sha: "8f67edc78560"
+source_sha: "2c8dd98fbd6f"
 ---
 
 # Sprachgespräche { #voice-conversations }
@@ -29,6 +29,11 @@ Anruf endet. Eine gehostete Seite verwendet eine Anrufleiste ohne
 Freigabe-Bedienelemente, und das Widget lädt eine eigene, schlankere. Siehe
 [Konsole](console.md#voice-calls) und
 [Kanäle](channels.md#voice-calls-on-a-widget-or-a-hosted-page).
+
+Ein Organisations- oder Kontowechsel beendet den Konsolenanruf und bricht
+laufenden Aufbau sowie Wiederverbindungen ab. Wird die Mikrofonfreigabe erst
+danach erteilt, werden die Spuren gestoppt, ohne einen Anruf der vorherigen
+Organisation zu öffnen. Öffentliche Einbettungen behalten ihren eigenen Besucherbereich.
 
 ## Einschalten { #turn-it-on }
 

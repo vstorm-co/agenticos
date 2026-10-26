@@ -1,5 +1,5 @@
 ---
-source_sha: "58c124e02871"
+source_sha: "34178ef743be"
 ---
 
 # Permisos { #permissions }
@@ -394,6 +394,12 @@ ve el control ahí y en ningún otro sitio.
 
 Un contexto sin sujeto, y una entrada vacía, se resuelven al conjunto vacío
 antes de consultar.
+
+Las listas de contextos, skills y secretos incluyen `can_edit` por recurso.
+La consola usa ese acceso efectivo para editar, borrar, compartir y rotar claves.
+Un Viewer con concesión de edición obtiene los controles; un Builder con solo
+lectura sobre un recurso privado ajeno no. Crear recursos sigue dependiendo del
+permiso del rol. El servidor vuelve a comprobar cada escritura.
 
 Los listados de agents, skills y kb aceptan además `?shared_with_me=true`: solo
 las filas compartidas deliberadamente con quien llama - visibles para la

@@ -7,7 +7,7 @@ The downgrade keeps this union: both parent histories remain applied at the
 merge boundary, so their events still need to be representable.
 
 Revision ID: 0189_console_milestones_merge
-Revises: 0188_self_improvement_merge, 0170_generated_media
+Revises: 0188_self_improvement_merge, 0174_message_client_id
 Create Date: 2026-10-24
 """
 
@@ -16,7 +16,7 @@ from collections.abc import Sequence
 from alembic import op
 
 revision: str = "0189_console_milestones_merge"
-down_revision: tuple[str, ...] = ("0188_self_improvement_merge", "0170_generated_media")
+down_revision: tuple[str, ...] = ("0188_self_improvement_merge", "0174_message_client_id")
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

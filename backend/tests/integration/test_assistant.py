@@ -316,6 +316,7 @@ async def test_a_deployment_with_a_sandbox_gives_it_files_and_code(
     """Reading a pasted agent and running it needs one (#2069, #2070)."""
     from unittest.mock import AsyncMock, MagicMock
 
+    from app.agents.capabilities.sandbox import SandboxConfig
     from app.services.sandbox_connection import SandboxConnectionService
 
     monkeypatch.setattr(
@@ -330,4 +331,7 @@ async def test_a_deployment_with_a_sandbox_gives_it_files_and_code(
     sandbox = [
         b for b in AgentSpec.model_validate(agent.draft_spec).capabilities if b.id == "sandbox"
     ]
-    assert sandbox and sandbox[0].config == {"include_execute": True}
+    assert sandbox
+    config = SandboxConfig.model_validate(sandbox[0].config)
+    assert config.backend == "service"
+    assert config.include_execute

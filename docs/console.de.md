@@ -1,5 +1,5 @@
 ---
-source_sha: "5082dd13ffa3"
+source_sha: "3fd047fae81b"
 ---
 
 # Die Konsole { #the-console }
@@ -402,6 +402,8 @@ ist [pro Person begrenzt](governance.md#proactive-work). Ein Chat-Link mit
 sodass eine Routine, die sie vorschlagen, in Ihren Tag fällt. Nichts wartet auf
 sie: Sie sind Wissen für den Agent, kein Zeitplan.
 
+Beim erneuten Öffnen eines Gesprächs sehen Sie die neuesten Nachrichten. Mit **Ältere Nachrichten laden** über dem Verlauf lesen Sie frühere Beiträge. Laufende Antworten und ungespeicherte Ergebnisse bleiben sichtbar, während der gespeicherte Verlauf aktualisiert wird.
+
 **Während der Agent arbeitet**, wartet das, was Sie senden, auf seine Antwort, wie
 in jedem Chat: Es steht in einer Warteschlange über dem Eingabefeld und geht
 hinaus, wenn der Run endet. Ziehen Sie eine Nachricht in der Warteschlange oder
@@ -479,6 +481,14 @@ anmelden** öffnet dort einen Browser auf einer beliebigen Seite, nur für dich,
 Agent ihn braucht: anmelden, mit angehaktem Feld zurückgeben, und die Anmeldung wird
 genauso behalten. Dafür braucht das Deployment seinen Anmelde-Browser
 ([`BROWSER_SIGN_IN_CDP_URL`](configuration.md)).
+
+**Einen wartenden Lauf stoppen.** Im Eingabefeld bleibt **Stop** verfügbar, während der
+Agent auf eine Antwort, eine Genehmigung oder eine Kontoverbindung wartet. Das gilt auch
+nach dem Neuladen einer ausstehenden Frage oder Genehmigung. Das Stoppen schließt
+ausstehende Aufrufe, ohne das Modell fortzusetzen, und erhält die bereits erfassten
+Kosten. Sie können eigene Läufe stoppen; Genehmigungsberechtigte können außerdem Läufe
+stoppen, die auf eine Genehmigung warten. Verhindert ein vorübergehender Fehler das
+Stoppen, bleibt die Karte für einen erneuten Versuch verfügbar.
 
 ### Diktieren { #dictation }
 

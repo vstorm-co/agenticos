@@ -22,7 +22,10 @@ import {
  */
 export function useWatches() {
   const client = useQueryClient();
-  const { data, isLoading } = useQuery({ queryKey: qk.watches.mine(), queryFn: listWatches });
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: qk.watches.mine(),
+    queryFn: listWatches,
+  });
   const settle = { onSettled: () => client.invalidateQueries({ queryKey: qk.watches.mine() }) };
   const create = useMutation({ mutationFn: (draft: WatchDraft) => createWatch(draft), ...settle });
   const update = useMutation({
@@ -35,6 +38,8 @@ export function useWatches() {
   return {
     watches: data ?? ([] as Watch[]),
     isLoading,
+    error,
+    refetch,
     create: create.mutateAsync,
     update: update.mutateAsync,
     remove: remove.mutateAsync,

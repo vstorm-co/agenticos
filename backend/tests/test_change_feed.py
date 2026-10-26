@@ -178,6 +178,12 @@ class TestDatasets:
 
 
 class TestConsoleOnlyRoutes:
+    def test_stopping_a_parked_run_announces_its_updated_state(self) -> None:
+        run = uuid.uuid4()
+        changed = _change("POST", f"/runs/{run}/cancel", {"run_id": str(run)})
+        assert changed is not None
+        assert (changed.resource, changed.id, changed.action) == ("run", run, "updated")
+
     """The routes only the console calls, which publish since #2099."""
 
     @pytest.mark.parametrize(

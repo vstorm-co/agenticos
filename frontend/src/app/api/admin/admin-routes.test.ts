@@ -104,8 +104,8 @@ describe("the impersonation route", () => {
     expect(body).not.toHaveProperty("access_token");
     const cookie = response.headers
       .getSetCookie()
-      .find((entry) => entry.startsWith("access_token="));
-    expect(cookie).toContain("access_token=imp");
+      .find((entry) => entry.startsWith("agenticos_access_token="));
+    expect(cookie).toContain("agenticos_access_token=imp");
     expect(cookie).toContain("HttpOnly");
     // Five minutes past the token, so an expired impersonation is still in the
     // jar when the refresh route decides what the browser was doing.
@@ -118,7 +118,7 @@ describe("the impersonation route", () => {
     const response = await impersonate(request(), user);
 
     expect(
-      response.headers.getSetCookie().some((entry) => entry.startsWith("refresh_token=")),
+      response.headers.getSetCookie().some((entry) => entry.startsWith("agenticos_refresh_token=")),
     ).toBe(false);
   });
 });

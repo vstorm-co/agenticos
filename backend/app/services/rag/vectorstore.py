@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -12,6 +11,7 @@ from uuid import UUID
 # answers invert silently: the listing reports the tracking table as a collection, and
 # a caller may drop it.
 import app.db.models  # noqa: F401
+from app.core.blocking import run_blocking_settled
 from app.db.base import Base
 from app.db.vector_tables import (
     RAG_SAFE_TO_DATE_FN,
@@ -808,7 +808,7 @@ class PgVectorStore(BaseVectorStore):
         # resolved the knowledge base; it is stamped on every chunk so the shared
         # runtime table can be scoped per tenant afterwards (#1684).
         embedder, _ = await self._for_collection(collection_name)
-        vectors = embedder.embed_document(document)
+        vectors = await run_blocking_settled(embedder.embed_document, document)
         statement = text(f"""
             INSERT INTO {table} (id, parent_doc_id, content, embedding, metadata)
             VALUES (:id, :parent_doc_id, :content, :embedding, :metadata)
@@ -880,7 +880,7 @@ class PgVectorStore(BaseVectorStore):
                 raise ValueError(
                     "The embedding model changed since the knowledge check was confirmed"
                 )
-            vectors = await asyncio.to_thread(
+            vectors = await run_blocking_settled(
                 embedder.embed_queries, [query, *(doc.content for doc in documents)]
             )
             if len(vectors) != len(documents) + 1 or any(len(vector) != dim for vector in vectors):
@@ -889,7 +889,7 @@ class PgVectorStore(BaseVectorStore):
                 raise ValueError("The knowledge overlay's embedding dimensions do not match")
             query_vector = vectors[0]
         else:
-            query_vector = embedder.embed_query(query)
+            query_vector = await run_blocking_settled(embedder.embed_query, query)
 
         conjuncts, filter_params = _retrieval_conjuncts(query_filter)
         where_clause = f"WHERE {' AND '.join(conjuncts)}" if conjuncts else ""

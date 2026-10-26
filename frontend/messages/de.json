@@ -1163,6 +1163,7 @@
     "title": "Abrechnung"
   },
   "chat": {
+    "loadEarlierMessages": "Ältere Nachrichten laden",
     "accessLevel": "Zugriffsstufe",
     "accessRevoked": "Zugriff widerrufen",
     "agentPicker": {

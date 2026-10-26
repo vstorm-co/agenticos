@@ -7,6 +7,7 @@ person early in their own morning, a role pack makes each routine once, and a
 welcome that fails on one platform still greets on the next.
 """
 
+import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -945,3 +946,112 @@ def test_suggestion_kinds_match_what_the_look_proposes():
         "role_pack",
         "finding",
     }
+
+
+@pytest.mark.parametrize("settlement_fails", [False, True])
+async def test_cancellation_settles_a_paid_response_even_if_shutdown_cancels_twice(
+    settlement_fails: bool,
+) -> None:
+    from pydantic_ai.toolsets import FunctionToolset
+
+    entered, settling, release = asyncio.Event(), asyncio.Event(), asyncio.Event()
+
+    async def read_account() -> str:
+        entered.set()
+        await asyncio.Event().wait()
+        return "unreachable"
+
+    async def finish(*args: object, **kwargs: object) -> None:
+        settling.set()
+        await release.wait()
+        if settlement_fails:
+            raise OSError("database unavailable")
+
+    get_slug, limits, version, profiles, create, stored = TestThinking._patches(TestModel())
+    session = _session()
+    with get_slug, limits, version, profiles, create as made, stored as finished:
+        finished.side_effect = finish
+        task = asyncio.create_task(
+            ProactiveThinker(session).think(
+                _ctx(),
+                feature="watches",
+                output_type=str,
+                instructions="Read.",
+                prompt="Read.",
+                toolsets=[FunctionToolset([read_account])],
+            )
+        )
+        try:
+            await asyncio.wait_for(entered.wait(), 2)
+            run_id = made.return_value.id
+            assert any(t.get_name() == f"run-heartbeat:{run_id}" for t in asyncio.all_tasks())
+            task.cancel()
+            await asyncio.wait_for(settling.wait(), 2)
+            task.cancel()
+            await asyncio.sleep(0)
+            assert not task.done()
+            release.set()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+        finally:
+            release.set()
+            if not task.done():
+                task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+    recorded = finished.await_args.kwargs
+    assert recorded["status"] == RunStatus.CANCELLED.value
+    assert recorded["input_tokens"] > 0 and recorded["output_tokens"] > 0
+    assert recorded["cost_is_partial"] is True
+    assert session.commit.await_count == (1 if settlement_fails else 2)
+    assert not any(t.get_name() == f"run-heartbeat:{run_id}" for t in asyncio.all_tasks())
+
+
+async def test_proactive_spend_uses_each_response_model_not_the_profile_name() -> None:
+    from pydantic_ai.usage import RequestUsage
+
+    def answer(_messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+        return ModelResponse(
+            parts=[TextPart("done")],
+            model_name="gpt-4.1-mini",
+            usage=RequestUsage(input_tokens=100, output_tokens=5),
+        )
+
+    get_slug, limits, version, profiles, create, stored = TestThinking._patches(
+        FunctionModel(answer, model_name="gpt-4.1-mini")
+    )
+    with get_slug, limits, version, profiles, create, stored as finished:
+        assert (
+            await ProactiveThinker(_session()).think(
+                _ctx(), feature="nightly", output_type=str, instructions="Read.", prompt="Read."
+            )
+            == "done"
+        )
+    assert finished.await_args.kwargs["cost_usd"] > 0
+    assert finished.await_args.kwargs["cost_is_partial"] is False
+
+
+@pytest.mark.parametrize("provider_fails", [False, True])
+async def test_terminal_persistence_errors_surface_without_masking_a_provider_bug(
+    provider_fails: bool,
+) -> None:
+    def answer(_messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+        if provider_fails:
+            raise RuntimeError("provider bug")
+        return ModelResponse(parts=[TextPart("done")])
+
+    get_slug, limits, version, profiles, create, stored = TestThinking._patches(
+        FunctionModel(answer)
+    )
+    with get_slug, limits, version, profiles, create, stored as finished:
+        finished.side_effect = OSError("database unavailable")
+        with pytest.raises(
+            RuntimeError if provider_fails else OSError,
+            match="provider bug" if provider_fails else "database unavailable",
+        ):
+            await ProactiveThinker(_session()).think(
+                _ctx(), feature="nightly", output_type=str, instructions="Read.", prompt="Read."
+            )
+    assert (
+        finished.await_args.kwargs["status"]
+        == (RunStatus.FAILED if provider_fails else RunStatus.COMPLETED).value
+    )

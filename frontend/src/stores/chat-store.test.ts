@@ -333,3 +333,153 @@ describe("the reply being written", () => {
     expect(useChatStore.getState().replyTo).toEqual(reply);
   });
 });
+
+describe("reconciling a late transcript", () => {
+  it("keeps a later streaming turn addressable by subsequent deltas", () => {
+    store().addMessage(message({ id: "first", content: "saved" }));
+    store().addMessage(
+      message({ id: "next-user", role: "user", content: "next", isTemporaryId: true }),
+    );
+    store().addMessage(
+      message({ id: "next", content: "stream", isTemporaryId: true, isStreaming: true }),
+    );
+    store().rereadMessages([message({ id: "first", content: "saved" })]);
+    store().appendTextDelta("next", " continues");
+    expect(store().messages.map((item) => item.id)).toEqual(["first", "next-user", "next"]);
+    expect(store().messages.at(-1)?.content).toBe("stream continues");
+  });
+
+  it("keeps an unsaved answer and its error while replacing the persisted prefix", () => {
+    store().addMessage(message({ id: "question", role: "user" }));
+    store().addMessage(
+      message({ id: "unsaved", content: "Answer\nCould not save", isTemporaryId: true }),
+    );
+    store().rereadMessages([message({ id: "question", role: "user" })]);
+    expect(store().messages.at(-1)?.content).toBe("Answer\nCould not save");
+  });
+});
+
+it("does not truncate a live persisted bubble or remount a saved one on a stale read", () => {
+  store().addMessage(message({ id: "saved", content: "saved", renderKey: "original" }));
+  store().addMessage(message({ id: "live", content: "new deltas", isStreaming: true }));
+  store().rereadMessages([
+    message({ id: "saved", content: "saved" }),
+    message({ id: "live", content: "old deltas" }),
+  ]);
+  expect(store().messages[0]?.renderKey).toBe("original");
+  expect(store().messages[1]?.content).toBe("new deltas");
+});
+
+function submitted(overrides: Partial<ChatMessage> = {}): ChatMessage {
+  return message({
+    id: "local-question",
+    role: "user",
+    content: "repeat",
+    isTemporaryId: true,
+    clientMessageId: "nonce",
+    conversationId: "conversation",
+    sender: { user_id: "me", name: "Me", has_avatar: false, avatar_color: null },
+    ...overrides,
+  });
+}
+
+it("reconciles a persisted prompt and answer when the acknowledgement was lost", () => {
+  store().addMessage(submitted());
+  store().addMessage(message({ id: "local-answer", content: "partial", isTemporaryId: true }));
+  store().rereadMessages([
+    submitted({ id: "saved-question", isTemporaryId: false }),
+    message({ id: "saved-answer", content: "finished" }),
+  ]);
+  expect(store().messages.map((item) => item.id)).toEqual(["saved-question", "saved-answer"]);
+  expect(store().messages[0]?.renderKey).toBe("local-question");
+  expect(store().messages[1]?.content).toBe("finished");
+});
+
+it("keeps a live reconciled answer addressable across repeated transcript reads", () => {
+  store().addMessage(submitted());
+  store().addMessage(
+    message({
+      id: "live",
+      content: "stream",
+      isStreaming: true,
+      isTemporaryId: true,
+      runId: "run",
+    }),
+  );
+  const history = [
+    submitted({ id: "saved-question", isTemporaryId: false }),
+    message({ id: "saved-answer", content: "old", runId: "run" }),
+  ];
+  store().rereadMessages(history);
+  store().appendTextDelta("live", " continues");
+  store().rereadMessages(history);
+  expect(store().messages.map((item) => item.id)).toEqual(["saved-question", "live"]);
+  expect(store().messages[1]?.content).toBe("stream continues");
+});
+
+it.each([
+  { clientMessageId: "later-nonce" },
+  { conversationId: "another-conversation" },
+  { sender: { user_id: "other", name: "Other", has_avatar: false, avatar_color: null } },
+  { clientMessageId: undefined },
+])("keeps a different submission even when its text repeats: %j", (difference) => {
+  store().addMessage(submitted(difference));
+  store().rereadMessages([submitted({ id: "saved-question", isTemporaryId: false })]);
+  expect(store().messages.map((item) => item.id)).toEqual(["saved-question", "local-question"]);
+});
+
+it("preserves an unsaved answer and error when only its correlated prompt was saved", () => {
+  store().addMessage(submitted());
+  store().addMessage(
+    message({ id: "unsaved", content: "Result\nCould not save", isTemporaryId: true }),
+  );
+  store().rereadMessages([submitted({ id: "saved-question", isTemporaryId: false })]);
+  expect(store().messages.at(-1)?.content).toBe("Result\nCould not save");
+});
+
+it.each([
+  { responses: [message({ id: "first" }), message({ id: "second" })] },
+  { responses: [message({ id: "other-run", runId: "other" })] },
+])("preserves separate paused segments instead of guessing an answer identity", ({ responses }) => {
+  store().addMessage(submitted());
+  store().addMessage(message({ id: "local-answer", runId: "run", isTemporaryId: true }));
+  store().rereadMessages([
+    submitted({ id: "saved-question", isTemporaryId: false }),
+    ...responses,
+    submitted({ id: "later", clientMessageId: "later", isTemporaryId: false }),
+  ]);
+  expect(store().messages.some((item) => item.id === "local-answer")).toBe(true);
+});
+
+it("reconciles the question before any answer arrived, including normalized stored text", () => {
+  store().addMessage(submitted({ content: " repeat " }));
+  store().rereadMessages([
+    submitted({ id: "saved-question", content: "repeat", isTemporaryId: false }),
+  ]);
+  expect(store().messages.map((item) => item.id)).toEqual(["saved-question"]);
+  expect(store().messages[0]?.content).toBe("repeat");
+});
+
+it("does not guess when a client reused a correlation id for distinct persisted prompts", () => {
+  store().addMessage(submitted());
+  store().rereadMessages([
+    submitted({ id: "one", isTemporaryId: false }),
+    submitted({ id: "two", isTemporaryId: false }),
+  ]);
+  expect(store().messages.map((item) => item.id)).toEqual(["one", "two", "local-question"]);
+});
+
+it("uses the run identity when another participant's prompt interleaves the saved answer", () => {
+  store().addMessage(submitted());
+  store().addMessage(message({ id: "partial", runId: "ours", isTemporaryId: true }));
+  store().rereadMessages([
+    submitted({ id: "saved-question", isTemporaryId: false }),
+    submitted({ id: "other-question", clientMessageId: "other", isTemporaryId: false }),
+    message({ id: "saved-answer", runId: "ours", content: "Finished" }),
+  ]);
+  expect(store().messages.map((item) => item.id)).toEqual([
+    "saved-question",
+    "other-question",
+    "saved-answer",
+  ]);
+});

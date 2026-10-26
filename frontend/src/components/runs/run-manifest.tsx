@@ -5,7 +5,8 @@ import { FileWarning, Wrench } from "lucide-react";
 
 import { CopyButton } from "@/components/chat/copy-button";
 import { RunWaterfall } from "@/components/runs/run-waterfall";
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState, ErrorState } from "@/components/states";
 import { Badge } from "@/components/ui";
 import { useRunManifest } from "@/hooks";
 import { ApiError } from "@/lib/api-client";
@@ -32,9 +33,20 @@ import type { ManifestTool } from "@/types/runs";
  */
 export function RunManifest({ runId }: { runId: string }) {
   const t = useTranslations("pages.runs");
+  const ts = useTranslations("states");
   const { manifest, isLoading, error } = useRunManifest(runId);
 
-  if (isLoading) return <LoadingState variant="skeleton-panel" rows={3} />;
+  if (isLoading)
+    return (
+      <div className="space-y-5" role="status" aria-label={ts("loading")}>
+        {[0, 1, 2].map((section) => (
+          <section key={section} className="space-y-1.5" aria-hidden>
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-32 w-full" />
+          </section>
+        ))}
+      </div>
+    );
   if (manifest === undefined) {
     return error instanceof ApiError && error.status === 404 ? (
       <EmptyState

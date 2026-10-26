@@ -376,11 +376,16 @@ async def test_a_conversation_purged_by_retention_names_its_generated_files(db):
         .values(updated_at=datetime.now(UTC) - timedelta(days=100))
     )
 
-    paths = await retention_repo.stored_paths_for_expiring_conversations(
+    expiring = await retention_repo.lock_expiring_conversations(
         db,
         organization_id=organization.id,
         cutoff=datetime.now(UTC) - timedelta(days=30),
         limit=10,
+    )
+    paths = await retention_repo.stored_paths_for_expiring_conversations(
+        db,
+        organization_id=organization.id,
+        conversation_ids=expiring,
     )
 
     assert sorted(paths) == sorted(["user/a.pdf", row.storage_path])

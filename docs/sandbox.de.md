@@ -1,5 +1,5 @@
 ---
-source_sha: "ca5cf18cee63"
+source_sha: "a6d439761d0a"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -672,3 +672,5 @@ ihre Anzahl landet im Audit-Log.
   Plattform**, hält einen Pfad und nie eine Nutzlast, und überlebt den Agent.
 - **Dateien werden unbegrenzt aufbewahrt**, sofern Sie `SANDBOXD_WORKSPACE_TTL` nicht
   setzen. Der Plattenverbrauch wächst nur.
+
+Das Backend `state` zählt Dateien und leere Verzeichnisse zum Speicherlimit, auch beim abschließenden Zusammenführen gleichzeitiger Änderungen. Passen einzeln akzeptierte Dokumente nicht gemeinsam hinein, bleibt das gemeinsame Dokument unverändert und der spätere Stand wird als Wiederherstellungskopie unter **Documents** bestätigt. Der Run speichert einen Fehler mit der Workspace-ID der Kopie; eine Projektänderung meldet einen Konflikt statt Erfolg. Projektkopien erfordern sowohl Anzeige- als auch Nutzungszugriff. Ein Fremdschlüssel löscht die Kopie zusammen mit ihrer Quelle, auch bei gleichzeitiger Datenlöschung. Wird das Limit unter die Größe eines bestehenden Dokuments gesenkt, darf dieses weiterhin schrumpfen.

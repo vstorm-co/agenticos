@@ -277,6 +277,26 @@ async def ids_shared_with_group(
     return list(result.scalars().all())
 
 
+async def list_for_resources(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    resource_type: str,
+    resource_ids: list[UUID],
+) -> list[ResourceGrant]:
+    """All audiences for a batch of same-type resources inside one tenant."""
+    if not resource_ids:
+        return []
+    result = await db.execute(
+        select(ResourceGrant).where(
+            ResourceGrant.organization_id == organization_id,
+            ResourceGrant.resource_type == resource_type,
+            ResourceGrant.resource_id.in_(resource_ids),
+        )
+    )
+    return list(result.scalars().all())
+
+
 async def group_grants_for_resources(
     db: AsyncSession,
     *,

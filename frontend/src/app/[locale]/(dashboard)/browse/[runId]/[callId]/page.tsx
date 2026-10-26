@@ -6,7 +6,8 @@ import { useTranslations } from "next-intl";
 
 import { BrowserWindow } from "@/components/chat/browser-window";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { EmptyState, LoadingState } from "@/components/states";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/states";
 import { useLiveBrowse } from "@/hooks/use-live-browse";
 import { isRunning } from "@/lib/browse";
 
@@ -27,6 +28,7 @@ interface PageProps {
 export default function LiveBrowsePage({ params }: PageProps) {
   const { runId, callId } = use(params);
   const t = useTranslations("browse");
+  const ts = useTranslations("states");
   const { browse, task, canControl, canRemember, status, send } = useLiveBrowse(runId, callId);
 
   if (status === "gone" || status === "forbidden" || status === "unavailable") {
@@ -35,7 +37,26 @@ export default function LiveBrowsePage({ params }: PageProps) {
     );
   }
   if (status === "connecting" || browse === null) {
-    return <LoadingState variant="skeleton-panel" rows={3} />;
+    return (
+      <div
+        className="mx-auto flex h-[calc(100dvh-7rem)] w-full max-w-7xl min-w-0 flex-col gap-4"
+        role="status"
+        aria-label={ts("loading")}
+        aria-busy
+      >
+        <PageHeader
+          className="mb-0 md:mb-0"
+          title={t("title")}
+          description={
+            <span
+              aria-hidden
+              className="bg-muted inline-block h-4 w-2/3 animate-pulse rounded-md"
+            />
+          }
+        />
+        <Skeleton className="min-h-0 w-full flex-1 rounded-2xl border shadow-sm" />
+      </div>
+    );
   }
 
   return (

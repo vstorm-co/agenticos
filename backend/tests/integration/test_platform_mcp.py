@@ -195,6 +195,9 @@ async def test_an_agent_bound_to_the_platform_reaches_it_in_process_as_the_asker
     assert str(organization.id) in result.output
     assert tools["agenticos_whoami"].tool_def.metadata[NEEDS_APPROVAL] is False
     assert tools["agenticos_create_agent_draft"].tool_def.metadata[NEEDS_APPROVAL] is True
+    assert tools["agenticos_update_agent_draft"].tool_def.metadata[NEEDS_APPROVAL] is True
+    assert tools["agenticos_list_sandbox_connections"].tool_def.metadata[NEEDS_APPROVAL] is False
+    assert tools["agenticos_list_org_connections"].tool_def.metadata[NEEDS_APPROVAL] is False
 
 
 @pytest.mark.security
@@ -333,3 +336,125 @@ async def test_a_draft_the_assistant_proposes_waits_for_a_person(
         .all()
     )
     assert len(audited) == drafts_after
+
+
+async def test_configured_draft_round_trips_through_mcp_and_the_public_api(
+    db: AsyncSession, served: None
+) -> None:
+    key, _organization = await _owner_key(db, Perm.AGENTS_VIEW, Perm.AGENTS_EDIT)
+    async with _connected(key) as session:
+        created = await session.call_tool(
+            "create_agent_draft",
+            {
+                "name": "Developer",
+                "instructions": "Run tests.",
+                "capabilities": [
+                    {"id": "sandbox", "config": {"backend": "service", "include_execute": True}}
+                ],
+                "mcp_servers": [{"account": "personal", "catalog_key": "github"}],
+            },
+        )
+        assert not created.is_error
+        agent_id = _content(created)["id"]
+        updated = await session.call_tool(
+            "update_agent_draft",
+            {
+                "agent_id": agent_id,
+                "add_capabilities": [
+                    {
+                        "id": "sandbox",
+                        "config": {
+                            "backend": "service",
+                            "include_execute": True,
+                            "runtime": "python",
+                        },
+                        "approval": "required",
+                    }
+                ],
+            },
+        )
+        assert not updated.is_error
+        read = await session.call_tool("get_agent", {"agent_id": agent_id})
+    spec = _content(read)["draft_spec"]
+    sandbox = next(binding for binding in spec["capabilities"] if binding["id"] == "sandbox")
+    assert sandbox["config"] == {"backend": "service", "include_execute": True, "runtime": "python"}
+    assert sandbox["approval"] == "required"
+    assert spec["mcp_servers"][0]["catalog_key"] == "github"
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "tool,arguments",
+    [
+        ("list_sandbox_connections", {}),
+        ("list_sandbox_runtimes", {}),
+        ("get_sandbox_policy", {"connection_id": "00000000-0000-4000-8000-000000000001"}),
+        ("list_org_connections", {}),
+    ],
+)
+async def test_connection_discovery_cannot_exceed_the_callers_scopes(
+    db: AsyncSession, served: None, tool: str, arguments: dict[str, str]
+) -> None:
+    key, _organization = await _owner_key(db, Perm.AGENTS_VIEW)
+    async with _connected(key) as session:
+        refused = await session.call_tool(tool, arguments)
+    assert refused.is_error
+    assert "403" in refused.content[0].text
+
+
+@pytest.mark.security
+async def test_sandbox_discovery_is_scoped_to_the_callers_organization(
+    db: AsyncSession, served: None
+) -> None:
+    from app.db.models.sandbox_connection import SandboxConnection
+
+    key, organization = await _owner_key(db, Perm.CONNECTIONS_VIEW, Perm.MCP_MANAGE)
+    _other_key, other = await _owner_key(db, Perm.CONNECTIONS_VIEW)
+    foreign = SandboxConnection(
+        organization_id=other.id, name="Other", kind="docker", is_default=True
+    )
+    db.add_all(
+        [
+            SandboxConnection(
+                organization_id=organization.id, name="Mine", kind="docker", is_default=True
+            ),
+            foreign,
+        ]
+    )
+    await db.commit()
+    async with _connected(key) as session:
+        listed = await session.call_tool("list_sandbox_connections", {})
+        runtimes = await session.call_tool("list_sandbox_runtimes", {})
+        org_connections = await session.call_tool("list_org_connections", {})
+        policy = await session.call_tool("get_sandbox_policy", {"connection_id": str(foreign.id)})
+    assert not listed.is_error and not runtimes.is_error
+    assert [item["name"] for item in _content(listed)["items"]] == ["Mine"]
+    assert _content(runtimes)["total"] > 0
+
+    assert not org_connections.is_error
+    assert _content(org_connections)["items"] == []
+    assert policy.is_error and "400 BAD_REQUEST" in policy.content[0].text
+    assert "no longer exists" in policy.content[0].text
+
+
+def test_connection_discovery_does_not_publish_connection_writes() -> None:
+    from app.api.public_api import public_operations
+
+    public = public_operations(app.routes)
+    prefix = "/api/v1"
+    for path in (
+        "/sandbox-connections",
+        "/sandbox-connections/runtimes",
+        "/sandbox-connections/{connection_id}/policy",
+        "/mcp-connections",
+    ):
+        assert ("get", prefix + path) in public
+    for path in (
+        "/sandbox-connections",
+        "/sandbox-connections/local/credential",
+        "/sandbox-connections/{connection_id}",
+        "/mcp-connections",
+        "/mcp-connections/{connection_id}",
+    ):
+        for method in ("post", "patch", "delete"):
+            assert (method, prefix + path) not in public

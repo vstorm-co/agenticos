@@ -1,5 +1,5 @@
 ---
-source_sha: "b4de2b407949"
+source_sha: "5c70a60e3452"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -462,6 +462,11 @@ w cudzej usłudze i ta strona ich nie listuje — API mem0 odpowiada, co pasuje 
 *pytania*, a nie co magazyn trzyma. Tacy agenci są na stronie **nazwani**, a nie
 pominięci, bo lista notatek natywnych podana jako pełny inwentarz byłaby gorsza
 niż taka, która mówi, czego jej brakuje. Wymazywanie sięga mem0; czytanie nie.
+
+Wymazywanie pamięci sprawdza szkice i wszystkie zachowane wersje agenta, także
+dawne endpointy mem0. Czyszczenie agenta usuwa również przestrzenie mem0 wszystkich
+jego właścicieli. Brak poświadczenia, błąd dostawcy lub niepełna lista przestrzeni
+zwraca błąd; przywróć dostęp i ponów operację, aby dokończyć wymazywanie.
 
 ## Pamięć (mem0) { #memory-mem0 }
 

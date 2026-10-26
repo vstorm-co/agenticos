@@ -36,8 +36,10 @@ from pydantic_ai.toolsets import FunctionToolset
 
 from app.agents.capabilities._failures import steer
 from app.agents.capabilities._generated import admit, store_generated
-from app.agents.capabilities.budget import record_ambient_usage
+from app.agents.capabilities._metered import MeteredModel
+from app.agents.capabilities.budget import can_afford_ambient_call
 from app.agents.deps import AgentDeps
+from app.agents.observability import inherited_instrumentation
 
 logger = logging.getLogger(__name__)
 
@@ -140,17 +142,20 @@ def build_image_toolset(
             # the preview and test paths that build without a key: the run
             # survives, and nothing is spent or stored.
             return steer(ctx, "Image generation has no API key configured.")
+        if not await can_afford_ambient_call():
+            return "Not made: this run has spent its budget."
         slot = await admit(ctx, estimate_bytes=RESERVED_BYTES, verdict="Not made")
         if isinstance(slot, str):
             return slot
         async with slot:
-            model = _build_image_model(model_id, api_key)
+            model = MeteredModel(_build_image_model(model_id, api_key))
             agent: PydanticAgent[None, BinaryImage] = PydanticAgent(
                 model,
                 output_type=BinaryImage,
                 capabilities=[NativeTool(ImageGenerationTool(**tool_settings))],
                 instructions=_SUBAGENT_INSTRUCTIONS,
             )
+            agent.instrument = inherited_instrumentation(ctx.agent)
             try:
                 result = await agent.run(prompt)
             except (UserError, UnexpectedModelBehavior) as exc:
@@ -168,14 +173,6 @@ def build_image_toolset(
                 )
 
             image = result.output
-            # Booked to the run's ledger, which the runner is holding open. The model
-            # names itself and its provider (`model.system`), the hint `genai-prices`
-            # prices from - the same shape the image describer books usage with. Image
-            # models are frequently unpriced there, in which case this records at zero
-            # and flags the run's cost as partial - the honest outcome, and the one
-            # #58 asked to be sure of rather than assume.
-            record_ambient_usage(model.model_name, result.usage, provider=model.system)
-
             image_format = image.format or "png"
             stored = await store_generated(
                 ctx, image.data, filename=f"image.{image_format}", slot=slot

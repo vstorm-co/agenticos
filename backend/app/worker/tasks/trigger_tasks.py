@@ -87,11 +87,10 @@ async def poll_portal_grants() -> None:
     minute, one request per connected mailbox - and hands whatever it finds to the
     same match-then-fire path a webhook delivery takes.
 
-    The shape is the sibling heartbeat's, for the same reasons: grants are claimed
-    `FOR UPDATE SKIP LOCKED` with `polled_at` advanced under the lock, so a tick
-    that outruns its own minute cannot be double-claimed by the next; and each
-    fire is queued as a job rather than run, so one slow agent run never holds the
-    tick open.
+    Each mailbox owns a transaction advisory lock until its cursor and queued
+    fires commit. Its credential row remains available to independent OAuth
+    refreshes. A failed mailbox rolls back its partial work in a savepoint and
+    advances its retry timestamp without preventing other tenants from polling.
 
     **The cursor advances in the transaction that queues the fires.** In any
     other order a crash between the two either loses every message the poll
@@ -111,27 +110,30 @@ async def poll_portal_grants() -> None:
     await _ensure_trigger_dedupe()
     queued = 0
     async with get_worker_db_context() as db:
-        grants = await McpConnectionService(db).claim_grants_to_poll(portal_keys=polled_keys)
-        for grant in grants:
-            source = _polled_source(grant.portal_key)
+        candidates = await McpConnectionService(db).portal_poll_candidates(portal_keys=polled_keys)
+    for connection_id in candidates:
+        async with get_worker_db_context() as db:
+            connections = McpConnectionService(db)
+            grant = await connections.claim_grant_to_poll(
+                connection_id=connection_id, portal_keys=polled_keys
+            )
+            if grant is None:
+                continue
+            portal_key = grant.portal_key
+            source = _polled_source(portal_key)
             if source is None:
+                await connections.record_poll_processing_failure(connection_id)
                 continue
             try:
-                queued += await _poll_one_grant(db, grant, source)
+                async with db.begin_nested():
+                    took = await _poll_one_grant(db, grant, source)
+                queued += took
             except Exception:
-                # One mailbox is one tenant. `poll_grant` already answers `None` for
-                # every recoverable provider failure, so anything arriving here is a
-                # shape nobody anticipated - a MIME tree from an attacker-chosen
-                # email, a payload field that is null where the API documents an
-                # object. Without this the tick dies on it, and dies again every
-                # minute: a single malformed message in one organization's mailbox
-                # would stop polling for every other organization on the deployment.
-                # A database failure still fails the rest of the tick with it, since
-                # the session is shared - that one is not a provider's to cause.
                 logger.exception(
                     "portal_poll_grant_failed",
-                    extra={"portal_key": grant.portal_key, "connection_id": str(grant.id)},
+                    extra={"portal_key": portal_key, "connection_id": str(connection_id)},
                 )
+                await connections.record_poll_processing_failure(connection_id)
     logger.info("portal_poll", extra={"queued": queued})
 
 

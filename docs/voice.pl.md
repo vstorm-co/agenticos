@@ -1,5 +1,5 @@
 ---
-source_sha: "8f67edc78560"
+source_sha: "2c8dd98fbd6f"
 title: "Rozmowy głosowe"
 seo_title: "Rozmowy głosowe: rozmawiaj z opublikowanym agentem"
 description: "Zadzwoń do opublikowanego agenta i porozmawiaj z nim: modele realtime, zatwierdzenia w rozmowie, limity czasu i budżety, bezpieczne rozłączanie i transkrypcje."
@@ -27,6 +27,11 @@ pomiędzy. Wersja robocza i jej załączniki zostają w polu, gdy rozmowa się
 skończy. Hostowana strona korzysta z paska rozmowy bez obsługi zatwierdzeń, a
 widget wczytuje własny, mniejszy. Zobacz [Konsola](console.md#voice-calls) i
 [Kanały](channels.md#voice-calls-on-a-widget-or-a-hosted-page).
+
+Zmiana organizacji lub konta kończy rozmowę w konsoli i anuluje oczekujące
+przygotowanie oraz ponowne łączenie. Jeśli zgoda na mikrofon nadejdzie później,
+jego ścieżki zostaną zatrzymane bez otwierania rozmowy w poprzedniej organizacji.
+Publiczne osadzenia zachowują odrębny zakres odwiedzającego.
 
 ## Włączanie { #turn-it-on }
 

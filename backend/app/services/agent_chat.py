@@ -48,7 +48,7 @@ from app.agents.steering import SteeringInbox
 from app.agents.subagent_events import SubagentEventSink
 from app.agents.system_agents import refuse_system_agent
 from app.agents.visual_reports import VisualReports
-from app.core.exceptions import AuthorizationError, BadRequestError
+from app.core.exceptions import AuthorizationError, BadRequestError, RunFailedError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.chat_file import ChatFile
@@ -679,6 +679,9 @@ class ChatAgentRunner:
                     paused_state=paused,
                     budget_scope=budget_scope,
                 )
+                if prepared.run.status == RunStatus.FAILED.value:
+                    status = RunStatus.FAILED
+                    paused = None
                 await self.runner.keep_plan(prepared, status=status)
                 await self.db.commit()
                 await change_feed.publish_run(prepared.run, "updated")
@@ -686,6 +689,9 @@ class ChatAgentRunner:
                 if finished_cleanly:
                     raise
                 logger.exception("Could not persist the terminal state of run %s", prepared.run.id)
+
+        if finished_cleanly and prepared.run.status == RunStatus.FAILED.value:
+            raise RunFailedError(message=prepared.run.error or "The run could not be saved")
 
         return ChatTurn(
             output=output,

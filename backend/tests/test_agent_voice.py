@@ -22,6 +22,7 @@ from pydantic_ai.realtime.codec import (
     ToolCall,
     ToolResult,
 )
+from pydantic_ai.realtime.lifecycle import InferredLifecycle, RealtimeFrame
 from pydantic_ai.realtime.model import RealtimeModel
 from pydantic_ai.realtime.openai import OpenAIRealtimeModel
 from pydantic_ai.toolsets import FunctionToolset
@@ -381,8 +382,8 @@ class _ScriptedConnection(RealtimeConnection):
             await self._result_sent.receive()
         await anyio.sleep_forever()
 
-    def __aiter__(self) -> AsyncIterator[RealtimeCodecEvent]:
-        return self._events()
+    def frames(self) -> AsyncIterator[RealtimeFrame]:
+        return InferredLifecycle().frames(self._events())
 
 
 class _ScriptedRealtime(RealtimeModel):

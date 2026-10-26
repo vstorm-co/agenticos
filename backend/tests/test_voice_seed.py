@@ -1,11 +1,17 @@
 """What a reconnect hands the new session: text, never audio (#54, amendment 9)."""
 
+import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from pydantic_ai import Agent
 from pydantic_ai.messages import ModelRequest, ModelResponse
+from pydantic_ai.models.instrumented import InstrumentationSettings
 
 from app.services.voice.seed import RECENT_TURNS_KEPT, seed_history
 
@@ -45,13 +51,52 @@ async def test_the_summary_is_written_by_the_chat_model_and_booked_on_the_run():
     ledger = SpendLedger()
     prepared = SimpleNamespace(
         built=SimpleNamespace(
-            agent=SimpleNamespace(model=TestModel(custom_output_text="A summary.")),
+            agent=Agent(TestModel(custom_output_text="A summary.")),
             budget=BudgetGuard(ledger=ledger, limits=[]),
             ledger=ledger,
         )
     )
     assert await summariser(prepared)("user: hello") == "A summary."
     assert len(ledger.entries) == 1
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("include_content", [False, True])
+async def test_voice_summary_inherits_content_policy_and_trace_destination(
+    monkeypatch: pytest.MonkeyPatch, include_content: bool
+) -> None:
+    from pydantic_ai.models.test import TestModel
+
+    from app.agents.capabilities.budget import BudgetGuard, SpendLedger
+    from app.services.voice.seed import summariser
+
+    exporters = [InMemorySpanExporter(), InMemorySpanExporter()]
+    providers = [TracerProvider(), TracerProvider()]
+    for provider, exporter in zip(providers, exporters, strict=True):
+        provider.add_span_processor(SimpleSpanProcessor(exporter))
+    monkeypatch.setattr(
+        Agent,
+        "_instrument_default",
+        InstrumentationSettings(tracer_provider=providers[0], include_content=True),
+    )
+    host = Agent(TestModel(custom_output_text="A summary."))
+    host.instrument = InstrumentationSettings(
+        tracer_provider=providers[1], include_content=include_content
+    )
+    ledger = SpendLedger()
+    prepared = SimpleNamespace(
+        built=SimpleNamespace(agent=host, budget=BudgetGuard(ledger=ledger), ledger=ledger)
+    )
+    try:
+        assert await summariser(prepared)("synthetic confidential voice transcript") == "A summary."
+        assert exporters[0].get_finished_spans() == ()
+        spans = exporters[1].get_finished_spans()
+        assert spans
+        recorded = json.dumps([dict(span.attributes or {}) for span in spans], default=str)
+        assert ("synthetic confidential voice transcript" in recorded) is include_content
+    finally:
+        for provider in providers:
+            provider.shutdown()
 
 
 @pytest.mark.security

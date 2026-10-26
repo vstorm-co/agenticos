@@ -172,9 +172,15 @@ test.describe("Onboarding", () => {
     // millisecond after the close proves nothing.
     const stray = page
       .waitForResponse(
-        (response) =>
-          new URL(response.url()).pathname === "/api/users/me" &&
-          response.request().method() === "PATCH",
+        (response) => {
+          const request = response.request();
+          if (new URL(response.url()).pathname !== "/api/users/me" || request.method() !== "PATCH")
+            return false;
+          // Profile initialization may save the browser's time zone in parallel.
+          // Only an onboarding write would incorrectly finish this page replay.
+          const body: unknown = request.postDataJSON();
+          return typeof body === "object" && body !== null && "onboarding_completed_at" in body;
+        },
         { timeout: 3_000 },
       )
       .then(() => true)

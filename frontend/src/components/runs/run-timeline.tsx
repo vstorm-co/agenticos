@@ -10,7 +10,8 @@ import { MarkdownContent } from "@/components/chat/markdown-content";
 import { MessageCost } from "@/components/chat/message-cost";
 import { AddToDatasetButton } from "@/components/datasets/add-to-dataset-button";
 import { FileCard, FileViewer } from "@/components/files";
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState, ErrorState } from "@/components/states";
 import { useRunTranscript } from "@/hooks";
 import { toolDisplayName } from "@/lib/agent-step-captions";
 import { conversationMessageToChatMessage } from "@/lib/conversation-to-chat";
@@ -51,10 +52,21 @@ import type { RunTranscriptMessage } from "@/types/runs";
  */
 export function RunTimeline({ runId }: { runId: string }) {
   const t = useTranslations("pages.runs");
+  const ts = useTranslations("states");
   const locale = useLocale();
   const { transcript, isLoading, error } = useRunTranscript(runId, "conversation");
 
-  if (isLoading) return <LoadingState variant="skeleton-panel" rows={3} />;
+  if (isLoading)
+    return (
+      <ol className="space-y-4" role="status" aria-label={ts("loading")}>
+        {[0, 1, 2].map((turn) => (
+          <li key={turn} className="border-border space-y-2 border-l-2 pl-4" aria-hidden>
+            <Skeleton className="h-4 w-48" />
+            <Skeleton className="h-16 w-full" />
+          </li>
+        ))}
+      </ol>
+    );
   if (error || transcript === undefined) {
     return <ErrorState title={t("transcriptCouldNotBeRead")} />;
   }
