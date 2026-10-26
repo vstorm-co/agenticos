@@ -2531,7 +2531,8 @@
           "schedule": "Zeitplan",
           "slack": "Slack",
           "telegram": "Telegram",
-          "web": "Web-Chat"
+          "web": "Web-Chat",
+          "proactive": "Proaktiv"
         },
         "title": "Woher die Runs kommen",
         "description": "Woher Runs kommen - Web-Chat, API, Kanäle.",
@@ -5464,7 +5465,10 @@
       "anyModality": "Jede Art",
       "modalityText": "Text",
       "modalityVoiceCalls": "Sprachanrufe",
-      "reconnected": "{count, plural, one {Einmal neu verbunden} other {# Mal neu verbunden}}"
+      "reconnected": "{count, plural, one {Einmal neu verbunden} other {# Mal neu verbunden}}",
+      "surfaceProactive": "Proaktiv",
+      "standaloneRequest": "Modellanfrage",
+      "standaloneResponse": "Modellantwort"
     },
     "sandboxes": {
       "addConnection": "Verbindung hinzufügen",
@@ -6442,7 +6446,8 @@
       "watches": "Verbindungen der Mitglieder beobachten",
       "watchesHint": "Jede Person wählt, was in ihren eigenen verbundenen Konten beobachtet wird - Pull Requests, die auf sie warten, eine überfällige Rechnung - und erfährt, was neu ist. Es wird nur gelesen, und Funde sind für jede Person privat.",
       "watchMinutes": "Höchstens",
-      "watchMinutesHint": "Wie oft eine einzelne Beobachtung höchstens nachsehen darf. Häufiger kostet mehr."
+      "watchMinutesHint": "Wie oft eine einzelne Beobachtung höchstens nachsehen darf. Häufiger kostet mehr.",
+      "runAttribution": "Hintergrundprüfungen erscheinen in Activity unter dem veröffentlichten AgenticOS-Startagenten. Diese Zuordnung ist in der Plattform festgelegt. Sie verwenden das unten gewählte Proaktivitätsmodell, unabhängig vom eigenen Modell des Agenten."
     }
   },
   "theme": {

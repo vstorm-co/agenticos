@@ -1,4 +1,5 @@
 import {
+  BellRing,
   CalendarClock,
   Code2,
   Globe,
@@ -46,6 +47,7 @@ const MARKS = {
   // is a 422, and the branch that writes these surfaces adds them there.
   schedule: CalendarClock,
   trigger: Zap,
+  proactive: BellRing,
 } as const;
 
 /** The display name beside the mark - "Mattermost", not the enum's lowercase. */
@@ -61,6 +63,7 @@ const LABEL_KEYS = {
   teams: "surfaceTeams",
   schedule: "surfaceSchedule",
   trigger: "surfaceTrigger",
+  proactive: "surfaceProactive",
 } as const;
 
 /**

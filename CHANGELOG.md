@@ -30,6 +30,14 @@ Two things are versioned separately from this file and worth knowing about:
   enable suggestions. An empty profile now disables them; the main agent no
   longer receives `suggest_next_steps`.
 
+## [1.18.1] - 2026-10-26
+
+### Fixed
+
+- Show proactive runs with their own icon and filter in Activity and Dashboard.
+  Record their model requests, tool results and final answer for inspection,
+  and explain the fixed AgenticOS attribution beside organization settings.
+
 ## [1.18.0] - 2026-10-26
 
 ### Fixed
