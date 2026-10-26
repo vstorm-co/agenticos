@@ -79,6 +79,14 @@ class ImprovementEvent(BaseSchema):
     stage: str | None = None
     status: str | None = None
     reason: str | None = None
+    actor_user_id: UUID | None = Field(
+        default=None,
+        description="The person whose action this was; absent for the session's own steps",
+    )
+    actor_name: str | None = Field(
+        default=None,
+        description="That person's display name, for a reader who may see the member directory",
+    )
 
 
 class ImprovementRead(BaseSchema):

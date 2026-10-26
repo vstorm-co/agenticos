@@ -60,6 +60,7 @@ from app.db.models.improvement import (
 from app.db.models.improvement import (
     ImprovementStatus as Status,
 )
+from app.db.models.user import User
 from app.repositories import (
     agent_repo,
     agent_run_repo,
@@ -69,6 +70,7 @@ from app.repositories import (
     knowledge_base_repo,
     knowledge_gap_repo,
     organization_repo,
+    user_repo,
 )
 from app.repositories import (
     background_job as background_job_repo,
@@ -756,7 +758,15 @@ class ImprovementPipelineService:
         await improvement_repo.update_run(
             self.db, run=run, values={"evidence_decisions": decisions}
         )
-        await self._audit(run, "evidence_decided", actor_user_id=ctx.user_id)
+        await self._audit(
+            run,
+            "evidence_decided",
+            actor_user_id=ctx.user_id,
+            decided={
+                "evidence_run_id": str(evidence_run_id),
+                "decision": data.decision or "undone",
+            },
+        )
         return await self.evidence(ctx, agent_id, run_id=run_id)
 
     async def defer_topic(
@@ -824,6 +834,16 @@ class ImprovementPipelineService:
             result.knowledge_eval_run_ids = await improvement_repo.knowledge_checks(
                 self.db, run.id, organization_id=ctx.organization_id
             )
+        actors = {
+            event.id: UUID(actor)
+            for event in events
+            if (actor := self._event_detail(event.details, "actor")) is not None
+        }
+        people = (
+            await user_repo.get_many(self.db, list(actors.values()))
+            if ctx.has(Perm.MEMBERS_VIEW)
+            else {}
+        )
         result.timeline = [
             ImprovementEvent(
                 action=event.action,
@@ -831,12 +851,19 @@ class ImprovementPipelineService:
                 stage=self._event_detail(event.details, "stage"),
                 status=self._event_detail(event.details, "status"),
                 reason=self._event_detail(event.details, "reason"),
+                actor_user_id=actors.get(event.id),
+                actor_name=self._name(people, actors.get(event.id)),
             )
             for event in events
         ]
         if not ctx.has(Perm.RUNS_VIEW):
             result.error = None
         return result
+
+    @staticmethod
+    def _name(people: dict[UUID, User], user_id: UUID | None) -> str | None:
+        person = None if user_id is None else people.get(user_id)
+        return None if person is None else person.full_name or person.email
 
     @staticmethod
     def _event_detail(details: object, key: str) -> str | None:
@@ -1540,7 +1567,13 @@ class ImprovementPipelineService:
         actor_user_id: UUID | None = None,
         step_estimate_usd: Decimal | None = None,
         quote_hash: str | None = None,
+        decided: dict[str, str] | None = None,
     ) -> None:
+        """Record a step on the session's timeline.
+
+        `actor_user_id` names a person who acted; the session's own steps name
+        none and are recorded under its requester. `decided` is what they decided.
+        """
         await record_audit(
             self.db,
             actor_user_id=actor_user_id or run.created_by_user_id,
@@ -1565,6 +1598,8 @@ class ImprovementPipelineService:
                     else {}
                 ),
                 **({"quote_hash": quote_hash} if quote_hash is not None else {}),
+                **({"actor": str(actor_user_id)} if actor_user_id is not None else {}),
+                **(decided or {}),
             },
         )
 
@@ -1595,7 +1630,9 @@ class ImprovementPipelineService:
             },
         )
         await self._audit(
-            run, "stage_changed" if transition.status.active else transition.status.value
+            run,
+            "stage_changed" if transition.status.active else transition.status.value,
+            actor_user_id=actor_user_id,
         )
         self._announce(run)
         if transition.status.active:

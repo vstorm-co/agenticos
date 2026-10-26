@@ -363,3 +363,52 @@ async def test_only_the_requester_spends_the_session_on_attribution_or_a_knowled
     after = await service.read(ctx, agent.id, ready.id)
     assert after.spent_usd == spent
     assert after.iterations[0].attribution_eval_run_ids == {}
+
+
+async def test_the_timeline_names_who_decided_what_and_only_to_those_who_see_members(db):
+    from dataclasses import replace
+
+    from app.core.permissions import Perm
+    from app.db.models.audit_log import AppAdminAuditLog
+    from app.schemas.improvement import EvidenceDecisionUpdate
+
+    ctx, agent, ready = await _ready_proposal(db)
+    service = ImprovementPipelineService(db)
+    run = await db.get(ImprovementRun, ready.id)
+    example = run.chat_evidence_run_ids[0]
+    await service.decide_evidence(
+        ctx, agent.id, run.id, example, EvidenceDecisionUpdate(decision="ignored")
+    )
+    await service.decide_evidence(
+        ctx, agent.id, run.id, example, EvidenceDecisionUpdate(decision=None)
+    )
+
+    decided = list(
+        await db.scalars(
+            select(AppAdminAuditLog)
+            .where(AppAdminAuditLog.action == "improvement.evidence_decided")
+            .order_by(AppAdminAuditLog.seq)
+        )
+    )
+    assert [(row.details["evidence_run_id"], row.details["decision"]) for row in decided] == [
+        (str(example), "ignored"),
+        (str(example), "undone"),
+    ]
+    timeline = (await service.read(ctx, agent.id, run.id)).timeline
+    by_person = [event for event in timeline if event.action == "improvement.evidence_decided"]
+    assert {(event.actor_user_id, event.actor_name is not None) for event in by_person} == {
+        (ctx.user_id, True)
+    }
+    assert all(
+        event.actor_user_id is None
+        for event in timeline
+        if event.action == "improvement.stage_changed"
+    )
+
+    outsider = replace(ctx, key_scopes=frozenset({Perm.AGENTS_VIEW}))
+    hidden = (await service.read(outsider, agent.id, run.id)).timeline
+    assert {
+        (event.actor_user_id, event.actor_name)
+        for event in hidden
+        if event.action == "improvement.evidence_decided"
+    } == {(ctx.user_id, None)}
