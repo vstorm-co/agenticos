@@ -95,9 +95,19 @@ by hand - the suggestion says it **no longer fits the draft** and can only be
 dismissed. Undo refuses the same way once the accepted text was edited by hand: it
 would throw that edit away.
 
+The strip has two tabs, each with a count. **To review** shows every suggestion
+still waiting, whole. **Decided** folds each accepted, edited or dismissed one to a
+line naming the kind of change - Instructions, a tool description, a setting, a new
+skill - how it was decided and what it was for; opening the line shows the change
+and Undo. Both tabs group changes by kind. The strip opens on To review, or on
+Decided once nothing is left to review.
+
 A newer Improve replaces the waiting suggestions; Verify adds its suggestions to
 them instead. Publishing the draft closes them: their decisions are final, and
-the strip keeps them as a record.
+the strip stops showing them and the rest of what the assistant reported before
+the publication, since all of it was about a draft that is now a version. They
+stay stored with their decisions. A request still running when the version is
+published shows what it finds once it finishes.
 
 A change the assistant proposes that cannot be recorded is not dropped
 silently. The strip lists it under **more ideas the assistant did not add**, with
@@ -363,7 +373,7 @@ The assistant can propose **Worth creating a skill** when a reusable procedure a
 
 **Accept** creates the private skill and binds it to the agent's draft in the same transaction. It requires `skills:edit` as well as edit access to the agent. Without creation permission the proposal remains readable and testable, but Accept explains why it is disabled. **Dismiss** creates nothing. **Undo** removes the binding and keeps the independent skill; accepting again reuses it only while its name and body still match. Skills contain written know-how and grant no tools. Additional tool access needs separate policy-checked proposals, with writing tools requiring approval.
 
-A procedure drawn from fewer than three distinct answers is not proposed as a suggestion. It is listed with its full text under **more ideas need your decision**. **Create skill** opens a preview: the name, description and body can be edited, and a warning says how many answers it is based on. **Create skill** in the preview creates the skill in the library and binds it to the agent's draft, never to a published version. It needs the same permissions as Accept and makes no model call. A second click returns the skill already created.
+A procedure drawn from fewer than three distinct answers is not proposed as a suggestion. It waits in **To review**, under New skills, with its full text. **Dismiss** moves it to **Decided**, and Undo brings it back. **Create skill** opens a preview: the name, description and body can be edited, and a warning says how many answers it is based on. **Create skill** in the preview creates the skill in the library and binds it to the agent's draft, never to a published version. It needs the same permissions as Accept and makes no model call. A second click returns the skill already created.
 
 The estimate reserves the full proposed body for each candidate answer and its confirming reruns, in addition to the historical per-answer price.
 

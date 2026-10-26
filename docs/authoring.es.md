@@ -1,5 +1,5 @@
 ---
-source_sha: "090d5520f181"
+source_sha: "f085fdbe49bc"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -97,9 +97,20 @@ una herramienta se cambió a mano -, la sugerencia dice que **ya no encaja en el
 draft** y solo se puede descartar. Deshacer se niega igual cuando el texto
 aceptado se editó después a mano: tiraría esa edición.
 
+La barra tiene dos pestañas, cada una con su número. **To review** muestra entera
+cada sugerencia que sigue pendiente. **Decided** pliega cada una aceptada, editada
+o descartada en una línea que dice qué clase de cambio es - instrucciones, la
+descripción de una herramienta, un ajuste, un skill nuevo -, cómo se decidió y para
+qué servía; al abrir la línea se ven el cambio y Deshacer. Las dos pestañas agrupan
+los cambios por clase. La barra se abre en To review, o en Decided cuando ya no
+queda nada por revisar.
+
 Un Mejorar más reciente sustituye a las sugerencias pendientes; Verificar añade
 las suyas en su lugar. Publicar el draft las cierra: sus decisiones son
-definitivas y la barra las conserva como registro.
+definitivas y la barra deja de mostrarlas, junto con el resto de lo que el
+asistente informó antes de la publicación, porque todo ello trataba de un draft que
+ahora es una versión. Se conservan guardadas con sus decisiones. Una solicitud que
+sigue en curso cuando se publica la versión muestra lo que encuentra al terminar.
 
 Un cambio que propone el asistente y que no se puede guardar no desaparece en
 silencio. La barra lo enumera bajo **ideas que el asistente no añadió**,
@@ -382,7 +393,7 @@ El asistente puede proponer **Worth creating a skill** cuando un procedimiento r
 
 **Accept** crea el skill privado y lo vincula al borrador del agente en la misma transacción. Requiere `skills:edit` y acceso de edición al agente. Sin permiso de creación se puede leer y comprobar la propuesta, pero Accept queda deshabilitado y explica el motivo. **Dismiss** no crea nada. **Undo** elimina el vínculo y conserva el skill independiente; una nueva aceptación lo reutiliza solo si conserva su nombre y contenido. Los skills contienen instrucciones y no conceden herramientas. El acceso adicional necesita propuestas independientes verificadas por la política; las herramientas de escritura requieren aprobación.
 
-Un procedimiento que procede de menos de tres respuestas distintas no se propone como sugerencia. Aparece con su texto completo bajo **more ideas need your decision**. **Create skill** abre una vista previa: el nombre, la descripción y el contenido se pueden editar, y un aviso indica en cuántas respuestas se basa. **Create skill** en la vista previa crea el skill en la biblioteca y lo vincula al borrador del agente, nunca a una versión publicada. Requiere los mismos permisos que Accept y no llama a ningún modelo. Un segundo clic devuelve el skill ya creado.
+Un procedimiento que procede de menos de tres respuestas distintas no se propone como sugerencia. Espera en **To review**, en el grupo New skills, con su texto completo. **Dismiss** lo pasa a **Decided** y Deshacer lo devuelve. **Create skill** abre una vista previa: el nombre, la descripción y el contenido se pueden editar, y un aviso indica en cuántas respuestas se basa. **Create skill** en la vista previa crea el skill en la biblioteca y lo vincula al borrador del agente, nunca a una versión publicada. Requiere los mismos permisos que Accept y no llama a ningún modelo. Un segundo clic devuelve el skill ya creado.
 
 La estimación reserva el contenido completo propuesto para cada respuesta candidata y sus repeticiones de confirmación, además del precio histórico por respuesta.
 

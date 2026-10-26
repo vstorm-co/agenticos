@@ -120,7 +120,14 @@ environment without a person's decision.
 - **Create skill** from a skill idea the assistant did not add because fewer
   than three answers back it. Whoever holds `skills:edit` and may edit the
   agent previews and edits it, and creating it adds the skill to the library
-  and binds it to the agent's draft only. No model is called.
+  and binds it to the agent's draft only. No model is called. Anyone who may
+  edit the agent can dismiss the idea instead, and undo that.
+- **To review and Decided.** The assistant's card on the Build tab splits
+  suggestions into what still needs a decision, shown whole, and what was
+  accepted, edited or dismissed, each folded to its kind, decision and a
+  one-line summary. Both tabs group changes by kind. Publishing the agent ends
+  the cycle: the card stops showing suggestions and findings from before the
+  publication, which stay stored with their decisions.
 - **The Improve wizard.** A resumable session at `/agents/<agent>/improve/<session>`
   that analyses evidence, proposes changes, tests them on held-out questions,
   and stops at a result for a person to accept and publish. It shows the

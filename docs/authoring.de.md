@@ -1,5 +1,5 @@
 ---
-source_sha: "090d5520f181"
+source_sha: "f085fdbe49bc"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -100,9 +100,21 @@ er **nicht mehr zum Entwurf passt**, und lässt sich nur verwerfen. Rückgängig
 verweigert sich ebenso, wenn der angenommene Text danach von Hand bearbeitet
 wurde: Es würde diese Änderung verwerfen.
 
+Die Leiste hat zwei Tabs, jeder mit einer Anzahl. **Zu prüfen** zeigt jeden noch
+wartenden Vorschlag vollständig. **Entschieden** klappt jeden angenommenen,
+bearbeiteten oder verworfenen auf eine Zeile zusammen, die die Art der Änderung -
+Anweisungen, eine Tool-Beschreibung, eine Einstellung, ein neuer Skill -, die
+Entscheidung und den Zweck nennt; das Öffnen der Zeile zeigt die Änderung und
+Rückgängig. Beide Tabs gruppieren Änderungen nach Art. Die Leiste öffnet auf Zu
+prüfen oder auf Entschieden, sobald nichts mehr zu prüfen ist.
+
 Ein neueres Verbessern ersetzt die wartenden Vorschläge; Prüfen fügt seine
 stattdessen hinzu. Das Veröffentlichen des Entwurfs schließt sie: Ihre
-Entscheidungen sind endgültig, und die Leiste behält sie als Protokoll.
+Entscheidungen sind endgültig, und die Leiste zeigt sie und den Rest dessen, was
+der Assistent vor der Veröffentlichung gemeldet hat, nicht mehr an, denn all das
+betraf einen Entwurf, der jetzt eine Version ist. Sie bleiben mit ihren
+Entscheidungen gespeichert. Eine Anfrage, die bei der Veröffentlichung noch läuft,
+zeigt ihre Ergebnisse, sobald sie fertig ist.
 
 Eine Änderung, die der Assistent vorschlägt und die sich nicht speichern lässt,
 verschwindet nicht stillschweigend. Die Leiste führt sie unter **weitere Ideen,
@@ -393,7 +405,7 @@ Der Assistent kann **Ein Skill wäre sinnvoll** vorschlagen, wenn ein wiederverw
 
 **Accept** erstellt den privaten Skill und bindet ihn in derselben Transaktion an den Entwurf des Agenten. Dafür sind `skills:edit` und Bearbeitungszugriff auf den Agenten nötig. Ohne Erstellungsrecht bleibt der Vorschlag lesbar und prüfbar; die deaktivierte Annahme erklärt den Grund. **Dismiss** erstellt nichts. **Undo** entfernt die Bindung und behält den unabhängigen Skill. Erneutes Annehmen verwendet ihn nur bei unverändertem Namen und Inhalt. Skills enthalten Anweisungen und gewähren keine Tools. Zusätzlicher Tool-Zugriff benötigt eigene Richtlinienprüfungen; schreibende Tools erfordern eine Freigabe.
 
-Ein Ablauf aus weniger als drei verschiedenen Antworten wird nicht als Vorschlag aufgenommen. Er steht mit vollständigem Text unter **weitere Ideen warten auf Ihre Entscheidung**. **Create skill** öffnet eine Vorschau: Name, Beschreibung und Inhalt lassen sich bearbeiten, und ein Hinweis nennt, auf wie vielen Antworten er beruht. **Create skill** in der Vorschau legt den Skill in der Bibliothek an und bindet ihn an den Entwurf des Agenten, nie an eine veröffentlichte Version. Dafür gelten dieselben Berechtigungen wie für Accept, und es gibt keinen Modellaufruf. Ein zweiter Klick liefert den bereits erstellten Skill.
+Ein Ablauf aus weniger als drei verschiedenen Antworten wird nicht als Vorschlag aufgenommen. Er wartet unter **Zu prüfen** in der Gruppe Neue Skills mit vollständigem Text. **Verwerfen** verschiebt ihn nach **Entschieden**, und Rückgängig holt ihn zurück. **Create skill** öffnet eine Vorschau: Name, Beschreibung und Inhalt lassen sich bearbeiten, und ein Hinweis nennt, auf wie vielen Antworten er beruht. **Create skill** in der Vorschau legt den Skill in der Bibliothek an und bindet ihn an den Entwurf des Agenten, nie an eine veröffentlichte Version. Dafür gelten dieselben Berechtigungen wie für Accept, und es gibt keinen Modellaufruf. Ein zweiter Klick liefert den bereits erstellten Skill.
 
 Die Kostenschätzung berücksichtigt den vollständigen vorgeschlagenen Inhalt für jede Kandidatenantwort und bestätigende Wiederholungen zusätzlich zum historischen Antwortpreis.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "090d5520f181"
+source_sha: "f085fdbe49bc"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -98,9 +98,19 @@ został usunięty albo opis narzędzia zmieniony ręcznie - sugestia mówi, że 
 pasuje już do wersji roboczej**, i można ją tylko odrzucić. Cofnij odmawia tak samo, gdy
 przyjęty tekst został potem zmieniony ręcznie: wyrzuciłoby to tę zmianę.
 
+Pasek ma dwie zakładki, każdą z licznikiem. **Do decyzji** pokazuje w całości
+każdą sugestię, która wciąż czeka. **Zdecydowane** zwija każdą przyjętą, zmienioną
+albo odrzuconą do jednej linii z rodzajem zmiany - instrukcje, opis narzędzia,
+ustawienie, nowy skill - decyzją i celem zmiany; rozwinięcie linii pokazuje zmianę
+i Cofnij. Obie zakładki grupują zmiany według rodzaju. Pasek otwiera się na Do
+decyzji albo na Zdecydowane, gdy nie zostało już nic do decyzji.
+
 Nowsze Ulepsz zastępuje oczekujące sugestie; Sprawdź dodaje do nich swoje.
-Opublikowanie wersji roboczej je zamyka: decyzje stają się ostateczne, a pasek zachowuje
-je jako zapis.
+Opublikowanie wersji roboczej je zamyka: decyzje stają się ostateczne, a pasek
+przestaje pokazywać je i resztę tego, co asystent zgłosił przed publikacją, bo
+wszystko to dotyczyło wersji roboczej, która jest teraz wersją. Zostają zapisane
+razem z decyzjami. Żądanie, które wciąż trwa w chwili publikacji, pokaże swoje
+wyniki, gdy się zakończy.
 
 Zmiana zaproponowana przez asystenta, której nie da się zapisać, nie znika po
 cichu. Pasek wymienia ją pod **pomysły, których asystent nie dodał**, z
@@ -373,7 +383,7 @@ Asystent może zaproponować **Warto utworzyć skill**, gdy procedura występuje
 
 **Accept** tworzy prywatny skill i przypina go do wersji roboczej agenta w jednej transakcji. Wymaga `skills:edit` oraz edycji agenta. Bez uprawnienia tworzenia można czytać i sprawdzać propozycję, ale wyłączone Accept wyjaśnia powód. **Dismiss** niczego nie tworzy. **Undo** usuwa przypięcie i zachowuje niezależny skill; kolejna akceptacja wykorzystuje go ponownie tylko wtedy, gdy nazwa i treść nadal pasują. Skill zawiera instrukcje i nie nadaje dostępu do narzędzi. Dodatkowy dostęp wymaga osobnych propozycji sprawdzanych przez politykę, z zatwierdzaniem narzędzi zapisujących.
 
-Procedura z mniej niż trzech różnych odpowiedzi nie trafia do sugestii. Pojawia się z pełną treścią na liście **pomysły czekają na Twoją decyzję**. **Create skill** otwiera podgląd: nazwę, opis i treść można edytować, a ostrzeżenie mówi, na ilu odpowiedziach się opiera. **Create skill** w podglądzie tworzy skill w bibliotece i przypina go do wersji roboczej agenta, nigdy do opublikowanej wersji. Wymaga tych samych uprawnień co Accept i nie wywołuje modelu. Drugie kliknięcie zwraca już utworzony skill.
+Procedura z mniej niż trzech różnych odpowiedzi nie trafia do sugestii. Czeka w zakładce **Do decyzji**, w grupie Nowe skille, z pełną treścią. **Odrzuć** przenosi go do **Zdecydowane**, a Cofnij przywraca. **Create skill** otwiera podgląd: nazwę, opis i treść można edytować, a ostrzeżenie mówi, na ilu odpowiedziach się opiera. **Create skill** w podglądzie tworzy skill w bibliotece i przypina go do wersji roboczej agenta, nigdy do opublikowanej wersji. Wymaga tych samych uprawnień co Accept i nie wywołuje modelu. Drugie kliknięcie zwraca już utworzony skill.
 
 Szacowany koszt uwzględnia pełną proponowaną treść dla każdej odpowiedzi kandydata i jej powtórzeń potwierdzających, oprócz historycznego kosztu odpowiedzi.
 
