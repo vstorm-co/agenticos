@@ -117,12 +117,15 @@ class TestRun:
         runner, execute = _runner(monkeypatch, agent=agent)
         ctx = _ctx()
 
+        bases = [uuid.uuid4()]
+
         await runner.run(
             ctx,
             key=JUDGE.key,
             prompt="Grade it",
             output_type=Verdict,
             model_profile_id=profile_id,
+            knowledge_base_ids=bases,
         )
 
         args, kwargs = execute.call_args
@@ -134,9 +137,12 @@ class TestRun:
             "candidate": None,
             "reports_failure": True,
         }
-        # Held like an eval's writes, and answered from no recording.
+        # Held like an eval's writes, answered from no recording, and searching
+        # only the knowledge bases the caller picked for the run.
         assert isinstance(isolation, RunIsolation)
         assert (isolation.recording, isolation.intercepted) == (None, [])
+        assert isolation.knowledge is not None
+        assert isolation.knowledge.knowledge_base_ids == tuple(bases)
 
     async def test_switched_off_nothing_runs(self, monkeypatch) -> None:
         runner, execute = _runner(monkeypatch, enabled=False)
