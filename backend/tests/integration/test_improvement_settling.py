@@ -323,3 +323,43 @@ async def test_a_kept_draft_published_elsewhere_names_its_version_when_it_was_me
     settled = await service.read(ctx, agent.id, ready.id)
     assert settled.status == "published"
     assert settled.published_version == (None if edited else version.version)
+
+
+@pytest.mark.security
+async def test_only_the_requester_spends_the_session_on_attribution_or_a_knowledge_check(db):
+    from decimal import Decimal
+
+    from app.core.exceptions import AuthorizationError
+    from app.core.permissions import OrgRoleName
+    from app.schemas.improvement import AttributionConsent, KnowledgeCheckConsent
+
+    ctx, agent, ready = await _ready_proposal(db)
+    editor = await _member(db, ctx, OrgRoleName.ADMIN)
+    service = ImprovementPipelineService(db)
+    spent = (await service.read(ctx, agent.id, ready.id)).spent_usd
+
+    with pytest.raises(AuthorizationError, match="requester"):
+        await service.start_attribution(
+            editor,
+            agent.id,
+            ready.id,
+            1,
+            AttributionConsent(confirmed=True, estimate_usd=Decimal("1")),
+        )
+    with pytest.raises(AuthorizationError, match="requester"):
+        await service.start_knowledge(
+            editor,
+            agent.id,
+            ready.id,
+            KnowledgeCheckConsent(
+                topic_id=uuid4(),
+                round=1,
+                case_ids=[uuid4()],
+                confirmed=True,
+                estimate_usd=Decimal("1"),
+                draft_hash="a" * 64,
+            ),
+        )
+    after = await service.read(ctx, agent.id, ready.id)
+    assert after.spent_usd == spent
+    assert after.iterations[0].attribution_eval_run_ids == {}

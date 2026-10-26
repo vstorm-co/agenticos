@@ -2721,6 +2721,7 @@ class ImprovementPipelineService:
     async def start_knowledge(
         self, ctx: AuthContext, agent_id: UUID, run_id: UUID, data: KnowledgeCheckConsent
     ) -> EvalRunRead:
+        self._require_requester(ctx, await self._row(ctx, agent_id, run_id))
         planned = await self._knowledge_plan(ctx, agent_id, run_id, data)
         quote = planned.quote if isinstance(planned, KnowledgePlan) else planned
         if quote.draft_hash != data.draft_hash or quote.total_usd != data.estimate_usd:
@@ -3026,6 +3027,7 @@ class ImprovementPipelineService:
         consent: AttributionConsent,
     ) -> ImprovementRead:
         run, iteration, inputs = await self._attribution_target(ctx, agent_id, run_id, number)
+        self._require_requester(ctx, run)
         if iteration.attribution_eval_run_ids:
             return await self._read(ctx, run)
         if await improvement_repo.has_active_check(
