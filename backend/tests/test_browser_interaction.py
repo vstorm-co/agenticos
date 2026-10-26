@@ -540,3 +540,39 @@ async def test_reading_an_existing_tab_without_a_direct_view_does_not_start_a_pr
         assert not target.streaming
     finally:
         await tools.close()
+
+
+@pytest.mark.parametrize("resize", [False, True])
+async def test_interrupted_replay_does_not_skip_to_the_next_cached_action(resize: bool) -> None:
+    from app.agents.capabilities.browser_use._plans import PlanStep
+    from tests.test_browser_use import DONE, _element, _policy, _snapshot
+
+    target = _FakePage(_snapshot(_element(0, label="First"), _element(1, label="Second")))
+
+    class Control(_Control):
+        polls = 0
+
+        async def poll(self) -> BrowserCommand | None:
+            self.polls += 1
+            if self.polls == 2:
+                return BrowserCommand(type="resize", width=800, height=600) if resize else TAKE
+            return None
+
+    async def decide(*args: object) -> _loop.Step:
+        return DONE
+
+    result = await _loop.run_browse(
+        task="Two dependent clicks",
+        session=BrowseSession(target),
+        decide=decide,
+        policy=_policy(max_steps=3),
+        call_id="call",
+        control=Control(GIVE),
+        plan=tuple(
+            PlanStep(op="click", at="example.test/page", role="button", label=label)
+            for label in ("First", "Second")
+        ),
+    )
+    assert result.outcome == "done"
+    assert not any(action.startswith("click:") for action in target.done)
+    assert result.replayed == 0

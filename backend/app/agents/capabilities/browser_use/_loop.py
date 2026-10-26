@@ -457,6 +457,11 @@ async def _drive(
                         remember=remember,
                     )
                 if waiting is not None or resized:
+                    # The chosen replay step was removed before it acted; its
+                    # dependent successors cannot be replayed after skipping it.
+                    kept.pending.clear()
+                    if again is not None:
+                        kept.replayed -= 1
                     snapshot = await page.snapshot()
                     recent.clear()
                     continue
