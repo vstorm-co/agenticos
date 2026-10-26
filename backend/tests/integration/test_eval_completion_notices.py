@@ -119,3 +119,31 @@ async def test_generation_terminal_notice_is_scoped_deduplicated_and_silent_afte
     )
     await service.case_generation_finished(generation)
     assert len(list(await db.scalars(select(Notification)))) == 1
+
+
+async def test_an_eval_still_going_announces_nothing(db, _events):
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    started = await EvalRunService(db).start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    run = await db.get(EvalRun, started.id)
+    service = NotificationService(db)
+
+    for status in ("queued", "running"):
+        run.status = status
+        await service.eval_run_finished(run)
+
+    assert list(await db.scalars(select(Notification))) == []
+    assert _events.call_count == 0
+
+
+async def test_an_improvement_nobody_requested_notifies_nobody(db, _events):
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+
+    await NotificationService(db).improvement_finished(
+        agent=agent, run_id=uuid4(), user_id=None, status="ready", reason=None
+    )
+
+    assert list(await db.scalars(select(Notification))) == []
+    assert _events.call_count == 0

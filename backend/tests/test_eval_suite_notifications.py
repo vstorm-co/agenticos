@@ -1,6 +1,7 @@
 """What the owner of a failing suite is told: which suite, on what, why, and which cases."""
 
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
@@ -9,6 +10,7 @@ import pytest
 from app.db.models.agent import Agent
 from app.db.models.eval_suite import EvalSuite, EvalSuiteResult
 from app.schemas.eval_suite import EvalSuiteSummary, FailingCase, ThresholdReason
+from app.schemas.scoring import ReviewReevaluation
 from app.services.notifications import NotificationService, _suite_summary
 
 pytestmark = pytest.mark.anyio
@@ -66,6 +68,14 @@ def test_a_failure_names_why_and_the_first_cases() -> None:
             "cost per passed case rose 50%",
         ),
         (ThresholdReason(code="p95_rise", value=1.0, limit=0.5), "p95 latency rose 100%"),
+        (
+            ThresholdReason(code="cost_per_pass_rise", value=0, limit=0.2, detail="zero_baseline"),
+            "cost per passed case rose from zero, exceeding every percentage ceiling",
+        ),
+        (
+            ThresholdReason(code="p95_rise", value=0, limit=0.5, detail="zero_baseline"),
+            "p95 latency rose from zero, exceeding every percentage ceiling",
+        ),
         (ThresholdReason(code="invalid_comparison"), "the comparison is invalid"),
         (ThresholdReason(code="ungraded", value=2), "2 case(s) nothing grades"),
         (
@@ -163,6 +173,50 @@ async def test_an_owner_who_is_no_longer_a_member_is_told_nothing() -> None:
         patch.object(service._center, "write", AsyncMock()) as write,
     ):
         await service.eval_suite_failed(suite, result, agent=agent)
+
+    write.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "summary",
+    [
+        None,
+        EvalSuiteSummary(pass_rate=0.5, first_pass_rate=0.5, cases=2).model_dump(mode="json"),
+    ],
+    ids=["nothing recorded", "no review"],
+)
+async def test_a_verdict_no_person_reviewed_is_not_announced_as_reevaluated(
+    summary: dict[str, Any] | None,
+) -> None:
+    suite, result, agent = _rows(status="failed", summary=summary)
+    service = NotificationService(AsyncMock())
+    with (
+        patch(
+            "app.services.notifications.member_repo.list_member_ids_for",
+            AsyncMock(return_value={suite.owner_user_id}),
+        ),
+        patch.object(service._center, "write", AsyncMock()) as write,
+    ):
+        await service.eval_suite_reevaluated(suite, result, agent=agent)
+
+    write.assert_not_awaited()
+
+
+async def test_a_reevaluation_reaches_no_owner_who_left() -> None:
+    review = ReviewReevaluation(
+        by_user_id=uuid.uuid4(), at=datetime(2026, 1, 2, tzinfo=UTC), previous_verdict="failed"
+    )
+    summary = EvalSuiteSummary(pass_rate=1.0, first_pass_rate=0.5, cases=2, review=review)
+    suite, result, agent = _rows(status="passed", summary=summary.model_dump(mode="json"))
+    service = NotificationService(AsyncMock())
+    with (
+        patch(
+            "app.services.notifications.member_repo.list_member_ids_for",
+            AsyncMock(return_value=set()),
+        ),
+        patch.object(service._center, "write", AsyncMock()) as write,
+    ):
+        await service.eval_suite_reevaluated(suite, result, agent=agent)
 
     write.assert_not_awaited()
 
