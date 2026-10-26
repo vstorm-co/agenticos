@@ -277,6 +277,7 @@ async def test_continuation_waits_for_every_existing_paid_child(
     assert await db.scalar(select(func.count()).select_from(AuthoringRequest)) == before
 
 
+@pytest.mark.security
 @pytest.mark.parametrize("candidate", ["missing", "changed"])
 async def test_budget_resume_requires_the_same_existing_candidate(
     db: AsyncSession, candidate: str
