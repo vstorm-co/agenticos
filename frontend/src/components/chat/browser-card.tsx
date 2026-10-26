@@ -1,9 +1,13 @@
 "use client";
 
+import { useEffect } from "react";
+
 import { ArrowUpRight, Globe, Maximize2, Monitor } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { createContext, useContext } from "react";
 
+import { useShell } from "@/hooks/use-shell";
+import { isDesktopShell } from "@/lib/desktop/shell";
 import { useLiveBrowse } from "@/hooks/use-live-browse";
 import { DESKTOP_TOOLS, isRunning, type Browse } from "@/lib/browse";
 import { cn } from "@/lib/utils";
@@ -124,6 +128,11 @@ function InlineBrowser({
   const expand = useBrowserPanelStore((state) => state.open);
   const expanded = useBrowserPanelStore((state) => state.openCallId === streamed.callId);
   const running = isRunning(streamed);
+  const shell = useShell();
+  useEffect(() => {
+    if (streamed.nativeId && running && isDesktopShell(shell) && shell.window === "main")
+      expand(streamed.callId);
+  }, [streamed.nativeId, streamed.callId, running, shell, expand]);
   const live = useLiveBrowse(
     streamed.runId ?? "",
     streamed.callId,
@@ -135,7 +144,16 @@ function InlineBrowser({
   const browse = mine && live.browse ? live.browse : streamed;
   return (
     <div className="border-border bg-background aspect-[16/11] w-full min-w-0 overflow-hidden rounded-2xl border shadow-sm">
-      {expanded ? (
+      {browse.nativeId ? (
+        <button
+          type="button"
+          onClick={() => expand(streamed.callId)}
+          className="text-muted-foreground hover:text-foreground flex h-full w-full flex-col items-center justify-center gap-2 text-sm"
+        >
+          <Globe className="size-5" aria-hidden />
+          {t("browserOpenNative")}
+        </button>
+      ) : expanded ? (
         <button
           type="button"
           onClick={() => expand(streamed.callId)}

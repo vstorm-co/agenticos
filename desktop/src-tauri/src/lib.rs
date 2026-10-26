@@ -24,6 +24,7 @@ mod local_services;
 mod local_stack;
 mod local_work;
 mod managed;
+mod native_browser;
 mod notify;
 mod pinned;
 mod quick_ask;
@@ -735,6 +736,7 @@ fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow>
             // The shell's own pages - onboarding - sit on the window's material,
             // like a system setup assistant; the console wears its own look.
             if matches!(payload.event(), PageLoadEvent::Started) {
+                native_browser::hide_all(window.app_handle());
                 let surface = if is_local_page(payload.url()) {
                     Surface::Setup
                 } else {
@@ -1160,16 +1162,20 @@ fn install_menu(app: &AppHandle, settings: &Settings) -> tauri::Result<TrayIcon>
                 Ok(())
             }
             CHANGE_SERVER => change_server(app.clone()),
-            RELOAD | BACK | FORWARD => match app.get_webview_window(WINDOW) {
-                Some(console) => {
-                    let script = match id {
-                        BACK => "history.back()",
-                        FORWARD => "history.forward()",
-                        _ => "location.reload()",
-                    };
-                    console.eval(script).map_err(|e| e.to_string())
-                }
-                None => bring_console(app),
+            RELOAD | BACK | FORWARD => match native_browser::handle_menu(app, id) {
+                Ok(true) => Ok(()),
+                Err(error) => Err(error),
+                Ok(false) => match app.get_webview_window(WINDOW) {
+                    Some(console) => {
+                        let script = match id {
+                            BACK => "history.back()",
+                            FORWARD => "history.forward()",
+                            _ => "location.reload()",
+                        };
+                        console.eval(script).map_err(|e| e.to_string())
+                    }
+                    None => bring_console(app),
+                },
             },
             other => {
                 if let Some((_, _, path, _)) = GO.iter().find(|(go, ..)| *go == other) {
@@ -1211,6 +1217,7 @@ pub fn run() {
             }
         }))
         .manage(local_browser::Browsers::default())
+        .manage(native_browser::NativeBrowsers::default())
         .plugin({
             let builder = tauri_plugin_updater::Builder::new();
             match option_env!("AGENTICOS_UPDATER_PUBLIC_KEY") {
@@ -1239,6 +1246,8 @@ pub fn run() {
                 .build(),
         )
         .invoke_handler(tauri::generate_handler![
+            native_browser::native_browser_view,
+            native_browser::native_browser_input,
             change_server,
             server_url,
             startup_notice,

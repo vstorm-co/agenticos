@@ -130,6 +130,8 @@ class PageSession(Protocol):
     of the reasoning above needs Chromium to verify.
     """
 
+    native_id: str | None
+
     async def snapshot(self) -> Snapshot:
         """The page as it is now: its URL, its title, its words and what can be chosen."""
 
@@ -346,6 +348,7 @@ async def _drive(
         BrowserEvent(
             kind="browser_opened",
             navigable=True,
+            native_id=page.native_id,
             call_id=call_id,
             step=session.steps,
             url=snapshot.url,

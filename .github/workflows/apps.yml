@@ -24,7 +24,7 @@ jobs:
         with: {persist-credentials: false}
       - name: Linux native libraries
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev libxcb-randr0-dev libxcb-shape0-dev libxcb-xfixes0-dev libpipewire-0.3-dev libgbm-dev clang
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev libxcb-randr0-dev libxcb-shape0-dev libxcb-xfixes0-dev libpipewire-0.3-dev libgbm-dev clang xvfb
       - name: Rust toolchain
         run: rustup update stable --no-self-update && rustup default stable && rustup component add rustfmt clippy
       - name: Native contracts and tests
@@ -36,6 +36,18 @@ jobs:
             cargo clippy --locked --manifest-path "$crate/Cargo.toml" --all-targets -- -D warnings
             cargo test --locked --manifest-path "$crate/Cargo.toml"
           done
+      - name: Native browser engine smoke
+        timeout-minutes: 3
+        shell: bash
+        env:
+          WEBKIT_DISABLE_DMABUF_RENDERER: "1"
+        run: |
+          set -euo pipefail
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            xvfb-run -a cargo run --locked --manifest-path desktop/src-tauri/Cargo.toml --example native_browser_smoke
+          else
+            cargo run --locked --manifest-path desktop/src-tauri/Cargo.toml --example native_browser_smoke
+          fi
   android:
     runs-on: ubuntu-latest
     timeout-minutes: 35

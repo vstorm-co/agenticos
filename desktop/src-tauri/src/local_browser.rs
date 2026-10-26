@@ -242,6 +242,14 @@ const METHODS: &[&str] = &[
 ];
 
 pub async fn run(app: &AppHandle, op: &str, args: &Map<String, Value>) -> Result<Map<String, Value>, String> {
+    if args.get("engine").and_then(Value::as_str) == Some("native")
+        || args
+            .get("id")
+            .and_then(Value::as_str)
+            .is_some_and(|id| id.starts_with("native-browser-"))
+    {
+        return crate::native_browser::run(app, op, args).await;
+    }
     if op == "browser.open" {
         let state = app.state::<Browsers>();
         let generation = state.0.lock().await.generation;
@@ -344,6 +352,7 @@ async fn command(
 }
 
 pub async fn close_all(app: &AppHandle) {
+    crate::native_browser::close_all(app).await;
     let state = app.state::<Browsers>();
     let browsers = {
         let mut registry = state.0.lock().await;

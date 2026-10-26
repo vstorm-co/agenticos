@@ -183,3 +183,25 @@ describe("TurnBrowses - a browse as a browser under its message", () => {
     expect(screen.queryByText("Used a computer")).toBeNull();
   });
 });
+
+it("opens the native tab panel rather than presenting an empty screenshot", async () => {
+  const user = userEvent.setup();
+  render(<BrowserCards browses={[browse({ nativeId: "native-browser-test", outcome: "done" })]} />);
+  await user.click(screen.getByRole("button", { name: "Open local browser" }));
+  expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
+});
+
+it("opens a new native browse automatically in the desktop console", () => {
+  window.__AGENTICOS_SHELL__ = {
+    platform: "macos",
+    version: "0.2.0",
+    window: "main",
+    vibrancy: true,
+  };
+  try {
+    render(<BrowserCards browses={[browse({ nativeId: "native-browser-test" })]} />);
+    expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
+  } finally {
+    delete window.__AGENTICOS_SHELL__;
+  }
+});

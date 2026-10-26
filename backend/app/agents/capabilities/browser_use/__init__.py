@@ -110,7 +110,7 @@ class WebBrowserConfig(BaseModel):
         title="Allowed domains",
         default=None,
         description=(
-            "Hosts the browser may be on; empty means no restriction. Globs like "
+            "Hosts the browser may be on; null is unrestricted and an empty list denies all. Globs like "
             "*.example.com are allowed. Checked on every step, not only the first."
         ),
     )
@@ -122,6 +122,14 @@ class WebBrowserConfig(BaseModel):
         description=(
             "How many steps one call may take; each step is one model request. A "
             "task that needs more continues in the same tab on the next call."
+        ),
+    )
+    prefer_native_browser: bool = Field(
+        default=True,
+        title="Use the native local browser",
+        description=(
+            "Use an embedded native tab for local DOM browsing. Disable for isolated "
+            "Chromium compatibility. Vision and language/time-zone overrides use Chromium."
         ),
     )
     vision: bool = Field(
@@ -377,7 +385,7 @@ def validate_cdp_url(config: WebBrowserConfig) -> None:
         ),
         CapabilityToolInfo(
             id="browser_read",
-            description="Read the open page again - after waiting for it, or to see it as it is now.",
+            description="Read the open page again, or resume this conversation's native local tab.",
             side_effecting=False,
         ),
         CapabilityToolInfo(
@@ -432,8 +440,17 @@ def _build(ctx: CapabilityBuildContext) -> AbstractCapability[object]:
         ctx.secret.api_key.get_secret_value() if isinstance(ctx.secret, ApiKeySecret) else None
     )
     local_session = ctx.resources.get("local_browser_session")
+    native_local = (
+        config.prefer_native_browser
+        and not config.vision
+        and not config.timezone
+        and not config.locale
+    )
     return WebBrowser(
-        page_factory=local_page_factory(local_session) if isinstance(local_session, UUID) else None,
+        resume_local=isinstance(local_session, UUID) and native_local,
+        page_factory=local_page_factory(local_session, native=native_local)
+        if isinstance(local_session, UUID)
+        else None,
         step_model=step_model if isinstance(step_model, Model) else None,
         route=route_for(
             connection=config.connection,

@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
+import { useTranslations } from "next-intl";
 
+import { useShell } from "@/hooks/use-shell";
+import { isDesktopShell } from "@/lib/desktop/shell";
+import { NativeBrowser } from "./native-browser";
 import { useLiveBrowse } from "@/hooks/use-live-browse";
 import { browseById, isRunning, type Browse } from "@/lib/browse";
 import { useBrowserPanelStore } from "@/stores/browser-panel-store";
@@ -43,6 +47,9 @@ function OpenBrowser({
   onComment?: (comment: PageComment) => void;
 }) {
   const close = useBrowserPanelStore((state) => state.close);
+  const shell = useShell();
+  const t = useTranslations("browse");
+  const chat = useTranslations("chat");
   const running = isRunning(streamed);
   const live = useLiveBrowse(
     streamed.runId ?? "",
@@ -64,6 +71,17 @@ function OpenBrowser({
     return () => window.removeEventListener("keydown", onKey);
   }, [close, holding]);
 
+  if (browse.nativeId && isDesktopShell(shell) && shell.window === "main")
+    return <NativeBrowser id={browse.nativeId} onClose={close} />;
+  if (browse.nativeId)
+    return (
+      <aside className="bg-background fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 p-6">
+        <p>{t("nativeDesktopOnly")}</p>
+        <button type="button" onClick={close}>
+          {chat("browserClose")}
+        </button>
+      </aside>
+    );
   return (
     <aside className="bg-background fixed inset-0 z-50 flex flex-col">
       <BrowserWindow

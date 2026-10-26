@@ -2110,7 +2110,8 @@
       "more": "{count, plural, =1 {1 more in your inbox} other {# more in your inbox}}"
     },
     "turnLost": "The agent stopped before it answered - the server running it went away.",
-    "turnLostAskAgain": "Ask again"
+    "turnLostAskAgain": "Ask again",
+    "browserOpenNative": "Open local browser"
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",
@@ -8027,7 +8028,7 @@
       },
       "allowed_domains": {
         "title": "Allowed domains",
-        "description": "Hosts the browser may be on; empty means no restriction. Globs like *.example.com are allowed. Checked on every step, not only the first."
+        "description": "Hosts the browser may be on; null is unrestricted and an empty list denies all. Globs like *.example.com are allowed. Checked on every step, not only the first."
       },
       "max_steps": {
         "title": "Steps per call at most",
@@ -8076,6 +8077,10 @@
       "locale": {
         "title": "Language the browser reports",
         "description": "A language tag such as pl-PL, sent as Accept-Language and navigator.language."
+      },
+      "prefer_native_browser": {
+        "title": "Use the native local browser",
+        "description": "Use an embedded native tab for local DOM browsing. Disable for isolated Chromium compatibility. Vision and language/time-zone overrides use Chromium."
       }
     },
     "channel_tools": {
@@ -8655,7 +8660,12 @@
     "unavailableTitle": "Live view is unavailable",
     "unavailableBody": "This deployment has no Redis for live views. Try again shortly.",
     "rememberSignIn": "Keep me signed in to {site} for later browses",
-    "signInKept": "Your sign-in to {site} is kept for later browses - manage it in Settings → Sign-ins."
+    "signInKept": "Your sign-in to {site} is kept for later browses - manage it in Settings → Sign-ins.",
+    "nativeReturn": "Return to agent",
+    "nativeTake": "Take over",
+    "nativeCloseTab": "Close tab",
+    "nativeViewport": "Native browser page",
+    "nativeDesktopOnly": "This tab is open in the paired desktop app. Continue there to use its native browser."
   },
   "remoteAgents": {
     "title": "Remote agents",

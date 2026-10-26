@@ -84,6 +84,7 @@ class WebBrowser(AbstractCapability[AgentDepsT]):
     route: BrowserRoute | None = field(default=None, repr=False, compare=False)
     """Where the organization sends its browses (#2130), resolved by the runner."""
 
+    resume_local: bool = False
     page_factory: PageFactory | None = field(default=None, repr=False, compare=False)
     """The browser seam; `None` reaches the real `cdp-use`. A test substitutes it."""
 
@@ -93,6 +94,14 @@ class WebBrowser(AbstractCapability[AgentDepsT]):
 
     def get_instructions(self) -> str:
         """Static guidance: which way to drive the browser, and to distrust its output."""
+        if self.resume_local:
+            return _INSTRUCTIONS + (
+                " On the paired computer, native tabs remain open for this conversation "
+                "between turns. To continue earlier work, call browser_read first to "
+                "reattach and obtain fresh element numbers. If no tab remains, open the "
+                "requested URL with browser_open. If another run holds the tab, report "
+                "that it is busy and wait rather than repeatedly retrying."
+            )
         return _INSTRUCTIONS
 
     def get_toolset(self) -> AbstractToolset[Any]:
@@ -111,5 +120,6 @@ class WebBrowser(AbstractCapability[AgentDepsT]):
                 page_factory=self.page_factory,
                 step_model=self.step_model,
                 route=self.route,
+                resume_local=self.resume_local,
             )
         return self._toolset

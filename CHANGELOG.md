@@ -21,6 +21,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Remote browser previews coalesce pending images and disconnect stalled viewers;
+  live-view images are no longer duplicated in the resumable chat stream.
+
 - **Interactive browser navigation.** While holding a browser, edit its address,
   move back or forward and reload within the agent's allowed domains. Direct
   browser tools keep the preview streaming between calls. Input no longer waits
@@ -54,6 +57,10 @@ Two things are versioned separately from this file and worth knowing about:
   shorter motion without per-word blur.
 
 ### Added
+
+- Native desktop browser panels with conversation-scoped private tabs, exclusive
+  run leases and local takeover. Chromium remains available for vision and
+  language/time-zone emulation.
 
 - **Local project folders in the desktop app.** Connect an approved folder when
   creating a project or from its Files tab. The connection stays private to the

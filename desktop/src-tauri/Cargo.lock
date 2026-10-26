@@ -16,6 +16,7 @@ dependencies = [
  "base64 0.22.1",
  "enigo",
  "futures-util",
+ "glob",
  "image",
  "infer",
  "keyring",

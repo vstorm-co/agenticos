@@ -2110,7 +2110,8 @@
       "more": "{count, plural, =1 {Jeszcze 1 w inboksie} few {Jeszcze # w inboksie} many {Jeszcze # w inboksie} other {Jeszcze # w inboksie}}"
     },
     "turnLost": "Agent przerwał, zanim odpowiedział - serwer, na którym działał, przestał odpowiadać.",
-    "turnLostAskAgain": "Zapytaj ponownie"
+    "turnLostAskAgain": "Zapytaj ponownie",
+    "browserOpenNative": "Otwórz lokalną przeglądarkę"
   },
   "common": {
     "archiveNamedConfirm": "Zarchiwizować {name}?",
@@ -7812,7 +7813,7 @@
       },
       "allowed_domains": {
         "title": "Dozwolone domeny",
-        "description": "Hosty, na których może być przeglądarka; puste oznacza brak ograniczeń. Wzorce typu *.example.com są dozwolone. Sprawdzane w każdym kroku, nie tylko w pierwszym."
+        "description": "Hosty, na których może być przeglądarka; null nie ogranicza, a pusta lista blokuje wszystkie. Dozwolone wzorce typu *.example.com. Sprawdzane w każdym kroku, nie tylko pierwszym."
       },
       "max_steps": {
         "title": "Maksymalnie kroków na wywołanie",
@@ -7861,6 +7862,10 @@
       "locale": {
         "title": "Język przeglądarki",
         "description": "Tag języka, np. pl-PL, wysyłany jako Accept-Language i navigator.language."
+      },
+      "prefer_native_browser": {
+        "title": "Używaj natywnej przeglądarki lokalnej",
+        "description": "Używaj osadzonej natywnej karty do lokalnego przeglądania DOM. Wyłącz dla zgodności z izolowanym Chromium. Vision oraz zmiana języka lub strefy czasowej korzystają z Chromium."
       }
     },
     "channel_tools": {
@@ -8440,7 +8445,12 @@
     "unavailableTitle": "Podgląd na żywo jest niedostępny",
     "unavailableBody": "To wdrożenie nie ma Redisa do podglądów. Spróbuj za chwilę.",
     "rememberSignIn": "Zapamiętaj moje logowanie do {site} na kolejne przeglądania",
-    "signInKept": "Twoje logowanie do {site} zostało zapamiętane na kolejne przeglądania - zarządzasz nim w Ustawieniach → Logowania."
+    "signInKept": "Twoje logowanie do {site} zostało zapamiętane na kolejne przeglądania - zarządzasz nim w Ustawieniach → Logowania.",
+    "nativeReturn": "Oddaj agentowi",
+    "nativeTake": "Przejmij",
+    "nativeCloseTab": "Zamknij kartę",
+    "nativeViewport": "Natywna strona przeglądarki",
+    "nativeDesktopOnly": "Ta karta jest otwarta w sparowanej aplikacji desktopowej. Kontynuuj tam, aby używać natywnej przeglądarki."
   },
   "remoteAgents": {
     "title": "Zdalni agenci",

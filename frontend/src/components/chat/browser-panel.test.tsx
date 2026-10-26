@@ -7,6 +7,15 @@ import type { Browse } from "@/lib/browse";
 import { useAuthStore } from "@/stores";
 import { useBrowserPanelStore } from "@/stores/browser-panel-store";
 
+vi.mock("@/hooks/use-native-browser", () => ({
+  useNativeBrowser: () => ({
+    viewport: { current: null },
+    state: null,
+    error: null,
+    send: vi.fn(),
+  }),
+}));
+
 const live = vi.hoisted(() => ({
   value: {
     browse: null as Browse | null,
@@ -127,4 +136,28 @@ describe("BrowserPanel - a browse opened full screen", () => {
     await userEvent.click(screen.getByRole("button", { name: "Back under the message" }));
     expect(useBrowserPanelStore.getState().openCallId).toBeNull();
   });
+});
+
+it("shows a native tab only in the owning desktop console", () => {
+  useBrowserPanelStore.setState({ openCallId: "c1" });
+  const view = render(<BrowserPanel browses={[browse({ nativeId: "native-browser-test" })]} />);
+  expect(screen.getByText(/This tab is open in the paired desktop app/)).toBeInTheDocument();
+  view.unmount();
+});
+
+it("mounts the native renderer in the desktop console", () => {
+  window.__AGENTICOS_SHELL__ = {
+    platform: "macos",
+    version: "0.2.0",
+    window: "main",
+    vibrancy: true,
+  };
+  try {
+    useBrowserPanelStore.setState({ openCallId: "c1" });
+    const view = render(<BrowserPanel browses={[browse({ nativeId: "native-browser-test" })]} />);
+    expect(screen.getByRole("button", { name: "Close tab" })).toBeInTheDocument();
+    view.unmount();
+  } finally {
+    delete window.__AGENTICOS_SHELL__;
+  }
 });

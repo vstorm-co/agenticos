@@ -678,6 +678,8 @@ class TestOneStep:
 
 
 class _FakePage:
+    native_id: str | None = None
+
     """A page the loop can be driven against, with no browser behind it.
 
     Answers a scripted list of snapshots, one per `snapshot()` call, repeating the

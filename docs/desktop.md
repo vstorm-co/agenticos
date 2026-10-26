@@ -276,13 +276,28 @@ Remove a grant to refuse subsequent calls. The organization profile is kept for 
 Local inference has no cloud fallback;
 other capabilities configured with separate models retain their own settings.
 
-**Local browser** routes the existing `browser_use` tools to a visible Chromium
-window on the paired computer. Install Chrome, Chromium, Edge or Brave first.
-Each browse asks for native consent, uses a temporary profile and closes it when
-the browse ends or the device disconnects. Existing personal tabs and passwords
-are not imported. The chat receives DOM observations and live preview frames;
-saved sign-ins are not copied to the server. A capability configured with
-`connection: local` refuses to run without this local selection.
+**Local browser** uses a native page inside the console's browser panel after
+consent on the paired computer. Clicking, scrolling and typing happen locally;
+the page does not travel as screenshots. Its private session does not import
+personal browser tabs or passwords. Page text still reaches the agent's model.
+Manual input takes control from the agent; **Return to agent** gives it back.
+
+A native tab belongs to this computer, organization, person, agent and
+conversation. It stays open between runs; `browser_read` resumes it. Only one run
+may lease it at a time. The run renews its lease automatically; if its backend
+stops, the lease becomes available again after two minutes. **Close tab** destroys it; closing the panel only hides
+it. Disconnecting the paired device closes all its tabs. At most eight tabs are
+kept, and tabs idle for two hours may be evicted when another is opened.
+
+Disable **Use the native local browser** in the browser capability to choose
+Chromium compatibility. Tasks using vision or language/time-zone overrides also
+use the existing isolated
+Chromium window instead. Install Chrome, Chromium, Edge or Brave for that path;
+its temporary profile closes with the run. Native DOM actions use scripted
+input, which some sites distinguish from Chromium's trusted CDP input. Native
+pages expose no console or file commands: their only shell permission is a
+one-way notification that the person took control. A binding with
+`connection: local` still requires the local browser selection.
 
 ## Installers and updates
 

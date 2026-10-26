@@ -1,9 +1,10 @@
 # Browser responsiveness — 26 October 2026
 
-This change improves the current remote browser viewer and execution adapter.
-Browser sessions still end with their run. Persistent conversation sessions,
-embedded native rendering, binary/video transport and immediate interruption of
-an in-flight model request remain separate work.
+This first phase improved the remote browser viewer and execution adapter.
+Its measurements below describe that phase. Native conversation tabs and the
+subsequent bounded delivery changes are covered by
+[native browser sessions](native-browser-sessions.md). Binary/video transport
+and immediate interruption of an in-flight model request remain separate work.
 
 ## Local measurement
 

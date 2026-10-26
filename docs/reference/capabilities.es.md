@@ -1,5 +1,5 @@
 ---
-source_sha: "bdc85c9f3785"
+source_sha: "30ddbe03546d"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -772,8 +772,14 @@ final del run. Las imágenes se detienen al desconectarse el último espectador
 y se reanudan cuando vuelve; las consultas ligeras mantienen la dirección y el
 título actualizados entre acciones. La escritura no espera una captura después de cada carácter. Las
 acciones esperan una estabilidad del DOM limitada en el tiempo; la navegación
-explícita sigue el documento nuevo incluso si la URL no cambia. La pestaña sigue
-cerrándose al terminar el run.
+explícita sigue el documento nuevo incluso si la URL no cambia.
+
+Las pestañas remotas de Chromium siguen cerrándose al terminar el run; las nativas
+locales permanecen abiertas para su conversación — véase
+[Navegador local](../desktop.md#local-browser-models-and-mcp).
+La vista conserva solo el último fotograma pendiente y desconecta al receptor
+que no acepta datos durante dos segundos. Las imágenes viajan una vez por el
+socket de vista en directo, sin duplicarlas en el stream del chat.
 
 | Configuración | Por defecto | Valores |
 |---|---|---|
@@ -781,6 +787,7 @@ cerrándose al terminar el run.
 | `allowed_domains` | null | hosts en los que puede estar el navegador; se admiten patrones como `*.example.com`; null es sin restricción en la web. Toda petición que apunte dentro de la red del despliegue (una dirección privada, de loopback, link-local o de metadatos, también tras una redirección) se rechaza salvo que su host esté aquí - añade una herramienta interna para navegarla (y, tras `BROWSER_EGRESS_PROXY`, también a las excepciones del proxy) |
 | `max_steps` | 50 | 1–200; pasos por llamada, cada uno una petición al modelo |
 | `vision` | `false` | envía también al modelo la captura de cada paso; el modelo tiene que leer imágenes |
+| `prefer_native_browser` | `true` | pestaña nativa integrada para DOM local; desactivar para compatibilidad Chromium. Vision y cambios de idioma/zona horaria usan Chromium; no afecta a conexiones remotas |
 | `candidate_cap` | 60 | 2–200; cuántos elementos se pueden ofrecer en un paso |
 | `preview` | `true` | envía la vista del navegador al chat mientras navega |
 | `preview_width` | 1024 | 320–1920; el ancho de la vista y, por tanto, de los fotogramas |

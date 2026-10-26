@@ -16,12 +16,14 @@ where the conversation already goes.
 **One tab per run.** The first call opens it; later calls in the same run continue
 in it - on the same page, signed in, with the model's memory - unless they name a
 new `start_url`, which navigates the same tab. The toolset is entered for the run
-and closes the tab when the run ends, whatever ended it.
+and releases the page when the run ends, whatever ended it. Remote/Chromium
+tabs close; a native conversation tab remains for the next run.
 """
 
 import asyncio
 import base64
 import functools
+import hashlib
 import logging
 import time
 from collections.abc import Awaitable, Callable
@@ -76,6 +78,7 @@ from app.agents.capabilities.browser_use._loop import (
     RememberSignIn,
     run_browse,
 )
+from app.agents.capabilities.browser_use._native import NativePage
 from app.agents.capabilities.browser_use._page import (
     MISSING_EXTRA,
     DomainRefused,
@@ -191,7 +194,7 @@ async def _live(
             if event.image is not None and not viewers:
                 return False
             await live_browse.publish(run, call_id, event)
-            if chat is not None:
+            if chat is not None and event.image is None:
                 await chat(event)
             return viewers
         await live_browse.publish(run, call_id, event)
@@ -361,6 +364,7 @@ def build_toolset(
     page_factory: PageFactory | None = None,
     step_model: Model | None = None,
     route: BrowserRoute | None = None,
+    resume_local: bool = False,
 ) -> BrowserToolset:
     """`browse_web` and the agent's own browser tools, bound to the browser seam."""
     open_browser = page_factory if page_factory is not None else open_page
@@ -451,7 +455,7 @@ def build_toolset(
         try:
             session = toolset.session
             if session is None:
-                if not start_url:
+                if not start_url and not resume_local:
                     return (
                         "There is no browser tab open in this turn yet. Call again "
                         "with a start_url to open one."
@@ -481,7 +485,9 @@ def build_toolset(
                 policy=loop_policy,
                 call_id=call_id,
                 sink=sink,
-                control=control,
+                control=session.page.control(control, ctx.deps.user_id or "")
+                if isinstance(session.page, NativePage)
+                else control,
                 run_id=run_id,
                 remember=remember,
                 plan=plan,
@@ -510,7 +516,7 @@ def build_toolset(
             raise
         return _outcome_text(result, task)
 
-    async def open_tab(ctx: RunContext[AgentDeps], url: str) -> BrowseSession | str:
+    async def open_tab(ctx: RunContext[AgentDeps], url: str | None) -> BrowseSession | str:
         """Open the run's tab on `url`, or say in a sentence why the browser is not there."""
         person = _signed_in_as(ctx.deps)
         # Never into a hosted browser: its address is the agent's author's choice,
@@ -528,9 +534,25 @@ def build_toolset(
                 pinned_route = await recheck(route)
             except UrlRefusedError as exc:
                 return f"This agent's browser connection cannot be used: {exc}"
+        options: dict[str, object] = {}
+        if resume_local:
+            deps = ctx.deps
+            if (
+                deps.organization_id is not None
+                and deps.user_id is not None
+                and deps.agent_id is not None
+                and deps.conversation_id is not None
+            ):
+                identity = (
+                    f"{deps.organization_id}:{deps.user_id}:{deps.agent_id}:{deps.conversation_id}"
+                )
+                options["conversation_scope"] = hashlib.sha256(identity.encode()).hexdigest()
+            elif url is None:
+                return NO_TAB
         try:
             return await toolset.open(
                 open_browser,
+                **options,
                 cdp_url=cdp_url,
                 start_url=url,
                 policy=page_policy,
@@ -561,7 +583,9 @@ def build_toolset(
         toolset.view = DirectView(
             call_id=call_id,
             sink=sink,
-            control=control,
+            control=toolset.session.page.control(control, ctx.deps.user_id or "")
+            if toolset.session is not None and isinstance(toolset.session.page, NativePage)
+            else control,
             run_id=run_id,
             remember=None if person is None else _remembering(person),
             preview=loop_policy.preview,
@@ -625,12 +649,25 @@ def build_toolset(
             raise
 
     async def browser_read(ctx: RunContext[AgentDeps]) -> str:
-        """Read the open page again - after waiting for it, or to see it as it is now.
+        """Read the open page again, or resume this conversation's native local tab.
+
+        Use this before continuing native local work from an earlier turn: the
+        tab may persist, but element numbers must come from a fresh page read.
 
         Returns:
             The page's address and title, its numbered elements and its text.
         """
         session = toolset.session
+        if session is None and resume_local:
+            try:
+                opened = await open_tab(ctx, None)
+            except (DomainRefused, EndpointError) as exc:
+                return str(exc)
+            if isinstance(opened, str):
+                return opened
+            session = opened
+            view, _ = await direct_view(ctx, WORKING)
+            await open_view(view, session, WORKING)
         if session is None:
             return NO_TAB
         snapshot = await session.page.snapshot()

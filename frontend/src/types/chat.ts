@@ -347,6 +347,7 @@ export interface BrowserFrame {
   step: number;
   url?: string | null;
   title?: string | null;
+  native_id?: string | null;
   navigable?: boolean;
   /** On the opening frame: the ceiling, so progress reads as 3/25. */
   max_steps?: number | null;

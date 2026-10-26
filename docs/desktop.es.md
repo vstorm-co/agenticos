@@ -1,5 +1,5 @@
 ---
-source_sha: "92fafc5f91d2"
+source_sha: "1f04e9369e53"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -295,13 +295,28 @@ El perfil de la organización se conserva para la atribución sin abrir sus cred
 La inferencia local no recurre a la nube; las capacidades con modelos separados
 mantienen su configuración.
 
-**Local browser** ejecuta las herramientas existentes de `browser_use` en una
-ventana visible de Chromium del equipo emparejado. Instala Chrome, Chromium,
-Edge o Brave. Cada navegación pide consentimiento nativo, usa un perfil temporal
-y lo cierra al finalizar o desconectar el dispositivo. No importa pestañas ni
-contraseñas personales. El chat recibe observaciones DOM y fotogramas de vista
-previa; los inicios de sesión guardados no se copian al servidor. Una capacidad
-con `connection: local` rechaza la ejecución sin esta selección local.
+**Local browser** muestra una página nativa en el panel del navegador de la
+consola tras el consentimiento en el equipo emparejado. Los clics, el scroll y la
+escritura ocurren localmente, sin transmitir capturas. La sesión privada no
+importa pestañas ni contraseñas personales. El texto de la página sigue llegando
+al modelo del agente. La interacción manual toma el control; **Return to agent**
+lo devuelve al agente.
+
+La pestaña nativa pertenece al equipo, organización, persona, agente y conversación.
+Permanece abierta entre runs; `browser_read` la reanuda. Solo un run puede usarla
+a la vez. El run renueva su lease automáticamente; si su backend se detiene,
+la lease vuelve a estar disponible tras dos minutos. **Close tab** la elimina; cerrar el panel solo la oculta. Desconectar el
+equipo emparejado cierra todas sus pestañas. Se conservan hasta ocho; las inactivas
+durante dos horas pueden eliminarse al abrir otra.
+
+Para elegir compatibilidad con Chromium, desactiva **Use the native local browser**
+en la capacidad del navegador. Las tareas con vision o cambios de idioma o zona
+horaria también usan una ventana
+Chromium aislada. Esa ruta requiere Chrome, Chromium, Edge o Brave y cierra su
+perfil temporal al terminar el run. Las acciones DOM nativas usan scripts, que
+algunas páginas distinguen de la entrada CDP de confianza. Las páginas no reciben
+permisos de consola ni archivos; solo pueden notificar una toma de control.
+`connection: local` sigue requiriendo la selección del navegador local.
 
 ## Instaladores y actualizaciones { #installers-and-updates }
 

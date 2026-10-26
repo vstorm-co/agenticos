@@ -45,7 +45,13 @@ class _PubSub:
     async def listen(self) -> AsyncIterator[dict[str, Any]]:
         yield {"type": "subscribe", "data": 1}
         for data in self.store.queued_messages:
-            yield {"type": "message", "data": data}
+            try:
+                picture = json.loads(data).get("image") is not None
+            except json.JSONDecodeError:
+                picture = False
+            channel = _key("pictures" if picture else "events")
+            if channel in self.channels:
+                yield {"type": "message", "data": data, "channel": channel}
 
     async def aclose(self) -> None:
         self.closed = True
@@ -242,7 +248,7 @@ class TestKeeping:
 
         assert BrowserEvent.model_validate_json(store.values[_key("frame")]).step == 2
         assert _key("trace") not in store.lists
-        assert [channel for channel, _ in store.published] == [_key("events")] * 2
+        assert [channel for channel, _ in store.published] == [_key("pictures")] * 2
 
     async def test_every_other_frame_is_appended_to_a_bounded_trace(
         self, store: _Store, monkeypatch: pytest.MonkeyPatch
@@ -299,6 +305,9 @@ class TestWatching:
         """A channel posts words and a link, never a screenshot."""
         store.queued_messages = [
             _frame().model_dump_json(),
+            BrowserEvent(
+                kind="browser_frame", call_id=CALL, step=0, url="https://example.test/"
+            ).model_dump_json(),
             "not json",
             _step(4).model_dump_json(),
         ]
@@ -795,3 +804,127 @@ async def test_failed_presence_subscription_closes_its_event_connection(
         async with live_browse._subscription(RUN, CALL, viewer=True):
             pytest.fail("The failed subscription must not open")
     assert subscription.closed
+
+
+def _preview_packet(event: BrowserEvent) -> live_browse._PreviewPacket:
+    return live_browse._PreviewPacket(event.model_dump_json(), event.image is not None)
+
+
+async def test_preview_delivery_keeps_the_newest_image_and_preserves_narration() -> None:
+    from collections.abc import AsyncGenerator
+
+    async def source() -> AsyncGenerator[live_browse._PreviewPacket]:
+        yield _preview_packet(_step(1))
+        for index in range(100):
+            yield _preview_packet(_frame(index))
+        yield _preview_packet(_step(2))
+
+    received: list[BrowserEvent] = []
+
+    async def deliver(raw: str) -> None:
+        received.append(BrowserEvent.model_validate_json(raw))
+
+    assert await live_browse._deliver_preview(source(), deliver)
+    assert [event.step for event in received if event.kind == "browser_step"] == [1, 2]
+    pictures = [event for event in received if event.image is not None]
+    assert len(pictures) == 1 and pictures[0].step == 99
+
+
+async def test_preview_delivery_disconnects_a_writer_that_stops_responding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from collections.abc import AsyncGenerator
+
+    monkeypatch.setattr(live_browse, "PREVIEW_SEND_TIMEOUT", 0.01)
+
+    async def source() -> AsyncGenerator[live_browse._PreviewPacket]:
+        yield _preview_packet(_frame())
+
+    async def deliver(raw: str) -> None:
+        await anyio.sleep_forever()
+
+    assert not await live_browse._deliver_preview(source(), deliver)
+
+
+async def test_preview_delivery_refuses_an_unbounded_narration_backlog(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from collections.abc import AsyncGenerator
+
+    monkeypatch.setattr(live_browse, "PREVIEW_EVENT_LIMIT", 2)
+
+    async def source() -> AsyncGenerator[live_browse._PreviewPacket]:
+        for index in range(3):
+            yield _preview_packet(_step(index))
+
+    deliver = AsyncMock()
+    assert not await live_browse._deliver_preview(source(), deliver)
+
+
+async def test_an_empty_preview_subscription_ends_without_a_frame() -> None:
+    from collections.abc import AsyncGenerator
+
+    async def source() -> AsyncGenerator[live_browse._PreviewPacket]:
+        for event in ():
+            yield live_browse._PreviewPacket(str(event), False)
+
+    deliver = AsyncMock()
+    assert await live_browse._deliver_preview(source(), deliver)
+    deliver.assert_not_awaited()
+
+
+async def test_preview_delivery_keeps_painting_while_the_subscription_is_open() -> None:
+    from collections.abc import AsyncGenerator
+
+    first = anyio.Event()
+
+    async def source() -> AsyncGenerator[live_browse._PreviewPacket]:
+        yield _preview_packet(_frame(1))
+        await first.wait()
+        yield _preview_packet(_frame(2))
+
+    received: list[int] = []
+
+    async def deliver(raw: str) -> None:
+        received.append(BrowserEvent.model_validate_json(raw).step)
+        first.set()
+
+    assert await live_browse._deliver_preview(source(), deliver)
+    assert received == [1, 2]
+
+
+async def test_a_timed_out_preview_socket_is_closed_for_reconnection(
+    monkeypatch: pytest.MonkeyPatch,
+    store: _Store,
+) -> None:
+    class SlowSocket(_Socket):
+        async def send_text(self, text: str) -> None:
+            if json.loads(text).get("kind") == "browser_step":
+                await anyio.sleep_forever()
+            await super().send_text(text)
+
+    await live_browse.open_view(RUN, CALL, _meta())
+    store.queued_messages = [_step(1).model_dump_json()]
+    monkeypatch.setattr(live_browse, "access_for", _access(control=False))
+    monkeypatch.setattr(live_browse, "PREVIEW_SEND_TIMEOUT", 0.01)
+    socket = SlowSocket()
+    await live_browse.stream(socket, auth_token="token", run_id=RUN, call_id=CALL)
+    assert socket.closed is not None and socket.closed[0] == 1013
+    assert not await live_browse.has_viewers(RUN, CALL)
+
+
+async def test_a_stalled_initial_snapshot_does_not_keep_a_viewer_registered(
+    monkeypatch: pytest.MonkeyPatch,
+    store: _Store,
+) -> None:
+    class StalledSocket(_Socket):
+        async def send_text(self, text: str) -> None:
+            await anyio.sleep_forever()
+
+    await live_browse.open_view(RUN, CALL, _meta())
+    monkeypatch.setattr(live_browse, "access_for", _access(control=False))
+    monkeypatch.setattr(live_browse, "PREVIEW_SEND_TIMEOUT", 0.01)
+    socket = StalledSocket()
+    await live_browse.stream(socket, auth_token="token", run_id=RUN, call_id=CALL)
+    assert socket.closed is not None and socket.closed[0] == 1013
+    assert not await live_browse.has_viewers(RUN, CALL)

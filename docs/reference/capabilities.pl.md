@@ -1,5 +1,5 @@
 ---
-source_sha: "bdc85c9f3785"
+source_sha: "30ddbe03546d"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -758,7 +758,13 @@ aż do końca runu. Obrazy przestają być przesyłane po odłączeniu ostatnieg
 i wracają po jego ponownym połączeniu; lekkie odczyty adresu i tytułu aktualizują
 je także między akcjami. Wpisywanie nie czeka na screenshot po każdym znaku. Akcje czekają
 na ograniczoną czasowo stabilność DOM, a jawna nawigacja śledzi nowy dokument także
-przy niezmienionym URL-u. Karta nadal zamyka się po zakończeniu runu.
+przy niezmienionym URL-u.
+
+Zdalne karty Chromium nadal zamykają się po runie; natywne karty lokalne pozostają
+otwarte dla rozmowy — zobacz [Lokalna przeglądarka](../desktop.md#local-browser-models-and-mcp).
+Podgląd zachowuje tylko najnowszą oczekującą klatkę i rozłącza odbiorcę, który nie
+przyjmuje danych przez dwie sekundy. Obrazy płyną raz przez live view, bez kopii w
+strumieniu czatu.
 
 | Konfiguracja | Domyślnie | Wartości |
 |---|---|---|
@@ -766,6 +772,7 @@ przy niezmienionym URL-u. Karta nadal zamyka się po zakończeniu runu.
 | `allowed_domains` | null | hosty, na których może być przeglądarka; wzorce typu `*.example.com` dozwolone; null to brak ograniczeń w sieci. Każde żądanie, które wskazuje do wnętrza sieci wdrożenia (adres prywatny, loopback, link-local albo metadanych, także po przekierowaniu), jest odrzucane, chyba że jego host jest tu wpisany - wpisz wewnętrzne narzędzie, żeby je przeglądać (a za `BROWSER_EGRESS_PROXY` dodaj je też do wyjątków proxy) |
 | `max_steps` | 50 | 1–200; kroki na wywołanie, każdy to jedno zapytanie do modelu |
 | `vision` | `false` | wysyłaj modelowi także zrzut ekranu z każdego kroku; model musi czytać obrazy |
+| `prefer_native_browser` | `true` | natywna osadzona karta do lokalnego DOM; wyłącz dla zgodności z Chromium. Vision i zmiana języka/strefy czasowej używają Chromium; połączenia zdalne pozostają bez zmian |
 | `candidate_cap` | 60 | 2–200; ile elementów można zaproponować w jednym kroku |
 | `preview` | `true` | wysyłaj widok przeglądarki do czatu w trakcie przeglądania |
 | `preview_width` | 1024 | 320–1920; szerokość widoku, a więc i klatek |

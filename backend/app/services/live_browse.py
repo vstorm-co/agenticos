@@ -20,11 +20,14 @@ What a person types waits in the command queue only until the browse reads it,
 and is never recorded: the run's history says only that somebody took over.
 """
 
+import asyncio
 import contextlib
 import json
 import logging
 import time
-from collections.abc import AsyncGenerator
+from collections import deque
+from collections.abc import AsyncGenerator, AsyncIterable, Awaitable, Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -180,7 +183,10 @@ async def publish(run_id: str, call_id: str, event: BrowserEvent) -> None:
             pipe.ltrim(trace, -HISTORY_LIMIT, -1)
             pipe.expire(trace, TTL_SECONDS)
         pipe.expire(_key(run_id, call_id, "meta"), TTL_SECONDS)
-        pipe.publish(_key(run_id, call_id, "events"), body)
+        channel = (
+            "pictures" if event.kind == "browser_frame" and event.image is not None else "events"
+        )
+        pipe.publish(_key(run_id, call_id, channel), body)
         await pipe.execute()
     except Exception:
         logger.exception("live_browse_publish_failed")
@@ -334,6 +340,7 @@ async def _subscription(
     try:
         await pubsub.subscribe(_key(run_id, call_id, "events"))
         if viewer:
+            await pubsub.subscribe(_key(run_id, call_id, "pictures"))
             # Only authenticated image viewers subscribe to this payload-free marker.
             # Trace-only channel watchers must not keep screenshots running.
             await pubsub.subscribe(_key(run_id, call_id, "viewers"))
@@ -381,6 +388,74 @@ REVALIDATE_SECONDS = 30.0
 """How often an open live view asks again whether its viewer may still watch."""
 
 
+PREVIEW_SEND_TIMEOUT = 2.0
+PREVIEW_EVENT_LIMIT = 64
+
+
+@dataclass(frozen=True, slots=True)
+class _PreviewPacket:
+    raw: str
+    picture: bool
+
+
+async def _deliver_preview(
+    source: AsyncIterable[_PreviewPacket], deliver: Callable[[str], Awaitable[None]]
+) -> bool:
+    """Coalesce images for a slow reader; bound narration and each socket write.
+
+    At most one unsent JPEG and one in-flight JPEG are retained. Narration is
+    ordered and never silently dropped: overflow disconnects this viewer so it
+    can reconnect to a fresh snapshot. Other viewers and the agent keep running.
+    """
+    events: deque[str] = deque()
+    picture: str | None = None
+    wake = asyncio.Event()
+    done = False
+    slow = False
+    async with anyio.create_task_group() as tasks:
+
+        async def collect() -> None:
+            nonlocal picture, done, slow
+            try:
+                async for packet in source:
+                    if packet.picture:
+                        picture = packet.raw
+                    elif len(events) < PREVIEW_EVENT_LIMIT:
+                        events.append(packet.raw)
+                    else:
+                        slow = True
+                        tasks.cancel_scope.cancel()
+                        return
+                    wake.set()
+            finally:
+                done = True
+                wake.set()
+
+        async def paint() -> None:
+            nonlocal picture, slow
+            while True:
+                await wake.wait()
+                wake.clear()
+                while events or picture is not None:
+                    if events:
+                        raw = events.popleft()
+                    else:
+                        assert picture is not None
+                        raw, picture = picture, None
+                    with anyio.move_on_after(PREVIEW_SEND_TIMEOUT) as deadline:
+                        await deliver(raw)
+                    if deadline.cancel_called:
+                        slow = True
+                        tasks.cancel_scope.cancel()
+                        return
+                if done:
+                    return
+
+        tasks.start_soon(collect)
+        tasks.start_soon(paint)
+    return not slow
+
+
 async def stream(websocket: WebSocket, *, auth_token: str, run_id: str, call_id: str) -> None:
     """Serve one viewer of one browse until either side is done.
 
@@ -401,19 +476,25 @@ async def stream(websocket: WebSocket, *, auth_token: str, run_id: str, call_id:
     if access is None:
         await websocket.close(code=_FORBIDDEN_CLOSE_CODE, reason="Not allowed to watch")
         return
-    await websocket.send_text(
-        json.dumps(
-            {
-                "type": "browser_snapshot",
-                "task": meta.task,
-                "started_at": meta.started_at.astimezone(UTC).isoformat(),
-                "can_control": access.control,
-                "can_remember": access.own and meta.remembers,
-                "trace": [json.loads(item) for item in trace],
-                "frame": json.loads(frame) if frame else None,
-            }
+    with anyio.move_on_after(PREVIEW_SEND_TIMEOUT) as initial:
+        await websocket.send_text(
+            json.dumps(
+                {
+                    "type": "browser_snapshot",
+                    "task": meta.task,
+                    "started_at": meta.started_at.astimezone(UTC).isoformat(),
+                    "can_control": access.control,
+                    "can_remember": access.own and meta.remembers,
+                    "trace": [json.loads(item) for item in trace],
+                    "frame": json.loads(frame) if frame else None,
+                }
+            )
         )
-    )
+    if initial.cancel_called:
+        await websocket.close(
+            code=1013, reason="Preview reader is too slow; reconnect for a fresh snapshot"
+        )
+        return
 
     # What the viewer may do now, not what they could at the handshake: a key
     # revoked, a membership removed or an edit grant withdrawn while the socket is
@@ -455,11 +536,23 @@ async def stream(websocket: WebSocket, *, auth_token: str, run_id: str, call_id:
         _subscription(run_id, call_id, viewer=True) as pubsub,
         anyio.create_task_group() as tasks,
     ):
+        slow = False
 
-        async def forward() -> None:
+        async def incoming() -> AsyncGenerator[_PreviewPacket]:
             async for message in pubsub.listen():
                 if message.get("type") == "message":
-                    await websocket.send_text(str(message["data"]))
+                    # RedisClient decodes channel names. Routing by channel avoids
+                    # parsing/reallocating the base64 JPEG merely to classify it.
+                    yield _PreviewPacket(
+                        str(message["data"]),
+                        message.get("channel") == _key(run_id, call_id, "pictures"),
+                    )
+
+        async def forward() -> None:
+            nonlocal slow
+            if not await _deliver_preview(incoming(), websocket.send_text):
+                slow = True
+                tasks.cancel_scope.cancel()
 
         async def reader() -> None:
             await commands()
@@ -477,3 +570,7 @@ async def stream(websocket: WebSocket, *, auth_token: str, run_id: str, call_id:
         tasks.start_soon(revalidate)
     if lost:
         await websocket.close(code=_FORBIDDEN_CLOSE_CODE, reason="Not allowed to watch")
+    elif slow:
+        await websocket.close(
+            code=1013, reason="Preview reader is too slow; reconnect for a fresh snapshot"
+        )

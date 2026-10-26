@@ -1,5 +1,5 @@
 ---
-source_sha: "92fafc5f91d2"
+source_sha: "1f04e9369e53"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -285,13 +285,27 @@ obsługiwane. Usunięcie uprawnienia blokuje kolejne wywołania. Profil organiza
 Lokalny model nie ma awaryjnego przełączenia na chmurę; pozostałe funkcje z osobnymi modelami zachowują
 swoje ustawienia.
 
-**Lokalna przeglądarka** kieruje dotychczasowe narzędzia `browser_use` do widocznego
-okna Chromium na sparowanym komputerze. Zainstaluj Chrome, Chromium, Edge lub Brave.
-Każde przeglądanie wymaga natywnej zgody, używa tymczasowego profilu i zamyka go po
-zakończeniu lub rozłączeniu urządzenia. Osobiste karty i hasła nie są importowane.
-Czat otrzymuje obserwacje DOM i klatki podglądu; zapisane logowania nie trafiają na
-serwer. Konfiguracja `connection: local` odmawia działania bez wyboru lokalnego
-przeglądania.
+**Lokalna przeglądarka** po zgodzie na sparowanym komputerze pokazuje natywną
+stronę w panelu przeglądarki konsoli. Kliknięcia, przewijanie i wpisywanie odbywają
+się lokalnie, bez przesyłania screenshotów. Prywatna sesja nie importuje osobistych
+kart ani haseł. Tekst strony nadal trafia do modelu agenta. Ręczna interakcja
+przejmuje sterowanie; **Oddaj agentowi** zwraca je agentowi.
+
+Natywna karta należy do komputera, organizacji, osoby, agenta i rozmowy. Pozostaje
+otwarta między runami, a `browser_read` ją wznawia. W danej chwili może jej używać
+jeden run. Run odnawia dzierżawę automatycznie; po zatrzymaniu jego backendu
+dzierżawa staje się ponownie dostępna po dwóch minutach. **Zamknij kartę** ją usuwa; zamknięcie panelu tylko ją ukrywa.
+Rozłączenie sparowanego urządzenia zamyka wszystkie jego karty. Limit to osiem
+kart; karty nieaktywne przez dwie godziny mogą zostać usunięte przy otwarciu kolejnej.
+
+Aby wybrać zgodność z Chromium, wyłącz **Używaj natywnej przeglądarki lokalnej**
+w ustawieniach funkcji przeglądarki. Zadania z vision lub zmianą języka albo strefy
+czasowej także używają izolowanego
+okna Chromium. Ta ścieżka wymaga Chrome, Chromium, Edge lub Brave i zamyka
+profil po runie. Akcje w natywnym DOM korzystają ze skryptów; niektóre strony
+odróżniają je od zaufanego wejścia CDP. Strony nie mają uprawnień konsoli ani
+plików; mogą tylko zgłosić przejęcie sterowania. Konfiguracja `connection: local`
+nadal wymaga wyboru lokalnej przeglądarki.
 
 ## Instalatory i aktualizacje { #installers-and-updates }
 

@@ -1,8 +1,8 @@
-"""The ordinary browser tools, backed by the desktop's approved local Chromium.
+"""Browser tools over the paired app's native WebView or isolated Chromium.
 
-The page reader and stale-element checks are shared with hosted browsing. Only
-CDP transport differs. Cookies stay on the computer and are never exported to
-the server's saved-sign-in store. Each browse owns a disposable native profile.
+DOM reading and element checks are shared. Native conversation tabs release an
+exclusive lease between runs; Chromium closes its disposable profile. Cookies
+stay on the computer and are never exported to the server's saved-sign-in store.
 """
 
 import asyncio
@@ -16,6 +16,7 @@ from pydantic import JsonValue, TypeAdapter
 
 from app.agents.browser_sign_ins import SignIn
 from app.agents.capabilities.browser_use._endpoint import EndpointError, domain_allowed
+from app.agents.capabilities.browser_use._native import NativePage, native_action_active
 from app.agents.capabilities.browser_use._page import (
     _SAME_TAB_JS,
     CdpPage,
@@ -25,6 +26,8 @@ from app.agents.capabilities.browser_use._page import (
 from app.agents.capabilities.browser_use._route import BrowserRoute
 from app.agents.capabilities.browser_use._toolset import PageFactory
 from app.services import device_hub
+
+LEASE_HEARTBEAT = 30.0
 
 logger = logging.getLogger(__name__)
 _object = TypeAdapter(dict[str, JsonValue])
@@ -48,8 +51,9 @@ async def _call(
 class _Commands:
     """The CDP subset CdpPage uses; native code holds the real endpoint."""
 
-    def __init__(self, session_id: UUID, browse_id: str) -> None:
-        self.session_id, self.browse_id = session_id, browse_id
+    def __init__(self, session_id: UUID, browse_id: str, lease: str | None = None) -> None:
+        self.session_id, self.browse_id, self.lease = session_id, browse_id, lease
+        self.lease_failure: str | None = None
         # CdpPage consumes the CDP client's named domains. These aliases retain
         # that interface without a dynamic __getattr__ or vendor transport.
         self.send = self
@@ -59,10 +63,17 @@ class _Commands:
         self.Emulation = self
 
     async def _send(self, method: str, params: dict[str, JsonValue]) -> dict[str, JsonValue]:
+        if self.lease_failure is not None:
+            raise EndpointError(self.lease_failure)
+        args: dict[str, JsonValue] = {"id": self.browse_id, "method": method, "params": params}
+        if self.lease is not None:
+            args["lease"] = self.lease
+            if method == "Runtime.evaluate" and native_action_active():
+                args["native_action"] = True
         return await _call(
             self.session_id,
             "browser.command",
-            {"id": self.browse_id, "method": method, "params": params},
+            args,
             timeout=35,
         )
 
@@ -146,69 +157,150 @@ class LocalPage(CdpPage):
         return None
 
 
-def page_factory(session_id: UUID) -> PageFactory:
+async def _prepare_local(
+    page: LocalPage | NativePage,
+    commands: _Commands,
+    route: BrowserRoute | None,
+    start_url: str | None,
+    policy: PagePolicy,
+    *,
+    is_native: bool,
+) -> None:
+    """Configure the selected engine and establish its initial document."""
+    if is_native and route is not None and (route.timezone or route.locale):
+        raise DomainRefused(
+            "Native browsing uses this computer's language and time zone. Use Chromium to override them."
+        )
+    if route is not None and route.timezone:
+        await commands._send("Emulation.setTimezoneOverride", {"timezoneId": route.timezone})
+    if route is not None and route.locale:
+        result = await commands._send(
+            "Runtime.evaluate", {"expression": "navigator.userAgent", "returnByValue": True}
+        )
+        remote = result.get("result")
+        agent = remote.get("value") if isinstance(remote, dict) else None
+        if not isinstance(agent, str) or not agent:
+            raise RuntimeError("The local browser did not describe its user agent.")
+        await commands._send(
+            "Emulation.setUserAgentOverride",
+            {"userAgent": agent, "acceptLanguage": route.locale},
+        )
+        await commands._send(
+            "Emulation.setLocaleOverride", {"locale": route.locale.replace("-", "_")}
+        )
+    if not is_native:
+        await commands._send("Page.addScriptToEvaluateOnNewDocument", {"source": _SAME_TAB_JS})
+        await page.resize(policy.preview_width, round(policy.preview_width * 0.7), 1)
+    if start_url is not None:
+        await page.navigate(start_url)
+    elif not is_native:
+        raise EndpointError(
+            "This desktop version does not support persistent browser tabs. Update AgenticOS."
+        )
+
+
+def page_factory(session_id: UUID, *, native: bool = True) -> PageFactory:
     """Bind a page factory to the already authorized owner's paired session."""
 
     @asynccontextmanager
     async def open_local(
         *,
         cdp_url: str,
-        start_url: str,
+        start_url: str | None,
         policy: PagePolicy,
         sign_ins: Sequence[SignIn] = (),
         route: BrowserRoute | None = None,
-    ) -> AsyncGenerator[LocalPage]:
-        if not domain_allowed(start_url, policy.allowed_domains):
+        conversation_scope: str | None = None,
+    ) -> AsyncGenerator[LocalPage | NativePage]:
+        if start_url is not None and not domain_allowed(start_url, policy.allowed_domains):
             raise DomainRefused("This URL is outside the agent's allowed domains.")
         if route is not None and (route.proxy_server or route.remote_url is not None):
             raise DomainRefused(
                 "Local browsing needs the local or built-in connection, without a proxy or hosted browser."
             )
-        answer = await _call(session_id, "browser.open", {}, timeout=120)
+        args: dict[str, JsonValue] = {}
+        if native:
+            args = {
+                "engine": "native",
+                "scope": conversation_scope,
+                "allowed_domains": list(policy.allowed_domains)
+                if policy.allowed_domains is not None
+                else None,
+                "resume": start_url is None,
+                "start_url": start_url,
+            }
+        elif start_url is None:
+            raise EndpointError("Chromium browsing needs a start URL.")
+        answer = await _call(session_id, "browser.open", args, timeout=120)
         browse_id = answer.get("id")
         if not isinstance(browse_id, str) or not browse_id:
             raise RuntimeError("The computer did not open a browser window.")
-        commands = _Commands(session_id, browse_id)
-        page = LocalPage(commands, browse_id, policy)
+        is_native = answer.get("native") is True
+        lease = answer.get("lease")
+        if is_native and (not isinstance(lease, str) or not lease):
+            raise EndpointError("The native browser did not issue a lease.")
+        lease = lease if isinstance(lease, str) else None
+        commands = _Commands(session_id, browse_id, lease)
+        page = (
+            NativePage(commands, browse_id, policy, session_id=session_id, lease=lease)
+            if is_native and lease is not None
+            else LocalPage(commands, browse_id, policy)
+        )
+
+        async def heartbeat() -> None:
+            try:
+                while True:
+                    await anyio.sleep(LEASE_HEARTBEAT)
+                    await _call(
+                        session_id,
+                        "browser.heartbeat",
+                        {"id": browse_id, "lease": lease},
+                        timeout=5,
+                    )
+            except EndpointError as exc:
+                commands.lease_failure = str(exc)
+                logger.warning("Native browser lease heartbeat stopped", exc_info=True)
+
+        renewal = asyncio.create_task(heartbeat()) if is_native else None
+        primary: BaseException | None = None
         try:
-            if route is not None and route.timezone:
-                await commands._send(
-                    "Emulation.setTimezoneOverride", {"timezoneId": route.timezone}
-                )
-            if route is not None and route.locale:
-                result = await commands._send(
-                    "Runtime.evaluate", {"expression": "navigator.userAgent", "returnByValue": True}
-                )
-                remote = result.get("result")
-                agent = remote.get("value") if isinstance(remote, dict) else None
-                if not isinstance(agent, str) or not agent:
-                    raise RuntimeError("The local browser did not describe its user agent.")
-                await commands._send(
-                    "Emulation.setUserAgentOverride",
-                    {"userAgent": agent, "acceptLanguage": route.locale},
-                )
-                await commands._send(
-                    "Emulation.setLocaleOverride", {"locale": route.locale.replace("-", "_")}
-                )
-            await commands._send("Page.addScriptToEvaluateOnNewDocument", {"source": _SAME_TAB_JS})
-            await page.resize(policy.preview_width, round(policy.preview_width * 0.7), 1)
-            await page.navigate(start_url)
+            await _prepare_local(page, commands, route, start_url, policy, is_native=is_native)
             yield page
+        except BaseException as exc:
+            primary = exc
+            raise
         finally:
-            # A cancelled agent still closes its native window and profile.
+            # Join the lease heartbeat before release; a late heartbeat must not
+            # revive a lease that the next run has already acquired.
             with anyio.CancelScope(shield=True):
                 try:
-                    await device_hub.call(
-                        session_id, "browser.close", {"id": browse_id}, timeout=10
-                    )
-                except (
-                    device_hub.DeviceUnavailable,
-                    device_hub.DeviceCallFailed,
-                    device_hub.DeviceCallTimedOut,
-                ):
-                    logger.warning(
-                        "Could not close a local browser; the app closes it when the device disconnects",
-                        exc_info=True,
-                    )
+                    if renewal is not None:
+                        renewal.cancel()
+                        with suppress(asyncio.CancelledError):
+                            await renewal
+                except BaseException:
+                    if primary is None:
+                        raise
+                    logger.exception("Native browser heartbeat failed during cleanup")
+                finally:
+                    try:
+                        cleanup: dict[str, JsonValue] = {"id": browse_id}
+                        if lease is not None:
+                            cleanup["lease"] = lease
+                        await device_hub.call(
+                            session_id,
+                            "browser.release" if is_native else "browser.close",
+                            cleanup,
+                            timeout=10,
+                        )
+                    except (
+                        device_hub.DeviceUnavailable,
+                        device_hub.DeviceCallFailed,
+                        device_hub.DeviceCallTimedOut,
+                    ):
+                        logger.warning(
+                            "Could not release a local browser; disconnect closes its tabs",
+                            exc_info=True,
+                        )
 
     return open_local

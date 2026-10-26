@@ -4,6 +4,8 @@
 // console's - is granted exactly the commands it uses, in `capabilities/` and
 // in `console::GRANTS`.
 const COMMANDS: &[&str] = &[
+    "native_browser_view",
+    "native_browser_input",
     "server_url",
     "startup_notice",
     "connect",

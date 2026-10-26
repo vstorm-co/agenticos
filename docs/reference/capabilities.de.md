@@ -1,5 +1,5 @@
 ---
-source_sha: "bdc85c9f3785"
+source_sha: "30ddbe03546d"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -806,7 +806,13 @@ seiner Rückkehr fortgesetzt. Leichte Abfragen halten Adresse und Titel auch
 zwischen Aktionen aktuell.
 Die Texteingabe wartet nicht nach jedem Zeichen auf einen Screenshot. Aktionen
 warten begrenzt auf DOM-Stabilität; eine explizite Navigation verfolgt das neue
-Dokument auch bei gleicher URL. Der Tab schließt weiterhin am Ende des Runs.
+Dokument auch bei gleicher URL.
+
+Remote-Chromium-Tabs schließen weiterhin mit dem Run; native lokale Tabs bleiben
+für ihr Gespräch offen — siehe [Lokaler Browser](../desktop.md#local-browser-models-and-mcp).
+Die Vorschau behält nur das neueste wartende Bild und trennt einen Empfänger,
+der zwei Sekunden lang keine Daten annimmt. Bilder laufen einmal über den
+Live-View-Socket, ohne doppelte Kopie im Chatstream.
 
 | Konfiguration | Standard | Werte |
 |---|---|---|
@@ -814,6 +820,7 @@ Dokument auch bei gleicher URL. Der Tab schließt weiterhin am Ende des Runs.
 | `allowed_domains` | null | Hosts, auf denen der Browser sein darf; Muster wie `*.example.com` erlaubt; null heißt keine Einschränkung im Web. Jede Anfrage, die ins Netz der Installation zeigt (private, Loopback-, Link-Local- oder Metadaten-Adresse, auch nach einer Weiterleitung), wird abgelehnt, außer ihr Host steht hier - tragen Sie ein internes Werkzeug ein, um es zu besuchen (und hinter `BROWSER_EGRESS_PROXY` auch in die Ausnahmen des Proxys) |
 | `max_steps` | 50 | 1–200; Schritte pro Aufruf, jeder eine Modellanfrage |
 | `vision` | `false` | sendet dem Modell bei jedem Schritt auch einen Screenshot; das Modell muss Bilder lesen |
+| `prefer_native_browser` | `true` | nativer eingebetteter Tab für lokales DOM; für Chromium-Kompatibilität deaktivieren. Vision und Sprach-/Zeitzonenüberschreibungen verwenden Chromium; Remote-Verbindungen bleiben unverändert |
 | `candidate_cap` | 60 | 2–200; wie viele Elemente in einem Schritt angeboten werden dürfen |
 | `preview` | `true` | sendet die Ansicht in den Chat, während das Browsen läuft |
 | `preview_width` | 1024 | 320–1920; die Breite der Ansicht und damit der Vorschaubilder |

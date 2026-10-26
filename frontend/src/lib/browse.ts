@@ -58,6 +58,7 @@ export interface Browse {
    * right.
    */
   imageStep: number;
+  nativeId?: string | null;
   navigable?: boolean;
   controlError?: string | null;
   outcome: BrowseOutcome | null;
@@ -87,6 +88,7 @@ function opened(frame: BrowserFrame): Browse {
     steps: [],
     image: null,
     imageStep: -1,
+    nativeId: frame.native_id ?? null,
     navigable: frame.navigable === true,
     controlError: null,
     outcome: null,

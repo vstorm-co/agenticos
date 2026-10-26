@@ -91,6 +91,7 @@ async def open_view(view: DirectView, session: BrowseSession, goal: str) -> Snap
         BrowserEvent(
             kind="browser_opened",
             navigable=True,
+            native_id=session.page.native_id,
             call_id=view.call_id,
             step=session.steps,
             url=snapshot.url,

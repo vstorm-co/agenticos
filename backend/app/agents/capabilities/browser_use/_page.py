@@ -662,6 +662,8 @@ class CdpPage:
     clicking "element 7" after that is clicking whatever moved into seventh place.
     """
 
+    native_id: str | None = None
+
     def __init__(
         self, client: Any, session_id: str, policy: PagePolicy, *, context_id: str = ""
     ) -> None:

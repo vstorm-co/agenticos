@@ -637,7 +637,7 @@ async def test_live_images_require_a_viewer_even_when_chat_buffers_events(
     assert publish.await_count == 2
     assert viewers.await_count == 2
     if chat is not None:
-        assert chat.await_count == 2
+        assert chat.await_count == 1
 
 
 async def test_held_preview_recovers_after_a_temporary_metadata_failure(

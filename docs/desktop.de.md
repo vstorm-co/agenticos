@@ -1,5 +1,5 @@
 ---
-source_sha: "92fafc5f91d2"
+source_sha: "1f04e9369e53"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -306,13 +306,27 @@ weitere Aufrufe. Das Organisationsprofil bleibt zur Zuordnung erhalten, ohne sei
 Lokale Inferenz hat keinen Cloud-Fallback; Funktionen mit separat
 konfigurierten Modellen behalten ihre Einstellungen.
 
-**Local browser** führt die vorhandenen `browser_use`-Werkzeuge in einem sichtbaren
-Chromium-Fenster auf dem gekoppelten Computer aus. Chrome, Chromium, Edge oder Brave
-muss installiert sein. Jeder Browse fragt nativ um Erlaubnis, nutzt ein temporäres
-Profil und schließt es am Ende oder bei Geräteunterbrechung. Persönliche Tabs und
-Passwörter werden nicht importiert. DOM-Beobachtungen und Vorschaubilder erreichen
-den Chat; gespeicherte Anmeldungen werden nicht auf den Server kopiert. Eine Bindung
-mit `connection: local` verweigert den Lauf ohne diese lokale Auswahl.
+**Local browser** zeigt nach Zustimmung auf dem gekoppelten Computer eine native
+Seite im Browserpanel der Konsole. Klicken, Scrollen und Tippen erfolgen lokal,
+ohne Screenshots zu übertragen. Die private Sitzung importiert keine persönlichen
+Tabs oder Passwörter. Seitentext erreicht weiterhin das Agent-Modell. Manuelle
+Eingaben übernehmen die Kontrolle; **An Agent zurückgeben** gibt sie zurück.
+
+Ein nativer Tab gehört zu Computer, Organisation, Person, Agent und Gespräch.
+Er bleibt zwischen Runs offen; `browser_read` setzt ihn fort. Nur ein Run kann ihn
+gleichzeitig nutzen. Der Run erneuert die Lease automatisch; stoppt sein Backend,
+wird sie nach zwei Minuten wieder verfügbar. **Tab schließen** entfernt ihn; das Schließen des Panels
+blendet ihn nur aus. Beim Trennen des gekoppelten Geräts schließen alle Tabs.
+Es bleiben höchstens acht Tabs erhalten; zwei Stunden inaktive Tabs können beim
+Öffnen eines weiteren Tabs entfernt werden.
+
+Für Chromium-Kompatibilität **Nativen lokalen Browser verwenden** in der
+Browserfähigkeit deaktivieren. Aufgaben mit Vision oder Sprach-/Zeitzonenüberschreibungen verwenden ebenfalls
+ein isoliertes Chromium-Fenster. Dafür ist Chrome, Chromium, Edge oder Brave
+nötig; das temporäre Profil schließt mit dem Run. Native DOM-Aktionen verwenden
+Skripte, die manche Seiten von vertrauenswürdiger CDP-Eingabe unterscheiden.
+Seiten erhalten keine Konsolen- oder Dateiberechtigungen; sie dürfen nur eine
+Übernahme melden. `connection: local` benötigt weiterhin die lokale Browserauswahl.
 
 ## Installationspakete und Updates { #installers-and-updates }
 

@@ -2110,7 +2110,8 @@
       "more": "{count, plural, =1 {1 weiterer im Posteingang} other {# weitere im Posteingang}}"
     },
     "turnLost": "Der Agent hat aufgehört, bevor er geantwortet hat - der Server, auf dem er lief, ist weggefallen.",
-    "turnLostAskAgain": "Erneut fragen"
+    "turnLostAskAgain": "Erneut fragen",
+    "browserOpenNative": "Lokalen Browser öffnen"
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",
@@ -7906,7 +7907,7 @@
       },
       "allowed_domains": {
         "title": "Erlaubte Domains",
-        "description": "Hosts, auf denen der Browser sein darf; leer heißt keine Einschränkung. Muster wie *.example.com sind erlaubt. Bei jedem Schritt geprüft, nicht nur beim ersten."
+        "description": "Erlaubte Hosts; null erlaubt alle, eine leere Liste verweigert alle. Muster wie *.example.com sind erlaubt. Prüfung bei jedem Schritt, nicht nur beim ersten."
       },
       "max_steps": {
         "title": "Höchstens Schritte pro Aufruf",
@@ -7955,6 +7956,10 @@
       "locale": {
         "title": "Sprache des Browsers",
         "description": "Ein Sprach-Tag wie pl-PL, gesendet als Accept-Language und navigator.language."
+      },
+      "prefer_native_browser": {
+        "title": "Nativen lokalen Browser verwenden",
+        "description": "Einen eingebetteten nativen Tab für lokales DOM-Browsing verwenden. Für isolierte Chromium-Kompatibilität deaktivieren. Vision sowie Sprach- und Zeitzonenüberschreibungen verwenden Chromium."
       }
     },
     "channel_tools": {
@@ -8534,7 +8539,12 @@
     "unavailableTitle": "Live-Ansicht nicht verfügbar",
     "unavailableBody": "Dieses Deployment hat kein Redis für Live-Ansichten. Versuchen Sie es gleich noch einmal.",
     "rememberSignIn": "Anmeldung bei {site} für spätere Browses behalten",
-    "signInKept": "Deine Anmeldung bei {site} bleibt für spätere Browses erhalten - verwalten unter Einstellungen → Anmeldungen."
+    "signInKept": "Deine Anmeldung bei {site} bleibt für spätere Browses erhalten - verwalten unter Einstellungen → Anmeldungen.",
+    "nativeReturn": "An Agent zurückgeben",
+    "nativeTake": "Übernehmen",
+    "nativeCloseTab": "Tab schließen",
+    "nativeViewport": "Native Browserseite",
+    "nativeDesktopOnly": "Dieser Tab ist in der gekoppelten Desktop-App geöffnet. Verwende dort den nativen Browser."
   },
   "remoteAgents": {
     "title": "Remote Agents",

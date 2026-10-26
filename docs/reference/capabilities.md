@@ -715,7 +715,13 @@ Images stop when the last viewer disconnects and resume when somebody returns;
 lightweight location checks keep the address and title current between actions.
 Typing does not wait for a screenshot after each character. Page actions wait for
 bounded DOM stability, and explicit navigation tracks the new document even when
-the URL stays the same. The tab still closes when the run ends.
+the URL stays the same.
+
+Remote Chromium tabs still close when the run ends. Native local tabs remain
+open for their conversation; see [Local browser](../desktop.md#local-browser-models-and-mcp).
+Image viewers receive only the newest pending frame; a stalled writer is
+disconnected after two seconds. Images use the live-view socket once, without a
+duplicate copy in the chat stream.
 
 | Config | Default | Values |
 |---|---|---|
@@ -723,6 +729,7 @@ the URL stays the same. The tab still closes when the run ends.
 | `allowed_domains` | null | hosts the browser may be on; globs like `*.example.com` allowed; null is unrestricted on the web. Every request is also refused when it points inside the deployment's network (a private, loopback, link-local or metadata address, a redirect included) unless its host is listed here - list an internal tool to browse it (and, behind `BROWSER_EGRESS_PROXY`, add it to the proxy's exceptions) |
 | `max_steps` | 50 | 1–200; steps per call, each one model request |
 | `vision` | `false` | also send each step's screenshot to the model, which has to read images |
+| `prefer_native_browser` | `true` | use a native embedded tab for local DOM browsing; disable for Chromium compatibility. Vision and language/time-zone overrides use Chromium; remote connections are unaffected |
 | `candidate_cap` | 60 | 2–200; how many elements may be offered in one step |
 | `preview` | `true` | send the viewport to the chat while the browse runs |
 | `preview_width` | 1024 | 320–1920; the viewport width, and so the width of the frames |

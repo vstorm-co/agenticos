@@ -36,6 +36,7 @@ pub const GRANTS: &[(&str, &[&str])] = &[
     (
         WINDOW,
         &[
+            "allow-native-browser-view",
             "allow-desktop-state",
             "allow-change-server",
             "allow-set-appearance",
@@ -125,16 +126,20 @@ pub fn grant(app: &AppHandle, server: &Url) -> Result<(), String> {
         return Ok(());
     }
     for (window, permissions) in GRANTS {
-        let capability = permissions.iter().fold(
-            CapabilityBuilder::new(format!("console-{window}-{pattern}"))
-                .remote(pattern.clone())
-                .local(false)
-                .window(*window),
-            |capability, permission| capability.permission(*permission),
-        );
+        let capability = capability_for(window, permissions, &pattern);
         app.add_capability(capability).map_err(|e| e.to_string())?;
     }
     Ok(())
+}
+
+fn capability_for(webview: &str, permissions: &[&str], pattern: &str) -> CapabilityBuilder {
+    permissions.iter().fold(
+        CapabilityBuilder::new(format!("console-{webview}-{pattern}"))
+            .remote(pattern.to_owned())
+            .local(false)
+            .webview(webview),
+        |capability, permission| capability.permission(*permission),
+    )
 }
 
 /// Everything the desktop tabs in the console's settings show.
@@ -341,5 +346,21 @@ mod tests {
         for (window, permissions) in GRANTS {
             assert_eq!(permissions.contains(&"allow-change-server"), *window == WINDOW);
         }
+    }
+    #[test]
+    fn console_capabilities_do_not_extend_to_child_pages_in_the_same_window() {
+        use tauri::ipc::RuntimeCapability;
+        use tauri::utils::acl::capability::CapabilityFile;
+        let CapabilityFile::Capability(capability) =
+            super::capability_for("main", &["allow-device-status"], "https://agents.example/*").build()
+        else {
+            panic!("Expected one capability");
+        };
+        assert!(capability.windows.is_empty());
+        assert_eq!(capability.webviews, vec!["main"]);
+        assert!(!capability
+            .webviews
+            .iter()
+            .any(|view| view.starts_with("native-browser-")));
     }
 }

@@ -118,7 +118,7 @@ async def test_cleanup_failure_does_not_mask_the_browse_result(
         policy=PagePolicy(allowed_domains=None, candidate_cap=100, preview_width=1200),
     ) as page:
         assert isinstance(page, module.LocalPage)
-    assert "Could not close a local browser" in caplog.text
+    assert "Could not release a local browser" in caplog.text
     call.side_effect = None
     call.return_value = {"id": None}
     with pytest.raises(RuntimeError, match="did not open"):

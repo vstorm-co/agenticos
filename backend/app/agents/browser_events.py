@@ -92,6 +92,9 @@ class BrowserEvent(BaseModel):
     )
     title: str | None = Field(default=None, description="The page's title, when it has one.")
 
+    native_id: str | None = None
+    """An opaque tab handle usable only by its owning paired desktop app."""
+
     navigable: bool = False
     """Whether this view is a browser tab rather than a computer screen."""
 

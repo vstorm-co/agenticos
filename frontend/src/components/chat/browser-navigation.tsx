@@ -6,6 +6,11 @@ import { useTranslations } from "next-intl";
 
 import type { BrowserCommand } from "@/hooks/use-live-browse";
 
+type NavigationCommand = Extract<
+  BrowserCommand,
+  { type: "navigate" | "back" | "forward" | "reload" }
+>;
+
 function websiteAddress(value: string): string | null {
   try {
     const hostWithPort = /^(?:localhost|[^:/?#]+\.[^:/?#]+):\d+(?:[/?#]|$)/i.test(value);
@@ -32,7 +37,7 @@ export function BrowserNavigation({
 }: {
   url: string | null;
   holding: boolean;
-  send: (command: BrowserCommand) => void;
+  send: (command: NavigationCommand) => void;
 }) {
   const t = useTranslations("browse");
   const [draft, setDraft] = useState<string | null>(null);
