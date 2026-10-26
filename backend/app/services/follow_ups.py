@@ -20,6 +20,7 @@ from app.agents.deps import AgentDeps
 from app.agents.failures import run_failure_summary
 from app.agents.observability import inherited_instrumentation
 from app.agents.spec import AgentSpec
+from app.core.background import spawn_after_commit
 from app.core.exceptions import AppException
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent_run import RunStatus, RunSurface
@@ -42,6 +43,13 @@ def model_profile(spec: AgentSpec) -> UUID | None:
         if binding.id == "follow_ups" and binding.enabled:
             return FollowUpsConfig.model_validate(binding.config).model_profile_id
     return None
+
+
+def queue_next_steps(db: AsyncSession, message_id: UUID, organization_id: UUID) -> None:
+    """Both transcript writers defer the same ID-only handoff until commit."""
+    spawn_after_commit(
+        db, write_next_steps(message_id, organization_id), name=f"next-steps:{message_id}"
+    )
 
 
 async def write_next_steps(message_id: UUID, organization_id: UUID) -> None:

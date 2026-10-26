@@ -1435,13 +1435,9 @@ class ConversationService:
         if data.role == "assistant" and run_id is not None and data.content.strip():
             # Only IDs cross the commit boundary; a failed transcript write must
             # not start a paid suggestion request for an answer nobody can read.
-            from app.services.follow_ups import write_next_steps
+            from app.services.follow_ups import queue_next_steps
 
-            spawn_after_commit(
-                self.db,
-                write_next_steps(message.id, organization_id),
-                name=f"next-steps:{message.id}",
-            )
+            queue_next_steps(self.db, message.id, organization_id)
         return message
 
     async def delete_message(self, message_id: UUID) -> bool:
