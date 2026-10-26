@@ -1,5 +1,5 @@
 ---
-source_sha: "998789b78f85"
+source_sha: "0b891b628550"
 title: "Lagunas de conocimiento"
 description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, o respondió sin saber, agrupadas por tema, para saber qué documento falta."
 ---
@@ -121,10 +121,14 @@ Una sesión de mejora - [Mejorar](authoring.md) en segundo plano - lee igual las
 malas respuestas que encontró, solo esas y sea cual sea su antigüedad, y
 clasifica cada una según sus veredictos: falta conocimiento si a una base de
 conocimiento le faltaba contenido, nada que corregir si el agent se negó con
-razón, y fallo del agent en los demás casos. Las que les falta conocimiento
+razón, y fallo del agent en los demás casos.
+
+Las que les falta conocimiento
 salen de lo que lee el asistente de autoría, y la sesión redacta en su lugar sus
-temas - solo uno sobre el que preguntaron al menos dos personas distintas, tres
-como máximo por ronda. Los runs de un eval nunca se leen, así que tampoco ningún
+temas, tres como máximo por ronda, aunque haya preguntado poca gente: una persona
+revisa cada borrador antes de añadirlo, y un borrador basado en la pregunta de una
+sola persona lo indica. Fuera de una sesión, un borrador que nadie pidió sigue
+esperando a que pregunten dos personas distintas. Los runs de un eval nunca se leen, así que tampoco ningún
 caso reservado.
 
 ## Temas { #topics }

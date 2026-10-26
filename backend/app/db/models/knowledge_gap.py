@@ -217,6 +217,9 @@ class KnowledgeGapTopic(Base):
     draft_unverified: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"
     )
+    # How many different people asked the questions a model's draft was written
+    # from; a draft from one person's questions is shown with that warning.
+    draft_askers: Mapped[int | None] = mapped_column(Integer, nullable=True)
     draft_run_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("agent_runs.id", ondelete="SET NULL"),

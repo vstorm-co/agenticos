@@ -349,7 +349,7 @@ async def _draft_session(job: DraftGaps) -> int:
         if not await _session_affords(db, job, source, "draft"):
             return 0
     ledger = SpendLedger(organization_id=job.organization_id)
-    drafted = too_few_askers = 0
+    drafted = 0
     try:
         with metered_by(ledger):
             for kb_id in source.knowledge_base_ids:
@@ -381,9 +381,9 @@ async def _draft_session(job: DraftGaps) -> int:
                 except NotFoundError:
                     continue
                 except BadRequestError as refused:
-                    if not {"askers", "draft_author"} & set(refused.details or {}):
+                    # A person's own text is never drafted over.
+                    if "draft_author" not in (refused.details or {}):
                         raise
-                    too_few_askers += "askers" in (refused.details or {})
                     continue
                 drafted += 1
     finally:
@@ -393,7 +393,6 @@ async def _draft_session(job: DraftGaps) -> int:
             session_id,
             organization_id=job.organization_id,
             drafted=drafted,
-            too_few_askers=too_few_askers,
         )
     await change_feed.publish_knowledge_gaps_grouped(job.organization_id)
     return drafted

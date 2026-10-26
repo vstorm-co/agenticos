@@ -661,6 +661,7 @@ class KnowledgeGapService:
                 else None,
                 covered_by=covering.get(row.topic.id),
                 has_draft=row.topic.draft_content is not None,
+                draft_askers=row.topic.draft_askers,
                 can_edit=row.topic.knowledge_base_id in writable,
             )
             for row in rows
@@ -968,16 +969,18 @@ class KnowledgeGapService:
         the topic's draft, so it takes what dismissing does: a caller who may
         change the topic's knowledge base.
 
-        `automatic` is for a draft no person asked for by hand - an improvement
-        session's - which is refused until :data:`MIN_AUTOMATIC_ASKERS`
-        different people asked about the topic, and never replaces what a person
-        wrote: neither before the model is called nor once it has answered.
+        `automatic` is for a draft no person asked for by hand, which never
+        replaces what a person wrote: neither before the model is called nor
+        once it has answered. Outside an improvement session it is refused until
+        :data:`MIN_AUTOMATIC_ASKERS` different people asked about the topic; a
+        session's draft is not, because a person reviews it before anything is
+        added, and the draft records how many people its questions came from.
 
         Raises:
             AuthorizationError: For a caller without `runs:view` across the organization.
             AiAssistanceDisabledError: The organization switched AI assistance off.
-            BadRequestError: For an automatic draft of a topic too few people
-                asked, or of one whose content a person wrote.
+            BadRequestError: For an automatic draft, outside a session, of a
+                topic too few people asked, or of one whose content a person wrote.
             NotFoundError: For a topic in a knowledge base the caller may not
                 change, or one with no questions left.
             BadRequestError: Somebody whose question the draft read was erased,
@@ -990,16 +993,17 @@ class KnowledgeGapService:
         """
         _require_runs_view(ctx)
         topic = await self._topic(ctx, topic_id, edit=True)
-        if automatic:
-            askers = (await self._row(ctx, topic)).asker_count
-            if askers < MIN_AUTOMATIC_ASKERS:
+        if automatic and improvement_run_id is None:
+            asked = (await self._row(ctx, topic)).asker_count
+            if asked < MIN_AUTOMATIC_ASKERS:
                 raise BadRequestError(
                     message=(
                         "A topic is drafted without a person asking only once "
                         f"{MIN_AUTOMATIC_ASKERS} different people asked about it"
                     ),
-                    details={"topic_id": topic.id, "askers": askers},
+                    details={"topic_id": topic.id, "askers": asked},
                 )
+        if automatic:
             _refuse_over_person(topic)
         material = await knowledge_gap_repo.drafting_material(
             self.db,
@@ -1016,11 +1020,6 @@ class KnowledgeGapService:
         askers = await personal_data_repo.askers_of(
             self.db, {row.search.run_id for row in material}
         )
-        if automatic and source_run_ids is not None and len(askers) < MIN_AUTOMATIC_ASKERS:
-            raise BadRequestError(
-                message="Too few independent source askers for an automatic draft",
-                details={"askers": len(askers)},
-            )
         documents = await knowledge_gap_repo.documents_named(
             self.db,
             kb.id,
@@ -1073,6 +1072,7 @@ class KnowledgeGapService:
             run_id=result.run.id,
             unverified=unknown_documents + unknown_questions + unknown_context,
             keep_persons=automatic,
+            askers=len(askers),
             source_runs={row.search.run_id for row in material},
             source_inputs=[
                 text for row in material for text in (row.question, row.search.query) if text
@@ -1090,6 +1090,7 @@ class KnowledgeGapService:
         keep_persons: bool = False,
         source_runs: set[UUID] | None = None,
         source_inputs: list[str] | None = None,
+        askers: int | None = None,
     ) -> None:
         """Keep proposed content on a topic, replacing any earlier draft.
 
@@ -1102,6 +1103,8 @@ class KnowledgeGapService:
         checked. At most :data:`MAX_DRAFT_SOURCES` are kept. Any credential the
         text repeats is redacted. With `keep_persons`, the topic is held and read
         afresh first, so content a person saved meanwhile is never replaced.
+        `askers` is how many different people asked the questions the draft came
+        from, kept so a draft from one person's questions is shown as such.
 
         Raises:
             AuthorizationError: For a caller without `runs:view` across the organization.
@@ -1165,6 +1168,7 @@ class KnowledgeGapService:
                 ),
                 "draft_sources": verified[:MAX_DRAFT_SOURCES],
                 "draft_unverified": unverified + len(named) - len(verified),
+                "draft_askers": askers,
                 "draft_already_covered": report.already_covered,
                 "draft_author": DraftAuthor.MODEL.value,
                 "draft_run_id": run_id,
@@ -1292,6 +1296,7 @@ class KnowledgeGapService:
                 "draft_evidence_run_ids": topic.draft_evidence_run_ids,
                 "draft_evidence_input_hashes": topic.draft_evidence_input_hashes,
                 "draft_unverified": 0,
+                "draft_askers": None,
                 "draft_already_covered": False,
                 "draft_author": DraftAuthor.PERSON.value,
                 "draft_run_id": None,

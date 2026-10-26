@@ -111,9 +111,13 @@ An improvement session - [Improve](authoring.md) run in the background - reads
 the bad answers it found the same way, those answers alone and whatever their age, and sorts each by its
 verdicts: missing knowledge where a knowledge base was missing content, no
 problem to fix where the agent rightly refused, and the agent's fault
-otherwise. The answers missing knowledge leave what the improver reads, and
-the session drafts their topics instead - only a topic at least two different
-people asked about, three at most a round. An eval's runs are never read, so
+otherwise.
+
+The answers missing knowledge leave what the improver reads, and
+the session drafts their topics instead, three at most a round, however few
+people asked: a person checks every draft before it is added, and a draft from
+one person's question says so. A draft nobody asked for outside a session still
+waits until two different people asked about the topic. An eval's runs are never read, so
 no held-out case is.
 
 ## Topics { #topics }

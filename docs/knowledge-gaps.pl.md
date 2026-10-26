@@ -1,5 +1,5 @@
 ---
-source_sha: "998789b78f85"
+source_sha: "0b891b628550"
 title: "Luki w wiedzy"
 description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego albo odpowiedział, że nie wie, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
 ---
@@ -114,10 +114,14 @@ Sesja ulepszania - [Ulepsz](authoring.md) uruchomione w tle - czyta w ten sam
 sposób złe odpowiedzi, które znalazła, tylko te odpowiedzi i niezależnie od ich
 wieku, i przypisuje każdą do grupy według jej werdyktów: brakująca wiedza, gdy w
 bazie wiedzy brakowało treści, nic do poprawienia, gdy agent słusznie odmówił,
-a w pozostałych przypadkach błąd agenta. Odpowiedzi z brakującą wiedzą wypadają
+a w pozostałych przypadkach błąd agenta.
+
+Odpowiedzi z brakującą wiedzą wypadają
 z tego, co czyta asystent tworzenia, a sesja zamiast tego pisze szkice ich
-tematów - tylko tematu, o który pytały co najmniej dwie różne osoby, i najwyżej
-trzech na rundę. Runy ewaluacji nie są nigdy czytane, więc żaden przypadek
+tematów, najwyżej trzech na rundę, niezależnie od tego, ile osób pytało: każdy
+szkic przed dodaniem sprawdza człowiek, a szkic z pytania jednej osoby mówi o tym.
+Szkic, o który nikt nie prosił, poza sesją nadal czeka, aż o temat zapytają dwie
+różne osoby. Runy ewaluacji nie są nigdy czytane, więc żaden przypadek
 zachowany do sprawdzenia też nie.
 
 ## Tematy { #topics }

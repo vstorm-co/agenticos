@@ -1108,6 +1108,7 @@ async def clear_gap_drafts_of(db: AsyncSession, user_id: UUID) -> int:
             draft_evidence_input_hashes=None,
             draft_sources=[],
             draft_unverified=0,
+            draft_askers=None,
             draft_run_id=None,
             drafted_by_user_id=None,
             drafted_at=None,

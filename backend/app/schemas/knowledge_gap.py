@@ -257,6 +257,13 @@ class KnowledgeGapTopicRead(BaseSchema):
         default=None, description="The document added for it, while it is covered"
     )
     has_draft: bool = False
+    draft_askers: int | None = Field(
+        default=None,
+        description=(
+            "How many different people asked the questions the model's draft was written "
+            "from; absent for a person's draft or no draft"
+        ),
+    )
     can_edit: bool = Field(
         default=False,
         description=(

@@ -1,5 +1,5 @@
 ---
-source_sha: "998789b78f85"
+source_sha: "0b891b628550"
 title: "Wissenslücken"
 description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden oder ohne Wissen geantwortet hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
 ---
@@ -121,10 +121,14 @@ Eine Verbesserungssitzung - im Hintergrund ausgeführtes
 hat, auf dieselbe Weise, nur diese Antworten und unabhängig von ihrem Alter, und
 ordnet jede nach ihren Urteilen ein: fehlendes Wissen, wo einer Wissensbasis
 Inhalt fehlte, nichts zu beheben, wo der Agent zu Recht abgelehnt hat, und sonst
-ein Fehler des Agents. Die Antworten mit fehlendem Wissen fallen aus dem heraus,
+ein Fehler des Agents.
+
+Die Antworten mit fehlendem Wissen fallen aus dem heraus,
 was der Authoring-Assistent liest, und die Sitzung entwirft stattdessen ihre
-Themen - nur ein Thema, nach dem mindestens zwei verschiedene Personen gefragt
-haben, höchstens drei pro Runde. Die Runs eines Evals werden nie gelesen, also
+Themen, höchstens drei pro Runde, gleich wie wenige Personen gefragt haben: Jeden
+Entwurf prüft ein Mensch, bevor er hinzugefügt wird, und ein Entwurf aus der Frage
+einer einzigen Person sagt das. Ein Entwurf, um den niemand gebeten hat, wartet
+außerhalb einer Sitzung weiterhin, bis zwei verschiedene Personen gefragt haben. Die Runs eines Evals werden nie gelesen, also
 auch kein zurückgehaltener Fall.
 
 ## Themen { #topics }

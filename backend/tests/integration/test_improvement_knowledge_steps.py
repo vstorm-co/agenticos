@@ -398,9 +398,7 @@ async def test_a_knowledge_only_session_leaves_documents_for_a_human_without_an_
         assert agent.current_version_id == before
 
 
-async def test_one_source_asker_cannot_borrow_an_unrelated_asker_to_trigger_automatic_drafting(db):
-    from app.db.models.knowledge_gap import KnowledgeSearch
-
+async def test_a_session_drafts_from_one_source_askers_questions_and_says_whose(db):
     ctx, agent, kb, dataset, _ = await _world(db)
     with _providers(db, ctx):
         read = await _start(db, ctx, agent, dataset)
@@ -416,15 +414,14 @@ async def test_one_source_asker_cannot_borrow_an_unrelated_asker_to_trigger_auto
                 db, topic.id, organization_id=ctx.organization_id
             )
         )[:1]
-        with pytest.raises(BadRequestError, match="Too few independent"):
-            await KnowledgeGapService(db).draft(
-                ctx,
-                topic.id,
-                automatic=True,
-                improvement_run_id=read.id,
-                source_run_ids=[one_source.run_id],
-            )
-        assert await db.scalar(select(func.count()).select_from(KnowledgeSearch)) >= 2
+        drafted = await KnowledgeGapService(db).draft(
+            ctx,
+            topic.id,
+            automatic=True,
+            improvement_run_id=read.id,
+            source_run_ids=[one_source.run_id],
+        )
+    assert drafted.has_draft and drafted.draft_askers == 1
 
 
 async def test_unknown_prices_refuse_the_estimate_without_a_paid_call(db):
@@ -528,20 +525,40 @@ async def _advances_queued_later(db, run_id) -> int:
     )
 
 
-@pytest.mark.parametrize(("askers", "drafted", "reason"), [(1, 0, "too_few_askers"), (2, 1, None)])
-async def test_drafting_says_why_a_topic_one_person_asked_about_is_left_undrafted(
-    db, askers, drafted, reason
-):
+@pytest.mark.parametrize("askers", [1, 2])
+async def test_a_session_drafts_a_topic_however_few_asked_and_records_how_many(db, askers):
     ctx, agent, _, dataset, _ = await _world(db, askers=askers)
     with _providers(db, ctx):
         read = await _start(db, ctx, agent, dataset)
         stored, _ = await _classify(db, ctx, agent, read)
         assert stored.stage == "drafting"
         _, payload = await _job(db, stored, draft=True)
-        assert await draft_knowledge_gaps(payload) == drafted
+        assert await draft_knowledge_gaps(payload) == 1
+    [topic] = (await KnowledgeGapService(db).list_for_agent(ctx, agent.id)).items
+    assert (topic.has_draft, topic.draft_askers) == (True, askers)
     timeline = (await ImprovementPipelineService(db).read(ctx, agent.id, read.id)).timeline
     [finished] = [e for e in timeline if e.action == "improvement.drafting_finished"]
-    assert finished.reason == reason
+    assert finished.reason is None
+
+
+async def test_a_session_leaves_a_draft_a_person_wrote_as_it_is(db):
+    ctx, agent, _, dataset, _ = await _world(db)
+    with _providers(db, ctx):
+        read = await _start(db, ctx, agent, dataset)
+        stored, _ = await _classify(db, ctx, agent, read)
+        _, payload = await _job(db, stored, draft=True)
+        await KnowledgeGapService(db).group_pending(
+            organization_id=ctx.organization_id, knowledge_base_id=payload.knowledge_base_ids[0]
+        )
+        [topic] = list((await db.scalars(select(KnowledgeGapTopic))).all())
+        topic.draft_title, topic.draft_content, topic.draft_author = "Ours", "Level -1.", "person"
+        await db.flush()
+        # Listed before the person saved, and beside a topic merged away since.
+        with patch.object(
+            KnowledgeGapService, "topics_to_draft", AsyncMock(return_value=[uuid4(), topic.id])
+        ):
+            assert await draft_knowledge_gaps(payload) == 0
+    assert (topic.draft_content, topic.draft_author) == ("Level -1.", "person")
 
 
 async def test_a_finished_knowledge_step_wakes_its_session_once_the_queue_records_it(db):
