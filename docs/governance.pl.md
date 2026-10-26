@@ -1,5 +1,5 @@
 ---
-source_sha: "42075adb7a61"
+source_sha: "31ed9f58f157"
 ---
 
 # Governance { #governance }
@@ -1445,6 +1445,16 @@ był edytowalny, czy zatwierdzający go zmienił (`edited`) oraz długość prop
 zatwierdzonego tekstu (`proposal_length`, `final_length`) - nigdy sam tekst. Tekst
 jest przechowywany przy prośbie, jawnym tekstem, dopóki historia runa nie zostanie
 usunięta.
+
+Prośby są też liczone. Karta Stats workflow i jego API statystyk podają, per krok i
+per dzień, ile zatwierdzono bez zmian, ile zmieniono, odrzucono lub ile wygasło, jak
+długo ludzie decydowali i jak bardzo ich poprawki coś zmieniły, każda jako stosunek od
+`0` do `1` (`edit_ratio`, także we wpisie audytu); zob.
+[Running a workflow](workflows.md#running-a-workflow). Zbiorcze zestawienie
+organizacji, `GET /api/v1/workflow-approvals/stats`, wymaga `workflows:view` i obejmuje
+tylko workflow, które członek może oglądać. Nie zawiera ani propozycji, ani
+zatwierdzonego tekstu, ani liczby dla pojedynczego zatwierdzającego: liczy prośby, nie
+ludzi.
 
 ### Wpisy artefaktów { #artifact-entries }
 

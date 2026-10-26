@@ -1,5 +1,5 @@
 ---
-source_sha: "42075adb7a61"
+source_sha: "31ed9f58f157"
 ---
 
 # Governance { #governance }
@@ -1543,6 +1543,17 @@ Audit-Eintrag hält fest, ob der Schritt editierbar war, ob die Person ihn geän
 hat (`edited`) und wie lang der Vorschlag und der freigegebene Text sind
 (`proposal_length`, `final_length`), nie den Text selbst. Der Text liegt im
 Klartext bei der Anfrage, bis die Historie des Runs gelöscht wird.
+
+Die Anfragen werden auch gezählt. Die Stats-Karte eines Workflows und seine
+Statistik-API melden je Schritt und je Tag, wie viele wie vorgeschlagen freigegeben,
+bearbeitet, abgelehnt wurden oder abgelaufen sind, wie lange die Entscheidung dauerte
+und wie stark die Änderungen den Text verändert haben, jede als Verhältnis von `0` bis
+`1` (`edit_ratio`, auch im Audit-Eintrag); siehe
+[Running a workflow](workflows.md#running-a-workflow). Die organisationsweite
+Übersicht, `GET /api/v1/workflow-approvals/stats`, braucht `workflows:view` und
+umfasst nur Workflows, die das Mitglied ansehen darf. Sie enthält weder Vorschlag noch
+freigegebenen Text noch eine Zahl zu einzelnen Freigebenden: Sie zählt Anfragen, nicht
+Personen.
 
 ### Artefakt-Einträge { #artifact-entries }
 

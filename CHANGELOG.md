@@ -28,6 +28,17 @@ Two things are versioned separately from this file and worth knowing about:
   toolbar) keeps the neutral look, per browser. A selected step can be resized
   by its right edge, bottom edge or corner, its text wrapping into the space, and
   **Reset size** in its right-click menu undoes it.
+- **Approval outcomes on a workflow's Stats card.** An **Approvals** section sums
+  up how people decided what the workflow asked them: approved as proposed, edited
+  with the median change (each edit's `edit_ratio` is measured once when it is
+  decided, by the `text.compare` scorer), rejected, expired and the time to decide,
+  per step and per day, over the same days as the run figures. The stats API carries
+  them in `approvals`. `GET /api/v1/workflow-approvals/stats` adds the totals and
+  the five workflows with the most requests across those you may view, and the
+  **Approval outcomes** dashboard card, in the catalog, shows them. No text and no
+  per-approver figure leaves an approval. Requests decided before this release have
+  no edit ratio and are shown as not measured.
+
 - **`text.compare` scores how alike two texts are.** A data step that gives a score
   from 0 to 1 by character edit ratio, word overlap or changed lines, with switches
   to ignore case, whitespace, punctuation, and quoted mail and signatures.

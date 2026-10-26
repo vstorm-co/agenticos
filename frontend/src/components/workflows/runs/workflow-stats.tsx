@@ -25,6 +25,10 @@ function seconds(value: number | null): string {
   return value === null ? "-" : formatElapsed(value * 1000);
 }
 
+function share(value: number | null, locale: string): string {
+  return value === null ? "-" : formatShare(value, locale);
+}
+
 /**
  * What a workflow's real runs did over the last week, month or quarter: how many
  * ran and how they ended, how long they took, what they cost against the month's
@@ -171,6 +175,117 @@ function StatsBody({ stats, locale }: { stats: Stats; locale: string }) {
           )}
         </CardContent>
       </Card>
+      {stats.approvals.requests > 0 && (
+        <Approvals approvals={stats.approvals} locale={locale} typeName={typeName} />
+      )}
     </div>
+  );
+}
+
+/**
+ * How people decided the workflow's approval requests: how many went out as
+ * proposed, how many were edited and by how much, how many were turned down,
+ * and how long deciding took. Counts only what the figures hold - an expired
+ * request was never decided, so it is not in the share approved.
+ */
+function Approvals({
+  approvals,
+  locale,
+  typeName,
+}: {
+  approvals: Stats["approvals"];
+  locale: string;
+  typeName: (definitionId: string | null) => string | null;
+}) {
+  const t = useTranslations("pages.workflows.stats");
+  const decided = approvals.approved_unchanged + approvals.approved_edited + approvals.rejected;
+
+  return (
+    <section aria-label={t("approvalsHeading")}>
+      <Card>
+        <CardContent className="p-0">
+          <div className="border-b px-4 py-3">
+            <h3 className="text-sm font-medium">{t("approvalsHeading")}</h3>
+            <p className="text-muted-foreground text-xs">{t("approvalsHint")}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3 p-4 lg:grid-cols-4">
+            <FigureCard
+              label={t("approvalsUnchanged")}
+              value={share(approvals.unchanged_rate, locale)}
+              caption={t("approvalsUnchangedCaption", {
+                approved: approvals.approved_unchanged,
+                decided,
+              })}
+              spark={approvals.by_day.map((day) => day.approved_unchanged)}
+            />
+            <FigureCard
+              label={t("approvalsEdited")}
+              value={approvals.approved_edited.toLocaleString(locale)}
+              caption={
+                approvals.edit_ratio_median !== null
+                  ? t("approvalsEditedCaption", {
+                      ratio: formatShare(approvals.edit_ratio_median, locale),
+                    })
+                  : approvals.approved_edited > 0
+                    ? t("approvalsNotMeasured")
+                    : undefined
+              }
+            />
+            <FigureCard
+              label={t("approvalsRejected")}
+              value={approvals.rejected.toLocaleString(locale)}
+              caption={t("approvalsExpiredCaption", { count: approvals.expired })}
+            />
+            <FigureCard
+              label={t("approvalsDecideTime")}
+              value={seconds(approvals.decide_p50_seconds)}
+              caption={t("approvalsDecideCaption", {
+                p95: seconds(approvals.decide_p95_seconds),
+              })}
+            />
+          </div>
+          {approvals.steps.length > 0 && (
+            <div className="overflow-x-auto border-t">
+              <table className="w-full text-sm">
+                <thead className="text-muted-foreground text-xs">
+                  <tr className="border-b">
+                    <th className="px-4 py-2 text-left font-medium">{t("step")}</th>
+                    <th className="px-4 py-2 text-right font-medium">{t("approvalsRequests")}</th>
+                    <th className="px-4 py-2 text-right font-medium">{t("approvalsUnchanged")}</th>
+                    <th className="px-4 py-2 text-right font-medium">{t("approvalsEdited")}</th>
+                    <th className="px-4 py-2 text-right font-medium">{t("approvalsRejected")}</th>
+                    <th className="px-4 py-2 text-right font-medium">{t("approvalsExpired")}</th>
+                    <th className="px-4 py-2 text-right font-medium">{t("approvalsMedianEdit")}</th>
+                    <th className="px-4 py-2 text-right font-medium">{t("approvalsDecideTime")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {approvals.steps.map((step) => (
+                    <tr key={step.node_instance_id} className="border-b last:border-0">
+                      <td className="max-w-64 truncate px-4 py-2">
+                        {step.label ?? typeName(step.definition_id) ?? t("stepGone")}
+                      </td>
+                      <td className="px-4 py-2 text-right tabular-nums">{step.requests}</td>
+                      <td className="px-4 py-2 text-right tabular-nums">
+                        {share(step.unchanged_rate, locale)}
+                      </td>
+                      <td className="px-4 py-2 text-right tabular-nums">{step.approved_edited}</td>
+                      <td className="px-4 py-2 text-right tabular-nums">{step.rejected}</td>
+                      <td className="px-4 py-2 text-right tabular-nums">{step.expired}</td>
+                      <td className="px-4 py-2 text-right tabular-nums">
+                        {share(step.edit_ratio_median, locale)}
+                      </td>
+                      <td className="px-4 py-2 text-right tabular-nums">
+                        {seconds(step.decide_p50_seconds)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </section>
   );
 }

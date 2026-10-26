@@ -1,5 +1,5 @@
 ---
-source_sha: "42075adb7a61"
+source_sha: "31ed9f58f157"
 ---
 
 # Governance { #governance }
@@ -1434,6 +1434,16 @@ registra si el paso era editable, si la persona lo editó (`edited`) y la longit
 de la propuesta y del texto aprobado (`proposal_length`, `final_length`), nunca el
 texto en sí. El texto se guarda en texto plano en la solicitud hasta que se borra
 el historial del run.
+
+Las solicitudes también se cuentan. La tarjeta Stats de un workflow y su API de
+estadísticas informan, por paso y por día, cuántas se aprobaron como se propuso, se
+editaron, se rechazaron o caducaron, cuánto tardaron las personas en decidir y cuánto
+cambiaron sus ediciones el texto, cada una como una razón de `0` a `1` (`edit_ratio`,
+también en la entrada de auditoría); véase
+[Running a workflow](workflows.md#running-a-workflow). El resumen de toda la
+organización, `GET /api/v1/workflow-approvals/stats`, requiere `workflows:view` y solo
+abarca los workflows que el miembro puede ver. No contiene ni la propuesta ni el texto
+aprobado ni cifra alguna de quien aprueba: cuenta solicitudes, no personas.
 
 ### Entradas de artefactos { #artifact-entries }
 

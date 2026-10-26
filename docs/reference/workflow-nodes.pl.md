@@ -1,5 +1,5 @@
 ---
-source_sha: "1f5def5c69f4"
+source_sha: "f31594b6f257"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -734,6 +734,11 @@ Zatwierdzone wyjście niesie trzy pola obok decyzji:
 
 Edytowana wersja jest zapisywana bez białych znaków na początku i na końcu, więc
 edycja zaczynająca się od wciętego bloku kodu traci to pierwsze wcięcie.
+
+Zatwierdzona prośba kroku `editable` zapisuje też swój współczynnik zmiany
+(`edit_ratio`), czyli to, jak bardzo zatwierdzający zmienił propozycję, od `0` do `1`.
+[Statystyki](../workflows.md#running-a-workflow) workflow podają go razem z pozostałymi
+wynikami zatwierdzeń.
 
 Krok, który nie jest `editable`, pokazuje propozycję tylko do odczytu, a po
 zatwierdzeniu przekazuje ją bez zmian jako `final` z `edited` równym false, więc

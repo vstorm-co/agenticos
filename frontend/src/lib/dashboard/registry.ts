@@ -67,6 +67,7 @@ export type WidgetId =
   | "recent-visuals"
   | "tables"
   | "workflows"
+  | "approval-outcomes"
   | "suggestions";
 
 /** The closed set of card widths the grid supports (12 columns). */
@@ -286,6 +287,17 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     gate: holds(Perm.workflowsView),
     defaultSpan: "s6",
     defaultRows: "r4",
+    category: "attention",
+    seeAll: ROUTES.WORKFLOWS,
+  },
+  // Catalog only: most organizations have no approval step, and the Workflows
+  // card already counts the runs waiting on a person. Three rows: the figures
+  // and the busiest workflows under them.
+  "approval-outcomes": {
+    id: "approval-outcomes",
+    gate: holds(Perm.workflowsView),
+    defaultSpan: "s6",
+    defaultRows: "r3",
     category: "attention",
     seeAll: ROUTES.WORKFLOWS,
   },

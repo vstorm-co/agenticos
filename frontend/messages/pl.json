@@ -3609,7 +3609,21 @@
         "stepFailed": "Błędy",
         "stepTime": "Średni czas",
         "stepCost": "Koszt",
-        "stepGone": "Krok, którego nie ma już w workflow"
+        "stepGone": "Krok, którego nie ma już w workflow",
+        "approvalsHeading": "Zatwierdzenia",
+        "approvalsHint": "Jak ludzie rozstrzygali to, o co pytały kroki zatwierdzania tego workflow, w tym samym okresie.",
+        "approvalsUnchanged": "Zatwierdzone bez zmian",
+        "approvalsUnchangedCaption": "Zatwierdzono {approved, number} z {decided, number}",
+        "approvalsEdited": "Zmienione przed zatwierdzeniem",
+        "approvalsEditedCaption": "Mediana zmiany {ratio}",
+        "approvalsNotMeasured": "Zmiany nie zmierzono",
+        "approvalsRejected": "Odrzucone",
+        "approvalsExpired": "Wygasłe",
+        "approvalsExpiredCaption": "{count, plural, one {# wygasła} few {# wygasły} many {# wygasło} other {# wygasło}}",
+        "approvalsDecideTime": "Czas do decyzji",
+        "approvalsDecideCaption": "95% w ciągu {p95}",
+        "approvalsRequests": "Prośby",
+        "approvalsMedianEdit": "Mediana zmiany"
       }
     }
   },
@@ -4345,6 +4359,21 @@
         "cost": "Koszt",
         "row": "{runs, plural, one {# run} few {# runy} many {# runów} other {# runu}}",
         "rowFailed": "{runs, plural, one {# run} few {# runy} many {# runów} other {# runu}}, nieudane: {failed, number}"
+      },
+      "approval-outcomes": {
+        "title": "Wyniki zatwierdzeń",
+        "description": "Jak ludzie rozstrzygali w tym okresie to, o co pytały ich Twoje workflow: zatwierdzone bez zmian, zmienione, odrzucone i ile to trwało.",
+        "empty": {
+          "title": "Brak próśb o zatwierdzenie w tym okresie",
+          "description": "Gdy ktoś zostanie o coś zapytany w kroku zatwierdzania, workflow pojawi się tutaj."
+        },
+        "unchanged": "Zatwierdzone bez zmian",
+        "edited": "Zmienione",
+        "editedCaption": "Mediana zmiany {ratio}",
+        "decideTime": "Czas do decyzji",
+        "notMeasured": "Zmiany nie zmierzono",
+        "rowRequests": "{requests, plural, one {# prośba} few {# prośby} many {# próśb} other {# prośby}}",
+        "row": "{requests, plural, one {# prośba} few {# prośby} many {# próśb} other {# prośby}}, {rate} zatwierdzonych bez zmian"
       },
       "suggestions": {
         "title": "Briefing",

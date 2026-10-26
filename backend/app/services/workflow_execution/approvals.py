@@ -8,6 +8,7 @@ parked step after it commits - the step then reads it and goes on by it.
 past its time and expires when the step reads it.
 """
 
+import asyncio
 import logging
 from datetime import UTC, datetime
 from uuid import UUID
@@ -38,18 +39,20 @@ from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_approval as approval_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.workflow_approval import WorkflowApprovalList, WorkflowApprovalRead
+from app.services import text_similarity
 from app.services.workflow_execution import dispatch_queue
 
 logger = logging.getLogger(__name__)
 
 
 def _normalised(text: str) -> str:
-    """`text` with line endings, trailing spaces and outer blank space removed.
+    """`text` as `text_similarity` reads it - Unicode NFC, line endings - with trailing
+    spaces and outer blank space removed.
 
     What separates an edit from a re-save: a version differing only in these is
-    not one.
+    not one, and the ratio scored afterwards agrees on what counts as the same text.
     """
-    lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    lines = text_similarity.normalize(text, text_similarity.Normalization()).split("\n")
     return "\n".join(line.rstrip() for line in lines).strip()
 
 
@@ -126,7 +129,9 @@ class WorkflowApprovalService:
         An approval records the version the step goes on with as `final`: the
         submitted one on an editable step, otherwise the proposal as asked.
         `edited` says whether the submitted version differs from the proposal
-        beyond line endings and trailing spaces. A rejection records neither.
+        beyond line endings and trailing spaces, and `edit_ratio` how much of it
+        changed (0 when not edited), scored once here. A rejection and a step
+        that is not editable record no ratio.
 
         Raises:
             NotFoundError: The request is not in this organization.
@@ -184,10 +189,20 @@ class WorkflowApprovalService:
         proposal = approval.proposal
         decided_final: str | None = None
         edited = False
+        edit_ratio: float | None = None
         if approved:
             decided_final = final if final is not None else proposal
-            if approval.editable and decided_final is not None:
-                edited = _normalised(decided_final) != _normalised(proposal or "")
+            if approval.editable:
+                before, after = _normalised(proposal or ""), _normalised(decided_final or "")
+                edited = decided_final is not None and before != after
+                edit_ratio = 0.0
+                if edited:
+                    # CPU-bound (seconds at the limit): off the event loop. The row
+                    # lock is held meanwhile; the proposal cannot change under it.
+                    scored = await asyncio.to_thread(
+                        text_similarity.compare, before, after, method="char_ratio"
+                    )
+                    edit_ratio = scored.changed_ratio
         approval = await approval_repo.update(
             self.db,
             approval=approval,
@@ -198,6 +213,7 @@ class WorkflowApprovalService:
                 "note": note,
                 "final": decided_final,
                 "edited": edited,
+                "edit_ratio": edit_ratio,
             },
         )
         await record_audit(
@@ -215,6 +231,7 @@ class WorkflowApprovalService:
                 "note": note,
                 "editable": approval.editable,
                 "edited": edited,
+                "edit_ratio": edit_ratio,
                 "proposal_length": None if proposal is None else len(proposal),
                 "final_length": None if decided_final is None else len(decided_final),
             },

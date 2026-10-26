@@ -1,5 +1,5 @@
 ---
-source_sha: "1f5def5c69f4"
+source_sha: "f31594b6f257"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -771,6 +771,11 @@ Die freigegebene Ausgabe trägt neben der Entscheidung drei Felder:
 Eine bearbeitete Fassung wird ohne führende und nachgestellte Leerzeichen gespeichert;
 eine Änderung, die mit einem eingerückten Codeblock beginnt, verliert diese erste
 Einrückung.
+
+Eine freigegebene Anfrage eines `editable`-Schritts hält außerdem ihr Änderungsmaß
+(`edit_ratio`) fest, also wie viel vom Vorschlag die Person geändert hat, von `0` bis
+`1`. Die [Statistik](../workflows.md#running-a-workflow) des Workflows meldet es mit den
+übrigen Freigabe-Ergebnissen.
 
 Ein Schritt, der nicht `editable` ist, zeigt seinen Vorschlag schreibgeschützt und
 gibt ihn nach der Freigabe unverändert als `final` weiter, mit `edited` auf false,

@@ -8,6 +8,7 @@
 
 import { apiClient } from "@/lib/api-client";
 import type {
+  WorkflowApprovalsSummary,
   WorkflowExport,
   WorkflowImported,
   NodeCatalog,
@@ -39,6 +40,16 @@ export async function getWorkflowStats(workflowId: string, days: number): Promis
 /** The real runs of every workflow the caller may see, on the inclusive days given. */
 export async function getWorkflowsSummary(from: string, to: string): Promise<WorkflowsSummary> {
   return apiClient.get<WorkflowsSummary>(`${ROOT}/summary`, { params: { from, to } });
+}
+
+/** What people decided on the approval steps of every workflow the caller may see, on the inclusive days given. */
+export async function getWorkflowApprovalsSummary(
+  from: string,
+  to: string,
+): Promise<WorkflowApprovalsSummary> {
+  return apiClient.get<WorkflowApprovalsSummary>("/workflow-approvals/stats", {
+    params: { from, to },
+  });
 }
 
 /** Every registered node type, for the editor's palette. */

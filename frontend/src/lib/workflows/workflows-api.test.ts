@@ -13,6 +13,7 @@ import {
   updateWorkflow,
   getNodeCatalog,
   getWorkflow,
+  getWorkflowApprovalsSummary,
   getWorkflowStats,
   getWorkflowsSummary,
   getWorkflowVersion,
@@ -96,6 +97,14 @@ describe("workflows-api", () => {
     vi.mocked(apiClient.get).mockResolvedValueOnce({ runs: 1 });
     await getWorkflowsSummary("2026-10-01", "2026-10-07");
     expect(apiClient.get).toHaveBeenCalledWith("/workflows/summary", {
+      params: { from: "2026-10-01", to: "2026-10-07" },
+    });
+  });
+
+  it("reads every workflow's approval outcomes from the approvals route", async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ requests: 1 });
+    await getWorkflowApprovalsSummary("2026-10-01", "2026-10-07");
+    expect(apiClient.get).toHaveBeenCalledWith("/workflow-approvals/stats", {
       params: { from: "2026-10-01", to: "2026-10-07" },
     });
   });

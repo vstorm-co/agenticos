@@ -2815,6 +2815,21 @@
         "row": "{runs, plural, one {# run} other {# runs}}",
         "rowFailed": "{runs, plural, one {# run} other {# runs}}, {failed, number} failed"
       },
+      "approval-outcomes": {
+        "title": "Approval outcomes",
+        "description": "How people decided what your workflows asked them over the period: approved as proposed, edited, rejected, and how long it took.",
+        "empty": {
+          "title": "No approval requests in this period",
+          "description": "A workflow with an approval step reports here once someone is asked."
+        },
+        "unchanged": "Approved as proposed",
+        "edited": "Edited",
+        "editedCaption": "Median change {ratio}",
+        "decideTime": "Time to decide",
+        "notMeasured": "Change not measured",
+        "rowRequests": "{requests, plural, one {# request} other {# requests}}",
+        "row": "{requests, plural, one {# request} other {# requests}}, {rate} approved as proposed"
+      },
       "suggestions": {
         "title": "Briefing",
         "description": "What your watches found and the nightly look proposed - what cannot wait first.",
@@ -5239,7 +5254,21 @@
         "stepFailed": "Failed",
         "stepTime": "Average time",
         "stepCost": "Cost",
-        "stepGone": "A step no longer in the workflow"
+        "stepGone": "A step no longer in the workflow",
+        "approvalsHeading": "Approvals",
+        "approvalsHint": "How people decided what this workflow's approval steps asked, over the same days.",
+        "approvalsUnchanged": "Approved as proposed",
+        "approvalsUnchangedCaption": "{approved, number} of {decided, number} approved",
+        "approvalsEdited": "Edited before approval",
+        "approvalsEditedCaption": "Median change {ratio}",
+        "approvalsNotMeasured": "Change not measured",
+        "approvalsRejected": "Rejected",
+        "approvalsExpired": "Expired",
+        "approvalsExpiredCaption": "{count, plural, one {# expired} other {# expired}}",
+        "approvalsDecideTime": "Time to decide",
+        "approvalsDecideCaption": "95% within {p95}",
+        "approvalsRequests": "Requests",
+        "approvalsMedianEdit": "Median change"
       }
     },
     "retention": {

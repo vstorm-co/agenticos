@@ -1,5 +1,5 @@
 ---
-source_sha: "5aa8aa87f7c5"
+source_sha: "e4a6e258e523"
 ---
 
 # Workflows { #workflows }
@@ -627,6 +627,39 @@ podaje też wydatki z tego miesiąca, łącznie z runami testowymi, na tle miesi
 budżetu workflow - na czerwono, gdy jest wyczerpany. **By step** pokazuje, skąd
 wziął się czas, koszt i błędy, od najdroższych. Przez API to
 `GET /api/v1/workflows/{id}/stats?days=30`.
+
+Jeśli workflow w tym okresie prosił osobę o zatwierdzenie, sekcja **Zatwierdzenia
+(Approvals)** podsumowuje, jak ludzie zdecydowali: **Zatwierdzone bez zmian (Approved as
+proposed)**, **Zmienione przed zatwierdzeniem (Edited before approval)** z medianą tego,
+jaką część tekstu zmieniły poprawki, **Odrzucone (Rejected)**, ile próśb **wygasło**,
+oraz **Czas do decyzji (Time to decide)**, typowy i taki, w jakim zapada 95 na 100.
+Tabela podaje te same liczby dla każdego kroku zatwierdzenia.
+
+Okno to te same dni, liczone od chwili, gdy osobę o coś zapytano, a runy testowe są
+pominięte. Odsetek zatwierdzonych i odsetek zatwierdzonych bez zmian (w API
+`acceptance_rate` i `unchanged_rate`; karta pokazuje drugi) liczy się z próśb, o których
+zdecydowano, czyli zatwierdzonych lub odrzuconych: prośba, która wygasła albo została
+anulowana wraz z runem, nie doczekała się decyzji, więc jest policzona, ale nie wchodzi
+do odsetków. Krok, którego nie można edytować, liczy się jako zatwierdzony bez zmian.
+Liczby podają, co się stało, i niczego nie oceniają.
+
+Liczby są per krok i per dzień, nie per rodzaj wiadomości. Aby porównać kategorie,
+skieruj każdą do własnego kroku zatwierdzenia.
+
+To, jak bardzo poprawka coś zmieniła, mierzy się raz, w chwili decyzji, tym samym
+narzędziem co [`text.compare`](reference/workflow-nodes.md#text-compare), znak po znaku:
+`0`, gdy osoba zatwierdziła propozycję bez zmian w kroku, który można edytować, aż do
+`1`, gdy nic z niej nie zostało. Krok, którego nie można edytować, odrzucenie i
+wygaśnięcie nie mają takiej liczby. Poprawka rozstrzygnięta, zanim zatwierdzenia zaczęto
+mierzyć, też jej nie ma i nie wchodzi do mediany, zamiast liczyć się jako brak zmian;
+gdy w okresie nie zmierzono żadnej poprawki, karta pokazuje **Change not measured**
+(„Nie zmierzono zmiany”).
+
+Te same liczby przychodzą przez API w bloku `approvals` statystyk. Dla wszystkich
+workflow, które widzisz, w wybranych datach, `GET
+/api/v1/workflow-approvals/stats?from=2026-10-01&to=2026-10-31` podaje sumy i pięć
+workflow z największą liczbą próśb, a pokazuje je karta **Wyniki zatwierdzeń (Approval
+outcomes)** na [dashboardzie](console.md#the-dashboard).
 
 Karta **Workflows** na dashboardzie sumuje to samo dla każdego workflow, który
 widzisz, w okresie ustawionym na dashboardzie: runy, błędy, koszt i pięć najczęściej

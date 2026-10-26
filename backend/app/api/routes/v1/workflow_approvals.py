@@ -5,13 +5,14 @@ Organization-wide like the tool approvals queue, and gated the same way on
 which the service checks.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 
-from app.api.deps import Auth, WorkflowApprovalSvc, require
+from app.api.deps import Auth, WorkflowApprovalSvc, WorkflowStatsSvc, require
+from app.core.exceptions import BadRequestError
 from app.core.permissions import Perm
 from app.db.models.workflow_approval import WorkflowApprovalStatus
 from app.schemas.workflow_approval import (
@@ -19,6 +20,7 @@ from app.schemas.workflow_approval import (
     WorkflowApprovalList,
     WorkflowApprovalRead,
 )
+from app.schemas.workflow_stats import WorkflowApprovalsSummary
 
 router = APIRouter()
 
@@ -52,6 +54,32 @@ async def list_workflow_approvals(
         created_to=created_to,
         oldest_first=oldest_first,
     )
+
+
+@router.get(
+    "/stats",
+    response_model=WorkflowApprovalsSummary,
+    dependencies=[Depends(require(Perm.WORKFLOWS_VIEW))],
+)
+async def summarize_workflow_approvals(
+    service: WorkflowStatsSvc,
+    ctx: Auth,
+    first: date = Query(alias="from", description="The first UTC day, inclusive"),
+    last: date = Query(alias="to", description="The last UTC day, inclusive"),
+) -> Any:
+    """What the approval requests of real runs came to, over the UTC days asked.
+
+    Counts every request asked on those days by how it ended - approved unchanged,
+    approved edited, rejected, expired, cancelled, still pending - with the rates,
+    the time to decide and how much approvers changed what they approved, and names
+    the five workflows with the most requests. Test runs are left out. Gated on
+    `workflows:view`, not `approvals:decide`, and only the workflows the caller may
+    view are counted. Only counts and times are returned: no proposal, answer, note
+    or title.
+    """
+    if last < first or (last - first).days > 366:
+        raise BadRequestError(message="Ask for at most a year, from a day before the last")
+    return await service.approvals_summary(ctx, first=first, last=last)
 
 
 @router.post(

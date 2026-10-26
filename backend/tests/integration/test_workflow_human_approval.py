@@ -7,6 +7,7 @@ step names.
 """
 
 import json
+import threading
 import uuid
 from collections.abc import Coroutine, Iterator
 from datetime import UTC, datetime, timedelta
@@ -579,6 +580,102 @@ class TestAnEditableStep:
         decided = await _decide(seeded, legacy.id, approved=True)
         assert (decided.final, decided.edited) == (None, False)
         assert decided.status == WorkflowApprovalStatus.APPROVED
+
+
+class TestWhatADecisionRecords:
+    async def _decided(
+        self,
+        engine: AsyncEngine,
+        wakes,
+        *,
+        proposal: str | None,
+        approved: bool = True,
+        final: str | None = None,
+        **config: Any,
+    ) -> tuple[SeededRun, WorkflowApproval, WorkflowApprovalRead]:
+        seeded = await seed_run(engine, _editable_graph(proposal, **config).graph)
+        await drive(seeded)
+        request = await _request(seeded)
+        decided = await _decide(seeded, request.id, approved=approved, final=final)
+        return seeded, await _request(seeded), decided
+
+    async def test_an_unchanged_approval_records_no_edit(self, engine: AsyncEngine, wakes):
+        seeded, row, _decided = await self._decided(
+            engine, wakes, proposal="Hello Anna", editable=True
+        )
+        assert (row.edited, row.edit_ratio) == (False, 0.0)
+
+    async def test_an_edited_approval_records_how_much_changed(self, engine: AsyncEngine, wakes):
+        seeded, row, _decided = await self._decided(
+            engine, wakes, proposal="Hello Anna", final="Hello Ann", editable=True
+        )
+        assert (row.edited, row.edit_ratio) == (True, round(1 / 10, 6))
+
+    async def test_a_whitespace_only_change_records_no_edit(self, engine: AsyncEngine, wakes):
+        seeded, row, _decided = await self._decided(
+            engine, wakes, proposal="A\r\nB  \n", final="A\nB", editable=True
+        )
+        assert (row.edited, row.edit_ratio) == (False, 0.0)
+
+    async def test_a_unicode_only_change_records_no_edit(self, engine: AsyncEngine, wakes):
+        # Composed and decomposed é (Zoé): the same text, however a browser or a mail
+        # client happened to write it.
+        seeded, row, _decided = await self._decided(
+            engine, wakes, proposal="Zo\u00e9", final="Zoe\u0301", editable=True
+        )
+        assert (row.edited, row.edit_ratio) == (False, 0.0)
+
+    async def test_an_editable_step_with_nothing_to_edit_records_no_edit(
+        self, engine: AsyncEngine, wakes
+    ):
+        seeded, row, _decided = await self._decided(engine, wakes, proposal=None, editable=True)
+        assert (row.edited, row.edit_ratio) == (False, 0.0)
+
+    async def test_a_rejection_records_no_ratio(self, engine: AsyncEngine, wakes):
+        seeded, row, _decided = await self._decided(
+            engine, wakes, proposal="A", approved=False, editable=True
+        )
+        assert row.edit_ratio is None
+
+    async def test_a_plain_step_records_no_ratio(self, engine: AsyncEngine, wakes):
+        seeded, row, _decided = await self._decided(engine, wakes, proposal="A")
+        assert row.edit_ratio is None
+
+    async def test_a_decision_is_scored_off_the_event_loop(
+        self, engine: AsyncEngine, wakes, monkeypatch: pytest.MonkeyPatch
+    ):
+        threads: list[bool] = []
+        real = approvals_service.text_similarity.compare
+
+        def spy(*args: Any, **kwargs: Any):
+            threads.append(threading.current_thread() is threading.main_thread())
+            return real(*args, **kwargs)
+
+        monkeypatch.setattr(approvals_service.text_similarity, "compare", spy)
+        await self._decided(engine, wakes, proposal="Hello Anna", final="Hello Ann", editable=True)
+        assert threads == [False]
+
+    async def test_the_audit_holds_the_ratio_and_never_the_text(self, engine: AsyncEngine, wakes):
+        seeded, _row, _decided = await self._decided(
+            engine,
+            wakes,
+            proposal="PROPOSAL-MARKER-7f3",
+            final="FINAL-MARKER-91c plus more",
+            editable=True,
+        )
+        (entry,) = await _audit(seeded)
+        assert entry.details is not None
+        ratio = entry.details["edit_ratio"]
+        assert isinstance(ratio, float) and 0 < ratio <= 1
+        dumped = json.dumps(entry.details)
+        assert "PROPOSAL-MARKER-7f3" not in dumped and "FINAL-MARKER-91c" not in dumped
+
+    async def test_a_rejection_audits_no_ratio(self, engine: AsyncEngine, wakes):
+        seeded, _row, _decided = await self._decided(
+            engine, wakes, proposal="A", approved=False, editable=True
+        )
+        (entry,) = await _audit(seeded)
+        assert entry.details is not None and entry.details["edit_ratio"] is None
 
 
 class TestWhoDecides:

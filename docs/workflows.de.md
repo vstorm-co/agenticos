@@ -1,5 +1,5 @@
 ---
-source_sha: "5aa8aa87f7c5"
+source_sha: "e4a6e258e523"
 ---
 
 # Workflows { #workflows }
@@ -688,6 +688,42 @@ und was sie je Tag kosteten. Die Kostenkarte nennt auch die Ausgaben dieses Mona
 Testläufe eingeschlossen, im Vergleich zum Monatsbudget des Workflows - rot, sobald es
 aufgebraucht ist. **By step** zeigt, woher Zeit, Kosten und Fehler kamen, die teuersten
 zuerst. Über die API ist es `GET /api/v1/workflows/{id}/stats?days=30`.
+
+Hat der Workflow in diesem Zeitraum eine Person um Freigabe gebeten, fasst **Freigaben
+(Approvals)** zusammen, wie entschieden wurde: **Wie vorgeschlagen freigegeben (Approved
+as proposed)**, **Vor der Freigabe bearbeitet (Edited before approval)** mit dem Median
+des Textanteils, den die Änderungen betrafen, **Abgelehnt (Rejected)**, wie viele
+Anfragen **abgelaufen** sind, und die **Zeit bis zur Entscheidung (Time to decide)**,
+die typische und die, innerhalb derer 95 von 100 entschieden waren. Eine Tabelle nennt
+dieselben Zahlen für jeden Freigabeschritt.
+
+Das Fenster sind dieselben Tage, gezählt ab dem Zeitpunkt, an dem die Person gefragt
+wurde; Testläufe bleiben außen vor. Der Anteil der Freigegebenen und der Anteil der wie
+vorgeschlagen Freigegebenen (über die API `acceptance_rate` und `unchanged_rate`; die
+Karte zeigt den zweiten) beziehen sich auf die Anfragen, über die entschieden wurde,
+also freigegebene oder abgelehnte: Eine Anfrage, die abgelaufen ist oder mit ihrem Run
+abgebrochen wurde, wurde nie entschieden; sie wird gezählt, geht aber nicht in die
+Quoten ein. Ein Schritt, der sich nicht bearbeiten lässt, zählt als wie vorgeschlagen
+freigegeben. Die Zahlen sagen, was geschah, und bewerten es nicht.
+
+Die Zahlen gelten je Schritt und je Tag, nicht je Art von Nachricht. Um Kategorien zu
+vergleichen, leiten Sie jede an einen eigenen Freigabeschritt.
+
+Wie stark eine Änderung den Text verändert hat, wird einmal gemessen, wenn die Person
+entscheidet, mit demselben Verfahren wie bei
+[`text.compare`](reference/workflow-nodes.md#text-compare), zeichenweise: `0`, wenn sie
+den Vorschlag in einem bearbeitbaren Schritt unverändert freigegeben hat, bis `1`, wenn
+nichts davon übrig ist. Ein Schritt, der sich nicht bearbeiten lässt, eine Ablehnung und
+ein Ablauf haben keine solche Zahl. Eine Änderung, die vor der Messung entschieden
+wurde, hat sie ebenfalls nicht und bleibt aus dem Median heraus, statt als keine
+Änderung zu zählen; wurde im Zeitraum keine Änderung gemessen, steht auf der Karte
+**Change not measured** („Änderung nicht gemessen“).
+
+Dieselben Zahlen kommen über die API im Block `approvals` der Statistik. Über alle
+Workflows, die Sie sehen, im gewählten Zeitraum liefert `GET
+/api/v1/workflow-approvals/stats?from=2026-10-01&to=2026-10-31` die Summen und die fünf
+Workflows mit den meisten Anfragen; die Karte **Freigabe-Ergebnisse (Approval
+outcomes)** im [Dashboard](console.md#the-dashboard) zeigt sie.
 
 Die Karte **Workflows** im Dashboard rechnet dasselbe über jeden Workflow zusammen,
 den Sie sehen, im Zeitraum, auf den das Dashboard eingestellt ist: Runs, Fehler,

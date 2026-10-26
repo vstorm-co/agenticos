@@ -774,6 +774,60 @@ export interface WorkflowStatsStep {
   avg_seconds: number | null;
 }
 
+/** How many approved requests changed the proposal by a share within one range. Mirrors `EditRatioBucket`. */
+export interface EditRatioBucket {
+  /** The upper bound: 0, 0.1, 0.25, 0.5 or 1. The 0 bucket holds exactly 0. */
+  upto: number;
+  count: number;
+}
+
+/** What approval requests of real runs came to over a window. Mirrors `ApprovalOutcomes`. */
+export interface ApprovalOutcomes {
+  requests: number;
+  pending: number;
+  /** Approved as proposed, steps that cannot be edited included. */
+  approved_unchanged: number;
+  approved_edited: number;
+  rejected: number;
+  /** Ran out of time with no decision; not counted as decided. */
+  expired: number;
+  cancelled: number;
+  /** Approved out of the decided requests; null when none was decided. */
+  acceptance_rate: number | null;
+  /** Approved unchanged out of the decided requests; null when none was decided. */
+  unchanged_rate: number | null;
+  decide_p50_seconds: number | null;
+  decide_p95_seconds: number | null;
+  /** The median share of a proposal an approver changed, over measured edits; null when none. */
+  edit_ratio_median: number | null;
+  edit_ratios: EditRatioBucket[];
+}
+
+/** One UTC day's approval requests, by how they ended. Mirrors `WorkflowApprovalDay`. */
+export interface WorkflowApprovalDay {
+  /** The day, YYYY-MM-DD, in UTC. */
+  day: string;
+  approved_unchanged: number;
+  approved_edited: number;
+  rejected: number;
+  expired: number;
+}
+
+/** One approval step's outcomes. Mirrors `WorkflowApprovalStep`. */
+export interface WorkflowApprovalStep extends ApprovalOutcomes {
+  node_instance_id: Uuid;
+  /** The step's name in the live version, or null. */
+  label: string | null;
+  definition_id: string | null;
+}
+
+/** A workflow's approval outcomes over its stats window. Mirrors `WorkflowApprovalStats`. */
+export interface WorkflowApprovalStats extends ApprovalOutcomes {
+  by_day: WorkflowApprovalDay[];
+  /** Each approval step, most requests first. */
+  steps: WorkflowApprovalStep[];
+}
+
 /** One workflow's real runs over the dashboard's window. Mirrors `WorkflowSummaryRow`. */
 export interface WorkflowSummaryRow {
   id: string;
@@ -781,6 +835,18 @@ export interface WorkflowSummaryRow {
   runs: number;
   failed: number;
   cost_usd: number;
+}
+
+/** One workflow's approval outcomes over the dashboard's window. Mirrors `WorkflowApprovalsSummaryRow`. */
+export interface WorkflowApprovalsSummaryRow extends ApprovalOutcomes {
+  id: string;
+  name: string;
+}
+
+/** The approval outcomes of every workflow the caller may see. Mirrors `WorkflowApprovalsSummary`. */
+export interface WorkflowApprovalsSummary extends ApprovalOutcomes {
+  /** The five with the most requests. */
+  workflows: WorkflowApprovalsSummaryRow[];
 }
 
 /** The real runs of every workflow the caller may see. Mirrors `WorkflowsSummary`. */
@@ -815,6 +881,7 @@ export interface WorkflowStats {
   monthly_budget_usd: number | null;
   by_day: WorkflowStatsDay[];
   steps: WorkflowStatsStep[];
+  approvals: WorkflowApprovalStats;
 }
 
 /** What a model step's answer should say. Mirrors `EvalExpectation`. */

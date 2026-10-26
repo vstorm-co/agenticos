@@ -9,7 +9,8 @@ step's every dispatch find the same request rather than open another.
 The request is written with what it asks - a title and the details the step
 bound - so the approver decides on exactly what the run will act on. It also
 holds what the approver may edit (the proposal) and the version they approved
-(the final text, and whether it differs from the proposal). A decision
+(the final text, and whether it differs from the proposal), and how much the
+approver changed it, measured once when it was decided. A decision
 cannot be revisited: the step reads it once, when it wakes.
 """
 
@@ -18,7 +19,17 @@ import uuid
 from datetime import datetime
 from typing import Any, Literal
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, String, Text, false
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    String,
+    Text,
+    false,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -105,6 +116,10 @@ class WorkflowApproval(Base, TimestampMixin):
     edited: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=false()
     )
+    # The share of the proposal the approver changed, 0 to 1, scored once when the
+    # request was decided and never recomputed. Null: not an approved edit
+    # decision, or decided before it was measured.
+    edit_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     __table_args__ = (
         CheckConstraint(
@@ -114,6 +129,16 @@ class WorkflowApproval(Base, TimestampMixin):
         CheckConstraint(
             "proposal_format IN ('text', 'markdown')",
             name="ck_workflow_approval_proposal_format",
+        ),
+        CheckConstraint(
+            "edit_ratio IS NULL OR (edit_ratio >= 0 AND edit_ratio <= 1)",
+            name="ck_workflow_approval_edit_ratio",
+        ),
+        Index(
+            "ix_workflow_approvals_org_workflow_created",
+            "organization_id",
+            "workflow_id",
+            "created_at",
         ),
         # The queue: one organization's pending requests.
         Index("ix_workflow_approvals_org_status", "organization_id", "status"),

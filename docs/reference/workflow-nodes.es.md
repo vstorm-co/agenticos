@@ -1,5 +1,5 @@
 ---
-source_sha: "1f5def5c69f4"
+source_sha: "f31594b6f257"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -749,6 +749,11 @@ La salida aprobada lleva tres campos además de la decisión:
 Una versión editada se guarda sin espacios en blanco al principio ni al final, así
 que una edición que empieza con un bloque de código con sangría pierde esa primera
 sangría.
+
+Una solicitud aprobada de un paso `editable` también registra su razón de edición
+(`edit_ratio`), cuánto cambió quien aprobó la propuesta, de `0` a `1`. Las
+[estadísticas](../workflows.md#running-a-workflow) del workflow la informan junto con
+los demás resultados de aprobación.
 
 Un paso que no es `editable` muestra su propuesta de solo lectura y, una vez
 aprobada, la pasa sin cambios como `final` con `edited` en false, de modo que los

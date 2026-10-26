@@ -1,5 +1,5 @@
 ---
-source_sha: "5aa8aa87f7c5"
+source_sha: "e4a6e258e523"
 ---
 
 # Workflows { #workflows }
@@ -649,6 +649,37 @@ por día. La tarjeta de coste da también el gasto de este mes, ejecuciones de p
 incluidas, frente al presupuesto mensual del workflow - en rojo cuando se agota. **By
 step** muestra de dónde vinieron el tiempo, el coste y los fallos, primero lo más caro.
 Por la API es `GET /api/v1/workflows/{id}/stats?days=30`.
+
+Si el workflow pidió aprobación a una persona en ese periodo, **Approvals** resume cómo
+se decidió: **Approved as proposed**, **Edited before approval** con la mediana de la
+parte del texto que cambiaron las ediciones, **Rejected**, cuántas solicitudes
+**caducaron** y el **Time to decide**, el típico y aquel en el que se decide 95 de cada
+100. Una tabla da las mismas cifras para cada paso de aprobación.
+
+La ventana son los mismos días, contados desde que se preguntó a la persona, y las
+ejecuciones de prueba se dejan fuera. La proporción aprobada y la proporción aprobada
+como se propuso (`acceptance_rate` y `unchanged_rate` en la API; la tarjeta muestra la
+segunda) se calculan sobre las solicitudes decididas, aprobadas o rechazadas: una
+solicitud que caducó o se canceló con su run nunca se decidió, así que se cuenta pero no
+entra en las tasas. Un paso que no se puede editar cuenta como aprobado como se propuso.
+Las cifras dicen lo que pasó y no lo juzgan.
+
+Las cifras son por paso y por día, no por tipo de mensaje. Para comparar categorías,
+dirige cada una a su propio paso de aprobación.
+
+Cuánto cambió una edición se mide una vez, cuando la persona decide, con el mismo
+medidor que [`text.compare`](reference/workflow-nodes.md#text-compare), por caracteres:
+`0` cuando aprobó la propuesta tal cual en un paso que se puede editar, hasta `1` cuando
+no queda nada de ella. Un paso que no se puede editar, un rechazo y una caducidad no
+tienen esa cifra. Una edición decidida antes de que se midieran las aprobaciones tampoco
+la tiene y queda fuera de la mediana, en vez de contar como sin cambios; cuando no se
+midió ninguna edición del periodo, la tarjeta dice **Change not measured**.
+
+Las mismas cifras llegan por la API en el bloque `approvals` de las estadísticas. Sobre
+todos los workflows que ves, en las fechas que elijas, `GET
+/api/v1/workflow-approvals/stats?from=2026-10-01&to=2026-10-31` da los totales y los
+cinco workflows con más solicitudes, y los muestra la tarjeta **Approval outcomes** del
+[dashboard](console.md#the-dashboard).
 
 La tarjeta **Workflows** del dashboard suma lo mismo para cada workflow que puedes
 ver, en el periodo al que está ajustado el dashboard: runs, fallos, coste y los cinco

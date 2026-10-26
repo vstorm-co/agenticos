@@ -1,5 +1,5 @@
 ---
-source_sha: "d81630b8a397"
+source_sha: "e1e3582d471d"
 ---
 
 # Konsola { #the-console }
@@ -18,7 +18,7 @@ ustawieniach czatu, pod suwakami obok mikrofonu.
 Strona startowa to **układalna siatka widgetów** i jest odpowiedzią na pytanie
 "co się dzieje" bez otwierania pięciu stron.
 
-Istnieje czterdzieści sześć kart. Nie zobaczysz wszystkich: **karta jest
+Istnieje czterdzieści osiem kart. Nie zobaczysz wszystkich: **karta jest
 bramkowana uprawnieniem, którego wymagają jej dane**, więc widget, którego nie
 możesz odczytać, nigdy się nie montuje, a jego zapytania nigdy nie wychodzą —
 poza twoimi własnymi powiadomieniami, niżej, które wymagają tylko tego, żebyś
@@ -44,6 +44,12 @@ sandboxy - czeka w katalogu, jedno kliknięcie dalej pod **Customize**:
 | *(bez tytułu, na górze)* | Podsumowanie, runy w czasie i to, jak się skończyły |
 | **Needs attention** | Co czeka: [zatwierdzenia](governance.md#approvals), ostatnie błędy, zapas w budżecie, twoje najnowsze [powiadomienia](#the-bell) |
 | **Usage & cost** | Których agentów się używa, wydatki, [minuty rozmów](#voice-calls), kiedy dzieje się praca, skąd przychodzą runy, miks modeli, opóźnienia, jakość odpowiedzi, kto z tego korzysta |
+
+Karta **Wyniki zatwierdzeń (Approval outcomes)** czeka w katalogu, dla każdego, kto może
+oglądać workflow. Pokazuje, jak ludzie rozstrzygali [kroki zatwierdzenia](workflows.md#running-a-workflow),
+o które pytały workflow w danym okresie. Pokazuje odsetek zatwierdzonych bez zmian,
+poprawki i medianę ich zmiany, czas do decyzji oraz pięć workflow z największą liczbą
+próśb. Jest pusta, gdy w okresie ustawionym na dashboardzie nie padła żadna prośba.
 
 Dashboard otwiera się kartą **Get started**, dopóki nie zrobisz wszystkich jej
 kroków: opowiedzieć agentom o sobie, zacząć rozmowę, podłączyć usługę własnym
@@ -689,7 +695,7 @@ problem zostaje odczytany jako cisza.
 
 ## Podsumowanie { #recap }
 
-- Dashboard to **czterdzieści sześć widgetów**, które układasz sam, zapisywanych
+- Dashboard to **czterdzieści osiem widgetów**, które układasz sam, zapisywanych
   per osoba i per organizacja — wszystkie poza twoimi własnymi powiadomieniami
   bramkowane uprawnieniem, którego wymagają ich dane.
 - Zapisany układ **może ukrywać i zmieniać kolejność, ale nigdy nie odsłania** —

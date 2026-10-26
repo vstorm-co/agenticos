@@ -716,6 +716,11 @@ The approved output carries three fields besides the decision:
 An edited version is stored with leading and trailing whitespace removed, so an
 edit that begins with an indented code block loses that first indentation.
 
+An approved request on an `editable` step also records its edit ratio, how much of
+the proposal the approver changed, from `0` to `1`. The workflow's
+[stats](../workflows.md#running-a-workflow) report it with the other approval
+outcomes.
+
 A step that is not `editable` shows its proposal read-only and, once approved,
 hands it on unchanged as `final` with `edited` false, so later steps can bind
 `final` whichever mode the step is in. A rejection or an expiry carries no

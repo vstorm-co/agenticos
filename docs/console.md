@@ -14,7 +14,7 @@ settings, the sliders beside the microphone.
 The landing page is an **arrangeable grid of widgets**, and it is the answer to
 "what is happening" without opening five pages.
 
-Forty-six cards exist. You will not see all of them: **a card is gated on the
+Forty-eight cards exist. You will not see all of them: **a card is gated on the
 permission its data needs**, so a widget you may not read is never mounted and
 its queries are never issued — except your own notifications, below, which need
 only that you are signed in. An empty band disappears with its heading rather
@@ -39,6 +39,12 @@ members, sandboxes - wait in the catalog, one click away under **Customize**:
 | *(untitled, at the top)* | The summary, runs over time and how they ended |
 | **Needs attention** | What is waiting: [approvals](governance.md#approvals), recent failures, budget headroom, your most recent [notifications](#the-bell) |
 | **Usage & cost** | Which agents are used, spend, [voice minutes](#voice-calls), when the work happens, where runs come from, model mix, latency, answer quality, who is using it |
+
+**Approval outcomes** waits in the catalog, for whoever may view workflows. It shows how
+people decided the [approval steps](workflows.md#running-a-workflow) the period's
+workflows asked them. It shows the share approved as proposed, the edits and their
+median change, the time to decide and the five workflows with the most requests. It is
+empty when no request falls in the dashboard's period.
 
 The dashboard opens with **Get started** until each of its steps is done: tell
 agents about yourself, start a conversation, connect a service with your own
@@ -665,7 +671,7 @@ quiet one.
 
 ## Recap
 
-- The dashboard is **forty-six widgets** you arrange yourself, saved per
+- The dashboard is **forty-eight widgets** you arrange yourself, saved per
   person and per organization — all but your own notifications gated on the
   permission their data needs.
 - A saved arrangement **can hide and reorder but never reveal** — the gate runs

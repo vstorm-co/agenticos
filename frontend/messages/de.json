@@ -2815,6 +2815,21 @@
         "row": "{runs, plural, one {# Run} other {# Runs}}",
         "rowFailed": "{runs, plural, one {# Run} other {# Runs}}, {failed, number} fehlgeschlagen"
       },
+      "approval-outcomes": {
+        "title": "Freigabe-Ergebnisse",
+        "description": "Wie Personen im Zeitraum über die Anfragen Ihrer Workflows entschieden haben: wie vorgeschlagen freigegeben, bearbeitet, abgelehnt und wie lange es dauerte.",
+        "empty": {
+          "title": "Keine Freigabeanfragen in diesem Zeitraum",
+          "description": "Ein Workflow mit Freigabeschritt erscheint hier, sobald jemand gefragt wird."
+        },
+        "unchanged": "Wie vorgeschlagen freigegeben",
+        "edited": "Bearbeitet",
+        "editedCaption": "Änderung im Median {ratio}",
+        "decideTime": "Zeit bis zur Entscheidung",
+        "notMeasured": "Änderung nicht gemessen",
+        "rowRequests": "{requests, plural, one {# Anfrage} other {# Anfragen}}",
+        "row": "{requests, plural, one {# Anfrage} other {# Anfragen}}, {rate} wie vorgeschlagen freigegeben"
+      },
       "suggestions": {
         "title": "Briefing",
         "description": "Funde Ihrer Beobachtungen und Vorschläge des nächtlichen Blicks - zuerst, was nicht warten kann.",
@@ -6621,7 +6636,21 @@
         "stepFailed": "Fehlgeschlagen",
         "stepTime": "Mittlere Dauer",
         "stepCost": "Kosten",
-        "stepGone": "Ein Schritt, den der Workflow nicht mehr hat"
+        "stepGone": "Ein Schritt, den der Workflow nicht mehr hat",
+        "approvalsHeading": "Freigaben",
+        "approvalsHint": "Wie über die Anfragen der Freigabeschritte dieses Workflows entschieden wurde, im selben Zeitraum.",
+        "approvalsUnchanged": "Wie vorgeschlagen freigegeben",
+        "approvalsUnchangedCaption": "{approved, number} von {decided, number} freigegeben",
+        "approvalsEdited": "Vor der Freigabe bearbeitet",
+        "approvalsEditedCaption": "Änderung im Median {ratio}",
+        "approvalsNotMeasured": "Änderung nicht gemessen",
+        "approvalsRejected": "Abgelehnt",
+        "approvalsExpired": "Abgelaufen",
+        "approvalsExpiredCaption": "{count, plural, one {# abgelaufen} other {# abgelaufen}}",
+        "approvalsDecideTime": "Zeit bis zur Entscheidung",
+        "approvalsDecideCaption": "95 % innerhalb von {p95}",
+        "approvalsRequests": "Anfragen",
+        "approvalsMedianEdit": "Änderung (Median)"
       }
     }
   },

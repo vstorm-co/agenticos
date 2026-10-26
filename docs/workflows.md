@@ -611,6 +611,37 @@ monthly budget, in red once it is spent. **By step** lists where the time, the c
 and the failures came from, costliest first. Over the API it is
 `GET /api/v1/workflows/{id}/stats?days=30`.
 
+When the workflow asked a person for approval in that period, **Approvals** sums up how
+they decided: **Approved as proposed**, **Edited before approval** with the median share
+of the text the edits changed, **Rejected**, how many requests **expired**, and the
+**time to decide**, typical and 95 in 100. A table lists the same figures for each
+approval step.
+
+The window is the same days, counted by when the person was asked, and test runs are
+left out. The share approved and the share approved as proposed (`acceptance_rate` and
+`unchanged_rate` over the API; the card shows the second) are out of the requests that
+were decided, an approval or a rejection: a request that expired or was cancelled with
+its run was never decided, so it is counted but not part of them. A step that cannot be
+edited counts as approved as proposed. The figures state what happened and do not judge
+it.
+
+Figures are per step and per day, not per kind of message. To compare categories, route
+each one to its own approval step.
+
+How much an edit changed is measured once, when the person decides, by the same scorer
+as [`text.compare`](reference/workflow-nodes.md#text-compare), by character: `0` when
+they approved the proposal unchanged on a step that can be edited, up to `1` when
+nothing of it is left. A step that cannot be edited, a rejection and an expiry have no
+such figure. An edit decided before approvals were measured has none either and is left
+out of the median rather than counted as no change; when no edit in the period was
+measured, the card reads **Change not measured**.
+
+The same figures arrive over the API in the stats' `approvals` block. Across every
+workflow you can see, over the dates you choose, `GET
+/api/v1/workflow-approvals/stats?from=2026-10-01&to=2026-10-31` gives the totals and the
+five workflows with the most requests, and the dashboard's [**Approval
+outcomes**](console.md#the-dashboard) card shows them.
+
 The dashboard's **Workflows** card adds the same up across every workflow you can
 see, over the period the dashboard is set to: runs, failures, cost and the five
 busiest. Above them it counts the runs waiting for a person now - an approval or a
