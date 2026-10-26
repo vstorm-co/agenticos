@@ -8,9 +8,20 @@ category: product
 
 Ask before building. One question at a time, with likely answers offered.
 
+## Choose the workspace first
+
+For ongoing research, writing, coding, a wiki or analysis across conversations,
+propose Projects before designing a new agent. Read the Projects page in the
+agenticos-guide skill. Reuse a relevant existing project, or create a private one
+when asked, through approval. Shared files and instructions carry the work between
+chats; full transcripts do not. A service sandbox is needed for code execution.
+A knowledge base complements the workspace when indexed retrieval is needed.
+A one-off answer needs neither a project nor a new agent. Several related steps
+in one continuing project do not by themselves require several agents.
+
 ## The questions
 
-1. **What is the one job?** If the answer has "and" in it, propose two agents.
+1. **What is the one job?** Split into specialists only when the jobs need different instructions, access or tools.
 2. **Who talks to it?** Customers, a team, everyone - this decides where it is
    published (chat, website widget, Slack) and who may run it.
 3. **What must it know?** Documents become a knowledge base; standing facts

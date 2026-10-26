@@ -192,6 +192,9 @@ async def test_an_agent_bound_to_the_platform_reaches_it_in_process_as_the_asker
         result = await agent.run("who am I?")
         tools = await toolset.get_tools(_run_context())
 
+    assert tools["agenticos_create_project"].tool_def.metadata[NEEDS_APPROVAL] is True
+    assert tools["agenticos_list_projects"].tool_def.metadata[NEEDS_APPROVAL] is False
+    assert tools["agenticos_get_project"].tool_def.metadata[NEEDS_APPROVAL] is True
     assert str(organization.id) in result.output
     assert tools["agenticos_whoami"].tool_def.metadata[NEEDS_APPROVAL] is False
     assert tools["agenticos_create_agent_draft"].tool_def.metadata[NEEDS_APPROVAL] is True
@@ -458,3 +461,40 @@ def test_connection_discovery_does_not_publish_connection_writes() -> None:
     ):
         for method in ("post", "patch", "delete"):
             assert (method, prefix + path) not in public
+
+
+async def test_projects_round_trip_through_mcp(db: AsyncSession, served: None) -> None:
+    key, _organization = await _owner_key(db, Perm.PROJECTS_VIEW, Perm.PROJECTS_EDIT)
+    async with _connected(key) as session:
+        created = await session.call_tool(
+            "create_project",
+            {"name": "Research wiki", "instructions": "Read index.md; cite sources."},
+        )
+        assert not created.is_error
+        project = _content(created)
+        loaded = _content(await session.call_tool("get_project", {"project_id": project["id"]}))
+        listing = _content(await session.call_tool("list_projects", {"q": "Research"}))
+
+    assert project["visibility"] == "private"
+    assert loaded["instructions"] == "Read index.md; cite sources."
+    assert loaded["backend"] == "state"
+    assert [item["id"] for item in listing["items"]] == [project["id"]]
+    assert "instructions" not in listing["items"][0]
+
+
+@pytest.mark.security
+async def test_project_tools_keep_key_scopes_and_tenant_isolation(
+    db: AsyncSession, served: None
+) -> None:
+    key, _organization = await _owner_key(db, Perm.PROJECTS_VIEW, Perm.PROJECTS_EDIT)
+    async with _connected(key) as session:
+        project = _content(await session.call_tool("create_project", {"name": "Private wiki"}))
+    other_key, _other = await _owner_key(db, Perm.PROJECTS_VIEW)
+    async with _connected(other_key) as session:
+        refused = await session.call_tool("create_project", {"name": "Not allowed"})
+        hidden = await session.call_tool("get_project", {"project_id": project["id"]})
+        listing = _content(await session.call_tool("list_projects", {}))
+
+    assert refused.is_error and "403" in refused.content[0].text
+    assert hidden.is_error and "404" in hidden.content[0].text
+    assert listing["items"] == []

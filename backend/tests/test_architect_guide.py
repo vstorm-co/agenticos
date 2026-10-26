@@ -49,3 +49,14 @@ def test_the_architect_template_installs_the_guide() -> None:
     architect = agent_templates.get("general/platform-assistant")
     assert architect is not None
     assert "software/agenticos-guide" in architect.skills
+
+
+def test_new_architect_templates_include_the_runtime_projects_guidance() -> None:
+    from app.services import agent_templates
+
+    architect = agent_templates.get("general/platform-assistant")
+    assert architect is not None
+    guidance = (
+        agent_templates.TEMPLATES_ROOT / "general/platform-assistant/PROJECTS.md"
+    ).read_text()
+    assert guidance.strip() in architect.instructions

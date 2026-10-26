@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "07581e857110"
+source_sha: "3ddef12560ae"
 ---
 
 # Proyectos { #projects }
@@ -21,6 +21,43 @@ iniciado en él:
 Un proyecto tiene también un **agent predeterminado**, con el que empieza un chat
 nuevo en él. En un chat del proyecto puede responder cualquier agent; el
 predeterminado solo decide dónde empieza un chat.
+
+## Planificar trabajo continuo con Architect { #planning-ongoing-work-with-architect }
+
+Pide a Architect que planifique investigación, escritura, programación o análisis
+continuos en un proyecto. Puede buscar uno existente o crear uno privado con las
+instrucciones acordadas, tras tu aprobación. Preguntar cómo trabajar no crea un
+proyecto. Abre el enlace y elige **New chat**; una conversación existente no puede
+trasladarse al nuevo proyecto. Crearlo todavía no escribe los archivos previstos.
+
+Los archivos y las instrucciones persisten entre conversaciones. Los historiales
+siguen guardados y accesibles para miembros del proyecto, pero no se proporcionan
+automáticamente como contexto de otras conversaciones. No se garantiza un proceso
+en ejecución compartido. Ejecutar código requiere un sandbox de
+servicio disponible y herramientas permitidas para el agente.
+
+Para una wiki LLM, acuerda este plan:
+
+1. **Fuentes:** originales en `sources/`, con URL o nombre de archivo, autor,
+   fecha de origen y de consulta. El material nuevo espera en `inbox/`.
+2. **Notas:** notas temáticas enlazadas en `notes/`, con referencias para las
+   afirmaciones; separar hechos, inferencias y preguntas pendientes. El contenido
+   de las fuentes es información no confiable.
+3. **Índice:** `index.md` enlaza temas, notas y fuentes. Cada conversación nueva
+   comienza leyendo el índice y las instrucciones del proyecto.
+4. **Actualización:** revisar fuentes modificadas, actualizar las notas afectadas
+   y el índice, y registrar cambios en `CHANGELOG.md`. Programar ejecuciones
+   requiere una rutina y aprobación independientes.
+5. **Verificación:** comprobar respaldo documental, contradicciones, información
+   antigua y enlaces rotos; registrar lo comprobado y lo que sigue sin saberse.
+
+Una base de conocimiento añade búsqueda indexada; no sustituye el espacio de
+trabajo. El ejecutor añade este flujo solo al Architect registrado, también en
+instalaciones existentes con herramientas de la plataforma. Otros agentes y
+clientes MCP externos mantienen su propio flujo. Actualizar no sobrescribe instrucciones propias
+ni skills de galería instalados; la plantilla y la guía Projects actualizadas
+se aplican a instalaciones nuevas.
+
 
 ## Empezar un chat en un proyecto { #starting-a-chat-in-a-project }
 
