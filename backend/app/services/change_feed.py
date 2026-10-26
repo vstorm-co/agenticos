@@ -199,6 +199,7 @@ _OWNED: dict[ChangeResource, ResourceType] = {
     "trigger": AGENT,
     "eval_suite": AGENT,
     "eval_run": AGENT,
+    "improvement": AGENT,
     "skill": SKILL,
     "context": CONTEXT,
     "knowledge_base": COLLECTION,
@@ -448,7 +449,7 @@ class ChangeFeedMiddleware:
 
 async def _row(db: AsyncSession, event: ChangeEvent, row_id: UUID) -> OwnedResource | None:
     organization_id = event.organization_id
-    if event.resource in ("agent", "trigger", "eval_suite", "eval_run"):
+    if event.resource in ("agent", "trigger", "eval_suite", "eval_run", "improvement"):
         return await agent_repo.get(db, row_id, organization_id=organization_id)
     if event.resource == "secret":
         return await secret_repo.get(db, row_id, organization_id=organization_id)

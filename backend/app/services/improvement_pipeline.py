@@ -24,6 +24,7 @@ from app.agents.capabilities.skills import SkillBody
 from app.agents.factory import DEFAULT_MAX_STEPS
 from app.agents.spec import AgentSpec
 from app.core.audit import record_audit
+from app.core.background import spawn_after_commit
 from app.core.config import settings
 from app.core.exceptions import (
     AppException,
@@ -64,6 +65,7 @@ from app.repositories import (
     background_job as background_job_repo,
 )
 from app.schemas.authoring import AuthoringStart, HunkDecision, ProposalCheck
+from app.schemas.change_event import ChangeEvent
 from app.schemas.eval_run import (
     EvalComparisonRead,
     EvalRunRead,
@@ -98,7 +100,7 @@ from app.schemas.improvement import (
     SelectionEstimate,
 )
 from app.schemas.scoring import DatasetScoring
-from app.services import authoring_fields, authoring_hunks
+from app.services import authoring_fields, authoring_hunks, change_feed
 from app.services import improvement_states as rules
 from app.services.agent_registry import AgentRegistryService
 from app.services.api_key import job_context
@@ -1378,6 +1380,21 @@ class ImprovementPipelineService:
         )
         await self._audit(
             run, "stage_changed" if transition.status.active else transition.status.value
+        )
+        spawn_after_commit(
+            self.db,
+            change_feed.publish(
+                ChangeEvent(
+                    organization_id=run.organization_id,
+                    resource="improvement",
+                    id=run.agent_id,
+                    action="updated",
+                    surface="system",
+                    actor_user_id=None,
+                    actor_name=None,
+                )
+            ),
+            name=f"improvement-moved:{run.id}",
         )
         if transition.status.active:
             await self._queue(run)

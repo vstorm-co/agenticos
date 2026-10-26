@@ -152,6 +152,21 @@ async def test_ready_proposal_survives_repeated_transitions_without_changing_the
     await _ready_proposal(db)
 
 
+async def test_every_move_is_announced_to_the_agents_open_pages(db):
+    with (
+        patch("app.services.improvement_pipeline.change_feed") as feed,
+        patch("app.services.improvement_pipeline.spawn_after_commit") as queued,
+    ):
+        _, agent, ready = await _ready_proposal(db)
+    events = [call.args[0] for call in feed.publish.call_args_list]
+    assert queued.call_count == len(events) >= 2
+    assert {(event.resource, event.id, event.surface) for event in events} == {
+        ("improvement", agent.id, "system")
+    }
+    assert all(event.actor_user_id is None for event in events)
+    assert ready.status == "ready"
+
+
 async def _queued_advances(db: AsyncSession, run_id: UUID) -> int:
     from app.db.models.background_job import BackgroundJob
 
