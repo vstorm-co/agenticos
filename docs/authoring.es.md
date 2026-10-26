@@ -1,5 +1,5 @@
 ---
-source_sha: "43aef06f7f37"
+source_sha: "3f6e5abe9cc7"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -70,7 +70,9 @@ que formar parte de la edición. La barra muestra esa línea encima de las citas
 del hallazgo, para que el lector juzgue si la respaldan. Un hallazgo de que la
 edición está respaldada sin ninguna cita que se pueda comprobar no se muestra.
 
-Cuando termina una solicitud de mejora con el Builder abierto, un diálogo muestra la cantidad de respuestas revisadas, cambios propuestos y guardados, y propuestas rechazadas con sus motivos. **Ver resultado** permite abrirlo de nuevo. Los cambios muestran antes y después en paralelo, con justificación y evidencia enlazada. Un resultado vacío explica que no se pudo aplicar nada, sin efecto esperado. El texto del efecto que contiene identificadores de runs se sustituye por una descripción con la cantidad de respuestas fuente enlazadas.
+Cuando termina una solicitud de mejora con el Builder abierto, un diálogo muestra la cantidad de respuestas revisadas, cambios propuestos y guardados, y propuestas rechazadas con sus motivos. **Ver resultado** permite abrirlo de nuevo. Un resultado vacío explica que no se pudo aplicar nada, sin efecto esperado. El texto del efecto que contiene identificadores de runs se sustituye por una descripción con la cantidad de respuestas fuente enlazadas.
+
+Cada texto cambiado - instrucciones, la descripción de una herramienta, un archivo de contexto - aparece como diff: líneas eliminadas y añadidas con las palabras cambiadas marcadas, unas pocas líneas sin cambios alrededor de cada cambio y el resto plegado, unificado o lado a lado en una pantalla ancha. Cada cambio conserva su justificación y la evidencia enlazada; los identificadores de runs en una justificación aparecen como conversaciones numeradas.
 
 Tras completar una comprobación, las personas con `runs:view` pueden comparar respuestas de ambos lados en el diálogo y abrir la comprobación completa. Antes, el diálogo propone ejecutarla. Un agente sin chats valorados ni evidencia de entrenamiento muestra una línea compacta del asistente sobre sus instrucciones.
 
@@ -83,7 +85,7 @@ y la evidencia, y cada una se decide por separado:
 | Acción | Qué ocurre |
 |---|---|
 | **Aceptar** | El cambio se escribe en el draft. No se publica nada. |
-| **Editar** | Se acepta tu propia redacción en lugar de la sugerencia. |
+| **Editar** | Se acepta tu propia redacción en lugar de la sugerencia. Para las instrucciones se abre el texto completo: la versión actual junto a la propuesta, que editas, con el diff redibujado mientras escribes. Solo se guarda el pasaje sugerido; el texto de fuera se cambia en el editor de instrucciones. |
 | **Descartar** | Queda registrado; una petición posterior no lo vuelve a sugerir. |
 | **Deshacer** | Revierte la decisión mientras aún encaja en el draft. |
 
@@ -348,7 +350,7 @@ Abra **Improve** en la cabecera del agente, desde la insignia **Needs attention*
 2. **Comprender.** Una frase cuenta los problemas que corregir en el agente y la información que falta en la base de conocimiento. Los ejemplos cuyas carencias se unieron a un mismo tema de lagunas de conocimiento forman una tarjeta. **Move to the other column** e **Ignore this** se guardan en la sesión mediante `PUT /{run_id}/evidence/{evidence_run_id}` con `decision` igual a `agent`, `missing_knowledge`, `ignored` o `null`. Los intentos posteriores dejan fuera de los cambios del agente los ejemplos ignorados y los movidos a la base de conocimiento; nada ya propuesto o medido cambia.
 3. **Conjunto de prueba.** Las preguntas, contadas por origen: respuestas valoradas negativamente, respuestas que gustaron, preguntas escritas para temas sin ejemplo y preguntas añadidas a mano. Cuando quedan demasiado pocas preguntas para medir un cambio, ofrece escribir tantas como le faltan a la sesión y luego empezar una sesión nueva con ellas.
 4. **Hoy.** Cuántas preguntas maneja bien el agente ahora, las débiles con la frase del evaluador y las no calificadas contadas aparte.
-5. **Cambios.** Cada cambio con Antes, Después, Por qué, Basado en y Debería corregir, y **Include in the test**. Los borradores de conocimiento forman su propia columna. Un tema recibe borrador aunque haya preguntado poca gente, porque una persona revisa cada borrador antes de añadirlo; un borrador escrito a partir de la pregunta de una sola persona lo indica. Si no se encontró ningún cambio, la pantalla enumera lo que probó cada intento.
+5. **Cambios.** Cada cambio como diff, con Por qué, Basado en y Debería corregir, y **Include in the test**. Los borradores de conocimiento forman su propia columna. Un tema recibe borrador aunque haya preguntado poca gente, porque una persona revisa cada borrador antes de añadirlo; un borrador escrito a partir de la pregunta de una sola persona lo indica. Si no se encontró ningún cambio, la pantalla enumera lo que probó cada intento.
 6. **Comprobación.** Las etapas de la prueba: preguntar al agente mejorado, calificar y volver a preguntar las respuestas cuyo resultado cambió.
 7. **Resultado.** Una frase para el agente y otra para la base de conocimiento, el veredicto en color, cuántas preguntas se manejan bien antes y después, lo mismo para las preguntas no usadas para escribir los cambios, y el coste por respuesta. Cada pregunta cambiada indica si se ha arreglado o roto; los cambios que las respuestas repetidas no confirmaron esperan bajo **Not confirmed yet**. Los intentos anteriores, las comprobaciones de cambios individuales y la prueba de un borrador de conocimiento están bajo **Show details**.
 8. **Aceptar.** Lo que la nueva versión corrige, rompe y cuesta por respuesta, y con cuántas preguntas se probó. Cada documento de conocimiento de esta sesión ofrece **Review and add** o **Not now**, que lo aparta durante la sesión (`PUT /{run_id}/topics/{topic_id}/later`). Cada lugar donde la gente usa el agente dice si cambia en el acto, tras superar su comprobación automática o se queda en su versión. Después, **Publish version N** o **Keep as draft**, y una pantalla **Done** con un enlace a la versión que solo promete avisar de un fallo posterior cuando una comprobación automática vigila el agente.

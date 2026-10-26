@@ -1,5 +1,5 @@
 ---
-source_sha: "43aef06f7f37"
+source_sha: "3f6e5abe9cc7"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -70,7 +70,9 @@ pokazuje ją nad cytatami ustalenia, żeby czytelnik ocenił, czy go popierają.
 Ustalenie, że edycja ma poparcie, któremu nie został żaden cytat do sprawdzenia,
 nie jest pokazywane.
 
-Gdy żądanie poprawy kończy się przy otwartym Builderze, dialog wyniku pokazuje liczbę przejrzanych odpowiedzi, zaproponowane i zapisane zmiany oraz odrzucone propozycje z powodami. Można otworzyć go ponownie przyciskiem **Zobacz wynik**. Zmiany pokazują tekst przed poprawą i po niej obok siebie, z uzasadnieniem i linkami do materiału źródłowego. Pusty wynik informuje, że niczego nie można zastosować, bez oczekiwanego efektu. Opis efektu zawierający surowe identyfikatory runów jest zastępowany opisem z liczbą podlinkowanych odpowiedzi źródłowych.
+Gdy żądanie poprawy kończy się przy otwartym Builderze, dialog wyniku pokazuje liczbę przejrzanych odpowiedzi, zaproponowane i zapisane zmiany oraz odrzucone propozycje z powodami. Można otworzyć go ponownie przyciskiem **Zobacz wynik**. Pusty wynik informuje, że niczego nie można zastosować, bez oczekiwanego efektu. Opis efektu zawierający surowe identyfikatory runów jest zastępowany opisem z liczbą podlinkowanych odpowiedzi źródłowych.
+
+Każdy zmieniony tekst - instrukcje, opis narzędzia, plik kontekstowy - jest pokazany jako diff: usunięte i dodane linie z zaznaczonymi zmienionymi słowami, kilka niezmienionych linii wokół każdej zmiany i zwinięta reszta, jednolicie albo obok siebie na szerokim ekranie. Każda zmiana zachowuje uzasadnienie i linki do materiału źródłowego; identyfikatory runów w uzasadnieniu są pokazane jako ponumerowane rozmowy.
 
 Po zakończeniu sprawdzenia osoby z `runs:view` mogą porównać odpowiedzi obu stron w dialogu i otworzyć pełne sprawdzenie. Wcześniej dialog proponuje jego uruchomienie. Agent bez ocenionych rozmów ani materiału treningowego ma nad instrukcjami zwięzły wiersz asystenta.
 
@@ -84,7 +86,7 @@ każdej decyduje się osobno:
 | Akcja | Co się dzieje |
 |---|---|
 | **Przyjmij** | Zmiana trafia do wersji roboczej. Nic nie jest publikowane. |
-| **Edytuj** | Zamiast sugestii przyjmowane jest Twoje sformułowanie. |
+| **Edytuj** | Zamiast sugestii przyjmowane jest Twoje sformułowanie. Dla instrukcji otwiera się cały tekst: obecna wersja obok proponowanej, którą edytujesz, a diff odświeża się w trakcie pisania. Zapisywany jest tylko sugerowany fragment; tekst poza nim zmienia się w edytorze instrukcji. |
 | **Odrzuć** | Zapisane; późniejsze zlecenie nie zasugeruje tego ponownie. |
 | **Cofnij** | Odwraca decyzję, dopóki pasuje ona do wersji roboczej. |
 
@@ -339,7 +341,7 @@ Otwórz **Popraw** w nagłówku agenta, z plakietki **Wymaga uwagi** na liście 
 2. **Zrozumienie.** Jedno zdanie liczy problemy do poprawy w agencie i informacje, których brakuje w bazie wiedzy. Przykłady, których braki trafiły do jednego tematu luk w wiedzy, tworzą jedną kartę. **Przenieś do drugiej kolumny** i **Zignoruj** są zapisywane w sesji przez `PUT /{run_id}/evidence/{evidence_run_id}` z `decision` równym `agent`, `missing_knowledge`, `ignored` albo `null`. Kolejne próby pomijają w zmianach agenta przykłady zignorowane i przeniesione do bazy wiedzy; nic, co już zaproponowano lub zmierzono, się nie zmienia.
 3. **Pytania.** Pytania policzone według źródła: odpowiedzi ocenione negatywnie, odpowiedzi ocenione pozytywnie, pytania napisane dla tematów bez przykładu i pytania dodane ręcznie. Gdy zostaje za mało pytań, by zmierzyć zmianę, krok proponuje napisanie tylu, ilu brakuje sesji, a potem rozpoczęcie z nimi nowej sesji.
 4. **Dzisiaj.** Na ile pytań agent odpowiada dobrze teraz, słabe odpowiedzi ze zdaniem oceniającego i osobno policzone pytania bez oceny.
-5. **Zmiany.** Każda zmiana z sekcjami Przed, Po, Dlaczego, Na podstawie i Powinno naprawić oraz przełącznikiem **Uwzględnij w teście**. Szkice wiedzy tworzą osobną kolumnę. Temat dostaje szkic niezależnie od tego, ile osób o niego pytało, bo każdy szkic przed dodaniem sprawdza człowiek; szkic napisany na podstawie pytania jednej osoby mówi o tym wprost. Gdy nie znaleziono zmiany, ekran wymienia, czego próbowała każda próba.
+5. **Zmiany.** Każda zmiana jako diff z sekcjami Dlaczego, Na podstawie i Powinno naprawić oraz przełącznikiem **Uwzględnij w teście**. Szkice wiedzy tworzą osobną kolumnę. Temat dostaje szkic niezależnie od tego, ile osób o niego pytało, bo każdy szkic przed dodaniem sprawdza człowiek; szkic napisany na podstawie pytania jednej osoby mówi o tym wprost. Gdy nie znaleziono zmiany, ekran wymienia, czego próbowała każda próba.
 6. **Sprawdzenie.** Etapy testu: pytanie poprawionego agenta, ocenianie i ponowne zadanie pytań, których wynik się zmienił.
 7. **Wynik.** Jedno zdanie o agencie i jedno o bazie wiedzy, kolorowy werdykt, na ile pytań agent odpowiada dobrze przed i po, to samo dla pytań niewykorzystanych do pisania zmian oraz koszt odpowiedzi. Każde zmienione pytanie jest oznaczone jako nowo naprawione albo nowo zepsute; zmiany niepotwierdzone przez powtórzone odpowiedzi czekają pod **Jeszcze niepotwierdzone**. Wcześniejsze próby, sprawdzenia pojedynczych zmian i test szkicu wiedzy są pod **Pokaż szczegóły**.
 8. **Akceptacja.** Co nowa wersja naprawi, zepsuje i ile będzie kosztować odpowiedź, oraz na ilu pytaniach ją przetestowano. Każdy dokument wiedzy z tej sesji ma **Przejrzyj i dodaj** albo **Nie teraz**, które odkłada go na czas sesji (`PUT /{run_id}/topics/{topic_id}/later`). Każde miejsce, w którym ludzie używają agenta, mówi, czy przełączy się od razu, po zaliczeniu automatycznego sprawdzenia, czy zostanie przy swojej wersji. Potem **Opublikuj wersję N** albo zachowanie zmian w wersji roboczej i ekran **Gotowe** z linkiem do wersji, który obiecuje ostrzeżenie o późniejszej usterce tylko wtedy, gdy agenta pilnuje automatyczne sprawdzenie.

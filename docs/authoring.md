@@ -66,7 +66,9 @@ that line above the finding's quotes, for the reader to judge whether they back
 it. A finding that the edit is supported, left with no quote that could be
 checked, is not shown.
 
-When an Improve request finishes while the Builder is open, a result dialog shows the reviewed answer count, proposed and recorded changes, and rejected proposals with their reasons. You can reopen it with **Review result**. Changes show before and after side by side, with their rationale and linked evidence. An empty result says that nothing could be applied and shows no expected effect. Expected-effect prose containing raw run identifiers is replaced with a description counting the linked source answers.
+When an Improve request finishes while the Builder is open, a result dialog shows the reviewed answer count, proposed and recorded changes, and rejected proposals with their reasons. You can reopen it with **Review result**. An empty result says that nothing could be applied and shows no expected effect. Expected-effect prose containing raw run identifiers is replaced with a description counting the linked source answers.
+
+Every changed text - instructions, a tool description, a context file - shows as a diff: removed and added lines with the changed words marked, a few unchanged lines around each change and the rest folded, unified or side by side on a wide screen. Each change keeps its rationale and linked evidence; run identifiers in a rationale show as numbered conversations.
 
 After a check completes, readers with `runs:view` can compare answers from both arms in the dialog and open the full check. Before a check, it asks you to run one. An agent with no rated chat or training evidence has a compact assistant line above its instructions.
 
@@ -79,7 +81,7 @@ evidence, and each is decided on its own:
 | Action | What happens |
 |---|---|
 | **Accept** | The change is written into the draft. Nothing is published. |
-| **Edit** | Your own wording is accepted in place of the suggestion. |
+| **Edit** | Your own wording is accepted in place of the suggestion. For instructions, the whole text opens: the current version beside the proposed one you edit, with the diff redrawn as you type. Only the suggested passage is saved; text outside it is changed in the instructions editor. |
 | **Dismiss** | Recorded; a later request does not suggest it again. |
 | **Undo** | Reverses the decision while it still fits the draft. |
 
@@ -327,7 +329,7 @@ Open **Improve** in the agent header, from the **Needs attention** badge on the 
 2. **Understand.** One sentence counts the problems to fix in the agent and the information missing from the knowledge base. Examples whose misses joined one knowledge gap topic form one card. **Move to the other column** and **Ignore this** are kept on the session, through `PUT /{run_id}/evidence/{evidence_run_id}` with `decision` set to `agent`, `missing_knowledge`, `ignored` or `null`. Later attempts leave ignored examples, and those moved to the knowledge base, out of the agent's changes; nothing already proposed or measured changes.
 3. **Test set.** The questions, counted by source: answers people rated down, answers they liked, questions written for topics with no example, and questions added by hand. When too few questions are left to measure a change, it offers to write as many more as the session lacks, then to start a new session with them.
 4. **Today.** How many questions the agent handles well now, the weak ones with the grader's sentence, and the ungraded ones counted apart.
-5. **Changes.** Each change with Before, After, Why, Based on and Should fix, and **Include in the test**. Knowledge drafts form their own column. A topic is drafted however few people asked about it, because a person checks every draft before it is added; a draft written from one person's question says so. When no change was found, the screen lists what each attempt tried.
+5. **Changes.** Each change as a diff, with Why, Based on and Should fix, and **Include in the test**. Knowledge drafts form their own column. A topic is drafted however few people asked about it, because a person checks every draft before it is added; a draft written from one person's question says so. When no change was found, the screen lists what each attempt tried.
 6. **Check.** The stages of the test: asking the improved agent, grading, and re-asking the answers whose result changed.
 7. **Result.** One sentence for the agent and one for the knowledge base, the coloured verdict, how many questions are handled well before and after, the same for the questions not used to write the changes, and the cost per answer. Each changed question says newly fixed or newly broken; changes the repeat answers did not confirm wait under **Not confirmed yet**. Earlier attempts, individual-change checks and testing a knowledge draft sit under **Show details**.
 8. **Accept.** What the new version fixes, breaks and costs per answer, and how many questions it was tested on. Each knowledge document from this session offers **Review and add** or **Not now**, which sets it aside for the session (`PUT /{run_id}/topics/{topic_id}/later`). Each place people use the agent says whether it switches at once, after its automatic check passes or stays on its version. Then **Publish version N** or **Keep as draft**, and a **Done** screen with a link to the version that promises a warning of a later break only when an automatic check watches the agent.

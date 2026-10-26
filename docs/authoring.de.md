@@ -1,5 +1,5 @@
 ---
-source_sha: "43aef06f7f37"
+source_sha: "3f6e5abe9cc7"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -72,7 +72,9 @@ Zeile muss Teil der Änderung sein. Die Leiste zeigt sie über den Zitaten des
 Befunds, damit der Leser beurteilen kann, ob sie sie stützen. Ein Befund, die
 Änderung sei belegt, dem kein prüfbares Zitat bleibt, wird nicht gezeigt.
 
-Endet eine Verbesserungsanfrage bei geöffnetem Builder, zeigt ein Ergebnisdialog die Anzahl geprüfter Antworten, vorgeschlagene und gespeicherte Änderungen sowie abgelehnte Vorschläge mit Gründen. **Ergebnis ansehen** öffnet ihn erneut. Änderungen zeigen Vorher und Nachher nebeneinander mit Begründung und verlinkten Belegen. Ein leeres Ergebnis erklärt, dass nichts anwendbar war, ohne erwartete Wirkung. Wirkungstext mit rohen Run-Kennungen wird durch eine Beschreibung mit der Anzahl verlinkter Quellantworten ersetzt.
+Endet eine Verbesserungsanfrage bei geöffnetem Builder, zeigt ein Ergebnisdialog die Anzahl geprüfter Antworten, vorgeschlagene und gespeicherte Änderungen sowie abgelehnte Vorschläge mit Gründen. **Ergebnis ansehen** öffnet ihn erneut. Ein leeres Ergebnis erklärt, dass nichts anwendbar war, ohne erwartete Wirkung. Wirkungstext mit rohen Run-Kennungen wird durch eine Beschreibung mit der Anzahl verlinkter Quellantworten ersetzt.
+
+Jeder geänderte Text - Anweisungen, eine Tool-Beschreibung, eine Context-Datei - erscheint als Diff: entfernte und hinzugefügte Zeilen mit markierten geänderten Wörtern, einige unveränderte Zeilen um jede Änderung und der Rest eingeklappt, einheitlich oder auf einem breiten Bildschirm nebeneinander. Jede Änderung behält Begründung und verlinkte Belege; Run-Kennungen in einer Begründung erscheinen als nummerierte Gespräche.
 
 Nach einer abgeschlossenen Prüfung können Leser mit `runs:view` Antworten beider Seiten im Dialog vergleichen und die vollständige Prüfung öffnen. Vorher fordert der Dialog zum Prüfen auf. Ohne bewertete Chats oder Trainingsbelege erscheint der Assistent als kompakte Zeile über den Anweisungen.
 
@@ -85,7 +87,7 @@ Begründung und die Belege, und über jeden wird einzeln entschieden:
 | Aktion | Was passiert |
 |---|---|
 | **Annehmen** | Die Änderung wird in den Entwurf geschrieben. Nichts wird veröffentlicht. |
-| **Bearbeiten** | Ihre eigene Formulierung wird statt des Vorschlags angenommen. |
+| **Bearbeiten** | Ihre eigene Formulierung wird statt des Vorschlags angenommen. Bei Anweisungen öffnet sich der ganze Text: die aktuelle Version neben der vorgeschlagenen, die Sie bearbeiten, mit beim Tippen neu gezeichnetem Diff. Gespeichert wird nur die vorgeschlagene Passage; Text außerhalb ändern Sie im Anweisungseditor. |
 | **Verwerfen** | Festgehalten; eine spätere Anfrage schlägt es nicht wieder vor. |
 | **Rückgängig** | Kehrt die Entscheidung um, solange sie noch zum Entwurf passt. |
 
@@ -359,7 +361,7 @@ Nach Abschluss macht `/{run_id}/rounds/{number}/select` eine gemessene Runde zum
 2. **Verstehen.** Ein Satz zählt die Probleme, die im Agent zu beheben sind, und die Informationen, die in der Wissensdatenbank fehlen. Beispiele, deren Lücken in ein Wissenslücken-Thema fielen, bilden eine Karte. **In die andere Spalte verschieben** und **Ignorieren** werden in der Sitzung gespeichert, über `PUT /{run_id}/evidence/{evidence_run_id}` mit `decision` gleich `agent`, `missing_knowledge`, `ignored` oder `null`. Spätere Versuche lassen ignorierte und in die Wissensdatenbank verschobene Beispiele aus den Änderungen am Agent heraus; bereits Vorgeschlagenes oder Gemessenes ändert sich nicht.
 3. **Testfragen.** Die Fragen, nach Quelle gezählt: negativ bewertete Antworten, positiv bewertete Antworten, für Themen ohne Beispiel geschriebene Fragen und von Hand hinzugefügte Fragen. Bleiben zu wenige Fragen, um eine Änderung zu messen, bietet der Schritt an, so viele zu schreiben, wie der Sitzung fehlen, und dann eine neue Sitzung damit zu starten.
 4. **Heute.** Wie viele Fragen der Agent jetzt gut beantwortet, die schwachen mit dem Satz des Bewerters und die unbewerteten getrennt gezählt.
-5. **Änderungen.** Jede Änderung mit Vorher, Nachher, Warum, Grundlage und Soll beheben sowie **Im Test berücksichtigen**. Wissensentwürfe bilden eine eigene Spalte. Ein Thema bekommt einen Entwurf, gleich wie wenige Personen danach gefragt haben, denn jeden Entwurf prüft ein Mensch, bevor er hinzugefügt wird; ein Entwurf aus der Frage einer einzigen Person sagt das. Wurde keine Änderung gefunden, listet der Bildschirm auf, was jeder Versuch probiert hat.
+5. **Änderungen.** Jede Änderung als Diff mit Warum, Grundlage und Soll beheben sowie **Im Test berücksichtigen**. Wissensentwürfe bilden eine eigene Spalte. Ein Thema bekommt einen Entwurf, gleich wie wenige Personen danach gefragt haben, denn jeden Entwurf prüft ein Mensch, bevor er hinzugefügt wird; ein Entwurf aus der Frage einer einzigen Person sagt das. Wurde keine Änderung gefunden, listet der Bildschirm auf, was jeder Versuch probiert hat.
 6. **Prüfung.** Die Phasen des Tests: den verbesserten Agent fragen, bewerten und die Antworten mit geändertem Ergebnis erneut stellen.
 7. **Ergebnis.** Ein Satz zum Agent und einer zur Wissensdatenbank, das farbige Urteil, wie viele Fragen vorher und nachher gut beantwortet werden, dasselbe für die nicht zum Schreiben der Änderungen verwendeten Fragen sowie die Kosten pro Antwort. Jede geänderte Frage ist als neu behoben oder neu verschlechtert markiert; von den wiederholten Antworten nicht bestätigte Änderungen warten unter **Noch nicht bestätigt**. Frühere Versuche, Prüfungen einzelner Änderungen und der Test eines Wissensentwurfs liegen unter **Details anzeigen**.
 8. **Annehmen.** Was die neue Version behebt, verschlechtert und pro Antwort kostet und mit wie vielen Fragen sie getestet wurde. Jedes Wissensdokument aus dieser Sitzung bietet **Prüfen und hinzufügen** oder **Nicht jetzt**, das es für die Sitzung beiseitelegt (`PUT /{run_id}/topics/{topic_id}/later`). Jeder Ort, an dem Leute den Agent nutzen, sagt, ob er sofort wechselt, nach bestandener automatischer Prüfung oder bei seiner Version bleibt. Dann **Version N veröffentlichen** oder die Änderungen im Entwurf behalten und ein Bildschirm **Fertig** mit Link zur Version, der eine Warnung vor späteren Verschlechterungen nur verspricht, wenn eine automatische Prüfung den Agent überwacht.
