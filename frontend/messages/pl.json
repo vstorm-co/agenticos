@@ -6929,7 +6929,10 @@
     "follow": "Obserwuj",
     "unfollow": "Przestań obserwować",
     "followed": "Dostaniesz powiadomienie, gdy pojawi się nowa wersja",
-    "unfollowed": "Nie będziesz już dostawać powiadomień o tej aplikacji"
+    "unfollowed": "Nie będziesz już dostawać powiadomień o tej aplikacji",
+    "appTheme": "Motyw aplikacji",
+    "lightTheme": "Użyj jasnego motywu aplikacji",
+    "darkTheme": "Użyj ciemnego motywu aplikacji"
   },
   "groups": {
     "title": "Grupy",

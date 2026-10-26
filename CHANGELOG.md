@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Independent light and dark controls in signed-in and public app viewers.
+  Start app frames with a light preference instead of inheriting the console
+  theme; preserve authored colors, page state and stored versions.
+
 ## [1.19.0] - 2026-10-26
 
 ### Changed

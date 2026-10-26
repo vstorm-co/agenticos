@@ -7037,7 +7037,10 @@
     "follow": "Folgen",
     "unfollow": "Nicht mehr folgen",
     "followed": "Sie werden benachrichtigt, wenn eine neue Version veröffentlicht wird",
-    "unfollowed": "Sie werden über diese App nicht mehr benachrichtigt"
+    "unfollowed": "Sie werden über diese App nicht mehr benachrichtigt",
+    "appTheme": "App-Design",
+    "lightTheme": "Helles App-Design verwenden",
+    "darkTheme": "Dunkles App-Design verwenden"
   },
   "groups": {
     "title": "Gruppen",
