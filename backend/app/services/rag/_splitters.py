@@ -173,7 +173,7 @@ class RecursiveCharacterSplitter:
         return chunks
 
 
-def header_level(line: str) -> int | None:
+def _header_level(line: str) -> int | None:
     """The ATX header level of a stripped line, or `None` if it is not a header.
 
     `#foo` is not a header and neither is `#### foo`: the marker has to be
@@ -219,7 +219,7 @@ def _split_on_headers(text: str) -> list[str]:
             block.append(line)
             continue
 
-        level = header_level(line)
+        level = _header_level(line)
         if level is None:
             if line:
                 block.append(line)

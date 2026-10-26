@@ -1,5 +1,5 @@
 ---
-source_sha: "e6dd9fc401ef"
+source_sha: "1248e8e41fe4"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -156,10 +156,10 @@ do niego nie podłączył.
 Każdy wynik podaje swój dokument i miejsce dopasowania w nim. PDF, prezentacja lub
 plik edytora tekstu taki jak `.doc`, `.odt` czy `.rtf` podaje stronę. Plik Markdown,
 arkusz kalkulacyjny, strona internetowa lub obraz nie ma strony, którą czytelnik
-może otworzyć. Podaje nagłówek sekcji, od którego zaczyna się dopasowany chunk,
-jeśli chunk się od niego zaczyna, albo tylko nazwę dokumentu. Zwykły plik tekstowy
-(`.txt`) lub plik `.docx` podaje tylko nazwę dokumentu, bo jest czytany jako tekst
-bez oznaczonych nagłówków.
+może otworzyć. Podaje tylko nazwę dokumentu, podobnie jak pliki tekstowe i `.docx`.
+Chunki nie zachowują wiarygodnych granic sekcji, więc wiersz zaczynający się od
+krzyżyka nie jest traktowany jako nagłówek: może być komentarzem w bloku kodu,
+którego początek znalazł się w poprzednim chunku.
 
 O tym decyduje typ dokumentu w chwili pokazania wyniku, więc kolekcja zaindeksowana
 wcześniej nie wymaga ponownej ingestii.

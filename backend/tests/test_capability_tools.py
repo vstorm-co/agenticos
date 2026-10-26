@@ -526,13 +526,24 @@ class TestKnowledgeFormatting:
         assert "Source: capabilities.pl.md (score" in formatted
         assert "capabilities.pl.md, page" not in formatted
 
-    def test_a_markdown_hit_names_the_section_it_opens(self):
-        result = MagicMock(score=0.9, content="## Knowledge\nSearches.", expanded_content=None)
+    @pytest.mark.parametrize(
+        "content",
+        [
+            "## Knowledge\nSearches.",
+            "# code comment\nprint('example')\n```python\n```",
+            "# code comment\nprint('example')\n~~~python\n~~~~",
+            "# code comment\nprint('example')",
+        ],
+    )
+    def test_a_fragment_cannot_prove_a_section_boundary(self, content):
+        """A header-like line may be code whose opening fence is in a previous chunk."""
+        result = MagicMock(score=0.9, content=content, expanded_content=None)
         result.metadata = {"filename": "capabilities.md", "filetype": "md", "page_num": 1}
-        assert 'Source: capabilities.md, section "Knowledge" (score' in _format_results([result])
+        formatted = _format_results([result])
+        assert "Source: capabilities.md (score" in formatted
+        assert ", section" not in formatted
 
-    def test_the_section_is_the_matched_chunks_not_the_expanded_passages(self):
-        """Small-to-big text opens with a neighbour's heading; the citation is the match's."""
+    def test_expanded_text_does_not_invent_a_section_locator(self):
         result = MagicMock(
             score=0.9,
             content="## Knowledge\nSearches.",
@@ -540,8 +551,8 @@ class TestKnowledgeFormatting:
         )
         result.metadata = {"filename": "capabilities.md", "filetype": "md", "page_num": 1}
         formatted = _format_results([result])
-        assert 'section "Knowledge"' in formatted
-        assert 'section "Overview"' not in formatted
+        assert "Source: capabilities.md, with surrounding text (score" in formatted
+        assert ", section" not in formatted
 
     def test_the_model_is_told_to_cite_inline(self):
         """Without this instruction models append a bibliography nobody reads."""

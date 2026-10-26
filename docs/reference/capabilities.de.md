@@ -1,5 +1,5 @@
 ---
-source_sha: "e6dd9fc401ef"
+source_sha: "1248e8e41fe4"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -159,10 +159,10 @@ sodass ein Agent keine Collection erreichen kann, die ihm niemand zugeordnet hat
 Jedes Ergebnis nennt sein Dokument und die Stelle des Treffers darin. Ein PDF, eine
 Präsentation oder eine Textverarbeitungsdatei wie `.doc`, `.odt` oder `.rtf` nennt
 die Seite. Eine Markdown-Datei, eine Tabelle, eine Webseite oder ein Bild hat keine
-Seite, die ein Leser öffnen kann. Sie nennt die Abschnittsüberschrift, mit der der
-getroffene Chunk beginnt, wenn er mit einer beginnt, oder nur den Dokumentnamen.
-Eine reine Textdatei oder eine `.docx`-Datei nennt nur den Dokumentnamen, weil sie
-als Text ohne markierte Überschriften gelesen wird.
+Seite, die ein Leser öffnen kann. Sie nennt nur den Dokumentnamen, ebenso wie
+Textdateien und `.docx`-Dateien. Chunks bewahren keine verlässlichen Abschnittsgrenzen.
+Eine Zeile mit einer Raute wird deshalb nicht als Überschrift interpretiert: Sie
+kann ein Kommentar in einem Codeblock sein, der im vorherigen Chunk begann.
 
 Das entscheidet der Dokumenttyp, wenn das Ergebnis angezeigt wird, sodass eine
 früher ingestierte Collection keine erneute Ingestion braucht.

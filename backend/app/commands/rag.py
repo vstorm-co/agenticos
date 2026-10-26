@@ -371,7 +371,7 @@ async def search_async(
 
         if result.metadata:
             filename = result.metadata.get("filename", "Unknown")
-            locator = citation_locator(result.metadata, result.content)
+            locator = citation_locator(result.metadata)
             click.echo(f"Source: {filename}{locator}")
 
         content = result.content[:500]

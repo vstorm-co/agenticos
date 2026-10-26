@@ -86,9 +86,9 @@ def _format_results(results: list[Any]) -> str:
         source = result.metadata.get("filename", "unknown")
         chunk = result.metadata.get("chunk_num", "")
         col = result.metadata.get("collection", "")
-        # A page only where the format has pages, else the section the chunk
-        # opens with: a Markdown file was cited as "page 1" (#2489).
-        locator = citation_locator(result.metadata, result.content)
+        # Only a real page is a location: Markdown's stored "page 1" is
+        # structural, and a chunk's opening hash line may be code (#2489).
+        locator = citation_locator(result.metadata)
         chunk_info = f", chunk {chunk}" if chunk else ""
         col_info = f" [{col}]" if col else ""
         # The expanded passage when small-to-big retrieval added surrounding

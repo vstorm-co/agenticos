@@ -1,5 +1,5 @@
 ---
-source_sha: "e6dd9fc401ef"
+source_sha: "1248e8e41fe4"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -159,10 +159,11 @@ colección que nadie le conectó.
 Cada resultado nombra su documento y dónde está la coincidencia en él. Un PDF, una
 presentación o un archivo de procesador de textos como `.doc`, `.odt` o `.rtf` da la
 página. Un archivo Markdown, una hoja de cálculo, una página web o una imagen no
-tiene una página que un lector pueda abrir. Da el encabezado de sección con el que
-empieza el chunk coincidente, si empieza con uno, o solo el nombre del documento. Un
-archivo de texto plano o un archivo `.docx` da solo el nombre del documento, porque
-se lee como texto sin encabezados marcados.
+tiene una página que un lector pueda abrir. Da solo el nombre del documento, igual
+que los archivos de texto y `.docx`. Los chunks no conservan límites de sección
+fiables, por lo que una línea que empieza por una almohadilla no se interpreta
+como encabezado: puede ser un comentario de un bloque de código que empezó en el
+chunk anterior.
 
 Lo decide el tipo del documento al mostrar el resultado, así que una colección
 ingerida antes no necesita volver a ingerirse.
