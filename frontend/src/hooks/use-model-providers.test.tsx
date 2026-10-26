@@ -233,6 +233,32 @@ describe("useModelProviders", () => {
     },
   );
 
+  it("waits for refreshed provider metadata even with a cached listing", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(qk.providers.models("openrouter"), {
+      items: [],
+      total: 0,
+      source: "live",
+    });
+    const listing = Promise.withResolvers<{ items: never[]; total: number; source: string }>();
+    vi.mocked(apiClient.get).mockReturnValue(listing.promise);
+    function localWrapper({ children }: { children: ReactNode }) {
+      return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    }
+    const { result } = renderHook(() => useProviderModels("openrouter"), { wrapper: localWrapper });
+    expect(result.current.isLoading).toBe(false);
+    let refresh: Promise<void> | undefined;
+    act(() => {
+      refresh = client.invalidateQueries({ queryKey: qk.providers.models("openrouter") });
+    });
+    await waitFor(() => expect(result.current.isLoading).toBe(true));
+    await act(async () => {
+      listing.resolve({ items: [], total: 0, source: "live" });
+      await refresh;
+    });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+  });
+
   it("removes a model", async () => {
     vi.mocked(apiClient.delete).mockResolvedValue(undefined);
     const { result } = renderHook(() => useModelProviders(), { wrapper });

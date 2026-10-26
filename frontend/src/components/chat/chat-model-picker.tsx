@@ -96,11 +96,17 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
   const current = value === null ? agentModel : (profiles.find((p) => p.id === value) ?? null);
   const currentDetail = current ? modelDetail(current) : null;
 
+  const matching = profiles.filter(
+    (profile) => profile.provider === providerId && profile.model === model.trim(),
+  );
+  const hasCustomEndpoint = matching.some((profile) => !!profile.base_url && runsAgents(profile));
+
   const canApply =
     provider !== undefined &&
     model.trim() !== "" &&
     modelIdIsWellFormed(provider.id, model.trim()) &&
-    !createProfile.isPending;
+    !createProfile.isPending &&
+    (!loadingModels || hasCustomEndpoint);
 
   const apply = async () => {
     if (provider === undefined) return;
@@ -109,9 +115,6 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
 
     // The organization may already have this exact model as a profile - reuse
     // it rather than minting a duplicate row per conversation.
-    const matching = profiles.filter(
-      (profile) => profile.provider === provider.id && profile.model === modelId,
-    );
     // Several profiles can name the same vendor/model. Prefer one that can
     // chat, including a custom endpoint whose names the vendor cannot classify.
     const listingRefuses = refused.includes(modelId);

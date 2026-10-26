@@ -14,6 +14,7 @@ const listedProfiles = vi.fn<() => ModelProfile[]>(() => []);
 const listedSecrets = vi.fn<() => { id: string; purpose: string }[]>(() => []);
 const listedModels = vi.fn<() => ProviderModel[]>(() => []);
 const refusedModels = vi.fn<() => string[]>(() => []);
+const loadingModels = vi.fn(() => false);
 const mutateAsync = vi.fn();
 /**
  * Two permissions, and this picker needs both. Choosing a model creates an
@@ -37,7 +38,7 @@ vi.mock("@/hooks", () => ({
     models: listedModels(),
     refused: refusedModels(),
     source: "curated",
-    isLoading: false,
+    isLoading: loadingModels(),
   }),
   useSecretPurposes: () => ({ purposes: PURPOSES, isLoading: false }),
   useSecrets: () => ({ secrets: listedSecrets(), create: { mutate: vi.fn(), isPending: false } }),
@@ -97,6 +98,7 @@ beforeEach(() => {
   listedSecrets.mockReturnValue([]);
   listedModels.mockReturnValue([]);
   refusedModels.mockReturnValue([]);
+  loadingModels.mockReturnValue(false);
   held.permissions = [Perm.connectionsManage, Perm.secretsEdit];
 });
 
@@ -147,6 +149,37 @@ describe("the chat's two-step model picker", () => {
 
     expect(onChange).toHaveBeenCalledWith("p1");
     expect(mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("waits for provider metadata before reusing an unknown native profile", async () => {
+    listedProfiles.mockReturnValue([profile("saved", "openrouter", "acme/painter")]);
+    loadingModels.mockReturnValue(true);
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <ChatModelPicker value={null} agentModel={null} onChange={onChange} />,
+    );
+    await pickProvider("OpenRouter");
+    await typeModel("acme/painter");
+    expect(screen.getByRole("button", { name: "Run on this model" })).toBeDisabled();
+    loadingModels.mockReturnValue(false);
+    refusedModels.mockReturnValue(["acme/painter"]);
+    rerender(<ChatModelPicker value={null} agentModel={null} onChange={onChange} />);
+    await userEvent.click(screen.getByRole("button", { name: "Run on this model" }));
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByText(/acme\/painter is not a chat model/)).toBeInTheDocument();
+  });
+
+  it("does not wait for vendor metadata for an existing custom endpoint", async () => {
+    listedProfiles.mockReturnValue([
+      { ...profile("local", "openai", "whisper-1"), base_url: "http://local/v1" },
+    ]);
+    loadingModels.mockReturnValue(true);
+    const onChange = vi.fn();
+    render(<ChatModelPicker value={null} agentModel={null} onChange={onChange} />);
+    await pickProvider("OpenAI");
+    await typeModel("whisper-1");
+    await userEvent.click(screen.getByRole("button", { name: "Run on this model" }));
+    expect(onChange).toHaveBeenCalledWith("local");
   });
 
   it("will not run the conversation on a speech model the organization keeps", async () => {

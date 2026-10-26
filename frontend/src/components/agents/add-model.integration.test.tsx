@@ -397,6 +397,20 @@ describe("the add-model form", () => {
     expect(onCreated).toHaveBeenCalledWith({ id: "p-1" });
   });
 
+  it("waits for provider metadata before adding a native model", async () => {
+    state.secrets = [secret()];
+    state.loadingModels = true;
+    mount();
+    await pickProvider("OpenAI");
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.type(screen.getByPlaceholderText("Search models…"), "unclassified-model");
+    await userEvent.click(screen.getByText("not in the list"));
+    expect(screen.getByRole("button", { name: "Add model" })).toBeDisabled();
+    // A custom server's names are independent of the vendor listing.
+    await userEvent.type(screen.getByLabelText("Endpoint"), "http://local/v1");
+    expect(screen.getByRole("button", { name: "Add model" })).toBeEnabled();
+  });
+
   it("refuses a model the listing says is not a chat model before creating it", async () => {
     // Hidden from the suggestions, but the field is free text, and what this
     // creates is selected as a model to talk to (#2487).

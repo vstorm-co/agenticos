@@ -215,7 +215,7 @@ function providerModelsQuery(providerId: string) {
  * its first key should not have to reload to see a list.
  */
 export function useProviderModels(providerId: string) {
-  const { data, isLoading } = useQuery({
+  const { data, isFetching } = useQuery({
     ...providerModelsQuery(providerId),
     enabled: providerId !== "",
   });
@@ -226,7 +226,7 @@ export function useProviderModels(providerId: string) {
   const items = data?.items ?? [];
   const models = items.filter(runsAgents);
   const refused = items.filter((entry) => !runsAgents(entry)).map((entry) => entry.id);
-  return { models, refused, source: data?.source ?? null, isLoading };
+  return { models, refused, source: data?.source ?? null, isLoading: isFetching };
 }
 
 /** One model that draws. */

@@ -296,11 +296,13 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
     // would select the old profile and silently drop the key just picked.
     (secretId === "" || secretId === (selected.secret_id ?? ""));
 
+  const customEndpoint = acceptsEndpoint && baseUrl.trim() !== "";
   const canSubmit =
     provider !== undefined &&
     model.trim() !== "" &&
     (chosenKey !== "" || keyOptional) &&
-    modelIdIsWellFormed(provider.id, model.trim());
+    modelIdIsWellFormed(provider.id, model.trim()) &&
+    (!loadingModels || customEndpoint);
 
   // Both ways of choosing a key, because a refusal that outlives the value it
   // named accuses the one the reader has just picked.
@@ -319,7 +321,6 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
     // it (#2487). The listing is the provider's own API: an endpoint of the
     // reader's says nothing about it.
     const notChat = { fields: { model: t("notAChatModelRefused", { model: model.trim() }) } };
-    const customEndpoint = acceptsEndpoint && baseUrl.trim() !== "";
     if (!customEndpoint && refused.includes(model.trim())) {
       setFailure({ ...NO_FAILURE, ...notChat });
       return;
