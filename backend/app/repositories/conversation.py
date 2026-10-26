@@ -22,7 +22,7 @@ from sqlalchemy import delete as sql_delete
 from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import load_only, raiseload, selectinload
+from sqlalchemy.orm import defer, load_only, raiseload, selectinload
 from sqlalchemy.orm.attributes import set_committed_value
 
 from app.db.models.agent import Agent
@@ -188,6 +188,7 @@ async def get_conversation_by_id(
     conversation_id: UUID,
     *,
     include_messages: bool = False,
+    include_summary: bool = False,
 ) -> Conversation | None:
     """Get a conversation by ID without a tenant filter.
 
@@ -196,21 +197,27 @@ async def get_conversation_by_id(
     :meth:`app.services.conversation.ConversationService.get_conversation`, which
     takes the active organization and enforces it. Grep for this function when
     auditing cross-tenant reads.
+
+    The large model summary is excluded and refuses implicit loading unless
+    `include_summary` is requested. Only model-history reconstruction needs it.
     """
-    if include_messages:
+    summary_options = (
+        () if include_summary else (defer(Conversation.summary_messages, raiseload=True),)
+    )
+    if include_messages or include_summary:
         query = (
-            select(Conversation)
-            .options(
+            select(Conversation).options(*summary_options).where(Conversation.id == conversation_id)
+        )
+        if include_messages:
+            query = query.options(
                 selectinload(Conversation.messages).selectinload(Message.tool_calls),
                 selectinload(Conversation.messages)
                 .selectinload(Message.files)
                 .load_only(*_MESSAGE_FILE_COLUMNS, raiseload=True),
             )
-            .where(Conversation.id == conversation_id)
-        )
         result = await db.execute(query)
         return result.scalar_one_or_none()
-    return await db.get(Conversation, conversation_id)
+    return await db.get(Conversation, conversation_id, options=summary_options)
 
 
 def _list_filters(

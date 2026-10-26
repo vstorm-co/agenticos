@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { FrameInbox } from "@/lib/frame-inbox";
 
 interface UseWebSocketOptions {
   url: string;
@@ -25,6 +26,9 @@ interface UseWebSocketOptions {
    *  principal does not. */
   identity?: string;
   onMessage?: (event: MessageEvent) => void;
+  onMessageBatch?: (events: readonly MessageEvent[]) => void;
+  /** Discard buffered messages when a consumer switches conversations. */
+  messageScope?: string;
   onOpen?: () => void;
   onClose?: (event: CloseEvent) => void;
   onError?: (error: Event) => void;
@@ -70,6 +74,8 @@ export function useWebSocket({
   protocols,
   identity,
   onMessage,
+  onMessageBatch,
+  messageScope,
   onOpen,
   onClose,
   onError,
@@ -79,6 +85,8 @@ export function useWebSocket({
 }: UseWebSocketOptions) {
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
+  const inboxRef = useRef<FrameInbox | null>(null);
+  const wantedSigRef = useRef(sigOf(url, identity));
   // Params the live socket was opened with - lets connect() tell a StrictMode
   // remount / quick nav-back (same params → reuse the socket) apart from a real
   // change like switching organization (different params → swap the socket).
@@ -97,6 +105,7 @@ export function useWebSocket({
 
   // Use refs for callbacks to avoid recreating connect function
   const onMessageRef = useRef(onMessage);
+  const onMessageBatchRef = useRef(onMessageBatch);
   const onOpenRef = useRef(onOpen);
   const onCloseRef = useRef(onClose);
   const onErrorRef = useRef(onError);
@@ -107,13 +116,19 @@ export function useWebSocket({
   // first `connect()` can run before this effect has flushed.
   const protocolsRef = useRef(protocols);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     onMessageRef.current = onMessage;
+    onMessageBatchRef.current = onMessageBatch;
     onOpenRef.current = onOpen;
     onCloseRef.current = onClose;
     onErrorRef.current = onError;
     protocolsRef.current = protocols;
-  }, [onMessage, onOpen, onClose, onError, protocols]);
+  }, [onMessage, onMessageBatch, onOpen, onClose, onError, protocols]);
+
+  useLayoutEffect(() => {
+    wantedSigRef.current = sigOf(url, identity);
+    inboxRef.current?.clear();
+  }, [url, identity, messageScope]);
 
   // `connect` reconnects by calling itself from a timeout, and a `useCallback`
   // cannot reference its own binding before it exists. Held in a ref, kept
@@ -150,6 +165,7 @@ export function useWebSocket({
     // The address changed (an organization switch), or a stale socket lingers →
     // discard it silently before opening the replacement.
     if (live) {
+      inboxRef.current?.clear();
       silentClose(live);
       wsRef.current = null;
     }
@@ -162,6 +178,13 @@ export function useWebSocket({
     const ws = opening && opening.length > 0 ? new WebSocket(url, opening) : new WebSocket(url);
     wsRef.current = ws;
     wsSigRef.current = sig;
+    const inbox = new FrameInbox((events) => {
+      if (wsRef.current !== ws || !shouldReconnectRef.current) return;
+      const batch = onMessageBatchRef.current;
+      if (batch) batch(events);
+      else events.forEach((event) => onMessageRef.current?.(event));
+    });
+    inboxRef.current = inbox;
 
     ws.onopen = () => {
       setIsConnected(true);
@@ -170,10 +193,13 @@ export function useWebSocket({
     };
 
     ws.onmessage = (event) => {
-      onMessageRef.current?.(event);
+      if (wantedSigRef.current !== sig) return;
+      if (onMessageBatchRef.current) inbox.push(event);
+      else onMessageRef.current?.(event);
     };
 
     ws.onclose = (event) => {
+      inbox.flush();
       setIsConnected(false);
 
       // A deliberate disconnect() (unmount, logout, token swap) is not a failure
@@ -198,6 +224,7 @@ export function useWebSocket({
     };
 
     ws.onerror = (error) => {
+      inbox.flush();
       onErrorRef.current?.(error);
     };
   }, [url, identity, reconnect, reconnectInterval, maxReconnectAttempts]);
@@ -207,6 +234,7 @@ export function useWebSocket({
   }, [connect]);
 
   const disconnect = useCallback(() => {
+    inboxRef.current?.clear();
     shouldReconnectRef.current = false;
     reconnectAttemptsRef.current = 0;
     if (reconnectTimeoutRef.current) {
@@ -242,6 +270,7 @@ export function useWebSocket({
    * than going into a socket that is not open yet.
    */
   const reopen = useCallback(() => {
+    inboxRef.current?.clear();
     const live = wsRef.current;
     if (live) {
       silentClose(live);

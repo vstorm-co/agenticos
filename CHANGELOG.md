@@ -163,6 +163,15 @@ environment without a person's decision.
 - A suite and a promotion override can be set up only by a person signed in as
   themselves, not through an API key or impersonation.
 
+## [1.18.0] - 2026-10-26
+
+### Fixed
+
+- Read chat project metadata without downloading the transcript, and load model
+  summaries only for model-history reconstruction. Coalesce streamed text updates,
+  reuse unchanged Markdown and tool output, follow content size changes, and release
+  completed visual frames outside the viewport (#2469).
+
 ## [1.17.0] - 2026-10-25
 
 ### Added

@@ -36,6 +36,7 @@ const { sent, socket, connect, disconnect, reopen } = vi.hoisted(() => ({
   reopen: vi.fn(),
   socket: {
     onMessage: null as ((event: MessageEvent) => void) | null,
+    onMessageBatch: null as ((events: readonly MessageEvent[]) => void) | null,
     onClose: null as (() => void) | null,
     url: "",
     protocols: undefined as string[] | undefined,
@@ -81,9 +82,11 @@ vi.mock("./use-websocket", () => ({
     url: string;
     protocols?: () => string[] | undefined;
     onMessage?: (event: MessageEvent) => void;
+    onMessageBatch?: (events: readonly MessageEvent[]) => void;
     onClose?: () => void;
   }) => {
     socket.onMessage = options.onMessage ?? null;
+    socket.onMessageBatch = options.onMessageBatch ?? null;
     socket.onClose = options.onClose ?? null;
     socket.url = options.url;
     // Called, because the real hook calls it when it opens a socket rather than
@@ -217,6 +220,47 @@ describe("useChat - replying to a message", () => {
 });
 
 describe("useChat - attributing the answer", () => {
+  it("keeps creation, answer persistence and completion ordered inside one delivery batch", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("hello"));
+    const events = [
+      { type: "conversation_created", data: { conversation_id: "created" } },
+      { type: "model_request_start", data: {} },
+      { type: "text_delta", data: { index: 0, content: "hello back" } },
+      { type: "message_saved", data: { message_id: "saved" } },
+      { type: "complete", data: {} },
+      { type: "session_ready", data: {} },
+    ].map((frame) => new MessageEvent("message", { data: JSON.stringify(frame) }));
+    act(() => socket.onMessageBatch?.(events));
+    const messages = useChatStore.getState().messages;
+    expect(messages.every((message) => message.conversationId === "created")).toBe(true);
+    expect(messages.find((message) => message.role === "assistant")).toMatchObject({
+      id: "saved",
+      content: "hello back",
+      isStreaming: false,
+    });
+    expect(result.current.isProcessing).toBe(false);
+  });
+  it("applies a burst of text deltas as one transcript update", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("hello"));
+    receive("model_request_start", {});
+    let changes = 0;
+    const unsubscribe = useChatStore.subscribe((state, previous) => {
+      if (state.messages !== previous.messages) changes++;
+    });
+    const events = Array.from(
+      { length: 200 },
+      (_, n) =>
+        new MessageEvent("message", {
+          data: JSON.stringify({ type: "text_delta", data: { index: 0, content: `${n} ` } }),
+        }),
+    );
+    act(() => socket.onMessageBatch?.(events));
+    unsubscribe();
+    expect(changes).toBe(1);
+    expect(streaming()?.content).toBe(Array.from({ length: 200 }, (_, n) => `${n} `).join(""));
+  });
   it("credits the answer to the agent the turn was sent to", () => {
     useAgentSelectionStore.getState().select("agent-1");
 

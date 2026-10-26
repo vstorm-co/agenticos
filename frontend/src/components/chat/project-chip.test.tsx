@@ -121,7 +121,8 @@ describe("ProjectChip", () => {
     chip("c-1");
     expect(await screen.findByRole("link", { name: "Treasury" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Start outside/ })).not.toBeInTheDocument();
-    expect(apiClient.get).toHaveBeenCalledWith("/conversations/c-1");
+    expect(apiClient.get).toHaveBeenCalledWith("/conversations/c-1/metadata");
+    expect(apiClient.get).not.toHaveBeenCalledWith("/conversations/c-1");
   });
 
   it("shows nothing for a chat outside any project", async () => {
