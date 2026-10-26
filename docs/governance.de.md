@@ -560,10 +560,10 @@ Proaktive Läufe werden dem veröffentlichten **AgenticOS**-Startagenten der
 Organisation zugeordnet (Slug `agenticos`). Diese Zuordnung ist in der Plattform
 festgelegt; sie wählt weder das Modell noch die Anweisungen des Startagenten.
 Das separate Modell und die Limits stehen unter **Organisationen → Mitglieder →
-Proaktivität**. Activity zeigt das Symbol und den Filter **Proaktiv**, die
+Proaktivität**. Aktivität zeigt das Symbol und den Filter **Proaktiv**, die
 Modellanfragen und ihre Kosten sowie den aufgezeichneten Austausch mit
 Werkzeugergebnissen und strukturierter Endantwort. Fehlgeschlagene Prüfungen
-behalten den vor dem Fehler verfügbaren Austausch. Wie andere Activity-Einträge
+behalten den vor dem Fehler verfügbaren Austausch. Wie andere Einträge der Aktivität
 erfordern diese Aufzeichnungen `runs:view` und erzeugen keine Chats. Nicht
 aufgezeichnete ältere Abläufe lassen sich nicht wiederherstellen; übergroße
 Aufzeichnungen werden ausdrücklich als gekürzt gekennzeichnet.
