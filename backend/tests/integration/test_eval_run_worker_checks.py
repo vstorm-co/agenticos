@@ -7,6 +7,7 @@ the key it was started with - stops the check, and an answer already given keeps
 nothing the withdrawn draft could have shaped.
 """
 
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
@@ -20,13 +21,15 @@ from app.core.permissions import ROLE_PERMS, AuthContext, OrgRoleName
 from app.db.models.case_score import CaseScore
 from app.db.models.eval_run import EvalRun, EvalRunCase
 from app.db.models.organization import Organization, OrganizationMember
-from app.repositories import knowledge_gap_repo
+from app.repositories import eval_run_repo, knowledge_gap_repo
 from app.schemas.api_key import ApiKeyCreate
 from app.services.agent_registry import UnpublishedCandidate
 from app.services.agent_runner import AgentRunnerService
 from app.services.api_key import ApiKeyService
+from app.services.eval_run import EvalRunService
 from app.services.eval_run_worker import EvalRunWorker
 from app.services.knowledge_gaps import KnowledgeGapService
+from app.services.notifications import NotificationService
 from tests.integration.test_authoring import _environment as _environment
 from tests.integration.test_authoring import _sessions
 from tests.integration.test_eval_suites import Model
@@ -225,3 +228,26 @@ async def test_a_key_revoked_mid_check_keeps_no_answer_and_stops_it(db: AsyncSes
     assert (run.status, run.error) == ("failed", _NO_LONGER_RUNS)
     [answered] = [attempt for attempt in await _attempts(db, child.id) if attempt.ended_at]
     assert (answered.status, answered.error, answered.answer) == ("failed", _WITHDRAWN, None)
+
+
+@pytest.mark.security
+async def test_an_attempt_claimed_before_its_check_was_cancelled_leaves_the_cancellation(
+    db: AsyncSession,
+) -> None:
+    ctx, _, _, _, child = await _start(db)
+    worker = EvalRunWorker(child.id, ctx.organization_id, sessions=_sessions(db))
+    working = await worker._begin()
+    assert working is not None
+    claimed = await eval_run_repo.claim_next(
+        db, child.id, organization_id=ctx.organization_id, org_limit=10, now=datetime.now(UTC)
+    )
+    assert claimed is not None
+    await EvalRunService(db).cancel(ctx, child.id)
+    await _demote(db, ctx)
+
+    with patch.object(NotificationService, "eval_run_finished", new=AsyncMock()) as announced:
+        assert await worker._answer(working, claimed.id) is True
+
+    run = await _stored(db, child.id)
+    assert (run.status, run.error) == ("cancelled", None)
+    announced.assert_not_awaited()
