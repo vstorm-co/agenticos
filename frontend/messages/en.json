@@ -10335,8 +10335,9 @@
     },
     "evidence": {
       "none": "No evidence that could be checked.",
-      "run": "run {id}",
-      "dropped": "{count, plural, =1 {1 cited item} other {# cited items}} could not be found in the runs and {count, plural, =1 {was} other {were}} left out."
+      "dropped": "{count, plural, =1 {1 cited item} other {# cited items}} could not be found in the runs and {count, plural, =1 {was} other {were}} left out.",
+      "conversation": "conversation {number}",
+      "aConversation": "a conversation"
     },
     "batch": {
       "closed": {
@@ -10532,6 +10533,21 @@
       "title": "Worth creating a skill",
       "binding": "Accept creates this skill and binds it to the draft. It contains written know-how and grants no tools. Nothing is published.",
       "permission": "You can review and test this proposal. Creating the skill requires skills:edit."
+    },
+    "diff": {
+      "added": "Added:",
+      "removed": "Removed:",
+      "view": "How to show the change",
+      "unified": "Unified",
+      "split": "Side by side",
+      "showUnchanged": "{count, plural, one {Show # unchanged line} other {Show # unchanged lines}}"
+    },
+    "instructionsEditor": {
+      "current": "Current instructions",
+      "proposed": "Proposed instructions, editable",
+      "proposedTab": "Proposed (edit)",
+      "panes": "Current and proposed instructions",
+      "outside": "This edit changes text outside the suggested passage. Only the suggestion can be saved here; change the rest in the instructions editor."
     }
   },
   "promotionGate": {

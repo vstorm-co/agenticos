@@ -1,6 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { diffLine } from "@/test-utils/diff";
 
 import { authoringRequest, batch, hunk } from "@/test-utils/authoring";
 import { arm, evalRun } from "@/test-utils/eval-runs";
@@ -10,7 +11,7 @@ import {
   ChangePreview,
   CheckedAnswers,
 } from "./result-dialog";
-import { TextDiff } from "./text-diff";
+import { DiffView } from "./diff-view";
 
 const reads = vi.hoisted(() => ({
   runState: "completed",
@@ -82,8 +83,8 @@ describe("AuthoringResultDialog", () => {
     );
     expect(screen.getByRole("dialog")).toHaveAccessibleName("Suggested improvements");
     expect(screen.getByText("3 problem answers found in the source evidence")).toBeInTheDocument();
-    expect(screen.getByText("Before")).toBeInTheDocument();
-    expect(screen.getByText("After")).toBeInTheDocument();
+    expect(screen.getAllByText("Removed:").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Added:").length).toBeGreaterThan(0);
     expect(screen.getByText("Readers corrected the refund window.")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Back to the agent" }));
     rerender(
@@ -145,7 +146,7 @@ describe("AuthoringResultDialog", () => {
 
   it("keeps a heading in its own context row even when the stored boundary has no newline", () => {
     render(
-      <TextDiff
+      <DiffView
         context="## How to answer"
         before="Lead with the answer."
         after="Ask for the receipt."
@@ -153,8 +154,8 @@ describe("AuthoringResultDialog", () => {
       />,
     );
     const heading = screen.getByText("## How to answer").closest("tr")!;
-    expect(within(heading).queryByText("Lead with the answer.")).not.toBeInTheDocument();
-    expect(screen.getByText("Lead with the answer.").closest("tr")).not.toBe(heading);
+    expect(within(heading).queryByText(diffLine("Lead with the answer."))).not.toBeInTheDocument();
+    expect(screen.getByText(diffLine("Lead with the answer.")).closest("tr")).not.toBe(heading);
   });
 });
 
@@ -207,8 +208,8 @@ it("previews field changes and tool renames without editable controls", () => {
       })}
     />,
   );
-  expect(screen.getByText("0.1")).toBeInTheDocument();
-  expect(screen.getByText("0.2")).toBeInTheDocument();
+  expect(screen.getByText(diffLine("0.1"))).toBeInTheDocument();
+  expect(screen.getByText(diffLine("0.2"))).toBeInTheDocument();
   expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   rerender(
     <ChangePreview
@@ -223,8 +224,8 @@ it("previews field changes and tool renames without editable controls", () => {
       })}
     />,
   );
-  expect(screen.getByText(/Old name/)).toHaveTextContent("Old description");
-  expect(screen.getByText(/New name/)).toHaveTextContent("New description");
+  expect(screen.getByText(diffLine("Old name"))).toBeInTheDocument();
+  expect(screen.getByText(diffLine("New description"))).toBeInTheDocument();
 });
 
 it("replaces raw identities in the result dialog's effect with the source count", () => {
@@ -253,7 +254,7 @@ it("handles older proposals whose tool names and passages are absent", () => {
       onOpenChange={vi.fn()}
     />,
   );
-  expect(screen.getAllByText("No text")).toHaveLength(2);
+  expect(screen.getAllByText("No text")).toHaveLength(1);
   rerender(
     <ChangePreview
       hunk={hunk({
@@ -266,7 +267,7 @@ it("handles older proposals whose tool names and passages are absent", () => {
       })}
     />,
   );
-  expect(screen.getAllByText("No text")).toHaveLength(2);
+  expect(screen.getAllByText("No text")).toHaveLength(1);
   rerender(
     <ChangePreview
       hunk={hunk({
@@ -279,5 +280,5 @@ it("handles older proposals whose tool names and passages are absent", () => {
       })}
     />,
   );
-  expect(screen.getAllByText(/Read the order/)).toHaveLength(2);
+  expect(screen.getAllByText(diffLine("Read the order"))).toHaveLength(1);
 });

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { DiffView } from "./diff-view";
 
 import {
   Badge,
@@ -19,7 +20,7 @@ import { DIALOG_BODY, DIALOG_BROAD, DIALOG_COLUMN } from "@/lib/dialog-sizes";
 import { expectedEffect } from "@/lib/authoring-text";
 import { ROUTES } from "@/lib/constants";
 import type { AuthoringRequest, Hunk, ProposedSkill, SuggestionBatch } from "@/types/authoring";
-import { ConversationEvidence, EvidenceList } from "./evidence-list";
+import { ConversationEvidence, EvidenceList, RationaleText } from "./evidence-list";
 import { NewSkillPreview } from "./new-skill-preview";
 import { FieldDiff, fieldLabel } from "./field-change";
 import { RejectedChanges } from "./rejected-changes";
@@ -192,23 +193,21 @@ export function ChangePreview({
       ) : hunk.kind === "spec_field" ? (
         <FieldDiff hunk={hunk} editing={null} expected={!wizard} />
       ) : (
-        <div className="grid gap-3 md:grid-cols-2">
-          {[
-            { label: t("before"), text: before },
-            { label: t("after"), text: after },
-          ].map(({ label, text }) => (
-            <div key={label} className="min-w-0 space-y-1">
-              <h4 className="text-muted-foreground text-xs font-medium">{label}</h4>
-              <pre className="bg-muted/40 max-h-72 overflow-auto rounded-md p-3 text-xs break-words whitespace-pre-wrap">
-                {text || t("emptyPassage")}
-              </pre>
-            </div>
-          ))}
-        </div>
+        <DiffView
+          before={before}
+          after={after}
+          context={hunk.kind === "instructions" ? hunk.context_before : ""}
+          trailing={hunk.kind === "instructions" ? hunk.context_after : ""}
+          emptyLabel={t("emptyPassage")}
+        />
       )}
       <div>
         <h4 className="text-xs font-medium">{t("why")}</h4>
-        <p className="text-sm">{hunk.rationale}</p>
+        <RationaleText
+          text={hunk.rationale}
+          evidence={hunk.evidence}
+          conversations={conversations}
+        />
       </div>
       <div>
         <h4 className="mb-1 text-xs font-medium">{t("basedOn")}</h4>

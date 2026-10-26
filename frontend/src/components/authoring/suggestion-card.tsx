@@ -5,10 +5,12 @@ import { useTranslations } from "next-intl";
 
 import { Badge, Button, Card, CardContent, Textarea } from "@/components/ui";
 import type { Hunk, HunkDecision } from "@/types/authoring";
-import { EvidenceList } from "./evidence-list";
+import { EvidenceList, RationaleText } from "./evidence-list";
 import { FieldDiff, editable, fieldLabel, parsed } from "./field-change";
 import { NewSkillPreview } from "./new-skill-preview";
-import { TextDiff } from "./text-diff";
+import { DiffView } from "./diff-view";
+import { InstructionsEditor, editedPassage } from "./instructions-editor";
+import { locatePassage } from "@/lib/diff";
 
 /**
  * One suggestion: what it changes, why, and the decision on it.
@@ -23,11 +25,14 @@ export function SuggestionCard({
   canEdit,
   busy,
   onDecide,
+  instructions,
 }: {
   hunk: Hunk;
   canEdit: boolean;
   busy: boolean;
   onDecide: (decision: HunkDecision) => void;
+  /** The stored draft's instructions, so Edit can show the suggestion in all of them. */
+  instructions?: string;
 }) {
   const t = useTranslations("authoring.suggestion");
   const tField = useTranslations("authoring.field");
@@ -39,12 +44,25 @@ export function SuggestionCard({
   const pending = hunk.status === "pending";
   const editableAs = newSkill ? null : field ? editable(hunk.path) : "text";
   const proposed = field ? String(hunk.new_value ?? "") : hunk.new_text;
+  const placed =
+    hunk.kind === "instructions" && instructions !== undefined
+      ? locatePassage(instructions, hunk)
+      : null;
+  const whole =
+    placed === null || instructions === undefined
+      ? null
+      : {
+          before: instructions.slice(0, placed),
+          after: instructions.slice(placed + hunk.old_text.length),
+        };
+  const passage =
+    whole && editing !== null ? editedPassage(editing, whole.before, whole.after) : editing;
   const accepting = (): HunkDecision =>
     editing === null
       ? { action: "accept" }
       : field
         ? { action: "accept", value: parsed(hunk.path, editing) }
-        : { action: "accept", text: editing };
+        : { action: "accept", text: passage ?? "" };
 
   return (
     <Card data-testid="suggestion">
@@ -74,12 +92,19 @@ export function SuggestionCard({
         ) : tool ? (
           <div className="space-y-2">
             {hunk.new_name !== null && (
-              <TextDiff before={hunk.base_name ?? hunk.tool_id ?? ""} after={hunk.new_name} />
+              <DiffView before={hunk.base_name ?? hunk.tool_id ?? ""} after={hunk.new_name} />
             )}
             {hunk.new_description !== null && (
-              <TextDiff before={hunk.base_description ?? ""} after={hunk.new_description} />
+              <DiffView before={hunk.base_description ?? ""} after={hunk.new_description} />
             )}
           </div>
+        ) : editing !== null && whole !== null && instructions !== undefined ? (
+          <InstructionsEditor
+            current={instructions}
+            value={editing}
+            outside={passage === null}
+            onChange={setEditing}
+          />
         ) : editing !== null ? (
           <Textarea
             aria-label={t("editLabel")}
@@ -88,7 +113,7 @@ export function SuggestionCard({
             rows={4}
           />
         ) : (
-          <TextDiff
+          <DiffView
             context={hunk.context_before}
             before={hunk.old_text}
             after={
@@ -97,7 +122,7 @@ export function SuggestionCard({
             trailing={hunk.context_after}
           />
         )}
-        <p className="text-sm">{hunk.rationale}</p>
+        <RationaleText text={hunk.rationale} evidence={hunk.evidence} />
         <EvidenceList items={hunk.evidence} dropped={hunk.evidence_dropped} />
         {canEdit && (
           <div className="flex flex-wrap gap-2">
@@ -108,6 +133,7 @@ export function SuggestionCard({
                   disabled={
                     busy ||
                     Boolean(hunk.blocked) ||
+                    passage === null ||
                     (editableAs === "number" && editing.trim() === "")
                   }
                   onClick={() => onDecide(accepting())}
@@ -131,7 +157,13 @@ export function SuggestionCard({
                   </Button>
                 )}
                 {hunk.applies && !tool && editableAs !== null && (
-                  <Button size="sm" variant="outline" onClick={() => setEditing(proposed)}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      setEditing(whole ? whole.before + proposed + whole.after : proposed)
+                    }
+                  >
                     {t("edit")}
                   </Button>
                 )}

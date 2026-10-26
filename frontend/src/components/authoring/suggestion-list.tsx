@@ -20,11 +20,14 @@ export function SuggestionList({
   agentId,
   busy,
   onDecide,
+  instructions,
 }: {
   batch: SuggestionBatch;
   agentId: string;
   busy: boolean;
   onDecide: (hunk: Hunk, decision: HunkDecision) => void;
+  /** The stored draft's instructions, for editing a suggestion in all of them. */
+  instructions?: string;
 }) {
   const t = useTranslations("authoring.batch");
   const open = batch.status === "open";
@@ -53,6 +56,7 @@ export function SuggestionList({
           canEdit={open}
           busy={busy}
           onDecide={(decision) => onDecide(hunk, decision)}
+          instructions={instructions}
         />
       ))}
     </div>

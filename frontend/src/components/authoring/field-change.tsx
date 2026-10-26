@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { Badge, Input, Textarea } from "@/components/ui";
 import type { FieldValue, Hunk } from "@/types/authoring";
 import { AddsAccess } from "./adds-access";
-import { TextDiff } from "./text-diff";
+import { DiffView } from "./diff-view";
 
 type Translate = ReturnType<typeof useTranslations>;
 
@@ -120,7 +120,7 @@ export function FieldDiff({
           onChange={(event) => onEdit(event.target.value)}
         />
       ) : hunk.op === "set" ? (
-        <TextDiff before={shown(hunk.base_value, names, t)} after={shown(after, names, t)} />
+        <DiffView before={shown(hunk.base_value, names, t)} after={shown(after, names, t)} />
       ) : (
         <Badge variant={hunk.op === "remove" ? "outline" : "secondary"}>
           {hunk.op === "remove" ? t("removes") : t("adds")}{" "}

@@ -52,7 +52,7 @@ describe("VerifyReport", () => {
         ]}
       />,
     );
-    expect(screen.getByRole("link", { name: "run run-dddd" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "conversation 1" })).toBeInTheDocument();
     expect(document.querySelector("q")).toBeNull();
   });
 

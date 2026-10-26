@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useTranslations } from "next-intl";
 import { describe, expect, it, vi } from "vitest";
+import { diffLine } from "@/test-utils/diff";
 
 import { hunk } from "@/test-utils/authoring";
 import type { Hunk } from "@/types/authoring";
@@ -165,7 +166,7 @@ describe("a field change", () => {
         accepted_value: { default_top_k: 9 },
       }),
     );
-    expect(screen.getByText(/"default_top_k": 9/)).toBeInTheDocument();
+    expect(screen.getByText(diffLine(/"default_top_k": 9/))).toBeInTheDocument();
   });
 
   it("says what a change of model costs, how roughly, and why accepting it waits", () => {
@@ -179,7 +180,7 @@ describe("a field change", () => {
         blocked: "check_first",
       }),
     );
-    expect(screen.getByText("GPT-4o")).toBeInTheDocument();
+    expect(screen.getByText(diffLine("GPT-4o"))).toBeInTheDocument();
     expect(screen.getByText(/costs about \$0.01 now and \$0.002/)).toBeVisible();
     expect(screen.getByText(/A rough estimate, from 3 runs/)).toBeVisible();
     expect(screen.getByRole("note")).toHaveTextContent("Run Check with evals");

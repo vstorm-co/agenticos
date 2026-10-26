@@ -176,6 +176,7 @@ export function AssistantStrip({
               agentId={agentId}
               busy={decide.isPending}
               onDecide={onDecide}
+              instructions={storedDraft.instructions}
             />
           )}
           {latest !== null && (

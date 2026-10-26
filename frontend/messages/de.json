@@ -10218,8 +10218,9 @@
     },
     "evidence": {
       "none": "Keine Belege, die sich prüfen ließen.",
-      "run": "Run {id}",
-      "dropped": "{count, plural, =1 {1 zitierter Beleg wurde} other {# zitierte Belege wurden}} in den Runs nicht gefunden und weggelassen."
+      "dropped": "{count, plural, =1 {1 zitierter Beleg wurde} other {# zitierte Belege wurden}} in den Runs nicht gefunden und weggelassen.",
+      "conversation": "Gespräch {number}",
+      "aConversation": "ein Gespräch"
     },
     "batch": {
       "closed": {
@@ -10415,6 +10416,21 @@
       "title": "Ein Skill wäre sinnvoll",
       "binding": "Annehmen erstellt diesen Skill und bindet ihn an den Entwurf. Er enthält Anweisungen und gewährt keine Tools. Nichts wird veröffentlicht.",
       "permission": "Sie können diesen Vorschlag prüfen und testen. Das Erstellen erfordert skills:edit."
+    },
+    "diff": {
+      "added": "Hinzugefügt:",
+      "removed": "Entfernt:",
+      "view": "Wie die Änderung gezeigt wird",
+      "unified": "Einheitlich",
+      "split": "Nebeneinander",
+      "showUnchanged": "{count, plural, one {# unveränderte Zeile anzeigen} other {# unveränderte Zeilen anzeigen}}"
+    },
+    "instructionsEditor": {
+      "current": "Aktuelle Anweisungen",
+      "proposed": "Vorgeschlagene Anweisungen, bearbeitbar",
+      "proposedTab": "Vorgeschlagen (bearbeiten)",
+      "panes": "Aktuelle und vorgeschlagene Anweisungen",
+      "outside": "Diese Bearbeitung ändert Text außerhalb der vorgeschlagenen Passage. Hier lässt sich nur der Vorschlag speichern; ändern Sie den Rest im Anweisungseditor."
     }
   },
   "promotionGate": {

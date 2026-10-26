@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { diffLine } from "@/test-utils/diff";
 
 import { batch, hunk } from "@/test-utils/authoring";
 import { SuggestionList } from "./suggestion-list";
@@ -51,7 +52,7 @@ describe("SuggestionList", () => {
       />,
     );
     expect(screen.queryByRole("textbox")).toBeNull();
-    expect(screen.getByText("Mine.")).toBeInTheDocument();
+    expect(screen.getByText(diffLine("Mine."))).toBeInTheDocument();
 
     rerender(<SuggestionList batch={batch({ hunks: [waiting] })} {...props} />);
     expect(screen.queryByRole("textbox")).toBeNull();

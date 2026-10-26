@@ -12,7 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui";
-import { EvidenceList } from "@/components/authoring/evidence-list";
+import { EvidenceList, RationaleText } from "@/components/authoring/evidence-list";
 import { GoesLive } from "@/components/authoring/goes-live";
 import { SkillCheckButton } from "@/components/authoring/skill-check-button";
 import { useSkillChanges } from "@/hooks";
@@ -160,7 +160,9 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
 
       {open && (
         <div className="space-y-3">
-          {change.rationale && <p className="text-sm">{change.rationale}</p>}
+          {change.rationale && (
+            <RationaleText text={change.rationale} evidence={change.evidence ?? []} />
+          )}
           {change.expected_effect && (
             <p className="text-sm">
               <span className="font-medium">{t("expectedEffect")}</span> {change.expected_effect}

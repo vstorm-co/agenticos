@@ -171,10 +171,7 @@ it("names each change by what it changes and bases it on conversations, not run 
   expect(screen.getByText("Tool description: lookup_order")).toBeInTheDocument();
   expect(screen.getByText("Model")).toBeInTheDocument();
   expect(screen.getByText("No longer fits the current instructions")).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: "Open conversation" })).toHaveAttribute(
-    "href",
-    "/chat/c1",
-  );
+  expect(screen.getByRole("link", { name: "conversation 1" })).toHaveAttribute("href", "/chat/c1");
   expect(screen.queryByText(/run r1/)).not.toBeInTheDocument();
   expect(screen.getAllByText("No conversation is quoted for this change.")).toHaveLength(2);
 });
@@ -186,7 +183,7 @@ it("quotes the evidence before its conversations are known, without a link", () 
     />,
   );
   expect(screen.getByText("Refunds take 90 days")).toBeInTheDocument();
-  expect(screen.queryByRole("link", { name: "Open conversation" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "conversation 1" })).toBeNull();
 });
 it("names a new skill, and a tool by its id when it has no name", () => {
   render(

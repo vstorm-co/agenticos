@@ -16,7 +16,8 @@ import {
 import { EvidenceList } from "@/components/authoring/evidence-list";
 import { GoesLive } from "@/components/authoring/goes-live";
 import { ContextCheckButton } from "@/components/authoring/skill-check-button";
-import { TextDiff } from "@/components/authoring/text-diff";
+import { DiffView } from "@/components/authoring/diff-view";
+import { RationaleText } from "@/components/authoring/evidence-list";
 import { useContextAuthoringWatch } from "@/hooks/use-authoring";
 import { useContextChanges } from "@/hooks/use-context-changes";
 import type { ContextChange } from "@/types/authoring";
@@ -139,17 +140,15 @@ function ChangeRow({
           {change.stale && (
             <p className="text-sm text-amber-700 dark:text-amber-400">{t("staleHint")}</p>
           )}
-          {change.rationale && <p className="text-sm">{change.rationale}</p>}
+          {change.rationale && <RationaleText text={change.rationale} evidence={change.evidence} />}
           {change.expected_effect && (
             <p className="text-sm">{t("expects", { effect: change.expected_effect })}</p>
           )}
           <EvidenceList items={change.evidence} dropped={change.evidence_dropped} />
           {change.description !== change.current_description && (
-            <TextDiff before={change.current_description ?? ""} after={change.description ?? ""} />
+            <DiffView before={change.current_description ?? ""} after={change.description ?? ""} />
           )}
-          <div className="bg-muted max-h-80 overflow-auto rounded-md p-3 text-xs whitespace-pre-wrap">
-            <TextDiff before={change.current_content} after={change.content} />
-          </div>
+          <DiffView before={change.current_content} after={change.content} />
         </div>
       )}
     </div>

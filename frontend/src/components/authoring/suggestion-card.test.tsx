@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { diffLine } from "@/test-utils/diff";
 
 import { hunk } from "@/test-utils/authoring";
 import { SuggestionCard } from "./suggestion-card";
@@ -8,10 +9,10 @@ import { SuggestionCard } from "./suggestion-card";
 describe("SuggestionCard", () => {
   it("shows the change in its surroundings, why, and the evidence behind it", () => {
     render(<SuggestionCard hunk={hunk()} canEdit busy={false} onDecide={vi.fn()} />);
-    expect(screen.getByText("Be brief. Refunds take 30 days.")).toBeInTheDocument();
+    expect(screen.getByText(diffLine("Be brief. Refunds take 30 days."))).toBeInTheDocument();
     expect(screen.getByText("You answer refunds.")).toBeInTheDocument();
     expect(screen.getByText("Readers corrected the refund window.")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "run run-0123" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "conversation 1" })).toHaveAttribute(
       "href",
       "/runs?run=run-0123456789",
     );
@@ -60,7 +61,7 @@ describe("SuggestionCard", () => {
         onDecide={onDecide}
       />,
     );
-    expect(screen.getByText("Thirty days.")).toBeInTheDocument();
+    expect(screen.getByText(diffLine("Thirty days."))).toBeInTheDocument();
     expect(screen.getByText("From verifying your edits")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Undo" }));
     expect(onDecide).toHaveBeenCalledWith({ action: "undo" });
@@ -73,7 +74,7 @@ describe("SuggestionCard", () => {
       />,
     );
     expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
-    expect(screen.getByText("Be brief. Refunds take 30 days.")).toBeInTheDocument();
+    expect(screen.getByText(diffLine("Be brief. Refunds take 30 days."))).toBeInTheDocument();
     rerender(
       <SuggestionCard
         hunk={hunk({ status: "dismissed" })}
@@ -134,5 +135,63 @@ describe("SuggestionCard", () => {
     );
     expect(screen.getByText("old_name")).toBeInTheDocument();
     expect(screen.getByText("before")).toBeInTheDocument();
+  });
+
+  it("edits the suggestion inside the whole instructions and saves only its passage", async () => {
+    const onDecide = vi.fn();
+    render(
+      <SuggestionCard
+        hunk={hunk()}
+        canEdit
+        busy={false}
+        onDecide={onDecide}
+        instructions={"You answer refunds.\nBe brief."}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    const proposed = screen.getByRole("textbox", { name: "Proposed instructions, editable" });
+    expect(proposed).toHaveValue("You answer refunds.\nBe brief. Refunds take 30 days.");
+    await userEvent.clear(proposed);
+    await userEvent.type(proposed, "You answer refunds.{enter}Be brief. Refunds take 14 days.");
+    expect(screen.getByText(diffLine("Be brief. Refunds take 14 days."))).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Save and accept" }));
+    expect(onDecide).toHaveBeenCalledWith({
+      action: "accept",
+      text: "Be brief. Refunds take 14 days.",
+    });
+  });
+
+  it("refuses to save an edit that reaches outside the suggested passage", async () => {
+    const onDecide = vi.fn();
+    render(
+      <SuggestionCard
+        hunk={hunk()}
+        canEdit
+        busy={false}
+        onDecide={onDecide}
+        instructions={"You answer refunds.\nBe brief."}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    const proposed = screen.getByRole("textbox", { name: "Proposed instructions, editable" });
+    await userEvent.type(proposed, "{Home}{ArrowUp}{Home}Always ");
+    expect(screen.getByRole("alert")).toHaveTextContent(/outside the suggested passage/);
+    expect(screen.getByRole("button", { name: "Save and accept" })).toBeDisabled();
+    expect(onDecide).not.toHaveBeenCalled();
+  });
+
+  it("edits the passage alone when the instructions no longer hold it", async () => {
+    render(
+      <SuggestionCard
+        hunk={hunk()}
+        canEdit
+        busy={false}
+        onDecide={vi.fn()}
+        instructions="Something else entirely."
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    expect(screen.queryByRole("textbox", { name: "Proposed instructions, editable" })).toBeNull();
+    expect(screen.getByRole("textbox")).toHaveValue("Be brief. Refunds take 30 days.");
   });
 });

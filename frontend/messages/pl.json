@@ -10118,8 +10118,9 @@
     },
     "evidence": {
       "none": "Brak dowodów, które dałoby się sprawdzić.",
-      "run": "run {id}",
-      "dropped": "{count, plural, one {1 przytoczony fragment nie został znaleziony} few {# przytoczone fragmenty nie zostały znalezione} other {# przytoczonych fragmentów nie zostało znalezionych}} w runach i {count, plural, one {został pominięty} few {zostały pominięte} other {zostało pominiętych}}."
+      "dropped": "{count, plural, one {1 przytoczony fragment nie został znaleziony} few {# przytoczone fragmenty nie zostały znalezione} other {# przytoczonych fragmentów nie zostało znalezionych}} w runach i {count, plural, one {został pominięty} few {zostały pominięte} other {zostało pominiętych}}.",
+      "conversation": "rozmowa {number}",
+      "aConversation": "jedna z rozmów"
     },
     "batch": {
       "closed": {
@@ -10315,6 +10316,21 @@
       "title": "Warto utworzyć skill",
       "binding": "Akceptacja tworzy skill i przypina go do wersji roboczej. Skill zawiera instrukcje i nie nadaje dostępu do narzędzi. Nic nie jest publikowane.",
       "permission": "Możesz przejrzeć i sprawdzić tę propozycję. Utworzenie skilla wymaga uprawnienia skills:edit."
+    },
+    "diff": {
+      "added": "Dodano:",
+      "removed": "Usunięto:",
+      "view": "Jak pokazać zmianę",
+      "unified": "Jednolicie",
+      "split": "Obok siebie",
+      "showUnchanged": "{count, plural, one {Pokaż # niezmienioną linię} few {Pokaż # niezmienione linie} many {Pokaż # niezmienionych linii} other {Pokaż # niezmienionej linii}}"
+    },
+    "instructionsEditor": {
+      "current": "Obecne instrukcje",
+      "proposed": "Proponowane instrukcje, do edycji",
+      "proposedTab": "Proponowane (edycja)",
+      "panes": "Obecne i proponowane instrukcje",
+      "outside": "Ta edycja zmienia tekst poza sugerowanym fragmentem. Tutaj można zapisać tylko sugestię; resztę zmień w edytorze instrukcji."
     }
   },
   "promotionGate": {
