@@ -1,5 +1,5 @@
 ---
-source_sha: "1715981d7949"
+source_sha: "04a681b7328a"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -374,7 +374,7 @@ Nach Abschluss macht `/{run_id}/rounds/{number}/select` eine gemessene Runde zum
 
 Öffnen Sie **Verbessern** im Agentenkopf oder in der Assistentenleiste auf dem Tab Bauen, über das Abzeichen **Braucht Aufmerksamkeit** in der Agentenliste, über die Dashboard-Karte oder über den Tab **Wissenslücken** des Agents. Es steht zwischen den anderen Aktionen im Kopf; hatte die Version, die der Agent jetzt ausliefert, in den letzten 30 Tagen negativ bewertete Antworten oder fehlgeschlagene Runs, trägt es einen Punkt und sein Name sagt, warum.
 
-Jedes **Verbessern** öffnet die Sitzung des Agents, solange sie noch arbeitet oder auf eine Entscheidung wartet, und startet sonst eine neue: Eine als Entwurf behaltene, veröffentlichte, verworfene, angehaltene, fehlgeschlagene oder zurückgestellte Sitzung bleibt stattdessen im [Verbesserungsverlauf](#improvement-history) des Agents.
+Jedes **Verbessern** öffnet die Sitzung des Agents, solange sie noch arbeitet oder auf eine Entscheidung wartet - einen geprüften Kandidaten zum Annehmen oder eine angehaltene oder fehlgeschlagene Sitzung zum Fortsetzen, Wiederholen oder Verwerfen -, und startet eine neue, sobald die Sitzung als Entwurf behalten, veröffentlicht, verworfen, abgebrochen oder zurückgestellt wurde; sie bleibt dann im [Verbesserungsverlauf](#improvement-history) des Agents.
 
 Eine Sitzung liegt unter `/agents/<agent>/improve/<session>`; die Seite lässt sich schließen und wieder öffnen, während die Arbeit weiterläuft. Jeder Bildschirm verlangt höchstens eine Entscheidung, nennt, wer dort was entschieden hat, und legt erweiterte Optionen unter **Details anzeigen**. Jeder Bildschirm beginnt mit Zahlen und kleinen Diagrammen, jeder Zustand ist mit einem Symbol und nicht nur einer Farbe markiert; vollständige Antworten, Zitate und Gründe warten in aufklappbaren Karten. Eine Zeile über den Schritten nennt den Zustand der Sitzung und was sie von ihrem Limit ausgegeben hat.
 
@@ -409,7 +409,7 @@ Wählen Sie **Erneut verbessern** für eine weitere Runde oder **Limit erhöhen 
 
 Der Tab **Historie** des Agents listet seine Verbesserungssitzungen, die neueste zuerst: wann jede begann und wer sie gestartet hat, wie ihre gewählte Runde abschnitt, was entschieden wurde und was sie gekostet hat.
 
-Eine abgeschlossene Sitzung - als Entwurf behalten, veröffentlicht, verworfen, abgebrochen oder zurückgestellt, weil sich ihr Ausgangspunkt geändert hat - öffnet ihren Assistenten nur zum Lesen: Jeder Schritt und seine Details lassen sich öffnen, nichts lässt sich ändern oder bezahlen. Ihr letzter Schritt sagt, was entschieden wurde, von wem und wann, listet die gemessenen Änderungen mit ihrer Entscheidung, sagt, was aus jedem entworfenen Wissensdokument wurde und ob eine automatische Prüfung den Agent überwacht. Eine angehaltene oder fehlgeschlagene Sitzung ist nicht abgeschlossen: Öffnen Sie sie aus dem Verlauf, um ihr Limit zu erhöhen und fortzufahren oder den fehlgeschlagenen Schritt zu wiederholen.
+Eine abgeschlossene Sitzung - als Entwurf behalten, veröffentlicht, verworfen, abgebrochen oder zurückgestellt, weil sich ihr Ausgangspunkt geändert hat - öffnet ihren Assistenten nur zum Lesen: Jeder Schritt und seine Details lassen sich öffnen, nichts lässt sich ändern oder bezahlen. Ihr letzter Schritt sagt, was entschieden wurde, von wem und wann, listet die gemessenen Änderungen mit ihrer Entscheidung, sagt, was aus jedem entworfenen Wissensdokument wurde und ob eine automatische Prüfung den Agent überwacht. Eine angehaltene oder fehlgeschlagene Sitzung bleibt offen: **Verbessern** und ihr Eintrag im Verlauf führen zu ihr zurück, um ihr Limit zu erhöhen und fortzufahren, eine Runde zu wählen, den fehlgeschlagenen Schritt zu wiederholen oder sie zu verwerfen.
 
 Die API beantwortet jede Änderung an einer abgeschlossenen Sitzung mit `409`, außer der Wiederholung des Abbruchs oder Verwerfens, das sie beendet hat. `GET /{run_id}/changes` liest die Änderungen, die ihre gewählte Runde gemessen hat. Eine Sitzung zu lesen braucht Lesezugriff auf den Agent und `runs:view`; sie zu ändern oder zu starten braucht zusätzlich Bearbeitungsrechte für den Agent.
 

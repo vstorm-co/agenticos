@@ -342,7 +342,7 @@ After completion, `/{run_id}/rounds/{number}/select` makes a measured round the 
 
 Open **Improve** in the agent header or on the Build tab's assistant strip, from the **Needs attention** badge on the agent list, from the dashboard card or from the agent's **Knowledge gaps** tab. It sits among the header's other actions; when the version it serves now had answers rated down or failed runs in the last 30 days, it wears a dot and its name says why.
 
-Every **Improve** opens the agent's session while it is still working or ready for a decision, and starts a new one otherwise: a session kept as a draft, published, discarded, stopped, failed or set aside stays in the agent's [improvement history](#improvement-history) instead.
+Every **Improve** opens the agent's session while it is still working or waiting for a decision - a checked candidate to accept, or a stopped or failed session to continue, retry or discard - and starts a new one once the session is kept as a draft, published, discarded, cancelled or set aside, which then stays in the agent's [improvement history](#improvement-history).
 
 A session lives at `/agents/<agent>/improve/<session>`; the page can be closed and reopened while work continues. Each screen asks for at most one decision, names who decided what on it, and keeps advanced options under **Show details**. Each screen leads with figures and small charts, every state marked with an icon as well as a colour; full answers, quotes and reasons wait in cards that open. One line above the steps gives the session's state and what it has spent of its limit.
 
@@ -377,7 +377,7 @@ Choose **Improve again** for another round, or **Raise the limit and continue** 
 
 The agent's **History** tab lists its improvement sessions, newest first: when each started and who started it, how its chosen round measured, what was decided and what it cost.
 
-A finished session - kept as a draft, published, discarded, cancelled or set aside because its starting point changed - opens its wizard to be read: every step and its details can be opened, and nothing can be changed or paid for. Its last step says what was decided, by whom and when, lists the changes it measured as they were decided, says what became of each knowledge document it drafted and whether an automatic check guards the agent. A stopped or failed session is not finished: open it from the history to raise its limit and continue, or to retry the failed step.
+A finished session - kept as a draft, published, discarded, cancelled or set aside because its starting point changed - opens its wizard to be read: every step and its details can be opened, and nothing can be changed or paid for. Its last step says what was decided, by whom and when, lists the changes it measured as they were decided, says what became of each knowledge document it drafted and whether an automatic check guards the agent. A stopped or failed session is still open: **Improve** and its entry in the history take you back to it, to raise its limit and continue, choose a round, retry the failed step or discard it.
 
 The API answers any change to a finished session with `409`, except repeating the cancel or discard that ended it. `GET /{run_id}/changes` reads the changes its chosen round measured. Reading a session needs read access to the agent and `runs:view`; changing or starting one also needs edit access to the agent.
 

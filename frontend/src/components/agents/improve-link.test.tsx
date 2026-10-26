@@ -70,7 +70,7 @@ it("links to the start screen, which forwards to a session still open", () => {
   );
 });
 
-it.each(["accepted", "published", "rejected", "stopped", "failed", "cancelled", "stale"])(
+it.each(["accepted", "published", "rejected", "cancelled", "stale"])(
   "starts the next session past one that is %s",
   async (status) => {
     state.sessions = [{ id: "over", status, created_at: "2026-10-25T10:00:00Z" }];
@@ -79,3 +79,10 @@ it.each(["accepted", "published", "rejected", "stopped", "failed", "cancelled", 
     expect(state.push).toHaveBeenCalledWith("/agents/a1/improve/new");
   },
 );
+
+it.each(["stopped", "failed"])("takes a %s session back for its decision", async (status) => {
+  state.sessions = [{ id: "waiting", status, created_at: "2026-10-25T10:00:00Z" }];
+  render(<ImproveButton agentId="a1" />);
+  await userEvent.click(screen.getByRole("button", { name: "Improve" }));
+  expect(state.push).toHaveBeenCalledWith("/agents/a1/improve/waiting");
+});

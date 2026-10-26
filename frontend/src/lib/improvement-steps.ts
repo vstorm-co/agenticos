@@ -77,8 +77,11 @@ export function improvementStepStates(
   };
 }
 
-/** Still working, or waiting for a person's decision before Accept. */
-const OPEN: readonly string[] = ["queued", "running", "ready"];
+/**
+ * Still working, or waiting for a person's decision: a candidate to accept, or a
+ * stopped or failed session to continue, retry or discard.
+ */
+const OPEN: readonly string[] = ["queued", "running", "ready", "stopped", "failed"];
 
 /** Over for good: the API refuses any change, so the session is read as a record. */
 const CLOSED: readonly string[] = ["accepted", "published", "rejected", "cancelled", "stale"];
@@ -86,7 +89,7 @@ const CLOSED: readonly string[] = ["accepted", "published", "rejected", "cancell
 /**
  * The newest session Improve should take somebody back to, if the agent has one.
  *
- * Only an open one: a session that stopped, failed or was decided is in the
+ * Only an open one: a session that was decided, cancelled or outdated is in the
  * agent's improvement history, and Improve starts the next session instead.
  */
 export function openImprovement(sessions: Improvement[]): Improvement | undefined {

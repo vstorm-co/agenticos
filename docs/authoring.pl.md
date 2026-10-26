@@ -1,5 +1,5 @@
 ---
-source_sha: "1715981d7949"
+source_sha: "04a681b7328a"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -352,7 +352,7 @@ Po zakończeniu `/{run_id}/rounds/{number}/select` ustawia zmierzoną rundę jak
 
 Otwórz **Popraw** w nagłówku agenta albo na pasku asystenta na zakładce Budowa, z plakietki **Wymaga uwagi** na liście agentów, z karty na dashboardzie albo z zakładki **Luki w wiedzy** agenta. Stoi wśród pozostałych akcji nagłówka; gdy wersja, którą agent teraz serwuje, miała w ostatnich 30 dniach odpowiedzi ocenione negatywnie albo nieudane runy, nosi kropkę, a jego nazwa mówi dlaczego.
 
-Każde **Popraw** otwiera sesję agenta, dopóki ta pracuje albo czeka na decyzję, a w przeciwnym razie zaczyna nową: sesja zachowana jako wersja robocza, opublikowana, odrzucona, zatrzymana, zakończona błędem albo odłożona zostaje w [historii usprawnień](#improvement-history) agenta.
+Każde **Popraw** otwiera sesję agenta, dopóki ta pracuje albo czeka na decyzję - sprawdzonego kandydata do akceptacji albo zatrzymaną lub zakończoną błędem sesję do kontynuacji, ponowienia albo odrzucenia - a nową zaczyna, gdy sesja zostanie zachowana jako wersja robocza, opublikowana, odrzucona, anulowana albo odłożona; taka sesja zostaje w [historii usprawnień](#improvement-history) agenta.
 
 Sesja ma adres `/agents/<agent>/improve/<session>`; stronę można zamknąć i otworzyć ponownie, gdy praca trwa. Każdy ekran prosi o najwyżej jedną decyzję, podaje, kto co na nim zdecydował, a opcje zaawansowane trzyma pod **Pokaż szczegóły**. Każdy ekran zaczyna się od liczb i małych wykresów, a każdy stan oznacza ikoną, nie tylko kolorem; pełne odpowiedzi, cytaty i powody czekają w rozwijanych kartach. Jedna linia nad krokami podaje stan sesji i ile wydała ze swojego limitu.
 
@@ -387,7 +387,7 @@ Wybierz **Popraw ponownie**, aby rozpocząć następną rundę, lub **Zwiększ l
 
 Zakładka **Historia** agenta pokazuje jego sesje usprawniania, od najnowszej: kiedy każda się zaczęła i kto ją uruchomił, jak wypadła wybrana runda, co postanowiono i ile kosztowała.
 
-Zakończona sesja - zachowana jako wersja robocza, opublikowana, odrzucona, anulowana albo odłożona, bo zmienił się jej punkt wyjścia - otwiera kreator tylko do odczytu: każdy krok i jego szczegóły można otworzyć, a niczego nie da się zmienić ani opłacić. Jej ostatni krok mówi, co postanowiono, kto i kiedy, wymienia zmierzone zmiany z ich rozstrzygnięciem, mówi, co stało się z każdym napisanym dokumentem wiedzy i czy agenta pilnuje automatyczne sprawdzenie. Sesja zatrzymana albo zakończona błędem nie jest zakończona: otwórz ją z historii, żeby podnieść limit i kontynuować albo ponowić nieudany krok.
+Zakończona sesja - zachowana jako wersja robocza, opublikowana, odrzucona, anulowana albo odłożona, bo zmienił się jej punkt wyjścia - otwiera kreator tylko do odczytu: każdy krok i jego szczegóły można otworzyć, a niczego nie da się zmienić ani opłacić. Jej ostatni krok mówi, co postanowiono, kto i kiedy, wymienia zmierzone zmiany z ich rozstrzygnięciem, mówi, co stało się z każdym napisanym dokumentem wiedzy i czy agenta pilnuje automatyczne sprawdzenie. Sesja zatrzymana albo zakończona błędem pozostaje otwarta: **Popraw** i jej wpis w historii prowadzą do niej, żeby podnieść limit i kontynuować, wybrać rundę, ponowić nieudany krok albo ją odrzucić.
 
 API odpowiada `409` na każdą zmianę zakończonej sesji, poza powtórzeniem anulowania albo odrzucenia, które ją zakończyło. `GET /{run_id}/changes` zwraca zmiany zmierzone w wybranej rundzie. Odczyt sesji wymaga dostępu do odczytu agenta i `runs:view`; zmiana albo rozpoczęcie sesji wymaga też prawa edycji agenta.
 

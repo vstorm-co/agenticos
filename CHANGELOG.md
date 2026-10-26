@@ -151,8 +151,9 @@ environment without a person's decision.
   an outline button with a trending-up icon in the agent header, on the Build
   tab's assistant strip, the **Needs attention** badge, the dashboard and the
   **Knowledge gaps** tab, opens the agent's session still in progress or
-  waiting for a decision, and a new one once that session is kept as a draft,
-  published, discarded, stopped or failed; a dot on it says when the agent
+  waiting for a decision, stopped and failed ones included, and a new one once
+  that session is kept as a draft, published, discarded, cancelled or outdated;
+  a dot on it says when the agent
   needs attention. The agent's **History** tab lists every session as an
   **Improvement history**; a finished one opens read-only, its last step saying
   what was decided, by whom, with which changes and knowledge documents. A

@@ -1,5 +1,5 @@
 ---
-source_sha: "1715981d7949"
+source_sha: "04a681b7328a"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -362,7 +362,7 @@ Tras finalizar, `/{run_id}/rounds/{number}/select` convierte una ronda medida en
 
 Abra **Improve** en la cabecera del agente o en la barra del asistente de la pestaña Build, desde la insignia **Needs attention** de la lista de agentes, desde la tarjeta del dashboard o desde la pestaña **Knowledge gaps** del agente. Está entre las demás acciones de la cabecera; cuando la versión que el agente sirve ahora tuvo respuestas valoradas negativamente o runs fallidos en los últimos 30 días, lleva un punto y su nombre dice por qué.
 
-Cada **Improve** abre la sesión del agente mientras sigue trabajando o espera una decisión, y en otro caso empieza una nueva: una sesión guardada como borrador, publicada, descartada, detenida, fallida o apartada queda en el [historial de mejoras](#improvement-history) del agente.
+Cada **Improve** abre la sesión del agente mientras sigue trabajando o espera una decisión - un candidato comprobado que aceptar, o una sesión detenida o fallida que continuar, reintentar o descartar - y empieza una nueva cuando la sesión se guarda como borrador, se publica, se descarta, se cancela o se aparta; esa sesión queda en el [historial de mejoras](#improvement-history) del agente.
 
 Una sesión vive en `/agents/<agent>/improve/<session>`; la página puede cerrarse y volver a abrirse mientras el trabajo continúa. Cada pantalla pide como mucho una decisión, indica quién decidió qué en ella y deja las opciones avanzadas bajo **Show details**. Cada pantalla empieza con cifras y gráficos pequeños, y cada estado se marca con un icono, no solo con un color; las respuestas completas, las citas y los motivos esperan en tarjetas que se abren. Una línea sobre los pasos da el estado de la sesión y lo que ha gastado de su límite.
 
@@ -397,7 +397,7 @@ Elija **Mejorar de nuevo** para otra ronda o **Aumentar el límite y continuar**
 
 La pestaña **History** del agente lista sus sesiones de mejora, de la más reciente a la más antigua: cuándo empezó cada una y quién la inició, cómo salió su ronda elegida, qué se decidió y cuánto costó.
 
-Una sesión terminada - guardada como borrador, publicada, descartada, cancelada o apartada porque cambió su punto de partida - abre su asistente solo para leer: cada paso y sus detalles se pueden abrir, y nada se puede cambiar ni pagar. Su último paso dice qué se decidió, quién y cuándo, lista los cambios que midió con su decisión, dice qué fue de cada documento de conocimiento que redactó y si una comprobación automática vigila el agente. Una sesión detenida o fallida no está terminada: ábrala desde el historial para subir su límite y continuar, o para reintentar el paso fallido.
+Una sesión terminada - guardada como borrador, publicada, descartada, cancelada o apartada porque cambió su punto de partida - abre su asistente solo para leer: cada paso y sus detalles se pueden abrir, y nada se puede cambiar ni pagar. Su último paso dice qué se decidió, quién y cuándo, lista los cambios que midió con su decisión, dice qué fue de cada documento de conocimiento que redactó y si una comprobación automática vigila el agente. Una sesión detenida o fallida sigue abierta: **Improve** y su entrada en el historial llevan de vuelta a ella para subir su límite y continuar, elegir una ronda, reintentar el paso fallido o descartarla.
 
 La API responde `409` a cualquier cambio en una sesión terminada, salvo repetir la cancelación o el descarte que la terminó. `GET /{run_id}/changes` lee los cambios que midió su ronda elegida. Leer una sesión requiere acceso de lectura al agente y `runs:view`; cambiarla o empezarla requiere además permiso de edición del agente.
 
