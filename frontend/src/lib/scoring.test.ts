@@ -27,6 +27,7 @@ function result(reason_code: string | null): ScorerResult {
     unverified: false,
     judge_said: null,
     judge_run_id: null,
+    knowledge: [],
   };
 }
 

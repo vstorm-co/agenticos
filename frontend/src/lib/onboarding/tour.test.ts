@@ -237,11 +237,12 @@ describe("stepsForPage", () => {
 
   it("walks a system agent's builder without the stops its page never renders", () => {
     // Each left out would wait for a target that never mounts on a system agent's
-    // page; its context files and skills card sits after the model instead.
+    // page; its context and knowledge cards sit after the model instead.
     expect(stepsForPage("/agents/some-id", () => true, true).map((step) => step.id)).toEqual([
       "agent-instructions",
       "agent-model",
       "agent-system-resources",
+      "agent-system-knowledge",
       "agent-identity",
       "agent-limits",
       "agent-history",
@@ -250,15 +251,14 @@ describe("stepsForPage", () => {
     ]);
   });
 
-  it("never stops at the system agent's card on an ordinary agent's walk", () => {
-    expect(TOUR_STEPS.some((step) => step.id === "agent-system-resources")).toBe(true);
-    expect(stepsForPage("/agents/some-id", () => true).map((step) => step.id)).not.toContain(
-      "agent-system-resources",
-    );
-    expect(visibleTourSteps(() => true).map((step) => step.id)).not.toContain(
-      "agent-system-resources",
-    );
-  });
+  it.each(["agent-system-resources", "agent-system-knowledge"])(
+    "never stops at the system agent's %s card on an ordinary agent's walk",
+    (id) => {
+      expect(TOUR_STEPS.some((step) => step.id === id)).toBe(true);
+      expect(stepsForPage("/agents/some-id", () => true).map((step) => step.id)).not.toContain(id);
+      expect(visibleTourSteps(() => true).map((step) => step.id)).not.toContain(id);
+    },
+  );
 
   it("gives Settings and a workspace their own '?' stop, from any of their routes", () => {
     // Settings collapses its eight tabs onto one identity, so help opened on any of

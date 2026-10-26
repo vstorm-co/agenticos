@@ -147,8 +147,8 @@ export interface TourStep {
   /**
    * Which builder the target renders on, where only one kind of agent's page has
    * it. A system agent's holds no tools, exposure, evals, voice or test panel, and
-   * an ordinary agent's no system agent's context and skills card, so the walk
-   * leaves the stop out rather than waiting for a target that never mounts.
+   * an ordinary agent's neither of a system agent's context and knowledge cards, so
+   * the walk leaves the stop out rather than waiting for a target that never mounts.
    * Omitted means both.
    */
   agentKind?: "ordinary" | "system";
@@ -369,6 +369,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "agent-system-resources",
     page: AGENT_BUILDER,
     target: "agent-system-resources",
+    activate: "agent-tab-build",
+    permission: Perm.agentsView,
+    agentKind: "system",
+  },
+  // Whether it searches the knowledge bases the platform hands each of its runs.
+  {
+    id: "agent-system-knowledge",
+    page: AGENT_BUILDER,
+    target: "agent-system-knowledge",
     activate: "agent-tab-build",
     permission: Perm.agentsView,
     agentKind: "system",

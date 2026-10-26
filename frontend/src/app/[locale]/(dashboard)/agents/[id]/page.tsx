@@ -54,6 +54,7 @@ import { CodeModeField } from "@/components/agents/code-mode-field";
 import { CapabilityWorkbench } from "@/components/agents/capability-workbench";
 import type { AgentResources } from "@/components/agents/capability-resources";
 import { SystemAgentBadge } from "@/components/agents/system-agent-badge";
+import { SystemAgentKnowledge } from "@/components/agents/system-agent-knowledge";
 import { SystemAgentResources } from "@/components/agents/system-agent-resources";
 import { A2aPanel } from "@/components/agents/a2a-panel";
 import { EmbedsPanel } from "@/components/agents/embeds-panel";
@@ -156,6 +157,7 @@ import {
   useUrlState,
 } from "@/hooks";
 import {
+  KNOWLEDGE_ID,
   readSubagentsConfig,
   PERSONAL_CAPABILITIES,
   SANDBOX_ID,
@@ -177,7 +179,7 @@ import { useAgentSelectionStore, useConversationStore } from "@/stores";
 import { cn } from "@/lib/utils";
 import type { AgentSpec, CapabilityBindingSpec, McpServerRef } from "@/types/agents";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
-import { forSystemAgent, isSystemAgent } from "@/lib/system-agents";
+import { forSystemAgent, isSystemAgent, verdictKind } from "@/lib/system-agents";
 // The module, not the `@/stores` barrel, which this page's tests stub in part.
 import { useOnboardingStore } from "@/stores/onboarding-store";
 import { Perm } from "@/types/permissions";
@@ -1633,6 +1635,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   value={spec.model_settings}
                   onChange={(model_settings) => update({ model_settings })}
                   disabled={!canEdit}
+                  verdict={verdictKind(agent.kind)}
                 />
                 <ThinkingSetting
                   definition={capabilities.find((entry) => entry.id === THINKING_ID)}
@@ -1644,12 +1647,23 @@ export default function AgentBuilderPage({ params }: PageProps) {
               </CardContent>
             </Card>
 
-            {isSystem ? (
-              <SystemAgentResources
-                capabilities={spec.capabilities}
-                resources={resources}
-                disabled={!canEdit}
-              />
+            {isSystemAgent(agent.kind) ? (
+              <>
+                <SystemAgentResources
+                  kind={agent.kind}
+                  capabilities={spec.capabilities}
+                  resources={resources}
+                  disabled={!canEdit}
+                />
+                <SystemAgentKnowledge
+                  kind={agent.kind}
+                  capabilities={spec.capabilities}
+                  maxSteps={spec.max_steps}
+                  onToggle={() => toggleCapability(KNOWLEDGE_ID)}
+                  onMaxSteps={(max_steps) => update({ max_steps })}
+                  disabled={!canEdit}
+                />
+              </>
             ) : (
               <VoiceCard
                 value={spec.speech_to_text}
@@ -1900,8 +1914,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     {t("monthlyUsdHint")}
                   </p>
                 </div>
-                {/* A system agent answers in one request and calls no tool, so
-                  steps, loops and scripts are not limits it can reach. */}
+                {/* A system agent calls no tool but its knowledge search, whose
+                  steps are set beside it on Build, so loops and scripts are not
+                  limits it can reach. */}
                 {!isSystem && (
                   <>
                     <div className="space-y-2">

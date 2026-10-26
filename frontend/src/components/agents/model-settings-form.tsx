@@ -1,5 +1,7 @@
 "use client";
 
+import { AlertTriangle } from "lucide-react";
+
 import {
   Input,
   OptionalSetting,
@@ -10,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
+import type { VerdictKind } from "@/lib/system-agents";
 import type { ModelSettingsSpec } from "@/types/agents";
 import { useTranslations } from "next-intl";
 
@@ -17,6 +20,11 @@ interface ModelSettingsFormProps {
   value: ModelSettingsSpec;
   onChange: (value: ModelSettingsSpec) => void;
   disabled?: boolean;
+  /**
+   * The verdict a system agent of this kind gives, which the same input should
+   * get every time: a temperature above 0 is then warned about.
+   */
+  verdict?: VerdictKind;
 }
 
 /**
@@ -46,7 +54,7 @@ const RESTING: Record<"temperature" | "top_p", number> = { temperature: 1, top_p
  * helpfully filled in `0.7` would break every agent pointed at one. Clearing a
  * control removes the key rather than writing `null`.
  */
-export function ModelSettingsForm({ value, onChange, disabled }: ModelSettingsFormProps) {
+export function ModelSettingsForm({ value, onChange, disabled, verdict }: ModelSettingsFormProps) {
   const t = useTranslations("agents");
   const tUi = useTranslations("ui");
   /** Remove the key rather than store an empty value - see the note above. */
@@ -62,16 +70,24 @@ export function ModelSettingsForm({ value, onChange, disabled }: ModelSettingsFo
 
   return (
     <div className="space-y-6">
-      <OptionalSlider
-        id="model-temperature"
-        label={t("temperature")}
-        description={t("howVariedAnswerNear")}
-        max={2}
-        value={value.temperature}
-        resting={RESTING.temperature}
-        disabled={disabled}
-        onChange={(next) => set("temperature", next)}
-      />
+      <div className="space-y-2">
+        <OptionalSlider
+          id="model-temperature"
+          label={t("temperature")}
+          description={t("howVariedAnswerNear")}
+          max={2}
+          value={value.temperature}
+          resting={RESTING.temperature}
+          disabled={disabled}
+          onChange={(next) => set("temperature", next)}
+        />
+        {verdict !== undefined && value.temperature !== undefined && value.temperature > 0 && (
+          <p className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+            {t("temperatureVariesVerdict", { kind: verdict })}
+          </p>
+        )}
+      </div>
 
       <OptionalSlider
         id="model-top-p"

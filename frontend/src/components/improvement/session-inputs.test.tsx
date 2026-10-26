@@ -357,6 +357,7 @@ it("shows the grader reason and handles a missing persisted baseline answer", ()
                 unverified: false,
                 judge_said: null,
                 judge_run_id: null,
+                knowledge: [],
                 name: "return window",
                 status: "fail",
                 reason: "The answer uses the old deadline",

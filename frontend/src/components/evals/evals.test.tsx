@@ -678,6 +678,7 @@ describe("CaseDetail", () => {
                   reason: "found",
                   reason_code: null,
                   judge_run_id: null,
+                  knowledge: [],
                 },
                 {
                   scorer: "judge",
@@ -688,6 +689,7 @@ describe("CaseDetail", () => {
                   reason: "polite",
                   reason_code: null,
                   judge_run_id: null,
+                  knowledge: [{ source: "returns.md", quote: "Returns close after 30 days." }],
                   rule: "A refusal names the policy",
                   unverified: true,
                 },
@@ -731,8 +733,12 @@ describe("CaseDetail", () => {
     expect(screen.getByText("not graded: The judge's run did not finish.")).toHaveClass(
       "whitespace-normal",
     );
-    // The judge's rule and an unverified top grade read as they do in Review.
+    // The judge's rule, what it found in the knowledge base and an unverified top
+    // grade read as they do in Review.
     expect(screen.getByText("Rule: A refusal names the policy")).toBeInTheDocument();
+    expect(screen.getByText("Found in the knowledge base")).toBeInTheDocument();
+    expect(screen.getByText("returns.md")).toBeInTheDocument();
+    expect(screen.getByText("Returns close after 30 days.")).toBeInTheDocument();
     expect(
       screen.getByText(/Unverified: nothing quoted from the answer backs this grade/),
     ).toBeInTheDocument();
@@ -817,6 +823,7 @@ it("puts failing scorers first, folds evidence, and warns once per case", () => 
     unverified: true,
     judge_said: null,
     judge_run_id: null,
+    knowledge: [],
   };
   const score = caseScore({
     results: [

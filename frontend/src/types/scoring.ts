@@ -38,6 +38,13 @@ export interface DatasetScoring {
   review: { select: ReviewSelect };
 }
 
+/** A passage a judge that searches found in the graded agent's knowledge bases. */
+export interface KnowledgeFinding {
+  /** The document's file name; null when the search did not name one. */
+  source: string | null;
+  quote: string;
+}
+
 /**
  * What one scorer found. `score` is 0..1; `reason_code` names why a scorer was
  * skipped or could not run, so each cause reads - and is fixed - on its own.
@@ -59,6 +66,8 @@ export interface ScorerResult {
   /** The start of an answer the judge gave that could not be read. */
   judge_said: string | null;
   judge_run_id: string | null;
+  /** What a judge that searches found in the graded agent's knowledge bases while grading. */
+  knowledge: KnowledgeFinding[];
 }
 
 /**

@@ -1049,11 +1049,17 @@
     "publishedSpec": "Veröffentlichte Spec",
     "systemAgentBadge": "{kind, select, judge {Systemagent · Bewerter} drafter {Systemagent · Lücken-Entwerfer} generator {Systemagent · Fallgenerator} classifier {Systemagent · Lücken-Klassifizierer} improver {Systemagent · Authoring-Assistent} other {Systemagent}}",
     "systemAgentBadgeHint": "Die Plattform führt ihn für die ganze Organisation aus; niemand chattet mit ihm.",
-    "systemAgentResources": "Kontextdateien und Skills",
-    "systemAgentResourcesHelp": "Der feste Text, den dieser Agent bei der Arbeit kennt. Mehr erreicht er nicht: keine Tools, keine Wissensdatenbanken, keine MCP-Server.",
+    "systemAgentResources": "{skills, select, false {Kontextdateien} other {Kontextdateien und Skills}}",
+    "systemAgentResourcesHelp": "Der feste Text, den dieser Agent bei der Arbeit kennt. Angeboten wird nur, was mit der ganzen Organisation geteilt ist: Die Plattform führt ihn für alle aus.",
     "systemAgentRouteTitle": "{name} ist ein Systemagent",
     "systemAgentRouteBody": "Die Plattform führt ihn für die ganze Organisation aus, und niemand chattet mit ihm. Deshalb wird er weder in einem Eval getestet noch hier verbessert. Wie er arbeitet, ändern Sie auf seiner eigenen Seite.",
-    "systemAgentRouteBack": "Seine Seite öffnen"
+    "systemAgentRouteBack": "Seine Seite öffnen",
+    "systemAgentKnowledge": "Wissensdatenbank",
+    "systemAgentKnowledgeHelp": "{kind, select, judge {Prüft Fakten in einer Antwort anhand der Wissensdatenbanken des bewerteten Agents, wo keine Referenzantwort sie nennt.} generator {Durchsucht die Wissensdatenbanken, aus denen Sie Fälle entwerfen, damit Fragen dem folgen, was dort wirklich steht.} classifier {Prüft, ob die Wissensdatenbank eine Frage schon beantwortet, bevor er sie zur Lücke erklärt.} drafter {Durchsucht die Wissensdatenbank der Lücke, damit ein Entwurf nicht wiederholt, was ein Dokument schon sagt.} improver {Liest die Wissensdatenbanken des Agents, den er verbessert, damit seine Änderungen zu ihrem Inhalt passen.} other {Durchsucht die Wissensdatenbanken, die die Plattform für jeden Run auswählt.}}",
+    "systemAgentKnowledgeSwitch": "Wissensdatenbank nutzen",
+    "systemAgentMaxSteps": "Max. Schritte",
+    "systemAgentMaxStepsHint": "Jeder Schritt ist eine bezahlte Anfrage bei jeder Antwort, die er liest. Höchstens {max}; leer bedeutet {fallback}.",
+    "temperatureVariesVerdict": "{kind, select, judge {Über 0 kann dieselbe Antwort beim zweiten Mal anders bewertet werden. 0 hält Bewertungen wiederholbar.} other {Über 0 kann dieselbe Antwort beim zweiten Mal anders eingeordnet werden. 0 hält die Einordnung wiederholbar.}}"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -4929,7 +4935,11 @@
       },
       "agent-system-resources": {
         "title": "Kontextdateien und Skills",
-        "body": "Ein Systemagent erreicht nichts über seinen Prompt hinaus. Hier bekommt er sein festes Wissen: Kontextdateien, die seinem Prompt hinzugefügt werden, und Skills, die er lädt, wenn einer passt."
+        "body": "Hier bekommt ein Systemagent sein festes Wissen: Kontextdateien, die seinem Prompt hinzugefügt werden, und Skills, die er lädt, wenn einer passt. Angeboten wird nur, was mit der ganzen Organisation geteilt ist."
+      },
+      "agent-system-knowledge": {
+        "title": "Wissensdatenbank",
+        "body": "Schalten Sie eine Suche in den Wissensdatenbanken ein, die die Plattform jedem Run übergibt – denen des bewerteten Agents, der Lücke oder denen, aus denen Fälle entworfen werden – und begrenzen Sie, wie viele bezahlte Schritte sie dauern darf."
       }
     },
     "chooseLanguage": "Sprache",
@@ -8023,7 +8033,9 @@
         },
         "notCompared": "Run: Es wurde kein Basisvergleich angefordert.",
         "didNotComplete": "Der Run wurde nicht abgeschlossen. Öffnen Sie die Prüfung für den Grund."
-      }
+      },
+      "foundInKnowledge": "In der Wissensdatenbank gefunden",
+      "knowledgeDocument": "Ein Dokument"
     },
     "title": "Datasets",
     "pageDescription": "Die Fragen, an denen Ihre Agents getestet werden. Jede Änderung an den Fällen eines Datasets erzeugt eine neue Version, sodass zwei Eval-Runs auf einer Version dieselben Fragen gesehen haben.",

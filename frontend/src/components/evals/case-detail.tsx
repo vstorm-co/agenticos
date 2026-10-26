@@ -4,6 +4,7 @@ import Link from "next/link";
 import { AlertTriangle, ChevronRight } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
+import { KnowledgeFindings } from "@/components/datasets/score-knowledge";
 import { Badge } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { reasonKeyOf } from "@/lib/scoring";
@@ -110,6 +111,7 @@ function Attempt({ attempt }: { attempt: EvalAttempt }) {
                       <div className="text-muted-foreground space-y-1 px-3 pb-3 text-xs">
                         <p className="whitespace-pre-wrap">{result.reason}</p>
                         {result.rule && <p>{tScoring("rule", { rule: result.rule })}</p>}
+                        <KnowledgeFindings findings={result.knowledge} />
                       </div>
                     </details>
                   </li>

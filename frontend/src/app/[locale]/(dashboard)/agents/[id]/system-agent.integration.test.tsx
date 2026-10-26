@@ -14,7 +14,8 @@ import { useOnboardingStore } from "@/stores/onboarding-store";
  * What a system agent's page holds, and what it leaves out.
  *
  * Only the platform runs a system agent, so its page keeps what changes how it
- * works - instructions, model, budget, its context files and skills - and drops
+ * works - instructions, model, budget, its context files and skills, whether it
+ * searches the knowledge bases of its runs - and drops
  * whatever belongs to a chat, a tool or a release a person manages: starters,
  * voice, step limits, reviewers, approvals, environments to pin, a baseline to
  * set. Each case renders an ordinary agent beside it, so an absence is the page's
@@ -179,7 +180,11 @@ vi.mock("@/stores", () => ({
 }));
 
 vi.mock("@/components/agents/agent-avatar", () => ({ AgentAvatar: () => null }));
-vi.mock("@/components/agents/model-settings-form", () => ({ ModelSettingsForm: () => null }));
+vi.mock("@/components/agents/model-settings-form", () => ({
+  ModelSettingsForm: ({ verdict }: { verdict?: string }) => (
+    <div data-testid="model-settings" data-verdict={verdict ?? "none"} />
+  ),
+}));
 vi.mock("@/components/agents/thinking-setting", () => ({ ThinkingSetting: () => null }));
 vi.mock("@/components/ui/markdown-editor", () => ({
   MarkdownEditor: () => null,
@@ -297,6 +302,90 @@ describe("a system agent's Build tab", () => {
     const card = within(header?.parentElement as HTMLElement);
     expect(card.getByRole("heading", { name: "Context files" })).toBeInTheDocument();
     expect(card.getByRole("heading", { name: "Skills" })).toBeInTheDocument();
+  });
+});
+
+describe("a system agent's model settings", () => {
+  it.each([
+    ["judge", "judge"],
+    ["classifier", "classifier"],
+    ["drafter", "none"],
+    ["generator", "none"],
+    ["agent", "none"],
+  ] as const)("for a kind of %s, warn about a varied verdict: %s", async (kind, verdict) => {
+    viewing(kind);
+    await mount();
+
+    expect(screen.getByTestId("model-settings")).toHaveAttribute("data-verdict", verdict);
+  });
+});
+
+describe("a system agent's knowledge base search", () => {
+  const search = () => screen.getByRole("switch", { name: "Use the knowledge base" });
+  const steps = () => screen.queryByRole("spinbutton", { name: "Max steps" });
+
+  async function settle() {
+    await act(async () => {
+      vi.advanceTimersByTime(1500);
+    });
+  }
+
+  it("is offered on Build beside its context files, and never to an ordinary agent", async () => {
+    await mount();
+    expect(document.querySelector('[data-tour="agent-system-knowledge"]')?.textContent).toContain(
+      "Knowledge base",
+    );
+    expect(search()).not.toBeChecked();
+    expect(steps()).toBeNull();
+  });
+
+  it("is not on an ordinary agent's page", async () => {
+    viewing("agent");
+    await mount();
+
+    expect(screen.queryByRole("switch", { name: "Use the knowledge base" })).toBeNull();
+  });
+
+  it("binds the search with its steps, and drops the binding when switched off", async () => {
+    await mount();
+    vi.useFakeTimers();
+
+    fireEvent.click(search());
+    fireEvent.change(steps() as HTMLElement, { target: { value: "4" } });
+    await settle();
+    expect(saveDraft).toHaveBeenLastCalledWith({
+      ...CLEAN_DRAFT,
+      capabilities: [binding("thinking"), binding("knowledge")],
+      max_steps: 4,
+    });
+
+    fireEvent.click(search());
+    expect(steps()).toBeNull();
+    await settle();
+    expect(saveDraft).toHaveBeenLastCalledWith({ ...CLEAN_DRAFT, max_steps: 4 });
+  });
+
+  it("opens a stored search as it is, without approvals and without saving", async () => {
+    page.draft = {
+      ...CLEAN_DRAFT,
+      capabilities: [binding("thinking"), { ...binding("knowledge"), approval: "required" }],
+      max_steps: 2,
+    };
+    await mount();
+    vi.useFakeTimers();
+    await settle();
+
+    expect(search()).toBeChecked();
+    expect(steps()).toHaveValue(2);
+    expect(saveDraft).not.toHaveBeenCalled();
+  });
+
+  it("cannot be switched by somebody who may only read the agent", async () => {
+    page.access = { can_edit: false, can_publish: false };
+    page.permissions = [Perm.agentsEdit];
+    await mount();
+
+    expect(search()).toBeDisabled();
   });
 });
 

@@ -14,6 +14,7 @@ import type { CaseScore, ScorerResult } from "@/types/scoring";
 import { ScoreAnswer } from "./score-answer";
 import { ScoreDecision, type Verdict } from "./score-decision";
 import { ScoreExpectation } from "./score-expectation";
+import { KnowledgeFindings } from "./score-knowledge";
 
 export type { Verdict } from "./score-decision";
 
@@ -81,6 +82,7 @@ function ResultRow({ result, linksRuns }: { result: ScorerResult; linksRuns: boo
             {t("unverified", { quotes: result.unverified_quotes.join(" · ") })}
           </p>
         )}
+        <KnowledgeFindings findings={result.knowledge} />
       </div>
       {linksRuns &&
         result.judge_run_id !== null &&

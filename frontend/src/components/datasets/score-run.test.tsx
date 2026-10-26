@@ -128,6 +128,7 @@ const SCORE: CaseScore = {
       unverified: false,
       judge_said: null,
       judge_run_id: null,
+      knowledge: [],
     },
   ],
   passed: true,

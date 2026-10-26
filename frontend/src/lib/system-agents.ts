@@ -1,4 +1,4 @@
-import { CONTEXT_ID, SKILLS_ID, THINKING_ID } from "@/lib/agent-spec";
+import { CONTEXT_ID, KNOWLEDGE_ID, SKILLS_ID, THINKING_ID } from "@/lib/agent-spec";
 import type { AgentKind, AgentSpec, SystemAgentKind } from "@/types/agents";
 
 /**
@@ -20,21 +20,47 @@ export function isSystemAgent(kind: AgentKind | undefined): kind is SystemAgentK
 }
 
 /**
- * The capabilities a system agent may bind: how it reasons and what standing text
- * it knows, never anything it could call to reach further than its prompt. The
- * backend's `SYSTEM_CAPABILITIES` holds the same three.
+ * The capabilities a system agent may bind: how it reasons, the standing text it
+ * reads, and a search of the knowledge bases the platform picks for each run -
+ * never anything that reaches further than what the run is about. The backend's
+ * `SYSTEM_CAPABILITIES` holds the same four.
  */
-const SYSTEM_AGENT_CAPABILITIES: readonly string[] = [THINKING_ID, CONTEXT_ID, SKILLS_ID];
+const SYSTEM_AGENT_CAPABILITIES: readonly string[] = [
+  THINKING_ID,
+  CONTEXT_ID,
+  SKILLS_ID,
+  KNOWLEDGE_ID,
+];
+
+/** The model requests a system agent that searches makes when `max_steps` is unset. */
+export const SYSTEM_AGENT_SEARCH_STEPS = 3;
+
+/** The most `max_steps` a system agent's publish accepts: each is paid for on every answer it reads. */
+export const SYSTEM_AGENT_MAX_STEPS = 5;
+
+/**
+ * The kinds whose answer is a verdict - a judge's grade, a classifier's label -
+ * which the same input should get every time it is asked.
+ */
+export type VerdictKind = Extract<SystemAgentKind, "judge" | "classifier">;
+
+/** The verdict an agent of this kind gives, or undefined for one that drafts rather than decides. */
+export function verdictKind(kind: AgentKind | undefined): VerdictKind | undefined {
+  return kind === "judge" || kind === "classifier" ? kind : undefined;
+}
 
 /**
  * `spec` without what saving a system agent's draft refuses.
  *
- * Only the platform runs a system agent, so it reaches nothing beyond its prompt:
- * no capability but thinking, context and skills - and those without approvals,
- * since nobody is there to give one - no knowledge base, MCP server or delegate,
- * and none of a chat's starters, calls, dictation, code mode or reviewers. A draft
- * stored before those were refused can still hold them, and its page no longer
- * shows any of them to remove.
+ * Only the platform runs a system agent, so it reaches nothing beyond its prompt
+ * and the knowledge bases of the run: no capability but thinking, context, skills
+ * and knowledge - and those without approvals, since nobody is there to give one -
+ * no knowledge base of its own, since the platform picks them for each run, no
+ * MCP server or delegate, and none of a chat's starters, calls, dictation, code
+ * mode or reviewers. A draft stored before those were refused can still hold
+ * them, and its page no longer shows any of them to remove. `max_steps` stays as
+ * it is: its save takes any value, and its publish refuses one above
+ * `SYSTEM_AGENT_MAX_STEPS` and says why.
  *
  * A field the spec leaves out stays out, so a spec holding none of it serializes
  * exactly as it came.

@@ -1049,11 +1049,17 @@
     "publishedSpec": "Opublikowany spec",
     "systemAgentBadge": "{kind, select, judge {Agent systemowy · Sędzia} drafter {Agent systemowy · Autor szkiców luk} generator {Agent systemowy · Generator przypadków} classifier {Agent systemowy · Klasyfikator luk} improver {Agent systemowy · Asystent tworzenia} other {Agent systemowy}}",
     "systemAgentBadgeHint": "Uruchamia go platforma dla całej organizacji; nikt z nim nie rozmawia.",
-    "systemAgentResources": "Pliki kontekstu i skille",
-    "systemAgentResourcesHelp": "Stały tekst, który ten agent zna podczas pracy. Po nic więcej nie sięga: żadnych narzędzi, baz wiedzy ani serwerów MCP.",
+    "systemAgentResources": "{skills, select, false {Pliki kontekstu} other {Pliki kontekstu i skille}}",
+    "systemAgentResourcesHelp": "Stały tekst, który ten agent zna podczas pracy. Do wyboru jest tylko to, co udostępniono całej organizacji: platforma uruchamia go dla wszystkich.",
     "systemAgentRouteTitle": "{name} to agent systemowy",
     "systemAgentRouteBody": "Uruchamia go platforma dla całej organizacji i nikt z nim nie rozmawia, więc nie jest testowany w ewaluacji ani ulepszany tutaj. Sposób jego działania zmienisz na jego stronie.",
-    "systemAgentRouteBack": "Otwórz jego stronę"
+    "systemAgentRouteBack": "Otwórz jego stronę",
+    "systemAgentKnowledge": "Baza wiedzy",
+    "systemAgentKnowledgeHelp": "{kind, select, judge {Sprawdza fakty z odpowiedzi w bazach wiedzy ocenianego agenta, tam gdzie nie podaje ich odpowiedź wzorcowa.} generator {Przeszukuje bazy wiedzy, z których tworzysz przypadki, więc pytania trzymają się tego, co w nich naprawdę jest.} classifier {Zanim uzna pytanie za lukę, sprawdza, czy baza wiedzy już na nie odpowiada.} drafter {Przeszukuje bazę wiedzy luki, więc proponowana treść nie powtarza tego, co dokument już mówi.} improver {Czyta bazy wiedzy ulepszanego agenta, więc jego zmiany pasują do tego, co w nich jest.} other {Przeszukuje bazy wiedzy, które platforma wybiera dla każdego runu.}}",
+    "systemAgentKnowledgeSwitch": "Korzystaj z bazy wiedzy",
+    "systemAgentMaxSteps": "Maks. kroków",
+    "systemAgentMaxStepsHint": "Każdy krok to płatne żądanie przy każdej odpowiedzi, którą czyta. Najwyżej {max}; puste pole oznacza {fallback}.",
+    "temperatureVariesVerdict": "{kind, select, judge {Powyżej 0 ta sama odpowiedź może za drugim razem dostać inną ocenę. 0 utrzymuje powtarzalne oceny.} other {Powyżej 0 ta sama odpowiedź może za drugim razem zostać inaczej sklasyfikowana. 0 utrzymuje powtarzalną klasyfikację.}}"
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",
@@ -4816,7 +4822,11 @@
       },
       "agent-system-resources": {
         "title": "Pliki kontekstu i skille",
-        "body": "Agent systemowy nie sięga po nic poza swoim promptem, więc tutaj dostaje stałą wiedzę: pliki kontekstu dodawane do promptu i skille, które wczytuje, gdy któryś się przydaje."
+        "body": "Tutaj agent systemowy dostaje stałą wiedzę: pliki kontekstu dodawane do promptu i skille, które wczytuje, gdy któryś się przydaje. Do wyboru jest tylko to, co udostępniono całej organizacji."
+      },
+      "agent-system-knowledge": {
+        "title": "Baza wiedzy",
+        "body": "Włącz przeszukiwanie baz wiedzy, które platforma przekazuje każdemu runowi - ocenianego agenta, luki albo tych, z których powstają przypadki - i ogranicz, ile płatnych kroków może ono zająć."
       }
     },
     "chooseLanguage": "Język",
@@ -7913,7 +7923,9 @@
         },
         "notCompared": "Run: nie zamówiono porównania z bazą.",
         "didNotComplete": "Run nie zakończył się poprawnie. Otwórz sprawdzenie, aby poznać powód."
-      }
+      },
+      "foundInKnowledge": "Znalezione w bazie wiedzy",
+      "knowledgeDocument": "Dokument"
     },
     "title": "Datasety",
     "pageDescription": "Pytania, na których testujesz agentów. Każda zmiana przypadków w datasecie tworzy nową wersję, więc dwa runy ewaluacji na jednej wersji widziały te same pytania.",

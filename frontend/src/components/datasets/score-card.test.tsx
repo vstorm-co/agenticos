@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -22,6 +22,7 @@ function result(overrides: Partial<ScorerResult> = {}): ScorerResult {
     unverified: false,
     judge_said: null,
     judge_run_id: null,
+    knowledge: [],
     ...overrides,
   };
 }
@@ -130,6 +131,39 @@ describe("ScoreCard", () => {
     expect(
       screen.getByText("Quoted, but not in the answer: ninety days · a refund"),
     ).toBeInTheDocument();
+  });
+
+  it("shows what a judge that searches found in the knowledge base, under its reason", () => {
+    render(
+      <ScoreCard
+        score={score({
+          results: [
+            result({
+              knowledge: [
+                { source: "refund-policy.md", quote: "Refunds are accepted within 30 days." },
+                { source: null, quote: "Store credit never expires." },
+              ],
+            }),
+          ],
+        })}
+      />,
+    );
+
+    const found = screen.getByText("Found in the knowledge base").parentElement as HTMLElement;
+    const [named, unnamed] = within(found).getAllByRole("listitem") as [HTMLElement, HTMLElement];
+    expect(named).toHaveTextContent("refund-policy.md");
+    expect(within(named).getByText("Refunds are accepted within 30 days.").tagName).toBe("Q");
+    // A passage the search could not name a file for still says where it came from.
+    expect(unnamed).toHaveTextContent("A document");
+    expect(unnamed).toHaveTextContent("Store credit never expires.");
+    expect(within(found).getAllByRole("listitem")).toHaveLength(2);
+  });
+
+  it("says nothing of the knowledge base when the judge found nothing there", () => {
+    render(<ScoreCard score={score()} />);
+
+    expect(screen.getByText("2/5: curt")).toBeInTheDocument();
+    expect(screen.queryByText("Found in the knowledge base")).toBeNull();
   });
 
   it("says why an answer is not graded, links the judge's run that erred, and offers to score again", async () => {

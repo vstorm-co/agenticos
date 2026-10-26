@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { forSystemAgent, isSystemAgent, SYSTEM_AGENT_KINDS } from "./system-agents";
+import { forSystemAgent, isSystemAgent, SYSTEM_AGENT_KINDS, verdictKind } from "./system-agents";
 import type { AgentSpec, CapabilityBindingSpec } from "@/types/agents";
 
 describe("isSystemAgent", () => {
@@ -11,6 +11,19 @@ describe("isSystemAgent", () => {
 
   it("treats an agent whose kind is not known yet as an ordinary one", () => {
     expect(isSystemAgent(undefined)).toBe(false);
+  });
+});
+
+describe("verdictKind", () => {
+  it("is the judge's grade and the classifier's label", () => {
+    expect(verdictKind("judge")).toBe("judge");
+    expect(verdictKind("classifier")).toBe("classifier");
+  });
+
+  it("is nothing for a kind that drafts, and for an ordinary agent", () => {
+    for (const kind of ["drafter", "generator", "improver", "agent", undefined] as const) {
+      expect(verdictKind(kind)).toBeUndefined();
+    }
   });
 });
 
@@ -43,6 +56,11 @@ const STORED: AgentSpec = {
     binding("context", { approval: "required", tool_approval: { read_context: "required" } }),
     binding("memory_files", { enabled: false }),
     binding("skills"),
+    binding("knowledge", {
+      config: { top_k: 4 },
+      approval: "required",
+      tool_approval: { search_knowledge: "required" },
+    }),
   ],
   collection_ids: ["kb1"],
   skill_ids: ["s1"],
@@ -86,6 +104,7 @@ describe("forSystemAgent", () => {
       binding("thinking", { config: { effort: "high" } }),
       binding("context"),
       binding("skills"),
+      binding("knowledge", { config: { top_k: 4 } }),
     ]);
     expect(stripped).toMatchObject({
       collection_ids: [],
@@ -98,6 +117,20 @@ describe("forSystemAgent", () => {
       speech_to_text: null,
       code_mode: { enabled: false, max_tool_calls: 30 },
     });
+  });
+
+  it("keeps a knowledge search without collections, which the platform picks for each run", () => {
+    const stripped = forSystemAgent(STORED);
+
+    expect(stripped.capabilities.find((entry) => entry.id === "knowledge")).toEqual(
+      binding("knowledge", { config: { top_k: 4 } }),
+    );
+    expect(stripped.collection_ids).toEqual([]);
+  });
+
+  it("keeps a step count its publish refuses, for the refusal to name", () => {
+    expect(forSystemAgent({ ...STORED, max_steps: 9 }).max_steps).toBe(9);
+    expect(forSystemAgent({ ...STORED, max_steps: null }).max_steps).toBeNull();
   });
 
   it("keeps what a system agent works by", () => {

@@ -1049,11 +1049,17 @@
     "publishedSpec": "Published specification",
     "systemAgentBadge": "{kind, select, judge {System agent · Judge} drafter {System agent · Gap drafter} generator {System agent · Case generator} classifier {System agent · Gap classifier} improver {System agent · Authoring assistant} other {System agent}}",
     "systemAgentBadgeHint": "The platform runs it for the whole organization; nobody chats with it.",
-    "systemAgentResources": "Context files and skills",
-    "systemAgentResourcesHelp": "The standing text this agent knows while it works. It reaches nothing else: no tools, knowledge bases or MCP servers.",
+    "systemAgentResources": "{skills, select, false {Context files} other {Context files and skills}}",
+    "systemAgentResourcesHelp": "The standing text this agent knows while it works. Only what is shared with the whole organization is offered: the platform runs it for everyone.",
     "systemAgentRouteTitle": "{name} is a system agent",
     "systemAgentRouteBody": "The platform runs it for the whole organization and nobody chats with it, so it is never tested in an eval or improved here. Change how it works on its own page.",
-    "systemAgentRouteBack": "Open its page"
+    "systemAgentRouteBack": "Open its page",
+    "systemAgentKnowledge": "Knowledge base",
+    "systemAgentKnowledgeHelp": "{kind, select, judge {Checks facts in an answer against the knowledge bases of the agent it grades, where no reference answer states them.} generator {Searches the knowledge bases you draft cases from, so questions follow what they really say.} classifier {Checks whether the knowledge base already answers a question before calling it a gap.} drafter {Searches the gap's knowledge base, so a draft does not repeat what a document already says.} improver {Reads the knowledge bases of the agent it improves, so its changes fit what they hold.} other {Searches the knowledge bases the platform picks for each run.}}",
+    "systemAgentKnowledgeSwitch": "Use the knowledge base",
+    "systemAgentMaxSteps": "Max steps",
+    "systemAgentMaxStepsHint": "Each step is a paid request on every answer it reads. At most {max}; left empty, {fallback}.",
+    "temperatureVariesVerdict": "{kind, select, judge {Above 0, the same answer can be graded differently twice. 0 keeps grades repeatable.} other {Above 0, the same answer can be labelled differently twice. 0 keeps labels repeatable.}}"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -5047,7 +5053,11 @@
       },
       "agent-system-resources": {
         "title": "Context files and skills",
-        "body": "A system agent reaches nothing beyond its prompt, so this is where it gets standing knowledge: context files added to its prompt, and skills it loads when one is relevant."
+        "body": "This is where a system agent gets standing knowledge: context files added to its prompt, and skills it loads when one is relevant. Only what is shared with the whole organization is offered."
+      },
+      "agent-system-knowledge": {
+        "title": "Knowledge base",
+        "body": "Switch on a search of the knowledge bases the platform hands each run - the graded agent's, the gap's, the ones cases are drafted from - and cap how many paid steps it may take."
       }
     },
     "chooseLanguage": "Language",
@@ -8140,7 +8150,9 @@
         },
         "notCompared": "Run: no baseline comparison was requested.",
         "didNotComplete": "The run did not complete. Open its check for the reason."
-      }
+      },
+      "foundInKnowledge": "Found in the knowledge base",
+      "knowledgeDocument": "A document"
     },
     "title": "Datasets",
     "pageDescription": "The questions your agents are tested on. Every change to a dataset's cases makes a new version, so two eval runs on one version saw the same questions.",
