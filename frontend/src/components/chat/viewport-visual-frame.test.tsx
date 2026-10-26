@@ -17,14 +17,18 @@ vi.mock("./visual-frame", () => ({
 class Visibility implements IntersectionObserver {
   static instances: Visibility[] = [];
   readonly root = null;
-  readonly rootMargin = "320px";
+  readonly rootMargin: string;
   readonly scrollMargin = "";
   readonly thresholds = [0];
   target: Element | null = null;
   disconnect = vi.fn();
   unobserve = vi.fn();
   takeRecords = () => [];
-  constructor(private readonly callback: IntersectionObserverCallback) {
+  constructor(
+    private readonly callback: IntersectionObserverCallback,
+    options?: IntersectionObserverInit,
+  ) {
+    this.rootMargin = options?.rootMargin ?? "0px";
     Visibility.instances.push(this);
   }
   observe(target: Element) {
