@@ -335,6 +335,56 @@ class TestThinking:
         assert finished["input_tokens"] > 0
         assert finished["output_tokens"] > 0
 
+    async def test_tool_discovery_failure_does_not_create_an_empty_manifest(
+        self, recorded_manifest
+    ):
+        from pydantic_ai.toolsets import FunctionToolset
+
+        class BrokenTools(FunctionToolset):
+            async def get_tools(self, ctx):
+                raise RuntimeError("connection unavailable")
+
+        patches = self._patches(TestModel())
+        from contextlib import ExitStack
+
+        with ExitStack() as stack:
+            for item in patches:
+                stack.enter_context(item)
+            with pytest.raises(RuntimeError, match="connection unavailable"):
+                await ProactiveThinker(_session()).think(
+                    _ctx(),
+                    feature="watches",
+                    output_type=NightlyReading,
+                    instructions="Read.",
+                    prompt="{}",
+                    toolsets=[BrokenTools()],
+                )
+        recorded_manifest.assert_not_awaited()
+
+    async def test_a_tool_failure_retains_the_model_call_that_selected_it(self, recorded_manifest):
+        from contextlib import ExitStack
+
+        from pydantic_ai.toolsets import FunctionToolset
+
+        def lookup():
+            raise RuntimeError("connection unavailable")
+
+        with ExitStack() as stack:
+            for item in self._patches(TestModel()):
+                stack.enter_context(item)
+            with pytest.raises(RuntimeError, match="connection unavailable"):
+                await ProactiveThinker(_session()).think(
+                    _ctx(),
+                    feature="watches",
+                    output_type=NightlyReading,
+                    instructions="Read.",
+                    prompt="{}",
+                    toolsets=[FunctionToolset([lookup])],
+                )
+        payload = recorded_manifest.await_args.kwargs["payload"]
+        assert payload["transcript"][-1]["kind"] == "response"
+        assert payload["transcript"][-1]["parts"][0]["tool_name"] == "lookup"
+
     async def test_a_model_nobody_may_use_spends_nothing(self):
         get_slug, limits, version, profiles, create, finish = self._patches(
             TestModel(), resolve_error=BadRequestError(message="no model")

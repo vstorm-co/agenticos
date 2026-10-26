@@ -233,14 +233,27 @@ class ProactiveThinker:
             ended_at=datetime.now(UTC),
             error=error,
         )
+        await self._record(run, recorder, transcript)
+        await self.db.commit()
+
+    async def _record(
+        self, run: AgentRun, recorder: RunRecorder, transcript: list[ModelMessage] | None
+    ) -> None:
+        if not recorder.requests and recorder.instructions is None:
+            return
         # Keep a failed trace write from rolling back the paid run's settlement.
         try:
             payload = as_payload(recorder)
-            payload["transcript"] = (
-                recorder.messages
-                if transcript is None
-                else ModelMessagesTypeAdapter.dump_python(transcript, mode="json")
-            )
+            if transcript is not None:
+                payload["transcript"] = ModelMessagesTypeAdapter.dump_python(
+                    transcript, mode="json"
+                )
+            else:
+                payload["transcript"] = recorder.messages + (
+                    []
+                    if recorder.last_response is None
+                    else ModelMessagesTypeAdapter.dump_python([recorder.last_response], mode="json")
+                )
             payload, truncated = fit(payload)
             async with self.db.begin_nested():
                 await run_manifest_repo.record(
@@ -252,4 +265,3 @@ class ProactiveThinker:
                 )
         except Exception:
             logger.exception("proactive_manifest_write_failed", extra={"run_id": str(run.id)})
-        await self.db.commit()
