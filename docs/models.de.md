@@ -1,5 +1,5 @@
 ---
-source_sha: "a43a833ec82f"
+source_sha: "839fb6dd9f06"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -42,6 +42,31 @@ auf.
     Ein Provider liefert am Morgen nach jeder hier aufgewärmten Liste etwas Neues
     aus, und ein Feld, das "genau das" nicht ausdrücken kann, ist ein Feld, das
     Menschen umgehen, indem sie den Spec von Hand editieren.
+
+### Ein Profil, auf dem kein Agent laufen kann { #a-profile-an-agent-cannot-run-on }
+
+Ein Profil kann ein Modell benennen, das kein Gespräch führen kann: ein
+Sprachausgabe-Modell wie `gpt-4o-mini-tts`, ein Transkriptionsmodell, ein
+Bildmodell, ein Videomodell oder ein Embedding-Modell. Sprachausgabe, Transkription
+und Bildgenerierung laufen auf einem solchen Profil, deshalb bleibt es in der Liste
+der Organisation. Ein Agent kann nicht darauf laufen.
+
+Die Plattform kennt diese Modelle aus ihren eigenen Katalogen (den Listen für
+Sprachausgabe, Transkription, Bilder, Video und Embeddings) und aus dem Listing
+eines Providers, das angibt, was jedes Modell ausgibt (OpenRouter und der Hugging
+Face Router tun das). `GET /providers/model-profiles` markiert jedes Profil mit
+`chat_capable` und `output_modalities`, und `GET /providers/{provider}/models`
+markiert jeden Vorschlag mit `chat_capable`. Dann gilt:
+
+- Das Modell-Panel im Builder und die Modellauswahl im Chat bieten ein solches
+  Modell nicht an. Benennt ein Agent bereits eines, zeigt der Builder es weiterhin
+  an, markiert als kein Chat-Modell.
+- Die Veröffentlichung lehnt einen Agent, einen Reviewer oder einen Spezialisten
+  auf einem solchen Modell ab und nennt das Modell. Ein Rollback auf eine Version
+  mit einem solchen Modell wird aus demselben Grund abgelehnt.
+- Ein Modell, das die Plattform nicht einordnen kann, etwa ein eigener Endpoint,
+  ein Ollama-Modell oder ein heute Morgen veröffentlichtes Modell, ist erlaubt. Ein
+  unbekanntes Modell ist keine Ablehnung.
 
 ### Fallbacks { #fallbacks }
 

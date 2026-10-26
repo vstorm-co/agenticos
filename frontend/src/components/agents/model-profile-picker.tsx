@@ -9,7 +9,7 @@ import { ErrorState, LoadingState } from "@/components/states";
 import { Badge, Button } from "@/components/ui";
 import { useModelProviders } from "@/hooks";
 import type { ProfilesStatus } from "@/hooks/use-model-providers";
-import { modelDetail } from "@/lib/model-profiles";
+import { modelDetail, runsAgents } from "@/lib/model-profiles";
 import { cn } from "@/lib/utils";
 import type { ModelProfile } from "@/types/providers";
 import { useTranslations } from "next-intl";
@@ -110,6 +110,11 @@ export function ModelProfilePicker({
   const tc = useTranslations("common");
   const { deleteProfile, refetchProfiles } = useModelProviders();
   const selected = profiles.find((profile) => profile.id === value);
+  // The models an agent can run on. A text-to-speech or embedding profile is for
+  // the features that use one, and an agent on it fails on its first turn
+  // (#2487) - but the one this agent already names stays, marked, because a
+  // choice that vanished from the list would read as no choice at all.
+  const offered = profiles.filter((profile) => runsAgents(profile) || profile.id === value);
   // Generated rather than a constant: the Builder and a dialog can both have a
   // picker mounted, and two elements answering to one id makes the second group's
   // accessible name the first one's caption.
@@ -117,7 +122,7 @@ export function ModelProfilePicker({
 
   const list = (
     <div role="radiogroup" aria-label={t("model2")} className="space-y-1">
-      {profiles.map((profile) => (
+      {offered.map((profile) => (
         <ProfileRow
           key={profile.id}
           selected={value === profile.id}
@@ -132,6 +137,7 @@ export function ModelProfilePicker({
           // rendered for no profile at all, including the ones that really had
           // no key.
           noKey={!profile.secret_id}
+          notChat={!runsAgents(profile)}
           disabled={disabled}
           onRemove={allowRemove ? () => deleteProfile.mutate(profile.id) : undefined}
         />
@@ -162,6 +168,12 @@ export function ModelProfilePicker({
       {/* The badge that decides whether the agent can run at all. In a list of a
           dozen saved models the chosen one's badge is a badge among twelve. */}
       {!selected.secret_id && <Badge variant="destructive">{t("noKey")}</Badge>}
+      {!runsAgents(selected) && <Badge variant="destructive">{t("notAChatModel")}</Badge>}
+      {!runsAgents(selected) && (
+        <p role="alert" className="text-destructive basis-full text-xs">
+          {t("notAChatModelHint", { model: selected.model })}
+        </p>
+      )}
     </div>
   ) : null;
 
@@ -179,7 +191,7 @@ export function ModelProfilePicker({
   // A panel that only chooses between what exists is the list, and the line
   // saying which of them is in use.
   if (!allowAdd) {
-    if (profiles.length === 0) {
+    if (offered.length === 0) {
       if (profilesStatus === "failed") return failed;
       // Still in flight, which is every cold load of this panel: a wait shaped
       // like the rows it is waiting for, rather than a claim about the
@@ -246,13 +258,13 @@ export function ModelProfilePicker({
           Nothing is said while that read is still in flight: the form above is
           the panel here and it already works, so a wait would stand in for a
           disclosure that may well have nothing to disclose. */}
-      {profiles.length === 0 && profilesStatus === "failed" && failed}
+      {offered.length === 0 && profilesStatus === "failed" && failed}
 
-      {profiles.length > 0 && (
+      {offered.length > 0 && (
         <details className="group">
           <summary className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1.5 text-xs">
             <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
-            {t("useSavedModelCount", { count: profiles.length })}
+            {t("useSavedModelCount", { count: offered.length })}
           </summary>
           <div className="mt-2 space-y-2">
             {list}
@@ -271,6 +283,7 @@ function ProfileRow({
   subtitle,
   provider,
   noKey,
+  notChat,
   disabled,
   onRemove,
 }: {
@@ -281,6 +294,8 @@ function ProfileRow({
   subtitle: string | null;
   provider: string;
   noKey?: boolean;
+  /** Only ever the selected row: the rest of the non-chat models are not listed. */
+  notChat?: boolean;
   disabled?: boolean;
   /** Offered only where models are managed. */
   onRemove?: () => void;
@@ -309,6 +324,7 @@ function ProfileRow({
           <span className="flex flex-wrap items-center gap-1.5">
             <span className="truncate text-sm font-medium">{title}</span>
             {noKey && <Badge variant="destructive">{t("noKey2")}</Badge>}
+            {notChat && <Badge variant="destructive">{t("notAChatModel")}</Badge>}
           </span>
           {subtitle !== null && (
             <span className="text-muted-foreground mt-0.5 block truncate font-mono text-xs">

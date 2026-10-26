@@ -135,6 +135,7 @@ from app.services.file_storage import (
     avatar_filename,
     get_file_storage,
 )
+from app.services.model_outputs import model_outputs
 from app.services.notifications import NotificationService
 from app.services.resource_usage import groups_sharing
 from app.services.sandbox_connection import SandboxConnectionService
@@ -1616,12 +1617,24 @@ class AgentRegistryService:
         return problems
 
     async def _model_profile_problems(self, ctx: AuthContext, profile_id: UUID) -> list[str]:
-        """Whether a named model profile is still this organization's to run on."""
+        """Whether a named model profile is still this organization's to run on.
+
+        And whether it is a model anything can run *on*: a profile can name a
+        text-to-speech or embedding model, for the features that use one, and an
+        agent on it fails on its first turn (#2487). Refused only where the
+        catalog knows what the model is - an unknown model is allowed.
+        """
         profile = await credential_repo.get_profile(
             self.db, profile_id, organization_id=ctx.organization_id
         )
         if profile is None:
             return ["The selected model profile no longer exists"]
+        outputs = model_outputs(profile.provider, profile.model)
+        if not outputs.chat:
+            return [
+                f"Model '{profile.label}' ({profile.model}) is {outputs.kind}, not a chat "
+                "model - an agent cannot run on it. Pick a chat model"
+            ]
         return []
 
     async def _collection_problems(

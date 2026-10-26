@@ -1102,6 +1102,19 @@ class TestASpecialistTheModelInvents:
         assert dynamic is not None
         assert dynamic.allowed_models == ("fast",)
 
+    async def test_a_speech_model_is_not_one_a_specialist_can_be_invented_on(self):
+        """A text-to-speech profile is for text to speech; a model offered it as a
+        specialist's model would invent one that fails on its first turn (#2487)."""
+        speech = _profile("voice")
+        speech.provider, speech.model = "openai", "gpt-4o-mini-tts"
+        prepared = await _prepare(
+            _delegating(allow_dynamic=True), profiles=[_profile("fast"), speech]
+        )
+
+        dynamic = prepared.runtime.dynamic
+        assert dynamic is not None
+        assert dynamic.allowed_models == ("fast",)
+
     async def test_one_the_model_invents_inherits_the_refusal_to_trace_content(self):
         """A specialist nobody reviewed is the last place a run's prompts should
         start leaving from. `_dynamic_builder` assembles a bare `AgentSpec`, so

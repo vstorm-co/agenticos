@@ -284,6 +284,7 @@ from app.services.mcp_connection import (
     build_toolsets_for_agent,
     connect_personal_toolset,
 )
+from app.services.model_outputs import model_outputs
 from app.services.model_profile import ModelProfileService
 from app.services.notifications import NotificationService
 from app.services.organization import OrganizationService
@@ -3734,6 +3735,10 @@ class AgentRunnerService:
         """
         if not delegation.profiles:
             for profile in await self.models.list_profiles(delegation.ctx):
+                # A speech or embedding model is a profile for the features that
+                # use one, not a model a specialist can be invented on (#2487).
+                if not model_outputs(profile.provider, profile.model).chat:
+                    continue
                 try:
                     delegation.profiles[profile.label] = await self.models.resolve(
                         delegation.ctx, profile_id=profile.id

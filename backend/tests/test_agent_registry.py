@@ -1748,6 +1748,53 @@ class TestValidateSpec:
         ]
 
     @pytest.mark.anyio
+    async def test_an_agent_on_a_text_to_speech_model_cannot_publish(self):
+        """A profile can name a speech model, for text to speech, and an agent on
+        one fails on its first turn - so publish names the model and refuses (#2487).
+        An imported spec reaches this check too, which is why the pickers hiding
+        it is not enough."""
+        speech = MagicMock(
+            label="OpenAI · gpt-4o-mini-tts", provider="openai", model="gpt-4o-mini-tts"
+        )
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=speech),
+            ),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(
+                _ctx(), _spec(model_profile_id=uuid.uuid4())
+            )
+
+        assert refused.value.details["problems"] == [
+            "Model 'OpenAI · gpt-4o-mini-tts' (gpt-4o-mini-tts) is a text-to-speech model, "
+            "not a chat model - an agent cannot run on it. Pick a chat model"
+        ]
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("provider", "model"),
+        [
+            ("openai", "gpt-4.1"),
+            # Nothing the catalog knows: a model on somebody's own server is allowed.
+            ("ollama", "llama3.3:70b"),
+        ],
+    )
+    async def test_a_chat_model_or_one_the_catalog_does_not_know_publishes(
+        self, provider: str, model: str
+    ):
+        profile = MagicMock(label="Chat", provider=provider, model=model)
+
+        with patch(
+            f"{REGISTRY_PATH}.credential_repo.get_profile", new=AsyncMock(return_value=profile)
+        ):
+            await AgentRegistryService(_db()).validate_spec(
+                _ctx(), _spec(model_profile_id=uuid.uuid4())
+            )
+
+    @pytest.mark.anyio
     async def test_a_collection_belonging_to_another_organization_is_not_found(self):
         """The id exists, so a bare existence check would happily attach it."""
         ctx = _ctx()
@@ -2450,9 +2497,9 @@ class TestToolOverrideValidation:
     @staticmethod
     def _service():
         db = _db()
-        # A default model exists, so the override is the only problem reported.
+        # A model exists, so the override is the only problem reported.
         db.execute = AsyncMock(
-            return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=object()))
+            return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=MagicMock()))
         )
         return AgentRegistryService(db)
 

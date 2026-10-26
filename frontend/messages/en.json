@@ -367,6 +367,8 @@
     "noInstructionsWritten": "No instructions written",
     "noKey": "no key",
     "noKey2": "no key",
+    "notAChatModel": "not a chat model",
+    "notAChatModelHint": "{model} is not a chat model - it is for text to speech, transcription, images or embeddings, and an agent cannot run on it. Choose a chat model before publishing.",
     "noMembersChooseFrom": "No members to choose from - this organization is just you.",
     "noModelAskAdmin": "Models are added in the Builder by a member who manages connections. Once one exists, it can be chosen here.",
     "noNote": "No note",
@@ -1300,6 +1302,7 @@
       "model": "Model",
       "needsConnectionsManage": "Choosing another model needs a permission you do not hold. Somebody who can manage this organization's connections can change it.",
       "noProviderKey": "No {provider} key in the vault yet.",
+      "notAChatModel": "{model} is not a chat model, so this conversation cannot run on it. Choose another model.",
       "provider": "Provider",
       "runModel": "Run on this model",
       "thisChat": "Just this chat"

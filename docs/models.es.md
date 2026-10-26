@@ -1,5 +1,5 @@
 ---
-source_sha: "a43a833ec82f"
+source_sha: "839fb6dd9f06"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -39,6 +39,31 @@ El spec de un agent nombra uno con `model_profile_id`, y el run lo resuelve.
     Un provider publica algo la mañana siguiente a que se calentara cualquier
     lista de aquí, y un campo que no puede expresar «ese» es un campo que la
     gente esquiva editando el spec a mano.
+
+### Un perfil en el que un agent no puede ejecutarse { #a-profile-an-agent-cannot-run-on }
+
+Un perfil puede nombrar un modelo que no mantiene una conversación: un modelo de
+texto a voz como `gpt-4o-mini-tts`, un modelo de transcripción, un modelo de
+imágenes, un modelo de vídeo o un modelo de embeddings. El texto a voz, la
+transcripción y la generación de imágenes se ejecutan en un perfil así, por eso
+sigue en la lista de la organización. Un agent no puede ejecutarse en él.
+
+La plataforma conoce estos modelos por sus propios catálogos (las listas de texto
+a voz, transcripción, imágenes, vídeo y embeddings) y por el listado de un
+provider que indica qué emite cada modelo (OpenRouter y el router de Hugging Face
+lo hacen). `GET /providers/model-profiles` marca cada perfil con `chat_capable` y
+`output_modalities`, y `GET /providers/{provider}/models` marca cada sugerencia
+con `chat_capable`. Entonces:
+
+- El panel de modelo del Builder y el selector de modelo del chat no ofrecen un
+  modelo así. Si un agent ya nombra uno, el Builder lo sigue mostrando, marcado
+  como un modelo que no es de chat.
+- La publicación rechaza un agent, un revisor o un especialista en un modelo así,
+  y nombra el modelo. Volver a una versión en uno de ellos se rechaza por el mismo
+  motivo.
+- Un modelo que la plataforma no puede clasificar, como un endpoint propio, un
+  modelo de Ollama o un modelo publicado esta mañana, está permitido. Un modelo
+  desconocido no es un rechazo.
 
 ### Fallbacks { #fallbacks }
 

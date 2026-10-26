@@ -142,6 +142,25 @@ describe("useProviderModels", () => {
     expect(result.current.source).toBe("live");
   });
 
+  it("leaves out a model the platform knows an agent cannot run on", async () => {
+    // Both fields this fills choose a model to talk to (#2487); a model the
+    // server did not classify stays, because unknown is never a refusal.
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [
+        { id: "gpt-5", name: "GPT-5", chat_capable: true },
+        { id: "gpt-4o-mini-tts", name: "gpt-4o-mini-tts", chat_capable: false },
+        { id: "unclassified", name: "unclassified" },
+      ],
+      total: 3,
+      source: "live",
+    });
+
+    const { result } = renderHook(() => useProviderModels("openai"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.models.map((entry) => entry.id)).toEqual(["gpt-5", "unclassified"]);
+  });
+
   it("says the list is this deployment's own when the provider published none", () => {
     // The field's helper text differs: a curated list is worth saying out loud,
     // because a model missing from it is not a model that does not exist.

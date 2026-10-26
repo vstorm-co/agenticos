@@ -30,7 +30,7 @@ import {
   useSecretPurposes,
   useSecrets,
 } from "@/hooks";
-import { modelDetail } from "@/lib/model-profiles";
+import { modelDetail, runsAgents } from "@/lib/model-profiles";
 import type { PublishedModel } from "@/types/agents";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
@@ -108,6 +108,13 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
       (profile) => profile.provider === provider.id && profile.model === modelId,
     );
     if (existing) {
+      // A speech or embedding profile the organization keeps for text to speech
+      // or knowledge: reusing it would point the conversation at a model that
+      // cannot answer, and minting another would only collide on its label (#2487).
+      if (!runsAgents(existing)) {
+        setFailure(t("notAChatModel", { model: modelId }));
+        return;
+      }
       onChange(existing.id);
       return;
     }

@@ -86,6 +86,15 @@ export interface ModelProfile {
    * that already exists.
    */
   context_length?: number | null;
+  /**
+   * Whether an agent can run on this model (#2487). False only for one the
+   * platform knows is something else - text to speech, transcription, image,
+   * video or embeddings - which stays a profile for the features that use it.
+   * Absent reads as true: a model nothing classifies is never hidden.
+   */
+  chat_capable?: boolean;
+  /** What the model emits, where the platform knows. Empty is not known. */
+  output_modalities?: string[];
   created_at?: string;
 }
 

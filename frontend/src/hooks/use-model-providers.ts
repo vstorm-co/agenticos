@@ -145,6 +145,8 @@ export interface ProviderModel {
   name: string;
   /** Tokens the model accepts, when the provider says. */
   context_length?: number | null;
+  /** False for a model the platform knows an agent cannot run on (#2487). */
+  chat_capable?: boolean;
 }
 
 interface ProviderModelList {
@@ -181,7 +183,11 @@ export function useProviderModels(providerId: string) {
     retry: false,
   });
 
-  return { models: data?.items ?? [], source: data?.source ?? null, isLoading };
+  // Both fields this fills choose a model to talk to - an agent's, a
+  // conversation's - so a speech or embedding model is not a suggestion (#2487).
+  // The field stays free text; publish is what refuses one typed in.
+  const models = (data?.items ?? []).filter((entry) => entry.chat_capable !== false);
+  return { models, source: data?.source ?? null, isLoading };
 }
 
 /** One model that draws. */

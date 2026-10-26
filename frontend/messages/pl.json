@@ -367,6 +367,8 @@
     "noInstructionsWritten": "Nie napisano instrukcji",
     "noKey": "brak klucza",
     "noKey2": "brak klucza",
+    "notAChatModel": "to nie model czatu",
+    "notAChatModelHint": "{model} nie jest modelem czatu - służy do zamiany tekstu na mowę, transkrypcji, obrazów lub embeddingów, więc agent nie może na nim działać. Przed publikacją wybierz model czatu.",
     "noMembersChooseFrom": "Brak członków do wyboru - ta organizacja to tylko Ty.",
     "noModelAskAdmin": "Modele są dodawane w Builderze przez członka, który zarządza połączeniami. Gdy jakiś istnieje, można go tu wybrać.",
     "noNote": "Brak notatki",
@@ -1300,6 +1302,7 @@
       "model": "Model",
       "needsConnectionsManage": "Wybór innego modelu wymaga uprawnienia, którego nie masz. Może go zmienić ktoś, kto zarządza połączeniami tej organizacji.",
       "noProviderKey": "W vault nie ma jeszcze klucza {provider}.",
+      "notAChatModel": "{model} nie jest modelem czatu, więc ta rozmowa nie może na nim działać. Wybierz inny model.",
       "provider": "Provider",
       "runModel": "Uruchom na tym modelu",
       "thisChat": "Tylko ten czat"

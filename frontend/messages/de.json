@@ -367,6 +367,8 @@
     "noInstructionsWritten": "Keine Instruktionen geschrieben",
     "noKey": "kein Schlüssel",
     "noKey2": "kein Schlüssel",
+    "notAChatModel": "kein Chat-Modell",
+    "notAChatModelHint": "{model} ist kein Chat-Modell - es dient der Sprachausgabe, Transkription, Bildern oder Embeddings, und ein Agent kann nicht darauf laufen. Wähle vor dem Veröffentlichen ein Chat-Modell.",
     "noMembersChooseFrom": "Keine Mitglieder zur Auswahl – diese Organisation sind nur Sie.",
     "noModelAskAdmin": "Modelle werden im Builder von einem Mitglied hinzugefügt, das Verbindungen verwaltet. Sobald eines besteht, lässt es sich hier wählen.",
     "noNote": "Keine Notiz",
@@ -1300,6 +1302,7 @@
       "model": "Modell",
       "needsConnectionsManage": "Ein anderes Modell zu wählen braucht eine Berechtigung, die Sie nicht haben. Jemand, der die Verbindungen dieser Organisation verwalten darf, kann es ändern.",
       "noProviderKey": "Noch kein {provider}-Schlüssel im Vault.",
+      "notAChatModel": "{model} ist kein Chat-Modell, daher kann diese Unterhaltung nicht darauf laufen. Wähle ein anderes Modell.",
       "provider": "Provider",
       "runModel": "Auf diesem Modell ausführen",
       "thisChat": "Nur dieser Chat"

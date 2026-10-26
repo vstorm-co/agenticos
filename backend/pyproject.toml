@@ -792,6 +792,10 @@ include = [
     # would empty that picker without a single test failing.
     "app/services/image_models.py",
     "app/services/model_profile.py",
+    # Whether an agent can run on a model. A classification that quietly widens
+    # hides chat models from every picker; one that narrows lets a speech model
+    # through publish (#2487).
+    "app/services/model_outputs.py",
     "app/services/organization_secret.py",
     "app/services/openai_codex.py",
     # Same shape and the same reason as `image_models`: what a picker offers is
@@ -1317,6 +1321,10 @@ include = [
     # would empty that picker without a single test failing.
     "app/services/image_models.py",
     "app/services/model_profile.py",
+    # Whether an agent can run on a model. A classification that quietly widens
+    # hides chat models from every picker; one that narrows lets a speech model
+    # through publish (#2487).
+    "app/services/model_outputs.py",
     "app/services/organization_secret.py",
     "app/services/openai_codex.py",
     # Same shape and the same reason as `image_models`: what a picker offers is

@@ -19,6 +19,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep text-to-speech, transcription, image, video and embedding models out of the
+  Builder's model panel, the chat's model picker and the models a run may invent a
+  specialist on. A model profile now reports `chat_capable` and `output_modalities`,
+  and a provider's model suggestions report `chat_capable`. Both come from the
+  platform's model catalogs and from a cached provider listing that states
+  modalities. A model the platform cannot classify, such as a custom endpoint, is
+  still allowed. An agent that already names such a model still shows it in the
+  Builder, marked as not a chat model. Publish, the draft check and rollback now
+  refuse an agent, reviewer or specialist on one of these models and name the
+  model. Stored specs still load, but an agent published on one of these models
+  must move to a chat model before it can be republished or rolled back to that
+  version. The Architect no longer publishes itself on such a profile (#2487).
+
 ## [1.18.0] - 2026-10-26
 
 ### Fixed

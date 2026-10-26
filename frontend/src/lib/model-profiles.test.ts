@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { modelDetail, modelShortName } from "./model-profiles";
+import { modelDetail, modelShortName, runsAgents } from "./model-profiles";
 
 function profile(overrides: Partial<Parameters<typeof modelDetail>[0]> = {}) {
   return { label: "the cheap one", provider: "openai", model: "gpt-4.1", ...overrides };
@@ -50,5 +50,14 @@ describe("modelShortName", () => {
 
   it("does not empty a label that ends in a slash", () => {
     expect(modelShortName("custom/")).toBe("custom/");
+  });
+});
+
+describe("runsAgents", () => {
+  it("is false only where the server says the model is for something else", () => {
+    expect(runsAgents({ chat_capable: false })).toBe(false);
+    expect(runsAgents({ chat_capable: true })).toBe(true);
+    // A model nothing classifies is never hidden (#2487).
+    expect(runsAgents({})).toBe(true);
   });
 });

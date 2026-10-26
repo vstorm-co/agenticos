@@ -1,5 +1,5 @@
 ---
-source_sha: "a43a833ec82f"
+source_sha: "839fb6dd9f06"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -39,6 +39,31 @@ Spec agenta wskazuje jeden przez `model_profile_id`, a run go rozwiązuje.
     Provider wypuszcza coś nazajutrz po tym, jak jakakolwiek lista tutaj została
     rozgrzana, a pole, które nie potrafi wyrazić „o ten”, to pole, które ludzie
     obchodzą, edytując speca ręcznie.
+
+### Profil, na którym agent nie może działać { #a-profile-an-agent-cannot-run-on }
+
+Profil może wskazywać model, który nie prowadzi rozmowy: model zamiany tekstu na
+mowę, taki jak `gpt-4o-mini-tts`, model transkrypcji, model obrazów, model wideo
+albo model embeddingów. Zamiana tekstu na mowę, transkrypcja i generowanie obrazów
+działają na takim profilu, więc zostaje on na liście organizacji. Agent nie może
+na nim działać.
+
+Platforma zna te modele z własnych katalogów (list modeli zamiany tekstu na mowę,
+transkrypcji, obrazów, wideo i embeddingów) oraz z listingu providera, który
+podaje, co emituje każdy model (robią to OpenRouter i router Hugging Face).
+`GET /providers/model-profiles` oznacza każdy profil polami `chat_capable` i
+`output_modalities`, a `GET /providers/{provider}/models` oznacza każdą sugestię
+polem `chat_capable`. Wtedy:
+
+- Panel modelu w Builderze i picker modelu w czacie nie oferują takiego modelu.
+  Jeśli agent już go wskazuje, Builder nadal go pokazuje, oznaczony jako model,
+  który nie jest modelem czatu.
+- Publikacja odrzuca agenta, recenzenta albo specjalistę na takim modelu i podaje
+  nazwę modelu. Z tego samego powodu odrzucony jest powrót do wersji na takim
+  modelu.
+- Model, którego platforma nie potrafi sklasyfikować, taki jak własny endpoint,
+  model w Ollamie albo model wydany dziś rano, jest dozwolony. Nieznany model nie
+  jest odmową.
 
 ### Fallbacki { #fallbacks }
 

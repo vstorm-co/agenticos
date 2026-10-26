@@ -202,6 +202,17 @@ _cache: dict[str, _Entry] = {}
 _lock = asyncio.Lock()
 
 
+def cached_listing(provider: str) -> tuple[CatalogModel, ...]:
+    """The last live listing fetched for this provider, however old, or nothing.
+
+    For a reader that may not call a provider - a response serializer, publish
+    validation - and asks a question the listing's age does not change: what a
+    model emits. Never fetches.
+    """
+    entry = _cache.get(provider)
+    return () if entry is None else entry.models
+
+
 def _read_listing(payload: Any, spec: ListingSpec) -> list[CatalogModel]:
     """Turn one provider's response into models, skipping rows it cannot read."""
     rows = payload if spec.array_path == "" else payload.get(spec.array_path)

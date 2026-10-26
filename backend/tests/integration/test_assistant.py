@@ -60,13 +60,15 @@ async def _member(db: AsyncSession, organization: Organization, role: str) -> Au
     return AuthContext(user_id=person.id, organization_id=organization.id, role=role)
 
 
-async def _model(db: AsyncSession, organization: Organization) -> ModelProfile:
+async def _model(
+    db: AsyncSession, organization: Organization, model: str = "gpt-4.1"
+) -> ModelProfile:
     profile = ModelProfile(
         id=uuid.uuid4(),
         organization_id=organization.id,
         label=f"Model {uuid.uuid4().hex[:6]}",
         provider="openai",
-        model="gpt-4.1",
+        model=model,
     )
     db.add(profile)
     await db.flush()
@@ -110,6 +112,25 @@ async def test_a_viewer_s_first_look_installs_it_and_a_model_publishes_it(
     assert len(spec.skill_ids) == 8
     # What the chat offers somebody opening it there with nothing said yet (#2301).
     assert spec.starters[0] == "Build me an agent that answers questions from our documents"
+
+
+async def test_a_speech_model_is_not_one_it_publishes_on(db: AsyncSession) -> None:
+    # Publish refuses a text-to-speech model (#2487), so an organization whose only
+    # profile is one is still waiting for a model, and the first chat model it
+    # adds is the one chosen - not the speech model that came first.
+    organization, _owner = await _organization(db)
+    viewer = await _member(db, organization, OrgRoleName.VIEWER)
+    service = AssistantService(db)
+    await _model(db, organization, model="gpt-4o-mini-tts")
+
+    assert (await service.state(viewer)).status == "needs_model"
+
+    chat = await _model(db, organization)
+    ready = await service.state(viewer)
+
+    assert ready.status == "ready"
+    agent = (await db.execute(select(Agent).where(Agent.id == ready.agent_id))).scalar_one()
+    assert AgentSpec.model_validate(agent.draft_spec).model_profile_id == chat.id
 
 
 async def test_one_organization_gets_one_assistant(db: AsyncSession) -> None:
