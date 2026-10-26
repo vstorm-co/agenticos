@@ -1,6 +1,6 @@
 """RAG API schemas."""
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import Field, field_validator
 
@@ -73,12 +73,34 @@ class RAGFilterValues(BaseSchema):
 
 
 class RAGCollectionInfo(BaseSchema):
-    """Statistical information about a specific collection."""
+    """Statistical information about a specific collection.
+
+    `indexing_status` answers from the collection's tracked documents, not from
+    the vectors: `total_vectors` grows while the worker is still ingesting, so a
+    caller waiting for the collection to be ready waits for `complete`. It used
+    to be the constant `complete`, which let a script start querying a
+    collection with hundreds of uploads still queued behind it (#2486).
+    """
 
     name: str
     total_vectors: int
     dim: int
-    indexing_status: str = "complete"
+    indexing_status: Literal["indexing", "complete"] = Field(
+        default="complete",
+        description=(
+            "`indexing` while any of the collection's documents is still queued or being "
+            "ingested, `complete` once every one has finished or failed. A failed "
+            "document does not hold the collection at `indexing`; it is counted in "
+            "`failed_count`."
+        ),
+    )
+    processing_count: int = Field(
+        default=0, description="Documents queued or being ingested - neither finished nor failed"
+    )
+    indexed_count: int = Field(default=0, description="Documents that finished ingesting")
+    failed_count: int = Field(
+        default=0, description="Documents whose ingestion failed, and which hold no vectors"
+    )
 
 
 class RAGCollectionList(BaseSchema):

@@ -18,9 +18,11 @@ from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.services.rag.config import get_supported_formats
 from app.services.rag.documents import has_indexable_text
 from app.services.rag.ingestion import IngestionService
+from app.services.rag.models import CollectionInfo
 from app.services.rag.vectorstore import BaseVectorStore
 from app.repositories import collection_teardown_repo, knowledge_base_repo, rag_document_repo
 from app.schemas.rag import (
+    RAGCollectionInfo,
     RAGIngestResponse,
     RAGParsedContent,
     RAGParsedPage,
@@ -105,6 +107,31 @@ class RAGDocumentService:
         return RAGTrackedDocumentList(
             items=[_tracked_item(d) for d in rows],
             total=total,
+        )
+
+    async def collection_info(
+        self, info: CollectionInfo, *, organization_id: UUID | None
+    ) -> RAGCollectionInfo:
+        """The vector store's statistics, with where the documents stand added.
+
+        `indexing` while any tracked document is still processing and `complete`
+        once none is - read from `rag_documents` because the vectors cannot say
+        it: they grow document by document while the worker works through a
+        batch, and a document that failed leaves none behind (#2486).
+        `organization_id` is the knowledge base's, which scopes the count the way
+        `get_all` scopes a listing.
+        """
+        counts = await rag_document_repo.ingestion_counts(
+            self.db, collection_name=info.name, organization_id=organization_id
+        )
+        return RAGCollectionInfo(
+            name=info.name,
+            total_vectors=info.total_vectors,
+            dim=info.dim,
+            indexing_status="indexing" if counts.processing else "complete",
+            processing_count=counts.processing,
+            indexed_count=counts.indexed,
+            failed_count=counts.failed,
         )
 
     async def get_document(self, doc_id: str) -> RAGDocument:

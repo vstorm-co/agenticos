@@ -97,7 +97,6 @@ async def list_collections_async(vector_store: BaseVectorStore) -> None:
             click.echo(f"  {name}")
             click.echo(f"    Vectors: {info_obj.total_vectors:,}")
             click.echo(f"    Dimension: {info_obj.dim}")
-            click.echo(f"    Status: {info_obj.indexing_status}")
             click.echo()
         except Exception as e:
             warning(f"Could not get info for '{name}': {e}")

@@ -1,9 +1,10 @@
 "use client";
 
-import { Lock, Sparkles, Users } from "lucide-react";
+import { CircleAlert, CircleCheck, Loader2, Lock, Sparkles, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import type { RAGCollectionInfo } from "@/lib/rag-api";
 import type { KBScope } from "@/types";
 
 /**
@@ -35,6 +36,13 @@ const SCOPE_META: Record<KBScope, { labelKey: string; icon: LucideIcon }> = {
  * says which it is. Once every document is loaded the sum *is* the
  * collection's, and it says so plainly; until then it names its own scope
  * rather than passing a partial sum off as the whole.
+ *
+ * `ingestion` is whether the collection is still indexing, counted over every
+ * document rather than the loaded page, and `null` until it has answered or when
+ * it could not - the strip then says nothing about it rather than guessing. It
+ * says indexing is complete only once something has been indexed, so an empty
+ * collection is not announced as finished; a failed document is shown beside
+ * either state, since it does not hold the collection at indexing (#2486).
  */
 export function KBStatsStrip({
   scope,
@@ -42,6 +50,7 @@ export function KBStatsStrip({
   documentsTotal,
   loadedVectors,
   hasMoreDocuments,
+  ingestion,
 }: {
   scope: KBScope;
   isDefault: boolean;
@@ -49,6 +58,7 @@ export function KBStatsStrip({
   /** Chunks across the documents fetched so far, which may not be all of them. */
   loadedVectors: number;
   hasMoreDocuments: boolean;
+  ingestion: RAGCollectionInfo | null;
 }) {
   const t = useTranslations("pages.kb");
   const meta = SCOPE_META[scope];
@@ -67,6 +77,33 @@ export function KBStatsStrip({
           ? t("vectorCountLoaded", { count: loadedVectors })
           : t("vectorCount", { count: loadedVectors })}
       </span>
+      {ingestion?.indexing_status === "indexing" && (
+        <>
+          <span>·</span>
+          <span className="inline-flex items-center gap-1.5" role="status">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            {t("indexingInProgress", { count: ingestion.processing_count })}
+          </span>
+        </>
+      )}
+      {ingestion?.indexing_status === "complete" && ingestion.indexed_count > 0 && (
+        <>
+          <span>·</span>
+          <span className="inline-flex items-center gap-1.5" role="status">
+            <CircleCheck className="h-3.5 w-3.5" />
+            {t("indexingComplete")}
+          </span>
+        </>
+      )}
+      {ingestion !== null && ingestion.failed_count > 0 && (
+        <>
+          <span>·</span>
+          <span className="text-destructive inline-flex items-center gap-1.5">
+            <CircleAlert className="h-3.5 w-3.5" />
+            {t("indexingFailed", { count: ingestion.failed_count })}
+          </span>
+        </>
+      )}
     </div>
   );
 }

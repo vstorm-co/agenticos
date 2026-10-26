@@ -5205,7 +5205,10 @@
       "uploading": "Uploading…",
       "uploading2": "Uploading…",
       "vectorCount": "{count, plural, =1 {1 vector} other {# vectors}}",
-      "vectorCountLoaded": "{count, plural, =1 {1 vector} other {# vectors}} in the documents loaded"
+      "vectorCountLoaded": "{count, plural, =1 {1 vector} other {# vectors}} in the documents loaded",
+      "indexingInProgress": "{count, plural, =1 {Indexing: 1 document in progress} other {Indexing: # documents in progress}}",
+      "indexingComplete": "Indexing complete",
+      "indexingFailed": "{count, plural, =1 {1 document failed} other {# documents failed}}"
     },
     "mcp-servers": {
       "catalogCompiledIntoBackend": "The catalog is compiled into the backend, and nobody has added a server of their own. An empty list here means this deployment ships none.",

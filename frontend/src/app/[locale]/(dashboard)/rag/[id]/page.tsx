@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useRef, useState } from "react";
+import { use, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { ROUTES } from "@/lib/constants";
@@ -72,6 +72,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
     documents,
     documentsTotal,
     hasMoreDocuments,
+    collectionInfo,
     syncSources,
     orgIntegrations,
     connectors,
@@ -168,7 +169,24 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
     refresh();
   }, [refresh]);
 
-  usePollWhileIngesting(documents, refresh);
+  // The loaded documents alone stop the poll as soon as their page has settled,
+  // which a large batch does long before the rest of it - so the collection's own
+  // state rides along as one more entry, keyed on its counts so that progress
+  // anywhere in the batch counts as a change and keeps the poll fast (#2486).
+  const pollTargets = useMemo(
+    () =>
+      collectionInfo === null
+        ? documents
+        : [
+            ...documents,
+            {
+              id: `collection:${collectionInfo.processing_count}:${collectionInfo.indexed_count}:${collectionInfo.failed_count}`,
+              status: collectionInfo.indexing_status === "indexing" ? "processing" : "done",
+            },
+          ],
+    [documents, collectionInfo],
+  );
+  usePollWhileIngesting(pollTargets, refresh);
 
   const handleFiles = async (files: FileList | null) => {
     if (!mayEdit || !files || files.length === 0) return;
@@ -222,6 +240,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
         documentsTotal={documentsTotal}
         loadedVectors={loadedVectors}
         hasMoreDocuments={hasMoreDocuments}
+        ingestion={collectionInfo}
       />
 
       {/* Reached only with a `kb` in hand, so this is a refresh that failed, with

@@ -1,5 +1,5 @@
 ---
-source_sha: "8b29d490f872"
+source_sha: "c7263abd5949"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -396,6 +396,19 @@ existiert nicht, bevor der Worker es indexiert hat.
 Eine der beiden ließ den Schlüssel früher weg, statt ihn null zu senden, ein
 Client, der die Antwort normalisierte, bekam also von jeder eine andere Form
 ([#560](https://github.com/vstorm-co/agenticos/issues/560)).
+
+**Auf `complete` warten, nicht auf Vektoren.** `GET /rag/collections/{name}/info`
+leitet `indexing_status` aus den verfolgten Dokumenten der Collection ab:
+`indexing`, solange eines davon noch `processing` ist - in der Warteschlange
+oder in der Ingestion - und `complete`, sobald keines mehr es ist.
+`processing_count`, `indexed_count` und `failed_count` geben an, wie viele
+Dokumente in welchem Zustand sind. Ein fehlgeschlagenes Dokument ist ein
+Endzustand und hält die Collection deshalb nicht auf `indexing`; es erscheint
+in `failed_count`. Die Seite der Wissensdatenbank zeigt denselben Zustand neben
+der Dokumentanzahl. Das Feld war früher die Konstante `complete`, und
+`total_vectors` wächst, während der Worker einen Stapel abarbeitet - ein
+Skript, das auf eines von beiden wartete, fragte eine halb aufgebaute
+Collection ab ([#2486](https://github.com/vstorm-co/agenticos/issues/2486)).
 
 !!! danger "Die Aufgabe wird gestartet, nachdem die Transaktion der Anfrage committet"
 

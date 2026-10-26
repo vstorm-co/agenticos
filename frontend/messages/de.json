@@ -5087,7 +5087,10 @@
       "uploading": "Wird hochgeladen …",
       "uploading2": "Wird hochgeladen …",
       "vectorCount": "{count, plural, =1 {1 Vektor} other {# Vektoren}}",
-      "vectorCountLoaded": "{count, plural, =1 {1 Vektor} other {# Vektoren}} in den geladenen Dokumenten"
+      "vectorCountLoaded": "{count, plural, =1 {1 Vektor} other {# Vektoren}} in den geladenen Dokumenten",
+      "indexingInProgress": "{count, plural, =1 {Indexierung: 1 Dokument in Bearbeitung} other {Indexierung: # Dokumente in Bearbeitung}}",
+      "indexingComplete": "Indexierung abgeschlossen",
+      "indexingFailed": "{count, plural, =1 {1 Dokument fehlgeschlagen} other {# Dokumente fehlgeschlagen}}"
     },
     "mcp-servers": {
       "catalogCompiledIntoBackend": "Der Katalog ist ins Backend kompiliert, und niemand hat einen eigenen Server hinzugefügt. Eine leere Liste hier heißt, dass dieses Deployment keinen mitliefert.",

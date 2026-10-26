@@ -19,6 +19,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Report a collection as `indexing` on `GET /rag/collections/{name}/info` while
+  any of its documents is still queued or being ingested, and `complete` only
+  once none is. The response adds `processing_count`, `indexed_count` and
+  `failed_count`; a failed document is counted there rather than holding the
+  collection at `indexing`. The knowledge base page shows the same state and
+  keeps refreshing until the whole batch has settled (#2486).
+
 ## [1.18.0] - 2026-10-26
 
 ### Fixed

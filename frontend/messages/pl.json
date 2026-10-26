@@ -4976,7 +4976,10 @@
       "uploading": "Wgrywanie…",
       "uploading2": "Wgrywanie…",
       "vectorCount": "{count, plural, one {1 wektor} few {# wektory} many {# wektorów} other {# wektora}}",
-      "vectorCountLoaded": "{count, plural, one {1 wektor} few {# wektory} many {# wektorów} other {# wektora}} we wczytanych dokumentach"
+      "vectorCountLoaded": "{count, plural, one {1 wektor} few {# wektory} many {# wektorów} other {# wektora}} we wczytanych dokumentach",
+      "indexingInProgress": "{count, plural, one {Indeksowanie: 1 dokument w toku} few {Indeksowanie: # dokumenty w toku} many {Indeksowanie: # dokumentów w toku} other {Indeksowanie: # dokumentu w toku}}",
+      "indexingComplete": "Indeksowanie zakończone",
+      "indexingFailed": "{count, plural, one {1 dokument z błędem} few {# dokumenty z błędem} many {# dokumentów z błędem} other {# dokumentu z błędem}}"
     },
     "mcp-servers": {
       "catalogCompiledIntoBackend": "Katalog jest wkompilowany w backend, a nikt nie dodał własnego serwera. Pusta lista oznacza tutaj, że ten deployment nie dostarcza żadnego.",

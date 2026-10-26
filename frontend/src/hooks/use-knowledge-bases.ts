@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
   type InfiniteData,
+  skipToken,
   useInfiniteQuery,
   useQuery,
   useQueryClient,
@@ -12,6 +13,7 @@ import { toast } from "sonner";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { getErrorMessage, parseErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
+import { getCollectionInfo } from "@/lib/rag-api";
 import type {
   ConnectorList,
   SyncSourceCreate,
@@ -258,6 +260,19 @@ export function useKBDetail(id: string | null) {
   });
 
   const kb = kbQuery.data ?? null;
+
+  // Whether the collection is still indexing, counted over every document rather
+  // than the page of them loaded below - a batch of two hundred uploads reads as
+  // settled from its first twenty while the rest are still queued (#2486). Not
+  // load-bearing: a failure leaves the strip without the state, not the page
+  // without the collection.
+  const collectionName = kb?.collection_name ?? null;
+  const collectionInfoQuery = useQuery({
+    queryKey: qk.kb.collectionInfo(id ?? "none"),
+    // A name only arrives with the collection, and the collection only with an id.
+    queryFn: collectionName === null ? skipToken : () => getCollectionInfo(collectionName),
+    retry: false,
+  });
 
   // Flattened and de-duplicated across pages: a poll can re-read a page the
   // append had already fetched, and two copies of one document would list it
@@ -666,6 +681,7 @@ export function useKBDetail(id: string | null) {
     documents,
     documentsTotal,
     hasMoreDocuments: documentsQuery.hasNextPage,
+    collectionInfo: collectionInfoQuery.data ?? null,
     loadFailed,
     syncSources,
     orgIntegrations,
