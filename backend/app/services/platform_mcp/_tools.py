@@ -105,7 +105,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
 
         Search by name or description before creating another project. Pages
         contain at most 100 projects; follow pagination when checking for a match.
-        Instructions are excluded; read one chosen project explicitly with get_project.
+        Only ids and names are returned; read a chosen project explicitly with get_project.
         """
         params: dict[str, str | int] = {"limit": limit, "skip": skip}
         if q is not None:
@@ -114,8 +114,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         return {
             **listing,
             "items": [
-                {field: value for field, value in item.items() if field != "instructions"}
-                for item in listing["items"]
+                {field: item[field] for field in ("id", "name")} for item in listing["items"]
             ],
         }
 

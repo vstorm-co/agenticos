@@ -960,9 +960,19 @@ class TestConfiguredDrafts:
 
 
 @pytest.mark.security
-async def test_project_discovery_never_returns_instructions(server: FastMCP, api: MagicMock):
+async def test_project_discovery_returns_only_names_and_ids(
+    server: FastMCP, api: MagicMock
+) -> None:
     api.request.return_value = {
-        "items": [{"id": str(KB), "name": "Shared wiki", "instructions": "Untrusted payload"}],
+        "items": [
+            {
+                "id": str(KB),
+                "name": "Shared wiki",
+                "instructions": "Untrusted payload",
+                "description": "Injected description",
+                "default_agent_name": "Another label",
+            }
+        ],
         "total": 12,
         "skip": 0,
         "limit": 1,
@@ -976,7 +986,7 @@ async def test_project_discovery_never_returns_instructions(server: FastMCP, api
     }
 
 
-async def test_project_discovery_preserves_empty_pages(server: FastMCP, api: MagicMock):
+async def test_project_discovery_preserves_empty_pages(server: FastMCP, api: MagicMock) -> None:
     api.request.return_value = {"items": [], "total": 0}
     assert (await server.call_tool("list_projects", {})).structured_content == {
         "items": [],

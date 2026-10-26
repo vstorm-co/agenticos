@@ -993,7 +993,8 @@ would be; a refusal comes back as a tool error naming the missing permission.
 | `invite_member` | `members:manage` and `roles:manage` |
 | `list_my_connections`, `set_my_language`, `set_my_profile` | — (the caller's own) |
 
-Project discovery with `list_projects` excludes instructions. Reading one chosen
+Project discovery with `list_projects` returns only project ids and names,
+excluding descriptions, instructions and other authored labels. Reading one chosen
 project with `get_project` includes them and waits for approval under the `writes`
 policy, just like `read_conversation`. Instructions from another shared project
 should not enter the model merely because it searched for a workspace.

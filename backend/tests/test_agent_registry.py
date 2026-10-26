@@ -4918,7 +4918,7 @@ async def test_mutation_rechecks_the_resource_after_waiting_for_its_lock(deleted
 class TestAssistantRuntimeGuidance:
     @pytest.mark.anyio
     @pytest.mark.parametrize("identity", ["architect", "ordinary", "other_tenant"])
-    async def test_guidance_is_scoped_to_the_registered_architect(self, identity: str):
+    async def test_guidance_is_scoped_to_the_registered_architect(self, identity: str) -> None:
         ctx = _ctx()
         agent = _agent(ctx)
         spec = _spec(instructions="Custom wording", mcp_servers=[{"account": "platform"}])
@@ -4943,13 +4943,13 @@ class TestAssistantRuntimeGuidance:
             assert actual is spec
 
     @pytest.mark.anyio
-    async def test_no_platform_binding_keeps_the_agent_unchanged(self):
+    async def test_no_platform_binding_keeps_the_agent_unchanged(self) -> None:
         ctx = _ctx()
         spec = _spec(instructions="Custom wording")
         assert await AgentRegistryService(_db()).with_assistant_guidance(_agent(ctx), spec) is spec
 
     @pytest.mark.anyio
-    async def test_current_guidance_is_not_duplicated(self):
+    async def test_current_guidance_is_not_duplicated(self) -> None:
         ctx = _ctx()
         guidance = (
             (agent_templates.TEMPLATES_ROOT / "general/platform-assistant/PROJECTS.md")
@@ -4964,3 +4964,31 @@ class TestAssistantRuntimeGuidance:
             assert (
                 await AgentRegistryService(_db()).with_assistant_guidance(_agent(ctx), spec) is spec
             )
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        "allowed",
+        [
+            [],
+            ["list_agents"],
+            ["list_projects", "create_project"],
+            ["list_projects", "get_project", "create_project"],
+        ],
+    )
+    async def test_restricted_bindings_do_not_gain_unavailable_workflows(
+        self, allowed: list[str]
+    ) -> None:
+        ctx = _ctx()
+        spec = _spec(
+            instructions="Custom wording",
+            mcp_servers=[{"account": "platform", "allowed_tools": allowed}],
+        )
+        with patch(
+            f"{REGISTRY_PATH}.organization_assistant_repo.for_agent",
+            new=AsyncMock(return_value=MagicMock(organization_id=ctx.organization_id)),
+        ):
+            actual = await AgentRegistryService(_db()).with_assistant_guidance(_agent(ctx), spec)
+        if "get_project" in allowed:
+            assert actual is not spec
+        else:
+            assert actual is spec

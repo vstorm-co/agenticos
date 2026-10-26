@@ -1,5 +1,5 @@
 ---
-source_sha: "4c04e831eea3"
+source_sha: "5bf6eb0fde8e"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1075,7 +1075,8 @@ Tool-Fehler zurück, der die fehlende Berechtigung nennt.
 | `invite_member` | `members:manage` und `roles:manage` |
 | `list_my_connections`, `set_my_language`, `set_my_profile` | — (die eigenen des Aufrufers) |
 
-Die Suche mit `list_projects` lässt Anweisungen aus. `get_project` liest ein
+Die Suche mit `list_projects` liefert nur Projekt-IDs und Namen, ohne
+Beschreibungen, Anweisungen und weitere bearbeitbare Bezeichnungen. `get_project` liest ein
 ausgewähltes Projekt einschließlich seiner Anweisungen und wartet unter `writes`
 wie `read_conversation` auf Freigabe. Anweisungen eines anderen geteilten Projekts
 sollen nicht allein durch die Suche nach einem Arbeitsbereich ins Modell gelangen.

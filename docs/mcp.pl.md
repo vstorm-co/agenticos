@@ -1,5 +1,5 @@
 ---
-source_sha: "4c04e831eea3"
+source_sha: "5bf6eb0fde8e"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1027,7 +1027,8 @@ odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
 | `invite_member` | `members:manage` i `roles:manage` |
 | `list_my_connections`, `set_my_language`, `set_my_profile` | — (własne wywołującego) |
 
-Wyszukiwanie przez `list_projects` pomija instrukcje. Odczyt wybranego projektu
+Wyszukiwanie przez `list_projects` zwraca tylko ID i nazwy projektów,
+pomijając opisy, instrukcje i pozostałe edytowalne etykiety. Odczyt wybranego projektu
 przez `get_project` zawiera je i przy polityce `writes` czeka na akceptację, tak
 jak `read_conversation`. Instrukcje innego udostępnionego projektu nie powinny
 trafiać do modelu wyłącznie dlatego, że szukał przestrzeni roboczej.

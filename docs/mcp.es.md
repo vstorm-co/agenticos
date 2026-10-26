@@ -1,5 +1,5 @@
 ---
-source_sha: "4c04e831eea3"
+source_sha: "5bf6eb0fde8e"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1056,7 +1056,8 @@ permiso que faltaba.
 | `invite_member` | `members:manage` y `roles:manage` |
 | `list_my_connections`, `set_my_language`, `set_my_profile` | — (los de quien llama) |
 
-La búsqueda con `list_projects` omite instrucciones. `get_project` lee un
+La búsqueda con `list_projects` devuelve solo identificadores y nombres,
+omitiendo descripciones, instrucciones y otras etiquetas editables. `get_project` lee un
 proyecto elegido con sus instrucciones y espera aprobación bajo `writes`, igual
 que `read_conversation`. Las instrucciones de otro proyecto compartido no deben
 llegar al modelo solo por buscar un espacio de trabajo.
