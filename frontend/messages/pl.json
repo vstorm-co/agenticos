@@ -10047,7 +10047,8 @@
       "check": "Sprawdź w ewaluacji",
       "dismissAll": "Odrzuć wszystkie",
       "empty": "Asystent czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach i opisach narzędzi. Nic się nie zmienia, dopóki tego nie zaakceptujesz, i nic nie trafia do użytkowników, dopóki nie opublikujesz.",
-      "verifyReport": "Co asystent sądzi o Twoich zmianach"
+      "verifyReport": "Co asystent sądzi o Twoich zmianach",
+      "skillCreated": "Utworzono skill {name} i dodano go do wersji roboczej"
     },
     "suggestion": {
       "tool": "Narzędzie {tool}",
@@ -10228,7 +10229,7 @@
       "prompt": "Przygotuj dla mnie wersję roboczą agenta: {description}"
     },
     "rejected": {
-      "title": "{count, plural, =1 {1 proponowana zmiana nie została zapisana} few {# proponowane zmiany nie zostały zapisane} many {# proponowanych zmian nie zostało zapisanych} other {# proponowanej zmiany nie zapisano}}",
+      "title": "{count, plural, one {1 pomysł, którego asystent nie dodał} few {# pomysły, których asystent nie dodał} many {# pomysłów, których asystent nie dodał} other {# pomysłu, którego asystent nie dodał}}",
       "more": "{count, plural, =1 {1 kolejna nie jest wymieniona} few {# kolejne nie są wymienione} many {# kolejnych nie jest wymienionych} other {# kolejnej nie wymieniono}}",
       "after": "Po: {passage}",
       "atEnd": "Na końcu instrukcji",
@@ -10258,9 +10259,25 @@
         "unsupported": "Mówi, że edycja ma poparcie, ale bez dowodu, który dałoby się sprawdzić",
         "edit_not_in_diff": "Linii, którą wskazuje, nie ma w edycji",
         "superseded": "Późniejsza prośba zdążyła już zastąpić sugestie",
-        "insufficient_evidence": "Nowy skill wymaga zweryfikowanych cytatów z co najmniej trzech różnych odpowiedzi."
+        "insufficient_evidence": "Prosiły o to mniej niż trzy różne odpowiedzi, więc nie dodano go automatycznie."
       },
-      "about": "Dotyczy: {line}"
+      "about": "Dotyczy: {line}",
+      "decide": "{count, plural, one {1 pomysł czeka na Twoją decyzję} few {# pomysły czekają na Twoją decyzję} many {# pomysłów czeka na Twoją decyzję} other {# pomysłu czeka na Twoją decyzję}}",
+      "decideSome": "{count, plural, one {1 pomysł} few {# pomysły} many {# pomysłów} other {# pomysłu}}, {decide, plural, one {1 czeka na Twoją decyzję} few {# czekają na Twoją decyzję} many {# czeka na Twoją decyzję} other {# czeka na Twoją decyzję}}",
+      "createSkill": "Utwórz skill",
+      "created": "Utworzono i dodano do wersji roboczej.",
+      "openSkill": "Otwórz skill",
+      "create": {
+        "title": "Utwórz ten skill",
+        "description": "Skill trafi do Twojej biblioteki skilli i do wersji roboczej tego agenta. Nic nie zostanie opublikowane.",
+        "fewAnswers": "{count, plural, =0 {Nie opiera się na żadnej odpowiedzi.} one {Na podstawie 1 odpowiedzi.} few {Na podstawie # odpowiedzi.} many {Na podstawie # odpowiedzi.} other {Na podstawie # odpowiedzi.}} Sprawdź go, zanim go utworzysz.",
+        "name": "Nazwa",
+        "nameHint": "Małe litery, cyfry i myślniki, na przykład polityka-zwrotow.",
+        "summary": "Do czego służy, jednym zdaniem",
+        "content": "Co robi agent",
+        "cancel": "Anuluj",
+        "create": "Utwórz skill"
+      }
     },
     "noChange": "Asystent nie znalazł nic do zmiany: to, co zaproponował, już tam jest.",
     "goesLive": {

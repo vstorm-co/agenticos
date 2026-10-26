@@ -10264,7 +10264,8 @@
       "check": "Check with evals",
       "dismissAll": "Dismiss all",
       "empty": "The assistant reads what people rated down and how runs ended, and suggests changes to the instructions and tool descriptions. Nothing changes until you accept it, and nothing goes live until you publish.",
-      "verifyReport": "What the assistant made of your edits"
+      "verifyReport": "What the assistant made of your edits",
+      "skillCreated": "Skill {name} created and added to the draft"
     },
     "suggestion": {
       "tool": "Tool {tool}",
@@ -10445,7 +10446,7 @@
       "prompt": "Draft an agent for me: {description}"
     },
     "rejected": {
-      "title": "{count, plural, =1 {1 proposed change was not recorded} other {# proposed changes were not recorded}}",
+      "title": "{count, plural, =1 {1 more idea the assistant did not add} other {# more ideas the assistant did not add}}",
       "more": "{count, plural, =1 {1 more is not listed} other {# more are not listed}}",
       "after": "After: {passage}",
       "atEnd": "At the end of the instructions",
@@ -10475,9 +10476,25 @@
         "unsupported": "Said the edit is supported, with no evidence that could be checked",
         "edit_not_in_diff": "The line it names is not part of the edit",
         "superseded": "A request started later had already replaced the suggestions",
-        "insufficient_evidence": "A new skill needs verified passages from at least three distinct answers."
+        "insufficient_evidence": "Fewer than three different answers asked for this, so it was not added on its own."
       },
-      "about": "About: {line}"
+      "about": "About: {line}",
+      "decide": "{count, plural, =1 {1 more idea needs your decision} other {# more ideas need your decision}}",
+      "decideSome": "{count, plural, =1 {1 more idea} other {# more ideas}}, {decide, plural, =1 {1 needs your decision} other {# need your decision}}",
+      "createSkill": "Create skill",
+      "created": "Created and added to the draft.",
+      "openSkill": "Open the skill",
+      "create": {
+        "title": "Create this skill",
+        "description": "The skill goes into your skill library and into this agent's draft. Nothing is published.",
+        "fewAnswers": "{count, plural, =0 {Not based on any answer.} =1 {Based on 1 answer.} other {Based on # answers.}} Check it before you create it.",
+        "name": "Name",
+        "nameHint": "Lowercase letters, digits and hyphens, for example refund-policy.",
+        "summary": "What it is for, in one sentence",
+        "content": "What the agent does",
+        "cancel": "Cancel",
+        "create": "Create skill"
+      }
     },
     "noChange": "The assistant found nothing to change: what it proposed is what is there now.",
     "goesLive": {

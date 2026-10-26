@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -11,12 +11,15 @@ import { AssistantStrip } from "./assistant-strip";
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 const toastError = vi.hoisted(() => vi.fn());
-vi.mock("sonner", () => ({ toast: { error: toastError } }));
+const toastSuccess = vi.hoisted(() => vi.fn());
+vi.mock("sonner", () => ({ toast: { error: toastError, success: toastSuccess } }));
 
 const state = vi.hoisted(() => ({
   authoring: null as AgentAuthoring | null,
   enabled: true as boolean | null,
   runsView: true,
+  skillsEdit: true,
+  createSkill: vi.fn(),
   published: undefined as { spec: unknown } | undefined,
   decide: vi.fn(),
   dismissAll: vi.fn(),
@@ -30,7 +33,9 @@ vi.mock("@/hooks", () => ({
   useDraftBase: () => ({ base: state.published }),
 }));
 vi.mock("@/hooks/use-permissions", () => ({
-  usePermissions: () => ({ can: () => state.runsView }),
+  usePermissions: () => ({
+    can: (perm: string) => (perm === "skills:edit" ? state.skillsEdit : state.runsView),
+  }),
 }));
 vi.mock("@/hooks/use-eval-suites", () => ({ useAgentEvalSuites: () => ({ suites: [] }) }));
 vi.mock("@/hooks/use-eval-runs", () => ({
@@ -55,6 +60,7 @@ vi.mock("@/hooks/use-authoring", () => ({
     },
     start: { mutateAsync: vi.fn() },
     decide: { mutateAsync: state.decide, isPending: false },
+    createSkill: { mutateAsync: state.createSkill },
     dismissAll: { mutate: state.dismissAll, isPending: false },
     checkEstimate: { mutateAsync: CHECK_ESTIMATE },
     check: { mutateAsync: vi.fn().mockResolvedValue(evalRun({ id: "eval-9" })) },
@@ -82,6 +88,8 @@ function strip(persist = vi.fn().mockResolvedValue(true), onDraft = vi.fn()) {
 
 beforeEach(() => {
   state.runsView = true;
+  state.skillsEdit = true;
+  state.createSkill = vi.fn();
   state.authoring = agentAuthoring();
   state.enabled = true;
   state.published = { spec: DRAFT };
@@ -91,7 +99,25 @@ beforeEach(() => {
   state.error = null;
   push.mockReset();
   toastError.mockReset();
+  toastSuccess.mockReset();
 });
+
+const IDEA = {
+  proposed: 1,
+  recorded: 0,
+  rejected: [
+    {
+      kind: "create_skill" as const,
+      reason: "insufficient_evidence" as const,
+      change: {
+        name: "Refund Policy",
+        description: "Explain refunds",
+        content: "Ask for the order first.",
+        answers: 2,
+      },
+    },
+  ],
+};
 
 describe("AssistantStrip", () => {
   it("says what waits and where it came from", () => {
@@ -285,7 +311,7 @@ describe("AssistantStrip", () => {
       }),
     });
     strip();
-    expect(screen.getByText("1 proposed change was not recorded")).toBeInTheDocument();
+    expect(screen.getByText("1 more idea the assistant did not add")).toBeInTheDocument();
   });
 
   it("goes to the eval run a check started", async () => {
@@ -296,6 +322,63 @@ describe("AssistantStrip", () => {
     await screen.findByText("priced");
     await userEvent.click(screen.getByRole("button", { name: "Start the check" }));
     await waitFor(() => expect(push).toHaveBeenCalledWith("/agents/agent-1/evals/eval-9"));
+  });
+
+  it("creates a skill idea it did not add, after the page's draft is stored", async () => {
+    const written = { ...DRAFT, skill_ids: ["skill-9"] };
+    state.createSkill.mockResolvedValue({ authoring: agentAuthoring(), draft_spec: written });
+    state.authoring = agentAuthoring({ latest: authoringRequest({ report: IDEA }) });
+    const { persist, onDraft } = strip();
+    await userEvent.click(screen.getByText("1 more idea needs your decision"));
+    await userEvent.click(screen.getByRole("button", { name: "Create skill" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/^Based on 2 answers\./)).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Create skill" }));
+    expect(persist).toHaveBeenCalled();
+    expect(state.createSkill).toHaveBeenCalledWith({
+      requestId: "request-1",
+      index: 0,
+      name: "refund-policy",
+      description: "Explain refunds",
+      content: "Ask for the order first.",
+    });
+    await waitFor(() => expect(onDraft).toHaveBeenCalledWith(written));
+    expect(toastSuccess).toHaveBeenCalledWith("Skill refund-policy created and added to the draft");
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("creates nothing while the page's draft cannot be stored", async () => {
+    state.authoring = agentAuthoring({ latest: authoringRequest({ report: IDEA }) });
+    strip(vi.fn().mockResolvedValue(false));
+    await userEvent.click(screen.getByRole("button", { name: "Create skill" }));
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Create skill" }));
+    expect(state.createSkill).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("creates a skill idea from the result dialog too", async () => {
+    state.createSkill.mockResolvedValue({ authoring: agentAuthoring(), draft_spec: DRAFT });
+    state.authoring = agentAuthoring({ latest: authoringRequest({ report: IDEA }) });
+    strip();
+    await userEvent.click(screen.getByRole("button", { name: "Review result" }));
+    const result = await screen.findByRole("dialog");
+    await userEvent.click(within(result).getByRole("button", { name: "Create skill" }));
+    const preview = screen.getAllByRole("dialog").at(-1)!;
+    await userEvent.click(within(preview).getByRole("button", { name: "Create skill" }));
+    await waitFor(() =>
+      expect(state.createSkill).toHaveBeenCalledWith(
+        expect.objectContaining({ requestId: "request-1", index: 0 }),
+      ),
+    );
+  });
+
+  it("offers no skill to someone who may not create skills", () => {
+    state.skillsEdit = false;
+    state.authoring = agentAuthoring({ latest: authoringRequest({ report: IDEA }) });
+    strip();
+    expect(screen.getByText("1 more idea the assistant did not add")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Create skill" })).toBeNull();
   });
 });
 

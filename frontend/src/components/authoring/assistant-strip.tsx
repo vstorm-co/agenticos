@@ -16,7 +16,7 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import type { AgentSpec } from "@/types/agents";
-import type { AuthoringKind, Hunk, HunkDecision } from "@/types/authoring";
+import type { AuthoringKind, Hunk, HunkDecision, ProposedSkill } from "@/types/authoring";
 import { Perm } from "@/types/permissions";
 import { AiOffNotice } from "./ai-off-notice";
 import { CheckDialog } from "./check-dialog";
@@ -60,7 +60,8 @@ export function AssistantStrip({
   const { orgId, enabled } = useAiAssistance();
   // The assistant reads runs, and checking runs an eval whose results are runs:
   // without runs:view, a person decides what waits but cannot ask for more.
-  const canAsk = usePermissions().can(Perm.runsView);
+  const { can } = usePermissions();
+  const canAsk = can(Perm.runsView);
   const assistant = useAgentAuthoring(agentId);
   const [asking, setAsking] = useState<AuthoringKind | null>(null);
   const [checking, setChecking] = useState(false);
@@ -89,6 +90,15 @@ export function AssistantStrip({
       toast.error(getErrorMessage(failure, tErrors));
     }
   }
+
+  async function createSkill(requestId: string, index: number, skill: ProposedSkill) {
+    if (!(await persist())) return false;
+    const created = await assistant.createSkill.mutateAsync({ requestId, index, ...skill });
+    onDraft(created.draft_spec);
+    toast.success(t("skillCreated", { name: skill.name }));
+    return true;
+  }
+  const onCreateSkill = can(Perm.skillsEdit) ? createSkill : undefined;
 
   return (
     <Card data-tour="agent-assistant-strip">
@@ -174,9 +184,17 @@ export function AssistantStrip({
               request={latest}
               batch={batch}
               canReadRuns={canAsk}
+              onCreateSkill={onCreateSkill}
             />
           )}
-          {latest?.status === "completed" && <RejectedChanges report={latest.report} />}
+          {latest?.status === "completed" && (
+            <RejectedChanges
+              report={latest.report}
+              onCreateSkill={
+                onCreateSkill && ((index, skill) => onCreateSkill(latest.id, index, skill))
+              }
+            />
+          )}
           {authoring?.verify?.report?.findings !== undefined && (
             <details>
               <summary className="cursor-pointer text-sm font-medium">{t("verifyReport")}</summary>

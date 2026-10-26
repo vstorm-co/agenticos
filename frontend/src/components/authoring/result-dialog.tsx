@@ -18,21 +18,25 @@ import { useEvalCases, useEvalRun } from "@/hooks/use-eval-runs";
 import { DIALOG_BODY, DIALOG_BROAD, DIALOG_COLUMN } from "@/lib/dialog-sizes";
 import { expectedEffect } from "@/lib/authoring-text";
 import { ROUTES } from "@/lib/constants";
-import type { AuthoringRequest, Hunk, SuggestionBatch } from "@/types/authoring";
+import type { AuthoringRequest, Hunk, ProposedSkill, SuggestionBatch } from "@/types/authoring";
 import { ConversationEvidence, EvidenceList } from "./evidence-list";
 import { NewSkillPreview } from "./new-skill-preview";
 import { FieldDiff, fieldLabel } from "./field-change";
 import { RejectedChanges } from "./rejected-changes";
 
 /** One request owns the notice, so observing a new request cannot reopen an old result. */
+type CreateSkill = (requestId: string, index: number, skill: ProposedSkill) => Promise<boolean>;
+
 export function AuthoringResultNotice({
   request,
   batch,
   canReadRuns,
+  onCreateSkill,
 }: {
   request: AuthoringRequest;
   batch: SuggestionBatch | null;
   canReadRuns: boolean;
+  onCreateSkill?: CreateSkill;
 }) {
   const t = useTranslations("authoring.result");
   const working = request.status === "queued" || request.status === "running";
@@ -54,6 +58,7 @@ export function AuthoringResultNotice({
           request={request}
           batch={matchingBatch}
           canReadRuns={canReadRuns}
+          onCreateSkill={onCreateSkill}
           onOpenChange={(next) => {
             if (!next) {
               setRequested(false);
@@ -70,11 +75,13 @@ export function AuthoringResultDialog({
   request,
   batch,
   canReadRuns,
+  onCreateSkill,
   onOpenChange,
 }: {
   request: AuthoringRequest;
   batch: SuggestionBatch | null;
   canReadRuns: boolean;
+  onCreateSkill?: CreateSkill;
   onOpenChange: (open: boolean) => void;
 }) {
   const t = useTranslations("authoring.result");
@@ -107,7 +114,12 @@ export function AuthoringResultDialog({
           {changes.map((hunk) => (
             <ChangePreview key={hunk.id} hunk={hunk} quotes={canReadRuns} />
           ))}
-          <RejectedChanges report={request.report} />
+          <RejectedChanges
+            report={request.report}
+            onCreateSkill={
+              onCreateSkill && ((index, skill) => onCreateSkill(request.id, index, skill))
+            }
+          />
           {changes.length === 0 && !request.report?.rejected?.length && (
             <p className="text-muted-foreground text-sm">{t("nothingToPlace")}</p>
           )}

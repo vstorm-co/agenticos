@@ -45,7 +45,7 @@ describe("useAgentAuthoring", () => {
     expect(interval({ state: { data: agentAuthoring() } })).toBe(false);
   });
 
-  it("estimates, starts, decides, dismisses and checks through the agent's routes", async () => {
+  it("estimates, starts, decides, creates, dismisses and checks through the agent's routes", async () => {
     vi.mocked(apiClient.get).mockResolvedValue(agentAuthoring());
     const decided = { authoring: agentAuthoring({ batch: null }), draft_spec: { name: "x" } };
     vi.mocked(apiClient.post).mockImplementation(async (url: string) =>
@@ -53,13 +53,22 @@ describe("useAgentAuthoring", () => {
         ? decided
         : url.endsWith("/dismiss")
           ? agentAuthoring({ batch: null })
-          : {},
+          : url.endsWith("/skill")
+            ? { ...decided, skill_id: "s1" }
+            : {},
     );
     const { result } = renderHook(() => useAgentAuthoring("agent-1"), { wrapper });
     await act(async () => {
       await result.current.estimate.mutateAsync({ kind: "improve", window_days: 30 });
       await result.current.start.mutateAsync({ kind: "verify", window_days: 7 });
       await result.current.decide.mutateAsync({ hunkId: "h1", action: "accept" });
+      await result.current.createSkill.mutateAsync({
+        requestId: "r1",
+        index: 2,
+        name: "returns",
+        description: "Returns",
+        content: "Ask first.",
+      });
       await result.current.dismissAll.mutateAsync();
       await result.current.checkEstimate.mutateAsync({ dataset_id: "ds" });
       await result.current.check.mutateAsync({ dataset_id: "ds" });
@@ -68,11 +77,17 @@ describe("useAgentAuthoring", () => {
       "/agents/agent-1/authoring/estimate",
       "/agents/agent-1/authoring",
       "/agents/agent-1/authoring/hunks/h1",
+      "/agents/agent-1/authoring/requests/r1/ideas/2/skill",
       "/agents/agent-1/authoring/dismiss",
       "/agents/agent-1/authoring/check/estimate",
       "/agents/agent-1/authoring/check",
     ]);
     expect(vi.mocked(apiClient.post).mock.calls[2]?.[1]).toEqual({ action: "accept" });
+    expect(vi.mocked(apiClient.post).mock.calls[3]?.[1]).toEqual({
+      name: "returns",
+      description: "Returns",
+      content: "Ask first.",
+    });
   });
 });
 

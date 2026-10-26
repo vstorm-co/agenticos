@@ -90,6 +90,8 @@ export type Rejection =
 export interface RejectedChange {
   kind: "instructions" | "tool_override" | "spec_field" | "create_skill" | "finding";
   reason: Rejection;
+  /** The skill a person created from this idea, once they have. */
+  skill_id?: string;
   /**
    * The change as proposed: passages, a tool's new text, a field's path and value,
    * or a verify finding's verdict, text and the line it named.
@@ -109,7 +111,17 @@ export interface RejectedChange {
     verdict?: VerifyFinding["verdict"];
     text?: string;
     edit?: string;
+    /** A new skill's procedure, and how many distinct answers it was drawn from. */
+    content?: string;
+    answers?: number;
   };
+}
+
+/** A new skill an idea proposed, as the person creates it. */
+export interface ProposedSkill {
+  name: string;
+  description: string;
+  content: string;
 }
 
 export interface EvidenceItem {

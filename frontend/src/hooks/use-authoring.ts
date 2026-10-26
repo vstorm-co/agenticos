@@ -13,6 +13,7 @@ import type {
   AuthoringWaiting,
   HunkDecision,
   ProposalCheck,
+  ProposedSkill,
 } from "@/types/authoring";
 import type { AgentSpec } from "@/types/agents";
 import type { EvalRun, EvalRunEstimate } from "@/types/eval-runs";
@@ -65,6 +66,21 @@ export function useAgentAuthoring(agentId: string, { enabled = true } = {}) {
       return refresh();
     },
   });
+  const createSkill = useMutation({
+    mutationFn: ({
+      requestId,
+      index,
+      ...skill
+    }: ProposedSkill & { requestId: string; index: number }) =>
+      apiClient.post<{ authoring: AgentAuthoring; draft_spec: AgentSpec; skill_id: string }>(
+        `/agents/${agentId}/authoring/requests/${requestId}/ideas/${index}/skill`,
+        skill,
+      ),
+    onSuccess: (created) => {
+      queryClient.setQueryData(qk.authoring.agent(agentId), created.authoring);
+      return Promise.all([refresh(), queryClient.invalidateQueries({ queryKey: qk.skills.all() })]);
+    },
+  });
   const dismissAll = useMutation({
     mutationFn: () => apiClient.post<AgentAuthoring>(`/agents/${agentId}/authoring/dismiss`),
     onSuccess: (read) => {
@@ -91,6 +107,7 @@ export function useAgentAuthoring(agentId: string, { enabled = true } = {}) {
     estimate,
     start,
     decide,
+    createSkill,
     dismissAll,
     checkEstimate,
     check,

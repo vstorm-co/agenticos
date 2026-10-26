@@ -10147,7 +10147,8 @@
       "check": "Mit Evals prüfen",
       "dismissAll": "Alle verwerfen",
       "empty": "Der Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen und Tool-Beschreibungen vor. Nichts ändert sich, bevor Sie es annehmen, und nichts geht live, bevor Sie veröffentlichen.",
-      "verifyReport": "Was der Assistent zu Ihren Änderungen sagt"
+      "verifyReport": "Was der Assistent zu Ihren Änderungen sagt",
+      "skillCreated": "Skill {name} erstellt und zum Entwurf hinzugefügt"
     },
     "suggestion": {
       "tool": "Tool {tool}",
@@ -10328,7 +10329,7 @@
       "prompt": "Entwirf mir einen Agent: {description}"
     },
     "rejected": {
-      "title": "{count, plural, =1 {1 vorgeschlagene Änderung wurde nicht gespeichert} other {# vorgeschlagene Änderungen wurden nicht gespeichert}}",
+      "title": "{count, plural, =1 {1 weitere Idee, die der Assistent nicht hinzugefügt hat} other {# weitere Ideen, die der Assistent nicht hinzugefügt hat}}",
       "more": "{count, plural, =1 {1 weitere ist nicht aufgeführt} other {# weitere sind nicht aufgeführt}}",
       "after": "Nach: {passage}",
       "atEnd": "Am Ende der Anweisungen",
@@ -10358,9 +10359,25 @@
         "unsupported": "Sagt, die Änderung sei belegt, ohne einen prüfbaren Beleg",
         "edit_not_in_diff": "Die Zeile, die er nennt, gehört nicht zur Änderung",
         "superseded": "Eine später gestartete Anfrage hatte die Vorschläge schon ersetzt",
-        "insufficient_evidence": "Ein neuer Skill benötigt geprüfte Textstellen aus mindestens drei verschiedenen Antworten."
+        "insufficient_evidence": "Weniger als drei verschiedene Antworten haben danach gefragt, daher wurde er nicht automatisch hinzugefügt."
       },
-      "about": "Betrifft: {line}"
+      "about": "Betrifft: {line}",
+      "decide": "{count, plural, =1 {1 weitere Idee wartet auf Ihre Entscheidung} other {# weitere Ideen warten auf Ihre Entscheidung}}",
+      "decideSome": "{count, plural, =1 {1 weitere Idee} other {# weitere Ideen}}, {decide, plural, =1 {1 wartet auf Ihre Entscheidung} other {# warten auf Ihre Entscheidung}}",
+      "createSkill": "Skill erstellen",
+      "created": "Erstellt und zum Entwurf hinzugefügt.",
+      "openSkill": "Skill öffnen",
+      "create": {
+        "title": "Diesen Skill erstellen",
+        "description": "Der Skill kommt in Ihre Skill-Bibliothek und in den Entwurf dieses Agents. Nichts wird veröffentlicht.",
+        "fewAnswers": "{count, plural, =0 {Beruht auf keiner Antwort.} =1 {Beruht auf 1 Antwort.} other {Beruht auf # Antworten.}} Prüfen Sie ihn, bevor Sie ihn erstellen.",
+        "name": "Name",
+        "nameHint": "Kleinbuchstaben, Ziffern und Bindestriche, zum Beispiel erstattungsrichtlinie.",
+        "summary": "Wofür er da ist, in einem Satz",
+        "content": "Was der Agent tut",
+        "cancel": "Abbrechen",
+        "create": "Skill erstellen"
+      }
     },
     "noChange": "Der Assistent fand nichts zu ändern: Was er vorschlug, steht schon da.",
     "goesLive": {

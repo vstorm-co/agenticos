@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { AuthoringRequest, RejectedChange } from "@/types/authoring";
 import { RejectedChanges } from "./rejected-changes";
@@ -55,7 +55,7 @@ describe("RejectedChanges", () => {
 
   it("says how many were not recorded, why, and what each proposed", async () => {
     render(<RejectedChanges report={report({ rejected: REJECTED, rejected_more: 2 })} />);
-    await userEvent.click(screen.getByText("11 proposed changes were not recorded"));
+    await userEvent.click(screen.getByText("11 more ideas the assistant did not add"));
 
     expect(screen.getByText("The passage it changes occurs more than once")).toBeVisible();
     expect(screen.getByText("within 30 days")).toBeVisible();
@@ -86,7 +86,43 @@ describe("RejectedChanges", () => {
 
   it("counts one in the singular, and lists all when none is cut", () => {
     render(<RejectedChanges report={report({ rejected: REJECTED.slice(0, 1) })} />);
-    expect(screen.getByText("1 proposed change was not recorded")).toBeInTheDocument();
+    expect(screen.getByText("1 more idea the assistant did not add")).toBeInTheDocument();
     expect(screen.queryByText(/more are not listed/)).toBeNull();
+  });
+
+  it("asks for a decision only on a skill idea written in full and not yet created", () => {
+    const idea: RejectedChange = {
+      kind: "create_skill",
+      reason: "insufficient_evidence",
+      change: { name: "Returns", description: "Returns", content: "Ask first.", answers: 1 },
+    };
+    const onCreateSkill = vi.fn();
+    const { rerender } = render(
+      <RejectedChanges
+        report={report({ rejected: [idea, REJECTED[0]!] })}
+        onCreateSkill={onCreateSkill}
+      />,
+    );
+    expect(screen.getByText("2 more ideas, 1 needs your decision")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create skill" })).toBeInTheDocument();
+    rerender(
+      <RejectedChanges
+        report={report({ rejected: [{ ...idea, skill_id: "skill-9" }] })}
+        onCreateSkill={onCreateSkill}
+      />,
+    );
+    expect(screen.getByText("1 more idea the assistant did not add")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open the skill" })).toHaveAttribute(
+      "href",
+      "/skills/skill-9",
+    );
+    rerender(
+      <RejectedChanges
+        report={report({ rejected: [{ ...idea, change: { name: "Returns" } }, idea] })}
+        onCreateSkill={onCreateSkill}
+      />,
+    );
+    expect(screen.getByText("2 more ideas, 1 needs your decision")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Create skill" })).toHaveLength(1);
   });
 });
