@@ -153,6 +153,7 @@ export function ChangePreview({
   const tSkill = useTranslations("authoring.newSkill");
   const tField = useTranslations("authoring.field");
   const tw = useTranslations("improvement.changeKind");
+  const tWidgets = useTranslations("improvement.widgets");
   const wizard = conversations !== undefined;
   const kind = wizard
     ? hunk.kind === "create_skill"
@@ -182,25 +183,8 @@ export function ChangePreview({
           .filter(Boolean)
           .join("\n")
       : hunk.new_text;
-  return (
-    <article className="space-y-3 rounded-lg border p-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="secondary">{kind}</Badge>
-        {!hunk.applies && <Badge variant="warning">{wizard ? tw("stale") : ts("stale")}</Badge>}
-      </div>
-      {hunk.kind === "create_skill" ? (
-        <NewSkillPreview hunk={hunk} />
-      ) : hunk.kind === "spec_field" ? (
-        <FieldDiff hunk={hunk} editing={null} expected={!wizard} />
-      ) : (
-        <DiffView
-          before={before}
-          after={after}
-          context={hunk.kind === "instructions" ? hunk.context_before : ""}
-          trailing={hunk.kind === "instructions" ? hunk.context_after : ""}
-          emptyLabel={t("emptyPassage")}
-        />
-      )}
+  const reasons = (
+    <>
       <div>
         <h4 className="text-xs font-medium">{t("why")}</h4>
         <RationaleText
@@ -220,6 +204,35 @@ export function ChangePreview({
           />
         )}
       </div>
+    </>
+  );
+  return (
+    <article className="space-y-3 rounded-lg border p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="secondary">{kind}</Badge>
+        {!hunk.applies && <Badge variant="warning">{wizard ? tw("stale") : ts("stale")}</Badge>}
+      </div>
+      {hunk.kind === "create_skill" ? (
+        <NewSkillPreview hunk={hunk} />
+      ) : hunk.kind === "spec_field" ? (
+        <FieldDiff hunk={hunk} editing={null} expected={!wizard} />
+      ) : (
+        <DiffView
+          before={before}
+          after={after}
+          context={hunk.kind === "instructions" ? hunk.context_before : ""}
+          trailing={hunk.kind === "instructions" ? hunk.context_after : ""}
+          emptyLabel={t("emptyPassage")}
+        />
+      )}
+      {wizard ? (
+        <details>
+          <summary className="cursor-pointer text-sm font-medium">{tWidgets("reasons")}</summary>
+          <div className="mt-2 space-y-3">{reasons}</div>
+        </details>
+      ) : (
+        reasons
+      )}
     </article>
   );
 }

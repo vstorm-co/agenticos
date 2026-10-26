@@ -6,9 +6,9 @@ import { useEvalRun } from "@/hooks/use-eval-runs";
 import type { EvalRun } from "@/types/eval-runs";
 import type { Improvement } from "@/types/improvement";
 import { StepError } from "./step-error";
+import { StateBadge, Stepper, type StageState } from "./widgets";
 
 type Stage = "asking" | "grading" | "repeating";
-type StageState = "done" | "running" | "pending";
 
 function stages(run: EvalRun, judging: boolean): Record<Stage, StageState> {
   const finished = run.status === "completed";
@@ -55,8 +55,10 @@ export function CheckProgress({
       )}
       {!active && measured && (
         <div className="space-y-3">
-          <p className="text-sm">{t("checkFinished")}</p>
-          <Button onClick={onShowResult}>{t("showResult")}</Button>
+          <StateBadge tone="good">{t("checkFinished")}</StateBadge>
+          <div>
+            <Button onClick={onShowResult}>{t("showResult")}</Button>
+          </div>
         </div>
       )}
       {!active && !measured && session.stop_reason !== "budget" && (
@@ -75,18 +77,15 @@ function RunStages({ runId, judging }: { runId: string; judging: boolean }) {
   return (
     <>
       <p className="text-sm">{t("checkQuestions", { count: run.cases })}</p>
-      <ol className="space-y-2 text-sm">
-        {(["asking", "grading", "repeating"] as const).map((stage) => (
-          <li key={stage} className="flex items-start gap-2">
-            <span className="text-muted-foreground w-24 shrink-0">
-              {t(`stepState.${state[stage]}`)}
-            </span>
-            <span className={state[stage] === "running" ? "font-medium" : undefined}>
-              {t(`checkStage.${stage}`, { count: run.attempts_total - run.first_total })}
-            </span>
-          </li>
-        ))}
-      </ol>
+      <Stepper
+        label={t("checkTitle")}
+        stages={(["asking", "grading", "repeating"] as const).map((stage) => ({
+          id: stage,
+          label: t(`checkStage.${stage}`, { count: run.attempts_total - run.first_total }),
+          state: state[stage],
+          stateLabel: t(`stepState.${state[stage]}`),
+        }))}
+      />
     </>
   );
 }

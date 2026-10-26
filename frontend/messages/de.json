@@ -11001,6 +11001,35 @@
       "discarded": "{name} hat die Vorschläge verworfen · {at}",
       "accepted": "{name} hat die Änderungen als Entwurf behalten · {at}",
       "published": "{name} hat die neue Version veröffentlicht · {at}"
+    },
+    "widgets": {
+      "handled": "Gut beantwortet",
+      "notHandled": "Nicht gut beantwortet",
+      "notGraded": "Nicht bewertet",
+      "ofTotal": "{count} von {total}",
+      "whereFrom": "Woher die Fragen kommen",
+      "fromRatedDown": "Aus negativ bewerteten Antworten",
+      "fromLiked": "Aus Antworten, die gefallen haben",
+      "written": "Für Themen ohne Beispiel geschrieben",
+      "byHand": "Von Hand hinzugefügt oder importiert",
+      "howUsed": "Wie sie verwendet werden",
+      "helpWrite": "Helfen, die Änderungen zu schreiben",
+      "keptAside": "Zurückgelegt, um das Ergebnis zu prüfen",
+      "partitionLabel": "{train, plural, one {# Frage hilft} other {# Fragen helfen}}, die Änderungen zu schreiben; {holdout, plural, one {# wird} other {# werden}} zurückgelegt, um das Ergebnis zu prüfen.",
+      "tooFew": "Zu wenige Fragen",
+      "weakQuestions": "Fragen, die er nicht gut beantwortet hat",
+      "comments": "{count, plural, one {# Kommentar} other {# Kommentare}}",
+      "toReview": "Zu prüfende Dokumente",
+      "fixes": "Behebt",
+      "breaks": "Bricht",
+      "costPerAnswer": "Kosten pro Antwort",
+      "testedOn": "Geprüfte Fragen",
+      "heldOutCaption": "{count} nicht zum Schreiben der Änderungen verwendet",
+      "allQuestions": "Alle Testfragen",
+      "heldOut": "Fragen, die nicht zum Schreiben der Änderungen verwendet wurden",
+      "reasons": "Warum, und worauf es beruht",
+      "proposed": "Vorgeschlagene Änderungen",
+      "included": "Im Test enthalten"
     }
   }
 }

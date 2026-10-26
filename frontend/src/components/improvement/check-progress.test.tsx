@@ -43,20 +43,23 @@ it("walks through asking, grading and re-asking while the test runs", () => {
   });
   const view = render(<CheckProgress session={RUNNING} onShowResult={vi.fn()} />);
   expect(screen.getByText("On 12 questions.")).toBeInTheDocument();
-  expect(stageOf(/Asking the improved agent/)).toMatch(/^Running/);
-  expect(stageOf(/^Grading/)).toMatch(/^Not started/);
-  expect(stageOf(/Re-asking answers whose result changed/)).toMatch(/^Not started/);
+  expect(screen.getByRole("list", { name: "Testing the changes" })).toBeInTheDocument();
+  expect(stageOf(/Asking the improved agent/).startsWith("Asking")).toBe(true);
+  expect(stageOf(/Asking the improved agent/)).toMatch(/Running$/);
+  expect(stageOf(/^Grading/)).toMatch(/Not started$/);
+  expect(stageOf(/Re-asking answers whose result changed/)).toMatch(/Not started$/);
   expect(screen.getByRole("status")).toHaveTextContent(/close this page/);
   state.run = { ...state.run, first_done: 24, attempts_total: 26, attempts_done: 24 };
   view.rerender(
     <CheckProgress session={{ ...RUNNING, stage: "judging" }} onShowResult={vi.fn()} />,
   );
-  expect(stageOf(/Asking the improved agent/)).toMatch(/^Done/);
-  expect(stageOf(/^Grading/)).toMatch(/^Running/);
-  expect(stageOf(/Re-asking 2 answers whose result changed/)).toMatch(/^Running/);
+  expect(stageOf(/Asking the improved agent/)).toMatch(/Done$/);
+  expect(screen.getByText(/^Grading/).closest("li")).toHaveAttribute("aria-current", "step");
+  expect(stageOf(/^Grading/)).toMatch(/Running$/);
+  expect(stageOf(/Re-asking 2 answers whose result changed/)).toMatch(/Running$/);
   state.run = { ...state.run, status: "completed" };
   view.rerender(<CheckProgress session={RUNNING} onShowResult={vi.fn()} />);
-  expect(stageOf(/Re-asking 2 answers/)).toMatch(/^Done/);
+  expect(stageOf(/Re-asking 2 answers/)).toMatch(/Done$/);
 });
 
 it("says the test is being prepared before it has a run, and retries a failed read", async () => {

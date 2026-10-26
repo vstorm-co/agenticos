@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, CircleDot, Loader2 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ErrorState, LoadingState } from "@/components/states";
@@ -163,13 +163,30 @@ function Session({
         />
       </nav>
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4 text-sm">
-        <p role="status">{t(`status.${session.status}`)}</p>
-        <p>
-          {t("spend", {
-            spent: usd(session.spent_usd, locale),
-            budget: usd(session.budget_usd, locale),
-          })}
+        <p role="status" className="flex items-center gap-2 font-medium">
+          {active ? (
+            <Loader2 className="text-chart size-4 animate-spin" aria-hidden />
+          ) : (
+            <CircleDot className="text-muted-foreground size-4" aria-hidden />
+          )}
+          {t(`status.${session.status}`)}
         </p>
+        <div className="w-full space-y-1.5 sm:w-64">
+          <p className="text-muted-foreground">
+            {t("spend", {
+              spent: usd(session.spent_usd, locale),
+              budget: usd(session.budget_usd, locale),
+            })}
+          </p>
+          <div aria-hidden className="bg-muted h-1.5 overflow-hidden rounded-full">
+            <div
+              className="bg-chart h-full rounded-full"
+              style={{
+                width: `${Math.min(100, (Number(session.spent_usd) / Math.max(Number(session.budget_usd), 1e-9)) * 100)}%`,
+              }}
+            />
+          </div>
+        </div>
       </div>
       {session.stop_reason && (
         <p role={session.status === "failed" ? "alert" : undefined} className="text-sm">

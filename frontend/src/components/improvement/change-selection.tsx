@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { FilePen, ListChecks, Target } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { Button, Checkbox } from "@/components/ui";
 import { ChangePreview } from "@/components/authoring/result-dialog";
@@ -9,6 +10,7 @@ import { useImprovement, useImprovementEvidence } from "@/hooks/use-improvements
 import { getErrorMessage } from "@/lib/api-error";
 import type { Hunk } from "@/types/authoring";
 import type { Improvement, ImprovementIteration, SelectionEstimate } from "@/types/improvement";
+import { Tiles } from "./widgets";
 
 export function ChangeSelection({
   session,
@@ -56,6 +58,17 @@ export function ChangeSelection({
       <h2 className="font-medium">
         {t("round", { number: round.number, max: session.max_iterations })}
       </h2>
+      <Tiles
+        tiles={[
+          { label: t("widgets.proposed"), value: hunks.length, tone: "indigo", icon: FilePen },
+          {
+            label: t("widgets.included"),
+            value: hunks.filter((hunk) => included.includes(hunk.id)).length,
+            tone: "teal",
+            icon: ListChecks,
+          },
+        ]}
+      />
       {hunks.map((hunk, index) => (
         <div key={hunk.id} className="space-y-3">
           {hunk.status === "pending" && (
@@ -77,9 +90,12 @@ export function ChangeSelection({
           )}
           <ChangePreview hunk={hunk} conversations={conversations} />
           {hunk.expected_effect && (
-            <div className="px-4 text-sm">
-              <h4 className="text-xs font-medium">{t("shouldFix")}</h4>
-              <p className="break-words">{hunk.expected_effect}</p>
+            <div className="bg-success/5 border-success/30 flex items-start gap-2 rounded-lg border p-3 text-sm">
+              <Target className="text-success mt-0.5 size-4 shrink-0" aria-hidden />
+              <div className="min-w-0">
+                <h4 className="text-xs font-medium">{t("shouldFix")}</h4>
+                <p className="break-words">{hunk.expected_effect}</p>
+              </div>
             </div>
           )}
         </div>

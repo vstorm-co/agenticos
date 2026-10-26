@@ -10901,6 +10901,35 @@
       "discarded": "{name} odrzucił(a) sugestie · {at}",
       "accepted": "{name} zachował(a) zmiany w wersji roboczej · {at}",
       "published": "{name} opublikował(a) nową wersję · {at}"
+    },
+    "widgets": {
+      "handled": "Obsłużone dobrze",
+      "notHandled": "Obsłużone źle",
+      "notGraded": "Bez oceny",
+      "ofTotal": "{count} z {total}",
+      "whereFrom": "Skąd pochodzą pytania",
+      "fromRatedDown": "Z odpowiedzi ocenionych negatywnie",
+      "fromLiked": "Z odpowiedzi, które się spodobały",
+      "written": "Napisane dla tematów bez przykładu",
+      "byHand": "Dodane ręcznie lub zaimportowane",
+      "howUsed": "Jak są używane",
+      "helpWrite": "Pomagają napisać zmiany",
+      "keptAside": "Odłożone do sprawdzenia wyniku",
+      "partitionLabel": "{train, plural, one {# pytanie pomaga} few {# pytania pomagają} many {# pytań pomaga} other {# pytania pomaga}} napisać zmiany; {holdout, plural, one {# jest odłożone} few {# są odłożone} many {# jest odłożonych} other {# jest odłożonych}} do sprawdzenia wyniku.",
+      "tooFew": "Za mało pytań",
+      "weakQuestions": "Pytania, z którymi sobie nie poradził",
+      "comments": "{count, plural, one {# komentarz} few {# komentarze} many {# komentarzy} other {# komentarza}}",
+      "toReview": "Dokumenty do przejrzenia",
+      "fixes": "Naprawia",
+      "breaks": "Psuje",
+      "costPerAnswer": "Koszt odpowiedzi",
+      "testedOn": "Sprawdzone pytania",
+      "heldOutCaption": "{count, plural, one {# nieużyte} few {# nieużyte} many {# nieużytych} other {# nieużytego}} do napisania zmian",
+      "allQuestions": "Wszystkie pytania testowe",
+      "heldOut": "Pytania nieużyte do napisania zmian",
+      "reasons": "Dlaczego i na czym się opiera",
+      "proposed": "Zaproponowane zmiany",
+      "included": "Włączone do testu"
     }
   }
 }

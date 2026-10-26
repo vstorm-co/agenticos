@@ -198,7 +198,8 @@ it("keeps unknown causes explicit and shows quotes, comments, reasons and source
   expect(screen.getByText(/has not been classified/)).toBeInTheDocument();
   expect(screen.getByText("No source passage")).toBeInTheDocument();
   expect(screen.getByText(/test answer failed/)).toBeInTheDocument();
-  await userEvent.click(screen.getByText(/Not a problem to fix/));
+  expect(screen.getByRole("img", { name: /^We found \d+ problems?:/ })).toBeInTheDocument();
+  await userEvent.click(screen.getByText(/^Not a problem to fix \(/));
   expect(screen.getByText(/existing feedback and classification/)).toBeInTheDocument();
 });
 it("does not invent examples when sources are gone or unreadable", () => {
@@ -422,17 +423,20 @@ it("counts the test questions by where they came from and shows the answer to av
     limit: 100,
   });
   expect(
-    screen.getByText(
-      "4 test questions: 1 from answers people rated down, 1 from answers they liked, 1 written for topics with no example, 1 added by hand or imported.",
-    ),
+    screen.getByRole("img", {
+      name: "4 test questions: 1 from answers people rated down, 1 from answers they liked, 1 written for topics with no example, 1 added by hand or imported.",
+    }),
   ).toBeInTheDocument();
+  expect(screen.getByText("From answers rated down").closest("li")).toHaveTextContent("1");
   await userEvent.click(screen.getByText("Review the questions"));
   expect(screen.getByText("An answer to avoid: 90 days")).toBeInTheDocument();
   expect(screen.getAllByText("Not used to write the changes")).toHaveLength(4);
   state.questions = state.questions.slice(0, 3);
   state.total = 3;
   view.rerender(<TestQuestions session={SESSION} />);
-  expect(screen.getByText(/written for topics with no example\.$/)).toBeInTheDocument();
+  expect(
+    screen.getByRole("img", { name: /written for topics with no example\.$/ }),
+  ).toBeInTheDocument();
 });
 
 function sortable() {

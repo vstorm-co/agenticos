@@ -11118,6 +11118,35 @@
       "discarded": "{name} discarded the suggestions · {at}",
       "accepted": "{name} kept the changes as a draft · {at}",
       "published": "{name} published the new version · {at}"
+    },
+    "widgets": {
+      "handled": "Handled well",
+      "notHandled": "Not handled well",
+      "notGraded": "Not graded",
+      "ofTotal": "{count} of {total}",
+      "whereFrom": "Where the questions come from",
+      "fromRatedDown": "From answers rated down",
+      "fromLiked": "From answers people liked",
+      "written": "Written for topics with no example",
+      "byHand": "Added by hand or imported",
+      "howUsed": "How they are used",
+      "helpWrite": "Help write the changes",
+      "keptAside": "Kept aside to check the result",
+      "partitionLabel": "{train, plural, one {# question helps} other {# questions help}} write the changes; {holdout, plural, one {# is} other {# are}} kept aside to check the result.",
+      "tooFew": "Too few questions",
+      "weakQuestions": "Questions it did not handle well",
+      "comments": "{count, plural, one {# comment} other {# comments}}",
+      "toReview": "Documents to review",
+      "fixes": "Fixes",
+      "breaks": "Breaks",
+      "costPerAnswer": "Cost per answer",
+      "testedOn": "Questions tested",
+      "heldOutCaption": "{count} not used to write the changes",
+      "allQuestions": "All test questions",
+      "heldOut": "Questions not used to write the changes",
+      "reasons": "Why, and what it is based on",
+      "proposed": "Changes proposed",
+      "included": "Included in the test"
     }
   }
 }

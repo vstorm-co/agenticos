@@ -324,13 +324,14 @@ it("opens the result with one sentence for the agent and one for the knowledge b
   state.topics = [{ id: "t1", label: "Shipping", has_draft: true, can_edit: true }];
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
   expect(
-    screen.getByText("In the agent: 3 questions newly fixed, 0 newly broken."),
+    screen.getByRole("group", {
+      name: "In the agent: 3 questions newly fixed, 0 newly broken. In the knowledge base: 1 document to review.",
+    }),
   ).toBeInTheDocument();
-  expect(screen.getByText("In the knowledge base: 1 document to review.")).toBeInTheDocument();
   expect(screen.getByText("Show details: test a knowledge draft")).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Check" }));
   await userEvent.click(screen.getByRole("button", { name: "See the result" }));
-  expect(screen.getByText(/3 questions newly fixed/)).toBeInTheDocument();
+  expect(screen.getByRole("group", { name: /3 questions newly fixed/ })).toBeInTheDocument();
 });
 it("shows saved draft completion and the exact next version before publishing", async () => {
   state.session!.next_version = 4;

@@ -1,12 +1,14 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
+import { Coins } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
 import { usd } from "@/components/evals/format";
 import { ImprovementMeasurement } from "@/components/evals/improvement-measurement";
 import { ReviewReevaluationNote } from "@/components/evals/review-reevaluation-note";
 import { ChangedAnswers } from "./changed-answers";
+import { BeforeAfter, StateBadge } from "./widgets";
 import { useEvalComparison, useEvalRun } from "@/hooks/use-eval-runs";
 import { useImprovement } from "@/hooks/use-improvements";
 import { getErrorMessage } from "@/lib/api-error";
@@ -48,15 +50,16 @@ export function RoundResults({
         </h3>
         <span className="text-muted-foreground text-sm">{usd(round.cost_usd, locale)}</span>
       </div>
-      <p
-        className={
+      <StateBadge
+        className="text-sm"
+        tone={
           round.verdict === "better"
-            ? "text-success"
+            ? "good"
             : round.verdict === "regression"
               ? worse
-                ? "text-destructive"
-                : "text-warning"
-              : "text-muted-foreground"
+                ? "bad"
+                : "warn"
+              : "neutral"
         }
       >
         {round.verdict
@@ -69,7 +72,7 @@ export function RoundResults({
           : t(
               ["queued", "running"].includes(session.status) ? "working" : "attributionUnavailable",
             )}
-      </p>
+      </StateBadge>
       {latestCheck && (
         <MeasuredResult runId={latestCheck} attributions={round.attribution_eval_run_ids} />
       )}
@@ -228,26 +231,37 @@ function MeasuredResult({
       )}
       {comparisonError && <p role="alert">{getErrorMessage(comparisonError, tErrors)}</p>}
       {!comparison && !comparisonError && <p role="status">{t("loading")}</p>}
-      {baseline && candidate && (
-        <p className="text-base font-medium">
-          {t("handledChange", {
-            before: baseline.summary.passed,
-            after: candidate.summary.passed,
-            total: candidate.summary.cases,
-          })}
-        </p>
-      )}
+      <div className="grid gap-3 md:grid-cols-2">
+        {baseline && candidate && (
+          <BeforeAfter
+            title={t("widgets.allQuestions")}
+            label={t("handledChange", {
+              before: baseline.summary.passed,
+              after: candidate.summary.passed,
+              total: candidate.summary.cases,
+            })}
+            before={baseline.summary.passed}
+            after={candidate.summary.passed}
+            total={candidate.summary.cases}
+          />
+        )}
+        {comparison?.baseline_summary && (
+          <BeforeAfter
+            title={t("widgets.heldOut")}
+            label={t("heldoutResult", {
+              before: comparison.baseline_summary.passed,
+              after: comparison.candidate_summary.passed,
+              total: comparison.candidate_summary.cases,
+            })}
+            before={comparison.baseline_summary.passed}
+            after={comparison.candidate_summary.passed}
+            total={comparison.candidate_summary.cases}
+          />
+        )}
+      </div>
       {comparison?.baseline_summary && (
-        <p className="text-sm">
-          {t("heldoutResult", {
-            before: comparison.baseline_summary.passed,
-            after: comparison.candidate_summary.passed,
-            total: comparison.candidate_summary.cases,
-          })}
-        </p>
-      )}
-      {comparison?.baseline_summary && (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-muted-foreground flex items-center gap-2 text-sm">
+          <Coins className="size-4 shrink-0" aria-hidden />
           {t("answerCost", {
             before: usd(
               String(

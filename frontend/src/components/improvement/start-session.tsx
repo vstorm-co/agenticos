@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Clock } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import {
   Button,
@@ -126,8 +127,12 @@ export function StartSession({ agentId }: { agentId: string }) {
         )}
         {target && !quote && refused === null && <p role="status">{t("estimating")}</p>}
         {quote && (
-          <section className="space-y-3 rounded-lg border p-4" data-tour="improvement-quote">
-            <p>
+          <section
+            className="border-primary/30 bg-primary/5 space-y-3 rounded-xl border p-4"
+            data-tour="improvement-quote"
+          >
+            <p className="flex items-start gap-2">
+              <Clock className="text-primary mt-0.5 size-4 shrink-0" aria-hidden />
               {t("sessionQuote", {
                 minutes: quote.estimated_minutes,
                 cost: usd(quote.total_usd, locale),
@@ -135,14 +140,6 @@ export function StartSession({ agentId }: { agentId: string }) {
                 rounds: quote.max_iterations,
               })}
             </p>
-            <p className="text-muted-foreground text-sm">
-              {t("evidence", { count: quote.evidence_runs })}
-            </p>
-            {Number(quote.knowledge_usd ?? 0) > 0 && (
-              <p className="text-muted-foreground text-sm">
-                {t("knowledgeEstimate", { cost: usd(quote.knowledge_usd ?? "0", locale) })}
-              </p>
-            )}
             {quote.reason && <p role="status">{tr(`reason.${quote.reason}`)}</p>}
             <Button
               disabled={
@@ -178,12 +175,20 @@ export function StartSession({ agentId }: { agentId: string }) {
           </p>
         )}
         <details
-          className="rounded-lg border p-3"
+          className="rounded-xl border p-3"
           data-tour="improvement-details"
           onToggle={(event) => setDetails(event.currentTarget.open)}
         >
           <summary className="cursor-pointer text-sm font-medium">{t("showDetails")}</summary>
           <div className="mt-3 space-y-4">
+            {quote && (
+              <div className="text-muted-foreground space-y-1 text-sm">
+                <p>{t("evidence", { count: quote.evidence_runs })}</p>
+                {quote.knowledge_usd && Number(quote.knowledge_usd) > 0 && (
+                  <p>{t("knowledgeEstimate", { cost: usd(quote.knowledge_usd, locale) })}</p>
+                )}
+              </div>
+            )}
             <div className="space-y-2" data-tour="improvement-test-set">
               <Label htmlFor="improvement-target">{t("testSet")}</Label>
               <Select value={target} onValueChange={setChosen}>

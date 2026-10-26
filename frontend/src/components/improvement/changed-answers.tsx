@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import { useEvalCases, useEvalComparison, useEvalRun } from "@/hooks/use-eval-runs";
 import { getErrorMessage } from "@/lib/api-error";
 import type { CaseFlip, EvalCase } from "@/types/eval-runs";
+import { Details, StateBadge } from "./widgets";
 
 /**
  * Changed held-out questions, each marked newly fixed or newly broken. Only a change
@@ -80,17 +81,16 @@ function ChangedRow({
   const before = item.attempts.find((a) => a.arm_id === baselineId && a.attempt === 0);
   const after = item.attempts.find((a) => a.arm_id === candidateId && a.attempt === 0);
   return (
-    <article className="space-y-3 rounded-lg border p-4">
-      <p
-        className={
-          flip === "regression"
-            ? "text-destructive text-xs font-medium"
-            : "text-success text-xs font-medium"
-        }
-      >
-        {t(flip === "regression" ? "newlyBroken" : "newlyFixed")}
-      </p>
-      <h4 className="text-sm font-medium">{item.input}</h4>
+    <Details
+      summary={
+        <span className="flex flex-col items-start gap-1.5">
+          <StateBadge tone={flip === "regression" ? "bad" : "good"}>
+            {t(flip === "regression" ? "newlyBroken" : "newlyFixed")}
+          </StateBadge>
+          <span className="break-words">{item.input}</span>
+        </span>
+      }
+    >
       <div className="grid gap-4 md:grid-cols-2">
         {[
           { label: t("before"), value: before?.answer },
@@ -119,7 +119,7 @@ function ChangedRow({
           ))
         )}
       </div>
-    </article>
+    </Details>
   );
 }
 function ChangeCause({ caseId, runId, number }: { caseId: string; runId: string; number: number }) {

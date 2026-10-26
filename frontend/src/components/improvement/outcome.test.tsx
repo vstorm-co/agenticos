@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { comparison, SUMMARY } from "@/test-utils/eval-runs";
@@ -105,13 +105,19 @@ beforeEach(() => {
 
 it("sums up the result for the agent and for this session's knowledge documents", () => {
   const view = render(<ResultSummary session={SESSION} round={ROUND} />);
-  expect(
-    screen.getByText("In the agent: 3 questions newly fixed, 0 newly broken."),
-  ).toBeInTheDocument();
-  expect(screen.getByText("In the knowledge base: 2 documents to review.")).toBeInTheDocument();
+  const tiles = screen.getByRole("group", {
+    name: "In the agent: 3 questions newly fixed, 0 newly broken. In the knowledge base: 2 documents to review.",
+  });
+  expect(within(tiles).getByText("Newly fixed").closest("div.flex-col")).toHaveTextContent("3");
+  expect(within(tiles).getByText("Documents to review").closest("div.flex-col")).toHaveTextContent(
+    "2",
+  );
   view.rerender(
     <ResultSummary session={SESSION} round={{ ...ROUND, verdict_detail: { fixed: null } }} />,
   );
+  expect(
+    screen.getByRole("group", { name: /^In the agent: no measured result yet\./ }),
+  ).toBeInTheDocument();
   expect(screen.getByText("In the agent: no measured result yet.")).toBeInTheDocument();
 });
 
@@ -153,21 +159,22 @@ it("keeps a document set aside with Not now off the list, and says when that fai
 
 it("states what the new version fixes, breaks and costs, and what it was tested on", () => {
   const view = render(<AcceptSummary session={{ ...SESSION, next_version: 4 }} round={ROUND} />);
-  expect(
-    screen.getByText(
-      "In the agent: version 4 will fix 3 questions, break 0, cost +2% per answer. Tested on 12 questions, 5 of them not used to write the changes.",
-    ),
-  ).toBeInTheDocument();
+  const tiles = screen.getByRole("group", {
+    name: "In the agent: version 4 will fix 3 questions, break 0, cost +2% per answer. Tested on 12 questions, 5 of them not used to write the changes.",
+  });
+  expect(within(tiles).getByText("+2%")).toBeInTheDocument();
+  expect(within(tiles).getByText("5 not used to write the changes")).toBeInTheDocument();
   state.compared = comparison({
     baseline_summary: { ...SUMMARY, cost_usd: "0" },
     candidate_summary: { ...SUMMARY, cases: 4 },
   });
   view.rerender(<AcceptSummary session={SESSION} round={ROUND} />);
   expect(
-    screen.getByText(
-      "In the agent: the new version will fix 3 questions, break 0. Tested on 12 questions, 4 of them not used to write the changes.",
-    ),
+    screen.getByRole("group", {
+      name: "In the agent: the new version will fix 3 questions, break 0. Tested on 12 questions, 4 of them not used to write the changes.",
+    }),
   ).toBeInTheDocument();
+  expect(screen.getByText("–")).toBeInTheDocument();
   view.rerender(<AcceptSummary session={SESSION} round={{ ...ROUND, eval_run_ids: [] }} />);
   expect(screen.getByText("In the agent: no measured result yet.")).toBeInTheDocument();
 });
@@ -175,7 +182,9 @@ it("states what the new version fixes, breaks and costs, and what it was tested 
 it("reads no cost or held-out count from a comparison it does not have", () => {
   state.compared = null;
   render(<AcceptSummary session={SESSION} round={ROUND} />);
-  expect(screen.getByText(/break 0\. Tested on 12 questions, 0 of them/)).toBeInTheDocument();
+  expect(
+    screen.getByRole("group", { name: /break 0\. Tested on 12 questions, 0 of them/ }),
+  ).toBeInTheDocument();
 });
 
 it("says what publishing does in each place people use the agent", () => {

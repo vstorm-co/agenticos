@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { AlertTriangle, ListX, ThumbsDown, XCircle } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
 import { useImprovementEvidence } from "@/hooks/use-improvements";
@@ -13,6 +14,7 @@ import type { Improvement } from "@/types/improvement";
 import type { DatasetCase } from "@/types/datasets";
 import { WriteQuestions } from "./write-questions";
 import { StepError } from "./step-error";
+import { Details, Handled, Proportion, StateBadge, Tiles } from "./widgets";
 
 export function StartSignals({ agentId, datasetId }: { agentId: string; datasetId: string }) {
   const t = useTranslations("improvement");
@@ -28,26 +30,36 @@ export function StartSignals({ agentId, datasetId }: { agentId: string; datasetI
   const evidence = sources.evidence;
   const counts = attention.agents.find((agent) => agent.agent_id === agentId);
   return (
-    <section className="space-y-3" aria-label={t("sourceSignals")}>
-      <p className="text-muted-foreground text-sm">{t("signalWindow")}</p>
+    <section className="space-y-2" aria-label={t("sourceSignals")}>
       {attention.error || sources.error ? (
         <p role="alert">{getErrorMessage(attention.error || sources.error, tErrors)}</p>
       ) : attention.isLoading || sources.isLoading || !evidence ? (
         <p role="status">{t("loading")}</p>
       ) : (
         <>
-          <dl className="grid gap-3 sm:grid-cols-3">
-            {[
-              [t("ratedSignals"), counts?.rated_down ?? 0],
-              [t("failedSignals"), counts?.failed_runs ?? 0],
-              [t("trainSignals"), evidence.training_failures],
-            ].map(([label, count]) => (
-              <div key={label} className="rounded-xl border p-4">
-                <dt className="text-muted-foreground text-sm">{label}</dt>
-                <dd className="mt-1 text-2xl font-medium tabular-nums">{count}</dd>
-              </div>
-            ))}
-          </dl>
+          <Tiles
+            tiles={[
+              {
+                label: t("ratedSignals"),
+                value: counts?.rated_down ?? 0,
+                tone: "rose",
+                icon: ThumbsDown,
+              },
+              {
+                label: t("failedSignals"),
+                value: counts?.failed_runs ?? 0,
+                tone: "amber",
+                icon: AlertTriangle,
+              },
+              {
+                label: t("trainSignals"),
+                value: evidence.training_failures,
+                tone: "violet",
+                icon: ListX,
+              },
+            ]}
+          />
+          <p className="text-muted-foreground text-xs">{t("signalWindow")}</p>
           {evidence.items.length === 0 && (
             <p className="text-muted-foreground text-sm">{t("noLearningExamples")}</p>
           )}
@@ -100,16 +112,49 @@ export function TestQuestions({ session }: { session: Improvement }) {
   });
   if (questions.error) return <StepError error={questions.error} retry={questions.refetch} />;
   if (questions.isLoading) return <p role="status">{t("loading")}</p>;
+  const whole = all.cases.length === questions.total && questions.total > 0;
+  const sources = sourceCounts(all.cases);
+  const train = all.cases.filter((item) => item.improvement_partition === "train").length;
   return (
-    <section className="space-y-4" data-tour="improvement-test-questions">
-      <h2 className="font-medium">
-        {all.cases.length === questions.total && questions.total > 0
-          ? t("questionSources", { count: questions.total, ...sourceCounts(all.cases) })
-          : t("questionCount", { count: questions.total })}
-      </h2>
+    <section className="space-y-5" data-tour="improvement-test-questions">
+      <h2 className="text-lg font-medium">{t("questionCount", { count: questions.total })}</h2>
+      {whole && (
+        <div className="grid gap-4 md:grid-cols-2">
+          <figure className="space-y-3 rounded-xl border p-4">
+            <figcaption className="text-sm font-medium">{t("widgets.whereFrom")}</figcaption>
+            <Proportion
+              label={t("questionSources", { count: questions.total, ...sources })}
+              parts={[
+                { label: t("widgets.fromRatedDown"), value: sources.down, fill: "var(--series-4)" },
+                { label: t("widgets.fromLiked"), value: sources.liked, fill: "var(--series-2)" },
+                { label: t("widgets.written"), value: sources.written, fill: "var(--series-1)" },
+                { label: t("widgets.byHand"), value: sources.other, fill: "var(--series-5)" },
+              ]}
+            />
+          </figure>
+          <figure className="space-y-3 rounded-xl border p-4">
+            <figcaption className="text-sm font-medium">{t("widgets.howUsed")}</figcaption>
+            <Proportion
+              label={t("widgets.partitionLabel", {
+                train,
+                holdout: all.cases.length - train,
+              })}
+              parts={[
+                { label: t("widgets.helpWrite"), value: train, fill: "var(--series-3)" },
+                {
+                  label: t("widgets.keptAside"),
+                  value: all.cases.length - train,
+                  fill: "var(--color-chart)",
+                },
+              ]}
+            />
+          </figure>
+        </div>
+      )}
       <p className="text-muted-foreground text-sm">{t("pinnedQuestions")}</p>
       {more > 0 && (
-        <div className="space-y-3 rounded-lg border p-3 text-sm">
+        <div className="border-warning/35 bg-warning/5 space-y-3 rounded-xl border p-4 text-sm">
+          <StateBadge tone="warn">{t("widgets.tooFew")}</StateBadge>
           <p>
             {t("tooFewHeldOut", {
               needed: Number(session.iterations[0]?.verdict_detail?.missing_holdout),
@@ -127,9 +172,8 @@ export function TestQuestions({ session }: { session: Improvement }) {
           )}
         </div>
       )}
-      <details className="rounded-xl border p-4">
-        <summary className="cursor-pointer text-sm font-medium">{t("reviewQuestions")}</summary>
-        <ul className="mt-3 divide-y">
+      <Details summary={t("reviewQuestions")}>
+        <ul className="divide-y">
           {questions.cases.map((item) => (
             <li key={item.id} className="space-y-2 py-3 text-sm">
               <p className="font-medium break-words">{item.input}</p>
@@ -149,7 +193,7 @@ export function TestQuestions({ session }: { session: Improvement }) {
             </li>
           ))}
         </ul>
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
             size="sm"
@@ -167,7 +211,7 @@ export function TestQuestions({ session }: { session: Improvement }) {
             {t("sourceNextQuestions")}
           </Button>
         </div>
-      </details>
+      </Details>
       <Link
         className="text-sm underline underline-offset-4"
         href={`/datasets/${session.dataset_id}`}
@@ -202,14 +246,22 @@ function BaselineResult({ runId }: { runId: string }) {
   if (!run || run.status === "queued" || run.status === "running")
     return <p role="status">{t("baselinePending")}</p>;
   if (run.status !== "completed" || !arm) return <p role="alert">{t("baselineUnavailable")}</p>;
+  const undecided = arm.summary.incomplete + arm.summary.ungraded;
+  const handled = t("baselineHandled", { passed: arm.summary.passed, total: arm.summary.cases });
   return (
     <>
-      <p className="text-lg font-medium">
-        {t("baselineHandled", { passed: arm.summary.passed, total: arm.summary.cases })}
-      </p>
-      {arm.summary.incomplete + arm.summary.ungraded > 0 && (
+      <figure className="space-y-3 rounded-xl border p-4">
+        <figcaption className="text-lg font-medium">{handled}</figcaption>
+        <Handled
+          label={handled}
+          passed={arm.summary.passed}
+          failed={Math.max(0, arm.summary.cases - arm.summary.passed - undecided)}
+          undecided={undecided}
+        />
+      </figure>
+      {undecided > 0 && (
         <p className="text-muted-foreground text-sm">
-          {t("baselineUndecided", { count: arm.summary.incomplete + arm.summary.ungraded })}
+          {t("baselineUndecided", { count: undecided })}
         </p>
       )}
       <BaselineQuestions runId={runId} agentId={run.agent_id} armId={arm.id} />
@@ -232,22 +284,32 @@ function BaselineQuestions({
   return (
     <div className="space-y-3">
       {questions.cases.length ? (
-        questions.cases.map((item) => {
-          const attempt = item.attempts.find((a) => a.arm_id === armId && a.attempt === 0);
-          return (
-            <article key={item.case_id} className="space-y-2 rounded-xl border p-4 text-sm">
-              <p className="font-medium break-words">{item.input}</p>
-              <p className="break-words whitespace-pre-wrap">
-                {attempt?.answer || t("unavailableAnswer")}
-              </p>
-              {attempt?.score?.results.map((grade, index) => (
-                <p key={index} className="text-muted-foreground break-words">
-                  {t("graderSaid", { reason: grade.reason })}
+        <>
+          <h3 className="text-sm font-medium">{t("widgets.weakQuestions")}</h3>
+          {questions.cases.map((item) => {
+            const attempt = item.attempts.find((a) => a.arm_id === armId && a.attempt === 0);
+            return (
+              <Details
+                key={item.case_id}
+                summary={
+                  <span className="inline-flex items-start gap-2">
+                    <XCircle className="text-destructive mt-0.5 size-4 shrink-0" aria-hidden />
+                    <span className="break-words">{item.input}</span>
+                  </span>
+                }
+              >
+                <p className="text-sm break-words whitespace-pre-wrap">
+                  {attempt?.answer || t("unavailableAnswer")}
                 </p>
-              ))}
-            </article>
-          );
-        })
+                {attempt?.score?.results.map((grade, index) => (
+                  <p key={index} className="text-muted-foreground text-sm break-words">
+                    {t("graderSaid", { reason: grade.reason })}
+                  </p>
+                ))}
+              </Details>
+            );
+          })}
+        </>
       ) : (
         <p className="text-muted-foreground text-sm">{t("noWeakQuestions")}</p>
       )}

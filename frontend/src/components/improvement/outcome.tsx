@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { BookOpen, CheckCircle2, Coins, ListChecks, XCircle } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
 import { KnowledgeGapDialog } from "@/components/knowledge-gaps/knowledge-gap-dialog";
@@ -14,6 +15,7 @@ import { useKnowledgeGaps } from "@/hooks/use-knowledge-gaps";
 import { getErrorMessage } from "@/lib/api-error";
 import type { Improvement, ImprovementIteration } from "@/types/improvement";
 import { StepError } from "./step-error";
+import { Tiles } from "./widgets";
 
 function counts(round: ImprovementIteration | undefined) {
   const fixed = round?.verdict_detail?.fixed;
@@ -49,11 +51,32 @@ export function ResultSummary({
   const t = useTranslations("improvement");
   const { drafts } = useDrafts(session);
   const measured = counts(round);
+  const knowledge = t("resultKnowledge", { count: drafts.length });
   return (
-    <div className="space-y-1 rounded-xl border p-4 text-sm">
-      <p>{measured ? t("resultAgent", measured) : t("resultAgentUnknown")}</p>
-      <p>{t("resultKnowledge", { count: drafts.length })}</p>
-    </div>
+    <Tiles
+      label={`${measured ? t("resultAgent", measured) : t("resultAgentUnknown")} ${knowledge}`}
+      tiles={[
+        {
+          label: t("newlyFixed"),
+          value: measured?.fixed ?? "–",
+          tone: "teal",
+          icon: CheckCircle2,
+          caption: measured ? undefined : t("resultAgentUnknown"),
+        },
+        {
+          label: t("newlyBroken"),
+          value: measured?.broken ?? "–",
+          tone: "rose",
+          icon: XCircle,
+        },
+        {
+          label: t("widgets.toReview"),
+          value: drafts.length,
+          tone: "violet",
+          icon: BookOpen,
+        },
+      ]}
+    />
   );
 }
 
@@ -170,25 +193,43 @@ function AgentSentence({
     before && after && perAnswer(before.cost_usd, before.cases) > 0
       ? perAnswer(after.cost_usd, after.cases) / perAnswer(before.cost_usd, before.cases) - 1
       : null;
+  const cost =
+    change === null
+      ? ""
+      : new Intl.NumberFormat(locale, {
+          style: "percent",
+          signDisplay: "always",
+          maximumFractionDigits: 0,
+        }).format(change);
   return (
-    <p className="text-sm">
-      {t("acceptAgent", {
+    <Tiles
+      label={t("acceptAgent", {
         version: version ?? 0,
         fixed,
         broken,
         costKnown: change === null ? "no" : "yes",
-        cost:
-          change === null
-            ? ""
-            : new Intl.NumberFormat(locale, {
-                style: "percent",
-                signDisplay: "always",
-                maximumFractionDigits: 0,
-              }).format(change),
+        cost,
         total,
         heldOut: after?.cases ?? 0,
       })}
-    </p>
+      tiles={[
+        { label: t("widgets.fixes"), value: fixed, tone: "teal", icon: CheckCircle2 },
+        { label: t("widgets.breaks"), value: broken, tone: "rose", icon: XCircle },
+        {
+          label: t("widgets.costPerAnswer"),
+          value: change === null ? "–" : cost,
+          tone: "amber",
+          icon: Coins,
+        },
+        {
+          label: t("widgets.testedOn"),
+          value: total,
+          tone: "indigo",
+          icon: ListChecks,
+          caption: t("widgets.heldOutCaption", { count: after?.cases ?? 0 }),
+        },
+      ]}
+    />
   );
 }
 
@@ -220,7 +261,10 @@ export function DoneScreen({ session }: { session: Improvement }) {
       data-tour="improvement-done"
       aria-label={t("doneTitle")}
     >
-      <h2 className="text-lg font-medium">{t("doneTitle")}</h2>
+      <h2 className="flex items-center gap-2 text-lg font-medium">
+        <CheckCircle2 className="text-success size-5" aria-hidden />
+        {t("doneTitle")}
+      </h2>
       {session.status === "published" && session.published_version != null ? (
         <>
           <p role="status" className="text-sm">
