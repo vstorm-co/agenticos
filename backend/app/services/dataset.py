@@ -440,7 +440,8 @@ class DatasetService:
 
         `judge_id` narrows to the datasets that judge grades: those that picked
         it, and for the seeded default judge those that picked none. `agent_id`
-        narrows to the datasets made to test that agent - its test set. `runnable`
+        narrows to the datasets that test that agent: made for it, checked by one
+        of its eval suites, or run against it. `runnable`
         narrows to those the caller holds `datasets:run` on that hold a case to
         run, so "is there one to run" is the `total` of one row. It does not ask
         for `runs:view`, which starting an eval also needs: a reader missing only

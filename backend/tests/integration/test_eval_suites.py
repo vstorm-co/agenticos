@@ -1951,3 +1951,22 @@ async def test_first_suite_estimate_includes_the_only_published_version(db) -> N
     assert estimate.paired_run is not None
     assert len(estimate.paired_run.arms) == 2
     assert estimate.paired_run.total_usd == 2 * estimate.run.total_usd
+
+
+async def test_the_listing_finds_the_datasets_already_testing_an_agent(db):
+    from app.services.dataset import DatasetService
+
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    guarded = await _dataset(db, ctx)
+    once_run = await _dataset(db, ctx)
+    await _dataset(db, ctx)
+    service = EvalSuiteService(db)
+    await service.create(ctx, agent.id, _suite_data(guarded))
+    passing = await service.create(ctx, agent.id, _suite_data(once_run))
+    await service.run_now(ctx, agent.id, passing.id)
+    await service.delete(ctx, agent.id, passing.id)
+
+    found = await DatasetService(db).list_readable(ctx, agent_id=agent.id)
+
+    assert {item.id for item in found.items} == {guarded.id, once_run.id}

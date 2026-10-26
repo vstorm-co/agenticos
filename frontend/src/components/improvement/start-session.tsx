@@ -51,7 +51,10 @@ export function StartSession({ agentId }: { agentId: string }) {
   const [refusal, setRefusal] = useState<{ key: string; message: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [details, setDetails] = useState(false);
-  const target = chosen ?? own.datasets.find((dataset) => dataset.can_run)?.id ?? "";
+  // A set made for this agent wins over one it was only run against or guarded by.
+  const runnable = own.datasets.filter((dataset) => dataset.can_run);
+  const target =
+    chosen ?? (runnable.find((dataset) => dataset.agent_id === agentId) ?? runnable[0])?.id ?? "";
   const body = {
     dataset_id: target,
     ...(helper ? { improver_agent_id: helper } : {}),

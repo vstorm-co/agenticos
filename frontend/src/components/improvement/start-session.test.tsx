@@ -16,6 +16,7 @@ const state = vi.hoisted(() => ({
     id: string;
     name: string;
     can_run: boolean;
+    agent_id?: string | null;
   }[],
   sessions: [] as { id: string; created_at: string; status: string }[],
   datasetQueries: [] as unknown[],
@@ -147,6 +148,21 @@ it("writes test questions for an agent without any, then prices the session on t
   await userEvent.click(screen.getByRole("button", { name: "Write test questions for me" }));
   expect(await screen.findByRole("button", { name: "Start improving" })).toBeInTheDocument();
   expect(state.estimate).toHaveBeenCalledWith({ dataset_id: "written", max_iterations: 3 });
+});
+
+it("prefers the set made for the agent over one it was only tested on, and takes that otherwise", async () => {
+  state.own = [
+    { id: "guarded", name: "Guard questions", can_run: true, agent_id: null },
+    { id: "made", name: "Refund desk - test questions", can_run: true, agent_id: "a1" },
+  ];
+  const view = render(<StartSession agentId="a1" />);
+  await screen.findByRole("button", { name: "Start improving" });
+  expect(state.estimate).toHaveBeenCalledWith({ dataset_id: "made", max_iterations: 3 });
+  view.unmount();
+  state.own = [{ id: "guarded", name: "Guard questions", can_run: true, agent_id: null }];
+  render(<StartSession agentId="a1" />);
+  await screen.findAllByRole("button", { name: "Start improving" });
+  expect(state.estimate).toHaveBeenLastCalledWith({ dataset_id: "guarded", max_iterations: 3 });
 });
 
 it("waits for the agent's test set before offering to write one", () => {

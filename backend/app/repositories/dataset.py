@@ -17,6 +17,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import Scope
 from app.db.models.dataset import Dataset, DatasetCase, DatasetVersion
+from app.db.models.eval_run import EvalRun
+from app.db.models.eval_suite import EvalSuite
 from app.repositories._search import contains_ci
 from app.repositories._visibility import reached_by_scope, shared_with_caller, visible_to_caller
 from app.schemas.dataset import (
@@ -122,7 +124,8 @@ async def list_visible(
         judge_id: Narrow to the datasets of this judge: the ones that picked
             it, grading or not, and when `judge_is_default` the ones that
             picked none and grade with the judge or the reference comparison.
-        agent_id: Narrow to the datasets made to test this agent.
+        agent_id: Narrow to the datasets that test this agent: made for it, checked
+            by one of its eval suites, or run against it.
         asking: Narrow to the datasets whose newest version holds a case asking
             this question, compared as `list_cases`' `same_input` compares.
     """
@@ -192,7 +195,22 @@ async def list_visible(
             else picked == str(judge_id)
         )
     if agent_id is not None:
-        where.append(Dataset.agent_id == agent_id)
+        where.append(
+            or_(
+                Dataset.agent_id == agent_id,
+                Dataset.id.in_(
+                    select(EvalSuite.dataset_id).where(
+                        EvalSuite.agent_id == agent_id,
+                        EvalSuite.organization_id == organization_id,
+                    )
+                ),
+                Dataset.id.in_(
+                    select(EvalRun.dataset_id).where(
+                        EvalRun.agent_id == agent_id, EvalRun.organization_id == organization_id
+                    )
+                ),
+            )
+        )
     if asking is not None:
         where.append(
             # The newest version holds exactly the revisions no change has removed yet.
