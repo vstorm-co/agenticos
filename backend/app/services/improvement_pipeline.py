@@ -2478,12 +2478,8 @@ class ImprovementPipelineService:
             transition = rules.Transition(Status.STOPPED, Stage.JUDGING, reason)
         if transition.status == Status.READY:
             # The waiting candidate is the best round, which an equal later round does not displace.
-            exposed = best or iteration
-            transition = await self._expose(run, exposed)
-            if run.best_iteration_id != exposed.id:
-                await improvement_repo.update_run(
-                    self.db, run=run, values={"best_iteration_id": exposed.id}
-                )
+            assert best is not None, "a round judged ready was measured"
+            transition = await self._expose(run, best)
         await self._move(run, transition)
 
     async def _expose(
