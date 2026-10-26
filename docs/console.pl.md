@@ -1,5 +1,5 @@
 ---
-source_sha: "ebbdbea67616"
+source_sha: "64d1331aaada"
 ---
 
 # Konsola { #the-console }
@@ -643,6 +643,12 @@ Każdy filtr to menu etykiet z agentów, które widzisz; zaznacz kilka, żeby go
 poszerzyć.
 Kategorie i tagi agenta utrzymujesz na jego stronie szczegółów, obok kontrolek
 avatara, a zmiana działa od razu, bez publikowania nowej wersji.
+
+Szczegóły organizacji są podzielone na zakładki: **Członkowie**, **Profil**, **Budżet i
+zgody**, **Proaktywność**, **Głos** i **AI Architect**. Zakładki administracyjne zależą
+od uprawnień; AI Architect pojawia się, gdy można go konfigurować. Wybrana zakładka jest
+zapisywana w URL (na przykład `?tab=voice`), a przełączanie zachowuje niezapisane
+wartości formularzy.
 
 ## Języki { #languages }
 

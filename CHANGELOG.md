@@ -26,6 +26,13 @@ Two things are versioned separately from this file and worth knowing about:
   has no credentials for the provider. Show provider icons and consistent masked
   key hints in Voice calls and Dictation key selectors.
 
+## [1.20.0] - 2026-10-26
+
+### Added
+
+- Organize organization settings into permission-aware tabs, with shareable
+  tab URLs and form drafts preserved when switching sections.
+
 ## [1.19.0] - 2026-10-26
 
 ### Changed

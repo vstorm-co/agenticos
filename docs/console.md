@@ -622,6 +622,12 @@ labels on the agents you can see; tick several to widen it. You maintain an agen
 categories and tags from its detail page, beside the avatar controls, and the
 change takes effect at once, without publishing a new version.
 
+Organization details use tabs: **Members**, **Profile**, **Budget and approvals**,
+**Proactivity**, **Voice** and **AI Architect**. Administrative tabs follow your
+permissions; AI Architect appears when it can be configured. The selected tab is stored
+in the URL (`?tab=voice`, for example), and switching tabs preserves unsaved form
+values.
+
 ## Languages
 
 The console speaks English, Polish and German, all of it except the legal
