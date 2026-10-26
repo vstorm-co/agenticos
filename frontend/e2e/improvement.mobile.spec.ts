@@ -245,7 +245,7 @@ test("test questions, review and improvement publish keep a guarded environment 
   await page.getByLabel("Test questions", { exact: true }).click();
   await page.getByRole("option", { name: String(dataset.name), exact: true }).click();
   await page.getByText("Authoring assistant", { exact: true }).click();
-  await page.getByRole("combobox").last().click();
+  await page.getByRole("combobox", { name: "Run with" }).click();
   await page.getByRole("option", { name: String(helper.name), exact: true }).click();
   await expect(page.getByText(/^About \d+ minutes?, up to .+ \(estimate\)/)).toBeVisible();
   const budget = page.getByLabel("Session spending limit (USD)");
@@ -280,12 +280,13 @@ test("test questions, review and improvement publish keep a guarded environment 
   const published = await read(api, `/agents/${id(agent)}/improvements/${sessionId}`, headers);
   expect(published.status).toBe("published");
   expect(published.published_version).toBe(2);
+  // The suite sweep ticks once a minute: one tick starts the guard's run, the next settles it.
   await expect
     .poll(
       async () =>
         items(await read(api, `/agents/${id(agent)}/eval-suites/${id(suite)}/results`, headers))[0]
           ?.status,
-      { timeout: 90_000 },
+      { timeout: 180_000 },
     )
     .toBe("failed");
   const after = items(await read(api, `/agents/${id(agent)}/environments`, headers)).find(
