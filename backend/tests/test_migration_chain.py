@@ -79,7 +79,7 @@ def test_no_two_migrations_claim_the_same_parent() -> None:
     assert improvement_merge is not None and len(improvement_merge.down_revision) == 8
     assert console_merge is not None and console_merge.down_revision == (
         "0188_self_improvement_merge",
-        "0170_generated_media",
+        "0174_message_client_id",
     )
 
 
