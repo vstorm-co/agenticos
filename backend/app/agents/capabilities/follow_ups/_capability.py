@@ -1,35 +1,12 @@
-"""Next steps the person can take with one click."""
+"""Setup cards; next-step generation belongs to the post-answer service."""
 
-import logging
-import uuid
-from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 from pydantic_ai.capabilities import AbstractCapability
-from pydantic_ai.messages import (
-    ModelMessage,
-    ModelRequest,
-    ModelResponse,
-    ToolCallPart,
-    UserPromptPart,
-)
-from pydantic_ai.models import Model
-from pydantic_ai.tools import RunContext
 
-from app.agents.capabilities._ambient import AmbientCallSkipped, run_ambient_agent
-from app.agents.capabilities.follow_ups._toolset import (
-    MAX_STEP_CHARS,
-    MAX_STEPS,
-    FollowUpsToolset,
-)
-from app.agents.deps import AgentDeps, WrittenNextSteps
-
-if TYPE_CHECKING:
-    from pydantic_ai.models import ModelRequestContext
-
-logger = logging.getLogger(__name__)
+from app.agents.capabilities.follow_ups._toolset import MAX_STEP_CHARS, MAX_STEPS, FollowUpsToolset
+from app.agents.deps import AgentDeps
 
 _INSTRUCTIONS = (
     "You read a person's request to an AI agent and the agent's answer, and offer the "
@@ -57,86 +34,20 @@ def kept_steps(steps: list[str]) -> list[str]:
     return [step for step in cleaned if step and len(step) <= MAX_STEP_CHARS][:MAX_STEPS]
 
 
-def _request_of(messages: Sequence[ModelMessage]) -> str:
-    """The person's latest request in the run's messages, as text."""
-    for message in reversed(messages):
-        if not isinstance(message, ModelRequest):
-            continue
-        for part in message.parts:
-            if isinstance(part, UserPromptPart) and isinstance(part.content, str):
-                return part.content
-    return ""
-
-
 @dataclass
 class FollowUps(AbstractCapability[AgentDeps]):
-    """Lets an agent end a turn with buttons for what to do next (#2301).
+    """Keep setup cards available without asking the main model to write next steps."""
 
-    A paragraph of "Would you like me to..." at the end of every answer is the
-    habit people complain about most, and a newcomer who does not know what to
-    ask next reads straight past it. As buttons the same suggestions cost one
-    click, and the answer above them stays the answer.
-
-    With `model` set the agent is not offered `suggest_next_steps`: once its
-    answer is in, that model reads the request and the answer and writes the
-    steps - a small model doing a small job, rather than the agent's own spending
-    a request on it. The call is governed and booked like any of the run's.
-
-    ```python
-    from pydantic_ai import Agent
-    from app.agents.capabilities.follow_ups import FollowUps
-
-    agent = Agent('openai:gpt-4.1', capabilities=[FollowUps()])
-    ```
-    """
-
-    model: Model | None = None
-    _toolset: FollowUpsToolset[AgentDeps] | None = field(
-        default=None, init=False, repr=False, compare=False
-    )
+    _toolset: FollowUpsToolset[AgentDeps] | None = field(default=None, init=False, repr=False)
 
     def get_toolset(self) -> FollowUpsToolset[AgentDeps]:
-        """The follow-ups toolset, built once per capability instance."""
         if self._toolset is None:
-            self._toolset = FollowUpsToolset[AgentDeps](offer_steps=self.model is None)
+            self._toolset = FollowUpsToolset[AgentDeps]()
         return self._toolset
 
-    async def after_model_request(
-        self,
-        ctx: RunContext[AgentDeps],
-        *,
-        request_context: ModelRequestContext,
-        response: ModelResponse,
-    ) -> ModelResponse:
-        """Write the next steps once the answer that ends the turn is in."""
-        if self.model is None or any(isinstance(part, ToolCallPart) for part in response.parts):
-            return response
-        answer = response.text or ""
-        if not answer.strip():
-            return response
-        request = _request_of(request_context.messages)
-        try:
-            written = await run_ambient_agent(
-                ctx,
-                output_type=_Steps,
-                user_prompt=(
-                    f"The request:\n{request[:_SHOWN_CHARS]}\n\n"
-                    f"The agent's answer:\n{answer[:_SHOWN_CHARS]}"
-                ),
-                instructions=_INSTRUCTIONS,
-                model=self.model,
-            )
-        except AmbientCallSkipped:
-            logger.info("Next steps not written: the run is at a budget cap")
-            return response
-        except Exception:
-            # Steps that could not be written cost the buttons, never the answer.
-            logger.exception("Could not write the next steps")
-            return response
-        steps = kept_steps(written.steps)
-        ctx.deps.next_steps = (
-            WrittenNextSteps(call_id=f"next_steps_{uuid.uuid4().hex[:12]}", steps=steps)
-            if steps
-            else None
+    def get_instructions(self) -> str:
+        return (
+            "Next-step buttons are generated separately after your answer is saved. "
+            "Do not call suggest_next_steps, wait for suggestions, or repeat them in your answer. "
+            "Answer the request directly. Setup proposal cards remain available through propose_setup."
         )
-        return response

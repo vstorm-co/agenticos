@@ -183,6 +183,7 @@ class TestWhatTheRoomHears:
         await chat_room.join(ROOM, anna, "tab")
         await chat_room.typing(ROOM, anna)
         await chat_room.turn_begun(ROOM, anna)
+        await chat_room.next_steps(ROOM, "message-1", ["Make a table"])
         store.published += [(channel, "not json"), (channel, '{"type": "other"}')]
         store.published.append((f"room:{uuid4()}:events", '{"type": "presence"}'))
 
@@ -192,6 +193,7 @@ class TestWhatTheRoomHears:
             {"type": chat_room.PRESENCE},
             {"type": chat_room.TYPING, "by": str(anna)},
             {"type": chat_room.TURN_BEGUN, "by": str(anna)},
+            {"type": chat_room.NEXT_STEPS, "message_id": "message-1", "steps": ["Make a table"]},
         ]
 
     async def test_a_publish_that_fails_is_swallowed_and_said(self, store: _Store) -> None:

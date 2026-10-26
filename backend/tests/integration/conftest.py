@@ -293,4 +293,7 @@ async def db(engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
     factory = async_sessionmaker(engine, expire_on_commit=False)
     async with factory() as session:
         yield session
+        from app.core.background import discard_deferred
+
+        discard_deferred(session)
         await session.rollback()

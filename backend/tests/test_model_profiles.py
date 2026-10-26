@@ -34,7 +34,7 @@ from app.core.exceptions import (
     BadRequestError,
     NotFoundError,
 )
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.core.secret_kinds import (
     ApiKeySecret,
     AwsCredentialsSecret,
@@ -797,9 +797,20 @@ class TestASignInIsItsOwnersAlone:
     @pytest.mark.anyio
     @pytest.mark.parametrize(
         "stand_in",
-        [{"subject_is_publisher_fallback": True}, {"api_key_id": uuid.uuid4()}],
-        ids=["visitor-as-publisher", "key-holder-as-issuer"],
+        [
+            {"subject_is_publisher_fallback": True},
+            {"api_key_id": uuid.uuid4()},
+            {"key_scopes": frozenset({Perm.AGENTS_RUN})},
+            {"key_scopes": frozenset()},
+        ],
+        ids=[
+            "visitor-as-publisher",
+            "key-holder-as-issuer",
+            "persisted-key-ceiling",
+            "empty-key-ceiling",
+        ],
     )
+    @pytest.mark.security
     async def test_a_stand_in_for_somebody_else_reaches_nobody_s(self, stand_in):
         """The publisher behind a public page, or a key's issuer, is the account a
         run is billed to - not the person asking, whose subscription it is not."""
@@ -808,6 +819,19 @@ class TestASignInIsItsOwnersAlone:
         )
         with pytest.raises(AuthorizationError):
             await self._resolve(self._spec(self._sign_in()), sees=True, ctx=ctx)
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_restored_key_keeps_api_credentials_but_not_a_private_fallback(self):
+        ctx = AuthContext(
+            user_id=uuid.uuid4(),
+            organization_id=uuid.uuid4(),
+            role=OrgRoleName.OWNER,
+            key_scopes=frozenset({Perm.AGENTS_RUN}),
+        )
+        key = self._key()
+        resolved = await self._resolve(self._spec(key, self._sign_in(), key), sees=True, ctx=ctx)
+        assert [credential for credential, _ in resolved.fallbacks] == [key]
 
     @pytest.mark.anyio
     async def test_background_work_never_runs_on_one(self):

@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "1.18.0"
+version = "1.21.0"
 description = "OS for your agents."
 requires-python = ">=3.15"
 license = { text = "Apache-2.0" }
@@ -678,6 +678,7 @@ include = [
     # held to rather than reporting it.
     "app/services/rate_limit.py",
     "app/services/agent_chat.py",
+    "app/services/follow_ups.py",
     "app/services/mentions.py",
     "app/services/agent_environment.py",
     "app/services/agent_exposure.py",
@@ -1171,6 +1172,7 @@ include = [
     # held to rather than reporting it.
     "app/services/rate_limit.py",
     "app/services/agent_chat.py",
+    "app/services/follow_ups.py",
     "app/services/mentions.py",
     "app/services/agent_environment.py",
     "app/services/agent_exposure.py",

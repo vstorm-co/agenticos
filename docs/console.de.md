@@ -1,5 +1,5 @@
 ---
-source_sha: "ebbdbea67616"
+source_sha: "64d1331aaada"
 ---
 
 # Die Konsole { #the-console }
@@ -703,6 +703,13 @@ erscheinen. Jeder Filter ist ein Menü der Labels auf den Agents, die Sie sehen;
 kreuzen Sie mehrere an, um ihn zu erweitern. Die Categories und Tags eines Agents pflegen Sie auf seiner
 Detailseite, neben den Avatar-Steuerelementen, und die Änderung wirkt sofort,
 ohne dass eine neue Version veröffentlicht wird.
+
+Die Organisationsdetails sind in Registerkarten gegliedert: **Mitglieder**, **Profil**,
+**Budget und Freigaben**, **Proaktivität**, **Sprache** und **AI Architect**.
+Administrative Registerkarten richten sich nach deinen Berechtigungen; AI Architect
+erscheint, wenn er konfiguriert werden kann. Die ausgewählte Registerkarte steht in der
+URL (zum Beispiel `?tab=voice`); beim Wechsel bleiben ungespeicherte Formularwerte
+erhalten.
 
 ## Sprachen { #languages }
 
