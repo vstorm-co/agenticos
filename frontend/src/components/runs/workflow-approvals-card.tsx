@@ -1,14 +1,17 @@
 "use client";
 
+import { useDeferredValue, useId, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, UserCheck, XCircle } from "lucide-react";
+import { CheckCircle2, GitCompare, Undo2, UserCheck, XCircle } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
-import { Badge, Button, ListCard } from "@/components/ui";
+import { MarkdownContent } from "@/components/chat/markdown-content";
+import { Badge, Button, LineDiff, ListCard, MarkdownEditor, Textarea } from "@/components/ui";
 import { useWorkflowApprovals } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { cn, formatDate } from "@/lib/utils";
-import type { WorkflowApprovalRead } from "@/lib/workflows/types";
+import { MAX_PROPOSAL_CHARS, type WorkflowApprovalRead } from "@/lib/workflows/types";
+import { useAuthStore } from "@/stores/auth-store";
 
 /**
  * The workflow steps waiting on a person: what each asks, from which workflow,
@@ -21,7 +24,6 @@ import type { WorkflowApprovalRead } from "@/lib/workflows/types";
  */
 export function WorkflowApprovalsCard() {
   const t = useTranslations("pages.runs");
-  const locale = useLocale();
   const { approvals, total, decide } = useWorkflowApprovals();
 
   if (total === 0) return null;
@@ -33,60 +35,177 @@ export function WorkflowApprovalsCard() {
       contentClassName="divide-y p-0"
     >
       {approvals.map((approval) => (
-        <div
+        <StepApprovalRow
           key={approval.id}
-          className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-start sm:justify-between"
-        >
-          <div className="min-w-0 space-y-1.5">
-            <div className="flex items-center gap-2">
-              <UserCheck className="text-muted-foreground h-4 w-4 shrink-0" />
-              <span className="text-sm font-medium">{approval.title}</span>
-            </div>
-            {approval.details !== null && (
-              <p className="text-foreground/80 text-sm whitespace-pre-wrap">{approval.details}</p>
-            )}
-            <p className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-              <Link
-                href={ROUTES.WORKFLOW_RUN_DETAIL(approval.workflow_id, approval.workflow_run_id)}
-                className="underline underline-offset-2"
-              >
-                {approval.workflow_name}
-              </Link>
-              <span>{formatDate(approval.created_at, locale)}</span>
-              {approval.expires_at !== null && (
-                <span>
-                  {t("stepApprovalExpires", { at: formatDate(approval.expires_at, locale) })}
-                </span>
-              )}
-              {approval.approver_user_ids.length > 0 && (
-                <Badge variant="outline">
-                  {t("stepApprovalNamed", { count: approval.approver_user_ids.length })}
-                </Badge>
-              )}
-            </p>
-          </div>
-          <div className="flex shrink-0 gap-2">
-            <Button
-              size="sm"
-              disabled={decide.isPending}
-              onClick={() => decide.mutate({ id: approval.id, approved: true })}
-            >
-              <CheckCircle2 className="h-4 w-4" />
-              {t("approve")}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={decide.isPending}
-              onClick={() => decide.mutate({ id: approval.id, approved: false })}
-            >
-              <XCircle className="h-4 w-4" />
-              {t("reject")}
-            </Button>
-          </div>
-        </div>
+          approval={approval}
+          deciding={decide.isPending}
+          onDecide={(approved, final) => decide.mutate({ id: approval.id, approved, final })}
+        />
       ))}
     </ListCard>
+  );
+}
+
+/**
+ * One waiting step. Its own component so the draft lives in state keyed by the
+ * approval: the queue is read again every half minute, and a refetch must never
+ * overwrite what the approver is typing.
+ */
+function StepApprovalRow({
+  approval,
+  deciding,
+  onDecide,
+}: {
+  approval: WorkflowApprovalRead;
+  deciding: boolean;
+  onDecide: (approved: boolean, final?: string) => void;
+}) {
+  const t = useTranslations("pages.runs");
+  const locale = useLocale();
+  const userId = useAuthStore((s) => s.user?.id ?? null);
+  const headingId = useId();
+  const original = approval.proposal ?? "";
+  const [draft, setDraft] = useState(original);
+  const [showChanges, setShowChanges] = useState(false);
+  // The diff is quadratic in the lines; it may lag a keystroke behind the editor.
+  const shownDraft = useDeferredValue(draft);
+
+  const named = approval.approver_user_ids.length > 0;
+  const notYours = named && (userId === null || !approval.approver_user_ids.includes(userId));
+  const unsendable = draft.trim() === "" || draft.length > MAX_PROPOSAL_CHARS;
+  const heading = approval.proposal_label ?? t("stepApprovalProposal");
+
+  return (
+    <div className="flex flex-col gap-3 px-5 py-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 space-y-1.5">
+          <div className="flex items-center gap-2">
+            <UserCheck className="text-muted-foreground h-4 w-4 shrink-0" />
+            <span className="text-sm font-medium">{approval.title}</span>
+          </div>
+          {approval.details !== null && (
+            <p className="text-foreground/80 text-sm whitespace-pre-wrap">{approval.details}</p>
+          )}
+          <p className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+            <Link
+              href={ROUTES.WORKFLOW_RUN_DETAIL(approval.workflow_id, approval.workflow_run_id)}
+              className="underline underline-offset-2"
+            >
+              {approval.workflow_name}
+            </Link>
+            <span>{formatDate(approval.created_at, locale)}</span>
+            {approval.expires_at !== null && (
+              <span>
+                {t("stepApprovalExpires", { at: formatDate(approval.expires_at, locale) })}
+              </span>
+            )}
+            {named && (
+              <Badge variant="outline">
+                {t("stepApprovalNamed", { count: approval.approver_user_ids.length })}
+              </Badge>
+            )}
+          </p>
+        </div>
+        <div className="flex shrink-0 gap-2">
+          <Button
+            size="sm"
+            disabled={deciding || notYours || (approval.editable && unsendable)}
+            onClick={() =>
+              onDecide(true, approval.editable && draft !== original ? draft : undefined)
+            }
+          >
+            <CheckCircle2 className="h-4 w-4" />
+            {t("approve")}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={deciding || notYours}
+            onClick={() => onDecide(false)}
+          >
+            <XCircle className="h-4 w-4" />
+            {t("reject")}
+          </Button>
+        </div>
+      </div>
+      {notYours && <p className="text-muted-foreground text-xs">{t("stepApprovalNotYours")}</p>}
+      {approval.editable ? (
+        <div className="space-y-2">
+          <h3 id={headingId} className="text-sm font-medium">
+            {heading}
+          </h3>
+          {approval.proposal_format === "markdown" ? (
+            <MarkdownEditor
+              value={draft}
+              onChange={setDraft}
+              label={heading}
+              rows={8}
+              disabled={notYours}
+              inertImages
+            />
+          ) : (
+            <Textarea
+              aria-labelledby={headingId}
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              rows={6}
+              disabled={notYours}
+            />
+          )}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <p
+              className={cn(
+                "text-xs",
+                draft.length > MAX_PROPOSAL_CHARS ? "text-destructive" : "text-muted-foreground",
+              )}
+            >
+              {t("stepApprovalLength", { count: draft.length, max: MAX_PROPOSAL_CHARS })}
+            </p>
+            {draft.trim() === "" && !notYours && (
+              <p className="text-muted-foreground text-xs">{t("stepApprovalEmpty")}</p>
+            )}
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={notYours || draft === original}
+              onClick={() => setDraft(original)}
+            >
+              <Undo2 className="h-4 w-4" />
+              {t("stepApprovalRestore")}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-expanded={showChanges}
+              onClick={() => setShowChanges((shown) => !shown)}
+            >
+              <GitCompare className="h-4 w-4" />
+              {showChanges ? t("stepApprovalHideChanges") : t("stepApprovalShowChanges")}
+            </Button>
+          </div>
+          {showChanges && (
+            <LineDiff
+              before={original}
+              after={shownDraft}
+              identicalLabel={t("stepApprovalNoChanges")}
+              unchangedLabel={(count) => t("stepApprovalUnchangedLines", { count })}
+              tooLongLabel={t("stepApprovalDiffTooLong")}
+            />
+          )}
+        </div>
+      ) : (
+        approval.proposal !== null && (
+          <div className="space-y-1">
+            <h3 className="text-sm font-medium">{heading}</h3>
+            {approval.proposal_format === "markdown" ? (
+              <MarkdownContent content={approval.proposal} inertImages />
+            ) : (
+              <p className="text-foreground/80 text-sm whitespace-pre-wrap">{approval.proposal}</p>
+            )}
+          </div>
+        )
+      )}
+    </div>
   );
 }
 
@@ -127,6 +246,7 @@ export function DecidedWorkflowApproval({ approval }: { approval: WorkflowApprov
         >
           {labelKey ? t(labelKey) : approval.status}
         </span>
+        {approval.edited && <Badge variant="outline">{t("stepApprovalEdited")}</Badge>}
       </div>
       {approval.note !== null && (
         <p className="text-foreground/80 mt-1 truncate pl-8 text-sm" title={approval.note}>

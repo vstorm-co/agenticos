@@ -625,6 +625,15 @@ many files it made, with the JSON itself under **Raw output** - and every step i
 took, iteration by iteration, sit alongside. A run still going
 refreshes itself every couple of seconds, and **Cancel run** stops it, and withdraws the timers its waiting steps had queued. Its **Files** list what its steps stored - a download, a rendered page, a script's output - each one downloadable.
 
+A run waiting on an [**Ask for approval**](reference/workflow-nodes.md#human-approval)
+step shows in the **Approvals** tab of Activity. When the step is set to **Let the
+approver edit** and has a proposal bound, such as a drafted reply, the approver
+changes it in an editor there, with **Restore original** and **Show changes**, and
+approves their version. The step then hands on `final`, `original` and `edited`, so
+a later step sends what the person approved. A decider the step does not name sees
+the proposal read-only, and a request decided with a changed version
+shows an **Edited** badge under **Decided**.
+
 
 In the list a test run's version reads **Draft (test)** and a real one's
 **Published**, and a run started from the console or the HTTP API reads **Console or

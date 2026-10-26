@@ -44,6 +44,12 @@ def _read() -> WorkflowApprovalRead:
         decided_at=None,
         note=None,
         created_at=datetime.now(UTC),
+        editable=False,
+        proposal=None,
+        proposal_format="text",
+        proposal_label=None,
+        final=None,
+        edited=False,
     )
 
 
@@ -113,14 +119,38 @@ async def test_a_decision_is_handed_to_the_service(service: MagicMock):
             )
     assert response.status_code == 200
     assert service.decide.await_args.args[1] == approval_id
-    assert service.decide.await_args.kwargs == {"approved": True, "note": "ok"}
+    assert service.decide.await_args.kwargs == {"approved": True, "note": "ok", "final": None}
+
+
+async def test_an_edited_version_is_handed_to_the_service(service: MagicMock):
+    for open_client in _client_for(OrgRoleName.OWNER, service):
+        async with open_client() as http:
+            response = await http.post(
+                _url(f"/{uuid.uuid4()}"), json={"approved": True, "final": "Dear Ann"}
+            )
+    assert response.status_code == 200
+    assert service.decide.await_args.kwargs["final"] == "Dear Ann"
+
+
+@pytest.mark.parametrize("final", ["", "   ", "x" * 100_001])
+async def test_an_empty_or_oversized_edit_is_refused(service: MagicMock, final: str):
+    for open_client in _client_for(OrgRoleName.OWNER, service):
+        async with open_client() as http:
+            response = await http.post(
+                _url(f"/{uuid.uuid4()}"), json={"approved": True, "final": final}
+            )
+    assert response.status_code == 422
+    assert response.json()["error"]["details"]["fields"][0]["field"] == "final"
+    service.decide.assert_not_awaited()
 
 
 async def test_a_member_who_does_not_decide_approvals_is_refused(service: MagicMock):
     for open_client in _client_for(OrgRoleName.VIEWER, service):
         async with open_client() as http:
             listed = await http.get(_url())
-            decided = await http.post(_url(f"/{uuid.uuid4()}"), json={"approved": True})
+            decided = await http.post(
+                _url(f"/{uuid.uuid4()}"), json={"approved": True, "final": "x"}
+            )
     assert (listed.status_code, decided.status_code) == (403, 403)
     service.queue.assert_not_awaited()
     service.decide.assert_not_awaited()

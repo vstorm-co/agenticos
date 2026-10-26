@@ -1,5 +1,5 @@
 ---
-source_sha: "91b8979e242e"
+source_sha: "a88795b71e89"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -614,7 +614,42 @@ Schleifeniteration nie zweimal nach demselben fragt.
 
 Benannte Genehmigende müssen aktive Mitglieder mit `approvals:decide` sein. Die Veröffentlichung prüft dies, der Schritt erneut vor der Anfrage. Fehlt diese Berechtigung inzwischen, endet der Schritt mit `APPROVER_UNAVAILABLE`, statt eine unentscheidbare Anfrage zu hinterlassen.
 
+Ein Schritt kann einen **Vorschlag** tragen: an `proposal` gebundener Text, etwa
+eine vorbereitete Antwort. Wer freigibt, liest ihn neben der Anfrage. Ist
+`editable` eingeschaltet, zeigt die Warteschlange ihn in einem Editor, als `text`
+oder `markdown` (`proposal_format`), unter `proposal_label` („Vorschlag (Proposal)“, wenn
+leer), und die freigebende Person darf eine geänderte Fassung freigeben. Ein
+Schritt ohne gebundenen Text öffnet einen leeren Editor, für den Fall, dass die
+Vorbereitung nichts ergab. `details` bleibt unverändert und kurz; der Vorschlag darf
+bis zu 100.000 Zeichen lang sein.
+
+Die freigegebene Ausgabe trägt neben der Entscheidung drei Felder:
+
+- `final` ist die Fassung, die freigegeben wurde, bei unveränderter Übernahme der
+  Vorschlag selbst.
+- `original` ist der Vorschlag zum Zeitpunkt der Anfrage, `""`, wenn ein
+  editierbarer Schritt nichts gebunden hatte.
+- `edited` ist wahr, wenn sich `final` von `original` unterscheidet. Zeilenenden,
+  Leerzeichen am Zeilenende und Leerraum um den Text sind kein Unterschied.
+
+Eine bearbeitete Fassung wird ohne führende und nachgestellte Leerzeichen gespeichert;
+eine Änderung, die mit einem eingerückten Codeblock beginnt, verliert diese erste
+Einrückung.
+
+Ein Schritt, der nicht `editable` ist, zeigt seinen Vorschlag schreibgeschützt und
+gibt ihn nach der Freigabe unverändert als `final` weiter, mit `edited` auf false,
+sodass spätere Schritte `final` binden können, in welchem Modus der Schritt auch
+ist. Eine Ablehnung oder ein Ablauf trägt kein `final`. Eine bearbeitete Fassung an
+einen Schritt zu senden, der nicht `editable` ist, oder zusammen mit einer
+Ablehnung, wird mit `422` abgelehnt. Wer entscheiden darf, vom Schritt aber nicht
+genannt wird, sieht den Vorschlag schreibgeschützt.
+
+Sendet der Workflow das freigegebene `final` über [`mcp.call`](#mcp-call), setzen
+Sie `approval` dieses Schritts auf `none`, sonst wird die Person zweimal gefragt.
+
 ::: app.workflows.nodes.human_approval._handler.HumanApprovalConfig
+
+::: app.workflows.nodes.human_approval._handler.HumanApprovalInput
 
 ::: app.workflows.nodes.human_approval._handler.HumanApprovalOutput
 

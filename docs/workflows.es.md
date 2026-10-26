@@ -1,5 +1,5 @@
 ---
-source_sha: "4ff10ed3b024"
+source_sha: "9147c4363ad2"
 ---
 
 # Workflows { #workflows }
@@ -665,6 +665,15 @@ apoyó y cuántos archivos creó, con el JSON en sí bajo **Raw output** - y cad
 que dio, iteración a iteración, están al lado. Un run en curso se actualiza cada par de segundos, y **Cancel run** lo
 detiene y retira los temporizadores que sus pasos en espera habían puesto en cola. Sus **Files** listan lo que guardaron sus pasos - una descarga, una página
 renderizada, la salida de un script -, cada uno descargable.
+
+Un run que espera un paso [**Ask for approval**](reference/workflow-nodes.md#human-approval)
+aparece en la pestaña **Approvals** de Activity. Cuando el paso tiene activado
+**Let the approver edit** y una propuesta vinculada, como una respuesta redactada,
+quien aprueba la cambia allí en un editor, con **Restore original** y **Show changes**, y aprueba su versión. El paso
+pasa entonces `final`, `original` y `edited`, de modo que un paso posterior envía
+lo que la persona aprobó. Quien puede decidir pero no está nombrado en el paso ve la propuesta de solo
+lectura, y una solicitud decidida con una versión cambiada lleva la insignia
+**Edited** en **Decided**.
 
 
 En la lista, la versión de un run de prueba dice **Draft (test)** y la de uno real

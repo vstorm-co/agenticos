@@ -1,5 +1,5 @@
 ---
-source_sha: "91b8979e242e"
+source_sha: "a88795b71e89"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -597,7 +597,41 @@ iteración de un bucle nunca preguntan dos veces lo mismo.
 
 Los aprobadores nombrados deben ser miembros activos con `approvals:decide`. Se comprueba al publicar y de nuevo antes de pedir la aprobación. Si han perdido ese permiso, el paso falla con `APPROVER_UNAVAILABLE` en lugar de dejar una solicitud que nadie puede resolver.
 
+Un paso puede llevar una **propuesta**: texto vinculado a `proposal`, como una
+respuesta redactada. Quien aprueba la lee junto a la solicitud. Con `editable`
+activado, la cola la muestra en un editor, como `text` o `markdown`
+(`proposal_format`), bajo `proposal_label` (`Proposal` si está vacío), y quien
+aprueba puede aprobar una versión modificada. Un paso sin nada vinculado abre un
+editor vacío, para el caso en que la redacción no produjo nada. `details` no cambia
+y sigue siendo corto; la propuesta puede tener hasta 100 000 caracteres.
+
+La salida aprobada lleva tres campos además de la decisión:
+
+- `final` es la versión que la persona aprobó, la propia propuesta si no cambió
+  nada.
+- `original` es la propuesta tal como se pidió, `""` cuando un paso editable no
+  tenía nada vinculado.
+- `edited` es verdadero cuando `final` difiere de `original`. Los finales de línea,
+  los espacios al final de la línea y el espacio en blanco alrededor del texto no
+  cuentan como diferencia.
+
+Una versión editada se guarda sin espacios en blanco al principio ni al final, así
+que una edición que empieza con un bloque de código con sangría pierde esa primera
+sangría.
+
+Un paso que no es `editable` muestra su propuesta de solo lectura y, una vez
+aprobada, la pasa sin cambios como `final` con `edited` en false, de modo que los
+pasos posteriores pueden vincular `final` sea cual sea el modo del paso. Un rechazo
+o una caducidad no lleva `final`. Enviar una versión editada a un paso que no es
+`editable`, o junto con un rechazo, se rechaza con `422`. Quien puede decidir pero
+no está nombrado en el paso ve la propuesta de solo lectura.
+
+Si el workflow envía el `final` aprobado por [`mcp.call`](#mcp-call), pon el
+`approval` de ese paso en `none`, o se pregunta dos veces a la persona.
+
 ::: app.workflows.nodes.human_approval._handler.HumanApprovalConfig
+
+::: app.workflows.nodes.human_approval._handler.HumanApprovalInput
 
 ::: app.workflows.nodes.human_approval._handler.HumanApprovalOutput
 

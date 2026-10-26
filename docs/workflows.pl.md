@@ -1,5 +1,5 @@
 ---
-source_sha: "4ff10ed3b024"
+source_sha: "9147c4363ad2"
 ---
 
 # Workflows { #workflows }
@@ -642,6 +642,16 @@ Odpowiedź runa - jego tekst, wynik strukturalny, fragmenty, na których się op
 liczba utworzonych plików, z samym JSON-em pod **Raw output** - oraz każdy wykonany
 krok, iteracja po iteracji, są obok.
 Trwający run odświeża się co kilka sekund, a **Cancel run** go zatrzymuje i wycofuje liczniki, które ustawiły jego czekające kroki. Jego **Files** wymieniają to, co zapisały jego kroki - pobrany plik, wyrenderowaną stronę, wynik skryptu - każde do pobrania.
+
+Run czekający na krok [**Ask for approval**](reference/workflow-nodes.md#human-approval)
+widać w zakładce **Zatwierdzenia (Approvals)** w Activity. Gdy krok ma ustawione **Let the approver
+edit** i powiązaną propozycję, na przykład przygotowaną odpowiedź, zatwierdzający
+zmienia ją tam w edytorze, z przyciskami **Przywróć oryginał (Restore original)** i
+**Pokaż zmiany (Show changes)**, i zatwierdza swoją wersję. Krok przekazuje wtedy
+dalej `final`, `original` i `edited`, więc kolejny krok wysyła to, co osoba
+zatwierdziła. Decydujący, którego krok nie wskazuje, widzi propozycję tylko do odczytu, a
+prośba rozstrzygnięta ze zmienioną wersją ma pod **Zdecydowane (Decided)** znacznik
+**Zmieniono (Edited)**.
 
 
 Na liście wersja testowego przebiegu to **Draft (test)**, a prawdziwego

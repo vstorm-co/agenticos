@@ -10,6 +10,23 @@ passed expires, and the step leaves by `rejected` with `decision: "expired"`.
 The request is keyed by the step's `NodeRun`, so a retried or re-woken dispatch
 finds the one it made instead of asking again, and every iteration of a loop
 asks on its own.
+
+A step can carry a proposal: the text bound to `proposal`, such as a drafted
+reply. The approver reads it next to the request. With `editable` on, the
+approvals queue shows it in an editor (as `text` or `markdown`, per
+`proposal_format`, under `proposal_label`) and the approver may approve a changed
+version; a step with nothing bound opens an empty editor. The step's output then
+holds three fields besides the decision: `final`, the version the approver
+approved (the proposal when they changed nothing); `original`, the proposal as
+asked (`""` when an editable step had nothing bound); and `edited`, whether `final`
+differs from `original` - line endings and trailing spaces are not a difference. A
+step that is not editable shows its proposal read-only and, once approved, hands it
+on unchanged as `final` (`edited` is false), so later steps bind `final` whichever
+mode the step is in.
+A rejection or an expiry carries no `final`.
+
+A workflow that sends the approved `final` through `mcp.call` sets that step's
+`approval` to `none`, or the person is asked twice.
 """
 
 import hashlib
@@ -22,10 +39,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import AuthContext, Perm, role_has
 from app.db.models.notification import NotificationChannel, NotificationEventType
-from app.db.models.workflow_approval import WorkflowApproval, WorkflowApprovalStatus
+from app.db.models.workflow_approval import (
+    ProposalFormat,
+    WorkflowApproval,
+    WorkflowApprovalStatus,
+)
 from app.db.session import get_worker_db_context
 from app.repositories import member as member_repo
 from app.repositories import workflow_approval as approval_repo
+from app.schemas.workflow_approval import MAX_PROPOSAL_CHARS
 from app.services.notification_center import NotificationCenterService
 from app.services.workflow_execution import context
 from app.workflows.contracts.results import Completed, Failed, NodeResult, Waiting, WorkflowError
@@ -57,6 +79,25 @@ class HumanApprovalConfig(BaseModel):
         title="Time limit (hours)",
         description="How long the run waits before the request expires. For ever when empty.",
     )
+    editable: bool = Field(
+        default=False,
+        title="Let the approver edit",
+        description=(
+            "Show the bound proposal in an editor; the version the approver approves "
+            "leaves as final."
+        ),
+    )
+    proposal_label: str | None = Field(
+        default=None,
+        max_length=80,
+        title="Proposal label",
+        description="What the proposal is called, such as Reply. Proposal when empty.",
+    )
+    proposal_format: ProposalFormat = Field(
+        default="text",
+        title="Proposal format",
+        description="Whether the proposal is plain text or Markdown.",
+    )
 
 
 class HumanApprovalInput(BaseModel):
@@ -65,6 +106,11 @@ class HumanApprovalInput(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     details: str | None = Field(default=None, max_length=4000)
+    proposal: str | None = Field(
+        default=None,
+        max_length=MAX_PROPOSAL_CHARS,
+        description="The text the approver reviews, and edits when the step is editable.",
+    )
 
 
 class HumanApprovalOutput(BaseModel):
@@ -76,6 +122,12 @@ class HumanApprovalOutput(BaseModel):
     decided_by_user_id: UUID | None = None
     decided_at: datetime | None = None
     note: str | None = None
+    final: str | None = Field(
+        default=None,
+        description="The version the approver approved. None for a rejection or an expiry.",
+    )
+    original: str | None = Field(default=None, description="The proposal the approver was asked.")
+    edited: bool = Field(default=False, description="Whether final differs from original.")
 
 
 def routes(output: dict[str, Any] | None) -> frozenset[str]:
@@ -121,12 +173,19 @@ def _decided(approval: WorkflowApproval) -> Completed[HumanApprovalOutput]:
             decided_by_user_id=approval.decided_by_user_id,
             decided_at=approval.decided_at,
             note=approval.note,
+            final=approval.final,
+            original=approval.proposal,
+            edited=approval.edited,
         )
     )
 
 
 async def _ask(
-    db: AsyncSession, config: HumanApprovalConfig, details: str | None, now: datetime
+    db: AsyncSession,
+    config: HumanApprovalConfig,
+    details: str | None,
+    proposal: str | None,
+    now: datetime,
 ) -> None:
     current = context.current()
     if current.workflow_id is None:  # pragma: no cover - every dispatch carries its workflow
@@ -139,6 +198,10 @@ async def _ask(
         node_run_id=current.node_run_id,
         title=config.title,
         details=details,
+        editable=config.editable,
+        proposal=(proposal or "") if config.editable else proposal,
+        proposal_format=config.proposal_format,
+        proposal_label=config.proposal_label,
         approver_user_ids=list(config.approvers),
         expires_at=(
             now + timedelta(hours=config.timeout_hours)
@@ -167,6 +230,7 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
         )
     current = context.current()
     details = node_input.details if isinstance(node_input, HumanApprovalInput) else None
+    proposal = node_input.proposal if isinstance(node_input, HumanApprovalInput) else None
     waiting = Waiting(reason="approval", resume_token=str(current.node_run_id))
     now = datetime.now(UTC)
     async with get_worker_db_context() as db:
@@ -180,7 +244,7 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                         message="A named approver is no longer able to decide approvals",
                     )
                 )
-            await _ask(db, config, details, now)
+            await _ask(db, config, details, proposal, now)
             return waiting
         if approval.status != WorkflowApprovalStatus.PENDING.value:
             return _decided(approval)

@@ -573,7 +573,39 @@ asks twice for the same thing.
 
 Named approvers must be active members holding `approvals:decide`. Publishing checks this, and the step checks again before asking; a person who lost that permission fails the step with `APPROVER_UNAVAILABLE` rather than leaving an undecidable request.
 
+A step can carry a **proposal**: text bound to `proposal`, such as a drafted
+reply. The approver reads it next to the request. Turn `editable` on and the
+queue shows it in an editor, as `text` or `markdown` (`proposal_format`) under
+`proposal_label` (`Proposal` when empty), and the approver may approve a changed
+version. A step with nothing bound opens an empty editor, for the case where
+drafting produced nothing. `details` is unchanged and stays short; the proposal
+may be up to 100,000 characters.
+
+The approved output carries three fields besides the decision:
+
+- `final` is the version the approver approved, the proposal itself when they
+  changed nothing.
+- `original` is the proposal as asked, `""` when an editable step had nothing
+  bound.
+- `edited` is true when `final` differs from `original`. Line endings,
+  trailing spaces and blank space around the text are not a difference.
+
+An edited version is stored with leading and trailing whitespace removed, so an
+edit that begins with an indented code block loses that first indentation.
+
+A step that is not `editable` shows its proposal read-only and, once approved,
+hands it on unchanged as `final` with `edited` false, so later steps can bind
+`final` whichever mode the step is in. A rejection or an expiry carries no
+`final`. Sending an edited version to a step that is not `editable`, or with a
+rejection, is refused with `422`. A decider the step does not name sees the
+proposal read-only.
+
+If the workflow sends the approved `final` through [`mcp.call`](#mcp-call), set
+that step's `approval` to `none`, or the person is asked twice.
+
 ::: app.workflows.nodes.human_approval._handler.HumanApprovalConfig
+
+::: app.workflows.nodes.human_approval._handler.HumanApprovalInput
 
 ::: app.workflows.nodes.human_approval._handler.HumanApprovalOutput
 

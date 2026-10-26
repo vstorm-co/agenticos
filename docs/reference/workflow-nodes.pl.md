@@ -1,5 +1,5 @@
 ---
-source_sha: "91b8979e242e"
+source_sha: "a88795b71e89"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -587,7 +587,39 @@ pyta raz, więc ponowienie ani iteracja pętli nigdy nie pytają dwa razy o to s
 
 Wskazani zatwierdzający muszą być aktywnymi członkami z `approvals:decide`. Publikacja to sprawdza, a krok sprawdza ponownie przed wysłaniem prośby; utrata tego uprawnienia kończy krok kodem `APPROVER_UNAVAILABLE` zamiast zostawiać prośbę, której nikt nie może rozstrzygnąć.
 
+Krok może nieść **propozycję**: tekst powiązany z `proposal`, na przykład
+przygotowaną odpowiedź. Zatwierdzający czyta ją obok prośby. Po włączeniu
+`editable` kolejka pokazuje ją w edytorze, jako `text` albo `markdown`
+(`proposal_format`), pod etykietą `proposal_label` („Propozycja (Proposal)”, gdy pusta), a
+zatwierdzający może zatwierdzić zmienioną wersję. Krok bez powiązanego tekstu
+otwiera pusty edytor, na wypadek gdy przygotowanie niczego nie dało. `details` się
+nie zmienia i ma pozostać krótkie; propozycja może mieć do 100 000 znaków.
+
+Zatwierdzone wyjście niesie trzy pola obok decyzji:
+
+- `final` to wersja, którą zatwierdzający zatwierdził, a gdy niczego nie zmienił,
+  sama propozycja.
+- `original` to propozycja w chwili prośby, `""`, gdy edytowalny krok nie miał nic
+  powiązanego.
+- `edited` jest prawdą, gdy `final` różni się od `original`. Końce linii,
+  spacje na końcu linii i puste miejsce wokół tekstu nie są różnicą.
+
+Edytowana wersja jest zapisywana bez białych znaków na początku i na końcu, więc
+edycja zaczynająca się od wciętego bloku kodu traci to pierwsze wcięcie.
+
+Krok, który nie jest `editable`, pokazuje propozycję tylko do odczytu, a po
+zatwierdzeniu przekazuje ją bez zmian jako `final` z `edited` równym false, więc
+kolejne kroki mogą wiązać `final` niezależnie od trybu kroku. Odrzucenie albo
+wygaśnięcie nie niesie `final`. Wysłanie edytowanej wersji do kroku, który nie jest
+`editable`, albo razem z odrzuceniem, kończy się odmową `422`. Decydujący, którego
+krok nie wskazuje, widzi propozycję tylko do odczytu.
+
+Jeśli workflow wysyła zatwierdzone `final` przez [`mcp.call`](#mcp-call), ustaw
+`approval` tego kroku na `none`, bo inaczej osoba zostanie zapytana dwa razy.
+
 ::: app.workflows.nodes.human_approval._handler.HumanApprovalConfig
+
+::: app.workflows.nodes.human_approval._handler.HumanApprovalInput
 
 ::: app.workflows.nodes.human_approval._handler.HumanApprovalOutput
 

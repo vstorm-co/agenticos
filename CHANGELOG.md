@@ -28,6 +28,19 @@ Two things are versioned separately from this file and worth knowing about:
   toolbar) keeps the neutral look, per browser. A selected step can be resized
   by its right edge, bottom edge or corner, its text wrapping into the space, and
   **Reset size** in its right-click menu undoes it.
+- **`human.approval` can let the approver edit a proposal before approving it.**
+  Bind text such as a drafted reply to the step's new `proposal` input and turn on
+  `editable`; the Approvals tab shows an editor (`text` or `markdown`, under a
+  `proposal_label`) with **Restore original** and **Show changes**, and a decider the
+  step does not name sees it read-only. The approved step outputs `final`,
+  `original` and `edited`; a step that is not editable hands its proposal on as
+  `final` unchanged. `POST /api/v1/workflow-approvals/{id}` takes an optional
+  `final`, refused with `422` on a step that is not editable or with a rejection.
+  An edited `final` is stored without leading and trailing whitespace, and
+  `edited` ignores line endings, trailing spaces and blank space around the text. The audit entry records `editable`, `edited`
+  and the two lengths, never the text. A workflow that sends `final` through
+  `mcp.call` sets that step's `approval` to `none`. See
+  [the node reference](docs/reference/workflow-nodes.md#human-approval).
 - **`OUTBOUND_PRIVATE_ALLOWLIST` lets an operator open hosts on the
   deployment's own network.** An entry is an exact host, a `.suffix` (which does
   not match the apex), an IP address or a CIDR range. Workflow `http.request`,
@@ -1056,6 +1069,8 @@ Two things are versioned separately from this file and worth knowing about:
   name that resolves to a loopback or metadata address, for example a sidecar
   alias for `127.0.0.1`, is now refused when an MCP connection is saved. Remove or
   fix such entries before upgrading; any other entry keeps working.
+- The agent version history shows "Too long to compare line by line." for a spec
+  over the diff's line limit, instead of two rows holding both whole texts.
 - **Workflow runs run on the Postgres job queue.** Every node attempt is a
   `workflow-dispatch-node` job on the agent pool, queued in the same transaction as
   its outbox row, so a run never starts without its job and a rolled-back start

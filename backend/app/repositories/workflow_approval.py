@@ -8,7 +8,11 @@ from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.workflow import Workflow
-from app.db.models.workflow_approval import WorkflowApproval, WorkflowApprovalStatus
+from app.db.models.workflow_approval import (
+    ProposalFormat,
+    WorkflowApproval,
+    WorkflowApprovalStatus,
+)
 from app.db.models.workflow_run import (
     DispatchOutbox,
     DispatchOutboxStatus,
@@ -31,6 +35,10 @@ async def create(
     details: str | None,
     approver_user_ids: list[UUID],
     expires_at: datetime | None,
+    editable: bool = False,
+    proposal: str | None = None,
+    proposal_format: ProposalFormat = "text",
+    proposal_label: str | None = None,
 ) -> WorkflowApproval:
     row = WorkflowApproval(
         organization_id=organization_id,
@@ -41,6 +49,10 @@ async def create(
         details=details,
         approver_user_ids=[str(user_id) for user_id in approver_user_ids],
         expires_at=expires_at,
+        editable=editable,
+        proposal=proposal,
+        proposal_format=proposal_format,
+        proposal_label=proposal_label,
     )
     db.add(row)
     await db.flush()

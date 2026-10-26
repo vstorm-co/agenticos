@@ -719,7 +719,24 @@ export interface WorkflowApprovalRead {
   decided_at: string | null;
   note: string | null;
   created_at: string;
+  /** Whether the approver may edit the proposal before approving it. */
+  editable: boolean;
+  /** What the step proposes: a draft, a reply, a value. */
+  proposal: string | null;
+  proposal_format: "text" | "markdown";
+  /** What the step calls its proposal; absent shows a generic heading. */
+  proposal_label: string | null;
+  /** What was approved, once decided; the proposal as it stood or the edit. */
+  final: string | null;
+  /** Whether the approved text differs from the proposal. */
+  edited: boolean;
 }
+
+/**
+ * The longest proposal or edit the server accepts. Mirrors `MAX_PROPOSAL_CHARS`
+ * in `app/schemas/workflow_approval.py`.
+ */
+export const MAX_PROPOSAL_CHARS = 100_000;
 
 export interface WorkflowApprovalList {
   items: WorkflowApprovalRead[];

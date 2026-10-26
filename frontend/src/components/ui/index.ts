@@ -6,6 +6,7 @@ export { SectionHeading } from "./section-heading";
 export { Input } from "./input";
 export { Label } from "./label";
 export { Textarea } from "./textarea";
+export { LineDiff } from "./line-diff";
 export { MarkdownEditor, MarkdownModeToggle, type MarkdownMode } from "./markdown-editor";
 export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent } from "./card";
 export { Figure, FigureCard, DeltaChip, type FigureProps } from "./figure";

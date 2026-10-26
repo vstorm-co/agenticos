@@ -1,5 +1,5 @@
 ---
-source_sha: "741cf88edef0"
+source_sha: "42075adb7a61"
 ---
 
 # Governance { #governance }
@@ -1536,6 +1536,13 @@ Protokoll der Tool-Aufrufe aufgelistet.
 Einen Schritt, der seine Freigebenden nennt, können nur sie entscheiden. Eine
 Anfrage, die niemand rechtzeitig entscheidet, läuft ab, und ein abgebrochener Run
 bricht seine Anfragen ab.
+
+Ein Schritt mit `editable` zeigt der freigebenden Person auch einen Vorschlag,
+etwa eine vorbereitete Antwort, den sie vor der Freigabe ändern darf. Der
+Audit-Eintrag hält fest, ob der Schritt editierbar war, ob die Person ihn geändert
+hat (`edited`) und wie lang der Vorschlag und der freigegebene Text sind
+(`proposal_length`, `final_length`), nie den Text selbst. Der Text liegt im
+Klartext bei der Anfrage, bis die Historie des Runs gelöscht wird.
 
 ### Artefakt-Einträge { #artifact-entries }
 

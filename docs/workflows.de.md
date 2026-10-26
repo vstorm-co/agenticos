@@ -1,5 +1,5 @@
 ---
-source_sha: "4ff10ed3b024"
+source_sha: "9147c4363ad2"
 ---
 
 # Workflows { #workflows }
@@ -706,6 +706,17 @@ die er sich stützte, und wie viele Dateien er erzeugt hat, mit dem JSON selbst 
 stehen daneben. Ein laufender Run aktualisiert sich alle paar Sekunden, und **Cancel
 run** stoppt ihn. Seine **Files** listen, was seine Schritte gespeichert haben - einen Download, eine
 gerenderte Seite, die Ausgabe eines Skripts -, jeweils zum Herunterladen.
+
+Ein Run, der auf einen Schritt [**Ask for approval**](reference/workflow-nodes.md#human-approval)
+wartet, erscheint im Tab **Freigaben (Approvals)** unter Activity. Ist beim Schritt **Let the
+approver edit** gesetzt und ein Vorschlag gebunden, etwa eine vorbereitete Antwort,
+ändert die freigebende Person ihn dort in einem Editor, mit **Original
+wiederherstellen (Restore original)** und **Änderungen anzeigen (Show changes)**,
+und gibt ihre Fassung frei. Der Schritt gibt dann `final`, `original` und `edited`
+weiter, sodass ein späterer Schritt sendet, was die Person freigegeben hat. Wer entscheiden darf, vom
+Schritt aber nicht genannt wird, sieht den Vorschlag schreibgeschützt, und eine mit
+einer geänderten Fassung entschiedene Anfrage trägt unter **Entschieden (Decided)** das Zeichen
+**Bearbeitet (Edited)**.
 
 
 In der Liste lautet die Version eines Testlaufs **Draft (test)** und die eines echten

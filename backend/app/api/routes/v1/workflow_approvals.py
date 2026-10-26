@@ -62,5 +62,11 @@ async def list_workflow_approvals(
 async def decide_workflow_approval(
     approval_id: UUID, data: WorkflowApprovalDecision, service: WorkflowApprovalSvc, ctx: Auth
 ) -> Any:
-    """Approve or reject a step's request, which wakes the step. A decision is final."""
-    return await service.decide(ctx, approval_id, approved=data.approved, note=data.note)
+    """Approve or reject a step's request, which wakes the step. A decision is final.
+
+    An editable step takes `final`, the version approved; any other step, and any
+    rejection, refuses it with 422 naming `final`.
+    """
+    return await service.decide(
+        ctx, approval_id, approved=data.approved, note=data.note, final=data.final
+    )

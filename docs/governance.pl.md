@@ -1,5 +1,5 @@
 ---
-source_sha: "741cf88edef0"
+source_sha: "42075adb7a61"
 ---
 
 # Governance { #governance }
@@ -1438,6 +1438,13 @@ z tym, o co pytano, i zostaje na liście **Decided** razem z zapisem wywołań
 narzędzi. Krok, który wskazuje zatwierdzających, mogą rozstrzygnąć tylko
 oni. Prośba, której nikt nie rozstrzygnie na czas, wygasa, a anulowany run anuluje
 swoje prośby.
+
+Krok `editable` pokazuje też zatwierdzającemu propozycję, na przykład przygotowaną
+odpowiedź, którą może zmienić przed zatwierdzeniem. Wpis audytu zapisuje, czy krok
+był edytowalny, czy zatwierdzający go zmienił (`edited`) oraz długość propozycji i
+zatwierdzonego tekstu (`proposal_length`, `final_length`) - nigdy sam tekst. Tekst
+jest przechowywany przy prośbie, jawnym tekstem, dopóki historia runa nie zostanie
+usunięta.
 
 ### Wpisy artefaktów { #artifact-entries }
 

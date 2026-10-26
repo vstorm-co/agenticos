@@ -385,6 +385,12 @@ const STEP: WorkflowApprovalRead = {
   decided_at: "2026-08-05T10:00:00Z",
   note: "Looks right",
   created_at: "2026-08-05T09:00:00Z",
+  editable: false,
+  proposal: null,
+  proposal_format: "text",
+  proposal_label: null,
+  final: null,
+  edited: false,
 };
 
 describe("the workflow steps beside the tool calls", () => {

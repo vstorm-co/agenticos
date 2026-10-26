@@ -1,5 +1,5 @@
 ---
-source_sha: "741cf88edef0"
+source_sha: "42075adb7a61"
 ---
 
 # Governance { #governance }
@@ -1427,6 +1427,13 @@ definitiva y queda en el registro de auditoría junto con lo que se preguntó, y
 las llamadas a herramientas. Un
 paso que nombra a quienes aprueban solo puede decidirlo esa gente. Una solicitud
 que nadie decide a tiempo caduca, y un run cancelado cancela sus solicitudes.
+
+Un paso `editable` también muestra a quien aprueba una propuesta, como una
+respuesta redactada, que puede cambiar antes de aprobarla. La entrada de auditoría
+registra si el paso era editable, si la persona lo editó (`edited`) y la longitud
+de la propuesta y del texto aprobado (`proposal_length`, `final_length`), nunca el
+texto en sí. El texto se guarda en texto plano en la solicitud hasta que se borra
+el historial del run.
 
 ### Entradas de artefactos { #artifact-entries }
 
