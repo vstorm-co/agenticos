@@ -12,6 +12,7 @@ from app.schemas.improvement import (
     AttributionEstimate,
     ContinuationConsent,
     ContinuationEstimate,
+    EvidenceDecisionUpdate,
     ImprovementContinue,
     ImprovementDiscard,
     ImprovementEstimate,
@@ -91,6 +92,19 @@ async def read_improvement_evidence(
 ) -> Any:
     """Current-readable examples from the session's frozen inputs and recorded causes."""
     return await service.evidence(ctx, agent_id, run_id=run_id)
+
+
+@router.put("/{run_id}/evidence/{evidence_run_id}", response_model=ImprovementEvidence)
+async def decide_improvement_evidence(
+    agent_id: UUID,
+    run_id: UUID,
+    evidence_run_id: UUID,
+    data: EvidenceDecisionUpdate,
+    service: ImprovementSvc,
+    ctx: Auth,
+) -> Any:
+    """Move one chat example to the other column or ignore it; later rounds follow the decision."""
+    return await service.decide_evidence(ctx, agent_id, run_id, evidence_run_id, data)
 
 
 @router.get("/{run_id}", response_model=ImprovementRead)

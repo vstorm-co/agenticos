@@ -1280,6 +1280,31 @@ async def topics_of_answers(
     return list(result.scalars().all())
 
 
+async def topic_of_runs(
+    db: AsyncSession,
+    knowledge_base_ids: Sequence[UUID],
+    run_ids: Sequence[UUID],
+    *,
+    organization_id: UUID,
+) -> dict[UUID, UUID]:
+    """The one topic of these knowledge bases each run's miss joined, the oldest when several did."""
+    if not run_ids or not knowledge_base_ids:
+        return {}
+    result = await db.execute(
+        select(KnowledgeSearch.run_id, KnowledgeGapMember.topic_id)
+        .join(KnowledgeGapMember, KnowledgeGapMember.search_id == KnowledgeSearch.id)
+        .join(KnowledgeGapTopic, KnowledgeGapTopic.id == KnowledgeGapMember.topic_id)
+        .where(
+            KnowledgeSearch.organization_id == organization_id,
+            KnowledgeSearch.run_id.in_(list(run_ids)),
+            KnowledgeGapTopic.knowledge_base_id.in_(list(knowledge_base_ids)),
+        )
+        .distinct(KnowledgeSearch.run_id)
+        .order_by(KnowledgeSearch.run_id, KnowledgeGapTopic.created_at, KnowledgeGapTopic.id)
+    )
+    return dict(result.all())
+
+
 async def answers_for_runs(
     db: AsyncSession, *, organization_id: UUID, run_ids: Sequence[UUID]
 ) -> dict[UUID, UUID]:

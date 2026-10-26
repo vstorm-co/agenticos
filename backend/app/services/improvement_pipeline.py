@@ -40,6 +40,7 @@ from app.db.models.agent import Agent, AgentStatus
 from app.db.models.authoring import AuthoringStatus, BatchStatus, HunkKind, HunkStatus
 from app.db.models.improvement import (
     DroppedHunk,
+    EvidenceDecision,
     ImprovementIteration,
     ImprovementRun,
     ImprovementVerdict,
@@ -82,6 +83,7 @@ from app.schemas.improvement import (
     AttributionEstimate,
     ContinuationConsent,
     ContinuationEstimate,
+    EvidenceDecisionUpdate,
     ImprovementContinue,
     ImprovementDiscard,
     ImprovementEstimate,
@@ -312,17 +314,27 @@ class ImprovementPipelineService:
         causes = await KnowledgeGapService(self.db).causes(ctx, ids, messages)
         pack = await self.authoring.evidence.for_improvement(ctx, run.id)
         training = sum(item.evidence_kind == "train_eval" for item in pack.runs)
+        decided = await knowledge_gap_repo.answers_for_runs(
+            self.db,
+            organization_id=run.organization_id,
+            run_ids=[UUID(key) for key in run.evidence_decisions],
+        )
+        overrides = {
+            message_id: run.evidence_decisions[str(run_id)]
+            for run_id, message_id in decided.items()
+        }
+        branches = {c.message_id: overrides.get(c.message_id, c.branch) for c in causes.values()}
         agent = (
             training
             + len(source_runs)
             - len(messages)
-            + sum(c.branch in {"agent", "unknown"} for c in causes.values())
+            + sum(branch in {"agent", "unknown"} for branch in branches.values())
         )
-        missing = sum(c.branch == "missing_knowledge" for c in causes.values())
+        missing = sum(branch == "missing_knowledge" for branch in branches.values())
         excluded = [
-            c.message_id
-            for c in causes.values()
-            if c.branch in {"missing_knowledge", "not_a_problem"}
+            message_id
+            for message_id, branch in {**branches, **overrides}.items()
+            if branch in {"missing_knowledge", "not_a_problem", "ignored"}
         ]
         return agent, missing, excluded
 
@@ -622,8 +634,9 @@ class ImprovementPipelineService:
         agent = await self.registry.get(ctx, agent_id)
         if not ctx.has(Perm.RUNS_VIEW):
             raise AuthorizationError(message="Reading improvement evidence needs runs:view")
+        decisions: dict[str, EvidenceDecision] = {}
         if run_id is not None:
-            await self._row(ctx, agent_id, run_id)
+            decisions = (await self._row(ctx, agent_id, run_id)).evidence_decisions
             pack = await self.authoring.evidence.for_improvement(ctx, run_id)
         else:
             if dataset_id is not None:
@@ -646,9 +659,13 @@ class ImprovementPipelineService:
             run_ids=[item.run_id for item in pack.runs if item.evidence_kind == "chat"],
         )
         causes = await KnowledgeGapService(self.db).causes(ctx, readable, list(messages.values()))
+        topics = await knowledge_gap_repo.topic_of_runs(
+            self.db, readable, list(messages), organization_id=ctx.organization_id
+        )
         items: list[ImprovementEvidenceItem] = []
         for item in pack.runs:
             cause = causes.get(messages[item.run_id]) if item.run_id in messages else None
+            decision = decisions.get(str(item.run_id)) if item.evidence_kind == "chat" else None
             items.append(
                 ImprovementEvidenceItem(
                     run_id=item.run_id,
@@ -666,6 +683,8 @@ class ImprovementPipelineService:
                     branch=(
                         "agent"
                         if item.evidence_kind == "train_eval"
+                        else decision
+                        if decision in {"agent", "missing_knowledge"}
                         else "not_a_problem"
                         if item.rating > 0
                         else cause.branch
@@ -673,6 +692,8 @@ class ImprovementPipelineService:
                         else "unknown"
                     ),
                     reason=redact_credentials(cause.reason)[0] if cause else None,
+                    topic_id=topics.get(item.run_id),
+                    decision=decision,
                 )
             )
         return ImprovementEvidence(
@@ -680,6 +701,45 @@ class ImprovementPipelineService:
             sample_limit=MAX_EVIDENCE_RUNS,
             training_failures=sum(item.status == "train_eval_failure" for item in pack.runs),
         )
+
+    async def decide_evidence(
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        run_id: UUID,
+        evidence_run_id: UUID,
+        data: EvidenceDecisionUpdate,
+    ) -> ImprovementEvidence:
+        """Move one frozen chat example to the other column, ignore it, or undo that.
+
+        Later rounds read the decision: an example moved to the knowledge base
+        or ignored no longer reaches the agent's proposal, and one moved to the
+        agent does. Nothing already proposed, measured or drafted changes.
+        """
+        await self.authoring._editable(ctx, agent_id)
+        self.authoring._require_runs_view(ctx)
+        run = await self._row(ctx, agent_id, run_id, lock=True)
+        if run.status in {Status.ACCEPTED, Status.PUBLISHED, Status.REJECTED}:
+            raise BadRequestError(
+                message="This session is decided; start a new one to sort its examples again"
+            )
+        if evidence_run_id not in (run.chat_evidence_run_ids or []):
+            raise NotFoundError(
+                message="This conversation is not one of the session's examples",
+                details={"run_id": evidence_run_id},
+            )
+        decisions = {
+            key: value
+            for key, value in run.evidence_decisions.items()
+            if key != str(evidence_run_id)
+        }
+        if data.decision is not None:
+            decisions[str(evidence_run_id)] = data.decision
+        await improvement_repo.update_run(
+            self.db, run=run, values={"evidence_decisions": decisions}
+        )
+        await self._audit(run, "evidence_decided", actor_user_id=ctx.user_id)
+        return await self.evidence(ctx, agent_id, run_id=run_id)
 
     async def read(self, ctx: AuthContext, agent_id: UUID, run_id: UUID) -> ImprovementRead:
         await self.registry.get(ctx, agent_id)

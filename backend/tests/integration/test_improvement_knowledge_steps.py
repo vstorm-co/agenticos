@@ -23,7 +23,7 @@ from app.db.models.ingestion_spend import IngestionSpend
 from app.db.models.knowledge_gap import KnowledgeGapMember, KnowledgeGapTopic
 from app.repositories import dataset_repo, improvement_repo, knowledge_gap_repo
 from app.schemas.api_key import ApiKeyCreate
-from app.schemas.improvement import ImprovementStart, ImprovementTarget
+from app.schemas.improvement import EvidenceDecisionUpdate, ImprovementStart, ImprovementTarget
 from app.services.api_key import ApiKeyService
 from app.services.embedding_resolution import EmbeddingKeySource, ResolvedEmbeddings
 from app.services.improvement_pipeline import ImprovementPipelineService
@@ -473,3 +473,40 @@ async def test_a_draft_finished_after_cancellation_keeps_spend_but_not_content(d
         )
         == 0
     )
+
+
+async def test_examples_group_by_topic_and_a_persons_triage_reaches_later_rounds(db):
+    ctx, agent, _, dataset, sources = await _world(db)
+    with _providers(db, ctx):
+        read = await _start(db, ctx, agent, dataset)
+        stored, _ = await _classify(db, ctx, agent, read)
+        job, payload = await _job(db, stored, draft=True)
+        await draft_knowledge_gaps(payload)
+        service = ImprovementPipelineService(db)
+        items = {
+            item.run_id: item
+            for item in (await service.evidence(ctx, agent.id, run_id=read.id)).items
+        }
+        assert items[sources[1]].topic_id is not None
+        assert items[sources[1]].topic_id == items[sources[2]].topic_id
+        assert items[sources[0]].topic_id is None and items[sources[0]].decision is None
+        await service.decide_evidence(
+            ctx, agent.id, read.id, sources[1], EvidenceDecisionUpdate(decision="agent")
+        )
+        decided = await service.decide_evidence(
+            ctx, agent.id, read.id, sources[0], EvidenceDecisionUpdate(decision="ignored")
+        )
+        items = {item.run_id: item for item in decided.items}
+        assert items[sources[1]].branch == "agent" and items[sources[1]].decision == "agent"
+        assert items[sources[0]].decision == "ignored"
+        messages = await knowledge_gap_repo.answers_for_runs(
+            db, organization_id=ctx.organization_id, run_ids=sources
+        )
+        excluded = await service._knowledge_exclusions(ctx, stored)
+        assert set(excluded) == {messages[sources[0]], messages[sources[2]]}
+        undone = await service.decide_evidence(
+            ctx, agent.id, read.id, sources[1], EvidenceDecisionUpdate(decision=None)
+        )
+        item = next(item for item in undone.items if item.run_id == sources[1])
+        assert item.branch == "missing_knowledge" and item.decision is None
+        assert stored.evidence_decisions == {str(sources[0]): "ignored"}

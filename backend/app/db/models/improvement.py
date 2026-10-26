@@ -21,7 +21,7 @@ from collections.abc import Iterable
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
-from typing import TypedDict
+from typing import Literal, TypedDict
 
 from pydantic import JsonValue
 from sqlalchemy import (
@@ -145,6 +145,10 @@ ACTIVE_STATUSES = tuple(status for status in ImprovementStatus if status.active)
 WAITING_STATUSES = tuple(status for status in ImprovementStatus if status.waiting)
 
 
+EvidenceDecision = Literal["agent", "missing_knowledge", "ignored"]
+"""A person's call on one chat example: which column it belongs in, or none."""
+
+
 class DroppedHunk(TypedDict):
     """A hunk the policy left out of a round's candidate, and why."""
 
@@ -222,6 +226,11 @@ class ImprovementRun(Base):
     )
     pinned_scoring: Mapped[dict[str, JsonValue] | None] = mapped_column(
         JSONB(none_as_null=True), nullable=True
+    )
+    # A person's triage of the frozen chat evidence, keyed by run id: moved to
+    # "agent" or "missing_knowledge", or "ignored". Later rounds read it.
+    evidence_decisions: Mapped[dict[str, EvidenceDecision]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
     )
     judge_version_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     # A suite is edited in place, so its id alone would let a session be judged

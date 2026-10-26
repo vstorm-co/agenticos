@@ -167,3 +167,33 @@ async def test_training_preview_preserves_the_run_reader_boundary(db):
     )
     with pytest.raises(AuthorizationError, match="runs:view"):
         await ImprovementPipelineService(db).evidence(limited, agent.id, dataset_id=dataset.id)
+
+
+async def test_sorting_an_example_is_refused_outside_its_open_session(db):
+    from app.core.exceptions import BadRequestError
+    from app.core.permissions import OrgRoleName
+    from app.db.models.improvement import ImprovementRun
+    from app.schemas.improvement import EvidenceDecisionUpdate
+    from tests.integration.test_eval_suites import _member
+
+    ctx, agent, _, session = await _started(db)
+    service = ImprovementPipelineService(db)
+    [item] = (await service.evidence(ctx, agent.id, run_id=session.id)).items
+    move = EvidenceDecisionUpdate(decision="missing_knowledge")
+    moved = await service.decide_evidence(ctx, agent.id, session.id, item.run_id, move)
+    assert moved.items[0].branch == "missing_knowledge"
+    preview = await service.evidence(ctx, agent.id, dataset_id=session.dataset_id)
+    assert preview.items[0].decision is None and preview.items[0].branch == "unknown"
+    with pytest.raises(NotFoundError, match="not one of the session's examples"):
+        await service.decide_evidence(ctx, agent.id, session.id, uuid4(), move)
+    viewer = await _member(db, ctx, OrgRoleName.VIEWER)
+    with pytest.raises(NotFoundError):
+        await service.decide_evidence(viewer, agent.id, session.id, item.run_id, move)
+    no_runs = replace(ctx, key_scopes=frozenset({Perm.AGENTS_VIEW, Perm.AGENTS_EDIT}))
+    with pytest.raises(AuthorizationError):
+        await service.decide_evidence(no_runs, agent.id, session.id, item.run_id, move)
+    stored = await db.get(ImprovementRun, session.id)
+    stored.status = "published"
+    await db.flush()
+    with pytest.raises(BadRequestError, match="decided"):
+        await service.decide_evidence(ctx, agent.id, session.id, item.run_id, move)

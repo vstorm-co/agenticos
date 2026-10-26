@@ -9,6 +9,7 @@ from pydantic import Field, model_validator
 
 from app.db.models.improvement import (
     DroppedHunk,
+    EvidenceDecision,
     ImprovementStage,
     ImprovementStatus,
     ImprovementVerdict,
@@ -193,8 +194,22 @@ class ImprovementEvidenceItem(BaseSchema):
     question: str | None
     answer: str | None
     comments: list[str]
-    branch: CauseBranch
+    branch: CauseBranch = Field(description="The column it shows in, a person's move included")
     reason: str | None = None
+    topic_id: UUID | None = Field(
+        default=None,
+        description="The knowledge gap topic its miss joined, when one did; examples sharing one "
+        "are one problem",
+    )
+    decision: EvidenceDecision | None = Field(
+        default=None, description="What a person decided about it in this session; none until then"
+    )
+
+
+class EvidenceDecisionUpdate(BaseSchema):
+    """Move one example to the other column, ignore it, or (null) take back the decision."""
+
+    decision: EvidenceDecision | None
 
 
 class ImprovementEvidence(BaseSchema):
