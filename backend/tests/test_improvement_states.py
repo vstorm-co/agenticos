@@ -512,8 +512,12 @@ def test_after_drafting_the_agents_faults_are_next_or_the_session_ends(
     assert after_drafting(status, agent_answers=agent_answers) == move
 
 
-def test_a_crashed_candidate_is_inconclusive_even_with_fixes() -> None:
-    assert judge(replace(_BETTER, crashed=1)) is ImprovementVerdict.INCONCLUSIVE
+def test_an_agent_crash_is_a_failure_and_only_missing_grades_are_inconclusive() -> None:
+    assert judge(replace(_BETTER, crashed=2)) is ImprovementVerdict.BETTER
+    assert (
+        judge(replace(_BETTER, crashed=2, regressions_confirmed=2)) is ImprovementVerdict.REGRESSION
+    )
+    assert judge(replace(_BETTER, crashed=2, incomplete=1)) is ImprovementVerdict.INCONCLUSIVE
 
 
 def test_best_round_prefers_quality_stability_success_then_the_earlier_round() -> None:

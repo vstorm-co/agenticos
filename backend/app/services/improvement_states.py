@@ -277,9 +277,11 @@ class CheckResult:
     `comparable` is false when the check had no baseline or its comparison was
     invalid. `incomplete` counts cases on either side that ended without a
     graded answer because something other than the agent failed; `ungraded`
-    counts cases nothing could grade. A crashed agent run also makes the automatic improvement decision
-    inconclusive; an ordinary suite may still treat that crash as a failure. `suite` is the named suite's verdict on the same check,
-    or `None` when the session names no suite.
+    counts cases nothing could grade. `crashed` counts cases the agent itself
+    crashed on: those are failures already, in the pass rates and the confirmed
+    flips, and the count is kept only to show beside the verdict. `suite` is the
+    named suite's verdict on the same check, or `None` when the session names no
+    suite.
     """
 
     comparable: bool
@@ -300,7 +302,7 @@ def judge(result: CheckResult) -> ImprovementVerdict:
     candidate. A failed suite or confirmed regression decides once every case
     was measured. An ordinary suite may fail on partial evidence independently.
     """
-    if result.crashed or result.incomplete or result.ungraded:
+    if result.incomplete or result.ungraded:
         return ImprovementVerdict.INCONCLUSIVE
     if result.suite is SuiteOutcome.FAILED:
         return ImprovementVerdict.REGRESSION
