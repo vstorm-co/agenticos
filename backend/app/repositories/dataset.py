@@ -6,13 +6,14 @@ version id rather than a dataset id. Minting a version is the service's to
 sequence; the pieces it is built from are here.
 """
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from decimal import Decimal
 from typing import Any, get_args
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, and_, exists, func, or_, select, true
+from sqlalchemy import ColumnElement, Integer, and_, column, exists, func, or_, select, true, values
 from sqlalchemy import update as update_rows
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import Scope
@@ -405,13 +406,37 @@ async def case_stats(
 ) -> dict[UUID, DatasetStats]:
     """What the newest version of each dataset tests against, counted.
 
-    Three queries for any number of datasets - counts, common tags and complete tag groups -
-    so a listing page costs the same whichever size it is. A dataset with no
+    The newest version is read once and every count is taken at it, so a case
+    added while the counts are taken changes none of them. A dataset with no
     version yet is absent; the caller's default is all zeros.
     """
     if not dataset_ids:
         return {}
-    # The newest version holds exactly the revisions no change has removed yet.
+    newest = await db.execute(
+        select(Dataset.id, Dataset.latest_version).where(
+            Dataset.id.in_(dataset_ids),
+            Dataset.organization_id == organization_id,
+            Dataset.latest_version > 0,
+        )
+    )
+    return await case_stats_at(db, dict(newest.tuples().all()), organization_id=organization_id)
+
+
+async def case_stats_at(
+    db: AsyncSession, versions: Mapping[UUID, int], *, organization_id: UUID
+) -> dict[UUID, DatasetStats]:
+    """What each dataset's version numbered in `versions` tests against, counted.
+
+    Three queries for any number of datasets - counts, common tags and complete tag groups -
+    so a listing page costs the same whichever size it is. Each runs as its own
+    statement and sees what committed before it, so all three are held to the
+    same version numbers rather than to whatever is newest when each runs.
+    """
+    if not versions:
+        return {}
+    pinned = values(
+        column("dataset_id", PG_UUID(as_uuid=True)), column("number", Integer), name="pinned"
+    ).data(list(versions.items()))
     held = (
         select(
             DatasetCase.dataset_id,
@@ -423,10 +448,11 @@ async def case_stats(
             DatasetCase.tags,
             DatasetCase.improvement_partition,
         )
+        .join(pinned, pinned.c.dataset_id == DatasetCase.dataset_id)
         .where(
-            DatasetCase.dataset_id.in_(dataset_ids),
             DatasetCase.organization_id == organization_id,
-            DatasetCase.removed_in.is_(None),
+            DatasetCase.added_in <= pinned.c.number,
+            or_(DatasetCase.removed_in.is_(None), DatasetCase.removed_in > pinned.c.number),
         )
         .subquery()
     )
@@ -460,7 +486,7 @@ async def case_stats(
             func.count().filter(held.c.improvement_partition == "holdout"),
         ).group_by(held.c.dataset_id)
     )
-    stats = {}
+    stats: dict[UUID, DatasetStats] = {}
     for row in counts.all():
         mixed = row[5 + len(sources) : -2]
         stats[row[0]] = DatasetStats(
@@ -495,8 +521,8 @@ async def case_stats(
         .where(ranked.c.rank <= TOP_TAGS)
         .order_by(ranked.c.dataset_id, ranked.c.rank)
     )
-    # Each statement reads what is committed when it runs, so a case added after the
-    # counts can name a dataset they did not see; it is left to the next read.
+    # The pinned versions keep all three statements on one set of revisions; a
+    # dataset the counts did not see is still skipped rather than raised on.
     for dataset_id, name, cases in tags.all():
         if dataset_id in stats:
             stats[dataset_id].top_tags.append(DatasetTagCount(tag=name, cases=cases))

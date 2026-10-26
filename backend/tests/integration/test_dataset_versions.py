@@ -15,7 +15,7 @@ import asyncio
 import uuid
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.permissions import AuthContext, OrgRoleName
@@ -219,3 +219,71 @@ async def test_two_changes_at_once_become_two_versions_that_do_not_overlap(db, e
         (2, 1, None),
         (3, 2, None),
     ]
+
+
+async def test_counts_taken_at_one_version_ignore_a_case_added_while_they_run(db) -> None:
+    """Each of the three counting queries is its own statement and sees what
+    committed before it, so all three are held to the versions read first: a case
+    committed in between counts in none of them, whichever dataset it lands in."""
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    tagged = DatasetCaseCreate(input="One?", reference_answer="Yes.", tags=["refunds"])
+    grown = await service.create(ctx, DatasetCreate(name="grown"))
+    await service.add_case(ctx, grown.id, tagged)
+    emptied = await service.create(ctx, DatasetCreate(name="emptied"))
+    await service.add_case(ctx, emptied.id, _case("Gone?"))
+    [gone] = (await service.list_cases(ctx, emptied.id)).items
+    await service.remove_case(ctx, emptied.id, gone.case_id)
+    pinned = {grown.id: 1, emptied.id: 2}
+
+    # The write a concurrent request commits between the counts and the tags.
+    await service.add_case(ctx, grown.id, tagged.model_copy(update={"input": "Two?"}))
+    await service.add_case(ctx, emptied.id, tagged.model_copy(update={"input": "Back?"}))
+
+    at_pin = await dataset_repo.case_stats_at(db, pinned, organization_id=ctx.organization_id)
+    assert set(at_pin) == {grown.id}
+    assert at_pin[grown.id].with_reference == 1
+    assert [(tag.tag, tag.cases) for tag in at_pin[grown.id].top_tags] == [("refunds", 1)]
+    assert sum(group.cases for group in at_pin[grown.id].tag_groups) == 1
+
+    newest = await dataset_repo.case_stats(
+        db, [grown.id, emptied.id], organization_id=ctx.organization_id
+    )
+    assert newest[grown.id].with_reference == 2
+    assert [(tag.tag, tag.cases) for tag in newest[emptied.id].top_tags] == [("refunds", 1)]
+    listed = {item.name: item for item in (await service.list_readable(ctx)).items}
+    assert listed["grown"].stats.with_reference == 2
+    never = await service.create(ctx, DatasetCreate(name="never"))
+    assert await dataset_repo.case_stats(db, [never.id], organization_id=ctx.organization_id) == {}
+
+
+async def test_a_revision_the_counts_did_not_see_is_skipped_by_the_tag_queries(
+    db, monkeypatch
+) -> None:
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="racing"))
+    donor = await service.create(ctx, DatasetCreate(name="donor"))
+    await service.add_case(
+        ctx, donor.id, DatasetCaseCreate(input="Late?", reference_answer="Yes.", tags=["late"])
+    )
+    execute = db.execute
+    calls = 0
+
+    async def move_a_revision_in_after_the_counts(*args, **kwargs):
+        nonlocal calls
+        result = await execute(*args, **kwargs)
+        calls += 1
+        if calls == 1:
+            await execute(
+                update(DatasetCase)
+                .where(DatasetCase.dataset_id == donor.id)
+                .values(dataset_id=dataset.id)
+            )
+        return result
+
+    monkeypatch.setattr(db, "execute", move_a_revision_in_after_the_counts)
+    stats = await dataset_repo.case_stats_at(
+        db, {dataset.id: 1}, organization_id=ctx.organization_id
+    )
+    assert stats == {}
