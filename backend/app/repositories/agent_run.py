@@ -2739,17 +2739,30 @@ def served_runs(*, organization_id: UUID, since: datetime) -> list[ColumnElement
     ]
 
 
+def on_current_version() -> ColumnElement[bool]:
+    """A run of the version its agent's default environment serves now.
+
+    Publishing moves `current_version_id`, so what an earlier version did stops
+    counting against the agent the moment another version serves people.
+    """
+    return AgentRun.agent_version_id == (
+        select(Agent.current_version_id).where(Agent.id == AgentRun.agent_id).scalar_subquery()
+    )
+
+
 _FAILED = (RunStatus.FAILED.value, RunStatus.BUDGET_EXCEEDED.value, RunStatus.LOOP_STOPPED.value)
 
 
 async def failed_by_agent(
     db: AsyncSession, *, organization_id: UUID, start: datetime, end: datetime
 ) -> dict[UUID, int]:
-    """How many of each agent's served runs started in the window failed, by agent."""
+    """How many of each agent's served runs started in the window failed, by agent -
+    only runs of the version it serves now."""
     result = await db.execute(
         select(AgentRun.agent_id, func.count())
         .where(
             *served_runs(organization_id=organization_id, since=start),
+            on_current_version(),
             AgentRun.started_at < end,
             AgentRun.status.in_(_FAILED),
         )

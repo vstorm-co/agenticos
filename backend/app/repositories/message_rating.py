@@ -15,7 +15,7 @@ from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.conversation import Conversation, Message
 from app.db.models.group import Group, GroupMember
 from app.db.models.message_rating import MessageRating
-from app.repositories.agent_run import served_runs
+from app.repositories.agent_run import on_current_version, served_runs
 
 
 async def get_rating_by_message_and_user(
@@ -513,7 +513,8 @@ async def down_rated_by_agent(
     db: AsyncSession, *, organization_id: UUID, start: datetime, end: datetime
 ) -> dict[UUID, int]:
     """How many answers of each agent's served runs in the window somebody rated
-    down, by agent - an answer two people rated down counts once.
+    down, by agent - an answer two people rated down counts once, and only the
+    answers of the version the agent serves now.
 
     The runs improving the agent reads as evidence, so an agent flagged here is one
     the assistant has something to read about. A count only: what was asked,
@@ -526,6 +527,7 @@ async def down_rated_by_agent(
         .join(AgentRun, AgentRun.id == Message.run_id)
         .where(
             *served_runs(organization_id=organization_id, since=start),
+            on_current_version(),
             AgentRun.started_at < end,
             MessageRating.rating < 0,
         )

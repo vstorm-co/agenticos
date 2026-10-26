@@ -3,18 +3,20 @@
 The read model behind the dashboard's Needs attention card and the badge on an
 agent's card. It counts over everybody's runs, so what it may never do is count
 another organization's, count an eval's or a test's runs as an agent failing,
-or name an agent the reader may not view.
+or name an agent the reader may not view. It counts only the version an agent
+serves now: publishing a fix clears what the version before it did.
 """
 
 import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy import func, select
 
 from app.agents.spec import AgentSpec
 from app.core.exceptions import AuthorizationError
 from app.core.permissions import ROLE_PERMS, AuthContext, OrgRoleName, Perm, Scope
-from app.db.models.agent import Agent
+from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.conversation import Conversation, Message
 from app.db.models.message_rating import MessageRating
@@ -59,13 +61,33 @@ async def _agent(db, organization: Organization, owner: User, name: str) -> Agen
     )
     db.add(agent)
     await db.flush()
+    await _publish(db, agent)
     return agent
+
+
+async def _publish(db, agent: Agent) -> AgentVersion:
+    """A new version of `agent`, served by its default environment from now on."""
+    version = AgentVersion(
+        agent_id=agent.id,
+        organization_id=agent.organization_id,
+        version=1
+        + await db.scalar(
+            select(func.count()).select_from(AgentVersion).where(AgentVersion.agent_id == agent.id)
+        ),
+        spec=agent.draft_spec,
+    )
+    db.add(version)
+    await db.flush()
+    agent.current_version_id = version.id
+    await db.flush()
+    return version
 
 
 async def _run(db, agent: Agent, *, status: str = "completed", **extra) -> AgentRun:
     run = AgentRun(
         organization_id=agent.organization_id,
         agent_id=agent.id,
+        agent_version_id=extra.pop("agent_version_id", agent.current_version_id),
         status=status,
         surface=extra.pop("surface", RunSurface.WEB.value),
         started_at=extra.pop("started_at", _NOW),
@@ -198,3 +220,27 @@ async def test_it_is_refused_without_runs_view(db) -> None:
 
     with pytest.raises(AuthorizationError):
         await StatsService(db).attention(member)
+
+
+async def test_publishing_a_version_clears_what_the_version_before_it_did(db) -> None:
+    owner = await _user(db)
+    organization = await _org(db, owner)
+    agent = await _agent(db, organization, owner, "Refund desk")
+    await _rated(db, agent, [owner], -1)
+    await _run(db, agent, status="failed")
+    service = StatsService(db)
+    ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
+    today = _NOW.date()
+    window = {"from_date": today - timedelta(days=1), "to_date": today + timedelta(days=1)}
+
+    before = await service.attention(ctx, **window)
+    assert [(item.rated_down, item.failed_runs) for item in before.items] == [(1, 1)]
+
+    await _publish(db, agent)
+    assert (await service.attention(ctx, **window)).items == []
+
+    await _rated(db, agent, [owner], -1)
+    after = await service.attention(ctx, **window)
+    assert [(item.name, item.rated_down, item.failed_runs) for item in after.items] == [
+        ("Refund desk", 1, 0)
+    ]

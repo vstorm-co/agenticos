@@ -2923,10 +2923,10 @@
       },
       "needs-attention": {
         "title": "Agenci wymagający uwagi",
-        "description": "Agenci z odpowiedziami ocenionymi w dół, nieudanymi runami albo oblaną suitą ewaluacji w tym okresie, każdy o kliknięcie od ulepszenia.",
+        "description": "Agenci, których opublikowana wersja miała w tym okresie odpowiedzi ocenione w dół albo nieudane runy, lub z oblaną suitą ewaluacji, każdy o kliknięcie od ulepszenia.",
         "empty": {
           "title": "Nic nie wymaga uwagi",
-          "description": "W tym okresie nikt nie ocenił odpowiedzi w dół, żaden run nie zakończył się błędem, a każda suita przeszła."
+          "description": "W tym okresie żadna opublikowana wersja nie dostała odpowiedzi ocenionej w dół ani nieudanego runu, a każda suita przeszła."
         },
         "improve": "Ulepsz"
       },

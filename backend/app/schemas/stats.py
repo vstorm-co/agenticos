@@ -306,9 +306,11 @@ class AgentAttention(BaseSchema):
         agent_id: The agent.
         name: Its name.
         rated_down: Answers of its runs in the window somebody rated down, each
-            counted once - only the runs improving it reads as evidence.
+            counted once - only the runs improving it reads as evidence, and only
+            of the version its default environment serves now.
         failed_runs: Those runs that failed, ran out of budget or were stopped in
-            a loop - not an eval's, a test's or a delegate's.
+            a loop - not an eval's, a test's or a delegate's, and not an earlier
+            version's.
         failing_suites: Its active eval suites whose latest result alerts its owner -
             anything but a pass, as `EvalSuiteResultStatus.alerting` says.
         can_edit: Whether the caller may edit it, a grant included - where Improve is offered.

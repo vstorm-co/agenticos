@@ -336,7 +336,7 @@ After completion, `/{run_id}/rounds/{number}/select` makes a measured round the 
 
 ### The Improve wizard { #the-improve-wizard }
 
-Open **Improve** in the agent header or on the Build tab's assistant strip, from the **Needs attention** badge on the agent list, from the dashboard card or from the agent's **Knowledge gaps** tab. It sits among the header's other actions; when the agent had answers rated down or failed runs in the last 30 days, it wears a dot and its name says why.
+Open **Improve** in the agent header or on the Build tab's assistant strip, from the **Needs attention** badge on the agent list, from the dashboard card or from the agent's **Knowledge gaps** tab. It sits among the header's other actions; when the version it serves now had answers rated down or failed runs in the last 30 days, it wears a dot and its name says why.
 
 Every **Improve** opens the agent's session still in progress or waiting for a decision, and a new one only when there is none. A session lives at `/agents/<agent>/improve/<session>`; the page can be closed and reopened while work continues. Each screen asks for at most one decision, names who decided what on it, and keeps advanced options under **Show details**. Each screen leads with figures and small charts, every state marked with an icon as well as a colour; full answers, quotes and reasons wait in cards that open.
 

@@ -2924,10 +2924,10 @@
       },
       "needs-attention": {
         "title": "Agents, die Aufmerksamkeit brauchen",
-        "description": "Agents mit negativ bewerteten Antworten, fehlgeschlagenen Runs oder einer durchgefallenen Eval-Suite im Zeitraum, jeder einen Klick vom Verbessern entfernt.",
+        "description": "Agents, deren veröffentlichte Version im Zeitraum negativ bewertete Antworten oder fehlgeschlagene Runs hatte oder die eine durchgefallene Eval-Suite haben, jeder einen Klick vom Verbessern entfernt.",
         "empty": {
           "title": "Nichts braucht Aufmerksamkeit",
-          "description": "In diesem Zeitraum wurde keine Antwort negativ bewertet, kein Run ist fehlgeschlagen und jede Suite hat bestanden."
+          "description": "In diesem Zeitraum hatte keine veröffentlichte Version eine negativ bewertete Antwort oder einen fehlgeschlagenen Run, und jede Suite hat bestanden."
         },
         "improve": "Verbessern"
       },

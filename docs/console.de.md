@@ -1,5 +1,5 @@
 ---
-source_sha: "c8d2d6841171"
+source_sha: "b6a42ff77af6"
 ---
 
 # Die Konsole { #the-console }
@@ -41,7 +41,10 @@ sehen dürfen, mit negativ bewerteten Antworten, fehlgeschlagenen Runs oder eine
 durchgefallenen Eval-Suite im Zeitraum - nur Zahlen, nie das Gesagte - mit
 **Verbessern** bei denen, die Sie bearbeiten dürfen. Die Agent-Galerie markiert
 dieselben Agents der letzten dreißig Tage mit dem Abzeichen **Braucht
-Aufmerksamkeit**, das beim Überfahren sagt, warum. Beides erfordert `runs:view`.
+Aufmerksamkeit**, das beim Überfahren sagt, warum. Antworten und Runs zählen
+nur für die Version, die der Agent jetzt in seiner Standardumgebung ausliefert:
+Das Veröffentlichen einer Korrektur löscht das Signal, bis die neue Version
+eigene sammelt. Beides erfordert `runs:view`.
 
 Die Ansicht der Organisation zeigt die Karten, die mit Daten antworten, in
 Gruppen. Der Rest - Integrationen, Kanäle, Routinen, Wissens-Sync, Abteilungen,

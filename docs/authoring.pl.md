@@ -1,5 +1,5 @@
 ---
-source_sha: "f085fdbe49bc"
+source_sha: "4b348a38363b"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -346,7 +346,7 @@ Po zakończeniu `/{run_id}/rounds/{number}/select` ustawia zmierzoną rundę jak
 
 ### Kreator Popraw { #the-improve-wizard }
 
-Otwórz **Popraw** w nagłówku agenta albo na pasku asystenta na zakładce Budowa, z plakietki **Wymaga uwagi** na liście agentów, z karty na dashboardzie albo z zakładki **Luki w wiedzy** agenta. Stoi wśród pozostałych akcji nagłówka; gdy agent miał w ostatnich 30 dniach odpowiedzi ocenione negatywnie albo nieudane runy, nosi kropkę, a jego nazwa mówi dlaczego.
+Otwórz **Popraw** w nagłówku agenta albo na pasku asystenta na zakładce Budowa, z plakietki **Wymaga uwagi** na liście agentów, z karty na dashboardzie albo z zakładki **Luki w wiedzy** agenta. Stoi wśród pozostałych akcji nagłówka; gdy wersja, którą agent teraz serwuje, miała w ostatnich 30 dniach odpowiedzi ocenione negatywnie albo nieudane runy, nosi kropkę, a jego nazwa mówi dlaczego.
 
 Każde **Popraw** otwiera sesję agenta, która trwa albo czeka na decyzję, a nową tylko wtedy, gdy takiej nie ma. Sesja ma adres `/agents/<agent>/improve/<session>`; stronę można zamknąć i otworzyć ponownie, gdy praca trwa. Każdy ekran prosi o najwyżej jedną decyzję, podaje, kto co na nim zdecydował, a opcje zaawansowane trzyma pod **Pokaż szczegóły**. Każdy ekran zaczyna się od liczb i małych wykresów, a każdy stan jest oznaczony ikoną, nie tylko kolorem; pełne odpowiedzi, cytaty i uzasadnienia czekają w kartach, które się rozwija.
 

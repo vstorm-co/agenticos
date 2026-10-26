@@ -146,8 +146,11 @@ environment without a person's decision.
   each with a preference under **Settings → Notifications**.
 - **Dashboard.** Widgets for datasets, eval runs, eval suites, the review
   queue, knowledge gaps, suggestions waiting by agent, skill and file, and the
-  agents that need attention, with **Improve**. The greeting counts everything
-  waiting on the reader, and spend on improvements is shown apart from evals.
+  agents that need attention, with **Improve**. An agent needs attention for
+  answers rated down and failed runs on the version it serves now, so
+  publishing a fix clears its badge until the new version earns its own. The
+  greeting counts everything waiting on the reader, and spend on improvements
+  is shown apart from evals.
 
 ### Changed
 

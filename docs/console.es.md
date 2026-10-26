@@ -1,5 +1,5 @@
 ---
-source_sha: "c8d2d6841171"
+source_sha: "b6a42ff77af6"
 ---
 
 # La consola { #the-console }
@@ -41,7 +41,9 @@ respuestas valoradas negativamente, runs fallidos o una suite de evals que falla
 en el periodo - solo cifras, nunca lo que se dijo - con **Improve** en los que
 puedes editar. La galería de agents marca los mismos agents de los últimos
 treinta días con la insignia **Needs attention**, que al pasar el cursor dice
-por qué. Ambos requieren `runs:view`.
+por qué. Las respuestas y los runs solo cuentan para la versión que el agent
+sirve ahora en su entorno predeterminado: publicar una corrección borra la señal
+hasta que la nueva versión acumule las suyas. Ambos requieren `runs:view`.
 
 La vista de la organización muestra las tarjetas que responden con datos,
 agrupadas en bandas. El resto - integraciones, canales, rutinas, sincronización

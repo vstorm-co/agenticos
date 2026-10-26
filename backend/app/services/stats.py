@@ -601,6 +601,10 @@ class StatsService:
         """The agents the caller may see that need a look: answers rated down and
         own runs failed in the window, and eval suites whose latest result alerts.
 
+        Answers and runs count only on the version each agent's default
+        environment serves now, so publishing a fix clears what the version
+        before it did; the window still bounds how far back they reach.
+
         Counts only, over everybody's runs, so it demands `runs:view` as
         `scope=org` does; an agent the caller may not view is left out however
         much it would count.

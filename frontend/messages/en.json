@@ -2924,10 +2924,10 @@
       },
       "needs-attention": {
         "title": "Agents that need attention",
-        "description": "Agents with answers rated down, failed runs or a failing eval suite in the period, each a click from improving it.",
+        "description": "Agents whose published version had answers rated down or failed runs in the period, or that have a failing eval suite, each a click from improving it.",
         "empty": {
           "title": "Nothing needs attention",
-          "description": "No answer was rated down, no run failed and every suite passed in this period."
+          "description": "No published version had an answer rated down or a failed run in this period, and every suite passed."
         },
         "improve": "Improve"
       },

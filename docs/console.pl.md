@@ -1,5 +1,5 @@
 ---
-source_sha: "c8d2d6841171"
+source_sha: "b6a42ff77af6"
 ---
 
 # Konsola { #the-console }
@@ -40,7 +40,9 @@ widzisz, z odpowiedziami ocenionymi w dół, nieudanymi runami albo oblaną suit
 ewaluacji w tym okresie - same liczby, nigdy treść - z przyciskiem **Ulepsz**
 przy tych, które możesz edytować. Galeria agentów oznacza tych samych agentów z
 ostatnich trzydziestu dni znaczkiem **Wymaga uwagi**, który po najechaniu mówi
-dlaczego. Oba wymagają `runs:view`.
+dlaczego. Odpowiedzi i runy liczą się tylko dla wersji, którą agent serwuje
+teraz w domyślnym środowisku: opublikowanie poprawki czyści sygnał, dopóki nowa
+wersja nie zbierze własnych. Oba wymagają `runs:view`.
 
 Widok organizacji pokazuje karty, które odpowiadają danymi, pogrupowane w pasy.
 Reszta - integracje, kanały, rutyny, synchronizacja wiedzy, działy, członkowie,

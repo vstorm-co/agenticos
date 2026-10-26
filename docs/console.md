@@ -34,7 +34,9 @@ On **Me**, **Agents that need attention** lists the agents you may see with
 answers rated down, failed runs or a failing eval suite in the period - counts
 only, never what was said - with **Improve** on those you may edit. The Agents
 gallery marks the same agents over the last thirty days with a **Needs
-attention** badge that says why on hover. Both need `runs:view`.
+attention** badge that says why on hover. Answers and runs count only on the
+version each agent serves now in its default environment: publishing a fix
+clears the signal until the new version earns its own. Both need `runs:view`.
 
 The organization's view shows the cards that answer with data, grouped into
 bands. The rest - integrations, channels, routines, knowledge sync, departments,
