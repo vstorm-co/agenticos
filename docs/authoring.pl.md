@@ -1,5 +1,5 @@
 ---
-source_sha: "404e9bf6ae1c"
+source_sha: "8cee7a53deeb"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -325,7 +325,7 @@ może działać tylko jedna sesja.
 Sprawdzona poprawa kończy się stanem `ready`, a kandydat staje się oczekującym
 pakietem sugestii. Sesja nigdy nie akceptuje, nie publikuje ani nie promuje zmian.
 Wcześniejsze kandydaty nie zastępują sugestii oczekujących na decyzję człowieka.
-Powiadomienie twórcy prowadzi do gotowej lub zatrzymanej sesji. Otwarta strona sesji śledzi każdy etap przez zdarzenia zmian na żywo, a zakończona propozycja lub sprawdzenie od razu przesuwa sesję dalej.
+Powiadomienie twórcy prowadzi do sesji przy każdym jej zakończeniu, raz na zakończenie: gotowej, zatrzymanej, nieudanej lub nieaktualnej, zatrzymanej przez administratora, rozstrzygniętej poza kreatorem oraz gdy zakończy się sprawdzenie wiedzy lub atrybucji oczekującej sesji. Otwarta strona sesji śledzi każdy etap przez zdarzenia zmian na żywo, a zakończona propozycja lub sprawdzenie od razu przesuwa sesję dalej.
 
 Sesja wykonuje najwyżej trzy rundy. Regresja albo brak zmiany uruchamia następną propozycję tylko wtedy, gdy jej pełny kosztorys mieści się w pozostałym budżecie. Dwie rundy bez zmiany, nierozstrzygnięte porównanie i jego powtórzenie, wcześniej sprawdzony kandydat albo limit rund zatrzymują pętlę z zapisanym powodem. Odpowiedzi treningowe przed zmianą i po niej zasilają kolejną rundę; materiał kontrolny pozostaje ukryty. Koszty rund są osobne, a wybór najlepszej preferuje poprawę, mniej nowych błędów, następnie wyższą skuteczność po rozstrzygnięciu.
 
@@ -344,7 +344,9 @@ Otwórz **Popraw** w nagłówku agenta, z plakietki **Wymaga uwagi** na liście 
 7. **Wynik.** Jedno zdanie o agencie i jedno o bazie wiedzy, kolorowy werdykt, na ile pytań agent odpowiada dobrze przed i po, to samo dla pytań niewykorzystanych do pisania zmian oraz koszt odpowiedzi. Każde zmienione pytanie jest oznaczone jako nowo naprawione albo nowo zepsute; zmiany niepotwierdzone przez powtórzone odpowiedzi czekają pod **Jeszcze niepotwierdzone**. Wcześniejsze próby, sprawdzenia pojedynczych zmian i test szkicu wiedzy są pod **Pokaż szczegóły**.
 8. **Akceptacja.** Co nowa wersja naprawi, zepsuje i ile będzie kosztować odpowiedź, oraz na ilu pytaniach ją przetestowano. Każdy dokument wiedzy z tej sesji ma **Przejrzyj i dodaj** albo **Nie teraz**, które odkłada go na czas sesji (`PUT /{run_id}/topics/{topic_id}/later`). Każde miejsce, w którym ludzie używają agenta, mówi, czy przełączy się od razu, po zaliczeniu automatycznego sprawdzenia, czy zostanie przy swojej wersji. Potem **Opublikuj wersję N** albo zachowanie zmian w wersji roboczej i ekran **Gotowe** z linkiem do wersji, który obiecuje ostrzeżenie o późniejszej usterce tylko wtedy, gdy agenta pilnuje automatyczne sprawdzenie.
 
-Nieudany krok propozycji lub ewaluacji można jawnie ponowić przez `/{run_id}/retry`; powtórne kliknięcia nie tworzą kolejnego zadania. Automatyczne ponowienia zadań nie powtarzają płatnych wywołań. Decyzje człowieka zmieniają stan sesji na zaakceptowaną, opublikowaną lub odrzuconą. Potwierdzona akcja `/{run_id}/finish` akceptuje sprawdzone zmiany i opcjonalnie publikuje je w jednej transakcji. Może utworzyć suite uruchamianą przy publikacji, z zerowym limitem regresji. Nadal obowiązują standardowe uprawnienia i walidacja publikacji; chronione środowiska czekają na sprawdzenia. Propozycje zmienione po pomiarze wymagają ponownego sprawdzenia.
+Nieudany krok propozycji lub ewaluacji można jawnie ponowić przez `/{run_id}/retry`; powtórne kliknięcia nie tworzą kolejnego zadania. Automatyczne ponowienia zadań nie powtarzają płatnych wywołań. Decyzje człowieka zmieniają stan sesji na zaakceptowaną, opublikowaną lub odrzuconą. Potwierdzona akcja `/{run_id}/finish` akceptuje sprawdzone zmiany i opcjonalnie publikuje je w jednej transakcji.
+
+Sesję zachowaną jako wersję roboczą można później opublikować z kreatora, o ile wersja robocza jest wciąż dokładnie zmierzonym kandydatem; publikacja wykonana gdzie indziej zapisuje w sesji swoją wersję, jeśli to wersja zmierzona. Może utworzyć suite uruchamianą przy publikacji, z zerowym limitem regresji. Nadal obowiązują standardowe uprawnienia i walidacja publikacji; chronione środowiska czekają na sprawdzenia. Propozycje zmienione po pomiarze wymagają ponownego sprawdzenia.
 
 Przełącznikiem **Uwzględnij w teście** na ekranie zmian wybierz część sugestii. Przed wydaniem środków wyceń i potwierdź nowe sprawdzenie; zmiana wyboru albo treści sugestii unieważnia wycenę. Wybrane zmiany są mierzone względem tej samej bazy i przypiętych pytań. Wcześniejsze sprawdzenia pozostają w historii rundy. Wykluczone lub później dodane sugestie pozostają nierozstrzygnięte, a przyjąć można tylko zmierzony wybór. Takie sprawdzenie nie zamawia automatycznie kolejnej propozycji. Wyniki pojedynczych zmian przypisują tylko różnice potwierdzone powtórzeniem odpowiedzi; nieprawidłowe lub niedokończone sprawdzenie nie przypisuje skutków.
 
@@ -356,7 +358,9 @@ Ręczna ocena i jej cofnięcie przeliczają aktualnie zmierzoną rundę w tej sa
 
 Pasek kroków rozróżnia pracę gotową, trwającą, wymagającą decyzji, pominiętą i jeszcze nierozpoczętą. Wybierz krok, aby go obejrzeć; nie uruchamia to płatnej akcji. Ponowne otwarcie sesji pokazuje aktualną pracę, a pasek zachowuje stan każdego kroku. Na telefonie nazwa bieżącego kroku i jego status są widoczne pod znacznikami.
 
-Wybierz **Popraw ponownie**, aby rozpocząć następną rundę, lub **Zwiększ limit i kontynuuj**, gdy zabrakło budżetu. Kolejne wydatki poprzedza pełna nowa wycena i potwierdzenie; źródła, przypięte pytania i limit rund pozostają bez zmian. Ponowienie nieudanego kroku pozostaje w tej samej rundzie. Wznowiony test rezerwuje tylko pozostałe pomiary, wraz z niewykorzystanym powtórzeniem nierozstrzygniętego porównania. Płatne wznowienie wymaga pierwotnego autora i tożsamości klucza API, z ponowną kontrolą aktualnych uprawnień. **Odrzuć** potwierdza odrzucenie wyłącznie oczekujących propozycji tej sesji. Nie zmienia innych zestawów i nie cofa zastosowanych zmian. Wycena nie ogłasza zapisu; potwierdzone decyzje odświeżają otwarte widoki agenta.
+Wybierz **Popraw ponownie**, aby rozpocząć następną rundę, lub **Zwiększ limit i kontynuuj**, gdy zabrakło budżetu. Kolejne wydatki poprzedza pełna nowa wycena i potwierdzenie; źródła, przypięte pytania i limit rund pozostają bez zmian. Ponowienie nieudanego kroku pozostaje w tej samej rundzie. Wznowiony test rezerwuje tylko pozostałe pomiary, wraz z niewykorzystanym powtórzeniem nierozstrzygniętego porównania. Płatne wznowienie, sprawdzenie atrybucji i sprawdzenie szkicu wiedzy wymagają pierwotnego autora i tożsamości klucza API, z ponowną kontrolą aktualnych uprawnień.
+
+**Odrzuć** potwierdza odrzucenie wyłącznie oczekujących propozycji tej sesji. Nie zmienia innych zestawów i nie cofa zastosowanych zmian. Wycena nie ogłasza zapisu; potwierdzone decyzje odświeżają otwarte widoki agenta.
 
 ### Propozycja nowego skilla { #proposing-a-new-skill }
 

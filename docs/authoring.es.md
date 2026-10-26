@@ -1,5 +1,5 @@
 ---
-source_sha: "404e9bf6ae1c"
+source_sha: "8cee7a53deeb"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -330,8 +330,10 @@ detiene. Solo puede ejecutarse una sesión por agente.
 Una mejora comprobada termina en `ready` y su candidato se convierte en el paquete
 de sugerencias pendiente. La sesión nunca acepta, publica ni promueve cambios.
 Los candidatos previos no sustituyen las sugerencias pendientes de una persona
-mientras se comprueban. Una notificación lleva al creador a la sesión lista o
-detenida. Una página de sesión abierta sigue cada etapa mediante eventos de cambio
+mientras se comprueban. Una notificación lleva al creador a la sesión en cada uno
+de sus finales, una vez por final: lista, detenida, fallida u obsoleta, detenida por
+un administrador, decidida fuera del asistente, y cuando termina una comprobación de
+conocimiento o de atribución de una sesión en espera. Una página de sesión abierta sigue cada etapa mediante eventos de cambio
 en vivo, y una propuesta o comprobación terminada hace avanzar su sesión al instante.
 
 Las sesiones realizan como máximo tres rondas. Una regresión o un resultado sin cambios inicia otra propuesta solo si su previsión completa cabe en el presupuesto restante. Dos rondas sin cambios, una comparación inconclusa y su repetición, un candidato ya probado o el límite de rondas detienen el ciclo con un motivo registrado. Las respuestas de entrenamiento antes y después informan la siguiente ronda; el contenido de control sigue oculto. Los costes se separan por ronda. La mejor ronda medida prioriza mejoras, menos fallos nuevos y luego mayor éxito decidido.
@@ -351,7 +353,9 @@ Abra **Improve** en la cabecera del agente, desde la insignia **Needs attention*
 7. **Resultado.** Una frase para el agente y otra para la base de conocimiento, el veredicto en color, cuántas preguntas se manejan bien antes y después, lo mismo para las preguntas no usadas para escribir los cambios, y el coste por respuesta. Cada pregunta cambiada indica si se ha arreglado o roto; los cambios que las respuestas repetidas no confirmaron esperan bajo **Not confirmed yet**. Los intentos anteriores, las comprobaciones de cambios individuales y la prueba de un borrador de conocimiento están bajo **Show details**.
 8. **Aceptar.** Lo que la nueva versión corrige, rompe y cuesta por respuesta, y con cuántas preguntas se probó. Cada documento de conocimiento de esta sesión ofrece **Review and add** o **Not now**, que lo aparta durante la sesión (`PUT /{run_id}/topics/{topic_id}/later`). Cada lugar donde la gente usa el agente dice si cambia en el acto, tras superar su comprobación automática o se queda en su versión. Después, **Publish version N** o **Keep as draft**, y una pantalla **Done** con un enlace a la versión que solo promete avisar de un fallo posterior cuando una comprobación automática vigila el agente.
 
-Un paso de propuestas o eval fallido se reintenta explícitamente con `/{run_id}/retry`; varios clics no crean otro trabajo. Los reintentos automáticos nunca repiten llamadas pagadas. Las decisiones humanas actualizan la sesión a aceptada, publicada o descartada. La acción confirmada `/{run_id}/finish` acepta los cambios comprobados y opcionalmente los publica en una transacción. Puede crear una suite que se ejecute al publicar, sin regresiones permitidas. Se mantienen los permisos y validaciones habituales; los entornos protegidos esperan sus comprobaciones. Las propuestas editadas después de la medición deben comprobarse de nuevo.
+Un paso de propuestas o eval fallido se reintenta explícitamente con `/{run_id}/retry`; varios clics no crean otro trabajo. Los reintentos automáticos nunca repiten llamadas pagadas. Las decisiones humanas actualizan la sesión a aceptada, publicada o descartada. La acción confirmada `/{run_id}/finish` acepta los cambios comprobados y opcionalmente los publica en una transacción.
+
+Una sesión guardada como borrador puede publicarse más tarde desde el asistente mientras el borrador siga siendo exactamente el candidato medido; una publicación hecha en otro lugar registra su versión en la sesión si es la medida. Puede crear una suite que se ejecute al publicar, sin regresiones permitidas. Se mantienen los permisos y validaciones habituales; los entornos protegidos esperan sus comprobaciones. Las propuestas editadas después de la medición deben comprobarse de nuevo.
 
 En la pantalla Cambios, seleccione un subconjunto con **Incluir en la prueba**. Calcule y confirme la nueva prueba antes de gastar; cambiar la selección o una propuesta invalida la estimación. Los cambios seleccionados se miden con la misma base y las preguntas fijadas. Las pruebas anteriores permanecen en el historial de la ronda. Las propuestas excluidas o añadidas después quedan pendientes; solo se puede aceptar la selección medida. Esta prueba no solicita automáticamente otra propuesta. Los resultados individuales atribuyen únicamente diferencias confirmadas al repetir las respuestas; una prueba inválida o incompleta no atribuye efectos.
 
@@ -363,7 +367,9 @@ Una decisión humana y su retirada recalculan la ronda medida actual en la misma
 
 La barra distingue el trabajo terminado, en curso, pendiente de su decisión, omitido y aún no iniciado. Seleccione cualquier paso para inspeccionarlo; esto no inicia una acción de pago. Al abrir de nuevo la sesión aparece el trabajo actual, mientras cada paso conserva su estado. En el teléfono, el paso actual y su estado aparecen debajo de los indicadores.
 
-Elija **Mejorar de nuevo** para otra ronda o **Aumentar el límite y continuar** si un paso no cabía en el presupuesto. Antes de gastar más se muestran una estimación completa nueva y una confirmación; fuentes, preguntas fijadas y límite de rondas no cambian. Un paso fallido se reintenta en la misma ronda. Una prueba reanudada reserva solo las mediciones pendientes y la repetición inconclusa disponible. Reiniciar trabajo de pago exige el solicitante y la identidad de clave API originales, con permisos actuales verificados. **Descartar** confirma solo las propuestas pendientes de esta sesión. Conserva otros lotes y rechaza deshacer cambios aplicados. Las estimaciones no anuncian escrituras; las decisiones confirmadas actualizan las vistas abiertas.
+Elija **Mejorar de nuevo** para otra ronda o **Aumentar el límite y continuar** si un paso no cabía en el presupuesto. Antes de gastar más se muestran una estimación completa nueva y una confirmación; fuentes, preguntas fijadas y límite de rondas no cambian. Un paso fallido se reintenta en la misma ronda. Una prueba reanudada reserva solo las mediciones pendientes y la repetición inconclusa disponible. Reiniciar trabajo de pago, las comprobaciones de atribución y las de borradores de conocimiento exigen el solicitante y la identidad de clave API originales, con permisos actuales verificados.
+
+**Descartar** confirma solo las propuestas pendientes de esta sesión. Conserva otros lotes y rechaza deshacer cambios aplicados. Las estimaciones no anuncian escrituras; las decisiones confirmadas actualizan las vistas abiertas.
 
 ### Proponer un skill nuevo { #proposing-a-new-skill }
 

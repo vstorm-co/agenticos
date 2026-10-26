@@ -1,5 +1,5 @@
 ---
-source_sha: "404e9bf6ae1c"
+source_sha: "8cee7a53deeb"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -340,8 +340,11 @@ stoppen sie. Pro Agent darf nur eine Sitzung laufen.
 Eine geprüfte Verbesserung endet bei `ready`: Ihr Kandidat wird zum wartenden
 Vorschlagspaket. Die Sitzung übernimmt, veröffentlicht oder befördert nichts.
 Frühere Kandidaten ersetzen während der Prüfung keine wartenden menschlichen
-Vorschläge. Eine Benachrichtigung führt den Ersteller zur fertigen oder gestoppten
-Sitzung. Eine offene Sitzungsseite folgt jedem Schritt über Live-Änderungsereignisse,
+Vorschläge. Eine Benachrichtigung führt den Ersteller bei jedem Ende der Sitzung
+dorthin, einmal pro Ende: fertig, gestoppt, fehlgeschlagen oder veraltet, von einer
+Administratorin oder einem Administrator gestoppt, außerhalb des Assistenten
+entschieden, und wenn eine Wissens- oder Zuordnungsprüfung einer wartenden Sitzung
+abgeschlossen ist. Eine offene Sitzungsseite folgt jedem Schritt über Live-Änderungsereignisse,
 und ein abgeschlossener Vorschlag oder Test bringt seine Sitzung sofort weiter.
 
 Sitzungen führen höchstens drei Runden aus. Eine Regression oder ein unverändertes Ergebnis startet nur dann einen weiteren Vorschlag, wenn dessen vollständige Schätzung ins Restbudget passt. Zwei unveränderte Runden, ein unentschiedener Vergleich samt Wiederholung, ein bereits getesteter Kandidat oder das Rundenlimit stoppen die Schleife mit gespeichertem Grund. Trainingsantworten vor und nach der Änderung informieren die nächste Runde; Kontrolldaten bleiben verborgen. Rundenkosten sind getrennt. Die beste gemessene Runde bevorzugt Verbesserung, weniger neue Fehler, dann höhere entschiedene Erfolgsquote.
@@ -361,7 +364,9 @@ Nach Abschluss macht `/{run_id}/rounds/{number}/select` eine gemessene Runde zum
 7. **Ergebnis.** Ein Satz zum Agent und einer zur Wissensdatenbank, das farbige Urteil, wie viele Fragen vorher und nachher gut beantwortet werden, dasselbe für die nicht zum Schreiben der Änderungen verwendeten Fragen sowie die Kosten pro Antwort. Jede geänderte Frage ist als neu behoben oder neu verschlechtert markiert; von den wiederholten Antworten nicht bestätigte Änderungen warten unter **Noch nicht bestätigt**. Frühere Versuche, Prüfungen einzelner Änderungen und der Test eines Wissensentwurfs liegen unter **Details anzeigen**.
 8. **Annehmen.** Was die neue Version behebt, verschlechtert und pro Antwort kostet und mit wie vielen Fragen sie getestet wurde. Jedes Wissensdokument aus dieser Sitzung bietet **Prüfen und hinzufügen** oder **Nicht jetzt**, das es für die Sitzung beiseitelegt (`PUT /{run_id}/topics/{topic_id}/later`). Jeder Ort, an dem Leute den Agent nutzen, sagt, ob er sofort wechselt, nach bestandener automatischer Prüfung oder bei seiner Version bleibt. Dann **Version N veröffentlichen** oder die Änderungen im Entwurf behalten und ein Bildschirm **Fertig** mit Link zur Version, der eine Warnung vor späteren Verschlechterungen nur verspricht, wenn eine automatische Prüfung den Agent überwacht.
 
-Ein fehlgeschlagener Vorschlags- oder Eval-Schritt lässt sich ausdrücklich mit `/{run_id}/retry` wiederholen; mehrfache Klicks erzeugen kein weiteres Kind. Automatische Job-Wiederholungen wiederholen keinen bezahlten Aufruf. Menschliche Entscheidungen setzen den Sitzungsstatus auf angenommen, veröffentlicht oder verworfen. Die bestätigte Aktion `/{run_id}/finish` übernimmt die geprüften Änderungen und veröffentlicht sie optional in derselben Transaktion. Sie kann eine Suite bei Veröffentlichung mit null erlaubten Regressionen anlegen. Übliche Berechtigungen und Veröffentlichungsprüfungen gelten weiterhin; geschützte Umgebungen warten auf ihre Prüfungen. Nach der Messung bearbeitete Vorschläge müssen erneut geprüft werden.
+Ein fehlgeschlagener Vorschlags- oder Eval-Schritt lässt sich ausdrücklich mit `/{run_id}/retry` wiederholen; mehrfache Klicks erzeugen kein weiteres Kind. Automatische Job-Wiederholungen wiederholen keinen bezahlten Aufruf. Menschliche Entscheidungen setzen den Sitzungsstatus auf angenommen, veröffentlicht oder verworfen. Die bestätigte Aktion `/{run_id}/finish` übernimmt die geprüften Änderungen und veröffentlicht sie optional in derselben Transaktion.
+
+Eine als Entwurf behaltene Sitzung lässt sich später aus dem Assistenten veröffentlichen, solange der Entwurf noch genau der gemessene Kandidat ist; eine anderswo vorgenommene Veröffentlichung trägt ihre Version in die Sitzung ein, wenn es die gemessene ist. Sie kann eine Suite bei Veröffentlichung mit null erlaubten Regressionen anlegen. Übliche Berechtigungen und Veröffentlichungsprüfungen gelten weiterhin; geschützte Umgebungen warten auf ihre Prüfungen. Nach der Messung bearbeitete Vorschläge müssen erneut geprüft werden.
 
 Wählen Sie auf dem Bildschirm Änderungen mit **Im Test berücksichtigen** eine Teilmenge aus. Lassen Sie die neue Prüfung schätzen und bestätigen Sie sie vor der Ausgabe; eine geänderte Auswahl oder ein bearbeiteter Vorschlag macht die Schätzung ungültig. Die ausgewählten Änderungen werden mit derselben Basis und den festgelegten Fragen gemessen. Frühere Prüfungen bleiben im Rundenverlauf. Ausgeschlossene oder später ergänzte Vorschläge bleiben unentschieden; nur die gemessene Auswahl kann angenommen werden. Diese Prüfung fordert nicht automatisch einen weiteren Vorschlag an. Einzelprüfungen ordnen nur Unterschiede zu, die durch wiederholte Antworten bestätigt wurden; ungültige oder unvollständige Prüfungen liefern keine Zuordnung.
 
@@ -373,7 +378,9 @@ Eine menschliche Bewertung und ihr Widerruf berechnen die aktuell gemessene Rund
 
 Die Schrittleiste unterscheidet erledigte, laufende, entscheidungsbedürftige, übersprungene und noch nicht begonnene Arbeit. Wählen Sie einen Schritt zur Ansicht; dies startet keine kostenpflichtige Aktion. Beim erneuten Öffnen erscheint die aktuelle Arbeit, während jeder Schritt seinen Zustand behält. Auf dem Telefon stehen der aktuelle Schritt und sein Status unter den Markierungen.
 
-Wählen Sie **Erneut verbessern** für eine weitere Runde oder **Limit erhöhen und fortfahren**, wenn ein Schritt das Budget überschritten hätte. Vor weiteren Ausgaben stehen eine neue vollständige Schätzung und Bestätigung; Quellen, festgelegte Fragen und Rundenlimit bleiben gleich. Ein fehlgeschlagener Schritt wird in derselben Runde wiederholt. Eine fortgesetzte Prüfung reserviert nur verbleibende Messungen samt noch möglicher Wiederholung. Kostenpflichtige Neustarts erfordern den ursprünglichen Anfragenden und dieselbe API-Schlüsselidentität mit erneut geprüften aktuellen Rechten. **Verwerfen** bestätigt nur ausstehende Vorschläge dieser Sitzung. Andere Vorschläge bleiben bestehen; angewendete Änderungen werden nicht rückgängig gemacht. Schätzungen melden keine Änderung; bestätigte Entscheidungen aktualisieren offene Agentenansichten.
+Wählen Sie **Erneut verbessern** für eine weitere Runde oder **Limit erhöhen und fortfahren**, wenn ein Schritt das Budget überschritten hätte. Vor weiteren Ausgaben stehen eine neue vollständige Schätzung und Bestätigung; Quellen, festgelegte Fragen und Rundenlimit bleiben gleich. Ein fehlgeschlagener Schritt wird in derselben Runde wiederholt. Eine fortgesetzte Prüfung reserviert nur verbleibende Messungen samt noch möglicher Wiederholung. Kostenpflichtige Neustarts, Zuordnungsprüfungen und Prüfungen von Wissensentwürfen erfordern den ursprünglichen Anfragenden und dieselbe API-Schlüsselidentität mit erneut geprüften aktuellen Rechten.
+
+**Verwerfen** bestätigt nur ausstehende Vorschläge dieser Sitzung. Andere Vorschläge bleiben bestehen; angewendete Änderungen werden nicht rückgängig gemacht. Schätzungen melden keine Änderung; bestätigte Entscheidungen aktualisieren offene Agentenansichten.
 
 ### Einen neuen Skill vorschlagen { #proposing-a-new-skill }
 

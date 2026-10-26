@@ -309,7 +309,9 @@ stops it. Only one session can run for an agent at a time.
 A checked improvement ends at `ready`, where its candidate becomes the waiting
 suggestion batch. It never accepts, publishes or promotes. Earlier candidate
 batches leave a person's waiting suggestions alone while checks run. A creator
-notification links to the session when it becomes ready or stops. An open session
+notification links to the session at each of its ends, once per end: ready,
+stopped, failed or stale, stopped by an administrator, decided outside the wizard,
+and a finished knowledge or attribution check of a waiting session. An open session
 page follows each stage through live change events, and a finished proposal or
 check advances its session at once.
 
@@ -330,7 +332,9 @@ Open **Improve** in the agent header, from the **Needs attention** badge on the 
 7. **Result.** One sentence for the agent and one for the knowledge base, the coloured verdict, how many questions are handled well before and after, the same for the questions not used to write the changes, and the cost per answer. Each changed question says newly fixed or newly broken; changes the repeat answers did not confirm wait under **Not confirmed yet**. Earlier attempts, individual-change checks and testing a knowledge draft sit under **Show details**.
 8. **Accept.** What the new version fixes, breaks and costs per answer, and how many questions it was tested on. Each knowledge document from this session offers **Review and add** or **Not now**, which sets it aside for the session (`PUT /{run_id}/topics/{topic_id}/later`). Each place people use the agent says whether it switches at once, after its automatic check passes or stays on its version. Then **Publish version N** or **Keep as draft**, and a **Done** screen with a link to the version that promises a warning of a later break only when an automatic check watches the agent.
 
-A failed proposal or eval can be retried explicitly with `/{run_id}/retry`; repeated clicks do not create another child. Automatic job retries never repeat a paid call. Human decisions update the session to accepted, published or rejected. The confirmed `/{run_id}/finish` action accepts the selected checked changes and optionally publishes in the same transaction. It can offer a publish-triggered suite with zero allowed regressions. Normal permissions and publish validation still apply, and guarded environments wait for their checks. Changes edited since measurement must be checked again.
+A failed proposal or eval can be retried explicitly with `/{run_id}/retry`; repeated clicks do not create another child. Automatic job retries never repeat a paid call. Human decisions update the session to accepted, published or rejected. The confirmed `/{run_id}/finish` action accepts the selected checked changes and optionally publishes in the same transaction.
+
+A session kept as a draft can be published from the wizard later, as long as the draft is still exactly the measured candidate; a publish made elsewhere records its version on the session when that version is the one measured. It can offer a publish-triggered suite with zero allowed regressions. Normal permissions and publish validation still apply, and guarded environments wait for their checks. Changes edited since measurement must be checked again.
 
 Use **Include in the test** on the Changes screen to choose a subset. Estimate and confirm the new check before it spends anything; changing a choice or a suggestion invalidates the quote. The selected changes are measured against the same base and pinned questions. Earlier checks stay in the round history. Excluded or later suggestions remain undecided, and only the measured selection can be accepted. A selected recheck does not automatically request another proposal. Individual-change results attribute only differences confirmed by repeat answers; invalid or unfinished checks provide no attribution.
 
@@ -342,7 +346,9 @@ A human review decision and its withdrawal recompute the current measured round 
 
 The step bar distinguishes completed work, running work, steps needing your decision, skipped work and steps not started. Select any step to inspect it; this does not start a paid action. Reopening a session shows its current work, while the bar keeps each step’s recorded state. On a phone the current step and its status appear below the markers.
 
-Choose **Improve again** for another round, or **Raise the limit and continue** when a priced step did not fit. A fresh complete estimate and confirmation come before more spending; the sources, pinned questions and round cap remain unchanged. Retrying a failed step stays in the same round. A resumed test reserves only its remaining measurements, including any remaining inconclusive repeat. Paid parent restarts require the original requester and API-key identity, with current permissions checked again. **Discard** confirms dismissing only this session’s pending proposals. It leaves other batches alone and refuses to undo an applied change. Quotes announce no write; confirmed decisions refresh open agent pages.
+Choose **Improve again** for another round, or **Raise the limit and continue** when a priced step did not fit. A fresh complete estimate and confirmation come before more spending; the sources, pinned questions and round cap remain unchanged. Retrying a failed step stays in the same round. A resumed test reserves only its remaining measurements, including any remaining inconclusive repeat. Paid parent restarts, attribution checks and knowledge draft checks require the original requester and API-key identity, with current permissions checked again.
+
+**Discard** confirms dismissing only this session’s pending proposals. It leaves other batches alone and refuses to undo an applied change. Quotes announce no write; confirmed decisions refresh open agent pages.
 
 ### Proposing a new skill { #proposing-a-new-skill }
 
