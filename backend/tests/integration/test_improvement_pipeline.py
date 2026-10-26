@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec
 from app.core.exceptions import (
+    AuthorizationError,
     ConcurrentChangeError,
     NotFoundError,
     PaymentRequiredError,
@@ -303,6 +304,36 @@ async def test_second_start_is_a_conflict_and_estimate_writes_nothing(db):
     assert estimate.per_round_usd == estimate.proposal_usd + 2 * estimate.eval_usd
     assert estimate.estimated_minutes >= 3
     assert await db.scalar(select(func.count()).select_from(ImprovementRun)) == 1
+
+
+@pytest.mark.security
+async def test_an_editor_who_cannot_read_runs_is_told_why_before_any_estimate_or_start(db):
+    from dataclasses import replace
+
+    from app.core.permissions import Perm
+
+    ctx, agent, _ = await _setup(db)
+    dataset = await _dataset(db, ctx, cases=5)
+    editor = replace(
+        ctx,
+        key_scopes=frozenset(
+            {Perm.AGENTS_VIEW, Perm.AGENTS_EDIT, Perm.DATASETS_VIEW, Perm.DATASETS_RUN}
+        ),
+    )
+    service = ImprovementPipelineService(db)
+    target = ImprovementTarget(dataset_id=dataset.id)
+    with pytest.raises(AuthorizationError) as estimate:
+        await service.estimate(editor, agent.id, target)
+    with pytest.raises(AuthorizationError) as start:
+        await service.start(
+            editor,
+            agent.id,
+            ImprovementStart(dataset_id=dataset.id, budget_usd=Decimal("5")),
+        )
+    for refused in (estimate.value, start.value):
+        assert refused.message == "Improving an agent needs runs:view"
+        assert refused.details == {"permission": "runs:view"}
+    assert await db.scalar(select(func.count()).select_from(ImprovementRun)) == 0
 
 
 @pytest.mark.parametrize("change", ["draft", "publish", "scoring", "archive"])
