@@ -1,5 +1,5 @@
 ---
-source_sha: "34178ef743be"
+source_sha: "10df9e0c73fa"
 ---
 
 # Permisos { #permissions }
@@ -454,6 +454,23 @@ los rechazos.
     lleva estas filas lo dice en su propia copia, porque un permiso más amplio de
     lo que esperan sus sujetos solo es defendible si ellos pueden enterarse. Una
     respuesta más estrecha sería un permiso propio, no una ruta más callada.
+
+### Un agent de sistema es un ajuste de la organización { #system-agents }
+
+Un [agent de sistema](concepts.md#system-agents) - un juez, un generador de
+casos, un redactor o clasificador de lagunas, el asistente de mejora - califica,
+redacta o propone para todos los que usan lo que sirve. Por eso cambiarlo
+requiere `org:settings` además de `agents:edit` o `agents:publish` sobre la
+fila: su borrador, una importación YAML, una publicación, una restauración,
+archivarlo o borrarlo, sus entornos. De lo contrario un Builder llegaría a los
+sembrados a través de su visibilidad en toda la organización. Leer, ejecutar y
+crear uno mantienen sus permisos habituales; un juez que un Builder crea para un
+dataset se publica enseguida, y los cambios posteriores requieren un
+administrador.
+
+La comprobación está en `AgentRegistryService.get`, así que cada camino de
+escritura la cumple, y `can_edit`/`can_publish` valen false para quien no la
+tiene.
 
 ## La delegación no es una frontera de privilegio { #delegation-is-not-a-privilege-boundary }
 

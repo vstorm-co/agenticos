@@ -1,5 +1,5 @@
 ---
-source_sha: "34178ef743be"
+source_sha: "10df9e0c73fa"
 ---
 
 # Uprawnienia { #permissions }
@@ -440,6 +440,22 @@ odmów.
     mówi o tym we własnym tekście, ponieważ uprawnienie szersze, niż spodziewają
     się jego podmioty, da się obronić tylko wtedy, gdy mogą się o tym dowiedzieć.
     Węższa odpowiedź byłaby osobnym uprawnieniem, a nie cichszym route'em.
+
+### Agent systemowy to ustawienie organizacji { #system-agents }
+
+[Agent systemowy](concepts.md#system-agents) - sędzia, generator przypadków,
+autor szkiców albo klasyfikator luk, asystent poprawiania - ocenia, szkicuje
+albo proponuje dla wszystkich, którzy korzystają z tego, czemu służy. Dlatego
+jego zmiana wymaga `org:settings` oprócz `agents:edit` albo `agents:publish` na
+wierszu: draft, import YAML, publikacja, przywrócenie wersji, archiwizacja,
+usunięcie, jego środowiska. Inaczej Builder sięgałby do agentów utworzonych
+przez platformę przez ich widoczność w całej organizacji. Odczyt, uruchamianie
+i tworzenie zostają przy zwykłych uprawnieniach; sędzia, którego Builder tworzy
+dla datasetu, jest od razu publikowany, a późniejsze zmiany wymagają
+administratora.
+
+Sprawdzenie jest w `AgentRegistryService.get`, więc pilnuje go każda ścieżka
+zapisu, a `can_edit`/`can_publish` są fałszywe dla kogoś bez tego uprawnienia.
 
 ## Delegacja nie jest granicą uprawnień { #delegation-is-not-a-privilege-boundary }
 

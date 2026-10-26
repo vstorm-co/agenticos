@@ -1,5 +1,5 @@
 ---
-source_sha: "599f6c30c7a2"
+source_sha: "13549aeba3c2"
 ---
 
 # Conceptos { #concepts }
@@ -627,20 +627,27 @@ classifier**. El agent sembrado de cada tipo se marca como el predeterminado de
 ese tipo: **Default judge**, **Default case generator**, etc. Los selectores de
 agents los dejan fuera.
 
-Quien tiene `agents:edit` abre uno para cambiar sus instrucciones, su modelo y
-su budget, desde la banda o, para el drafter, desde **Edit the drafter's
-instructions** en un borrador. La página de un juez contiene eso, sus límites,
-su historial y los datasets que lo eligieron, califiquen o no (cada uno se abre
-en sus últimas calificaciones allí y los runs de eval de los que salieron), con
-cuántas veces las personas coincidieron con él en los resultados que calificó y
-ellas decidieron, y nada más. Las del drafter y del clasificador contienen lo
-mismo sin los datasets.
+Cambiar uno es un ajuste de la organización. Editar sus instrucciones, su
+modelo o su budget, publicarlo, restaurar una versión, archivarlo o borrarlo
+requiere `org:settings` - el permiso que activa
+[AI assistance](governance.md#ai-assistance) -, sea de quien sea la fila; el
+resto de quienes pueden ver agents lo lee, y su página dice por qué sus
+controles están bloqueados. Se abre desde la banda o, para el drafter, desde
+**Edit the drafter's instructions** en un borrador, y su cabecera dice **System
+agent** y su tipo.
+
+La página de un juez contiene sus instrucciones, su modelo, los archivos de
+contexto y skills que lee, sus límites, su historial y los datasets que lo
+eligieron, califiquen o no (cada uno se abre en sus últimas calificaciones allí
+y los runs de eval de los que salieron), con cuántas veces las personas
+coincidieron con él en los resultados que calificó y ellas decidieron, y nada
+más. Las del drafter y del clasificador contienen lo mismo sin los datasets.
 
 **New agent** → **System agent** crea cualquiera de los cinco tipos: juez,
 generador de casos, redactor de lagunas, clasificador de lagunas o asistente de
 mejora (`POST /agents/system`). Usa las instrucciones, temperatura y presupuesto
 de su tipo sobre el primer modelo de la organización y se publica si tienes
-permiso. Elige el juez al puntuar datasets, el generador al generar casos, los
+permiso; cada cambio posterior requiere `org:settings`. Elige el juez al puntuar datasets, el generador al generar casos, los
 ayudantes de conocimiento en la pestaña de lagunas y el asistente al mejorar.
 Cada opción usa por defecto el agente de la organización. La selección debe ser
 del tipo correcto, estar publicada y seguir siendo ejecutable por el usuario;
@@ -657,16 +664,55 @@ misma forma, con un budget propio. Aparece en la misma banda, después del
 drafter, y se abre y edita como un juez; la pestaña Generated de un dataset enlaza
 con él para quien puede editarlo.
 
-Solo la plataforma lo ejecuta. El chat, la API, un embed o una página pública,
-un canal, una programación y la delegación desde otro agent lo rechazan, en el
-servicio que iniciaría el run y no solo en la consola.
+Solo la plataforma lo ejecuta. El chat, la API, A2A, un embed o una página
+pública, un canal, una programación y la delegación desde otro agent lo
+rechazan, en el servicio que iniciaría el run y no solo en la consola. Ni un
+eval ni una sesión de mejora lo prueban o lo mejoran: responde a quien lo llama
+en JSON, nunca a la pregunta de una persona, así que las preguntas de un dataset
+no dicen nada de él.
 
 Cada run de un agent del sistema está [aislado](environments.md#in-an-eval)
-como el de un eval: una herramienta que lee se ejecuta, y una que cambiaría algo
-se retiene y se registra. Un agent del sistema lee texto que nadie revisó - una
-respuesta que calificar, un documento, una conversación -, así que una
-instrucción colocada ahí no llega a una conexión de producción a través de una
-herramienta que un editor añadió al agent.
+como el de un eval. Un agent del sistema lee texto que nadie revisó - una
+respuesta que calificar, un documento, una conversación -, y lo que responde
+llega a personas que quizá no pueden leer lo que leyó, así que no tiene ninguna
+herramienta que pueda llevar a ninguna parte una instrucción colocada ahí.
+
+### Qué puede contener su spec { #system-agent-spec }
+
+Un agent del sistema no llega más allá del prompt que le da la plataforma. Su
+spec puede enlazar **Thinking**, **Context** y **Skills** - cómo razona y el
+texto fijo que lee - y nada más. Guardar un borrador, o importar YAML, que añada
+otra capability, una base de conocimiento, un servidor MCP, un delegado, voz o
+dictado, starters, code mode o un revisor se rechaza campo por campo, igual que
+una aprobación en las tres permitidas: nadie está ahí para darla mientras se
+ejecuta.
+
+Publicarlo también requiere sus instrucciones, y espacio para su respuesta. La
+respuesta es un único objeto JSON, así que un `max_tokens` por debajo del mínimo
+de su tipo cortaría todas las respuestas, no una; dejarlo sin fijar mantiene el
+límite del propio modelo.
+
+| Tipo | Mínimo | Espacio para |
+|---|---|---|
+| Juez | 4 096 | Una calificación por criterio - hasta 20 criterios de la rúbrica, la referencia y el contraejemplo - con su razón, regla y citas |
+| Generador de casos | 20 000 | Hasta 50 casos redactados, a los 400 tokens con los que la estimación de la generación valora cada uno |
+| Redactor de lagunas | 6 144 | Un pasaje en su límite de 20 000 caracteres, con su título y sus citas |
+| Clasificador de lagunas | 2 048 | Un lote de 20 respuestas, cada una con una etiqueta y una razón de 300 caracteres como mucho |
+| Asistente de mejora | 8 192 | Un skill nuevo en su límite de 20 000 caracteres junto a los cambios de instrucciones de la misma propuesta |
+
+### Su entorno y su retirada { #retiring-a-system-agent }
+
+Un agent del sistema se ejecuta en su entorno predeterminado, que sigue cada
+publicación. Añadir un entorno, fijarlo, protegerlo con guardas o promover una
+versión se rechaza - restaura una versión en su lugar -, y una publicación mueve
+un entorno predeterminado fijado antes de que eso se rechazara.
+
+El predeterminado de cada tipo en la organización nunca se archiva ni se borra:
+todo lo que no eligió otro se ejecuta sobre él. Uno creado por la organización
+se archiva o se borra cuando ningún dataset califica con él, ninguna base de
+conocimiento redacta ni clasifica sus lagunas con él, y ninguna solicitud del
+asistente, generación de casos, sesión de mejora ni eval está ocupada con él; el
+rechazo nombra lo que todavía lo usa.
 
 Cuando la organización ya tiene un perfil de modelo, un agent del sistema se
 publica sobre el más antiguo, o sobre el que se eligió al crearlo. Sin ninguno,

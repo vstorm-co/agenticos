@@ -24,9 +24,11 @@ It does three things:
 - **Improve a skill** or a **context file**: suggest a new body from the runs
   that read it.
 
-The assistant is a [system agent](datasets.md#judge) of its own, listed with
-the organization's other system agents. Its instructions can be edited like any
-agent's, and its runs are ordinary runs: budgeted, priced and listed in Activity.
+The assistant is a [system agent](concepts.md#system-agents) of its own, listed with
+the organization's other system agents. An administrator edits its instructions
+like any agent's - changing a system agent takes `org:settings` - and its runs
+are ordinary runs: budgeted, priced and listed in Activity. It is never the
+agent an Improve or a Verify is about.
 
 Expand **Authoring assistant** in Improve or Verify to choose a published
 assistant. Changing the selection clears the previous estimate, so consent

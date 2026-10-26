@@ -1,5 +1,5 @@
 ---
-source_sha: "4b348a38363b"
+source_sha: "76946f87d0ca"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -25,10 +25,12 @@ Robi trzy rzeczy:
 - **Ulepsza skill** albo **plik kontekstowy**: sugeruje nową treść na podstawie
   runów, które go czytały.
 
-Asystent jest osobnym [agentem systemowym](datasets.md#judge), widocznym razem z
-pozostałymi agentami systemowymi organizacji. Jego instrukcje można edytować jak
-instrukcje każdego agenta, a jego runy są zwykłymi runami: objęte budżetem,
-wycenione i widoczne w **Aktywności** (Activity).
+Asystent jest osobnym [agentem systemowym](concepts.md#system-agents), widocznym
+razem z pozostałymi agentami systemowymi organizacji. Administrator edytuje jego
+instrukcje jak instrukcje każdego agenta - zmiana agenta systemowego wymaga
+`org:settings` - a jego runy są zwykłymi runami: objęte budżetem, wycenione i
+widoczne w **Aktywności** (Activity). Nigdy nie jest agentem, którego dotyczy
+Improve albo Verify.
 
 Rozwiń **Asystent poprawiania** podczas poprawiania lub weryfikacji, aby
 wybrać opublikowanego asystenta. Zmiana usuwa poprzedni szacunek, więc zgoda

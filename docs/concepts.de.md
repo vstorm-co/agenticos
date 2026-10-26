@@ -1,5 +1,5 @@
 ---
-source_sha: "599f6c30c7a2"
+source_sha: "13549aeba3c2"
 ---
 
 # Begriffe { #concepts }
@@ -658,20 +658,29 @@ Plattform angelegte Agent jeder Art ist als Standard seiner Art markiert -
 **Standardbewerter**, **Standard-Fallgenerator** und so weiter. Agent-Auswahlen
 lassen sie weg.
 
-Wer `agents:edit` hat, öffnet einen, um Instruktionen, Modell und Budget zu
-ändern, aus dem Band oder, beim Drafter, über **Anweisungen des Drafters
-bearbeiten** an einem Entwurf. Die Seite eines Bewerters enthält diese, seine
-Limits, seinen Verlauf und die Datasets, die ihn gewählt haben, mit Bewertung
-oder ohne - jedes klappt seine letzten Bewertungen dort und die Eval-Runs auf,
-aus denen sie stammen - samt der Angabe, wie oft Menschen ihm bei den von ihm
-bewerteten und von ihnen entschiedenen Ergebnissen zustimmten, und sonst nichts.
-Die des Drafters und des Klassifizierers enthalten dasselbe ohne die Datasets.
+Einen zu ändern ist eine Einstellung der Organisation. Seine Instruktionen,
+sein Modell oder Budget zu bearbeiten, ihn zu veröffentlichen, eine Version
+wiederherzustellen, ihn zu archivieren oder zu löschen braucht `org:settings` -
+die Berechtigung, die [AI assistance](governance.md#ai-assistance) schaltet -,
+wem auch immer die Zeile gehört; alle anderen, die Agents sehen dürfen, lesen
+ihn, und seine Seite sagt, warum die Bedienelemente gesperrt sind. Geöffnet wird
+er aus dem Band oder, beim Drafter, über **Anweisungen des Drafters bearbeiten**
+an einem Entwurf, und seine Kopfzeile nennt **System-Agent** und seine Art.
+
+Die Seite eines Bewerters enthält seine Instruktionen, sein Modell, die
+Kontextdateien und Skills, die er liest, seine Limits, seinen Verlauf und die
+Datasets, die ihn gewählt haben, mit Bewertung oder ohne - jedes klappt seine
+letzten Bewertungen dort und die Eval-Runs auf, aus denen sie stammen - samt der
+Angabe, wie oft Menschen ihm bei den von ihm bewerteten und von ihnen
+entschiedenen Ergebnissen zustimmten, und sonst nichts. Die des Drafters und des
+Klassifizierers enthalten dasselbe ohne die Datasets.
 
 **New agent** → **Systemagent** erstellt jeden der fünf Typen: Bewerter,
 Fallgenerator, Lücken-Drafter, Lücken-Klassifizierer oder Verbesserungsassistent
 (`POST /agents/system`). Er beginnt mit den Anweisungen, der Temperatur und dem
 Budget seines Typs auf dem ersten Modell der Organisation und wird bei
-entsprechender Berechtigung veröffentlicht. Wählen Sie den Bewerter in der
+entsprechender Berechtigung veröffentlicht; jede spätere Änderung braucht
+`org:settings`. Wählen Sie den Bewerter in der
 Dataset-Bewertung, den Generator beim Generieren, Wissenshelfer im Lücken-Tab
 der Wissensbasis und den Assistenten beim Verbessern. Standard ist jeweils der
 Agent der Organisation. Eine Auswahl muss den richtigen Typ haben,
@@ -690,16 +699,57 @@ angelegt, mit einem eigenen Budget. Er steht im selben Band, nach dem
 Drafter, und wird wie ein Bewerter geöffnet und bearbeitet; der Tab Generated eines
 Datasets verlinkt ihn für alle, die ihn bearbeiten dürfen.
 
-Nur die Plattform führt ihn aus. Chat, API, ein Embed oder eine öffentliche
-Seite, ein Kanal, ein Zeitplan und die Delegation durch einen anderen Agent
-lehnen ihn ab, im Service, der den Run starten würde, nicht nur in der Konsole.
+Nur die Plattform führt ihn aus. Chat, API, A2A, ein Embed oder eine
+öffentliche Seite, ein Kanal, ein Zeitplan und die Delegation durch einen
+anderen Agent lehnen ihn ab, im Service, der den Run starten würde, nicht nur in
+der Konsole. Weder ein Eval noch eine Verbesserungssitzung testet oder
+verbessert ihn: Er antwortet seinem Aufrufer in JSON, nie auf die Frage eines
+Menschen, also sagen die Fragen eines Datasets nichts über ihn.
 
 Jeder Run eines System-Agents ist [isoliert](environments.md#in-an-eval) wie
-der eines Evals: Ein Tool, das liest, läuft, und eines, das etwas ändern würde,
-wird zurückgehalten und aufgezeichnet. Ein System-Agent liest Text, den niemand
-geprüft hat - eine zu bewertende Antwort, ein Dokument, ein Gespräch -, daher
-erreicht eine darin platzierte Anweisung keine Produktivverbindung über ein
-Tool, das jemand dem Agent hinzugefügt hat.
+der eines Evals. Ein System-Agent liest Text, den niemand geprüft hat - eine zu
+bewertende Antwort, ein Dokument, ein Gespräch -, und seine Antwort erreicht
+Menschen, die vielleicht nicht lesen dürfen, was er gelesen hat; darum hat er
+kein Tool, das eine dort platzierte Anweisung irgendwohin tragen könnte.
+
+### Was seine Spec enthalten darf { #system-agent-spec }
+
+Ein System-Agent reicht nicht über den Prompt hinaus, den ihm die Plattform
+gibt. Seine Spec darf **Thinking**, **Context** und **Skills** binden - wie er
+denkt und welchen festen Text er liest - und sonst nichts. Einen Draft zu
+speichern oder YAML zu importieren, das eine andere Capability, eine
+Wissensbasis, einen MCP-Server, einen Delegierten, Sprache oder Diktat,
+Starter, Code Mode oder einen Reviewer hinzufügt, wird Feld für Feld abgelehnt,
+ebenso ein Approval auf einer der drei erlaubten: Niemand ist da, um eines zu
+erteilen, während er läuft.
+
+Zum Veröffentlichen braucht er außerdem Instruktionen und Platz für seine
+Antwort. Die Antwort ist ein einziges JSON-Objekt, daher würde ein
+`max_tokens` unter der Untergrenze seiner Art jede Antwort abschneiden statt
+einer; ohne Angabe gilt das Limit des Modells.
+
+| Art | Untergrenze | Platz für |
+|---|---|---|
+| Bewerter | 4 096 | Eine Bewertung je Kriterium - bis zu 20 Rubrik-Kriterien, die Referenz und das Gegenbeispiel - mit Begründung, Regel und Zitaten |
+| Fallgenerator | 20 000 | Bis zu 50 entworfene Fälle, zu den 400 Tokens, mit denen die Schätzung der Generierung jeden berechnet |
+| Lücken-Entwerfer | 6 144 | Einen Abschnitt an seiner Grenze von 20 000 Zeichen, mit Titel und Quellenangaben |
+| Lücken-Klassifizierer | 2 048 | Einen Stapel von 20 Antworten, jede mit Label und einer Begründung von höchstens 300 Zeichen |
+| Verbesserungsassistent | 8 192 | Einen neuen Skill an seiner Grenze von 20 000 Zeichen neben den Instruktionsänderungen desselben Vorschlags |
+
+### Seine Umgebung und sein Ruhestand { #retiring-a-system-agent }
+
+Ein System-Agent läuft in seiner Standardumgebung, die jeder Veröffentlichung
+folgt. Eine Umgebung hinzuzufügen, eine zu fixieren, zu schützen oder eine
+Version zu befördern wird abgelehnt - stellen Sie stattdessen eine Version
+wieder her -, und eine Veröffentlichung bewegt eine Standardumgebung, die vor
+dieser Regel fixiert wurde.
+
+Der Standard jeder Art in der Organisation wird nie archiviert oder gelöscht:
+Alles, was keinen anderen gewählt hat, läuft auf ihm. Einer, den die
+Organisation angelegt hat, wird archiviert oder gelöscht, sobald kein Dataset
+mit ihm bewertet, keine Wissensbasis mit ihm Lücken entwirft oder sortiert und
+keine Assistenten-Anfrage, Fallgenerierung, Verbesserungssitzung und kein Eval
+mit ihm beschäftigt ist; die Ablehnung nennt, was ihn noch verwendet.
 
 Hat die Organisation bereits ein Model-Profil, wird ein System-Agent auf dem
 ältesten veröffentlicht oder auf dem, das bei seiner Erstellung gewählt wurde.

@@ -1,5 +1,5 @@
 ---
-source_sha: "34178ef743be"
+source_sha: "10df9e0c73fa"
 ---
 
 # Berechtigungen { #permissions }
@@ -469,6 +469,24 @@ die Ablehnungen.
     Berechtigung, die weiter reicht, als ihre Subjekte erwarten, ist nur dann
     vertretbar, wenn sie das herausfinden können. Eine engere Antwort wäre eine
     eigene Berechtigung, keine leisere Route.
+
+### Ein System-Agent ist eine Einstellung der Organisation { #system-agents }
+
+Ein [System-Agent](concepts.md#system-agents) - ein Bewerter, ein
+Fallgenerator, ein Lücken-Entwerfer oder -Klassifizierer, der
+Verbesserungsassistent - bewertet, entwirft oder schlägt vor für alle, die
+nutzen, was er bedient. Ihn zu ändern braucht darum `org:settings` zusätzlich zu
+`agents:edit` oder `agents:publish` auf der Zeile: sein Draft, ein YAML-Import,
+eine Veröffentlichung, eine Wiederherstellung, Archivieren oder Löschen, seine
+Umgebungen. Sonst erreichte ein Builder die mitgelieferten über ihre
+organisationsweite Sichtbarkeit. Lesen, Ausführen und Anlegen behalten ihre
+üblichen Berechtigungen; ein Bewerter, den ein Builder für ein Dataset anlegt,
+wird sofort veröffentlicht, und spätere Änderungen brauchen einen
+Administrator.
+
+Die Prüfung steckt in `AgentRegistryService.get`, also hält sie jeder
+Schreibweg ein, und `can_edit`/`can_publish` sind für einen Aufrufer ohne sie
+falsch.
 
 ## Delegation ist keine Privilegiengrenze { #delegation-is-not-a-privilege-boundary }
 

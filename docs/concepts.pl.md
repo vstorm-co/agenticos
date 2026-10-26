@@ -1,5 +1,5 @@
 ---
-source_sha: "599f6c30c7a2"
+source_sha: "13549aeba3c2"
 ---
 
 # Koncepcje { #concepts }
@@ -621,19 +621,27 @@ platformę jest oznaczony jako domyślny dla tego rodzaju - **Domyślny sędzia*
 **Domyślny generator przypadków** i tak dalej.
 Wybory agenta ich pomijają.
 
-Kto ma `agents:edit`, otwiera takiego agenta, żeby zmienić jego instrukcje,
-model i budżet, z pasa albo, w przypadku draftera, przez **Edytuj instrukcje
-draftera** przy szkicu. Strona sędziego zawiera je, jego limity, historię i
-datasety, które go wybrały, z włączonym ocenianiem albo bez - każdy rozwija się
-na jego ostatnie oceny i runy ewaluacji, z których pochodzą - wraz z tym, jak
-często ludzie zgodzili się z nim w wynikach, które ocenił, a oni rozstrzygnęli,
-i nic więcej. Strony draftera i klasyfikatora zawierają to samo bez datasetów.
+Zmiana takiego agenta to ustawienie organizacji. Edycja jego instrukcji,
+modelu albo budżetu, publikacja, przywrócenie wersji, archiwizacja i usunięcie
+wymagają `org:settings` - uprawnienia, które włącza
+[AI assistance](governance.md#ai-assistance) - niezależnie od tego, czyj jest
+wiersz; pozostali, którzy widzą agentów, mogą go tylko czytać, a jego strona
+mówi, dlaczego kontrolki są zablokowane. Otwiera się go z pasa albo, w przypadku
+draftera, przez **Edytuj instrukcje draftera** przy szkicu, a jego nagłówek
+mówi **Agent systemowy** i podaje rodzaj.
+
+Strona sędziego zawiera jego instrukcje, model, pliki kontekstu i skille, które
+czyta, jego limity, historię i datasety, które go wybrały, z włączonym
+ocenianiem albo bez - każdy rozwija się na jego ostatnie oceny i runy ewaluacji,
+z których pochodzą - wraz z tym, jak często ludzie zgodzili się z nim w
+wynikach, które ocenił, a oni rozstrzygnęli, i nic więcej. Strony draftera i
+klasyfikatora zawierają to samo bez datasetów.
 
 **Nowy agent** → **Agent systemowy** tworzy dowolny z pięciu rodzajów: sędziego,
 generator przypadków, autora szkiców luk, klasyfikator luk lub asystenta
 poprawiania (`POST /agents/system`). Zaczyna od instrukcji, temperatury i budżetu
 danego rodzaju, na pierwszym modelu organizacji; publikacja wymaga odpowiednich
-uprawnień. Sędziego wybierasz w ocenianiu datasetu, generator przy generowaniu
+uprawnień, a każda późniejsza zmiana - `org:settings`. Sędziego wybierasz w ocenianiu datasetu, generator przy generowaniu
 przypadków, pomocników wiedzy na zakładce luk bazy wiedzy, a asystenta przy
 poprawianiu. Domyślnie działa agent organizacji. Wybrany pomocnik musi mieć
 odpowiedni rodzaj, być opublikowany i dostępny do uruchomienia przez użytkownika.
@@ -650,16 +658,52 @@ tworzony tak samo, z własnym budżetem. Jest w tym samym pasie, po drafterze, i
 otwiera się go i edytuje tak jak sędziego; zakładka Generated datasetu prowadzi
 do niego każdego, kto może go edytować.
 
-Uruchamia go tylko platforma. Czat, API, embed albo publiczna strona, kanał,
-harmonogram i delegowanie z innego agenta odmawiają go w usłudze, która
-uruchomiłaby run, a nie tylko w konsoli.
+Uruchamia go tylko platforma. Czat, API, A2A, embed albo publiczna strona,
+kanał, harmonogram i delegowanie z innego agenta odmawiają go w usłudze, która
+uruchomiłaby run, a nie tylko w konsoli. Ani eval, ani sesja ulepszania go nie
+testuje ani nie poprawia: odpowiada temu, kto go wywołuje, w JSON, nigdy na
+pytanie człowieka, więc pytania datasetu nic o nim nie mówią.
 
 Każdy run agenta systemowego jest [izolowany](environments.md#in-an-eval) tak
-jak run evala: narzędzie, które czyta, działa, a takie, które coś by zmieniło,
-jest wstrzymywane i zapisywane. Agent systemowy czyta tekst, którego nikt nie
-sprawdził - odpowiedź do oceny, dokument, rozmowę - więc podrzucona w nim
-instrukcja nie dosięgnie produkcyjnego połączenia przez narzędzie, które edytor
-dodał agentowi.
+jak run evala. Agent systemowy czyta tekst, którego nikt nie sprawdził -
+odpowiedź do oceny, dokument, rozmowę - a jego odpowiedź trafia do ludzi, którzy
+mogą nie widzieć tego, co przeczytał, więc nie ma żadnego narzędzia, które
+mogłoby gdziekolwiek przenieść podrzuconą tam instrukcję.
+
+### Co może zawierać jego spec { #system-agent-spec }
+
+Agent systemowy nie sięga dalej niż prompt, który daje mu platforma. Jego spec
+może wiązać **Thinking**, **Context** i **Skills** - sposób rozumowania i stały
+tekst, który czyta - i nic więcej. Zapis draftu albo import YAML, który dodaje
+inną capability, bazę wiedzy, serwer MCP, delegata, głos albo dyktowanie,
+startery, code mode albo recenzenta, jest odrzucany pole po polu, podobnie jak
+approval na trzech dozwolonych: nikt nie udzieli go w trakcie runu.
+
+Publikacja wymaga też instrukcji i miejsca na odpowiedź. Odpowiedź to jeden
+obiekt JSON, więc `max_tokens` poniżej progu danego rodzaju ucinałby każdą
+odpowiedź, a nie jedną; brak ustawienia zostawia limit samego modelu.
+
+| Rodzaj | Próg | Miejsce na |
+|---|---|---|
+| Sędzia | 4 096 | Ocenę każdego kryterium - do 20 kryteriów rubryki, wzorzec i kontrprzykład - z uzasadnieniem, regułą i cytatami |
+| Generator przypadków | 20 000 | Do 50 przypadków, po 400 tokenów, które wycena generowania przyjmuje na każdy |
+| Autor szkiców luk | 6 144 | Jeden fragment o limicie 20 000 znaków, z tytułem i odwołaniami |
+| Klasyfikator luk | 2 048 | Paczkę 20 odpowiedzi, każda z etykietą i uzasadnieniem do 300 znaków |
+| Asystent poprawiania | 8 192 | Nowy skill o limicie 20 000 znaków obok zmian instrukcji z tej samej propozycji |
+
+### Jego środowisko i wycofanie { #retiring-a-system-agent }
+
+Agent systemowy działa w swoim domyślnym środowisku, które idzie za każdą
+publikacją. Dodanie środowiska, przypięcie go, guard albo promocja wersji są
+odrzucane - zamiast tego przywróć wersję - a publikacja przesuwa domyślne
+środowisko przypięte, zanim zaczęto to odrzucać.
+
+Domyślnego agenta danego rodzaju w organizacji nie da się zarchiwizować ani
+usunąć: działa na nim wszystko, co nie wybrało innego. Agenta utworzonego przez
+organizację można zarchiwizować albo usunąć, gdy żaden dataset nie ocenia nim
+odpowiedzi, żadna baza wiedzy nie szkicuje ani nie klasyfikuje nim luk, a żadne
+żądanie asystenta, generowanie przypadków, sesja ulepszania ani eval nie jest z
+nim w toku; odmowa mówi, co go jeszcze używa.
 
 Gdy organizacja ma już profil modelu, agent systemowy jest publikowany na
 najstarszym z nich albo na tym, który wybrano przy jego tworzeniu. Bez profilu

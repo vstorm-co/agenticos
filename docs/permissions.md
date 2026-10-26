@@ -423,6 +423,21 @@ refusals.
     subjects expect is only defensible if they can find that out. A narrower answer
     would be a permission of its own, not a quieter route.
 
+### A system agent is an organization setting { #system-agents }
+
+A [system agent](concepts.md#system-agents) - a judge, a case generator, a gap
+drafter or classifier, the authoring assistant - grades, drafts or proposes for
+everyone who uses what it serves. So changing one takes `org:settings` on top of
+`agents:edit` or `agents:publish` on the row: its draft, a YAML import, a
+publish, a restore, archiving or deleting it, its environments. A Builder would
+otherwise reach the seeded ones through their organization-wide visibility.
+Reading, running and creating one keep their usual permissions; a judge a
+Builder makes for a dataset publishes at once, and later changes need an
+administrator.
+
+The check is in `AgentRegistryService.get`, so every write path holds it, and
+`can_edit`/`can_publish` read false for a caller without it.
+
 ## Delegation is not a privilege boundary
 
 An agent can [delegate to another agent](concepts.md#delegate-vs-inline-specialist),

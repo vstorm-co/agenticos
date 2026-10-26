@@ -597,18 +597,27 @@ marked as that kind's default - **Default judge**, **Default case generator**
 and so on.
 Agent pickers leave them out.
 
-Whoever holds `agents:edit` opens one to change its instructions, model and
-budget, from the band or, for the drafter, from **Edit the drafter's
-instructions** on a draft. A judge's page holds those, its limits, its history
-and the datasets that picked it, grading or not - each opening on its latest
-grades there and the eval runs they came from - with how often people agreed
-with it on the results it graded and they decided, and nothing else. The
-drafter's and the classifier's hold the same without the datasets.
+Changing one is an organization setting. Editing its instructions, model or
+budget, publishing it, restoring a version, archiving or deleting it takes
+`org:settings` - the permission that switches
+[AI assistance](governance.md#ai-assistance) - whoever owns the row; everybody
+else who may see agents reads it, and its page says why its controls are
+locked. It is opened from the band or, for the drafter, from **Edit the
+drafter's instructions** on a draft, and its header says **System agent** and
+its kind.
+
+A judge's page holds its instructions, model, the context files and skills it
+reads, its limits, its history and the datasets that picked it, grading or not -
+each opening on its latest grades there and the eval runs they came from - with
+how often people agreed with it on the results it graded and they decided, and
+nothing else. The drafter's and the classifier's hold the same without the
+datasets.
 
 **New agent** → **System agent** creates any of the five kinds: judge, case
 generator, gap drafter, gap classifier or authoring assistant (`POST /agents/system`).
 It starts from that kind's instructions, temperature and budget, on the
-organization's first model, and publishes when you may publish agents. Pick a
+organization's first model, and publishes when you may publish agents; every
+change after that takes `org:settings`. Pick a
 judge in dataset grading, a generator in Generate cases, knowledge helpers on a
 knowledge base's gaps tab, or an assistant in Improve. Each defaults to the
 organization's seeded agent. A selected helper must have the right kind, be
@@ -626,15 +635,53 @@ budget of its own. It is listed in the same band, after the drafter, and is
 opened and edited like a judge; a dataset's Generated tab links to it for whoever
 may edit it.
 
-Only the platform runs it. Chat, the API, an embed or a public page, a channel,
-a schedule and delegation from another agent all refuse it, in the service that
-would start the run rather than only in the console.
+Only the platform runs it. Chat, the API, A2A, an embed or a public page, a
+channel, a schedule and delegation from another agent all refuse it, in the
+service that would start the run rather than only in the console. Neither an
+eval nor an improvement session tests or improves one: it answers its caller in
+JSON, never a person's question, so a dataset's questions measure nothing about
+it.
 
 Every run of a system agent is [isolated](environments.md#in-an-eval) as an
-eval's is: a tool that reads runs, and one that would change something is held
-and recorded instead. A system agent reads text nobody vetted - an answer to
-grade, a document, a conversation - so an instruction planted there cannot reach
-a production connection through a tool an editor added to the agent.
+eval's is. A system agent reads text nobody vetted - an answer to grade, a
+document, a conversation - and what it answers reaches people who may not read
+what it read, so it holds no tool that could carry an instruction planted there
+anywhere.
+
+### What its spec may hold { #system-agent-spec }
+
+A system agent reaches nothing beyond the prompt the platform gives it. Its spec
+may bind **Thinking**, **Context** and **Skills** - how it reasons and the
+standing text it reads - and nothing else. Saving a draft, or importing YAML,
+that adds another capability, a knowledge base, an MCP server, a delegate,
+voice or dictation, starters, code mode or a reviewer is refused field by
+field, and so is an approval on the three it may bind: nobody is there to give
+one while it runs.
+
+Publishing one also needs its instructions, and room for its answer. The answer
+is one JSON object, so a `max_tokens` below its kind's floor would cut every
+answer short rather than one; leaving it unset keeps the model's own limit.
+
+| Kind | Floor | Room for |
+|---|---|---|
+| Judge | 4 096 | A grade per criterion - up to 20 rubric criteria, the reference and the counter-example - with its reason, rule and quotes |
+| Case generator | 20 000 | Up to 50 drafted cases, at the 400 tokens the generation's estimate prices each at |
+| Gap drafter | 6 144 | One passage at its 20 000-character limit, with its title and citations |
+| Gap classifier | 2 048 | A batch of 20 answers, each a label and a reason of at most 300 characters |
+| Authoring assistant | 8 192 | A new skill at its 20 000-character limit beside the instruction changes of the same proposal |
+
+### Its environment and its retirement { #retiring-a-system-agent }
+
+A system agent runs on its default environment, which follows every publish.
+Adding an environment, pinning one, guarding it or promoting a version is
+refused - restore a version instead - and a publish moves a default pinned
+before that was refused.
+
+The organization's default of each kind is never archived or deleted:
+everything that picked no other runs on it. One the organization made is
+archived or deleted once no dataset grades with it, no knowledge base drafts or
+sorts its gaps with it, and no authoring request, case generation, improvement
+session or eval is busy with it; the refusal names what still uses it.
 
 When the organization already has a model profile, a system agent is published
 on the oldest one, or on the one picked when it was created. Without one, it is

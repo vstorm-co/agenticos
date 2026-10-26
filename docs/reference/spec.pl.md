@@ -1,5 +1,5 @@
 ---
-source_sha: "892833d0bab5"
+source_sha: "48366d598f05"
 ---
 
 # Spec agenta { #the-agent-spec }
@@ -109,3 +109,15 @@ Capabilities, których rozmowa nie może uruchomić, nie blokują publikacji; s�
 pomijane w rozmowach, a Builder je wymienia.
 
 ::: app.agents.spec.VoiceSpec
+
+## Agenci systemowi { #system-agents }
+
+[Agent systemowy](../concepts.md#system-agent-spec) - sędzia, generator
+przypadków, autor szkiców albo klasyfikator luk, asystent poprawiania - podlega
+dodatkowym regułom. Zapis jego draftu odrzuca to, czego nigdy nie może używać;
+publikacja odrzuca też puste instrukcje i `max_tokens` poniżej progu jego
+rodzaju.
+
+::: app.agents.system_agents.unusable_parts
+
+::: app.agents.system_agents.incomplete_parts

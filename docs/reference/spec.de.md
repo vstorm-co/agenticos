@@ -1,5 +1,5 @@
 ---
-source_sha: "892833d0bab5"
+source_sha: "48366d598f05"
 ---
 
 # Der Agent-Spec { #the-agent-spec }
@@ -115,3 +115,15 @@ Capabilities, die ein Anruf nicht ausführen kann, blockieren das Veröffentlich
 nicht; sie werden aus Anrufen weggelassen, und der Builder listet sie auf.
 
 ::: app.agents.spec.VoiceSpec
+
+## System-Agents { #system-agents }
+
+Ein [System-Agent](../concepts.md#system-agent-spec) - ein Bewerter, ein
+Fallgenerator, ein Lücken-Entwerfer oder -Klassifizierer, der
+Verbesserungsassistent - unterliegt mehr Regeln. Seinen Draft zu speichern lehnt
+ab, was er nie verwenden darf; ihn zu veröffentlichen lehnt außerdem leere
+Instruktionen und ein `max_tokens` unter der Untergrenze seiner Art ab.
+
+::: app.agents.system_agents.unusable_parts
+
+::: app.agents.system_agents.incomplete_parts
