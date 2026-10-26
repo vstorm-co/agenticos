@@ -161,11 +161,12 @@ async def test_an_agent_bound_to_the_platform_reaches_it_in_process_as_the_asker
     `/mcp`, with no network, and its writes marked for approval (#2063, #2060)."""
     from pydantic_ai import Agent as PydanticAgent
     from pydantic_ai.messages import ModelResponse, TextPart, ToolCallPart, ToolReturnPart
-    from pydantic_ai.models.function import FunctionModel
+    from pydantic_ai.models.function import AgentInfo, FunctionModel
 
     from app.agents.mcp import NEEDS_APPROVAL
     from app.agents.spec import PlatformMcpServerRef
     from app.services.mcp_connection import build_toolsets_for_agent
+    from app.services.platform_mcp import INSTRUCTIONS
 
     key, organization = await _owner_key(db, Perm.AGENTS_VIEW, Perm.AGENTS_EDIT)
     resolved = await build_toolsets_for_agent(
@@ -176,7 +177,8 @@ async def test_an_agent_bound_to_the_platform_reaches_it_in_process_as_the_asker
     )
     [toolset] = resolved.toolsets
 
-    def asks_whoami(messages: list[Any], _info: Any) -> ModelResponse:
+    def asks_whoami(messages: list[Any], info: AgentInfo) -> ModelResponse:
+        assert info.instructions is not None and INSTRUCTIONS.strip() in info.instructions
         returned = [
             part
             for message in messages
@@ -192,6 +194,9 @@ async def test_an_agent_bound_to_the_platform_reaches_it_in_process_as_the_asker
         result = await agent.run("who am I?")
         tools = await toolset.get_tools(_run_context())
 
+    assert tools["agenticos_create_project"].tool_def.metadata[NEEDS_APPROVAL] is True
+    assert tools["agenticos_list_projects"].tool_def.metadata[NEEDS_APPROVAL] is False
+    assert tools["agenticos_get_project"].tool_def.metadata[NEEDS_APPROVAL] is False
     assert str(organization.id) in result.output
     assert tools["agenticos_whoami"].tool_def.metadata[NEEDS_APPROVAL] is False
     assert tools["agenticos_create_agent_draft"].tool_def.metadata[NEEDS_APPROVAL] is True
@@ -458,3 +463,39 @@ def test_connection_discovery_does_not_publish_connection_writes() -> None:
     ):
         for method in ("post", "patch", "delete"):
             assert (method, prefix + path) not in public
+
+
+async def test_projects_round_trip_through_mcp(db: AsyncSession, served: None) -> None:
+    key, _organization = await _owner_key(db, Perm.PROJECTS_VIEW, Perm.PROJECTS_EDIT)
+    async with _connected(key) as session:
+        created = await session.call_tool(
+            "create_project",
+            {"name": "Research wiki", "instructions": "Read index.md; cite sources."},
+        )
+        assert not created.is_error
+        project = _content(created)
+        loaded = _content(await session.call_tool("get_project", {"project_id": project["id"]}))
+        listing = _content(await session.call_tool("list_projects", {"q": "Research"}))
+
+    assert project["visibility"] == "private"
+    assert loaded["instructions"] == "Read index.md; cite sources."
+    assert loaded["backend"] == "state"
+    assert [item["id"] for item in listing["items"]] == [project["id"]]
+
+
+@pytest.mark.security
+async def test_project_tools_keep_key_scopes_and_tenant_isolation(
+    db: AsyncSession, served: None
+) -> None:
+    key, _organization = await _owner_key(db, Perm.PROJECTS_VIEW, Perm.PROJECTS_EDIT)
+    async with _connected(key) as session:
+        project = _content(await session.call_tool("create_project", {"name": "Private wiki"}))
+    other_key, _other = await _owner_key(db, Perm.PROJECTS_VIEW)
+    async with _connected(other_key) as session:
+        refused = await session.call_tool("create_project", {"name": "Not allowed"})
+        hidden = await session.call_tool("get_project", {"project_id": project["id"]})
+        listing = _content(await session.call_tool("list_projects", {}))
+
+    assert refused.is_error and "403" in refused.content[0].text
+    assert hidden.is_error and "404" in hidden.content[0].text
+    assert listing["items"] == []

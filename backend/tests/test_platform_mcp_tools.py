@@ -43,6 +43,52 @@ def server(api: MagicMock) -> FastMCP:
 
 CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
     ("whoami", {}, ("GET", "/me/permissions", {})),
+    ("list_projects", {}, ("GET", "/projects", {"params": {"limit": 50, "skip": 0}})),
+    (
+        "list_projects",
+        {"q": "wiki", "limit": 10, "skip": 20},
+        ("GET", "/projects", {"params": {"q": "wiki", "limit": 10, "skip": 20}}),
+    ),
+    ("get_project", {"project_id": str(KB)}, ("GET", f"/projects/{KB}", {})),
+    (
+        "create_project",
+        {"name": "Wiki"},
+        (
+            "POST",
+            "/projects",
+            {
+                "json": {
+                    "name": "Wiki",
+                    "instructions": "",
+                    "description": None,
+                    "default_agent_id": None,
+                    "visibility": "private",
+                }
+            },
+        ),
+    ),
+    (
+        "create_project",
+        {
+            "name": "Wiki",
+            "instructions": "Read index.md first.",
+            "description": "Continuing research",
+            "default_agent_id": str(AGENT),
+        },
+        (
+            "POST",
+            "/projects",
+            {
+                "json": {
+                    "name": "Wiki",
+                    "instructions": "Read index.md first.",
+                    "description": "Continuing research",
+                    "default_agent_id": str(AGENT),
+                    "visibility": "private",
+                }
+            },
+        ),
+    ),
     ("list_agents", {}, ("GET", "/agents", {"params": {"limit": 50, "skip": 0}})),
     ("get_agent", {"agent_id": str(AGENT)}, ("GET", f"/agents/{AGENT}", {})),
     (
@@ -562,6 +608,9 @@ class TestWhatNeverWaitsForApproval:
 
         assert tools["set_my_profile"].writes
         assert not tools["set_my_profile"].ungated
+        assert tools["create_project"].writes and not tools["create_project"].ungated
+        assert not tools["list_projects"].writes
+        assert not tools["get_project"].writes
         assert tools["create_skill"].writes and not tools["create_skill"].ungated
         assert tools["publish_agent"].writes and not tools["publish_agent"].ungated
 

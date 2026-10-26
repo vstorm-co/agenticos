@@ -1,5 +1,5 @@
 ---
-source_sha: "bf7b39800065"
+source_sha: "ee9ef22a0153"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1049,6 +1049,9 @@ permiso que faltaba.
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
 | `create_skill` | `skills:edit` |
+| `list_projects` | `projects:view` |
+| `get_project` | acceso al proyecto |
+| `create_project` | `projects:edit` |
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` y `roles:manage` |
 | `list_my_connections`, `set_my_language`, `set_my_profile` | — (los de quien llama) |

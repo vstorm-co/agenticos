@@ -986,6 +986,9 @@ would be; a refusal comes back as a tool error naming the missing permission.
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
 | `create_skill` | `skills:edit` |
+| `list_projects` | `projects:view` |
+| `get_project` | access to that project |
+| `create_project` | `projects:edit` |
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` and `roles:manage` |
 | `list_my_connections`, `set_my_language`, `set_my_profile` | — (the caller's own) |
