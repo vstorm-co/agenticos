@@ -1,5 +1,5 @@
 ---
-source_sha: "76946f87d0ca"
+source_sha: "975a7424b37e"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -30,7 +30,9 @@ razem z pozostałymi agentami systemowymi organizacji. Administrator edytuje jeg
 instrukcje jak instrukcje każdego agenta - zmiana agenta systemowego wymaga
 `org:settings` - a jego runy są zwykłymi runami: objęte budżetem, wycenione i
 widoczne w **Aktywności** (Activity). Nigdy nie jest agentem, którego dotyczy
-Improve albo Verify.
+Improve albo Verify. Ustawiony na
+[przeszukiwanie bazy wiedzy](concepts.md#system-agent-spec) czyta bazy wiedzy
+agenta, którego ulepsza.
 
 Rozwiń **Asystent poprawiania** podczas poprawiania lub weryfikacji, aby
 wybrać opublikowanego asystenta. Zmiana usuwa poprzedni szacunek, więc zgoda

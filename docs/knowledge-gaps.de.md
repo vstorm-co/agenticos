@@ -1,5 +1,5 @@
 ---
-source_sha: "2af2a153e11d"
+source_sha: "3efb6afb1e56"
 title: "Wissenslücken"
 description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden oder ohne Wissen geantwortet hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
 ---
@@ -82,6 +82,10 @@ Begründung:
 | Informationen fehlten | Ein Kommentar zu einer negativen Bewertung sagt, dass Informationen fehlten, veraltet oder unvollständig waren |
 | Zu Recht abgelehnt | Die Frage verlangte, was die Regeln oder der Zweck des Agents nicht erlauben - seine Anweisungen zu ignorieren, eine Ausnahme zu gewähren oder bei etwas zu helfen, wofür er nicht da ist - und der Agent hat abgelehnt. Keine Lücke, und die Fehltreffer unter den Suchen dieses Runs zählen ebenfalls nicht mehr als Lücken - in dieser Wissensdatenbank und in einer anderen, die eine verfehlte Suche mit abdeckte, denn eine Ablehnung betrifft die Anfrage, nicht eine Wissensdatenbank |
 | Keine Lücke | Alles andere: eine richtige Antwort, die Ablehnung von etwas, das die Regeln erlauben, ein Kommentar zu Ton, Länge oder einem Fehler. Eine Antwort, die eine Richtlinie oder Regel falsch angewendet hat, ist keine Lücke: Die Regel war da, und das ist ein Fehler, den man behebt - ebenso eine Antwort, deren Agent in seinen Anweisungen oder Kontextdateien stehen hat, was sie brauchte. Ein Kommentar, dass die Information veraltet war, ist eine Lücke |
+
+Ein Klassifizierer, der die [Wissensbasis durchsucht](concepts.md#system-agent-spec),
+durchsucht diese, bevor er entscheidet, sodass eine Antwort, die sie schon
+enthält, nicht fehlend genannt wird.
 
 Eine Antwort mit einem der ersten beiden Urteile wird zu einer Frage in den
 Themen der Wissensbasis und wie eine fehlgeschlagene Suche gruppiert. Im Thema
@@ -228,7 +232,9 @@ hat, ist immer nur das eigene Ergebnis der Wissenssuche, nie das, was ein
 anderes Werkzeug für dieselben Worte zurückgab. Er sieht
 außerdem die [Kontextdateien](context.md), die die Agents des Themas in ihren
 veröffentlichten Versionen lesen, soweit du sie lesen darfst, damit der Entwurf
-den Regeln folgt, denen die Agents schon folgen.
+den Regeln folgt, denen die Agents schon folgen. Ein Entwerfer, der die
+[Wissensbasis durchsucht](concepts.md#system-agent-spec), durchsucht auch diese,
+damit ein Entwurf nicht wiederholt, was ein Dokument schon sagt.
 
 Der Entwurf füllt den Editor des Themas, mit einem Link zu seinem Run. Du
 kannst ihn als Markdown kopieren, und in die Wissensdatenbank kommt er erst,

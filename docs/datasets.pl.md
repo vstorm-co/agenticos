@@ -1,5 +1,5 @@
 ---
-source_sha: "c9faec806179"
+source_sha: "5f704951dbbe"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -340,9 +340,13 @@ potem eksportowany i podawany modelom. Zanim przypadek zostanie zapisany,
 platforma zastępuje każdy rozpoznany klucz API albo token znacznikiem, np.
 `[redacted:github_token]`. Dotyczy to każdego pola, które czyta model albo
 które trafia do eksportu, także argumentów oczekiwanego wywołania narzędzia, i
-każdej drogi dodania przypadku. Generowanie redaguje też pytania i fragmenty
-przekazywane generatorowi, zanim trafią do modelu. Wpis audytu dla zmiany
-zapisuje, ile wartości zredagowano, nigdy same wartości.
+każdej drogi dodania przypadku. Wpis audytu dla zmiany zapisuje, ile wartości
+zredagowano, nigdy same wartości.
+
+Generowanie redaguje też pytania i fragmenty przekazywane generatorowi, zanim
+trafią do modelu, i usuwa z pytań i komentarzy ludzi dane osobowe, które
+znajdują detektory - adresy e-mail, numery telefonów, kart i kont: przypadek
+czyta każdy, kto może czytać jego dataset.
 
 ## Ocenianie { #scoring }
 

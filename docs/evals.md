@@ -304,6 +304,14 @@ attempt rather than asking the agent. A person's verdict in the
 [review queue](datasets.md#review) replaces the scorers' outcome for that case,
 and the run's numbers follow it.
 
+A judge that searches - [Knowledge search](concepts.md#system-agent-spec) on
+its page - checks an answer's facts against the knowledge bases of the agent
+that gave it, and each of its grades lists what it found there, the document and
+the start of the passage, under its reason. Until its runs give it a history,
+the estimate prices each grading at the judge's steps. A judge starts at
+temperature 0, so the same answer is graded the same way twice, and its page
+warns when that is raised.
+
 A finished run keeps its first candidate's verdict, counts and pass rates as
 `outcome`, so a listing reads them without comparing every run again. It is
 compared again when a person has decided one of the scores it rests on since,

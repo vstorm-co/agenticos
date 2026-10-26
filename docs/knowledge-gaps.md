@@ -76,6 +76,10 @@ things, with one sentence on why:
 | Rightly refused | The question asked for what the agent's rules or purpose do not allow - to ignore its instructions, grant an exception, or help with something it is not for - and the agent refused. Not a gap, and the run's searches that missed stop counting as gaps too - in that knowledge base, and in another one a missed search also covered, since a refusal is about the request, not about one knowledge base |
 | No gap | Anything else: a correct answer, a refusal of something the rules allow, a comment about tone, length or a mistake. An answer that applied a policy or a rule wrongly is no gap: the rule was there, and that is a mistake to fix - and so is one whose agent's instructions or context files state what it needed. A comment that the information was outdated is a gap |
 
+A classifier set to [search the knowledge base](concepts.md#system-agent-spec)
+searches this one before it decides, so an answer it already holds is not
+called missing.
+
 An answer of either of the first two becomes a question in the knowledge base's
 topics, grouped like a search that missed. In the topic it says which of the
 two it is, instead of naming a search.
@@ -210,7 +214,9 @@ stay. What it found is only ever the knowledge search's own result, never what
 another tool returned for the same words. It is also shown the
 [context files](context.md) the topic's agents read in their published
 versions, those you may read, so the draft follows the rules the agents
-already follow.
+already follow. A drafter set to
+[search the knowledge base](concepts.md#system-agent-spec) searches this one
+too, so a draft does not repeat what a document already says.
 
 The draft fills the topic's editor, with a link to its run. You can copy it as
 Markdown, and it reaches the knowledge base only when somebody adds it. The drafter does not know your company's facts: where an answer needs

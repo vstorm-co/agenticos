@@ -1,5 +1,5 @@
 ---
-source_sha: "c9faec806179"
+source_sha: "5f704951dbbe"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -362,10 +362,15 @@ später exportiert und an Modelle übergeben. Bevor ein Fall gespeichert wird,
 ersetzt die Plattform jeden erkannten API-Schlüssel und jedes erkannte Token
 durch einen Platzhalter wie `[redacted:github_token]`. Das gilt für jedes Feld,
 das ein Modell liest oder ein Export enthält, auch für die Argumente eines
-erwarteten Tool-Aufrufs, und für jeden Weg, auf dem ein Fall hinzukommt. Eine
-Generierung schwärzt außerdem die Fragen und Abschnitte, die sie dem Generator
-übergibt, bevor sie an das Modell gehen. Der Audit-Eintrag der Änderung hält
-fest, wie viele Werte geschwärzt wurden, nie die Werte selbst.
+erwarteten Tool-Aufrufs, und für jeden Weg, auf dem ein Fall hinzukommt. Der
+Audit-Eintrag der Änderung hält fest, wie viele Werte geschwärzt wurden, nie die
+Werte selbst.
+
+Eine Generierung schwärzt außerdem die Fragen und Abschnitte, die sie dem
+Generator übergibt, bevor sie an das Modell gehen, und nimmt aus den Fragen und
+Kommentaren von Menschen die personenbezogenen Daten, die die Detektoren finden
+- E-Mail-Adressen, Telefon-, Karten- und Kontonummern -: Einen Fall liest jeder,
+der sein Dataset lesen darf.
 
 ## Bewertung { #scoring }
 

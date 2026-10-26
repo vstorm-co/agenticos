@@ -1,5 +1,5 @@
 ---
-source_sha: "48366d598f05"
+source_sha: "8e2d3b157e74"
 ---
 
 # Der Agent-Spec { #the-agent-spec }
@@ -123,7 +123,11 @@ Fallgenerator, ein Lücken-Entwerfer oder -Klassifizierer, der
 Verbesserungsassistent - unterliegt mehr Regeln. Seinen Draft zu speichern lehnt
 ab, was er nie verwenden darf; ihn zu veröffentlichen lehnt außerdem leere
 Instruktionen und ein `max_tokens` unter der Untergrenze seiner Art ab.
+Er läuft nur mit dem, was seine Version enthalten darf, und durchsucht die
+Wissensbasen, um die es in seinem Run geht.
 
 ::: app.agents.system_agents.unusable_parts
 
 ::: app.agents.system_agents.incomplete_parts
+
+::: app.agents.system_agents.for_the_platform

@@ -1,5 +1,5 @@
 ---
-source_sha: "48366d598f05"
+source_sha: "8e2d3b157e74"
 ---
 
 # Spec agenta { #the-agent-spec }
@@ -117,7 +117,11 @@ przypadków, autor szkiców albo klasyfikator luk, asystent poprawiania - podleg
 dodatkowym regułom. Zapis jego draftu odrzuca to, czego nigdy nie może używać;
 publikacja odrzuca też puste instrukcje i `max_tokens` poniżej progu jego
 rodzaju.
+Działa tylko z tym, co jego wersja może zawierać, i przeszukuje bazy wiedzy,
+których dotyczy jego run.
 
 ::: app.agents.system_agents.unusable_parts
 
 ::: app.agents.system_agents.incomplete_parts
+
+::: app.agents.system_agents.for_the_platform

@@ -1,5 +1,5 @@
 ---
-source_sha: "76946f87d0ca"
+source_sha: "975a7424b37e"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -30,7 +30,9 @@ aparece con los demás agents de sistema de la organización. Un administrador
 edita sus instrucciones como las de cualquier agent - cambiar un agent de
 sistema requiere `org:settings` -, y sus runs son runs normales: con budget, con
 precio y visibles en Activity. Nunca es el agent del que trata un Improve o un
-Verify.
+Verify. Configurado para
+[buscar en la base de conocimiento](concepts.md#system-agent-spec), lee las
+bases de conocimiento del agent que mejora.
 
 Expande **Asistente de mejora** al mejorar o verificar para elegir un
 asistente publicado. Cambiar la selección borra la estimación anterior, de modo

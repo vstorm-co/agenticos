@@ -1,5 +1,5 @@
 ---
-source_sha: "48366d598f05"
+source_sha: "8e2d3b157e74"
 ---
 
 # El spec del agent { #the-agent-spec }
@@ -120,7 +120,11 @@ de casos, un redactor o clasificador de lagunas, el asistente de mejora - tiene
 más reglas. Guardar su borrador rechaza lo que nunca puede usar; publicarlo
 rechaza además instrucciones vacías y un `max_tokens` por debajo del mínimo de
 su tipo.
+Se ejecuta solo con lo que su versión puede contener, y busca en las bases de
+conocimiento de las que trata su run.
 
 ::: app.agents.system_agents.unusable_parts
 
 ::: app.agents.system_agents.incomplete_parts
+
+::: app.agents.system_agents.for_the_platform

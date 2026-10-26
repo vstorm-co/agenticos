@@ -1,5 +1,5 @@
 ---
-source_sha: "12000fc4a307"
+source_sha: "c2af761c32c9"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -324,6 +324,14 @@ volver a calificarlas (`POST /api/v1/datasets/{id}/scores/rescore`) lee la
 respuesta guardada en el intento en lugar de preguntar al agent. El veredicto
 de una persona en la [cola de revisión](datasets.md#review) sustituye el
 resultado de los evaluadores para ese caso, y las cifras del run lo siguen.
+
+Un juez que busca - [Knowledge search](concepts.md#system-agent-spec) en su
+página - comprueba los hechos de una respuesta contra las bases de conocimiento
+del agent que la dio, y cada una de sus calificaciones lista bajo su razón lo
+que encontró allí: el documento y el comienzo del pasaje. Hasta que sus runs le
+den un historial, la estimación cuenta cada calificación por los pasos del
+juez. Un juez empieza con temperatura 0, para que la misma respuesta se
+califique igual dos veces, y su página avisa cuando se sube.
 
 Un run terminado conserva el veredicto, los recuentos y las tasas de aprobados
 de su primer candidato como `outcome`, para que un listado los lea sin volver a

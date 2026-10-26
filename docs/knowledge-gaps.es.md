@@ -1,5 +1,5 @@
 ---
-source_sha: "2af2a153e11d"
+source_sha: "3efb6afb1e56"
 title: "Lagunas de conocimiento"
 description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, o respondió sin saber, agrupadas por tema, para saber qué documento falta."
 ---
@@ -82,6 +82,10 @@ revisión -, y decide una de cuatro cosas, con una frase sobre el porqué:
 | Faltaba información | Un comentario de una valoración negativa dice que faltaba información, estaba desactualizada o incompleta |
 | Rechazo justificado | La pregunta pedía lo que las reglas o el propósito del agent no permiten - ignorar sus instrucciones, conceder una excepción o ayudar con algo para lo que no está - y el agent se negó. No es una laguna, y las búsquedas fallidas del run también dejan de contar como lagunas - en esa base de conocimiento y en otra que una búsqueda fallida también cubría, porque un rechazo trata de la petición, no de una base de conocimiento |
 | Sin laguna | Todo lo demás: una respuesta correcta, el rechazo de algo que las reglas permiten, un comentario sobre el tono, la longitud o un error. Una respuesta que aplicó mal una política o una regla no es una laguna: la regla estaba, y es un error que corregir - y también lo es una cuyo agent tiene en sus instrucciones o archivos de contexto lo que necesitaba. Un comentario de que la información estaba desactualizada sí es una laguna |
+
+Un clasificador configurado para
+[buscar en la base de conocimiento](concepts.md#system-agent-spec) busca en esta
+antes de decidir, así que una respuesta que ya contiene no se llama ausente.
 
 Una respuesta con cualquiera de los dos primeros veredictos se convierte en una
 pregunta en los temas de la base de conocimiento, agrupada como una búsqueda
@@ -229,7 +233,9 @@ propia búsqueda en la base de conocimiento, nunca lo que otra herramienta
 devolvió para las mismas palabras. También ve los
 [archivos de contexto](context.md) que los agents del tema leen en sus
 versiones publicadas, los que tú puedes leer, para que el borrador siga las
-reglas que los agents ya siguen.
+reglas que los agents ya siguen. Un redactor configurado para
+[buscar en la base de conocimiento](concepts.md#system-agent-spec) busca también
+en esta, para que un borrador no repita lo que ya dice un documento.
 
 El borrador rellena el editor del tema, con un enlace a su run. Puedes copiarlo
 como Markdown, y solo llega a la base de conocimiento cuando alguien lo añade. El redactor no conoce los datos de tu empresa: donde una

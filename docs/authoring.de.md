@@ -1,5 +1,5 @@
 ---
-source_sha: "76946f87d0ca"
+source_sha: "975a7424b37e"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -30,7 +30,9 @@ aufgeführt mit den übrigen System-Agents der Organisation. Ein Administrator
 bearbeitet seine Anweisungen wie die jedes Agents - einen System-Agent zu ändern
 braucht `org:settings` -, und seine Runs sind gewöhnliche Runs: budgetiert,
 bepreist und in **Aktivität** (Activity) aufgeführt. Er ist nie der Agent, um
-den es bei einem Improve oder Verify geht.
+den es bei einem Improve oder Verify geht. Wenn er die
+[Wissensbasis durchsucht](concepts.md#system-agent-spec), liest er die
+Wissensbasen des Agents, den er verbessert.
 
 Öffnen Sie **Verbesserungsassistent** beim Verbessern oder Verifizieren und
 wählen Sie einen veröffentlichten Assistenten. Eine neue Auswahl löscht die alte

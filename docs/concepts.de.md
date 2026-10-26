@@ -1,5 +1,5 @@
 ---
-source_sha: "13549aeba3c2"
+source_sha: "e27701f841bb"
 ---
 
 # Begriffe { #concepts }
@@ -709,19 +709,31 @@ Menschen, also sagen die Fragen eines Datasets nichts über ihn.
 Jeder Run eines System-Agents ist [isoliert](environments.md#in-an-eval) wie
 der eines Evals. Ein System-Agent liest Text, den niemand geprüft hat - eine zu
 bewertende Antwort, ein Dokument, ein Gespräch -, und seine Antwort erreicht
-Menschen, die vielleicht nicht lesen dürfen, was er gelesen hat; darum hat er
-kein Tool, das eine dort platzierte Anweisung irgendwohin tragen könnte.
+Menschen, die vielleicht nicht lesen dürfen, was er gelesen hat; darum ist das
+einzige Tool, das er haben darf, eine Suche in den Wissensbasen, um die es in
+seinem Run geht, und niemandes Gedächtnis gelangt in ihn.
 
 ### Was seine Spec enthalten darf { #system-agent-spec }
 
-Ein System-Agent reicht nicht über den Prompt hinaus, den ihm die Plattform
-gibt. Seine Spec darf **Thinking**, **Context** und **Skills** binden - wie er
-denkt und welchen festen Text er liest - und sonst nichts. Einen Draft zu
-speichern oder YAML zu importieren, das eine andere Capability, eine
-Wissensbasis, einen MCP-Server, einen Delegierten, Sprache oder Diktat,
-Starter, Code Mode oder einen Reviewer hinzufügt, wird Feld für Feld abgelehnt,
-ebenso ein Approval auf einer der drei erlaubten: Niemand ist da, um eines zu
-erteilen, während er läuft.
+Ein System-Agent reicht nicht über das hinaus, worum es in seinem Run geht.
+Seine Spec darf **Thinking**, **Context**, **Skills** und **Knowledge search**
+binden - wie er denkt, welchen festen Text er liest und eine Suche - und sonst
+nichts. Einen Draft zu speichern oder YAML zu importieren, das eine andere
+Capability, eine gebundene Wissensbasis, einen MCP-Server, einen Delegierten,
+Sprache oder Diktat, Starter, Code Mode oder einen Reviewer hinzufügt, wird
+Feld für Feld abgelehnt, ebenso ein Approval auf einer der vier erlaubten:
+Niemand ist da, um eines zu erteilen, während er läuft.
+
+**Knowledge search** bindet keine Wissensbasis. Die Plattform wählt die, um die
+es in jedem Run geht - die des bewerteten Agents für einen Bewerter, die der
+Lücke für Entwerfer und Klassifizierer, die, aus denen eine Generierung Fälle
+entwirft, für den Fallgenerator, die des verbesserten Agents für den
+Verbesserungsassistenten -, und der Run durchsucht nur die, die seine Person
+lesen darf. Eine Suche endet innerhalb von `max_steps`: 3, wenn nichts gesetzt
+ist, höchstens 5, jeder ein bezahlter Request, den Schätzungen mitzählen. Die
+Kontextdateien und Skills, die er liest, müssen mit der ganzen Organisation
+geteilt sein, und niemandes Gedächtnis gelangt in seinen Run, was auch immer
+seine Version enthält.
 
 Zum Veröffentlichen braucht er außerdem Instruktionen und Platz für seine
 Antwort. Die Antwort ist ein einziges JSON-Objekt, daher würde ein

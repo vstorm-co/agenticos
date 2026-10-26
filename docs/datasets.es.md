@@ -1,5 +1,5 @@
 ---
-source_sha: "c9faec806179"
+source_sha: "5f704951dbbe"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -344,10 +344,15 @@ sube, y después se exporta y se entrega a modelos. Antes de guardar un caso, la
 plataforma sustituye cualquier clave de API o token que reconoce por un
 marcador como `[redacted:github_token]`. Esto se aplica a cada campo que lee un
 modelo o que lleva una exportación, incluidos los argumentos de una llamada a
-herramienta esperada, y a cada forma de añadir un caso. Una generación también
-oculta las credenciales de las preguntas y los fragmentos que entrega al
-generador, antes de que salgan hacia el modelo. La entrada de auditoría del
-cambio registra cuántos valores se ocultaron, nunca los valores.
+herramienta esperada, y a cada forma de añadir un caso. La entrada de auditoría
+del cambio registra cuántos valores se ocultaron, nunca los valores.
+
+Una generación también oculta las credenciales de las preguntas y los
+fragmentos que entrega al generador, antes de que salgan hacia el modelo, y
+quita de las preguntas y los comentarios que escribió la gente los datos
+personales que encuentran los detectores - direcciones de correo, números de
+teléfono, de tarjeta y de cuenta -: un caso lo lee cualquiera que pueda leer su
+dataset.
 
 ## Calificación { #scoring }
 

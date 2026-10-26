@@ -1,5 +1,5 @@
 ---
-source_sha: "2af2a153e11d"
+source_sha: "3efb6afb1e56"
 title: "Luki w wiedzy"
 description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego albo odpowiedział, że nie wie, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
 ---
@@ -77,6 +77,11 @@ czterech możliwości, uzasadniając wybór jednym zdaniem:
 | Brakowało informacji | Komentarz do oceny łapką w dół mówi, że informacji brakowało, była nieaktualna albo niepełna |
 | Słuszna odmowa | Pytanie dotyczyło czegoś, na co nie pozwalają reguły albo przeznaczenie agenta - zignorowania jego instrukcji, przyznania wyjątku albo pomocy w czymś, do czego agent nie służy - i agent odmówił. To nie jest luka, a chybione wyszukiwania tego runa też przestają liczyć się jako luki - w tej bazie wiedzy i w innej, którą chybione wyszukiwanie też objęło, bo odmowa dotyczy prośby, a nie jednej bazy wiedzy |
 | Brak luki | Wszystko inne: poprawna odpowiedź, odmowa czegoś, na co reguły pozwalają, komentarz o tonie, długości albo błędzie. Odpowiedź, która źle zastosowała politykę albo regułę, nie jest luką: reguła była, a to błąd do poprawienia - tak samo jak odpowiedź, której agent ma w instrukcjach albo plikach kontekstowych to, czego potrzebowała. Komentarz, że informacja jest nieaktualna, jest luką |
+
+Klasyfikator ustawiony na
+[przeszukiwanie bazy wiedzy](concepts.md#system-agent-spec) przeszukuje tę bazę,
+zanim zdecyduje, więc odpowiedź, którą już ona zawiera, nie jest nazywana
+brakującą.
 
 Odpowiedź z jednym z dwóch pierwszych werdyktów staje się pytaniem w tematach
 bazy wiedzy, grupowanym tak jak chybione wyszukiwanie. W temacie mówi, który
@@ -215,7 +220,9 @@ samego wyszukiwania w bazie wiedzy, nigdy tego, co inne narzędzie zwróciło dl
 tych samych słów. Agent
 widzi też [pliki kontekstowe](context.md), które agenci tematu czytają w swoich
 opublikowanych wersjach, te, które możesz czytać, żeby szkic trzymał się reguł,
-których agenci już się trzymają.
+których agenci już się trzymają. Autor szkiców ustawiony na
+[przeszukiwanie bazy wiedzy](concepts.md#system-agent-spec) przeszukuje też tę
+bazę, żeby szkic nie powtarzał tego, co już mówi jakiś dokument.
 
 Szkic wypełnia edytor tematu, z odnośnikiem do swojego runa. Możesz go
 skopiować jako Markdown, a do bazy wiedzy trafia dopiero wtedy, gdy ktoś go

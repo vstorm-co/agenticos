@@ -1,5 +1,5 @@
 ---
-source_sha: "12000fc4a307"
+source_sha: "c2af761c32c9"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -348,6 +348,14 @@ Bewertungen als `ungraded_score_ids`, und sie erneut zu bewerten
 Antwort, statt den Agent zu fragen. Das Urteil einer Person bei der
 [Prüfung](datasets.md#review) ersetzt für diesen Fall das Ergebnis der Scorer,
 und die Zahlen des Runs folgen ihm.
+
+Ein Bewerter, der sucht - [Knowledge search](concepts.md#system-agent-spec) auf
+seiner Seite -, prüft die Fakten einer Antwort an den Wissensbasen des Agents,
+der sie gab, und jede seiner Bewertungen führt unter ihrer Begründung auf, was
+er dort fand: das Dokument und den Anfang der Stelle. Bis seine Runs ihm einen
+Verlauf geben, bepreist die Schätzung jede Bewertung mit den Schritten des
+Bewerters. Ein Bewerter beginnt mit Temperatur 0, damit dieselbe Antwort
+zweimal gleich bewertet wird, und seine Seite warnt, wenn sie erhöht wird.
 
 Ein abgeschlossener Run behält Urteil, Zählungen und Bestehensquoten seines
 ersten Kandidaten als `outcome`, sodass eine Liste sie liest, ohne jeden Run

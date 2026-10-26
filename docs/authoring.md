@@ -28,7 +28,9 @@ The assistant is a [system agent](concepts.md#system-agents) of its own, listed 
 the organization's other system agents. An administrator edits its instructions
 like any agent's - changing a system agent takes `org:settings` - and its runs
 are ordinary runs: budgeted, priced and listed in Activity. It is never the
-agent an Improve or a Verify is about.
+agent an Improve or a Verify is about. Set to
+[search the knowledge base](concepts.md#system-agent-spec), it reads the
+knowledge bases of the agent it improves.
 
 Expand **Authoring assistant** in Improve or Verify to choose a published
 assistant. Changing the selection clears the previous estimate, so consent

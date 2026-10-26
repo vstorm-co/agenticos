@@ -321,9 +321,13 @@ later exported and given to models. Before a case is stored, the platform
 replaces any API key or token it recognizes with a placeholder such as
 `[redacted:github_token]`. This applies to every field a model reads or an
 export carries, including the arguments of an expected tool call, and to every
-way a case is added. A generation also redacts the questions and passages it
-hands the generator, before they leave for the model. The audit entry for the
-change records how many values were redacted, never the values.
+way a case is added. The audit entry for the change records how many values
+were redacted, never the values.
+
+A generation also redacts the questions and passages it hands the generator,
+before they leave for the model, and takes the personal data the detectors find
+- e-mail addresses, phone, card and account numbers - out of the questions and
+comments people wrote: a case is read by everyone who may read its dataset.
 
 ## Grading { #scoring }
 

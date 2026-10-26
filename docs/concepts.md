@@ -645,18 +645,27 @@ it.
 Every run of a system agent is [isolated](environments.md#in-an-eval) as an
 eval's is. A system agent reads text nobody vetted - an answer to grade, a
 document, a conversation - and what it answers reaches people who may not read
-what it read, so it holds no tool that could carry an instruction planted there
-anywhere.
+what it read, so the one tool it may hold is a search of the knowledge bases its
+run is about, and nobody's memory is read into it.
 
 ### What its spec may hold { #system-agent-spec }
 
-A system agent reaches nothing beyond the prompt the platform gives it. Its spec
-may bind **Thinking**, **Context** and **Skills** - how it reasons and the
-standing text it reads - and nothing else. Saving a draft, or importing YAML,
-that adds another capability, a knowledge base, an MCP server, a delegate,
-voice or dictation, starters, code mode or a reviewer is refused field by
-field, and so is an approval on the three it may bind: nobody is there to give
-one while it runs.
+A system agent reaches nothing beyond what its run is about. Its spec may bind
+**Thinking**, **Context**, **Skills** and **Knowledge search** - how it reasons,
+the standing text it reads and a search - and nothing else. Saving a draft, or
+importing YAML, that adds another capability, a bound knowledge base, an MCP
+server, a delegate, voice or dictation, starters, code mode or a reviewer is
+refused field by field, and so is an approval on the four it may bind: nobody
+is there to give one while it runs.
+
+**Knowledge search** binds no knowledge base. The platform picks the ones each
+run is about - the graded agent's for a judge, the gap's for the drafter and
+the classifier, the ones a generation drafts from for the case generator, the
+improved agent's for the authoring assistant - and the run searches only those
+its person may read. A search ends within `max_steps`: 3 unless set, 5 at most,
+each a paid request that estimates count. The context files and skills it reads
+must be shared with the whole organization, and nobody's memory is read into
+its run, whatever its version holds.
 
 Publishing one also needs its instructions, and room for its answer. The answer
 is one JSON object, so a `max_tokens` below its kind's floor would cut every

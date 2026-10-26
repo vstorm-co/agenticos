@@ -1,5 +1,5 @@
 ---
-source_sha: "13549aeba3c2"
+source_sha: "e27701f841bb"
 ---
 
 # Koncepcje { #concepts }
@@ -667,17 +667,29 @@ pytanie człowieka, więc pytania datasetu nic o nim nie mówią.
 Każdy run agenta systemowego jest [izolowany](environments.md#in-an-eval) tak
 jak run evala. Agent systemowy czyta tekst, którego nikt nie sprawdził -
 odpowiedź do oceny, dokument, rozmowę - a jego odpowiedź trafia do ludzi, którzy
-mogą nie widzieć tego, co przeczytał, więc nie ma żadnego narzędzia, które
-mogłoby gdziekolwiek przenieść podrzuconą tam instrukcję.
+mogą nie widzieć tego, co przeczytał, więc jedynym narzędziem, jakie może mieć,
+jest wyszukiwanie w bazach wiedzy, których dotyczy jego run, a niczyja pamięć
+do niego nie trafia.
 
 ### Co może zawierać jego spec { #system-agent-spec }
 
-Agent systemowy nie sięga dalej niż prompt, który daje mu platforma. Jego spec
-może wiązać **Thinking**, **Context** i **Skills** - sposób rozumowania i stały
-tekst, który czyta - i nic więcej. Zapis draftu albo import YAML, który dodaje
-inną capability, bazę wiedzy, serwer MCP, delegata, głos albo dyktowanie,
-startery, code mode albo recenzenta, jest odrzucany pole po polu, podobnie jak
-approval na trzech dozwolonych: nikt nie udzieli go w trakcie runu.
+Agent systemowy nie sięga dalej niż to, czego dotyczy jego run. Jego spec może
+wiązać **Thinking**, **Context**, **Skills** i **Knowledge search** - sposób
+rozumowania, stały tekst, który czyta, i wyszukiwanie - i nic więcej. Zapis
+draftu albo import YAML, który dodaje inną capability, przypiętą bazę wiedzy,
+serwer MCP, delegata, głos albo dyktowanie, startery, code mode albo
+recenzenta, jest odrzucany pole po polu, podobnie jak approval na czterech
+dozwolonych: nikt nie udzieli go w trakcie runu.
+
+**Knowledge search** nie przypina żadnej bazy wiedzy. Platforma wybiera te,
+których dotyczy dany run - bazy ocenianego agenta dla sędziego, bazę luki dla
+autora szkiców i klasyfikatora, bazy, z których generowanie pisze przypadki,
+dla generatora, bazy ulepszanego agenta dla asystenta - a run przeszukuje tylko
+te, które jego osoba może czytać. Wyszukiwanie kończy się w `max_steps`: 3,
+jeśli nie ustawiono, najwyżej 5, a każdy krok to płatne żądanie, które liczą
+wyceny. Pliki kontekstu i skille, które czyta, muszą być udostępnione całej
+organizacji, a niczyja pamięć nie trafia do jego runa, cokolwiek zawiera jego
+wersja.
 
 Publikacja wymaga też instrukcji i miejsca na odpowiedź. Odpowiedź to jeden
 obiekt JSON, więc `max_tokens` poniżej progu danego rodzaju ucinałby każdą

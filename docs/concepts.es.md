@@ -1,5 +1,5 @@
 ---
-source_sha: "13549aeba3c2"
+source_sha: "e27701f841bb"
 ---
 
 # Conceptos { #concepts }
@@ -674,18 +674,29 @@ no dicen nada de él.
 Cada run de un agent del sistema está [aislado](environments.md#in-an-eval)
 como el de un eval. Un agent del sistema lee texto que nadie revisó - una
 respuesta que calificar, un documento, una conversación -, y lo que responde
-llega a personas que quizá no pueden leer lo que leyó, así que no tiene ninguna
-herramienta que pueda llevar a ninguna parte una instrucción colocada ahí.
+llega a personas que quizá no pueden leer lo que leyó, así que la única
+herramienta que puede tener es una búsqueda en las bases de conocimiento de las
+que trata su run, y la memoria de nadie entra en él.
 
 ### Qué puede contener su spec { #system-agent-spec }
 
-Un agent del sistema no llega más allá del prompt que le da la plataforma. Su
-spec puede enlazar **Thinking**, **Context** y **Skills** - cómo razona y el
-texto fijo que lee - y nada más. Guardar un borrador, o importar YAML, que añada
-otra capability, una base de conocimiento, un servidor MCP, un delegado, voz o
-dictado, starters, code mode o un revisor se rechaza campo por campo, igual que
-una aprobación en las tres permitidas: nadie está ahí para darla mientras se
-ejecuta.
+Un agent del sistema no llega más allá de aquello de lo que trata su run. Su
+spec puede enlazar **Thinking**, **Context**, **Skills** y **Knowledge search**
+- cómo razona, el texto fijo que lee y una búsqueda - y nada más. Guardar un
+borrador, o importar YAML, que añada otra capability, una base de conocimiento
+enlazada, un servidor MCP, un delegado, voz o dictado, starters, code mode o un
+revisor se rechaza campo por campo, igual que una aprobación en las cuatro
+permitidas: nadie está ahí para darla mientras se ejecuta.
+
+**Knowledge search** no enlaza ninguna base de conocimiento. La plataforma elige
+las que trata cada run - las del agent calificado para un juez, la de la laguna
+para el redactor y el clasificador, las de las que una generación redacta casos
+para el generador de casos, las del agent mejorado para el asistente de mejora -
+y el run busca solo en las que su persona puede leer. Una búsqueda termina
+dentro de `max_steps`: 3 si no se fija, 5 como mucho, cada uno una petición
+pagada que cuentan las estimaciones. Los archivos de contexto y los skills que
+lee deben estar compartidos con toda la organización, y la memoria de nadie
+entra en su run, contenga lo que contenga su versión.
 
 Publicarlo también requiere sus instrucciones, y espacio para su respuesta. La
 respuesta es un único objeto JSON, así que un `max_tokens` por debajo del mínimo
