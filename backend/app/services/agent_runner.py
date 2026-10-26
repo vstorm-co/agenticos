@@ -2942,6 +2942,8 @@ class AgentRunnerService:
         that created it - at the run's own agent (agenticos#175) and inside a nested
         delegate (agenticos#254) alike.
         """
+        spec = await self.registry.with_assistant_guidance(agent, spec)
+
         # Whose ChatGPT sign-in the run's models may run on: the person the run
         # is for. On a resume `ctx` is the approver's, and releasing somebody's
         # run must neither lend it the approver's subscription nor refuse it the
@@ -3996,6 +3998,7 @@ class AgentRunnerService:
             )
 
         pinned = _with_shared(AgentSpec.model_validate(version.spec), shared)
+        pinned = await self.registry.with_assistant_guidance(delegate, pinned)
         delegate_resources = await self._delegate_resources(
             ctx, pinned, shared=shared, parent_resources=resources
         )
