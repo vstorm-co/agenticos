@@ -65,7 +65,7 @@ describe("CheckAnswersAiOff", () => {
     expect(screen.getByText(/3 recent answers could also be read/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Enable AI assistance" })).toHaveAttribute(
       "href",
-      "/orgs/org-1/members#org-ai-assistance",
+      "/orgs/org-1/members?tab=governance#org-ai-assistance",
     );
   });
 
