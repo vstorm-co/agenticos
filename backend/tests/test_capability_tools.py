@@ -518,6 +518,19 @@ class TestKnowledgeFormatting:
         assert "page 3" in formatted
         assert "Refunds within 30 days." in formatted
 
+    def test_a_markdown_hit_names_no_page(self):
+        """A stored `page_num` of 1 on a Markdown chunk is structural, not a page (#2489)."""
+        result = MagicMock(score=0.9, content="Searches the collections.", expanded_content=None)
+        result.metadata = {"filename": "capabilities.pl.md", "filetype": "md", "page_num": 1}
+        formatted = _format_results([result])
+        assert "Source: capabilities.pl.md (score" in formatted
+        assert "page" not in formatted
+
+    def test_a_markdown_hit_names_the_section_it_opens(self):
+        result = MagicMock(score=0.9, content="## Knowledge\nSearches.", expanded_content=None)
+        result.metadata = {"filename": "capabilities.md", "filetype": "md", "page_num": 1}
+        assert 'Source: capabilities.md, section "Knowledge" (score' in _format_results([result])
+
     def test_the_model_is_told_to_cite_inline(self):
         """Without this instruction models append a bibliography nobody reads."""
         result = MagicMock(score=0.9, content="text", expanded_content=None)

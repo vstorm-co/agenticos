@@ -19,6 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Cite a knowledge search result by page only when its document has pages (PDF and
+  presentations). A Markdown, text or Word result was cited as "page 1"; it now
+  names the section heading its chunk starts with, or the document alone. Already
+  ingested collections cite correctly without re-ingestion (#2489).
+
 ## [1.18.0] - 2026-10-26
 
 ### Fixed

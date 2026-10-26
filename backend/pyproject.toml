@@ -843,6 +843,8 @@ include = [
     # pipeline is only reported.
     "app/services/rag/filters.py",
     "app/services/rag/parent_context.py",
+    # Whether a citation may name a page: a Markdown file was cited as "page 1" (#2489).
+    "app/services/rag/citation.py",
     "app/services/sharing.py",
     "app/services/skills.py",
     "app/services/exporting.py",
@@ -1368,6 +1370,8 @@ include = [
     # pipeline is only reported.
     "app/services/rag/filters.py",
     "app/services/rag/parent_context.py",
+    # Whether a citation may name a page: a Markdown file was cited as "page 1" (#2489).
+    "app/services/rag/citation.py",
     "app/services/sharing.py",
     "app/services/skills.py",
     "app/services/exporting.py",

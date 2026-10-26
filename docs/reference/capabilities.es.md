@@ -1,5 +1,5 @@
 ---
-source_sha: "278c029caf3d"
+source_sha: "0b4f246091bb"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -155,6 +155,13 @@ Busca en las colecciones que vincula el spec del agent y cita lo que ha usado. E
 modelo pide *qué* buscar, nunca *dónde*: las colecciones se resuelven desde el spec
 antes del run y se entregan a la capability, así que un agent no puede alcanzar una
 colección que nadie le conectó.
+
+Cada resultado nombra su documento y dónde está la coincidencia en él. Un PDF o una
+presentación da la página. Un archivo Markdown, de texto o de Word no tiene
+páginas, así que da el encabezado de sección con el que empieza el chunk
+coincidente, o solo el nombre del documento. Lo decide el tipo del documento al
+mostrar el resultado, así que una colección ingerida antes no necesita volver a
+ingerirse.
 
 | Configuración | Valor por defecto | Rango |
 |---|---|---|

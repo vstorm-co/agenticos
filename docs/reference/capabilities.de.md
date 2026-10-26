@@ -1,5 +1,5 @@
 ---
-source_sha: "278c029caf3d"
+source_sha: "0b4f246091bb"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -155,6 +155,13 @@ Durchsucht die Collections, die der Spec des Agents bindet, und belegt, was es
 verwendet hat. Das Modell bestimmt, *was* gesucht wird, niemals *wo*: Die
 Collections werden vor dem Run aus dem Spec aufgelöst und der Capability übergeben,
 sodass ein Agent keine Collection erreichen kann, die ihm niemand zugeordnet hat.
+
+Jedes Ergebnis nennt sein Dokument und die Stelle des Treffers darin. Ein PDF oder
+eine Präsentation nennt die Seite. Eine Markdown-, Text- oder Word-Datei hat keine
+Seiten; sie nennt die Abschnittsüberschrift, mit der der getroffene Chunk beginnt,
+oder nur den Dokumentnamen. Das entscheidet der Dokumenttyp, wenn das Ergebnis
+angezeigt wird, sodass eine früher ingestierte Collection keine erneute Ingestion
+braucht.
 
 | Konfiguration | Standard | Bereich |
 |---|---|---|
