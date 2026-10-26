@@ -252,3 +252,21 @@ async def test_a_persons_ignore_holds_even_when_nothing_was_classified(db):
     assert len(excluded) == 1
     assert ignored not in {item.run_id for item in pack.runs}
     assert set(kept) <= {item.run_id for item in pack.runs}
+
+
+async def test_a_status_write_outside_the_state_table_is_refused_as_a_conflict(db):
+    from app.core.exceptions import ConcurrentChangeError
+    from app.db.models.improvement import ImprovementStage, ImprovementStatus
+    from app.services import improvement_states as rules
+
+    ctx, agent, ready = await _ready_proposal(db)
+    service = ImprovementPipelineService(db)
+    await service.finish(ctx, agent.id, ready.id, ImprovementFinish(confirmed=True, publish=True))
+    run = await db.get(ImprovementRun, ready.id)
+
+    with pytest.raises(ConcurrentChangeError) as refused:
+        await service._move(
+            run, rules.Transition(ImprovementStatus.RUNNING, ImprovementStage.PROPOSING)
+        )
+    assert refused.value.details == {"status": "published", "to": "running"}
+    assert run.status == "published"

@@ -392,19 +392,30 @@ def test_every_step_has_a_timeout() -> None:
     assert set(STEP_TIMEOUT) == set(ImprovementStage)
 
 
-@pytest.mark.parametrize("status", [s for s in ImprovementStatus if s.terminal])
-def test_a_finished_session_never_moves_again(status: ImprovementStatus) -> None:
-    assert not {to for to in ImprovementStatus if can_move(status, to)}
+def _moves(status: ImprovementStatus) -> set[ImprovementStatus]:
+    return {to for to in ImprovementStatus if can_move(status, to)}
 
 
-def test_an_accepted_session_waits_only_to_be_published() -> None:
-    allowed = {to for to in ImprovementStatus if can_move(ImprovementStatus.ACCEPTED, to)}
-    assert allowed == {ImprovementStatus.PUBLISHED}
+@pytest.mark.parametrize("status", [ImprovementStatus.PUBLISHED, ImprovementStatus.REJECTED])
+def test_a_decided_session_never_moves_again(status: ImprovementStatus) -> None:
+    assert _moves(status) == set()
+
+
+@pytest.mark.parametrize("status", [ImprovementStatus.STALE, ImprovementStatus.CANCELLED])
+def test_a_session_that_is_over_can_only_be_discarded(status: ImprovementStatus) -> None:
+    assert _moves(status) == {ImprovementStatus.REJECTED}
+
+
+def test_an_accepted_session_is_published_or_taken_back() -> None:
+    assert _moves(ImprovementStatus.ACCEPTED) == {
+        ImprovementStatus.READY,
+        ImprovementStatus.PUBLISHED,
+        ImprovementStatus.REJECTED,
+    }
 
 
 def test_a_queued_session_starts_or_ends() -> None:
-    allowed = {to for to in ImprovementStatus if can_move(ImprovementStatus.QUEUED, to)}
-    assert allowed == {
+    assert _moves(ImprovementStatus.QUEUED) == {
         ImprovementStatus.RUNNING,
         ImprovementStatus.STOPPED,
         ImprovementStatus.FAILED,
@@ -414,8 +425,7 @@ def test_a_queued_session_starts_or_ends() -> None:
 
 
 def test_a_running_session_moves_on_or_ends_but_never_decides_for_a_person() -> None:
-    allowed = {to for to in ImprovementStatus if can_move(ImprovementStatus.RUNNING, to)}
-    assert allowed == {
+    assert _moves(ImprovementStatus.RUNNING) == {
         ImprovementStatus.RUNNING,
         ImprovementStatus.READY,
         ImprovementStatus.STOPPED,
@@ -425,19 +435,33 @@ def test_a_running_session_moves_on_or_ends_but_never_decides_for_a_person() -> 
     }
 
 
-def test_only_a_person_moves_a_ready_session() -> None:
-    """D15: from `ready` the session goes nowhere on its own - no step, no stop, no rerun."""
-    allowed = {to for to in ImprovementStatus if can_move(ImprovementStatus.READY, to)}
-    assert allowed == {
-        ImprovementStatus.ACCEPTED,
-        ImprovementStatus.PUBLISHED,
+def test_a_stopped_or_failed_session_goes_on_only_when_a_person_asks() -> None:
+    assert _moves(ImprovementStatus.STOPPED) == {
+        ImprovementStatus.RUNNING,
+        ImprovementStatus.READY,
+        ImprovementStatus.STALE,
+        ImprovementStatus.CANCELLED,
+        ImprovementStatus.REJECTED,
+    }
+    assert _moves(ImprovementStatus.FAILED) == {
+        ImprovementStatus.RUNNING,
         ImprovementStatus.REJECTED,
     }
 
 
-def test_only_a_running_session_reaches_ready() -> None:
+def test_only_a_measured_candidate_waits_for_a_person() -> None:
     reaching = {s for s in ImprovementStatus if can_move(s, ImprovementStatus.READY)}
-    assert reaching == {ImprovementStatus.RUNNING}
+    assert reaching == {
+        ImprovementStatus.RUNNING,
+        ImprovementStatus.READY,
+        ImprovementStatus.STOPPED,
+        ImprovementStatus.ACCEPTED,
+    }
+    decided = {ImprovementStatus.ACCEPTED, ImprovementStatus.PUBLISHED}
+    assert {s for s in ImprovementStatus if _moves(s) & decided} == {
+        ImprovementStatus.READY,
+        ImprovementStatus.ACCEPTED,
+    }
 
 
 def test_statuses_split_into_active_waiting_and_finished() -> None:

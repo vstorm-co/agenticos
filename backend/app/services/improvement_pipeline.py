@@ -899,6 +899,7 @@ class ImprovementPipelineService:
                     ),
                 )
         version = await self.registry.publish(ctx, agent_id) if data.publish else None
+        self._allow(run, Status.PUBLISHED if version else Status.ACCEPTED)
         await improvement_repo.update_run(
             self.db,
             run=run,
@@ -915,6 +916,15 @@ class ImprovementPipelineService:
             version_id=None if version is None else version.id,
             version=None if version is None else version.version,
         )
+
+    @staticmethod
+    def _allow(run: ImprovementRun, to: Status) -> None:
+        """Refuse a move the session's state table does not hold; every status write passes here."""
+        if not rules.can_move(Status(run.status), to):
+            raise ConcurrentChangeError(
+                message=f"This session is {run.status} and cannot become {to.value}",
+                details={"status": run.status, "to": to.value},
+            )
 
     @staticmethod
     def _require_requester(ctx: AuthContext, run: ImprovementRun) -> None:
@@ -948,6 +958,7 @@ class ImprovementPipelineService:
         )
         assert iteration is not None
         # A refusal rolls this transaction back, including this temporary status.
+        self._allow(run, Status.RUNNING)
         await improvement_repo.update_run(
             self.db,
             run=run,
@@ -1285,7 +1296,9 @@ class ImprovementPipelineService:
         )
         await self._audit(run, "discarded", actor_user_id=ctx.subject_id)
         await self._move(
-            run, rules.Transition(Status.REJECTED, Stage(run.stage) if run.stage else None)
+            run,
+            rules.Transition(Status.REJECTED, Stage(run.stage) if run.stage else None),
+            actor_user_id=ctx.subject_id,
         )
         return await self._read(ctx, run)
 
@@ -1420,6 +1433,7 @@ class ImprovementPipelineService:
             else:
                 status = Status.ACCEPTED if accepted else Status.REJECTED
         if run.status != status:
+            self._allow(run, status)
             await improvement_repo.update_run(self.db, run=run, values={"status": status.value})
             await self._audit(run, status.value)
             self._announce(run)
@@ -1468,6 +1482,7 @@ class ImprovementPipelineService:
         *,
         actor_user_id: UUID | None = None,
     ) -> None:
+        self._allow(run, transition.status)
         now = datetime.now(UTC)
         await improvement_repo.update_run(
             self.db,

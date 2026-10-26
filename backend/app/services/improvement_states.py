@@ -53,30 +53,51 @@ STEP_TIMEOUT: dict[ImprovementStage, timedelta] = {
 QUEUED_TIMEOUT = timedelta(minutes=2)
 """How long a queued session's first step may run: the step job's own timeout."""
 
+_ENDS = frozenset(
+    {
+        ImprovementStatus.STOPPED,
+        ImprovementStatus.FAILED,
+        ImprovementStatus.STALE,
+        ImprovementStatus.CANCELLED,
+    }
+)
 _MOVES: dict[ImprovementStatus, frozenset[ImprovementStatus]] = {
-    ImprovementStatus.QUEUED: frozenset(
+    ImprovementStatus.QUEUED: _ENDS | {ImprovementStatus.RUNNING},
+    ImprovementStatus.RUNNING: _ENDS | {ImprovementStatus.RUNNING, ImprovementStatus.READY},
+    # A person's decision, or one they asked for: another round or a recheck
+    # (running), another measured round (ready), a review that turned the
+    # verdict (stopped), a newer session's candidate (stale), or stopping it.
+    ImprovementStatus.READY: frozenset(
         {
+            ImprovementStatus.READY,
             ImprovementStatus.RUNNING,
             ImprovementStatus.STOPPED,
-            ImprovementStatus.FAILED,
             ImprovementStatus.STALE,
             ImprovementStatus.CANCELLED,
+            ImprovementStatus.ACCEPTED,
+            ImprovementStatus.PUBLISHED,
+            ImprovementStatus.REJECTED,
         }
     ),
-    ImprovementStatus.RUNNING: frozenset(
+    # Undoing an accepted suggestion puts it back in front of a person.
+    ImprovementStatus.ACCEPTED: frozenset(
+        {ImprovementStatus.READY, ImprovementStatus.PUBLISHED, ImprovementStatus.REJECTED}
+    ),
+    # Continued within its limits, a measured round chosen, discarded, or stopped for good.
+    ImprovementStatus.STOPPED: frozenset(
         {
             ImprovementStatus.RUNNING,
             ImprovementStatus.READY,
-            ImprovementStatus.STOPPED,
-            ImprovementStatus.FAILED,
             ImprovementStatus.STALE,
             ImprovementStatus.CANCELLED,
+            ImprovementStatus.REJECTED,
         }
     ),
-    ImprovementStatus.READY: frozenset(
-        {ImprovementStatus.ACCEPTED, ImprovementStatus.PUBLISHED, ImprovementStatus.REJECTED}
-    ),
-    ImprovementStatus.ACCEPTED: frozenset({ImprovementStatus.PUBLISHED}),
+    # A failed step retried, or the session discarded.
+    ImprovementStatus.FAILED: frozenset({ImprovementStatus.RUNNING, ImprovementStatus.REJECTED}),
+    # Over, but what it suggested can still be discarded.
+    ImprovementStatus.STALE: frozenset({ImprovementStatus.REJECTED}),
+    ImprovementStatus.CANCELLED: frozenset({ImprovementStatus.REJECTED}),
 }
 
 
