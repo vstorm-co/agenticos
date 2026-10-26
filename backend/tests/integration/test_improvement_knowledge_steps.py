@@ -488,26 +488,30 @@ async def test_examples_group_by_topic_and_a_persons_triage_reaches_later_rounds
         assert items[sources[1]].topic_id is not None
         assert items[sources[1]].topic_id == items[sources[2]].topic_id
         assert items[sources[0]].topic_id is None and items[sources[0]].decision is None
-        await service.decide_evidence(
-            ctx, agent.id, read.id, sources[1], EvidenceDecisionUpdate(decision="agent")
-        )
+        # A column chosen by hand before sorting became the classifier's alone.
+        stored.evidence_decisions = {str(sources[1]): "agent"}
+        await db.flush()
         decided = await service.decide_evidence(
             ctx, agent.id, read.id, sources[0], EvidenceDecisionUpdate(decision="ignored")
         )
         items = {item.run_id: item for item in decided.items}
-        assert items[sources[1]].branch == "agent" and items[sources[1]].decision == "agent"
+        assert items[sources[1]].branch == "missing_knowledge"
+        assert items[sources[1]].decision is None
         assert items[sources[0]].decision == "ignored"
+        assert stored.evidence_decisions == {str(sources[0]): "ignored"}
         messages = await knowledge_gap_repo.answers_for_runs(
             db, organization_id=ctx.organization_id, run_ids=sources
         )
         excluded = await service._knowledge_exclusions(ctx, stored)
-        assert set(excluded) == {messages[sources[0]], messages[sources[2]]}
+        assert set(excluded) == {messages[source] for source in sources}
         undone = await service.decide_evidence(
-            ctx, agent.id, read.id, sources[1], EvidenceDecisionUpdate(decision=None)
+            ctx, agent.id, read.id, sources[0], EvidenceDecisionUpdate(decision=None)
         )
-        item = next(item for item in undone.items if item.run_id == sources[1])
-        assert item.branch == "missing_knowledge" and item.decision is None
-        assert stored.evidence_decisions == {str(sources[0]): "ignored"}
+        item = next(item for item in undone.items if item.run_id == sources[0])
+        assert item.decision is None
+        assert stored.evidence_decisions == {}
+        excluded = await service._knowledge_exclusions(ctx, stored)
+        assert set(excluded) == {messages[sources[1]], messages[sources[2]]}
 
 
 async def _advances_queued_later(db, run_id) -> int:

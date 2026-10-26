@@ -212,7 +212,7 @@ class ImprovementEvidenceItem(BaseSchema):
     question: str | None
     answer: str | None
     comments: list[str]
-    branch: CauseBranch = Field(description="The column it shows in, a person's move included")
+    branch: CauseBranch = Field(description="The column the classifier put it in")
     reason: str | None = None
     topic_id: UUID | None = Field(
         default=None,
@@ -225,7 +225,7 @@ class ImprovementEvidenceItem(BaseSchema):
 
 
 class EvidenceDecisionUpdate(BaseSchema):
-    """Move one example to the other column, ignore it, or (null) take back the decision."""
+    """Ignore one example, or (null) put it back."""
 
     decision: EvidenceDecision | None
 

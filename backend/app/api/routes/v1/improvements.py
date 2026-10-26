@@ -104,7 +104,7 @@ async def decide_improvement_evidence(
     service: ImprovementSvc,
     ctx: Auth,
 ) -> Any:
-    """Move one chat example to the other column or ignore it; later rounds follow the decision."""
+    """Ignore one chat example, or put it back; later rounds follow the decision."""
     return await service.decide_evidence(ctx, agent_id, run_id, evidence_run_id, data)
 
 

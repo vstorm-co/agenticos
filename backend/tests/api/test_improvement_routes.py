@@ -125,3 +125,20 @@ async def test_an_ambiguous_question_source_is_rejected_before_the_service(
     assert response.status_code == 422
     assert "Choose one dataset or one suite" in response.text
     estimate.assert_not_awaited()
+
+
+@pytest.mark.parametrize("decision", ["agent", "missing_knowledge"])
+async def test_moving_an_example_to_a_column_is_refused_before_the_service(
+    client: AsyncClient, mock_db_session: MagicMock, decision: str
+) -> None:
+    ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER)
+    app.dependency_overrides[deps.get_auth_context] = lambda: ctx
+    service = ImprovementPipelineService(mock_db_session)
+    app.dependency_overrides[deps.get_improvement_service] = lambda: service
+    with patch.object(service, "decide_evidence", AsyncMock()) as decide:
+        response = await client.put(
+            f"{settings.API_V1_STR}{_ONE}/evidence/{_CASE}", json={"decision": decision}
+        )
+    assert response.status_code == 422
+    assert response.json()["error"]["details"]["fields"][0]["field"] == "decision"
+    decide.assert_not_awaited()

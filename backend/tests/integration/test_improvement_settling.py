@@ -240,10 +240,12 @@ async def test_a_persons_ignore_holds_even_when_nothing_was_classified(db):
     await service.decide_evidence(
         ctx, agent.id, run.id, ignored, EvidenceDecisionUpdate(decision="ignored")
     )
-    for other in kept:
-        await service.decide_evidence(
-            ctx, agent.id, run.id, other, EvidenceDecisionUpdate(decision="agent")
-        )
+    # A column chosen by hand before sorting became the classifier's alone excludes nothing.
+    run.evidence_decisions = {
+        **run.evidence_decisions,
+        **dict.fromkeys(map(str, kept), "missing_knowledge"),
+    }
+    await db.flush()
 
     excluded = await service._knowledge_exclusions(ctx, run)
     pack = await service.authoring.evidence.for_improvement(
