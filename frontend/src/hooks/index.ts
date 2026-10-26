@@ -79,7 +79,12 @@ export {
 export { usePortalTargets } from "./use-portal-targets";
 export { useTriggerTemplates } from "./use-trigger-templates";
 export { useUrlSort, type UrlSort } from "./use-url-sort";
-export { useModelProviders, useProviderCatalog, useProviderModels } from "./use-model-providers";
+export {
+  useModelProfiles,
+  useModelProviders,
+  useProviderCatalog,
+  useProviderModels,
+} from "./use-model-providers";
 export { useDeploymentSettings } from "./use-deployment-settings";
 export { useBrandingNotice } from "./use-branding-notice";
 export { useTables, useTable, useAllTables } from "./use-tables";

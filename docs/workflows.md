@@ -86,8 +86,8 @@ editor's whole width below the header. A **node** is one step; an **edge** is a
 connection that sets the order: the step it points to runs after the one it leaves.
 
 Each node is a card with the step's icon, its name and one line under it: what it
-is set up to do - a condition, a URL, the number of mapped fields - or else the
-group it belongs to, such as **Slack** or **Tables**. A step with more than one way
+is set up to do - a condition, a URL, the number of mapped fields - after the
+agent, model or table it works with. A step with more than one way
 out lists its ports by name: **true** and **false**, **Each item** and **Done**,
 and a red **Error** port on a step that handles its errors. A step that stops a
 publish carries a red mark: hovering it lists the first problems, and clicking it
@@ -141,8 +141,57 @@ yellow, green, blue, purple or red - so a warning reads apart from a to-do. A no
 workflow keep it, but nothing runs or checks it. Selecting a connection offers a **+**
 that puts the next step picked into its middle, wired on both sides where the ports fit.
 The toolbar's **Tidy up** lines the steps in view up left to right as one undoable edit,
-the map button shows a minimap, and the keyboard button - or **?** - lists every
+the map button shows a minimap, the palette button switches the steps between colour and Simple (see [How a step is drawn](#how-a-step-is-drawn)), and the keyboard button - or **?** - lists every
 shortcut; **Tab** opens the step picker. None of them fires while you type in a field.
+
+### How a step is drawn { #how-a-step-is-drawn }
+
+A card says what sort of step it is before it says what it does. Above the name a
+small label reads **Family · Kind** - **AI · Classify**, **Data · Save a record** -
+and the icon sits on a tile drawn in the step's family, the same sections the step
+picker uses:
+
+| Family | Its tile |
+|---|---|
+| **Start** | In the ink colour - dark in the light theme, light in the dark one - and round, on a card whose left end is rounded to match |
+| **AI** | Solid violet |
+| **Flow** | Grey |
+| **Data** | Teal |
+| **Apps** | White with a blue outline, so a brand's mark sits on it unchanged |
+| **Error** | Red |
+
+The families differ in lightness and shape as well as colour, so they still tell
+apart for someone who is colour blind and on a canvas zoomed out too far to read.
+The minimap draws each step in its family's colour too. A card's border and ring are
+never a family's: they belong to the run (see below), a change, a selection or a
+step that is switched off.
+
+Under the name, the line starts with what the step works with - the agent, the
+model, the table - and goes on with what it is set to do, as in **gpt-4.1-mini · 3
+categories**.
+
+A step that can park the run carries a band across the top of its card, worded from
+its settings and never from a run:
+
+| Step | The band reads |
+|---|---|
+| Approval | **Waits for a person** |
+| Wait | **Waits 2 days** (or hours, minutes, seconds), **Waits until a time** or **Waits a set time** when an earlier step supplies the time or the length, or **Waits for a call** - which wins when both a duration and a call are set |
+| Run a workflow | **Waits for the called workflow**; no band when **Wait for it to finish** is off |
+| MCP call | **Asks before writes** or **Asks before every call**, by its approval setting; no band when it never asks |
+
+A step that asks a person shows the band in rose; a timer or a call shows it in
+grey. The agent step has none: its approvals come from the agent's own spec, which
+the card cannot see.
+
+On a run's canvas a step waiting for a person is drawn in rose, with an hourglass in
+its pill, whichever way the steps are drawn.
+
+**Simple** draws every tile neutral and the minimap grey, the way the canvas looked
+before steps had families. It keeps what does not depend on colour: the label in
+grey, the start's rounded end and a neutral band. Switch it with the palette button
+on the canvas toolbar or under **Settings → Profile → Appearance → Workflow steps**;
+it is remembered per browser, like the theme.
 
 ## Configuring a node { #configuring-a-node }
 

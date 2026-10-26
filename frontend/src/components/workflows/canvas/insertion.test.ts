@@ -8,7 +8,7 @@ import type {
   WorkflowGraph,
 } from "@/lib/workflows/types";
 
-import { clearOf, NODE_HEIGHT, NODE_WIDTH, planInsertion, withLiveScopes } from "./insertion";
+import { clearOf, NODE_WIDTH, planInsertion, ROW_HEIGHT, withLiveScopes } from "./insertion";
 
 const OBJECT = { type: "object", properties: { text: { type: "string" } } };
 
@@ -106,16 +106,25 @@ const RIGHT = NODE_WIDTH + 80;
 
 describe("clearOf", () => {
   it("keeps a free spot, and moves an occupied one down a row until it is free", () => {
-    const taken = [node("a", STEP, 0, 0), node("b", STEP, 0, NODE_HEIGHT + 32)];
+    const taken = [node("a", STEP, 0, 0), node("b", STEP, 0, ROW_HEIGHT + 24)];
     expect(clearOf([], { x: 5, y: 5 })).toEqual({ x: 5, y: 5 });
-    expect(clearOf(taken, { x: 0, y: 0 })).toEqual({ x: 0, y: 2 * (NODE_HEIGHT + 32) });
+    expect(clearOf(taken, { x: 0, y: 0 })).toEqual({ x: 0, y: 2 * (ROW_HEIGHT + 24) });
+  });
+
+  it("clears the tallest common card: a step is never dropped within reach of an Approval", () => {
+    // Approval: 24 padding + 14 label + 20 name + 16 summary + 2 border + 22 band, and its
+    // two labelled ports (47) taller than the text beside them - about 129 px.
+    const APPROVAL = 129;
+    const approval = [node("a", STEP, 0, 0)];
+    const placed = clearOf(approval, { x: 0, y: APPROVAL - 1 });
+    expect(placed.y - APPROVAL).toBeGreaterThan(0);
   });
 
   it("settles anyway once it has looked far enough down", () => {
     const column = Array.from({ length: 60 }, (_, i) =>
-      node(`n${i}`, STEP, 0, i * (NODE_HEIGHT + 32)),
+      node(`n${i}`, STEP, 0, i * (ROW_HEIGHT + 24)),
     );
-    expect(clearOf(column, { x: 0, y: 0 }).y).toBe(40 * (NODE_HEIGHT + 32));
+    expect(clearOf(column, { x: 0, y: 0 }).y).toBe(40 * (ROW_HEIGHT + 24));
   });
 });
 
@@ -157,7 +166,7 @@ describe("planInsertion", () => {
     const planned = plan(g, STEP, { from: { nodeId: "a", portId: "out" } });
     expect(planned.edge).toMatchObject({ source_node_id: "a", source_port: "out" });
     // Clear of `b`, which already sits where it would have gone.
-    expect(planned.node.layout).toEqual({ x: RIGHT, y: NODE_HEIGHT + 32 });
+    expect(planned.node.layout).toEqual({ x: RIGHT, y: ROW_HEIGHT + 24 });
   });
 
   it("places a step asked for after a node that is gone after the rightmost one, unwired", () => {

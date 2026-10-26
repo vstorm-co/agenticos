@@ -1,9 +1,9 @@
 import type { NodePosition, Uuid, WorkflowGraph } from "@/lib/workflows/types";
 
-import { NODE_HEIGHT, NODE_WIDTH } from "./insertion";
+import { NODE_WIDTH, ROW_HEIGHT } from "./insertion";
 
 const GAP_X = 80;
-const GAP_Y = 40;
+const GAP_Y = 32;
 
 /**
  * Where each step in view goes when the graph is tidied: left to right by how
@@ -49,11 +49,11 @@ export function tidyLayout(graph: WorkflowGraph): Map<Uuid, NodePosition> {
   const layouts = new Map<Uuid, NodePosition>();
   for (const [at, nodes] of columns) {
     const stacked = [...nodes].sort((a, b) => a.layout.y - b.layout.y);
-    const height = stacked.length * NODE_HEIGHT + (stacked.length - 1) * GAP_Y;
+    const height = stacked.length * ROW_HEIGHT + (stacked.length - 1) * GAP_Y;
     stacked.forEach((node, index) => {
       layouts.set(node.id, {
         x: origin.x + at * (NODE_WIDTH + GAP_X),
-        y: origin.y - height / 2 + NODE_HEIGHT / 2 + index * (NODE_HEIGHT + GAP_Y),
+        y: origin.y - height / 2 + ROW_HEIGHT / 2 + index * (ROW_HEIGHT + GAP_Y),
       });
     });
   }

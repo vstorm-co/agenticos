@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui";
-import { nodeVisual } from "@/components/workflows/node-visuals";
+import { NodeTile } from "@/components/workflows/node-tile";
 import { DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import {
@@ -114,8 +114,6 @@ export function WorkflowCreateDialog({
           </p>
           <div className="grid gap-2 sm:grid-cols-2">
             {STARTS.map((start) => {
-              const visual = nodeVisual(start.id, TRIGGER_CATEGORY);
-              const Icon = visual.icon;
               return (
                 <button
                   key={start.id}
@@ -126,14 +124,12 @@ export function WorkflowCreateDialog({
                   }
                   className="hover:border-foreground/30 hover:bg-accent flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors disabled:opacity-50"
                 >
-                  <span
-                    className={cn(
-                      "flex size-8 shrink-0 items-center justify-center rounded-lg",
-                      visual.tileClass,
-                    )}
-                  >
-                    <Icon aria-hidden="true" className="size-4" />
-                  </span>
+                  <NodeTile
+                    definitionId={start.id}
+                    category={TRIGGER_CATEGORY}
+                    className="size-8 rounded-lg"
+                    iconClassName="size-4"
+                  />
                   <span className="min-w-0 space-y-0.5">
                     <span className="block text-sm font-medium">
                       {t(`start.${start.key}.name`)}

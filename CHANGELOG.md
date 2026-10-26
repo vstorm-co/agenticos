@@ -21,6 +21,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Draw workflow steps by family: Start, AI, Flow, Data, Apps and Error each get
+  their own tile and a "Family · Kind" label, steps that can park the run say so in
+  a band, the minimap follows the families, and a step waiting for a person is rose
+  with an hourglass. **Simple** (Settings → Profile → Appearance, or the canvas
+  toolbar) keeps the neutral look, per browser.
 - Bound cumulative inline workflow results per run and organization, including
   loop-generated outputs, with compact counters and retained-history backfill.
   Preserve fees and stop automatic retry when a result cannot be stored.

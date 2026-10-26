@@ -463,6 +463,11 @@ it, and **Full** keeps it whatever the operating system says. While motion is
 reduced there is no glow at all, the strip appears without sliding, and the level
 is a five-step indicator.
 
+**Workflow steps** in the same card chooses how the workflow canvas draws a step:
+**In colour** (the default) draws each step in its family, **Simple** keeps the tiles
+neutral and the minimap grey. It is remembered per browser; the canvas toolbar has
+the same switch. See [How a step is drawn](workflows.md#how-a-step-is-drawn).
+
 ### The Voice card
 
 On the organization's **Members** page, for somebody holding `org:settings`. It

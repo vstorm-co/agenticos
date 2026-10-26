@@ -7,6 +7,7 @@ import {
   Keyboard,
   LayoutGrid,
   Map as MapIcon,
+  Palette,
   Plus,
   Trash2,
 } from "lucide-react";
@@ -28,6 +29,7 @@ import { ProblemsFooter, nodeNames } from "@/components/workflows/property-panel
 import type { ValidationProblem } from "@/components/workflows/validation";
 import type { NodeDefinition, Uuid } from "@/lib/workflows/types";
 import { cn } from "@/lib/utils";
+import { useWorkflowNodeStyleStore } from "@/stores/workflow-node-style-store";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { ScopeBreadcrumb } from "./scope-breadcrumb";
@@ -72,6 +74,8 @@ export function CanvasToolbar({
   const setOverlay = useWorkflowEditorStore((state) => state.setOverlay);
   const minimapShown = useWorkflowEditorStore((state) => state.minimapShown);
   const toggleMinimap = useWorkflowEditorStore((state) => state.toggleMinimap);
+  const nodeStyle = useWorkflowNodeStyleStore((state) => state.style);
+  const setNodeStyle = useWorkflowNodeStyleStore((state) => state.setStyle);
   // Opened from the "+", from Tab, or from the "+" on a connection.
   const adding = overlay === "picker" && !empty;
   const setAdding = (open: boolean) => setOverlay(open ? "picker" : null);
@@ -139,6 +143,13 @@ export function CanvasToolbar({
             onClick={toggleMinimap}
           >
             <MapIcon className="h-4 w-4" />
+          </ToolbarIcon>
+          <ToolbarIcon
+            label={nodeStyle === "colour" ? t("toolbarSimpleSteps") : t("toolbarColourSteps")}
+            pressed={nodeStyle === "colour"}
+            onClick={() => setNodeStyle(nodeStyle === "colour" ? "simple" : "colour")}
+          >
+            <Palette className="h-4 w-4" />
           </ToolbarIcon>
           <ToolbarIcon label={t("toolbarShortcuts")} onClick={() => setOverlay("shortcuts")}>
             <Keyboard className="h-4 w-4" />

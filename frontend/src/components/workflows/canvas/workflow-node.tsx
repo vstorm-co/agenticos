@@ -14,13 +14,15 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { nodeVisual } from "@/components/workflows/node-visuals";
+import { NodeTile } from "@/components/workflows/node-tile";
+import { familyLabelClass, nodeFamily } from "@/components/workflows/node-visuals";
 import { cadenceDraftOf } from "@/components/workflows/property-panel/cadence";
 import { ownsAScope } from "@/components/workflows/palette";
 import { routesErrors } from "@/lib/workflows/ports";
 import { nodeDisplayName, type NodeInstance, type Port } from "@/lib/workflows/types";
 import { cn } from "@/lib/utils";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
+import { useWorkflowNodeStyleStore } from "@/stores/workflow-node-style-store";
 
 import { useCanvasInteraction } from "./canvas-context";
 import { AgentTile, InlineAgentTile, ResourceLine, resourcePin } from "./node-resource";
@@ -29,6 +31,7 @@ import { RunPill } from "./run-pill";
 import { isErrorPort, type WorkflowFlowNode } from "./graph-adapter";
 import { ProblemBadge } from "./problem-badge";
 import { QuickAdd } from "./quick-add";
+import { waitsBand } from "./waits-band";
 import { type ConditionOp, parseCondition, takesNoValue } from "@/lib/workflows/conditions";
 
 type Translate = ReturnType<typeof useTranslations<"workflows">>;
@@ -198,11 +201,6 @@ export function nodeSummary(instance: NodeInstance, t: Translate): string | null
       const rules = Array.isArray(config.rules) ? config.rules.length : 0;
       return t("nodeSummaryRules", { count: rules });
     }
-    case "flow.wait":
-      if (config.until_called === true) return t("nodeSummaryWaitCall");
-      return typeof config.seconds === "number"
-        ? t("nodeSummaryWait", { seconds: config.seconds })
-        : null;
     case "control.foreach":
       return config.item_error_policy === "collect"
         ? t("nodeSummaryCollect")
@@ -220,14 +218,14 @@ export function nodeSummary(instance: NodeInstance, t: Translate): string | null
 
 /**
  * A step's card on a run's canvas, by what the run did with it: amber and
- * dashed while it waits its turn, green while it runs and once done, violet
+ * dashed while it waits its turn, green while it runs and once done, rose
  * while a person decides, red when it failed, faded when the run never came to it.
  */
 const RUN_CARD: Record<NodeRunState, string> = {
   pending: "border-warning border-dashed",
   starting: "border-success ring-success/15 ring-4",
   running: "border-success ring-success/15 ring-4",
-  waiting: "border-[var(--domain-build)] ring-2 ring-[var(--domain-build-line)]",
+  waiting: "border-[var(--domain-admin)] ring-2 ring-[var(--domain-admin-line)]",
   done: "border-success/60",
   failed: "border-destructive ring-destructive/15 border-2 ring-4",
   attention: "border-destructive ring-destructive/15 border-2 ring-4",
@@ -277,37 +275,29 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
     false,
     instance.label,
   );
-  const visual = nodeVisual(instance.definition_id, definition?.category ?? "");
-  const Icon = visual.icon;
+  const style = useWorkflowNodeStyleStore((state) => state.style);
+  const family = nodeFamily(definition?.category ?? "");
+  const band = waitsBand(instance, graph?.bindings ?? []);
   const inputs: Port[] = definition?.ports.filter((port) => port.kind === "input") ?? [];
   const outputs: Port[] = definition?.ports.filter((port) => port.kind === "output") ?? [];
   const connecting = connectSource !== null;
   const summary = nodeSummary(instance, t);
   const pin = resourcePin(instance);
   const tile = (
-    <span
-      className={cn(
-        "flex size-8 shrink-0 items-center justify-center rounded-lg",
-        visual.tileClass,
-      )}
-    >
-      <Icon aria-hidden="true" className="size-4" />
-    </span>
+    <NodeTile
+      definitionId={instance.definition_id}
+      category={definition?.category ?? ""}
+      className="size-8 rounded-lg"
+      iconClassName="size-4"
+    />
   );
-  // Under the name, what the step is set to do - or else, for a step given a
-  // name of its own, what kind of step it is ("Limit"), or which group it
-  // belongs to ("Slack", "Tables"), which a long description would only truncate.
-  const category = definition?.category ?? null;
-  const group =
-    instance.label && definition !== null
-      ? definition.name
-      : category === null
-        ? null
-        : category === "triggers"
-          ? t("cardTrigger")
-          : t.has(`category.${category}`)
-            ? t(`category.${category}`)
-            : null;
+  // Above the name, "Family · Kind": what sort of step it is, whatever it is called.
+  // A step still called by its kind's own name would say the kind twice: family alone.
+  const kindName = definition?.name ?? instance.definition_id;
+  const cardLabel =
+    name === kindName
+      ? t(`family.${family}`)
+      : t("cardLabel", { family: t(`family.${family}`), kind: kindName });
   // A single ordinary output needs no label: the wire leaving the card says it all.
   const labelledOutputs = outputs.length > 1 || outputs.some(isErrorPort);
   const policy = instance.policy ?? null;
@@ -364,8 +354,11 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
     <div
       data-node-id={instance.id}
       data-node-kind={kind}
+      data-node-family={family}
       className={cn(
         "group bg-card text-card-foreground relative w-60 rounded-xl border shadow-sm transition-shadow",
+        // A run starts here: the card's left end is rounded like a start cap, in either style.
+        family === "start" && "rounded-l-[2rem]",
         selected ? "ring-primary/60 border-primary/40 ring-2" : "hover:shadow-md",
         runState !== null && RUN_CARD[runState.state],
         // Moving only while it is watched: a run opened once it ended is still.
@@ -377,7 +370,8 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
         instance.disabled && "border-dashed opacity-60",
         change === "added" && "border-emerald-500/60 ring-2 ring-emerald-500/25",
         change === "removed" && "border-destructive/50 border-dashed opacity-70",
-        change === "changed" && "border-foreground/40 ring-foreground/15 ring-2",
+        // Blue, the one hue no family and no selection uses, so "changed" never reads as either.
+        change === "changed" && "border-[var(--domain-use)] ring-2 ring-[var(--domain-use-line)]",
       )}
     >
       {inputs.map((port) => (
@@ -396,7 +390,22 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
         />
       ))}
 
-      <div className="flex items-start gap-2.5 p-3">
+      {band !== null && (
+        <div
+          role="note"
+          aria-label={t("waits.label", { what: t(`waits.${band.key}`, band.values) })}
+          className={cn(
+            "flex h-[22px] items-center gap-1.5 rounded-t-[11px] px-3 text-[11px] font-semibold",
+            band.tone === "person" && style === "colour"
+              ? "bg-[var(--domain-admin-subtle)] text-[var(--domain-admin)]"
+              : "bg-muted text-foreground",
+          )}
+        >
+          <band.icon aria-hidden="true" className="size-3 shrink-0" />
+          <span className="truncate">{t(`waits.${band.key}`, band.values)}</span>
+        </div>
+      )}
+      <div className={cn("flex items-start gap-2.5 p-3", family === "start" && "pl-3.5")}>
         {pin?.kind === "agent" ? (
           <AgentTile agentId={pin.id} fallback={tile} />
         ) : pin?.kind === "inline_agent" ? (
@@ -405,6 +414,15 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
           tile
         )}
         <div className="min-w-0 flex-1">
+          <p
+            title={definition?.description}
+            className={cn(
+              "truncate text-[10.5px] leading-[14px] font-semibold tracking-[0.06em] uppercase",
+              familyLabelClass(family, style),
+            )}
+          >
+            {cardLabel}
+          </p>
           <div className="flex items-baseline justify-between gap-2">
             <span className="truncate text-sm leading-5 font-medium">{name}</span>
             <span className="flex shrink-0 items-center gap-1">
@@ -445,7 +463,8 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
                     change === "added" &&
                       "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
                     change === "removed" && "bg-destructive/10 text-destructive",
-                    change === "changed" && "bg-muted text-foreground",
+                    change === "changed" &&
+                      "bg-[var(--domain-use-subtle)] text-[var(--domain-use)]",
                   )}
                 >
                   {t(`diff.${change}`)}
@@ -458,7 +477,7 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
                 outputs.map((port) => <span key={port.id}>{connectButton(port)}</span>)}
             </span>
           </div>
-          {(summary ?? group ?? pin) !== null && (
+          {(summary !== null || pin !== null) && (
             <p
               title={definition?.description}
               className={cn(
@@ -466,7 +485,18 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
                 summary !== null && summaryIsCode(instance) && "font-mono",
               )}
             >
-              {summary ?? (pin === null ? group : <ResourceLine pin={pin} fallback={group} />)}
+              {pin !== null && (
+                // Empty while the name loads or for one the caller cannot see: no dangling dot.
+                <span
+                  className={cn(
+                    "empty:hidden",
+                    summary !== null && "after:mx-1 after:content-['·']",
+                  )}
+                >
+                  <ResourceLine pin={pin} fallback={null} />
+                </span>
+              )}
+              {summary}
             </p>
           )}
         </div>

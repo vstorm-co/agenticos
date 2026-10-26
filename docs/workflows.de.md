@@ -1,5 +1,5 @@
 ---
-source_sha: "da2df408552f"
+source_sha: "127345b7e025"
 ---
 
 # Workflows { #workflows }
@@ -101,7 +101,7 @@ festlegt: Der Schritt, auf den sie zeigt, läuft nach dem, von dem sie ausgeht.
 
 Jeder Knoten ist eine Karte mit dem Symbol des Schritts, seinem Namen und einer Zeile
 darunter: was er tun soll - eine Bedingung, eine URL, die Zahl der zugeordneten
-Felder - oder sonst die Gruppe, zu der er gehört, etwa **Slack** oder **Tables**. Ein
+Felder - danach der Agent, das Modell oder die Tabelle, mit denen er arbeitet. Ein
 Schritt mit mehr als einem Ausgang nennt seine Ports beim Namen: **true** und
 **false**, **Each item** und **Done** und einen roten **Error**-Port an einem
 Schritt, der seine Fehler behandelt. Ein Schritt, der das Veröffentlichen blockiert,
@@ -168,8 +168,61 @@ sie aus oder prüft sie. Eine ausgewählte Verbindung bietet ein **+**, das den 
 gewählten Schritt in ihre Mitte setzt, auf beiden Seiten verbunden, wo die Ports passen.
 **Tidy up** in der Werkzeugleiste ordnet die sichtbaren Schritte von links nach rechts
 als eine rückgängig machbare Bearbeitung, die Kartenschaltfläche zeigt eine Minikarte,
+die Palettenschaltfläche schaltet die Schritte zwischen Farbe und Schlicht um (siehe [Wie ein Schritt gezeichnet wird](#how-a-step-is-drawn)),
 und die Tastaturschaltfläche - oder **?** - listet jedes Kürzel; **Tab** öffnet die
 Schrittauswahl. Keines davon greift, während Sie in einem Feld schreiben.
+
+### Wie ein Schritt gezeichnet wird { #how-a-step-is-drawn }
+
+Eine Karte sagt, was für ein Schritt es ist, bevor sie sagt, was er tut. Über dem Namen
+steht ein kleines Etikett **Familie · Art** - **KI · Classify**, **Daten · Save a
+record** -, und das Symbol sitzt auf einer Kachel in der Familie des Schritts, also in
+denselben Abschnitten, die die Schrittauswahl verwendet:
+
+| Familie | Ihre Kachel |
+|---|---|
+| **Start** | In der Schriftfarbe - dunkel im hellen Design, hell im dunklen - und rund, auf einer Karte mit abgerundetem linken Ende |
+| **KI** | Volles Violett |
+| **Ablauf** | Grau |
+| **Daten** | Petrol (Teal) |
+| **Apps** | Weiß mit blauem Rand, damit das Zeichen einer Marke unverändert darauf sitzt |
+| **Fehler** | Rot |
+
+Die Familien unterscheiden sich in Helligkeit und Form, nicht nur in der Farbe, sodass
+sie auch bei Farbfehlsichtigkeit und auf einer so weit herausgezoomten Canvas, dass
+nichts lesbar ist, zu unterscheiden bleiben. Auch die Minikarte zeichnet jeden Schritt
+in der Farbe seiner Familie. Rand und Ring einer Karte gehören nie einer Familie: Sie
+gehören dem Run (siehe unten), einer Änderung, einer Auswahl oder einem
+ausgeschalteten Schritt.
+
+Die Zeile unter dem Namen beginnt mit dem, womit der Schritt arbeitet - Agent, Modell,
+Tabelle - und fährt fort mit dem, was er tun soll, wie in **gpt-4.1-mini · 3
+categories**.
+
+Ein Schritt, der den Run anhalten kann, trägt oben auf seiner Karte ein Band, formuliert
+nach seinen Einstellungen und nie nach einem Run:
+
+| Schritt | Das Band lautet |
+|---|---|
+| Approval | **Wartet auf eine Person** |
+| Wait | **Wartet 2 Tage** (oder Stunden, Minuten, Sekunden), **Wartet bis zu einem Zeitpunkt** oder **Wartet eine festgelegte Zeit**, wenn ein früherer Schritt den Zeitpunkt oder die Dauer liefert, oder **Wartet auf einen Aufruf** - das gewinnt, wenn Dauer und Aufruf gesetzt sind |
+| Run a workflow | **Wartet auf den aufgerufenen Workflow**; kein Band, wenn **Wait for it to finish** aus ist |
+| MCP call | **Fragt vor Schreibzugriffen** oder **Fragt vor jedem Aufruf**, je nach Freigabe-Einstellung; kein Band, wenn er nie fragt |
+
+Ein Schritt, der eine Person fragt, zeigt das Band in Rosa; ein Timer oder ein Aufruf
+in Grau. Der Agent-Schritt hat keines: Seine Freigaben stammen aus der Spec des Agents
+selbst, die die Karte nicht sehen kann.
+
+Auf der Canvas eines Runs wird ein Schritt, der auf eine Person wartet, in Rosa mit
+einer Sanduhr in seiner Plakette gezeichnet, gleich wie die Schritte sonst gezeichnet
+werden.
+
+**Schlicht** zeichnet jede Kachel neutral und die Minikarte grau, so wie die Canvas
+aussah, bevor Schritte Familien hatten. Es behält, was nicht von der Farbe abhängt: das
+graue Etikett, das abgerundete Ende des Starts und ein neutrales Band. Umgeschaltet wird
+es mit der Palettenschaltfläche in der Werkzeugleiste der Canvas oder unter
+**Einstellungen → Profil → Darstellung (Settings → Profile → Appearance) →
+Workflow-Schritte**; es wird pro Browser gespeichert, wie das Design.
 
 ## Einen Knoten konfigurieren { #configuring-a-node }
 

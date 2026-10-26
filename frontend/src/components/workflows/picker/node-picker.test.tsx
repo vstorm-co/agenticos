@@ -1,9 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { NODE_DRAG_MIME } from "@/components/workflows/palette";
 import { makeDefinition } from "@/components/workflows/validation/fixtures";
+import { useWorkflowNodeStyleStore } from "@/stores/workflow-node-style-store";
 
 import { NodePicker } from "./node-picker";
 
@@ -33,7 +34,29 @@ function mount(draggable = false) {
   return onPick;
 }
 
+beforeEach(() => useWorkflowNodeStyleStore.setState({ style: "colour" }));
+
 describe("NodePicker", () => {
+  it("draws each tile in its family, and a swatch beside a section's heading", async () => {
+    mount();
+    const row = (name: RegExp) => screen.getByRole("option", { name });
+    expect(row(/Run an agent/).querySelector("[data-node-family]")).toHaveClass("node-tile-ai");
+    expect(row(/^Slack/).querySelector("[data-node-family]")).toHaveClass("node-tile-apps");
+    expect(screen.getByText("AI").querySelector("span[aria-hidden]")).not.toBeNull();
+
+    await userEvent.click(row(/^Slack/));
+    expect(row(/Send a message/).querySelector("[data-node-family]")).toHaveClass("node-tile-apps");
+  });
+
+  it("draws neutral tiles and no swatch in Simple", () => {
+    useWorkflowNodeStyleStore.setState({ style: "simple" });
+    mount();
+    expect(screen.getByRole("option", { name: /Run an agent/ }).querySelector("span")).toHaveClass(
+      "bg-muted",
+    );
+    expect(screen.getByText("AI").querySelector("span[aria-hidden]")).toBeNull();
+  });
+
   it("lists sections of groups, a lone step at once, and a group's steps one level down", async () => {
     const onPick = mount();
     expect(screen.getByText("AI")).toBeTruthy();

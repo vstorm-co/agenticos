@@ -5,14 +5,11 @@ import { ArrowLeft, ChevronRight, Search } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 
-import {
-  type NodeVisual,
-  groupVisual,
-  nodeVisual,
-  operationVisual,
-} from "@/components/workflows/node-visuals";
+import { NodeTile } from "@/components/workflows/node-tile";
+import { sectionSwatchClass } from "@/components/workflows/node-visuals";
 import { writeNodeDragData } from "@/components/workflows/palette/drag";
 import type { NodeDefinition } from "@/lib/workflows/types";
+import { useWorkflowNodeStyleStore } from "@/stores/workflow-node-style-store";
 import { cn } from "@/lib/utils";
 
 import { type PickerGroup, matchesSearch, pickerSections } from "./groups";
@@ -28,17 +25,20 @@ interface NodePickerProps {
 const GROUP_HEADING =
   "[&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:tracking-wide [&_[cmdk-group-heading]]:uppercase";
 
-function Tile({ visual }: { visual: NodeVisual }) {
-  const Icon = visual.icon;
-  return (
-    <span
-      className={cn(
-        "flex size-7 shrink-0 items-center justify-center rounded-lg",
-        visual.tileClass,
-      )}
-    >
-      <Icon aria-hidden="true" className="size-3.5" />
-    </span>
+type TileFor =
+  { kind: "step" | "operation"; item: NodeDefinition } | { kind: "group"; category: string };
+
+function Tile(which: TileFor) {
+  const shape = { className: "size-7 rounded-lg", iconClassName: "size-3.5" };
+  return which.kind === "group" ? (
+    <NodeTile kind="group" category={which.category} {...shape} />
+  ) : (
+    <NodeTile
+      kind={which.kind}
+      definitionId={which.item.id}
+      category={which.item.category}
+      {...shape}
+    />
   );
 }
 
@@ -55,6 +55,7 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
   const t = useTranslations("workflows");
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState<PickerGroup | null>(null);
+  const coloured = useWorkflowNodeStyleStore((state) => state.style) === "colour";
 
   const label = (category: string) =>
     t.has(`category.${category}`) ? t(`category.${category}`) : category;
@@ -78,7 +79,7 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
     item.name.toLowerCase().includes(query.trim().toLowerCase());
   found.sort((a, b) => Number(named(b.item)) - Number(named(a.item)));
 
-  const stepRow = (item: NodeDefinition, visual: NodeVisual, groupLabel?: string) => (
+  const stepRow = (item: NodeDefinition, kind: "step" | "operation", groupLabel?: string) => (
     <Command.Item
       key={`${item.id}@${item.version}`}
       value={`${item.id}@${item.version}`}
@@ -87,7 +88,7 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
       onDragStart={(event) => writeNodeDragData(event.dataTransfer, item)}
       className="aria-selected:bg-accent flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2"
     >
-      <Tile visual={visual} />
+      <Tile kind={kind} item={item} />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm">{item.name}</span>
         <span className="text-muted-foreground line-clamp-2 text-xs">{item.description}</span>
@@ -127,9 +128,7 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
               {t("paletteNoMatches")}
             </p>
           ) : (
-            found.map(({ item, group }) =>
-              stepRow(item, nodeVisual(item.id, item.category), label(group.category)),
-            )
+            found.map(({ item, group }) => stepRow(item, "step", label(group.category)))
           )
         ) : open !== null ? (
           <>
@@ -155,21 +154,31 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
               }
               className={cn(GROUP_HEADING, "border-border mt-1 border-t pt-1")}
             >
-              {open.items.map((item) => stepRow(item, operationVisual(item.id, item.category)))}
+              {open.items.map((item) => stepRow(item, "operation"))}
             </Command.Group>
           </>
         ) : (
           sections.map((section) => (
             <Command.Group
               key={section.id}
-              heading={t(`pickerSection.${section.id}`)}
+              heading={
+                <span className="flex items-center gap-1.5">
+                  {coloured && sectionSwatchClass(section.id) !== undefined && (
+                    <span
+                      aria-hidden="true"
+                      className={cn("size-2 rounded-full", sectionSwatchClass(section.id))}
+                    />
+                  )}
+                  {t(`pickerSection.${section.id}`)}
+                </span>
+              }
               className={cn(GROUP_HEADING, "mb-1")}
             >
               {section.groups.map((group) => {
                 // A group of one step is that step: a click adds it at once.
                 if (group.items.length === 1) {
                   const only = group.items[0] as NodeDefinition;
-                  return stepRow(only, nodeVisual(only.id, only.category));
+                  return stepRow(only, "step");
                 }
                 return (
                   <Command.Item
@@ -181,7 +190,7 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
                     }}
                     className="aria-selected:bg-accent flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2"
                   >
-                    <Tile visual={groupVisual(group.category)} />
+                    <Tile kind="group" category={group.category} />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm">{label(group.category)}</span>
                       {hint(group.category) !== null && (

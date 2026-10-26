@@ -275,6 +275,7 @@ export default defineConfig({
         // run views (#1790).
         "src/components/workflows/workflow-card.tsx",
         "src/components/workflows/node-visuals.ts",
+        "src/components/workflows/node-tile.tsx",
         "src/components/workflows/runs/**/*.{ts,tsx}",
         // The editor's Trigger sheet: the live trigger, a webhook's address and
         // secret, a schedule's next tick (#1792).

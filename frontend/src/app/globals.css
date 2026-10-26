@@ -2060,10 +2060,13 @@ body .tour-spotlight {
 /* =========================================================================
    Section hues. The sidebar's five groups - Use (blue),
    Build (violet), Knowledge (teal), Workspace (blue), Admin (rose) - each
-   carry a hue, and it appears in three places only:
-   the module tile beside a section page's title and an empty state's glyph -
-   small, and nowhere a colour would compete with the content. So colour says where you are, consistently, and
-   never decorates for its own sake. Buttons stay ink and links stay brand.
+   carry a hue, and it appears in four places only:
+   the module tile beside a section page's title and an empty state's glyph,
+   and - through the `--family-*` aliases below - a workflow step's tile, label
+   and picker swatch, where the hue says which family a step belongs to. Small,
+   and nowhere a colour would compete with the content. So colour says where
+   you are or what sort of thing this is, consistently, and never decorates
+   for its own sake. Buttons stay ink and links stay brand.
 
    Each hue is three steps: `ink` for a glyph (3:1 against its own subtle
    fill and the card in both themes), `subtle` for a fill, `line` for an
@@ -2148,6 +2151,69 @@ body .tour-spotlight {
   --domain: var(--domain-admin);
   --domain-subtle: var(--domain-admin-subtle);
   --domain-line: var(--domain-admin-line);
+}
+
+/* =========================================================================
+   Workflow step families. The canvas, the step picker and the step dialogs
+   draw a step by the picker section it belongs to; each family is a tile
+   that differs in lightness and shape as well as hue, so it survives colour
+   blindness and a canvas zoomed out past reading. The families borrow the
+   section hues above. Start is ink, Flow is the neutral tile and Error the
+   destructive one - those come from the base tokens. A card's border and
+   ring belong to its run state, never to a family.
+   ========================================================================= */
+
+:root {
+  --family-ai: var(--domain-build);
+  --family-ai-foreground: oklch(100% 0 0);
+  --family-ai-ink: var(--domain-build);
+  --family-data-tint: oklch(91.5% 0.05 178);
+  --family-data-ink: var(--domain-knowledge);
+  --family-apps-line: var(--domain-workspace-line);
+  --family-apps-ink: var(--domain-workspace);
+  /* The minimap's marks: one lightness for the three hues, so none outweighs another. */
+  --family-map-start: var(--color-primary);
+  --family-map-ai: oklch(72% 0.11 300);
+  --family-map-flow: color-mix(in oklch, var(--color-muted-foreground) 40%, transparent);
+  --family-map-data: oklch(72% 0.11 178);
+  --family-map-apps: oklch(72% 0.11 235);
+  --family-map-error: var(--color-destructive);
+  /* The Error label is 10.5px text and needs 4.5:1: the shared destructive token is
+     3.05:1 on the dark card, so the dark blocks below lift it - for this label only. */
+  --family-error-ink: var(--color-destructive);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --family-ai: oklch(62% 0.14 300);
+    --family-ai-foreground: oklch(16% 0.04 300);
+    --family-data-tint: oklch(35% 0.06 178);
+    --family-error-ink: oklch(72% 0.15 25);
+  }
+}
+:root.dark {
+  --family-ai: oklch(62% 0.14 300);
+  --family-ai-foreground: oklch(16% 0.04 300);
+  --family-data-tint: oklch(35% 0.06 178);
+  --family-error-ink: oklch(72% 0.15 25);
+}
+
+.node-tile-start {
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
+}
+.node-tile-ai {
+  background: var(--family-ai);
+  color: var(--family-ai-foreground);
+}
+.node-tile-data {
+  background: var(--family-data-tint);
+  color: var(--family-data-ink);
+}
+/* White, so a brand's mark sits on it unchanged; the outline is the family. */
+.node-tile-apps {
+  background: var(--color-card);
+  border: 1.5px solid var(--family-apps-line);
+  color: var(--family-apps-ink);
 }
 
 /* =========================================================================

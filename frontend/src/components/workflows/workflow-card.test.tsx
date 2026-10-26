@@ -92,6 +92,14 @@ describe("WorkflowCard", () => {
     expect(screen.getByText("No steps yet")).toBeTruthy();
     expect(screen.getByText("Draft")).toBeTruthy();
     expect(screen.getByText("Queued")).toBeTruthy();
+    expect(document.querySelector("[data-node-family]")).toBeNull();
+  });
+
+  it("draws its trigger in the Start family's tile", () => {
+    card({ workflow: workflow({ entry_node: "trigger.webhook" }) });
+    expect(document.querySelector("[data-node-family]")?.getAttribute("data-node-family")).toBe(
+      "start",
+    );
   });
 
   it("duplicates on request", async () => {

@@ -1,5 +1,5 @@
 ---
-source_sha: "074e13eaf243"
+source_sha: "d81630b8a397"
 ---
 
 # Konsola { #the-console }
@@ -480,6 +480,12 @@ cała konsola: **Systemowe (System)** (domyślnie) idą za ustawieniem ogranicze
 ruchu w systemie operacyjnym, **Ograniczone (Reduce)** ograniczają ruch bez
 niego, a **Pełne (Full)** zachowują ruch niezależnie od systemu operacyjnego. Gdy ruch jest ograniczony, nie ma żadnej poświaty, pasek
 pojawia się bez wysuwania, a poziom dźwięku to pięciostopniowy wskaźnik.
+
+**Kroki workflow** w tej samej karcie wybierają, jak kanwa workflow rysuje krok:
+**W kolorze (In colour)** (domyślnie) rysuje każdy krok w barwie jego rodziny,
+**Prosty (Simple)** zostawia kafelki neutralne, a minimapę szarą. Ustawienie jest
+zapamiętywane dla każdej przeglądarki; ten sam przełącznik jest na pasku narzędzi
+kanwy. Zobacz [Jak rysowany jest krok](workflows.md#how-a-step-is-drawn).
 
 ### Karta Głos (Voice) { #the-voice-card }
 

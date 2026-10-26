@@ -16,6 +16,7 @@ import {
   useState,
   type DragEvent,
   type MouseEvent,
+  type PointerEvent,
 } from "react";
 import { useTranslations } from "next-intl";
 
@@ -26,8 +27,10 @@ import { validateGraph } from "@/components/workflows/validation";
 import { useResolvedTheme } from "@/hooks/use-resolved-theme";
 import type { NodeDefinition, WorkflowGraph } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
+import { useWorkflowNodeStyleStore } from "@/stores/workflow-node-style-store";
 
 import { CanvasInteractionProvider, type ConnectEndpoint } from "./canvas-context";
+import { minimapColour } from "./minimap-colour";
 import { CanvasContextMenu } from "./canvas-context-menu";
 import { CanvasToolbar } from "./canvas-toolbar";
 import { PanePicker, type PanePoint } from "./pane-picker";
@@ -69,6 +72,19 @@ const DELETE_KEYS = ["Backspace", "Delete"];
 const FIT_VIEW = { padding: 0.2, minZoom: 0.55, maxZoom: 1 };
 /** A read-only graph is looked at whole - a run, a past version - so it may shrink further. */
 const FIT_VIEW_READ_ONLY = { padding: 0.15, minZoom: 0.5, maxZoom: 1 };
+
+/** Any button drags the empty canvas around: left, middle and right. */
+const PAN_BUTTONS = [0, 1, 2];
+/** How far a right press may travel and still be a click that opens a menu. */
+const PAN_SLOP_PX = 4;
+
+/** Whether the pointer travelled past the slop since the right button went down. */
+function movedFrom(pressedAt: { x: number; y: number } | null, event: MouseEvent): boolean {
+  return (
+    pressedAt !== null &&
+    Math.hypot(event.clientX - pressedAt.x, event.clientY - pressedAt.y) > PAN_SLOP_PX
+  );
+}
 
 /** The graph a blank editor shows before the page has seeded a draft. */
 const EMPTY_GRAPH: WorkflowGraph = {
@@ -288,6 +304,7 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
   const addNote = useWorkflowEditorStore((state) => state.addNote);
   const moveNodes = useWorkflowEditorStore((state) => state.moveNodes);
   const minimapShown = useWorkflowEditorStore((state) => state.minimapShown);
+  const nodeStyle = useWorkflowNodeStyleStore((state) => state.style);
   const setSelection = useWorkflowEditorStore((state) => state.setSelection);
 
   // A right click on a step opens that step's menu; on the empty canvas, the step
@@ -295,8 +312,31 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
   const [menuNodeId, setMenuNodeId] = useState<string | null>(null);
   const [pickerAt, setPickerAt] = useState<PanePoint | null>(null);
   const menuPoint = useRef({ x: 0, y: 0 });
+  // The right button also pans the canvas, and the browser still fires a context
+  // menu for that drag - on Windows when it ends, on macOS and Linux as soon as
+  // the button goes down. A press that moved is a pan, never a menu, so a menu
+  // asked for while the button is still held waits for the release to decide.
+  const rightPressAt = useRef<{ x: number; y: number } | null>(null);
+  const heldPick = useRef<PanePoint | null>(null);
+  const onPress = useCallback((event: MouseEvent<HTMLElement>) => {
+    if (event.button === 2) rightPressAt.current = { x: event.clientX, y: event.clientY };
+  }, []);
+  // Released through `pointerup`: while the right button pans, xyflow's zoom
+  // handler swallows the `mouseup` at the window before the canvas sees it.
+  const onRelease = useCallback((event: PointerEvent<HTMLElement>) => {
+    if (event.button !== 2) return;
+    const pick = heldPick.current;
+    heldPick.current = null;
+    if (pick !== null && !movedFrom(rightPressAt.current, event)) setPickerAt(pick);
+    rightPressAt.current = null;
+  }, []);
   const onRightClick = useCallback(
     (event: MouseEvent<HTMLElement>) => {
+      if (movedFrom(rightPressAt.current, event)) {
+        rightPressAt.current = null;
+        event.preventDefault();
+        return;
+      }
       menuPoint.current = { x: event.clientX, y: event.clientY };
       const card = event.target instanceof Element ? event.target.closest("[data-node-id]") : null;
       const nodeId = card?.getAttribute("data-node-id") ?? null;
@@ -305,9 +345,17 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
         event.preventDefault();
         if (readOnly) return;
         const bounds = event.currentTarget.getBoundingClientRect();
-        setPickerAt({ x: event.clientX - bounds.left, y: event.clientY - bounds.top });
+        const at = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+        // The right button still held: the release says whether this was a click.
+        if ((event.buttons & 2) !== 0) {
+          heldPick.current = at;
+          return;
+        }
+        setPickerAt(at);
+        rightPressAt.current = null;
         return;
       }
+      rightPressAt.current = null;
       setMenuNodeId(nodeId);
       // The menu acts on what is selected, so a step right-clicked outside the
       // selection becomes the selection.
@@ -351,6 +399,8 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
           onKeyDown={onKeyDown}
           onDragOver={onDragOver}
           onDrop={onDrop}
+          onMouseDownCapture={onPress}
+          onPointerUpCapture={onRelease}
           onContextMenuCapture={onRightClick}
           className="bg-muted/30 relative h-full min-h-[28rem] overflow-hidden outline-none"
         >
@@ -407,6 +457,7 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
               // A trackpad or a wheel moves the canvas; a pinch, or Ctrl/Cmd with the
               // wheel, zooms it - the way a map or a design tool behaves.
               panOnScroll
+              panOnDrag={PAN_BUTTONS}
               zoomOnScroll={false}
               zoomOnPinch
               zoomOnDoubleClick={false}
@@ -417,17 +468,21 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
               aria-label={t("canvasGraphLabel")}
             >
               <Background gap={20} size={1.5} />
-              <Controls showInteractive={false} position="bottom-right" />
+              {/* Bottom-left, in a row with the minimap above it: the bottom-right
+                  corner is the assistant's launcher on every dashboard page. */}
+              <Controls showInteractive={false} position="bottom-left" orientation="horizontal" />
               {minimapShown && (
                 <MiniMap
                   pannable
                   zoomable
                   position="bottom-left"
                   ariaLabel={t("minimapLabel")}
-                  nodeClassName="fill-muted-foreground/40"
+                  {...(nodeStyle === "colour"
+                    ? { nodeColor: minimapColour }
+                    : { nodeClassName: "fill-muted-foreground/40" })}
                   nodeBorderRadius={6}
                   maskColor="rgb(0 0 0 / 0.06)"
-                  className="!bg-background !rounded-lg !border"
+                  className="!bg-background !mb-14 !rounded-lg !border"
                 />
               )}
             </ReactFlow>

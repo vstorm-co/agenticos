@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   useImageProviders,
+  useModelProfiles,
   useModelProviders,
   useProviderModels,
   useTextToSpeechProviders,
@@ -12,6 +13,7 @@ import {
   useSpeechToTextProviders,
 } from "./use-model-providers";
 import { apiClient } from "@/lib/api-client";
+import { ApiError } from "@/lib/api-error";
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), delete: vi.fn() },
@@ -25,6 +27,40 @@ function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
+
+describe("useModelProfiles", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("lists the profiles alone, without the provider catalog", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [{ id: "p1", label: "gpt" }], total: 1 });
+    const { result } = renderHook(() => useModelProfiles(), { wrapper });
+    await waitFor(() => expect(result.current.profiles).toHaveLength(1));
+    expect(apiClient.get).toHaveBeenCalledTimes(1);
+    expect(apiClient.get).toHaveBeenCalledWith("/providers/model-profiles");
+  });
+
+  it("asks nothing while the caller may not list models", () => {
+    const { result } = renderHook(() => useModelProfiles({ enabled: false }), { wrapper });
+    expect(result.current.profiles).toEqual([]);
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it("does not retry a refusal, and retries any other failure once", async () => {
+    vi.mocked(apiClient.get).mockRejectedValue(new ApiError(403, "Forbidden"));
+    const refused = renderHook(() => useModelProfiles(), { wrapper });
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(1));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(apiClient.get).toHaveBeenCalledTimes(1);
+    refused.unmount();
+
+    vi.clearAllMocks();
+    vi.mocked(apiClient.get).mockRejectedValue(new ApiError(500, "Boom"));
+    renderHook(() => useModelProfiles(), { wrapper });
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(2), { timeout: 3000 });
+  });
+});
 
 describe("useModelProviders", () => {
   beforeEach(() => {

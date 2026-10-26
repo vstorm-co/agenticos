@@ -15,7 +15,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui";
-import { nodeVisual } from "@/components/workflows/node-visuals";
+import { NodeTile } from "@/components/workflows/node-tile";
 import { NodeForm } from "@/components/workflows/property-panel/node-form";
 import { PolicySection } from "@/components/workflows/property-panel/policy-section";
 import { carriesField, scrollNearEdge } from "@/lib/workflows/field-drag";
@@ -103,18 +103,14 @@ export function NodeEditorDialog({
   if (graph === null || node === null) return null;
   // A model step's evals run the draft, so they are an editor's, as testing is.
   const evaluable = workflowId !== undefined && !readOnly && MODEL_STEPS.has(node.definition_id);
-  const visual = nodeVisual(node.definition_id, definition?.category ?? "");
-  const Icon = visual.icon;
   const pin = resourcePin(node);
   const tile = (
-    <span
-      className={cn(
-        "flex size-10 shrink-0 items-center justify-center rounded-xl",
-        visual.tileClass,
-      )}
-    >
-      <Icon aria-hidden="true" className="size-5" />
-    </span>
+    <NodeTile
+      definitionId={node.definition_id}
+      category={definition?.category ?? ""}
+      className="size-10 rounded-xl"
+      iconClassName="size-5"
+    />
   );
   const nodeProblems = stepProblems(problems, node.id);
   // Brings a problem's field into view, its message said at once.

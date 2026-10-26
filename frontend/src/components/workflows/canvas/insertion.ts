@@ -39,9 +39,17 @@ import { currentScopeId, scopedGraph } from "./scope-view";
 /** The footprint a node card takes on the canvas, for placement only. */
 export const NODE_WIDTH = 240;
 export const NODE_HEIGHT = 88;
+/**
+ * The height one row is given when steps are stacked: the tallest card a flow
+ * commonly holds - a waits band over two labelled ports, an Approval at about
+ * 129 px - with a little to spare, so a card never touches the one below it.
+ * A plain card is 76 px; a step with more outputs than that is taller still and
+ * is the builder's to space.
+ */
+export const ROW_HEIGHT = 136;
 /** The space left between one step and the next along a flow, and between rows. */
 const GAP_X = 80;
-const GAP_Y = 32;
+const GAP_Y = 24;
 /** How far a step is pushed down looking for room before it settles anyway. */
 const MAX_ROWS = 40;
 
@@ -81,7 +89,7 @@ export function withLiveScopes(
 }
 
 function overlaps(a: NodePosition, b: NodePosition): boolean {
-  return Math.abs(a.x - b.x) < NODE_WIDTH + GAP_X / 2 && Math.abs(a.y - b.y) < NODE_HEIGHT;
+  return Math.abs(a.x - b.x) < NODE_WIDTH + GAP_X / 2 && Math.abs(a.y - b.y) < ROW_HEIGHT;
 }
 
 /** `preferred`, or the first spot below it that no node in `nodes` covers. */
@@ -89,7 +97,7 @@ export function clearOf(nodes: readonly NodeInstance[], preferred: NodePosition)
   let position = preferred;
   for (let row = 0; row < MAX_ROWS; row += 1) {
     if (!nodes.some((node) => overlaps(node.layout, position))) return position;
-    position = { x: position.x, y: position.y + NODE_HEIGHT + GAP_Y };
+    position = { x: position.x, y: position.y + ROW_HEIGHT + GAP_Y };
   }
   return position;
 }

@@ -1,9 +1,12 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { NodeInstance } from "@/lib/workflows/types";
 
 import { AgentTile, InlineAgentTile, ResourceLine, resourcePin } from "./node-resource";
+
+const profilesEnabled = vi.fn();
+let mayListModels = true;
 
 vi.mock("@/hooks", () => ({
   useAgents: () => ({
@@ -12,7 +15,19 @@ vi.mock("@/hooks", () => ({
   useAllAgentVersions: () => ({ versions: [{ id: "v3", version: 3 }] }),
   useWorkflowTables: () => ({ tables: [{ id: "t1", name: "Leads" }] }),
   useWorkflows: () => ({ workflows: [{ id: "w1", name: "Enrich a lead" }] }),
+  useModelProfiles: ({ enabled }: { enabled: boolean }) => {
+    profilesEnabled(enabled);
+    return { profiles: enabled ? [{ id: "p1", label: "gpt-4.1-mini" }] : [] };
+  },
+  usePermissions: () => ({
+    can: (permission: string) => mayListModels && permission === "agents:view",
+  }),
 }));
+
+beforeEach(() => {
+  profilesEnabled.mockClear();
+  mayListModels = true;
+});
 
 function step(config: Record<string, unknown>): NodeInstance {
   return { id: "n", definition_id: "x", definition_version: 1, config, layout: { x: 0, y: 0 } };
@@ -28,6 +43,7 @@ describe("resourcePin", () => {
     expect(resourcePin(step({ agent: { agent_id: "a1" } }))).toMatchObject({ versionId: null });
     expect(resourcePin(step({ table: { table_id: "t1" } }))).toEqual({ kind: "table", id: "t1" });
     expect(resourcePin(step({ workflow_id: "w1" }))).toEqual({ kind: "workflow", id: "w1" });
+    expect(resourcePin(step({ model_profile_id: "p1" }))).toEqual({ kind: "model", id: "p1" });
     expect(resourcePin(step({ inline: { name: "Lead scorer" } }))).toEqual({
       kind: "inline_agent",
       name: "Lead scorer",
@@ -53,6 +69,10 @@ describe("ResourceLine", () => {
   it("names a table or a workflow, and says what kind of step it is for one it cannot see", () => {
     const { rerender } = render(<ResourceLine pin={{ kind: "table", id: "t1" }} fallback="T" />);
     expect(screen.getByText("Leads")).toBeInTheDocument();
+    rerender(<ResourceLine pin={{ kind: "model", id: "p1" }} fallback="M" />);
+    expect(screen.getByText("gpt-4.1-mini")).toBeInTheDocument();
+    rerender(<ResourceLine pin={{ kind: "model", id: "gone" }} fallback="Models" />);
+    expect(screen.getByText("Models")).toBeInTheDocument();
     rerender(<ResourceLine pin={{ kind: "workflow", id: "w1" }} fallback="W" />);
     expect(screen.getByText("Enrich a lead")).toBeInTheDocument();
     rerender(<ResourceLine pin={{ kind: "workflow", id: "gone" }} fallback="Workflows" />);
@@ -63,6 +83,22 @@ describe("ResourceLine", () => {
     expect(screen.getByText("A")).toBeInTheDocument();
     rerender(<ResourceLine pin={{ kind: "inline_agent", name: "Lead scorer" }} fallback="A" />);
     expect(screen.getByText("Lead scorer")).toBeInTheDocument();
+  });
+});
+
+describe("ResourceLine for a model", () => {
+  it("lists the models only for a caller who may see agents", () => {
+    render(<ResourceLine pin={{ kind: "model", id: "p1" }} fallback={null} />);
+    expect(profilesEnabled).toHaveBeenLastCalledWith(true);
+  });
+
+  it("falls back to the plain summary, quietly, for one who may not", () => {
+    mayListModels = false;
+    const { container } = render(
+      <ResourceLine pin={{ kind: "model", id: "p1" }} fallback={null} />,
+    );
+    expect(profilesEnabled).toHaveBeenLastCalledWith(false);
+    expect(container).toBeEmptyDOMElement();
   });
 });
 

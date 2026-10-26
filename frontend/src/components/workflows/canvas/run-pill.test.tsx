@@ -24,6 +24,15 @@ describe("RunPill", () => {
     expect(screen.getByText("Starting")).toBeInTheDocument();
   });
 
+  it("shows a step waiting for a person in the admin hue, with an hourglass", () => {
+    const { container } = render(<RunPill state="waiting" summary={null} />);
+    const pill = screen.getByText("Waiting").closest("span");
+    expect(pill?.className).toContain("--domain-admin-subtle");
+    expect(pill?.className).toContain("--domain-admin-line");
+    expect(pill?.className).not.toContain("domain-build");
+    expect(container.querySelector("svg.lucide-hourglass")).not.toBeNull();
+  });
+
   it("counts a running step up from when the server says it started", () => {
     render(<RunPill state="running" summary={running("2026-10-19T10:00:00.500Z")} />);
     expect(screen.getByText("· 1.5 s")).toBeInTheDocument();

@@ -1,5 +1,5 @@
 ---
-source_sha: "074e13eaf243"
+source_sha: "d81630b8a397"
 ---
 
 # Die Konsole { #the-console }
@@ -524,6 +524,12 @@ ohne sie, und **Voll (Full)** behält sie, was auch immer das Betriebssystem
 sagt. Solange die Bewegung
 reduziert ist, gibt es gar kein Leuchten, der Streifen erscheint ohne Gleiten,
 und der Pegel ist eine fünfstufige Anzeige.
+
+**Workflow-Schritte** in derselben Karte wählt, wie die Workflow-Canvas einen Schritt
+zeichnet: **Farbig (In colour)** (der Standard) zeichnet jeden Schritt in seiner
+Familie, **Schlicht (Simple)** lässt die Kacheln neutral und die Minikarte grau. Die
+Einstellung wird pro Browser gespeichert; denselben Schalter hat die Werkzeugleiste der
+Canvas. Siehe [Wie ein Schritt gezeichnet wird](workflows.md#how-a-step-is-drawn).
 
 ### Die Karte Stimme (Voice) { #the-voice-card }
 

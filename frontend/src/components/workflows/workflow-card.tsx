@@ -17,7 +17,7 @@ import {
 import { useLocale, useTranslations } from "next-intl";
 
 import { WorkflowRunStatusBadge } from "@/components/workflows/runs/run-status";
-import { nodeVisual } from "@/components/workflows/node-visuals";
+import { NodeTile } from "@/components/workflows/node-tile";
 import {
   Badge,
   ConfirmDialog,
@@ -72,9 +72,6 @@ export function WorkflowCard({
   const [deleting, setDeleting] = useState(false);
   const archived = workflow.status === "archived";
   const live = workflow.current_version_id !== null;
-  // The trigger's own icon: what starts a workflow tells it apart at a glance.
-  const Icon =
-    workflow.entry_node === null ? Workflow : nodeVisual(workflow.entry_node, "triggers").icon;
   const visibility = (
     workflow.visibility in VISIBILITY_ICON ? workflow.visibility : "private"
   ) as keyof typeof VISIBILITY_ICON;
@@ -103,9 +100,18 @@ export function WorkflowCard({
           aria-label={tc("openNamed", { name: workflow.name })}
         />
         <div className="pointer-events-none relative flex flex-1 items-start gap-3">
-          <span className="bg-muted text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-lg">
-            <Icon aria-hidden="true" className="size-5" />
-          </span>
+          {workflow.entry_node === null ? (
+            <span className="bg-muted text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-lg">
+              <Workflow aria-hidden="true" className="size-5" />
+            </span>
+          ) : (
+            <NodeTile
+              definitionId={workflow.entry_node}
+              category="triggers"
+              className="size-10 rounded-lg"
+              iconClassName="size-5"
+            />
+          )}
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">

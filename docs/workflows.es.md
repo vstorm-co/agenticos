@@ -1,5 +1,5 @@
 ---
-source_sha: "da2df408552f"
+source_sha: "127345b7e025"
 ---
 
 # Workflows { #workflows }
@@ -100,7 +100,7 @@ que sale.
 
 Cada nodo es una tarjeta con el icono del paso, su nombre y una línea debajo: lo que
 está configurado para hacer - una condición, una URL, el número de campos mapeados -
-o si no, el grupo al que pertenece, como **Slack** o **Tables**. Un paso con más de una
+y, antes, el agente, el modelo o la tabla con los que trabaja. Un paso con más de una
 salida nombra sus puertos: **true** y **false**, **Each item** y **Done**, y un
 puerto **Error** rojo en un paso que gestiona sus errores. Un paso que bloquea la
 publicación lleva una marca roja: al pasar el ratón por encima lista los primeros
@@ -157,9 +157,59 @@ restauraciones y las copias del workflow la conservan, pero nada la ejecuta ni l
 comprueba. Seleccionar una conexión ofrece un **+** que pone el siguiente paso elegido
 en su mitad, conectado por ambos lados donde los puertos encajan. **Tidy up** en la
 barra de herramientas alinea los pasos visibles de izquierda a derecha como una sola
-edición que se puede deshacer, el botón del mapa muestra un minimapa, y el botón del
+edición que se puede deshacer, el botón del mapa muestra un minimapa, el botón de paleta cambia los pasos entre color y Simple (véase [Cómo se dibuja un paso](#how-a-step-is-drawn)), y el botón del
 teclado - o **?** - enumera todos los atajos; **Tab** abre el selector de pasos.
 Ninguno actúa mientras escribes en un campo.
+
+### Cómo se dibuja un paso { #how-a-step-is-drawn }
+
+Una tarjeta dice de qué tipo es el paso antes de decir qué hace. Encima del nombre, una
+etiqueta pequeña dice **Family · Kind** - **AI · Classify**, **Data · Save a record** -
+y el icono se asienta en una ficha dibujada en la familia del paso, las mismas secciones
+que usa el selector de pasos:
+
+| Familia | Su ficha |
+|---|---|
+| **Start** | Del color de la tinta - oscura en el tema claro, clara en el oscuro - y redonda, en una tarjeta con el extremo izquierdo redondeado |
+| **AI** | Violeta sólido |
+| **Flow** | Gris |
+| **Data** | Verde azulado (teal) |
+| **Apps** | Blanca con contorno azul, para que la marca de un servicio se asiente sin cambios |
+| **Error** | Roja |
+
+Las familias se distinguen por luminosidad y forma además de por color, así que siguen
+distinguiéndose para quien no ve bien los colores y en un lienzo alejado hasta no poder
+leerse. El minimapa también dibuja cada paso con el color de su familia. El borde y el
+anillo de una tarjeta nunca son de una familia: pertenecen a la ejecución (véase más
+abajo), a un cambio, a una selección o a un paso desactivado.
+
+La línea bajo el nombre empieza por aquello con lo que trabaja el paso - el agente, el
+modelo, la tabla - y sigue con lo que está configurado para hacer, como en
+**gpt-4.1-mini · 3 categories**.
+
+Un paso que puede detener la ejecución lleva una banda en la parte superior de su
+tarjeta, redactada a partir de su configuración y nunca de una ejecución:
+
+| Paso | La banda dice |
+|---|---|
+| Approval | **Waits for a person** |
+| Wait | **Waits 2 days** (or hours, minutes, seconds), **Waits until a time** o **Waits a set time** cuando un paso anterior aporta la hora o la duración, o **Waits for a call** - que gana si hay a la vez una duración y una llamada |
+| Run a workflow | **Waits for the called workflow**; sin banda si **Wait for it to finish** está desactivado |
+| MCP call | **Asks before writes** o **Asks before every call**, según su ajuste de aprobación; sin banda si nunca pregunta |
+
+Un paso que pregunta a una persona muestra la banda en rosa; un temporizador o una
+llamada, en gris. El paso de agente no tiene ninguna: sus aprobaciones vienen de la
+spec del propio agente, que la tarjeta no puede ver.
+
+En el lienzo de una ejecución, un paso que espera a una persona se dibuja en rosa, con
+un reloj de arena en su etiqueta, se dibujen como se dibujen los pasos.
+
+**Simple** dibuja todas las fichas neutras y el minimapa en gris, como se veía el lienzo
+antes de que los pasos tuvieran familias. Conserva lo que no depende del color: la
+etiqueta en gris, el extremo redondeado del inicio y una banda neutra. Se cambia con el
+botón de paleta de la barra de herramientas del lienzo o en **Settings →
+Profile → Appearance → Workflow steps**; se recuerda por
+navegador, como el tema.
 
 ## Configurar un nodo { #configuring-a-node }
 

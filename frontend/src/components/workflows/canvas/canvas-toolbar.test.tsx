@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { DEBUG_ECHO, makeDefinition, port } from "@/components/workflows/validation/fixtures";
 import type { NodeInstance, WorkflowDetail } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
+import { useWorkflowNodeStyleStore } from "@/stores/workflow-node-style-store";
 
 import { copyToClipboard } from "./use-canvas-shortcuts";
 import { WorkflowCanvas } from "./workflow-canvas";
@@ -200,6 +201,60 @@ describe("the canvas menu", () => {
     await waitFor(() => expect(screen.queryByPlaceholderText("Search steps")).toBeNull());
   });
 
+  it("opens nothing at the end of a right-button drag, which pans the canvas", () => {
+    seed(node("a"));
+    const { container } = render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
+    const pane = container.querySelector('[data-workflow-region="canvas"]') as HTMLElement;
+
+    fireEvent.mouseDown(pane, { button: 2, clientX: 100, clientY: 100 });
+    fireEvent.contextMenu(pane, { clientX: 180, clientY: 140 });
+    expect(screen.queryByPlaceholderText("Search steps")).toBeNull();
+
+    // A drag that ends on a step opens no step menu either.
+    const card = container.querySelector('[data-node-id="a"]') as HTMLElement;
+    fireEvent.mouseDown(pane, { button: 2, clientX: 100, clientY: 100 });
+    fireEvent.contextMenu(card, { clientX: 160, clientY: 100 });
+    expect(screen.queryByRole("menuitem")).toBeNull();
+  });
+
+  // jsdom has no PointerEvent; React reads the button and position off any event typed pointerup.
+  const release = (target: HTMLElement, button: number, clientX: number, clientY: number) =>
+    act(() => {
+      target.dispatchEvent(
+        new MouseEvent("pointerup", { bubbles: true, button, clientX, clientY }),
+      );
+    });
+
+  it("waits for the release where the menu comes on the press, and opens nothing after a drag", async () => {
+    seed(node("a"));
+    const { container } = render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
+    const pane = container.querySelector('[data-workflow-region="canvas"]') as HTMLElement;
+
+    // macOS and Linux: the context menu fires while the right button is still down.
+    fireEvent.mouseDown(pane, { button: 2, buttons: 2, clientX: 100, clientY: 100 });
+    fireEvent.contextMenu(pane, { button: 2, buttons: 2, clientX: 100, clientY: 100 });
+    expect(screen.queryByPlaceholderText("Search steps")).toBeNull();
+    release(pane, 2, 190, 160);
+    expect(screen.queryByPlaceholderText("Search steps")).toBeNull();
+
+    fireEvent.mouseDown(pane, { button: 2, buttons: 2, clientX: 100, clientY: 100 });
+    fireEvent.contextMenu(pane, { button: 2, buttons: 2, clientX: 100, clientY: 100 });
+    release(pane, 0, 100, 100);
+    expect(screen.queryByPlaceholderText("Search steps")).toBeNull();
+    release(pane, 2, 101, 100);
+    expect(await screen.findByPlaceholderText("Search steps")).toBeTruthy();
+  });
+
+  it("still opens the picker on a right press that stayed put", async () => {
+    seed(node("a"));
+    const { container } = render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
+    const pane = container.querySelector('[data-workflow-region="canvas"]') as HTMLElement;
+
+    fireEvent.mouseDown(pane, { button: 2, clientX: 100, clientY: 100 });
+    fireEvent.contextMenu(pane, { clientX: 102, clientY: 101 });
+    expect(await screen.findByPlaceholderText("Search steps")).toBeTruthy();
+  });
+
   it("closes the picker on Escape without adding anything", async () => {
     seed(node("a"));
     const { container } = render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
@@ -222,6 +277,36 @@ describe("the canvas menu", () => {
 });
 
 describe("arranging and reading the canvas", () => {
+  it("switches the steps between colour and Simple, for this browser", async () => {
+    useWorkflowNodeStyleStore.setState({ style: "colour" });
+    seed(node("a"));
+    const { container } = render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
+    const tile = () => container.querySelector("[data-node-id='a'] span[data-node-family]");
+    expect(tile()).toHaveClass("node-tile-data");
+
+    await userEvent.click(screen.getByRole("button", { name: "Show steps plainly" }));
+    expect(useWorkflowNodeStyleStore.getState().style).toBe("simple");
+    expect(tile()).toHaveClass("bg-muted");
+    // The minimap follows: no family colour in Simple, the family's colour otherwise.
+    const mark = () =>
+      container.querySelector("rect.react-flow__minimap-node") as SVGElement | null;
+    await userEvent.click(screen.getByRole("button", { name: "Show the minimap" }));
+    expect(container.querySelector(".react-flow__minimap")).not.toBeNull();
+    expect(mark()).not.toBeNull();
+    expect(mark()?.style.fill).toBe("");
+
+    await userEvent.click(screen.getByRole("button", { name: "Show steps in colour" }));
+    expect(useWorkflowNodeStyleStore.getState().style).toBe("colour");
+    expect(tile()).toHaveClass("node-tile-data");
+    expect(mark()?.style.fill).toBe("var(--family-map-data)");
+    expect(screen.getByRole("button", { name: "Show steps plainly" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(container.querySelector(".react-flow__minimap")).not.toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Hide the minimap" }));
+  });
+
   it("tidies the steps in one edit, shows a minimap and the shortcut sheet", async () => {
     seed(node("a", "act.one", 0), node("b", "act.one", 0));
     store.getState().applyEdgeChanges([]);

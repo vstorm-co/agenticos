@@ -1,5 +1,5 @@
 ---
-source_sha: "da2df408552f"
+source_sha: "127345b7e025"
 ---
 
 # Workflows { #workflows }
@@ -93,8 +93,8 @@ połączenie ustalające kolejność: krok, na który wskazuje, działa po tym, 
 wychodzi.
 
 Każdy węzeł to karta z ikoną kroku, jego nazwą i jedną linią pod nią: co krok ma
-robić - warunek, URL, liczba zmapowanych pól - albo grupa, do której należy, na
-przykład **Slack** czy **Tables**. Krok z więcej niż jednym wyjściem wymienia porty z
+robić - warunek, URL, liczba zmapowanych pól - po agencie, modelu albo tabeli,
+z którymi pracuje. Krok z więcej niż jednym wyjściem wymienia porty z
 nazwy: **true** i **false**, **Each item** i **Done** oraz czerwony port **Error** w
 kroku, który obsługuje swoje błędy. Krok, który blokuje publikację, ma czerwony
 znacznik: po najechaniu na niego widać pierwsze problemy, a kliknięcie otwiera krok.
@@ -150,9 +150,56 @@ Notatka jest zapisana w grafie, więc wersje, przywrócenia i kopie
 workflow ją zachowują, ale nic jej nie uruchamia ani nie sprawdza. Zaznaczone połączenie
 pokazuje **+**, które wstawia następny wybrany krok w jego środek, połączony z obu stron,
 gdzie porty pasują. **Tidy up** na pasku narzędzi układa widoczne kroki od lewej do prawej
-jako jedną edycję do cofnięcia, przycisk mapy pokazuje minimapę, a przycisk klawiatury -
+jako jedną edycję do cofnięcia, przycisk mapy pokazuje minimapę, przycisk palety przełącza kroki między kolorem a trybem Prosty (patrz [Jak rysowany jest krok](#how-a-step-is-drawn)), a przycisk klawiatury -
 albo **?** - wypisuje wszystkie skróty; **Tab** otwiera wybór kroku. Żaden nie działa,
 gdy piszesz w polu.
+
+### Jak rysowany jest krok { #how-a-step-is-drawn }
+
+Karta mówi, jakiego rodzaju jest krok, zanim powie, co robi. Nad nazwą mała etykieta
+zapisuje **Rodzina · Rodzaj** - **AI · Classify**, **Dane · Save a record** - a ikona
+leży na kafelku w barwie rodziny kroku, czyli tych samych sekcji, które ma wybór kroków:
+
+| Rodzina | Jej kafelek |
+|---|---|
+| **Start** | W kolorze tekstu - ciemny w jasnym motywie, jasny w ciemnym - i okrągły, na karcie z zaokrąglonym lewym końcem |
+| **AI** | Pełny fiolet |
+| **Przepływ** | Szary |
+| **Dane** | Morski (teal) |
+| **Aplikacje** | Biały z niebieskim obrysem, żeby znak marki leżał na nim bez zmian |
+| **Błąd** | Czerwony |
+
+Rodziny różnią się jasnością i kształtem, nie tylko kolorem, więc rozróżni je też osoba
+z zaburzeniami widzenia barw i da się je poznać na kanwie oddalonej tak, że nic nie da
+się przeczytać. Minimapa też rysuje każdy krok w kolorze jego rodziny. Obramowanie i
+poświata karty nigdy nie należą do rodziny: należą do runu (patrz niżej), zmiany,
+zaznaczenia albo wyłączonego kroku.
+
+Linia pod nazwą zaczyna się od tego, z czym krok pracuje - agent, model, tabela - i
+ciągnie się dalej tym, co krok ma robić, jak w **gpt-4.1-mini · 3 categories**.
+
+Krok, który może wstrzymać run, ma na górze karty pasek, sformułowany na podstawie
+jego ustawień, nigdy runu:
+
+| Krok | Pasek mówi |
+|---|---|
+| Approval | **Czeka na osobę** |
+| Wait | **Czeka 2 dni** (albo godziny, minuty, sekundy), **Czeka do wskazanej chwili** albo **Czeka ustalony czas**, gdy chwilę lub długość dostarcza wcześniejszy krok, albo **Czeka na wywołanie** - to wygrywa, gdy ustawiono i czas, i wywołanie |
+| Run a workflow | **Czeka na wywołany workflow**; bez paska, gdy **Wait for it to finish** jest wyłączone |
+| MCP call | **Pyta przed zapisem** albo **Pyta przed każdym wywołaniem**, według ustawienia zatwierdzania; bez paska, gdy nigdy nie pyta |
+
+Krok pytający człowieka ma pasek różowy; timer albo wywołanie - szary. Krok agenta
+paska nie ma: jego zatwierdzenia pochodzą ze spec samego agenta, a tego karta nie widzi.
+
+Na kanwie runu krok czekający na osobę jest rysowany na różowo, z klepsydrą w
+plakietce, niezależnie od sposobu rysowania kroków.
+
+**Prosty** rysuje wszystkie kafelki neutralnie, a minimapę na szaro, tak jak kanwa
+wyglądała, zanim kroki miały rodziny. Zachowuje to, co nie zależy od koloru: szarą
+etykietę, zaokrąglony koniec startu i neutralny pasek. Przełączysz go przyciskiem
+palety na pasku narzędzi kanwy albo w **Ustawienia → Profil → Wygląd (Settings →
+Profile → Appearance) → Kroki workflow**; jest zapamiętywany dla każdej przeglądarki,
+jak motyw.
 
 ## Konfigurowanie węzła { #configuring-a-node }
 

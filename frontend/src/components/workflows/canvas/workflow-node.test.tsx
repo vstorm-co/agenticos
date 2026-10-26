@@ -10,6 +10,7 @@ import type {
   WorkflowNodeRunRead,
 } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
+import { useWorkflowNodeStyleStore } from "@/stores/workflow-node-style-store";
 
 import { NodeRunOverlayProvider, summarizeNodeRuns } from "./run-overlay";
 import { WorkflowCanvas } from "./workflow-canvas";
@@ -38,7 +39,12 @@ const CATALOG = [
     ports: [port("in", "input", null), port("true", "output", null), port("false", "output", null)],
   }),
   makeDefinition({ id: "http.request", name: "HTTP", ports: IO }),
-  makeDefinition({ id: "error.raise", name: "Raise", ports: [port("in", "input", null)] }),
+  makeDefinition({
+    id: "error.raise",
+    name: "Raise",
+    category: "error",
+    ports: [port("in", "input", null)],
+  }),
   makeDefinition({
     id: "error.handle",
     name: "Handle",
@@ -58,6 +64,15 @@ const CATALOG = [
     description: "Maps fields",
     ports: IO,
   }),
+  makeDefinition({ id: "trigger.manual", name: "Manual", category: "triggers", ports: IO }),
+  makeDefinition({ id: "trigger.gmail", name: "Gmail", category: "triggers", ports: IO }),
+  makeDefinition({ id: "agent.run", name: "Agent", category: "agent", ports: IO }),
+  makeDefinition({ id: "ai.classify", name: "Classify", category: "model", ports: IO }),
+  makeDefinition({ id: "slack.message.send", name: "Send", category: "slack", ports: IO }),
+  makeDefinition({ id: "human.approval", name: "Approval", category: "people", ports: IO }),
+  makeDefinition({ id: "flow.wait", name: "Wait", category: "control", ports: IO }),
+  makeDefinition({ id: "workflow.run", name: "Run a workflow", category: "control", ports: IO }),
+  makeDefinition({ id: "mcp.call", name: "MCP call", category: "mcp", ports: IO }),
 ];
 
 function instance(
@@ -119,7 +134,10 @@ function seed(nodes: NodeInstance[], extra: Partial<WorkflowGraph> = {}): void {
   });
 }
 
-beforeEach(() => store.getState().teardown());
+beforeEach(() => {
+  store.getState().teardown();
+  useWorkflowNodeStyleStore.setState({ style: "colour" });
+});
 
 describe("a node card", () => {
   it("shows the agent a step runs as its face, and names what a step works with", () => {
@@ -164,18 +182,15 @@ describe("a node card", () => {
     expect(screen.getByText("2 fields")).toBeTruthy();
   });
 
-  it("sums up a switch, a wait and a filter", () => {
+  it("sums up a switch and a filter", () => {
     const t = ((key: string, values?: Record<string, unknown>) =>
       `${key}:${JSON.stringify(values ?? {})}`) as unknown as Parameters<typeof nodeSummary>[1];
     const summary = (definitionId: string, config: Record<string, unknown>) =>
       nodeSummary({ ...instance("x", definitionId), config }, t);
     expect(summary("logic.switch", { rules: [{}, {}] })).toBe('nodeSummaryRules:{"count":2}');
     expect(summary("logic.switch", {})).toBe('nodeSummaryRules:{"count":0}');
-    expect(summary("flow.wait", { seconds: 30 })).toBe('nodeSummaryWait:{"seconds":30}');
-    expect(summary("flow.wait", {})).toBeNull();
-    expect(summary("flow.wait", { until_called: true, seconds: 60 })).toBe(
-      "nodeSummaryWaitCall:{}",
-    );
+    // A wait's time is the band's to say, not the summary's.
+    expect(summary("flow.wait", { seconds: 30 })).toBeNull();
     expect(summary("data.filter", { condition: "item.ok" })).toBe("ok conditionOps.notEmpty:{}");
     expect(summary("data.filter", { condition: "!item.gone && item == 'x'" })).toBe(
       "gone conditionOps.empty:{}nodeSummaryAnd:{}item = x",
@@ -260,23 +275,25 @@ describe("a node card", () => {
     render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
     expect(screen.getByText("0 9 * * 1-5")).toHaveClass("font-mono");
     expect(screen.getByText("Tidy the lead")).toBeInTheDocument();
-    // Its own name on top, the kind of step it is under it.
-    expect(screen.getByText("Map")).toBeInTheDocument();
+    // Its own name on top, the kind of step it is above it.
+    expect(screen.getByText("Data · Map")).toBeInTheDocument();
   });
 
-  it("falls back to the step's group, keeping its description for a hover", () => {
+  it("says what kind of step it is above the name, keeping its description for a hover", () => {
     seed([
-      instance("m", "data.map"),
-      instance("f", "control.foreach"),
+      instance("m", "data.map", { label: "Tidy" }),
+      instance("f", "control.foreach", { label: "Each lead" }),
       instance("e", "error.handle"),
       // No URL, no condition, a step the switch does not know: nothing to say.
       instance("h", "http.request"),
       instance("i", "logic.if"),
       instance("r", "error.raise", { config: { code: "" } }),
-      instance("u", "unknown.kind"),
+      instance("u", "unknown.kind", { label: "Mystery" }),
     ]);
     render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
-    expect(screen.getByText("Data").getAttribute("title")).toBe("Maps fields");
+    expect(screen.getByText("Data · Map").getAttribute("title")).toBe("Maps fields");
+    expect(screen.getByText("Flow · Loop")).toBeTruthy();
+    expect(screen.getByText("Flow · unknown.kind")).toBeTruthy();
     expect(screen.getByText("Stops at the first failed item")).toBeTruthy();
     expect(screen.getByText("Default branch only")).toBeTruthy();
   });
@@ -353,6 +370,319 @@ describe("a node card", () => {
     );
     expect(store.getState().scopePath).toEqual(["f"]);
     expect(store.getState().selection.nodeIds).toEqual([]);
+  });
+});
+
+describe("a node card by family", () => {
+  const family = (container: HTMLElement, id: string) =>
+    container.querySelector(`[data-node-id="${id}"]`);
+  const FAMILIES: Array<[string, string, string]> = [
+    ["trigger.manual", "start", "Start · Manual"],
+    ["agent.run", "ai", "AI · Agent"],
+    ["ai.classify", "ai", "AI · Classify"],
+    ["human.approval", "flow", "Flow · Approval"],
+    ["data.map", "data", "Data · Map"],
+    ["slack.message.send", "apps", "Apps · Send"],
+    ["error.raise", "error", "Error · Raise"],
+  ];
+
+  it("says the family alone over a step still called by its kind's name", () => {
+    seed([instance("m", "data.map"), instance("l", "data.map", { label: "Tidy the lead" })]);
+    const { container } = render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
+
+    const label = (id: string) => family(container, id)?.querySelector("p.uppercase");
+    expect(label("m")?.textContent).toBe("Data");
+    expect(label("l")?.textContent).toBe("Data · Map");
+  });
+
+  it("labels each step by its family and kind, and marks the family on the card", () => {
+    seed(
+      FAMILIES.map(([definitionId], index) =>
+        instance(`n${index}`, definitionId, { label: `Step ${index}` }),
+      ),
+    );
+    const { container } = render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
+
+    FAMILIES.forEach(([, expected, label], index) => {
+      expect(family(container, `n${index}`)).toHaveAttribute("data-node-family", expected);
+      expect(screen.getByText(label)).toBeInTheDocument();
+    });
+  });
+
+  it("draws each family's tile in colour, and its label in the family's ink", () => {
+    seed(
+      FAMILIES.map(([definitionId], index) =>
+        instance(`n${index}`, definitionId, { label: `Step ${index}` }),
+      ),
+    );
+    const { container } = render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
+    const tile = (id: string) => family(container, id)?.querySelector("span[data-node-family]");
+
+    expect(tile("n0")).toHaveClass("node-tile-start", "rounded-full");
+    expect(tile("n1")).toHaveClass("node-tile-ai");
+    expect(tile("n4")).toHaveClass("node-tile-data");
+    expect(tile("n5")).toHaveClass("node-tile-apps");
+    expect(tile("n3")).toHaveClass("bg-muted");
+    expect(tile("n6")).toHaveClass("text-destructive");
+    expect(screen.getByText("AI · Agent").className).toContain("--family-ai-ink");
+    // Not the shared destructive token: its 3.05:1 on the dark card is too faint for 10.5px text.
+    expect(screen.getByText("Error · Raise").className).toContain("--family-error-ink");
+    expect(screen.getByText("Flow · Approval")).toHaveClass("text-muted-foreground");
+  });
+
+  it("draws neutral tiles and a grey label in Simple, keeping the start cap", () => {
+    useWorkflowNodeStyleStore.setState({ style: "simple" });
+    seed(
+      FAMILIES.map(([definitionId], index) =>
+        instance(`n${index}`, definitionId, { label: `Step ${index}` }),
+      ),
+    );
+    const { container } = render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
+    const tile = (id: string) => family(container, id)?.querySelector("span[data-node-family]");
+
+    expect(tile("n1")).toHaveClass("bg-muted");
+    expect(tile("n1")?.className).not.toContain("node-tile");
+    expect(tile("n0")).toHaveClass("bg-muted");
+    expect(tile("n6")).toHaveClass("text-destructive");
+    expect(screen.getByText("AI · Agent")).toHaveClass("text-muted-foreground");
+    expect(screen.getByText("Data · Map")).toHaveClass("text-muted-foreground");
+    expect(family(container, "n0")).toHaveClass("rounded-l-[2rem]");
+  });
+
+  it("caps a start's left end, and no other step's", () => {
+    seed([instance("t", "trigger.manual"), instance("a", "agent.run")]);
+    const { container } = render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
+
+    expect(family(container, "t")).toHaveClass("rounded-l-[2rem]");
+    expect(family(container, "a")).not.toHaveClass("rounded-l-[2rem]");
+  });
+
+  it("keeps a brand trigger on the white tile in colour only", () => {
+    useWorkflowNodeStyleStore.setState({ style: "simple" });
+    seed([instance("g", "trigger.gmail")]);
+    const { container } = render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
+
+    const tile = family(container, "g")?.querySelector("span[data-node-family]");
+    expect(tile).toHaveClass("bg-muted");
+    expect(tile?.className).not.toContain("node-tile");
+  });
+
+  it("puts a brand trigger's mark on the white tile", () => {
+    seed([instance("g", "trigger.gmail")]);
+    const { container } = render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
+
+    expect(family(container, "g")?.querySelector("span[data-node-family]")).toHaveClass(
+      "node-tile-apps",
+    );
+  });
+
+  it("never lets a family set the card's border or ring", () => {
+    seed(
+      FAMILIES.map(([definitionId], index) =>
+        instance(`n${index}`, definitionId, { label: `Step ${index}` }),
+      ),
+    );
+    const { container } = render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
+
+    for (let index = 0; index < FAMILIES.length; index += 1) {
+      const classes = (family(container, `n${index}`)?.className ?? "").split(/\s+/);
+      // Only the base border, the shadow and a start's cap: no colour, no ring.
+      expect(classes.filter((name) => /^(border|ring)-/.test(name))).toEqual([]);
+    }
+  });
+
+  it("keeps the run state's border on a family's card", () => {
+    seed([instance("a", "agent.run")]);
+    const rows = summarizeNodeRuns([
+      {
+        id: "1",
+        node_instance_id: "a",
+        scope_path: [],
+        status: "waiting",
+        waiting_reason: "approval",
+        attempts: 1,
+        cost: 0,
+        error: null,
+        output: null,
+        started_at: null,
+        ended_at: null,
+      },
+    ]);
+    const { container } = render(
+      <NodeRunOverlayProvider value={{ summaries: rows, live: false, watched: false }}>
+        <WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} readOnly />
+      </NodeRunOverlayProvider>,
+    );
+
+    const card = family(container, "a");
+    expect(card).toHaveAttribute("data-node-family", "ai");
+    expect(card).toHaveClass("border-[var(--domain-admin)]", "ring-[var(--domain-admin-line)]");
+    expect(card?.className).not.toContain("domain-build");
+  });
+
+  it("puts the model profile or the agent's name before what the step does", () => {
+    seed([
+      instance("m", "http.request", {
+        config: { model_profile_id: "p1", url: "https://api.example.com/x" },
+      }),
+    ]);
+    const { container } = render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
+
+    const line = container.querySelector('[data-node-id="m"] p.text-xs');
+    expect(line?.textContent).toBe("uses p1GET api.example.com");
+  });
+
+  it("separates the resource from the summary with a dot, when there are both", () => {
+    seed([
+      instance("a", "http.request", {
+        config: { table: { table_id: "t1" }, url: "https://api.example.com/x" },
+      }),
+      instance("b", "data.map", { config: { table: { table_id: "t2" } } }),
+    ]);
+    const { container } = render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
+
+    expect(screen.getByText("uses t1").className).toContain("after:content");
+    expect(screen.getByText("uses t2").className).not.toContain("after:content");
+    expect(container.querySelector('[data-node-id="a"]')).toHaveTextContent("GET api.example.com");
+  });
+});
+
+describe("a node card's waits band", () => {
+  const band = (container: HTMLElement, id: string) =>
+    container.querySelector(`[data-node-id="${id}"] [role="note"]`);
+  const draw = (nodes: NodeInstance[], extra: Partial<WorkflowGraph> = {}) => {
+    seed(nodes, extra);
+    return render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />).container;
+  };
+
+  it("says a step waits for a person, in rose", () => {
+    const container = draw([instance("h", "human.approval")]);
+
+    expect(band(container, "h")).toHaveTextContent("Waits for a person");
+    expect(band(container, "h")).toHaveAttribute(
+      "aria-label",
+      "Can pause the run. Waits for a person",
+    );
+    expect(band(container, "h")?.className).toContain("--domain-admin");
+  });
+
+  it("says how long a wait lasts, in the largest whole unit", () => {
+    const container = draw([
+      instance("d", "flow.wait", { config: { seconds: 172_800 } }),
+      instance("h", "flow.wait", { config: { seconds: 3_600 } }),
+      instance("m", "flow.wait", { config: { seconds: 120 } }),
+      instance("s", "flow.wait", { config: { seconds: 90 } }),
+      instance("o", "flow.wait", { config: { seconds: 1 } }),
+    ]);
+
+    expect(band(container, "d")).toHaveTextContent("Waits 2 days");
+    expect(band(container, "h")).toHaveTextContent("Waits 1 hour");
+    expect(band(container, "m")).toHaveTextContent("Waits 2 minutes");
+    expect(band(container, "s")).toHaveTextContent("Waits 90 seconds");
+    expect(band(container, "o")).toHaveTextContent("Waits 1 second");
+    expect(band(container, "d")?.className).toContain("bg-muted");
+  });
+
+  it("says a wait ends on a call, which wins over a duration, or at a bound time", () => {
+    const container = draw(
+      [
+        instance("c", "flow.wait", { config: { seconds: 60, until_called: true } }),
+        instance("u", "flow.wait"),
+        instance("x", "flow.wait"),
+      ],
+      {
+        bindings: [
+          {
+            target_node_id: "u",
+            target_field: "until",
+            source: { kind: "literal", value: "2026-11-01T00:00:00Z" },
+          } as WorkflowGraph["bindings"][number],
+          {
+            target_node_id: "x",
+            target_field: "other",
+            source: { kind: "literal", value: 1 },
+          } as WorkflowGraph["bindings"][number],
+        ],
+      },
+    );
+
+    expect(band(container, "c")).toHaveTextContent("Waits for a call");
+    expect(band(container, "u")).toHaveTextContent("Waits until a time");
+    // A bound field that is not the time says nothing about waiting.
+    expect(band(container, "x")).toBeNull();
+  });
+
+  it("says an MCP call asks first, by its approval setting, and says nothing when it never does", () => {
+    const container = draw([
+      instance("w", "mcp.call", { config: { approval: "writes" } }),
+      instance("d", "mcp.call"),
+      instance("a", "mcp.call", { config: { approval: "all" } }),
+      instance("n", "mcp.call", { config: { approval: "none" } }),
+    ]);
+
+    expect(band(container, "w")).toHaveTextContent("Asks before writes");
+    expect(band(container, "d")).toHaveTextContent("Asks before writes");
+    expect(band(container, "a")).toHaveTextContent("Asks before every call");
+    expect(band(container, "a")?.className).toContain("--domain-admin");
+    expect(band(container, "n")).toBeNull();
+  });
+
+  it("gives an agent step no band, and a plain step none either", () => {
+    const container = draw([instance("a", "agent.run"), instance("m", "data.map")]);
+
+    expect(band(container, "a")).toBeNull();
+    expect(band(container, "m")).toBeNull();
+  });
+
+  it("keeps a band neutral in Simple", () => {
+    useWorkflowNodeStyleStore.setState({ style: "simple" });
+    const container = draw([instance("h", "human.approval")]);
+
+    expect(band(container, "h")).toHaveTextContent("Waits for a person");
+    expect(band(container, "h")?.className).toContain("bg-muted");
+    expect(band(container, "h")?.className).not.toContain("--domain-admin");
+  });
+
+  it("keeps an MCP call's band neutral in Simple", () => {
+    useWorkflowNodeStyleStore.setState({ style: "simple" });
+    const container = draw([instance("w", "mcp.call", { config: { approval: "all" } })]);
+
+    expect(band(container, "w")).toHaveTextContent("Asks before every call");
+    expect(band(container, "w")?.className).toContain("bg-muted");
+    expect(band(container, "w")?.className).not.toContain("--domain-admin");
+  });
+
+  it("says a wait whose time is bound from an earlier step waits a set time", () => {
+    const container = draw([instance("b", "flow.wait", { config: { seconds: 60 } })], {
+      bindings: [
+        {
+          target_node_id: "b",
+          target_field: "seconds",
+          source: { kind: "literal", value: 5 },
+        } as WorkflowGraph["bindings"][number],
+      ],
+    });
+
+    expect(band(container, "b")).toHaveTextContent("Waits a set time");
+  });
+
+  it("says a workflow step waits for the one it calls, unless told not to", () => {
+    const container = draw([
+      instance("w", "workflow.run", { config: { workflow_id: "x" } }),
+      instance("t", "workflow.run", { config: { workflow_id: "x", wait: true } }),
+      instance("n", "workflow.run", { config: { workflow_id: "x", wait: false } }),
+    ]);
+
+    expect(band(container, "w")).toHaveTextContent("Waits for the called workflow");
+    expect(band(container, "t")).toHaveTextContent("Waits for the called workflow");
+    expect(band(container, "w")?.className).toContain("bg-muted");
+    expect(band(container, "n")).toBeNull();
+  });
+
+  it("says nothing of a wait with nothing set", () => {
+    const container = draw([instance("w", "flow.wait")]);
+
+    expect(band(container, "w")).toBeNull();
   });
 });
 

@@ -16,7 +16,7 @@ import {
   Spinner,
   Textarea,
 } from "@/components/ui";
-import { nodeVisual } from "@/components/workflows/node-visuals";
+import { NodeTile } from "@/components/workflows/node-tile";
 import { StartRunDialog } from "@/components/workflows/runs/start-run-dialog";
 import { availableSourceNodes, validateGraph } from "@/components/workflows/validation";
 import { useWorkflowRuns, useWorkflowTable } from "@/hooks";
@@ -31,7 +31,6 @@ import {
 import { effectiveDefinition } from "@/lib/workflows/ports";
 import { WEBHOOK_TRIGGER, declaredFields, sampleRunInput } from "@/lib/workflows/triggers";
 import type { NodeDefinition, NodeInstance, WorkflowGraph } from "@/lib/workflows/types";
-import { cn } from "@/lib/utils";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { DataView, DeclaredOutput } from "./data-view";
@@ -115,20 +114,16 @@ export function InputPane({
   /** A step as the picker and the heading draw it: its tile and its name. */
   const stepLabel = (id: string) => {
     const instance = graph.nodes.find((candidate) => candidate.id === id);
-    const visual = nodeVisual(instance?.definition_id ?? "", declared(id)?.category ?? "");
-    const Icon = visual.icon;
     return (
       // `!flex`: inside a Select's trigger, its `[&>span]:line-clamp-1` would
       // stack the tile over the name.
       <span className="!flex min-w-0 items-center gap-2 text-sm font-medium">
-        <span
-          className={cn(
-            "flex size-6 shrink-0 items-center justify-center rounded-md",
-            visual.tileClass,
-          )}
-        >
-          <Icon aria-hidden="true" className="size-3.5" />
-        </span>
+        <NodeTile
+          definitionId={instance?.definition_id ?? ""}
+          category={declared(id)?.category ?? ""}
+          className="size-6 rounded-md"
+          iconClassName="size-3.5"
+        />
         <span className="truncate">{names.get(id) ?? id}</span>
       </span>
     );

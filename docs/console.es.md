@@ -1,5 +1,5 @@
 ---
-source_sha: "074e13eaf243"
+source_sha: "d81630b8a397"
 ---
 
 # La consola { #the-console }
@@ -492,6 +492,12 @@ movimiento reducido del sistema operativo, **Reduce** reduce el movimiento sin
 él y **Full** lo mantiene diga lo que diga el sistema operativo. Mientras el
 movimiento está reducido no hay brillo alguno, la franja aparece sin deslizarse
 y el nivel es un indicador de cinco pasos.
+
+**Workflow steps** en la misma tarjeta elige cómo dibuja un paso el lienzo del
+workflow: **In colour** (por defecto) dibuja cada paso en su familia,
+**Simple** deja las fichas neutras y el minimapa gris. Se recuerda por navegador; la
+barra de herramientas del lienzo tiene el mismo interruptor. Véase
+[Cómo se dibuja un paso](workflows.md#how-a-step-is-drawn).
 
 ### La tarjeta Voice { #the-voice-card }
 

@@ -7,7 +7,7 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { LoadingState } from "@/components/states";
 import { Badge, Button, ConfirmDialog } from "@/components/ui";
-import { nodeVisual } from "@/components/workflows/node-visuals";
+import { NodeTile } from "@/components/workflows/node-tile";
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { useWorkflowExposure } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
@@ -111,8 +111,6 @@ function LiveTrigger({
 }: LiveTriggerProps) {
   const t = useTranslations("pages.workflows");
   const { apiUrl } = usePublicConfig();
-  const visual = nodeVisual(trigger ?? API_TRIGGER, definition?.category ?? "");
-  const Icon = visual.icon;
   const table = draftConfig?.["table"];
   const tableId =
     table !== null && typeof table === "object" && "table_id" in table
@@ -122,14 +120,12 @@ function LiveTrigger({
   return (
     <section className="space-y-4">
       <div className="flex items-start gap-3">
-        <span
-          className={cn(
-            "flex size-8 shrink-0 items-center justify-center rounded-lg",
-            visual.tileClass,
-          )}
-        >
-          <Icon aria-hidden="true" className="size-4" />
-        </span>
+        <NodeTile
+          definitionId={trigger ?? API_TRIGGER}
+          category={definition?.category ?? ""}
+          className="size-8 rounded-lg"
+          iconClassName="size-4"
+        />
         <div className="min-w-0">
           <p className="text-muted-foreground text-xs">{t("triggerLive")}</p>
           <h3 className="text-sm font-medium">{name}</h3>

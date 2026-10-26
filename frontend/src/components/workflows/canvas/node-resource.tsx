@@ -5,14 +5,22 @@ import { useTranslations } from "next-intl";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { AvatarFace } from "@/components/ui/avatar-face";
-import { useAgents, useAllAgentVersions, useWorkflowTables, useWorkflows } from "@/hooks";
+import {
+  useAgents,
+  useAllAgentVersions,
+  useModelProfiles,
+  usePermissions,
+  useWorkflowTables,
+  useWorkflows,
+} from "@/hooks";
 import type { NodeInstance } from "@/lib/workflows/types";
 
-/** The agent, table or workflow a step is set to work with, by the id its config pins. */
+/** The agent, model, table or workflow a step is set to work with, by the id its config pins. */
 export type ResourcePin =
   | { kind: "agent"; id: string; versionId: string | null }
   /** An agent configured in the step itself, known by the name it was given there. */
   | { kind: "inline_agent"; name: string }
+  | { kind: "model"; id: string }
   | { kind: "table"; id: string }
   | { kind: "workflow"; id: string };
 
@@ -31,6 +39,8 @@ export function resourcePin(instance: NodeInstance): ResourcePin | null {
   if (agentId !== null) {
     return { kind: "agent", id: agentId, versionId: stringAt(config.agent, "version_id") };
   }
+  const modelId = stringAt(config, "model_profile_id");
+  if (modelId !== null) return { kind: "model", id: modelId };
   const tableId = stringAt(config.table, "table_id");
   if (tableId !== null) return { kind: "table", id: tableId };
   const workflowId = stringAt(config, "workflow_id");
@@ -96,6 +106,13 @@ function AgentLine({ pin, fallback }: { pin: Extract<ResourcePin, { kind: "agent
     : t("cardAgentVersion", { name: agent.name, version: version.version });
 }
 
+function ModelLine({ id, fallback }: { id: string } & Fallback) {
+  // Listing models needs the permission to see agents; without it the card keeps its summary.
+  const { can } = usePermissions();
+  const { profiles } = useModelProfiles({ enabled: can("agents:view") });
+  return profiles.find((profile) => profile.id === id)?.label ?? fallback;
+}
+
 function TableLine({ id, fallback }: { id: string } & Fallback) {
   const { tables } = useWorkflowTables();
   return tables.find((table) => table.id === id)?.name ?? fallback;
@@ -114,6 +131,7 @@ function WorkflowLine({ id, fallback }: { id: string } & Fallback) {
 export function ResourceLine({ pin, fallback }: { pin: ResourcePin } & Fallback) {
   if (pin.kind === "inline_agent") return pin.name;
   if (pin.kind === "agent") return <AgentLine pin={pin} fallback={fallback} />;
+  if (pin.kind === "model") return <ModelLine id={pin.id} fallback={fallback} />;
   if (pin.kind === "table") return <TableLine id={pin.id} fallback={fallback} />;
   return <WorkflowLine id={pin.id} fallback={fallback} />;
 }

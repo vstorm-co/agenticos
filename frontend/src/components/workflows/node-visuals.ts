@@ -75,20 +75,30 @@ import {
  * How a node looks wherever the editor shows one - its card on the canvas, its
  * row in the step picker, its settings dialog - so they agree.
  *
- * Every tile is neutral, the way the rest of the console is: the icon says what
- * a step is, and colour is kept for meaning - an error step's tile is red. A
- * chat platform's steps carry the platform's own mark, since "which of these is
- * the Slack one" is the first question asked of a graph.
+ * A step is drawn by its family, the picker's sections: an ink round Start,
+ * a solid violet AI tile, a teal Data tile, an outlined white Apps tile, a grey
+ * Flow tile and a red Error tile. Lightness and shape differ as well as hue, so
+ * the families survive colour blindness and a canvas zoomed out past reading.
+ * The icon still says what a step is; the family says what sort of thing it is.
+ *
+ * "Simple" is the person's switch back to the console's usual restraint: every
+ * tile neutral, colour kept for meaning - an error step's tile is red. A chat
+ * platform's steps carry the platform's own mark either way, since "which of
+ * these is the Slack one" is the first question asked of a graph.
  */
 
 import type { ComponentType, SVGProps } from "react";
 
 import { brandMark } from "@/components/icons/brand-icon";
+import type { NodeStyle } from "@/stores/workflow-node-style-store";
 
 /** An icon a tile draws: a lucide icon, or a brand's mark. */
 export type NodeIcon = LucideIcon | ComponentType<Omit<SVGProps<SVGSVGElement>, "name">>;
 
 export type NodeTone = "neutral" | "danger";
+
+/** What sort of step a node is - the picker's sections, plus the red Error family. */
+export type NodeFamily = "start" | "ai" | "flow" | "data" | "apps" | "error";
 
 const TONE_CLASS: Record<NodeTone, string> = {
   neutral: "bg-muted text-foreground",
@@ -231,37 +241,105 @@ export const CATEGORY_ORDER: readonly string[] = PICKER_SECTIONS.flatMap(
 /** Categories a builder never needs in the picker. */
 export const HIDDEN_CATEGORIES: ReadonlySet<string> = new Set(["debug"]);
 
+/** The family a catalog `category` is drawn in; one no section names is Flow. */
+export function nodeFamily(category: string): NodeFamily {
+  if (DANGER_CATEGORIES.has(category)) return "error";
+  const section = PICKER_SECTIONS.find((candidate) =>
+    (candidate.groups as readonly string[]).includes(category),
+  );
+  return section?.id ?? "flow";
+}
+
+/** Tile colours by family, as the `node-tile-*` classes in the stylesheet; Flow and Error keep today's. */
+const FAMILY_TILE: Record<NodeFamily, string> = {
+  start: "node-tile-start rounded-full",
+  ai: "node-tile-ai",
+  flow: TONE_CLASS.neutral,
+  data: "node-tile-data",
+  apps: "node-tile-apps",
+  error: TONE_CLASS.danger,
+};
+
+/** The ink of the "Family · Kind" label above a card's name. */
+const FAMILY_LABEL: Record<NodeFamily, string> = {
+  start: "text-foreground",
+  ai: "text-[var(--family-ai-ink)]",
+  flow: "text-muted-foreground",
+  data: "text-[var(--family-data-ink)]",
+  apps: "text-[var(--family-apps-ink)]",
+  error: "text-[var(--family-error-ink)]",
+};
+
+/** The ink of a family's label: its colour, or grey in Simple. */
+export function familyLabelClass(family: NodeFamily, style: NodeStyle): string {
+  return style === "colour" ? FAMILY_LABEL[family] : "text-muted-foreground";
+}
+
+/** A picker section's swatch beside its heading; the catch-all "More" section has none. */
+const SECTION_SWATCH: Record<string, string> = {
+  start: "bg-primary",
+  ai: "bg-[var(--family-ai)]",
+  flow: "bg-muted-foreground/40",
+  data: "bg-[var(--family-data-ink)]",
+  apps: "bg-[var(--family-apps-ink)]",
+};
+
+export function sectionSwatchClass(sectionId: string): string | undefined {
+  return SECTION_SWATCH[sectionId];
+}
+
 export interface NodeVisual {
   icon: NodeIcon;
   /** Classes for the icon tile: its background and the icon's colour. */
   tileClass: string;
+  family: NodeFamily;
 }
 
-function tile(category: string): string {
-  return TONE_CLASS[DANGER_CATEGORIES.has(category) ? "danger" : "neutral"];
+/** Triggers drawn with a brand's mark, which sits on the white tile like an Apps step's. */
+const BRAND_TRIGGERS: ReadonlySet<string> = new Set(["trigger.github", "trigger.gmail"]);
+
+function tile(
+  category: string,
+  style: NodeStyle,
+  definitionId = "",
+): { tileClass: string; family: NodeFamily } {
+  const family = nodeFamily(category);
+  if (style === "colour") {
+    const branded = BRAND_TRIGGERS.has(definitionId);
+    return { tileClass: branded ? "node-tile-apps rounded-full" : FAMILY_TILE[family], family };
+  }
+  return { tileClass: TONE_CLASS[family === "error" ? "danger" : "neutral"], family };
 }
 
-/** How one step is drawn: its own icon, its platform's mark, or its group's icon. */
-export function nodeVisual(definitionId: string, category: string): NodeVisual {
-  const icon = BY_ID[definitionId] ?? PLATFORM_MARKS[category] ?? BY_CATEGORY[category] ?? Zap;
-  return { icon, tileClass: tile(category) };
+/** A step's own icon, its platform's mark, or its group's icon. */
+function nodeIcon(definitionId: string, category: string): NodeIcon {
+  return BY_ID[definitionId] ?? PLATFORM_MARKS[category] ?? BY_CATEGORY[category] ?? Zap;
+}
+
+/** How one step is drawn: its icon and its family's tile. */
+export function nodeVisual(definitionId: string, category: string, style: NodeStyle): NodeVisual {
+  return { icon: nodeIcon(definitionId, category), ...tile(category, style, definitionId) };
 }
 
 /**
  * How one step is drawn among its group's steps in the picker: a platform
  * step by what it does, since every row beside it carries the same mark.
  */
-export function operationVisual(definitionId: string, category: string): NodeVisual {
-  if (PLATFORM_MARKS[category] === undefined) return nodeVisual(definitionId, category);
+export function operationVisual(
+  definitionId: string,
+  category: string,
+  style: NodeStyle,
+): NodeVisual {
+  if (PLATFORM_MARKS[category] === undefined) return nodeVisual(definitionId, category, style);
   const operation = definitionId.split(".").slice(1).join(".");
-  return { icon: OPERATION_ICONS[operation] ?? Zap, tileClass: tile(category) };
+  return { icon: OPERATION_ICONS[operation] ?? Zap, ...tile(category, style) };
 }
 
 /** How a group is drawn in the picker: its platform's mark, or its own icon. */
-export function groupVisual(category: string): NodeVisual {
+export function groupVisual(category: string, style: NodeStyle): NodeVisual {
   return {
     icon: PLATFORM_MARKS[category] ?? BY_CATEGORY[category] ?? Zap,
-    tileClass: tile(category),
+    ...tile(category, style),
   };
 }
 

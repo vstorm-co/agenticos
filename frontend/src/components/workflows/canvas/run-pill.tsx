@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, LoaderCircle, X } from "lucide-react";
+import { Check, Hourglass, LoaderCircle, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
@@ -30,7 +30,7 @@ const LOOK: Record<NodeRunState, string> = {
     "bg-[color-mix(in_oklch,var(--color-success)_15%,var(--color-card))] text-success border-success/40",
   running: "bg-success text-background border-transparent",
   waiting:
-    "bg-[var(--domain-build-subtle)] text-[var(--domain-build)] border-[var(--domain-build-line)]",
+    "bg-[var(--domain-admin-subtle)] text-[var(--domain-admin)] border-[var(--domain-admin-line)]",
   done: "bg-[color-mix(in_oklch,var(--color-success)_12%,var(--color-card))] text-success border-success/35",
   failed: "bg-destructive text-destructive-foreground border-transparent",
   attention: "bg-destructive text-destructive-foreground border-transparent",
@@ -63,6 +63,7 @@ export function RunPill({
       {(state === "running" || state === "starting") && (
         <LoaderCircle aria-hidden="true" className="size-3 animate-spin" />
       )}
+      {state === "waiting" && <Hourglass aria-hidden="true" className="size-3" />}
       {state === "done" && <Check aria-hidden="true" className="size-3" />}
       {(state === "failed" || state === "attention") && <X aria-hidden="true" className="size-3" />}
       {took === null ? t(WORD[state]) : formatElapsed(took)}

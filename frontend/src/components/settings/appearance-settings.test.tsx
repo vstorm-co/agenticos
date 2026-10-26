@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useMotionStore } from "@/stores/motion-store";
 import { useThemeStore } from "@/stores/theme-store";
 import { useVoiceGlowStore } from "@/stores/voice-glow-store";
+import { useWorkflowNodeStyleStore } from "@/stores/workflow-node-style-store";
 
 import { AppearanceSettings } from "./appearance-settings";
 
@@ -23,6 +24,7 @@ beforeEach(() => {
   useThemeStore.setState({ theme: "system" });
   useVoiceGlowStore.setState({ style: "subtle" });
   useMotionStore.setState({ motion: "system" });
+  useWorkflowNodeStyleStore.setState({ style: "colour" });
 });
 
 describe("AppearanceSettings", () => {
@@ -62,6 +64,17 @@ describe("AppearanceSettings", () => {
     await userEvent.click(within(group("Motion")).getByRole("radio", { name: "Reduce" }));
 
     expect(useMotionStore.getState().motion).toBe("reduce");
+  });
+
+  it("chooses how workflow steps are drawn, and says what each does", async () => {
+    render(<AppearanceSettings />);
+    expect(within(group("Workflow steps")).getByRole("radio", { name: "In colour" })).toBeChecked();
+    expect(screen.getByText(/Simple keeps the tiles neutral/)).toBeInTheDocument();
+
+    await userEvent.click(within(group("Workflow steps")).getByRole("radio", { name: "Simple" }));
+
+    expect(useWorkflowNodeStyleStore.getState().style).toBe("simple");
+    expect(within(group("Workflow steps")).getByRole("radio", { name: "Simple" })).toBeChecked();
   });
 
   it("offers no glow under reduced motion, says why, and keeps the stored style", () => {
