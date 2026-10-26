@@ -182,6 +182,26 @@ describe("the chat's two-step model picker", () => {
     expect(onChange).toHaveBeenCalledWith("local");
   });
 
+  it.each([true, false])(
+    "reuses only a custom duplicate while provider metadata is pending: native first %s",
+    async (nativeFirst) => {
+      const native = profile("native", "openrouter", "acme/painter");
+      const custom = {
+        ...profile("custom", "openrouter", "acme/painter"),
+        base_url: "http://local/v1",
+      };
+      listedProfiles.mockReturnValue(nativeFirst ? [native, custom] : [custom, native]);
+      loadingModels.mockReturnValue(true);
+      const onChange = vi.fn();
+      render(<ChatModelPicker value={null} agentModel={null} onChange={onChange} />);
+      await pickProvider("OpenRouter");
+      await typeModel("acme/painter");
+      await userEvent.click(screen.getByRole("button", { name: "Run on this model" }));
+      expect(onChange).toHaveBeenCalledWith("custom");
+      expect(mutateAsync).not.toHaveBeenCalled();
+    },
+  );
+
   it("will not run the conversation on a speech model the organization keeps", async () => {
     // The profile exists for text to speech; reusing it would point the chat at a
     // model that cannot answer, and minting another collides on its label (#2487).

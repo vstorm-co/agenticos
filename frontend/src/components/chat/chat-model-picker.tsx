@@ -119,7 +119,8 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
     // chat, including a custom endpoint whose names the vendor cannot classify.
     const listingRefuses = refused.includes(modelId);
     const existing = matching.find(
-      (profile) => runsAgents(profile) && (!listingRefuses || !!profile.base_url),
+      (profile) =>
+        runsAgents(profile) && (!!profile.base_url || (!loadingModels && !listingRefuses)),
     );
     if (existing) {
       onChange(existing.id);
