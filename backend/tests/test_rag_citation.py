@@ -116,6 +116,31 @@ class TestCitedHeading:
         assert cited_heading("## Setup\n```bash\n# install deps\n```\nDone.") == "Setup"
         assert cited_heading("# \x07\nx") is None
 
+    @pytest.mark.parametrize(
+        "fences",
+        [
+            "```python\n````",
+            "~~~python\n~~~~",
+            "~~~python\n````",
+            "```python\n~~~~",
+        ],
+    )
+    def test_fence_like_code_inside_an_outer_block_does_not_make_a_section(self, fences):
+        assert cited_heading(f"# code comment\nprint('example')\n{fences}\nAfter.") is None
+
+    @pytest.mark.parametrize(
+        "outer, inner",
+        [("````", "```python"), ("~~~~", "~~~python"), ("````", "```"), ("~~~~", "~~~")],
+    )
+    def test_a_complete_outer_block_ignores_shorter_inner_fence_lines(self, outer, inner):
+        assert (
+            cited_heading(f"## Setup\n{outer}markdown\n{inner}\n# comment\n{outer}\nDone.")
+            == "Setup"
+        )
+
+    def test_separate_complete_blocks_keep_the_heading(self):
+        assert cited_heading("## Setup\n```py\npass\n```\n~~~sh\ntrue\n~~~") == "Setup"
+
     def test_a_long_whitespace_run_is_read_in_linear_time(self):
         """The heading line is bounded before it is scanned (#2489 review)."""
         # Small enough that a quadratic scan fails this in seconds, not minutes.

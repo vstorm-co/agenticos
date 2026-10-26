@@ -21,6 +21,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Keep mixed-length and mixed-marker code fences from turning a code comment
+  into a section citation; ambiguous chunks name only the document (#2489).
+
 - Cite a knowledge search result by page only when its document has pages (PDF,
   presentations and word-processing files other than `.docx`). A Markdown, text,
   `.docx`, spreadsheet, web page or image result was cited as "page 1"; it now

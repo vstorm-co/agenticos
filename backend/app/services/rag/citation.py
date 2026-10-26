@@ -93,20 +93,34 @@ def _heading_title(line: str) -> str:
 def _opens_inside_a_fence(content: str) -> bool:
     """Whether the chunk was cut from inside a fenced code block.
 
-    A chunk whose fence lines are odd in number and whose first fence is a bare
-    one, with no language after it, most likely starts in a block that line
-    closes. A chunk that opens a bare block and is cut before closing it reads
-    the same and loses its heading too: naming the document alone is the safe
-    way to be wrong.
+    The surrounding delimiter is not stored with a recursively split chunk,
+    so an unmatched initial bare fence may be its closing line. Track the
+    marker and length: shorter or differently marked lines inside a block do
+    not close it. A longer closing run is ambiguous too - it may close an outer
+    block started before this chunk, with the apparent opener being code.
+    Ambiguous chunks cite the document alone, even if they were valid Markdown.
     """
-    fences = [
-        line
-        for line in (raw.strip() for raw in content.splitlines())
-        if line.startswith(("```", "~~~"))
-    ]
-    # A bare fence is a run of one marker and nothing else: a block opened with
-    # four or more markers closes on a line of at least as many.
-    return len(fences) % 2 == 1 and len(set(fences[0])) == 1
+    opened: tuple[str, int] | None = None
+    first_bare: bool | None = None
+    for raw in content.splitlines():
+        line = raw.strip()
+        if not line.startswith(("```", "~~~")):
+            continue
+        marker = line[0]
+        length = len(line) - len(line.lstrip(marker))
+        bare = length == len(line)
+        if opened is None:
+            if first_bare is None:
+                first_bare = bare
+            opened = (marker, length)
+        elif bare:
+            if marker != opened[0] or length > opened[1]:
+                # A closing delimiter that does not belong to the visible
+                # opener can belong to a block begun before this chunk.
+                return True
+            if length == opened[1]:
+                opened = None
+    return first_bare is True and opened is not None
 
 
 def cited_heading(content: str) -> str | None:
