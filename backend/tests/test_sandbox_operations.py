@@ -22,6 +22,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import anyio
+import httpx
 import pytest
 from pydantic_ai.workspaces import (
     LocalWorkspaceBackend,
@@ -311,6 +312,29 @@ class TestASessionExplainedAsSomethingElse:
             await recorder.working_dir()
 
         assert not recorder.lost
+
+    @pytest.mark.parametrize("operation", ["run", "working_dir"])
+    async def test_a_saved_session_conflict_can_be_explained_without_marking_it_lost(
+        self, tmp_path: Path, operation: str
+    ) -> None:
+        mismatch = self._Mismatch("sandboxd version mismatch")
+        recorder, session, explain = self._explaining(tmp_path, mismatch)
+        request = httpx.Request("POST", "http://sandboxd/sessions")
+        conflict = httpx.HTTPStatusError(
+            "Session exists", request=request, response=httpx.Response(409, request=request)
+        )
+        with (
+            patch.object(recorder.wrapped, operation, AsyncMock(side_effect=conflict)),
+            pytest.raises(self._Mismatch),
+        ):
+            if operation == "run":
+                await recorder.run(["ls"])
+            else:
+                await recorder.working_dir()
+        explain.assert_awaited_once_with(conflict)
+        assert recorder.mismatched and not recorder.lost
+        if operation == "run":
+            assert session.rows[0].detail == "_Mismatch"
 
     async def test_an_unexplained_loss_is_still_a_loss(self, tmp_path: Path):
         recorder, session, _ = self._explaining(tmp_path, None)

@@ -1,5 +1,5 @@
 ---
-source_sha: "548df22818eb"
+source_sha: "c1532e388d78"
 ---
 
 # La sandbox { #the-sandbox }
@@ -76,6 +76,11 @@ The sandbox service does not serve /sessions/{session_id}/run,
 platform (expected <version>). Run ghcr.io/vstorm-co/sandboxd:<version> and
 redeploy it
 ```
+
+La misma comprobación trata un `409` al conectar una referencia de sesión guardada
+antes de actualizar: un servicio antiguo puede rechazarla aunque la sesión exista.
+Solo un endpoint ausente confirmado convierte el conflicto en un error de versión;
+los conflictos normales y los índices inaccesibles conservan el error original.
 
 El mensaje omite la dirección del servicio, que los miembros y el modelo quizá no
 puedan ver; el backend la registra como `sandboxd_version_mismatch`. La sesión no

@@ -1,5 +1,5 @@
 ---
-source_sha: "548df22818eb"
+source_sha: "c1532e388d78"
 ---
 
 # Sandbox { #the-sandbox }
@@ -75,6 +75,11 @@ The sandbox service does not serve /sessions/{session_id}/run,
 platform (expected <version>). Run ghcr.io/vstorm-co/sandboxd:<version> and
 redeploy it
 ```
+
+To samo sprawdzenie obsługuje `409` przy podłączaniu referencji sesji zapisanej
+przed aktualizacją: stara usługa może ją odrzucić, choć sesja nadal istnieje. Tylko
+potwierdzony brak endpointu zmienia konflikt w błąd wersji; zwykłe konflikty
+i niedostępny indeks zachowują pierwotny błąd.
 
 Komunikat pomija adres usługi, którego członkowie i model mogą nie mieć prawa
 widzieć; backend zapisuje go w logu jako `sandboxd_version_mismatch`. Sesja nie

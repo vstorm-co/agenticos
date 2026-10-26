@@ -94,8 +94,7 @@ class RecordingWorkspace(WrapperWorkspace):
         agent_id: UUID | None,
         run_id: UUID | None = None,
         on_settled: Callable[[], Awaitable[None]] | None = None,
-        explain_unavailable: Callable[[WorkspaceUnavailableError], Awaitable[Exception | None]]
-        | None = None,
+        explain_unavailable: Callable[[Exception], Awaitable[Exception | None]] | None = None,
     ) -> None:
         super().__init__(wrapped)
         # Asked about every "session is gone" before it is believed. A service of
@@ -202,7 +201,7 @@ class RecordingWorkspace(WrapperWorkspace):
         await self._first_use(call)
         try:
             return await call
-        except WorkspaceUnavailableError as exc:
+        except Exception as exc:
             explained = await self._explained(exc)
             if explained is exc:
                 raise
@@ -224,8 +223,7 @@ class RecordingWorkspace(WrapperWorkspace):
         except Exception as exc:
             explained: Exception = exc
             try:
-                if isinstance(exc, WorkspaceUnavailableError):
-                    explained = await self._explained(exc)
+                explained = await self._explained(exc)
             finally:
                 # The class, never the message: a shell's message is the command's
                 # own output and an HTTP client's carries the failing request (#423).
@@ -242,21 +240,22 @@ class RecordingWorkspace(WrapperWorkspace):
         self._record(op, target, ok=ok, detail=detail, started=started)
         return result
 
-    async def _explained(self, exc: WorkspaceUnavailableError) -> Exception:
+    async def _explained(self, exc: Exception) -> Exception:
         """What a session found gone means: the error explaining it, or `exc` - lost.
 
-        The session is noted lost unless the explanation arrives, so a probe that
-        is cancelled or fails leaves the loss believed, as it was before the probe.
+        An unavailable session is noted lost unless an explanation arrives.
+        Other errors keep their original loss state, including legacy attach
+        conflicts: the service still holds their session.
         """
         explained: Exception | None = None
         try:
             if self._explain_unavailable is not None:
                 explained = await self._explain_unavailable(exc)
         finally:
-            if explained is None:
-                self.lost = True
-            else:
+            if explained is not None:
                 self.mismatched = True
+            elif isinstance(exc, WorkspaceUnavailableError):
+                self.lost = True
         return exc if explained is None else explained
 
     async def _first_use(self, call: Coroutine[object, object, object]) -> None:

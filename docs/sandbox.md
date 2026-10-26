@@ -70,6 +70,11 @@ platform (expected <version>). Run ghcr.io/vstorm-co/sandboxd:<version> and
 redeploy it
 ```
 
+The same check handles a `409` while attaching a session reference saved before
+the upgrade: an old service may reject that reference even though the session
+still exists. Only a confirmed missing endpoint turns the conflict into a version
+mismatch; ordinary conflicts and unavailable indexes keep their original error.
+
 The message leaves out the service's address, which members and the model may
 not be allowed to see; the backend logs it as `sandboxd_version_mismatch`. The
 session is not reported as lost, but the conversation forgets its recorded

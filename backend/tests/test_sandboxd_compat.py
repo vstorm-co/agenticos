@@ -182,3 +182,40 @@ class TestExplainingASessionFoundGone:
         error = WorkspaceUnavailableError(ROUTE_GONE)
 
         assert await explain_unavailable(error, base_url=BASE, client=client) is None
+
+
+async def test_a_legacy_saved_session_conflict_reports_the_service_mismatch() -> None:
+    client, asked = _client(_index(OLD_ENDPOINTS))
+    request = httpx.Request("POST", f"{BASE}/sessions")
+    response = httpx.Response(409, request=request, json={"detail": "Session exists"})
+    error = httpx.HTTPStatusError("Session exists", request=request, response=response)
+
+    explained = await explain_unavailable(error, base_url=BASE, client=client)
+
+    assert isinstance(explained, SandboxdVersionMismatchError)
+    assert asked == [f"{BASE}/"]
+
+
+@pytest.mark.parametrize(
+    "status,method,path",
+    [
+        (409, "POST", "/sessions"),
+        (400, "POST", "/sessions"),
+        (409, "GET", "/sessions"),
+        (409, "POST", "/sessions/x/run"),
+    ],
+)
+async def test_http_errors_are_not_relabelled_without_an_incompatible_index(
+    status: int, method: str, path: str
+) -> None:
+    client, _ = _client(_index(list(REQUIRED_ENDPOINTS)))
+    request = httpx.Request(method, f"{BASE}{path}")
+    response = httpx.Response(status, request=request)
+    error = httpx.HTTPStatusError("Conflict", request=request, response=response)
+    assert await explain_unavailable(error, base_url=BASE, client=client) is None
+
+
+async def test_an_ordinary_operation_error_never_probes_the_service() -> None:
+    client, asked = _client(_index(OLD_ENDPOINTS))
+    assert await explain_unavailable(RuntimeError("failed"), base_url=BASE, client=client) is None
+    assert asked == []

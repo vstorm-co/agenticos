@@ -13,7 +13,9 @@ always name what is missing (`No such session: ...`); a route the service does
 not have answers with FastAPI's bare `{"detail":"Not Found"}`. Only that body
 costs one more request - to the service's unauthenticated index, which lists the
 routes it serves - and only a route the client needs and the index lacks is
-reported as a version mismatch. Anything less certain stays the error it was.
+reported as a version mismatch. The same evidence explains a legacy service
+refusing to attach a saved session with a conflict. Anything less certain stays
+the error it was.
 """
 
 import logging
@@ -106,15 +108,26 @@ async def missing_endpoints(client: httpx.AsyncClient, base_url: str) -> list[st
 
 
 async def explain_unavailable(
-    error: WorkspaceUnavailableError, *, base_url: str, client: httpx.AsyncClient
+    error: Exception, *, base_url: str, client: httpx.AsyncClient
 ) -> SandboxdVersionMismatchError | None:
     """The version mismatch behind a "session is gone", or `None` if it really is gone.
 
-    Asks the service's index only when the error carries FastAPI's bare 404, and
-    keeps the original error whenever the index cannot settle it - unreachable,
+    Asks the index for FastAPI's bare 404 or a session-attach conflict from a
+    legacy service that cannot attach a saved ref. Both require the same index
+    evidence before they become version mismatches. The original error is kept
+    whenever the index cannot settle it - unreachable,
     not an index, or listing every route the client needs.
     """
-    if not str(error).endswith(_ROUTE_NOT_FOUND):
+    missing_route = isinstance(error, WorkspaceUnavailableError) and str(error).endswith(
+        _ROUTE_NOT_FOUND
+    )
+    saved_session_conflict = (
+        isinstance(error, httpx.HTTPStatusError)
+        and error.response.status_code == 409
+        and error.request.method == "POST"
+        and error.request.url.path.rstrip("/").endswith("/sessions")
+    )
+    if not (missing_route or saved_session_conflict):
         return None
     try:
         missing = await missing_endpoints(client, base_url)

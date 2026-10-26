@@ -26,8 +26,8 @@ Two things are versioned separately from this file and worth knowing about:
   `sandboxd:0.2` older than the client answered every command with a 404 that the
   platform reported as a lost session. A sandbox service that does not serve a
   route the client needs now fails the tool call with a version mismatch that
-  names the image to run, and the conversation reopens its session by name on the
-  next turn. `agenticos cmd doctor` checks each sandbox connection's routes. To
+  names the image to run, including legacy conflicts when attaching saved session
+  references. The conversation reopens its session by name on the next turn. `agenticos cmd doctor` checks each sandbox connection's routes. To
   upgrade, redeploy with `scripts/deploy.sh` or `make dev`, which pull the pinned
   tag. `make prod` does not start the `sandbox` profile, so on a stack started
   with it, pull and recreate `sandboxd` with `--profile sandbox` (#2484).
