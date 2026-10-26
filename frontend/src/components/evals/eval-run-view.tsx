@@ -8,6 +8,7 @@ import { ArrowLeft, Lock } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { RestartTourButton } from "@/components/onboarding/restart-tour-button";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui";
 import { useAgent } from "@/hooks/use-agents";
@@ -107,13 +108,17 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
 
   return (
     <div className="space-y-6">
-      <Link
-        href={`${ROUTES.AGENTS}/${agentId}?tab=evals`}
-        className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden />
-        {t("back")}
-      </Link>
+      {/* No PageHeader here, so the page's help sits beside the way back. */}
+      <div className="flex items-center justify-between gap-2">
+        <Link
+          href={`${ROUTES.AGENTS}/${agentId}?tab=evals`}
+          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden />
+          {t("back")}
+        </Link>
+        <RestartTourButton />
+      </div>
       {run.review && <ReviewReevaluationNote review={run.review} />}
       <VerdictHeader
         agentId={agentId}
