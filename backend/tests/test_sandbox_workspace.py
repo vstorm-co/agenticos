@@ -2500,6 +2500,7 @@ class _Sandboxes:
                 super().__init__(**kwargs)
                 self.provider = str(kwargs["provider"])
                 self.name = str(kwargs["session_name"])
+                self.service_url = str(kwargs["service_url"])
 
         class _Daytona(_Provider):
             def __init__(self, **kwargs: object) -> None:
@@ -3007,6 +3008,55 @@ class TestASessionAcrossRuns:
         with pytest.raises(WorkspaceUnavailableError):
             await workspace.workspace.write_text("notes.txt", "into an empty directory")
         assert not (sandboxes.root / "notes.txt").exists()
+
+    async def test_a_service_of_another_version_is_not_reported_as_a_lost_session(
+        self, monkeypatch, mock_db_session, sandboxes
+    ):
+        """A 404 from a service lacking the route reads as "gone" to the client
+        (#2484); the session is alive, so it must not be forgotten at close."""
+        from app.services import sandbox_workspace
+        from app.services.sandboxd_compat import SandboxdVersionMismatchError
+
+        sandboxes.gone = True
+        mismatch = SandboxdVersionMismatchError(message="sandboxd at ... does not serve /run")
+        explain = AsyncMock(return_value=mismatch)
+        monkeypatch.setattr(sandbox_workspace, "explain_unavailable", explain)
+        _serve(monkeypatch, _resolved())
+        self._row_with(monkeypatch, mock_db_session, "xc-recorded")
+
+        workspace = await SandboxWorkspaceService(mock_db_session).open(
+            _spec(backend="service"), ctx=_ctx(), identity=_identity()
+        )
+
+        assert workspace is not None
+        assert isinstance(workspace.workspace, RecordingWorkspace)
+        with pytest.raises(SandboxdVersionMismatchError):
+            await workspace.workspace.write_text("notes.txt", "x")
+        assert explain.await_args.kwargs["base_url"] == "http://sandboxd:8080"
+        assert not workspace.workspace.lost
+
+    async def test_a_daytona_sandbox_found_gone_is_not_asked_about_a_version(
+        self, monkeypatch, mock_db_session, sandboxes
+    ):
+        """Only `sandboxd` has an index to ask; Daytona's loss stays a loss."""
+        from app.services import sandbox_workspace
+
+        sandboxes.gone = True
+        explain = AsyncMock()
+        monkeypatch.setattr(sandbox_workspace, "explain_unavailable", explain)
+        _serve(monkeypatch, _resolved(kind="daytona", base_url=None, token="dtn-live-key"))
+        self._row_with(monkeypatch, mock_db_session, "dt-recorded")
+
+        workspace = await SandboxWorkspaceService(mock_db_session).open(
+            _spec(backend="service"), ctx=_ctx(), identity=_identity()
+        )
+
+        assert workspace is not None
+        assert isinstance(workspace.workspace, RecordingWorkspace)
+        with pytest.raises(WorkspaceUnavailableError):
+            await workspace.workspace.write_text("notes.txt", "x")
+        explain.assert_not_awaited()
+        assert workspace.workspace.lost
 
     async def test_the_model_is_told_its_files_are_gone(
         self, monkeypatch, mock_db_session, sandboxes

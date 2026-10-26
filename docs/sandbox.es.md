@@ -1,5 +1,5 @@
 ---
-source_sha: "6de4a5082694"
+source_sha: "ddccf8972b0f"
 ---
 
 # La sandbox { #the-sandbox }
@@ -50,6 +50,38 @@ distribuido como `ghcr.io/vstorm-co/sandboxd`; el backend habla con él por HTTP
 con el token que hay en `SANDBOXD_TOKEN`. Los otros dos backends de sandbox que
 un spec puede nombrar —`daytona` y `state`— son un servicio alojado y un
 documento en Postgres, y ninguno implica nada de lo anterior.
+
+### El servicio y el backend cambian juntos { #the-service-and-the-backend-move-together }
+
+El servicio y el cliente del backend salen de la misma versión de
+`pydantic-ai-backend`, y un cliente llama a rutas que solo sirve su propia
+versión. Por eso cada archivo compose fija la imagen exactamente en la versión de
+`backend/uv.lock` —hoy `ghcr.io/vstorm-co/sandboxd:0.2.37`— y una prueba del
+backend falla cuando las dos difieren. Súbalas en un solo cambio. `make dev`
+arranca la pila con `--pull missing`, así que un pin nuevo se descarga en el
+siguiente arranque.
+
+Una etiqueta móvil ya lo rompió una vez (#2484). Un `sandboxd:0.2` en caché
+servía una API más antigua que la que hablaba el cliente, y cada comando fallaba
+como `sandboxd session '…' is gone`, aunque la sesión seguía viva. La plataforma
+ahora distingue los dos casos. Cuando un 404 trae el `{"detail":"Not Found"}`
+desnudo de FastAPI en lugar del `No such session` propio del servicio, lee el
+índice del servicio en `/`. Una ruta que el cliente necesita y que el índice no
+lista termina la ejecución con:
+
+```text
+sandboxd at http://sandboxd:8080 does not serve /sessions/{session_id}/run - its
+version does not match this platform (expected 0.2.37)
+```
+
+La conversación conserva su sesión, porque no se perdió nada.
+`agenticos cmd doctor` hace la misma comprobación en cada conexión registrada y
+nombra la imagen que hay que ejecutar:
+
+```bash
+docker compose pull sandboxd
+docker compose --profile sandbox up -d sandboxd
+```
 
 !!! danger "El token equivale a root"
 

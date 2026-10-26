@@ -55,14 +55,19 @@ sandbox-runtimes:
 # Idempotent — re-run anytime. Migrations are no-ops when already at head;
 # admin seeding is a separate target (`make seed`) so re-running `make dev`
 # doesn't keep retrying user creation.
+# `--pull missing` pulls every image this does not build when that exact tag is not
+# on the host. That is enough because the images are pinned to exact versions: a
+# bump is a new tag, so it reaches a laptop on the next `make dev`. A moving tag
+# would not - a cached `sandboxd:0.2` once served an older API than the backend's
+# client spoke, and every command failed as a lost session (#2484).
 dev: sandbox-token
 	@echo "▶ Building the backend image and starting the stack (migrations run as the \`migrate\` service)…"
-	@if ! docker compose $(COMPOSE_LOCAL) $(COMPOSE_DEV_PROFILES) up -d --build; then \
+	@if ! docker compose $(COMPOSE_LOCAL) $(COMPOSE_DEV_PROFILES) up -d --build --pull missing; then \
 		echo ""; \
 		echo "⚠ First start failed. Tearing down stale containers and retrying once…"; \
 		echo "  (volumes preserved — DB data is safe; use 'make docker-clean' for a full wipe)"; \
 		docker compose $(COMPOSE_LOCAL) down --remove-orphans; \
-		docker compose $(COMPOSE_LOCAL) $(COMPOSE_DEV_PROFILES) up -d --build; \
+		docker compose $(COMPOSE_LOCAL) $(COMPOSE_DEV_PROFILES) up -d --build --pull missing; \
 	fi
 	@echo ""
 	@echo "🚀 Dev stack ready:"

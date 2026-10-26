@@ -86,6 +86,7 @@ from app.repositories import project_repo
 from app.services.access import PROJECT, accessible_ids, resolve_access
 from app.services.sandbox_connection import ResolvedConnection, SandboxConnectionService
 from app.services.sandbox_runtimes import runtime_briefing, runtime_parses_documents
+from app.services.sandboxd_compat import explain_unavailable
 from app.services.skill_workspace import LEGACY_SKILLS_ROOT, RESERVED_SKILL_PREFIXES
 
 logger = logging.getLogger(__name__)
@@ -793,6 +794,11 @@ class SandboxWorkspaceService:
             agent_id=identity.agent_id,
             run_id=identity.run_id,
             on_settled=notice.settled if notice is not None else None,
+            explain_unavailable=(
+                partial(explain_unavailable, base_url=sandbox.service_url, client=_sandboxd_http())
+                if isinstance(sandbox, SandboxdWorkspace)
+                else None
+            ),
         )
         return OpenWorkspace(
             workspace=recorder,

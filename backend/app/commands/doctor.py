@@ -274,6 +274,9 @@ async def _sandbox_connections(db: AsyncSession) -> tuple[str, str]:
     organizations. Daytona is skipped because there is nothing local to reach -
     the credential is validated by their API on first use.
 
+    So is the version: the service has to serve every route this platform's
+    client calls, read from its index, or each command fails as a lost session.
+
     The token is checked as well as the address. `/healthz` is deliberately
     unauthenticated, so a probe that stopped there would report a healthy
     service to a deployment holding the wrong secret while every session was
@@ -334,10 +337,13 @@ async def _probe_connection(
 
     import httpx
 
+    from app.services.sandboxd_compat import mismatch_message, missing_endpoints
+
     base = (connection.base_url or "").rstrip("/")
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             (await client.get(f"{base}/healthz")).raise_for_status()
+            missing = await missing_endpoints(client, base)
             policy = await client.get(
                 f"{base}/policy",
                 headers={"X-Sandbox-Token": unsealed.api_key.get_secret_value()},
@@ -345,6 +351,11 @@ async def _probe_connection(
     except Exception as exc:
         return f"{base} did not answer: {exc}"
 
+    # Before the credential: a service of another version answers the routes this
+    # platform calls with a 404 that reads as a lost session (#2484), whatever
+    # the token says.
+    if missing:
+        return mismatch_message(base, missing)
     if policy.status_code == 401:
         return "the service answered but refused its credential"
     if policy.status_code != 200:

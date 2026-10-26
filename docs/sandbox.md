@@ -46,6 +46,36 @@ the token in `SANDBOXD_TOKEN`. The other two sandbox backends a spec can name �
 `daytona` and `state` — are a hosted service and a document in Postgres, and
 neither involves any of the above.
 
+### The service and the backend move together
+
+The service and the backend's client come from the same `pydantic-ai-backend`
+release, and a client calls routes that only its own release serves. So every
+compose file pins the image at exactly the version in `backend/uv.lock` —
+`ghcr.io/vstorm-co/sandboxd:0.2.37` today — and a backend test fails when the two
+differ. Bump them in one change. `make dev` starts the stack with
+`--pull missing`, so a new pin is pulled on the next start.
+
+A moving tag broke this before (#2484). A cached `sandboxd:0.2` served an older
+API than the client spoke, and every command failed as `sandboxd session '…' is
+gone`, although the session was alive. The platform now tells the two apart. When
+a 404 carries FastAPI's bare `{"detail":"Not Found"}` rather than the service's
+own `No such session`, it reads the service's index at `/`. A route the client
+needs and the index does not list ends the run with:
+
+```text
+sandboxd at http://sandboxd:8080 does not serve /sessions/{session_id}/run - its
+version does not match this platform (expected 0.2.37)
+```
+
+The conversation keeps its session, because nothing was lost.
+`agenticos cmd doctor` makes the same check against every registered
+connection, and names the image to run:
+
+```bash
+docker compose pull sandboxd
+docker compose --profile sandbox up -d sandboxd
+```
+
 !!! danger "The token is root-equivalent"
 
     Whoever holds it can start containers on that host. Treat it as the Docker

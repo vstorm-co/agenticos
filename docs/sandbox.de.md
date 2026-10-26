@@ -1,5 +1,5 @@
 ---
-source_sha: "6de4a5082694"
+source_sha: "ddccf8972b0f"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -51,6 +51,39 @@ ausgeliefert als `ghcr.io/vstorm-co/sandboxd`; das Backend spricht über HTTP mi
 ihm, mit dem Token in `SANDBOXD_TOKEN`. Die beiden anderen Sandbox-Backends, die
 ein Spec benennen kann — `daytona` und `state` — sind ein gehosteter Dienst und ein
 Dokument in Postgres, und keines von beiden hat mit dem oben Genannten zu tun.
+
+### Dienst und Backend ändern sich gemeinsam { #the-service-and-the-backend-move-together }
+
+Der Dienst und der Client des Backends stammen aus demselben Release von
+`pydantic-ai-backend`, und ein Client ruft Routen auf, die nur sein eigenes
+Release bedient. Deshalb pinnt jede Compose-Datei das Image auf genau die Version
+in `backend/uv.lock` — heute `ghcr.io/vstorm-co/sandboxd:0.2.37` —, und ein
+Backend-Test schlägt fehl, wenn die beiden voneinander abweichen. Heben Sie beide
+in einer Änderung an. `make dev` startet den Stack mit `--pull missing`, also
+wird ein neuer Pin beim nächsten Start gezogen.
+
+Ein beweglicher Tag hat das schon einmal kaputt gemacht (#2484). Ein
+zwischengespeichertes `sandboxd:0.2` bediente eine ältere API, als der Client
+sprach, und jeder Befehl scheiterte mit `sandboxd session '…' is gone`, obwohl die
+Sitzung lebte. Die Plattform unterscheidet die beiden Fälle jetzt. Trägt eine 404
+das nackte `{"detail":"Not Found"}` von FastAPI statt des dienst-eigenen
+`No such session`, liest die Plattform den Index des Dienstes unter `/`. Eine
+Route, die der Client braucht und die der Index nicht aufführt, beendet den Lauf
+mit:
+
+```text
+sandboxd at http://sandboxd:8080 does not serve /sessions/{session_id}/run - its
+version does not match this platform (expected 0.2.37)
+```
+
+Die Unterhaltung behält ihre Sitzung, denn nichts ging verloren.
+`agenticos cmd doctor` macht dieselbe Prüfung für jede registrierte Verbindung und
+nennt das Image, das laufen muss:
+
+```bash
+docker compose pull sandboxd
+docker compose --profile sandbox up -d sandboxd
+```
 
 !!! danger "Der Token ist root-äquivalent"
 

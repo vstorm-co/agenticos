@@ -46,7 +46,11 @@ class _Recorded:
 
 
 def _wrap(
-    root: Path, db: _Recorded | None = None, *, run_id: uuid.UUID | None = None
+    root: Path,
+    db: _Recorded | None = None,
+    *,
+    run_id: uuid.UUID | None = None,
+    explain_unavailable: AsyncMock | None = None,
 ) -> tuple[RecordingWorkspace, _Recorded]:
     session = db or _Recorded()
     return (
@@ -57,6 +61,7 @@ def _wrap(
             session_key="xc-1",
             agent_id=uuid.uuid4(),
             run_id=run_id,
+            explain_unavailable=explain_unavailable,
         ),
         session,
     )
@@ -257,6 +262,65 @@ class TestALostSession:
 
         assert recorder.lost
         assert session.rows == []
+
+
+class TestASessionExplainedAsSomethingElse:
+    """A "session is gone" the service did not mean - a route it lacks (#2484) -
+    is raised as what it is, and the session is kept for the next turn."""
+
+    class _Mismatch(WorkspaceUnavailableError):
+        pass
+
+    def _explaining(self, tmp_path: Path, answer: Exception | None):
+        explain = AsyncMock(return_value=answer)
+        recorder, session = _wrap(tmp_path, explain_unavailable=explain)
+        return recorder, session, explain
+
+    async def test_an_explained_operation_is_recorded_as_the_explanation(self, tmp_path: Path):
+        mismatch = self._Mismatch("sandboxd does not serve /run")
+        recorder, session, explain = self._explaining(tmp_path, mismatch)
+        gone = WorkspaceUnavailableError("gone: Not Found")
+
+        with (
+            patch.object(recorder.wrapped, "run", AsyncMock(side_effect=gone)),
+            pytest.raises(self._Mismatch) as raised,
+        ):
+            await recorder.run(["ls"])
+
+        assert raised.value.__cause__ is gone
+        explain.assert_awaited_once_with(gone)
+        assert not recorder.lost
+        [row] = session.rows
+        assert row.ok is False
+        assert row.detail == "_Mismatch"
+
+    async def test_an_explained_question_does_not_lose_the_session(self, tmp_path: Path):
+        mismatch = self._Mismatch("sandboxd does not serve /run")
+        recorder, _, _ = self._explaining(tmp_path, mismatch)
+
+        with (
+            patch.object(
+                recorder.wrapped, "working_dir", AsyncMock(side_effect=WorkspaceUnavailableError())
+            ),
+            pytest.raises(self._Mismatch),
+        ):
+            await recorder.working_dir()
+
+        assert not recorder.lost
+
+    async def test_an_unexplained_loss_is_still_a_loss(self, tmp_path: Path):
+        recorder, session, _ = self._explaining(tmp_path, None)
+        gone = WorkspaceUnavailableError("No such session")
+
+        with (
+            patch.object(recorder.wrapped, "run", AsyncMock(side_effect=gone)),
+            pytest.raises(WorkspaceUnavailableError) as raised,
+        ):
+            await recorder.run(["ls"])
+
+        assert raised.value is gone
+        assert recorder.lost
+        assert session.rows[0].detail == "WorkspaceUnavailableError"
 
 
 class TestReadingTheLog:

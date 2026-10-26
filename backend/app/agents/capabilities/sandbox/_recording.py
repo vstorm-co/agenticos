@@ -94,8 +94,15 @@ class RecordingWorkspace(WrapperWorkspace):
         agent_id: UUID | None,
         run_id: UUID | None = None,
         on_settled: Callable[[], Awaitable[None]] | None = None,
+        explain_unavailable: Callable[[WorkspaceUnavailableError], Awaitable[Exception | None]]
+        | None = None,
     ) -> None:
         super().__init__(wrapped)
+        # Asked about every "session is gone" before it is believed. A service of
+        # another version answers a route it lacks with a 404 the client reads as
+        # a lost session (#2484); the error this returns is raised instead, and a
+        # session it explains is not lost, so it is not forgotten at close.
+        self._explain_unavailable = explain_unavailable
         # Awaited after every operation, whatever it ended in. The first one also
         # opens the session, so this is how "the sandbox is ready" is heard
         # without the client having to say so.
@@ -192,9 +199,11 @@ class RecordingWorkspace(WrapperWorkspace):
         await self._first_use(call)
         try:
             return await call
-        except WorkspaceUnavailableError:
-            self.lost = True
-            raise
+        except WorkspaceUnavailableError as exc:
+            explained = await self._explained(exc)
+            if explained is exc:
+                raise
+            raise explained from exc
         finally:
             await self._settled()
 
@@ -210,17 +219,30 @@ class RecordingWorkspace(WrapperWorkspace):
         try:
             result = await call
         except Exception as exc:
-            if isinstance(exc, WorkspaceUnavailableError):
-                self.lost = True
+            explained = (
+                await self._explained(exc) if isinstance(exc, WorkspaceUnavailableError) else exc
+            )
             # The class, never the message: a shell's message is the command's
             # own output and an HTTP client's carries the failing request (#423).
-            self._record(op, target, ok=False, detail=exc.__class__.__name__, started=started)
-            raise
+            self._record(op, target, ok=False, detail=explained.__class__.__name__, started=started)
+            if explained is exc:
+                raise
+            raise explained from exc
         finally:
             await self._settled()
         ok, detail = outcome(result)
         self._record(op, target, ok=ok, detail=detail, started=started)
         return result
+
+    async def _explained(self, exc: WorkspaceUnavailableError) -> Exception:
+        """What a session found gone means: the error explaining it, or `exc` - lost."""
+        explained = (
+            None if self._explain_unavailable is None else await self._explain_unavailable(exc)
+        )
+        if explained is None:
+            self.lost = True
+            return exc
+        return explained
 
     async def _first_use(self, call: Coroutine[object, object, object]) -> None:
         """Mark the workspace used, running a deferred set-up first if there is one.
