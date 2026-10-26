@@ -758,6 +758,17 @@ describe("the agent ceiling", () => {
     expect(result.current.ceiling).toBeNull();
   });
 
+  it("discards a cached refusal when the ceiling refresh fails", async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ limit: 1, held: 1, at_limit: true });
+    const { client, wrapper: Wrapper } = shared();
+    const { result } = renderHook(() => useAgentCeiling(), { wrapper: Wrapper });
+    await waitFor(() => expect(result.current.ceiling?.at_limit).toBe(true));
+    vi.mocked(apiClient.get).mockRejectedValueOnce(new Error("unavailable"));
+    await client.invalidateQueries({ queryKey: qk.agents.ceiling() });
+    await waitFor(() => expect(result.current.ceiling).toBeNull());
+    expect(result.current.known).toBe(true);
+  });
+
   it("is kept fresher than the list and refetched on focus", async () => {
     // Another member's archive or a raised limit reaches this caller through no
     // event of theirs.

@@ -295,7 +295,8 @@ export function useOnboardingFlow(): OnboardingFlowState {
   }, [isOpen, creationBlocked, close]);
 
   const signal = step?.signal;
-  const resource = signal?.kind === "created" ? signal.resource : null;
+  const resource =
+    signal?.kind === "created" && signal.resource !== "agent" ? signal.resource : null;
   // A `sent` step baselines the on-screen transcript the same way a `created` step
   // baselines its list: the send is the count growing while the step shows. Keyed
   // to the step, so a message sent in an earlier session never reads as this send —
@@ -319,24 +320,27 @@ export function useOnboardingFlow(): OnboardingFlowState {
   if (needsBaseline && count !== null && baseline?.key !== stepKey) {
     setBaseline({ key: stepKey, count });
   }
-  // How each signal settles. `created` and `sent` grow their count past the
-  // step's baseline; `arrived` reaches the page it names; `modelSet`, `published`
+  // Agent creation uses its response id, because a colleague's create also
+  // grows the list. Other `created` and `sent` signals use the step's baseline;
+  // `arrived` reaches its page; `modelSet`, `published`
   // and `selected` read the agent this flow built (`flowAgentId`) — its draft
   // gaining a model, its gaining a published version, and its being the agent the
   // chat will address. Each step carries at most one, so they never contend.
   const signalMet =
-    signal?.kind === "arrived"
-      ? here === signal.page
-      : signal?.kind === "modelSet"
-        ? agentDetail.agent?.draft_spec.model_profile_id != null
-        : signal?.kind === "published"
-          ? agentDetail.agent?.status === "published"
-          : signal?.kind === "selected"
-            ? flowAgentId !== null && selectedAgentId === flowAgentId
-            : needsBaseline &&
-              count !== null &&
-              baseline?.key === stepKey &&
-              count > baseline.count;
+    signal?.kind === "created" && signal.resource === "agent"
+      ? flowAgentId !== null && !creatingAgent
+      : signal?.kind === "arrived"
+        ? here === signal.page
+        : signal?.kind === "modelSet"
+          ? agentDetail.agent?.draft_spec.model_profile_id != null
+          : signal?.kind === "published"
+            ? agentDetail.agent?.status === "published"
+            : signal?.kind === "selected"
+              ? flowAgentId !== null && selectedAgentId === flowAgentId
+              : needsBaseline &&
+                count !== null &&
+                baseline?.key === stepKey &&
+                count > baseline.count;
 
   const next = useCallback(() => {
     if (clamped >= steps.length - 1) close();

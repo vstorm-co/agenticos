@@ -91,7 +91,9 @@ export function useAgentCeiling({ enabled = true }: { enabled?: boolean } = {}) 
     refetchOnWindowFocus: true,
     enabled,
   });
-  return { ceiling: data ?? null, known: !enabled || isSuccess || isError };
+  // A failed refresh retains cached data, but an old refusal must not disable
+  // creation indefinitely. The server still enforces the actual ceiling.
+  return { ceiling: isError ? null : (data ?? null), known: !enabled || isSuccess || isError };
 }
 
 export function useAgents({

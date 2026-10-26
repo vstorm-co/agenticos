@@ -276,14 +276,18 @@ describe("useOnboardingFlow", () => {
       const { result, rerender } = renderHook(() => useOnboardingFlow());
       act(() => useOnboardingStore.getState().openFlow("create-agent"));
       rig.pendingCreates = 1;
+      rig.agentTotal = 1;
       rig.ceiling = { limit: 1, held: 1, at_limit: true };
       rerender();
       expect(result.current.isActive).toBe(true);
+      expect(result.current.signalMet).toBe(false);
       if (outcome === "success") {
         act(() => useOnboardingStore.getState().setFlowAgentId("new-agent"));
       }
+      expect(result.current.signalMet).toBe(false);
       rig.pendingCreates = 0;
       rerender();
+      expect(result.current.signalMet).toBe(outcome === "success");
       expect(result.current.isActive).toBe(outcome === "success");
       expect(useOnboardingStore.getState().isOpen).toBe(outcome === "success");
     },
@@ -447,6 +451,8 @@ describe("useOnboardingFlow", () => {
 
     rig.agentTotal = 1;
     rerender();
+    expect(result.current.signalMet).toBe(false);
+    act(() => useOnboardingStore.getState().setFlowAgentId("our-agent"));
     expect(result.current.signalMet).toBe(true);
   });
 
