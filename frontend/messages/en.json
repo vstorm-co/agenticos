@@ -4574,6 +4574,14 @@
       "inbox-filters": {
         "title": "What came to you on its own",
         "body": "Findings from your watches and the nightly suggestions, urgent first. Filter by where they came from, or open Done to bring back one you declined."
+      },
+      "org-governance": {
+        "title": "Budget and approvals",
+        "body": "Set the organization spending limit and manage approval waivers. Controls depend on your permissions."
+      },
+      "org-proactivity": {
+        "title": "Proactivity",
+        "body": "Configure nightly suggestions, connection watches and proactive chat greetings. Choose the model, schedule and per-person budget here."
       }
     },
     "chooseLanguage": "Language",

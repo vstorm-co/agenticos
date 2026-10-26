@@ -59,7 +59,15 @@ const KB_STEPS = ["kb-header", "kb-documents", "kb-ingestion", "kb-sync"];
 // The organization detail walk: the members page (profile, the Voice card, the
 // AI Architect's card, then the list), then across into the roles matrix. None
 // are inTour — orgs is a "?"-only section.
-const ORG_STEPS = ["org-profile", "org-voice", "org-assistant", "org-members", "org-roles"];
+const ORG_STEPS = [
+  "org-profile",
+  "org-governance",
+  "org-proactivity",
+  "org-voice",
+  "org-assistant",
+  "org-members",
+  "org-roles",
+];
 
 describe("pageKey", () => {
   it("collapses every concrete builder route onto the one builder identity", () => {
@@ -311,7 +319,14 @@ describe("stepsForPage", () => {
 
   it("opens the organization tab before looking for its tour target", () => {
     const steps = stepsForPage("/orgs/some-id/members", () => true);
-    for (const section of ["profile", "voice", "assistant", "members"]) {
+    for (const section of [
+      "profile",
+      "governance",
+      "proactivity",
+      "voice",
+      "assistant",
+      "members",
+    ]) {
       expect(steps.find((step) => step.id === `org-${section}`)?.activate).toBe(
         `org-tab-${section}`,
       );
@@ -324,8 +339,19 @@ describe("stepsForPage", () => {
       stepsForPage("/orgs/some-id/members", (permission) => permission !== Perm.orgSettings).map(
         (step) => step.id,
       ),
-    ).toEqual(["org-profile", "org-members", "org-roles"]);
+    ).toEqual(["org-profile", "org-governance", "org-proactivity", "org-members", "org-roles"]);
   });
+
+  it.each([Perm.budgetsManage, Perm.approvalsDecide, Perm.orgSettings])(
+    "gates settings stops by either qualifying grant: %s",
+    (grant) => {
+      const ids = stepsForPage("/orgs/id/members", (permission) => permission === grant).map(
+        (step) => step.id,
+      );
+      expect(ids.includes("org-governance")).toBe(grant !== Perm.orgSettings);
+      expect(ids.includes("org-proactivity")).toBe(grant !== Perm.approvalsDecide);
+    },
+  );
 
   it("walks only the roles matrix from a roles route — the last page of the flow", () => {
     expect(stepsForPage("/orgs/some-id/roles", () => true).map((step) => step.id)).toEqual([

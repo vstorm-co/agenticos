@@ -396,7 +396,18 @@ export default function OrgMembersPage({ params }: PageProps) {
         }
       />
 
-      <Tabs value={tab} onValueChange={(next) => setTabParam(next === "members" ? null : next)}>
+      <Tabs
+        value={tab}
+        onValueChange={(next) => {
+          setTabParam(next === "members" ? null : next);
+          // A legacy card anchor must not point into the panel we just hid.
+          if (window.location.hash) {
+            const url = new URL(window.location.href);
+            url.hash = "";
+            window.history.replaceState({}, "", url.toString());
+          }
+        }}
+      >
         <TabsList data-tour="org-tabs">
           {sections.map((section) => (
             <TabsTrigger key={section.id} value={section.id} data-tour={`org-tab-${section.id}`}>
@@ -625,6 +636,7 @@ export default function OrgMembersPage({ params }: PageProps) {
         </TabsContent>
         <TabsContent
           value="governance"
+          data-tour="org-governance"
           hidden={tab !== "governance"}
           forceMount
           className="space-y-6 data-[state=inactive]:hidden"
@@ -634,6 +646,7 @@ export default function OrgMembersPage({ params }: PageProps) {
         </TabsContent>
         <TabsContent
           value="proactivity"
+          data-tour="org-proactivity"
           hidden={tab !== "proactivity"}
           forceMount
           className="space-y-6 data-[state=inactive]:hidden"

@@ -4456,6 +4456,14 @@
       "inbox-filters": {
         "title": "Was von selbst zu Ihnen kam",
         "body": "Funde Ihrer Beobachtungen und die nächtlichen Vorschläge, Dringendes zuerst. Nach Herkunft filtern oder unter Erledigt einen abgelehnten zurückholen."
+      },
+      "org-governance": {
+        "title": "Budget und Freigaben",
+        "body": "Lege das Ausgabenlimit der Organisation fest und verwalte Freigabeausnahmen. Die verfügbaren Optionen hängen von deinen Berechtigungen ab."
+      },
+      "org-proactivity": {
+        "title": "Proaktivität",
+        "body": "Konfiguriere nächtliche Vorschläge, die Überwachung von Verbindungen und proaktive Chatbegrüßungen. Wähle hier Modell, Zeitplan und Budget pro Person."
       }
     },
     "chooseLanguage": "Sprache",

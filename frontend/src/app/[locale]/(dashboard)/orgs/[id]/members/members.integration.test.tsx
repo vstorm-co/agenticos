@@ -346,7 +346,9 @@ describe("organization settings tabs", () => {
       "true",
     );
     expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
+    window.history.replaceState({}, "", "?tab=voice#org-voice");
     await userEvent.click(screen.getByRole("tab", { name: "Profile" }));
+    expect(window.location.hash).toBe("");
     const name = screen.getByDisplayValue("Acme");
     await userEvent.clear(name);
     await userEvent.type(name, "New workspace");

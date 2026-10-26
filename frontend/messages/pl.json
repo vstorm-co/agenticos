@@ -4344,6 +4344,14 @@
       "inbox-filters": {
         "title": "Co przyszło do ciebie samo",
         "body": "Znaleziska twoich obserwacji i nocne sugestie, pilne najpierw. Filtruj po źródle albo otwórz Załatwione, żeby przywrócić coś, co odrzuciłeś."
+      },
+      "org-governance": {
+        "title": "Budżet i zgody",
+        "body": "Ustaw limit wydatków organizacji i zarządzaj zwolnieniami z akceptacji. Dostępne opcje zależą od Twoich uprawnień."
+      },
+      "org-proactivity": {
+        "title": "Proaktywność",
+        "body": "Skonfiguruj nocne sugestie, obserwowanie połączeń i proaktywne powitania w czacie. Tutaj wybierzesz model, harmonogram i budżet na osobę."
       }
     },
     "chooseLanguage": "Język",

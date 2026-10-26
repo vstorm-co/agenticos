@@ -660,8 +660,8 @@ marca varias para ampliarlo. Las categories y los tags de un agent los mantienes
 de detalle, junto a los controles del avatar, y el cambio surte efecto al
 momento, sin publicar una nueva versión.
 
-Los detalles de la organización se dividen en pestañas: **Miembros**, **Perfil**,
-**Presupuesto y aprobaciones**, **Proactividad**, **Voz** y **AI Architect**. Las
+Los detalles de la organización se dividen en pestañas: **Members**, **Profile**,
+**Budget and approvals**, **Proactivity**, **Voice** y **AI Architect**. Las
 pestañas administrativas dependen de tus permisos; AI Architect aparece cuando se puede
 configurar. La pestaña seleccionada se guarda en la URL (por ejemplo, `?tab=voice`), y
 cambiar de pestaña conserva los valores del formulario sin guardar.
