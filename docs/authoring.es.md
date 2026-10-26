@@ -1,5 +1,5 @@
 ---
-source_sha: "2cf865543fc5"
+source_sha: "755561c5e398"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -331,13 +331,14 @@ Una mejora comprobada termina en `ready` y su candidato se convierte en el paque
 de sugerencias pendiente. La sesión nunca acepta, publica ni promueve cambios.
 Los candidatos previos no sustituyen las sugerencias pendientes de una persona
 mientras se comprueban. Una notificación lleva al creador a la sesión lista o
-detenida.
+detenida. Una página de sesión abierta sigue cada etapa mediante eventos de cambio
+en vivo, y una propuesta o comprobación terminada hace avanzar su sesión al instante.
 
 Las sesiones realizan como máximo tres rondas. Una regresión o un resultado sin cambios inicia otra propuesta solo si su previsión completa cabe en el presupuesto restante. Dos rondas sin cambios, una comparación inconclusa y su repetición, un candidato ya probado o el límite de rondas detienen el ciclo con un motivo registrado. Las respuestas de entrenamiento antes y después informan la siguiente ronda; el contenido de control sigue oculto. Los costes se separan por ronda. La mejor ronda medida prioriza mejoras, menos fallos nuevos y luego mayor éxito decidido.
 
 Tras finalizar, `/{run_id}/rounds/{number}/select` convierte una ronda medida en la propuesta pendiente, comprobando de nuevo la base y el acceso. La atribución opcional usa `.../attribution/estimate` y `.../attribution`. Iniciarla requiere `confirmed: true` y el importe revisado `estimate_usd`; se rechaza una nueva estimación superior. Prueba cada cambio pendiente por separado frente a la misma base y preguntas fijadas. El coste cuenta para el presupuesto de la sesión. La atribución no acepta, publica ni sustituye el veredicto conjunto de la ronda.
 
-Abra **Improve** en la cabecera del agente o en el dashboard para iniciar una sesión en `/agents/<agent>/improve/<session>`. Puede cerrar la página y volver mientras continúa el trabajo. Elija preguntas, revise la estimación completa y confirme un límite de gasto antes de empezar. Si no hay preguntas, estime y confirme primero su preparación; la acción de referencia comprueba las respuestas actuales. Las opciones avanzadas de agentes auxiliares permanecen plegadas.
+Abra **Improve** en la cabecera del agente o en el dashboard para iniciar una sesión en `/agents/<agent>/improve/<session>`. Puede cerrar la página y volver mientras continúa el trabajo. Elija preguntas: la estimación completa, con la duración aproximada de la sesión, aparece sin hacer clic y no gasta nada. Confirme un límite de gasto antes de empezar. Si no hay preguntas, estime y confirme primero su preparación; la acción de referencia comprueba las respuestas actuales. Con menos de tres preguntas, el paso del conjunto de prueba ofrece **Write 5 more** mediante el generador de preguntas, que pide su propia estimación. Las opciones avanzadas de agentes auxiliares permanecen plegadas.
 
 Un paso de propuestas o eval fallido se reintenta explícitamente con `/{run_id}/retry`; varios clics no crean otro trabajo. Los reintentos automáticos nunca repiten llamadas pagadas. Las decisiones humanas actualizan la sesión a aceptada, publicada o descartada. La acción confirmada `/{run_id}/finish` acepta los cambios comprobados y opcionalmente los publica en una transacción. Puede crear una suite que se ejecute al publicar, sin regresiones permitidas. Se mantienen los permisos y validaciones habituales; los entornos protegidos esperan sus comprobaciones. Las propuestas editadas después de la medición deben comprobarse de nuevo.
 

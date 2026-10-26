@@ -309,13 +309,15 @@ stops it. Only one session can run for an agent at a time.
 A checked improvement ends at `ready`, where its candidate becomes the waiting
 suggestion batch. It never accepts, publishes or promotes. Earlier candidate
 batches leave a person's waiting suggestions alone while checks run. A creator
-notification links to the session when it becomes ready or stops.
+notification links to the session when it becomes ready or stops. An open session
+page follows each stage through live change events, and a finished proposal or
+check advances its session at once.
 
 Sessions make at most three rounds. A regression or unchanged result starts another proposal only if its complete forecast fits the remaining budget. Two unchanged rounds, an inconclusive comparison and its repeat, a previously tested candidate or the round limit stop the loop with a recorded reason. Training answers before and after inform the next round; holdout content remains hidden. Round costs are separate, and the best measured round prefers improvement, fewer newly broken questions, then higher settled success.
 
 After completion, `/{run_id}/rounds/{number}/select` makes a measured round the waiting candidate, after checking the current base and access. Optional attribution has its own `.../attribution/estimate` and `.../attribution` actions. Starting requires `confirmed: true` and the reviewed `estimate_usd`; a higher fresh estimate is refused. It tests each pending change alone against the same base and pinned questions. Costs count against the session budget. Attribution does not accept, publish or replace the round's combined verdict.
 
-Open **Improve** in the agent header or on the dashboard to start a session at `/agents/<agent>/improve/<session>`. The page can be closed and reopened while work continues. Choose test questions, review the complete estimate and confirm a spending limit before starting. Without questions, estimate and confirm writing a test set first; the baseline action tests today's answers. Advanced helper choices remain collapsed.
+Open **Improve** in the agent header or on the dashboard to start a session at `/agents/<agent>/improve/<session>`. The page can be closed and reopened while work continues. Choose test questions: the complete estimate, with about how long the session takes, appears without a click and spends nothing. Confirm a spending limit before starting. Without questions, estimate and confirm writing a test set first; the baseline action tests today's answers. With fewer than three questions, the Test set step offers **Write 5 more** through the question generator, which asks for its own estimate. Advanced helper choices remain collapsed.
 
 A failed proposal or eval can be retried explicitly with `/{run_id}/retry`; repeated clicks do not create another child. Automatic job retries never repeat a paid call. Human decisions update the session to accepted, published or rejected. The confirmed `/{run_id}/finish` action accepts the selected checked changes and optionally publishes in the same transaction. It can offer a publish-triggered suite with zero allowed regressions. Normal permissions and publish validation still apply, and guarded environments wait for their checks. Changes edited since measurement must be checked again.
 

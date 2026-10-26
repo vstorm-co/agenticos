@@ -1,5 +1,5 @@
 ---
-source_sha: "2cf865543fc5"
+source_sha: "755561c5e398"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -341,13 +341,14 @@ Eine geprüfte Verbesserung endet bei `ready`: Ihr Kandidat wird zum wartenden
 Vorschlagspaket. Die Sitzung übernimmt, veröffentlicht oder befördert nichts.
 Frühere Kandidaten ersetzen während der Prüfung keine wartenden menschlichen
 Vorschläge. Eine Benachrichtigung führt den Ersteller zur fertigen oder gestoppten
-Sitzung.
+Sitzung. Eine offene Sitzungsseite folgt jedem Schritt über Live-Änderungsereignisse,
+und ein abgeschlossener Vorschlag oder Test bringt seine Sitzung sofort weiter.
 
 Sitzungen führen höchstens drei Runden aus. Eine Regression oder ein unverändertes Ergebnis startet nur dann einen weiteren Vorschlag, wenn dessen vollständige Schätzung ins Restbudget passt. Zwei unveränderte Runden, ein unentschiedener Vergleich samt Wiederholung, ein bereits getesteter Kandidat oder das Rundenlimit stoppen die Schleife mit gespeichertem Grund. Trainingsantworten vor und nach der Änderung informieren die nächste Runde; Kontrolldaten bleiben verborgen. Rundenkosten sind getrennt. Die beste gemessene Runde bevorzugt Verbesserung, weniger neue Fehler, dann höhere entschiedene Erfolgsquote.
 
 Nach Abschluss macht `/{run_id}/rounds/{number}/select` eine gemessene Runde zum wartenden Kandidaten, nach erneuter Prüfung von Basis und Zugriff. Die optionale Zuordnung von Wirkungen zu Änderungen nutzt `.../attribution/estimate` und `.../attribution`. Der Start verlangt `confirmed: true` und die geprüfte Summe `estimate_usd`; eine höhere neue Schätzung wird abgelehnt. Jede wartende Änderung wird einzeln gegen dieselbe Basis und fixierte Fragen getestet. Die Kosten belasten das Sitzungsbudget. Die Zuordnung akzeptiert oder veröffentlicht nichts und ersetzt nicht das gemeinsame Rundenurteil.
 
-Öffnen Sie **Verbessern** im Agentenkopf oder Dashboard, um eine Sitzung unter `/agents/<agent>/improve/<session>` zu starten. Die Seite lässt sich schließen und bei laufender Hintergrundarbeit erneut öffnen. Wählen Sie Testfragen, prüfen Sie die vollständige Kostenschätzung und bestätigen Sie ein Ausgabenlimit. Ohne Fragen schätzen und bestätigen Sie zuerst das Schreiben eines Testsatzes; die Ausgangswert-Aktion prüft die heutigen Antworten. Erweiterte Hilfsagenten bleiben eingeklappt.
+Öffnen Sie **Verbessern** im Agentenkopf oder Dashboard, um eine Sitzung unter `/agents/<agent>/improve/<session>` zu starten. Die Seite lässt sich schließen und bei laufender Hintergrundarbeit erneut öffnen. Wählen Sie Testfragen: Die vollständige Kostenschätzung erscheint samt ungefährer Dauer der Sitzung ohne Klick und gibt nichts aus. Bestätigen Sie vor dem Start ein Ausgabenlimit. Ohne Fragen schätzen und bestätigen Sie zuerst das Schreiben eines Testsatzes; die Ausgangswert-Aktion prüft die heutigen Antworten. Bei weniger als drei Fragen bietet der Schritt Testsatz **5 weitere schreiben** über den Fragengenerator an, der eine eigene Schätzung verlangt. Erweiterte Hilfsagenten bleiben eingeklappt.
 
 Ein fehlgeschlagener Vorschlags- oder Eval-Schritt lässt sich ausdrücklich mit `/{run_id}/retry` wiederholen; mehrfache Klicks erzeugen kein weiteres Kind. Automatische Job-Wiederholungen wiederholen keinen bezahlten Aufruf. Menschliche Entscheidungen setzen den Sitzungsstatus auf angenommen, veröffentlicht oder verworfen. Die bestätigte Aktion `/{run_id}/finish` übernimmt die geprüften Änderungen und veröffentlicht sie optional in derselben Transaktion. Sie kann eine Suite bei Veröffentlichung mit null erlaubten Regressionen anlegen. Übliche Berechtigungen und Veröffentlichungsprüfungen gelten weiterhin; geschützte Umgebungen warten auf ihre Prüfungen. Nach der Messung bearbeitete Vorschläge müssen erneut geprüft werden.
 
