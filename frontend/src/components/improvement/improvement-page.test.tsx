@@ -248,6 +248,17 @@ vi.mock("./session-inputs", () => ({
   Today: () => <p>Baseline fixture</p>,
 }));
 
+it("draws Previous step exactly like Next step, each with its arrow", async () => {
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  await userEvent.click(screen.getByRole("button", { name: "Previous step" }));
+  const previous = screen.getByRole("button", { name: "Previous step" });
+  const next = screen.getByRole("button", { name: "Next step" });
+  expect(previous.className).toBe(next.className);
+  expect(previous).not.toHaveClass("bg-primary");
+  expect(previous.querySelector("svg.lucide-chevron-left")).toHaveAttribute("aria-hidden", "true");
+  expect(next.querySelector("svg.lucide-chevron-right")).toHaveAttribute("aria-hidden", "true");
+});
+
 it("keeps changed inclusion choices across steps and blocks accepting the old measurement", async () => {
   state.hunks = [hunk({ id: "h1" }), hunk({ id: "h2" })];
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
