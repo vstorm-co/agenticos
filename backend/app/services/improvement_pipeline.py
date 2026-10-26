@@ -37,7 +37,13 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.agent import Agent, AgentStatus
-from app.db.models.authoring import AuthoringStatus, BatchStatus, HunkKind, HunkStatus
+from app.db.models.authoring import (
+    AuthoringStatus,
+    BatchStatus,
+    HunkKind,
+    HunkStatus,
+    SpecProposalHunk,
+)
 from app.db.models.eval_run import EvalRun
 from app.db.models.improvement import (
     DroppedHunk,
@@ -870,6 +876,9 @@ class ImprovementPipelineService:
         run = await self._row(ctx, agent_id, run_id, lock=True)
         if run.status == Status.PUBLISHED:
             raise ConcurrentChangeError(message="This session was already published")
+        if run.status == Status.ACCEPTED and data.publish:
+            await self._kept_as_measured(ctx, agent_id, run)
+            return await self._conclude(ctx, agent_id, run, data)
         if run.status != Status.READY:
             raise BadRequestError(message="Select a checked round before accepting it")
         await self.ensure_current(ctx, run.id, allow_finished=True)
@@ -879,25 +888,7 @@ class ImprovementPipelineService:
             raise ConcurrentChangeError(
                 message="Wait for this session's checks to finish, or stop the session"
             )
-        rounds = await improvement_repo.list_iterations(
-            self.db, organization_id=run.organization_id, run_id=run.id
-        )
-        selected = next((item for item in rounds if item.id == run.best_iteration_id), None)
-        if selected is None or selected.batch_id is None:
-            raise BadRequestError(message="No checked round is selected")
-        batch = await authoring_repo.get_open_batch(
-            self.db, organization_id=ctx.organization_id, agent_id=agent_id
-        )
-        if batch is None or batch.id != selected.batch_id:
-            raise ConcurrentChangeError(message="The selected suggestions were replaced")
-        hunks = await authoring_repo.list_hunks(
-            self.db, organization_id=ctx.organization_id, batch_id=batch.id
-        )
-        hunks = [
-            h
-            for h in hunks
-            if selected.included_hunk_ids is None or h.id in selected.included_hunk_ids
-        ]
+        selected, hunks = await self._measured_selection(run)
         agent = await self.authoring._editable(ctx, agent_id)
         projected, skipped = authoring_hunks.projection(
             AgentSpec.model_validate(agent.draft_spec), hunks
@@ -913,6 +904,59 @@ class ImprovementPipelineService:
         for hunk in hunks:
             if hunk.status == HunkStatus.PENDING:
                 await self.authoring.decide(ctx, agent_id, hunk.id, HunkDecision(action="accept"))
+        return await self._conclude(ctx, agent_id, run, data)
+
+    async def _kept_as_measured(
+        self, ctx: AuthContext, agent_id: UUID, run: ImprovementRun
+    ) -> None:
+        """Refuse to publish a kept draft that is no longer the candidate this session measured."""
+        if await improvement_repo.has_active_check(
+            self.db, run.id, organization_id=ctx.organization_id
+        ):
+            raise ConcurrentChangeError(
+                message="Wait for this session's checks to finish, or stop the session"
+            )
+        selected, hunks = await self._measured_selection(run)
+        if any(hunk.status != HunkStatus.ACCEPTED for hunk in hunks):
+            raise ConcurrentChangeError(
+                message="Some of the checked changes are no longer accepted; check them again"
+            )
+        agent = await self.authoring._editable(ctx, agent_id)
+        draft, skills = authoring_hunks.as_measured(
+            AgentSpec.model_validate(agent.draft_spec), hunks
+        )
+        if spec_hash(draft, skills) != selected.candidate_spec_hash:
+            raise ConcurrentChangeError(
+                message="The draft changed after these changes were kept; check it again"
+            )
+
+    async def _measured_selection(
+        self, run: ImprovementRun
+    ) -> tuple[ImprovementIteration, list[SpecProposalHunk]]:
+        """The selected round and its measured suggestions, while its batch is the open one."""
+        rounds = await improvement_repo.list_iterations(
+            self.db, organization_id=run.organization_id, run_id=run.id
+        )
+        selected = next((item for item in rounds if item.id == run.best_iteration_id), None)
+        if selected is None or selected.batch_id is None:
+            raise BadRequestError(message="No checked round is selected")
+        batch = await authoring_repo.get_open_batch(
+            self.db, organization_id=run.organization_id, agent_id=run.agent_id
+        )
+        if batch is None or batch.id != selected.batch_id:
+            raise ConcurrentChangeError(message="The selected suggestions were replaced")
+        hunks = await authoring_repo.list_hunks(
+            self.db, organization_id=run.organization_id, batch_id=batch.id
+        )
+        return selected, [
+            h
+            for h in hunks
+            if selected.included_hunk_ids is None or h.id in selected.included_hunk_ids
+        ]
+
+    async def _conclude(
+        self, ctx: AuthContext, agent_id: UUID, run: ImprovementRun, data: ImprovementFinish
+    ) -> ImprovementFinished:
         if data.automatic_check:
             suites = await EvalSuiteService(self.db).list_for_agent(ctx, agent_id)
             if not suites.items:
@@ -1431,6 +1475,7 @@ class ImprovementPipelineService:
         selected = next((item for item in rounds if item.id == run.best_iteration_id), None)
         if selected is None or selected.batch_id is None:
             return
+        published: dict[str, UUID | int] = {}
         batch = await authoring_repo.get_batch(
             self.db, selected.batch_id, organization_id=run.organization_id
         )
@@ -1456,16 +1501,36 @@ class ImprovementPipelineService:
             pending = any(h.status == HunkStatus.PENDING for h in hunks)
             if batch.status == BatchStatus.PUBLISHED:
                 status = Status.PUBLISHED if accepted else Status.REJECTED
+                if accepted:
+                    published = await self._measured_version(run, selected, hunks)
             elif pending:
                 status = Status.READY
             else:
                 status = Status.ACCEPTED if accepted else Status.REJECTED
         if run.status != status:
             self._allow(run, status)
-            await improvement_repo.update_run(self.db, run=run, values={"status": status.value})
+            await improvement_repo.update_run(
+                self.db, run=run, values={"status": status.value, **published}
+            )
             await self._audit(run, status.value)
             self._announce(run)
             await self._notify_end(run, end=datetime.now(UTC).isoformat())
+
+    async def _measured_version(
+        self,
+        run: ImprovementRun,
+        selected: ImprovementIteration,
+        hunks: list[SpecProposalHunk],
+    ) -> dict[str, UUID | int]:
+        """The agent's newest version, when it is the candidate this session measured."""
+        version = await agent_repo.newest_version(
+            self.db, agent_id=run.agent_id, organization_id=run.organization_id
+        )
+        assert version is not None, "a batch is closed as published by a publish"
+        spec, skills = authoring_hunks.as_measured(AgentSpec.model_validate(version.spec), hunks)
+        if spec_hash(spec, skills) != selected.candidate_spec_hash:
+            return {}
+        return {"published_version_id": version.id, "published_version": version.version}
 
     async def _audit(
         self,

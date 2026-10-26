@@ -332,6 +332,33 @@ def projected_skills(hunks: Sequence[SpecProposalHunk]) -> dict[UUID, SkillBody]
     return bodies
 
 
+def as_measured(
+    spec: AgentSpec, hunks: Sequence[SpecProposalHunk]
+) -> tuple[AgentSpec, dict[UUID, SkillBody]]:
+    """An accepted draft named the way its measured candidate was.
+
+    Accept creates each proposed skill as a resource of its own; its check ran it
+    under the proposal's identity, with the body it was proposed with. Put back,
+    the draft fingerprints like the candidate exactly when it still is one.
+    """
+    skill_ids = list(spec.skill_ids)
+    bodies: dict[UUID, SkillBody] = {}
+    for hunk in hunks:
+        if hunk.kind != HunkKind.CREATE_SKILL or hunk.status != HunkStatus.ACCEPTED:
+            continue
+        value = hunk.accepted_value
+        created = UUID(value["skill_id"]) if isinstance(value, dict) else None
+        if created is None or created not in skill_ids:
+            continue
+        key = skill_projection_id(hunk)
+        skill_ids[skill_ids.index(created)] = key
+        skill = SkillCreate.model_validate(hunk.new_value)
+        bodies[key] = SkillBody(
+            name=skill.name, description=skill.description, content=skill.content
+        )
+    return spec.model_copy(update={"skill_ids": skill_ids}), bodies
+
+
 def undo_created_skill(spec: AgentSpec, hunk: SpecProposalHunk) -> AgentSpec | None:
     """Unbind the skill Accept created; keep the independent resource for its owner."""
     value = hunk.accepted_value

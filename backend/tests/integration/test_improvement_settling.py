@@ -270,3 +270,56 @@ async def test_a_status_write_outside_the_state_table_is_refused_as_a_conflict(d
         )
     assert refused.value.details == {"status": "published", "to": "running"}
     assert run.status == "published"
+
+
+async def test_a_kept_draft_is_published_later_from_the_wizard(db):
+    from app.core.exceptions import ConcurrentChangeError
+    from app.schemas.authoring import HunkDecision
+    from app.services.authoring import AuthoringService
+
+    ctx, agent, ready = await _ready_proposal(db)
+    service = ImprovementPipelineService(db)
+    await service.finish(ctx, agent.id, ready.id, ImprovementFinish(confirmed=True))
+    hunk, *_ = await authoring_repo.list_hunks(
+        db, organization_id=ctx.organization_id, batch_id=ready.iterations[0].batch_id
+    )
+    publish = ImprovementFinish(confirmed=True, publish=True)
+
+    await AuthoringService(db).decide(ctx, agent.id, hunk.id, HunkDecision(action="undo"))
+    with pytest.raises(ConcurrentChangeError, match="no longer accepted"):
+        await service.finish(ctx, agent.id, ready.id, publish)
+    await AuthoringService(db).decide(ctx, agent.id, hunk.id, HunkDecision(action="accept"))
+    instructions = agent.draft_spec["instructions"]
+    agent.draft_spec = {**agent.draft_spec, "instructions": instructions + " Edited later."}
+    await db.flush()
+    with pytest.raises(ConcurrentChangeError, match="draft changed"):
+        await service.finish(ctx, agent.id, ready.id, publish)
+    agent.draft_spec = {**agent.draft_spec, "instructions": instructions}
+    await db.flush()
+
+    finished = await service.finish(ctx, agent.id, ready.id, publish)
+    assert finished.session.status == "published"
+    assert finished.session.published_version == finished.version is not None
+
+
+@pytest.mark.parametrize("edited", [False, True])
+async def test_a_kept_draft_published_elsewhere_names_its_version_when_it_was_measured(db, edited):
+    from app.core.exceptions import ConcurrentChangeError
+    from app.services.agent_registry import AgentRegistryService
+
+    ctx, agent, ready = await _ready_proposal(db)
+    service = ImprovementPipelineService(db)
+    await service.finish(ctx, agent.id, ready.id, ImprovementFinish(confirmed=True))
+    if edited:
+        agent.draft_spec = {**agent.draft_spec, "instructions": "Other."}
+        await db.flush()
+    version = await AgentRegistryService(db).publish(ctx, agent.id)
+    with pytest.raises(ConcurrentChangeError, match="replaced"):
+        await service.finish(
+            ctx, agent.id, ready.id, ImprovementFinish(confirmed=True, publish=True)
+        )
+
+    await service.advance(ready.id, ctx.organization_id)
+    settled = await service.read(ctx, agent.id, ready.id)
+    assert settled.status == "published"
+    assert settled.published_version == (None if edited else version.version)

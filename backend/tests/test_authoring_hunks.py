@@ -410,3 +410,37 @@ def test_undo_created_skill_requires_the_recorded_binding_to_still_exist():
     assert hunks.undo_created_skill(bound, accepted).skill_ids == []
     assert not hunks.applies(_spec(), accepted)
     assert hunks.undo_created_skill(bound, _hunk(kind="create_skill", accepted_value=None)) is None
+
+
+def test_an_accepted_draft_fingerprints_as_its_measured_candidate():
+    from uuid import uuid4
+
+    from app.services.eval_run import spec_hash
+
+    skill = {"name": "refunds", "description": "How refunds work", "content": "Thirty days."}
+    proposed = _hunk(kind="create_skill", new_value=skill)
+    kept = uuid4()
+    measured = hunks.apply(_spec(), proposed)
+    assert measured is not None
+    candidate = spec_hash(measured, hunks.projected_skills([proposed]))
+
+    accepted = _hunk(
+        kind="create_skill",
+        status="accepted",
+        new_value=skill,
+        accepted_value={"skill_id": str(kept)},
+    )
+    draft = _spec().model_copy(update={"skill_ids": [kept]})
+    others = [
+        _hunk(status="accepted"),
+        _hunk(kind="create_skill", new_value=skill),
+        _hunk(kind="create_skill", status="accepted", new_value=skill, accepted_value=None),
+        _hunk(
+            kind="create_skill",
+            status="accepted",
+            new_value=skill,
+            accepted_value={"skill_id": str(uuid4())},
+        ),
+    ]
+    assert spec_hash(*hunks.as_measured(draft, [*others, accepted])) == candidate
+    assert hunks.as_measured(draft, others) == (draft, {})
