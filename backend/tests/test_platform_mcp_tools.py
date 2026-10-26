@@ -420,6 +420,8 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
 async def test_each_tool_is_one_public_api_call(
     server: FastMCP, api: MagicMock, tool: str, arguments: dict[str, Any], call: tuple[Any, ...]
 ) -> None:
+    if tool == "list_projects":
+        api.request.return_value = {"items": [], "total": 0}
     await server.call_tool(tool, arguments)
 
     method, path, kwargs = call
@@ -619,8 +621,12 @@ class TestWhatNeverWaitsForApproval:
         them, so a page that injected both calls could carry one off."""
         tools = {tool.name: tool for tool in platform_tool_catalog()}
 
-        assert {name for name, tool in tools.items() if tool.held} == {"read_conversation"}
+        assert {name for name, tool in tools.items() if tool.held} == {
+            "read_conversation",
+            "get_project",
+        }
         assert not tools["read_conversation"].writes
+        assert not tools["get_project"].writes
         assert not tools["get_run"].held
 
     async def test_a_held_read_is_announced_as_no_read_only_tool(self) -> None:
@@ -631,6 +637,7 @@ class TestWhatNeverWaitsForApproval:
         listed = {tool.name: tool for tool in await server.list_tools()}
 
         assert listed["read_conversation"].annotations.readOnlyHint is False
+        assert listed["get_project"].annotations.read_only_hint is False
         assert listed["get_run"].annotations.readOnlyHint is True
 
     def test_the_agent_layer_names_the_same_set(self) -> None:
@@ -950,3 +957,28 @@ class TestConfiguredDrafts:
                 },
             )
         api.request.assert_not_awaited()
+
+
+@pytest.mark.security
+async def test_project_discovery_never_returns_instructions(server: FastMCP, api: MagicMock):
+    api.request.return_value = {
+        "items": [{"id": str(KB), "name": "Shared wiki", "instructions": "Untrusted payload"}],
+        "total": 12,
+        "skip": 0,
+        "limit": 1,
+    }
+    listing = await server.call_tool("list_projects", {"limit": 1})
+    assert listing.structured_content == {
+        "items": [{"id": str(KB), "name": "Shared wiki"}],
+        "total": 12,
+        "skip": 0,
+        "limit": 1,
+    }
+
+
+async def test_project_discovery_preserves_empty_pages(server: FastMCP, api: MagicMock):
+    api.request.return_value = {"items": [], "total": 0}
+    assert (await server.call_tool("list_projects", {})).structured_content == {
+        "items": [],
+        "total": 0,
+    }

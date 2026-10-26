@@ -1,5 +1,5 @@
 ---
-source_sha: "ee9ef22a0153"
+source_sha: "4c04e831eea3"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -201,10 +201,10 @@ ehrlich ist — wählen Sie `all` für einen Server, den Sie nicht kontrollieren
 Die eigene Vorlage des Architect verlangt `writes` für den Server der Plattform, damit
 er nichts ohne die Person entwirft, für die er handelt. Das Binding jedes Agents an
 diesen Server gilt mindestens als `writes`, auch bei `none`: Seine Tools handeln mit
-der Berechtigung dessen, der fragt, auch eines Admins. Ein Lesezugriff wartet wie
-eine Änderung: `read_conversation`, das dem Modell eine ganze frühere Unterhaltung
-gibt - eine Seite, die der Agent gelesen hat, könnte ihn sonst eine abrufen und
-weiterschicken lassen.
+der Berechtigung dessen, der fragt, auch eines Admins. Zwei Lesezugriffe warten
+wie Änderungen: `read_conversation` gibt eine ganze frühere Unterhaltung frei,
+`get_project` die Anweisungen eines ausgewählten Projekts. Eine gelesene Seite
+darf keine dieser Offenlegungen unbemerkt auslösen.
 
 Im Builder sagen die Einstellungen eines Servers das je
 Gruppe: **Lesen** und **Ändern** laufen jeweils ohne Rückfrage oder fragen erst.
@@ -1074,6 +1074,11 @@ Tool-Fehler zurück, der die fehlende Berechtigung nennt.
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` und `roles:manage` |
 | `list_my_connections`, `set_my_language`, `set_my_profile` | — (die eigenen des Aufrufers) |
+
+Die Suche mit `list_projects` lässt Anweisungen aus. `get_project` liest ein
+ausgewähltes Projekt einschließlich seiner Anweisungen und wartet unter `writes`
+wie `read_conversation` auf Freigabe. Anweisungen eines anderen geteilten Projekts
+sollen nicht allein durch die Suche nach einem Arbeitsbereich ins Modell gelangen.
 
 Ein Agent lässt sich hier von Anfang bis Ende bauen: entwerfen, bearbeiten, mit
 `test_agent_draft` als unveröffentlichter Entwurf ausprobieren - ein Test-Run,

@@ -1,5 +1,5 @@
 ---
-source_sha: "ee9ef22a0153"
+source_sha: "4c04e831eea3"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -196,9 +196,9 @@ Własny szablon Architekta prosi
 o `writes` dla serwera platformy, więc nie tworzy niczego bez osoby, w której
 imieniu działa. Powiązanie każdego agenta z tym serwerem trzyma co najmniej
 `writes`, także przy `none`: jego narzędzia działają z uprawnieniami osoby, która
-pyta, również administratora. Jeden odczyt czeka jak zmiana: `read_conversation`,
-który oddaje modelowi całą wcześniejszą rozmowę - strona przeczytana przez agenta
-mogłaby inaczej kazać mu ją pobrać i wysłać dalej.
+pyta, również administratora. Dwa odczyty czekają jak zmiany: `read_conversation`
+udostępnia całą wcześniejszą rozmowę, a `get_project` instrukcje wybranego projektu.
+Przeczytana strona nie może po cichu wywołać żadnego z tych ujawnień.
 
 W Builderze
 ustawienia serwera mówią to osobno dla grup: **Odczyt** i **Zmiany** działają bez
@@ -1026,6 +1026,11 @@ odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` i `roles:manage` |
 | `list_my_connections`, `set_my_language`, `set_my_profile` | — (własne wywołującego) |
+
+Wyszukiwanie przez `list_projects` pomija instrukcje. Odczyt wybranego projektu
+przez `get_project` zawiera je i przy polityce `writes` czeka na akceptację, tak
+jak `read_conversation`. Instrukcje innego udostępnionego projektu nie powinny
+trafiać do modelu wyłącznie dlatego, że szukał przestrzeni roboczej.
 
 Agenta da się tu zbudować od początku do końca: utworzyć szkic, edytować go,
 wypróbować jako nieopublikowany draft przez `test_agent_draft` - run testowy,

@@ -1,5 +1,5 @@
 ---
-source_sha: "ee9ef22a0153"
+source_sha: "4c04e831eea3"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -200,9 +200,9 @@ La propia plantilla del Architect pide `writes` para el servidor
 de la plataforma, así que no crea nada sin la persona en cuyo nombre actúa. La
 vinculación de cualquier agent a ese servidor queda en al menos `writes`, también
 con `none`: sus herramientas actúan con la autoridad de quien pregunta, la de un
-Admin incluida. Una lectura espera como un cambio: `read_conversation`, que entrega
-al modelo una conversación pasada entera - una página que el agent leyó podría si
-no hacer que la pida y la envíe fuera.
+Admin incluida. Dos lecturas esperan como cambios: `read_conversation` revela una
+conversación pasada completa y `get_project` las instrucciones de un proyecto
+elegido. Una página leída no debe provocar ninguna de esas revelaciones sin aviso.
 
 En el Builder, los ajustes de un servidor lo dicen por
 grupos: sus **lecturas** y las herramientas que **cambian cosas** se ejecutan sin
@@ -1055,6 +1055,11 @@ permiso que faltaba.
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` y `roles:manage` |
 | `list_my_connections`, `set_my_language`, `set_my_profile` | — (los de quien llama) |
+
+La búsqueda con `list_projects` omite instrucciones. `get_project` lee un
+proyecto elegido con sus instrucciones y espera aprobación bajo `writes`, igual
+que `read_conversation`. Las instrucciones de otro proyecto compartido no deben
+llegar al modelo solo por buscar un espacio de trabajo.
 
 Aquí se puede construir un agent de principio a fin: esbozarlo, editarlo, probarlo
 como borrador sin publicar con `test_agent_draft` - un run de prueba, con
