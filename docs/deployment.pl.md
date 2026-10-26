@@ -1,5 +1,5 @@
 ---
-source_sha: "3864fb1037e4"
+source_sha: "98512ec0bcf4"
 ---
 
 # Samo wdrożenie { #the-deployment-itself }
@@ -543,9 +543,9 @@ a nie na trasie, bo trasa nie jest jedyną drogą do środka.
 Konsola nie czeka na tę odmowę. `GET /agents` zwraca tę samą parę jako `ceiling` —
 null, gdy limit nie jest ustawiony, oraz dla wywołującego bez `agents:edit`, bo
 licznik obejmuje agentów, których ten nie widzi — a na limicie strona Agenci
-wyłącza **Nowy agent** i instalowanie szablonów i mówi dlaczego, zanim ktokolwiek
-wypełni formularz. Duplikowanie i przywracanie są nadal odrzucane dopiero przy
-próbie. Gwarancją pozostaje odmowa: licznik jest prognozą, czytaną bez blokady.
+wyłącza **Nowy agent (New agent)** i instalowanie szablonów i mówi dlaczego, zanim
+ktokolwiek wypełni formularz. **Duplikuj (Duplicate)** i **Przywróć (Restore)** są
+nadal odrzucane dopiero przy próbie. Gwarancją pozostaje odmowa: licznik jest prognozą, czytaną bez blokady.
 
 Zero jest odrzucane przez schemat: konto, które nie może posiadać żadnej
 organizacji, to konto, którego nie da się utworzyć, skoro rejestracja daje każdemu

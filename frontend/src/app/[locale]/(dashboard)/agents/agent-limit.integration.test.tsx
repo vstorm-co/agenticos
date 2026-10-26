@@ -98,6 +98,10 @@ describe("New agent at the organization's agent limit", () => {
     render(<AgentsPage />, { wrapper });
 
     expect(await screen.findByText("No agents yet")).toBeInTheDocument();
+    // Once the limit is known, not merely before it is.
+    expect(
+      await screen.findByText(/already holds as many as this deployment allows/),
+    ).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "New agent" })).toHaveLength(1);
     expect(screen.getByRole("button", { name: "New agent" })).toBeDisabled();
   });
@@ -132,9 +136,9 @@ describe("New agent at the organization's agent limit", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "New agent" })).toBeEnabled());
   });
 
-  it("keeps the limit while the list reloads", async () => {
-    // A filter change reloads the list under a new key; the ceiling is its own
-    // query, so the notice and the disabled button do not blink away meanwhile.
+  it("shows the limit while the list is still loading", async () => {
+    // The ceiling is its own query, not a list page's: a list reloading under a
+    // new filter key cannot unset it.
     vi.mocked(apiClient.get).mockImplementation((path: string, options?: unknown) =>
       path === "/agents" && isCeilingRead(options)
         ? Promise.resolve({

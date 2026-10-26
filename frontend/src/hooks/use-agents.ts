@@ -67,7 +67,7 @@ async function everyAgent(params: ReturnType<typeof agentListParams>): Promise<A
 }
 
 /** Fetch only the ceiling: one row is the smallest page the route serves. */
-export async function fetchAgentCeiling(): Promise<AgentCeiling | null> {
+async function fetchAgentCeiling(): Promise<AgentCeiling | null> {
   const page = await apiClient.get<AgentList>("/agents", { params: { limit: "1" } });
   return page.ceiling ?? null;
 }
@@ -172,7 +172,10 @@ export function useAgents({
       await invalidate();
       toast.success(t("created", { name: agent.name }));
     },
-    onError: recount,
+    // Not awaited: the dialog shows the refusal now, not after the recount.
+    onError: () => {
+      void recount();
+    },
   });
 
   /**

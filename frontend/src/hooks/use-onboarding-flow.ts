@@ -3,7 +3,8 @@
 import { useCallback, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 
-import { useAgent, useAgents } from "@/hooks/use-agents";
+import { isAtAgentLimit } from "@/components/agents/agent-limit-notice";
+import { useAgent, useAgentCeiling, useAgents } from "@/hooks/use-agents";
 import { useCanCreateTriggerQuery } from "@/hooks/use-can-create-trigger";
 import { useKnowledgeBases } from "@/hooks/use-knowledge-bases";
 import { useMcpConnections } from "@/hooks/use-mcp-connections";
@@ -73,6 +74,8 @@ const DEFAULT_STATE: OrgState = {
   hasOrgMcp: false,
   hasPublishedAgent: false,
   hasRunnableAgent: false,
+  // No agents, so room for one - the same "nothing yet" as the rest.
+  hasRoomForAgent: true,
 };
 
 /**
@@ -108,6 +111,7 @@ function useOrgSnapshot(): {
   liveState: OrgState | null;
 } {
   const agents = useAgents();
+  const agentCeiling = useAgentCeiling();
   const models = useModelProviders();
   const skills = useSkills();
   const kb = useKnowledgeBases();
@@ -134,7 +138,8 @@ function useOrgSnapshot(): {
     !mcp.isLoading &&
     !personalMcp.isLoading &&
     !anyRunnable.isLoading &&
-    !anyRunnable.isFetching;
+    !anyRunnable.isFetching &&
+    agentCeiling.known;
   return {
     counts: {
       agent: settled(agents.isLoading, agents.isFetching, agents.total),
@@ -170,6 +175,7 @@ function useOrgSnapshot(): {
           hasOrgMcp: mcp.connections.length > 0,
           hasPublishedAgent: agents.agents.some((agent) => agent.status === "published"),
           hasRunnableAgent: anyRunnable.canCreate,
+          hasRoomForAgent: !isAtAgentLimit(agentCeiling.ceiling),
         }
       : null,
   };

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import {
   useAgent,
+  useAgentCeiling,
   useAgentVersion,
   useAgentVersions,
   useAllAgentVersions,
@@ -18,6 +19,7 @@ import {
 import { useAgentEnvironments } from "./use-agent-environments";
 import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
+import { qk } from "@/lib/query-keys";
 import type { AgentSpec } from "@/types/agents";
 
 const SPEC: AgentSpec = {
@@ -614,6 +616,92 @@ describe("useAgents mutations", () => {
     await expect(result.current.remove.mutateAsync("a1")).rejects.toThrow();
 
     expect(toast.error).toHaveBeenCalledWith("in use");
+  });
+});
+
+describe("the agent ceiling", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  function shared() {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const Wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    return { client, wrapper: Wrapper };
+  }
+
+  it("reads the ceiling from one row of the list, and is unknown until it lands", async () => {
+    let answer: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.get).mockReturnValue(
+      new Promise((resolve) => {
+        answer = resolve;
+      }),
+    );
+    const { result } = renderHook(() => useAgentCeiling(), { wrapper });
+    expect(result.current).toEqual({ ceiling: null, known: false });
+
+    answer({ items: [], total: 3, ceiling: { limit: 3, held: 3 } });
+    await waitFor(() => expect(result.current.known).toBe(true));
+    expect(result.current.ceiling).toEqual({ limit: 3, held: 3 });
+    expect(apiClient.get).toHaveBeenCalledWith("/agents", { params: { limit: "1" } });
+  });
+
+  it("counts a failed read as known, leaving the refusal to the server", async () => {
+    vi.mocked(apiClient.get).mockRejectedValue(new Error("down"));
+    const { result } = renderHook(() => useAgentCeiling(), { wrapper });
+    await waitFor(() => expect(result.current.known).toBe(true));
+    expect(result.current.ceiling).toBeNull();
+  });
+
+  it("is kept fresher than the list and refetched on focus", async () => {
+    // Another member's archive or a raised limit reaches this caller through no
+    // event of theirs.
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0, ceiling: null });
+    const { client, wrapper: Wrapper } = shared();
+    renderHook(() => useAgentCeiling(), { wrapper: Wrapper });
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
+    const options = client.getQueryCache().find({ queryKey: qk.agents.ceiling() })?.options;
+    expect(options).toMatchObject({ staleTime: 30_000, refetchOnWindowFocus: true });
+  });
+
+  it.each([
+    ["create", (r: ReturnType<typeof useAgents>) => r.create.mutateAsync({ spec: SPEC })],
+    ["clone", (r: ReturnType<typeof useAgents>) => r.clone.mutateAsync("a1")],
+    ["unarchive", (r: ReturnType<typeof useAgents>) => r.unarchive.mutateAsync("a1")],
+  ])("recounts after a refused %s", async (_name, run) => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(apiClient.post).mockRejectedValue(new Error("at the limit"));
+    const { client, wrapper: Wrapper } = shared();
+    client.setQueryData(qk.agents.ceiling(), { limit: 5, held: 4 });
+    const { result } = renderHook(() => useAgents(), { wrapper: Wrapper });
+
+    await expect(run(result.current)).rejects.toThrow("at the limit");
+
+    expect(client.getQueryState(qk.agents.ceiling())?.isInvalidated).toBe(true);
+  });
+
+  it("hands a refused create to the dialog without waiting for the recount", async () => {
+    vi.mocked(apiClient.post).mockRejectedValue(new Error("handle taken"));
+    let reads = 0;
+    vi.mocked(apiClient.get).mockImplementation(() => {
+      reads += 1;
+      // The first ceiling read answers; the recount after the refusal never does.
+      return reads === 1
+        ? Promise.resolve({ items: [], total: 0, ceiling: { limit: 5, held: 1 } })
+        : new Promise(() => {});
+    });
+    const { wrapper: Wrapper } = shared();
+    const { result } = renderHook(
+      () => ({ agents: useAgents({ enabled: false }), ceiling: useAgentCeiling() }),
+      {
+        wrapper: Wrapper,
+      },
+    );
+    await waitFor(() => expect(result.current.ceiling.known).toBe(true));
+
+    await expect(result.current.agents.create.mutateAsync({ spec: SPEC })).rejects.toThrow(
+      "handle taken",
+    );
   });
 });
 

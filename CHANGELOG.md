@@ -30,9 +30,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Say an organization is at its agent limit before a create is attempted. At
   the limit the Agents page disables **New agent** and template installs with
-  the reason, and the onboarding no longer offers to guide a create, instead of
-  refusing the create after the dialog is filled in. The server-side refusal is
-  unchanged (#2488).
+  the reason, instead of refusing the create after the dialog is filled in, and
+  onboarding no longer offers to guide a create there. The server-side refusal
+  is unchanged (#2488).
 
 ## [1.18.0] - 2026-10-26
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "3864fb1037e4"
+source_sha: "98512ec0bcf4"
 ---
 
 # El despliegue en sí { #the-deployment-itself }
@@ -553,8 +553,8 @@ La consola no espera a ese rechazo. `GET /agents` devuelve el mismo par como
 `ceiling` — null donde no hay límite, y para quien llama sin `agents:edit`, ya que
 el recuento incluye agentes que no ve — y, en el límite, la página Agentes
 desactiva **New agent** y la instalación de plantillas y dice por qué, antes de
-que nadie rellene un formulario. Duplicar y Restaurar se siguen rechazando solo al
-intentarlo. La garantía sigue siendo el rechazo: el recuento es una previsión,
+que nadie rellene un formulario. **Duplicate** y **Restore** se siguen rechazando
+solo al intentarlo. La garantía sigue siendo el rechazo: el recuento es una previsión,
 leída sin el bloqueo.
 
 El schema rechaza el cero: una cuenta que no puede poseer ninguna organización es

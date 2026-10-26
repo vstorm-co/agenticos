@@ -1,5 +1,5 @@
 ---
-source_sha: "3864fb1037e4"
+source_sha: "98512ec0bcf4"
 ---
 
 # Das Deployment selbst { #the-deployment-itself }
@@ -584,9 +584,10 @@ ist nicht der einzige Weg hinein.
 Die Konsole wartet nicht auf diese Ablehnung. `GET /agents` liefert dasselbe Paar
 als `ceiling` — null, wo kein Limit gesetzt ist, und für einen Aufrufer ohne
 `agents:edit`, da die Zählung Agenten umfasst, die er nicht sieht —, und am Limit
-deaktiviert die Seite Agenten **Neuer Agent** und das Installieren von Vorlagen
-und sagt, warum, bevor jemand ein Formular ausfüllt. Duplizieren und
-Wiederherstellen werden weiterhin erst beim Versuch abgelehnt. Die Garantie bleibt
+deaktiviert die Seite Agenten **Neuer Agent (New agent)** und das Installieren von
+Vorlagen und sagt, warum, bevor jemand ein Formular ausfüllt. **Duplizieren
+(Duplicate)** und **Wiederherstellen (Restore)** werden weiterhin erst beim Versuch
+abgelehnt. Die Garantie bleibt
 die Ablehnung: Die Zählung ist eine Vorhersage, gelesen ohne die Sperre.
 
 Null wird vom Schema abgelehnt: ein Konto, das keine Organisation besitzen darf,

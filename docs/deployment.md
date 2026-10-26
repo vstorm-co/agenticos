@@ -514,7 +514,7 @@ The console does not wait for that refusal. `GET /agents` carries the same pair 
 `ceiling` — null where no limit is set, and for a caller without `agents:edit`,
 since the count includes agents they cannot see — and at the limit the Agents
 page disables **New agent** and template installs and says why, before anybody
-fills in a form. Duplicate and Restore are still refused only when tried. The
+fills in a form. **Duplicate** and **Restore** are still refused only when tried. The
 refusal stays the guarantee: the count is a forecast, read without the lock.
 
 Zero is refused by the schema: an account that may own no organizations is an

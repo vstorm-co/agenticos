@@ -203,6 +203,7 @@ export default function AgentsPage() {
               <Button
                 variant="outline"
                 data-tour="agents-templates"
+                disabled={!ceilingKnown}
                 onClick={() => setTemplatesOpen(true)}
               >
                 <Library className="h-4 w-4" />
@@ -257,9 +258,11 @@ export default function AgentsPage() {
                 filtersActive
                   ? t("noAgentHereMatches")
                   : canEdit
-                    ? atLimit
-                      ? tLimit("emptyGallery")
-                      : t("createOneGiveInstructions")
+                    ? !ceilingKnown
+                      ? undefined
+                      : atLimit
+                        ? tLimit("emptyGallery")
+                        : t("createOneGiveInstructions")
                     : t("nobodyHasSharedAgent")
               }
               cta={

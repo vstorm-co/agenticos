@@ -82,6 +82,8 @@ export function CreationOffer() {
   // The agent flow's first target is New agent, which the Agents page disables at
   // the organization's agent limit, and a coach waiting on a disabled control
   // has no way forward. So no offer at the limit, and none until it is known.
+  // Fetched rather than read from the cache like the gates above: nothing else
+  // need have filled it, and an unfilled cache would never answer.
   if (offer === "create-agent" && (!ceilingKnown || isAtAgentLimit(ceiling))) {
     return null;
   }

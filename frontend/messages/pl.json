@@ -6827,7 +6827,7 @@
   "agentLimit": {
     "title": "Ta organizacja osiągnęła limit agentów",
     "body": "To wdrożenie pozwala na {limit, plural, one {# agenta} few {# agentów} many {# agentów} other {# agenta}} w organizacji, a ta ma {held}. Zarchiwizuj agenta, którego już nie używasz, żeby zrobić miejsce na nowego, albo poproś administratora o podniesienie limitu.",
-    "emptyGallery": "Żaden z agentów tej organizacji nie jest Ci udostępniony, a ma ich już tyle, ile pozwala to wdrożenie."
+    "emptyGallery": "Żaden z agentów tej organizacji nie jest Ci udostępniony, a organizacja ma ich już tyle, na ile pozwala to wdrożenie."
   },
   "notifications": {
     "markAllRead": "Oznacz wszystkie jako przeczytane",

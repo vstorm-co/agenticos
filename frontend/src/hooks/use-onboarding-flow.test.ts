@@ -34,6 +34,8 @@ const rig = vi.hoisted(() => ({
   anyRunnable: true,
   anyRunnableLoading: false,
   anyRunnableFetching: false,
+  ceiling: null as { limit: number; held: number } | null,
+  ceilingKnown: true,
   can: (_permission: Permission): boolean => true,
 }));
 
@@ -44,6 +46,7 @@ vi.mock("@/hooks/use-agents", () => ({
     isLoading: rig.agentsLoading,
     isFetching: rig.agentsLoading,
   }),
+  useAgentCeiling: () => ({ ceiling: rig.ceiling, known: rig.ceilingKnown }),
   // Disabled when no id is captured, mirroring `enabled: !!agentId` in the real hook.
   useAgent: (id: string | null) => ({ agent: id ? rig.agentDetail : undefined }),
 }));
@@ -124,6 +127,8 @@ vi.mock("@/lib/onboarding/flows", async () => {
 });
 
 beforeEach(() => {
+  rig.ceiling = null;
+  rig.ceilingKnown = true;
   rig.agentTotal = 0;
   rig.agentsLoading = false;
   rig.agentsList = [];
@@ -202,6 +207,28 @@ describe("useOnboardingFlow", () => {
     rig.agentsLoading = false;
     rerender();
     expect(result.current.isActive).toBe(true);
+  });
+
+  it("waits for the agent limit, then skips the build-an-agent fork at it", () => {
+    // The fork hands off to create-agent, whose first target - New agent - is
+    // disabled at the limit; a coach waiting on it would have no way forward.
+    rig.ceilingKnown = false;
+    rig.ceiling = { limit: 1, held: 1 };
+    const { result, rerender } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("explore-chat"));
+    expect(result.current.isActive).toBe(false);
+
+    rig.ceilingKnown = true;
+    rerender();
+    expect(result.current.isActive).toBe(true);
+    expect(result.current.steps.map((step) => step.id)).not.toContain("flow-chat-needs-agent");
+  });
+
+  it("offers the build-an-agent fork below the limit", () => {
+    rig.ceiling = { limit: 2, held: 1 };
+    const { result } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("explore-chat"));
+    expect(result.current.step?.id).toBe("flow-chat-needs-agent");
   });
 
   it("waits for the runnable-agent answer, then runs the routine flow inert-free", () => {
