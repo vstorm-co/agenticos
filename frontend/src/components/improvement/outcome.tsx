@@ -79,29 +79,16 @@ export function KnowledgeDocuments({
         {accept ? t("acceptKnowledge", { count: shown.length }) : t("cause.missing_knowledge")}
       </h3>
       {error && <StepError error={error} retry={retry} />}
-      {session.timeline.some(
-        (event) =>
-          event.action === "improvement.drafting_finished" && event.reason === "too_few_askers",
-      ) ? (
-        <p className="text-muted-foreground text-sm">
-          {t("draftsTooFewAskers")}{" "}
-          <Link
-            className="underline underline-offset-4"
-            href={`/agents/${session.agent_id}?tab=gaps`}
-          >
-            {t("openKnowledgeGaps")}
-          </Link>
-        </p>
-      ) : (
-        !accept &&
-        shown.length === 0 && (
-          <p className="text-muted-foreground text-sm">{t("noKnowledgeDocuments")}</p>
-        )
+      {!accept && shown.length === 0 && (
+        <p className="text-muted-foreground text-sm">{t("noKnowledgeDocuments")}</p>
       )}
       {shown.map((topic) => (
         <article key={topic.id} className="space-y-2 rounded-xl border p-4 text-sm">
           <p className="font-medium break-words">{topic.label}</p>
           <p className="text-muted-foreground text-xs">{topic.knowledge_base_name}</p>
+          {topic.draft_askers === 1 && (
+            <p className="text-warning text-xs">{t("draftFromOnePerson")}</p>
+          )}
           <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="outline" onClick={() => setOpen(topic.id)}>
               {t(accept ? "reviewAndAdd" : "reviewKnowledgeDraft")}

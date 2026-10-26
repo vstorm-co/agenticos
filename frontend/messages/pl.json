@@ -10844,8 +10844,7 @@
       "excluded": "{count, plural, one {# pytanie pominięto} few {# pytania pominięto} many {# pytań pominięto} other {# pytania pominięto}}, bo powtarzają pytanie użyte do pisania zmian.",
       "needed": "Dodaj {count, plural, one {# pytanie} few {# pytania} many {# pytań} other {# pytania}} niewykorzystane do pisania zmian, by zmierzyć zmianę."
     },
-    "draftsTooFewAskers": "Bez szkicu: o część tych tematów pytały mniej niż dwie różne osoby. Możesz je napisać samodzielnie w Lukach w wiedzy.",
-    "openKnowledgeGaps": "Otwórz Luki w wiedzy",
+    "draftFromOnePerson": "Na podstawie pytania jednej osoby. Sprawdź go przed dodaniem.",
     "decided": {
       "title": "Decyzje w tym kroku",
       "started": "{name} rozpoczął(-ęła) tę sesję · {at}",

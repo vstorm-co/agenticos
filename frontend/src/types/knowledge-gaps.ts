@@ -44,6 +44,8 @@ export interface KnowledgeGapTopic {
   /** The document added for it, while it is covered. */
   covered_by: KnowledgeGapDocument | null;
   has_draft: boolean;
+  /** How many different people asked the questions the model's draft came from; null for a person's draft. */
+  draft_askers?: number | null;
   /** Whether the caller may dismiss, reopen, draft or add its content: they may change its knowledge base. */
   can_edit: boolean;
 }

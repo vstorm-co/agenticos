@@ -10944,8 +10944,7 @@
       "excluded": "{count, plural, one {# Frage bleibt} other {# Fragen bleiben}} außen vor, weil sie eine zum Schreiben verwendete Frage wiederholen.",
       "needed": "Fügen Sie {count, plural, one {# weitere Frage} other {# weitere Fragen}} hinzu, die nicht zum Schreiben der Änderungen verwendet werden, um eine Änderung zu messen."
     },
-    "draftsTooFewAskers": "Kein Entwurf: Zu einigen dieser Themen haben weniger als zwei verschiedene Personen gefragt. Sie können sie unter Wissenslücken selbst schreiben.",
-    "openKnowledgeGaps": "Wissenslücken öffnen",
+    "draftFromOnePerson": "Beruht auf der Frage einer einzigen Person. Prüfen Sie ihn vor dem Hinzufügen.",
     "decided": {
       "title": "Hier entschieden",
       "started": "{name} hat diese Sitzung gestartet · {at}",

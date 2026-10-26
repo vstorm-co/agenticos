@@ -12,6 +12,7 @@ type Topic = {
   knowledge_base_name: string;
   has_draft: boolean;
   can_edit: boolean;
+  draft_askers?: number | null;
 };
 type Environment = {
   id: string;
@@ -215,28 +216,10 @@ it("ends on a Done screen that promises a warning only when a check watches the 
   );
 });
 
-it("explains topics left undrafted because too few people asked, with a way to write them", () => {
-  state.topics = [];
-  const session = {
-    ...SESSION,
-    timeline: [
-      {
-        action: "improvement.drafting_finished",
-        at: SESSION.created_at,
-        stage: "drafting",
-        status: "running",
-        reason: "too_few_askers",
-      },
-    ],
-  };
-  const view = render(<KnowledgeDocuments session={session} />);
-  expect(screen.getByText(/fewer than two different people asked/)).toBeInTheDocument();
-  expect(screen.queryByText("Nothing is missing from the knowledge base.")).toBeNull();
-  expect(screen.getByRole("link", { name: "Open Knowledge gaps" })).toHaveAttribute(
-    "href",
-    "/agents/a1?tab=gaps",
-  );
-  view.rerender(<KnowledgeDocuments session={session} accept />);
-  expect(screen.getByText("In the knowledge base: nothing to add")).toBeInTheDocument();
-  expect(screen.getByText(/fewer than two different people asked/)).toBeInTheDocument();
+it("warns on a draft written from one person's question, beside the changes and on Accept", () => {
+  state.topics = [topic("t1", { draft_askers: 1 }), topic("t2", { draft_askers: 3 })];
+  const view = render(<KnowledgeDocuments session={SESSION} />);
+  expect(screen.getAllByText(/^Based on one person's question/)).toHaveLength(1);
+  view.rerender(<KnowledgeDocuments session={SESSION} accept />);
+  expect(screen.getAllByText(/^Based on one person's question/)).toHaveLength(1);
 });

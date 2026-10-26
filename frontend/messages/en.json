@@ -11061,8 +11061,7 @@
       "excluded": "{count, plural, one {# question is} other {# questions are}} left out because they repeat a question used to write the changes.",
       "needed": "Add {count, plural, one {# more question} other {# more questions}} not used to write the changes to measure a change."
     },
-    "draftsTooFewAskers": "Not drafted: fewer than two different people asked about some of these topics. You can write them yourself from Knowledge gaps.",
-    "openKnowledgeGaps": "Open Knowledge gaps",
+    "draftFromOnePerson": "Based on one person's question. Check it before you add it.",
     "decided": {
       "title": "Decided here",
       "started": "{name} started this session · {at}",
