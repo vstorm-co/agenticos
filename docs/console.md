@@ -604,6 +604,24 @@ one row, with every connection's time and cost summed. The **Voice minutes**
 dashboard card, in the Usage band for a holder of `runs:view`, shows the
 period's call minutes and calls and the top three agents.
 
+## Activity { #activity }
+
+**Activity** lists every run in the organization to a holder of `runs:view`:
+conversations, the organization's agents answering eval cases, and the
+platform's own agents at work. Who may read a run and its transcript does not
+change with the kind of run.
+
+A platform agent's run shows its name in the Agent column and a label beside
+its surface: **Improve** for the assistant, **Grader** for the judge,
+**Knowledge gaps** for the classifier and the drafter, and **Test questions**
+for the case generator. An agent answering an eval case is labelled **Eval**.
+Beside the label is a link to where that work is read: the Improve session, the
+eval run, the knowledge-gap topic or the dataset.
+
+The **Source** filter narrows the list to **Conversations**, **Improve and
+evals** or **System agents**. It starts on every source, so a link from a draft
+or a session to its run lands on a row the list shows.
+
 ## What each area is for
 
 The sidebar groups them. **Build** holds Agents, Routines, Apps and Activity;

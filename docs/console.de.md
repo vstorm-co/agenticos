@@ -1,5 +1,5 @@
 ---
-source_sha: "3fd047fae81b"
+source_sha: "c8d2d6841171"
 ---
 
 # Die Konsole { #the-console }
@@ -684,6 +684,26 @@ Anruf, der sich neu verbunden hat, ist weiterhin eine Zeile, mit Zeit und Kosten
 aller Verbindungen summiert. Die Dashboard-Karte **Sprachminuten (Voice
 minutes)**, im Nutzungsband für jemanden mit `runs:view`, zeigt die
 Anrufminuten und Anrufe des Zeitraums und die drei häufigsten Agents.
+
+## Aktivität { #activity }
+
+**Aktivität** (Activity) zeigt Inhabern von `runs:view` jeden Run der
+Organisation: Unterhaltungen, die Agents der Organisation beim Beantworten von
+Eval-Fällen und die plattformeigenen Agents bei ihrer Arbeit. Wer einen Run und
+sein Protokoll lesen darf, hängt nicht von der Art des Runs ab.
+
+Der Run eines Plattform-Agents zeigt dessen Namen in der Spalte Agent und neben
+seiner Oberfläche eine Beschriftung: **Improve** für den Assistenten,
+**Bewerter** für den Bewerter, **Wissenslücken** für Klassifizierer und
+Entwurfsschreiber und **Testfragen** für den Fallgenerator. Ein Agent, der einen
+Eval-Fall beantwortet, trägt **Eval**. Neben der Beschriftung steht ein Link
+dorthin, wo diese Arbeit gelesen wird: die Improve-Sitzung, der Eval-Run, das
+Wissenslücken-Thema oder das Dataset.
+
+Der Filter **Herkunft** grenzt die Liste auf **Unterhaltungen**, **Improve und
+Evals** oder **System-Agents** ein. Er beginnt bei jeder Herkunft, damit ein
+Link aus einem Entwurf oder einer Sitzung zu ihrem Run auf einer Zeile landet,
+die die Liste zeigt.
 
 ## Wofür jeder Bereich da ist { #what-each-area-is-for }
 

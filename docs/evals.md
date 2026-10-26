@@ -95,8 +95,9 @@ dataset, asking which agent to test.
 
 The dashboard's **Eval runs** card lists the organization's latest runs with
 their agent and verdict. An eval's cases and the judge's grading are kept out
-of every other dashboard figure, and Activity hides them unless its surface
-filter asks for every surface or for evals alone. Activity's list shows what
+of every other dashboard figure. [Activity](console.md#activity) lists them
+with every other run, labelled **Eval** and **Grader**, and its **Source**
+filter narrows to them. Activity's list shows what
 every run was asked - its first user turn, or the eval case's question, and for
 the judge's run what it graded - so a run can be found again to become a case.
 An eval case there opens its eval run on that case, and a case's **See what the

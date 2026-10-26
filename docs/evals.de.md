@@ -1,5 +1,5 @@
 ---
-source_sha: "f425ee5ad348"
+source_sha: "12000fc4a307"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -114,9 +114,10 @@ Agent getestet werden soll.
 
 Die Karte **Eval-Runs** (Eval runs) im Dashboard listet die neuesten Runs der
 Organisation mit ihrem Agent und ihrem Urteil. Die Fälle eines Evals und die
-Bewertung durch den Bewerter bleiben aus jeder anderen Dashboard-Zahl heraus,
-und **Aktivität** (Activity) blendet sie aus, außer ihr Oberflächenfilter
-verlangt jede Oberfläche oder nur Evals.
+Bewertung durch den Bewerter bleiben aus jeder anderen Dashboard-Zahl heraus.
+[Aktivität](console.md#activity) führt sie mit allen anderen Runs auf,
+beschriftet mit **Eval** und **Bewerter**, und ihr Filter **Herkunft** grenzt die
+Liste auf sie ein.
 
 Die Liste in **Aktivität** zeigt, was jedem Run gestellt wurde - seine erste
 Nutzernachricht oder die Frage des Eval-Falls und beim Run des Bewerters das,

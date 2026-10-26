@@ -1,5 +1,5 @@
 ---
-source_sha: "3fd047fae81b"
+source_sha: "c8d2d6841171"
 ---
 
 # La consola { #the-console }
@@ -641,6 +641,24 @@ que se reconectó sigue siendo una fila, con el tiempo y el coste de todas sus
 conexiones sumados. La tarjeta de panel **Voice minutes**, en la banda de Uso
 para quien tenga `runs:view`, muestra los minutos de llamada y las llamadas del
 periodo y los tres agents principales.
+
+## Activity { #activity }
+
+**Activity** muestra a quien tiene `runs:view` cada run de la organización: las
+conversaciones, los agents de la organización respondiendo casos de eval y los
+agents propios de la plataforma trabajando. Quién puede leer un run y su
+transcripción no depende del tipo de run.
+
+El run de un agent de la plataforma muestra su nombre en la columna Agent y una
+etiqueta junto a su superficie: **Improve** para el asistente, **Grader** para el
+juez, **Knowledge gaps** para el clasificador y el redactor, y **Test
+questions** para el generador de casos. Un agent que responde un caso de eval
+lleva **Eval**. Junto a la etiqueta hay un enlace a donde se lee ese trabajo: la
+sesión de Improve, el eval run, el tema de la carencia o el dataset.
+
+El filtro **Source** reduce la lista a **Conversations**, **Improve and evals**
+o **System agents**. Empieza en todas las fuentes, así que un enlace desde un
+borrador o una sesión a su run llega a una fila que la lista muestra.
 
 ## Para qué sirve cada área { #what-each-area-is-for }
 

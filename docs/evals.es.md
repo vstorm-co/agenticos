@@ -1,5 +1,5 @@
 ---
-source_sha: "f425ee5ad348"
+source_sha: "12000fc4a307"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -102,9 +102,11 @@ diálogo de inicio en el dataset y pregunta qué agent probar.
 
 La tarjeta **Eval runs** del dashboard lista los runs más recientes de la
 organización con su agent y su veredicto. Los casos de un eval y la
-calificación del juez quedan fuera de cualquier otra cifra del dashboard, y
-Activity los oculta salvo que su filtro de superficie pida todas las
-superficies o solo los evals. Su lista muestra lo preguntado a cada run - su
+calificación del juez quedan fuera de cualquier otra cifra del dashboard.
+[Activity](console.md#activity) los muestra junto a los demás runs, con las
+etiquetas **Eval** y **Grader**, y su filtro **Source** la reduce a ellos.
+
+La lista de Activity muestra lo preguntado a cada run - su
 primer mensaje de usuario, la pregunta del caso o, para el run del juez, lo que
 calificó -, para reencontrarlo y convertirlo en caso. Allí un caso de eval abre
 su eval run en ese caso, y su **See what the model saw**, lo que recibió el

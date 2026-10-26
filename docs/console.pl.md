@@ -1,5 +1,5 @@
 ---
-source_sha: "3fd047fae81b"
+source_sha: "c8d2d6841171"
 ---
 
 # Konsola { #the-console }
@@ -625,6 +625,24 @@ która się ponownie połączyła, to nadal jeden wiersz, z czasem i kosztem
 wszystkich połączeń zsumowanymi. Karta pulpitu **Minuty rozmów (Voice minutes)**,
 w pasie Użycie dla posiadacza `runs:view`, pokazuje minuty i liczbę rozmów w
 okresie oraz trzech najczęstszych agentów.
+
+## Aktywność { #activity }
+
+**Aktywność** (Activity) wymienia każdy run w organizacji osobie z `runs:view`:
+rozmowy, agentów organizacji odpowiadających na przypadki ewaluacji i agentów
+platformy przy ich własnej pracy. To, kto może przeczytać run i jego zapis, nie
+zależy od rodzaju runa.
+
+Run agenta platformy pokazuje jego nazwę w kolumnie Agent i etykietę obok
+powierzchni: **Improve** dla asystenta, **Oceniający** dla sędziego, **Luki w
+wiedzy** dla klasyfikatora i autora szkiców oraz **Pytania testowe** dla
+generatora przypadków. Agent odpowiadający na przypadek ewaluacji ma etykietę
+**Ewaluacja**. Obok etykiety jest link do miejsca, gdzie tę pracę się czyta:
+sesji Improve, ewaluacji, tematu luki w wiedzy albo datasetu.
+
+Filtr **Pochodzenie** zawęża listę do **Rozmów**, **Improve i ewaluacji** albo
+**Agentów systemowych**. Domyślnie obejmuje każde pochodzenie, więc link ze
+szkicu albo z sesji do jej runa trafia na wiersz, który lista pokazuje.
 
 ## Do czego służy każdy obszar { #what-each-area-is-for }
 

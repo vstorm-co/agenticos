@@ -1,5 +1,5 @@
 ---
-source_sha: "f425ee5ad348"
+source_sha: "12000fc4a307"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -111,9 +111,9 @@ nagłówku otwiera dialog startu na tym datasecie i pyta, którego agenta testow
 
 Karta **Runy ewaluacji** (Eval runs) na dashboardzie wymienia ostatnie runy
 organizacji z ich agentem i werdyktem. Przypadki ewaluacji i ocenianie sędziego
-nie wchodzą do żadnej innej liczby na dashboardzie, a **Aktywność** (Activity)
-je ukrywa, chyba że jej filtr powierzchni prosi o wszystkie powierzchnie albo
-tylko o ewaluacje. Lista Aktywności pokazuje, o co zapytano każdy run - jego
+nie wchodzą do żadnej innej liczby na dashboardzie. [Aktywność](console.md#activity)
+wymienia je razem z innymi runami, z etykietą **Ewaluacja** albo
+**Oceniający**, a jej filtr **Pochodzenie** zawęża listę do nich. Lista Aktywności pokazuje, o co zapytano każdy run - jego
 pierwszą wiadomość użytkownika albo pytanie przypadku ewaluacji, a dla runa
 sędziego to, co ocenił - żeby run dało się znowu znaleźć i zrobić z niego
 przypadek. Przypadek ewaluacji otwiera tam swój run ewaluacji na tym przypadku,
