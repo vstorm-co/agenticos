@@ -7,7 +7,6 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Button } from "@/components/ui";
 import { WizardSteps } from "@/components/ui/wizard-steps";
-import { usd } from "@/components/evals/format";
 import { ChangeSelection } from "./change-selection";
 import { useAgent } from "@/hooks/use-agents";
 import { useAgentAuthoring } from "@/hooks/use-authoring";
@@ -15,6 +14,7 @@ import { useImprovement } from "@/hooks/use-improvements";
 import { usePermissions } from "@/hooks/use-permissions";
 import { getErrorMessage } from "@/lib/api-error";
 import { useOrgStore } from "@/stores/org-store";
+import type { Improvement } from "@/types/improvement";
 import { Perm } from "@/types/permissions";
 import { ContinueSession } from "./continue-session";
 import { StartSession } from "./start-session";
@@ -24,6 +24,7 @@ import { TestQuestions, Today } from "./session-inputs";
 import { Understand } from "./understand";
 import { CheckProgress } from "./check-progress";
 import { StepDecisions } from "./step-decisions";
+import { Details } from "./widgets";
 import { AcceptSummary, DoneScreen, GuardNote, KnowledgeDocuments, ResultSummary } from "./outcome";
 
 import {
@@ -83,7 +84,6 @@ function Session({
 }) {
   const t = useTranslations("improvement");
   const tErrors = useTranslations("errors");
-  const locale = useLocale();
   const actions = useImprovement(agentId, sessionId);
   const authoringQuery = useAgentAuthoring(agentId);
   const { authoring } = authoringQuery;
@@ -143,8 +143,17 @@ function Session({
   const blockedChanges = selectedBatch?.hunks.some(
     (hunk) => hunk.status === "pending" && measuredIds.includes(hunk.id) && hunk.blocked !== null,
   );
+  // The knowledge draft check joins the shown attempt's Show details, so the result has one.
+  const knowledgeHost = chosen ?? session.iterations.at(-1);
+  const knowledgeCheck = (
+    <section className="space-y-2">
+      <h4 className="text-sm font-medium">{t("knowledgeCheckDetails")}</h4>
+      <KnowledgeDrafts session={session} />
+    </section>
+  );
   return (
     <div className="space-y-6">
+      <SessionLine session={session} active={active} />
       <nav data-tour="improvement-steps" aria-label={t("stepsLabel")}>
         <WizardSteps
           responsive
@@ -162,32 +171,6 @@ function Session({
           }}
         />
       </nav>
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4 text-sm">
-        <p role="status" className="flex items-center gap-2 font-medium">
-          {active ? (
-            <Loader2 className="text-chart size-4 animate-spin" aria-hidden />
-          ) : (
-            <CircleDot className="text-muted-foreground size-4" aria-hidden />
-          )}
-          {t(`status.${session.status}`)}
-        </p>
-        <div className="w-full space-y-1.5 sm:w-64">
-          <p className="text-muted-foreground">
-            {t("spend", {
-              spent: usd(session.spent_usd, locale),
-              budget: usd(session.budget_usd, locale),
-            })}
-          </p>
-          <div aria-hidden className="bg-muted h-1.5 overflow-hidden rounded-full">
-            <div
-              className="bg-chart h-full rounded-full"
-              style={{
-                width: `${Math.min(100, (Number(session.spent_usd) / Math.max(Number(session.budget_usd), 1e-9)) * 100)}%`,
-              }}
-            />
-          </div>
-        </div>
-      </div>
       {session.stop_reason && (
         <p role={session.status === "failed" ? "alert" : undefined} className="text-sm">
           {session.stop_reason === "no_data" && missingHeldOut > 0
@@ -251,19 +234,17 @@ function Session({
             <ResultSummary session={session} round={chosen} />
             {session.iterations.map((round) =>
               round.id === session.best_iteration_id || !session.best_iteration_id ? (
-                <RoundResults key={round.id} session={session} round={round} />
+                <RoundResults
+                  key={round.id}
+                  session={session}
+                  round={round}
+                  extra={round.id === knowledgeHost?.id ? knowledgeCheck : undefined}
+                />
               ) : (
                 <RoundHistory key={round.id} session={session} round={round} />
               ),
             )}
-            <details className="rounded-xl border p-4">
-              <summary className="cursor-pointer text-sm font-medium">
-                {t("knowledgeCheckDetails")}
-              </summary>
-              <div className="mt-4">
-                <KnowledgeDrafts session={session} />
-              </div>
-            </details>
+            {!knowledgeHost && <Details summary={t("showDetails")}>{knowledgeCheck}</Details>}
           </section>
         )}
         {step === "accept" && (session.status === "published" || session.status === "accepted") && (
@@ -444,5 +425,46 @@ function Session({
         </p>
       )}
     </div>
+  );
+}
+
+/** The session's state and spend in one line above the steps, on every step alike. */
+function SessionLine({ session, active }: { session: Improvement; active: boolean }) {
+  const t = useTranslations("improvement");
+  const locale = useLocale();
+  const cents = (value: string) =>
+    new Intl.NumberFormat(locale, { style: "currency", currency: "USD" }).format(Number(value));
+  const used = Math.min(
+    100,
+    Math.round((Number(session.spent_usd) / Math.max(Number(session.budget_usd), 1e-9)) * 100),
+  );
+  return (
+    <section
+      aria-label={t("sessionLine")}
+      className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 text-sm"
+    >
+      <span role="status" className="text-foreground inline-flex items-center gap-1.5">
+        {active ? (
+          <Loader2 className="text-chart size-3.5 animate-spin" aria-hidden />
+        ) : (
+          <CircleDot className="size-3.5" aria-hidden />
+        )}
+        {t(`status.${session.status}`)}
+      </span>
+      <span aria-hidden>·</span>
+      <span>
+        {t("spend", { spent: cents(session.spent_usd), budget: cents(session.budget_usd) })}
+      </span>
+      <span
+        role="meter"
+        aria-label={t("budgetUsed")}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={used}
+        className="bg-muted h-1 w-12 overflow-hidden rounded-full"
+      >
+        <span className="bg-chart block h-full rounded-full" style={{ width: `${used}%` }} />
+      </span>
+    </section>
   );
 }

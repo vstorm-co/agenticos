@@ -10966,7 +10966,7 @@
     "permission": "Editing this agent and viewing runs are required to improve it.",
     "retryRead": "Try reading again",
     "stepsLabel": "Improvement steps",
-    "spend": "{spent} spent · {budget} limit",
+    "spend": "{spent} of {budget}",
     "changesWorking": "We are preparing changes. You can close this page and return later.",
     "background": "Testing in the background. You can close this page — we’ll let you know when it is ready.",
     "automatic": "Check these questions automatically on every change",
@@ -11038,7 +11038,7 @@
     "noChangedQuestions": "No changed questions to show. Open the full check for unchanged or ungraded answers.",
     "previousStep": "Previous step",
     "nextStep": "Next step",
-    "measurementDetails": "Show measurement details",
+    "measurementDetails": "Measurement",
     "attributionUnavailable": "This check did not produce a usable result. Open it to see why.",
     "blockedChanges": "Some selected changes cannot be accepted with your current access. Review them in Changes.",
     "knowledgeTitle": "Effect of the knowledge draft",
@@ -11131,7 +11131,7 @@
     "doneWatching": "We'll tell you if it breaks later.",
     "noChangesFound": "We couldn't find a change that fits the current instructions. Here is what we tried:",
     "triedAttempt": "Attempt {number}: {verdict, select, better {the changes made it better} regression {the changes broke questions that worked} no_change {no measurable change} inconclusive {the result could not be measured} unmeasured {changes proposed, not tested yet} other {no change was proposed}}{dropped, plural, =0 {} one {; # change did not fit the current instructions} other {; # changes did not fit the current instructions}}.",
-    "knowledgeCheckDetails": "Show details: test a knowledge draft",
+    "knowledgeCheckDetails": "Test a knowledge draft",
     "handledChange": "{before} → {after} of {total} questions handled well.",
     "newlyFixed": "Newly fixed",
     "newlyBroken": "Newly broken",
@@ -11233,7 +11233,10 @@
       "reasons": "Why, and what it is based on",
       "proposed": "Changes proposed",
       "included": "Included in the test"
-    }
+    },
+    "sessionLine": "Session",
+    "budgetUsed": "Spending limit used",
+    "numbersExplained": "The bars count every answer handled well, confirmed or not. Only a change confirmed by asking again counts as newly fixed ({fixed}) or newly broken ({broken}); {pending, plural, =0 {none is waiting} one {# change is not confirmed yet} other {# changes are not confirmed yet}}."
   },
   "unsaved": {
     "title": "You have unsaved changes",

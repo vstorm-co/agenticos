@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import type { Improvement } from "@/types/improvement";
@@ -331,6 +331,26 @@ it("says where a guarded environment switches only for a publisher", async () =>
   view.rerender(<ImprovementPage agentId="a1" sessionId="s1" />);
   expect(screen.queryByText(/Production switches/)).not.toBeInTheDocument();
 });
+it("says the session's state and spend once, in one line above the steps", () => {
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  const line = screen.getByRole("region", { name: "Session" });
+  expect(line).toHaveTextContent("Ready for your review·$0.03 of $1.00");
+  expect(within(line).getByRole("meter", { name: "Spending limit used" })).toHaveAttribute(
+    "aria-valuenow",
+    "3",
+  );
+  expect(
+    line.compareDocumentPosition(screen.getByRole("navigation", { name: "Improvement steps" })),
+  ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+});
+
+it("keeps the knowledge draft check under Show details before any attempt is measured", () => {
+  state.session = { ...state.session!, iterations: [], best_iteration_id: null };
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.getAllByText("Show details")).toHaveLength(1);
+  expect(screen.getByRole("heading", { name: "Test a knowledge draft" })).toBeInTheDocument();
+});
+
 it("opens the result with one sentence for the agent and one for the knowledge base", async () => {
   state.topics = [{ id: "t1", label: "Shipping", has_draft: true, can_edit: true }];
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
@@ -339,7 +359,8 @@ it("opens the result with one sentence for the agent and one for the knowledge b
       name: "In the agent: 3 questions newly fixed, 0 newly broken. In the knowledge base: 1 document to review.",
     }),
   ).toBeInTheDocument();
-  expect(screen.getByText("Show details: test a knowledge draft")).toBeInTheDocument();
+  expect(screen.getAllByText("Show details")).toHaveLength(1);
+  expect(screen.getByRole("heading", { name: "Test a knowledge draft" })).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Check" }));
   await userEvent.click(screen.getByRole("button", { name: "See the result" }));
   expect(screen.getByRole("group", { name: /3 questions newly fixed/ })).toBeInTheDocument();

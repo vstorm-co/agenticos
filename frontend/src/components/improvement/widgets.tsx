@@ -6,6 +6,7 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   CheckCircle2,
+  ChevronRight,
   Circle,
   CircleDashed,
   Loader2,
@@ -387,8 +388,14 @@ export function Details({
       data-tour={tour}
       onToggle={onToggle && ((event) => onToggle(event.currentTarget.open))}
     >
-      <summary className="hover:bg-muted/50 cursor-pointer rounded-xl px-4 py-3 text-sm font-medium">
-        {summary}
+      {/* The browser's own marker sits on a line of its own above a block summary,
+          so the arrow is drawn here, in the same row as what it opens. */}
+      <summary className="hover:bg-muted/50 flex cursor-pointer list-none items-start gap-2 rounded-xl px-4 py-3 text-sm font-medium [&::-webkit-details-marker]:hidden">
+        <ChevronRight
+          aria-hidden
+          className="text-muted-foreground mt-0.5 size-4 shrink-0 transition-transform group-open:rotate-90"
+        />
+        <span className="min-w-0 flex-1">{summary}</span>
       </summary>
       <div className="space-y-4 px-4 pb-4">{children}</div>
     </details>

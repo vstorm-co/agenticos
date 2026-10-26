@@ -140,6 +140,9 @@ it("keeps details folded until opened, and says when they are", async () => {
     </Details>,
   );
   const details = screen.getByText("Show details").closest("details")!;
+  const summary = details.querySelector("summary")!;
+  expect(summary).toHaveClass("flex", "list-none");
+  expect(summary.firstElementChild).toHaveClass("lucide-chevron-right");
   expect(details).not.toHaveAttribute("open");
   expect(details).toHaveAttribute("data-tour", "details");
   await userEvent.click(screen.getByText("Show details"));

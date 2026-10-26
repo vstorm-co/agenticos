@@ -10849,7 +10849,7 @@
     "permission": "Zum Verbessern benötigen Sie Bearbeitungszugriff auf diesen Agenten und Leserechte für Runs.",
     "retryRead": "Erneut laden",
     "stepsLabel": "Verbesserungsschritte",
-    "spend": "{spent} ausgegeben · Limit {budget}",
+    "spend": "{spent} von {budget}",
     "changesWorking": "Wir bereiten Änderungen vor. Sie können diese Seite schließen und später zurückkehren.",
     "background": "Die Prüfung läuft im Hintergrund. Sie können diese Seite schließen — wir benachrichtigen Sie, sobald das Ergebnis vorliegt.",
     "automatic": "Diese Fragen bei jeder Änderung automatisch prüfen",
@@ -10921,7 +10921,7 @@
     "noChangedQuestions": "Keine veränderten Antworten anzuzeigen. Öffnen Sie die vollständige Prüfung für unveränderte oder unbewertete Antworten.",
     "previousStep": "Vorheriger Schritt",
     "nextStep": "Nächster Schritt",
-    "measurementDetails": "Messdetails anzeigen",
+    "measurementDetails": "Messung",
     "attributionUnavailable": "Diese Prüfung hat kein verwertbares Ergebnis geliefert. Öffnen Sie sie, um den Grund zu sehen.",
     "blockedChanges": "Einige ausgewählte Änderungen können mit Ihren aktuellen Berechtigungen nicht übernommen werden. Prüfen Sie sie unter Änderungen.",
     "knowledgeTitle": "Wirkung des Wissensentwurfs",
@@ -11014,7 +11014,7 @@
     "doneWatching": "Wir sagen Ihnen Bescheid, wenn sich später etwas verschlechtert.",
     "noChangesFound": "Wir haben keine Änderung gefunden, die zu den aktuellen Anweisungen passt. Das haben wir versucht:",
     "triedAttempt": "Versuch {number}: {verdict, select, better {die Änderungen haben es verbessert} regression {die Änderungen haben funktionierende Fragen verschlechtert} no_change {keine messbare Änderung} inconclusive {das Ergebnis ließ sich nicht messen} unmeasured {Änderungen vorgeschlagen, noch nicht getestet} other {keine Änderung vorgeschlagen}}{dropped, plural, =0 {} one {; # Änderung passte nicht zu den aktuellen Anweisungen} other {; # Änderungen passten nicht zu den aktuellen Anweisungen}}.",
-    "knowledgeCheckDetails": "Details anzeigen: einen Wissensentwurf testen",
+    "knowledgeCheckDetails": "Einen Wissensentwurf testen",
     "handledChange": "{before} → {after} von {total} Fragen gut beantwortet.",
     "newlyFixed": "Neu behoben",
     "newlyBroken": "Neu verschlechtert",
@@ -11116,7 +11116,10 @@
       "reasons": "Warum, und worauf es beruht",
       "proposed": "Vorgeschlagene Änderungen",
       "included": "Im Test enthalten"
-    }
+    },
+    "sessionLine": "Sitzung",
+    "budgetUsed": "Genutztes Ausgabenlimit",
+    "numbersExplained": "Die Balken zählen jede gut beantwortete Frage, bestätigt oder nicht. Als neu behoben ({fixed}) oder neu verschlechtert ({broken}) zählt nur eine Änderung, die erneutes Fragen bestätigt hat; {pending, plural, =0 {keine wartet} one {# Änderung ist noch nicht bestätigt} other {# Änderungen sind noch nicht bestätigt}}."
   },
   "unsaved": {
     "title": "Du hast ungespeicherte Änderungen",

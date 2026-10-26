@@ -83,7 +83,7 @@ function ChangedRow({
   return (
     <Details
       summary={
-        <span className="flex flex-col items-start gap-1.5">
+        <span className="flex flex-wrap items-center gap-2">
           <StateBadge tone={flip === "regression" ? "bad" : "good"}>
             {t(flip === "regression" ? "newlyBroken" : "newlyFixed")}
           </StateBadge>

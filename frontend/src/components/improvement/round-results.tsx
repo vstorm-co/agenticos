@@ -1,25 +1,28 @@
 "use client";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import Link from "next/link";
-import { Coins } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
 import { usd } from "@/components/evals/format";
 import { ImprovementMeasurement } from "@/components/evals/improvement-measurement";
 import { ReviewReevaluationNote } from "@/components/evals/review-reevaluation-note";
 import { ChangedAnswers } from "./changed-answers";
-import { BeforeAfter, StateBadge } from "./widgets";
+import { BeforeAfter, Details, StateBadge } from "./widgets";
 import { useEvalComparison, useEvalRun } from "@/hooks/use-eval-runs";
 import { useImprovement } from "@/hooks/use-improvements";
 import { getErrorMessage } from "@/lib/api-error";
+import type { EvalComparison } from "@/types/eval-runs";
 import type { AttributionEstimate, Improvement, ImprovementIteration } from "@/types/improvement";
 
 export function RoundResults({
   session,
   round,
+  extra,
 }: {
   session: Improvement;
   round: ImprovementIteration;
+  /** More sections for the attempt's Show details, kept to one place to open. */
+  extra?: ReactNode;
 }) {
   const t = useTranslations("improvement");
   const tErrors = useTranslations("errors");
@@ -42,6 +45,7 @@ export function RoundResults({
   const countsKnown =
     fixed !== undefined && fixed !== null && broken !== undefined && broken !== null;
   const worse = round.verdict === "regression" && countsKnown && Number(fixed) === 0;
+  const earlier = [...round.eval_run_ids.slice(0, -1), ...(round.previous_eval_run_ids ?? [])];
   return (
     <section className="space-y-4 rounded-xl border p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -76,101 +80,90 @@ export function RoundResults({
       {latestCheck && (
         <MeasuredResult runId={latestCheck} attributions={round.attribution_eval_run_ids} />
       )}
-      <details className="rounded-lg border p-3">
-        <summary className="cursor-pointer text-sm font-medium">{t("showDetails")}</summary>
-        <div className="mt-3 space-y-4">
-          {round.id === session.best_iteration_id && (
-            <p className="text-sm font-medium">{t("selected")}</p>
+      <Details summary={t("showDetails")}>
+        {round.id === session.best_iteration_id && (
+          <p className="text-sm font-medium">{t("selected")}</p>
+        )}
+        {selectable &&
+          round.verdict &&
+          (round.id !== session.best_iteration_id || session.status === "stopped") && (
+            <Button
+              variant="outline"
+              disabled={actions.selectRound.isPending}
+              onClick={() =>
+                void act(async () => {
+                  await actions.selectRound.mutateAsync(round.number);
+                })
+              }
+            >
+              {t("selectRound")}
+            </Button>
           )}
-          {selectable &&
-            round.verdict &&
-            (round.id !== session.best_iteration_id || session.status === "stopped") && (
+        {latestCheck && <MeasurementSection runId={latestCheck} />}
+        {earlier.length > 0 && (
+          <section className="space-y-2">
+            <h4 className="text-sm font-medium">{t("earlierChecks")}</h4>
+            {earlier.map((id, index) => (
+              <Link
+                key={id}
+                className="block text-sm underline underline-offset-4"
+                href={`/agents/${session.agent_id}/evals/${id}`}
+              >
+                {t("earlierCheck", { number: index + 1 })}
+              </Link>
+            ))}
+          </section>
+        )}
+        {selectable &&
+          round.verdict &&
+          Object.keys(round.attribution_eval_run_ids).length === 0 && (
+            <section className="space-y-3">
+              <p className="text-muted-foreground text-sm">{t("attributionBody")}</p>
               <Button
                 variant="outline"
-                disabled={actions.selectRound.isPending}
+                disabled={actions.estimateAttribution.isPending}
                 onClick={() =>
-                  void act(async () => {
-                    await actions.selectRound.mutateAsync(round.number);
-                  })
+                  void act(async () =>
+                    setQuote(await actions.estimateAttribution.mutateAsync(round.number)),
+                  )
                 }
               >
-                {t("selectRound")}
+                {t("estimateAttribution")}
               </Button>
-            )}
-          {[...round.eval_run_ids.slice(0, -1), ...(round.previous_eval_run_ids ?? [])].length >
-            0 && (
-            <details className="rounded-lg border p-3">
-              <summary className="cursor-pointer text-sm font-medium">{t("earlierChecks")}</summary>
-              <div className="mt-3 space-y-2">
-                {[...round.eval_run_ids.slice(0, -1), ...(round.previous_eval_run_ids ?? [])].map(
-                  (id, index) => (
-                    <Link
-                      key={id}
-                      className="block text-sm underline underline-offset-4"
-                      href={`/agents/${session.agent_id}/evals/${id}`}
-                    >
-                      {t("earlierCheck", { number: index + 1 })}
-                    </Link>
-                  ),
-                )}
-              </div>
-            </details>
+              {quote && (
+                <>
+                  <p className="text-sm">
+                    {t("attributionQuote", {
+                      count: quote.changes,
+                      cost: usd(quote.total_usd, locale),
+                    })}
+                  </p>
+                  <Button
+                    disabled={!quote.affordable || actions.attribute.isPending}
+                    onClick={() =>
+                      void act(async () => {
+                        await actions.attribute.mutateAsync({
+                          number: round.number,
+                          estimate: quote.total_usd,
+                        });
+                        setQuote(null);
+                      })
+                    }
+                  >
+                    {t("confirmAttribution")}
+                  </Button>
+                </>
+              )}
+            </section>
           )}
-
-          {selectable &&
-            round.verdict &&
-            Object.keys(round.attribution_eval_run_ids).length === 0 && (
-              <div className="space-y-3 border-t pt-4">
-                <p className="text-muted-foreground text-sm">{t("attributionBody")}</p>
-                <Button
-                  variant="outline"
-                  disabled={actions.estimateAttribution.isPending}
-                  onClick={() =>
-                    void act(async () =>
-                      setQuote(await actions.estimateAttribution.mutateAsync(round.number)),
-                    )
-                  }
-                >
-                  {t("estimateAttribution")}
-                </Button>
-                {quote && (
-                  <>
-                    <p className="text-sm">
-                      {t("attributionQuote", {
-                        count: quote.changes,
-                        cost: usd(quote.total_usd, locale),
-                      })}
-                    </p>
-                    <Button
-                      disabled={!quote.affordable || actions.attribute.isPending}
-                      onClick={() =>
-                        void act(async () => {
-                          await actions.attribute.mutateAsync({
-                            number: round.number,
-                            estimate: quote.total_usd,
-                          });
-                          setQuote(null);
-                        })
-                      }
-                    >
-                      {t("confirmAttribution")}
-                    </Button>
-                  </>
-                )}
-              </div>
-            )}
-          {Object.entries(round.attribution_eval_run_ids).map(([hunkId, runId], index) => (
-            <details key={hunkId} className="rounded-lg border p-3">
-              <summary className="cursor-pointer text-sm font-medium">
-                {t("changeAttribution", { number: index + 1 })}
-              </summary>
-              <div className="mt-3">
-                <AttributionResult runId={runId} agentId={session.agent_id} />
-              </div>
-            </details>
-          ))}
-        </div>
-      </details>
+        {Object.entries(round.attribution_eval_run_ids).map(([hunkId, runId], index) => (
+          <section key={hunkId} className="space-y-2">
+            <h4 className="text-sm font-medium">{t("changeAttribution", { number: index + 1 })}</h4>
+            <AttributionResult runId={runId} agentId={session.agent_id} />
+          </section>
+        ))}
+        {extra}
+      </Details>
       {error && (
         <p role="alert" className="text-destructive text-sm">
           {error}
@@ -191,7 +184,6 @@ function MeasuredResult({
   const { comparison, error: comparisonError } = useEvalComparison(runId, {
     live: run?.status === "queued" || run?.status === "running",
   });
-  const locale = useLocale();
   const t = useTranslations("improvement");
   const tErrors = useTranslations("errors");
   if (error) return <p role="alert">{getErrorMessage(error, tErrors)}</p>;
@@ -219,16 +211,6 @@ function MeasuredResult({
   return (
     <div className="space-y-4">
       {run.review && <ReviewReevaluationNote review={run.review} />}
-      {run.proposal_check?.measurement && (
-        <details className="rounded-lg border p-3">
-          <summary className="cursor-pointer text-sm font-medium">
-            {t("measurementDetails")}
-          </summary>
-          <div className="mt-3">
-            <ImprovementMeasurement measurement={run.proposal_check.measurement} wizard />
-          </div>
-        </details>
-      )}
       {comparisonError && <p role="alert">{getErrorMessage(comparisonError, tErrors)}</p>}
       {!comparison && !comparisonError && <p role="status">{t("loading")}</p>}
       <div className="grid gap-3 md:grid-cols-2">
@@ -259,27 +241,8 @@ function MeasuredResult({
           />
         )}
       </div>
-      {comparison?.baseline_summary && (
-        <p className="text-muted-foreground flex items-center gap-2 text-sm">
-          <Coins className="size-4 shrink-0" aria-hidden />
-          {t("answerCost", {
-            before: usd(
-              String(
-                Number(comparison.baseline_summary.cost_usd) /
-                  Math.max(1, comparison.baseline_summary.cases),
-              ),
-              locale,
-            ),
-            after: usd(
-              String(
-                Number(comparison.candidate_summary.cost_usd) /
-                  Math.max(1, comparison.candidate_summary.cases),
-              ),
-              locale,
-            ),
-          })}
-        </p>
-      )}
+      {comparison && <ChangeCounts comparison={comparison} />}
+      {comparison && <AnswerCost comparison={comparison} changed />}
       {comparison &&
         (comparison.baseline &&
         comparison.cases.some((c) => c.flip === "regression" || c.flip === "fixed") ? (
@@ -302,6 +265,61 @@ function MeasuredResult({
     </div>
   );
 }
+/** The attempt's measurement and, when it did not move, the cost per answer, for Show details. */
+function MeasurementSection({ runId }: { runId: string }) {
+  const t = useTranslations("improvement");
+  const { run } = useEvalRun(runId);
+  const { comparison } = useEvalComparison(runId);
+  const measurement = run?.status === "completed" ? run.proposal_check?.measurement : undefined;
+  if (!measurement && !comparison) return null;
+  return (
+    <section className="space-y-2">
+      <h4 className="text-sm font-medium">{t("measurementDetails")}</h4>
+      {comparison && <AnswerCost comparison={comparison} changed={false} />}
+      {measurement && <ImprovementMeasurement measurement={measurement} wizard />}
+    </section>
+  );
+}
+
+function perAnswer(summary: { cost_usd: string; cases: number }, locale: string) {
+  return usd(String(Number(summary.cost_usd) / Math.max(1, summary.cases)), locale);
+}
+
+/**
+ * The cost per answer before and after. On the result only when it moved;
+ * otherwise in Show details, where `changed` is false.
+ */
+function AnswerCost({ comparison, changed }: { comparison: EvalComparison; changed: boolean }) {
+  const t = useTranslations("improvement");
+  const locale = useLocale();
+  if (!comparison.baseline_summary) return null;
+  const before = perAnswer(comparison.baseline_summary, locale);
+  const after = perAnswer(comparison.candidate_summary, locale);
+  if ((before !== after) !== changed) return null;
+  return <p className="text-muted-foreground text-sm">{t("answerCost", { before, after })}</p>;
+}
+
+/**
+ * Why the bars and the counts above them differ: the bars count every answer handled
+ * well, and only a change asking again confirmed counts as newly fixed or broken.
+ */
+function ChangeCounts({ comparison }: { comparison: EvalComparison }) {
+  const t = useTranslations("improvement");
+  const flips = comparison.cases.filter((c) => c.flip === "fixed" || c.flip === "regression");
+  if (flips.length === 0) return null;
+  const confirmed = (flip: "fixed" | "regression") =>
+    flips.filter((c) => c.confirmed && c.flip === flip).length;
+  return (
+    <p className="text-muted-foreground text-sm">
+      {t("numbersExplained", {
+        fixed: confirmed("fixed"),
+        broken: confirmed("regression"),
+        pending: flips.filter((c) => !c.confirmed).length,
+      })}
+    </p>
+  );
+}
+
 function AttributionResult({ runId, agentId }: { runId: string; agentId: string }) {
   const { run, error } = useEvalRun(runId);
   const { comparison, error: comparisonError } = useEvalComparison(runId, {

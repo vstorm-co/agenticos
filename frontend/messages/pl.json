@@ -10749,7 +10749,7 @@
     "permission": "Poprawianie wymaga uprawnień do edycji tego agenta i przeglądania runów.",
     "retryRead": "Spróbuj odczytać ponownie",
     "stepsLabel": "Kroki poprawiania",
-    "spend": "Wydano {spent} · limit {budget}",
+    "spend": "{spent} z {budget}",
     "changesWorking": "Przygotowujemy zmiany. Możesz zamknąć tę stronę i wrócić później.",
     "background": "Sprawdzanie trwa w tle. Możesz zamknąć tę stronę — powiadomimy Cię o wyniku.",
     "automatic": "Sprawdzaj te pytania automatycznie przy każdej zmianie",
@@ -10821,7 +10821,7 @@
     "noChangedQuestions": "Nie ma zmienionych odpowiedzi do pokazania. Otwórz pełne sprawdzenie, aby zobaczyć pozostałe odpowiedzi.",
     "previousStep": "Poprzedni krok",
     "nextStep": "Następny krok",
-    "measurementDetails": "Pokaż szczegóły pomiaru",
+    "measurementDetails": "Pomiar",
     "attributionUnavailable": "To sprawdzenie nie dało użytecznego wyniku. Otwórz je, aby zobaczyć przyczynę.",
     "blockedChanges": "Niektórych wybranych zmian nie można zaakceptować z Twoimi uprawnieniami. Sprawdź je w kroku Zmiany.",
     "knowledgeTitle": "Wpływ szkicu wiedzy",
@@ -10914,7 +10914,7 @@
     "doneWatching": "Damy znać, jeśli coś się później zepsuje.",
     "noChangesFound": "Nie znaleźliśmy zmiany pasującej do obecnych instrukcji. Oto, co próbowaliśmy:",
     "triedAttempt": "Próba {number}: {verdict, select, better {zmiany poprawiły wynik} regression {zmiany zepsuły pytania, które działały} no_change {brak mierzalnej zmiany} inconclusive {nie udało się zmierzyć wyniku} unmeasured {zaproponowano zmiany, jeszcze nieprzetestowane} other {nie zaproponowano zmiany}}{dropped, plural, =0 {} one {; # zmiana nie pasowała do obecnych instrukcji} few {; # zmiany nie pasowały do obecnych instrukcji} many {; # zmian nie pasowało do obecnych instrukcji} other {; # zmiany nie pasowało do obecnych instrukcji}}.",
-    "knowledgeCheckDetails": "Pokaż szczegóły: przetestuj szkic wiedzy",
+    "knowledgeCheckDetails": "Przetestuj szkic wiedzy",
     "handledChange": "{before} → {after} z {total} pytań obsłużonych poprawnie.",
     "newlyFixed": "Nowo naprawione",
     "newlyBroken": "Nowo zepsute",
@@ -11016,7 +11016,10 @@
       "reasons": "Dlaczego i na czym się opiera",
       "proposed": "Zaproponowane zmiany",
       "included": "Włączone do testu"
-    }
+    },
+    "sessionLine": "Sesja",
+    "budgetUsed": "Wykorzystany limit wydatków",
+    "numbersExplained": "Paski liczą każdą dobrą odpowiedź, potwierdzoną albo nie. Jako nowo naprawiona ({fixed}) lub nowo zepsuta ({broken}) liczy się tylko zmiana potwierdzona ponownym pytaniem; {pending, plural, =0 {żadna nie czeka} one {# zmiana czeka jeszcze na potwierdzenie} few {# zmiany czekają jeszcze na potwierdzenie} many {# zmian czeka jeszcze na potwierdzenie} other {# zmiany czeka jeszcze na potwierdzenie}}."
   },
   "unsaved": {
     "title": "Masz niezapisane zmiany",

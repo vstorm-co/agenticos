@@ -91,6 +91,28 @@ it("shows before/after totals, independent results, cost and earlier measurement
   expect(state.read).toHaveBeenCalledWith("main");
   expect(state.read).not.toHaveBeenCalledWith("first");
 });
+it("says why the bars and the counts differ, and shows a cost that moved on the result", () => {
+  state.compared = comparison({
+    cases: [
+      { ...FLIP, case_id: "a", flip: "fixed", confirmed: true },
+      { ...FLIP, case_id: "b", flip: "fixed", confirmed: false },
+      { ...FLIP, case_id: "c", flip: "regression", confirmed: false },
+    ],
+    baseline_summary: SUMMARY,
+    candidate_summary: { ...SUMMARY, cost_usd: "0.080000" },
+  });
+  const view = render(<RoundResults session={SESSION} round={ROUND} />);
+  expect(
+    screen.getByText(
+      /Only a change confirmed by asking again counts as newly fixed \(1\) or newly broken \(0\); 2 changes are not confirmed yet\./,
+    ),
+  ).toBeInTheDocument();
+  expect(screen.getAllByText(/Cost per answer/)).toHaveLength(1);
+  state.compared = comparison({ cases: [], baseline_summary: null });
+  view.rerender(<RoundResults session={SESSION} round={ROUND} />);
+  expect(screen.queryByText(/Cost per answer/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/Only a change confirmed/)).not.toBeInTheDocument();
+});
 it("does not request older round details until they are opened", async () => {
   render(<RoundHistory session={SESSION} round={ROUND} />);
   expect(state.read).not.toHaveBeenCalled();
@@ -148,7 +170,7 @@ it("shows read failures, loading and a missing comparison without fabricating ch
   view.rerender(<RoundResults session={SESSION} round={ROUND} />);
   expect(screen.getByRole("alert")).toBeInTheDocument();
 });
-it("keeps measurement details collapsed and identifies a human re-evaluation", async () => {
+it("keeps the measurement in the one Show details and identifies a human re-evaluation", async () => {
   state.run = evalRun({
     review: {
       by_user_id: "u1",
@@ -175,7 +197,9 @@ it("keeps measurement details collapsed and identifies a human re-evaluation", a
   state.compared = comparison({ cases: [FLIP] });
   render(<RoundResults session={SESSION} round={ROUND} />);
   expect(screen.getByText(/after review by Ada/)).toBeInTheDocument();
-  await userEvent.click(screen.getByText("Show measurement details"));
+  expect(screen.getAllByText("Show details")).toHaveLength(1);
+  await userEvent.click(screen.getByText("Show details"));
+  expect(screen.getByRole("heading", { name: "Measurement" })).toBeInTheDocument();
   expect(screen.getByText("Changed questions: case-1")).toBeInTheDocument();
 });
 it.each(["queued", "running", "failed", "completed"] as const)(
