@@ -1,5 +1,5 @@
 ---
-source_sha: "b9555c3e0565"
+source_sha: "aaf9f300decf"
 ---
 
 # Secretos y el vault { #secrets-and-the-vault }
@@ -123,8 +123,8 @@ guardadas a la vez.
 El selector de claves identifica las claves visibles que son privadas o están
 compartidas solo con algunas personas y explica que primero deben compartirse
 con la organización. Identifica por separado el inicio de sesión de ChatGPT:
-autentica agentes de programación y no sustituye una clave de API de OpenAI
-para la transcripción. El selector nunca cambia automáticamente el acceso.
+permite acceder a modelos mediante una suscripción de ChatGPT y no sustituye
+una clave de API de OpenAI para las funciones de voz. El selector nunca cambia automáticamente el acceso.
 
 `git_token` lleva su host porque una fuente de sincronización Git envía el token a
 una URL que elige quien edita la fuente. Atado al host con el que se añadió, el

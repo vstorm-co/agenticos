@@ -1,5 +1,5 @@
 ---
-source_sha: "b9555c3e0565"
+source_sha: "aaf9f300decf"
 ---
 
 # Secrets und der Vault { #secrets-and-the-vault }
@@ -128,8 +128,8 @@ sodass mehrere nebeneinander gespeichert sein dürfen.
 Die Schlüsselauswahl nennt sichtbare Schlüssel, die privat oder nur für
 ausgewählte Personen freigegeben sind, und erklärt die nötige Freigabe für
 die Organisation. Eine ChatGPT-Anmeldung wird gesondert gekennzeichnet:
-Sie authentifiziert Coding-Agenten und ersetzt keinen OpenAI-API-Schlüssel
-für die Transkription. Die Auswahl ändert niemals automatisch den Zugriff.
+Sie ermöglicht den Modellzugriff über ein ChatGPT-Abonnement und ersetzt keinen
+OpenAI-API-Schlüssel für Sprachfunktionen. Die Auswahl ändert niemals automatisch den Zugriff.
 
 `git_token` trägt seinen Host, weil eine Git-Sync-Quelle das Token an eine URL
 sendet, die wählt, wer die Quelle bearbeitet. An den Host gebunden, mit dem es

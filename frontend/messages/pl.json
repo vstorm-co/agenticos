@@ -6497,8 +6497,8 @@
       "cannotList": "Nie możesz wyświetlić kluczy z vaulta, więc nie wybierzesz tu klucza. Poproś osobę, która zarządza połączeniami.",
       "suggestedName": "{provider} – zamiana mowy na tekst",
       "noneInVault": "W vaulcie nie ma jeszcze kluczy {provider}. Dodaj klucz w vaulcie, a potem wybierz go tutaj.",
-      "notShared": "{name} jest już w sejfie, ale przed użyciem tutaj wymaga udostępnienia całej organizacji. Zmień dostęp do klucza w Sejfie.",
-      "chatGPTSignIn": "{name} to logowanie ChatGPT dla agentów programistycznych. Transkrypcja wymaga klucza API OpenAI; tego logowania nie można tu użyć."
+      "notShared": "{name} jest już w Vault, ale przed użyciem tutaj wymaga udostępnienia całej organizacji. Zmień dostęp do klucza w Vault.",
+      "chatGPTSignIn": "{name} to logowanie ChatGPT zapewniające dostęp do modeli w ramach subskrypcji ChatGPT. Funkcje głosowe wymagają klucza API OpenAI; tego logowania nie można tu użyć."
     }
   },
   "context": {

@@ -6727,7 +6727,7 @@
       "suggestedName": "{provider} speech to text",
       "noneInVault": "No {provider} keys in the vault yet. Add one in the vault, then choose it here.",
       "notShared": "{name} is already in the vault, but must be shared with the whole organization before it can be used here. Change its access in the Vault.",
-      "chatGPTSignIn": "{name} is a ChatGPT sign-in for coding agents. Speech to text requires an OpenAI API key; this sign-in cannot be used here."
+      "chatGPTSignIn": "{name} is a ChatGPT sign-in for model access through a ChatGPT subscription. Voice features require an OpenAI API key; this sign-in cannot be used here."
     }
   },
   "context": {

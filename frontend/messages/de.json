@@ -6609,8 +6609,8 @@
       "cannotList": "Sie können die Schlüssel im Vault nicht auflisten, daher kann hier kein Schlüssel gewählt werden. Bitten Sie jemanden, der Verbindungen verwaltet.",
       "suggestedName": "{provider} Spracherkennung",
       "noneInVault": "Im Vault gibt es noch keine {provider}-Schlüssel. Fügen Sie einen im Vault hinzu und wählen Sie ihn dann hier.",
-      "notShared": "{name} ist bereits im Tresor, muss aber für die gesamte Organisation freigegeben werden, bevor der Schlüssel hier verwendet werden kann. Ändere den Zugriff im Tresor.",
-      "chatGPTSignIn": "{name} ist eine ChatGPT-Anmeldung für Coding-Agenten. Die Transkription benötigt einen OpenAI-API-Schlüssel; diese Anmeldung kann hier nicht verwendet werden."
+      "notShared": "{name} ist bereits im Vault, muss aber für die gesamte Organisation freigegeben werden, bevor der Schlüssel hier verwendet werden kann. Ändern Sie den Zugriff im Vault.",
+      "chatGPTSignIn": "{name} ist eine ChatGPT-Anmeldung für den Modellzugriff über ein ChatGPT-Abonnement. Sprachfunktionen benötigen einen OpenAI-API-Schlüssel; diese Anmeldung kann hier nicht verwendet werden."
     }
   },
   "context": {

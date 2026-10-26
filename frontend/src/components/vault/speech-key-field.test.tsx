@@ -175,7 +175,11 @@ describe("the speech-to-text key field", () => {
   it("explains why an existing ChatGPT sign-in cannot pay for transcription", () => {
     state.secrets = [secret("My ChatGPT", { kind: "openai_codex", purpose: "openai_codex" })];
     const { onChange } = mount();
-    expect(screen.getByText(/My ChatGPT.*ChatGPT sign-in.*OpenAI API key/)).toBeVisible();
+    expect(
+      screen.getByText(
+        /My ChatGPT.*ChatGPT subscription.*Voice features require an OpenAI API key/,
+      ),
+    ).toBeVisible();
     expect(
       screen.queryByText(/No organization-wide OpenAI keys in the vault yet/),
     ).not.toBeInTheDocument();
