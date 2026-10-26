@@ -1830,7 +1830,7 @@ class ImprovementPipelineService:
             )
         elif run.stage == Stage.EVALUATING:
             await self._evaluate(ctx, inputs, run, iteration)
-        elif run.stage == Stage.JUDGING:
+        elif run.stage == Stage.JUDGING:  # pragma: no branch - the stages above are exhaustive
             await self._judge(ctx, inputs, run, iteration)
 
     async def _candidate(
@@ -1961,7 +1961,7 @@ class ImprovementPipelineService:
             # A return from judging means an explicitly authorized inconclusive repeat.
             if iteration.verdict != ImprovementVerdict.INCONCLUSIVE.value:
                 transition = rules.after_evaluating(child.status)
-                if transition is not None:
+                if transition is not None:  # pragma: no branch - a terminal check always moves
                     await self._move(run, transition)
                 return
         projected, count = await self._candidate(inputs.agent, run, iteration)

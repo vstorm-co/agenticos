@@ -31,15 +31,16 @@ from tests.integration.test_knowledge_gaps import _a_topic
 pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("_environment")]
 
 
-async def _world(db, *, knowledge_search=False):
+async def _world(db, *, knowledge_search=False, context=False):
     ctx, agent, _ = await _setup(db)
     kb, _, topic_id = await _a_topic(db, ctx)
     agent.draft_spec = {**agent.draft_spec, "collection_ids": [str(kb.id)]}
-    if knowledge_search:
-        agent.draft_spec = {
-            **agent.draft_spec,
-            "capabilities": [*agent.draft_spec.get("capabilities", []), {"id": "knowledge"}],
-        }
+    for enabled, capability in ((knowledge_search, "knowledge"), (context, "context")):
+        if enabled:
+            agent.draft_spec = {
+                **agent.draft_spec,
+                "capabilities": [*agent.draft_spec.get("capabilities", []), {"id": capability}],
+            }
     published = await db.get(AgentVersion, agent.current_version_id)
     published.spec = agent.draft_spec
     dataset = await _dataset(db, ctx, cases=8)
