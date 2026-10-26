@@ -91,6 +91,8 @@ from app.schemas.authoring import (
     HunkDecision,
     HunkRead,
     ProposalCheck,
+    ProposedSkill,
+    ProposedSkillCreated,
 )
 from app.schemas.eval_run import (
     EvalRunEstimate,
@@ -953,6 +955,78 @@ class AuthoringService:
         )
         return DecisionRead(
             authoring=await self._read(ctx, agent), draft_spec=dict(agent.draft_spec)
+        )
+
+    async def create_proposed_skill(
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        request_id: UUID,
+        index: int,
+        data: ProposedSkill,
+    ) -> ProposedSkillCreated:
+        """Create a new skill the assistant wrote but did not record, and bind it to the draft.
+
+        A skill the assistant could not back with three distinct answers is never
+        a suggestion, but a person may still decide to have it: this creates it in
+        the organization's library, as accepting a recorded one does, and binds it
+        to the agent's draft. Nothing is published. The idea remembers the skill
+        it became, so a second click answers with the same one.
+
+        Raises:
+            AuthorizationError: The caller may not create skills.
+            NotFoundError: No such request on this agent, or no new skill at that place.
+            BadRequestError: The idea holds no skill text to create from.
+            AlreadyExistsError: A skill already has that name.
+        """
+        if not ctx.has(Perm.SKILLS_EDIT):
+            raise AuthorizationError(message="Creating this skill requires skills:edit")
+        agent = await self._locked(ctx, await self._editable(ctx, agent_id))
+        request = await authoring_repo.get_request(
+            self.db, request_id, organization_id=ctx.organization_id
+        )
+        if request is None or request.agent_id != agent.id:
+            raise NotFoundError(
+                message="Suggestions request not found", details={"request_id": request_id}
+            )
+        report = dict(request.report or {})
+        ideas = list(report.get("rejected") or [])
+        idea = ideas[index] if 0 <= index < len(ideas) else None
+        if idea is None or idea.get("kind") != HunkKind.CREATE_SKILL.value:
+            raise NotFoundError(message="No new skill was proposed there", details={"index": index})
+        if idea.get("skill_id"):
+            skill_id = UUID(idea["skill_id"])
+        else:
+            if not idea.get("change", {}).get("content"):
+                raise BadRequestError(
+                    message="Ask the assistant again to write this skill in full",
+                    details={"index": index},
+                )
+            skill = await self.skills.create(
+                ctx, name=data.name, description=data.description, content=data.content
+            )
+            skill_id = skill.id
+            spec = AgentSpec.model_validate(agent.draft_spec)
+            agent = await self.registry.save_draft(
+                ctx, agent.id, spec.model_copy(update={"skill_ids": [*spec.skill_ids, skill.id]})
+            )
+            ideas[index] = {**idea, "skill_id": str(skill.id)}
+            await authoring_repo.update_request(
+                self.db, request=request, values={"report": {**report, "rejected": ideas}}
+            )
+            await record_audit(
+                self.db,
+                actor_user_id=ctx.subject_id,
+                organization_id=ctx.organization_id,
+                action="authoring.proposed_skill_created",
+                target_type="agent",
+                target_id=str(agent.id),
+                details={"request_id": str(request.id), "skill_id": str(skill.id)},
+            )
+        return ProposedSkillCreated(
+            authoring=await self._read(ctx, agent),
+            draft_spec=dict(agent.draft_spec),
+            skill_id=skill_id,
         )
 
     @staticmethod

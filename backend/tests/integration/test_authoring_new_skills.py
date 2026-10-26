@@ -22,7 +22,7 @@ from app.db.models.agent_run import AgentRun
 from app.db.models.authoring import AuthoringRequest
 from app.db.models.skill import Skill
 from app.repositories import eval_run_repo
-from app.schemas.authoring import HunkDecision, ProposalCheck
+from app.schemas.authoring import HunkDecision, ProposalCheck, ProposedSkill
 from app.schemas.eval_run import EvalRunRequest
 from app.services.agent_registry import AgentRegistryService, UnpublishedCandidate
 from app.services.agent_runner import AgentRunnerService
@@ -244,3 +244,77 @@ async def test_new_skill_edits_and_a_repeated_accept_do_not_create_more_resource
         await service.decide(ctx, agent.id, hunk.id, HunkDecision(action="accept"))
     assert AgentSpec.model_validate(agent.draft_spec).skill_ids == []
     assert await db.scalar(select(func.count()).select_from(Skill)) == 1
+
+
+def _idea(name: str = "return-procedure") -> ProposedSkill:
+    return ProposedSkill(
+        name=name,
+        description="Explain the return window",
+        content="Ask for the order. Explain the 90-day window. Confirm the next step.",
+    )
+
+
+async def test_a_person_creates_an_unrecorded_skill_idea_into_the_draft_only_once(
+    db: AsyncSession,
+) -> None:
+    ctx, agent, request = await _proposed(db, evidence_count=2)
+    [idea] = request.report["rejected"]
+    assert idea["change"]["answers"] == 2 and idea["change"]["content"]
+    service = AuthoringService(db)
+    published = agent.current_version_id
+
+    made = await service.create_proposed_skill(ctx, agent.id, request.id, 0, _idea("returns"))
+    again = await service.create_proposed_skill(ctx, agent.id, request.id, 0, _idea("other"))
+
+    assert again.skill_id == made.skill_id
+    assert AgentSpec.model_validate(made.draft_spec).skill_ids == [made.skill_id]
+    skill = await db.get(Skill, made.skill_id)
+    assert skill is not None and skill.name == "returns"
+    assert await db.scalar(select(func.count()).select_from(Skill)) == 1
+    assert agent.current_version_id == published
+    stored = await db.get(AuthoringRequest, request.id)
+    assert stored.report["rejected"][0]["skill_id"] == str(made.skill_id)
+
+
+async def test_creating_an_idea_is_refused_without_rights_or_outside_its_agent(
+    db: AsyncSession,
+) -> None:
+    ctx, agent, request = await _proposed(db, evidence_count=2)
+    service = AuthoringService(db)
+    limited = replace(
+        ctx, key_scopes=frozenset({Perm.AGENTS_VIEW, Perm.AGENTS_EDIT, Perm.RUNS_VIEW})
+    )
+    with pytest.raises(AuthorizationError):
+        await service.create_proposed_skill(limited, agent.id, request.id, 0, _idea())
+    with pytest.raises(NotFoundError):
+        await service.create_proposed_skill(await _owner(db), agent.id, request.id, 0, _idea())
+    other_ctx, other_agent, _ = await _setup(db)
+    with pytest.raises(NotFoundError):
+        await service.create_proposed_skill(other_ctx, other_agent.id, request.id, 0, _idea())
+    for missing in (1, -1):
+        with pytest.raises(NotFoundError):
+            await service.create_proposed_skill(ctx, agent.id, request.id, missing, _idea())
+    assert await db.scalar(select(func.count()).select_from(Skill)) == 0
+
+
+async def test_an_idea_kept_without_its_text_asks_for_the_assistant_again(
+    db: AsyncSession,
+) -> None:
+    ctx, agent, request = await _proposed(db, evidence_count=2)
+    request.report = {
+        **request.report,
+        "rejected": [
+            {"kind": "instructions", "reason": "unanchored", "change": {}},
+            {"kind": "create_skill", "reason": "insufficient_evidence", "change": {"name": "x"}},
+        ],
+    }
+    await db.flush()
+    service = AuthoringService(db)
+    with pytest.raises(NotFoundError):
+        await service.create_proposed_skill(ctx, agent.id, request.id, 0, _idea())
+    with pytest.raises(BadRequestError, match="Ask the assistant again"):
+        await service.create_proposed_skill(ctx, agent.id, request.id, 1, _idea())
+    request.report = None
+    await db.flush()
+    with pytest.raises(NotFoundError):
+        await service.create_proposed_skill(ctx, agent.id, request.id, 0, _idea())

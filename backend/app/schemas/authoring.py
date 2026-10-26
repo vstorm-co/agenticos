@@ -11,9 +11,10 @@ from enum import StrEnum
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, JsonValue, model_validator
+from pydantic import BaseModel, Field, JsonValue, field_validator, model_validator
 
 from app.schemas.base import BaseSchema
+from app.schemas.skill import skill_name_refusal
 
 MAX_QUOTE_CHARS = 600
 """The longest quote that stays in a proposal's evidence."""
@@ -404,6 +405,31 @@ class DecisionRead(BaseSchema):
 
     authoring: AgentAuthoringRead
     draft_spec: dict[str, object]
+
+
+class ProposedSkill(BaseSchema):
+    """A new skill the assistant wrote but did not record, as a person creates it.
+
+    What the preview shows, edited or not; the name follows the skill library's rule.
+    """
+
+    name: str = Field(min_length=1, max_length=64)
+    description: str = Field(min_length=1, max_length=500)
+    content: str = Field(min_length=1, max_length=20_000)
+
+    @field_validator("name")
+    @classmethod
+    def _loadable_name(cls, name: str) -> str:
+        refusal = skill_name_refusal(name)
+        if refusal is not None:
+            raise ValueError(refusal)
+        return name
+
+
+class ProposedSkillCreated(DecisionRead):
+    """The skill made from an idea, and the draft it is now bound to."""
+
+    skill_id: UUID
 
 
 class HunkDecision(BaseSchema):

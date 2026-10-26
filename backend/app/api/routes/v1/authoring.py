@@ -22,6 +22,8 @@ from app.schemas.authoring import (
     DecisionRead,
     HunkDecision,
     ProposalCheck,
+    ProposedSkill,
+    ProposedSkillCreated,
 )
 from app.schemas.eval_run import EvalRunEstimate, EvalRunRead
 
@@ -81,6 +83,29 @@ async def decide_agent_suggestion(
     one first; 400 when it no longer fits the draft.
     """
     return await service.decide(ctx, agent_id, hunk_id, data)
+
+
+@router.post(
+    "/agents/{agent_id}/authoring/requests/{request_id}/ideas/{index}/skill",
+    response_model=ProposedSkillCreated,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_proposed_skill(
+    agent_id: UUID,
+    request_id: UUID,
+    index: int,
+    data: ProposedSkill,
+    service: AuthoringSvc,
+    ctx: Auth,
+) -> Any:
+    """Create a new skill the assistant proposed but did not record, and add it to the draft.
+
+    `index` is the idea's place in the request report's `rejected` list. The skill
+    goes into the organization's library and is bound to the agent's draft; the
+    agent uses it once the draft is published. A second call answers with the same
+    skill. 403 without `skills:edit`; 409 when the name is taken.
+    """
+    return await service.create_proposed_skill(ctx, agent_id, request_id, index, data)
 
 
 @router.post("/agents/{agent_id}/authoring/dismiss", response_model=AgentAuthoringRead)

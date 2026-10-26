@@ -718,10 +718,17 @@ class AuthoringRun:
                 else (Rejection.INVALID_CONFIG if skill_name_refusal(change.name) else None)
             )
             if refusal is not None:
+                # The skill as written stays, so a person may still create it by hand.
                 self._reject(
                     HunkKind.CREATE_SKILL,
                     refusal,
-                    {"name": change.name, "rationale": change.rationale},
+                    {
+                        "name": change.name,
+                        "description": change.description,
+                        "content": change.content,
+                        "rationale": change.rationale,
+                        "answers": len(cited),
+                    },
                 )
                 continue
             skill = SkillCreate(

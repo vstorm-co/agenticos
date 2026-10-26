@@ -26,6 +26,7 @@ from app.schemas.authoring import (
     AuthoringRequestRead,
     AuthoringWaiting,
     DecisionRead,
+    ProposedSkillCreated,
 )
 from app.schemas.context_proposal import ContextProposalList, ContextProposalRead
 from tests.api.test_eval_run_routes import _ESTIMATE, _RUN
@@ -216,3 +217,24 @@ async def test_a_decision_must_name_an_action(client: OpenClient) -> None:
         )
 
     assert response.status_code == 422
+
+
+async def test_an_unrecorded_skill_idea_is_created_by_its_request_and_index(
+    client: OpenClient, service: MagicMock
+) -> None:
+    skill = uuid.uuid4()
+    service.create_proposed_skill = AsyncMock(
+        return_value=ProposedSkillCreated(authoring=_EMPTY, draft_spec={}, skill_id=skill)
+    )
+    request = uuid.uuid4()
+    url = _url(f"/agents/{uuid.uuid4()}/authoring/requests/{request}/ideas/2/skill")
+    body = {"name": "return-procedure", "description": "Returns", "content": "Ask first."}
+    async with client() as http:
+        created = await http.post(url, json=body)
+        unloadable = await http.post(url, json={**body, "name": "Return Procedure"})
+
+    assert created.status_code == 201
+    assert created.json()["skill_id"] == str(skill)
+    assert service.create_proposed_skill.await_args.args[2:4] == (request, 2)
+    assert service.create_proposed_skill.await_args.args[4].name == "return-procedure"
+    assert unloadable.status_code == 422
