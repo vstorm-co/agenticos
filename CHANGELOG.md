@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.20.0] - 2026-10-26
+
 ### Added
 
 - Organize organization settings into permission-aware tabs, with shareable
