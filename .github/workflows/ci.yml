@@ -73,11 +73,11 @@ permissions:
 # cold cache is a red build for a reason unrelated to the diff. Measured on run
 # 31116003994, a full matrix on `main`: changes 7s, lint 22s, Security Scan 14s,
 # docs 4m34s, test-frontend 5m08s, test 7m43s, e2e 8m01s (and the image build,
-# since moved to `images.yml`, 2m30s). `test` has since grown past that: it runs
-# the suite twice, the gated run and `coverage-all`, and took 18 to 23 minutes on
-# `main` in October 2026 and 27m29s on a pull request, where its 25 ended it with
-# every step green. A milestone branch then ran it in 35 to 37 minutes, and a
-# loaded runner cancelled one at 49 with 45 to spend. It has 60. `test-frontend`
+# since moved to `images.yml`, 2m30s). `test` has since grown past that: running
+# the suite twice, the gated run and `coverage-all`, it took 18 to 23 minutes on
+# `main` in October 2026, 35 to 37 on a milestone branch, and past 60 once that
+# branch's suite took 32 minutes a pass. It runs the suite once now, with
+# `coverage-all` reporting the same data, and has 60. `test-frontend`
 # grew the same way: with a
 # thousand more tests its `next build` finished past 20 minutes on a pull request
 # in October 2026, every test file green. It has 30.
@@ -325,9 +325,10 @@ jobs:
         run: make docker-minio
 
       - name: Run tests with the coverage gate
-        # --cov with no argument uses the include list in pyproject.toml: the
-        # platform layer, held at 100%. Template-inherited subsystems are
-        # reported by the next step but do not gate the build.
+        # The suite measures all of `app` once; the gate is the report over the
+        # platform layer of it - the include list in pyproject.toml - held at
+        # 100%. Template-inherited subsystems are reported from the same data by
+        # the step after next, and do not gate the build.
         #
         # `COV_REPORT=xml` is the only difference from what `make test` does on a
         # laptop, and it is for Codecov below rather than for the gate.
@@ -345,9 +346,9 @@ jobs:
       - name: Report coverage of template-inherited code
         # Informational. Holding code we did not design to the platform bar
         # would mean mock-heavy tests that buy a number rather than confidence.
-        # Keep failures informative without starting a second suite on cancellation.
+        # A report over the data the gate step measured, not a second suite.
         if: ${{ !cancelled() }}
-        run: make coverage-all
+        run: make coverage-all REUSE_COVERAGE=1
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
