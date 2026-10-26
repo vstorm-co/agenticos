@@ -26,6 +26,31 @@ from app.services.notifications import _improvement_summary
         ),
         ("stopped", None, "Your improvement of Refund desk stopped."),
         ("failed", "something_new", "Your improvement of Refund desk could not finish."),
+        (
+            "ready",
+            "knowledge_check",
+            "The knowledge document check in your improvement of Refund desk finished.",
+        ),
+        (
+            "stopped",
+            "attribution_check",
+            "Testing each change in your improvement of Refund desk finished.",
+        ),
+        (
+            "published",
+            None,
+            "The changes from your improvement of Refund desk were published.",
+        ),
+        (
+            "cancelled",
+            None,
+            "Your improvement of Refund desk was stopped by an administrator.",
+        ),
+        (
+            "stale",
+            "stale",
+            "Your improvement of Refund desk stopped: the agent or its test questions changed.",
+        ),
     ],
 )
 def test_a_finished_improvement_reads_as_a_sentence(status, reason, summary):

@@ -1818,8 +1818,24 @@ _STOP_SENTENCE = {
 }
 
 
+_CHECK_SUMMARY = {
+    "knowledge_check": "The knowledge document check in your improvement of {agent} finished.",
+    "attribution_check": "Testing each change in your improvement of {agent} finished.",
+}
+_DECIDED_SUMMARY = {
+    "accepted": "The changes from your improvement of {agent} were kept as a draft.",
+    "published": "The changes from your improvement of {agent} were published.",
+    "rejected": "The changes from your improvement of {agent} were discarded.",
+    "cancelled": "Your improvement of {agent} was stopped by an administrator.",
+}
+
+
 def _improvement_summary(agent_name: str, status: str, reason: str | None) -> str:
     """The bell's English line for a finished session; it names no internal status."""
+    if reason in _CHECK_SUMMARY:
+        return _CHECK_SUMMARY[reason].format(agent=agent_name)
+    if status in _DECIDED_SUMMARY:
+        return _DECIDED_SUMMARY[status].format(agent=agent_name)
     if status == "ready":
         return f"Your improvement of {agent_name} is ready to review."
     because = _STOP_SENTENCE.get(reason or "")
