@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.18.0] - 2026-10-26
+
 ### Fixed
 
 - Read chat project metadata without downloading the transcript, and load model
