@@ -185,9 +185,6 @@ environment without a person's decision.
 
 ### Fixed
 
-- Show proactive runs with their own icon and filter in Activity and Dashboard.
-  Record their model requests, tool results and final answer for inspection,
-  and explain the fixed AgenticOS attribution beside organization settings.
 - Price embedding models OpenRouter serves by their bare OpenAI names, so
   knowledge searches through OpenRouter are no longer booked at $0.
 - Recommend a workspace the organization can publish when creating an agent,
@@ -210,6 +207,14 @@ environment without a person's decision.
   and rechecks its current scopes and membership before each paid step.
 - A suite and a promotion override can be set up only by a person signed in as
   themselves, not through an API key or impersonation.
+
+## [1.18.1] - 2026-10-26
+
+### Fixed
+
+- Show proactive runs with their own icon and filter in Activity and Dashboard.
+  Record their model requests, tool results and final answer for inspection,
+  and explain the fixed AgenticOS attribution beside organization settings.
 
 ## [1.18.0] - 2026-10-26
 
@@ -372,14 +377,6 @@ environment without a person's decision.
 ## [1.16.0] - 2026-10-23
 
 ### Added
-
-- Improvement sessions offer a priced, confirmed next round or budget resumption, keep retries in the same round, and let their creator discard pending proposals without undoing applied work.
-
-- Improvement steps show their actual work state and can be inspected directly, with keyboard access and a compact phone layout.
-
-- Improvement sessions classify source answers and draft missing knowledge within their confirmed budget, preserving source isolation, API-key scopes and embedding spend. Knowledge-only sessions can check drafts without publishing an empty agent version.
-
-- Recheck a selected subset of improvement suggestions with a confirmed estimate; retain earlier measurements and accept only the tested selection. Show distinct mixed and worse results, and attribute only confirmed differences.
 
 - **An agent can override its speech and video settings per clip.** The voice,
   resolution, shape, length and sound an author sets are now defaults the
