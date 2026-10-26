@@ -228,11 +228,13 @@ function Session({
                 <ul className="list-disc space-y-1 pl-5">
                   {session.iterations.map((round) => (
                     <li key={round.id}>
-                      {t("triedAttempt", {
-                        number: round.number,
-                        verdict: round.verdict ?? (round.batch_id ? "unmeasured" : "none"),
-                        dropped: round.dropped.length,
-                      })}
+                      {round.number > session.max_iterations
+                        ? t("heldBack")
+                        : t("triedAttempt", {
+                            number: round.number,
+                            verdict: round.verdict ?? (round.batch_id ? "unmeasured" : "none"),
+                            dropped: round.dropped.length,
+                          })}
                     </li>
                   ))}
                 </ul>

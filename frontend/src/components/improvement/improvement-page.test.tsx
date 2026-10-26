@@ -527,10 +527,12 @@ it("announces why a step failed, and lists attempts that were never tested", asy
   state.session!.iterations = [
     { ...first, verdict: null },
     { ...first, id: "r2", number: 2, verdict: null, batch_id: null },
+    { ...first, id: "r4", number: state.session!.max_iterations + 1, verdict: null },
   ];
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
   expect(screen.getByRole("alert")).toHaveTextContent("The test step failed.");
   await userEvent.click(screen.getByRole("button", { name: "Changes" }));
   expect(screen.getByText("Attempt 1: changes proposed, not tested yet.")).toBeInTheDocument();
   expect(screen.getByText("Attempt 2: no change was proposed.")).toBeInTheDocument();
+  expect(screen.getByText("Changes held back for another attempt, not tested")).toBeInTheDocument();
 });

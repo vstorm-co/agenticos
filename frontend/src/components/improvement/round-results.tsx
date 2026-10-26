@@ -46,7 +46,7 @@ export function RoundResults({
     <section className="space-y-4 rounded-xl border p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="font-medium">
-          {t("round", { number: round.number, max: session.max_iterations })}
+          <RoundTitle session={session} round={round} />
         </h3>
         <span className="text-muted-foreground text-sm">{usd(round.cost_usd, locale)}</span>
       </div>
@@ -347,7 +347,6 @@ export function RoundHistory({
   session: Improvement;
   round: ImprovementIteration;
 }) {
-  const t = useTranslations("improvement");
   const [open, setOpen] = useState(false);
   return (
     <details
@@ -355,7 +354,7 @@ export function RoundHistory({
       onToggle={(event) => setOpen(event.currentTarget.open)}
     >
       <summary className="cursor-pointer text-sm font-medium">
-        {t("round", { number: round.number, max: session.max_iterations })}
+        <RoundTitle session={session} round={round} />
       </summary>
       {open && (
         <div className="mt-4">
@@ -364,4 +363,21 @@ export function RoundHistory({
       )}
     </details>
   );
+}
+
+/**
+ * A round's name. One past the attempt limit was set aside by an earlier round
+ * for an attempt that never came, so it is named for that rather than counted.
+ */
+export function RoundTitle({
+  session,
+  round,
+}: {
+  session: Improvement;
+  round: ImprovementIteration;
+}) {
+  const t = useTranslations("improvement");
+  return round.number > session.max_iterations
+    ? t("heldBack")
+    : t("round", { number: round.number, max: session.max_iterations });
 }

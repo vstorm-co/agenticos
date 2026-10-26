@@ -523,7 +523,8 @@ async def test_candidate_policy_drops_weakening_and_requires_approval_for_new_mc
     ].action == "improvement.policy_dropped"
 
 
-async def test_model_changes_get_a_candidate_of_their_own(db):
+async def _model_and_content_candidate(db):
+    """A first round proposing another model and a new description together."""
     from uuid import uuid4
 
     from app.db.models.authoring import HunkKind
@@ -573,6 +574,13 @@ async def test_model_changes_get_a_candidate_of_their_own(db):
     )
     iteration.batch_id = batch.id
     await db.flush()
+    return ctx, agent, row, iteration, model_id
+
+
+async def test_model_changes_get_a_candidate_of_their_own(db):
+    ctx, agent, row, iteration, model_id = await _model_and_content_candidate(db)
+    row.max_iterations = iteration.number + 1
+    await db.flush()
     projected, count = await ImprovementPipelineService(db)._candidate(
         agent, row, iteration, filter_policy=True
     )
@@ -580,7 +588,7 @@ async def test_model_changes_get_a_candidate_of_their_own(db):
     assert projected.model_profile_id == model_id
     assert projected.description is None
     [first, deferred] = await improvement_repo.list_iterations(
-        db, organization_id=ctx.organization_id, run_id=read.id
+        db, organization_id=ctx.organization_id, run_id=row.id
     )
     assert first.batch_id != deferred.batch_id and deferred.batch_id is not None
     [content] = await authoring_repo.list_hunks(
@@ -593,6 +601,25 @@ async def test_model_changes_get_a_candidate_of_their_own(db):
         )
         is None
     )
+
+
+async def test_the_last_attempt_measures_a_model_change_with_the_rest(db):
+    """No attempt is left to measure the rest apart, so nothing is set aside for one."""
+    ctx, agent, row, iteration, model_id = await _model_and_content_candidate(db)
+    row.max_iterations = iteration.number
+    await db.flush()
+    projected, count = await ImprovementPipelineService(db)._candidate(
+        agent, row, iteration, filter_policy=True
+    )
+    assert count == 2
+    assert projected.model_profile_id == model_id
+    assert projected.description == "Refund questions"
+    assert [
+        item.number
+        for item in await improvement_repo.list_iterations(
+            db, organization_id=ctx.organization_id, run_id=row.id
+        )
+    ] == [1]
 
 
 async def test_failed_proposal_needs_explicit_retry_and_repeated_click_starts_one_child(db):

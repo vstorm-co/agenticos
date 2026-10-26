@@ -10818,6 +10818,7 @@
     "working": "In Bearbeitung…",
     "loading": "Ergebnis wird geladen…",
     "round": "Versuch {number} von {max}",
+    "heldBack": "Für einen weiteren Versuch zurückgestellte Änderungen, nicht getestet",
     "selected": "Ausgewählter Versuch",
     "selectRound": "Diesen Versuch verwenden",
     "attributionBody": "Prüfen Sie jede Änderung einzeln, um ihre Wirkung auf die Fragen zu erkennen. Diese zusätzlichen kostenpflichtigen Prüfungen zählen zum Sitzungslimit.",

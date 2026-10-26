@@ -10718,6 +10718,7 @@
     "working": "Praca trwa…",
     "loading": "Ładowanie wyniku…",
     "round": "Próba {number} z {max}",
+    "heldBack": "Zmiany odłożone na kolejną próbę, nieprzetestowane",
     "selected": "Wybrana próba",
     "selectRound": "Użyj tej próby",
     "attributionBody": "Sprawdź każdą zmianę osobno, aby ustalić, które pytania poprawia lub psuje. Te dodatkowo płatne sprawdzenia wliczają się w limit sesji.",

@@ -97,6 +97,16 @@ it("does not request older round details until they are opened", async () => {
   await userEvent.click(screen.getByText("Attempt 1 of 3"));
   await waitFor(() => expect(state.read).toHaveBeenCalledWith("main"));
 });
+it("names a round past the attempt limit for what it is, not as one more attempt", () => {
+  render(
+    <RoundHistory
+      session={SESSION}
+      round={{ ...ROUND, number: SESSION.max_iterations + 1, verdict: null }}
+    />,
+  );
+  expect(screen.getByText("Changes held back for another attempt, not tested")).toBeInTheDocument();
+  expect(screen.queryByText(/of 3$/)).toBeNull();
+});
 it("lets a stopped session review its best round and reports selection failures", async () => {
   state.selectRound.mutateAsync.mockRejectedValue(new Error("The base changed"));
   render(<RoundResults session={{ ...SESSION, status: "stopped" }} round={ROUND} />);

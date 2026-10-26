@@ -2117,7 +2117,14 @@ class ImprovementPipelineService:
             if h.kind == HunkKind.SPEC_FIELD.value and h.path == "model_profile_id"
         ]
         other_changes = [h for h in remaining if h not in model_changes]
-        if filter_policy and model_changes and other_changes:
+        # Only while another attempt can measure the rest: on the last one the split
+        # left a round no attempt would ever run.
+        if (
+            filter_policy
+            and model_changes
+            and other_changes
+            and iteration.number < run.max_iterations
+        ):
             batch = await authoring_repo.get_batch(
                 self.db, iteration.batch_id, organization_id=run.organization_id
             )

@@ -10935,6 +10935,7 @@
     "working": "Still working…",
     "loading": "Loading the result…",
     "round": "Attempt {number} of {max}",
+    "heldBack": "Changes held back for another attempt, not tested",
     "selected": "Selected attempt",
     "selectRound": "Use this attempt",
     "attributionBody": "Test each change on its own to find which questions it fixes or breaks. These checks cost extra and count against this session’s limit.",

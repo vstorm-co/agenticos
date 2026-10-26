@@ -10,6 +10,7 @@ import { useImprovement, useImprovementEvidence } from "@/hooks/use-improvements
 import { getErrorMessage } from "@/lib/api-error";
 import type { Hunk } from "@/types/authoring";
 import type { Improvement, ImprovementIteration, SelectionEstimate } from "@/types/improvement";
+import { RoundTitle } from "./round-results";
 import { Tiles } from "./widgets";
 
 export function ChangeSelection({
@@ -56,7 +57,7 @@ export function ChangeSelection({
   return (
     <section className="space-y-4">
       <h2 className="font-medium">
-        {t("round", { number: round.number, max: session.max_iterations })}
+        <RoundTitle session={session} round={round} />
       </h2>
       <Tiles
         tiles={[
