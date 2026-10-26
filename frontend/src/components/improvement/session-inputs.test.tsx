@@ -283,7 +283,9 @@ it("explains missing questions and handles their loading or access failure", () 
 it("shows the actual baseline and keeps ungraded questions separate", () => {
   render(<Today session={SESSION} />);
   expect(screen.getByText("Before the changes: 3 of 4 handled well.")).toBeInTheDocument();
-  expect(screen.getByText(/Could not grade 3 questions/)).toBeInTheDocument();
+  expect(
+    screen.getByText("Couldn't grade 3 questions: we'll leave them out of the comparison."),
+  ).toBeInTheDocument();
   expect(screen.getByText("90 days")).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Open the full check" })).toHaveAttribute(
     "href",
@@ -488,4 +490,10 @@ it("offers no sorting once the session is decided", () => {
   render(<Understand session={{ ...SESSION, status: "published" }} />);
   expect(screen.queryByRole("button", { name: "Ignore this" })).not.toBeInTheDocument();
   expect(screen.queryByText(/If we sorted a problem wrongly/)).not.toBeInTheDocument();
+});
+
+it("says nothing about ungraded questions when every question was graded", () => {
+  state.run = evalRun({ agent_id: "a1", arms: [arm({ id: "base", role: "baseline" })] });
+  render(<Today session={SESSION} />);
+  expect(screen.queryByText(/Couldn't grade/)).not.toBeInTheDocument();
 });

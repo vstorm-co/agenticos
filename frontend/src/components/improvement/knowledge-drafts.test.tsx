@@ -168,7 +168,7 @@ it("requires a separately priced confirmation and keeps fact verification visibl
   expect(screen.getByText(/Unsupported — verify the facts/)).toBeInTheDocument();
   expect(screen.getByText(/Assuming search finds this passage/)).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Estimate checking the draft" }));
-  expect(await screen.findByText(/5 independent questions/)).toHaveTextContent(/2 excluded/);
+  expect(await screen.findByText(/5 independent questions/)).toHaveTextContent(/2 left out/);
   expect(state.check).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole("button", { name: "Confirm and check the draft" }));
   expect(state.check).toHaveBeenCalledWith({

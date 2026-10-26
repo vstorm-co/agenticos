@@ -199,9 +199,11 @@ function BaselineResult({ runId }: { runId: string }) {
       <p className="text-lg font-medium">
         {t("baselineHandled", { passed: arm.summary.passed, total: arm.summary.cases })}
       </p>
-      <p className="text-muted-foreground text-sm">
-        {t("baselineUndecided", { count: arm.summary.incomplete + arm.summary.ungraded })}
-      </p>
+      {arm.summary.incomplete + arm.summary.ungraded > 0 && (
+        <p className="text-muted-foreground text-sm">
+          {t("baselineUndecided", { count: arm.summary.incomplete + arm.summary.ungraded })}
+        </p>
+      )}
       <BaselineQuestions runId={runId} agentId={run.agent_id} armId={arm.id} />
     </>
   );

@@ -19,7 +19,8 @@
     "triggers.",
     "knowledgeGaps.",
     "dashboard.widgets.",
-    "onboarding."
+    "onboarding.",
+    "improvement."
   ],
   "mixed": {
     "pl": [
@@ -147,7 +148,8 @@
           "authoring.checkResult.",
           "onboarding.offer.test-change.",
           "onboarding.steps.eval-",
-          "onboarding.steps.flow-test-"
+          "onboarding.steps.flow-test-",
+          "improvement."
         ],
         "docs": true,
         "note": "What a verdict says of cases; a page that looks broken may still read \"kaputt\"."
