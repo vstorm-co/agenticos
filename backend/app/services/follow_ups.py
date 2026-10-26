@@ -28,6 +28,7 @@ from app.db.session import get_db_context
 from app.repositories import agent_repo, agent_run_repo, conversation_repo, member_repo, user_repo
 from app.services import chat_room
 from app.services.agent_runner import AgentRunnerService, PreparedRun
+from app.services.conversation import ConversationService
 from app.services.run_heartbeat import run_heartbeat
 
 logger = logging.getLogger(__name__)
@@ -136,6 +137,17 @@ class FollowUpService:
             if parent.key_scopes is None
             else frozenset(Perm(scope) for scope in parent.key_scopes if scope in Perm),
         )
+        try:
+            await ConversationService(self.db).get_conversation(
+                message.conversation_id,
+                organization_id=organization_id,
+                user_id=ctx.user_id,
+                ctx=ctx,
+                include_favourite=False,
+            )
+        except AppException:
+            logger.info("next_steps_no_conversation_access", extra={"run_id": str(parent.id)})
+            return []
         prompt = await conversation_repo.prompt_for_answer(self.db, message)
         runner = AgentRunnerService(self.db)
         try:

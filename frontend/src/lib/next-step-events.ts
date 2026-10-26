@@ -21,7 +21,7 @@ export function nextStepEvent(data: unknown): NextStepEvent | null {
     return null;
   const steps: string[] = [];
   for (const step of data.steps) {
-    if (typeof step !== "string" || !step.trim() || step.length > 80) return null;
+    if (typeof step !== "string" || !step.trim() || Array.from(step).length > 80) return null;
     steps.push(step);
   }
   if (!data.conversation_id || !data.message_id) return null;

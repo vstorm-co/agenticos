@@ -83,3 +83,9 @@ describe("late next-step events", () => {
     expect(retainNextSteps(incoming, message())).toBe(incoming);
   });
 });
+
+it("counts Unicode code points like the backend, including emoji", () => {
+  const label = "🙂" + "a".repeat(79);
+  expect(nextStepEvent({ ...event, steps: [label] })?.steps).toEqual([label]);
+  expect(nextStepEvent({ ...event, steps: [label + "b"] })).toBeNull();
+});

@@ -71,6 +71,9 @@ def scenario(monkeypatch):
         mock = AsyncMock(return_value=value)
         monkeypatch.setattr(repo, name, mock)
         mocks[name] = mock
+    access = AsyncMock()
+    monkeypatch.setattr(module.ConversationService, "get_conversation", access)
+    mocks["authorize_conversation"] = access
     runner = MagicMock()
     runner.prepare = AsyncMock(return_value=SimpleNamespace(run=SimpleNamespace()))
     monkeypatch.setattr(module, "AgentRunnerService", lambda _db: runner)
@@ -378,3 +381,19 @@ async def test_budget_refusal_never_calls_the_suggestion_model(monkeypatch):
     assert prepared.built.ledger.input_tokens == 0
     assert runner.finish.await_args.kwargs["status"] == RunStatus.BUDGET_EXCEEDED
     assert runner.finish.await_args.kwargs["budget_scope"] == BudgetScope.ORGANIZATION
+
+
+async def test_revoked_conversation_access_prevents_model_input_and_writes(scenario):
+    s = scenario
+    s.mocks["authorize_conversation"].side_effect = NotFoundError(message="Conversation not found")
+    await s.service.write(s.row.id, s.org)
+    access = s.mocks["authorize_conversation"].await_args
+    assert access.args == (s.row.conversation_id,)
+    assert access.kwargs["organization_id"] == s.org
+    assert access.kwargs["user_id"] == s.parent.user_id
+    assert access.kwargs["ctx"].user_id == s.parent.user_id
+    assert access.kwargs["include_favourite"] is False
+    s.mocks["prompt_for_answer"].assert_not_awaited()
+    s.runner.prepare.assert_not_awaited()
+    s.service._generate.assert_not_awaited()
+    s.mocks["store_next_steps"].assert_not_awaited()
