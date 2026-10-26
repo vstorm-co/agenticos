@@ -16,6 +16,7 @@ import { ImpersonationBanner } from "@/components/layout/impersonation-banner";
 import { LiveUpdates } from "@/components/live-updates/live-updates";
 import { NavigationProgress } from "@/components/layout/navigation-progress";
 import { PageTransition } from "@/components/layout/page-transition";
+import { UnsavedChangesGuard } from "@/components/layout/unsaved-changes-guard";
 import { OnboardingFlows } from "@/components/onboarding/onboarding-flows";
 import { OnboardingTour } from "@/components/onboarding/onboarding-tour";
 
@@ -31,6 +32,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <AccountTimeZone />
       {/* Changes made through the API, MCP or the assistant reach open pages. */}
       <LiveUpdates />
+      {/* Asks before leaving drops a change somebody has not saved. */}
+      <UnsavedChangesGuard />
       {/* It reads the search params, which a prerendered page only has in the browser. */}
       <Suspense fallback={null}>
         <NavigationProgress />

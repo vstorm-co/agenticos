@@ -8259,10 +8259,6 @@
     "historyAlone": "Nur diese Frage",
     "historyWith": "Mit dem Gespräch",
     "historyFollowUp": "Das sieht nach einer Fortsetzung des Gesprächs davor aus.",
-    "discardCaseTitle": "Änderungen verwerfen?",
-    "discardCaseBody": "Die Änderungen an diesem Fall sind nicht gespeichert und gehen verloren.",
-    "discardCase": "Verwerfen",
-    "keepEditing": "Weiter bearbeiten",
     "newDatasetName": "Neues Dataset",
     "newDatasetHere": "Sie haben noch kein Dataset, dem Sie etwas hinzufügen können, daher legt diese Antwort eines an, sichtbar für die ganze Organisation.",
     "newDatasetFromActivity": "Antworten aus Aktivität",
@@ -11052,5 +11048,21 @@
       "proposed": "Vorgeschlagene Änderungen",
       "included": "Im Test enthalten"
     }
+  },
+  "unsaved": {
+    "title": "Du hast ungespeicherte Änderungen",
+    "body": "Wenn du jetzt gehst, gehen sie verloren. Speichere sie zuerst oder bleib und arbeite weiter.",
+    "bodyNoSave": "Wenn du jetzt gehst, gehen sie verloren. Bleib, um sie fertigzustellen, oder verwirf sie.",
+    "stay": "Bleiben",
+    "discard": "Verwerfen",
+    "save": "Speichern",
+    "saving": "Wird gespeichert…",
+    "restoreTitle": "Ungespeicherte Änderungen wiederherstellen?",
+    "restoreBody": "Diese Änderungen wurden nicht gespeichert. Sie liegen nur in diesem Browser, und niemand sonst sieht sie.",
+    "copy": "{place, select, grading {Bewertung, geändert {when}} newCase {Ein neuer Fall, geschrieben {when}} other {Der Fall „{question}“, geändert {when}}}",
+    "restore": "Wiederherstellen",
+    "movedOn": "Diese Änderungen wurden an Version {base} gemacht; das Dataset ist inzwischen bei Version {latest}.",
+    "showChanges": "Änderungen zeigen",
+    "caseGone": "Dieser Fall ist nicht mehr im Dataset, daher wurden seine ungespeicherten Änderungen verworfen."
   }
 }

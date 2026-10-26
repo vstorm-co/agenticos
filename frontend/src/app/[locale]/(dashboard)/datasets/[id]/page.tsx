@@ -3,8 +3,9 @@
 import { use, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 
-import { CaseEditorDialog } from "@/components/datasets/case-editor-dialog";
+import { CaseEditorDialog, type CaseCopy } from "@/components/datasets/case-editor-dialog";
 import { draftOf, EMPTY_DRAFT, type CaseDraft } from "@/components/datasets/case-form";
 import { CaseRow } from "@/components/datasets/case-row";
 import { DatasetHeader } from "@/components/datasets/dataset-header";
@@ -13,7 +14,8 @@ import { EditDatasetDialog } from "@/components/datasets/edit-dataset-dialog";
 import { EmptyCases } from "@/components/datasets/empty-cases";
 import { GeneratePanel } from "@/components/datasets/generate-panel";
 import { ReviewPanel } from "@/components/datasets/review-panel";
-import { GradingPanel } from "@/components/datasets/grading-panel";
+import { GradingPanel, type GradingCopy } from "@/components/datasets/grading-panel";
+import { UnsavedCopiesBanner } from "@/components/datasets/unsaved-copies-banner";
 import { VersionSelect } from "@/components/datasets/version-select";
 import { DatasetEvalsPanel, DatasetRunEvalsButton } from "@/components/evals/dataset-evals-panel";
 import { ErrorState, LoadingState } from "@/components/states";
@@ -37,6 +39,9 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { ResourceUnavailable } from "@/components/states/resource-unavailable";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
+import { copyKey, readCopies, removeCopy, type UnsavedCopy } from "@/lib/unsaved-copies";
+import { useOrgStore } from "@/stores/org-store";
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import type { DatasetCase, DatasetCaseContent } from "@/types/datasets";
 import { Perm } from "@/types/permissions";
 
@@ -47,8 +52,11 @@ interface PageProps {
 /** The tabs `?tab=` may open, in the order they are drawn. */
 const TABS = ["cases", "generated", "grading", "evals", "review"];
 
-/** What the case dialog is showing: a new case, or one from the list. */
-type Editing = { draft: CaseDraft; item: DatasetCase | null } | null;
+/**
+ * What the case dialog is showing: a new case, or one from the list - picked up
+ * from an unsaved edit kept in this browser, when it is restored.
+ */
+type Editing = { draft: CaseDraft; item: DatasetCase | null; startFrom?: CaseCopy } | null;
 
 /** Which of the header menu's dialogs is open. */
 type Dialog = "details" | "share" | "delete" | null;
@@ -64,6 +72,7 @@ export default function DatasetPage({ params }: PageProps) {
   const t = useTranslations("datasets");
   const tc = useTranslations("common");
   const tErrors = useTranslations("errors");
+  const tUnsaved = useTranslations("unsaved");
   const router = useRouter();
   const query = useSearchParams();
   const asked = query.get("tab");
@@ -74,6 +83,13 @@ export default function DatasetPage({ params }: PageProps) {
   const [dialog, setDialog] = useState<Dialog>(null);
   const [gradingUnsaved, setGradingUnsaved] = useState(false);
   const [tab, setTab] = useState(asked !== null && TABS.includes(asked) ? asked : "cases");
+  const leave = useUnsavedChangesStore((state) => state.leave);
+  const organization = useOrgStore((state) => state.activeOrgId) ?? "default";
+  // Read once, when the dataset arrives: a change made since is on screen, not to restore.
+  const [copies, setCopies] = useState<UnsavedCopy[] | null>(null);
+  const [gradingRestore, setGradingRestore] = useState<{ value: GradingCopy; at: number }>();
+  const [restoring, setRestoring] = useState<UnsavedCopy | null>(null);
+  const restoringCase = useDatasetCase(id, restoring?.place.slice("case:".length) ?? null);
   const { dataset, error: datasetError, update, remove } = useDataset(id);
   // Every read behind the Evals tab and the run it starts takes runs:view.
   const canViewRuns = usePermissions().can(Perm.runsView);
@@ -85,6 +101,23 @@ export default function DatasetPage({ params }: PageProps) {
   if (linkedCase.kase !== undefined && opened !== linked) {
     setOpened(linked);
     setEditing({ draft: draftOf(linkedCase.kase), item: linkedCase.kase });
+  }
+  if (restoring !== null && restoringCase.kase !== undefined) {
+    setRestoring(null);
+    setEditing({
+      draft: draftOf(restoringCase.kase),
+      item: restoringCase.kase,
+      startFrom: restoring.value as CaseCopy,
+    });
+  }
+  if (restoring !== null && restoringCase.error) {
+    setRestoring(null);
+    removeCopy(restoring.key);
+    toast.info(tUnsaved("caseGone"));
+  }
+  if (dataset !== undefined && copies === null) {
+    // Only an editor's own edits are kept, and only an editor is offered them back.
+    setCopies(dataset.can_edit ? readCopies(organization, id) : []);
   }
   const cases = useDatasetCases(id, { version, skip: page * PAGE_SIZE, limit: PAGE_SIZE });
   const pageCount = Math.max(1, Math.ceil(cases.total / PAGE_SIZE));
@@ -106,6 +139,22 @@ export default function DatasetPage({ params }: PageProps) {
   // A link reaches a reader too, who may have no such tab.
   const shown =
     (tab === "generated" && !dataset.can_edit) || (tab === "evals" && !canViewRuns) ? "cases" : tab;
+  const keep = (place: string) => ({
+    key: copyKey(organization, id, place),
+    base: dataset.latest_version,
+  });
+  const showTab = (next: string) => leave(() => setTab(next));
+  const restoreCopy = (copy: UnsavedCopy) => {
+    setCopies((kept) => kept?.filter((one) => one.key !== copy.key) ?? null);
+    if (copy.place === "grading") {
+      setGradingRestore({ value: copy.value as GradingCopy, at: Date.now() });
+      setTab("grading");
+    } else if (copy.place === "case:new") {
+      setEditing({ draft: EMPTY_DRAFT, item: null, startFrom: copy.value as CaseCopy });
+    } else {
+      setRestoring(copy);
+    }
+  };
   const save = (content: DatasetCaseContent) =>
     editing?.item
       ? cases.update.mutateAsync({ caseId: editing.item.case_id, content })
@@ -138,7 +187,18 @@ export default function DatasetPage({ params }: PageProps) {
             })}
           </p>
         )}
-      <Tabs value={shown} onValueChange={setTab} className="space-y-4">
+      {copies !== null && copies.length > 0 && (
+        <UnsavedCopiesBanner
+          copies={copies}
+          latest={dataset.latest_version}
+          onRestore={restoreCopy}
+          onDiscard={(copy) => {
+            removeCopy(copy.key);
+            setCopies(copies.filter((one) => one.key !== copy.key));
+          }}
+        />
+      )}
+      <Tabs value={shown} onValueChange={showTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="cases">{t("cases")}</TabsTrigger>
           {dataset.can_edit && (
@@ -175,10 +235,12 @@ export default function DatasetPage({ params }: PageProps) {
                   versions={versions}
                   latest={dataset.latest_version}
                   value={version}
-                  onChange={(next) => {
-                    setVersion(next);
-                    setPage(0);
-                  }}
+                  onChange={(next) =>
+                    leave(() => {
+                      setVersion(next);
+                      setPage(0);
+                    })
+                  }
                 />
               )
             }
@@ -202,7 +264,7 @@ export default function DatasetPage({ params }: PageProps) {
                   editable ? () => setEditing({ draft: EMPTY_DRAFT, item: null }) : undefined
                 }
                 onImport={editable ? (file) => cases.importFile.mutateAsync(file) : undefined}
-                onGenerate={editable ? () => setTab("generated") : undefined}
+                onGenerate={editable ? () => showTab("generated") : undefined}
               />
             ) : (
               <div className="space-y-4">
@@ -236,7 +298,12 @@ export default function DatasetPage({ params }: PageProps) {
         {/* Kept mounted while another tab is open, so a card's unsaved change
             survives looking at the cases it is about. */}
         <TabsContent value="grading" forceMount className="data-[state=inactive]:hidden">
-          <GradingPanel dataset={dataset} onDirtyChange={setGradingUnsaved} />
+          <GradingPanel
+            dataset={dataset}
+            onDirtyChange={setGradingUnsaved}
+            localCopy={dataset.can_edit ? keep("grading") : undefined}
+            restore={gradingRestore}
+          />
         </TabsContent>
         {canViewRuns && (
           <TabsContent value="evals">
@@ -286,6 +353,12 @@ export default function DatasetPage({ params }: PageProps) {
             ...new Set(cases.cases.flatMap((item) => item.expected_tool_calls.map((c) => c.tool))),
           ]}
           onSave={editable && !editing.item?.masked ? save : undefined}
+          startFrom={editing.startFrom}
+          localCopy={
+            editable && !editing.item?.masked
+              ? keep(editing.item === null ? "case:new" : `case:${editing.item.case_id}`)
+              : undefined
+          }
           twins={
             editing.item === null
               ? {

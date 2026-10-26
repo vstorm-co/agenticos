@@ -8376,10 +8376,6 @@
     "historyAlone": "Only this question",
     "historyWith": "With the conversation",
     "historyFollowUp": "This looks like a follow-up to the conversation before it.",
-    "discardCaseTitle": "Discard your changes?",
-    "discardCaseBody": "The changes to this case are not saved and will be lost.",
-    "discardCase": "Discard",
-    "keepEditing": "Keep editing",
     "newDatasetName": "New dataset",
     "newDatasetHere": "You have no dataset to add to yet, so this answer starts one, visible to the whole organization.",
     "newDatasetFromActivity": "Answers from Activity",
@@ -11169,5 +11165,21 @@
       "proposed": "Changes proposed",
       "included": "Included in the test"
     }
+  },
+  "unsaved": {
+    "title": "You have unsaved changes",
+    "body": "If you leave now, they are lost. Save them first, or stay and keep working.",
+    "bodyNoSave": "If you leave now, they are lost. Stay to finish them, or discard them.",
+    "stay": "Stay",
+    "discard": "Discard",
+    "save": "Save",
+    "saving": "Saving…",
+    "restoreTitle": "Restore your unsaved changes?",
+    "restoreBody": "These were not saved. They are kept in this browser only, and nobody else sees them.",
+    "copy": "{place, select, grading {Grading, changed {when}} newCase {A new case, written {when}} other {The case “{question}”, changed {when}}}",
+    "restore": "Restore",
+    "movedOn": "These changes were made on version {base}; the dataset has moved on to version {latest}.",
+    "showChanges": "Show the changes",
+    "caseGone": "That case is no longer in the dataset, so its unsaved changes were discarded."
   }
 }

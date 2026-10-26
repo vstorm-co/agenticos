@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -16,8 +16,10 @@ import {
   Input,
 } from "@/components/ui";
 import type { NewDataset } from "@/hooks/use-datasets";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { submitFailure } from "@/lib/api-error";
 import { DIALOG_FORM } from "@/lib/dialog-sizes";
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import type { Dataset } from "@/types/datasets";
 import { DatasetDetailsFields } from "./dataset-details-fields";
 
@@ -33,7 +35,8 @@ export function EditDatasetDialog({ dataset, onOpenChange, update }: EditDataset
   const t = useTranslations("datasets");
   const tErrors = useTranslations("errors");
   const originalShare = dataset.improvement_holdout_share ?? "0.5";
-  const [holdout, setHoldout] = useState(String(Math.round(Number(originalShare) * 1000) / 10));
+  const originalHoldout = String(Math.round(Number(originalShare) * 1000) / 10);
+  const [holdout, setHoldout] = useState(originalHoldout);
   const validShare =
     /^(?:100(?:\.0)?|\d{1,2}(?:\.\d)?)$/.test(holdout) &&
     Number.isFinite(Number(holdout)) &&
@@ -42,8 +45,21 @@ export function EditDatasetDialog({ dataset, onOpenChange, update }: EditDataset
   const [name, setName] = useState(dataset.name);
   const [description, setDescription] = useState(dataset.description ?? "");
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
+  const savable = name.trim() !== "" && validShare;
+  const source = useId();
+  useUnsavedChanges(source, {
+    dirty:
+      name !== dataset.name ||
+      description !== (dataset.description ?? "") ||
+      holdout !== originalHoldout,
+    save: savable ? handleSave : undefined,
+    discard: () => onOpenChange(false),
+  });
+  // Only ever asked to close: it has no trigger of its own.
+  const close = () => useUnsavedChangesStore.getState().leave(() => onOpenChange(false), [source]);
 
-  async function handleSave() {
+  /** Saves the details; true once saved. */
+  async function handleSave(): Promise<boolean> {
     try {
       await update.mutateAsync({
         ...(Number((Number(holdout) / 100).toFixed(3)) !== Number(originalShare)
@@ -54,6 +70,7 @@ export function EditDatasetDialog({ dataset, onOpenChange, update }: EditDataset
       });
       toast.success(t("detailsSaved"));
       onOpenChange(false);
+      return true;
     } catch (error) {
       const failure = submitFailure(
         error,
@@ -62,11 +79,12 @@ export function EditDatasetDialog({ dataset, onOpenChange, update }: EditDataset
       );
       setErrors(failure.fields);
       if (failure.toast) toast.error(failure.toast);
+      return false;
     }
   }
 
   return (
-    <Dialog open onOpenChange={onOpenChange}>
+    <Dialog open onOpenChange={close}>
       <DialogContent className={DIALOG_FORM}>
         <DialogHeader>
           <DialogTitle>{t("editDetails")}</DialogTitle>
@@ -99,13 +117,10 @@ export function EditDatasetDialog({ dataset, onOpenChange, update }: EditDataset
           />
         </FormField>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={close}>
             {t("cancel")}
           </Button>
-          <Button
-            disabled={update.isPending || name.trim() === "" || !validShare}
-            onClick={() => void handleSave()}
-          >
+          <Button disabled={update.isPending || !savable} onClick={() => void handleSave()}>
             {t("saveDetails")}
           </Button>
         </DialogFooter>

@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import {
   Button,
-  ConfirmDialog,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -22,9 +21,11 @@ import {
   SelectValue,
   Textarea,
 } from "@/components/ui";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { submitFailure } from "@/lib/api-error";
 import { DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import type { DatasetCase, DatasetCaseContent, ToolOrderMode } from "@/types/datasets";
 import type { DatasetScoring } from "@/types/scoring";
 import { CaseCallsEditor } from "./case-calls-editor";
@@ -70,6 +71,16 @@ interface CaseEditorDialogProps {
     find: (input: string) => Promise<DatasetCase | null>;
     open: (twin: DatasetCase) => void;
   };
+  /** An unsaved edit to pick up from, in place of `initial`, which stays what it changes. */
+  startFrom?: CaseCopy;
+  /** Where an unsaved edit is kept in this browser, and the version it is made on. */
+  localCopy?: { key: string; base: number };
+}
+
+/** What a kept copy of an unsaved case edit holds. */
+export interface CaseCopy {
+  draft: CaseDraft;
+  json: string | null;
 }
 
 const ORDER_MODES: ToolOrderMode[] = ["any", "in_order", "exact"];
@@ -159,14 +170,16 @@ export function CaseEditorDialog({
   scoring,
   knownTools,
   twins,
+  startFrom,
+  localCopy,
 }: CaseEditorDialogProps) {
   const t = useTranslations("datasets");
   const tErrors = useTranslations("errors");
-  const [draft, setDraft] = useState(initial);
+  const [draft, setDraft] = useState(startFrom?.draft ?? initial);
   const [errors, setErrors] = useState<Partial<Record<CaseField, string>>>({});
   const [saving, setSaving] = useState(false);
-  const [editing, setEditing] = useState(viewing === undefined);
-  const [json, setJson] = useState<string | null>(null);
+  const [editing, setEditing] = useState(viewing === undefined || startFrom !== undefined);
+  const [json, setJson] = useState<string | null>(startFrom?.json ?? null);
   const [jsonProblem, setJsonProblem] = useState(false);
   const [twin, setTwin] = useState<{
     found: DatasetCase;
@@ -174,15 +187,8 @@ export function CaseEditorDialog({
     addAnyway: () => void;
   } | null>(null);
   const [repeat, setRepeat] = useState(false);
-  const [leaving, setLeaving] = useState(false);
   const readOnly = onSave === undefined || !editing;
-  // Escape, a click outside and Cancel all close the dialog; with a change not
-  // yet saved, each asks first.
   const changed = !readOnly && (json !== null || JSON.stringify(draft) !== JSON.stringify(initial));
-  const close = (next: boolean) => {
-    if (!next && changed) setLeaving(true);
-    else onOpenChange(next);
-  };
   const missing =
     json !== null
       ? null
@@ -191,6 +197,17 @@ export function CaseEditorDialog({
         : expectsSomething(draft)
           ? null
           : "needsExpectation";
+  const source = useId();
+  const { forget } = useUnsavedChanges(source, {
+    dirty: changed,
+    // Only a case that would save as it stands can be saved on the way out.
+    save: onSave === undefined || missing !== null ? undefined : () => save(onSave),
+    discard: () => onOpenChange(false),
+    copy: localCopy && { ...localCopy, value: { draft, json } satisfies CaseCopy },
+  });
+  // Escape, a click outside and Cancel all close the dialog; with a change not
+  // yet saved, each asks first.
+  const close = () => useUnsavedChangesStore.getState().leave(() => onOpenChange(false), [source]);
 
   function parsed(): DatasetCaseContent | null {
     try {
@@ -226,10 +243,11 @@ export function CaseEditorDialog({
     setErrors(({ [field as CaseField]: _cleared, ...rest }) => rest);
   }
 
+  /** Saves the case; true once it is saved, false when it is refused or waits on a twin. */
   async function save(
     onSave: (content: DatasetCaseContent) => Promise<unknown>,
     anyway: boolean = repeat,
-  ) {
+  ): Promise<boolean> {
     let content: DatasetCaseContent | null;
     if (json !== null) {
       content = parsed();
@@ -240,7 +258,7 @@ export function CaseEditorDialog({
       }
       content = read.content;
     }
-    if (content === null) return;
+    if (content === null) return false;
     setSaving(true);
     try {
       if (twins !== undefined && !anyway) {
@@ -255,15 +273,18 @@ export function CaseEditorDialog({
               void save(onSave, true);
             },
           });
-          return;
+          return false;
         }
       }
       await onSave(content);
+      forget();
       onOpenChange(false);
+      return true;
     } catch (error) {
       const failure = submitFailure(error, { fields: [...CASE_FIELDS] }, tErrors);
       setErrors(failure.fields);
       if (failure.toast) toast.error(failure.toast);
+      return false;
     } finally {
       setSaving(false);
     }
@@ -429,7 +450,7 @@ export function CaseEditorDialog({
               {t(missing)}
             </p>
           )}
-          <Button variant="outline" onClick={() => close(false)}>
+          <Button variant="outline" onClick={close}>
             {t(readOnly ? "close" : "cancel")}
           </Button>
           {onSave !== undefined && !editing && (
@@ -447,16 +468,6 @@ export function CaseEditorDialog({
             </Button>
           )}
         </DialogFooter>
-        <ConfirmDialog
-          open={leaving}
-          onOpenChange={setLeaving}
-          title={t("discardCaseTitle")}
-          description={t("discardCaseBody")}
-          confirmLabel={t("discardCase")}
-          cancelLabel={t("keepEditing")}
-          destructive
-          onConfirm={() => onOpenChange(false)}
-        />
       </DialogContent>
     </Dialog>
   );

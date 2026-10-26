@@ -17,6 +17,7 @@ import {
 import { useAiAssistance } from "@/hooks/use-organizations";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useSetScoring } from "@/hooks/use-scoring";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { getErrorMessage } from "@/lib/api-error";
 import { scoringProblem, ungradedCases } from "@/lib/scoring";
 import type { Dataset } from "@/types/datasets";
@@ -36,6 +37,12 @@ const PASSES: Part[] = ["checks", "trajectory"];
 const JUDGING: Part[] = ["judge", "reference"];
 const REVIEW: Part[] = ["review"];
 
+/** What a kept copy of the panel's unsaved change holds. */
+export interface GradingCopy {
+  draft: DatasetScoring;
+  defaults: CheckDraft[];
+}
+
 /**
  * How a dataset's cases are graded, in three cards - when a case passes, which
  * judge grades it and how, and what waits for a person - saved together from one
@@ -48,10 +55,16 @@ const REVIEW: Part[] = ["review"];
 export function GradingPanel({
   dataset,
   onDirtyChange,
+  localCopy,
+  restore,
 }: {
   dataset: Dataset;
   /** Told whether any card holds a change not yet saved, so the page can say so. */
   onDirtyChange?: (dirty: boolean) => void;
+  /** Where an unsaved change is kept in this browser, and the version it is made on. */
+  localCopy?: { key: string; base: number };
+  /** A kept change to bring back; `at` tells one restore from the next. */
+  restore?: { value: GradingCopy; at: number };
 }) {
   const t = useTranslations("datasets.scoring");
   const tDatasets = useTranslations("datasets");
@@ -65,6 +78,12 @@ export function GradingPanel({
   const [defaultsProblem, setDefaultsProblem] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [focusRubric, setFocusRubric] = useState(0);
+  const [restored, setRestored] = useState<number | null>(null);
+  if (restore !== undefined && restore.at !== restored) {
+    setRestored(restore.at);
+    setDraft(restore.value.draft);
+    setDefaults(restore.value.defaults);
+  }
   const canEdit = dataset.can_edit;
   const disabled = !canEdit || save.isPending;
   // The judge and the reference comparison are model runs, so they stay as stored
@@ -82,19 +101,18 @@ export function GradingPanel({
   const of = (count: number) => t("coverage", { count, total: dataset.case_count });
 
   useEffect(() => onDirtyChange?.(unsaved), [onDirtyChange, unsaved]);
-  // A tab closing or a reload would drop the drafts; the browser asks first.
-  useEffect(() => {
-    if (!unsaved) return;
-    const hold = (event: BeforeUnloadEvent) => event.preventDefault();
-    window.addEventListener("beforeunload", hold);
-    return () => window.removeEventListener("beforeunload", hold);
-  }, [unsaved]);
+  useUnsavedChanges(`grading:${dataset.id}`, {
+    dirty: unsaved,
+    save: problem === null ? submit : undefined,
+    discard,
+    copy: localCopy && { ...localCopy, value: { draft, defaults } satisfies GradingCopy },
+  });
 
-  async function submit() {
+  async function submit(): Promise<boolean> {
     const read = checksOf(defaults);
     if (read.problems.length > 0) {
       setDefaultsProblem(tDatasets(read.problems[0]!));
-      return;
+      return false;
     }
     setDefaultsProblem(null);
     const next = { ...draft, checks: { ...draft.checks, defaults: read.checks } };
@@ -102,8 +120,10 @@ export function GradingPanel({
       await save.mutateAsync(next);
       setDraft(next);
       toast.success(t("saved"));
+      return true;
     } catch (failure) {
       toast.error(getErrorMessage(failure, tErrors));
+      return false;
     }
   }
 

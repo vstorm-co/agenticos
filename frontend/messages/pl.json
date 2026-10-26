@@ -8149,10 +8149,6 @@
     "historyAlone": "Tylko to pytanie",
     "historyWith": "Razem z rozmową",
     "historyFollowUp": "To wygląda na ciąg dalszy wcześniejszej rozmowy.",
-    "discardCaseTitle": "Odrzucić zmiany?",
-    "discardCaseBody": "Zmiany w tym przypadku nie są zapisane i zostaną utracone.",
-    "discardCase": "Odrzuć",
-    "keepEditing": "Edytuj dalej",
     "newDatasetName": "Nowy dataset",
     "newDatasetHere": "Nie masz jeszcze datasetu, do którego można dodać odpowiedź, więc ta odpowiedź go zakłada, widoczny dla całej organizacji.",
     "newDatasetFromActivity": "Odpowiedzi z Aktywności",
@@ -10952,5 +10948,21 @@
       "proposed": "Zaproponowane zmiany",
       "included": "Włączone do testu"
     }
+  },
+  "unsaved": {
+    "title": "Masz niezapisane zmiany",
+    "body": "Jeśli wyjdziesz teraz, przepadną. Najpierw je zapisz albo zostań i pracuj dalej.",
+    "bodyNoSave": "Jeśli wyjdziesz teraz, przepadną. Zostań, żeby je dokończyć, albo je odrzuć.",
+    "stay": "Zostań",
+    "discard": "Odrzuć",
+    "save": "Zapisz",
+    "saving": "Zapisywanie…",
+    "restoreTitle": "Przywrócić niezapisane zmiany?",
+    "restoreBody": "Te zmiany nie zostały zapisane. Są tylko w tej przeglądarce i nikt inny ich nie widzi.",
+    "copy": "{place, select, grading {Ocenianie, zmienione {when}} newCase {Nowy przypadek, napisany {when}} other {Przypadek „{question}”, zmieniony {when}}}",
+    "restore": "Przywróć",
+    "movedOn": "Te zmiany powstały na wersji {base}; dataset ma już wersję {latest}.",
+    "showChanges": "Pokaż zmiany",
+    "caseGone": "Tego przypadku nie ma już w datasecie, więc jego niezapisane zmiany odrzucono."
   }
 }

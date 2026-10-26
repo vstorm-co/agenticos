@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "@/lib/api-error";
 import { Perm } from "@/types/permissions";
+import { UnsavedChangesGuard } from "@/components/layout/unsaved-changes-guard";
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import { GenerateCasesDialog } from "./generate-cases-dialog";
 
 const { estimate, start, granted } = vi.hoisted(() => ({
@@ -61,6 +63,7 @@ async function chooseAgent() {
 beforeEach(() => {
   vi.clearAllMocks();
   granted.perms = [Perm.runsView];
+  useUnsavedChangesStore.setState({ sources: {}, prompt: null, saving: false });
 });
 
 describe("GenerateCasesDialog", () => {
@@ -185,6 +188,22 @@ describe("GenerateCasesDialog", () => {
   it("closes on cancel", async () => {
     const { onOpenChange } = mount();
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("asks before dropping the choices made, with no Save that would start it", async () => {
+    const onOpenChange = vi.fn();
+    render(
+      <>
+        <GenerateCasesDialog datasetId="d1" open onOpenChange={onOpenChange} />
+        <UnsavedChangesGuard />
+      </>,
+    );
+    await chooseAgent();
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Discard" }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });

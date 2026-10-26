@@ -18,6 +18,7 @@ import { ROUTES } from "@/lib/constants";
 import { AppearanceMenu, LanguageMenu } from "@/components/layout/account-preferences";
 import { OrganizationMenuItems } from "@/components/teams";
 import { useAuthStore } from "@/stores";
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 
 /**
  * Who is signed in, and the way out - at the foot of the column.
@@ -120,7 +121,10 @@ export function SidebarUser({ compact = false }: { compact?: boolean }) {
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={logout} className="text-destructive focus:text-destructive">
+        <DropdownMenuItem
+          onClick={() => useUnsavedChangesStore.getState().leave(() => void logout())}
+          className="text-destructive focus:text-destructive"
+        >
           <LogOut className="mr-2 h-4 w-4" />
           {t("logout")}
         </DropdownMenuItem>

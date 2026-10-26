@@ -14,6 +14,7 @@ import {
 } from "./use-organizations";
 import { apiClient } from "@/lib/api-client";
 import { useOrgStore } from "@/stores";
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import type { Organization } from "@/types";
 
 vi.mock("@/lib/api-client", () => ({
@@ -420,6 +421,19 @@ describe("useOrganizations", () => {
     result.current.switchOrg("org-2");
 
     expect(useOrgStore.getState().activeOrgId).toBe("org-2");
+  });
+
+  it("asks before switching away from a change not yet saved", async () => {
+    const result = await hook([org(), org({ id: "org-2" })]);
+    useOrgStore.setState({ activeOrgId: "org-1" });
+    useUnsavedChangesStore.setState({ sources: { editor: { discard: vi.fn() } }, prompt: null });
+
+    result.current.switchOrg("org-2");
+    expect(useOrgStore.getState().activeOrgId).toBe("org-1");
+
+    await useUnsavedChangesStore.getState().answer("discard");
+    expect(useOrgStore.getState().activeOrgId).toBe("org-2");
+    useUnsavedChangesStore.setState({ sources: {}, prompt: null });
   });
 
   it("refetches the list on demand, whatever the caller passes", async () => {

@@ -132,6 +132,8 @@ export default defineConfig({
         "src/components/projects/**/*.tsx",
         "src/components/layout/project-rows.tsx",
         "src/components/layout/navigation-progress.tsx",
+        // Asks before leaving drops a change somebody has not saved.
+        "src/components/layout/unsaved-changes-guard.tsx",
         "src/components/layout/notification-glyph.tsx",
         "src/components/chat/project-chip.tsx",
         "src/components/chat/chat-room-bar.tsx",

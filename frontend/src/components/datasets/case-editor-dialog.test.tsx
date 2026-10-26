@@ -1,8 +1,11 @@
+import type { ComponentProps } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { UnsavedChangesGuard } from "@/components/layout/unsaved-changes-guard";
 import { ApiError } from "@/lib/api-error";
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import { CaseEditorDialog } from "./case-editor-dialog";
 import { DEFAULT_SCORING } from "@/lib/scoring";
 import type { DatasetCase } from "@/types/datasets";
@@ -51,8 +54,28 @@ function mount(onSave?: (content: unknown) => Promise<unknown>, onOpenChange = v
   return onOpenChange;
 }
 
+/** The dialog with the page-wide guard that asks about leaving it. */
+function guarded(props: Partial<ComponentProps<typeof CaseEditorDialog>>) {
+  render(
+    <>
+      <CaseEditorDialog
+        open
+        onOpenChange={vi.fn()}
+        initial={EMPTY_DRAFT}
+        title="Add case"
+        onSave={vi.fn().mockResolvedValue({})}
+        {...props}
+      />
+      <UnsavedChangesGuard />
+    </>,
+  );
+}
+
 describe("CaseEditorDialog", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useUnsavedChangesStore.setState({ sources: {}, prompt: null, saving: false });
+  });
 
   it("saves what was written and closes", async () => {
     const onSave = vi.fn().mockResolvedValue({});
@@ -455,7 +478,8 @@ describe("CaseEditorDialog", () => {
   });
 
   it("asks before a change not yet saved is thrown away, and closes at once without one", async () => {
-    const onOpenChange = mount(vi.fn());
+    const onOpenChange = vi.fn();
+    guarded({ onOpenChange });
 
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onOpenChange).toHaveBeenLastCalledWith(false);
@@ -463,13 +487,69 @@ describe("CaseEditorDialog", () => {
 
     await userEvent.type(input(), "How long?");
     await userEvent.keyboard("{Escape}");
-    expect(screen.getByRole("dialog", { name: "Discard your changes?" })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect(screen.getByRole("dialog", { name: "You have unsaved changes" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Stay" }));
     expect(onOpenChange).not.toHaveBeenCalled();
     expect(input()).toHaveValue("How long?");
 
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     await userEvent.click(screen.getByRole("button", { name: "Discard" }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("saves from the question, and stays when the save is refused", async () => {
+    const onSave = vi
+      .fn()
+      .mockRejectedValueOnce(new ApiError(500, "Server error"))
+      .mockResolvedValue({});
+    const onOpenChange = vi.fn();
+    guarded({ onOpenChange, onSave });
+    await userEvent.type(input(), "How long?");
+    await userEvent.type(answer(), "30 days");
+
+    await userEvent.keyboard("{Escape}");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog", { name: "You have unsaved changes" })).toBeNull();
+
+    await userEvent.keyboard("{Escape}");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(onSave).toHaveBeenCalledTimes(2);
+  });
+
+  it("offers no Save for a case it cannot save as it stands", async () => {
+    guarded({ onOpenChange: vi.fn() });
+    await userEvent.type(input(), "How long?");
+    await userEvent.keyboard("{Escape}");
+    expect(screen.getByText(/Stay to finish them, or discard them/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+  });
+
+  it("keeps a copy in this browser while it has a change, and forgets it once saved", async () => {
+    const onSave = vi.fn().mockResolvedValue({});
+    guarded({ onOpenChange: vi.fn(), onSave, localCopy: { key: "kept", base: 3 } });
+    expect(localStorage.getItem("kept")).toBeNull();
+
+    await userEvent.type(input(), "How long?");
+    expect(JSON.parse(localStorage.getItem("kept")!)).toMatchObject({
+      base: 3,
+      value: { draft: { input: "How long?" }, json: null },
+    });
+    await userEvent.type(answer(), "30 days");
+    await userEvent.click(save());
+    await waitFor(() => expect(localStorage.getItem("kept")).toBeNull());
+  });
+
+  it("picks up a kept edit where it was left, read against the case it changes", async () => {
+    const onOpenChange = vi.fn();
+    guarded({
+      onOpenChange,
+      startFrom: { draft: { ...EMPTY_DRAFT, input: "Kept question" }, json: null },
+    });
+    expect(input()).toHaveValue("Kept question");
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByRole("dialog", { name: "You have unsaved changes" })).toBeInTheDocument();
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -27,9 +27,11 @@ import { SystemAgentChoice } from "@/components/agents/system-agent-choice";
 import { useAgents } from "@/hooks/use-agents";
 import { useGenerateCases } from "@/hooks/use-case-generation";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { submitFailure } from "@/lib/api-error";
 import { DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import {
   CASE_ORIGINS,
   type CaseGenerationEstimate,
@@ -40,6 +42,8 @@ import { Perm } from "@/types/permissions";
 import { GenerationEstimate } from "./generation-estimate";
 
 const FIELDS = ["agent_id", "sources", "count"] as const;
+const DEFAULT_SOURCES: CaseOrigin[] = ["agent", "red_team"];
+const DEFAULT_COUNT = 20;
 type Field = (typeof FIELDS)[number];
 
 export const MAX_GENERATED = 50;
@@ -72,8 +76,8 @@ export function GenerateCasesDialog({
   const { estimate, start } = useGenerateCases(datasetId);
   const [generatorId, setGeneratorId] = useState<string | null>(null);
   const [agentId, setAgentId] = useState(initial?.agentId ?? "");
-  const [sources, setSources] = useState<CaseOrigin[]>(["agent", "red_team"]);
-  const [count, setCount] = useState(initial?.count ?? 20);
+  const [sources, setSources] = useState<CaseOrigin[]>(DEFAULT_SOURCES);
+  const [count, setCount] = useState(initial?.count ?? DEFAULT_COUNT);
   const [estimated, setEstimated] = useState<CaseGenerationEstimate | null>(null);
   const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
 
@@ -88,6 +92,19 @@ export function GenerateCasesDialog({
     setEstimated(null);
     setErrors({});
   };
+  // Starting spends, so leaving offers no Save: only discarding the choices or staying.
+  const source = useId();
+  useUnsavedChanges(source, {
+    dirty:
+      open &&
+      (generatorId !== null ||
+        agentId !== (initial?.agentId ?? "") ||
+        sources.join() !== DEFAULT_SOURCES.join() ||
+        count !== (initial?.count ?? DEFAULT_COUNT)),
+    discard: () => onOpenChange(false),
+  });
+  // Only ever asked to close: it has no trigger of its own.
+  const close = () => useUnsavedChangesStore.getState().leave(() => onOpenChange(false), [source]);
 
   async function submit(step: "estimate" | "start") {
     try {
@@ -106,7 +123,7 @@ export function GenerateCasesDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={close}>
       <DialogContent className={cn(DIALOG_COLUMN, DIALOG_FORM)}>
         <DialogHeader>
           <DialogTitle>{t("generateCases")}</DialogTitle>
@@ -205,7 +222,7 @@ export function GenerateCasesDialog({
           {estimated !== null && <GenerationEstimate estimate={estimated} />}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={close}>
             {t("cancel")}
           </Button>
           {estimated === null ? (
