@@ -28,6 +28,7 @@ describe("SurfaceIcon", () => {
     "schedule",
     "trigger",
     "eval",
+    "proactive",
   ])("draws a decorative mark for %s", (surface) => {
     const { container } = render(<SurfaceIcon surface={surface} />);
     const mark = container.querySelector("svg");

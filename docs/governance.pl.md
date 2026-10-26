@@ -1,5 +1,5 @@
 ---
-source_sha: "7a28851f1540"
+source_sha: "013d401f2eeb"
 ---
 
 # Governance { #governance }
@@ -516,6 +516,16 @@ zapisanym przez jej ostatni heartbeat - inaczej niż run tekstowy, którego
 wydatki umierają razem z jego procesem.
 
 ### Praca z własnej inicjatywy { #proactive-work }
+
+Przebiegi proaktywne są przypisywane do opublikowanego agenta startowego
+**AgenticOS** organizacji (slug `agenticos`). To stałe przypisanie platformy;
+nie wybiera modelu ani nie uruchamia instrukcji agenta startowego. Osobny model
+i limity ustawia się w **Organizacje → Członkowie → Proaktywność**. Activity
+pokazuje ikonę i filtr **Proaktywność**, żądania do modelu i ich koszt oraz
+zapis wymiany z wynikami narzędzi i końcową odpowiedzią strukturalną. Nieudane
+sprawdzenia zachowują wymianę dostępną przed błędem. Odczyt wymaga `runs:view`,
+jak inne zapisy Activity, i nie tworzy rozmów w Chat. Nie można odzyskać wymian,
+których starsze przebiegi nie zapisały; zbyt duży zapis jest oznaczany jako skrócony.
 
 Platforma może zrobić trochę z własnej inicjatywy, ale nie robi nic takiego,
 dopóki organizacja tego nie włączy: karta **Proaktywność** na stronie jej

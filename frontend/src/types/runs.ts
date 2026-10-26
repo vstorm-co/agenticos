@@ -318,6 +318,8 @@ export interface RunManifest {
   requests: ManifestRequest[];
   /** The last request's messages, dumped - what the model saw at the end. */
   messages: Record<string, unknown>[];
+  /** Recorded standalone exchanges, including the final model response. */
+  transcript?: Record<string, unknown>[];
   /** Each correction a run reviewer sent, and who sent it (#2106). */
   reviews?: ManifestReview[];
   /** Each `run_code` script code mode ran, and the calls it made (#2107). */

@@ -185,6 +185,9 @@ environment without a person's decision.
 
 ### Fixed
 
+- Show proactive runs with their own icon and filter in Activity and Dashboard.
+  Record their model requests, tool results and final answer for inspection,
+  and explain the fixed AgenticOS attribution beside organization settings.
 - Price embedding models OpenRouter serves by their bare OpenAI names, so
   knowledge searches through OpenRouter are no longer booked at $0.
 - Recommend a workspace the organization can publish when creating an agent,

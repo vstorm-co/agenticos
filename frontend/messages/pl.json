@@ -2632,7 +2632,8 @@
           "schedule": "Harmonogram",
           "slack": "Slack",
           "telegram": "Telegram",
-          "web": "Czat web"
+          "web": "Czat web",
+          "proactive": "Proaktywność"
         },
         "title": "Skąd pochodzą uruchomienia",
         "description": "Skąd pochodzą uruchomienia - czat web, API, kanały.",
@@ -5869,7 +5870,10 @@
           "openGaps": "Otwórz luki w wiedzy",
           "openDataset": "Otwórz dataset"
         }
-      }
+      },
+      "surfaceProactive": "Proaktywność",
+      "standaloneRequest": "Żądanie do modelu",
+      "standaloneResponse": "Odpowiedź modelu"
     },
     "sandboxes": {
       "addConnection": "Dodaj połączenie",
@@ -6869,7 +6873,8 @@
       "watches": "Obserwowanie połączeń ludzi",
       "watchesHint": "Każdy wybiera, co obserwować na swoich podłączonych kontach - pull requesty czekające na niego, zaległą fakturę - i dostaje informację, co nowego. Tylko czyta, a znaleziska są prywatne dla każdej osoby.",
       "watchMinutes": "Najczęściej",
-      "watchMinutesHint": "Jak często pojedyncza obserwacja może najwyżej sprawdzać. Częściej znaczy drożej."
+      "watchMinutesHint": "Jak często pojedyncza obserwacja może najwyżej sprawdzać. Częściej znaczy drożej.",
+      "runAttribution": "Sprawdzenia w tle są widoczne w Activity pod opublikowanym agentem startowym AgenticOS. To przypisanie jest stałe w platformie. Korzystają z wybranego poniżej modelu proaktywności, niezależnie od modelu samego agenta."
     }
   },
   "theme": {

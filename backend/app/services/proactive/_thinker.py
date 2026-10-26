@@ -28,6 +28,7 @@ from uuid import UUID
 import httpx
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import AgentRunError
+from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
 from pydantic_ai.toolsets import AbstractToolset
 from pydantic_ai.usage import RunUsage, UsageLimits
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -35,11 +36,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.capabilities._metered import MeteredModel
 from app.agents.capabilities.budget import SpendLedger, metered_by
 from app.agents.failures import run_failure_summary
+from app.agents.manifest import RecordingModel, RunRecorder, as_payload, fit
 from app.core.exceptions import AppException
 from app.core.permissions import AuthContext
 from app.db.models.agent import Agent as AgentRow
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
-from app.repositories import agent_repo, agent_run_repo, organization_repo
+from app.repositories import agent_repo, agent_run_repo, organization_repo, run_manifest_repo
 from app.services.model_profile import ModelProfileService
 from app.services.run_heartbeat import run_heartbeat
 from app.services.spend import month_start, organization_monthly_spend
@@ -47,7 +49,7 @@ from app.services.spend import month_start, organization_monthly_spend
 logger = logging.getLogger(__name__)
 
 STARTER_SLUG = "agenticos"
-"""The starter agent whose model and whose run history background work goes through.
+"""The starter agent used to attribute background runs, never to select their model.
 
 `facade._STARTER_SLUG` repeats it; `test_proactive` holds the two equal."""
 
@@ -112,7 +114,7 @@ class ProactiveThinker:
         prompt: str,
         toolsets: Sequence[AbstractToolset[object]] = (),
     ) -> OutputT | None:
-        """Ask the starter agent's model one structured question, as a run of its own.
+        """Ask the organization's proactivity model, attributed to its starter agent.
 
         `toolsets` are what it may read before answering - a watch's connection,
         narrowed to the tools that only read.
@@ -160,14 +162,16 @@ class ProactiveThinker:
         await self.db.commit()
         usage = RunUsage()
         ledger = SpendLedger(run_id=run.id, agent_id=agent.id, organization_id=ctx.organization_id)
+        recorder = RunRecorder()
         status = RunStatus.FAILED
         error: str | None = None
         propagating = False
+        transcript: list[ModelMessage] | None = None
         try:
             with metered_by(ledger):
                 async with run_heartbeat(run.id):
                     result = await Agent(
-                        MeteredModel(request.build()),
+                        RecordingModel(MeteredModel(request.build()), recorder),
                         output_type=output_type,
                         instructions=instructions,
                         toolsets=toolsets,
@@ -186,11 +190,14 @@ class ProactiveThinker:
             raise
         else:
             status = RunStatus.COMPLETED
+            transcript = result.all_messages()
             return result.output
         finally:
             # The outer job rolls back on cancellation. Own and commit the
             # terminal write here, and drain it even if shutdown cancels again.
-            settlement = asyncio.create_task(self._finish(run, ledger, status, error))
+            settlement = asyncio.create_task(
+                self._finish(run, ledger, status, error, recorder, transcript)
+            )
             cancelled = False
             try:
                 while not settlement.done():
@@ -207,7 +214,13 @@ class ProactiveThinker:
                 raise asyncio.CancelledError
 
     async def _finish(
-        self, run: AgentRun, ledger: SpendLedger, status: RunStatus, error: str | None
+        self,
+        run: AgentRun,
+        ledger: SpendLedger,
+        status: RunStatus,
+        error: str | None,
+        recorder: RunRecorder,
+        transcript: list[ModelMessage] | None,
     ) -> None:
         await agent_run_repo.finish_run(
             self.db,
@@ -220,4 +233,35 @@ class ProactiveThinker:
             ended_at=datetime.now(UTC),
             error=error,
         )
+        await self._record(run, recorder, transcript)
         await self.db.commit()
+
+    async def _record(
+        self, run: AgentRun, recorder: RunRecorder, transcript: list[ModelMessage] | None
+    ) -> None:
+        if not recorder.requests and recorder.instructions is None:
+            return
+        # Keep a failed trace write from rolling back the paid run's settlement.
+        try:
+            payload = as_payload(recorder)
+            if transcript is not None:
+                payload["transcript"] = ModelMessagesTypeAdapter.dump_python(
+                    transcript, mode="json"
+                )
+            else:
+                payload["transcript"] = recorder.messages + (
+                    []
+                    if recorder.last_response is None
+                    else ModelMessagesTypeAdapter.dump_python([recorder.last_response], mode="json")
+                )
+            payload, truncated = fit(payload)
+            async with self.db.begin_nested():
+                await run_manifest_repo.record(
+                    self.db,
+                    run_id=run.id,
+                    organization_id=run.organization_id,
+                    payload=payload,
+                    truncated=truncated,
+                )
+        except Exception:
+            logger.exception("proactive_manifest_write_failed", extra={"run_id": str(run.id)})

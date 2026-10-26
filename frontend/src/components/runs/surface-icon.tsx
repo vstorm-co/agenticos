@@ -1,4 +1,5 @@
 import {
+  BellRing,
   CalendarClock,
   Code2,
   FlaskConical,
@@ -46,6 +47,7 @@ const MARKS = {
   schedule: CalendarClock,
   trigger: Zap,
   eval: FlaskConical,
+  proactive: BellRing,
 } as const;
 
 /** The display name beside the mark - "Mattermost", not the enum's lowercase. */
@@ -61,6 +63,7 @@ const LABEL_KEYS = {
   schedule: "surfaceSchedule",
   trigger: "surfaceTrigger",
   eval: "surfaceEval",
+  proactive: "surfaceProactive",
 } as const;
 
 /**
