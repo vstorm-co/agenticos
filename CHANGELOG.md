@@ -25,8 +25,9 @@ Two things are versioned separately from this file and worth knowing about:
   any of its documents is still queued or being ingested, and `complete` only
   once none is. The response adds `processing_count`, `indexed_count` and
   `failed_count`; a failed document is counted there rather than holding the
-  collection at `indexing`. The knowledge base page shows the same state and
-  keeps refreshing until the whole batch has settled (#2486).
+  collection at `indexing`. `GET /kb/{kb_id}/ingestion` answers the same for
+  one knowledge base's own documents, and the knowledge base page shows that
+  state and keeps refreshing until the whole batch has settled (#2486).
 
 ## [1.18.0] - 2026-10-26
 

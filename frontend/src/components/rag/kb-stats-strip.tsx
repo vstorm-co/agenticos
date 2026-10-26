@@ -4,8 +4,7 @@ import { CircleAlert, CircleCheck, Loader2, Lock, Sparkles, Users } from "lucide
 import type { LucideIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import type { RAGCollectionInfo } from "@/lib/rag-api";
-import type { KBScope } from "@/types";
+import type { KBIngestion, KBScope } from "@/types";
 
 /**
  * How each scope is drawn: an icon, and the key to the word for it.
@@ -37,8 +36,8 @@ const SCOPE_META: Record<KBScope, { labelKey: string; icon: LucideIcon }> = {
  * collection's, and it says so plainly; until then it names its own scope
  * rather than passing a partial sum off as the whole.
  *
- * `ingestion` is whether the collection is still indexing, counted over every
- * document rather than the loaded page, and `null` until it has answered or when
+ * `ingestion` is whether the KB is still indexing, counted over every document
+ * rather than the loaded page, and `null` until it has answered or when
  * it could not - the strip then says nothing about it rather than guessing. It
  * says indexing is complete only once something has been indexed, so an empty
  * collection is not announced as finished; a failed document is shown beside
@@ -58,7 +57,7 @@ export function KBStatsStrip({
   /** Chunks across the documents fetched so far, which may not be all of them. */
   loadedVectors: number;
   hasMoreDocuments: boolean;
-  ingestion: RAGCollectionInfo | null;
+  ingestion: KBIngestion | null;
 }) {
   const t = useTranslations("pages.kb");
   const meta = SCOPE_META[scope];

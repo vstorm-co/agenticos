@@ -360,12 +360,17 @@ normalising the answer got a different shape from each
 reports `indexing_status` from the collection's tracked documents: `indexing`
 while any of them is still `processing` - queued or being ingested - and
 `complete` once none is. `processing_count`, `indexed_count` and `failed_count`
-say how many documents are in each state. A failed document is terminal, so it
-does not hold the collection at `indexing`; it shows in `failed_count`. The
-knowledge base page shows the same state beside the document count. The field
-used to be the constant `complete`, and `total_vectors` grows while the worker
-works through a batch, so a script waiting on either queried a half-built
-collection ([#2486](https://github.com/vstorm-co/agenticos/issues/2486)).
+say how many documents are in each state. A failed document is in a terminal
+state, so it does not hold the collection at `indexing`; it shows in
+`failed_count`. The field used to be the constant `complete`, and
+`total_vectors` grows while the worker works through a batch, so a script
+waiting on either queried a half-built collection
+([#2486](https://github.com/vstorm-co/agenticos/issues/2486)).
+`GET /kb/{kb_id}/ingestion` answers the same for one knowledge base, counting
+the documents its page lists rather than everything under its collection name,
+which another base may share; the knowledge base page shows that state beside
+the document count. A document left `processing` keeps either answer at
+`indexing` until it is deleted.
 
 !!! danger "The task is started after the request's transaction commits"
 

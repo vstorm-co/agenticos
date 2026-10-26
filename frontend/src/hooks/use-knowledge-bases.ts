@@ -3,7 +3,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
   type InfiniteData,
-  skipToken,
   useInfiniteQuery,
   useQuery,
   useQueryClient,
@@ -13,7 +12,6 @@ import { toast } from "sonner";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { getErrorMessage, parseErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
-import { getCollectionInfo } from "@/lib/rag-api";
 import type {
   ConnectorList,
   SyncSourceCreate,
@@ -30,6 +28,7 @@ import type {
   IngestionOverride,
   KBDocument,
   KBDocumentList,
+  KBIngestion,
   KnowledgeBase,
   KnowledgeBaseList,
 } from "@/types";
@@ -261,18 +260,20 @@ export function useKBDetail(id: string | null) {
 
   const kb = kbQuery.data ?? null;
 
-  // Whether the collection is still indexing, counted over every document rather
-  // than the page of them loaded below - a batch of two hundred uploads reads as
+  // Whether the KB is still indexing, counted over every document rather than
+  // the page of them loaded below - a batch of two hundred uploads reads as
   // settled from its first twenty while the rest are still queued (#2486). Not
   // load-bearing: a failure leaves the strip without the state, not the page
   // without the collection.
-  const collectionName = kb?.collection_name ?? null;
-  const collectionInfoQuery = useQuery({
-    queryKey: qk.kb.collectionInfo(id ?? "none"),
-    // A name only arrives with the collection, and the collection only with an id.
-    queryFn: collectionName === null ? skipToken : () => getCollectionInfo(collectionName),
+  const ingestionQuery = useQuery({
+    queryKey: qk.kb.ingestion(id ?? "none"),
+    queryFn: () => apiClient.get<KBIngestion>(`/kb/${id}/ingestion`),
+    enabled,
     retry: false,
   });
+  // React Query keeps the last answer when a refetch fails; a stale `indexing`
+  // would keep the strip spinning and the poll running, so a failure is no state.
+  const ingestion = ingestionQuery.isError ? null : (ingestionQuery.data ?? null);
 
   // Flattened and de-duplicated across pages: a poll can re-read a page the
   // append had already fetched, and two copies of one document would list it
@@ -341,6 +342,22 @@ export function useKBDetail(id: string | null) {
   const refresh = useCallback(async () => {
     if (!id) return;
     await queryClient.invalidateQueries({ queryKey: qk.kb.detail(id) });
+  }, [id, queryClient]);
+
+  /**
+   * Reload only what ingestion changes - the documents, the indexing state and
+   * the sync sources, whose last run a sync's ingest settles.
+   *
+   * The ingest poll's refresh: a batch can keep it running for minutes, and the
+   * collection, its integrations and its connectors do not move meanwhile.
+   */
+  const refreshIngestion = useCallback(async () => {
+    if (!id) return;
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: qk.kb.documents(id) }),
+      queryClient.invalidateQueries({ queryKey: qk.kb.ingestion(id) }),
+      queryClient.invalidateQueries({ queryKey: qk.kb.syncSources(id) }),
+    ]);
   }, [id, queryClient]);
 
   /** Append the next page of documents (server-side skip/limit pagination). */
@@ -681,7 +698,7 @@ export function useKBDetail(id: string | null) {
     documents,
     documentsTotal,
     hasMoreDocuments: documentsQuery.hasNextPage,
-    collectionInfo: collectionInfoQuery.data ?? null,
+    ingestion,
     loadFailed,
     syncSources,
     orgIntegrations,
@@ -693,6 +710,7 @@ export function useKBDetail(id: string | null) {
     uploadProgress,
     error,
     refresh,
+    refreshIngestion,
     loadMoreDocuments,
     updateIngestion,
     updateEmbeddings,

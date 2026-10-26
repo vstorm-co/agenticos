@@ -1,24 +1,23 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { Suspense, type ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import KBDetailPage from "./page";
 import { apiClient } from "@/lib/api-client";
 import { DEFAULT_INGESTION_CONFIG } from "@/lib/ingestion-config";
-import type { RAGCollectionInfo } from "@/lib/rag-api";
-import type { KBDocument, KnowledgeBase } from "@/types";
+import type { KBDocument, KBIngestion, KnowledgeBase } from "@/types";
 import { Perm } from "@/types/permissions";
 
 /**
- * Whether the collection is still indexing, as the strip under its title says.
+ * Whether the KB is still indexing, as the strip under its title says.
  *
  * The collection-info endpoint said `complete` while 231 uploads were still
- * being ingested (#2486), and this page had no collection-level state at all -
- * only the badges of the twenty documents it had loaded, which settle long
- * before the rest of a large batch does. So the strip reads the collection's
- * own counts, and the poll keeps going while they say indexing even when every
- * loaded document has finished.
+ * being ingested (#2486), and this page had no KB-level state at all - only the
+ * badges of the twenty documents it had loaded, which settle long before the
+ * rest of a large batch does. So the strip reads the KB's own counts, and the
+ * poll keeps going while they say indexing even when every loaded document has
+ * finished.
  */
 
 vi.mock("@/lib/api-client", async () => {
@@ -76,13 +75,10 @@ const SETTLED: KBDocument = {
   organizational_unit: null,
 };
 
-const INFO_PATH = "/rag/collections/org%20handbook/info";
+const INFO_PATH = "/kb/kb-1/ingestion";
 
-function info(overrides: Partial<RAGCollectionInfo>): RAGCollectionInfo {
+function info(overrides: Partial<KBIngestion>): KBIngestion {
   return {
-    name: "org handbook",
-    total_vectors: 111,
-    dim: 1536,
     indexing_status: "complete",
     processing_count: 0,
     indexed_count: 0,
@@ -91,12 +87,15 @@ function info(overrides: Partial<RAGCollectionInfo>): RAGCollectionInfo {
   };
 }
 
-/** The page's reads, with the collection info as given - or refused, for `null`. */
-function serve(collectionInfo: RAGCollectionInfo | null) {
+/** The page's reads, with the indexing state as given - or refused, for `null`. */
+function serve(...answers: (KBIngestion | null)[]) {
+  let reads = 0;
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     if (path === INFO_PATH) {
-      if (collectionInfo === null) throw new Error("unavailable");
-      return collectionInfo;
+      // Each read takes the next answer, and the last one repeats.
+      const answer = answers[Math.min(reads++, answers.length - 1)];
+      if (answer === null) throw new Error("unavailable");
+      return answer;
     }
     if (path.includes("/documents")) return { items: [SETTLED], total: 1 };
     if (path.endsWith("/connectors")) return { items: [] };
@@ -105,8 +104,12 @@ function serve(collectionInfo: RAGCollectionInfo | null) {
   });
 }
 
+function reads(path: string): number {
+  return vi.mocked(apiClient.get).mock.calls.filter(([read]) => read === path).length;
+}
+
 function infoReads(): number {
-  return vi.mocked(apiClient.get).mock.calls.filter(([path]) => path === INFO_PATH).length;
+  return reads(INFO_PATH);
 }
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -128,6 +131,10 @@ async function mount() {
 describe("a collection's indexing state on its page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("says it is indexing while documents are still in progress", async () => {
@@ -174,13 +181,38 @@ describe("a collection's indexing state on its page", () => {
     expect(screen.queryByText(/in progress/)).toBeNull();
   });
 
-  it("keeps polling while the collection indexes, though every loaded document is done", async () => {
+  it("drops a state it can no longer read rather than keep showing it", async () => {
+    // React Query keeps the last answer through a failed refetch; shown, it
+    // would keep the strip at indexing and the poll running on stale data.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    serve(info({ indexing_status: "indexing", processing_count: 5 }), null);
+    await mount();
+    expect(await screen.findByText("Indexing: 5 documents in progress")).toBeVisible();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2500);
+    });
+    await waitFor(() => expect(infoReads()).toBe(2));
+
+    expect(screen.queryByText(/in progress/)).toBeNull();
+  });
+
+  it("keeps polling while the KB indexes, though every loaded document is done", async () => {
     // The one loaded document is `done`, so the loaded page alone would stop
-    // the poll; the collection's own state is what keeps it going.
+    // the poll; the KB's own state is what keeps it going.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     serve(info({ indexing_status: "indexing", processing_count: 5, indexed_count: 1 }));
     await mount();
     await waitFor(() => expect(infoReads()).toBe(1));
+    const kbReads = reads("/kb/kb-1");
 
-    await waitFor(() => expect(infoReads()).toBeGreaterThan(1), { timeout: 5000 });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2500);
+    });
+    await waitFor(() => expect(infoReads()).toBe(2));
+
+    // Only what ingestion changes is re-read; the collection itself is not.
+    expect(reads("/kb/kb-1")).toBe(kbReads);
+    expect(reads("/kb/kb-1/sync-sources/connectors")).toBe(1);
   });
 });

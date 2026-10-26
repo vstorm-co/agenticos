@@ -1,5 +1,5 @@
 ---
-source_sha: "c7263abd5949"
+source_sha: "d75097e2f7d8"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -402,13 +402,18 @@ leitet `indexing_status` aus den verfolgten Dokumenten der Collection ab:
 `indexing`, solange eines davon noch `processing` ist - in der Warteschlange
 oder in der Ingestion - und `complete`, sobald keines mehr es ist.
 `processing_count`, `indexed_count` und `failed_count` geben an, wie viele
-Dokumente in welchem Zustand sind. Ein fehlgeschlagenes Dokument ist ein
-Endzustand und hält die Collection deshalb nicht auf `indexing`; es erscheint
-in `failed_count`. Die Seite der Wissensdatenbank zeigt denselben Zustand neben
-der Dokumentanzahl. Das Feld war früher die Konstante `complete`, und
+Dokumente in welchem Zustand sind. Ein fehlgeschlagenes Dokument befindet sich
+in einem Endzustand und hält die Collection deshalb nicht auf `indexing`; es
+erscheint in `failed_count`. Das Feld war früher die Konstante `complete`, und
 `total_vectors` wächst, während der Worker einen Stapel abarbeitet - ein
 Skript, das auf eines von beiden wartete, fragte eine halb aufgebaute
 Collection ab ([#2486](https://github.com/vstorm-co/agenticos/issues/2486)).
+`GET /kb/{kb_id}/ingestion` beantwortet dasselbe für eine Wissensdatenbank und
+zählt die Dokumente, die ihre Seite auflistet, statt alles unter ihrem
+Collection-Namen, den eine andere Datenbank teilen kann; die Seite der
+Wissensdatenbank zeigt diesen Zustand neben der Dokumentanzahl. Ein Dokument,
+das in `processing` hängen bleibt, hält beide Antworten auf `indexing`, bis
+es gelöscht wird.
 
 !!! danger "Die Aufgabe wird gestartet, nachdem die Transaktion der Anfrage committet"
 

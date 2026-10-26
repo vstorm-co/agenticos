@@ -1,12 +1,10 @@
-"""`GET /rag/collections/{name}/info` reports whether the collection is still indexing.
+"""The two routes that say whether documents are still indexing (#2486).
 
-It answered the constant `complete` while the worker was still ingesting 231
-uploads and `total_vectors` climbed from 111 to 1852 under it, so a script that
-waited for `complete` queried a half-built collection (#2486). The status now
-comes from the collection's tracked documents. These pin each state, that a
-failed document is visible without holding the collection at `indexing`, and
-that the count is scoped to the knowledge base the caller was authorized for.
-The SQL itself runs against Postgres in
+`GET /rag/collections/{name}/info` counts the collection, scoped to the
+knowledge base the caller was authorized for; `GET /kb/{kb_id}/ingestion`
+counts one knowledge base's own documents, which is what its page shows. The
+status mapping is unit-tested in `tests/test_rag_ingestion_status.py`; the SQL
+runs against Postgres in
 `tests/integration/test_platform_flows.py::TestWhatACollectionReportsItHolds`.
 """
 
@@ -91,64 +89,26 @@ def _counts(*, processing: int, indexed: int, failed: int) -> AsyncMock:
 
 
 @pytest.mark.usefixtures("access", "documents", "vector_store")
-class TestIndexingStatus:
-    async def test_a_collection_with_documents_still_processing_is_indexing(
-        self, client: AsyncClient
-    ) -> None:
-        """The reported case: vectors present, most of the upload still queued."""
-        with patch(
-            "app.repositories.rag_document_repo.ingestion_counts",
-            _counts(processing=220, indexed=11, failed=0),
-        ):
-            resp = await client.get(_INFO)
+async def test_the_info_says_a_collection_with_documents_processing_is_indexing(
+    client: AsyncClient,
+) -> None:
+    """The reported case: vectors present, most of the upload still queued."""
+    with patch(
+        "app.repositories.rag_document_repo.ingestion_counts",
+        _counts(processing=220, indexed=11, failed=0),
+    ):
+        resp = await client.get(_INFO)
 
-        assert resp.status_code == 200
-        assert resp.json() == {
-            "name": "handbook",
-            "total_vectors": 111,
-            "dim": 1536,
-            "indexing_status": "indexing",
-            "processing_count": 220,
-            "indexed_count": 11,
-            "failed_count": 0,
-        }
-
-    async def test_a_collection_with_nothing_processing_is_complete(
-        self, client: AsyncClient
-    ) -> None:
-        with patch(
-            "app.repositories.rag_document_repo.ingestion_counts",
-            _counts(processing=0, indexed=231, failed=0),
-        ):
-            resp = await client.get(_INFO)
-
-        assert resp.json()["indexing_status"] == "complete"
-        assert resp.json()["indexed_count"] == 231
-
-    async def test_a_failed_document_is_visible_and_does_not_hold_it_at_indexing(
-        self, client: AsyncClient
-    ) -> None:
-        """A failure is terminal: waiting on it would wait forever, so it is counted."""
-        with patch(
-            "app.repositories.rag_document_repo.ingestion_counts",
-            _counts(processing=0, indexed=229, failed=2),
-        ):
-            resp = await client.get(_INFO)
-
-        assert resp.json()["indexing_status"] == "complete"
-        assert resp.json()["failed_count"] == 2
-
-    async def test_a_collection_nothing_was_uploaded_to_is_complete(
-        self, client: AsyncClient
-    ) -> None:
-        with patch(
-            "app.repositories.rag_document_repo.ingestion_counts",
-            _counts(processing=0, indexed=0, failed=0),
-        ):
-            resp = await client.get(_INFO)
-
-        assert resp.json()["indexing_status"] == "complete"
-        assert resp.json()["processing_count"] == 0
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "name": "handbook",
+        "total_vectors": 111,
+        "dim": 1536,
+        "indexing_status": "indexing",
+        "processing_count": 220,
+        "indexed_count": 11,
+        "failed_count": 0,
+    }
 
 
 @pytest.mark.usefixtures("documents", "vector_store")
@@ -182,6 +142,49 @@ class TestTheCountIsScopedToTheAuthorizedBase:
         counts = _counts(processing=1, indexed=0, failed=0)
         with patch("app.repositories.rag_document_repo.ingestion_counts", counts):
             resp = await client.get(_INFO)
+
+        assert resp.status_code == 404
+        counts.assert_not_awaited()
+
+
+@pytest.fixture
+def knowledge_bases() -> MagicMock:
+    stub = MagicMock()
+    stub.get = AsyncMock(return_value=_kb(_ORGANIZATION))
+    app.dependency_overrides[deps.get_knowledge_base_service] = lambda: stub
+    return stub
+
+
+@pytest.mark.usefixtures("documents")
+class TestAKnowledgeBasesOwnIngestion:
+    async def test_it_counts_the_knowledge_bases_own_documents(
+        self, client: AsyncClient, knowledge_bases: MagicMock
+    ) -> None:
+        """By the base, not its collection name, which another base may share."""
+        kb_id = uuid.uuid4()
+        counts = _counts(processing=3, indexed=1, failed=2)
+        with patch("app.repositories.rag_document_repo.ingestion_counts_for_kb", counts):
+            resp = await client.get(f"{settings.API_V1_STR}/kb/{kb_id}/ingestion")
+
+        assert resp.status_code == 200
+        assert resp.json() == {
+            "indexing_status": "indexing",
+            "processing_count": 3,
+            "indexed_count": 1,
+            "failed_count": 2,
+        }
+        assert counts.await_args.args[1] == kb_id
+        assert knowledge_bases.get.await_args.args == (kb_id,)
+
+    async def test_an_unreadable_knowledge_base_is_refused_before_anything_is_counted(
+        self, client: AsyncClient, knowledge_bases: MagicMock
+    ) -> None:
+        knowledge_bases.get = AsyncMock(
+            side_effect=NotFoundError(message="Knowledge base not found")
+        )
+        counts = _counts(processing=1, indexed=0, failed=0)
+        with patch("app.repositories.rag_document_repo.ingestion_counts_for_kb", counts):
+            resp = await client.get(f"{settings.API_V1_STR}/kb/{uuid.uuid4()}/ingestion")
 
         assert resp.status_code == 404
         counts.assert_not_awaited()

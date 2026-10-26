@@ -49,30 +49,6 @@ export async function searchDocuments(request: RAGSearchRequest): Promise<RAGSea
 }
 
 /**
- * A collection's statistics, and where its documents are in their ingestion.
- *
- * `indexing_status` is `indexing` while any document is queued or being
- * ingested and `complete` once none is - a failed document is terminal and
- * shows in `failed_count` instead (#2486). `total_vectors` grows while the
- * worker works through an upload, so it is not the signal to wait on.
- */
-export interface RAGCollectionInfo {
-  name: string;
-  total_vectors: number;
-  dim: number;
-  indexing_status: "indexing" | "complete";
-  processing_count: number;
-  indexed_count: number;
-  failed_count: number;
-}
-
-export async function getCollectionInfo(collectionName: string): Promise<RAGCollectionInfo> {
-  return apiClient.get<RAGCollectionInfo>(
-    `/rag/collections/${encodeURIComponent(collectionName)}/info`,
-  );
-}
-
-/**
  * One stored document, as the shared viewer reads it.
  *
  * `raw` rather than `fetch`: this is an org-scoped endpoint, and without the

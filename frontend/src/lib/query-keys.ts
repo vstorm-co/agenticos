@@ -425,9 +425,8 @@ export const qk = {
     syncSources: (id: string) => ["kb", id, "sync-sources"] as const,
     orgIntegrations: (id: string) => ["kb", id, "org-integrations"] as const,
     connectors: (id: string) => ["kb", id, "connectors"] as const,
-    // Whether the collection is still indexing, from `/rag/collections/{name}/info`.
-    // Under `["kb", id]` so the page's refresh, and so its ingest poll, re-reads it.
-    collectionInfo: (id: string) => ["kb", id, "collection-info"] as const,
+    // Whether the KB's documents are still indexing, from `/kb/{id}/ingestion`.
+    ingestion: (id: string) => ["kb", id, "ingestion"] as const,
     // One document's stored file, as the viewer reads it. Text and bytes keyed
     // apart because they are two different bodies for one download route, and a
     // viewer showing a PDF must not be handed a cached string for it.
