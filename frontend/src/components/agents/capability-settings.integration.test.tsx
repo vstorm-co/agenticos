@@ -792,6 +792,8 @@ describe("CapabilitySettings coding agent sign-in", () => {
 
     expect(await screen.findByRole("option", { name: /LlamaParse/ })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: /OpenAI/ })).toBeInTheDocument();
+    // Publish refuses a ChatGPT sign-in for Claude Code, gateway or not.
+    expect(screen.queryByRole("option", { name: /My ChatGPT/ })).toBeNull();
   });
 
   it("keeps Codex narrowed though a Claude Code gateway was left in its config", async () => {

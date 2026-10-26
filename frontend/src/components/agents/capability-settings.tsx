@@ -655,9 +655,14 @@ function SecretField({
   const errorId = `${fieldId}-error`;
   const purpose = purposeOf(binding, requirement);
   const purposes = purposesOf(binding, requirement, schema);
+  const signIn = signInFor(binding);
+  // Publish refuses a ChatGPT sign-in for any harness but Codex whatever its
+  // purpose, so a gateway opening Claude Code's purposes does not offer one.
   const usable = secrets.filter(
     (secret) =>
-      acceptsKind(requirement, secret.kind) && fitsPurpose(secret, purposes, binding.secret_id),
+      acceptsKind(requirement, secret.kind) &&
+      fitsPurpose(secret, purposes, binding.secret_id) &&
+      (secret.kind !== "openai_codex" || signIn === "chatgpt" || secret.id === binding.secret_id),
   );
   const state = vaultState(isLoading, listError, usable.length);
   // Having selected nothing is a fact about the spec, so it is said whatever the
@@ -666,7 +671,6 @@ function SecretField({
   // is what a full vault also looks like - a stored secret would otherwise read
   // as deleted on every load.
   const vaultWasRead = state === "ready" || state === "empty";
-  const signIn = signInFor(binding);
   const problem =
     optional && binding.secret_id === null
       ? null

@@ -686,7 +686,7 @@ class _Harness(BaseModel):
         "unmapped",
         "endpoint-set",
         "endpoint-empty",
-        "endpoint-not-this-values",
+        "endpoint-not-this-value",
         "no-config",
     ],
 )
