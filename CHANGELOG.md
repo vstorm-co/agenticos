@@ -19,6 +19,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- Generate follow-up buttons only with an explicitly selected separate model,
+  after the answer is saved. Suggestions no longer block turn completion or the
+  next prompt; late results attach to their original answer. Channel buttons
+  are generated after the main reply is posted. Auxiliary requests retain
+  budget checks, privacy settings and independent cost accounting.
+  **Upgrade:** select **Model for next steps** in the Follow-ups capability to
+  enable suggestions. An empty profile now disables them; the main agent no
+  longer receives `suggest_next_steps`.
+
 ## [1.18.0] - 2026-10-26
 
 ### Fixed

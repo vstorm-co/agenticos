@@ -18,15 +18,22 @@ import { ModalityBadge, SurfaceIcon, surfaceLabel } from "./surface-icon";
  * run with no mark is not.
  */
 describe("SurfaceIcon", () => {
-  it.each(["web", "embed", "api", "slack", "telegram", "mattermost", "schedule", "trigger"])(
-    "draws a decorative mark for %s",
-    (surface) => {
-      const { container } = render(<SurfaceIcon surface={surface} />);
-      const mark = container.querySelector("svg");
-      expect(mark).not.toBeNull();
-      expect(mark).toHaveAttribute("aria-hidden", "true");
-    },
-  );
+  it.each([
+    "web",
+    "embed",
+    "api",
+    "slack",
+    "telegram",
+    "mattermost",
+    "schedule",
+    "trigger",
+    "follow_ups",
+  ])("draws a decorative mark for %s", (surface) => {
+    const { container } = render(<SurfaceIcon surface={surface} />);
+    const mark = container.querySelector("svg");
+    expect(mark).not.toBeNull();
+    expect(mark).toHaveAttribute("aria-hidden", "true");
+  });
 
   it("renders nothing for a surface it has no mark for", () => {
     const { container } = render(<SurfaceIcon surface="carrier-pigeon" />);
@@ -36,10 +43,14 @@ describe("SurfaceIcon", () => {
 
 describe("surfaceLabel", () => {
   it("names the unattended surfaces rather than printing their raw value", () => {
-    const t = (key: string) => ({ surfaceSchedule: "Schedule", surfaceTrigger: "Trigger" })[key]!;
+    const t = (key: string) =>
+      ({ surfaceSchedule: "Schedule", surfaceTrigger: "Trigger", surfaceFollowUps: "Follow-ups" })[
+        key
+      ]!;
 
     expect(surfaceLabel("schedule", t)).toBe("Schedule");
     expect(surfaceLabel("trigger", t)).toBe("Trigger");
+    expect(surfaceLabel("follow_ups", t)).toBe("Follow-ups");
   });
 
   it("falls back to the raw value for a surface this build has no name for", () => {

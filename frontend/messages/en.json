@@ -2524,6 +2524,7 @@
         },
         "names": {
           "api": "HTTP API",
+          "follow_ups": "Follow-ups",
           "embed": "Widget",
           "mattermost": "Mattermost",
           "playground": "Playground",
@@ -5509,6 +5510,7 @@
       "surfaceMattermost": "Mattermost",
       "surfaceA2a": "A2A",
       "surfaceTeams": "Microsoft Teams",
+      "surfaceFollowUps": "Follow-ups",
       "surfaceSchedule": "Schedule",
       "surfaceSlack": "Slack",
       "surfaceTelegram": "Telegram",
@@ -8376,7 +8378,7 @@
     "follow_ups": {
       "model_profile_id": {
         "title": "Model for next steps",
-        "description": "A model profile that writes the next steps once the answer is in, instead of the agent's own model offering them as a tool. A small, cheap model is enough for three short buttons, and the agent no longer spends a request on them. Empty lets the agent offer them itself."
+        "description": "A separate model profile that writes next-step buttons in the background after the answer is saved. It never delays the answer or the next message. A small, cheap model is enough. Empty disables next-step suggestions."
       }
     }
   },

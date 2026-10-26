@@ -2334,23 +2334,33 @@ the person did not answer in time.
 
 ## Follow-ups { #follow-ups }
 
-At the end of an answer, `suggest_next_steps` offers up to three next steps as
-buttons under it, each at most 80 characters and phrased as the person would say
-it: "Make it a table", "Do this every Monday at 9:00". A click sends the step as
-their next message. Only the latest answer offers them, and none while a turn is
-running. The agent skips them after small talk or a question of its own, and
-does not repeat the steps in its answer. In Slack, Teams, Telegram and Mattermost
-the steps arrive as a message of buttons under the answer, and a press is the
-presser saying that step - [Channels](../channels.md#next-steps-as-buttons) has
-the detail.
+Next-step buttons are written only by a separate model selected in **Model for
+next steps** (`model_profile_id`). An empty selection disables suggestions.
+After upgrading, select a profile in the Follow-ups capability to keep using
+buttons. The main model never receives `suggest_next_steps` and does not wait
+for suggestions before finishing its answer or accepting the next prompt.
 
-**Model for next steps** (`model_profile_id`) hands the steps to a model of their
-own: the agent is no longer offered `suggest_next_steps`, and once its answer is in
-that model reads the request and the answer and writes up to three steps, or none.
-A small, cheap model is enough for three short buttons, and the agent no longer
-spends a request on them. The call is checked against the budgets first and booked
-on the run like any other; one that cannot be made costs the buttons, never the
-answer. Empty, the agent offers them itself.
+After the assistant message commits, the optional background task reads that
+run's question and saved answer. It returns up to three short steps in the
+person's language, or none. The console receives a late event naming the exact
+conversation and assistant message; a newer turn is left intact. Stored buttons
+survive reopening the conversation. Slack, Teams, Telegram and Mattermost start
+this work after posting the main reply, and send the buttons separately.
+
+The helper has no tools or main-agent instructions. Its own run checks the
+agent, department and organization budgets, inherits tracing privacy, and books
+its cost independently, including failures. The main answer's cost is unchanged.
+Each process allows four helpers at once; excess work is skipped. Model work
+is limited to 15 seconds, two requests at most and 512 output tokens. There is
+no automatic retry. Suggestions may be lost on shutdown or connection loss;
+they never replace the answer with an error.
+
+Activity labels the auxiliary run **Follow-ups**. It keeps the source
+conversation’s read permissions and contributes to that conversation’s total
+cost, without marking it as busy or replacing its latest foreground run.
+
+`suggest_next_steps` remains the recorded identity of generated buttons, for
+history and existing spec overrides; it is not a callable tool of the main model.
 
 `propose_setup` proposes up to three things to set up, drawn as cards under the
 answer: an agent of the person's own, a routine, or a service to connect. A card

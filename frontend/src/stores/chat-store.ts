@@ -1,5 +1,7 @@
 "use client";
 
+import { retainNextSteps } from "@/lib/next-step-events";
+
 import { create, createStore, type StateCreator } from "zustand";
 
 import { scopedStore } from "./chat-scope-context";
@@ -210,7 +212,10 @@ const chatState: StateCreator<ChatState> = (set) => ({
             id,
             message.isStreaming
               ? { ...message, persistedId: id }
-              : { ...persisted, renderKey: message.renderKey ?? message.id },
+              : {
+                  ...retainNextSteps(persisted, message),
+                  renderKey: message.renderKey ?? message.id,
+                },
           );
         } else if (
           message.isStreaming ||

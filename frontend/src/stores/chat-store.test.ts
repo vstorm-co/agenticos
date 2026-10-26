@@ -483,3 +483,25 @@ it("uses the run identity when another participant's prompt interleaves the save
     "saved-answer",
   ]);
 });
+
+it("retains late next-step buttons when an older history request finishes", () => {
+  const saved = message({
+    id: "answer",
+    conversationId: "c",
+    content: "Answer",
+    toolCalls: [
+      {
+        id: "next_steps_answer",
+        name: "suggest_next_steps",
+        args: { steps: ["Make a table"] },
+        result: JSON.stringify({ steps: ["Make a table"] }),
+        status: "completed",
+      },
+    ],
+  });
+  store().addMessage(saved);
+  store().rereadMessages([{ ...saved, toolCalls: [] }]);
+  expect(store().messages.find((m) => m.id === "answer")?.toolCalls?.[0]?.args.steps).toEqual([
+    "Make a table",
+  ]);
+});

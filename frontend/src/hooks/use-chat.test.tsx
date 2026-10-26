@@ -4435,3 +4435,162 @@ it("sends the prompt correlation retained beside its authenticated author", () =
   expect(lastFrame().client_message_id).toBe(prompt?.clientMessageId);
   expect(prompt?.sender).toEqual({ user_id: "me", name: "Me", has_avatar: true, avatar_color: 1 });
 });
+
+describe("useChat - next steps arrive after the answer", () => {
+  function saved(id = "answer-1", conversationId = "c-1") {
+    return {
+      id,
+      conversationId,
+      role: "assistant" as const,
+      content: "Original answer",
+      timestamp: new Date(),
+      isStreaming: false,
+    };
+  }
+  it("updates only the saved answer while another answer is streaming", () => {
+    useConversationStore.setState({ currentConversationId: "c-1" });
+    useChatStore.setState({
+      messages: [saved(), { ...saved("answer-2"), isStreaming: true, content: "Still writing" }],
+    });
+    const { result } = renderHook(() => useChat(), { wrapper });
+    const before = useChatStore.getState().messages[1];
+    receive("next_steps", {
+      conversation_id: "c-1",
+      message_id: "answer-1",
+      steps: ["Make a table"],
+    });
+    expect(useChatStore.getState().messages[0]?.toolCalls?.[0]?.args.steps).toEqual([
+      "Make a table",
+    ]);
+    expect(useChatStore.getState().messages[1]).toBe(before);
+    expect(result.current.isProcessing).toBe(false);
+  });
+  it("keeps a very fast result until message_saved renames its bubble", async () => {
+    useConversationStore.setState({ currentConversationId: "c-1" });
+    renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("text_delta", { content: "Answer" });
+    receive("next_steps", {
+      conversation_id: "c-1",
+      message_id: "saved-1",
+      steps: ["Make a table"],
+    });
+    receive("message_saved", { message_id: "saved-1", conversation_id: "c-1" });
+    await waitFor(() =>
+      expect(
+        useChatStore.getState().messages.find((m) => m.id === "saved-1")?.toolCalls?.[0]?.args
+          .steps,
+      ).toEqual(["Make a table"]),
+    );
+  });
+  it("drops another conversation's late result and malformed events", () => {
+    useConversationStore.setState({ currentConversationId: "c-1" });
+    useChatStore.setState({ messages: [saved()] });
+    renderHook(() => useChat(), { wrapper });
+    const before = useChatStore.getState().messages[0];
+    receive("next_steps", {
+      conversation_id: "c-2",
+      message_id: "answer-1",
+      steps: ["Make a table"],
+    });
+    receive("next_steps", { conversation_id: "c-1", message_id: "answer-1", steps: [1] });
+    expect(useChatStore.getState().messages[0]).toBe(before);
+  });
+});
+
+it("bounds suggestions waiting for a saved bubble", async () => {
+  useConversationStore.setState({ currentConversationId: "c-1" });
+  renderHook(() => useChat(), { wrapper });
+  for (let i = 0; i <= 20; i++)
+    receive("next_steps", {
+      conversation_id: "c-1",
+      message_id: `saved-${i}`,
+      steps: ["Make a table"],
+    });
+  receive("model_request_start", {});
+  receive("message_saved", { message_id: "saved-20", conversation_id: "c-1" });
+  await waitFor(() =>
+    expect(
+      useChatStore.getState().messages.find((m) => m.id === "saved-20")?.toolCalls,
+    ).toHaveLength(1),
+  );
+  act(() =>
+    useChatStore.getState().addMessage({
+      id: "saved-0",
+      conversationId: "c-1",
+      role: "assistant",
+      content: "Older",
+      timestamp: new Date(),
+    }),
+  );
+  expect(
+    useChatStore.getState().messages.find((m) => m.id === "saved-0")?.toolCalls,
+  ).toBeUndefined();
+});
+
+it("discards pending suggestions when the conversation changes", () => {
+  useConversationStore.setState({ currentConversationId: "c-1" });
+  renderHook(() => useChat(), { wrapper });
+  receive("next_steps", {
+    conversation_id: "c-1",
+    message_id: "old-answer",
+    steps: ["Make a table"],
+  });
+  act(() => useConversationStore.setState({ currentConversationId: "c-2" }));
+  act(() => useConversationStore.setState({ currentConversationId: "c-1" }));
+  act(() =>
+    useChatStore.getState().addMessage({
+      id: "old-answer",
+      conversationId: "c-1",
+      role: "assistant",
+      content: "Old answer",
+      timestamp: new Date(),
+    }),
+  );
+  expect(
+    useChatStore.getState().messages.find((m) => m.id === "old-answer")?.toolCalls,
+  ).toBeUndefined();
+});
+
+it("refreshes the conversation bill even when the helper offers no buttons", async () => {
+  useConversationStore.setState({ currentConversationId: "c-1" });
+  get.mockResolvedValue({ cost: null });
+  renderHook(() => useChat(), { wrapper });
+  receive("next_steps", { conversation_id: "c-1", message_id: "answer", steps: [] });
+  await waitFor(() =>
+    expect(get).toHaveBeenCalledWith("/conversations/c-1/messages?skip=0&limit=1"),
+  );
+  expect(useChatStore.getState().messages).toHaveLength(0);
+});
+
+it.each(["account", "organization"])(
+  "does not apply a late helper bill after changing %s",
+  async (changed) => {
+    useConversationStore.setState({ currentConversationId: "c-1" });
+    const bill = { input_tokens: 10, output_tokens: 20, cost_usd: "0.25", cost_is_partial: false };
+    let resolve!: (value: { cost: typeof bill }) => void;
+    get.mockReturnValue(
+      new Promise<{ cost: typeof bill }>((done) => {
+        resolve = done;
+      }),
+    );
+    renderHook(() => useChat(), { wrapper });
+    receive("next_steps", { conversation_id: "c-1", message_id: "answer", steps: [] });
+    act(() => {
+      if (changed === "organization") useOrgStore.setState({ activeOrgId: "new-org" });
+      else
+        useAuthStore.setState({
+          user: {
+            id: "new-account",
+            email: "new@example.com",
+            full_name: "New",
+            is_active: true,
+            created_at: "2026-10-01",
+          },
+        });
+      resolve({ cost: bill });
+    });
+    await act(async () => {});
+    expect(useConversationStore.getState().currentCost).not.toEqual(bill);
+  },
+);

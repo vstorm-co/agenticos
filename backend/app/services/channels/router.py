@@ -765,6 +765,26 @@ class ChannelMessageRouter:
             await ChannelNextSteps(db).offer(
                 bot, incoming, run_id=answered.run_id, steps=answered.next_steps
             )
+        elif answered.run_id is not None:
+            from app.core.background import spawn_after_commit
+            from app.services.channels.next_steps import offer_after_answer
+
+            spawn_after_commit(
+                db,
+                offer_after_answer(
+                    bot.organization_id,
+                    answered.run_id,
+                    IncomingMessage(
+                        platform=incoming.platform,
+                        bot_id=incoming.bot_id,
+                        platform_user_id=incoming.platform_user_id,
+                        platform_chat_id=incoming.platform_chat_id,
+                        chat_type=incoming.chat_type,
+                        text="",
+                    ),
+                ),
+                name=f"channel-next-steps:{answered.run_id}",
+            )
         return True
 
     async def _post_failure(

@@ -2524,6 +2524,7 @@
         },
         "names": {
           "api": "HTTP API",
+          "follow_ups": "Następne kroki",
           "embed": "Widget",
           "mattermost": "Mattermost",
           "playground": "Playground",
@@ -5280,6 +5281,7 @@
       "surfaceMattermost": "Mattermost",
       "surfaceA2a": "A2A",
       "surfaceTeams": "Microsoft Teams",
+      "surfaceFollowUps": "Następne kroki",
       "surfaceSchedule": "Harmonogram",
       "surfaceSlack": "Slack",
       "surfaceTelegram": "Telegram",
@@ -8161,7 +8163,7 @@
     "follow_ups": {
       "model_profile_id": {
         "title": "Model do następnych kroków",
-        "description": "Profil modelu, który pisze następne kroki, gdy odpowiedź jest gotowa, zamiast własnego modelu agenta proponującego je narzędziem. Na trzy krótkie przyciski wystarczy mały, tani model, a agent nie wydaje już na nie zapytania. Puste pole zostawia to agentowi."
+        "description": "Osobny profil modelu generuje przyciski kolejnych kroków w tle po zapisaniu odpowiedzi. Nie opóźnia odpowiedzi ani kolejnej wiadomości. Wystarczy mały, tani model. Puste pole wyłącza sugestie kolejnych kroków."
       }
     }
   },

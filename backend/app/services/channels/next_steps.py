@@ -165,3 +165,43 @@ class ChannelNextSteps:
             # Pressing the bot's own button is speaking to it.
             addressed=True,
         )
+
+
+async def offer_after_answer(
+    organization_id: UUID, run_id: UUID, incoming: IncomingMessage
+) -> None:
+    """Generate and post optional buttons after the channel's main answer is delivered.
+
+    `incoming` is a fresh primitive-only copy, with no raw event or attachments.
+    A session and the bot credential are acquired here, never borrowed from the turn.
+    """
+    from app.db.session import get_db_context
+    from app.repositories import conversation_repo
+    from app.services.follow_ups import FollowUpService, suggestion_slots
+
+    if suggestion_slots.locked():
+        logger.info("channel_next_steps_skipped_at_capacity")
+        return
+    async with suggestion_slots, get_db_context() as db:
+        bot = await channel_bot_repo.get_for_org(
+            db, UUID(incoming.bot_id), organization_id=organization_id
+        )
+        if bot is None or not bot.is_active or bot.organization_id != organization_id:
+            return
+        message = await conversation_repo.last_answer_message(
+            db, run_id, organization_id=organization_id
+        )
+        if message is None:
+            return
+        steps = await FollowUpService(db).write(message.id, organization_id, channel=True)
+    if not steps:
+        return
+    # Reload authority after the model call: the bot may have been disabled
+    # while it was reading. No ORM identity from that session is reused.
+    async with get_db_context() as delivery_db:
+        bot = await channel_bot_repo.get_for_org(
+            delivery_db, UUID(incoming.bot_id), organization_id=organization_id
+        )
+        if bot is None or not bot.is_active or bot.organization_id != organization_id:
+            return
+        await ChannelNextSteps(delivery_db).offer(bot, incoming, run_id=run_id, steps=steps)

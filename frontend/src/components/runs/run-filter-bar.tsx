@@ -35,6 +35,7 @@ export const SURFACES = [
   "a2a",
   "teams",
   "schedule",
+  "follow_ups",
 ] as const;
 
 // The shape and its defaults live in `lib/runs/filter-params.ts`, with the two
