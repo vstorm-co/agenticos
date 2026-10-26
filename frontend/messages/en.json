@@ -10979,6 +10979,10 @@
     "doneWatching": "We'll tell you if it breaks later.",
     "noChangesFound": "We couldn't find a change that fits the current instructions. Here is what we tried:",
     "triedAttempt": "Attempt {number}: {verdict, select, better {the changes made it better} regression {the changes broke questions that worked} no_change {no measurable change} inconclusive {the result could not be measured} unmeasured {changes proposed, not tested yet} other {no change was proposed}}{dropped, plural, =0 {} one {; # change did not fit the current instructions} other {; # changes did not fit the current instructions}}.",
-    "knowledgeCheckDetails": "Show details: test a knowledge draft"
+    "knowledgeCheckDetails": "Show details: test a knowledge draft",
+    "handledChange": "{before} → {after} of {total} questions handled well.",
+    "newlyFixed": "Newly fixed",
+    "newlyBroken": "Newly broken",
+    "notConfirmedYet": "Not confirmed yet ({count})"
   }
 }

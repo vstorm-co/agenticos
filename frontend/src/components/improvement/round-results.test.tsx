@@ -36,8 +36,8 @@ vi.mock("@/hooks/use-eval-runs", () => ({
   },
 }));
 vi.mock("./changed-answers", () => ({
-  ChangedAnswers: ({ caseIds }: { caseIds: string[] }) => (
-    <p>Changed questions: {caseIds.join(", ")}</p>
+  ChangedAnswers: ({ flips }: { flips: { case_id: string }[] }) => (
+    <p>Changed questions: {flips.map((flip) => flip.case_id).join(", ")}</p>
   ),
 }));
 const ROUND = { ...SESSION.iterations[0]!, eval_run_ids: ["main"] };
@@ -63,16 +63,21 @@ beforeEach(() => {
       false;
 });
 it("shows before/after totals, independent results, cost and earlier measurement links", async () => {
+  state.compared = comparison({
+    cases: [],
+    baseline_summary: { ...SUMMARY, cases: 2, passed: 1 },
+    candidate_summary: { ...SUMMARY, cases: 2, passed: 2 },
+  });
   render(
     <RoundResults
       session={SESSION}
       round={{ ...ROUND, eval_run_ids: ["first", "main"], previous_eval_run_ids: ["old"] }}
     />,
   );
+  expect(screen.getByText("3 → 4 of 4 questions handled well.")).toBeInTheDocument();
   expect(
-    screen.getByText("Questions not used to write the changes: 3 → 4 of 4 handled well."),
+    screen.getByText("Questions not used to write the changes: 1 → 2 of 2 handled well."),
   ).toBeInTheDocument();
-  expect(screen.getAllByText(/Questions not used to write the changes/)).toHaveLength(1);
   expect(screen.getByText(/Cost per answer/)).toBeInTheDocument();
   await userEvent.click(screen.getByText("Earlier checks"));
   expect(screen.getByRole("link", { name: "Earlier check 2" })).toHaveAttribute(

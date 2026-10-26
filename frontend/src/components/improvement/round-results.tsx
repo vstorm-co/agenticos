@@ -230,10 +230,19 @@ function MeasuredResult({
       {!comparison && !comparisonError && <p role="status">{t("loading")}</p>}
       {baseline && candidate && (
         <p className="text-base font-medium">
-          {t("heldoutResult", {
+          {t("handledChange", {
             before: baseline.summary.passed,
             after: candidate.summary.passed,
             total: candidate.summary.cases,
+          })}
+        </p>
+      )}
+      {comparison?.baseline_summary && (
+        <p className="text-sm">
+          {t("heldoutResult", {
+            before: comparison.baseline_summary.passed,
+            after: comparison.candidate_summary.passed,
+            total: comparison.candidate_summary.cases,
           })}
         </p>
       )}
@@ -263,9 +272,7 @@ function MeasuredResult({
           <ChangedAnswers
             runId={runId}
             agentId={run.agent_id}
-            caseIds={comparison.cases
-              .filter((c) => c.flip === "regression" || c.flip === "fixed")
-              .map((c) => c.case_id)}
+            flips={comparison.cases.filter((c) => c.flip === "regression" || c.flip === "fixed")}
             baselineId={comparison.baseline.arm_id}
             candidateId={comparison.candidate.arm_id}
             attributions={attributions}

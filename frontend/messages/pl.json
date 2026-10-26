@@ -10762,6 +10762,10 @@
     "doneWatching": "Damy znać, jeśli coś się później zepsuje.",
     "noChangesFound": "Nie znaleźliśmy zmiany pasującej do obecnych instrukcji. Oto, co próbowaliśmy:",
     "triedAttempt": "Próba {number}: {verdict, select, better {zmiany poprawiły wynik} regression {zmiany zepsuły pytania, które działały} no_change {brak mierzalnej zmiany} inconclusive {nie udało się zmierzyć wyniku} unmeasured {zaproponowano zmiany, jeszcze nieprzetestowane} other {nie zaproponowano zmiany}}{dropped, plural, =0 {} one {; # zmiana nie pasowała do obecnych instrukcji} few {; # zmiany nie pasowały do obecnych instrukcji} many {; # zmian nie pasowało do obecnych instrukcji} other {; # zmiany nie pasowało do obecnych instrukcji}}.",
-    "knowledgeCheckDetails": "Pokaż szczegóły: przetestuj szkic wiedzy"
+    "knowledgeCheckDetails": "Pokaż szczegóły: przetestuj szkic wiedzy",
+    "handledChange": "{before} → {after} z {total} pytań obsłużonych poprawnie.",
+    "newlyFixed": "Nowo naprawione",
+    "newlyBroken": "Nowo zepsute",
+    "notConfirmedYet": "Jeszcze niepotwierdzone ({count})"
   }
 }

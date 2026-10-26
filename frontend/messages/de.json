@@ -10862,6 +10862,10 @@
     "doneWatching": "Wir sagen Ihnen Bescheid, wenn sich später etwas verschlechtert.",
     "noChangesFound": "Wir haben keine Änderung gefunden, die zu den aktuellen Anweisungen passt. Das haben wir versucht:",
     "triedAttempt": "Versuch {number}: {verdict, select, better {die Änderungen haben es verbessert} regression {die Änderungen haben funktionierende Fragen verschlechtert} no_change {keine messbare Änderung} inconclusive {das Ergebnis ließ sich nicht messen} unmeasured {Änderungen vorgeschlagen, noch nicht getestet} other {keine Änderung vorgeschlagen}}{dropped, plural, =0 {} one {; # Änderung passte nicht zu den aktuellen Anweisungen} other {; # Änderungen passten nicht zu den aktuellen Anweisungen}}.",
-    "knowledgeCheckDetails": "Details anzeigen: einen Wissensentwurf testen"
+    "knowledgeCheckDetails": "Details anzeigen: einen Wissensentwurf testen",
+    "handledChange": "{before} → {after} von {total} Fragen gut beantwortet.",
+    "newlyFixed": "Neu behoben",
+    "newlyBroken": "Neu verschlechtert",
+    "notConfirmedYet": "Noch nicht bestätigt ({count})"
   }
 }

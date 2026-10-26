@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { caseScore } from "@/test-utils/scores";
-import { attempt, evalCase } from "@/test-utils/eval-runs";
+import { attempt, evalCase, FLIP } from "@/test-utils/eval-runs";
 import { ChangedAnswers } from "./changed-answers";
 const state = vi.hoisted(() => ({
   error: null as Error | null,
@@ -14,6 +14,7 @@ const state = vi.hoisted(() => ({
   flip: "fixed" as "fixed" | "regression" | "unchanged",
 }));
 const comparisonOptions = vi.hoisted(() => vi.fn());
+const FLIPS = [{ ...FLIP, case_id: "case-1", flip: "fixed" as const, confirmed: true }];
 vi.mock("@/hooks/use-eval-runs", () => ({
   useEvalCases: () => ({
     error: state.error,
@@ -81,7 +82,7 @@ it.each(["failed", "cancelled", "budget_exceeded"])(
       <ChangedAnswers
         runId="r1"
         agentId="a1"
-        caseIds={["case-1"]}
+        flips={FLIPS}
         baselineId="before"
         candidateId="after"
         attributions={{ h1: "attribution-1" }}
@@ -97,7 +98,7 @@ it("shows changed answers beside their separate attribution result", () => {
     <ChangedAnswers
       runId="r1"
       agentId="a1"
-      caseIds={["case-1"]}
+      flips={FLIPS}
       baselineId="before"
       candidateId="after"
       attributions={{ h1: "attribution-1" }}
@@ -105,7 +106,7 @@ it("shows changed answers beside their separate attribution result", () => {
   );
   expect(screen.getByText("90 days")).toBeInTheDocument();
   expect(screen.getByText("30 days")).toBeInTheDocument();
-  expect(screen.getByText("Matches the reviewed return policy")).toBeInTheDocument();
+  expect(screen.getByText("Grader: Matches the reviewed return policy")).toBeInTheDocument();
   expect(screen.getByText("Change 1: newly fixed")).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Open the full check" })).toHaveAttribute(
     "href",
@@ -117,7 +118,7 @@ it("does not claim attribution before it has been requested", () => {
     <ChangedAnswers
       runId="r1"
       agentId="a1"
-      caseIds={["case-1"]}
+      flips={FLIPS}
       baselineId="before"
       candidateId="after"
       attributions={{}}
@@ -131,7 +132,7 @@ it("shows an unavailable result instead of an empty successful comparison", () =
     <ChangedAnswers
       runId="r1"
       agentId="a1"
-      caseIds={["case-1"]}
+      flips={FLIPS}
       baselineId="before"
       candidateId="after"
       attributions={{}}
@@ -146,7 +147,7 @@ it("does not attribute an unconfirmed flip or an invalid comparison", () => {
   const props = {
     runId: "r1",
     agentId: "a1",
-    caseIds: ["case-1"],
+    flips: FLIPS,
     baselineId: "before",
     candidateId: "after",
     attributions: { h1: "attr" },
@@ -165,7 +166,7 @@ it("shows progress while the answer rows are loading", () => {
     <ChangedAnswers
       runId="r1"
       agentId="a1"
-      caseIds={["case-1"]}
+      flips={FLIPS}
       baselineId="before"
       candidateId="after"
       attributions={{}}
@@ -184,7 +185,7 @@ it.each([
     <ChangedAnswers
       runId="r1"
       agentId="a1"
-      caseIds={["case-1"]}
+      flips={FLIPS}
       baselineId="before"
       candidateId="after"
       attributions={{ h1: "attr" }}
@@ -199,7 +200,7 @@ it("keeps an unfinished attribution and unavailable answers explicit", () => {
     <ChangedAnswers
       runId="r1"
       agentId="a1"
-      caseIds={["case-1"]}
+      flips={FLIPS}
       baselineId="before"
       candidateId="after"
       attributions={{ h1: "attr" }}
@@ -207,4 +208,32 @@ it("keeps an unfinished attribution and unavailable answers explicit", () => {
   );
   expect(screen.getByText("Still checking change 1…")).toBeInTheDocument();
   expect(screen.queryByText("30 days")).not.toBeInTheDocument();
+});
+
+it("marks each row newly fixed or newly broken and keeps unconfirmed ones apart", () => {
+  const view = render(
+    <ChangedAnswers
+      runId="r1"
+      agentId="a1"
+      flips={[{ ...FLIPS[0]!, flip: "regression" }]}
+      baselineId="before"
+      candidateId="after"
+      attributions={{}}
+    />,
+  );
+  expect(screen.getByText("Newly broken")).toBeInTheDocument();
+  expect(screen.queryByText(/Not confirmed yet/)).not.toBeInTheDocument();
+  view.rerender(
+    <ChangedAnswers
+      runId="r1"
+      agentId="a1"
+      flips={[{ ...FLIPS[0]!, confirmed: false }]}
+      baselineId="before"
+      candidateId="after"
+      attributions={{}}
+    />,
+  );
+  const group = screen.getByText("Not confirmed yet (1)").closest("details")!;
+  expect(group).not.toHaveAttribute("open");
+  expect(group).toHaveTextContent("Newly fixed");
 });
