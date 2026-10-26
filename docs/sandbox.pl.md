@@ -1,5 +1,5 @@
 ---
-source_sha: "20b6f6bb4702"
+source_sha: "548df22818eb"
 ---
 
 # Sandbox { #the-sandbox }
@@ -56,8 +56,9 @@ Usługa i klient backendu pochodzą z tego samego wydania `pydantic-ai-backend`,
 a klient wywołuje ścieżki, które obsługuje tylko jego własne wydanie. Dlatego
 każdy plik compose przypina obraz dokładnie do wersji z `backend/uv.lock`, a test
 backendu nie przechodzi, gdy pliki compose albo inwentarz licencji podają inną.
-Podbijaj je w jednej zmianie. Nowy pin to tag, którego host jeszcze nie ma, więc
-`make dev` i każde wdrożenie pobierają go przy następnym starcie.
+Podbijaj lock, pliki compose i inwentarz w jednej zmianie. Nowy pin to tag,
+którego host jeszcze nie ma, więc `make dev` i `scripts/deploy.sh` pobierają go
+przy następnym starcie.
 
 Ruchomy tag już raz to zepsuł (#2484). Zapisany w pamięci podręcznej
 `sandboxd:0.2` obsługiwał starsze API niż to, którym mówił klient, i każde
@@ -84,8 +85,15 @@ jeśli usługa ją zachowała.
 
 `agenticos cmd doctor` robi to samo sprawdzenie dla
 każdego zarejestrowanego połączenia i podaje obraz, który trzeba uruchomić.
-Wdróż ponownie stos, który uruchamia usługę: `make prod` albo
-`scripts/deploy.sh` w produkcji, `make dev` na laptopie.
+Wdróż ponownie stos, który uruchamia usługę: `scripts/deploy.sh` w produkcji
+(uruchamia profil `sandbox`, gdy ustawiony jest `SANDBOXD_TOKEN`), `make dev` na
+laptopie. `make prod` nie rusza usługi, bo nie uruchamia tego profilu; na stosie
+uruchomionym w ten sposób pobierz i odtwórz ją sam:
+
+```bash
+docker compose --env-file backend/.env -f docker-compose-prod.yml --profile sandbox pull sandboxd
+docker compose --env-file backend/.env -f docker-compose-prod.yml --profile sandbox up -d sandboxd
+```
 
 !!! danger "Ten token jest równoważny rootowi"
 

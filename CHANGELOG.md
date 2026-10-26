@@ -28,8 +28,9 @@ Two things are versioned separately from this file and worth knowing about:
   route the client needs now fails the tool call with a version mismatch that
   names the image to run, and the conversation reopens its session by name on the
   next turn. `agenticos cmd doctor` checks each sandbox connection's routes. To
-  upgrade, redeploy the stack that runs `sandboxd` (`make prod`,
-  `scripts/deploy.sh` or `make dev`), which pulls the pinned tag (#2484).
+  upgrade, redeploy with `scripts/deploy.sh` or `make dev`, which pull the pinned
+  tag. `make prod` does not start the `sandbox` profile, so on a stack started
+  with it, pull and recreate `sandboxd` with `--profile sandbox` (#2484).
 
 ## [1.18.0] - 2026-10-26
 

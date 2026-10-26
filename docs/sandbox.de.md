@@ -1,5 +1,5 @@
 ---
-source_sha: "20b6f6bb4702"
+source_sha: "548df22818eb"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -58,9 +58,9 @@ Der Dienst und der Client des Backends stammen aus demselben Release von
 `pydantic-ai-backend`, und ein Client ruft Routen auf, die nur sein eigenes
 Release bedient. Deshalb pinnt jede Compose-Datei das Image auf genau die Version
 in `backend/uv.lock`, und ein Backend-Test schlägt fehl, wenn die Compose-Dateien
-oder das Lizenzinventar eine andere nennen. Heben Sie beide in einer Änderung an.
-Ein neuer Pin ist ein Tag, den der Host noch nicht hat, also ziehen `make dev`
-und jedes Deployment ihn beim nächsten Start.
+oder das Lizenzinventar eine andere nennen. Heben Sie Lock, Compose-Dateien und
+Inventar in einer Änderung an. Ein neuer Pin ist ein Tag, den der Host noch nicht
+hat, also ziehen `make dev` und `scripts/deploy.sh` ihn beim nächsten Start.
 
 Ein beweglicher Tag hat das schon einmal kaputt gemacht (#2484). Ein
 zwischengespeichertes `sandboxd:0.2` bediente eine ältere API, als der Client
@@ -88,8 +88,15 @@ Upgrade dieselbe Sitzung wieder, wenn der Dienst sie behalten hat.
 
 `agenticos cmd doctor` macht dieselbe Prüfung für jede registrierte Verbindung und
 nennt das Image, das laufen muss. Deployen Sie den Stack, der den Dienst
-betreibt, neu: `make prod` oder `scripts/deploy.sh` in Produktion, `make dev` auf
-dem Laptop.
+betreibt, neu: `scripts/deploy.sh` in Produktion (es startet das Profil `sandbox`,
+wenn `SANDBOXD_TOKEN` gesetzt ist), `make dev` auf dem Laptop. `make prod` lässt
+den Dienst in Ruhe, weil es dieses Profil nicht startet; auf einem so gestarteten
+Stack ziehen und erstellen Sie ihn selbst neu:
+
+```bash
+docker compose --env-file backend/.env -f docker-compose-prod.yml --profile sandbox pull sandboxd
+docker compose --env-file backend/.env -f docker-compose-prod.yml --profile sandbox up -d sandboxd
+```
 
 !!! danger "Der Token ist root-äquivalent"
 

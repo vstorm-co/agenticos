@@ -120,11 +120,8 @@ class RecordingWorkspace(WrapperWorkspace):
         # operation passes through, and the close needs it: a lost session is
         # forgotten, so the next run opens a fresh one instead of failing again.
         self.lost = False
-        # Whether an operation met a service of another version. The session is
-        # alive but its recorded ref is not usable: the next run would attach by
-        # it, and a service that predates attach answers 409 for a live session.
-        # So the close forgets the ref as for a lost one, and the next run opens
-        # the scope by name - the same session on either version.
+        # Whether an operation met a service of another version (#2484). The
+        # session is alive, but the close forgets its ref as for a lost one.
         self.mismatched = False
         # Whether any operation has reached the workspace this run, so the end of
         # a turn can leave an untouched one unopened instead of listing it.

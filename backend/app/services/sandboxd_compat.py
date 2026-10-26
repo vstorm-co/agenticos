@@ -5,8 +5,8 @@ move together: a client that calls `POST /sessions/{id}/run` against a service
 that only knows `/exec` gets FastAPI's own 404, and the client reads every 404 on
 a session route as "the session is gone" (#2484). The session is alive; the two
 halves are from different releases. Told that the workspace is gone, the model
-gives up and the conversation's session is forgotten - for a problem only the
-operator can fix, by running the image that matches.
+gives up - for a problem only the operator can fix, by running the image that
+matches.
 
 So a 404 is looked at once more before it is believed. The service's own 404s
 always name what is missing (`No such session: ...`); a route the service does
@@ -77,7 +77,7 @@ class SandboxdVersionMismatchError(ConfigurationError, WorkspaceUnavailableError
 
 
 def mismatch_message(missing: list[str]) -> str:
-    """What to tell an operator whose service lacks `missing`, and what to do about it."""
+    """What a service lacking `missing` means, and what its operator has to do."""
     return (
         f"The sandbox service does not serve {', '.join(missing)} - its version does not "
         f"match this platform (expected {SANDBOXD_VERSION}). Run "

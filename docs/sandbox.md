@@ -52,8 +52,9 @@ The service and the backend's client come from the same `pydantic-ai-backend`
 release, and a client calls routes that only its own release serves. So every
 compose file pins the image at exactly the version in `backend/uv.lock`, and a
 backend test fails when the compose files or the licence inventory name another.
-Bump them in one change. A new pin is a tag the host does not have yet, so
-`make dev` and every deploy pull it on the next start.
+Bump the lock, the compose files and the inventory in one change. A new pin is
+a tag the host does not have yet, so `make dev` and `scripts/deploy.sh` pull it
+on the next start.
 
 A moving tag broke this before (#2484). A cached `sandboxd:0.2` served an older
 API than the client spoke, and every command failed as `sandboxd session '…' is
@@ -78,8 +79,15 @@ conversation picks up the same session if the service kept it.
 
 `agenticos cmd doctor` makes the same check against every registered
 connection, and names the image to run. Redeploy the stack that runs the
-service: `make prod` or `scripts/deploy.sh` in production, `make dev` on a
-laptop.
+service: `scripts/deploy.sh` in production (it starts the `sandbox` profile when
+`SANDBOXD_TOKEN` is set), `make dev` on a laptop. `make prod` leaves the service
+alone, because it does not start that profile; on a stack started that way,
+pull and recreate it yourself:
+
+```bash
+docker compose --env-file backend/.env -f docker-compose-prod.yml --profile sandbox pull sandboxd
+docker compose --env-file backend/.env -f docker-compose-prod.yml --profile sandbox up -d sandboxd
+```
 
 !!! danger "The token is root-equivalent"
 

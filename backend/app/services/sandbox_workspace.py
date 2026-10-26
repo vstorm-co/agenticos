@@ -1176,7 +1176,7 @@ class SandboxWorkspaceService:
         return merged, sorted(merged_dirs)
 
     async def _settle_session(self, workspace: OpenWorkspace) -> bool:
-        """Record which session this workspace is now, and whether it was lost.
+        """Record which session this workspace is now, or forget a lost or mismatched one.
 
         A session the run opened is recorded on the row, so the next run attaches
         to it rather than opening one by name - which is what lets a purged one
@@ -1185,13 +1185,13 @@ class SandboxWorkspaceService:
         the tool or the staging that hit it, and the turn after it should not hit
         it again.
 
-        A session on a service of another version is forgotten the same way, though
-        it is alive: the service cannot run this platform's commands, and may not
-        honour an attach by ref.
+        A session on a service of another version is forgotten the same way,
+        though it is alive (see the branch below).
 
         Returns:
-            Whether the session was lost or mismatched, in which case there is
-            nothing on the host to prune.
+            Whether the session was lost or mismatched. Either way its spills are
+            not pruned: a lost session has none left, and a mismatched one is on a
+            service that cannot run the prune.
         """
         row = (
             None

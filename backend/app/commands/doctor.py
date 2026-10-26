@@ -346,8 +346,8 @@ async def _probe_connection(
             try:
                 missing: list[str] | None = await missing_endpoints(client, base)
             except httpx.HTTPError, ValueError:
-                # The service answered `/healthz`, so this is whatever stands in
-                # front of its index. The credential is still worth checking.
+                # `/healthz` answered, so a failure here does not make the
+                # service unreachable, and the credential is still worth checking.
                 missing = None
             policy = await client.get(
                 f"{base}/policy",

@@ -1,5 +1,5 @@
 ---
-source_sha: "20b6f6bb4702"
+source_sha: "548df22818eb"
 ---
 
 # La sandbox { #the-sandbox }
@@ -57,9 +57,10 @@ El servicio y el cliente del backend salen de la misma versión de
 `pydantic-ai-backend`, y un cliente llama a rutas que solo sirve su propia
 versión. Por eso cada archivo compose fija la imagen exactamente en la versión de
 `backend/uv.lock`, y una prueba del backend falla cuando los archivos compose o el
-inventario de licencias nombran otra. Súbelas en un solo cambio. Un pin nuevo es
-una etiqueta que el host todavía no tiene, así que `make dev` y cada despliegue la
-descargan en el siguiente arranque.
+inventario de licencias nombran otra. Sube el lock, los archivos compose y el
+inventario en un solo cambio. Un pin nuevo es una etiqueta que el host todavía no
+tiene, así que `make dev` y `scripts/deploy.sh` la descargan en el siguiente
+arranque.
 
 Una etiqueta móvil ya lo rompió una vez (#2484). Un `sandboxd:0.2` en caché
 servía una API más antigua que la que hablaba el cliente, y cada comando fallaba
@@ -85,8 +86,15 @@ conversación retoma la misma sesión si el servicio la conservó.
 
 `agenticos cmd doctor` hace la misma comprobación en cada conexión registrada y
 nombra la imagen que hay que ejecutar. Vuelve a desplegar la pila que ejecuta el
-servicio: `make prod` o `scripts/deploy.sh` en producción, `make dev` en un
-portátil.
+servicio: `scripts/deploy.sh` en producción (arranca el perfil `sandbox` cuando
+`SANDBOXD_TOKEN` está definido), `make dev` en un portátil. `make prod` no toca el
+servicio, porque no arranca ese perfil; en una pila arrancada así, descárgalo y
+recréalo tú mismo:
+
+```bash
+docker compose --env-file backend/.env -f docker-compose-prod.yml --profile sandbox pull sandboxd
+docker compose --env-file backend/.env -f docker-compose-prod.yml --profile sandbox up -d sandboxd
+```
 
 !!! danger "El token equivale a root"
 
