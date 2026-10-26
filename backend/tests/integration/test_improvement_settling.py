@@ -297,6 +297,14 @@ async def test_a_kept_draft_is_published_later_from_the_wizard(db):
     agent.draft_spec = {**agent.draft_spec, "instructions": instructions}
     await db.flush()
 
+    with (
+        patch(
+            "app.services.improvement_pipeline.improvement_repo.has_active_check",
+            return_value=True,
+        ),
+        pytest.raises(ConcurrentChangeError, match="checks to finish"),
+    ):
+        await service.finish(ctx, agent.id, ready.id, publish)
     finished = await service.finish(ctx, agent.id, ready.id, publish)
     assert finished.session.status == "published"
     assert finished.session.published_version == finished.version is not None
@@ -412,3 +420,13 @@ async def test_the_timeline_names_who_decided_what_and_only_to_those_who_see_mem
         for event in hidden
         if event.action == "improvement.evidence_decided"
     } == {(ctx.user_id, None)}
+
+
+async def test_a_publish_that_took_none_of_the_suggestions_rejects_them(db):
+    from app.services.agent_registry import AgentRegistryService
+
+    ctx, agent, ready = await _ready_proposal(db)
+    await AgentRegistryService(db).publish(ctx, agent.id)
+    await ImprovementPipelineService(db).advance(ready.id, ctx.organization_id)
+    settled = await ImprovementPipelineService(db).read(ctx, agent.id, ready.id)
+    assert (settled.status, settled.published_version) == ("rejected", None)

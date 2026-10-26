@@ -185,3 +185,14 @@ async def test_a_resume_that_loses_the_race_to_another_session_is_a_conflict(
     assert isinstance(refused.value.__cause__, IntegrityError)
     await db.refresh(row)
     assert row.status == status
+
+
+async def test_a_retry_of_an_agent_gone_under_its_lock_is_not_found(db: AsyncSession) -> None:
+    from app.core.exceptions import NotFoundError
+
+    ctx, agent, session = await _ready_proposal(db)
+    with (
+        patch("app.services.improvement_pipeline.agent_repo.lock", AsyncMock(return_value=None)),
+        pytest.raises(NotFoundError),
+    ):
+        await ImprovementPipelineService(db).retry(ctx, agent.id, session.id)
