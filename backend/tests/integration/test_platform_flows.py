@@ -1872,6 +1872,7 @@ class TestWhatACollectionReportsItHolds:
 
         assert counts == IngestionCounts(processing=3, indexed=2, failed=1)
 
+    @pytest.mark.security
     async def test_ingestion_counts_do_not_include_another_tenants_same_named_collection(
         self, db
     ) -> None:

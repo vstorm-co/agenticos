@@ -614,6 +614,16 @@ describe("one collection's page", () => {
     expect(apiClient.patch).not.toHaveBeenCalled();
   });
 
+  it("reloads nothing for the ingest poll with no collection open", async () => {
+    // Rather than invalidating `["kb", "null", ...]`, which no query is keyed under.
+    const { result } = renderHook(() => useKBDetail(null), { wrapper });
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+
+    await result.current.refreshIngestion();
+
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+
   it("refuses to save parsing settings with no collection open", async () => {
     // Rather than PATCHing `/kb/null`, which answers 404 and reads as a bug.
     const { result } = renderHook(() => useKBDetail(null), { wrapper });
