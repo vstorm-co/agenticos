@@ -27,7 +27,7 @@ class _Website(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         body = b"""<!doctype html><title>Browser fixture</title>
         <input id="name" aria-label="Name">
-        <button onclick="[20,60,100,140].forEach(ms=>setTimeout(()=>document.querySelector('#result').textContent=String(ms),ms))">Open</button>
+        <button onclick="[300,340,380,420].forEach(ms=>setTimeout(()=>document.querySelector('#result').textContent=String(ms),ms))">Open</button>
         <p id="result"></p><a href="/second">Next page</a>"""
         self.send_response(200)
         self.send_header("Content-Type", "text/html")
@@ -106,7 +106,7 @@ async def test_same_url_history_reload_and_dom_updates(
         button = next(element for element in snapshot.elements if element.label == "Open")
         await page.click(button)
         await page.settle()
-        assert "140" in await page.read()
+        assert "420" in await page.read()
         await page.navigate(address)
         assert (await page.location())[0] == address
         await page.navigate(address + "second")

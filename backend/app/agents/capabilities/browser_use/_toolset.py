@@ -23,6 +23,7 @@ import asyncio
 import base64
 import functools
 import logging
+import time
 from collections.abc import Awaitable, Callable
 from contextlib import AbstractAsyncContextManager, AsyncExitStack
 from dataclasses import dataclass
@@ -83,6 +84,7 @@ from app.agents.capabilities.browser_use._page import (
     open_page,
 )
 from app.agents.capabilities.browser_use._plans import plan_key
+from app.agents.capabilities.browser_use._preview import Preview
 from app.agents.capabilities.browser_use._route import BrowserRoute, recheck
 from app.agents.deps import AgentDeps
 from app.core.sanitize import UrlRefusedError
@@ -174,12 +176,27 @@ async def _live(
         ),
     )
 
+    checked_at = float("-inf")
+    viewers = False
+
     async def sink(event: BrowserEvent) -> bool:
+        nonlocal checked_at, viewers
+        if event.kind == "browser_frame":
+            now = time.monotonic()
+            if now - checked_at >= 1.0:
+                viewers = await live_browse.has_viewers(run, call_id)
+                checked_at = now
+            # A resumable chat's event buffer may accept frames without an
+            # attached reader. Only the image-view socket proves someone watches.
+            if event.image is not None and not viewers:
+                return False
+            await live_browse.publish(run, call_id, event)
+            if chat is not None:
+                await chat(event)
+            return viewers
         await live_browse.publish(run, call_id, event)
         if chat is not None:
             await chat(event)
-        # Somebody may be watching the live view whether or not a chat is, so
-        # the pictures keep coming.
         return True
 
     return sink, live_browse.LiveControl(run, call_id), run
@@ -281,16 +298,10 @@ class BrowserToolset(FunctionToolset[Any]):
         ):
             return
         session = self.session
-
-        async def push(image: str) -> None:
-            await view.emit(
-                BrowserEvent(
-                    kind="browser_frame", call_id=view.call_id, step=session.steps, image=image
-                )
-            )
-
         stack = AsyncExitStack()
-        await stack.enter_async_context(session.page.stream(push))
+        await stack.enter_async_context(
+            Preview(session.page, view.emit, view.call_id, lambda: session.steps)
+        )
         self._preview_stack = stack
 
     async def stop_watching(self) -> None:
@@ -306,13 +317,16 @@ class BrowserToolset(FunctionToolset[Any]):
         end is its finish - said before the tab goes, while the page is still
         there to name.
         """
-        await self.stop_watching()
         view, self.view = self.view, None
-        if view is not None:
-            await close_view(view, self.session)
-        stack, self._stack, self.session = self._stack, None, None
-        if stack is not None:
-            await stack.aclose()
+        stack, self._stack = self._stack, None
+        session, self.session = self.session, None
+        try:
+            await self.stop_watching()
+            if view is not None:
+                await close_view(view, session)
+        finally:
+            if stack is not None:
+                await stack.aclose()
 
 
 logger = logging.getLogger(__name__)

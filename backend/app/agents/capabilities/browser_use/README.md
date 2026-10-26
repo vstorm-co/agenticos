@@ -101,6 +101,10 @@ hosted browser over CDP (`_route.py`, #2130).
 Direct tools keep one preview stream open across model turns within the run.
 The stream stops before the tab closes or `browse_web` takes over its narration.
 The browser still belongs to the run, not to a persistent conversation session.
+`_preview.py` owns the stream and polls location independently of model calls.
+Only authenticated image-view sockets count as viewers; trace consumers and a
+resumable chat buffer do not. Images stop without a viewer and resume on return.
+Metadata updates preserve the latest JPEG for viewers opening the live view.
 
 While a person holds the tab, input is consumed independently of preview capture.
 They can navigate, move through history and reload within `allowed_domains`.

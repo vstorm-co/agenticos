@@ -251,3 +251,23 @@ async def test_failed_background_capture_does_not_mask_tab_cleanup(
         await failed.wait()
         assert not page.streaming
     assert "Local browser preview stopped" in caplog.text
+
+
+async def test_context_replacement_is_retried_through_the_local_error_adapter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    call = AsyncMock(
+        side_effect=[
+            module.device_hub.DeviceCallFailed(message="Execution context was destroyed"),
+            {"result": {"type": "string", "value": "new-document"}},
+        ]
+    )
+    monkeypatch.setattr(module.device_hub, "call", call)
+    monkeypatch.setattr("app.agents.capabilities.browser_use._page.asyncio.sleep", AsyncMock())
+    page = module.LocalPage(
+        module._Commands(uuid4(), "owned-window"),
+        "owned-window",
+        PagePolicy(allowed_domains=None, candidate_cap=100, preview_width=1200),
+    )
+    assert await page._document() == "new-document"
+    assert call.await_count == 2

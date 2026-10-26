@@ -576,3 +576,133 @@ async def test_interrupted_replay_does_not_skip_to_the_next_cached_action(resize
     assert result.outcome == "done"
     assert not any(action.startswith("click:") for action in target.done)
     assert result.replayed == 0
+
+
+@pytest.mark.parametrize(
+    "failure", [EndpointError("closed"), DomainRefused("Outside allowed domains")]
+)
+async def test_closing_a_failed_page_keeps_its_last_confirmed_location(
+    failure: Exception, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.agents.capabilities.browser_use._direct import close_view
+    from tests.test_browser_use import _snapshot
+
+    page, frames = _FakePage(), _Frames()
+    monkeypatch.setattr(page, "location", AsyncMock(side_effect=failure))
+    await close_view(
+        DirectView("call", frames, None, None, None, True), BrowseSession(page, last=_snapshot())
+    )
+    assert frames.of("browser_finished")[0].url == "https://example.test/page"
+
+
+@pytest.mark.parametrize("chat_present", [False, True])
+async def test_live_images_require_a_viewer_even_when_chat_buffers_events(
+    monkeypatch: pytest.MonkeyPatch,
+    chat_present: bool,
+) -> None:
+    from uuid import uuid4
+
+    from app.agents.browser_events import BrowserEvent
+    from app.agents.capabilities.browser_use._toolset import _live
+    from app.agents.deps import AgentDeps
+    from app.services import live_browse
+
+    clock = [0.0]
+    viewers = AsyncMock(return_value=False)
+    publish = AsyncMock()
+    chat = AsyncMock(return_value=True) if chat_present else None
+    monkeypatch.setattr(live_browse, "available", lambda: True)
+    monkeypatch.setattr(live_browse, "open_view", AsyncMock())
+    monkeypatch.setattr(live_browse, "has_viewers", viewers)
+    monkeypatch.setattr(live_browse, "publish", publish)
+    monkeypatch.setattr(
+        "app.agents.capabilities.browser_use._toolset.time.monotonic", lambda: clock[0]
+    )
+    sink, _, _ = await _live(
+        AgentDeps(organization_id=uuid4(), run_id=uuid4(), browser_events=chat), "call", "task"
+    )
+    assert sink is not None
+    image = BrowserEvent(kind="browser_frame", call_id="call", step=0, image="jpeg")
+    assert not await sink(image)
+    publish.assert_not_awaited()
+    metadata = BrowserEvent(
+        kind="browser_frame", call_id="call", step=0, url="https://example.test/"
+    )
+    assert not await sink(metadata)
+    publish.assert_awaited_once()
+    assert viewers.await_count == 1
+    viewers.return_value = True
+    clock[0] = 2.0
+    assert await sink(image)
+    assert publish.await_count == 2
+    assert viewers.await_count == 2
+    if chat is not None:
+        assert chat.await_count == 2
+
+
+async def test_held_preview_recovers_after_a_temporary_metadata_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target, frames = _FakePage(), _Frames()
+    recovered = anyio.Event()
+    calls = 0
+
+    async def location() -> tuple[str, str]:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise EndpointError("Context is being replaced")
+        return "https://example.test/recovered", "Recovered"
+
+    async def emit(event: _loop.BrowserEvent) -> bool:
+        await frames(event)
+        if event.image is not None:
+            recovered.set()
+        return True
+
+    class Control:
+        async def wait(self, timeout: float) -> BrowserCommand:
+            await recovered.wait()
+            return GIVE
+
+    monkeypatch.setattr(target, "location", location)
+    with anyio.fail_after(2):
+        await held(
+            BrowseSession(target),
+            Control(),
+            emit,
+            call_id="call",
+            by=None,
+            by_user_id=None,
+            remember=None,
+        )
+    assert calls >= 2
+    assert frames.of("browser_control_error")[0].detail == "Context is being replaced"
+    assert frames.of("browser_frame")[0].url == "https://example.test/recovered"
+    assert target.shots == 1
+
+
+async def test_held_preview_does_not_capture_for_a_disconnected_viewer() -> None:
+    target = _FakePage()
+    checked = anyio.Event()
+
+    async def emit(event: _loop.BrowserEvent) -> bool:
+        if event.kind == "browser_frame":
+            checked.set()
+        return False
+
+    class Control:
+        async def wait(self, timeout: float) -> BrowserCommand:
+            await checked.wait()
+            return GIVE
+
+    await held(
+        BrowseSession(target),
+        Control(),
+        emit,
+        call_id="call",
+        by=None,
+        by_user_id=None,
+        remember=None,
+    )
+    assert target.shots == 0

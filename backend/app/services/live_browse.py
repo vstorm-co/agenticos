@@ -32,6 +32,7 @@ import anyio
 from fastapi import WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, ValidationError
 from redis.asyncio.client import PubSub
+from redis.exceptions import RedisError
 
 from app.agents.browser_events import BrowserCommand, BrowserEvent
 from app.clients.redis import RedisClient
@@ -167,7 +168,12 @@ async def publish(run_id: str, call_id: str, event: BrowserEvent) -> None:
     try:
         pipe = _redis.raw.pipeline()
         if event.kind == "browser_frame":
-            pipe.set(_key(run_id, call_id, "frame"), body, ex=TTL_SECONDS)
+            if event.image is not None:
+                pipe.set(_key(run_id, call_id, "frame"), body, ex=TTL_SECONDS)
+            if event.url is not None or event.title is not None:
+                location = event.model_copy(update={"image": None}).model_dump_json()
+                pipe.set(_key(run_id, call_id, "location"), location, ex=TTL_SECONDS)
+            pipe.expire(_key(run_id, call_id, "frame"), TTL_SECONDS)
         else:
             trace = _key(run_id, call_id, "trace")
             pipe.rpush(trace, body)
@@ -309,18 +315,45 @@ async def _load(run_id: str, call_id: str) -> tuple[BrowseMeta | None, list[str]
         return None, [], None
     trace = await _redis.list_range(_key(run_id, call_id, "trace"))
     frame = await _redis.get(_key(run_id, call_id, "frame"))
+    raw_location = await _redis.get(_key(run_id, call_id, "location"))
+    if raw_location is not None:
+        location = BrowserEvent.model_validate_json(raw_location)
+        picture = BrowserEvent.model_validate_json(frame) if frame is not None else location
+        frame = picture.model_copy(
+            update={"url": location.url, "title": location.title}
+        ).model_dump_json()
     return BrowseMeta.model_validate_json(raw_meta), trace, frame
 
 
 @contextlib.asynccontextmanager
-async def _subscription(run_id: str, call_id: str) -> AsyncGenerator[PubSub]:
+async def _subscription(
+    run_id: str, call_id: str, *, viewer: bool = False
+) -> AsyncGenerator[PubSub]:
     assert _redis is not None
     pubsub = _redis.raw.pubsub(ignore_subscribe_messages=True)
-    await pubsub.subscribe(_key(run_id, call_id, "events"))
     try:
+        await pubsub.subscribe(_key(run_id, call_id, "events"))
+        if viewer:
+            # Only authenticated image viewers subscribe to this payload-free marker.
+            # Trace-only channel watchers must not keep screenshots running.
+            await pubsub.subscribe(_key(run_id, call_id, "viewers"))
         yield pubsub
     finally:
         await pubsub.aclose()
+
+
+async def has_viewers(run_id: str, call_id: str) -> bool:
+    """Whether an authenticated image-view socket is subscribed, across API hosts."""
+    if _redis is None:
+        return False
+    try:
+        return any(
+            count > 0
+            for _, count in await _redis.raw.pubsub_numsub(_key(run_id, call_id, "viewers"))
+        )
+    except RedisError:
+        logger.warning("live_browse_presence_failed", exc_info=True)
+        return False
 
 
 async def watch(run_id: str, call_id: str) -> AsyncGenerator[BrowserEvent]:
@@ -418,7 +451,10 @@ async def stream(websocket: WebSocket, *, auth_token: str, run_id: str, call_id:
         except WebSocketDisconnect:
             return
 
-    async with _subscription(run_id, call_id) as pubsub, anyio.create_task_group() as tasks:
+    async with (
+        _subscription(run_id, call_id, viewer=True) as pubsub,
+        anyio.create_task_group() as tasks,
+    ):
 
         async def forward() -> None:
             async for message in pubsub.listen():

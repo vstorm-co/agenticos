@@ -106,11 +106,12 @@ _READY_JS = r"""
 new Promise(resolve => {
   const started = performance.now();
   let changed = started;
-  const observer = new MutationObserver(() => { changed = performance.now(); });
+  let mutated = false;
+  const observer = new MutationObserver(() => { changed = performance.now(); mutated = true; });
   observer.observe(document, {subtree: true, childList: true, attributes: true, characterData: true});
   const finish = value => { observer.disconnect(); clearInterval(poll); clearTimeout(limit); resolve(value); };
   const poll = setInterval(() => {
-    if (document.readyState !== 'loading' && (performance.now() - changed >= 80 || performance.now() - started >= 1500)) finish(true);
+    if (document.readyState !== 'loading' && ((performance.now() - changed >= 80 && (mutated || performance.now() - started >= 400)) || performance.now() - started >= 1500)) finish(true);
   }, 20);
   const limit = setTimeout(() => finish(false), 5000);
 })

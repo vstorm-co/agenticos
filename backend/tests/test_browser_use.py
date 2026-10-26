@@ -1479,7 +1479,9 @@ class TestWhatASurfaceIsShown:
     async def test_previews_are_a_separate_frame_from_the_narration(self):
         frames = _Frames()
         await _browse(_FakePage(), _decider(DONE), sink=frames, preview=True)
-        assert frames.of("browser_frame")[0].image == "data:image/jpeg;base64,AAAA"
+        assert any(
+            frame.image == "data:image/jpeg;base64,AAAA" for frame in frames.of("browser_frame")
+        )
 
     async def test_a_reader_who_left_stops_the_pictures_and_not_the_browse(self):
         page = _FakePage(*[_snapshot(scroll_y=float(i)) for i in range(5)])
@@ -1487,7 +1489,7 @@ class TestWhatASurfaceIsShown:
         scroll = _step(Scroll(action="scroll"))
         result = await _browse(page, _decider(scroll, scroll, DONE), sink=frames, preview=True)
         assert result.outcome == "done"
-        assert page.shots == 1
+        assert page.shots == 0
 
     async def test_no_preview_and_no_vision_takes_no_screenshot(self):
         page = _FakePage()
@@ -1511,7 +1513,7 @@ class TestWhatASurfaceIsShown:
 
         await _browse(page, _decider(DONE), sink=frames, preview=True)
 
-        images = [frame.image for frame in frames.of("browser_frame")]
+        images = [frame.image for frame in frames.of("browser_frame") if frame.image is not None]
         assert images[:2] == ["data:image/jpeg;base64,PAINT1", "data:image/jpeg;base64,PAINT2"]
         # Open for the whole browse and closed when it ends, whatever the outcome.
         assert page.done[0] == "stream:on"
@@ -1531,16 +1533,15 @@ class TestWhatASurfaceIsShown:
         result = await _browse(page, _decider(DONE), sink=frames, preview=True)
 
         assert result.outcome == "done"
-        # The first paint found nobody; neither the second nor a step's picture is sent.
-        assert [frame.image for frame in frames.of("browser_frame")] == [
-            "data:image/jpeg;base64,P1"
-        ]
+        # Metadata finds nobody before starting any image work.
+        assert all(frame.image is None for frame in frames.of("browser_frame"))
+        assert "stream:on" not in page.done
         assert page.shots == 0
 
     async def test_a_page_with_no_picture_sends_no_frame(self):
         frames = _Frames()
         await _browse(_FakePage(image=None), _decider(DONE), sink=frames, preview=True)
-        assert frames.of("browser_frame") == []
+        assert all(frame.image is None for frame in frames.of("browser_frame"))
 
 
 def _browsing_model(*steps: dict[str, Any], seen: list[Any] | None = None) -> FunctionModel:

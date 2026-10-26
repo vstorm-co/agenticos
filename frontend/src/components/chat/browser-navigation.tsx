@@ -8,7 +8,9 @@ import type { BrowserCommand } from "@/hooks/use-live-browse";
 
 function websiteAddress(value: string): string | null {
   try {
-    const target = new URL(/^[a-z][a-z\d+.-]*:/i.test(value) ? value : `https://${value}`);
+    const hostWithPort = /^(?:localhost|[^:/?#]+\.[^:/?#]+):\d+(?:[/?#]|$)/i.test(value);
+    const hasScheme = /^[a-z][a-z\d+.-]*:/i.test(value) && !hostWithPort;
+    const target = new URL(hasScheme ? value : `https://${value}`);
     if (
       !["http:", "https:"].includes(target.protocol) ||
       target.username ||

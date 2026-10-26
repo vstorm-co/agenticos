@@ -61,6 +61,7 @@ from app.agents.capabilities.browser_use._elements import Element, Snapshot
 from app.agents.capabilities.browser_use._endpoint import EndpointError
 from app.agents.capabilities.browser_use._page import DomainRefused, StaleElement
 from app.agents.capabilities.browser_use._plans import PlanStep, record, replay
+from app.agents.capabilities.browser_use._preview import Preview
 
 REPEAT_LIMIT = 3
 """How often the identical action on the identical page is tried before giving up.
@@ -332,10 +333,6 @@ async def _drive(
     kept: _Plan,
 ) -> BrowseResult:
     """`run_browse`'s loop, replaying and recording into `kept` as it goes."""
-    # Whether anybody is still watching. A run whose reader closed the tab carries
-    # on by design, and encoding a JPEG per step for a closed socket would be the
-    # most expensive thing in the loop done for nobody.
-    previews_land = policy.preview
 
     async def emit(event: BrowserEvent) -> bool:
         """Send one frame, and answer whether a surface received it."""
@@ -359,20 +356,12 @@ async def _drive(
         )
     )
 
-    async def push(image: str) -> None:
-        """One painted frame of the page, to whoever is still watching."""
-        nonlocal previews_land
-        if previews_land:
-            previews_land = await emit(
-                BrowserEvent(kind="browser_frame", call_id=call_id, step=session.steps, image=image)
-            )
-
-    # The page as it paints, for as long as somebody watches - a scroll or a page
-    # loading shows as it happens, not as a slide when the next step is taken.
-    # The step's own picture below still carries the address and the title.
-    async with page.stream(push) if previews_land and not page.streaming else nullcontext():
+    async with (
+        Preview(page, emit, call_id, lambda: session.steps) if policy.preview else nullcontext()
+    ) as preview:
         recent: list[str] = []
         for taken in range(1, policy.max_steps + 1):
+            previews_land = preview.watching if preview is not None else False
             session.steps += 1
             step_no = session.steps
             was_held = False
@@ -420,6 +409,9 @@ async def _drive(
                         image=image,
                     )
                 )
+
+            if preview is not None and not previews_land:
+                preview.pause()
 
             # A step this person's earlier browse of the same task took, while the
             # page still offers it - no model call. The first step that does not
@@ -787,12 +779,13 @@ async def held(
 
     async def pictures() -> None:
         location: tuple[str, str] | None = None
+        watching = True
         while True:
             try:
                 current = await page.location()
-                if current != location:
+                if current != location or not watching:
                     location = current
-                    await emit(
+                    watching = await emit(
                         BrowserEvent(
                             kind="browser_frame",
                             call_id=call_id,
@@ -801,10 +794,10 @@ async def held(
                             title=current[1],
                         )
                     )
-                if not page.streaming:
+                if watching and not page.streaming:
                     image = await page.screenshot()
                     if image is not None:
-                        await emit(
+                        watching = await emit(
                             BrowserEvent(
                                 kind="browser_frame",
                                 call_id=call_id,
@@ -822,8 +815,7 @@ async def held(
                         detail=str(refused),
                     )
                 )
-                return
-            await anyio.sleep(1.0 if page.streaming else 0.2)
+            await anyio.sleep(1.0 if page.streaming or not watching else 0.2)
 
     async with anyio.create_task_group() as tasks:
         tasks.start_soon(pictures)

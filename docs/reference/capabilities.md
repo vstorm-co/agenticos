@@ -711,6 +711,8 @@ Navigation obeys the agent's allowed domains; a refused address is shown in the
 viewer. Computer-use screens do not offer browser navigation.
 
 Direct browser tools keep the preview streaming between calls until the run ends.
+Images stop when the last viewer disconnects and resume when somebody returns;
+lightweight location checks keep the address and title current between actions.
 Typing does not wait for a screenshot after each character. Page actions wait for
 bounded DOM stability, and explicit navigation tracks the new document even when
 the URL stays the same. The tab still closes when the run ends.

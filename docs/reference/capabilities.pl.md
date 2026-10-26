@@ -1,5 +1,5 @@
 ---
-source_sha: "024effda2559"
+source_sha: "bdc85c9f3785"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -754,7 +754,9 @@ Dalej i Odśwież. Nawigacja respektuje dozwolone domeny agenta; odmowa jest wid
 w podglądzie. Ekrany computer use nie oferują nawigacji przeglądarki.
 
 Bezpośrednie narzędzia przeglądarki utrzymują strumień podglądu między wywołaniami
-aż do końca runu. Wpisywanie nie czeka na screenshot po każdym znaku. Akcje czekają
+aż do końca runu. Obrazy przestają być przesyłane po odłączeniu ostatniego widza
+i wracają po jego ponownym połączeniu; lekkie odczyty adresu i tytułu aktualizują
+je także między akcjami. Wpisywanie nie czeka na screenshot po każdym znaku. Akcje czekają
 na ograniczoną czasowo stabilność DOM, a jawna nawigacja śledzi nowy dokument także
 przy niezmienionym URL-u. Karta nadal zamyka się po zakończeniu runu.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "024effda2559"
+source_sha: "bdc85c9f3785"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -768,7 +768,9 @@ muestra las direcciones rechazadas. Las pantallas de computer use no ofrecen
 navegación del navegador.
 
 Las herramientas directas mantienen la vista en directo entre llamadas hasta el
-final del run. La escritura no espera una captura después de cada carácter. Las
+final del run. Las imágenes se detienen al desconectarse el último espectador
+y se reanudan cuando vuelve; las consultas ligeras mantienen la dirección y el
+título actualizados entre acciones. La escritura no espera una captura después de cada carácter. Las
 acciones esperan una estabilidad del DOM limitada en el tiempo; la navegación
 explícita sigue el documento nuevo incluso si la URL no cambia. La pestaña sigue
 cerrándose al terminar el run.

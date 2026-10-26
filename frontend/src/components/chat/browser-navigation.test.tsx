@@ -76,3 +76,13 @@ describe("browser navigation", () => {
     expect(input).toHaveValue("");
   });
 });
+
+it.each([
+  ["localhost:3000", "https://localhost:3000/"],
+  ["example.com:8080/path", "https://example.com:8080/path"],
+])("accepts a bare host with a port: %s", (value, expected) => {
+  const { input, send } = setup();
+  fireEvent.change(input, { target: { value } });
+  fireEvent.submit(input.closest("form")!);
+  expect(send).toHaveBeenCalledWith({ type: "navigate", url: expected });
+});

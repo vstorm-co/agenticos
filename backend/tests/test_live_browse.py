@@ -35,9 +35,12 @@ class _PubSub:
         self.store = store
         self.channel = ""
         self.closed = False
+        self.channels: set[str] = set()
 
     async def subscribe(self, channel: str) -> None:
-        self.channel = channel
+        if not self.channel:
+            self.channel = channel
+        self.channels.add(channel)
 
     async def listen(self) -> AsyncIterator[dict[str, Any]]:
         yield {"type": "subscribe", "data": 1}
@@ -98,6 +101,9 @@ class _Store:
     async def set(self, key: str, value: str, ex: int) -> None:
         assert ex == live_browse.TTL_SECONDS
         self.values[key] = value
+
+    async def pubsub_numsub(self, channel: str) -> list[tuple[str, int]]:
+        return [(channel, sum(not sub.closed and channel in sub.channels for sub in self.pubsubs))]
 
     def pipeline(self) -> _Pipe:
         return _Pipe(self)
@@ -694,3 +700,98 @@ class TestPlaces:
         clock[0] += 61
 
         assert await live_browse.claim_slot("k", "r1", limit=1, hold=60)
+
+
+async def test_trace_watchers_do_not_count_as_image_viewers(store: _Store) -> None:
+    assert not await live_browse.has_viewers(RUN, CALL)
+    async with live_browse._subscription(RUN, CALL):
+        assert not await live_browse.has_viewers(RUN, CALL)
+        async with live_browse._subscription(RUN, CALL, viewer=True):
+            assert await live_browse.has_viewers(RUN, CALL)
+        assert not await live_browse.has_viewers(RUN, CALL)
+
+
+async def test_metadata_keeps_the_latest_picture_for_late_viewers(store: _Store) -> None:
+    await live_browse.open_view(RUN, CALL, _meta())
+    await live_browse.publish(RUN, CALL, _frame())
+    await live_browse.publish(
+        RUN,
+        CALL,
+        BrowserEvent(
+            kind="browser_frame", call_id=CALL, step=2, url="https://example.test/new", title="New"
+        ),
+    )
+    _, _, raw = await live_browse._load(RUN, CALL)
+    assert raw is not None
+    frame = BrowserEvent.model_validate_json(raw)
+    assert frame.image == "data:,x"
+    assert frame.url == "https://example.test/new"
+    assert frame.title == "New"
+
+
+async def test_metadata_can_arrive_before_the_first_picture(store: _Store) -> None:
+    await live_browse.open_view(RUN, CALL, _meta())
+    await live_browse.publish(
+        RUN,
+        CALL,
+        BrowserEvent(kind="browser_frame", call_id=CALL, step=0, url="https://example.test/"),
+    )
+    _, _, raw = await live_browse._load(RUN, CALL)
+    assert raw is not None
+    assert BrowserEvent.model_validate_json(raw).image is None
+
+
+async def test_presence_failure_stops_optional_previews(
+    monkeypatch: pytest.MonkeyPatch, store: _Store, caplog: pytest.LogCaptureFixture
+) -> None:
+    from redis.exceptions import ConnectionError as RedisConnectionError
+
+    monkeypatch.setattr(
+        store, "pubsub_numsub", AsyncMock(side_effect=RedisConnectionError("offline"))
+    )
+    assert not await live_browse.has_viewers(RUN, CALL)
+    assert "live_browse_presence_failed" in caplog.text
+
+
+async def test_presence_without_redis_has_no_viewers(no_redis: None) -> None:
+    assert not await live_browse.has_viewers(RUN, CALL)
+
+
+@pytest.mark.parametrize("member", [False, True])
+async def test_a_session_without_membership_or_run_access_cannot_watch(
+    monkeypatch: pytest.MonkeyPatch,
+    member: bool,
+) -> None:
+    @asynccontextmanager
+    async def db() -> AsyncIterator[MagicMock]:
+        yield MagicMock()
+
+    user = MagicMock(id=uuid.uuid4(), full_name="Ada", email="ada@example.com", is_app_admin=False)
+    monkeypatch.setattr(live_browse, "get_db_context", db)
+    monkeypatch.setattr(live_browse, "authenticate_socket_key", AsyncMock(return_value=None))
+    monkeypatch.setattr(live_browse, "authenticate_socket_token", AsyncMock(return_value=user))
+    monkeypatch.setattr(
+        live_browse.member_repo,
+        "get",
+        AsyncMock(return_value=MagicMock(role="member") if member else None),
+    )
+    monkeypatch.setattr(live_browse, "current_impersonator", lambda: None)
+    meta = _meta().model_copy(update={"agent_id": None, "user_id": None})
+    assert await live_browse.access_for(meta, "t") is None
+
+
+async def test_failed_presence_subscription_closes_its_event_connection(
+    monkeypatch: pytest.MonkeyPatch,
+    store: _Store,
+) -> None:
+    from redis.exceptions import ConnectionError as RedisConnectionError
+
+    subscription = _PubSub(store)
+    monkeypatch.setattr(
+        subscription, "subscribe", AsyncMock(side_effect=[None, RedisConnectionError("offline")])
+    )
+    monkeypatch.setattr(store, "pubsub", lambda **kwargs: subscription)
+    with pytest.raises(RedisConnectionError, match="offline"):
+        async with live_browse._subscription(RUN, CALL, viewer=True):
+            pytest.fail("The failed subscription must not open")
+    assert subscription.closed

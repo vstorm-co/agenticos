@@ -1,5 +1,5 @@
 ---
-source_sha: "024effda2559"
+source_sha: "bdc85c9f3785"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -801,6 +801,9 @@ des Agenten; eine Ablehnung erscheint in der Ansicht. Computer-Use-Bildschirme
 bieten keine Browsernavigation.
 
 Direkte Browsertools streamen die Vorschau zwischen Aufrufen bis zum Ende des Runs.
+Bilder stoppen, wenn der letzte Zuschauer die Verbindung trennt, und werden bei
+seiner Rückkehr fortgesetzt. Leichte Abfragen halten Adresse und Titel auch
+zwischen Aktionen aktuell.
 Die Texteingabe wartet nicht nach jedem Zeichen auf einen Screenshot. Aktionen
 warten begrenzt auf DOM-Stabilität; eine explizite Navigation verfolgt das neue
 Dokument auch bei gleicher URL. Der Tab schließt weiterhin am Ende des Runs.
