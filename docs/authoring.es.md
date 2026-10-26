@@ -1,5 +1,5 @@
 ---
-source_sha: "b19b1d1c1a8e"
+source_sha: "43aef06f7f37"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -99,7 +99,7 @@ las suyas en su lugar. Publicar el draft las cierra: sus decisiones son
 definitivas y la barra las conserva como registro.
 
 Un cambio que propone el asistente y que no se puede guardar no desaparece en
-silencio. La barra lo enumera bajo **cambios propuestos que no se guardaron**,
+silencio. La barra lo enumera bajo **ideas que el asistente no añadió**,
 con el motivo: el pasaje que cambia no está en las instrucciones o aparece más de
 una vez, el agent no tiene esa herramienta, ese ajuste no es algo que pueda
 cambiar. El worker registra los mismos motivos. Un pasaje copiado con las
@@ -376,6 +376,8 @@ Elija **Mejorar de nuevo** para otra ronda o **Aumentar el límite y continuar**
 El asistente puede proponer **Worth creating a skill** cuando un procedimiento reutilizable aparece en al menos tres respuestas distintas de las evidencias. Cada cita debe figurar en la respuesta misma; los comentarios no demuestran por sí solos un procedimiento repetido. La tarjeta muestra nombre, descripción, contenido completo, motivo y citas verificadas. Una evaluación vincula un skill temporal solo al candidato: no crea ningún registro ni versión publicada.
 
 **Accept** crea el skill privado y lo vincula al borrador del agente en la misma transacción. Requiere `skills:edit` y acceso de edición al agente. Sin permiso de creación se puede leer y comprobar la propuesta, pero Accept queda deshabilitado y explica el motivo. **Dismiss** no crea nada. **Undo** elimina el vínculo y conserva el skill independiente; una nueva aceptación lo reutiliza solo si conserva su nombre y contenido. Los skills contienen instrucciones y no conceden herramientas. El acceso adicional necesita propuestas independientes verificadas por la política; las herramientas de escritura requieren aprobación.
+
+Un procedimiento que procede de menos de tres respuestas distintas no se propone como sugerencia. Aparece con su texto completo bajo **more ideas need your decision**. **Create skill** abre una vista previa: el nombre, la descripción y el contenido se pueden editar, y un aviso indica en cuántas respuestas se basa. **Create skill** en la vista previa crea el skill en la biblioteca y lo vincula al borrador del agente, nunca a una versión publicada. Requiere los mismos permisos que Accept y no llama a ningún modelo. Un segundo clic devuelve el skill ya creado.
 
 La estimación reserva el contenido completo propuesto para cada respuesta candidata y sus repeticiones de confirmación, además del precio histórico por respuesta.
 

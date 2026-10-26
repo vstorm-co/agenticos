@@ -1,5 +1,5 @@
 ---
-source_sha: "b19b1d1c1a8e"
+source_sha: "43aef06f7f37"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -100,7 +100,7 @@ Opublikowanie wersji roboczej je zamyka: decyzje stają się ostateczne, a pasek
 je jako zapis.
 
 Zmiana zaproponowana przez asystenta, której nie da się zapisać, nie znika po
-cichu. Pasek wymienia ją pod **proponowane zmiany nie zostały zapisane**, z
+cichu. Pasek wymienia ją pod **pomysły, których asystent nie dodał**, z
 powodem: fragmentu, który zmienia, nie ma w instrukcjach albo występuje więcej
 niż raz, agent nie ma takiego narzędzia, tego ustawienia asystent nie może
 zmieniać. Worker loguje te same powody. Fragment skopiowany z wyprostowanymi
@@ -367,6 +367,8 @@ Wybierz **Popraw ponownie**, aby rozpocząć następną rundę, lub **Zwiększ l
 Asystent może zaproponować **Warto utworzyć skill**, gdy procedura występuje w co najmniej trzech różnych odpowiedziach stanowiących materiał źródłowy. Każdy cytat musi występować w samej odpowiedzi; komentarze czytelników nie dowodzą powtarzającej się procedury. Karta pokazuje nazwę, opis, pełną treść, uzasadnienie i zweryfikowane cytaty. Ewaluacja przypina tymczasowy skill tylko do kandydata: nie tworzy rekordu skilla ani opublikowanej wersji.
 
 **Accept** tworzy prywatny skill i przypina go do wersji roboczej agenta w jednej transakcji. Wymaga `skills:edit` oraz edycji agenta. Bez uprawnienia tworzenia można czytać i sprawdzać propozycję, ale wyłączone Accept wyjaśnia powód. **Dismiss** niczego nie tworzy. **Undo** usuwa przypięcie i zachowuje niezależny skill; kolejna akceptacja wykorzystuje go ponownie tylko wtedy, gdy nazwa i treść nadal pasują. Skill zawiera instrukcje i nie nadaje dostępu do narzędzi. Dodatkowy dostęp wymaga osobnych propozycji sprawdzanych przez politykę, z zatwierdzaniem narzędzi zapisujących.
+
+Procedura z mniej niż trzech różnych odpowiedzi nie trafia do sugestii. Pojawia się z pełną treścią na liście **pomysły czekają na Twoją decyzję**. **Create skill** otwiera podgląd: nazwę, opis i treść można edytować, a ostrzeżenie mówi, na ilu odpowiedziach się opiera. **Create skill** w podglądzie tworzy skill w bibliotece i przypina go do wersji roboczej agenta, nigdy do opublikowanej wersji. Wymaga tych samych uprawnień co Accept i nie wywołuje modelu. Drugie kliknięcie zwraca już utworzony skill.
 
 Szacowany koszt uwzględnia pełną proponowaną treść dla każdej odpowiedzi kandydata i jej powtórzeń potwierdzających, oprócz historycznego kosztu odpowiedzi.
 

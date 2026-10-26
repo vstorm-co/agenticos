@@ -1,5 +1,5 @@
 ---
-source_sha: "b19b1d1c1a8e"
+source_sha: "43aef06f7f37"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -102,8 +102,8 @@ stattdessen hinzu. Das Veröffentlichen des Entwurfs schließt sie: Ihre
 Entscheidungen sind endgültig, und die Leiste behält sie als Protokoll.
 
 Eine Änderung, die der Assistent vorschlägt und die sich nicht speichern lässt,
-verschwindet nicht stillschweigend. Die Leiste führt sie unter **vorgeschlagene
-Änderungen wurden nicht gespeichert** auf, mit dem Grund: Die Stelle, die sie
+verschwindet nicht stillschweigend. Die Leiste führt sie unter **weitere Ideen,
+die der Assistent nicht hinzugefügt hat** auf, mit dem Grund: Die Stelle, die sie
 ändert, steht nicht in den Anweisungen oder kommt mehr als einmal vor, der Agent
 hat kein solches Tool, die Einstellung darf der Assistent nicht ändern. Der
 Worker protokolliert dieselben Gründe. Eine Stelle, die mit begradigten
@@ -387,6 +387,8 @@ Wählen Sie **Erneut verbessern** für eine weitere Runde oder **Limit erhöhen 
 Der Assistent kann **Ein Skill wäre sinnvoll** vorschlagen, wenn ein wiederverwendbarer Ablauf in mindestens drei verschiedenen Quellantworten vorkommt. Jede Textstelle muss in der Antwort selbst stehen; Kommentare allein belegen keinen wiederholten Ablauf. Die Karte zeigt Name, Beschreibung, vollständigen Inhalt, Begründung und geprüfte Belege. Eine Evaluation bindet einen temporären Skill nur an den Kandidaten: Sie erstellt weder einen Skill-Datensatz noch eine veröffentlichte Version.
 
 **Accept** erstellt den privaten Skill und bindet ihn in derselben Transaktion an den Entwurf des Agenten. Dafür sind `skills:edit` und Bearbeitungszugriff auf den Agenten nötig. Ohne Erstellungsrecht bleibt der Vorschlag lesbar und prüfbar; die deaktivierte Annahme erklärt den Grund. **Dismiss** erstellt nichts. **Undo** entfernt die Bindung und behält den unabhängigen Skill. Erneutes Annehmen verwendet ihn nur bei unverändertem Namen und Inhalt. Skills enthalten Anweisungen und gewähren keine Tools. Zusätzlicher Tool-Zugriff benötigt eigene Richtlinienprüfungen; schreibende Tools erfordern eine Freigabe.
+
+Ein Ablauf aus weniger als drei verschiedenen Antworten wird nicht als Vorschlag aufgenommen. Er steht mit vollständigem Text unter **weitere Ideen warten auf Ihre Entscheidung**. **Create skill** öffnet eine Vorschau: Name, Beschreibung und Inhalt lassen sich bearbeiten, und ein Hinweis nennt, auf wie vielen Antworten er beruht. **Create skill** in der Vorschau legt den Skill in der Bibliothek an und bindet ihn an den Entwurf des Agenten, nie an eine veröffentlichte Version. Dafür gelten dieselben Berechtigungen wie für Accept, und es gibt keinen Modellaufruf. Ein zweiter Klick liefert den bereits erstellten Skill.
 
 Die Kostenschätzung berücksichtigt den vollständigen vorgeschlagenen Inhalt für jede Kandidatenantwort und bestätigende Wiederholungen zusätzlich zum historischen Antwortpreis.
 

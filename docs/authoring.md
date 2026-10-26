@@ -95,7 +95,7 @@ them instead. Publishing the draft closes them: their decisions are final, and
 the strip keeps them as a record.
 
 A change the assistant proposes that cannot be recorded is not dropped
-silently. The strip lists it under **proposed changes were not recorded**, with
+silently. The strip lists it under **more ideas the assistant did not add**, with
 why: the passage it changes is not in the instructions or occurs more than once,
 the agent has no such tool, the setting is not one it may change. The worker logs
 the same reasons. A passage copied with its quotes straightened, its backticks
@@ -355,6 +355,8 @@ Choose **Improve again** for another round, or **Raise the limit and continue** 
 The assistant can propose **Worth creating a skill** when a reusable procedure appears in at least three distinct evidence answers. Each supporting passage must occur in the answer itself; reader comments alone do not establish a repeated procedure. The card shows its name, description, full body, rationale and verified evidence. A check binds a temporary skill to the candidate only: no skill row or published version is created.
 
 **Accept** creates the private skill and binds it to the agent's draft in the same transaction. It requires `skills:edit` as well as edit access to the agent. Without creation permission the proposal remains readable and testable, but Accept explains why it is disabled. **Dismiss** creates nothing. **Undo** removes the binding and keeps the independent skill; accepting again reuses it only while its name and body still match. Skills contain written know-how and grant no tools. Additional tool access needs separate policy-checked proposals, with writing tools requiring approval.
+
+A procedure drawn from fewer than three distinct answers is not proposed as a suggestion. It is listed with its full text under **more ideas need your decision**. **Create skill** opens a preview: the name, description and body can be edited, and a warning says how many answers it is based on. **Create skill** in the preview creates the skill in the library and binds it to the agent's draft, never to a published version. It needs the same permissions as Accept and makes no model call. A second click returns the skill already created.
 
 The estimate reserves the full proposed body for each candidate answer and its confirming reruns, in addition to the historical per-answer price.
 
