@@ -10574,6 +10574,27 @@
       "proposedTab": "Proposed (edit)",
       "panes": "Current and proposed instructions",
       "outside": "This edit changes text outside the suggested passage. Only the suggestion can be saved here; change the rest in the instructions editor."
+    },
+    "tabs": {
+      "label": "Suggestions",
+      "toReview": "To review",
+      "decided": "Decided",
+      "nothingLeft": "Nothing left to review.",
+      "nothingDecided": "Nothing decided yet.",
+      "setting": "Setting: {field}",
+      "group": {
+        "instructions": "Instructions",
+        "tools": "Tool descriptions",
+        "settings": "Settings",
+        "skills": "New skills"
+      },
+      "state": {
+        "accepted": "Accepted",
+        "edited": "Edited and accepted",
+        "dismissed": "Dismissed",
+        "created": "Created",
+        "notDecided": "Not decided"
+      }
     }
   },
   "promotionGate": {

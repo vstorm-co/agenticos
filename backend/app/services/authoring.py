@@ -90,6 +90,7 @@ from app.schemas.authoring import (
     FileWaiting,
     HunkDecision,
     HunkRead,
+    IdeaDecision,
     ProposalCheck,
     ProposedSkill,
     ProposedSkillCreated,
@@ -184,6 +185,16 @@ _GATE_MESSAGES = {
 
 def _changes_model(hunk: SpecProposalHunk) -> bool:
     return hunk.kind == HunkKind.SPEC_FIELD.value and hunk.path == "model_profile_id"
+
+
+def _in_cycle(request: AuthoringRequest, since: datetime | None) -> bool:
+    """Whether a request belongs after the newest publication, or is still working."""
+    if since is None or request.status in (
+        AuthoringStatus.QUEUED.value,
+        AuthoringStatus.RUNNING.value,
+    ):
+        return True
+    return (request.finished_at or request.created_at) >= since
 
 
 def _refers_to(hunk: SpecProposalHunk, key: str) -> bool:
@@ -633,17 +644,42 @@ class AuthoringService:
         ]
 
     async def _read(self, ctx: AuthContext, agent: Agent) -> AgentAuthoringRead:
+        """The current cycle: what the assistant produced since the newest publication.
+
+        A publication closes the open batch, and whatever was suggested, found or
+        reported before it was about a draft that is now a version. It stays
+        stored, for the audit trail and the batch's history, but is not shown.
+        A request still running when the version was published belongs to the
+        cycle that follows, since its suggestions arrive after it.
+        """
+        newest = await agent_repo.newest_version(
+            self.db, agent_id=agent.id, organization_id=ctx.organization_id
+        )
+        since = None if newest is None else newest.created_at
         requests = [
-            await self._settled(request)
-            for request in await authoring_repo.list_requests(
-                self.db, organization_id=ctx.organization_id, agent_id=agent.id
-            )
+            request
+            for request in [
+                await self._settled(request)
+                for request in await authoring_repo.list_requests(
+                    self.db, organization_id=ctx.organization_id, agent_id=agent.id
+                )
+            ]
+            if _in_cycle(request, since)
         ]
         batch = await authoring_repo.get_open_batch(
             self.db, organization_id=ctx.organization_id, agent_id=agent.id
         ) or await authoring_repo.latest_batch(
             self.db, organization_id=ctx.organization_id, agent_id=agent.id
         )
+        if batch is not None and (
+            batch.status == BatchStatus.PUBLISHED.value
+            or (
+                batch.status != BatchStatus.OPEN.value
+                and since is not None
+                and batch.created_at < since
+            )
+        ):
+            batch = None
         verify = next(
             (
                 request
@@ -982,18 +1018,7 @@ class AuthoringService:
         if not ctx.has(Perm.SKILLS_EDIT):
             raise AuthorizationError(message="Creating this skill requires skills:edit")
         agent = await self._locked(ctx, await self._editable(ctx, agent_id))
-        request = await authoring_repo.get_request(
-            self.db, request_id, organization_id=ctx.organization_id
-        )
-        if request is None or request.agent_id != agent.id:
-            raise NotFoundError(
-                message="Suggestions request not found", details={"request_id": request_id}
-            )
-        report = dict(request.report or {})
-        ideas = list(report.get("rejected") or [])
-        idea = ideas[index] if 0 <= index < len(ideas) else None
-        if idea is None or idea.get("kind") != HunkKind.CREATE_SKILL.value:
-            raise NotFoundError(message="No new skill was proposed there", details={"index": index})
+        request, report, ideas, idea = await self._idea(ctx, agent, request_id, index)
         if idea.get("skill_id"):
             skill_id = UUID(idea["skill_id"])
         else:
@@ -1028,6 +1053,67 @@ class AuthoringService:
             draft_spec=dict(agent.draft_spec),
             skill_id=skill_id,
         )
+
+    async def decide_idea(
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        request_id: UUID,
+        index: int,
+        decision: IdeaDecision,
+    ) -> AgentAuthoringRead:
+        """Dismiss a new skill the assistant wrote but did not record, or take that back.
+
+        The idea stays on its request's report, marked, so the Builder lists it
+        as decided rather than waiting. One already created is the skill it
+        became and cannot be dismissed.
+
+        Raises:
+            NotFoundError: No agent this caller may edit, no such request on it, or
+                no new skill at that place.
+            BadRequestError: The idea was created as a skill already.
+        """
+        agent = await self._locked(ctx, await self._editable(ctx, agent_id))
+        request, report, ideas, idea = await self._idea(ctx, agent, request_id, index)
+        if idea.get("skill_id"):
+            raise BadRequestError(
+                message="This skill was created already; remove it from the draft instead",
+                details={"index": index},
+            )
+        dismissed = decision.action == "dismiss"
+        if bool(idea.get("dismissed")) != dismissed:
+            ideas[index] = {**idea, "dismissed": dismissed}
+            await authoring_repo.update_request(
+                self.db, request=request, values={"report": {**report, "rejected": ideas}}
+            )
+            await record_audit(
+                self.db,
+                actor_user_id=ctx.subject_id,
+                organization_id=ctx.organization_id,
+                action=f"authoring.proposed_skill_{'dismissed' if dismissed else 'restored'}",
+                target_type="agent",
+                target_id=str(agent.id),
+                details={"request_id": str(request.id), "index": index},
+            )
+        return await self._read(ctx, agent)
+
+    async def _idea(
+        self, ctx: AuthContext, agent: Agent, request_id: UUID, index: int
+    ) -> tuple[AuthoringRequest, dict[str, Any], list[dict[str, Any]], dict[str, Any]]:
+        """A request's new-skill idea at `index`, with the report and list it sits in."""
+        request = await authoring_repo.get_request(
+            self.db, request_id, organization_id=ctx.organization_id
+        )
+        if request is None or request.agent_id != agent.id:
+            raise NotFoundError(
+                message="Suggestions request not found", details={"request_id": request_id}
+            )
+        report = dict(request.report or {})
+        ideas = list(report.get("rejected") or [])
+        idea = ideas[index] if 0 <= index < len(ideas) else None
+        if idea is None or idea.get("kind") != HunkKind.CREATE_SKILL.value:
+            raise NotFoundError(message="No new skill was proposed there", details={"index": index})
+        return request, report, ideas, idea
 
     @staticmethod
     def _stale() -> BadRequestError:

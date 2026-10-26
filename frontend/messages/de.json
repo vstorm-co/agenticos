@@ -10457,6 +10457,27 @@
       "proposedTab": "Vorgeschlagen (bearbeiten)",
       "panes": "Aktuelle und vorgeschlagene Anweisungen",
       "outside": "Diese Bearbeitung ändert Text außerhalb der vorgeschlagenen Passage. Hier lässt sich nur der Vorschlag speichern; ändern Sie den Rest im Anweisungseditor."
+    },
+    "tabs": {
+      "label": "Vorschläge",
+      "toReview": "Zu prüfen",
+      "decided": "Entschieden",
+      "nothingLeft": "Nichts mehr zu prüfen.",
+      "nothingDecided": "Noch nichts entschieden.",
+      "setting": "Einstellung: {field}",
+      "group": {
+        "instructions": "Anweisungen",
+        "tools": "Tool-Beschreibungen",
+        "settings": "Einstellungen",
+        "skills": "Neue Skills"
+      },
+      "state": {
+        "accepted": "Angenommen",
+        "edited": "Bearbeitet und angenommen",
+        "dismissed": "Verworfen",
+        "created": "Erstellt",
+        "notDecided": "Nicht entschieden"
+      }
     }
   },
   "promotionGate": {

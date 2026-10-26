@@ -3,62 +3,50 @@
 import { useTranslations } from "next-intl";
 
 import { expectedEffect } from "@/lib/authoring-text";
-import type { Hunk, HunkDecision, SuggestionBatch } from "@/types/authoring";
+import type { AuthoringRequest, SuggestionBatch } from "@/types/authoring";
+import type { EntryActions } from "./change-groups";
 import { CheckResults } from "./check-result";
-import { SuggestionCard } from "./suggestion-card";
+import { SuggestionTabs } from "./suggestion-tabs";
 
 /**
  * A batch of suggestions: what they are expected to change, the eval runs that
- * checked them, and each suggestion with its decision - waiting ones first.
+ * checked them, and each suggestion and new-skill idea, in To review and Decided.
  *
  * The expected effect is the assistant's prediction, shown beside the checks so
- * a person can compare it with what the runs found. A closed batch - replaced by
- * a newer request, or published - is read-only.
+ * a person can compare it with what the runs found. A batch a newer request
+ * replaced is read-only.
  */
 export function SuggestionList({
   batch,
+  request,
   agentId,
-  busy,
-  onDecide,
-  instructions,
+  actions,
 }: {
-  batch: SuggestionBatch;
+  batch: SuggestionBatch | null;
+  /** The latest finished request, whose report holds the new-skill ideas. */
+  request: AuthoringRequest | null;
   agentId: string;
-  busy: boolean;
-  onDecide: (hunk: Hunk, decision: HunkDecision) => void;
-  /** The stored draft's instructions, for editing a suggestion in all of them. */
-  instructions?: string;
+  actions: Omit<EntryActions, "open">;
 }) {
   const t = useTranslations("authoring.batch");
-  const open = batch.status === "open";
-  const effect = expectedEffect(batch, (count) => t("fromEvidence", { count }));
-  const ordered = [...batch.hunks].sort(
-    (a, b) => Number(a.status !== "pending") - Number(b.status !== "pending"),
-  );
+  const effect = batch ? expectedEffect(batch, (count) => t("fromEvidence", { count })) : "";
   return (
     <div className="space-y-3">
-      {!open && <p className="text-muted-foreground text-sm">{t(`closed.${batch.status}`)}</p>}
+      {batch !== null && batch.status !== "open" && (
+        <p className="text-muted-foreground text-sm">{t(`closed.${batch.status}`)}</p>
+      )}
       {effect !== "" && (
         <p className="text-sm">
           <span className="font-medium">{t("expected")}</span> {effect}
         </p>
       )}
-      {batch.check_eval_run_ids.length > 0 && (
+      {batch !== null && batch.check_eval_run_ids.length > 0 && (
         <div className="space-y-2">
           <p className="text-sm">{t("checks")}</p>
           <CheckResults agentId={agentId} runIds={batch.check_eval_run_ids} />
         </div>
       )}
-      {ordered.map((hunk) => (
-        <SuggestionCard
-          key={`${hunk.id}-${hunk.status}`}
-          hunk={hunk}
-          canEdit={open}
-          busy={busy}
-          onDecide={(decision) => onDecide(hunk, decision)}
-          instructions={instructions}
-        />
-      ))}
+      <SuggestionTabs batch={batch} request={request} actions={actions} />
     </div>
   );
 }

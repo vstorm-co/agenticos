@@ -432,6 +432,12 @@ class ProposedSkillCreated(DecisionRead):
     skill_id: UUID
 
 
+class IdeaDecision(BaseSchema):
+    """Dismiss a new skill the assistant wrote but did not record, or take that back."""
+
+    action: Literal["dismiss", "undo"]
+
+
 class HunkDecision(BaseSchema):
     """Accept, dismiss or undo one hunk.
 

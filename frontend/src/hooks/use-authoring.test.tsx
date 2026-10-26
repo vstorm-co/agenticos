@@ -89,6 +89,21 @@ describe("useAgentAuthoring", () => {
       content: "Ask first.",
     });
   });
+
+  it("dismisses a new-skill idea through its request and place, and keeps what it answers", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue(agentAuthoring());
+    const answered = agentAuthoring({ batch: null });
+    vi.mocked(apiClient.post).mockResolvedValue(answered);
+    const { result } = renderHook(() => useAgentAuthoring("agent-1"), { wrapper });
+    await act(async () => {
+      await result.current.decideIdea.mutateAsync({ requestId: "r1", index: 4, action: "dismiss" });
+    });
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/agents/agent-1/authoring/requests/r1/ideas/4/decision",
+      { action: "dismiss" },
+    );
+    await waitFor(() => expect(result.current.decideIdea.data).toEqual(answered));
+  });
 });
 
 describe("useSkillAuthoring", () => {

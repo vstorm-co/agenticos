@@ -10357,6 +10357,27 @@
       "proposedTab": "Proponowane (edycja)",
       "panes": "Obecne i proponowane instrukcje",
       "outside": "Ta edycja zmienia tekst poza sugerowanym fragmentem. Tutaj można zapisać tylko sugestię; resztę zmień w edytorze instrukcji."
+    },
+    "tabs": {
+      "label": "Sugestie",
+      "toReview": "Do decyzji",
+      "decided": "Zdecydowane",
+      "nothingLeft": "Nie ma już nic do decyzji.",
+      "nothingDecided": "Nic jeszcze nie zdecydowano.",
+      "setting": "Ustawienie: {field}",
+      "group": {
+        "instructions": "Instrukcje",
+        "tools": "Opisy narzędzi",
+        "settings": "Ustawienia",
+        "skills": "Nowe skille"
+      },
+      "state": {
+        "accepted": "Przyjęta",
+        "edited": "Zmieniona i przyjęta",
+        "dismissed": "Odrzucona",
+        "created": "Utworzony",
+        "notDecided": "Bez decyzji"
+      }
     }
   },
   "promotionGate": {

@@ -30,6 +30,7 @@ vi.mock("@/hooks/use-authoring", () => {
       estimate: idle,
       start: idle,
       decide: idle,
+      decideIdea: idle,
       dismissAll: idle,
       checkEstimate: idle,
       check: idle,

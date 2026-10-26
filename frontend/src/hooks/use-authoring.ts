@@ -81,6 +81,25 @@ export function useAgentAuthoring(agentId: string, { enabled = true } = {}) {
       return Promise.all([refresh(), queryClient.invalidateQueries({ queryKey: qk.skills.all() })]);
     },
   });
+  const decideIdea = useMutation({
+    mutationFn: ({
+      requestId,
+      index,
+      action,
+    }: {
+      requestId: string;
+      index: number;
+      action: "dismiss" | "undo";
+    }) =>
+      apiClient.post<AgentAuthoring>(
+        `/agents/${agentId}/authoring/requests/${requestId}/ideas/${index}/decision`,
+        { action },
+      ),
+    onSuccess: (read) => {
+      queryClient.setQueryData(qk.authoring.agent(agentId), read);
+      return refresh();
+    },
+  });
   const dismissAll = useMutation({
     mutationFn: () => apiClient.post<AgentAuthoring>(`/agents/${agentId}/authoring/dismiss`),
     onSuccess: (read) => {
@@ -108,6 +127,7 @@ export function useAgentAuthoring(agentId: string, { enabled = true } = {}) {
     start,
     decide,
     createSkill,
+    decideIdea,
     dismissAll,
     checkEstimate,
     check,

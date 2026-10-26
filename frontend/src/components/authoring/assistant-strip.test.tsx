@@ -26,6 +26,7 @@ const state = vi.hoisted(() => ({
   published: undefined as { spec: unknown } | undefined,
   decide: vi.fn(),
   dismissAll: vi.fn(),
+  decideIdea: vi.fn(),
   isLoading: false,
   error: null as Error | null,
 }));
@@ -64,6 +65,7 @@ vi.mock("@/hooks/use-authoring", () => ({
     start: { mutateAsync: vi.fn() },
     decide: { mutateAsync: state.decide, isPending: false },
     createSkill: { mutateAsync: state.createSkill },
+    decideIdea: { mutate: state.decideIdea, isPending: false },
     dismissAll: { mutate: state.dismissAll, isPending: false },
     checkEstimate: { mutateAsync: CHECK_ESTIMATE },
     check: { mutateAsync: vi.fn().mockResolvedValue(evalRun({ id: "eval-9" })) },
@@ -334,7 +336,7 @@ describe("AssistantStrip", () => {
     state.createSkill.mockResolvedValue({ authoring: agentAuthoring(), draft_spec: written });
     state.authoring = agentAuthoring({ latest: authoringRequest({ report: IDEA }) });
     const { persist, onDraft } = strip();
-    await userEvent.click(screen.getByText("1 more idea needs your decision"));
+    expect(screen.queryByText("1 more idea needs your decision")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Create skill" }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText(/^Based on 2 answers\./)).toBeInTheDocument();
@@ -378,12 +380,30 @@ describe("AssistantStrip", () => {
     );
   });
 
-  it("offers no skill to someone who may not create skills", () => {
+  it("offers no skill to someone who may not create skills, but lets them dismiss it", () => {
     state.skillsEdit = false;
     state.authoring = agentAuthoring({ latest: authoringRequest({ report: IDEA }) });
     strip();
-    expect(screen.getByText("1 more idea the assistant did not add")).toBeInTheDocument();
+    expect(screen.getByTestId("idea")).toHaveTextContent("Refund Policy");
     expect(screen.queryByRole("button", { name: "Create skill" })).toBeNull();
+    expect(
+      within(screen.getByTestId("idea")).getByRole("button", { name: "Dismiss" }),
+    ).toBeEnabled();
+  });
+
+  it("dismisses an idea on its request, and toasts a refused dismissal", async () => {
+    state.authoring = agentAuthoring({ batch: null, latest: authoringRequest({ report: IDEA }) });
+    strip();
+    await userEvent.click(
+      within(screen.getByTestId("idea")).getByRole("button", { name: "Dismiss" }),
+    );
+    expect(state.decideIdea).toHaveBeenCalledWith(
+      { requestId: "request-1", index: 0, action: "dismiss" },
+      expect.objectContaining({ onError: expect.any(Function) }),
+    );
+    const [, options] = state.decideIdea.mock.calls[0]!;
+    options.onError(new Error("refused"));
+    expect(toastError).toHaveBeenCalled();
   });
 });
 

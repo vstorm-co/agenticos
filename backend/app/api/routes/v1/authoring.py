@@ -21,6 +21,7 @@ from app.schemas.authoring import (
     AuthoringWaiting,
     DecisionRead,
     HunkDecision,
+    IdeaDecision,
     ProposalCheck,
     ProposedSkill,
     ProposedSkillCreated,
@@ -106,6 +107,27 @@ async def create_proposed_skill(
     skill. 403 without `skills:edit`; 409 when the name is taken.
     """
     return await service.create_proposed_skill(ctx, agent_id, request_id, index, data)
+
+
+@router.post(
+    "/agents/{agent_id}/authoring/requests/{request_id}/ideas/{index}/decision",
+    response_model=AgentAuthoringRead,
+)
+async def decide_proposed_skill(
+    agent_id: UUID,
+    request_id: UUID,
+    index: int,
+    data: IdeaDecision,
+    service: AuthoringSvc,
+    ctx: Auth,
+) -> Any:
+    """Dismiss a new skill the assistant proposed but did not record, or undo that.
+
+    `index` is the idea's place in the request report's `rejected` list. A dismissed
+    idea stays on the report, marked `dismissed`. 400 for one already created as a
+    skill.
+    """
+    return await service.decide_idea(ctx, agent_id, request_id, index, data)
 
 
 @router.post("/agents/{agent_id}/authoring/dismiss", response_model=AgentAuthoringRead)

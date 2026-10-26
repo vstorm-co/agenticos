@@ -17,7 +17,8 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import type { AgentSpec } from "@/types/agents";
-import type { Hunk, HunkDecision, ProposedSkill } from "@/types/authoring";
+import { ideaState } from "@/lib/authoring-groups";
+import type { AuthoringRequest, Hunk, HunkDecision, ProposedSkill } from "@/types/authoring";
 import { Perm } from "@/types/permissions";
 import { AiOffNotice } from "./ai-off-notice";
 import { CheckDialog } from "./check-dialog";
@@ -100,6 +101,14 @@ export function AssistantStrip({
     return true;
   }
   const onCreateSkill = can(Perm.skillsEdit) ? createSkill : undefined;
+  const finished = latest?.status === "completed" ? latest : null;
+
+  function onDecideIdea(requestId: string, index: number, action: "dismiss" | "undo") {
+    assistant.decideIdea.mutate(
+      { requestId, index, action },
+      { onError: (failure) => toast.error(getErrorMessage(failure, tErrors)) },
+    );
+  }
 
   return (
     <Card data-tour="agent-assistant-strip">
@@ -167,15 +176,18 @@ export function AssistantStrip({
           {!working && batch === null && latest === null && (
             <p className="text-muted-foreground text-sm">{t("empty")}</p>
           )}
-          {batch !== null && (
-            <SuggestionList
-              batch={batch}
-              agentId={agentId}
-              busy={decide.isPending}
-              onDecide={onDecide}
-              instructions={storedDraft.instructions}
-            />
-          )}
+          <SuggestionList
+            batch={batch}
+            request={finished}
+            agentId={agentId}
+            actions={{
+              busy: decide.isPending || assistant.decideIdea.isPending,
+              onDecide,
+              instructions: storedDraft.instructions,
+              onCreateIdea: onCreateSkill,
+              onDecideIdea,
+            }}
+          />
           {latest !== null && (
             <AuthoringResultNotice
               key={`${orgId}:${agentId}:${latest.id}`}
@@ -185,14 +197,7 @@ export function AssistantStrip({
               onCreateSkill={onCreateSkill}
             />
           )}
-          {latest?.status === "completed" && (
-            <RejectedChanges
-              report={latest.report}
-              onCreateSkill={
-                onCreateSkill && ((index, skill) => onCreateSkill(latest.id, index, skill))
-              }
-            />
-          )}
+          {finished && <RejectedChanges report={withoutIdeas(finished.report)} />}
           {authoring?.verify?.report?.findings !== undefined && (
             <details>
               <summary className="cursor-pointer text-sm font-medium">{t("verifyReport")}</summary>
@@ -222,4 +227,10 @@ export function AssistantStrip({
       )}
     </Card>
   );
+}
+
+/** A report without its new-skill ideas, which the tabs list as decisions. */
+function withoutIdeas(report: AuthoringRequest["report"]): AuthoringRequest["report"] {
+  if (!report?.rejected) return report;
+  return { ...report, rejected: report.rejected.filter((item) => ideaState(item) === null) };
 }

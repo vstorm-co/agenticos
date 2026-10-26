@@ -219,6 +219,22 @@ async def test_a_decision_must_name_an_action(client: OpenClient) -> None:
     assert response.status_code == 422
 
 
+async def test_an_unrecorded_skill_idea_is_dismissed_by_its_request_and_index(
+    client: OpenClient, service: MagicMock
+) -> None:
+    service.decide_idea = AsyncMock(return_value=_EMPTY)
+    request = uuid.uuid4()
+    url = _url(f"/agents/{uuid.uuid4()}/authoring/requests/{request}/ideas/1/decision")
+    async with client() as http:
+        dismissed = await http.post(url, json={"action": "dismiss"})
+        accepted = await http.post(url, json={"action": "accept"})
+
+    assert dismissed.status_code == 200
+    assert service.decide_idea.await_args.args[2:4] == (request, 1)
+    assert service.decide_idea.await_args.args[4].action == "dismiss"
+    assert accepted.status_code == 422
+
+
 async def test_an_unrecorded_skill_idea_is_created_by_its_request_and_index(
     client: OpenClient, service: MagicMock
 ) -> None:

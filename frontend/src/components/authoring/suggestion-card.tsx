@@ -26,6 +26,7 @@ export function SuggestionCard({
   busy,
   onDecide,
   instructions,
+  folded = false,
 }: {
   hunk: Hunk;
   canEdit: boolean;
@@ -33,6 +34,8 @@ export function SuggestionCard({
   onDecide: (decision: HunkDecision) => void;
   /** The stored draft's instructions, so Edit can show the suggestion in all of them. */
   instructions?: string;
+  /** Opened from a folded line that already names its kind and decision. */
+  folded?: boolean;
 }) {
   const t = useTranslations("authoring.suggestion");
   const tField = useTranslations("authoring.field");
@@ -68,17 +71,19 @@ export function SuggestionCard({
     <Card data-testid="suggestion">
       <CardContent className="space-y-3 pt-4">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="secondary">
-            {newSkill
-              ? tSkill("title")
-              : field
-                ? fieldLabel(hunk, tField)
-                : tool
-                  ? t("tool", { tool: hunk.tool_id ?? "" })
-                  : t("instructions")}
-          </Badge>
+          {!folded && (
+            <Badge variant="secondary">
+              {newSkill
+                ? tSkill("title")
+                : field
+                  ? fieldLabel(hunk, tField)
+                  : tool
+                    ? t("tool", { tool: hunk.tool_id ?? "" })
+                    : t("instructions")}
+            </Badge>
+          )}
           {hunk.origin === "verify" && <Badge variant="outline">{t("fromVerify")}</Badge>}
-          {hunk.status !== "pending" && (
+          {hunk.status !== "pending" && !folded && (
             <Badge variant="outline">{t(`status.${hunk.status}`)}</Badge>
           )}
           {!hunk.applies && hunk.status !== "dismissed" && (

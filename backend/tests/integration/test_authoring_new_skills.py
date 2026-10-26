@@ -22,7 +22,7 @@ from app.db.models.agent_run import AgentRun
 from app.db.models.authoring import AuthoringRequest
 from app.db.models.skill import Skill
 from app.repositories import eval_run_repo
-from app.schemas.authoring import HunkDecision, ProposalCheck, ProposedSkill
+from app.schemas.authoring import HunkDecision, IdeaDecision, ProposalCheck, ProposedSkill
 from app.schemas.eval_run import EvalRunRequest
 from app.services.agent_registry import AgentRegistryService, UnpublishedCandidate
 from app.services.agent_runner import AgentRunnerService
@@ -318,3 +318,42 @@ async def test_an_idea_kept_without_its_text_asks_for_the_assistant_again(
     await db.flush()
     with pytest.raises(NotFoundError):
         await service.create_proposed_skill(ctx, agent.id, request.id, 0, _idea())
+
+
+async def test_dismissing_an_idea_marks_it_on_its_request_and_undo_takes_it_back(
+    db: AsyncSession,
+) -> None:
+    ctx, agent, request = await _proposed(db, evidence_count=2)
+    service = AuthoringService(db)
+
+    read = await service.decide_idea(ctx, agent.id, request.id, 0, IdeaDecision(action="dismiss"))
+    again = await service.decide_idea(ctx, agent.id, request.id, 0, IdeaDecision(action="dismiss"))
+
+    assert read.latest is not None and read.latest.report is not None
+    assert read.latest.report["rejected"][0]["dismissed"] is True
+    assert again.latest is not None and again.latest.report == read.latest.report
+    assert await db.scalar(select(func.count()).select_from(Skill)) == 0
+    undone = await service.decide_idea(ctx, agent.id, request.id, 0, IdeaDecision(action="undo"))
+    assert undone.latest is not None and undone.latest.report is not None
+    assert undone.latest.report["rejected"][0]["dismissed"] is False
+
+
+async def test_an_idea_is_dismissed_only_by_an_editor_of_its_agent_and_never_once_created(
+    db: AsyncSession,
+) -> None:
+    ctx, agent, request = await _proposed(db, evidence_count=2)
+    service = AuthoringService(db)
+    dismiss = IdeaDecision(action="dismiss")
+    viewer = replace(ctx, key_scopes=frozenset({Perm.AGENTS_VIEW, Perm.RUNS_VIEW}))
+    with pytest.raises(NotFoundError):
+        await service.decide_idea(viewer, agent.id, request.id, 0, dismiss)
+    other_ctx, other_agent, _ = await _setup(db)
+    with pytest.raises(NotFoundError):
+        await service.decide_idea(other_ctx, other_agent.id, request.id, 0, dismiss)
+    with pytest.raises(NotFoundError):
+        await service.decide_idea(ctx, agent.id, request.id, 1, dismiss)
+
+    await service.create_proposed_skill(ctx, agent.id, request.id, 0, _idea())
+
+    with pytest.raises(BadRequestError, match="created already"):
+        await service.decide_idea(ctx, agent.id, request.id, 0, dismiss)

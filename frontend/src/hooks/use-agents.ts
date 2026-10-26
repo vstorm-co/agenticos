@@ -398,6 +398,8 @@ export function useAgent(agentId: string | null) {
     onSuccess: async (version) => {
       await invalidate();
       await invalidateEnvironments();
+      // A publication ends the assistant's cycle: its suggestions were for the draft just frozen.
+      await queryClient.invalidateQueries({ queryKey: qk.authoring.all() });
       toast.success(t("publishedVersion", { version: version.version }));
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
@@ -409,6 +411,7 @@ export function useAgent(agentId: string | null) {
     onSuccess: async (version) => {
       await invalidate();
       await invalidateEnvironments();
+      await queryClient.invalidateQueries({ queryKey: qk.authoring.all() });
       // Rolling back publishes a *new* version rather than moving a pointer
       // backwards, so run history keeps telling the truth about what was live.
       toast.success(t("rolledBack", { version: version.version }));

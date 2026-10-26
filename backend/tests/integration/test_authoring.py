@@ -512,9 +512,13 @@ class TestImprove:
             with pytest.raises(BadRequestError, match="no longer fits"):
                 await service.decide(ctx, agent.id, hunk.id, HunkDecision(action="accept"))
 
-    async def test_publishing_closes_the_batch_and_its_decisions(self, db):
+    async def test_publishing_closes_the_batch_and_hides_the_cycle_it_ends(self, db):
         ctx, agent, _ = await _setup(db)
-        await _improve(db, ctx, agent, Improver(db))
+        request = await _improve(db, ctx, agent, Improver(db))
+        # Every row of one test shares the transaction's clock, so the request is
+        # put where it would be in use: finished before the version was published.
+        request.finished_at = datetime.now(UTC) - timedelta(minutes=5)
+        await db.flush()
         service = AuthoringService(db)
         batch = (await service.for_agent(ctx, agent.id)).batch
         assert batch is not None
@@ -524,7 +528,43 @@ class TestImprove:
         with pytest.raises(ConcurrentChangeError, match="published"):
             await service.decide(ctx, agent.id, batch.hunks[0].id, HunkDecision(action="dismiss"))
         read = await service.for_agent(ctx, agent.id)
-        assert read.batch is not None and read.batch.status == "published"
+        assert read.batch is None and read.latest is None
+        kept = await db.get(SpecProposalBatch, batch.id)
+        assert kept is not None and kept.status == "published"
+        assert await authoring_repo.get_request(db, request.id, organization_id=ctx.organization_id)
+
+        newer = await _improve(db, ctx, agent, Improver(db))
+
+        read = await service.for_agent(ctx, agent.id)
+        assert read.latest is not None and read.latest.id == newer.id
+        assert read.batch is not None and read.batch.status == "open"
+
+    async def test_a_request_still_working_when_the_agent_is_published_stays_in_view(self, db):
+        ctx, agent, _ = await _setup(db)
+        service = AuthoringService(db)
+        queued = await service.start_agent(ctx, agent.id, AuthoringStart())
+
+        await AgentRegistryService(db).publish(ctx, agent.id)
+
+        read = await service.for_agent(ctx, agent.id)
+        assert read.latest is not None and read.latest.id == queued.id
+
+    async def test_a_replaced_batch_from_before_the_publication_is_hidden(self, db):
+        ctx, agent, _ = await _setup(db)
+        await _improve(db, ctx, agent, Improver(db))
+        service = AuthoringService(db)
+        shown = (await service.for_agent(ctx, agent.id)).batch
+        assert shown is not None
+        row = await db.get(SpecProposalBatch, shown.id)
+        assert row is not None
+        row.status = "superseded"
+        await db.flush()
+        assert (await service.for_agent(ctx, agent.id)).batch is not None
+
+        row.created_at = datetime.now(UTC) - timedelta(minutes=5)
+        await AgentRegistryService(db).publish(ctx, agent.id)
+
+        assert (await service.for_agent(ctx, agent.id)).batch is None
 
     async def test_a_newer_request_replaces_the_batch_and_skips_what_was_dismissed(self, db):
         ctx, agent, _ = await _setup(db)

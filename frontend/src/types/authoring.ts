@@ -92,6 +92,8 @@ export interface RejectedChange {
   reason: Rejection;
   /** The skill a person created from this idea, once they have. */
   skill_id?: string;
+  /** A new-skill idea a person dismissed instead of creating. */
+  dismissed?: boolean;
   /**
    * The change as proposed: passages, a tool's new text, a field's path and value,
    * or a verify finding's verdict, text and the line it named.
