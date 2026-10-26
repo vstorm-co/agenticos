@@ -1,7 +1,7 @@
 """Agent run and approval repositories (PostgreSQL async)."""
 
 from collections.abc import Collection, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, cast
@@ -32,13 +32,17 @@ from app.db.models.agent_run import (
     ApprovalStatus,
     RunOrder,
     RunRating,
+    RunSource,
     RunStatus,
     RunSurface,
     ToolApproval,
 )
+from app.db.models.authoring import AuthoringRequest
+from app.db.models.case_generation import CaseGeneration
 from app.db.models.conversation import Conversation, Message
 from app.db.models.group import Group, GroupMember
 from app.db.models.intercepted_tool_call import InterceptedToolCall
+from app.db.models.knowledge_gap import KnowledgeGapClassification, KnowledgeGapTopic
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.user import User
@@ -438,6 +442,8 @@ class RunFilters:
             it would not add up to the bill.
         is_test: Only test runs from the Builder's panel, or only real ones
             (#2074). Unset lists both.
+        source: Conversations, an agent answering evals, or a platform agent's
+            own work - see `RunSource`.
     """
 
     statuses: Sequence[str] | None = None
@@ -455,6 +461,7 @@ class RunFilters:
     modality: str | None = None
     one_row_per_call: bool = False
     is_test: bool | None = None
+    source: RunSource | None = None
 
     def conditions(self) -> list[ColumnElement[bool]]:
         """One `WHERE` clause per filter that was actually set.
@@ -497,6 +504,17 @@ class RunFilters:
             )
         if self.is_test is not None:
             clauses.append(AgentRun.is_test.is_(self.is_test))
+        if self.source is RunSource.CONVERSATION:
+            clauses.append(AgentRun.surface != RunSurface.EVAL.value)
+        elif self.source is not None:
+            platform = AgentRun.agent_id.in_(
+                select(Agent.id).where(Agent.kind != AgentKind.AGENT.value)
+            )
+            clauses.append(
+                platform
+                if self.source is RunSource.SYSTEM
+                else and_(AgentRun.surface == RunSurface.EVAL.value, ~platform)
+            )
         return clauses
 
 
@@ -672,6 +690,100 @@ async def down_rated_run_ids(
         .distinct()
     )
     return {run_id for (run_id,) in result.all()}
+
+
+@dataclass(frozen=True)
+class RunOrigin:
+    """Which platform agent a run was, and what it worked on, where a row says so.
+
+    Each id is the one place its work is read: the Improve session (or, for an
+    assistant request outside one, the agent it was about), the knowledge-gap
+    topic it drafted or the knowledge base whose answers it read, the dataset it
+    wrote cases for. The judge's eval run is not here - `case_links` has it.
+    """
+
+    kind: str
+    agent_name: str
+    agent_id: UUID | None = None
+    improvement_id: UUID | None = None
+    topic_id: UUID | None = None
+    knowledge_base_id: UUID | None = None
+    dataset_id: UUID | None = None
+
+
+async def run_origins(
+    db: AsyncSession, *, organization_id: UUID, run_ids: Sequence[UUID]
+) -> dict[UUID, RunOrigin]:
+    """The platform agents among these runs, each with what it worked on.
+
+    A run of one of the organization's own agents has no origin and is absent.
+    """
+    if not run_ids:
+        return {}
+    platform = (
+        await db.execute(
+            select(AgentRun.id, Agent.kind, Agent.name)
+            .join(Agent, Agent.id == AgentRun.agent_id)
+            .where(
+                AgentRun.id.in_(run_ids),
+                AgentRun.organization_id == organization_id,
+                Agent.kind != AgentKind.AGENT.value,
+            )
+        )
+    ).all()
+    found = {run_id: RunOrigin(kind=kind, agent_name=name) for run_id, kind, name in platform}
+    if not found:
+        return {}
+    ids = list(found)
+    requests = await db.execute(
+        select(
+            AuthoringRequest.run_ids, AuthoringRequest.agent_id, AuthoringRequest.improvement_run_id
+        ).where(
+            AuthoringRequest.organization_id == organization_id,
+            AuthoringRequest.run_ids.overlap(ids),
+        )
+    )
+    for request_runs, agent_id, improvement_id in requests.all():
+        for run_id in set(request_runs) & found.keys():
+            found[run_id] = replace(found[run_id], agent_id=agent_id, improvement_id=improvement_id)
+    # `type_coerce` states what each `IN` guarantees and the nullable columns cannot.
+    run_id_of = PG_UUID(as_uuid=True)
+    topics = await db.execute(
+        select(
+            type_coerce(KnowledgeGapTopic.draft_run_id, run_id_of),
+            KnowledgeGapTopic.id,
+            KnowledgeGapTopic.knowledge_base_id,
+        ).where(
+            KnowledgeGapTopic.organization_id == organization_id,
+            KnowledgeGapTopic.draft_run_id.in_(ids),
+        )
+    )
+    for run_id, topic_id, knowledge_base_id in topics.all():
+        found[run_id] = replace(
+            found[run_id], topic_id=topic_id, knowledge_base_id=knowledge_base_id
+        )
+    classified = await db.execute(
+        select(
+            type_coerce(KnowledgeGapClassification.run_id, run_id_of),
+            KnowledgeGapClassification.knowledge_base_id,
+        )
+        .where(
+            KnowledgeGapClassification.organization_id == organization_id,
+            KnowledgeGapClassification.run_id.in_(ids),
+        )
+        .distinct()
+    )
+    for run_id, knowledge_base_id in classified.all():
+        found[run_id] = replace(found[run_id], knowledge_base_id=knowledge_base_id)
+    generations = await db.execute(
+        select(type_coerce(CaseGeneration.run_id, run_id_of), CaseGeneration.dataset_id).where(
+            CaseGeneration.organization_id == organization_id,
+            CaseGeneration.run_id.in_(ids),
+        )
+    )
+    for run_id, dataset_id in generations.all():
+        found[run_id] = replace(found[run_id], dataset_id=dataset_id)
+    return found
 
 
 @dataclass(frozen=True)

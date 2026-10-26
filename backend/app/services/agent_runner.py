@@ -60,7 +60,7 @@ from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from functools import partial
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
@@ -241,7 +241,7 @@ from app.core.exceptions import (
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import ApiKeySecret, StorableSecret
 from app.db.locks import LockScope, try_hold_subject
-from app.db.models.agent import Agent, AgentStatus
+from app.db.models.agent import Agent, AgentKind, AgentStatus
 from app.db.models.agent_environment import ConnectionKind
 from app.db.models.agent_exposure import AgentExposure
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunOrder, RunStatus, RunSurface
@@ -275,6 +275,7 @@ from app.repositories import (
 from app.repositories.agent_run import AgentSpendRow, RunFilters
 from app.repositories.voice_call import VoiceChain
 from app.schemas.agent import ParkedCall, ParkedQuestion
+from app.schemas.agent_run import RunOriginRead
 from app.schemas.user import WorkingHours
 from app.services import change_feed
 from app.services.agent_registry import (
@@ -339,6 +340,14 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _PREVIEW_CHARS = 80
+
+_ORIGIN_KINDS: dict[str, Literal["grader", "improve", "knowledge_gaps", "test_questions"]] = {
+    AgentKind.JUDGE.value: "grader",
+    AgentKind.IMPROVER.value: "improve",
+    AgentKind.CLASSIFIER.value: "knowledge_gaps",
+    AgentKind.DRAFTER.value: "knowledge_gaps",
+    AgentKind.GENERATOR.value: "test_questions",
+}
 
 
 def _preview(text: str) -> str:
@@ -6323,6 +6332,28 @@ class AgentRunnerService:
         return await agent_run_repo.down_rated_run_ids(
             self.db, organization_id=ctx.organization_id, run_ids=run_ids
         )
+
+    async def origins(self, ctx: AuthContext, run_ids: Sequence[UUID]) -> dict[UUID, RunOriginRead]:
+        """Which of these runs a platform agent made, and what each worked on.
+
+        Read under the same `runs:view` the rows are: the names and ids only say
+        where the work is, and each of those pages checks its own access.
+        """
+        found = await agent_run_repo.run_origins(
+            self.db, organization_id=ctx.organization_id, run_ids=run_ids
+        )
+        return {
+            run_id: RunOriginRead(
+                kind=_ORIGIN_KINDS[origin.kind],
+                agent_name=origin.agent_name,
+                agent_id=origin.agent_id,
+                improvement_id=origin.improvement_id,
+                topic_id=origin.topic_id,
+                knowledge_base_id=origin.knowledge_base_id,
+                dataset_id=origin.dataset_id,
+            )
+            for run_id, origin in found.items()
+        }
 
     async def previews(
         self, run_ids: Sequence[UUID], *, questions: Mapping[UUID, str]

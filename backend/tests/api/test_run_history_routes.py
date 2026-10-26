@@ -26,6 +26,7 @@ from app.api import deps
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import AgentRun
 from app.main import app
+from app.schemas.agent_run import RunOriginRead
 from app.schemas.eval_run import EvalCaseLinkRead
 
 pytestmark = pytest.mark.anyio
@@ -53,6 +54,7 @@ def _service() -> MagicMock:
     service.list_runs = AsyncMock(return_value=([], 0))
     service.previews = AsyncMock(return_value={})
     service.voice_chains = AsyncMock(return_value={})
+    service.origins = AsyncMock(return_value={})
     return service
 
 
@@ -118,6 +120,13 @@ class TestTheFiltersReachTheService:
         filters = await _filters_for("?exclude_surface=eval")
 
         assert filters.exclude_surface == "eval"
+
+    async def test_the_source_reaches_the_filters_and_an_unknown_one_is_refused(self):
+        filters = await _filters_for("?source=system")
+
+        assert filters.source == "system"
+        async with _client(_service()) as client:
+            assert (await client.get("/api/v1/runs?source=judges")).status_code == 422
 
 
 class TestSortingIsChosenFromTwoOrdersAndNotFromAColumnName:
@@ -297,6 +306,9 @@ class TestTheDownRatedMarkerReachesTheRow:
         service.previews = AsyncMock(
             return_value={run.id: "Can I return it?", web.id: "Where is my order?"}
         )
+        service.origins = AsyncMock(
+            return_value={run.id: RunOriginRead(kind="grader", agent_name="Judge")}
+        )
 
         async with _client(service) as client:
             response = await client.get("/api/v1/runs")
@@ -304,6 +316,8 @@ class TestTheDownRatedMarkerReachesTheRow:
         rows = response.json()["items"]
         assert rows[0]["eval_case"]["case_input"] == "Can I return it?"
         assert rows[1]["eval_case"] is None
+        assert rows[0]["origin"]["kind"] == "grader" and rows[1]["origin"] is None
+        assert service.origins.await_args.args[1] == [run.id]
         assert evals.case_links.await_args.args[1] == [run.id]
         # The eval case's question is the preview; the chat run's first turn is read.
         assert [row["preview"] for row in rows] == ["Can I return it?", "Where is my order?"]
@@ -397,4 +411,6 @@ class TestTheDetailReadCarriesItsNeighbours:
 
         assert response.status_code == 200, response.text
         assert response.json()["eval_case"]["dataset_name"] == "refunds"
+        assert response.json()["origin"] is None
         evals.case_link.assert_awaited_once()
+        service.origins.assert_awaited_once()

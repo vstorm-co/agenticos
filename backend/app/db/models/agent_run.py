@@ -163,6 +163,21 @@ class RunRating(enum.StrEnum):
     DOWN = "down"
 
 
+class RunSource(enum.StrEnum):
+    """Whose work a run was, as Activity's Source filter asks.
+
+    `CONVERSATION` is every surface a person, a client or a schedule reaches an
+    agent through. `EVALUATION` is one of the organization's agents answering an
+    eval case - an eval run, or Improve measuring a candidate. `SYSTEM` is a
+    platform agent (`AgentKind` other than `AGENT`) at work: the judge, the
+    improver, the knowledge-gap classifier and drafter, the case generator.
+    """
+
+    CONVERSATION = "conversation"
+    EVALUATION = "evaluation"
+    SYSTEM = "system"
+
+
 class AgentRun(Base, TimestampMixin):
     """One execution of one agent version."""
 

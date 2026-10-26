@@ -28,6 +28,7 @@ from app.db.models.agent_run import (
     ApprovalStatus,
     RunOrder,
     RunRating,
+    RunSource,
     RunStatus,
     RunSurface,
 )
@@ -100,6 +101,14 @@ async def list_runs(
     test: bool | None = Query(
         None, description="Only runs from the Builder's test panel, or only the rest"
     ),
+    source: RunSource | None = Query(
+        None,
+        description=(
+            "Conversations, the organization's agents answering evals, or the "
+            "platform's own agents at work - the judge, the assistant, the "
+            "knowledge-gap and case helpers"
+        ),
+    ),
     order_by: RunOrder = Query(
         RunOrder.STARTED_AT, description="Sort by start time, duration, cost or tokens"
     ),
@@ -165,6 +174,7 @@ async def list_runs(
             modality=modality,
             one_row_per_call=True,
             is_test=test,
+            source=source,
         ),
         order_by=order_by,
         descending=descending,
@@ -175,9 +185,9 @@ async def list_runs(
         await service.down_rated_run_ids(ctx, [run.id for run in items]) if items else set()
     )
     # An eval run's answer keeps no conversation to preview; its case's question is it.
-    links = await evals.case_links(
-        ctx, [run.id for run in items if run.surface == RunSurface.EVAL.value]
-    )
+    evaluated = [run.id for run in items if run.surface == RunSurface.EVAL.value]
+    links = await evals.case_links(ctx, evaluated)
+    origins = await service.origins(ctx, evaluated)
     previews = await service.previews(
         [run.id for run in items],
         questions={run_id: link.case_input for run_id, link in links.items()},
@@ -189,6 +199,7 @@ async def list_runs(
                 update={
                     "down_rated": run.id in down_rated,
                     "eval_case": links.get(run.id),
+                    "origin": origins.get(run.id),
                     "preview": previews.get(run.id),
                     "voice_chain": chains.get(run.id),
                 }
@@ -225,6 +236,7 @@ async def export_runs(
         None, description="Text runs or voice calls. Every run of a call is exported"
     ),
     test: bool | None = Query(None),
+    source: RunSource | None = Query(None),
 ) -> Any:
     """Run history as CSV, over exactly the rows `GET /runs` would list.
 
@@ -256,6 +268,7 @@ async def export_runs(
             # file has to add up to the bill (#54).
             modality=modality,
             is_test=test,
+            source=source,
         ),
     )
     return csv_response(result)
@@ -276,7 +289,9 @@ async def get_run(run_id: UUID, service: AgentRunnerSvc, evals: EvalRunSvc, ctx:
     answer and grade are read - such a run keeps no conversation.
     """
     run = await service.get_run(ctx, run_id)
-    eval_case = await evals.case_link(ctx, run.id) if run.surface == RunSurface.EVAL.value else None
+    evaluated = run.surface == RunSurface.EVAL.value
+    eval_case = await evals.case_link(ctx, run.id) if evaluated else None
+    origin = (await service.origins(ctx, [run.id])).get(run.id) if evaluated else None
     down_rated = await service.down_rated_run_ids(ctx, [run.id])
     prev_run_id, next_run_id = await service.neighbor_run_ids(ctx, run)
     return AgentRunRead.model_validate(run).model_copy(
@@ -286,6 +301,7 @@ async def get_run(run_id: UUID, service: AgentRunnerSvc, evals: EvalRunSvc, ctx:
             "prev_run_id": prev_run_id,
             "next_run_id": next_run_id,
             "eval_case": eval_case,
+            "origin": origin,
         }
     )
 

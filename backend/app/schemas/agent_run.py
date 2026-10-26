@@ -22,6 +22,27 @@ class VoiceChainRead(BaseSchema):
     cost_usd: Decimal
 
 
+class RunOriginRead(BaseSchema):
+    """Which platform agent a run was, and where its work is read."""
+
+    kind: Literal["grader", "improve", "knowledge_gaps", "test_questions"] = Field(
+        description=(
+            "The judge grading eval cases, the assistant proposing changes, the "
+            "knowledge-gap classifier or drafter, or the case generator"
+        )
+    )
+    agent_name: str = Field(description="The platform agent's own name")
+    agent_id: UUID | None = Field(
+        default=None, description="The agent an assistant request was about"
+    )
+    improvement_id: UUID | None = Field(default=None, description="The Improve session it was in")
+    topic_id: UUID | None = Field(default=None, description="The knowledge-gap topic it drafted")
+    knowledge_base_id: UUID | None = Field(
+        default=None, description="The knowledge base whose gaps it read or drafted"
+    )
+    dataset_id: UUID | None = Field(default=None, description="The dataset it wrote cases for")
+
+
 class AgentRunRead(BaseSchema):
     """One execution, as run history lists it."""
 
@@ -127,6 +148,14 @@ class AgentRunRead(BaseSchema):
             "The eval run and case this run answered - or graded, on the judge's "
             "single-run read - when the caller may see the dataset; such a run keeps "
             "no conversation, and its answer and grade are read on the eval run"
+        ),
+    )
+    origin: RunOriginRead | None = Field(
+        default=None,
+        description=(
+            "For a platform agent's run - the judge, the assistant, the knowledge-gap "
+            "and case helpers - which one and what it worked on. Null for the "
+            "organization's own agents"
         ),
     )
     error: str | None = None
