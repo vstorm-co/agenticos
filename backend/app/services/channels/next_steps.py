@@ -211,3 +211,33 @@ async def offer_after_answer(
         ):
             return
         await ChannelNextSteps(delivery_db).offer(bot, incoming, run_id=run_id, steps=steps)
+
+
+async def offer_after_resume(
+    organization_id: UUID, run_id: UUID, bot_id: UUID, platform_chat_id: str
+) -> None:
+    """Resolve the original sender after a resumed answer commits, in our own session.
+
+    The approver may be somebody else. Neither their identity nor the resumed
+    request's live session may stand in for the original channel participant.
+    """
+    from app.db.session import get_db_context
+    from app.repositories import agent_run_repo, channel_identity_repo, channel_session_repo
+
+    async with get_db_context() as db:
+        run = await agent_run_repo.get_run(db, run_id, organization_id=organization_id)
+        if run is None or run.channel_identity_id is None:
+            return
+        identity = await channel_identity_repo.get_by_id(db, run.channel_identity_id)
+        session = await channel_session_repo.get_by_bot_and_chat(db, bot_id, platform_chat_id)
+        if identity is None or session is None or session.conversation_id != run.conversation_id:
+            return
+        incoming = IncomingMessage(
+            platform=identity.platform,
+            bot_id=str(bot_id),
+            platform_user_id=identity.platform_user_id,
+            platform_chat_id=platform_chat_id,
+            chat_type=session.chat_type,
+            text="",
+        )
+    await offer_after_answer(organization_id, run_id, incoming)

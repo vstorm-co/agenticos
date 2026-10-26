@@ -402,3 +402,60 @@ async def test_background_channel_suggestions_skip_capacity(monkeypatch):
         text="",
     )
     await offer_after_answer(ORG, RUN, incoming)
+
+
+@pytest.mark.parametrize(
+    "missing", [None, "run", "identity_id", "identity", "session", "conversation"]
+)
+async def test_resumed_writer_uses_the_original_sender_in_a_session_of_its_own(
+    monkeypatch, missing
+):
+    from contextlib import asynccontextmanager
+    from types import SimpleNamespace
+
+    from app.db import session as sessions
+    from app.repositories import agent_run_repo, channel_identity_repo, channel_session_repo
+    from app.services.channels import next_steps as module
+
+    db = AsyncMock()
+    identity_id, conversation, bot = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    run = SimpleNamespace(
+        channel_identity_id=None if missing == "identity_id" else identity_id,
+        conversation_id=conversation,
+    )
+    identity = SimpleNamespace(platform="slack", platform_user_id="ORIGINAL-SENDER")
+    session = SimpleNamespace(
+        conversation_id=uuid.uuid4() if missing == "conversation" else conversation,
+        chat_type="group",
+    )
+
+    @asynccontextmanager
+    async def context():
+        yield db
+
+    monkeypatch.setattr(sessions, "get_db_context", context)
+    monkeypatch.setattr(
+        agent_run_repo, "get_run", AsyncMock(return_value=None if missing == "run" else run)
+    )
+    monkeypatch.setattr(
+        channel_identity_repo,
+        "get_by_id",
+        AsyncMock(return_value=None if missing == "identity" else identity),
+    )
+    monkeypatch.setattr(
+        channel_session_repo,
+        "get_by_bot_and_chat",
+        AsyncMock(return_value=None if missing == "session" else session),
+    )
+    offer = AsyncMock()
+    monkeypatch.setattr(module, "offer_after_answer", offer)
+    await module.offer_after_resume(ORG, RUN, bot, "C1:1.0")
+    if missing is not None:
+        offer.assert_not_awaited()
+    else:
+        org, run_id, incoming = offer.await_args.args
+        assert org == ORG and run_id == RUN
+        assert incoming.platform_user_id == "ORIGINAL-SENDER"
+        assert incoming.bot_id == str(bot)
+        assert incoming.platform_chat_id == "C1:1.0"
+        assert incoming.chat_type == "group"
