@@ -769,6 +769,12 @@ class TestCheck:
                     input=f"Q{index}", checks=[{"type": "contains", "value": "30 days"}]
                 ),
             )
+        # A check grades only held-out questions; a random split could leave none.
+        await db.execute(
+            update(DatasetCase)
+            .where(DatasetCase.dataset_id == dataset.id)
+            .values(improvement_partition="holdout")
+        )
         suite = await eval_suite_repo.create(
             db,
             organization_id=ctx.organization_id,
