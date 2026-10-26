@@ -343,7 +343,12 @@ async def _probe_connection(
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             (await client.get(f"{base}/healthz")).raise_for_status()
-            missing = await missing_endpoints(client, base)
+            try:
+                missing: list[str] | None = await missing_endpoints(client, base)
+            except httpx.HTTPError, ValueError:
+                # The service answered `/healthz`, so this is whatever stands in
+                # front of its index. The credential is still worth checking.
+                missing = None
             policy = await client.get(
                 f"{base}/policy",
                 headers={"X-Sandbox-Token": unsealed.api_key.get_secret_value()},
@@ -355,13 +360,15 @@ async def _probe_connection(
     # platform calls with a 404 that reads as a lost session (#2484), whatever
     # the token says.
     if missing:
-        return mismatch_message(base, missing)
+        return f"{base}: {mismatch_message(missing)}"
     if policy.status_code == 401:
         return "the service answered but refused its credential"
     if policy.status_code != 200:
         return f"/policy answered {policy.status_code}"
     if not policy.json().get("runtimes"):
         return "the service allows no runtime, so no sandbox can start"
+    if missing is None:
+        return f"{base} answered, but its route index at / could not be read to check its version"
     return None
 
 

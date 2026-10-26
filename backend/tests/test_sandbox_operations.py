@@ -14,6 +14,7 @@ The recorder wraps a real local workspace in a temporary directory: what it reco
 is what a real backend answered, including the way a real one fails.
 """
 
+import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -266,12 +267,14 @@ class TestALostSession:
 
 class TestASessionExplainedAsSomethingElse:
     """A "session is gone" the service did not mean - a route it lacks (#2484) -
-    is raised as what it is, and the session is kept for the next turn."""
+    is raised as what it is, and noted as a mismatch rather than a loss."""
 
     class _Mismatch(WorkspaceUnavailableError):
         pass
 
-    def _explaining(self, tmp_path: Path, answer: Exception | None):
+    def _explaining(
+        self, tmp_path: Path, answer: Exception | None
+    ) -> tuple[RecordingWorkspace, _Recorded, AsyncMock]:
         explain = AsyncMock(return_value=answer)
         recorder, session = _wrap(tmp_path, explain_unavailable=explain)
         return recorder, session, explain
@@ -290,6 +293,7 @@ class TestASessionExplainedAsSomethingElse:
         assert raised.value.__cause__ is gone
         explain.assert_awaited_once_with(gone)
         assert not recorder.lost
+        assert recorder.mismatched
         [row] = session.rows
         assert row.ok is False
         assert row.detail == "_Mismatch"
@@ -320,7 +324,26 @@ class TestASessionExplainedAsSomethingElse:
 
         assert raised.value is gone
         assert recorder.lost
+        assert not recorder.mismatched
         assert session.rows[0].detail == "WorkspaceUnavailableError"
+
+    async def test_a_probe_cancelled_midway_still_records_the_loss(self, tmp_path: Path):
+        """A run stopped while the index is asked keeps its audit row, and the
+        session is believed gone, as it was before anything was asked."""
+        recorder, session, explain = self._explaining(tmp_path, None)
+        explain.side_effect = asyncio.CancelledError
+        gone = WorkspaceUnavailableError("gone: Not Found")
+
+        with (
+            patch.object(recorder.wrapped, "run", AsyncMock(side_effect=gone)),
+            pytest.raises(asyncio.CancelledError),
+        ):
+            await recorder.run(["ls"])
+
+        assert recorder.lost
+        [row] = session.rows
+        assert row.ok is False
+        assert row.detail == "WorkspaceUnavailableError"
 
 
 class TestReadingTheLog:

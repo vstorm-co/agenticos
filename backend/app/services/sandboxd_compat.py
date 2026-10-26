@@ -16,6 +16,7 @@ routes it serves - and only a route the client needs and the index lacks is
 reported as a version mismatch. Anything less certain stays the error it was.
 """
 
+import logging
 from importlib.metadata import version
 
 import httpx
@@ -23,6 +24,8 @@ from pydantic import BaseModel
 from pydantic_ai.workspaces import WorkspaceUnavailableError
 
 from app.core.exceptions import ConfigurationError
+
+logger = logging.getLogger(__name__)
 
 SANDBOXD_IMAGE = "ghcr.io/vstorm-co/sandboxd"
 """The published image of the service."""
@@ -62,20 +65,23 @@ class _Index(BaseModel):
 class SandboxdVersionMismatchError(ConfigurationError, WorkspaceUnavailableError):
     """The service does not serve a route the client needs: the versions differ.
 
-    A `WorkspaceUnavailableError`, so the run ends as it would for a lost session -
-    no command can succeed - but not reported or forgotten as one.
+    A `WorkspaceUnavailableError`, so the tool call fails as it would for a lost
+    session - no command can succeed - and the model is told why. Its message
+    names neither the service's address nor anything else from the connection:
+    a run's error and a tool result are read by members and the model, who may
+    not see the connection (#342).
     """
 
     message = "This sandbox service does not match this platform's version"
     code = "SANDBOXD_VERSION_MISMATCH"
 
 
-def mismatch_message(base_url: str, missing: list[str]) -> str:
+def mismatch_message(missing: list[str]) -> str:
     """What to tell an operator whose service lacks `missing`, and what to do about it."""
     return (
-        f"sandboxd at {base_url} does not serve {', '.join(missing)} - its version does "
-        f"not match this platform (expected {SANDBOXD_VERSION}). Run "
-        f"{SANDBOXD_IMAGE}:{SANDBOXD_VERSION} (`docker compose pull sandboxd` and recreate it)"
+        f"The sandbox service does not serve {', '.join(missing)} - its version does not "
+        f"match this platform (expected {SANDBOXD_VERSION}). Run "
+        f"{SANDBOXD_IMAGE}:{SANDBOXD_VERSION} and redeploy it"
     )
 
 
@@ -83,18 +89,17 @@ async def missing_endpoints(client: httpx.AsyncClient, base_url: str) -> list[st
     """The routes in `REQUIRED_ENDPOINTS` that the service at `base_url` does not serve.
 
     Read from the service's index at `/`, which is unauthenticated and lists its
-    routes. A service with no index is older than any this platform supports, so
-    it serves none of them.
+    routes. Every published sandboxd has one, so a `/` that answers with an error
+    is something in front of the service, and says nothing about its version.
 
     Raises:
-        httpx.HTTPError: The service could not be reached or answered with an error.
+        httpx.HTTPError: The service could not be reached or `/` answered with an
+            error.
         ValueError: It answered with something that is not a sandboxd index
             (`pydantic.ValidationError` is one).
     """
     base = base_url.rstrip("/")
     response = await client.get(f"{base}/", timeout=_INDEX_TIMEOUT_SECONDS)
-    if response.status_code == 404:
-        return list(REQUIRED_ENDPOINTS)
     response.raise_for_status()
     served = _Index.model_validate(response.json()).endpoints
     return [path for path in REQUIRED_ENDPOINTS if path not in served]
@@ -117,7 +122,12 @@ async def explain_unavailable(
         return None
     if not missing:
         return None
+    # The address goes to the operator's log only, not into the error.
+    logger.warning(
+        "sandboxd_version_mismatch",
+        extra={"base_url": base_url, "missing": missing, "expected": SANDBOXD_VERSION},
+    )
     return SandboxdVersionMismatchError(
-        message=mismatch_message(base_url.rstrip("/"), missing),
-        details={"base_url": base_url, "missing": missing, "expected": SANDBOXD_VERSION},
+        message=mismatch_message(missing),
+        details={"missing": missing, "expected": SANDBOXD_VERSION},
     )

@@ -101,7 +101,7 @@ class RecordingWorkspace(WrapperWorkspace):
         # Asked about every "session is gone" before it is believed. A service of
         # another version answers a route it lacks with a 404 the client reads as
         # a lost session (#2484); the error this returns is raised instead, and a
-        # session it explains is not lost, so it is not forgotten at close.
+        # session it explains is noted as `mismatched` rather than `lost`.
         self._explain_unavailable = explain_unavailable
         # Awaited after every operation, whatever it ended in. The first one also
         # opens the session, so this is how "the sandbox is ready" is heard
@@ -120,6 +120,12 @@ class RecordingWorkspace(WrapperWorkspace):
         # operation passes through, and the close needs it: a lost session is
         # forgotten, so the next run opens a fresh one instead of failing again.
         self.lost = False
+        # Whether an operation met a service of another version. The session is
+        # alive but its recorded ref is not usable: the next run would attach by
+        # it, and a service that predates attach answers 409 for a live session.
+        # So the close forgets the ref as for a lost one, and the next run opens
+        # the scope by name - the same session on either version.
+        self.mismatched = False
         # Whether any operation has reached the workspace this run, so the end of
         # a turn can leave an untouched one unopened instead of listing it.
         self.touched = False
@@ -219,12 +225,17 @@ class RecordingWorkspace(WrapperWorkspace):
         try:
             result = await call
         except Exception as exc:
-            explained = (
-                await self._explained(exc) if isinstance(exc, WorkspaceUnavailableError) else exc
-            )
-            # The class, never the message: a shell's message is the command's
-            # own output and an HTTP client's carries the failing request (#423).
-            self._record(op, target, ok=False, detail=explained.__class__.__name__, started=started)
+            explained: Exception = exc
+            try:
+                if isinstance(exc, WorkspaceUnavailableError):
+                    explained = await self._explained(exc)
+            finally:
+                # The class, never the message: a shell's message is the command's
+                # own output and an HTTP client's carries the failing request (#423).
+                # In a `finally` so a run cancelled during the probe still has its row.
+                self._record(
+                    op, target, ok=False, detail=explained.__class__.__name__, started=started
+                )
             if explained is exc:
                 raise
             raise explained from exc
@@ -235,14 +246,21 @@ class RecordingWorkspace(WrapperWorkspace):
         return result
 
     async def _explained(self, exc: WorkspaceUnavailableError) -> Exception:
-        """What a session found gone means: the error explaining it, or `exc` - lost."""
-        explained = (
-            None if self._explain_unavailable is None else await self._explain_unavailable(exc)
-        )
-        if explained is None:
-            self.lost = True
-            return exc
-        return explained
+        """What a session found gone means: the error explaining it, or `exc` - lost.
+
+        The session is noted lost unless the explanation arrives, so a probe that
+        is cancelled or fails leaves the loss believed, as it was before the probe.
+        """
+        explained: Exception | None = None
+        try:
+            if self._explain_unavailable is not None:
+                explained = await self._explain_unavailable(exc)
+        finally:
+            if explained is None:
+                self.lost = True
+            else:
+                self.mismatched = True
+        return exc if explained is None else explained
 
     async def _first_use(self, call: Coroutine[object, object, object]) -> None:
         """Mark the workspace used, running a deferred set-up first if there is one.

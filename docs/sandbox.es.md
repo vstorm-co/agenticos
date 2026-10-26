@@ -1,5 +1,5 @@
 ---
-source_sha: "ddccf8972b0f"
+source_sha: "20b6f6bb4702"
 ---
 
 # La sandbox { #the-sandbox }
@@ -56,32 +56,37 @@ documento en Postgres, y ninguno implica nada de lo anterior.
 El servicio y el cliente del backend salen de la misma versión de
 `pydantic-ai-backend`, y un cliente llama a rutas que solo sirve su propia
 versión. Por eso cada archivo compose fija la imagen exactamente en la versión de
-`backend/uv.lock` —hoy `ghcr.io/vstorm-co/sandboxd:0.2.37`— y una prueba del
-backend falla cuando las dos difieren. Súbalas en un solo cambio. `make dev`
-arranca la pila con `--pull missing`, así que un pin nuevo se descarga en el
-siguiente arranque.
+`backend/uv.lock`, y una prueba del backend falla cuando los archivos compose o el
+inventario de licencias nombran otra. Súbelas en un solo cambio. Un pin nuevo es
+una etiqueta que el host todavía no tiene, así que `make dev` y cada despliegue la
+descargan en el siguiente arranque.
 
 Una etiqueta móvil ya lo rompió una vez (#2484). Un `sandboxd:0.2` en caché
 servía una API más antigua que la que hablaba el cliente, y cada comando fallaba
 como `sandboxd session '…' is gone`, aunque la sesión seguía viva. La plataforma
 ahora distingue los dos casos. Cuando un 404 trae el `{"detail":"Not Found"}`
 desnudo de FastAPI en lugar del `No such session` propio del servicio, lee el
-índice del servicio en `/`. Una ruta que el cliente necesita y que el índice no
-lista termina la ejecución con:
+índice del servicio en `/`. Si al índice le falta una ruta que el cliente
+necesita, la llamada a la herramienta falla y al agente se le dice:
 
 ```text
-sandboxd at http://sandboxd:8080 does not serve /sessions/{session_id}/run - its
-version does not match this platform (expected 0.2.37)
+The sandbox service does not serve /sessions/{session_id}/run,
+/sessions/{session_id}/runs/{run_id}/stop - its version does not match this
+platform (expected <version>). Run ghcr.io/vstorm-co/sandboxd:<version> and
+redeploy it
 ```
 
-La conversación conserva su sesión, porque no se perdió nada.
+El mensaje omite la dirección del servicio, que los miembros y el modelo quizá no
+puedan ver; el backend la registra como `sandboxd_version_mismatch`. La sesión no
+se da por perdida, pero la conversación olvida la referencia que guardaba: un
+servicio más antiguo se niega a adjuntarse por referencia a una sesión viva. El
+siguiente turno abre la sesión por su nombre, así que tras la actualización la
+conversación retoma la misma sesión si el servicio la conservó.
+
 `agenticos cmd doctor` hace la misma comprobación en cada conexión registrada y
-nombra la imagen que hay que ejecutar:
-
-```bash
-docker compose pull sandboxd
-docker compose --profile sandbox up -d sandboxd
-```
+nombra la imagen que hay que ejecutar. Vuelve a desplegar la pila que ejecuta el
+servicio: `make prod` o `scripts/deploy.sh` en producción, `make dev` en un
+portátil.
 
 !!! danger "El token equivale a root"
 

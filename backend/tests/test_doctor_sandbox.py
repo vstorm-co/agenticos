@@ -22,6 +22,7 @@ import uuid
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
+import httpx
 import pytest
 
 from app.commands.doctor import _probe_connection, _sandbox_connections
@@ -56,7 +57,7 @@ class _Client:
         self,
         health: _Response | Exception,
         policy: _Response | None = None,
-        index: _Response = _SERVED,
+        index: _Response | Exception = _SERVED,
     ) -> None:
         self._health = health
         self._policy = policy
@@ -76,6 +77,8 @@ class _Client:
                 raise self._health
             return self._health
         if url.endswith("/"):
+            if isinstance(self._index, Exception):
+                raise self._index
             return self._index
         assert self._policy is not None
         return self._policy
@@ -238,11 +241,48 @@ async def test_a_service_of_another_version_names_the_one_to_run(monkeypatch):
     status, detail = await _sandbox_connections(_db([(_connection(), _secret())]))
 
     assert status == "unhealthy"
-    assert "Local Docker: sandboxd at http://sandboxd:8080 does not serve" in detail
+    assert "Local Docker: http://sandboxd:8080: The sandbox service does not serve" in detail
     assert "/sessions/{session_id}/run" in detail
     assert f"expected {SANDBOXD_VERSION}" in detail
-    assert f"ghcr.io/vstorm-co/sandboxd:{SANDBOXD_VERSION}" in detail
-    assert "docker compose pull sandboxd" in detail
+    assert f"ghcr.io/vstorm-co/sandboxd:{SANDBOXD_VERSION} and redeploy it" in detail
+
+
+@pytest.mark.parametrize(
+    "index",
+    [httpx.ConnectError("refused"), _Response(200, {"service": "a proxy"})],
+    ids=["refused", "not-an-index"],
+)
+async def test_an_unreadable_index_is_named_after_the_credential_is_checked(
+    monkeypatch, index: _Response | Exception
+):
+    """`/healthz` answered, so whatever is in front of `/` does not make the
+    service unreachable, and does not stop the credential being checked."""
+    _serve(
+        monkeypatch,
+        _Client(
+            health=_Response(200),
+            policy=_Response(200, {"runtimes": [{"alias": "python"}]}),
+            index=index,
+        ),
+    )
+
+    detail = await _probe_connection(_connection(), _secret())
+
+    assert detail == (
+        "http://sandboxd:8080 answered, but its route index at / could not be read "
+        "to check its version"
+    )
+
+
+async def test_an_unreadable_index_does_not_hide_a_refused_credential(monkeypatch):
+    _serve(
+        monkeypatch,
+        _Client(health=_Response(200), policy=_Response(401), index=httpx.ConnectError("refused")),
+    )
+
+    detail = await _probe_connection(_connection(), _secret())
+
+    assert detail == "the service answered but refused its credential"
 
 
 def _scalar_db(value: object) -> MagicMock:

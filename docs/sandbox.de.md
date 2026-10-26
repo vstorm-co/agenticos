@@ -1,5 +1,5 @@
 ---
-source_sha: "ddccf8972b0f"
+source_sha: "20b6f6bb4702"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -57,33 +57,39 @@ Dokument in Postgres, und keines von beiden hat mit dem oben Genannten zu tun.
 Der Dienst und der Client des Backends stammen aus demselben Release von
 `pydantic-ai-backend`, und ein Client ruft Routen auf, die nur sein eigenes
 Release bedient. Deshalb pinnt jede Compose-Datei das Image auf genau die Version
-in `backend/uv.lock` — heute `ghcr.io/vstorm-co/sandboxd:0.2.37` —, und ein
-Backend-Test schlägt fehl, wenn die beiden voneinander abweichen. Heben Sie beide
-in einer Änderung an. `make dev` startet den Stack mit `--pull missing`, also
-wird ein neuer Pin beim nächsten Start gezogen.
+in `backend/uv.lock`, und ein Backend-Test schlägt fehl, wenn die Compose-Dateien
+oder das Lizenzinventar eine andere nennen. Heben Sie beide in einer Änderung an.
+Ein neuer Pin ist ein Tag, den der Host noch nicht hat, also ziehen `make dev`
+und jedes Deployment ihn beim nächsten Start.
 
 Ein beweglicher Tag hat das schon einmal kaputt gemacht (#2484). Ein
 zwischengespeichertes `sandboxd:0.2` bediente eine ältere API, als der Client
 sprach, und jeder Befehl scheiterte mit `sandboxd session '…' is gone`, obwohl die
 Sitzung lebte. Die Plattform unterscheidet die beiden Fälle jetzt. Trägt eine 404
 das nackte `{"detail":"Not Found"}` von FastAPI statt des dienst-eigenen
-`No such session`, liest die Plattform den Index des Dienstes unter `/`. Eine
-Route, die der Client braucht und die der Index nicht aufführt, beendet den Lauf
-mit:
+`No such session`, liest die Plattform den Index des Dienstes unter `/`. Fehlt
+im Index eine Route, die der Client braucht, schlägt der Tool-Aufruf fehl, und
+der Agent erfährt:
 
 ```text
-sandboxd at http://sandboxd:8080 does not serve /sessions/{session_id}/run - its
-version does not match this platform (expected 0.2.37)
+The sandbox service does not serve /sessions/{session_id}/run,
+/sessions/{session_id}/runs/{run_id}/stop - its version does not match this
+platform (expected <version>). Run ghcr.io/vstorm-co/sandboxd:<version> and
+redeploy it
 ```
 
-Die Unterhaltung behält ihre Sitzung, denn nichts ging verloren.
+Die Meldung lässt die Adresse des Dienstes weg, die Mitglieder und das Modell
+womöglich nicht sehen dürfen; das Backend protokolliert sie als
+`sandboxd_version_mismatch`. Die Sitzung wird nicht als verloren gemeldet, aber
+die Unterhaltung vergisst ihre gespeicherte Referenz darauf: Ein älterer Dienst
+verweigert das Anhängen an eine lebende Sitzung per Referenz. Der nächste Zug
+öffnet die Sitzung über ihren Namen, also findet die Unterhaltung nach dem
+Upgrade dieselbe Sitzung wieder, wenn der Dienst sie behalten hat.
+
 `agenticos cmd doctor` macht dieselbe Prüfung für jede registrierte Verbindung und
-nennt das Image, das laufen muss:
-
-```bash
-docker compose pull sandboxd
-docker compose --profile sandbox up -d sandboxd
-```
+nennt das Image, das laufen muss. Deployen Sie den Stack, der den Dienst
+betreibt, neu: `make prod` oder `scripts/deploy.sh` in Produktion, `make dev` auf
+dem Laptop.
 
 !!! danger "Der Token ist root-äquivalent"
 

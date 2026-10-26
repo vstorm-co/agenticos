@@ -22,14 +22,14 @@ Two things are versioned separately from this file and worth knowing about:
 ### Fixed
 
 - Pin `sandboxd` to `ghcr.io/vstorm-co/sandboxd:0.2.37`, the version of the
-  backend's `pydantic-ai-backend` client, in every compose file, and start
-  `make dev` with `--pull missing`. A cached `sandboxd:0.2` older than the client
-  answered every command with a 404 that the platform reported as a lost session.
-  A sandbox service that does not serve a route the client needs is now reported
-  as a version mismatch that names the expected version, and the conversation
-  keeps its session. `agenticos cmd doctor` checks each sandbox connection's
-  routes. To upgrade, run `docker compose pull sandboxd` and recreate the service
-  (#2484).
+  backend's `pydantic-ai-backend` client, in every compose file. A cached
+  `sandboxd:0.2` older than the client answered every command with a 404 that the
+  platform reported as a lost session. A sandbox service that does not serve a
+  route the client needs now fails the tool call with a version mismatch that
+  names the image to run, and the conversation reopens its session by name on the
+  next turn. `agenticos cmd doctor` checks each sandbox connection's routes. To
+  upgrade, redeploy the stack that runs `sandboxd` (`make prod`,
+  `scripts/deploy.sh` or `make dev`), which pulls the pinned tag (#2484).
 
 ## [1.18.0] - 2026-10-26
 

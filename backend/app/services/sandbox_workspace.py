@@ -1185,9 +1185,13 @@ class SandboxWorkspaceService:
         the tool or the staging that hit it, and the turn after it should not hit
         it again.
 
+        A session on a service of another version is forgotten the same way, though
+        it is alive: the service cannot run this platform's commands, and may not
+        honour an attach by ref.
+
         Returns:
-            Whether the session was lost, in which case there is nothing on the
-            host to prune.
+            Whether the session was lost or mismatched, in which case there is
+            nothing on the host to prune.
         """
         row = (
             None
@@ -1207,6 +1211,16 @@ class SandboxWorkspaceService:
                 await self._discard_lost_sandbox(
                     workspace.sandbox, row.session_id or workspace.scope_key
                 )
+            await workspace_repo.record_session(self.db, workspace=row, session_id=None)
+            return True
+        if isinstance(recorder, RecordingWorkspace) and recorder.mismatched:
+            # Alive, but on a service of another version (#2484). Its ref is
+            # forgotten so the next run opens the scope by name: an older service
+            # ignores attach-by-ref and refuses a live session with a 409.
+            logger.warning(
+                "workspace_session_version_mismatch",
+                extra={"scope_key": workspace.scope_key, "session_id": row.session_id},
+            )
             await workspace_repo.record_session(self.db, workspace=row, session_id=None)
             return True
         ref = workspace.workspace.ref
