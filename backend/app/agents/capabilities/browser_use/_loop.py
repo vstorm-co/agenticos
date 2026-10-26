@@ -58,7 +58,8 @@ from app.agents.capabilities.browser_use._decision import (
     describe,
 )
 from app.agents.capabilities.browser_use._elements import Element, Snapshot
-from app.agents.capabilities.browser_use._page import StaleElement
+from app.agents.capabilities.browser_use._endpoint import EndpointError
+from app.agents.capabilities.browser_use._page import DomainRefused, StaleElement
 from app.agents.capabilities.browser_use._plans import PlanStep, record, replay
 
 REPEAT_LIMIT = 3
@@ -154,8 +155,21 @@ class PageSession(Protocol):
     async def back(self) -> None:
         """Return to the previous page in this tab's history."""
 
-    async def settle(self, *, leaving: str | None = None) -> None:
+    async def forward(self) -> None:
+        """Move to the next permitted history entry, if one exists."""
+
+    async def reload(self) -> None:
+        """Reload the current permitted page."""
+
+    @property
+    def streaming(self) -> bool:
+        """Whether a live paint stream is already producing pictures."""
+
+    async def settle(self) -> None:
         """Wait for whatever the last action started, and for the page to be ready."""
+
+    async def location(self) -> tuple[str, str]:
+        """Read the current URL and title without capturing or collecting the page."""
 
     async def screenshot(self) -> str | None:
         """The viewport as a `data:` URL."""
@@ -334,6 +348,7 @@ async def _drive(
     await emit(
         BrowserEvent(
             kind="browser_opened",
+            navigable=True,
             call_id=call_id,
             step=session.steps,
             url=snapshot.url,
@@ -355,7 +370,7 @@ async def _drive(
     # The page as it paints, for as long as somebody watches - a scroll or a page
     # loading shows as it happens, not as a slide when the next step is taken.
     # The step's own picture below still carries the address and the title.
-    async with page.stream(push) if previews_land else nullcontext():
+    async with page.stream(push) if previews_land and not page.streaming else nullcontext():
         recent: list[str] = []
         for taken in range(1, policy.max_steps + 1):
             session.steps += 1
@@ -429,6 +444,22 @@ async def _drive(
                     image if policy.vision else None,
                 )
             clock.mark("decide")
+            if control is not None:
+                waiting, resized = await between_steps(page, control)
+                if waiting is not None:
+                    await held(
+                        session,
+                        control,
+                        emit,
+                        call_id=call_id,
+                        by=waiting.by,
+                        by_user_id=waiting.by_user_id,
+                        remember=remember,
+                    )
+                if waiting is not None or resized:
+                    snapshot = await page.snapshot()
+                    recent.clear()
+                    continue
             session.memory = step.memory
             action = step.action
             element = element_at(
@@ -561,7 +592,8 @@ async def _drive(
                     kept.recorded.append(taken_step)
             clock.mark("act")
             session.history += (f"step {step_no}: {step.next_goal} - {result}",)
-            await page.settle()
+            if not isinstance(action, (Navigate, GoBack)):
+                await page.settle()
             clock.mark("settle")
             clock.log(step_no, OPERATION[type(action)])
 
@@ -734,12 +766,11 @@ async def held(
     drive the browse still sends commands down the same queue, and a click from
     a second viewer must not land on a page somebody else is holding.
 
-    The person's input reaches the page as it arrives, and a picture follows each
-    one - and one a second while they are reading - so the view they act on is
-    the page as it is. What they type is never recorded: the history says only
-    that somebody took over, which is also what the model is told to look again
-    because of. A give-back that asks to keep the sign-in keeps it before the
-    agent touches the page again, and the release says which site it kept.
+    Input is consumed independently of preview capture: typing never waits for
+    a screenshot. An active screencast supplies the images; otherwise a bounded
+    capture task does. Metadata follows the held tab without collecting its DOM.
+    What the person types is not recorded. A sign-in is kept only on an explicit
+    hand-back, before the agent touches the page again.
     """
     page = session.page
     await emit(
@@ -748,24 +779,92 @@ async def held(
         )
     )
     kept: str | None = None
-    with anyio.move_on_after(HOLD_LIMIT):
+
+    async def pictures() -> None:
+        location: tuple[str, str] | None = None
         while True:
-            command = await control.wait(FRAME_EVERY)
-            if command is not None and by_user_id is not None and command.by_user_id != by_user_id:
-                command = None
-            if command is not None and command.type == "give_back":
-                if command.remember and remember is not None:
-                    kept = await remember(page, command)
-                break
-            if command is not None:
-                await _person_input(page, command)
-            image = await page.screenshot()
-            if image is not None:
+            try:
+                current = await page.location()
+                if current != location:
+                    location = current
+                    await emit(
+                        BrowserEvent(
+                            kind="browser_frame",
+                            call_id=call_id,
+                            step=session.steps,
+                            url=current[0],
+                            title=current[1],
+                        )
+                    )
+                if not page.streaming:
+                    image = await page.screenshot()
+                    if image is not None:
+                        await emit(
+                            BrowserEvent(
+                                kind="browser_frame",
+                                call_id=call_id,
+                                step=session.steps,
+                                image=image,
+                            )
+                        )
+            except (DomainRefused, EndpointError) as refused:
+                # Preview failure must stay visible without preventing hand-back.
                 await emit(
                     BrowserEvent(
-                        kind="browser_frame", call_id=call_id, step=session.steps, image=image
+                        kind="browser_control_error",
+                        call_id=call_id,
+                        step=session.steps,
+                        detail=str(refused),
                     )
                 )
+                return
+            await anyio.sleep(1.0 if page.streaming else 0.2)
+
+    async with anyio.create_task_group() as tasks:
+        tasks.start_soon(pictures)
+        try:
+            with anyio.move_on_after(HOLD_LIMIT):
+                while True:
+                    command = await control.wait(FRAME_EVERY)
+                    if command is None or (
+                        by_user_id is not None and command.by_user_id != by_user_id
+                    ):
+                        continue
+                    if command.type == "give_back":
+                        if command.remember and remember is not None:
+                            kept = await remember(page, command)
+                        break
+                    try:
+                        await _person_input(page, command)
+                        if command.type in {"navigate", "back", "forward", "reload"}:
+                            url, title = await page.location()
+                            await emit(
+                                BrowserEvent(
+                                    kind="browser_control_error",
+                                    call_id=call_id,
+                                    step=session.steps,
+                                )
+                            )
+                            await emit(
+                                BrowserEvent(
+                                    kind="browser_frame",
+                                    call_id=call_id,
+                                    step=session.steps,
+                                    url=url,
+                                    title=title,
+                                )
+                            )
+                    except (StaleElement, DomainRefused, EndpointError) as refused:
+                        await emit(
+                            BrowserEvent(
+                                kind="browser_control_error",
+                                call_id=call_id,
+                                step=session.steps,
+                                detail=str(refused),
+                            )
+                        )
+        finally:
+            tasks.cancel_scope.cancel()
     await emit(
         BrowserEvent(kind="browser_released", call_id=call_id, step=session.steps, detail=kept)
     )
@@ -842,6 +941,14 @@ async def _person_input(page: PageSession, command: BrowserCommand) -> None:
         await page.press(command.key)
     elif command.type == "scroll" and command.dy is not None:
         await page.wheel(command.dy)
+    elif command.type == "navigate" and command.url:
+        await page.navigate(command.url)
+    elif command.type == "back":
+        await page.back()
+    elif command.type == "forward":
+        await page.forward()
+    elif command.type == "reload":
+        await page.reload()
     elif command.type == "resize" and command.width is not None and command.height is not None:
         await page.resize(command.width, command.height, command.scale or 1)
 

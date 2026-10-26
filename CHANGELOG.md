@@ -21,6 +21,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **Interactive browser navigation.** While holding a browser, edit its address,
+  move back or forward and reload within the agent's allowed domains. Direct
+  browser tools keep the preview streaming between calls. Input no longer waits
+  for a screenshot after every character, and navigation avoids duplicate fixed
+  pauses and URL-change timeouts when reopening the same address.
+
 - **Styles in the account menu.** Appearance now offers Standard, Glass, Graphite,
   Midnight and Paper beside Light, Dark and System, with previews and the active
   style on the trigger. Settings use larger previews and a selection tick;

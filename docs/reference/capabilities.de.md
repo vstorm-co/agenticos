@@ -1,5 +1,5 @@
 ---
-source_sha: "cef26e88561b"
+source_sha: "024effda2559"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -794,6 +794,16 @@ wartet bis zu zehn Minuten auf eine Übernahme und endet blockiert, wenn niemand
 ein Mensch hält den Browser höchstens fünfzehn Minuten. Die Live-Ansicht liegt in
 Redis, braucht also eines, und bleibt eine Stunde nach der letzten Aktion des Browsens
 bestehen.
+
+Während Sie den Browser steuern, können Sie die Adresse bearbeiten sowie Zurück,
+Vorwärts und Neu laden verwenden. Die Navigation beachtet die erlaubten Domains
+des Agenten; eine Ablehnung erscheint in der Ansicht. Computer-Use-Bildschirme
+bieten keine Browsernavigation.
+
+Direkte Browsertools streamen die Vorschau zwischen Aufrufen bis zum Ende des Runs.
+Die Texteingabe wartet nicht nach jedem Zeichen auf einen Screenshot. Aktionen
+warten begrenzt auf DOM-Stabilität; eine explizite Navigation verfolgt das neue
+Dokument auch bei gleicher URL. Der Tab schließt weiterhin am Ende des Runs.
 
 | Konfiguration | Standard | Werte |
 |---|---|---|

@@ -207,3 +207,47 @@ async def test_native_failures_follow_the_shared_browser_failure_contract(
     )
     with pytest.raises(EndpointError, match="Execution context was destroyed"):
         await module._Commands(uuid4(), "window").evaluate(params={}, session_id="window")
+
+
+async def test_native_history_and_reload_use_the_owned_tab(monkeypatch: pytest.MonkeyPatch) -> None:
+    call = AsyncMock(return_value={})
+    monkeypatch.setattr(module.device_hub, "call", call)
+    session = uuid4()
+    commands = module._Commands(session, "owned-window")
+    await commands.getNavigationHistory(session_id="ignored")
+    await commands.navigateToHistoryEntry(params={"entryId": 1}, session_id="ignored")
+    await commands.reload(session_id="ignored")
+    assert [entry.args[2] for entry in call.await_args_list] == [
+        {"id": "owned-window", "method": "Page.getNavigationHistory", "params": {}},
+        {"id": "owned-window", "method": "Page.navigateToHistoryEntry", "params": {"entryId": 1}},
+        {"id": "owned-window", "method": "Page.reload", "params": {}},
+    ]
+
+
+async def test_failed_background_capture_does_not_mask_tab_cleanup(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    import anyio
+
+    from app.agents.capabilities.browser_use._endpoint import EndpointError
+
+    failed = anyio.Event()
+
+    async def screenshot() -> str | None:
+        failed.set()
+        raise EndpointError("Device offline")
+
+    page = module.LocalPage(
+        module._Commands(uuid4(), "window"),
+        "window",
+        PagePolicy(allowed_domains=None, candidate_cap=100, preview_width=1200),
+    )
+    monkeypatch.setattr(page, "screenshot", screenshot)
+
+    async def deliver(image: str) -> None:
+        pytest.fail("No frame should arrive")
+
+    async with page.stream(deliver):
+        await failed.wait()
+        assert not page.streaming
+    assert "Local browser preview stopped" in caplog.text

@@ -11,6 +11,8 @@ import type { BrowserFrame } from "@/types/chat";
 /** What a person watching a browse may ask of it (#2128) - `BrowserCommand` on the server. */
 export type BrowserCommand =
   | { type: "take_over" }
+  | { type: "navigate"; url: string }
+  | { type: "back" | "forward" | "reload" }
   | { type: "give_back"; remember?: boolean }
   | { type: "click"; x: number; y: number }
   | { type: "type"; text: string }

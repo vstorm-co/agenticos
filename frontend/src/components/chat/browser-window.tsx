@@ -19,6 +19,7 @@ import type { BrowserCommand } from "@/hooks/use-live-browse";
 import { isRunning, type Browse } from "@/lib/browse";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores";
+import { BrowserNavigation } from "./browser-navigation";
 import { BrowserCommentLayer, type PageComment } from "./browser-comment";
 import { OperationIcon, OUTCOME_TONE, StepTimeline } from "./browser-view";
 import { LiveViewport } from "./live-viewport";
@@ -342,33 +343,37 @@ export function BrowserWindow({
           strip above it held one tab that could not be switched, and read as a
           second address bar. */}
       <div className="bg-background border-border flex h-12 shrink-0 items-center gap-1 border-b px-2">
-        <div
-          className="bg-muted/80 flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 text-sm"
-          title={browse.url ?? undefined}
-        >
-          {secure ? (
-            <Lock className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
-          ) : (
-            <Globe className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
-          )}
-          <h2 className="sr-only">{browse.title || host || t("browserHeading")}</h2>
-          <span className="min-w-0 flex-1 truncate">
-            {host ? (
-              <>
-                <span className="text-foreground font-medium">{host}</span>
-                <span className="text-muted-foreground">{pathOf(browse.url ?? "")}</span>
-              </>
+        {browse.navigable && canDrive ? (
+          <BrowserNavigation url={browse.url} holding={hold.holding} send={control.send} />
+        ) : (
+          <div
+            className="bg-muted/80 flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 text-sm"
+            title={browse.url ?? undefined}
+          >
+            {secure ? (
+              <Lock className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
             ) : (
-              <span className="text-muted-foreground">{t("browserStarting")}</span>
+              <Globe className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
             )}
-          </span>
-          {running && (
-            <span className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
-              <span className="size-1.5 rounded-full bg-emerald-500" aria-hidden />
-              {t("browserLive")}
+            <h2 className="sr-only">{browse.title || host || t("browserHeading")}</h2>
+            <span className="min-w-0 flex-1 truncate">
+              {host ? (
+                <>
+                  <span className="text-foreground font-medium">{host}</span>
+                  <span className="text-muted-foreground">{pathOf(browse.url ?? "")}</span>
+                </>
+              ) : (
+                <span className="text-muted-foreground">{t("browserStarting")}</span>
+              )}
             </span>
-          )}
-        </div>
+            {running && (
+              <span className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                <span className="size-1.5 rounded-full bg-emerald-500" aria-hidden />
+                {t("browserLive")}
+              </span>
+            )}
+          </div>
+        )}
         {canDrive &&
           (hold.holding ? (
             <button
@@ -439,6 +444,14 @@ export function BrowserWindow({
         )}
       </div>
 
+      {browse.navigable && canDrive && (
+        <h2 className="sr-only">{browse.title || host || t("browserHeading")}</h2>
+      )}
+      {browse.controlError && (
+        <p role="alert" className="text-destructive border-b px-3 py-2 text-sm">
+          {browse.controlError}
+        </p>
+      )}
       {/* While holding: keep the sign-in made here for later browses, offered
           only to the person the run acts for - the server says who that is. */}
       {hold.holding && control?.canRemember && host && (

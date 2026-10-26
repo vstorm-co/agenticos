@@ -853,6 +853,7 @@ export function useChat(options: UseChatOptions = {}) {
         case "browser_held":
         case "browser_released":
         case "browser_needs_person":
+        case "browser_control_error":
         case "browser_pointer": {
           // One branch for every frame: the envelope's `type` is the frame's own
           // `kind` (see `AgentSession._browser_event`), so the payload narrows

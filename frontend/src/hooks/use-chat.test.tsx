@@ -3135,6 +3135,7 @@ describe("useChat - watching a browse", () => {
 
     browserFrame("browser_opened", { step: 0, goal: "g", max_steps: 25 });
     browserFrame("browser_frame", { step: 1, image: "data:image/jpeg;base64,AAA" });
+    browserFrame("browser_control_error", { step: 1, detail: "Outside allowed domains" });
     browserFrame("browser_step", {
       step: 1,
       operation: "CLICK",
@@ -3146,6 +3147,7 @@ describe("useChat - watching a browse", () => {
     expect(result.current.browses[0]).toMatchObject({
       image: "data:image/jpeg;base64,AAA",
       imageStep: 1,
+      controlError: "Outside allowed domains",
       outcome: "blocked",
       detail: "Sign in first",
     });

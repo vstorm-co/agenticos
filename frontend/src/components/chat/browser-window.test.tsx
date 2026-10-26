@@ -473,3 +473,33 @@ describe("BrowserWindow - commenting on the page", () => {
     expect(screen.queryByRole("button", { name: "Comment on the page" })).toBeNull();
   });
 });
+
+it("offers address navigation only for browser tabs, with server refusals visible", () => {
+  const live = control();
+  const { rerender } = render(
+    <BrowserWindow
+      browse={browse({
+        navigable: true,
+        heldBy: "Ada",
+        heldById: "u1",
+        controlError: "Outside allowed domains",
+      })}
+      control={live}
+    />,
+  );
+  expect(screen.getByRole("textbox", { name: "Website address" })).toHaveValue(
+    "https://example.test/pricing",
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent("Outside allowed domains");
+  expect(screen.getByRole("heading", { name: "Pricing" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Reload" }));
+  expect(live.send).toHaveBeenCalledWith({ type: "reload" });
+  rerender(
+    <BrowserWindow browse={browse({ navigable: true, url: null, title: null })} control={live} />,
+  );
+  expect(screen.getByRole("heading", { name: "Browser" })).toBeInTheDocument();
+  rerender(<BrowserWindow browse={browse({ navigable: true, title: null })} control={live} />);
+  expect(screen.getByRole("heading", { name: "example.test" })).toBeInTheDocument();
+  rerender(<BrowserWindow browse={browse({ navigable: false })} control={live} />);
+  expect(screen.queryByRole("textbox", { name: "Website address" })).toBeNull();
+});

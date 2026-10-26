@@ -1,5 +1,5 @@
 ---
-source_sha: "cef26e88561b"
+source_sha: "024effda2559"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -761,6 +761,17 @@ navegación espera hasta diez minutos a que alguien tome el control y termina bl
 si nadie llega; una persona tiene el navegador como mucho quince minutos. La vista en
 directo se guarda en Redis, así que lo necesita, y dura una hora desde la última acción
 de la navegación.
+
+Mientras controla el navegador, puede editar la dirección y usar Atrás, Adelante
+y Recargar. La navegación respeta los dominios permitidos del agente; la vista
+muestra las direcciones rechazadas. Las pantallas de computer use no ofrecen
+navegación del navegador.
+
+Las herramientas directas mantienen la vista en directo entre llamadas hasta el
+final del run. La escritura no espera una captura después de cada carácter. Las
+acciones esperan una estabilidad del DOM limitada en el tiempo; la navegación
+explícita sigue el documento nuevo incluso si la URL no cambia. La pestaña sigue
+cerrándose al terminar el run.
 
 | Configuración | Por defecto | Valores |
 |---|---|---|

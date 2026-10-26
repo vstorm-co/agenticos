@@ -1,5 +1,5 @@
 ---
-source_sha: "cef26e88561b"
+source_sha: "024effda2559"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -748,6 +748,15 @@ minut, aż ktoś przejmie przeglądarkę, i kończy się zablokowane, jeśli nik
 przyjdzie; człowiek trzyma przeglądarkę najwyżej piętnaście minut. Podgląd na żywo
 jest trzymany w Redisie, więc go wymaga, i trwa godzinę od ostatniej akcji
 przeglądania.
+
+Gdy sterujesz przeglądarką, możesz edytować adres oraz używać przycisków Wstecz,
+Dalej i Odśwież. Nawigacja respektuje dozwolone domeny agenta; odmowa jest widoczna
+w podglądzie. Ekrany computer use nie oferują nawigacji przeglądarki.
+
+Bezpośrednie narzędzia przeglądarki utrzymują strumień podglądu między wywołaniami
+aż do końca runu. Wpisywanie nie czeka na screenshot po każdym znaku. Akcje czekają
+na ograniczoną czasowo stabilność DOM, a jawna nawigacja śledzi nowy dokument także
+przy niezmienionym URL-u. Karta nadal zamyka się po zakończeniu runu.
 
 | Konfiguracja | Domyślnie | Wartości |
 |---|---|---|

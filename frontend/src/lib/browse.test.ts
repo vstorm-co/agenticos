@@ -268,3 +268,26 @@ describe("applyBrowserFrame - the agent's cursor", () => {
     expect(browse?.pointer).toEqual({ x: 0, y: 0, step: 1 });
   });
 });
+
+it("keeps navigation capability and control errors separate from painted frames", () => {
+  const opened = applyBrowserFrame([], {
+    kind: "browser_opened",
+    call_id: "tab",
+    step: 0,
+    navigable: true,
+  });
+  expect(opened[0]?.navigable).toBe(true);
+  const refused = applyBrowserFrame(opened, {
+    kind: "browser_control_error",
+    call_id: "tab",
+    step: 0,
+    detail: "Outside allowed domains",
+  });
+  expect(refused[0]?.controlError).toBe("Outside allowed domains");
+  const cleared = applyBrowserFrame(refused, {
+    kind: "browser_control_error",
+    call_id: "tab",
+    step: 0,
+  });
+  expect(cleared[0]?.controlError).toBeNull();
+});

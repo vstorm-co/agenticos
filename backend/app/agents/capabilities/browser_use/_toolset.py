@@ -247,6 +247,7 @@ class BrowserToolset(FunctionToolset[Any]):
         """The live view the agent's own actions are drawn in, once one acted."""
         self._stack: AsyncExitStack | None = None
         self._entered = 0
+        self._preview_stack: AsyncExitStack | None = None
 
     async def __aenter__(self) -> BrowserToolset:
         self._entered += 1
@@ -270,6 +271,34 @@ class BrowserToolset(FunctionToolset[Any]):
         self.session = BrowseSession(page=page)
         return self.session
 
+    async def watch(self, view: DirectView) -> None:
+        """Keep the direct view painting between tools until its tab closes."""
+        if (
+            self._preview_stack is not None
+            or not view.preview
+            or view.sink is None
+            or self.session is None
+        ):
+            return
+        session = self.session
+
+        async def push(image: str) -> None:
+            await view.emit(
+                BrowserEvent(
+                    kind="browser_frame", call_id=view.call_id, step=session.steps, image=image
+                )
+            )
+
+        stack = AsyncExitStack()
+        await stack.enter_async_context(session.page.stream(push))
+        self._preview_stack = stack
+
+    async def stop_watching(self) -> None:
+        """Stop paints before closing the view or handing its page to browse_web."""
+        stack, self._preview_stack = self._preview_stack, None
+        if stack is not None:
+            await stack.aclose()
+
     async def close(self) -> None:
         """Close the tab, if one is open. Safe to call twice.
 
@@ -277,6 +306,7 @@ class BrowserToolset(FunctionToolset[Any]):
         end is its finish - said before the tab goes, while the page is still
         there to name.
         """
+        await self.stop_watching()
         view, self.view = self.view, None
         if view is not None:
             await close_view(view, self.session)
@@ -357,6 +387,7 @@ def build_toolset(
         if page_factory is None and not cdp_url and (route is None or route.remote_url is None):
             return NO_ENDPOINT
 
+        await toolset.stop_watching()
         call_id = ctx.tool_call_id or str(uuid4())
         sink, control, run_id = await _live(ctx.deps, call_id, task)
         person = _signed_in_as(ctx.deps)
@@ -532,6 +563,7 @@ def build_toolset(
             view, fresh = await direct_view(ctx, WORKING)
             if fresh:
                 await open_view(view, session, WORKING)
+            await toolset.watch(view)
             return await act_directly(view, session, action)
         except (DomainRefused, EndpointError) as exc:
             await toolset.close()
@@ -567,6 +599,7 @@ def build_toolset(
                 # A new tab is always a new view: closing a tab ends its view.
                 view, _ = await direct_view(ctx, f"Open {url}")
                 snapshot = await open_view(view, opened, f"Open {url}")
+                await toolset.watch(view)
                 return page_report(snapshot, f"opened {url}")
             return await drive(ctx, Navigate(action="navigate", url=url))
         except (DomainRefused, EndpointError) as exc:
@@ -588,6 +621,8 @@ def build_toolset(
             return NO_TAB
         snapshot = await session.page.snapshot()
         session.last = snapshot
+        if toolset.view is not None:
+            await toolset.watch(toolset.view)
         return page_report(snapshot)
 
     async def browser_click(ctx: RunContext[AgentDeps], element: int) -> str:

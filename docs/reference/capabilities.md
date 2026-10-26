@@ -706,6 +706,15 @@ minutes for somebody to take over and ends blocked if nobody does, and a person 
 the browser for at most fifteen. The live view is kept in Redis, so it needs one, and
 it lasts an hour after the browse last did anything.
 
+While you hold the browser, edit its address or use Back, Forward and Reload.
+Navigation obeys the agent's allowed domains; a refused address is shown in the
+viewer. Computer-use screens do not offer browser navigation.
+
+Direct browser tools keep the preview streaming between calls until the run ends.
+Typing does not wait for a screenshot after each character. Page actions wait for
+bounded DOM stability, and explicit navigation tracks the new document even when
+the URL stays the same. The tab still closes when the run ends.
+
 | Config | Default | Values |
 |---|---|---|
 | `cdp_url` | empty | a Chromium DevTools endpoint; required, and its host must be on `BROWSER_CDP_ALLOWED_HOSTS` |

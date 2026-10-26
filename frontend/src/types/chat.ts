@@ -309,7 +309,8 @@ export type WSEventType =
   | "browser_held"
   | "browser_released"
   | "browser_needs_person"
-  | "browser_pointer";
+  | "browser_pointer"
+  | "browser_control_error";
 
 /**
  * How a browse ended, and all four are ordinary.
@@ -339,12 +340,14 @@ export interface BrowserFrame {
     | "browser_held"
     | "browser_released"
     | "browser_needs_person"
-    | "browser_pointer";
+    | "browser_pointer"
+    | "browser_control_error";
   /** Which `browse_web` call this belongs to; one turn can browse twice. */
   call_id: string;
   step: number;
   url?: string | null;
   title?: string | null;
+  navigable?: boolean;
   /** On the opening frame: the ceiling, so progress reads as 3/25. */
   max_steps?: number | null;
   /** On the opening frame: the task the model handed over. */

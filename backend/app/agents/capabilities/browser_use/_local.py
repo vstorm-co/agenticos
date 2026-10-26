@@ -5,9 +5,10 @@ CDP transport differs. Cookies stay on the computer and are never exported to
 the server's saved-sign-in store. Each browse owns a disposable native profile.
 """
 
+import asyncio
 import logging
 from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from uuid import UUID
 
 import anyio
@@ -75,6 +76,17 @@ class _Commands:
     ) -> dict[str, JsonValue]:
         return await self._send("Page.navigate", params)
 
+    async def getNavigationHistory(self, *, session_id: str) -> dict[str, JsonValue]:
+        return await self._send("Page.getNavigationHistory", {})
+
+    async def navigateToHistoryEntry(
+        self, *, params: dict[str, JsonValue], session_id: str
+    ) -> dict[str, JsonValue]:
+        return await self._send("Page.navigateToHistoryEntry", params)
+
+    async def reload(self, *, session_id: str) -> dict[str, JsonValue]:
+        return await self._send("Page.reload", {})
+
     async def captureScreenshot(
         self, *, params: dict[str, JsonValue], session_id: str
     ) -> dict[str, JsonValue]:
@@ -107,18 +119,27 @@ class LocalPage(CdpPage):
     @asynccontextmanager
     async def stream(self, deliver: Callable[[str], Awaitable[None]]) -> AsyncGenerator[None]:
         async def frames() -> None:
-            while True:
-                image = await self.screenshot()
-                if image is not None:
-                    await deliver(image)
-                await anyio.sleep(1)
-
-        async with anyio.create_task_group() as group:
-            group.start_soon(frames)
             try:
-                yield
-            finally:
-                group.cancel_scope.cancel()
+                while True:
+                    image = await self.screenshot()
+                    if image is not None:
+                        await deliver(image)
+                    await anyio.sleep(1)
+            except EndpointError:
+                # Preview is best-effort; a failed background capture must not
+                # mask the tool's result when its run closes the tab.
+                self._streaming = False
+                logger.warning("Local browser preview stopped", exc_info=True)
+
+        self._streaming = True
+        task = asyncio.create_task(frames())
+        try:
+            yield
+        finally:
+            self._streaming = False
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
 
     async def capture_sign_in(self) -> SignIn | None:
         """Local sign-ins stay in the native profile, never the server's vault."""

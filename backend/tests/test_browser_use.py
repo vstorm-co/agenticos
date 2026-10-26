@@ -700,6 +700,7 @@ class _FakePage:
         self._refuse = refuse
         self.done: list[str] = []
         self.shots = 0
+        self.streaming = False
         self.sign_in: SignIn | None = SignIn(site="example.test", origin="https://example.test")
 
     async def snapshot(self) -> Snapshot:
@@ -728,8 +729,18 @@ class _FakePage:
     async def back(self) -> None:
         self.done.append("back")
 
-    async def settle(self, *, leaving: str | None = None) -> None:
+    async def forward(self) -> None:
+        self.done.append("forward")
+
+    async def reload(self) -> None:
+        self.done.append("reload")
+
+    async def settle(self) -> None:
         self.done.append("settle")
+
+    async def location(self) -> tuple[str, str]:
+        snapshot = self._snapshots[0]
+        return snapshot.url, snapshot.title
 
     async def screenshot(self) -> str | None:
         self.shots += 1
@@ -738,12 +749,14 @@ class _FakePage:
     @asynccontextmanager
     async def stream(self, deliver: Any) -> AsyncGenerator[None]:
         """Paints `painted` as the stream opens - a page loading while watched."""
+        self.streaming = True
         self.done.append("stream:on")
         for image in self._painted:
             await deliver(image)
         try:
             yield
         finally:
+            self.streaming = False
             self.done.append("stream:off")
 
     async def read(self) -> str:
@@ -1013,8 +1026,8 @@ class TestAPersonTakesTheBrowserOver:
         assert page.done == ["click_at:10,20", "insert:hunter2", "press:Enter", "wheel:-300"]
         assert frames.of("browser_held")[0].by == "Ada"
         assert len(frames.of("browser_released")) == 1
-        # A picture after each thing the person did, so they act on the page as it is.
-        assert len(frames.of("browser_frame")) >= 4
+        # Input never waits for a screenshot per keystroke.
+        assert page.shots <= 2
         # The model is told somebody was in the tab, and never what they typed.
         [(_, history, _, _)] = seen
         assert "a person took the browser over" in history[-1]
@@ -1054,7 +1067,7 @@ class TestAPersonTakesTheBrowserOver:
 
         assert result.outcome == "done"
         assert len(frames.of("browser_released")) == 1
-        assert frames.of("browser_frame") == []
+        assert all(frame.image is None for frame in frames.of("browser_frame"))
 
 
 class TestThePageIsTheSizeOfTheWindowWatchingIt:
@@ -2403,7 +2416,8 @@ class TestADirectActionAndThePerson:
         )
 
         assert frames.of("browser_held")[0].by == "Ada"
-        assert page.done.index("click:0") > 0
+        assert "click:0" not in page.done
+        assert session.last is not None
 
     async def test_unwatched_it_draws_nothing_and_finds_no_pointer(self):
         frames = _Frames()
@@ -2458,9 +2472,10 @@ class TestADirectActionAndThePerson:
             self._view(frames), BrowseSession(page=page), Click(action="click", index=0)
         )
 
-        assert "data:image/jpeg;base64,BBBB" in [
-            frame.image for frame in frames.of("browser_frame")
-        ]
+        # The toolset owns continuous painting; an individual action only
+        # captures its final observation.
+        assert "stream:on" not in page.done
+        assert page.shots == 1
 
     async def test_a_page_with_no_picture_paints_nothing_after_the_action(self):
         frames = _Frames()

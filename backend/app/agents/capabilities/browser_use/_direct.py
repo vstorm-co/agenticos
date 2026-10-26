@@ -13,16 +13,16 @@ direct call opened, so a turn that clicks ten times draws one panel that grows
 rather than ten panels of one step each.
 """
 
-from contextlib import nullcontext
 from dataclasses import dataclass
 
 from app.agents.browser_events import BrowserControl, BrowserEvent, BrowserEventSink
-from app.agents.capabilities.browser_use._decision import Action, Step
+from app.agents.capabilities.browser_use._decision import Action, GoBack, Navigate, Step
 from app.agents.capabilities.browser_use._elements import Snapshot, render_table
 from app.agents.capabilities.browser_use._loop import (
     OPERATION,
     BrowseSession,
     RememberSignIn,
+    _StepClock,
     act,
     between_steps,
     element_at,
@@ -86,6 +86,7 @@ async def open_view(view: DirectView, session: BrowseSession, goal: str) -> Snap
     await view.emit(
         BrowserEvent(
             kind="browser_opened",
+            navigable=True,
             call_id=view.call_id,
             step=session.steps,
             url=snapshot.url,
@@ -122,6 +123,9 @@ async def act_directly(view: DirectView, session: BrowseSession, action: Action)
             # The person may have left the page anywhere; numbers read before
             # they took over name nothing now.
             session.last = await page.snapshot()
+            return page_report(
+                session.last, "nothing happened - a person changed the page; choose again"
+            )
     seen = session.last if session.last is not None else await page.snapshot()
     index = getattr(action, "index", None)
     element = element_at(seen, index if isinstance(index, int) else None)
@@ -150,18 +154,14 @@ async def act_directly(view: DirectView, session: BrowseSession, action: Action)
                 )
             )
 
-    async def push(image: str) -> None:
-        await view.emit(
-            BrowserEvent(
-                kind="browser_frame", call_id=view.call_id, step=session.steps, image=image
-            )
-        )
-
+    clock = _StepClock()
     step = Step(evaluation="", memory="", next_goal="", action=action)
     try:
-        async with page.stream(push) if view.preview else nullcontext():
-            line = await act(page, step, element)
+        line = await act(page, step, element)
+        clock.mark("act")
+        if not isinstance(action, (Navigate, GoBack)):
             await page.settle()
+        clock.mark("settle")
     except StaleElement as refused:
         snapshot = await page.snapshot()
         session.last = snapshot
@@ -169,7 +169,10 @@ async def act_directly(view: DirectView, session: BrowseSession, action: Action)
     session.history += (line,)
     snapshot = await page.snapshot()
     session.last = snapshot
+    clock.mark("snapshot")
     await _paint(view, session, snapshot)
+    clock.mark("screenshot")
+    clock.log(session.steps, OPERATION[type(action)])
     return page_report(snapshot, line)
 
 

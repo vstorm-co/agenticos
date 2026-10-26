@@ -58,6 +58,8 @@ export interface Browse {
    * right.
    */
   imageStep: number;
+  navigable?: boolean;
+  controlError?: string | null;
   outcome: BrowseOutcome | null;
   detail: string | null;
   /** The site a person kept their sign-in to when they handed the browser back (#2129). */
@@ -85,6 +87,8 @@ function opened(frame: BrowserFrame): Browse {
     steps: [],
     image: null,
     imageStep: -1,
+    navigable: frame.navigable === true,
+    controlError: null,
     outcome: null,
     detail: null,
   };
@@ -122,6 +126,8 @@ function applyTo(browse: Browse, frame: BrowserFrame): Browse {
         title: frame.title ?? browse.title,
       };
     }
+    case "browser_control_error":
+      return { ...browse, controlError: frame.detail ?? null };
     case "browser_needs_person":
       return { ...browse, needs: frame.detail ?? null };
     case "browser_pointer":

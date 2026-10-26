@@ -95,3 +95,16 @@ hand-back is reused by that person's later browses of the same site (#2129).
 Compose's browser is a full Chromium under Xvfb that sites read as a desktop
 one, and an agent's binding can send its browses through a proxy or run them in a
 hosted browser over CDP (`_route.py`, #2130).
+
+## Interactive browser lifetime and readiness
+
+Direct tools keep one preview stream open across model turns within the run.
+The stream stops before the tab closes or `browse_web` takes over its narration.
+The browser still belongs to the run, not to a persistent conversation session.
+
+While a person holds the tab, input is consumed independently of preview capture.
+They can navigate, move through history and reload within `allowed_domains`.
+Navigation checks document identity rather than requiring a different URL;
+ordinary actions wait for bounded document readiness and DOM stability.
+A pending direct action is refused after a take-over so the model must read the
+page again before choosing an element.
