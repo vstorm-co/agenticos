@@ -1,5 +1,5 @@
 ---
-source_sha: "5371bde768f7"
+source_sha: "c9faec806179"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -92,6 +92,28 @@ siehe [Konfiguration](configuration.md#datasets)). Ein Hinzufügen oder
 Bearbeiten darüber wird abgelehnt und nennt, wie viele gespeichert sind; einen
 Fall zu entfernen ist immer erlaubt, und das Löschen eines Datasets gibt seine
 Revisionen frei.
+
+### Ungespeicherte Änderungen { #unsaved-changes }
+
+Weil jedes Speichern eine neue Version ist, wird beim Bearbeiten nichts von
+selbst gespeichert. Ein Fall, den du schreibst, eine Änderung unter
+**Bewertung**, die Details des Datasets und die Auswahl in **Fälle generieren**
+bleiben auf dem Bildschirm, bis du sie speicherst. Wenn du vorher gehen willst -
+über einen Link, Zurück, das Schließen des Editors, einen anderen Tab oder eine
+andere Version des Datasets, eine andere Organisation oder das Abmelden -, fragt
+die Konsole, was geschehen soll: **Speichern**, **Verwerfen** oder **Bleiben**.
+Speichern wird nur dort angeboten, wo sich die Änderung von dort aus so, wie sie
+ist, speichern lässt. Das Schließen oder Neuladen des Browser-Tabs zeigt
+stattdessen die Warnung des Browsers selbst.
+
+Ein ungespeicherter Fall oder eine ungespeicherte Änderung der Bewertung wird
+außerdem in deinem Browser aufbewahrt, nie auf dem Server. Kommst du zum Dataset
+zurück, bietet die Konsole an, die Änderung wiederherzustellen. Hat das Dataset
+inzwischen eine neuere Version, sagt sie das und bietet nur das Verwerfen an,
+mit einer Möglichkeit zu sehen, was die Änderung war, damit du sie erneut machen
+kannst. Die Kopie verschwindet nach dem Speichern oder Verwerfen, beim Wechsel
+der Organisation und beim Abmelden. Eine sehr große Änderung wird nicht
+aufbewahrt.
 
 ## Fälle hinzufügen { #adding-cases }
 

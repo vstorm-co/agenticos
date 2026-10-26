@@ -1,5 +1,5 @@
 ---
-source_sha: "5371bde768f7"
+source_sha: "c9faec806179"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -85,6 +85,25 @@ Los datasets de una organización guardan juntos como mucho
 consulta [Configuración](configuration.md#datasets)). Añadir o editar por encima
 de eso se rechaza indicando cuántas hay guardadas; quitar un caso siempre está
 permitido, y borrar un dataset libera sus revisiones.
+
+### Cambios sin guardar { #unsaved-changes }
+
+Como cada guardado es una versión nueva, nada se guarda solo mientras editas. Un
+caso que estás escribiendo, un cambio en **Grading**, los detalles del dataset y
+lo que elijas en **Generate cases** se quedan en pantalla hasta que los guardas.
+Si intentas salir antes - con un enlace, Atrás, cerrando el editor, cambiando a
+otra pestaña o versión del dataset, a otra organización o cerrando sesión -, la
+consola pregunta qué hacer: **Save**, **Discard** o **Stay**. Save solo se
+ofrece donde el cambio se puede guardar desde ahí tal como está. Cerrar o
+recargar la pestaña del navegador muestra en su lugar el aviso del propio
+navegador.
+
+Un caso o un cambio de Grading sin guardar también se guarda en tu navegador,
+nunca en el servidor. Cuando vuelves al dataset, la consola ofrece restaurar el
+cambio. Si para entonces el dataset tiene una versión más nueva, lo dice y solo
+ofrece descartar el cambio, con una forma de ver cuál era para que puedas
+hacerlo de nuevo. La copia se borra al guardar o descartar, al cambiar de
+organización y al cerrar sesión. Un cambio muy grande no se guarda.
 
 ## Añadir casos { #adding-cases }
 

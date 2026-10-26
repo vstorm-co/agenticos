@@ -1,5 +1,5 @@
 ---
-source_sha: "5371bde768f7"
+source_sha: "c9faec806179"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -85,6 +85,26 @@ najwyżej `DATASET_MAX_VERSION_ROWS_PER_ORG` rewizji przypadków (domyślnie 5
 milionów, zobacz [Konfiguracja](configuration.md#datasets)). Dodanie albo edycja
 ponad to jest odrzucana z podaniem, ile jest przechowywane; usunięcie przypadku
 jest zawsze dozwolone, a usunięcie datasetu zwalnia jego rewizje.
+
+### Niezapisane zmiany { #unsaved-changes }
+
+Każdy zapis tworzy nową wersję, więc w trakcie edycji nic nie zapisuje się samo.
+Przypadek, który piszesz, zmiana w **Ocenianiu**, szczegóły datasetu i wybory w
+**Generuj przypadki** zostają na ekranie, dopóki ich nie zapiszesz. Jeśli
+spróbujesz wyjść wcześniej - odnośnikiem, przyciskiem Wstecz, zamykając edytor,
+przechodząc do innej zakładki albo wersji datasetu, do innej organizacji albo
+wylogowując się - konsola zapyta, co zrobić: **Zapisz**, **Odrzuć** albo **Zostań**.
+Zapis jest proponowany tylko tam, gdzie zmianę da się zapisać z tego miejsca w
+obecnej postaci. Zamknięcie albo przeładowanie karty przeglądarki pokazuje
+zamiast tego ostrzeżenie samej przeglądarki.
+
+Niezapisany przypadek albo zmiana w Ocenianiu są też przechowywane w twojej
+przeglądarce, nigdy na serwerze. Gdy wrócisz do datasetu, konsola zaproponuje
+przywrócenie zmiany. Jeśli dataset ma już wtedy nowszą wersję, konsola o tym
+powie i pozwoli tylko odrzucić zmianę, z możliwością podejrzenia, czym była,
+żeby wprowadzić ją ponownie. Kopia znika po zapisaniu albo odrzuceniu, po
+przełączeniu organizacji i po wylogowaniu. Bardzo duża zmiana nie jest
+przechowywana.
 
 ## Dodawanie przypadków { #adding-cases }
 

@@ -80,6 +80,24 @@ case revisions together (5 million by default, see
 refused with how many are stored; removing a case is always allowed, and
 deleting a dataset frees its revisions.
 
+### Unsaved changes { #unsaved-changes }
+
+Because every save is a new version, nothing is saved for you while you edit.
+A case you are writing, a change to **Grading**, the dataset's details and the
+choices in **Generate cases** stay on screen until you save them. If you try to
+leave first - with a link, Back, closing the editor, another tab or version of
+the dataset, another organization, or signing out - the console asks whether to
+**Save**, **Discard** or **Stay**. Save is offered only where the change can be
+saved from there as it stands. Closing or reloading the browser tab shows the
+browser's own warning instead.
+
+An unsaved case or Grading change is also kept in your browser, never on the
+server. When you come back to the dataset, it offers to restore the change. If
+the dataset has a newer version by then, it says so and offers only to discard
+the change, with a way to see what it was so you can make it again. The copy is
+removed when you save or discard, when you switch organization and when you
+sign out. A very large change is not kept.
+
 ## Adding cases
 
 ### In the console
