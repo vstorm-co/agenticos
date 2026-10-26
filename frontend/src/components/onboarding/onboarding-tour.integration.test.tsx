@@ -11,7 +11,7 @@ import { activateTab, pulse, waitForElement } from "@/components/onboarding/spot
 import { apiClient } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
 import { qk } from "@/lib/query-keys";
-import { visibleTourSteps } from "@/lib/onboarding/tour";
+import { stepsForPage, visibleTourSteps } from "@/lib/onboarding/tour";
 import { useAuthStore, useOnboardingStore } from "@/stores";
 import { Perm, type Permission } from "@/types/permissions";
 import type { DriveStep } from "driver.js";
@@ -459,6 +459,52 @@ describe("OnboardingTour's light", () => {
     expect(activateTab).not.toHaveBeenCalled();
   });
 
+  it("skips an absent optional stop at once on a page that has finished loading", async () => {
+    // Seven optional settings stops live on the other settings pages; each waited
+    // its turn, and the caption of the stop before them sat unchanged meanwhile.
+    const now = vi.spyOn(performance, "now").mockReturnValue(1_000);
+    const tabs = document.createElement("div");
+    tabs.dataset.tour = "settings-tabs";
+    serveElements(tabs);
+    servePermissions(OWNER);
+    nav.pathname = "/settings/profile";
+    useOnboardingStore.setState({ isOpen: true, index: 0, mode: "page" });
+    render(<OnboardingTour />, { wrapper });
+    await waitFor(() => expect(light.focus).toHaveBeenCalledWith(tabs));
+    expect(vi.mocked(waitForElement).mock.calls.at(-1)?.[2]).toBeUndefined();
+
+    now.mockReturnValue(9_000);
+    act(() => shownStep().popover?.onNextClick?.(undefined, {} as DriveStep, {} as never));
+    await waitFor(() =>
+      expect(vi.mocked(waitForElement)).toHaveBeenCalledWith(
+        '[data-tour="settings-appearance"]',
+        expect.any(AbortSignal),
+        0,
+      ),
+    );
+    now.mockRestore();
+  });
+
+  it("leaves an open popover open rather than pressing its trigger shut", async () => {
+    const trigger = tab("chat-settings", "inactive");
+    trigger.setAttribute("data-state", "open");
+    const target = document.createElement("div");
+    target.dataset.tour = "chat-approval-mode";
+    serveElements(trigger, target);
+    servePermissions(OWNER);
+    nav.pathname = ROUTES.CHAT;
+    const steps = stepsForPage(ROUTES.CHAT, () => true);
+    useOnboardingStore.setState({
+      isOpen: true,
+      index: steps.findIndex((step) => step.id === "chat-approval-mode"),
+      mode: "page",
+    });
+    render(<OnboardingTour />, { wrapper });
+
+    await waitFor(() => expect(light.focus).toHaveBeenCalledWith(target));
+    expect(activateTab).not.toHaveBeenCalled();
+  });
+
   it("goes straight to the target when the wizard is already on its step", async () => {
     const step = document.createElement("li");
     step.setAttribute("aria-current", "step");
@@ -505,6 +551,38 @@ describe("OnboardingTour's light", () => {
     await waitFor(() => expect(activateTab).toHaveBeenCalledWith(trigger));
     expect(pulse).toHaveBeenCalledWith(trigger, expect.any(AbortSignal), expect.any(Number));
     await waitFor(() => expect(light.focus).toHaveBeenLastCalledWith(target));
+  });
+
+  it("keeps Back and Next live while a tab is pressed and its section never shows", async () => {
+    // The dataset's Grading stop sat for its whole wait with both buttons greyed.
+    const trigger = tab("agent-tab-build", "inactive");
+    serveElements(trigger);
+    openBuilderHelp();
+    useOnboardingStore.setState({ index: 1 });
+    render(<OnboardingTour />, { wrapper });
+
+    await waitFor(() => expect(activateTab).toHaveBeenCalledWith(trigger));
+    await waitFor(() => expect(shownStep().element).toBeUndefined());
+    for (const [step] of spotlight.highlight.mock.calls as [DriveStep][]) {
+      expect(step.popover?.disableButtons).toBeUndefined();
+    }
+  });
+
+  it("steps once for a held arrow, not once for every repeat", async () => {
+    servePermissions(OWNER);
+    nav.pathname = ROUTES.AGENTS;
+    useOnboardingStore.setState({ isOpen: true, index: 0, mode: "page" });
+    render(<OnboardingTour />, { wrapper });
+    await waitFor(() => expect(spotlight.highlight).toHaveBeenCalled());
+
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", repeat: true }));
+    });
+    expect(useOnboardingStore.getState().index).toBe(0);
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
+    });
+    expect(useOnboardingStore.getState().index).toBe(1);
   });
 
   it("presses the sidebar link that leads to another page, then goes there", async () => {
