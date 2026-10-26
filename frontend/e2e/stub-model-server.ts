@@ -119,42 +119,52 @@ function allText(body: ChatRequest): string {
   return parts.join(" ");
 }
 
-/** Fixed structured output only for the improvement journey's explicit fixture marker.
+/** How `system_agent_runner.output_contract` closes a system agent's prompt; the schema follows. */
+const OUTPUT_CONTRACT = "It must validate against this JSON schema:\n";
+
+/** The top-level properties of the answer a system agent was asked for, or `null`. */
+function contractProperties(body: ChatRequest): Record<string, object> | null {
+  const prompt = allText(body);
+  const at = prompt.lastIndexOf(OUTPUT_CONTRACT);
+  if (at < 0) return null;
+  // The contract closes the prompt, so the schema is what follows it up to its last brace.
+  const tail = prompt.slice(at + OUTPUT_CONTRACT.length);
+  try {
+    const schema: { properties?: Record<string, object> } = JSON.parse(
+      tail.slice(0, tail.lastIndexOf("}") + 1),
+    );
+    return schema.properties ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Fixed JSON answers only for the improvement journey's explicit fixture marker.
  * The real API, worker, evidence builder and eval scorer still do all their work.
  */
-function improvementReply(body: ChatRequest): { name: string; value: object } | null {
+function improvementReply(body: ChatRequest): string | null {
   if (!allText(body).includes("E2E-IMPROVEMENT")) return null;
-  for (const tool of body.tools ?? []) {
-    const properties = tool.function?.parameters?.properties;
-    const name = tool.function?.name;
-    if (!properties || !name) continue;
-    if (
-      "summary" in properties &&
-      "expected_effect" in properties &&
-      "instructions" in properties
-    ) {
-      return {
-        name,
-        value: {
-          summary: "The fixture answers with the old return policy.",
-          expected_effect: "Use the reviewed policy token for the test questions.",
-          instructions: [
-            {
-              old_text: "PONG-IMPROVEMENT-BEFORE",
-              new_text: "PONG-IMPROVEMENT-AFTER",
-              after: "",
-              rationale: "The deterministic checks expect the reviewed policy.",
-              evidence: [],
-            },
-          ],
-          tools: [],
-          fields: [],
-          new_skills: [],
+  const properties = contractProperties(body);
+  if (properties === null) return null;
+  if ("summary" in properties && "expected_effect" in properties && "instructions" in properties) {
+    return JSON.stringify({
+      summary: "The fixture answers with the old return policy.",
+      expected_effect: "Use the reviewed policy token for the test questions.",
+      instructions: [
+        {
+          old_text: "PONG-IMPROVEMENT-BEFORE",
+          new_text: "PONG-IMPROVEMENT-AFTER",
+          after: "",
+          rationale: "The deterministic checks expect the reviewed policy.",
+          evidence: [],
         },
-      };
-    }
-    if ("findings" in properties) return { name, value: { findings: [] } };
+      ],
+      tools: [],
+      fields: [],
+      new_skills: [],
+    });
   }
+  if ("findings" in properties) return JSON.stringify({ findings: [] });
   return null;
 }
 
@@ -374,39 +384,7 @@ const server = createServer((request, response) => {
     // Empty on a delegating turn, which is what a provider sends beside a tool
     // call: the parent has not said anything yet, and inventing prose for it
     // would put words in the transcript the agent never generated.
-    const structured = improvementReply(body);
-    if (structured) {
-      const argumentsText = JSON.stringify(structured.value);
-      response.writeHead(200, { "Content-Type": "application/json" });
-      response.end(
-        JSON.stringify({
-          id: COMPLETION_ID,
-          object: "chat.completion",
-          created: CREATED,
-          model,
-          choices: [
-            {
-              index: 0,
-              message: {
-                role: "assistant",
-                content: null,
-                tool_calls: [
-                  {
-                    id: "call-improvement-result",
-                    type: "function",
-                    function: { name: structured.name, arguments: argumentsText },
-                  },
-                ],
-              },
-              finish_reason: "tool_calls",
-            },
-          ],
-          usage: usageFor(allText(body), argumentsText),
-        }),
-      );
-      return;
-    }
-    const answer = subagent === null ? replyFor(body) : "";
+    const answer = subagent === null ? (improvementReply(body) ?? replyFor(body)) : "";
     const usage = usageFor(allText(body), answer);
 
     if (body.stream === true) {
