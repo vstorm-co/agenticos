@@ -480,6 +480,12 @@ the failure. These records require `runs:view`, like other Activity records,
 and do not create conversations in Chat. Older runs cannot recover exchanges
 that were never recorded; oversized records explicitly say they were trimmed.
 
+The model field uses the same provider, model and vault-key picker as the Agent
+Builder. With `connections:manage`, a member can create a model profile there;
+without it, they choose an existing profile. Creating a profile stores it
+immediately. **Save** applies the selection to the organization's nightly
+suggestions and watches, which share this model and the per-person limit.
+
 The platform can do a little on its own initiative, and does nothing of the kind
 until an organization turns it on: the **Proactivity** card on its members page
 (`budgets:manage`). Turned on, a background job looks at each person's recent

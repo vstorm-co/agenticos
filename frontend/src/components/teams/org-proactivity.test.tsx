@@ -1,8 +1,9 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { OrgProactivity } from "./org-proactivity";
+import type { ModelProfile } from "@/types/providers";
 import type { Organization } from "@/types";
 import { Perm, type Permission } from "@/types/permissions";
 
@@ -14,13 +15,8 @@ import { Perm, type Permission } from "@/types/permissions";
 
 const state = vi.hoisted(() => ({
   held: [] as string[],
-  profiles: [] as {
-    id: string;
-    label: string;
-    provider: string;
-    model: string;
-    chat_capable?: boolean;
-  }[],
+  profiles: [] as ModelProfile[],
+  createModel: vi.fn(),
   setProactivity: vi.fn(),
   setWelcomeDm: vi.fn(),
 }));
@@ -35,7 +31,47 @@ vi.mock("@/hooks", () => ({
   }),
   useModelProviders: () => ({
     profiles: state.profiles,
+    profilesStatus: "loaded",
+    refetchProfiles: vi.fn(),
+    deleteProfile: { isPending: false },
+    createProfile: { mutateAsync: state.createModel, isPending: false },
+    catalog: [
+      {
+        id: "anthropic",
+        name: "Anthropic",
+        supports_base_url: false,
+        keyless: false,
+        apis: [],
+        native_api: null,
+      },
+    ],
   }),
+  useSecretPurposes: () => ({
+    purposes: [
+      {
+        id: "anthropic",
+        label: "Anthropic",
+        category: "model_provider",
+        kind: "api_key",
+        help_url: null,
+        icon: "",
+        description: "Anthropic keys",
+      },
+    ],
+  }),
+  useSecrets: () => ({
+    secrets: [
+      { id: "key-1", name: "Anthropic", hint: "1234", purpose: "anthropic", kind: "api_key" },
+      {
+        id: "key-2",
+        name: "Anthropic backup",
+        hint: "5678",
+        purpose: "anthropic",
+        kind: "api_key",
+      },
+    ],
+  }),
+  useProviderModels: () => ({ models: [], refused: [], source: "unlisted", isLoading: false }),
   useMcpCatalog: () => ({
     servers: [
       { key: "github", name: "GitHub", icon: "github", url: null },
@@ -70,7 +106,31 @@ const ON = {
 
 beforeEach(() => {
   state.held = [Perm.budgetsManage, Perm.orgSettings];
-  state.profiles = [{ id: "mp-1", label: "Haiku", provider: "anthropic", model: "claude-haiku" }];
+  state.profiles = [
+    {
+      id: "mp-1",
+      label: "Haiku",
+      provider: "anthropic",
+      model: "claude-haiku",
+      secret_id: "key-1",
+      params: {},
+      fallback_profile_ids: [],
+    },
+  ];
+  state.createModel
+    .mockReset()
+    .mockImplementation(
+      async (data: Pick<ModelProfile, "label" | "provider" | "model" | "secret_id">) => {
+        const created = {
+          ...data,
+          id: "mp-new",
+          params: {},
+          fallback_profile_ids: [],
+        };
+        state.profiles.push(created);
+        return created;
+      },
+    );
   state.setProactivity.mockReset().mockResolvedValue(undefined);
   state.setWelcomeDm.mockReset().mockResolvedValue(undefined);
   refusal.value = null;
@@ -105,7 +165,7 @@ describe("OrgProactivity", () => {
     render(<OrgProactivity org={org()} />);
     const nightly = screen.getByRole("switch", { name: "Nightly suggestions" });
     expect(nightly).not.toBeChecked();
-    expect(screen.queryByLabelText("Model")).toBeNull();
+    expect(screen.queryByRole("group", { name: "Model" })).toBeNull();
 
     await userEvent.click(nightly);
     await userEvent.click(screen.getAllByRole("button", { name: "Save" })[0]!);
@@ -121,24 +181,91 @@ describe("OrgProactivity", () => {
       provider: "openai",
       model: "gpt-4o-mini-tts",
       chat_capable: false,
+      secret_id: "key-1",
+      params: {},
+      fallback_profile_ids: [],
     });
     render(<OrgProactivity org={org(ON)} />);
-    await userEvent.click(screen.getByLabelText("Model"));
-    expect(screen.getByRole("option", { name: "Haiku" })).toBeVisible();
-    expect(screen.queryByRole("option", { name: /Voice/ })).toBeNull();
+    expect(screen.getByRole("radio", { name: "Haiku" })).toBeVisible();
+    expect(screen.queryByRole("radio", { name: /Voice/ })).toBeNull();
   });
 
-  it("keeps an already selected non-chat profile visible but disabled", async () => {
+  it("marks an already selected non-chat profile and explains why it cannot run", async () => {
     state.profiles.push({
       id: "voice",
       label: "Voice",
       provider: "openai",
       model: "gpt-4o-mini-tts",
       chat_capable: false,
+      secret_id: "key-1",
+      params: {},
+      fallback_profile_ids: [],
     });
     render(<OrgProactivity org={org({ ...ON, proactive_model_profile_id: "voice" })} />);
-    await userEvent.click(screen.getByLabelText("Model"));
-    expect(screen.getByRole("option", { name: /Voice/ })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("radio", { name: "Voice" })).toBeVisible();
+    expect(screen.getByRole("alert")).toHaveTextContent("gpt-4o-mini-tts");
+  });
+
+  it("lets a budget manager choose saved models without model-management controls", () => {
+    state.held = [Perm.budgetsManage];
+    render(<OrgProactivity org={org(ON)} />);
+    expect(screen.getByRole("radio", { name: "Haiku" })).toBeVisible();
+    expect(screen.queryByRole("combobox", { name: "Provider" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add model" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Remove Haiku/ })).toBeNull();
+  });
+
+  it("creates and selects a model through the Builder picker before saving proactivity", async () => {
+    state.held = [Perm.budgetsManage, Perm.connectionsManage];
+    render(<OrgProactivity org={org(ON)} />);
+    expect(screen.getByRole("combobox", { name: "Provider" })).toHaveTextContent("Anthropic");
+    await userEvent.click(screen.getByRole("combobox", { name: "Model" }));
+    await userEvent.type(screen.getByPlaceholderText("Search models…"), "claude-next");
+    await userEvent.click(screen.getByRole("option", { name: /^Use claude-next/ }));
+    await userEvent.click(screen.getByRole("combobox", { name: "Key" }));
+    await userEvent.click(screen.getByRole("option", { name: /Anthropic backup/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+    await waitFor(() =>
+      expect(state.createModel).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: "anthropic",
+          model: "claude-next",
+          secret_id: "key-2",
+        }),
+      ),
+    );
+    expect(state.setProactivity).not.toHaveBeenCalled();
+    await userEvent.click(screen.getAllByRole("button", { name: "Save" })[0]!);
+    expect(state.setProactivity).toHaveBeenCalledWith(
+      "o1",
+      expect.objectContaining({ proactive_model_profile_id: "mp-new" }),
+    );
+  });
+
+  it("does not apply a late profile creation to another organization", async () => {
+    state.held = [Perm.budgetsManage, Perm.connectionsManage];
+    const creation = Promise.withResolvers<ModelProfile>();
+    state.createModel.mockReturnValueOnce(creation.promise);
+    const first = state.profiles[0]!;
+    const { rerender } = render(<OrgProactivity org={org(ON)} />);
+    await userEvent.click(screen.getByRole("combobox", { name: "Model" }));
+    await userEvent.type(screen.getByPlaceholderText("Search models…"), "claude-next");
+    await userEvent.click(screen.getByRole("option", { name: /^Use claude-next/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+    expect(state.createModel).toHaveBeenCalled();
+
+    state.profiles = [{ ...first, id: "mp-2", label: "Second organization model" }];
+    rerender(<OrgProactivity org={org({ ...ON, id: "o2", proactive_model_profile_id: "mp-2" })} />);
+    await userEvent.type(screen.getByLabelText("Limit per person (USD a month)"), "0");
+    await act(async () => {
+      creation.resolve({ ...first, id: "late-first-organization" });
+      await creation.promise;
+    });
+    await userEvent.click(screen.getAllByRole("button", { name: "Save" })[0]!);
+    expect(state.setProactivity).toHaveBeenCalledWith(
+      "o2",
+      expect.objectContaining({ proactive_model_profile_id: "mp-2" }),
+    );
   });
 
   it("saves the whole schedule: model, limit, days, when and the hour", async () => {
@@ -168,7 +295,7 @@ describe("OrgProactivity", () => {
     render(<OrgProactivity org={org()} />);
     await userEvent.click(screen.getByRole("switch", { name: "Watch people's connections" }));
     // The model and the limit appear for watches alone; the nightly schedule does not.
-    expect(screen.getByRole("combobox", { name: "Model" })).toBeInTheDocument();
+    expect(screen.getByRole("radiogroup", { name: "Model" })).toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Days" })).toBeNull();
     await userEvent.click(screen.getAllByRole("button", { name: "Save" })[0]!);
 
@@ -210,8 +337,7 @@ describe("OrgProactivity", () => {
   it("is turned on with a model from the organization's, before work, at seven", async () => {
     render(<OrgProactivity org={org()} />);
     await userEvent.click(screen.getByRole("switch", { name: "Nightly suggestions" }));
-    await userEvent.click(screen.getByRole("combobox", { name: "Model" }));
-    await userEvent.click(await screen.findByRole("option", { name: "Haiku" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Haiku" }));
     await userEvent.click(screen.getByRole("combobox", { name: "When" }));
     await userEvent.click(
       await screen.findByRole("option", { name: "An hour before their working hours" }),

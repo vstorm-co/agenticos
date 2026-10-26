@@ -19,6 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Organization proactivity uses the Agent Builder's provider, model and vault-key
+  picker, including inline model-profile creation for members with
+  `connections:manage`. Budget managers can select existing profiles, and saving
+  the organization applies the choice to nightly suggestions and MCP watches.
+
 ## [1.23.0] - 2026-10-27
 
 ### Added

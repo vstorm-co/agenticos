@@ -6561,7 +6561,6 @@
       "nightlyHint": "A look at each person's week: a routine for a request they keep repeating, their profile, and the first messages their empty chat offers. People can opt out in their own settings.",
       "model": "Model",
       "modelHint": "What the nightly look and the watches run on. A small, inexpensive model is enough.",
-      "modelPlaceholder": "Choose a model",
       "modelRequired": "Choose the model it runs on before turning it on.",
       "label": "Limit per person (USD a month)",
       "days": "Days",

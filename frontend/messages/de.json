@@ -6444,7 +6444,6 @@
       "nightlyHint": "Ein Blick auf die Woche jeder Person: eine Routine für eine Anfrage, die sie wiederholt, ihr Profil und die ersten Nachrichten, die ihr leerer Chat anbietet. Jede Person kann das in ihren eigenen Einstellungen abschalten.",
       "model": "Modell",
       "modelHint": "Worauf der nächtliche Blick und die Beobachtungen laufen. Ein kleines, günstiges Modell reicht.",
-      "modelPlaceholder": "Modell wählen",
       "modelRequired": "Wählen Sie das Modell, bevor Sie es einschalten.",
       "label": "Limit pro Person (USD im Monat)",
       "days": "Tage",

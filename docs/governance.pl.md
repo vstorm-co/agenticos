@@ -1,5 +1,5 @@
 ---
-source_sha: "61c600201ea6"
+source_sha: "512a23d1b175"
 ---
 
 # Governance { #governance }
@@ -515,6 +515,12 @@ zapis wymiany z wynikami narzędzi i końcową odpowiedzią strukturalną. Nieud
 sprawdzenia zachowują wymianę dostępną przed błędem. Odczyt wymaga `runs:view`,
 jak inne zapisy Activity, i nie tworzy rozmów w Chat. Nie można odzyskać wymian,
 których starsze przebiegi nie zapisały; zbyt duży zapis jest oznaczany jako skrócony.
+
+Pole modelu korzysta z tego samego wyboru dostawcy, modelu i klucza z sejfu co
+Builder agenta. Uprawnienie `connections:manage` pozwala utworzyć tam profil
+modelu; bez niego wybiera się istniejący profil. Nowy profil jest zapisywany
+od razu. **Zapisz** stosuje wybór do nocnych sugestii i obserwacji organizacji,
+które współdzielą ten model oraz limit na osobę.
 
 Platforma może zrobić trochę z własnej inicjatywy, ale nie robi nic takiego,
 dopóki organizacja tego nie włączy: karta **Proaktywność** na stronie jej

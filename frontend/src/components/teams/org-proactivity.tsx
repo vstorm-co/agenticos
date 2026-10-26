@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { SettingsSection } from "@/components/settings/settings-section";
 import {
   Button,
@@ -21,7 +22,6 @@ import {
 import { FormField } from "@/components/ui/form-field";
 import { useModelProviders, useOrganizations, usePermissions } from "@/hooks";
 import { useChanged } from "@/hooks/use-changed";
-import { runsAgents } from "@/lib/model-profiles";
 import { submitFailure } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 import { WATCH_INTERVALS, cadenceLabel } from "@/lib/watch-cadence";
@@ -86,7 +86,7 @@ export function OrgProactivity({ org }: { org: Organization }) {
         {nightly && (
           <div className="space-y-4">
             <p className="text-muted-foreground text-sm">{t("runAttribution")}</p>
-            <NightlyForm org={org} />
+            <NightlyForm key={org.id} org={org} />
           </div>
         )}
         {welcome && <WelcomeForm org={org} />}
@@ -97,11 +97,11 @@ export function OrgProactivity({ org }: { org: Organization }) {
 
 function NightlyForm({ org }: { org: Organization }) {
   const t = useTranslations("teams.proactive");
-  const tAgents = useTranslations("agents");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
   const { setProactivity } = useOrganizations();
-  const { profiles } = useModelProviders();
+  const { profiles, profilesStatus } = useModelProviders();
+  const { can } = usePermissions();
   const [form, setForm] = useState(() => stored(org));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -175,36 +175,34 @@ function NightlyForm({ org }: { org: Organization }) {
       </div>
       {(form.enabled || form.watches) && (
         <div className="grid gap-4 sm:grid-cols-2">
-          <FormField
-            label={t("model")}
-            htmlFor="org-proactive-model"
-            description={t("modelHint")}
-            error={errors[MODEL_FIELD] ?? null}
+          <fieldset
+            id="org-proactive-model"
+            className="min-w-0 space-y-2 sm:col-span-2"
+            disabled={saving}
+            aria-invalid={!!errors[MODEL_FIELD]}
+            aria-describedby={
+              errors[MODEL_FIELD] ? "org-proactive-model-error" : "org-proactive-model-hint"
+            }
           >
-            <Select
-              value={form.modelId ?? ""}
-              onValueChange={(modelId) => edit({ modelId })}
+            <legend className="text-sm font-medium">{t("model")}</legend>
+            <ModelProfilePicker
+              profiles={profiles}
+              profilesStatus={profilesStatus}
+              value={form.modelId}
+              onChange={(modelId) => edit({ modelId })}
+              allowAdd={can(Perm.connectionsManage)}
               disabled={saving}
-            >
-              <SelectTrigger id="org-proactive-model">
-                <SelectValue placeholder={t("modelPlaceholder")} />
-              </SelectTrigger>
-              <SelectContent>
-                {profiles
-                  .filter((profile) => runsAgents(profile) || profile.id === form.modelId)
-                  .map((profile) => (
-                    <SelectItem key={profile.id} value={profile.id} disabled={!runsAgents(profile)}>
-                      {profile.label}
-                      {!runsAgents(profile) && (
-                        <span className="text-muted-foreground ml-2">
-                          {tAgents("notAChatModel")}
-                        </span>
-                      )}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-          </FormField>
+            />
+            {errors[MODEL_FIELD] ? (
+              <p id="org-proactive-model-error" className="text-destructive text-xs">
+                {errors[MODEL_FIELD]}
+              </p>
+            ) : (
+              <p id="org-proactive-model-hint" className="text-muted-foreground text-xs">
+                {t("modelHint")}
+              </p>
+            )}
+          </fieldset>
           <FormField
             label={t("label")}
             htmlFor="org-proactive-limit"
