@@ -1,5 +1,5 @@
 ---
-source_sha: "f71ebdbbbaa9"
+source_sha: "db48c695d61c"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -155,6 +155,18 @@ Busca en las colecciones que vincula el spec del agent y cita lo que ha usado. E
 modelo pide *qué* buscar, nunca *dónde*: las colecciones se resuelven desde el spec
 antes del run y se entregan a la capability, así que un agent no puede alcanzar una
 colección que nadie le conectó.
+
+Cada resultado nombra su documento y dónde está la coincidencia en él. Un PDF, una
+presentación o un archivo de procesador de textos como `.doc`, `.odt` o `.rtf` da la
+página. Un archivo Markdown, una hoja de cálculo, una página web o una imagen no
+tiene una página que un lector pueda abrir. Da solo el nombre del documento, igual
+que los archivos de texto y `.docx`. Los chunks no conservan límites de sección
+fiables, por lo que una línea que empieza por una almohadilla no se interpreta
+como encabezado: puede ser un comentario de un bloque de código que empezó en el
+chunk anterior.
+
+Lo decide el tipo del documento al mostrar el resultado, así que una colección
+ingerida antes no necesita volver a ingerirse.
 
 | Configuración | Valor por defecto | Rango |
 |---|---|---|

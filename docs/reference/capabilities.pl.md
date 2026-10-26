@@ -1,5 +1,5 @@
 ---
-source_sha: "f71ebdbbbaa9"
+source_sha: "db48c695d61c"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -152,6 +152,17 @@ Przeszukuje kolekcje, które wiąże spec agenta, i cytuje to, czego użył. Mod
 pyta, *czego* szukać, nigdy *gdzie*: kolekcje są rozwiązywane ze speca przed
 runem i przekazywane capability, więc agent nie sięgnie do kolekcji, której nikt
 do niego nie podłączył.
+
+Każdy wynik podaje swój dokument i miejsce dopasowania w nim. PDF, prezentacja lub
+plik edytora tekstu taki jak `.doc`, `.odt` czy `.rtf` podaje stronę. Plik Markdown,
+arkusz kalkulacyjny, strona internetowa lub obraz nie ma strony, którą czytelnik
+może otworzyć. Podaje tylko nazwę dokumentu, podobnie jak pliki tekstowe i `.docx`.
+Chunki nie zachowują wiarygodnych granic sekcji, więc wiersz zaczynający się od
+krzyżyka nie jest traktowany jako nagłówek: może być komentarzem w bloku kodu,
+którego początek znalazł się w poprzednim chunku.
+
+O tym decyduje typ dokumentu w chwili pokazania wyniku, więc kolekcja zaindeksowana
+wcześniej nie wymaga ponownej ingestii.
 
 | Konfiguracja | Domyślnie | Zakres wartości |
 |---|---|---|

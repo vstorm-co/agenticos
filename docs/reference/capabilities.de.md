@@ -1,5 +1,5 @@
 ---
-source_sha: "f71ebdbbbaa9"
+source_sha: "db48c695d61c"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -155,6 +155,17 @@ Durchsucht die Collections, die der Spec des Agents bindet, und belegt, was es
 verwendet hat. Das Modell bestimmt, *was* gesucht wird, niemals *wo*: Die
 Collections werden vor dem Run aus dem Spec aufgelöst und der Capability übergeben,
 sodass ein Agent keine Collection erreichen kann, die ihm niemand zugeordnet hat.
+
+Jedes Ergebnis nennt sein Dokument und die Stelle des Treffers darin. Ein PDF, eine
+Präsentation oder eine Textverarbeitungsdatei wie `.doc`, `.odt` oder `.rtf` nennt
+die Seite. Eine Markdown-Datei, eine Tabelle, eine Webseite oder ein Bild hat keine
+Seite, die ein Leser öffnen kann. Sie nennt nur den Dokumentnamen, ebenso wie
+Textdateien und `.docx`-Dateien. Chunks bewahren keine verlässlichen Abschnittsgrenzen.
+Eine Zeile mit einer Raute wird deshalb nicht als Überschrift interpretiert: Sie
+kann ein Kommentar in einem Codeblock sein, der im vorherigen Chunk begann.
+
+Das entscheidet der Dokumenttyp, wenn das Ergebnis angezeigt wird, sodass eine
+früher ingestierte Collection keine erneute Ingestion braucht.
 
 | Konfiguration | Standard | Bereich |
 |---|---|---|
