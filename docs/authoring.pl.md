@@ -1,5 +1,5 @@
 ---
-source_sha: "755561c5e398"
+source_sha: "fdd553b39bfe"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -331,7 +331,18 @@ Sesja wykonuje najwyżej trzy rundy. Regresja albo brak zmiany uruchamia następ
 
 Po zakończeniu `/{run_id}/rounds/{number}/select` ustawia zmierzoną rundę jako oczekującą propozycję, po sprawdzeniu aktualności bazy i dostępu. Opcjonalne przypisanie skutków do zmian ma akcje `.../attribution/estimate` i `.../attribution`. Uruchomienie wymaga `confirmed: true` i przejrzanej kwoty `estimate_usd`; wyższa świeża wycena jest odrzucana. Każdą oczekującą zmianę sprawdza osobno względem tej samej bazy i przypiętych pytań. Koszt obciąża budżet sesji. Nie przyjmuje ani nie publikuje zmian i nie zastępuje łącznego werdyktu rundy.
 
-Otwórz **Popraw** w nagłówku agenta lub na dashboardzie, aby rozpocząć sesję pod adresem `/agents/<agent>/improve/<session>`. Możesz zamknąć stronę i wrócić, gdy praca trwa w tle. Wybierz pytania: pełny szacowany koszt, razem z przybliżonym czasem trwania sesji, pojawia się bez kliknięcia i niczego nie wydaje. Przed startem potwierdź limit wydatków. Bez pytań najpierw oszacuj i potwierdź przygotowanie zestawu; akcja punktu odniesienia sprawdza dzisiejsze odpowiedzi. Przy mniej niż trzech pytaniach krok zestawu pytań proponuje **Napisz jeszcze 5** przez generator pytań, który prosi o własny szacunek. Zaawansowany wybór agentów pomocniczych pozostaje zwinięty.
+### Kreator Popraw { #the-improve-wizard }
+
+Otwórz **Popraw** w nagłówku agenta, z plakietki **Wymaga uwagi** na liście agentów, z karty na dashboardzie albo z zakładki **Luki w wiedzy** agenta. To główna akcja nagłówka, gdy agent miał w ostatnich 30 dniach odpowiedzi ocenione negatywnie albo nieudane runy. Sesja ma adres `/agents/<agent>/improve/<session>`; stronę można zamknąć i otworzyć ponownie, gdy praca trwa. Każdy ekran prosi o najwyżej jedną decyzję, a opcje zaawansowane są pod **Pokaż szczegóły**.
+
+1. **Start.** Trzy liczby z ostatnich 30 dni, potem pytania testowe. Pełny szacowany koszt, razem z przybliżonym czasem trwania sesji, pojawia się bez kliknięcia i niczego nie wydaje; przed startem potwierdź limit wydatków. Bez pytań najpierw oszacuj i potwierdź napisanie zestawu testowego. Wybór agenta pomocniczego i test dzisiejszych odpowiedzi są pod **Pokaż szczegóły**.
+2. **Zrozumienie.** Jedno zdanie liczy problemy do poprawy w agencie i informacje, których brakuje w bazie wiedzy. Przykłady, których braki trafiły do jednego tematu luk w wiedzy, tworzą jedną kartę. **Przenieś do drugiej kolumny** i **Zignoruj** są zapisywane w sesji przez `PUT /{run_id}/evidence/{evidence_run_id}` z `decision` równym `agent`, `missing_knowledge`, `ignored` albo `null`. Kolejne próby pomijają w zmianach agenta przykłady zignorowane i przeniesione do bazy wiedzy; nic, co już zaproponowano lub zmierzono, się nie zmienia.
+3. **Pytania.** Pytania policzone według źródła: odpowiedzi ocenione negatywnie, odpowiedzi ocenione pozytywnie, pytania napisane dla tematów bez przykładu i pytania dodane ręcznie. Przy mniej niż trzech pytaniach krok proponuje **Napisz jeszcze 5** przez generator pytań, który prosi o własny szacunek.
+4. **Dzisiaj.** Na ile pytań agent odpowiada dobrze teraz, słabe odpowiedzi ze zdaniem oceniającego i osobno policzone pytania bez oceny.
+5. **Zmiany.** Każda zmiana z sekcjami Przed, Po, Dlaczego, Na podstawie i Powinno naprawić oraz przełącznikiem **Uwzględnij w teście**. Szkice wiedzy tworzą osobną kolumnę. Gdy nie znaleziono zmiany, ekran wymienia, czego próbowała każda próba.
+6. **Sprawdzenie.** Etapy testu: pytanie poprawionego agenta, ocenianie i ponowne zadanie pytań, których wynik się zmienił.
+7. **Wynik.** Jedno zdanie o agencie i jedno o bazie wiedzy, kolorowy werdykt, pytania niewykorzystane do pisania zmian przed i po oraz koszt odpowiedzi. Wcześniejsze próby, sprawdzenia pojedynczych zmian i test szkicu wiedzy są pod **Pokaż szczegóły**.
+8. **Akceptacja.** Co nowa wersja naprawi, zepsuje i ile będzie kosztować odpowiedź, oraz na ilu pytaniach ją przetestowano. Każdy dokument wiedzy ma **Przejrzyj i dodaj** albo **Nie teraz**. Jeśli środowisko śledzące nowe wersje ma automatyczne sprawdzenie, ekran mówi, że przełączy się ono po jego zaliczeniu. Potem **Opublikuj wersję N** albo zachowanie zmian w wersji roboczej i ekran **Gotowe** z linkiem do wersji.
 
 Nieudany krok propozycji lub ewaluacji można jawnie ponowić przez `/{run_id}/retry`; powtórne kliknięcia nie tworzą kolejnego zadania. Automatyczne ponowienia zadań nie powtarzają płatnych wywołań. Decyzje człowieka zmieniają stan sesji na zaakceptowaną, opublikowaną lub odrzuconą. Potwierdzona akcja `/{run_id}/finish` akceptuje sprawdzone zmiany i opcjonalnie publikuje je w jednej transakcji. Może utworzyć suite uruchamianą przy publikacji, z zerowym limitem regresji. Nadal obowiązują standardowe uprawnienia i walidacja publikacji; chronione środowiska czekają na sprawdzenia. Propozycje zmienione po pomiarze wymagają ponownego sprawdzenia.
 
