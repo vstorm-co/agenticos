@@ -27,9 +27,9 @@ export function modelDetail(
 /**
  * Whether an agent - or a conversation - can run on this profile (#2487).
  *
- * A profile can name a text-to-speech, transcription, image or embedding model,
- * for the features that use one; the server says so in `chat_capable`. Absent is
- * true, the server's own rule: a model nothing classifies is never hidden.
+ * A profile can name a text-to-speech, transcription, image or embedding model;
+ * the server says so in `chat_capable`. Absent is true, the server's own rule: a
+ * model nothing classifies is never hidden.
  */
 export function runsAgents(profile: Pick<ModelProfile, "chat_capable">): boolean {
   return profile.chat_capable !== false;

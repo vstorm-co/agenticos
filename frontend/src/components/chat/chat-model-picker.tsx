@@ -85,7 +85,12 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
 
   const providers = purposes.filter((entry) => entry.category === "model_provider");
   const provider = providers.find((entry) => entry.id === providerId);
-  const { models: suggestions, source, isLoading: loadingModels } = useProviderModels(providerId);
+  const {
+    models: suggestions,
+    refused,
+    source,
+    isLoading: loadingModels,
+  } = useProviderModels(providerId);
   // An override profile and the agent's published model both carry
   // provider/model/label, so one summary renders whichever is current.
   const current = value === null ? agentModel : (profiles.find((p) => p.id === value) ?? null);
@@ -108,14 +113,20 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
       (profile) => profile.provider === provider.id && profile.model === modelId,
     );
     if (existing) {
-      // A speech or embedding profile the organization keeps for text to speech
-      // or knowledge: reusing it would point the conversation at a model that
-      // cannot answer, and minting another would only collide on its label (#2487).
+      // A speech or embedding profile cannot answer a conversation, and minting
+      // another would only collide on its label (#2487).
       if (!runsAgents(existing)) {
         setFailure(t("notAChatModel", { model: modelId }));
         return;
       }
       onChange(existing.id);
+      return;
+    }
+
+    // One the provider's listing says is not a chat model is refused before a
+    // profile is created for it, rather than left behind.
+    if (refused.includes(modelId)) {
+      setFailure(t("notAChatModel", { model: modelId }));
       return;
     }
 
@@ -134,7 +145,7 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
         model: modelId,
         secret_id: key.id,
       });
-      // A typed id the suggestions left out still reaches here: the server
+      // An id the listing did not classify still reaches here: the server
       // classifies the new profile, and a conversation cannot run on it either.
       if (!runsAgents(profile)) {
         setFailure(t("notAChatModel", { model: modelId }));

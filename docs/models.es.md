@@ -1,5 +1,5 @@
 ---
-source_sha: "0f38b8baa60e"
+source_sha: "2192a2a9d193"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -59,11 +59,13 @@ cuando el proceso de la API ya lo ha obtenido. Ese listado solo cambia lo que
 ofrece un selector. Nunca rechaza una publicación, porque otro proceso de la API
 puede no haberlo obtenido. Entonces:
 
-- El panel de modelo del Builder, los selectores de revisor y de especialista y el
-  selector del modelo que describe imágenes en la base de conocimiento no ofrecen
-  un modelo así. Si un agent ya nombra uno, el Builder lo sigue mostrando, marcado
-  como un modelo que no es de chat. El Builder también lista los demás, marcados y
-  sin poder elegirse, para que se puedan eliminar.
+- El panel de modelo del Builder, los selectores de revisor y de especialista, los
+  campos del modelo de los pasos siguientes y del modelo de pasos del navegador y
+  el selector del modelo que describe imágenes en la base de conocimiento no
+  ofrecen un modelo así. Si un agent ya nombra uno, el Builder lo sigue mostrando,
+  marcado como un modelo que no es de chat. A un miembro que gestiona conexiones,
+  el Builder también le lista los demás, marcados y sin poder elegirse, para que
+  se puedan eliminar.
 - El selector de modelo del chat no sugiere un modelo así y rechaza uno escrito a
   mano.
 - La publicación rechaza un modelo así como modelo del agent, de un revisor o de
@@ -71,7 +73,8 @@ puede no haberlo obtenido. Entonces:
   siguientes, y lo nombra. La misma comprobación se ejecuta al volver a una
   versión, en la comprobación del borrador, en la prueba del Builder y al activar
   una capability desde el chat. Una versión guardada en un modelo así sigue
-  cargándose, pero no se puede restaurar hasta que nombre un modelo de chat.
+  cargándose, pero no se puede restaurar mientras su perfil nombre un modelo que
+  no es de chat. Apunta ese perfil a un modelo de chat o publica una versión nueva.
 - Un modelo que los catálogos no clasifican, como un endpoint propio, un modelo de
   Ollama o un modelo publicado esta mañana, está permitido. Un modelo desconocido
   no es un rechazo.

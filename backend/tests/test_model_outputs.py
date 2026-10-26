@@ -9,12 +9,7 @@ import pytest
 from app.schemas.model_profile import ModelProfileList, ModelProfileRead
 from app.services import model_catalog
 from app.services.model_catalog import CatalogModel
-from app.services.model_outputs import (
-    ModelOutputs,
-    _from_catalogs,
-    listed_model_outputs,
-    model_outputs,
-)
+from app.services.model_outputs import ModelOutputs, listed_model_outputs, model_outputs
 
 
 @pytest.fixture(autouse=True)
@@ -117,18 +112,21 @@ def test_a_catalog_answer_wins_over_what_a_listing_states():
 
 
 def test_a_transcription_model_that_also_chats_is_a_chat_model():
-    # Mistral serves voxtral-mini-latest on its chat API as well.
+    # An alias not confirmed transcription-only: an earlier Voxtral it named chatted.
     assert model_outputs("mistral", "voxtral-mini-latest").chat
 
 
 def test_no_model_the_catalogs_refuse_is_one_they_also_offer_for_chat():
-    curated = {
+    # Through model_outputs, so an OpenRouter id that routes to a refused
+    # upstream model counts too.
+    refused = [
         (provider, model.id)
         for provider in model_catalog.CURATED
         for model in model_catalog.curated_models(provider)
-    }
+        if not model_outputs(provider, model.id).chat
+    ]
 
-    assert curated.isdisjoint(_from_catalogs())
+    assert refused == []
 
 
 def test_a_listed_model_that_states_nothing_is_unknown():

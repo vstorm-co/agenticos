@@ -42,6 +42,7 @@ import { RemoteChangeBanner } from "@/components/live-updates/remote-change-bann
 import { InstructionsEditor } from "@/components/agents/instructions-editor";
 import { PromptVariablesPanel } from "@/components/agents/prompt-variables-panel";
 import { StartersPanel } from "@/components/agents/starters-panel";
+import { runsAgents } from "@/lib/model-profiles";
 import { insertVariable } from "@/lib/variable-completion";
 import { useRemoteDraft } from "@/hooks/use-remote-draft";
 import { AlertsPanel } from "@/components/agents/alerts-panel";
@@ -369,7 +370,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // either alone tells a caller who has models, or who may add one, they are stuck.
   const modelDeadEnd =
     profilesStatus === "loaded" &&
-    profiles.length === 0 &&
+    !profiles.some(runsAgents) &&
     permissionsLoaded &&
     !can(Perm.connectionsManage);
 

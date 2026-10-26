@@ -1,5 +1,5 @@
 ---
-source_sha: "0f38b8baa60e"
+source_sha: "2192a2a9d193"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -62,11 +62,13 @@ Router tun das), sofern der API-Prozess es bereits abgerufen hat. Dieses Listing
 ändert nur, was eine Auswahl anbietet. Es lehnt nie eine Veröffentlichung ab, weil
 ein anderer API-Prozess es vielleicht nicht abgerufen hat. Dann gilt:
 
-- Das Modell-Panel im Builder, die Auswahl für Reviewer und Spezialisten und die
-  Modellauswahl für Bildbeschreibungen in der Wissensdatenbank bieten ein solches
-  Modell nicht an. Benennt ein Agent bereits eines, zeigt der Builder es weiterhin
-  an, markiert als kein Chat-Modell. Der Builder listet auch die übrigen solchen
-  Modelle, markiert und nicht wählbar, damit sie entfernt werden können.
+- Das Modell-Panel im Builder, die Auswahl für Reviewer und Spezialisten, die
+  Felder für das Modell der Folgeschritte und das Schrittmodell des Browsers und
+  die Modellauswahl für Bildbeschreibungen in der Wissensdatenbank bieten ein
+  solches Modell nicht an. Benennt ein Agent bereits eines, zeigt der Builder es
+  weiterhin an, markiert als kein Chat-Modell. Einem Mitglied, das Verbindungen
+  verwaltet, listet der Builder auch die übrigen solchen Modelle, markiert und
+  nicht wählbar, damit sie entfernt werden können.
 - Die Modellauswahl im Chat schlägt ein solches Modell nicht vor und lehnt ein
   eingetipptes ab.
 - Die Veröffentlichung lehnt ein solches Modell als Modell des Agents, eines
@@ -74,7 +76,9 @@ ein anderer API-Prozess es vielleicht nicht abgerufen hat. Dann gilt:
   für Folgeschritte ab und nennt es. Dieselbe Prüfung läuft beim Rollback, bei der
   Entwurfsprüfung, beim Testlauf im Builder und beim Aktivieren einer Capability
   aus dem Chat. Eine gespeicherte Version auf einem solchen Modell lädt weiterhin,
-  lässt sich aber erst wiederherstellen, wenn sie ein Chat-Modell benennt.
+  lässt sich aber nicht wiederherstellen, solange ihr Profil kein Chat-Modell
+  benennt. Stellen Sie dieses Profil auf ein Chat-Modell um oder veröffentlichen
+  Sie eine neue Version.
 - Ein Modell, das die Kataloge nicht einordnen, etwa ein eigener Endpoint, ein
   Ollama-Modell oder ein heute Morgen veröffentlichtes Modell, ist erlaubt. Ein
   unbekanntes Modell ist keine Ablehnung.

@@ -15,6 +15,7 @@ import { useOrganizationList } from "@/hooks/use-organizations";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useSkills } from "@/hooks/use-skills";
 import { stripLocale } from "@/lib/active-route";
+import { runsAgents } from "@/lib/model-profiles";
 import {
   FLOWS,
   stepsForFlow,
@@ -138,7 +139,11 @@ function useOrgSnapshot(): {
   return {
     counts: {
       agent: settled(agents.isLoading, agents.isFetching, agents.total),
-      model: settled(models.isLoading, models.isFetching, models.profiles.length),
+      model: settled(
+        models.isLoading,
+        models.isFetching,
+        models.profiles.filter(runsAgents).length,
+      ),
       skill: settled(skills.isLoading, skills.isFetching, skills.total),
       kb: settled(kb.isLoading, kb.isFetching, kb.kbs.length),
       // Either scope: the connect step ends when the reader connects one, org or

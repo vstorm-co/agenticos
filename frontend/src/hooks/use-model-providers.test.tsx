@@ -159,6 +159,7 @@ describe("useProviderModels", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     expect(result.current.models.map((entry) => entry.id)).toEqual(["gpt-5", "unclassified"]);
+    expect(result.current.refused).toEqual(["gpt-4o-mini-tts"]);
   });
 
   it("says the list is this deployment's own when the provider published none", () => {

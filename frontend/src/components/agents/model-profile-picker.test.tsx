@@ -444,7 +444,8 @@ describe("a model an agent cannot run on (#2487)", () => {
 
     const row = screen.getByRole("radio", { name: "OpenAI · gpt-4o-mini-tts" });
     expect(row).toBeDisabled();
-    expect(screen.getByText("Use a saved model (2)")).toBeInTheDocument();
+    // Counted as what can be chosen, though it is listed for removal.
+    expect(screen.getByText("Use a saved model (1)")).toBeInTheDocument();
     await userEvent.click(row);
     expect(onChange).not.toHaveBeenCalled();
 

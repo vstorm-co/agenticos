@@ -51,9 +51,10 @@ Those two fields also read a provider listing that states what each model emits
 fetched it. That listing only changes what a picker offers. It never refuses a
 publish, because another API process may not have fetched it. Then:
 
-- The Builder's model panel, the reviewer and specialist pickers and the
-  knowledge-base image-description picker do not offer such a model. If an agent
-  already names one, the Builder still shows it, marked as not a chat model. The
+- The Builder's model panel, the reviewer and specialist pickers, the follow-ups
+  and browser step model fields and the knowledge-base image-description picker do
+  not offer such a model. If an agent already names one, the Builder still shows
+  it, marked as not a chat model. For a member who can manage connections, the
   Builder also lists the others, marked and not selectable, so they can be
   removed.
 - The chat's model picker does not suggest such a model, and refuses one that is
@@ -62,7 +63,8 @@ publish, because another API process may not have fetched it. Then:
   the browser step model or the follow-ups model, and names it. The same check
   runs on rollback, on the draft check, on the Builder's test run and when a
   capability is enabled from chat. A stored version on such a model still loads,
-  but it cannot be restored until it names a chat model.
+  but it cannot be restored while its profile names a non-chat model. Point that
+  profile at a chat model, or publish a new version.
 - A model that the catalogs do not classify, such as a custom endpoint, an Ollama
   model or a model released this morning, is allowed. An unknown model is not a
   refusal.

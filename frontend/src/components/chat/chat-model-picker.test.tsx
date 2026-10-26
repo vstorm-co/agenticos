@@ -13,6 +13,7 @@ import { providerMarkIn } from "@/test-utils/brand-marks";
 const listedProfiles = vi.fn<() => ModelProfile[]>(() => []);
 const listedSecrets = vi.fn<() => { id: string; purpose: string }[]>(() => []);
 const listedModels = vi.fn<() => ProviderModel[]>(() => []);
+const refusedModels = vi.fn<() => string[]>(() => []);
 const mutateAsync = vi.fn();
 /**
  * Two permissions, and this picker needs both. Choosing a model creates an
@@ -32,7 +33,12 @@ vi.mock("@/hooks", () => ({
   usePermissions: () => ({
     can: (permission: Permission) => held.permissions.includes(permission),
   }),
-  useProviderModels: () => ({ models: listedModels(), source: "curated", isLoading: false }),
+  useProviderModels: () => ({
+    models: listedModels(),
+    refused: refusedModels(),
+    source: "curated",
+    isLoading: false,
+  }),
   useSecretPurposes: () => ({ purposes: PURPOSES, isLoading: false }),
   useSecrets: () => ({ secrets: listedSecrets(), create: { mutate: vi.fn(), isPending: false } }),
 }));
@@ -90,6 +96,7 @@ beforeEach(() => {
   listedProfiles.mockReturnValue([]);
   listedSecrets.mockReturnValue([]);
   listedModels.mockReturnValue([]);
+  refusedModels.mockReturnValue([]);
   held.permissions = [Perm.connectionsManage, Perm.secretsEdit];
 });
 
@@ -163,6 +170,25 @@ describe("the chat's two-step model picker", () => {
     ).toBeInTheDocument();
     expect(onChange).not.toHaveBeenCalled();
     expect(mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("refuses a speech model the listing names before creating a profile for it", async () => {
+    refusedModels.mockReturnValue(["gpt-4o-mini-tts"]);
+    listedSecrets.mockReturnValue([{ id: "s1", purpose: "openai" }]);
+    const onChange = vi.fn();
+    render(<ChatModelPicker value={null} agentModel={null} onChange={onChange} />);
+
+    await pickProvider("OpenAI");
+    await typeModel("gpt-4o-mini-tts");
+    await userEvent.click(screen.getByRole("button", { name: "Run on this model" }));
+
+    expect(
+      screen.getByText(
+        "gpt-4o-mini-tts is not a chat model, so this conversation cannot run on it. Choose another model.",
+      ),
+    ).toBeInTheDocument();
+    expect(mutateAsync).not.toHaveBeenCalled();
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it("will not run the conversation on a speech model it has just added either", async () => {

@@ -268,7 +268,10 @@ export function ModelProfilePicker({
         <details className="group">
           <summary className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1.5 text-xs">
             <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
-            {t("useSavedModelCount", { count: offered.length })}
+            {t("useSavedModelCount", {
+              count: offered.filter((profile) => runsAgents(profile) || profile.id === value)
+                .length,
+            })}
           </summary>
           <div className="mt-2 space-y-2">
             {list}

@@ -185,9 +185,12 @@ export function useProviderModels(providerId: string) {
   });
 
   // Both fields this fills choose a model to talk to, so a speech or embedding
-  // model is not a suggestion (#2487). The field stays free text.
-  const models = (data?.items ?? []).filter(runsAgents);
-  return { models, source: data?.source ?? null, isLoading };
+  // model is not a suggestion (#2487). The field stays free text, so the ids
+  // left out are returned too, for a form to refuse one typed in.
+  const items = data?.items ?? [];
+  const models = items.filter(runsAgents);
+  const refused = items.filter((entry) => !runsAgents(entry)).map((entry) => entry.id);
+  return { models, refused, source: data?.source ?? null, isLoading };
 }
 
 /** One model that draws. */

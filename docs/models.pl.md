@@ -1,5 +1,5 @@
 ---
-source_sha: "0f38b8baa60e"
+source_sha: "2192a2a9d193"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -57,18 +57,20 @@ Te dwa pola czytają też listing providera, który podaje, co emituje każdy mo
 listing zmienia tylko to, co oferuje picker. Nigdy nie odrzuca publikacji, bo inny
 proces API mógł go nie pobrać. Wtedy:
 
-- Panel modelu w Builderze, pickery recenzenta i specjalisty oraz picker modelu do
-  opisywania obrazów w bazie wiedzy nie oferują takiego modelu. Jeśli agent już go
-  wskazuje, Builder nadal go pokazuje, oznaczony jako model, który nie jest modelem
-  czatu. Builder wymienia też pozostałe takie modele, oznaczone i bez możliwości
-  wyboru, żeby dało się je usunąć.
+- Panel modelu w Builderze, pickery recenzenta i specjalisty, pola modelu
+  kolejnych kroków i modelu kroków przeglądarki oraz picker modelu do opisywania
+  obrazów w bazie wiedzy nie oferują takiego modelu. Jeśli agent już go wskazuje,
+  Builder nadal go pokazuje, oznaczony jako model, który nie jest modelem czatu.
+  Członkowi, który zarządza połączeniami, Builder wymienia też pozostałe takie
+  modele, oznaczone i bez możliwości wyboru, żeby dało się je usunąć.
 - Picker modelu w czacie nie podpowiada takiego modelu i odrzuca wpisany ręcznie.
 - Publikacja odrzuca taki model jako model agenta, recenzenta, specjalisty, model
   kroków przeglądarki albo model kolejnych kroków i podaje jego nazwę. To samo
   sprawdzenie działa przy powrocie do wersji, przy sprawdzaniu szkicu, przy
   testowym uruchomieniu w Builderze i przy włączaniu capability z czatu. Zapisana
   wersja na takim modelu nadal się wczytuje, ale nie można jej przywrócić, dopóki
-  nie wskazuje modelu czatu.
+  jej profil wskazuje model, który nie jest modelem czatu. Wskaż w tym profilu
+  model czatu albo opublikuj nową wersję.
 - Model, którego katalogi nie klasyfikują, taki jak własny endpoint, model w
   Ollamie albo model wydany dziś rano, jest dozwolony. Nieznany model nie jest
   odmową.
