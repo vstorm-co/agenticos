@@ -71,6 +71,7 @@ from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill
 from app.repositories import agent as agent_repo
 from app.repositories import agent_run as agent_run_repo
+from app.repositories import eval_suite as eval_suite_repo
 from app.repositories import group as group_repo
 from app.repositories import member as member_repo
 from app.repositories import organization as organization_repo
@@ -934,6 +935,11 @@ class NotificationService:
             ),
             name=f"eval-run-finished:{run.id}",
         )
+        if await eval_suite_repo.awaits_run(self.db, run.id, organization_id=run.organization_id):
+            # The suite service imports this module.
+            from app.services.eval_suite import wake_sweep
+
+            await wake_sweep(self.db)
         session_id = (run.proposal_check or {}).get("improvement_run_id")
         if session_id is not None:
             # The pipeline imports this module.

@@ -272,6 +272,20 @@ async def claim_finished(db: AsyncSession, *, limit: int = 50) -> list[EvalSuite
     return list(result.scalars().all())
 
 
+async def awaits_run(db: AsyncSession, run_id: UUID, *, organization_id: UUID) -> bool:
+    """Whether a running suite result is waiting on this eval run to settle."""
+    found = await db.scalar(
+        select(EvalSuiteResult.id)
+        .where(
+            EvalSuiteResult.organization_id == organization_id,
+            EvalSuiteResult.eval_run_id == run_id,
+            EvalSuiteResult.status == EvalSuiteResultStatus.RUNNING.value,
+        )
+        .limit(1)
+    )
+    return found is not None
+
+
 async def running_for(
     db: AsyncSession, suite_id: UUID, *, organization_id: UUID
 ) -> EvalSuiteResult | None:

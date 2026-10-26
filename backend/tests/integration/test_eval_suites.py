@@ -432,6 +432,50 @@ async def test_publishing_starts_the_on_publish_suites_of_that_agent_and_only_th
     assert model.calls == 8
 
 
+async def _queued_sweeps(db: AsyncSession) -> int:
+    from app.db.models.background_job import BackgroundJob
+
+    return await db.scalar(
+        select(func.count())
+        .select_from(BackgroundJob)
+        .where(BackgroundJob.kind == "check-eval-suites", BackgroundJob.status == "queued")
+    )
+
+
+async def test_a_publish_and_its_finished_run_wake_the_sweep_instead_of_waiting_a_tick(
+    db,
+) -> None:
+    from sqlalchemy import update
+
+    from app.db.models.background_job import BackgroundJob
+
+    async def settle_jobs() -> None:
+        await db.execute(
+            update(BackgroundJob).where(BackgroundJob.status == "queued").values(status="succeeded")
+        )
+
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx)
+    service = EvalSuiteService(db)
+    suite = await service.create(ctx, agent.id, _suite_data(dataset, on_publish=True))
+    assert await _queued_sweeps(db) == 0
+
+    await AgentRegistryService(db).publish(ctx, agent.id)
+    await AgentRegistryService(db).publish(ctx, agent.id)
+    assert await _queued_sweeps(db) == 1
+
+    await settle_jobs()
+    now = datetime.now(UTC)
+    await service.start_due(now=now)
+    assert await _queued_sweeps(db) == 0
+    await _finish_runs(db, Model(db))
+    assert await _queued_sweeps(db) == 1
+    await service.settle_finished(now=now + timedelta(seconds=1))
+    # The second publish's result waits for the first; one runs per suite at a time.
+    assert [result.status for result in await _results(db, suite.id)] == ["passed", "pending"]
+
+
 async def test_an_environment_following_a_publish_is_a_promotion_onto_it(db) -> None:
     ctx = await _owner(db)
     agent, version = await _agent(db, ctx)

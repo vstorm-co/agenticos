@@ -102,10 +102,12 @@ from app.schemas.scoring import DatasetScoring, ReviewReevaluation
 from app.services import change_feed
 from app.services.access import AGENT, DATASET, accessible_ids, resolve_access
 from app.services.agent_registry import AgentRegistryService, delegation_binding
+from app.services.background_jobs import enqueue
 from app.services.dataset import DatasetService
 from app.services.eval_comparison import Attempt
 from app.services.eval_run import EvalRunService, scoring_hash
 from app.services.eval_suite_threshold import judge
+from app.worker.jobs import CHECK_EVAL_SUITES, Tick
 
 logger = logging.getLogger(__name__)
 
@@ -1344,6 +1346,8 @@ class EvalSuiteService:
         )
         if result is not None:
             self._announce(suite)
+            if due_at <= datetime.now(UTC):
+                await wake_sweep(self.db)
         return result
 
     async def fire_schedules(self, *, now: datetime) -> int:
@@ -2055,3 +2059,18 @@ class EvalSuiteService:
                         await NotificationService(self.db).eval_suite_reevaluated(
                             suite, result, agent=agent
                         )
+
+
+async def wake_sweep(db: AsyncSession) -> None:
+    """Run the suite sweep once `db` commits, rather than at its next minute tick.
+
+    A result due now starts in seconds, and a finished run's result settles - and
+    the environment it guards follows - as soon as the run ends. The sweep claims
+    its rows, so a pass beside the scheduled one does no work twice.
+    """
+    await enqueue(
+        db,
+        CHECK_EVAL_SUITES,
+        Tick(scheduled_for=datetime.now(UTC)),
+        dedupe_key="eval-suites:wake",
+    )
