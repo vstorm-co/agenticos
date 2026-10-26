@@ -457,3 +457,21 @@ async def test_a_suite_is_found_by_name_and_by_the_event_it_watches(db) -> None:
     assert updated.is_active is False
     await eval_suite_repo.delete_suite(db, suite=updated)
     assert await eval_suite_repo.get(db, watching.id, organization_id=ctx.organization_id) is None
+
+
+async def test_a_review_reaching_no_run_reaches_no_settled_result(db) -> None:
+    ctx = await _owner(db)
+    suite, version = await _suite(db, ctx)
+    run = await _eval_run(db, ctx, suite, EvalRunStatus.COMPLETED)
+    settled = await _result(
+        db, ctx, suite, version, status=EvalSuiteResultStatus.PASSED, eval_run_id=run.id
+    )
+    assert settled is not None
+
+    reviewed = await eval_suite_repo.results_for_runs(
+        db, [run.id], organization_id=ctx.organization_id
+    )
+    nothing = await eval_suite_repo.results_for_runs(db, [], organization_id=ctx.organization_id)
+
+    assert [row.id for row in reviewed] == [settled.id]
+    assert nothing == []

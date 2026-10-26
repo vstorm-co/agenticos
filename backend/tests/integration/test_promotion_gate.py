@@ -31,7 +31,7 @@ from app.core.exceptions import (
     NotFoundError,
     PromotionBlockedError,
 )
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.dataset import Dataset, DatasetVersion
@@ -336,6 +336,71 @@ async def test_a_suite_whose_dataset_has_no_cases_cannot_become_a_guard(db) -> N
         )
     ).all()
     assert unpinned == []
+
+
+async def test_moving_a_guard_onto_another_dataset_pins_it_to_that_datasets_latest(db) -> None:
+    """An override holder may change what a guard checks; the guard then holds the new
+    dataset as it is now, not the old dataset's version number."""
+    ctx = await _owner(db)
+    agent, first = await _agent(db, ctx)
+    old = await _dataset(db, ctx, cases=4)
+    _, suite = await _guarded(db, ctx, agent, first, old)
+    other = await _dataset(db, ctx, cases=2)
+
+    read = await EvalSuiteService(db).update(
+        ctx, agent.id, suite.id, EvalSuiteUpdate(dataset_id=other.id)
+    )
+
+    await db.refresh(suite)
+    assert suite.dataset_id == other.id
+    assert (suite.pinned_dataset_version, suite.pinned_scoring) == (
+        other.latest_version,
+        other.scoring,
+    )
+    assert other.latest_version != old.latest_version
+    assert read.pin is not None
+    assert (read.pin.dataset_version, read.pin.scoring_current) == (other.latest_version, True)
+
+
+@pytest.mark.security
+async def test_a_reader_who_cannot_open_a_guards_dataset_sees_its_pin_and_nothing_more(db) -> None:
+    ctx = await _owner(db)
+    agent, first = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx)
+    _, suite = await _guarded(db, ctx, agent, first, dataset)
+    # A key issued to read runs and agents, and nothing of datasets.
+    narrow = replace(
+        ctx, api_key_id=uuid.uuid4(), key_scopes=frozenset({Perm.RUNS_VIEW, Perm.AGENTS_VIEW})
+    )
+
+    read = await EvalSuiteService(db).get(narrow, agent.id, suite.id)
+
+    assert read.dataset_name is None
+    assert read.pin is not None
+    assert read.pin.dataset_version == dataset.latest_version
+    assert (
+        read.pin.latest_dataset_version,
+        read.pin.judge_current,
+        read.pin.scoring_current,
+    ) == (None, None, None)
+
+
+async def test_pinning_guards_passes_over_a_suite_removed_meanwhile(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx)
+    suites = EvalSuiteService(db)
+    kept = await suites.create(ctx, agent.id, _suite_data(dataset))
+    gone = await suites.create(ctx, agent.id, _suite_data(dataset))
+    await suites.delete(ctx, agent.id, gone.id)
+
+    await PromotionGateService(db).pin_guards(
+        guarding={kept.id}, removed={gone.id}, organization_id=ctx.organization_id
+    )
+
+    row = await db.get(EvalSuite, kept.id)
+    assert row is not None and row.pinned_dataset_version == dataset.latest_version
+    assert await db.get(EvalSuite, gone.id) is None
 
 
 async def test_a_suite_guarding_two_environments_stays_pinned_until_both_are_gone(db) -> None:

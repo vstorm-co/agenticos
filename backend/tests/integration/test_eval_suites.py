@@ -27,6 +27,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 from sqlalchemy import delete, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
@@ -40,6 +41,7 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent, AgentVersion
+from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.agent_run import AgentRun
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.dataset import Dataset
@@ -1837,6 +1839,46 @@ async def test_a_concurrent_suite_name_conflict_is_a_409_and_preserves_the_trans
     with pytest.raises(AlreadyExistsError, match="suite with this name"):
         await service.update(ctx, agent.id, other.id, EvalSuiteUpdate(name=data.name))
     assert (await service.get(ctx, agent.id, first.id)).name == data.name
+
+
+async def test_an_integrity_failure_other_than_a_taken_name_is_not_called_a_conflict(db) -> None:
+    """Only the name's unique constraint answers 409; any other violation stays the error it is."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx)
+    service = EvalSuiteService(db)
+    suite = await service.create(ctx, agent.id, _suite_data(dataset))
+    # Past the schema's own bound, so the table's CHECK is what refuses it.
+    negative = {"max_run_usd": Decimal("-1")}
+
+    with pytest.raises(IntegrityError, match="ck_eval_suite_max_run_usd"):
+        await service.create(ctx, agent.id, _suite_data(dataset).model_copy(update=negative))
+    with pytest.raises(IntegrityError, match="ck_eval_suite_max_run_usd"):
+        await service.update(ctx, agent.id, suite.id, EvalSuiteUpdate().model_copy(update=negative))
+
+    assert [read.id for read in (await service.list_for_agent(ctx, agent.id)).items] == [suite.id]
+    assert (await service.get(ctx, agent.id, suite.id)).max_run_usd is None
+
+
+async def test_running_a_suite_whose_environment_was_removed_meanwhile_is_not_found(db) -> None:
+    """Another request removed the environment after this one read the suite: the run is
+    refused rather than quietly checking the agent's current version instead."""
+    ctx = await _owner(db)
+    agent, version = await _agent(db, ctx)
+    staging = await AgentEnvironmentService(db).create(
+        ctx, agent.id, EnvironmentCreate(name="staging", version_id=version.id)
+    )
+    service = EvalSuiteService(db)
+    created = await service.create(
+        ctx, agent.id, _suite_data(await _dataset(db, ctx), environment_id=staging.id)
+    )
+    read_before = await db.get(EvalSuite, created.id)
+    assert read_before is not None
+    await db.execute(delete(AgentEnvironment).where(AgentEnvironment.id == staging.id))
+
+    with pytest.raises(NotFoundError, match="Environment not found"):
+        await service.run_now(ctx, agent.id, created.id)
+    assert await _results(db, created.id) == []
 
 
 async def test_suite_cap_includes_confirming_reruns(db) -> None:

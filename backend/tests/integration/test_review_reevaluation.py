@@ -8,7 +8,7 @@ from sqlalchemy import select
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.case_score import CaseScore
-from app.db.models.eval_run import EvalRunArm, EvalRunCase
+from app.db.models.eval_run import EvalRun, EvalRunArm, EvalRunCase
 from app.db.models.notification import Notification
 from app.schemas.scoring import CaseVerdict
 from app.services.eval_run import EvalRunService
@@ -22,6 +22,7 @@ from tests.integration.test_eval_suites import (
     _dataset,
     _finish_runs,
     _owner,
+    _suite_data,
 )
 from tests.integration.test_eval_suites import _environment as _environment
 from tests.integration.test_promotion_gate import _BAR, _check, _guarded, _published
@@ -175,3 +176,33 @@ async def test_reviewing_an_older_run_does_not_displace_a_newer_completed_check(
     stored = await db.get(EvalSuiteResult, original.id)
     assert stored is not None and stored.settled_at == settled_at
     assert stored.summary is not None and "by_name" not in stored.summary["review"]
+
+
+@pytest.mark.security
+async def test_a_recompute_reaches_no_run_of_another_organization(db):
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    service = EvalSuiteService(db)
+    suite = await service.create(ctx, agent.id, _suite_data(dataset))
+    await service.run_now(ctx, agent.id, suite.id)
+    await _finish_runs(db, Model(db))
+    await service.settle_finished(now=datetime.now(UTC))
+    before = (await service.get(ctx, agent.id, suite.id)).last_result
+    assert before is not None and before.eval_run_id is not None
+    stranger = await _owner(db)
+
+    await service.recompute_after_review(stranger, [before.eval_run_id], undo=False)
+
+    run = await db.get(EvalRun, before.eval_run_id)
+    assert run is not None and run.review_metadata is None
+    after = (await service.get(ctx, agent.id, suite.id)).last_result
+    assert after == before
+    assert after is not None and after.summary is not None and after.summary.review is None
+    assert not list(
+        await db.scalars(
+            select(AppAdminAuditLog).where(
+                AppAdminAuditLog.action == "eval_suite.result_reevaluated"
+            )
+        )
+    )

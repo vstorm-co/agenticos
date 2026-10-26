@@ -2043,7 +2043,7 @@ class EvalSuiteService:
             suite = await eval_suite_repo.get(
                 self.db, result.suite_id, organization_id=ctx.organization_id
             )
-            if suite is not None:
+            if suite is not None:  # pragma: no branch - a locked result goes with its suite
                 self._announce(suite)
                 if previous != result.status:
                     from app.services.notifications import NotificationService
@@ -2051,7 +2051,7 @@ class EvalSuiteService:
                     agent = await agent_repo.get(
                         self.db, suite.agent_id, organization_id=ctx.organization_id
                     )
-                    if agent is not None:
+                    if agent is not None:  # pragma: no branch - a suite goes with its agent
                         await NotificationService(self.db).eval_suite_reevaluated(
                             suite, result, agent=agent
                         )
