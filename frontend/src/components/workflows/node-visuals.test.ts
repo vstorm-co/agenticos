@@ -2,6 +2,7 @@ import {
   ArrowUpDown,
   Bot,
   Code2,
+  Diff,
   Download,
   File,
   FingerprintPattern,
@@ -60,6 +61,7 @@ describe("nodeVisual", () => {
     expect(nodeVisual("agent.run", "agent", "colour").icon).toBe(Bot);
     expect(nodeVisual("table.record.get", "tables", "colour").icon).toBe(Table2);
     expect(nodeVisual("http.download", "http", "colour").icon).toBe(Download);
+    expect(nodeVisual("text.compare", "data", "colour").icon).toBe(Diff);
     expect(nodeVisual("future.file.step", "files", "colour").icon).toBe(File);
     expect(nodeVisual("future.code.step", "code", "colour").icon).toBe(Code2);
   });

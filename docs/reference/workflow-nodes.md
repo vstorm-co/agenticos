@@ -244,6 +244,45 @@ a field, the second's wins; merging item by item needs objects, and fails with
 
 ::: app.workflows.nodes.data_combine._handler.DataCombineConfig
 
+## text.compare { #text-compare }
+
+**Compare texts** scores how alike two texts, `a` and `b`, are: 1 when they are the
+same once the ignored differences are set aside, 0 when they have nothing in common.
+It calls no model and costs nothing, and the same two texts always give the same
+numbers (scores are rounded to six places). The **method** says what is counted:
+
+- `char_ratio` (the default) is the share of characters an editor would not have to
+  touch, from the exact edit distance over characters.
+- `token_f1` is the share of words the two texts have in common, order ignored.
+- `line_diff` is the share of lines that are unchanged.
+
+Composed and decomposed accents are never an edit, and nor are line endings. The
+rest is up to the step. **Ignore whitespace** is on by default: it collapses the
+spacing within a line, trims each line and drops blank lines. Line breaks still
+count, so only `token_f1`, which counts words, ignores where a line ends. **Ignore
+case** and **Ignore punctuation** are off by default. The words of `token_f1` are
+runs of letters, digits and underscores: it splits on apostrophes and does not
+segment text written without spaces.
+
+**Leave out quoted mail and signatures** drops every line whose first
+non-whitespace character is `>` (indented quotes too), the attribution line above
+a quote, and everything after a `-- ` or bare `--` signature separator or an
+`----- Original Message -----` line. It is a heuristic for plain-text mail: it
+does not catch HTML quotes, a reply whose quote is not marked with `>`, an
+attribution wrapped over two lines (it stays in) or a signature with no separator.
+
+Each text is at most 100,000 characters, counted before any normalising; scoring two
+texts of that size takes a few seconds. A longer text ends the run with
+`INVALID_BINDING` before the step runs, so `error.handle` cannot route it. A step
+with nothing bound to `a` and `b` fails with `TEXT_COMPARE_NOT_CONFIGURED`; one
+bound and the other not ends the run with `INVALID_BINDING`. Empty texts are
+allowed: two empty texts score 1, one empty text scores 0. The palette draws the
+step with a diff icon, under the data steps.
+
+::: app.workflows.nodes.text_compare._handler.TextCompareConfig
+
+::: app.workflows.nodes.text_compare._handler.TextCompareOutput
+
 ## Transform { #transform }
 
 The **Transform** steps reshape a list of objects without a code step. Each takes

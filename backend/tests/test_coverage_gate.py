@@ -85,6 +85,7 @@ PLATFORM_MODULES = (
     "app/services/rag/filters.py",
     "app/services/sharing.py",
     "app/services/skills.py",
+    "app/services/text_similarity.py",
     "app/repositories/agent_environment.py",
     "app/repositories/agent_exposure.py",
     "app/repositories/mcp_connection.py",

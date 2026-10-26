@@ -1,5 +1,5 @@
 ---
-source_sha: "becb6b2fd45b"
+source_sha: "1f5def5c69f4"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -259,6 +259,48 @@ gana la segunda; unir elemento a elemento necesita objetos y, si no, falla con
 ::: app.workflows.nodes.data_filter._handler.DataFilterConfig
 
 ::: app.workflows.nodes.data_combine._handler.DataCombineConfig
+
+## text.compare { #text-compare }
+
+**Compare texts** puntúa cuán parecidos son dos textos, `a` y `b`: 1 cuando son
+iguales una vez apartadas las diferencias ignoradas, 0 cuando no tienen nada en
+común. No llama a ningún modelo y no cuesta nada, y los mismos dos textos siempre dan
+los mismos números (las puntuaciones se redondean a seis decimales). El **método**
+indica qué se cuenta:
+
+- `char_ratio` (el predeterminado) es la proporción de caracteres que un editor no
+  tendría que tocar, a partir de la distancia de edición exacta entre caracteres.
+- `token_f1` es la proporción de palabras que los dos textos tienen en común, sin
+  importar el orden.
+- `line_diff` es la proporción de líneas sin cambios.
+
+Los acentos compuestos y descompuestos nunca son una edición, ni tampoco los finales
+de línea. Lo demás lo decide el paso. **Ignore whitespace** está activado por defecto:
+colapsa el espaciado dentro de una línea, recorta cada línea y descarta las líneas en
+blanco. Los saltos de línea siguen contando, así que solo `token_f1`, que cuenta
+palabras, ignora dónde termina una línea. **Ignore case** e **Ignore punctuation**
+están desactivados por defecto. Las palabras de `token_f1` son series de letras,
+dígitos y guiones bajos: divide en los apóstrofos y no segmenta el texto escrito sin
+espacios.
+
+**Leave out quoted mail and signatures** descarta toda línea cuyo primer carácter no
+blanco es `>` (también las citas con sangría), la línea de atribución sobre una cita
+y todo lo que sigue a un separador de firma `-- ` o a un `--` solo, o a una línea
+`----- Original Message -----`. Es una heurística para correo en texto plano: no
+detecta citas HTML, una respuesta cuya cita no está marcada con `>`, una atribución
+partida en dos líneas (se queda) ni una firma sin separador.
+
+Cada texto tiene como máximo 100.000 caracteres, contados antes de normalizar;
+puntuar dos textos de ese tamaño lleva unos segundos. Un texto más largo termina el
+run con `INVALID_BINDING` antes de que se ejecute el paso, así que `error.handle` no
+puede encaminarlo. Un paso sin nada vinculado a `a` y `b` falla con
+`TEXT_COMPARE_NOT_CONFIGURED`; si solo uno está vinculado, el run termina con
+`INVALID_BINDING`. Se permiten textos vacíos: dos vacíos puntúan 1, uno vacío 0. La
+paleta dibuja el paso con un icono de diferencias, entre los pasos de datos.
+
+::: app.workflows.nodes.text_compare._handler.TextCompareConfig
+
+::: app.workflows.nodes.text_compare._handler.TextCompareOutput
 
 ## Transform { #transform }
 

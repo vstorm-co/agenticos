@@ -1078,6 +1078,8 @@ include = [
     # What a workflow's real runs did over a window, for its runs page.
     "app/schemas/workflow_stats.py",
     "app/services/workflow_stats.py",
+    # One text-similarity scorer: text.compare, approval edit ratios and evals.
+    "app/services/text_similarity.py",
     # A model step's evals: its cases, and the test runs that tried them.
     "app/db/models/workflow_eval.py",
     "app/repositories/workflow_eval.py",
@@ -1703,6 +1705,8 @@ include = [
     # What a workflow's real runs did over a window, for its runs page.
     "app/schemas/workflow_stats.py",
     "app/services/workflow_stats.py",
+    # One text-similarity scorer: text.compare, approval edit ratios and evals.
+    "app/services/text_similarity.py",
     # A model step's evals: its cases, and the test runs that tried them.
     "app/db/models/workflow_eval.py",
     "app/repositories/workflow_eval.py",

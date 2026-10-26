@@ -156,6 +156,7 @@ def load_builtins() -> None:
         table_record_query,
         table_record_update,
         table_record_upsert,
+        text_compare,
         text_extract,
         transform,
         trigger_channel_message,

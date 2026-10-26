@@ -28,6 +28,11 @@ Two things are versioned separately from this file and worth knowing about:
   toolbar) keeps the neutral look, per browser. A selected step can be resized
   by its right edge, bottom edge or corner, its text wrapping into the space, and
   **Reset size** in its right-click menu undoes it.
+- **`text.compare` scores how alike two texts are.** A data step that gives a score
+  from 0 to 1 by character edit ratio, word overlap or changed lines, with switches
+  to ignore case, whitespace, punctuation, and quoted mail and signatures.
+  Deterministic, no model and no cost; each text is at most 100,000 characters.
+
 - **`ai.classify` can leave by `unsure` below a confidence.** With a
   `min_confidence`, the model also states how sure it is of the category, from 0
   to 1 (its own report, not a calibrated probability), and the step leaves by an

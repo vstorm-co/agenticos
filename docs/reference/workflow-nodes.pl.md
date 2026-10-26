@@ -1,5 +1,5 @@
 ---
-source_sha: "becb6b2fd45b"
+source_sha: "1f5def5c69f4"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -253,6 +253,45 @@ po elemencie wymaga obiektów, inaczej kończy się `COMBINE_NEEDS_OBJECTS`.
 ::: app.workflows.nodes.data_filter._handler.DataFilterConfig
 
 ::: app.workflows.nodes.data_combine._handler.DataCombineConfig
+
+## text.compare { #text-compare }
+
+**Compare texts** ocenia, jak bardzo podobne są dwa teksty, `a` i `b`: 1, gdy są takie
+same po pominięciu ignorowanych różnic, 0, gdy nie mają nic wspólnego. Nie wywołuje
+modelu i nic nie kosztuje, a te same dwa teksty zawsze dają te same liczby (wyniki
+są zaokrąglane do sześciu miejsc). **Metoda** określa, co jest liczone:
+
+- `char_ratio` (domyślna) to udział znaków, których edytor nie musiałby ruszać,
+  liczony z dokładnej odległości edycyjnej po znakach.
+- `token_f1` to udział słów wspólnych dla obu tekstów, bez względu na kolejność.
+- `line_diff` to udział linii, które się nie zmieniły.
+
+Złożone i rozłożone akcenty nigdy nie są edycją, podobnie jak zakończenia linii.
+Resztę ustawia krok. **Ignore whitespace** jest domyślnie włączone: zwija odstępy
+w obrębie linii, przycina każdą linię i usuwa puste linie. Podziały linii nadal się
+liczą, więc miejsca końca linii ignoruje tylko `token_f1`, który liczy słowa.
+**Ignore case** i **Ignore punctuation** są domyślnie wyłączone. Słowa w `token_f1`
+to ciągi liter, cyfr i podkreślników: dzieli na apostrofach i nie dzieli na słowa
+tekstu pisanego bez spacji.
+
+**Leave out quoted mail and signatures** pomija każdą linię, której pierwszy
+niebiały znak to `>` (także cytaty z wcięciem), wiersz z atrybucją nad cytatem oraz
+wszystko po separatorze podpisu `-- ` lub samym `--` albo po linii
+`----- Original Message -----`. To heurystyka dla poczty w czystym tekście: nie
+wykrywa cytatów HTML, odpowiedzi, w której cytat nie jest oznaczony `>`, atrybucji
+zawiniętej na dwie linie (zostaje) ani podpisu bez separatora.
+
+Każdy tekst ma co najwyżej 100 000 znaków, liczonych przed jakąkolwiek normalizacją;
+ocena dwóch takich tekstów trwa kilka sekund. Dłuższy tekst kończy run błędem
+`INVALID_BINDING` jeszcze przed uruchomieniem kroku, więc `error.handle` nie może go
+przekierować. Krok, w którym nic nie jest powiązane z `a` i `b`, kończy się błędem
+`TEXT_COMPARE_NOT_CONFIGURED`; gdy jeden jest powiązany, a drugi nie, run kończy się
+błędem `INVALID_BINDING`. Puste teksty są dozwolone: dwa puste dają wynik 1, jeden
+pusty daje 0. Paleta rysuje krok z ikoną różnic, wśród kroków danych.
+
+::: app.workflows.nodes.text_compare._handler.TextCompareConfig
+
+::: app.workflows.nodes.text_compare._handler.TextCompareOutput
 
 ## Transform { #transform }
 

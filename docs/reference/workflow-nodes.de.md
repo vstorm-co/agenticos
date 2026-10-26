@@ -1,5 +1,5 @@
 ---
-source_sha: "becb6b2fd45b"
+source_sha: "1f5def5c69f4"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -268,6 +268,49 @@ scheitert sonst mit `COMBINE_NEEDS_OBJECTS`.
 ::: app.workflows.nodes.data_filter._handler.DataFilterConfig
 
 ::: app.workflows.nodes.data_combine._handler.DataCombineConfig
+
+## text.compare { #text-compare }
+
+**Compare texts** bewertet, wie ähnlich sich zwei Texte, `a` und `b`, sind: 1, wenn sie
+nach Abzug der ignorierten Unterschiede gleich sind, 0, wenn sie nichts gemeinsam
+haben. Es ruft kein Modell auf und kostet nichts, und dieselben zwei Texte ergeben
+immer dieselben Zahlen (Werte werden auf sechs Stellen gerundet). Die **Methode**
+legt fest, was gezählt wird:
+
+- `char_ratio` (Standard) ist der Anteil der Zeichen, die ein Bearbeiter nicht
+  anfassen müsste, aus der exakten Editierdistanz über Zeichen.
+- `token_f1` ist der Anteil der Wörter, die beide Texte gemeinsam haben,
+  unabhängig von der Reihenfolge.
+- `line_diff` ist der Anteil der unveränderten Zeilen.
+
+Zusammengesetzte und zerlegte Akzente sind nie eine Änderung, ebenso wenig
+Zeilenenden. Den Rest bestimmt der Schritt. **Ignore whitespace** ist standardmäßig
+an: Es fasst Leerraum innerhalb einer Zeile zusammen, kürzt jede Zeile und lässt
+leere Zeilen weg. Zeilenumbrüche zählen weiter, daher ignoriert nur `token_f1`, das
+Wörter zählt, wo eine Zeile endet. **Ignore case** und **Ignore punctuation** sind
+standardmäßig aus. Die Wörter von `token_f1` sind Folgen aus Buchstaben, Ziffern und
+Unterstrichen: Es trennt an Apostrophen und zerlegt Text ohne Leerzeichen nicht in
+Wörter.
+
+**Leave out quoted mail and signatures** lässt jede Zeile weg, deren erstes
+Nicht-Leerzeichen ein `>` ist (auch eingerückte Zitate), die Einleitungszeile über
+einem Zitat und alles nach einem Signaturtrenner `-- ` oder einem bloßen `--` oder
+nach einer Zeile `----- Original Message -----`. Das ist eine Heuristik für
+Nur-Text-Mails: HTML-Zitate, eine Antwort, deren Zitat nicht mit `>` markiert ist,
+eine auf zwei Zeilen umbrochene Einleitung (sie bleibt stehen) und eine Signatur ohne
+Trenner erkennt sie nicht.
+
+Jeder Text hat höchstens 100.000 Zeichen, gezählt vor jeder Normalisierung; zwei
+Texte dieser Größe zu bewerten dauert einige Sekunden. Ein längerer Text beendet den
+Run mit `INVALID_BINDING`, bevor der Schritt läuft, sodass `error.handle` ihn nicht
+weiterleiten kann. Ein Schritt, bei dem weder `a` noch `b` gebunden ist, scheitert mit
+`TEXT_COMPARE_NOT_CONFIGURED`; ist nur eines gebunden, endet der Run mit
+`INVALID_BINDING`. Leere Texte sind erlaubt: zwei leere ergeben 1, ein leerer 0. Die
+Palette zeigt den Schritt mit einem Diff-Symbol bei den Datenschritten.
+
+::: app.workflows.nodes.text_compare._handler.TextCompareConfig
+
+::: app.workflows.nodes.text_compare._handler.TextCompareOutput
 
 ## Transform { #transform }
 
