@@ -256,6 +256,13 @@ it("drops an estimate or a refusal that arrives after the screen is gone", async
   expect(state.estimate).toHaveBeenCalledTimes(2);
 });
 
+it("stays on a new session when the agent's last one was kept as a draft", () => {
+  state.sessions = [{ id: "kept", created_at: "2026-10-25T10:00:00Z", status: "accepted" }];
+  state.params = new URLSearchParams("resume=1");
+  render(<StartSession agentId="a1" />);
+  expect(state.replace).not.toHaveBeenCalled();
+});
+
 it("forwards a link to Improve to the session still open, and only a link", () => {
   state.sessions = [{ id: "open", created_at: "2026-10-25T10:00:00Z", status: "ready" }];
   const view = render(<StartSession agentId="a1" />);

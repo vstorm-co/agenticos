@@ -69,3 +69,13 @@ it("links to the start screen, which forwards to a session still open", () => {
     "/agents/a1/improve/new?resume=1",
   );
 });
+
+it.each(["accepted", "published", "rejected", "stopped", "failed", "cancelled", "stale"])(
+  "starts the next session past one that is %s",
+  async (status) => {
+    state.sessions = [{ id: "over", status, created_at: "2026-10-25T10:00:00Z" }];
+    render(<ImproveButton agentId="a1" />);
+    await userEvent.click(screen.getByRole("button", { name: "Improve" }));
+    expect(state.push).toHaveBeenCalledWith("/agents/a1/improve/new");
+  },
+);

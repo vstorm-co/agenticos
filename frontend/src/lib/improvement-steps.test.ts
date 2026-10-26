@@ -1,7 +1,12 @@
 import { expect, it } from "vitest";
 import { SESSION } from "@/test-utils/improvement";
 import type { Improvement } from "@/types/improvement";
-import { currentImprovementStep, improvementStepStates } from "./improvement-steps";
+import {
+  currentImprovementStep,
+  improvementStepStates,
+  isClosed,
+  openImprovement,
+} from "./improvement-steps";
 
 const unmeasured = SESSION.iterations.map((round) => ({ ...round, verdict: null, batch_id: null }));
 it.each([
@@ -124,4 +129,41 @@ it("treats a running session with no current stage as analysis", () => {
   expect(
     improvementStepStates({ ...SESSION, status: "running", stage: null, iterations: [] }).check,
   ).toBe("pending");
+});
+
+it.each([
+  ["queued", true, false],
+  ["running", true, false],
+  ["ready", true, false],
+  ["stopped", false, false],
+  ["failed", false, false],
+  ["accepted", false, true],
+  ["published", false, true],
+  ["rejected", false, true],
+  ["cancelled", false, true],
+  ["stale", false, true],
+] as const)(
+  "a %s session is open to Improve: %s, and closed for good: %s",
+  (status, open, closed) => {
+    const session: Improvement = { ...SESSION, status };
+    expect(openImprovement([session])).toBe(open ? session : undefined);
+    expect(isClosed(session)).toBe(closed);
+  },
+);
+
+it("takes Improve back to the newest open session, past any that finished since", () => {
+  const older: Improvement = { ...SESSION, id: "older", status: "ready", created_at: "2026-10-01" };
+  const newer: Improvement = {
+    ...SESSION,
+    id: "newer",
+    status: "running",
+    created_at: "2026-10-02",
+  };
+  const kept: Improvement = {
+    ...SESSION,
+    id: "kept",
+    status: "accepted",
+    created_at: "2026-10-03",
+  };
+  expect(openImprovement([older, kept, newer])?.id).toBe("newer");
 });
