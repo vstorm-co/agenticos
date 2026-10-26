@@ -272,8 +272,10 @@ export function useKBDetail(id: string | null) {
     retry: false,
   });
   // React Query keeps the last answer when a refetch fails; a stale `indexing`
-  // would keep the strip spinning and the poll running, so a failure is no state.
+  // would keep the strip spinning, so a failure shows no state. It still keeps
+  // the poll going: with `retry: false`, the poll is what reads it again.
   const ingestion = ingestionQuery.isError ? null : (ingestionQuery.data ?? null);
+  const ingestionPending = ingestionQuery.isError || ingestion?.indexing_status === "indexing";
 
   // Flattened and de-duplicated across pages: a poll can re-read a page the
   // append had already fetched, and two copies of one document would list it
@@ -336,7 +338,7 @@ export function useKBDetail(id: string | null) {
    * One invalidation of the `["kb", id]` prefix, which every query above is
    * keyed beneath - so a single call refetches the whole page. Stable in
    * identity (it closes over nothing that changes per render), which the page's
-   * `useEffect([refresh])` and the ingest poll both depend on.
+   * `useEffect([refresh])` depends on.
    */
   const { fetchNextPage } = documentsQuery;
   const refresh = useCallback(async () => {
@@ -521,8 +523,9 @@ export function useKBDetail(id: string | null) {
         await apiClient.delete(`/kb/${id}/documents/${docId}`);
         if (!stillSameTenant(startedIn)) return;
         // Drop the row from every loaded page, and the count with it, rather
-        // than refetching: the page polls anyway, and an optimistic removal is
-        // what keeps the table from flashing the document back for a beat.
+        // than refetching: an optimistic removal is what keeps the table from
+        // flashing the document back for a beat. The indexing state is re-read,
+        // since a settled page has no poll to correct its counts.
         queryClient.setQueryData<InfiniteData<KBDocumentList>>(qk.kb.documents(id), (prev) =>
           prev
             ? {
@@ -534,6 +537,7 @@ export function useKBDetail(id: string | null) {
               }
             : prev,
         );
+        void queryClient.invalidateQueries({ queryKey: qk.kb.ingestion(id) });
         toast.success(t("documentRemoved"));
       } catch (e) {
         toast.error(getErrorMessage(e, tErrors, t("failedDeleteDocument")));
@@ -699,6 +703,7 @@ export function useKBDetail(id: string | null) {
     documentsTotal,
     hasMoreDocuments: documentsQuery.hasNextPage,
     ingestion,
+    ingestionPending,
     loadFailed,
     syncSources,
     orgIntegrations,

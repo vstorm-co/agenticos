@@ -46,15 +46,23 @@ function serveDetail({
   sources = [{ id: "s-1", name: "Drive" }],
   integrations = [{ id: "s-org", name: "Shared Drive" }],
   connectors = [{ type: "gdrive" }],
+  ingestion = () => ({
+    indexing_status: "complete",
+    processing_count: 0,
+    indexed_count: 1,
+    failed_count: 0,
+  }),
 }: {
   documents?: unknown[];
   documentsTotal?: number;
   sources?: unknown[] | Error;
   integrations?: unknown[] | Error;
   connectors?: unknown[] | Error;
+  ingestion?: () => unknown;
 } = {}) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     if (path.includes("/documents")) return { items: documents, total: documentsTotal };
+    if (path.endsWith("/ingestion")) return ingestion();
     if (path.endsWith("/sync-sources")) {
       if (sources instanceof Error) throw sources;
       return { items: sources, total: sources.length };
@@ -637,6 +645,41 @@ describe("one collection's page", () => {
     expect(apiClient.delete).toHaveBeenCalledWith("/kb/kb-1/documents/d-2");
     await waitFor(() => expect(result.current.documents.map((doc) => doc.id)).toEqual(["d-1"]));
     expect(result.current.documentsTotal).toBe(1);
+  });
+
+  it("re-reads the indexing state after a deletion", async () => {
+    // A settled page has no poll to notice that the failed document is gone.
+    let failed = 1;
+    serveDetail({
+      ingestion: () => ({
+        indexing_status: "complete",
+        processing_count: 0,
+        indexed_count: 1,
+        failed_count: failed,
+      }),
+    });
+    const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+    await waitFor(() => expect(result.current.ingestion?.failed_count).toBe(1));
+
+    failed = 0;
+    await act(async () => {
+      await result.current.deleteDocument("d-1");
+    });
+
+    await waitFor(() => expect(result.current.ingestion?.failed_count).toBe(0));
+  });
+
+  it("shows no indexing state it could not read, but keeps it pending", async () => {
+    // Pending, so the ingest poll reads it again rather than stopping on a blip.
+    serveDetail({
+      ingestion: () => {
+        throw new Error("Bad gateway");
+      },
+    });
+    const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+
+    await waitFor(() => expect(result.current.ingestionPending).toBe(true));
+    expect(result.current.ingestion).toBeNull();
   });
 
   it("reports a refused deletion", async () => {

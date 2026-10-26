@@ -370,7 +370,8 @@ waiting on either queried a half-built collection
 the documents its page lists rather than everything under its collection name,
 which another base may share; the knowledge base page shows that state beside
 the document count. A document left `processing` keeps either answer at
-`indexing` until it is deleted.
+`indexing` until it is deleted or, for a synced document, until its source syncs
+again.
 
 !!! danger "The task is started after the request's transaction commits"
 

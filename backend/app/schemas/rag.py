@@ -72,7 +72,7 @@ class RAGFilterValues(BaseSchema):
     )
 
 
-class RAGIngestionStatusRead(BaseSchema):
+class RAGIngestionStatus(BaseSchema):
     """Where a collection's, or a knowledge base's, documents are in their ingestion.
 
     Answered from the tracked documents, not from the vectors: the vectors grow
@@ -97,7 +97,7 @@ class RAGIngestionStatusRead(BaseSchema):
     )
 
 
-class RAGCollectionInfo(RAGIngestionStatusRead):
+class RAGCollectionInfo(RAGIngestionStatus):
     """Statistical information about a specific collection, and whether it is still indexing.
 
     It used to report the constant `complete`, which let a script start querying

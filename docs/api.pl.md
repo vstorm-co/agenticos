@@ -1,5 +1,5 @@
 ---
-source_sha: "18de9f68880b"
+source_sha: "d47df7fd8c9b"
 ---
 
 # API HTTP { #the-http-api }
@@ -315,7 +315,8 @@ wymienia; konsola pokaże klucz raz.
 **Wgraj dokument do bazy wiedzy i przeszukaj ją** — klucz z `collections:view` i
 `collections:edit` (preset *Zasilanie bazy wiedzy*). Ingest działa w tle, więc
 wyszukiwanie zaraz po wgraniu może jeszcze nie znaleźć dokumentu; jego status
-pokazuje `GET /api/v1/kb/$KB_ID/documents`.
+pokazuje `GET /api/v1/kb/$KB_ID/documents`, a `GET /api/v1/kb/$KB_ID/ingestion`
+odpowiada `complete`, gdy żaden nie jest już przetwarzany.
 
 ```bash
 # Find the knowledge base, upload a file into it, and search it.

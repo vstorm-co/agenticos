@@ -75,9 +75,9 @@ const SETTLED: KBDocument = {
   organizational_unit: null,
 };
 
-const INFO_PATH = "/kb/kb-1/ingestion";
+const INGESTION_PATH = "/kb/kb-1/ingestion";
 
-function info(overrides: Partial<KBIngestion>): KBIngestion {
+function ingestion(overrides: Partial<KBIngestion>): KBIngestion {
   return {
     indexing_status: "complete",
     processing_count: 0,
@@ -91,7 +91,7 @@ function info(overrides: Partial<KBIngestion>): KBIngestion {
 function serve(...answers: (KBIngestion | null)[]) {
   let reads = 0;
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
-    if (path === INFO_PATH) {
+    if (path === INGESTION_PATH) {
       // Each read takes the next answer, and the last one repeats.
       const answer = answers[Math.min(reads++, answers.length - 1)];
       if (answer === null) throw new Error("unavailable");
@@ -108,8 +108,8 @@ function reads(path: string): number {
   return vi.mocked(apiClient.get).mock.calls.filter(([read]) => read === path).length;
 }
 
-function infoReads(): number {
-  return reads(INFO_PATH);
+function ingestionReads(): number {
+  return reads(INGESTION_PATH);
 }
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -128,7 +128,7 @@ async function mount() {
   await screen.findByRole("heading", { name: "Handbook", level: 1 });
 }
 
-describe("a collection's indexing state on its page", () => {
+describe("a KB's indexing state on its page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -138,7 +138,7 @@ describe("a collection's indexing state on its page", () => {
   });
 
   it("says it is indexing while documents are still in progress", async () => {
-    serve(info({ indexing_status: "indexing", processing_count: 220, indexed_count: 11 }));
+    serve(ingestion({ indexing_status: "indexing", processing_count: 220, indexed_count: 11 }));
     await mount();
 
     expect(await screen.findByText("Indexing: 220 documents in progress")).toBeVisible();
@@ -146,7 +146,7 @@ describe("a collection's indexing state on its page", () => {
   });
 
   it("says indexing is complete once nothing is in progress", async () => {
-    serve(info({ indexed_count: 231 }));
+    serve(ingestion({ indexed_count: 231 }));
     await mount();
 
     expect(await screen.findByText("Indexing complete")).toBeVisible();
@@ -154,7 +154,7 @@ describe("a collection's indexing state on its page", () => {
   });
 
   it("shows failed documents beside the state, which they do not hold open", async () => {
-    serve(info({ indexed_count: 229, failed_count: 2 }));
+    serve(ingestion({ indexed_count: 229, failed_count: 2 }));
     await mount();
 
     expect(await screen.findByText("2 documents failed")).toBeVisible();
@@ -162,9 +162,9 @@ describe("a collection's indexing state on its page", () => {
   });
 
   it("does not announce an empty collection as indexed", async () => {
-    serve(info({}));
+    serve(ingestion({}));
     await mount();
-    await waitFor(() => expect(infoReads()).toBe(1));
+    await waitFor(() => expect(ingestionReads()).toBe(1));
 
     expect(screen.queryByText("Indexing complete")).toBeNull();
     expect(screen.queryByText(/in progress/)).toBeNull();
@@ -173,7 +173,7 @@ describe("a collection's indexing state on its page", () => {
   it("says nothing about indexing when the state could not be read", async () => {
     serve(null);
     await mount();
-    await waitFor(() => expect(infoReads()).toBe(1));
+    await waitFor(() => expect(ingestionReads()).toBe(1));
 
     // The page is still the collection's - the state is not load-bearing.
     expect(screen.getByText("handbook.pdf")).toBeVisible();
@@ -185,14 +185,14 @@ describe("a collection's indexing state on its page", () => {
     // React Query keeps the last answer through a failed refetch; shown, it
     // would keep the strip at indexing and the poll running on stale data.
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    serve(info({ indexing_status: "indexing", processing_count: 5 }), null);
+    serve(ingestion({ indexing_status: "indexing", processing_count: 5 }), null);
     await mount();
     expect(await screen.findByText("Indexing: 5 documents in progress")).toBeVisible();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2500);
     });
-    await waitFor(() => expect(infoReads()).toBe(2));
+    await waitFor(() => expect(ingestionReads()).toBe(2));
 
     expect(screen.queryByText(/in progress/)).toBeNull();
   });
@@ -201,18 +201,35 @@ describe("a collection's indexing state on its page", () => {
     // The one loaded document is `done`, so the loaded page alone would stop
     // the poll; the KB's own state is what keeps it going.
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    serve(info({ indexing_status: "indexing", processing_count: 5, indexed_count: 1 }));
+    serve(ingestion({ indexing_status: "indexing", processing_count: 5, indexed_count: 1 }));
     await mount();
-    await waitFor(() => expect(infoReads()).toBe(1));
+    await waitFor(() => expect(ingestionReads()).toBe(1));
     const kbReads = reads("/kb/kb-1");
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2500);
     });
-    await waitFor(() => expect(infoReads()).toBe(2));
+    await waitFor(() => expect(ingestionReads()).toBe(2));
 
     // Only what ingestion changes is re-read; the collection itself is not.
     expect(reads("/kb/kb-1")).toBe(kbReads);
     expect(reads("/kb/kb-1/sync-sources/connectors")).toBe(1);
+  });
+
+  it("reads the state again after one failed read, rather than stop polling", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    serve(
+      ingestion({ indexing_status: "indexing", processing_count: 5 }),
+      null,
+      ingestion({ indexed_count: 6 }),
+    );
+    await mount();
+    expect(await screen.findByText("Indexing: 5 documents in progress")).toBeVisible();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+
+    expect(await screen.findByText("Indexing complete")).toBeVisible();
   });
 });

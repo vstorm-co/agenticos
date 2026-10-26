@@ -306,7 +306,8 @@ example names; the console shows the key once.
 **Put a document into a knowledge base and search it** — a key with
 `collections:view` and `collections:edit` (the *Knowledge ingest* preset).
 Ingestion runs in the background, so a search right after the upload may not find
-the document yet; `GET /api/v1/kb/$KB_ID/documents` shows its status.
+the document yet; `GET /api/v1/kb/$KB_ID/documents` shows its status, and
+`GET /api/v1/kb/$KB_ID/ingestion` answers `complete` once none is still processing.
 
 ```bash
 # Find the knowledge base, upload a file into it, and search it.

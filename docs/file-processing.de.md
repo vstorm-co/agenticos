@@ -1,5 +1,5 @@
 ---
-source_sha: "d75097e2f7d8"
+source_sha: "e084d213e2b5"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -410,10 +410,11 @@ Skript, das auf eines von beiden wartete, fragte eine halb aufgebaute
 Collection ab ([#2486](https://github.com/vstorm-co/agenticos/issues/2486)).
 `GET /kb/{kb_id}/ingestion` beantwortet dasselbe für eine Wissensdatenbank und
 zählt die Dokumente, die ihre Seite auflistet, statt alles unter ihrem
-Collection-Namen, den eine andere Datenbank teilen kann; die Seite der
+Collection-Namen, den eine andere Wissensdatenbank teilen kann; die Seite der
 Wissensdatenbank zeigt diesen Zustand neben der Dokumentanzahl. Ein Dokument,
 das in `processing` hängen bleibt, hält beide Antworten auf `indexing`, bis
-es gelöscht wird.
+es gelöscht wird oder, bei einem synchronisierten Dokument, bis seine Quelle
+erneut synchronisiert.
 
 !!! danger "Die Aufgabe wird gestartet, nachdem die Transaktion der Anfrage committet"
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "d75097e2f7d8"
+source_sha: "e084d213e2b5"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -385,7 +385,8 @@ którekolwiek z nich odpytywał w połowie zbudowaną kolekcję
 liczy dokumenty, które wyświetla jej strona, a nie wszystko pod nazwą jej
 kolekcji, którą może współdzielić inna baza; strona bazy wiedzy pokazuje ten
 stan obok liczby dokumentów. Dokument, który utknie w `processing`, trzyma obie
-odpowiedzi w `indexing`, dopóki nie zostanie usunięty.
+odpowiedzi w `indexing`, dopóki nie zostanie usunięty albo, w przypadku
+dokumentu synchronizowanego, dopóki jego źródło nie zsynchronizuje się ponownie.
 
 !!! danger "Zadanie startuje po zatwierdzeniu transakcji requestu"
 

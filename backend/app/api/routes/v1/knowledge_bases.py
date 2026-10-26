@@ -32,7 +32,7 @@ from app.schemas.knowledge_base import (
     KnowledgeBaseUpdate,
 )
 from app.schemas.rag import (
-    RAGIngestionStatusRead,
+    RAGIngestionStatus,
     RAGIngestResponse,
     RAGParsedContent,
     RAGSyncLogList,
@@ -164,7 +164,7 @@ async def list_kb_documents(
     return await rag_doc_service.list_for_kb(kb_id=kb_id, skip=skip, limit=limit, filename=filename)
 
 
-@router.get("/{kb_id}/ingestion", response_model=RAGIngestionStatusRead)
+@router.get("/{kb_id}/ingestion", response_model=RAGIngestionStatus)
 async def get_kb_ingestion(
     kb_id: UUID,
     service: KnowledgeBaseSvc,

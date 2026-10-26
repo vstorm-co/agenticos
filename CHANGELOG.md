@@ -19,15 +19,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- `GET /kb/{kb_id}/ingestion` says whether one knowledge base's documents are
+  still indexing, with `processing_count`, `indexed_count` and `failed_count`,
+  counted over the documents its page lists. It is part of the public API
+  (#2486).
+
 ### Fixed
 
 - Report a collection as `indexing` on `GET /rag/collections/{name}/info` while
   any of its documents is still queued or being ingested, and `complete` only
   once none is. The response adds `processing_count`, `indexed_count` and
   `failed_count`; a failed document is counted there rather than holding the
-  collection at `indexing`. `GET /kb/{kb_id}/ingestion` answers the same for
-  one knowledge base's own documents, and the knowledge base page shows that
-  state and keeps refreshing until the whole batch has settled (#2486).
+  collection at `indexing`. The knowledge base page shows its own state from
+  `GET /kb/{kb_id}/ingestion` and keeps refreshing until the whole batch has
+  settled (#2486).
 
 ## [1.18.0] - 2026-10-26
 

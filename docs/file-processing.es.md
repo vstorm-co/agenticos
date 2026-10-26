@@ -1,5 +1,5 @@
 ---
-source_sha: "d75097e2f7d8"
+source_sha: "e084d213e2b5"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -396,7 +396,8 @@ construir ([#2486](https://github.com/vstorm-co/agenticos/issues/2486)).
 cuenta los documentos que lista su página, no todo lo que hay bajo su nombre de
 colección, que otra base puede compartir; la página de la base de conocimiento
 muestra ese estado junto al número de documentos. Un documento que se queda en
-`processing` mantiene ambas respuestas en `indexing` hasta que se elimine.
+`processing` mantiene ambas respuestas en `indexing` hasta que se elimine o, si
+es un documento sincronizado, hasta que su fuente vuelva a sincronizarse.
 
 !!! danger "La tarea se inicia después de que la transacción de la petición haga commit"
 
