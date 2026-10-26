@@ -41,3 +41,9 @@ Next measure real tasks on Built in, hosted and local targets. Separate model ti
 cold start, action/readiness, image encoding and transport, and compare p50/p95,
 success and retries. Do not select a new model or transport from these local
 samples alone.
+
+The viewer was also rendered with production CSS at 320, 390 and 900 px: controls
+stay within the viewport and the address remains usable. A regression test
+reproduced a 2560 by 2160 px viewer sending dimensions beyond the server's
+1600 by 2000 px bounds. Clamping those requests avoids waiting for a rejected
+first fit; this is separate from the adapter measurements above.

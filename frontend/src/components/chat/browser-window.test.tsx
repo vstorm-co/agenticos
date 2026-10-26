@@ -344,6 +344,21 @@ describe("BrowserWindow - the page laid out for the window showing it", () => {
     expect(disconnected).toBe(true);
   });
 
+  it("keeps large-screen resize requests within the server limits", () => {
+    vi.stubGlobal("devicePixelRatio", 2);
+    const live = control();
+    render(<BrowserWindow browse={browse()} control={live} />);
+    sized(2560, 2160);
+    act(() => resized?.());
+    act(() => vi.advanceTimersByTime(250));
+    expect(live.send).toHaveBeenLastCalledWith({
+      type: "resize",
+      width: 1600,
+      height: 2000,
+      scale: 2,
+    });
+  });
+
   it("asks for twice the pixels on a high-density screen", () => {
     vi.stubGlobal("devicePixelRatio", 2);
     const live = control();

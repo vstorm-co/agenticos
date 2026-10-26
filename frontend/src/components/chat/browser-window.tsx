@@ -225,8 +225,10 @@ function useFitPage(control: BrowseControl | null) {
     let timer: ReturnType<typeof setTimeout> | undefined;
     let last = "";
     const fit = () => {
-      const width = Math.max(320, Math.round(element.clientWidth));
-      const height = Math.max(320, Math.round(element.clientHeight));
+      // BrowserCommand rejects larger sizes; waiting for a rejected fit would
+      // hide the first frame until the viewer timeout on large monitors.
+      const width = Math.min(1600, Math.max(320, Math.round(element.clientWidth)));
+      const height = Math.min(2000, Math.max(320, Math.round(element.clientHeight)));
       const scale: 1 | 2 = window.devicePixelRatio >= 1.5 ? 2 : 1;
       const size = `${width}x${height}@${scale}`;
       if (size === last) return;
