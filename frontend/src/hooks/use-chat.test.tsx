@@ -4569,10 +4569,12 @@ it.each(["account", "organization"])(
     useConversationStore.setState({ currentConversationId: "c-1" });
     const bill = { input_tokens: 10, output_tokens: 20, cost_usd: "0.25", cost_is_partial: false };
     let resolve!: (value: { cost: typeof bill }) => void;
-    get.mockReturnValue(
-      new Promise<{ cost: typeof bill }>((done) => {
-        resolve = done;
-      }),
+    const billed = new Promise<{ cost: typeof bill }>((done) => {
+      resolve = done;
+    });
+    // Only the bill waits: the new organization's permissions are read as well.
+    get.mockImplementation(async (url: string) =>
+      url.startsWith("/conversations/") ? billed : { permissions: [] },
     );
     renderHook(() => useChat(), { wrapper });
     receive("next_steps", { conversation_id: "c-1", message_id: "answer", steps: [] });
