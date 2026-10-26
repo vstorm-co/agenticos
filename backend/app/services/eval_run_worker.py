@@ -303,7 +303,7 @@ class EvalRunWorker:
                     run = await eval_run_repo.get(
                         db, self.eval_run_id, organization_id=self.organization_id
                     )
-                    if run is not None:
+                    if run is not None:  # pragma: no branch - fail_live holds its row locked
                         await NotificationService(db).eval_run_finished(run)
         except Exception:
             # The database that failed the run may refuse this as well; the

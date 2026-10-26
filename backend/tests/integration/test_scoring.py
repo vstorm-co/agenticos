@@ -1421,6 +1421,46 @@ class TestGradingAgain:
             await scoring.rescore(tenant.ctx, dataset.id, RescoreRequest(score_ids=[failed.id]))
         assert len(await _eval_runs(db, tenant)) == before
 
+    async def test_a_guard_run_pinned_to_no_judge_neither_grades_nor_grades_again(
+        self, db, judge
+    ) -> None:
+        """A pin naming no published judge is never read as leave to use the latest one."""
+        tenant = await _tenant(db)
+        await _model(db, tenant)
+        dataset, case = await _dataset(db, tenant, scoring=_rubric())
+        run = await _scored_run(db, tenant)
+        eval_run_id = await _eval_run(db, tenant, dataset, run)
+        eval_run = await db.get(EvalRun, eval_run_id)
+        assert eval_run is not None
+        eval_run.judge_pinned = True
+        await db.flush()
+        service = ScoringService(db)
+        row = await dataset_repo.get(db, dataset.id, organization_id=tenant.organization.id)
+        assert row is not None
+        revision = await service.datasets.case_at(tenant.ctx, row, case.case_id, version=None)
+
+        score = await service.score_case(
+            tenant.ctx,
+            dataset=row,
+            case=revision,
+            answer=await service.answer_of(tenant.ctx, run.id),
+            enqueue_review=False,
+            eval_run_id=eval_run_id,
+            judge_version_id=None,
+            judge_pinned=True,
+        )
+
+        judged = [r for r in score.results if r["scorer"] == "judge"]
+        assert judged and {(r["status"], r["reason_code"]) for r in judged} == {
+            ("skipped", "judge_unpublished")
+        }
+        assert judge.calls == 0
+        results = score.results
+        with pytest.raises(BadRequestError, match="no pinned judge"):
+            await service.rescore(tenant.ctx, dataset.id, RescoreRequest(score_ids=[score.id]))
+        assert judge.calls == 0
+        assert score.results == results
+
     async def test_an_eval_runs_score_kept_without_the_prompt_it_failed_on_is_refused(
         self, db, monkeypatch
     ) -> None:

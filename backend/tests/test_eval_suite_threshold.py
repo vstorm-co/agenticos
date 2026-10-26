@@ -196,6 +196,10 @@ def test_a_rise_needs_both_sides_and_handles_a_free_baseline() -> None:
     assert rise(Decimal("0"), Decimal("0")) == 0
 
 
+def test_a_negative_baseline_measures_no_rise() -> None:
+    assert rise(Decimal("0.3"), Decimal("-0.2")) is None
+
+
 def test_a_schedule_must_fire_in_a_known_zone() -> None:
     assert EvalSuiteSchedule(cron="0 6 * * *", timezone="Europe/Warsaw").timezone == "Europe/Warsaw"
     with pytest.raises(ValidationError, match="five-field"):

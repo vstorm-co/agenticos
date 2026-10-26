@@ -259,3 +259,22 @@ async def test_invalid_draft_eval_explains_evaluation_without_talking_about_publ
             environment_id=None,
         )
     assert refused.value.details == {"problems": ["The selected model profile no longer exists"]}
+
+
+@pytest.mark.anyio
+async def test_a_reevaluation_by_nobody_still_named_reads_without_a_name() -> None:
+    """Whoever re-evaluated was removed since; nothing is looked up for them."""
+    from datetime import UTC, datetime
+    from unittest.mock import AsyncMock
+
+    from app.services.eval_run import EvalRunService
+
+    db = AsyncMock()
+    review = await EvalRunService(db).named_review(
+        uuid.uuid4(),
+        {"by_user_id": None, "at": datetime.now(UTC).isoformat(), "verdict": "passed"},
+    )
+
+    assert review is not None
+    assert (review.by_user_id, review.by_name, review.verdict) == (None, None, "passed")
+    db.execute.assert_not_awaited()

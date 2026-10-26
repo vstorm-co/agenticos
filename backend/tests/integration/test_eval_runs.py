@@ -20,6 +20,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from functools import partial
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -45,7 +46,7 @@ from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.api_key import ApiKey
 from app.db.models.case_score import CaseScore
-from app.db.models.conversation import Conversation
+from app.db.models.conversation import Conversation, Message
 from app.db.models.credential import ModelProfile
 from app.db.models.dataset import Dataset, DatasetCase
 from app.db.models.eval_run import EvalRun, EvalRunArm, EvalRunCase, EvalRunPurpose, EvalRunStatus
@@ -54,11 +55,11 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import GrantLevel, ResourceGrant
 from app.db.models.run_manifest import RunManifest
 from app.db.models.user import User
-from app.repositories import eval_run_repo
+from app.repositories import authoring_repo, eval_run_repo
 from app.schemas.agent_environment import EnvironmentCreate
 from app.schemas.api_key import ApiKeyCreate
 from app.schemas.dataset import DatasetCaseCreate, DatasetCaseUpdate, DatasetCreate
-from app.schemas.eval_run import EvalRunRequest
+from app.schemas.eval_run import EvalRunRequest, ProposalCheckRecord
 from app.schemas.scoring import CaseVerdict, RescoreRequest
 from app.services.agent_environment import AgentEnvironmentService
 from app.services.agent_registry import (
@@ -3396,3 +3397,131 @@ async def test_a_guardrail_without_detail_is_graded_as_a_refusal_not_a_crash(
     assert attempt.outcome is False
     read = await service.get(ctx, started.id)
     assert read.arms[0].summary.crashed == 0
+
+
+async def test_a_question_the_dataset_version_does_not_hold_is_refused(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+
+    with pytest.raises(BadRequestError, match="selected questions are not available"):
+        await EvalRunService(db).start(
+            ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, case_ids=[uuid.uuid4()])
+        )
+
+    assert await db.scalar(select(func.count()).select_from(EvalRun)) == 0
+
+
+async def test_a_projection_refused_for_its_own_reason_keeps_that_reason(db) -> None:
+    """Only a spec that fails validation reads as a draft that cannot be evaluated."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    first, second = uuid.uuid4(), uuid.uuid4()
+
+    with pytest.raises(BadRequestError) as refused:
+        await EvalRunService(db).estimate(
+            ctx,
+            agent.id,
+            EvalRunRequest(dataset_id=dataset.id),
+            candidate_spec=AgentSpec(
+                name="Clerk", instructions="Proposed", skill_ids=[first, second]
+            ),
+            candidate_skills={
+                key: SkillBody(name="refunds", description="Refunds", content="Say 30 days.")
+                for key in (first, second)
+            },
+        )
+
+    assert refused.value.message == "Projected skills must have distinct names"
+
+
+@pytest.mark.security
+async def test_a_proposal_whose_evidence_cannot_all_be_read_is_not_measured(db) -> None:
+    """An exclusion set cut short could leave the questions it was derived from in its test."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    conversation = Conversation(id=uuid.uuid4(), organization_id=ctx.organization_id)
+    db.add(conversation)
+    await db.flush()
+    db.add_all(
+        Message(conversation_id=conversation.id, role="user", content=f"Question {index}")
+        for index in range(2)
+    )
+    await db.flush()
+
+    with (
+        patch(
+            "app.services.eval_run.authoring_repo.evidence_inputs",
+            new=partial(authoring_repo.evidence_inputs, limit=1),
+        ),
+        pytest.raises(BadRequestError) as refused,
+    ):
+        await EvalRunService(db).start(
+            ctx,
+            agent.id,
+            EvalRunRequest(dataset_id=dataset.id, paired_baseline=True),
+            candidate_spec=AgentSpec(name="Clerk", instructions="Proposed"),
+            exclude_conversations=[conversation.id],
+            proposal_check=ProposalCheckRecord(kind="agent", base_version=7, suggestions=1),
+        )
+
+    assert refused.value.details == {"reason": "evidence_too_large"}
+    assert await db.scalar(select(func.count()).select_from(EvalRun)) == 0
+
+
+async def test_a_run_a_person_cancelled_keeps_its_outcome_when_its_worker_then_fails(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    service = EvalRunService(db)
+    started = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+
+    async def cancelled_then_broken(_ctx: AuthContext) -> None:
+        await service.cancel(ctx, started.id)
+        raise TimeoutError
+
+    with (
+        patch.object(EvalRunWorker, "_wave", new=AsyncMock(side_effect=cancelled_then_broken)),
+        pytest.raises(TimeoutError),
+    ):
+        await EvalRunWorker(started.id, ctx.organization_id, sessions=_sessions(db)).run()
+
+    run = await service.get(ctx, started.id)
+    assert (run.status, run.error) == (EvalRunStatus.CANCELLED.value, None)
+
+
+async def test_an_attempt_deleted_before_its_answer_is_linked_records_nothing(db, caplog) -> None:
+    """Its eval run was deleted while the provider was being asked: nothing writes it back."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    started = await EvalRunService(db).start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    worker = EvalRunWorker(started.id, ctx.organization_id, sessions=_sessions(db))
+    working = await worker._begin()
+    assert working is not None
+    claimed = await eval_run_repo.claim_next(
+        db, started.id, organization_id=ctx.organization_id, org_limit=10, now=datetime.now(UTC)
+    )
+    assert claimed is not None
+
+    async def deleted(call: int) -> None:
+        await db.execute(delete(EvalRun).where(EvalRun.id == started.id))
+
+    model = Model(
+        db, before=deleted, fails_once_started=lambda call: ModelHTTPError(503, "gpt-test")
+    )
+
+    async def execute(runner, *args, **kwargs):
+        return await model.execute(runner, *args, **kwargs)
+
+    with (
+        patch.object(AgentRunnerService, "execute", new=execute),
+        caplog.at_level("WARNING", logger="app.services.eval_run_worker"),
+    ):
+        assert await worker._answer(working, claimed.id) is False
+
+    assert len(model.calls) == 1
+    assert await db.scalar(select(func.count()).select_from(EvalRunCase)) == 0
+    assert any(record.message == "eval_case_closed_meanwhile" for record in caplog.records)
