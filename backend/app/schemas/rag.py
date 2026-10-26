@@ -2,9 +2,10 @@
 
 from typing import Any
 
-from pydantic import Field, field_validator
+from pydantic import Field, computed_field, field_validator
 
 from app.schemas.base import BaseSchema
+from app.services.rag.citation import cited_page
 from app.services.rag.config import DEFAULT_COLLECTION_NAME
 from app.services.rag.filters import RetrievalFilters
 
@@ -50,6 +51,17 @@ class RAGSearchResult(BaseSchema):
     score: float
     metadata: dict[str, Any]
     parent_doc_id: str
+
+    @computed_field  # type: ignore[prop-decorator]  # pydantic's documented form
+    @property
+    def page(self) -> int | None:
+        """The page a citation may name for this chunk, or `None` when its format has none.
+
+        `metadata.page_num` is 1 for every Markdown, text and `.docx` chunk, a
+        number the parser needs rather than a location in the file, so a
+        caller showing a page reads this rather than `page_num` (#2489).
+        """
+        return cited_page(self.metadata)
 
 
 class RAGSearchResponse(BaseSchema):

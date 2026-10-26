@@ -38,6 +38,12 @@ export interface RAGSearchResult {
   metadata: Record<string, unknown>;
   score: number;
   parent_doc_id: string;
+  /**
+   * The page a citation may name, or null when the document's format has no
+   * pages. Read this rather than `metadata.page_num`, which is 1 for every
+   * Markdown, text and `.docx` chunk (#2489).
+   */
+  page: number | null;
 }
 
 export interface RAGSearchResponse {
