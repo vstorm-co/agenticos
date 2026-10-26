@@ -89,7 +89,7 @@ import { TestPanel } from "@/components/agents/test-panel/test-panel";
 import { useTestShortcut } from "@/components/agents/test-panel/use-test-shortcut";
 import { VersionHistory } from "@/components/agents/version-history";
 import { KnowledgeGapsPanel } from "@/components/knowledge-gaps/knowledge-gaps-panel";
-import { ImproveButton, ImproveLink, useNeedsImprovement } from "@/components/agents/improve-link";
+import { ImproveButton, ImproveLink } from "@/components/agents/improve-link";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ErrorState } from "@/components/states";
 import {
@@ -382,9 +382,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const isSystem = isSystemAgent(agent?.kind);
   const isJudge = agent?.kind === "judge";
   const canViewRuns = can(Perm.runsView);
-  const needsImprovement = useNeedsImprovement(id, {
-    enabled: canEdit && canViewRuns && !isSystem,
-  });
   const { runs: publishTests } = useDraftEvalRuns(canViewRuns && !isSystem ? id : null, {
     enabled: publishOpen,
   });
@@ -1111,10 +1108,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   onClick={handlePublish}
                   disabled={publish.isPending || !spec?.name.trim()}
                   data-tour="agent-publish"
-                  // Answers rated down or failed runs make Improve the one primary
-                  // action; otherwise Publish leads, first in the row a phone scrolls.
-                  variant={needsImprovement ? "outline" : "default"}
-                  className={needsImprovement ? undefined : "max-md:order-first"}
+                  // First in the row a phone scrolls, rather than past its edge.
+                  className="max-md:order-first"
                 >
                   <Upload className="h-4 w-4" />
                   {t("publish")}

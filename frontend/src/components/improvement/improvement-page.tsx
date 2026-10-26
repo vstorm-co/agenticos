@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ErrorState, LoadingState } from "@/components/states";
@@ -386,7 +387,8 @@ function Session({
       )}
       <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
         {STEPS.indexOf(step) > 0 ? (
-          <Button variant="ghost" onClick={() => setSelected(STEPS[STEPS.indexOf(step) - 1]!)}>
+          <Button variant="outline" onClick={() => setSelected(STEPS[STEPS.indexOf(step) - 1]!)}>
+            <ChevronLeft className="h-4 w-4" aria-hidden />
             {t("previousStep")}
           </Button>
         ) : (
@@ -395,6 +397,7 @@ function Session({
         {step !== "result" && step !== "accept" && (
           <Button variant="outline" onClick={() => setSelected(STEPS[STEPS.indexOf(step) + 1]!)}>
             {t("nextStep")}
+            <ChevronRight className="h-4 w-4" aria-hidden />
           </Button>
         )}
       </div>

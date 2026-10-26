@@ -28,20 +28,24 @@ it("starts a new session when none is open, after storing the page's draft", asy
   render(<ImproveButton agentId="a1" persist={persist} />);
   const button = screen.getByRole("button", { name: "Improve" });
   expect(button).not.toHaveClass("bg-primary");
+  expect(screen.queryByTestId("improve-attention")).not.toBeInTheDocument();
   await userEvent.click(button);
   expect(persist).toHaveBeenCalled();
   expect(state.push).toHaveBeenCalledWith("/agents/a1/improve/new");
 });
 
-it("reopens the session still open, as the primary action when the agent needs it", async () => {
+it("reopens the session still open, marking an agent that needs it without leading", async () => {
   state.sessions = [
     { id: "done", status: "published", created_at: "2026-10-25T10:00:00Z" },
     { id: "open", status: "ready", created_at: "2026-10-24T10:00:00Z" },
   ];
   state.attention = [{ agent_id: "a1", rated_down: 0, failed_runs: 1 }];
   render(<ImproveButton agentId="a1" size="sm" tour="strip-improve" />);
-  const button = screen.getByRole("button", { name: "Improve" });
-  expect(button).toHaveClass("bg-primary");
+  const button = screen.getByRole("button", {
+    name: "Needs attention: 1 failed run. Improve this agent",
+  });
+  expect(button).not.toHaveClass("bg-primary");
+  expect(screen.getByTestId("improve-attention")).toBeInTheDocument();
   expect(button).toHaveAttribute("data-tour", "strip-improve");
   await userEvent.click(button);
   expect(state.push).toHaveBeenCalledWith("/agents/a1/improve/open");

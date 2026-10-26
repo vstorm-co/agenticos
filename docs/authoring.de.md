@@ -1,5 +1,5 @@
 ---
-source_sha: "0b2357df2b70"
+source_sha: "14537e8f3e67"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -356,7 +356,7 @@ Nach Abschluss macht `/{run_id}/rounds/{number}/select` eine gemessene Runde zum
 
 ### Der Verbessern-Assistent { #the-improve-wizard }
 
-Öffnen Sie **Verbessern** im Agentenkopf oder in der Assistentenleiste auf dem Tab Bauen, über das Abzeichen **Braucht Aufmerksamkeit** in der Agentenliste, über die Dashboard-Karte oder über den Tab **Wissenslücken** des Agents. Es ist die Hauptaktion im Kopf, wenn der Agent in den letzten 30 Tagen negativ bewertete Antworten oder fehlgeschlagene Runs hatte.
+Öffnen Sie **Verbessern** im Agentenkopf oder in der Assistentenleiste auf dem Tab Bauen, über das Abzeichen **Braucht Aufmerksamkeit** in der Agentenliste, über die Dashboard-Karte oder über den Tab **Wissenslücken** des Agents. Es steht zwischen den anderen Aktionen im Kopf; hatte der Agent in den letzten 30 Tagen negativ bewertete Antworten oder fehlgeschlagene Runs, trägt es einen Punkt und sein Name sagt, warum.
 
 Jedes **Verbessern** öffnet die Sitzung des Agents, die noch läuft oder auf eine Entscheidung wartet, und eine neue nur, wenn es keine gibt. Eine Sitzung liegt unter `/agents/<agent>/improve/<session>`; die Seite lässt sich schließen und wieder öffnen, während die Arbeit weiterläuft. Jeder Bildschirm verlangt höchstens eine Entscheidung, nennt, wer dort was entschieden hat, und legt erweiterte Optionen unter **Details anzeigen**.
 

@@ -274,19 +274,22 @@ describe("the detail page's Knowledge gaps tab", () => {
 });
 
 describe("the detail page's way into Improve", () => {
-  it("is the primary action only for an agent with answers rated down or failed runs", async () => {
+  it("sits among the header's other actions, Publish staying the primary one", async () => {
     allowed = new Set([Perm.runsView]);
     await mount();
     expect(await screen.findByRole("button", { name: "Improve" })).not.toHaveClass("bg-primary");
     expect(screen.getByRole("button", { name: "Publish" })).toHaveClass("bg-primary");
   });
 
-  it("leads with Improve when people rated answers down", async () => {
+  it("says why when people rated answers down, without taking the lead from Publish", async () => {
     allowed = new Set([Perm.runsView]);
     page.attention = [{ agent_id: "a1", rated_down: 7, failed_runs: 1 }];
     await mount();
-    expect(await screen.findByRole("button", { name: "Improve" })).toHaveClass("bg-primary");
-    expect(screen.getByRole("button", { name: "Publish" })).not.toHaveClass("bg-primary");
+    const improve = await screen.findByRole("button", {
+      name: "Needs attention: 7 answers rated down, 1 failed run. Improve this agent",
+    });
+    expect(improve).not.toHaveClass("bg-primary");
+    expect(screen.getByRole("button", { name: "Publish" })).toHaveClass("bg-primary");
   });
 
   it("is linked from the agent's knowledge gaps", async () => {
