@@ -7,6 +7,7 @@ import { SESSION } from "@/test-utils/improvement";
 import type { EvalRun, EvalCase } from "@/types/eval-runs";
 import type { ImprovementEvidence } from "@/types/improvement";
 import { StartSignals, TestQuestions, Today } from "./session-inputs";
+import { ReadOnlyProvider } from "./read-only";
 import { Understand } from "./understand";
 const state = vi.hoisted(() => ({
   sources: null as ImprovementEvidence | null,
@@ -498,7 +499,11 @@ it("ignores and puts back a problem for the next attempt, and moves none between
 });
 
 it("offers no sorting once the session is decided", () => {
-  render(<Understand session={{ ...SESSION, status: "published" }} />);
+  render(
+    <ReadOnlyProvider value="finished">
+      <Understand session={{ ...SESSION, status: "published" }} />
+    </ReadOnlyProvider>,
+  );
   expect(screen.queryByRole("button", { name: "Ignore this" })).not.toBeInTheDocument();
   expect(screen.queryByText(/If an example should not count/)).not.toBeInTheDocument();
 });
@@ -507,4 +512,18 @@ it("says nothing about ungraded questions when every question was graded", () =>
   state.run = evalRun({ agent_id: "a1", arms: [arm({ id: "base", role: "baseline" })] });
   render(<Today session={SESSION} />);
   expect(screen.queryByText(/Couldn't grade/)).not.toBeInTheDocument();
+});
+
+it("says more questions are needed without offering to write them once only read", () => {
+  const short = {
+    ...SESSION,
+    iterations: [{ ...SESSION.iterations[0]!, verdict_detail: { missing_holdout: 3 } }],
+  };
+  render(
+    <ReadOnlyProvider value="finished">
+      <TestQuestions session={short} />
+    </ReadOnlyProvider>,
+  );
+  expect(screen.getByText(/Too few questions to measure a change/)).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /Write \d+ more/ })).not.toBeInTheDocument();
 });

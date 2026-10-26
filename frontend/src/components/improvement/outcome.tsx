@@ -1,13 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { BookOpen, CheckCircle2, Coins, ListChecks, XCircle } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
 import { KnowledgeGapDialog } from "@/components/knowledge-gaps/knowledge-gap-dialog";
 import { useAgentEnvironments } from "@/hooks/use-agent-environments";
-import { useAgentEvalSuites } from "@/hooks/use-eval-suites";
 import { useDatasetCases } from "@/hooks/use-datasets";
 import { useEvalComparison } from "@/hooks/use-eval-runs";
 import { useImprovement, useImprovementEvidence } from "@/hooks/use-improvements";
@@ -16,6 +14,7 @@ import { getErrorMessage } from "@/lib/api-error";
 import type { Improvement, ImprovementIteration } from "@/types/improvement";
 import { StepError } from "./step-error";
 import { Tiles } from "./widgets";
+import { useReadOnly } from "./read-only";
 
 function counts(round: ImprovementIteration | undefined) {
   const fixed = round?.verdict_detail?.fixed;
@@ -94,6 +93,7 @@ export function KnowledgeDocuments({
   const actions = useImprovement(session.agent_id, session.id);
   const [open, setOpen] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
+  const readOnly = useReadOnly();
   const later = session.deferred_topic_ids ?? [];
   const shown = accept ? drafts.filter((topic) => !later.includes(topic.id)) : drafts;
   return (
@@ -112,26 +112,28 @@ export function KnowledgeDocuments({
           {topic.draft_askers === 1 && (
             <p className="text-warning text-xs">{t("draftFromOnePerson")}</p>
           )}
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" onClick={() => setOpen(topic.id)}>
-              {t(accept ? "reviewAndAdd" : "reviewKnowledgeDraft")}
-            </Button>
-            {accept && (
-              <Button
-                size="sm"
-                variant="ghost"
-                disabled={actions.deferTopic.isPending}
-                onClick={() =>
-                  void actions.deferTopic.mutateAsync({ topicId: topic.id, later: true }).then(
-                    () => setFailure(null),
-                    (reason: unknown) => setFailure(getErrorMessage(reason, tErrors)),
-                  )
-                }
-              >
-                {t("notNow")}
+          {!readOnly && (
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" onClick={() => setOpen(topic.id)}>
+                {t(accept ? "reviewAndAdd" : "reviewKnowledgeDraft")}
               </Button>
-            )}
-          </div>
+              {accept && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={actions.deferTopic.isPending}
+                  onClick={() =>
+                    void actions.deferTopic.mutateAsync({ topicId: topic.id, later: true }).then(
+                      () => setFailure(null),
+                      (reason: unknown) => setFailure(getErrorMessage(reason, tErrors)),
+                    )
+                  }
+                >
+                  {t("notNow")}
+                </Button>
+              )}
+            </div>
+          )}
         </article>
       ))}
       {failure && (
@@ -249,54 +251,4 @@ export function GuardNote({ agentId, version }: { agentId: string; version: numb
           : t("environmentSwitches", { environment: environment.name, version })}
     </p>
   ));
-}
-
-/** The end of the wizard: where the version is, and that a later break will be reported. */
-export function DoneScreen({ session }: { session: Improvement }) {
-  const t = useTranslations("improvement");
-  const { suites } = useAgentEvalSuites(session.agent_id);
-  return (
-    <section
-      className="space-y-3 rounded-xl border p-6"
-      data-tour="improvement-done"
-      aria-label={t("doneTitle")}
-    >
-      <h2 className="flex items-center gap-2 text-lg font-medium">
-        <CheckCircle2 className="text-success size-5" aria-hidden />
-        {t("doneTitle")}
-      </h2>
-      {session.status === "published" && session.published_version != null ? (
-        <>
-          <p role="status" className="text-sm">
-            {t("donePublished", { version: session.published_version })}
-          </p>
-          <GuardNote agentId={session.agent_id} version={session.published_version} />
-          <Link
-            className="text-sm underline"
-            href={`/agents/${session.agent_id}?tab=history&from=${session.published_version}&to=${session.published_version}`}
-          >
-            {t("openVersion", { version: session.published_version })}
-          </Link>
-        </>
-      ) : (
-        <p role="status" className="text-sm">
-          {t("doneDraft")}
-        </p>
-      )}
-      {suites.length > 0 ? (
-        <p className="text-muted-foreground text-sm">{t("doneWatching")}</p>
-      ) : (
-        <p className="text-muted-foreground text-sm">
-          {t("doneUnwatched")}{" "}
-          <Link
-            className="underline underline-offset-4"
-            href={`/agents/${session.agent_id}?tab=evals`}
-          >
-            {t("setUpAutomaticCheck")}
-          </Link>
-        </p>
-      )}
-      <KnowledgeDocuments session={session} accept />
-    </section>
-  );
 }

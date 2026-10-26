@@ -12,6 +12,7 @@ import type { Hunk } from "@/types/authoring";
 import type { Improvement, ImprovementIteration, SelectionEstimate } from "@/types/improvement";
 import { RoundTitle } from "./round-results";
 import { Tiles } from "./widgets";
+import { useReadOnly } from "./read-only";
 
 export function ChangeSelection({
   session,
@@ -44,8 +45,11 @@ export function ChangeSelection({
     round: round.candidate_spec_hash,
   });
   const quote = quoted?.key === key ? quoted.quote : null;
+  const readOnly = useReadOnly();
   const canSelect =
-    session.can_restart !== false && (session.status === "ready" || session.status === "stopped");
+    !readOnly &&
+    session.can_restart !== false &&
+    (session.status === "ready" || session.status === "stopped");
   async function act(action: () => Promise<void>) {
     setError(null);
     try {

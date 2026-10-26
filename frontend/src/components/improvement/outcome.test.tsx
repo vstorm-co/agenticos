@@ -4,7 +4,8 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { comparison, SUMMARY } from "@/test-utils/eval-runs";
 import { SESSION } from "@/test-utils/improvement";
 import type { EvalComparison } from "@/types/eval-runs";
-import { AcceptSummary, DoneScreen, GuardNote, KnowledgeDocuments, ResultSummary } from "./outcome";
+import { AcceptSummary, GuardNote, KnowledgeDocuments, ResultSummary } from "./outcome";
+import { ReadOnlyProvider } from "./read-only";
 
 type Topic = {
   id: string;
@@ -203,32 +204,21 @@ it("says what publishing does in each place people use the agent", () => {
   expect(screen.getByText("Pinned stays on version 2.")).toBeInTheDocument();
 });
 
-it("ends on a Done screen that promises a warning only when a check watches the agent", () => {
-  state.suites = [{ id: "s1" }];
-  const view = render(
-    <DoneScreen session={{ ...SESSION, status: "published", published_version: 4 }} />,
-  );
-  expect(screen.getByText("Version 4 is published.")).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: "Open version 4" })).toHaveAttribute(
-    "href",
-    "/agents/a1?tab=history&from=4&to=4",
-  );
-  expect(screen.getByText("We'll tell you if it breaks later.")).toBeInTheDocument();
-  state.suites = [];
-  view.rerender(<DoneScreen session={{ ...SESSION, status: "accepted" }} />);
-  expect(screen.getByText(/saved in the draft/)).toBeInTheDocument();
-  expect(screen.queryByRole("link", { name: /Open version/ })).not.toBeInTheDocument();
-  expect(screen.queryByText("We'll tell you if it breaks later.")).not.toBeInTheDocument();
-  expect(screen.getByRole("link", { name: "Set up an automatic check" })).toHaveAttribute(
-    "href",
-    "/agents/a1?tab=evals",
-  );
-});
-
 it("warns on a draft written from one person's question, beside the changes and on Accept", () => {
   state.topics = [topic("t1", { draft_askers: 1 }), topic("t2", { draft_askers: 3 })];
   const view = render(<KnowledgeDocuments session={SESSION} />);
   expect(screen.getAllByText(/^Based on one person's question/)).toHaveLength(1);
   view.rerender(<KnowledgeDocuments session={SESSION} accept />);
   expect(screen.getAllByText(/^Based on one person's question/)).toHaveLength(1);
+});
+
+it("lists the documents without adding or setting them aside once the wizard is only read", () => {
+  render(
+    <ReadOnlyProvider value="finished">
+      <KnowledgeDocuments session={SESSION} accept />
+    </ReadOnlyProvider>,
+  );
+  expect(screen.getByText("Topic t1")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Not now" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /Review and add/ })).not.toBeInTheDocument();
 });

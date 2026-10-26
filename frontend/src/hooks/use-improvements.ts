@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
+import type { Hunk } from "@/types/authoring";
 import type { EvalRun } from "@/types/eval-runs";
 import { qk } from "@/lib/query-keys";
 import type {
@@ -50,6 +51,20 @@ export function useImprovements(agentId: string, { enabled = true } = {}) {
     error: list.error,
     estimate,
     start,
+  };
+}
+
+/** The changes a session's chosen round measured, as they were decided since. */
+export function useImprovementChanges(agentId: string, runId: string) {
+  const query = useQuery({
+    queryKey: qk.improvements.changes(agentId, runId),
+    queryFn: () => apiClient.get<Hunk[]>(`/agents/${agentId}/improvements/${runId}/changes`),
+  });
+  return {
+    changes: query.data ?? [],
+    isLoading: query.isLoading,
+    error: query.error,
+    refetch: query.refetch,
   };
 }
 

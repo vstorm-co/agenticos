@@ -4239,6 +4239,10 @@
         "title": "Every version, kept",
         "body": "Each publish freezes the spec as a version you can promote to an environment, roll back to, or read the run history against."
       },
+      "agent-improvement-history": {
+        "title": "Every improvement, on record",
+        "body": "Each Improve session the agent had: what it measured, what was decided and what it cost. A finished one opens to be read."
+      },
       "agent-test-connections": {
         "title": "Test connections",
         "body": "A named environment can answer the agent's MCP servers and vault keys with test ones - a sandbox CRM, a test mailbox. Evals run there, and a tool that writes with no test connection is held and recorded instead of run."
@@ -11090,9 +11094,7 @@
     "discardBody": "This dismisses only the pending suggestions from this session. Applied changes and other waiting proposals are kept.",
     "confirmDiscard": "Discard pending suggestions",
     "changesReplaced": "These suggestions are no longer available. Open the agent to review the current draft.",
-    "donePublished": "Version {version} is published.",
     "openVersion": "Open version {version}",
-    "doneDraft": "Done. The selected changes are saved in the draft. Publish from the agent when you are ready.",
     "publishVersion": "Publish version {version}",
     "problemsFound": "We found {total, plural, one {# problem} other {# problems}}: {agent} we can fix in the agent, {knowledge, plural, one {# is information} other {# are information}} missing from the knowledge base.",
     "sortingBody": "If an example should not count, ignore it. The next attempt leaves it out; changes already proposed stay as they are.",
@@ -11127,8 +11129,6 @@
     "notNow": "Not now",
     "acceptAgent": "In the agent: {version, plural, =0 {the new version} other {version #}} will fix {fixed, plural, one {# question} other {# questions}}, break {broken}{costKnown, select, yes {, cost {cost} per answer} other {}}. Tested on {total, plural, one {# question} other {# questions}}, {heldOut} of them not used to write the changes.",
     "guardedSwitch": "{environment} switches to version {version} after the automatic check passes, usually within a few minutes.",
-    "doneTitle": "Done",
-    "doneWatching": "We'll tell you if it breaks later.",
     "noChangesFound": "We couldn't find a change that fits the current instructions. Here is what we tried:",
     "triedAttempt": "Attempt {number}: {verdict, select, better {the changes made it better} regression {the changes broke questions that worked} no_change {no measurable change} inconclusive {the result could not be measured} unmeasured {changes proposed, not tested yet} other {no change was proposed}}{dropped, plural, =0 {} one {; # change did not fit the current instructions} other {; # changes did not fit the current instructions}}.",
     "knowledgeCheckDetails": "Test a knowledge draft",
@@ -11168,8 +11168,6 @@
     "publishNeedsPermission": "Publishing needs permission to publish this agent; ask an owner or an admin. You can keep the changes as a draft.",
     "environmentSwitches": "{environment} switches to version {version} right away.",
     "environmentStays": "{environment} stays on version {version}.",
-    "doneUnwatched": "No automatic check watches this agent yet, so a later break would go unnoticed.",
-    "setUpAutomaticCheck": "Set up an automatic check",
     "changeKind": {
       "instructions": "Instructions",
       "tool": "Tool description: {tool}",
@@ -11236,7 +11234,50 @@
     },
     "sessionLine": "Session",
     "budgetUsed": "Spending limit used",
-    "numbersExplained": "The bars count every answer handled well, confirmed or not. Only a change confirmed by asking again counts as newly fixed ({fixed}) or newly broken ({broken}); {pending, plural, =0 {none is waiting} one {# change is not confirmed yet} other {# changes are not confirmed yet}}."
+    "numbersExplained": "The bars count every answer handled well, confirmed or not. Only a change confirmed by asking again counts as newly fixed ({fixed}) or newly broken ({broken}); {pending, plural, =0 {none is waiting} one {# change is not confirmed yet} other {# changes are not confirmed yet}}.",
+    "readOnly": {
+      "finished": "This improvement is finished. It is kept here as a record, and nothing in it can be changed.",
+      "viewOnly": "You can read this improvement. Changing it needs edit access to the agent."
+    },
+    "decision": {
+      "title": "What was decided",
+      "publishedVersion": "Published as version {version}",
+      "outcome": {
+        "accepted": "Kept as a draft. Publish it from the agent when you are ready.",
+        "published": "Published",
+        "rejected": "Discarded. Nothing it suggested was kept.",
+        "cancelled": "Stopped before anything was decided.",
+        "stale": "Set aside: the agent, its draft or the test questions changed while it ran."
+      },
+      "by": "By {name}, {at}",
+      "at": "On {at}",
+      "openVersion": "Open version {version}",
+      "changes": "{count, plural, =0 {Changes} =1 {The change it measured} other {The # changes it measured}}",
+      "noChanges": "No change was chosen in this improvement.",
+      "changeState": {
+        "accepted": "Kept",
+        "dismissed": "Left out",
+        "pending": "Not decided"
+      },
+      "knowledge": "Knowledge documents",
+      "knowledgeState": {
+        "added": "Added to the knowledge base",
+        "later": "Set aside",
+        "notAdded": "Not added"
+      },
+      "checkMade": "An automatic check was set up with this improvement: its questions run before each publish.",
+      "checkKept": "The agent's automatic check runs its questions before each publish.",
+      "checkNone": "No automatic check runs before a publish."
+    },
+    "history": {
+      "title": "Improvement history",
+      "description": "Each Improve session: what it measured, what was decided and what it cost.",
+      "empty": "No improvement sessions yet.",
+      "notMeasured": "Nothing measured",
+      "publishedVersion": "Published as version {version}",
+      "startedBy": "Started by {name} · {cost}",
+      "cost": "Cost {cost}"
+    }
   },
   "unsaved": {
     "title": "You have unsaved changes",

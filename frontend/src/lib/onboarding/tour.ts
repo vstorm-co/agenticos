@@ -487,6 +487,16 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.agentsView,
     inTour: true,
   },
+  // The agent's improvement sessions, read with its runs.
+  {
+    id: "agent-improvement-history",
+    page: AGENT_BUILDER,
+    target: "agent-improvement-history",
+    activate: "agent-tab-history",
+    permission: Perm.runsView,
+    agentKind: "ordinary",
+    inTour: true,
+  },
   // On the first named environment's test-connections toggle, which only an
   // agent with one renders and only a publisher sees.
   {

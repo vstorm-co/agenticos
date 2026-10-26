@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import type { Improvement, KnowledgeCheckEstimate } from "@/types/improvement";
 import { KnowledgeDrafts } from "./knowledge-drafts";
+import { ReadOnlyProvider } from "./read-only";
 const state = vi.hoisted(() => ({
   estimate: vi.fn(),
   check: vi.fn(),
@@ -398,4 +399,17 @@ it("does not show a result when its comparison could not be read", () => {
   render(<KnowledgeDrafts session={{ ...SESSION, knowledge_eval_run_ids: ["k1"] }} />);
   expect(screen.getByRole("alert")).toBeInTheDocument();
   expect(screen.queryByText("Better: fixes 2, breaks nothing")).not.toBeInTheDocument();
+});
+
+it("shows the drafts without checking or reviewing them once the wizard is only read", () => {
+  render(
+    <ReadOnlyProvider value="finished">
+      <KnowledgeDrafts session={SESSION} />
+    </ReadOnlyProvider>,
+  );
+  expect(screen.queryByLabelText("Learning example")).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Estimate checking the draft" }),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Review knowledge draft" })).not.toBeInTheDocument();
 });

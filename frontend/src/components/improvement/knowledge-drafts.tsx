@@ -16,6 +16,7 @@ import type {
   KnowledgeCheckEstimate,
   KnowledgeCheckTarget,
 } from "@/types/improvement";
+import { useReadOnly } from "./read-only";
 
 /** A paid draft check is separate from accepting or publishing the agent. */
 export function KnowledgeDrafts({ session }: { session: Improvement }) {
@@ -23,6 +24,7 @@ export function KnowledgeDrafts({ session }: { session: Improvement }) {
   const tErrors = useTranslations("errors");
   const locale = useLocale();
   const actions = useImprovement(session.agent_id, session.id);
+  const readOnly = useReadOnly();
   const { topics, error: topicsError } = useKnowledgeGaps({ kind: "agent", id: session.agent_id });
   const [topicId, setTopicId] = useState("");
   const [mode, setMode] = useState<"context" | "retrieval">("context");
@@ -86,7 +88,7 @@ export function KnowledgeDrafts({ session }: { session: Improvement }) {
       {(topicsError || questions.error) && (
         <p role="alert">{getErrorMessage(topicsError ?? questions.error, tErrors)}</p>
       )}
-      {drafts.length > 0 && round && ["ready", "stopped"].includes(session.status) ? (
+      {drafts.length > 0 && round && !readOnly && ["ready", "stopped"].includes(session.status) ? (
         <>
           <label className="block space-y-2 text-sm">
             <span>{t("chooseDraft")}</span>
@@ -238,6 +240,7 @@ function DraftFacts({
   const tErrors = useTranslations("errors");
   const { topic, error } = useKnowledgeGap(topicId);
   const [open, setOpen] = useState(false);
+  const readOnly = useReadOnly();
   if (error) return <p role="alert">{getErrorMessage(error, tErrors)}</p>;
   return (
     <div className="space-y-3 text-sm">
@@ -253,13 +256,15 @@ function DraftFacts({
           </details>
         </>
       )}
-      <Button
-        className="h-auto max-w-full text-center whitespace-normal"
-        variant="outline"
-        onClick={() => setOpen(true)}
-      >
-        {t("reviewKnowledgeDraft")}
-      </Button>
+      {!readOnly && (
+        <Button
+          className="h-auto max-w-full text-center whitespace-normal"
+          variant="outline"
+          onClick={() => setOpen(true)}
+        >
+          {t("reviewKnowledgeDraft")}
+        </Button>
+      )}
       {open && <KnowledgeGapDialog topicId={topicId} onClose={() => setOpen(false)} wizard />}
     </div>
   );

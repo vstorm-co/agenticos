@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
+import { ImprovementHistory } from "@/components/improvement/improvement-history";
 import { JudgeDatasetsCard } from "@/components/agents/judge-datasets-card";
 import {
   AgentMap,
@@ -2057,6 +2058,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 />
               </CardContent>
             </Card>
+            {canViewRuns && <ImprovementHistory agentId={id} />}
           </TabsContent>
 
           {!isSystem && (
