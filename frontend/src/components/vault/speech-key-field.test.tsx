@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SpeechKeyField, speechKeysFor, useSpeechKeyCheck } from "./speech-key-field";
+import { providerMarkIn } from "@/test-utils/brand-marks";
 import type { Secret } from "@/types/secrets";
 
 const state = vi.hoisted(() => ({
@@ -121,6 +122,19 @@ describe("useSpeechKeyCheck", () => {
 });
 
 describe("the speech-to-text key field", () => {
+  it.each([true, false])(
+    "shows the key's provider icon in the selected value and option (organization default: %s)",
+    async (orgVisibleOnly) => {
+      state.secrets = [secret("OpenAI key")];
+      mount({ value: "OpenAI key", orgVisibleOnly });
+      expect(providerMarkIn(screen.getByLabelText("Key"))).toBe("openai");
+      await userEvent.click(screen.getByLabelText("Key"));
+      expect(providerMarkIn(screen.getByRole("option", { name: /OpenAI key.*abcd/ }))).toBe(
+        "openai",
+      );
+    },
+  );
+
   it("stores the only key that fits, explicitly", () => {
     state.secrets = [secret("team-openai"), secret("mine", { visibility: "private" })];
     const { onChange } = mount();
@@ -133,7 +147,7 @@ describe("the speech-to-text key field", () => {
     expect(onChange).not.toHaveBeenCalled();
 
     await userEvent.click(screen.getByLabelText("Key"));
-    await userEvent.click(screen.getByRole("option", { name: "b (…abcd)" }));
+    await userEvent.click(screen.getByRole("option", { name: /^b.*abcd$/ }));
     expect(onChange).toHaveBeenCalledWith("b");
   });
 
@@ -153,7 +167,7 @@ describe("the speech-to-text key field", () => {
   it("shows the chosen key", () => {
     state.secrets = [secret("a"), secret("b")];
     mount({ value: "b" });
-    expect(screen.getByLabelText("Key")).toHaveTextContent("b (…abcd)");
+    expect(screen.getByLabelText("Key")).toHaveTextContent("b····abcd");
     expect(screen.queryByRole("note")).not.toBeInTheDocument();
   });
 

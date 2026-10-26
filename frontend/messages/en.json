@@ -6717,7 +6717,6 @@
     "speechKey": {
       "label": "Key",
       "choose": "Choose a key",
-      "option": "{name} (…{hint})",
       "orgHint": "An organization-wide API key for this provider. It is spent for everybody, so a key only some people can see cannot be chosen here.",
       "agentHint": "An API key for this provider that you can see. Publishing lends it to everyone who can run this agent.",
       "stale": "The chosen key was deleted or can no longer be used here. Choose a key.",

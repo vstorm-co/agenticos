@@ -23,7 +23,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Explain why existing private provider keys or ChatGPT sign-ins cannot be
   selected for organization speech to text, instead of implying the vault
-  has no credentials for the provider.
+  has no credentials for the provider. Show provider icons and consistent masked
+  key hints in Voice calls and Dictation key selectors.
 
 ## [1.19.0] - 2026-10-26
 

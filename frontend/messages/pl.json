@@ -6488,7 +6488,6 @@
     "speechKey": {
       "label": "Klucz",
       "choose": "Wybierz klucz",
-      "option": "{name} (…{hint})",
       "orgHint": "Klucz API tego providera widoczny dla całej organizacji. Korzystają z niego wszyscy, więc nie można tu wybrać klucza widocznego tylko dla części osób.",
       "agentHint": "Klucz API tego providera, który widzisz. Po publikacji będzie z niego korzystał każdy, kto może uruchomić tego agenta.",
       "stale": "Wybrany klucz został usunięty albo nie można go już tu użyć. Wybierz klucz.",

@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
+import { ProviderRow } from "@/components/vault/provider-row";
 import { InlineSecret } from "@/components/vault/inline-secret";
 import { useSecrets } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
@@ -154,7 +155,7 @@ export function SpeechKeyField({
           <SelectContent>
             {keys.map((key) => (
               <SelectItem key={key.id} value={key.id} textValue={key.name}>
-                {t("speechKey.option", { name: key.name, hint: key.hint })}
+                <ProviderRow provider={provider} name={key.name} hint={key.hint} />
               </SelectItem>
             ))}
           </SelectContent>

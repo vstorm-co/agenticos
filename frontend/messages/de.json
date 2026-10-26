@@ -6600,7 +6600,6 @@
     "speechKey": {
       "label": "Schlüssel",
       "choose": "Schlüssel wählen",
-      "option": "{name} (…{hint})",
       "orgHint": "Ein organisationsweiter API-Schlüssel für diesen Provider. Er wird für alle verwendet, daher kann hier kein Schlüssel gewählt werden, den nur einige sehen können.",
       "agentHint": "Ein API-Schlüssel für diesen Provider, den Sie sehen können. Mit dem Veröffentlichen stellen Sie ihn allen zur Verfügung, die diesen Agent ausführen dürfen.",
       "stale": "Der gewählte Schlüssel wurde gelöscht oder kann hier nicht mehr verwendet werden. Wählen Sie einen Schlüssel.",

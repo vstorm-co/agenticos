@@ -302,7 +302,7 @@ describe("OrgVoiceSettings", () => {
       screen.getByText(/^Sent with the organization's Groq key chosen below\./),
     ).toBeInTheDocument();
 
-    await choose("Key", "team-groq-2 (…abcd)");
+    await choose("Key", /^team-groq-2.*abcd$/);
     await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() =>
       expect(apiClient.patch).toHaveBeenCalledWith(`/orgs/${ORG_ID}`, {
@@ -482,7 +482,7 @@ describe("OrgVoiceSettings", () => {
     expect(within(alert).queryByRole("link")).not.toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Key" })).toHaveTextContent("Choose a key");
 
-    await choose("Key", "b (…abcd)");
+    await choose("Key", /^b.*abcd$/);
     await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() =>
       expect(apiClient.patch).toHaveBeenCalledWith(`/orgs/${ORG_ID}`, {
