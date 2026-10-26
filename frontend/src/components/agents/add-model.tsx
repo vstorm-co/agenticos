@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Check, KeyRound, Plus } from "lucide-react";
 
 import { NO_FAILURE, submitFailure } from "@/lib/api-error";
+import { runsAgents } from "@/lib/model-profiles";
 import { ModelCombobox } from "@/components/agents/model-combobox";
 import { InlineChatGPTSignIn } from "@/components/vault/chatgpt-sign-in";
 import { InlineSecret } from "@/components/vault/inline-secret";
@@ -262,7 +263,12 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
   const chosenKey = secretId || keys[0]?.id || "";
   // What the provider publishes, where it publishes anything. Cached hard: a
   // catalog changes when a provider ships a model, not while a form is open.
-  const { models: suggestions, source, isLoading: loadingModels } = useProviderModels(providerId);
+  const {
+    models: suggestions,
+    refused,
+    source,
+    isLoading: loadingModels,
+  } = useProviderModels(providerId);
   const derivedLabel =
     provider && model.trim() ? `${provider.label} · ${model.trim()}` : t("howAgentsReferModel");
 
@@ -307,6 +313,17 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
     /* v8 ignore next -- the id comes from the list this select was built from */
     if (provider === undefined) return;
     setFailure(NO_FAILURE);
+    // Every caller selects what this creates as a model to talk to - an agent's,
+    // or the one describing a document's images - so a model the provider's
+    // listing says is speech or embeddings is refused before a profile exists for
+    // it (#2487). The listing is the provider's own API: an endpoint of the
+    // reader's says nothing about it.
+    const notChat = { fields: { model: t("notAChatModelRefused", { model: model.trim() }) } };
+    const customEndpoint = acceptsEndpoint && baseUrl.trim() !== "";
+    if (!customEndpoint && refused.includes(model.trim())) {
+      setFailure({ ...NO_FAILURE, ...notChat });
+      return;
+    }
     try {
       const profile = await createProfile.mutateAsync({
         label: label.trim() || `${provider.label} · ${model.trim()}`,
@@ -322,6 +339,12 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
         // stored - and a refusal, were there one, would be about this field.
         api,
       });
+      // An id the listing did not classify still reaches here; the server
+      // classifies the profile it created, and that answer is final.
+      if (!runsAgents(profile)) {
+        setFailure({ ...NO_FAILURE, ...notChat });
+        return;
+      }
       onCreated(profile);
     } catch (error) {
       // Caught, not left to reject: an unhandled rejection here is Next.js's

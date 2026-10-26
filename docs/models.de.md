@@ -1,5 +1,5 @@
 ---
-source_sha: "2192a2a9d193"
+source_sha: "7e1535d984a6"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -69,19 +69,27 @@ ein anderer API-Prozess es vielleicht nicht abgerufen hat. Dann gilt:
   weiterhin an, markiert als kein Chat-Modell. Einem Mitglied, das Verbindungen
   verwaltet, listet der Builder auch die übrigen solchen Modelle, markiert und
   nicht wählbar, damit sie entfernt werden können.
-- Die Modellauswahl im Chat schlägt ein solches Modell nicht vor und lehnt ein
-  eingetipptes ab.
+- Die Modellauswahl im Chat und das Formular zum Hinzufügen eines Modells im
+  Builder schlagen ein solches Modell nicht vor und lehnen ein eingetipptes ab.
 - Die Veröffentlichung lehnt ein solches Modell als Modell des Agents, eines
   Reviewers oder eines Spezialisten, als Schrittmodell des Browsers oder als Modell
-  für Folgeschritte ab und nennt es. Dieselbe Prüfung läuft beim Rollback, bei der
+  für Folgeschritte ab und nennt es. Sie lehnt auch ein Profil ab, dessen Fallbacks
+  ein solches Modell enthalten. Dieselbe Prüfung läuft beim Rollback, bei der
   Entwurfsprüfung, beim Testlauf im Builder und beim Aktivieren einer Capability
   aus dem Chat. Eine gespeicherte Version auf einem solchen Modell lädt weiterhin,
   lässt sich aber nicht wiederherstellen, solange ihr Profil kein Chat-Modell
-  benennt. Stellen Sie dieses Profil auf ein Chat-Modell um oder veröffentlichen
-  Sie eine neue Version.
-- Ein Modell, das die Kataloge nicht einordnen, etwa ein eigener Endpoint, ein
-  Ollama-Modell oder ein heute Morgen veröffentlichtes Modell, ist erlaubt. Ein
-  unbekanntes Modell ist keine Ablehnung.
+  benennt oder eines als Fallback auflistet. Stellen Sie dieses Profil auf ein
+  Chat-Modell um oder veröffentlichen Sie eine neue Version.
+- Ein Run lässt einen solchen Fallback aus seiner Kette weg, genau wie einen
+  gelöschten, wenn er dem Profil nach der Veröffentlichung hinzugefügt wurde.
+- Ein Gespräch, das statt des Modells des Agents ein solches Modell nennt, aus dem
+  Chat oder über die API, wird abgelehnt, bevor der Run beginnt.
+- Ein Modell, das die Kataloge nicht einordnen, etwa ein Ollama-Modell oder ein
+  heute Morgen veröffentlichtes Modell, ist erlaubt. Ein unbekanntes Modell ist
+  keine Ablehnung. Ein Profil mit eigenem Endpoint (`base_url`) wird nie
+  eingeordnet, unabhängig von seiner Modell-ID: Die Kataloge beschreiben die
+  eigene API des Providers, und ein OpenAI-kompatibler Server kann ein Chat-Modell
+  unter jedem Namen anbieten.
 
 ### Fallbacks { #fallbacks }
 

@@ -22,7 +22,11 @@ per process and empties on a restart, so it only marks what a picker offers -
 Everything else is unknown, and unknown is allowed. A custom endpoint, an Ollama
 on this network, a model shipped this morning: the platform cannot see what they
 emit, and a picker that refused what it could not classify would hide models
-that work - the same rule `CatalogModel.output_modalities` states.
+that work - the same rule `CatalogModel.output_modalities` states. A profile with
+a `base_url` is a custom endpoint whatever its provider says: the catalogs
+describe the vendor's own API, and an OpenAI-compatible server may serve a chat
+model under an id the vendor uses for speech, so every answer here is unknown
+for one.
 """
 
 from dataclasses import dataclass
@@ -95,14 +99,17 @@ def _from_catalogs() -> dict[tuple[str, str], ModelOutputs]:
     return known
 
 
-def model_outputs(provider: str, model: str) -> ModelOutputs:
+def model_outputs(provider: str, model: str, *, base_url: str | None = None) -> ModelOutputs:
     """What the catalogs say this model emits, and whether an agent can run on it.
 
     The answer publish, rollback and the runner act on: the same on every
     replica. An OpenRouter id is `<provider>/<model>`, so it is also looked up as
     the upstream model it routes to: `openai/gpt-4o-mini-tts` is the same speech
-    model under another name.
+    model under another name. With a `base_url` - a custom endpoint - the
+    answer is unknown: the catalogs describe the vendor's API, not that server.
     """
+    if base_url:
+        return _UNKNOWN
     known = _from_catalogs()
     found = known.get((provider, model))
     if found is None and provider == "openrouter" and "/" in model:
@@ -125,11 +132,22 @@ def stated_outputs(provider: str, model: str, modalities: tuple[str, ...]) -> Mo
     )
 
 
-def listed_model_outputs(provider: str, model: str) -> ModelOutputs:
+def listed_model_outputs(provider: str, model: str, *, base_url: str | None = None) -> ModelOutputs:
     """:func:`model_outputs`, completed from this process's cached listing.
 
     For what a picker offers only: another replica, or this one after a restart,
-    may not hold the listing and answers unknown.
+    may not hold the listing and answers unknown. A custom endpoint is unknown
+    here too - the listing is the vendor's, not that server's.
     """
+    if base_url:
+        return _UNKNOWN
     listed = next((entry for entry in cached_listing(provider) if entry.id == model), None)
     return stated_outputs(provider, model, () if listed is None else listed.output_modalities)
+
+
+def not_chat_refusal(label: str, model: str, outputs: ModelOutputs) -> str:
+    """The sentence a refusal of a non-chat model says, wherever it is refused."""
+    return (
+        f"Model '{label}' ({model}) is {outputs.kind}, not a chat model - an agent "
+        "cannot run on it. Pick a chat model"
+    )

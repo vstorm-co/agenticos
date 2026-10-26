@@ -302,6 +302,78 @@ class TestPrepare:
         assert prepared.deps is built.deps
 
     @pytest.mark.anyio
+    async def test_a_conversation_override_onto_a_speech_model_is_refused_before_the_run(self):
+        """The override comes from a socket frame or an API body, past every
+        picker and past publish (#2487): a model the catalogs know is not a chat
+        model is refused by name, before a run row is opened or a model called."""
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        spec = AgentSpec(name="Support", model_profile_id=uuid.uuid4())
+        override = uuid.uuid4()
+        speech = MagicMock(
+            profile_id=override,
+            label="Voice",
+            provider="openai",
+            model="gpt-4o-mini-tts",
+            credential=MagicMock(base_url=None),
+        )
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(service.models, "resolve", new=AsyncMock(return_value=speech)),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run", new=AsyncMock()
+            ) as create_run,
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await service.prepare(ctx, agent.id, model_profile_id=override)
+
+        assert refused.value.message == (
+            "Model 'Voice' (gpt-4o-mini-tts) is a text-to-speech model, not a chat model - "
+            "an agent cannot run on it. Pick a chat model"
+        )
+        assert refused.value.details == {"model_profile_id": str(override)}
+        create_run.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_the_same_id_on_a_custom_endpoint_is_not_refused(self):
+        """A `base_url` is somebody's own server, which the catalogs do not
+        describe: an id the vendor uses for speech may be a chat model there."""
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        spec = AgentSpec(name="Support", model_profile_id=uuid.uuid4())
+        custom = MagicMock(
+            label="Local",
+            provider="openai",
+            model="gpt-4o-mini-tts",
+            credential=MagicMock(base_url="http://vllm:8000/v1"),
+        )
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(service.models, "resolve", new=AsyncMock(return_value=custom)),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ) as create_run,
+            patch("app.services.agent_runner.build_agent", return_value=MagicMock()),
+        ):
+            await service.prepare(ctx, agent.id, model_profile_id=uuid.uuid4())
+
+        create_run.assert_awaited_once()
+
+    @pytest.mark.anyio
     async def test_a_surface_that_can_show_a_compaction_notice_gets_its_sink_onto_the_deps(self):
         """Whether the person can be told a summary is running is a property of
         the *surface*, not of the run - so it is set on the built deps here

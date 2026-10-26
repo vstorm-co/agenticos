@@ -112,10 +112,15 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
     const existing = profiles.find(
       (profile) => profile.provider === provider.id && profile.model === modelId,
     );
+    // What the provider's listing says, which may have arrived after the saved
+    // profiles did: the server marks a profile from the listing it already holds,
+    // so one loaded first reads as unknown. A custom endpoint is not the
+    // provider's, and its listing says nothing about it.
+    const listingRefuses = refused.includes(modelId) && !existing?.base_url;
     if (existing) {
       // A speech or embedding profile cannot answer a conversation, and minting
       // another would only collide on its label (#2487).
-      if (!runsAgents(existing)) {
+      if (!runsAgents(existing) || listingRefuses) {
         setFailure(t("notAChatModel", { model: modelId }));
         return;
       }
@@ -125,7 +130,7 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
 
     // One the provider's listing says is not a chat model is refused before a
     // profile is created for it, rather than left behind.
-    if (refused.includes(modelId)) {
+    if (listingRefuses) {
       setFailure(t("notAChatModel", { model: modelId }));
       return;
     }

@@ -369,6 +369,7 @@
     "noKey2": "no key",
     "notAChatModel": "not a chat model",
     "notAChatModelHint": "{model} is not a chat model - it is for text to speech, transcription, images or embeddings, and an agent cannot run on it. Choose a chat model before publishing.",
+    "notAChatModelRefused": "{model} is not a chat model - an agent cannot run on it. Choose a chat model.",
     "noMembersChooseFrom": "No members to choose from - this organization is just you.",
     "noModelAskAdmin": "Models are added in the Builder by a member who manages connections. Once one exists, it can be chosen here.",
     "noNote": "No note",

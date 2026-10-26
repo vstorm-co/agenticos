@@ -18,7 +18,11 @@ const rig = vi.hoisted(() => ({
   agentsLoading: false,
   agentsList: [] as { id?: string; status: string }[],
   agentDetail: null as { status: string; draft_spec: { model_profile_id: string | null } } | null,
-  profiles: [] as { secret_id: string | null; base_url?: string | null }[],
+  profiles: [] as {
+    secret_id: string | null;
+    base_url?: string | null;
+    chat_capable?: boolean;
+  }[],
   modelsLoading: false,
   skillTotal: 0,
   skillLoading: false,
@@ -371,6 +375,17 @@ describe("useOnboardingFlow", () => {
     const ids = result.current.steps.map((step) => step.id);
     expect(ids).toContain("flow-agent-model-pick");
     expect(ids).not.toContain("flow-agent-model-add");
+  });
+
+  it("teaches adding a model when the only keyed one is not a chat model", () => {
+    // A speech or embedding profile is hidden from the picker (#2487), so the
+    // pick step would have nothing to select and its signal could never fire.
+    rig.profiles = [{ secret_id: "sec-1", chat_capable: false }];
+    const { result } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-agent"));
+    const ids = result.current.steps.map((step) => step.id);
+    expect(ids).toContain("flow-agent-model-add");
+    expect(ids).not.toContain("flow-agent-model-pick");
   });
 
   it("counts a self-hosted model with a base URL as runnable", () => {

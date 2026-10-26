@@ -172,6 +172,42 @@ describe("the chat's two-step model picker", () => {
     expect(mutateAsync).not.toHaveBeenCalled();
   });
 
+  it("refuses a saved profile the listing marks after the profiles loaded", async () => {
+    // The profiles can arrive before the provider listing, and a profile the
+    // server marked then reads as unknown; the listing that follows decides.
+    listedProfiles.mockReturnValue([profile("painter", "openrouter", "acme/painter")]);
+    refusedModels.mockReturnValue(["acme/painter"]);
+    const onChange = vi.fn();
+    render(<ChatModelPicker value={null} agentModel={null} onChange={onChange} />);
+
+    await pickProvider("OpenRouter");
+    await typeModel("acme/painter");
+    await userEvent.click(screen.getByRole("button", { name: "Run on this model" }));
+
+    expect(
+      screen.getByText(
+        "acme/painter is not a chat model, so this conversation cannot run on it. Choose another model.",
+      ),
+    ).toBeInTheDocument();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("reuses a saved profile on a custom endpoint whatever the vendor listing says", async () => {
+    // The listing is the provider's own API; somebody's own server is not it.
+    listedProfiles.mockReturnValue([
+      { ...profile("local", "openai", "whisper-1"), base_url: "http://vllm:8000/v1" },
+    ]);
+    refusedModels.mockReturnValue(["whisper-1"]);
+    const onChange = vi.fn();
+    render(<ChatModelPicker value={null} agentModel={null} onChange={onChange} />);
+
+    await pickProvider("OpenAI");
+    await typeModel("whisper-1");
+    await userEvent.click(screen.getByRole("button", { name: "Run on this model" }));
+
+    expect(onChange).toHaveBeenCalledWith("local");
+  });
+
   it("refuses a speech model the listing names before creating a profile for it", async () => {
     refusedModels.mockReturnValue(["gpt-4o-mini-tts"]);
     listedSecrets.mockReturnValue([{ id: "s1", purpose: "openai" }]);

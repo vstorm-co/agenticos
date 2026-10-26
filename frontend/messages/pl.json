@@ -369,6 +369,7 @@
     "noKey2": "brak klucza",
     "notAChatModel": "to nie model czatu",
     "notAChatModelHint": "{model} nie jest modelem czatu - służy do zamiany tekstu na mowę, transkrypcji, obrazów lub embeddingów, więc agent nie może na nim działać. Przed publikacją wybierz model czatu.",
+    "notAChatModelRefused": "{model} nie jest modelem czatu - agent nie może na nim działać. Wybierz model czatu.",
     "noMembersChooseFrom": "Brak członków do wyboru - ta organizacja to tylko Ty.",
     "noModelAskAdmin": "Modele są dodawane w Builderze przez członka, który zarządza połączeniami. Gdy jakiś istnieje, można go tu wybrać.",
     "noNote": "Brak notatki",

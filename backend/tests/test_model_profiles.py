@@ -678,6 +678,35 @@ class TestResolution:
         assert isinstance(spec.build(), FallbackModel)
 
     @pytest.mark.anyio
+    async def test_a_fallback_on_a_speech_model_is_left_out_of_the_chain(self):
+        """A provider failure must not hand the conversation to a model that
+        cannot hold one (#2487). Publish refuses such a fallback; this covers one
+        added to the profile afterwards. A custom endpoint is unknown, so kept."""
+        ctx = _ctx()
+        secret = _vault_secret(ctx)
+        speech = _profile(ctx, secret, model="gpt-4o-mini-tts")
+        custom = _profile(ctx, secret, model="whisper-1", base_url="http://vllm:8000/v1")
+        profile = _profile(ctx, secret, fallbacks=[speech.id, custom.id])
+
+        with (
+            patch(
+                "app.services.model_profile.credential_repo.get_profile",
+                new=AsyncMock(return_value=profile),
+            ),
+            patch(
+                "app.services.model_profile.organization_secret_repo.get",
+                new=AsyncMock(return_value=secret),
+            ),
+            patch(
+                "app.services.model_profile.credential_repo.get_profiles_by_ids",
+                new=AsyncMock(return_value={speech.id: speech, custom.id: custom}),
+            ),
+        ):
+            spec = await ModelProfileService(_db()).resolve(ctx, profile_id=profile.id)
+
+        assert [model for _, model in spec.fallbacks] == ["whisper-1"]
+
+    @pytest.mark.anyio
     async def test_a_fallback_whose_key_is_gone_is_skipped_not_raised(self):
         """A fallback exists to survive an outage; it must not cause one itself."""
         ctx = _ctx()

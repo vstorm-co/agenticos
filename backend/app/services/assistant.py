@@ -202,7 +202,7 @@ class AssistantService:
             for profile in await credential_repo.list_profiles(
                 self.db, organization_id=organization_id
             )
-            if model_outputs(profile.provider, profile.model).chat
+            if model_outputs(profile.provider, profile.model, base_url=profile.base_url).chat
         ]
         if not profiles:
             return agent

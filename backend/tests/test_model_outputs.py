@@ -129,6 +129,25 @@ def test_no_model_the_catalogs_refuse_is_one_they_also_offer_for_chat():
     assert refused == []
 
 
+def test_a_custom_endpoint_is_unknown_whatever_the_model_id():
+    # The catalogs describe the vendor's API. An OpenAI-compatible server may
+    # serve a chat model under an id the vendor uses for speech or transcription.
+    assert model_outputs("openai", "whisper-1", base_url="http://vllm:8000/v1") == ModelOutputs(
+        modalities=(), chat=True
+    )
+
+
+def test_a_custom_endpoint_ignores_the_vendor_listing_too():
+    _listed(
+        "openrouter",
+        CatalogModel(id="acme/painter", name="Painter", output_modalities=("image",)),
+    )
+
+    assert listed_model_outputs(
+        "openrouter", "acme/painter", base_url="https://gateway.example/v1"
+    ) == ModelOutputs(modalities=(), chat=True)
+
+
 def test_a_listed_model_that_states_nothing_is_unknown():
     _listed("openrouter", CatalogModel(id="acme/quiet", name="Quiet"))
 
@@ -145,13 +164,14 @@ def test_the_cached_listing_is_read_however_old_and_never_fetched():
     assert model_catalog.cached_listing("anthropic") == ()
 
 
-def _read(model: str) -> ModelProfileRead:
+def _read(model: str, base_url: str | None = None) -> ModelProfileRead:
     now = datetime.now(UTC)
     return ModelProfileRead(
         id=uuid.uuid4(),
         label=model,
         provider="openai",
         model=model,
+        base_url=base_url,
         created_at=now,
         updated_at=now,
     )
@@ -167,3 +187,9 @@ def test_a_profile_says_whether_an_agent_can_run_on_it():
     chat, speech = body["items"]
     assert (chat["chat_capable"], chat["output_modalities"]) == (True, [])
     assert (speech["chat_capable"], speech["output_modalities"]) == (False, ["audio"])
+
+
+def test_a_profile_on_a_custom_endpoint_is_chat_capable():
+    body = _read("gpt-4o-mini-tts", base_url="http://vllm:8000/v1").model_dump(mode="json")
+
+    assert (body["chat_capable"], body["output_modalities"]) == (True, [])

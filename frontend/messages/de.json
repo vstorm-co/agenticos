@@ -369,6 +369,7 @@
     "noKey2": "kein Schlüssel",
     "notAChatModel": "kein Chat-Modell",
     "notAChatModelHint": "{model} ist kein Chat-Modell - es dient der Sprachausgabe, Transkription, Bildern oder Embeddings, und ein Agent kann nicht darauf laufen. Wählen Sie vor dem Veröffentlichen ein Chat-Modell.",
+    "notAChatModelRefused": "{model} ist kein Chat-Modell - ein Agent kann nicht darauf laufen. Wählen Sie ein Chat-Modell.",
     "noMembersChooseFrom": "Keine Mitglieder zur Auswahl – diese Organisation sind nur Sie.",
     "noModelAskAdmin": "Modelle werden im Builder von einem Mitglied hinzugefügt, das Verbindungen verwaltet. Sobald eines besteht, lässt es sich hier wählen.",
     "noNote": "Keine Notiz",

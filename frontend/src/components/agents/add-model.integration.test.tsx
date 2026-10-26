@@ -42,6 +42,7 @@ const state = {
   catalog: [] as ProviderCapabilities[],
   secrets: [] as Secret[],
   models: [] as { id: string; name: string; context_length?: number | null }[],
+  refused: [] as string[],
   source: "live" as "live" | "curated" | null,
   loadingModels: false,
   createProfile: { mutateAsync: vi.fn(), isPending: false },
@@ -56,6 +57,7 @@ vi.mock("@/hooks", () => ({
   useSecrets: () => ({ secrets: state.secrets }),
   useProviderModels: () => ({
     models: state.models,
+    refused: state.refused,
     source: state.source,
     isLoading: state.loadingModels,
   }),
@@ -145,6 +147,7 @@ beforeEach(() => {
   ];
   state.secrets = [];
   state.models = [{ id: "gpt-5", name: "GPT-5", context_length: 400_000 }];
+  state.refused = [];
   state.source = "live";
   state.loadingModels = false;
   state.createProfile = { mutateAsync: vi.fn().mockResolvedValue({ id: "p-1" }), isPending: false };
@@ -394,6 +397,50 @@ describe("the add-model form", () => {
     expect(onCreated).toHaveBeenCalledWith({ id: "p-1" });
   });
 
+  it("refuses a model the listing says is not a chat model before creating it", async () => {
+    // Hidden from the suggestions, but the field is free text, and what this
+    // creates is selected as a model to talk to (#2487).
+    state.secrets = [secret()];
+    state.refused = ["gpt-4o-mini-tts"];
+    const { onCreated } = mount();
+    await pickProvider("OpenAI");
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.type(screen.getByPlaceholderText("Search models…"), "gpt-4o-mini-tts");
+    await userEvent.click(screen.getByText("not in the list"));
+
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+
+    expect(
+      screen.getByText(
+        "gpt-4o-mini-tts is not a chat model - an agent cannot run on it. Choose a chat model.",
+      ),
+    ).toBeInTheDocument();
+    expect(state.createProfile.mutateAsync).not.toHaveBeenCalled();
+    expect(onCreated).not.toHaveBeenCalled();
+  });
+
+  it("does not select a profile the server says is not a chat model", async () => {
+    state.secrets = [secret()];
+    state.createProfile = {
+      mutateAsync: vi.fn().mockResolvedValue({ id: "p-1", chat_capable: false }),
+      isPending: false,
+    };
+    const { onCreated } = mount();
+    await pickProvider("OpenAI");
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.type(screen.getByPlaceholderText("Search models…"), "gpt-4o-mini-tts");
+    await userEvent.click(screen.getByText("not in the list"));
+
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+
+    expect(
+      await screen.findByText(
+        "gpt-4o-mini-tts is not a chat model - an agent cannot run on it. Choose a chat model.",
+      ),
+    ).toBeInTheDocument();
+    expect(onCreated).not.toHaveBeenCalled();
+  });
+
   it("puts a refusal under the field that caused it", async () => {
     // Every refusal this endpoint gives is about the model id, and an unhandled
     // rejection here is Next's full-screen overlay for what is a typo.
@@ -565,6 +612,25 @@ describe("pointing a model somewhere other than the provider's own API", () => {
     expect(state.createProfile.mutateAsync).toHaveBeenCalledWith(
       expect.objectContaining({ base_url: "https://gateway.acme/v1" }),
     );
+  });
+
+  it("leaves a listing-refused id alone on an endpoint of the reader's", async () => {
+    // The listing is the provider's own API; an OpenAI-compatible server may
+    // serve a chat model under the same id (#2487).
+    state.secrets = [secret()];
+    state.refused = ["whisper-1"];
+    const { onCreated } = mount();
+    await pickProvider("OpenAI");
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.type(screen.getByPlaceholderText("Search models…"), "whisper-1");
+    await userEvent.click(screen.getByText("not in the list"));
+    await userEvent.type(screen.getByLabelText("Endpoint"), "http://vllm:8000/v1");
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+
+    expect(state.createProfile.mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ model: "whisper-1", base_url: "http://vllm:8000/v1" }),
+    );
+    expect(onCreated).toHaveBeenCalledWith({ id: "p-1" });
   });
 
   it("sends null when it was left empty, not an empty string", async () => {

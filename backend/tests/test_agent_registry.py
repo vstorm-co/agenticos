@@ -1754,7 +1754,10 @@ class TestValidateSpec:
         An imported spec reaches this check too, which is why the pickers hiding
         it is not enough."""
         speech = MagicMock(
-            label="OpenAI · gpt-4o-mini-tts", provider="openai", model="gpt-4o-mini-tts"
+            label="OpenAI · gpt-4o-mini-tts",
+            provider="openai",
+            model="gpt-4o-mini-tts",
+            base_url=None,
         )
 
         with (
@@ -1772,6 +1775,70 @@ class TestValidateSpec:
             "Model 'OpenAI · gpt-4o-mini-tts' (gpt-4o-mini-tts) is a text-to-speech model, "
             "not a chat model - an agent cannot run on it. Pick a chat model"
         ]
+
+    @pytest.mark.anyio
+    async def test_a_chat_model_that_falls_back_to_a_speech_model_cannot_publish(self):
+        """The run's chain includes the profile's fallbacks, so an outage would
+        hand the conversation to a model that cannot hold one (#2487). A
+        fallback the catalogs do not know - a custom endpoint - is allowed, and a
+        deleted one is skipped at run time rather than refused here."""
+        speech = MagicMock(
+            id=uuid.uuid4(),
+            label="Voice",
+            provider="openai",
+            model="gpt-4o-mini-tts",
+            base_url=None,
+        )
+        custom = MagicMock(
+            id=uuid.uuid4(),
+            label="Local",
+            provider="openai",
+            model="whisper-1",
+            base_url="http://vllm:8000/v1",
+        )
+        chat = MagicMock(
+            label="Chat",
+            provider="openai",
+            model="gpt-4.1",
+            base_url=None,
+            fallback_profile_ids=[str(uuid.uuid4()), str(custom.id), str(speech.id)],
+        )
+
+        with (
+            patch(f"{REGISTRY_PATH}.credential_repo.get_profile", new=AsyncMock(return_value=chat)),
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profiles_by_ids",
+                new=AsyncMock(return_value={speech.id: speech, custom.id: custom}),
+            ),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(
+                _ctx(), _spec(model_profile_id=uuid.uuid4())
+            )
+
+        assert refused.value.details["problems"] == [
+            "Model 'Chat' falls back to 'Voice' (gpt-4o-mini-tts), which is a text-to-speech "
+            "model, not a chat model - remove it from the fallbacks"
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_custom_endpoint_is_not_classified_by_its_model_id(self):
+        """An OpenAI-compatible server may serve a chat model under an id the
+        vendor uses for speech: the catalogs describe the vendor's API only."""
+        custom = MagicMock(
+            label="Local",
+            provider="openai",
+            model="gpt-4o-mini-tts",
+            base_url="http://vllm:8000/v1",
+            fallback_profile_ids=[],
+        )
+
+        with patch(
+            f"{REGISTRY_PATH}.credential_repo.get_profile", new=AsyncMock(return_value=custom)
+        ):
+            await AgentRegistryService(_db()).validate_spec(
+                _ctx(), _spec(model_profile_id=uuid.uuid4())
+            )
 
     @pytest.mark.anyio
     @pytest.mark.parametrize(
@@ -1824,8 +1891,8 @@ class TestValidateSpec:
             },
         }[where]
         spec = _spec(model_profile_id=uuid.uuid4(), **named)
-        chat = MagicMock(label="Chat", provider="openai", model="gpt-4.1")
-        speech = MagicMock(label="Voice", provider="openai", model="gpt-4o-mini-tts")
+        chat = MagicMock(label="Chat", provider="openai", model="gpt-4.1", base_url=None)
+        speech = MagicMock(label="Voice", provider="openai", model="gpt-4o-mini-tts", base_url=None)
 
         async def get_profile(_db, profile_id, **_):
             return speech if str(profile_id) == speech_id else chat
@@ -3010,7 +3077,7 @@ class TestRollback:
         ctx = _ctx()
         agent = _agent(ctx)
         source = _version(agent.id, spec=_spec(model_profile_id=uuid.uuid4()))
-        speech = MagicMock(label="Voice", provider="openai", model="gpt-4o-mini-tts")
+        speech = MagicMock(label="Voice", provider="openai", model="gpt-4o-mini-tts", base_url=None)
 
         assert AgentSpec.model_validate(source.spec).model_profile_id is not None
         with (

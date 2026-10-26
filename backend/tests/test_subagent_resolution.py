@@ -1106,7 +1106,7 @@ class TestASpecialistTheModelInvents:
         """A text-to-speech profile is for text to speech; a model offered it as a
         specialist's model would invent one that fails on its first turn (#2487)."""
         speech = _profile("voice")
-        speech.provider, speech.model = "openai", "gpt-4o-mini-tts"
+        speech.provider, speech.model, speech.base_url = "openai", "gpt-4o-mini-tts", None
         prepared = await _prepare(
             _delegating(allow_dynamic=True), profiles=[_profile("fast"), speech]
         )

@@ -135,7 +135,7 @@ from app.services.file_storage import (
     avatar_filename,
     get_file_storage,
 )
-from app.services.model_outputs import model_outputs
+from app.services.model_outputs import model_outputs, not_chat_refusal
 from app.services.notifications import NotificationService
 from app.services.resource_usage import groups_sharing
 from app.services.sandbox_connection import SandboxConnectionService
@@ -1622,20 +1622,34 @@ class AgentRegistryService:
         And whether it is a model anything can run *on*: a profile can name a
         text-to-speech or embedding model, and an agent on it fails on its first
         turn (#2487). Refused only where the catalogs know what the model is - an
-        unknown model is allowed.
+        unknown model is allowed. Its fallbacks too: a provider failure hands the
+        run to the next one in the chain, and a speech model there turns an outage
+        into a run that fails anyway.
         """
         profile = await credential_repo.get_profile(
             self.db, profile_id, organization_id=ctx.organization_id
         )
         if profile is None:
             return ["The selected model profile no longer exists"]
-        outputs = model_outputs(profile.provider, profile.model)
+        outputs = model_outputs(profile.provider, profile.model, base_url=profile.base_url)
         if not outputs.chat:
-            return [
-                f"Model '{profile.label}' ({profile.model}) is {outputs.kind}, not a chat "
-                "model - an agent cannot run on it. Pick a chat model"
-            ]
-        return []
+            return [not_chat_refusal(profile.label, profile.model, outputs)]
+        problems: list[str] = []
+        fallback_ids = [UUID(pid) for pid in profile.fallback_profile_ids]
+        fallbacks = await credential_repo.get_profiles_by_ids(
+            self.db, fallback_ids, organization_id=ctx.organization_id
+        )
+        # In the chain's order. One that no longer exists is skipped at run
+        # time, not refused here.
+        for fallback in (fallbacks[pid] for pid in fallback_ids if pid in fallbacks):
+            found = model_outputs(fallback.provider, fallback.model, base_url=fallback.base_url)
+            if not found.chat:
+                problems.append(
+                    f"Model '{profile.label}' falls back to '{fallback.label}' "
+                    f"({fallback.model}), which is {found.kind}, not a chat model - "
+                    "remove it from the fallbacks"
+                )
+        return problems
 
     async def _collection_problems(
         self, ctx: AuthContext, collection_ids: Sequence[UUID]

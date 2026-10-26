@@ -28,16 +28,21 @@ Two things are versioned separately from this file and worth knowing about:
   `output_modalities`, and a provider's model suggestions report `chat_capable`.
   Refusals come from the platform's model catalogs only; a cached provider listing
   that states modalities only narrows what a picker offers. A model the platform
-  cannot classify, such as a custom endpoint, is still allowed. The Builder still
-  shows such a model where an agent names it, and lists the rest, marked, to a
-  member who can manage connections so they can be removed. The chat picker
-  refuses one typed in. Publish, rollback, the draft check, the Builder's test run
-  and enabling a capability from chat now refuse such a model as the agent's, a
-  reviewer's or a specialist's model, the browser step model or the follow-ups
-  model, and name it. Stored specs still load, but a version on one of these models
-  cannot be restored while its profile names one; point the profile at a chat
-  model or publish a new version. Those agents and features already failed when
-  they ran. The Architect no longer publishes itself on such a profile (#2487).
+  cannot classify is still allowed, and a profile with its own `base_url` is never
+  classified, whatever its model id. The Builder still shows such a model where
+  an agent names it, and lists the rest, marked, to a member who can manage
+  connections so they can be removed. The chat picker and the Builder's add-model
+  form refuse one typed in. Publish, rollback, the draft check, the Builder's test
+  run and enabling a capability from chat now refuse such a model as the agent's,
+  a reviewer's or a specialist's model, the browser step model or the follow-ups
+  model, or as a fallback of any of their profiles, and name it. A run leaves
+  such a fallback out of its chain, and refuses a conversation that names such a
+  model in place of the agent's, from the chat or the API, before it starts.
+  Stored specs still load, but a version on one of these models cannot be
+  restored while its profile names one or falls back to one; point the profile at
+  a chat model or publish a new version. Those agents and features already failed
+  when they ran. The Architect no longer publishes itself on such a profile
+  (#2487).
 
 ## [1.21.0] - 2026-10-26
 

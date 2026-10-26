@@ -278,7 +278,7 @@ from app.services.mcp_connection import (
     build_toolsets_for_agent,
     connect_personal_toolset,
 )
-from app.services.model_outputs import model_outputs
+from app.services.model_outputs import model_outputs, not_chat_refusal
 from app.services.model_profile import ModelProfileService
 from app.services.notifications import NotificationService
 from app.services.organization import OrganizationService
@@ -2963,6 +2963,18 @@ class AgentRunnerService:
         model_spec = await self.models.resolve(
             models_ctx, profile_id=model_profile_id or spec.model_profile_id
         )
+        # The override arrives from a socket frame or an API body, past every
+        # picker and past publish, so the catalogs' answer is checked here too
+        # (#2487): a speech or embedding model refused by name, before a run row
+        # or a model call, rather than a provider error on the first turn.
+        outputs = model_outputs(
+            model_spec.provider, model_spec.model, base_url=model_spec.credential.base_url
+        )
+        if not outputs.chat:
+            raise BadRequestError(
+                message=not_chat_refusal(model_spec.label, model_spec.model, outputs),
+                details={"model_profile_id": str(model_spec.profile_id)},
+            )
 
         # The organization's ceiling is read here rather than passed in by the
         # surface, for the reason this module exists: a limit each caller has to
@@ -3706,7 +3718,9 @@ class AgentRunnerService:
             for profile in await self.models.list_profiles(delegation.ctx):
                 # A specialist on a speech or embedding model would fail on its
                 # first turn (#2487).
-                if not model_outputs(profile.provider, profile.model).chat:
+                if not model_outputs(
+                    profile.provider, profile.model, base_url=profile.base_url
+                ).chat:
                     continue
                 try:
                     delegation.profiles[profile.label] = await self.models.resolve(

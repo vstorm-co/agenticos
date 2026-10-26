@@ -57,17 +57,24 @@ publish, because another API process may not have fetched it. Then:
   it, marked as not a chat model. For a member who can manage connections, the
   Builder also lists the others, marked and not selectable, so they can be
   removed.
-- The chat's model picker does not suggest such a model, and refuses one that is
-  typed in.
+- The chat's model picker and the Builder's form for adding a model do not
+  suggest such a model, and refuse one that is typed in.
 - Publish refuses such a model as the agent's model, a reviewer's, a specialist's,
-  the browser step model or the follow-ups model, and names it. The same check
-  runs on rollback, on the draft check, on the Builder's test run and when a
-  capability is enabled from chat. A stored version on such a model still loads,
-  but it cannot be restored while its profile names a non-chat model. Point that
-  profile at a chat model, or publish a new version.
-- A model that the catalogs do not classify, such as a custom endpoint, an Ollama
-  model or a model released this morning, is allowed. An unknown model is not a
-  refusal.
+  the browser step model or the follow-ups model, and names it. It also refuses a
+  profile whose fallbacks include such a model. The same check runs on rollback,
+  on the draft check, on the Builder's test run and when a capability is enabled
+  from chat. A stored version on such a model still loads, but it cannot be
+  restored while its profile names a non-chat model or lists one as a fallback.
+  Point that profile at a chat model, or publish a new version.
+- A run leaves such a fallback out of its chain, the same as a deleted one, when
+  it was added to the profile after publish.
+- A conversation that names such a model in place of the agent's own, from the
+  chat or through the API, is refused before the run starts.
+- A model that the catalogs do not classify, such as an Ollama model or a model
+  released this morning, is allowed. An unknown model is not a refusal. A profile
+  with its own endpoint (`base_url`) is never classified, whatever its model id:
+  the catalogs describe the provider's own API, and an OpenAI-compatible server
+  can serve a chat model under any name.
 
 ### Fallbacks
 

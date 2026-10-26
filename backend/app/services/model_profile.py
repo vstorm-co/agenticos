@@ -39,6 +39,7 @@ from app.core.vault import VaultScope
 from app.db.models.credential import ModelProfile
 from app.repositories import credential_repo, organization_repo, organization_secret_repo
 from app.services.model_catalog import models_for
+from app.services.model_outputs import model_outputs
 from app.services.openai_codex import VaultCodexCredentials
 from app.services.organization_secret import OrganizationSecretService
 
@@ -507,6 +508,18 @@ class ModelProfileService:
                     # A deleted fallback should degrade the chain, not the run.
                     logger.warning(
                         "Model profile %s lists missing fallback %s", profile.id, fallback_id
+                    )
+                    continue
+                if not model_outputs(
+                    fallback.provider, fallback.model, base_url=fallback.base_url
+                ).chat:
+                    # A speech or embedding model cannot take over a conversation
+                    # (#2487): publish refuses one, and a fallback added to the
+                    # profile afterwards degrades the chain the same way.
+                    logger.warning(
+                        "Model profile %s lists fallback %s, which is not a chat model; skipping",
+                        profile.id,
+                        fallback.id,
                     )
                     continue
                 try:

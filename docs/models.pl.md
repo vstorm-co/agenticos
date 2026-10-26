@@ -1,5 +1,5 @@
 ---
-source_sha: "2192a2a9d193"
+source_sha: "7e1535d984a6"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -63,17 +63,25 @@ proces API mógł go nie pobrać. Wtedy:
   Builder nadal go pokazuje, oznaczony jako model, który nie jest modelem czatu.
   Członkowi, który zarządza połączeniami, Builder wymienia też pozostałe takie
   modele, oznaczone i bez możliwości wyboru, żeby dało się je usunąć.
-- Picker modelu w czacie nie podpowiada takiego modelu i odrzuca wpisany ręcznie.
+- Picker modelu w czacie i formularz dodawania modelu w Builderze nie podpowiadają
+  takiego modelu i odrzucają wpisany ręcznie.
 - Publikacja odrzuca taki model jako model agenta, recenzenta, specjalisty, model
-  kroków przeglądarki albo model kolejnych kroków i podaje jego nazwę. To samo
-  sprawdzenie działa przy powrocie do wersji, przy sprawdzaniu szkicu, przy
-  testowym uruchomieniu w Builderze i przy włączaniu capability z czatu. Zapisana
-  wersja na takim modelu nadal się wczytuje, ale nie można jej przywrócić, dopóki
-  jej profil wskazuje model, który nie jest modelem czatu. Wskaż w tym profilu
-  model czatu albo opublikuj nową wersję.
-- Model, którego katalogi nie klasyfikują, taki jak własny endpoint, model w
-  Ollamie albo model wydany dziś rano, jest dozwolony. Nieznany model nie jest
-  odmową.
+  kroków przeglądarki albo model kolejnych kroków i podaje jego nazwę. Odrzuca też
+  profil, którego fallbacki obejmują taki model. To samo sprawdzenie działa przy
+  powrocie do wersji, przy sprawdzaniu szkicu, przy testowym uruchomieniu w
+  Builderze i przy włączaniu capability z czatu. Zapisana wersja na takim modelu
+  nadal się wczytuje, ale nie można jej przywrócić, dopóki jej profil wskazuje
+  model, który nie jest modelem czatu, albo wymienia go jako fallback. Wskaż w tym
+  profilu model czatu albo opublikuj nową wersję.
+- Run pomija taki fallback w swoim łańcuchu, tak jak usunięty, jeśli dodano go do
+  profilu po publikacji.
+- Rozmowa, która wskazuje taki model zamiast modelu agenta, z czatu albo przez
+  API, jest odrzucana, zanim run się zacznie.
+- Model, którego katalogi nie klasyfikują, taki jak model w Ollamie albo model
+  wydany dziś rano, jest dozwolony. Nieznany model nie jest odmową. Profil z
+  własnym endpointem (`base_url`) nigdy nie jest klasyfikowany, niezależnie od id
+  modelu: katalogi opisują własne API providera, a serwer zgodny z OpenAI może
+  serwować model czatu pod dowolną nazwą.
 
 ### Fallbacki { #fallbacks }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "2192a2a9d193"
+source_sha: "7e1535d984a6"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -66,18 +66,26 @@ puede no haberlo obtenido. Entonces:
   marcado como un modelo que no es de chat. A un miembro que gestiona conexiones,
   el Builder también le lista los demás, marcados y sin poder elegirse, para que
   se puedan eliminar.
-- El selector de modelo del chat no sugiere un modelo así y rechaza uno escrito a
-  mano.
+- El selector de modelo del chat y el formulario para añadir un modelo del Builder
+  no sugieren un modelo así y rechazan uno escrito a mano.
 - La publicación rechaza un modelo así como modelo del agent, de un revisor o de
   un especialista, como modelo de pasos del navegador o como modelo de los pasos
-  siguientes, y lo nombra. La misma comprobación se ejecuta al volver a una
-  versión, en la comprobación del borrador, en la prueba del Builder y al activar
-  una capability desde el chat. Una versión guardada en un modelo así sigue
-  cargándose, pero no se puede restaurar mientras su perfil nombre un modelo que
-  no es de chat. Apunta ese perfil a un modelo de chat o publica una versión nueva.
-- Un modelo que los catálogos no clasifican, como un endpoint propio, un modelo de
-  Ollama o un modelo publicado esta mañana, está permitido. Un modelo desconocido
-  no es un rechazo.
+  siguientes, y lo nombra. También rechaza un perfil cuyos fallbacks incluyen un
+  modelo así. La misma comprobación se ejecuta al volver a una versión, en la
+  comprobación del borrador, en la prueba del Builder y al activar una capability
+  desde el chat. Una versión guardada en un modelo así sigue cargándose, pero no se
+  puede restaurar mientras su perfil nombre un modelo que no es de chat o lo liste
+  como fallback. Apunta ese perfil a un modelo de chat o publica una versión nueva.
+- Un run deja un fallback así fuera de su cadena, igual que uno eliminado, cuando
+  se añadió al perfil después de publicar.
+- Una conversación que nombra un modelo así en lugar del modelo del agent, desde
+  el chat o a través de la API, se rechaza antes de que empiece el run.
+- Un modelo que los catálogos no clasifican, como un modelo de Ollama o un modelo
+  publicado esta mañana, está permitido. Un modelo desconocido no es un rechazo.
+  Un perfil con su propio endpoint (`base_url`) nunca se clasifica, sea cual sea
+  el id del modelo: los catálogos describen la API propia del provider, y un
+  servidor compatible con OpenAI puede servir un modelo de chat con cualquier
+  nombre.
 
 ### Fallbacks { #fallbacks }
 
