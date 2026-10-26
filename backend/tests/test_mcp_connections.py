@@ -2734,7 +2734,7 @@ class TestMcpConnectionService:
     async def test_create_accepts_a_host_the_operator_listed(self, service, repo, monkeypatch):
         """`MCP_ALLOWED_HOSTS` is how a server on the deployment's own network
         gets connected at all. The real validator runs here, and the name is
-        never resolved: the operator vouched for it."""
+        resolved: the operator vouched for a private answer, nothing worse."""
         monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", ["postgres-mcp"])
         asked = TestOAuthRequestSafety._resolves(monkeypatch, "10.0.0.9")
 
@@ -2744,7 +2744,7 @@ class TestMcpConnectionService:
         )
 
         assert repo.create.call_args.kwargs["url"] == "http://postgres-mcp:8000/mcp"
-        assert asked == []
+        assert asked == ["postgres-mcp"]
 
     @pytest.mark.anyio
     async def test_moving_the_url_to_a_listed_host_is_accepted(self, service, repo, monkeypatch):
@@ -2763,7 +2763,7 @@ class TestMcpConnectionService:
         )
 
         assert repo.update.call_args.kwargs["update_data"]["url"] == "http://postgres-mcp:8000/mcp"
-        assert asked == []
+        assert asked == ["postgres-mcp"]
 
     @pytest.mark.anyio
     async def test_create_seals_the_token_for_its_owner(self, service, repo, monkeypatch):
@@ -4513,7 +4513,7 @@ class TestOrganizationConnections:
 
         assert repo.create_org_scoped.call_args.kwargs["url"] == "http://postgres-mcp:8000/mcp"
         assert audit.call_args.kwargs["details"]["url"] == "http://postgres-mcp:8000/mcp"
-        assert asked == []
+        assert asked == ["postgres-mcp"]
 
     @pytest.mark.anyio
     async def test_a_name_already_taken_in_this_organization_is_refused(

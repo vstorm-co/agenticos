@@ -1,5 +1,5 @@
 ---
-source_sha: "bf7b39800065"
+source_sha: "298280a0b011"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -62,16 +62,24 @@ niczego do konfigurowania.
     Operator może pozwolić połączeniu sięgać do serwera we własnej sieci
     wdrożenia, na przykład do usługi compose albo serwera w VPN-ie lub
     tailnecie. W tym celu wpisuje jego host do
-    [`MCP_ALLOWED_HOSTS`](configuration.md#project-settings). Host z listy
-    pomija tylko sprawdzenie adresu. URL nadal musi mieć `http` albo `https`.
+    [`OUTBOUND_PRIVATE_ALLOWLIST`](configuration.md#project-settings): dokładny
+    host, sufiks z kropką na początku, taki jak `.corp.example` (który nie
+    pasuje do samego `corp.example`), adres IP albo zakres CIDR, taki jak
+    `10.1.2.0/24`. To ustawienie obejmuje też kroki HTTP workflow, konektory i A2A.
+    `MCP_ALLOWED_HOSTS` przyjmuje te same formy, ale sięga tylko do MCP, więc
+    użyj go, gdy nic innego nie ma sięgać do hosta. Host z listy może rozwiązywać się na adres
+    prywatny, ale odpowiedzi loopback, link-local i metadanych są odrzucane, a nazwę
+    z listy, która jeszcze się nie rozwiązuje, nadal można zapisać. URL nadal musi
+    mieć `http` albo `https`.
 
     Do serwera z listy można też logować się przez OAuth. Taki serwer często
     sam prowadzi logowanie, więc jego wykrywanie, rejestracja klienta i
     żądania tokenów mogą sięgać do hostów z listy, i do żadnego innego adresu
     prywatnego. Każde żądanie nadal jest przypięte do adresu, który sprawdzono,
     a nazwa z listy, która odpowiada adresem loopback, link-local albo adresem
-    metadanych chmury, jest odrzucana. Logowanie do serwera publicznego nigdy
-    nie sięga do hosta z listy, nawet gdy jego metadane go wskazują.
+    metadanych chmury, jest odrzucana. Lista obowiązuje tylko łańcuch, który
+    zaczyna się od hosta z listy: logowanie do serwera publicznego nigdy nie
+    sięga do hosta z listy, nawet gdy jego metadane go wskazują.
 
     Każde konto we wdrożeniu może wtedy sięgnąć do każdego portu tego hosta.
     Wpisuj więc tylko serwer, który sprawdza token, i nigdy `localhost` ani
@@ -79,6 +87,11 @@ niczego do konfigurowania.
     przy zapisie połączenia oraz przy każdym logowaniu i odświeżeniu tokenu.
     Usunięcie hosta nie rozłącza zapisanego połączenia, ale połączenie OAuth
     do niego przestaje odnawiać token.
+
+    Serwera, który mówi wyłącznie przez stdio, nie da się połączyć, bo
+    połączenie to URL. Uruchom w sieci prywatnej most ze stdio na Streamable
+    HTTP, wpisz host mostu na listę i połącz się z nim. Most musi sam sprawdzać
+    token, bo każde konto może do niego sięgnąć.
 
 ### Osobiste albo dla całej organizacji { #personal-or-organization-wide }
 
@@ -400,9 +413,13 @@ Zostają dwa brzegi, oba wąskie i oba celowe:
   rozwiązuje go sama. Nie ma tu czego przypinać.
 - **Własny URL połączenia** jest sprawdzany przy zapisie i rozwiązywany ponownie,
   gdy agent działa — wpisuje go operator, więc przestawienie go wymaga bycia
-  operatorem. Host z `MCP_ALLOWED_HOSTS` pomija sprawdzenie adresu, a żądania
-  OAuth połączenia, którego własny host jest na liście, mogą sięgać do hostów
-  z listy, przypięte jak każdy inny krok.
+  operatorem. Host z listy (`OUTBOUND_PRIVATE_ALLOWLIST` albo
+  `MCP_ALLOWED_HOSTS`) też jest rozwiązywany, a każda odpowiedź sprawdzana:
+  odpowiedź prywatna przechodzi tylko dla hosta, który lista dopuszcza, odpowiedź
+  loopback lub metadanych nigdy, a host wpisany po nazwie, który jeszcze się nie
+  rozwiązuje, nadal można zapisać. Żądania OAuth połączenia, którego własny host
+  jest na liście, mogą sięgać do hostów z listy, przypięte jak każdy inny
+  krok.
 
 Nic, co wybiera *model*, w ogóle nie dociera do tego sprawdzenia — i nie powinno:
 URL wybrany przez agenta należy do `safe_download` z Pydantic AI.

@@ -1,5 +1,5 @@
 ---
-source_sha: "e0d3c6dd47d7"
+source_sha: "02f73d3f3ac0"
 ---
 
 # Ochrona danych { #data-protection }
@@ -179,6 +179,7 @@ lista celów, wraz z konfiguracją, która o każdym decyduje.
 | Kroki przeglądarki | Każdy krok przeglądania idzie do modelu tego agenta: adres strony, jej tytuł, etykiety widocznych elementów i do 4000 znaków jej widocznego tekstu, plus zrzut ekranu przy włączonym `vision` — co może być zawartością systemu wewnętrznego. To, co zawiera pole, nie jest powtarzane: tabela elementów podaje tylko, że pole jest wypełnione | Capability `browser_use` w specu | Dostawcy modelu agenta, tak jak przy rozmowie |
 | Sandbox, ruch wychodzący | **Cokolwiek z workspace'u, do dowolnego hosta** — runtime `workbench` ma sieć, powłokę i `curl` | Capability `sandbox` i runtime z `needs_network`; zatwierdzanie komend bramkuje to, co się uruchamia, a nie to, dokąd się łączy | Dokądkolwiek poszła komenda. Kontrola ruchu wychodzącego to firewall hosta sandboksa, a nie ustawienie tutaj |
 | Serwer MCP | Argumenty i wyniki narzędzi, agenta albo kroku [`mcp.call`](reference/workflow-nodes.md#mcp-call) workflow | `mcp_connections.url`, per organizacja albo per osoba | Operatora serwera |
+| Host we własnej sieci | Wszystko, co krok HTTP workflow, konektor, wywołanie A2A albo połączenie MCP tam wysyła | `OUTBOUND_PRIVATE_ALLOWLIST`, domyślnie pusta; `MCP_ALLOWED_HOSTS` tylko dla MCP | Host, który wpiszesz. Każde konto każdej organizacji może sięgnąć do każdego jego portu |
 | mem0 | Wspomnienia zapisane dla osoby albo czatu | `base_url` capability `memory_mem0`, który musi być w `MEM0_ALLOWED_HOSTS` | Hosta mem0, na który pozwalasz |
 | Logfire | Spany każdego żądania i runu | `LOGFIRE_TOKEN` na poziomie wdrożenia; token `observability` w specu albo `logfire_token_secret_id` na środowisku przekierowuje te runy do innego projektu. `LOGFIRE_BASE_URL` wybiera wdrożenie w USA albo w UE. Nieustawione wszędzie — nic nie jest wysyłane | Pydantic, USA albo UE |
 | Mowa na tekst, generowanie obrazów | Notatka głosowa z kanału, nagranie podyktowane w `/chat` albo nagranie anonimowego odwiedzającego na hostowanej stronie lub w widgecie; prompt | Provider, do którego rozwiązuje się nagranie - własna para bota, nadpisanie agenta albo domyślny provider organizacji, który bot dziedziczy, chyba że ma to wyłączone - wysyłane z kluczem z vaultu wskazanym obok tej pary - kluczem API dla `groq`, `mistral` albo `openai`, widocznym dla organizacji na poziomie organizacji i bota; przy dyktowaniu w `/chat` także silnik organizacji ustawiony na `server`, a dla strony albo widgetu jego własne `dictation: server`. Profil dla `google` albo `openai` przy obrazach. Dźwięk dyktowania nie jest tu przechowywany. Przy `browser` na stronie albo w widgecie przeglądarka odwiedzającego wysyła dźwięk do swojego dostawcy i nic z niego nie przechodzi przez ten deployment | Providera albo, przy obrazach, twój własny host; przy `browser` dostawcy przeglądarki |

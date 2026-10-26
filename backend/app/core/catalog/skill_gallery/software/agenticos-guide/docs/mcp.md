@@ -56,16 +56,23 @@ Atlassian works alongside a streamable-HTTP one with nothing to configure.
     An operator can let a connection reach a server on the deployment's own
     network, such as a compose service or a server on a VPN or tailnet. To do
     this, list its host in
-    [`MCP_ALLOWED_HOSTS`](configuration.md#project-settings). A listed host
-    skips only the address check. The URL still needs `http` or `https`.
+    [`OUTBOUND_PRIVATE_ALLOWLIST`](configuration.md#project-settings): an exact
+    host, a suffix with a leading dot such as `.corp.example` (which does not
+    match `corp.example` itself), an IP address or a CIDR range such as
+    `10.1.2.0/24`. The setting also covers workflow HTTP steps, connectors and A2A.
+    `MCP_ALLOWED_HOSTS` takes the same forms but reaches MCP only, so use it
+    when nothing else may reach the host. A listed host may resolve to a private
+    address, but loopback, link-local and metadata answers are refused, and a
+    listed name that does not resolve yet can still be saved. The URL still needs
+    `http` or `https`.
 
     People can sign in to a listed server with OAuth too. Such a server often
     runs its own sign-in, so its discovery, client registration and token
     requests may reach the listed hosts, and no other private address. Each
     request is still pinned to the address it was checked at, and a listed name
-    that answers a loopback, link-local or cloud metadata address is refused. A
-    public server's sign-in never reaches a listed host, even when its metadata
-    names one.
+    that answers a loopback, link-local or cloud metadata address is refused. The
+    list applies only to a chain that starts at a listed host: a public server's
+    sign-in never reaches a listed host, even when its metadata names one.
 
     Every account on the deployment can then reach every port on that host. So
     list only a server that checks a token, and never `localhost` or a service
@@ -73,6 +80,11 @@ Atlassian works alongside a streamable-HTTP one with nothing to configure.
     connection is saved and at every sign-in and token refresh. Removing a host
     does not disconnect a saved connection, but an OAuth connection to it stops
     renewing its token.
+
+    A server that speaks only stdio cannot be connected, because a connection
+    is a URL. Run a stdio-to-Streamable-HTTP bridge on the private network,
+    list the bridge's host, and connect to that. The bridge must check a token
+    itself, as every account can reach it.
 
 ### Personal or organization-wide
 
@@ -382,10 +394,12 @@ Two edges remain, both narrow and both deliberate:
 - The **consent URL** is checked and then handed to somebody's browser, which
   resolves it itself. There is no pinning to do.
 - The **connection's own URL** is checked at save and resolved again when an agent
-  runs — operator-typed, so rebinding it means being the operator. A host on
-  `MCP_ALLOWED_HOSTS` skips the address check, and the OAuth requests of a
-  connection whose own host is listed may reach the listed hosts, pinned like
-  every other hop.
+  runs — operator-typed, so rebinding it means being the operator. A listed
+  host (`OUTBOUND_PRIVATE_ALLOWLIST` or `MCP_ALLOWED_HOSTS`) is resolved too and
+  every answer is checked: a private answer passes only for a host the list admits,
+  a loopback or metadata answer never does, and a host listed by name that does not
+  resolve yet can still be saved. The OAuth requests of a connection whose own host
+  is listed may reach the listed hosts, pinned like every other hop.
 
 Nothing a *model* chooses reaches this check at all, and nothing should: a URL an
 agent picked wants Pydantic AI's `safe_download`.

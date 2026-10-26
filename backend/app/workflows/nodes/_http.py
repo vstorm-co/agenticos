@@ -4,8 +4,13 @@
 `PinnedAsyncClient`, walk redirects themselves and send a vault credential only
 to the origins it is sealed for. The rules for each of those live here once, so
 the three steps cannot drift into refusing different things.
+
+A host on `OUTBOUND_PRIVATE_ALLOWLIST` is reachable by all three, but only from a
+URL that needs it (`private_allowlist_for`): a chain that starts at a public
+host gets no exemption, so a redirect cannot aim a request at a listed host.
 """
 
+import asyncio
 import base64
 import re
 from typing import Any, Literal
@@ -25,6 +30,7 @@ from pydantic import (
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import AuthContext, Perm
+from app.core.sanitize import PrivateAllowlist, allowlist_for
 from app.core.secret_kinds import HttpCredentialSecret, SecretKind, unseal_kind
 from app.core.vault import VaultScope
 from app.db.models.organization_secret import OrganizationSecret
@@ -38,6 +44,12 @@ MAX_REDIRECTS = 5
 """The most redirects a step follows before it is refused."""
 
 REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
+
+
+async def private_allowlist_for(url: str) -> PrivateAllowlist:
+    """`sanitize.allowlist_for` off the event loop - the allowlist an HTTP step's chain may use."""
+    return await asyncio.to_thread(allowlist_for, url)
+
 
 HEADER_NAME = r"^[A-Za-z0-9!#$%&'*+.^_`|~-]{1,64}$"
 

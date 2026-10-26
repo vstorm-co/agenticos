@@ -450,6 +450,24 @@ class TestTheReportItself:
 
         assert rows["MCP_ALLOWED_HOSTS"] == shown
 
+    @pytest.mark.parametrize(
+        ("entries", "shown"),
+        [
+            (["wiki", ".corp.example"], "wiki, .corp.example"),
+            (["10.1.0.0/16"], "10.1.0.0/16"),
+            ([], "none"),
+        ],
+    )
+    def test_the_private_allowlist_is_reported(
+        self, monkeypatch: pytest.MonkeyPatch, entries: list[str], shown: str
+    ) -> None:
+        """Every member can reach what is listed here, so a reviewer finds it by name."""
+        monkeypatch.setattr(settings, "OUTBOUND_PRIVATE_ALLOWLIST", entries)
+
+        rows = {row[0]: row[1] for row in _settings_section().rows}
+
+        assert rows["OUTBOUND_PRIVATE_ALLOWLIST"] == shown
+
     def test_the_settings_say_which_mail_path_is_live(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:

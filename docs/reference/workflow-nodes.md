@@ -442,7 +442,13 @@ side effects.
 ## http.request { #http-request }
 
 Calls an HTTP API. Every request and every redirect passes the deployment's
-SSRF check and is sent to the address that check approved. A credential is an
+SSRF check and is sent to the address that check approved. A private host the operator
+lists in [`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings) is admitted
+too, but only for a URL that starts there: a redirect from a public URL never reaches it.
+
+A URL bound from a public trigger (a webhook, a form, an email) or from an agent's tool arguments can name any listed host, so list only hosts that check their own credential.
+
+A credential is an
 [HTTP credential](../secrets.md#kinds) from the vault, and it is
 sent only to the origins the secret allows. The response is read under
 `max_response_bytes` and handed back without `Set-Cookie`, the authentication
@@ -463,7 +469,7 @@ there is no next page, when a page has no items, or at `max_pages`, when
 
 | What happened | Result |
 |---|---|
-| The URL is private, loopback, metadata or not http(s) | `URL_REFUSED`, nothing sent |
+| The URL is loopback, metadata, not http(s), or private and not on the operator's [`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings) | `URL_REFUSED`, nothing sent |
 | The URL is outside the credential's origins | `SECRET_ORIGIN_DENIED`, nothing sent |
 | The connection never opened | `HTTP_UNREACHABLE`, retried |
 | Sent, no answer, `GET` or an idempotency header | `HTTP_NO_RESPONSE`, retried |

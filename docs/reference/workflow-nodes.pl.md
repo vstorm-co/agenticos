@@ -1,5 +1,5 @@
 ---
-source_sha: "1887baea5a17"
+source_sha: "91b8979e242e"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -451,7 +451,11 @@ efektami ubocznymi.
 ## http.request { #http-request }
 
 Wywołuje API HTTP. Każde żądanie i każde przekierowanie przechodzi kontrolę SSRF
-wdrożenia i jest wysyłane pod adres, który ta kontrola zatwierdziła.
+wdrożenia i jest wysyłane pod adres, który ta kontrola zatwierdziła. Prywatny host, który operator wpisał do
+[`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings), też jest dopuszczany, ale tylko dla URL-a, który od niego zaczyna: przekierowanie z URL-a publicznego nigdy do niego nie dociera.
+
+URL podpięty z publicznego wyzwalacza (webhooka, formularza, e-maila) albo z argumentów narzędzia agenta może wskazać dowolny host z listy, więc wpisuj tylko hosty, które same sprawdzają swoje poświadczenie.
+
 Poświadczenie to [HTTP credential](../secrets.md#kinds) z vaulta i jest wysyłane
 tylko do originów, na które pozwala sekret. Odpowiedź jest czytana w granicy
 `max_response_bytes` i oddawana bez `Set-Cookie`, nagłówków uwierzytelniania i
@@ -474,7 +478,7 @@ originie nie dostaje danych uwierzytelniających.
 
 | Co się stało | Wynik |
 |---|---|
-| URL prywatny, loopback, metadata albo nie http(s) | `URL_REFUSED`, nic nie wysłano |
+| URL to loopback, metadata, nie http(s) albo prywatny i spoza [`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings) operatora | `URL_REFUSED`, nic nie wysłano |
 | URL spoza originów poświadczenia | `SECRET_ORIGIN_DENIED`, nic nie wysłano |
 | Połączenie nigdy się nie otworzyło | `HTTP_UNREACHABLE`, ponawiane |
 | Wysłane, brak odpowiedzi, `GET` albo nagłówek idempotencji | `HTTP_NO_RESPONSE`, ponawiane |

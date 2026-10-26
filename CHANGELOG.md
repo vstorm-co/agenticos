@@ -28,6 +28,29 @@ Two things are versioned separately from this file and worth knowing about:
   toolbar) keeps the neutral look, per browser. A selected step can be resized
   by its right edge, bottom edge or corner, its text wrapping into the space, and
   **Reset size** in its right-click menu undoes it.
+- **`OUTBOUND_PRIVATE_ALLOWLIST` lets an operator open hosts on the
+  deployment's own network.** An entry is an exact host, a `.suffix` (which does
+  not match the apex), an IP address or a CIDR range. Workflow `http.request`,
+  `http.download` and `http.upload` steps, the `git`, `web` and S3 sources,
+  the A2A client and MCP connections honour it, and only for a request chain whose
+  first URL needs it, so a public site's redirect, OAuth metadata, A2A card or
+  crawl cannot reach a listed host. A source on the private network, for example a
+  self-hosted MinIO, needs its host listed. Loopback, link-local, multicast and cloud
+  metadata addresses stay refused whatever is listed, including a listed name
+  that answers one wherever the name is resolved, an MCP connection's own URL
+  included (a listed name that does not resolve yet can still be saved), and a name
+  with one unlisted private answer. Startup refuses a malformed entry, one that reaches
+  those addresses and one that names the database, Redis or the API itself, by
+  name or address; `doctor` catches a range that covers a store's resolved
+  address. Every account of every organization can
+  reach every port on an admitted host, so list only services that check their own
+  credential. `agenticos cmd doctor` gains a `private network` line and the HIPAA
+  sheet a `private-network` control. `MCP_ALLOWED_HOSTS` is not an alias and
+  keeps its MCP-only reach, but it now goes through the same parser: suffix and
+  CIDR entries work there, one trailing dot is dropped, and a listed name that
+  answers a loopback or metadata address is refused where the name is resolved.
+  The HIPAA `private-network` control counts both lists. See
+  [the configuration reference](docs/configuration.md#project-settings).
 - Bound cumulative inline workflow results per run and organization, including
   loop-generated outputs, with compact counters and retained-history backfill.
   Preserve fees and stop automatic retry when a result cannot be stored.
@@ -1023,6 +1046,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **BREAKING: startup refuses more `MCP_ALLOWED_HOSTS` entries.** An entry that
+  names `POSTGRES_HOST`, `REDIS_HOST` or the `PUBLIC_BASE_URL` host (which let an
+  MCP connection reach those services), a multicast address, a CIDR range or
+  suffix that covers a loopback, link-local or metadata address (such as
+  `127.0.0.0/8` or `.internal`), or anything that is not a host, a `.suffix`, an
+  IP address or a CIDR range (a port, a scheme or a glob such as `mcp:8080`,
+  `http://mcp` or `*`, which never matched anything) now stops startup. A listed
+  name that resolves to a loopback or metadata address, for example a sidecar
+  alias for `127.0.0.1`, is now refused when an MCP connection is saved. Remove or
+  fix such entries before upgrading; any other entry keeps working.
 - **Workflow runs run on the Postgres job queue.** Every node attempt is a
   `workflow-dispatch-node` job on the agent pool, queued in the same transaction as
   its outbox row, so a run never starts without its job and a rolled-back start

@@ -4,7 +4,9 @@ Every hop - the first request and each redirect followed - goes through
 `PinnedAsyncClient`: the URL is checked against the deployment's SSRF policy and
 dialled at the address that check approved, so a workflow cannot reach inside
 the deployment's network, and a name that answers differently the second time
-cannot redirect it there either.
+cannot redirect it there either. A host on `OUTBOUND_PRIVATE_ALLOWLIST` is
+reachable, but only when the URL the step starts from needs it: a redirect from a
+public origin to a listed host is refused.
 
 A credential comes from the vault, never the config, and only as an
 `http_credential` secret: a token sealed together with the origins it may be
@@ -64,6 +66,7 @@ from app.workflows.nodes._http import (
     credential,
     failed,
     is_http_url,
+    private_allowlist_for,
     read_capped,
     response_output,
     with_query,
@@ -346,8 +349,11 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
     pages = 0
     read = 0
     complete = True
+    allowlist = await private_allowlist_for(config.url)
     try:
-        async with PinnedAsyncClient(timeout=httpx2.Timeout(config.timeout_seconds)) as client:
+        async with PinnedAsyncClient(
+            timeout=httpx2.Timeout(config.timeout_seconds), private_allowlist=allowlist
+        ) as client:
             while True:
                 allowed = secret is None or secret.allows(url)
                 page = await _fetch(

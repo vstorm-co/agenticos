@@ -1,5 +1,5 @@
 ---
-source_sha: "1887baea5a17"
+source_sha: "91b8979e242e"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -460,7 +460,11 @@ herramientas con efectos secundarios.
 ## http.request { #http-request }
 
 Llama a una API HTTP. Cada petición y cada redirección pasa la comprobación SSRF
-del despliegue y se envía a la dirección que esa comprobación aprobó. Una
+del despliegue y se envía a la dirección que esa comprobación aprobó. Un host privado que el operador haya listado en [`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings) también se admite, pero solo para una URL que empieza ahí: una redirección desde una URL pública nunca llega a él.
+
+Una URL enlazada desde un disparador público (un webhook, un formulario, un correo) o desde los argumentos de una herramienta de un agente puede nombrar cualquier host de la lista, así que lista solo hosts que comprueben su propia credencial.
+
+Una
 credencial es una [HTTP credential](../secrets.md#kinds) del vault, y solo se
 envía a los orígenes que permite el secreto. La respuesta se lee dentro de
 `max_response_bytes` y se devuelve sin `Set-Cookie`, sin las cabeceras de
@@ -483,7 +487,7 @@ credencial.
 
 | Qué pasó | Resultado |
 |---|---|
-| La URL es privada, loopback, metadata o no es http(s) | `URL_REFUSED`, no se envía nada |
+| La URL es loopback, metadata, no es http(s) o es privada y no está en la [`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings) del operador | `URL_REFUSED`, no se envía nada |
 | La URL está fuera de los orígenes de la credencial | `SECRET_ORIGIN_DENIED`, no se envía nada |
 | La conexión nunca se abrió | `HTTP_UNREACHABLE`, se reintenta |
 | Enviada, sin respuesta, `GET` o cabecera de idempotencia | `HTTP_NO_RESPONSE`, se reintenta |

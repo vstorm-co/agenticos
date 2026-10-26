@@ -4006,7 +4006,12 @@ class AgentRunnerService:
                 ResolvedSubagent(
                     name=row.slug,
                     description=row.description or row.name,
-                    build=a2a_delegate(handle=row.slug, endpoint=row.endpoint_url, bearer=bearer),
+                    build=a2a_delegate(
+                        handle=row.slug,
+                        endpoint=row.endpoint_url,
+                        card_url=row.card_url,
+                        bearer=bearer,
+                    ),
                     preferred_mode=ref.preferred_mode,
                 )
             )

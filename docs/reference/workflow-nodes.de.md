@@ -1,5 +1,5 @@
 ---
-source_sha: "1887baea5a17"
+source_sha: "91b8979e242e"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -477,7 +477,11 @@ aufgerufen haben kann.
 
 Ruft eine HTTP-API auf. Jede Anfrage und jede Weiterleitung durchläuft die
 SSRF-Prüfung des Deployments und wird an die Adresse gesendet, die diese Prüfung
-freigegeben hat. Ein Credential ist ein [HTTP credential](../secrets.md#kinds)
+freigegeben hat. Ein privater Host, den der Betreiber in [`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings) eingetragen hat, wird ebenfalls zugelassen, aber nur für eine URL, die dort beginnt: Eine Weiterleitung von einer öffentlichen URL erreicht ihn nie.
+
+Eine URL, die aus einem öffentlichen Trigger (Webhook, Formular, E-Mail) oder aus den Tool-Argumenten eines Agenten gebunden wird, kann jeden gelisteten Host nennen, listen Sie also nur Hosts, die ihre eigenen Zugangsdaten prüfen.
+
+Ein Credential ist ein [HTTP credential](../secrets.md#kinds)
 aus dem Vault und wird nur an die Origins gesendet, die das Secret erlaubt. Die
 Antwort wird innerhalb von `max_response_bytes` gelesen und ohne `Set-Cookie`,
 die Authentifizierungs-Header und das Token zurückgegeben.
@@ -499,7 +503,7 @@ nächste Seite auf einem anderen Origin bekommt keine Zugangsdaten.
 
 | Was passiert ist | Ergebnis |
 |---|---|
-| Die URL ist privat, Loopback, Metadata oder nicht http(s) | `URL_REFUSED`, nichts gesendet |
+| Die URL ist Loopback, Metadata, nicht http(s) oder privat und nicht in der [`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings) des Betreibers | `URL_REFUSED`, nichts gesendet |
 | Die URL liegt außerhalb der Origins des Credentials | `SECRET_ORIGIN_DENIED`, nichts gesendet |
 | Die Verbindung wurde nie geöffnet | `HTTP_UNREACHABLE`, wird wiederholt |
 | Gesendet, keine Antwort, `GET` oder Idempotenz-Header | `HTTP_NO_RESPONSE`, wird wiederholt |

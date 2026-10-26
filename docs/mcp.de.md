@@ -1,5 +1,5 @@
 ---
-source_sha: "bf7b39800065"
+source_sha: "298280a0b011"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -64,9 +64,16 @@ konfigurieren wäre.
     Ein Betreiber kann einer Connection erlauben, einen Server im eigenen Netz
     des Deployments zu erreichen, etwa einen Compose-Dienst oder einen Server
     in einem VPN oder Tailnet. Dazu listet er dessen Host in
-    [`MCP_ALLOWED_HOSTS`](configuration.md#project-settings). Ein gelisteter
-    Host überspringt nur die Adressprüfung. Die URL braucht weiterhin `http`
-    oder `https`.
+    [`OUTBOUND_PRIVATE_ALLOWLIST`](configuration.md#project-settings): ein
+    exakter Host, ein Suffix mit führendem Punkt wie `.corp.example` (das
+    `corp.example` selbst nicht trifft), eine IP-Adresse oder ein CIDR-Bereich
+    wie `10.1.2.0/24`. Die Einstellung gilt auch für Workflow-HTTP-Schritte,
+    Konnektoren und A2A. `MCP_ALLOWED_HOSTS` nimmt dieselben Formen an, gilt aber
+    nur für MCP; nutzen Sie sie, wenn nichts anderes den Host erreichen soll. Ein
+    gelisteter Host darf auf eine private Adresse auflösen, Loopback-, Link-Local-
+    und Metadaten-Antworten werden aber abgelehnt, und ein gelisteter Name, der
+    noch nicht aufgelöst wird, kann trotzdem gespeichert werden. Die URL braucht
+    weiterhin `http` oder `https`.
 
     Bei einem gelisteten Server kann man sich auch per OAuth anmelden. Ein
     solcher Server führt die Anmeldung oft selbst, also dürfen seine Discovery,
@@ -74,6 +81,7 @@ konfigurieren wäre.
     erreichen, und keine andere private Adresse. Jede Anfrage bleibt an die
     geprüfte Adresse gepinnt, und ein gelisteter Name, der mit einer Loopback-,
     Link-Local- oder Cloud-Metadaten-Adresse antwortet, wird abgelehnt. Die
+    Liste gilt nur für eine Kette, die bei einem gelisteten Host beginnt: Die
     Anmeldung bei einem öffentlichen Server erreicht nie einen gelisteten Host,
     auch wenn seine Metadaten ihn nennen.
 
@@ -83,6 +91,11 @@ konfigurieren wäre.
     Speichern einer Connection und bei jeder Anmeldung und Token-Erneuerung
     gelesen. Einen Host zu entfernen, trennt keine gespeicherte Connection, aber
     eine OAuth-Connection zu ihm erneuert ihr Token nicht mehr.
+
+    Ein Server, der nur stdio spricht, lässt sich nicht verbinden, weil eine
+    Connection eine URL ist. Betreiben Sie im privaten Netz eine Brücke von
+    stdio zu Streamable HTTP, listen Sie deren Host und verbinden Sie sich mit
+    ihr. Die Brücke muss selbst ein Token prüfen, da jedes Konto sie erreicht.
 
 ### Persönlich oder organisationsweit { #personal-or-organization-wide }
 
@@ -416,10 +429,13 @@ Zwei Ränder bleiben, beide schmal und beide gewollt:
   selbst auflöst. Es gibt nichts zu pinnen.
 - Die **eigene URL der Connection** wird beim Speichern geprüft und erneut
   aufgelöst, wenn ein Agent läuft — vom Betreiber getippt, sie neu zu binden
-  heißt also, der Betreiber zu sein. Ein Host auf `MCP_ALLOWED_HOSTS`
-  überspringt die Adressprüfung, und die OAuth-Anfragen einer Connection, deren
-  eigener Host gelistet ist, dürfen die gelisteten Hosts erreichen, gepinnt wie
-  jeder andere Schritt.
+  heißt also, der Betreiber zu sein. Ein gelisteter
+  Host (`OUTBOUND_PRIVATE_ALLOWLIST` oder `MCP_ALLOWED_HOSTS`) wird ebenfalls
+  aufgelöst und jede Antwort geprüft: Eine private Antwort geht nur für einen Host
+  durch, den die Liste zulässt, eine Loopback- oder Metadaten-Antwort nie, und ein
+  per Namen gelisteter Host, der noch nicht aufgelöst wird, kann trotzdem
+  gespeichert werden. Die OAuth-Anfragen einer Connection, deren eigener Host gelistet ist, dürfen die
+  gelisteten Hosts erreichen, gepinnt wie jeder andere Schritt.
 
 Nichts, was ein *Modell* wählt, erreicht diese Prüfung überhaupt, und das soll auch
 so sein: Eine URL, die ein Agent ausgewählt hat, gehört zu Pydantic AIs

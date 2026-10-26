@@ -3,7 +3,8 @@
 Every hop goes through `PinnedAsyncClient`, like `http.request`, and redirects
 are followed here - a signed storage URL or a CDN usually answers with one - up
 to `MAX_REDIRECTS`, each re-checked against the SSRF policy and the credential's
-origins.
+origins. A host on `OUTBOUND_PRIVATE_ALLOWLIST` is reachable, but a redirect from a
+public origin to one is refused.
 
 The body is counted as it arrives and refused past `max_bytes` whatever
 `Content-Length` said, and nothing partial is stored. Its type is what its own
@@ -37,6 +38,7 @@ from app.workflows.nodes._http import (
     credential,
     failed,
     is_http_url,
+    private_allowlist_for,
     read_capped,
 )
 
@@ -123,8 +125,11 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
     headers.update(sent_auth)
 
     url = config.url
+    allowlist = await private_allowlist_for(config.url)
     try:
-        async with PinnedAsyncClient(timeout=httpx2.Timeout(config.timeout_seconds)) as client:
+        async with PinnedAsyncClient(
+            timeout=httpx2.Timeout(config.timeout_seconds), private_allowlist=allowlist
+        ) as client:
             for _hop in range(MAX_REDIRECTS + 1):
                 response = await client.send(
                     client.build_request(

@@ -1,5 +1,5 @@
 ---
-source_sha: "bf7b39800065"
+source_sha: "298280a0b011"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -62,8 +62,15 @@ Atlassian funciona junto a uno de HTTP en streaming sin nada que configurar.
     Un operador puede dejar que una conexión alcance un servidor de la propia
     red del despliegue, como un servicio de compose o un servidor en una VPN o
     una tailnet. Para ello, lista su host en
-    [`MCP_ALLOWED_HOSTS`](configuration.md#project-settings). Un host de la
-    lista solo se salta la comprobación de dirección. La URL sigue necesitando
+    [`OUTBOUND_PRIVATE_ALLOWLIST`](configuration.md#project-settings): un host
+    exacto, un sufijo con un punto inicial como `.corp.example` (que no
+    coincide con `corp.example` en sí), una dirección IP o un rango CIDR como
+    `10.1.2.0/24`. El ajuste también cubre los pasos HTTP de workflow, los
+    conectores y A2A. `MCP_ALLOWED_HOSTS` admite las mismas formas, pero llega solo a
+    MCP, así que úsala cuando nada más deba alcanzar el host. Un host de la
+    lista puede resolver a una dirección privada, pero se rechazan las respuestas de
+    loopback, link-local y de metadatos, y un nombre de la lista que aún no se
+    resuelve se puede guardar igualmente. La URL sigue necesitando
     `http` o `https`.
 
     También se puede iniciar sesión con OAuth en un servidor de la lista. Un
@@ -72,7 +79,8 @@ Atlassian funciona junto a uno de HTTP en streaming sin nada que configurar.
     alcanzar los hosts de la lista, y ninguna otra dirección privada. Cada
     petición sigue fijada a la dirección que se comprobó, y un nombre de la
     lista que responda con una dirección de loopback, link-local o de metadatos
-    de la nube se rechaza. El inicio de sesión de un servidor público nunca
+    de la nube se rechaza. La lista solo se aplica a una cadena que empieza en
+    un host de la lista: el inicio de sesión de un servidor público nunca
     alcanza un host de la lista, aunque sus metadatos lo nombren.
 
     Toda cuenta del despliegue puede entonces alcanzar cualquier puerto de ese
@@ -81,6 +89,11 @@ Atlassian funciona junto a uno de HTTP en streaming sin nada que configurar.
     lista se lee al guardar una conexión y en cada inicio de sesión y
     renovación de token. Quitar un host no desconecta una conexión guardada,
     pero una conexión OAuth a él deja de renovar su token.
+
+    Un servidor que solo habla stdio no se puede conectar, porque una conexión
+    es una URL. Ejecuta en la red privada un puente de stdio a Streamable HTTP,
+    lista el host del puente y conéctate a él. El puente debe comprobar un
+    token por sí mismo, ya que toda cuenta puede alcanzarlo.
 
 ### Personal o de toda la organización { #personal-or-organization-wide }
 
@@ -411,10 +424,13 @@ Quedan dos bordes, ambos estrechos y ambos deliberados:
   alguien, que la resuelve por su cuenta. No hay nada que fijar.
 - La **URL propia de la conexión** se comprueba al guardar y se resuelve otra vez
   cuando un agent se ejecuta — la escribe un operador, así que volver a apuntarla
-  significa ser el operador. Un host de `MCP_ALLOWED_HOSTS` se salta la
-  comprobación de dirección, y las peticiones OAuth de una conexión cuyo propio
-  host está en la lista pueden alcanzar los hosts de la lista, fijadas como
-  cualquier otro paso.
+  significa ser el operador. Un host de la lista
+  (`OUTBOUND_PRIVATE_ALLOWLIST` o `MCP_ALLOWED_HOSTS`) también se resuelve y se
+  comprueba cada respuesta: una respuesta privada solo pasa para un host que la
+  lista admite, una de loopback o de metadatos nunca, y un host listado por nombre
+  que aún no se resuelve se puede guardar igualmente. Las peticiones
+  OAuth de una conexión cuyo propio host está en la lista pueden alcanzar los
+  hosts de la lista, fijadas como cualquier otro paso.
 
 Nada que elija un *modelo* llega a esta comprobación, y nada debería: una URL
 elegida por un agent quiere el `safe_download` de Pydantic AI.

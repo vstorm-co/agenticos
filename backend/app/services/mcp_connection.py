@@ -21,9 +21,10 @@ unreadable the moment they switched. Neither is encrypted with a deployment-wide
 key any more; that gave a ciphertext no owner at all.
 
 The service also owns SSRF validation of submitted URLs (same policy as
-webhooks, except that a host on the deployment's `MCP_ALLOWED_HOSTS` skips the
-private-address check on a connection's own address, and the OAuth flow of such
-a connection may reach the listed hosts), the
+webhooks, except for the MCP allowlist - `MCP_ALLOWED_HOSTS` plus
+`OUTBOUND_PRIVATE_ALLOWLIST`: a host it admits may answer a private address, is
+still resolved with every answer checked, and the OAuth flow of such a
+connection may reach the listed hosts), the
 connectivity test that discovers a server's tools, and building per-turn agent
 toolsets - either from the user's own enabled connections (the general
 assistant) or from the organization-scoped ones a published agent's spec names.
@@ -155,8 +156,10 @@ async def _checked_url(url: str) -> str:
     refusal that is not a `UrlRefusedError`.
 
     Every caller passes a connection's own address - the four that save it,
-    `probe_sign_in` and `_oauth_start` - so `MCP_ALLOWED_HOSTS` is honoured
-    for all of them. The OAuth discovery after the last two reaches a listed
+    `probe_sign_in` and `_oauth_start` - so the MCP allowlist
+    (`MCP_ALLOWED_HOSTS` plus `OUTBOUND_PRIVATE_ALLOWLIST`) is honoured for all of
+    them. A listed host is still resolved, and only one that does not resolve yet
+    is accepted unseen. The OAuth discovery after the last two reaches a listed
     host exactly when the connection's own host is one (`mcp_oauth.discover`).
 
     Raises:

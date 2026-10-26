@@ -29,7 +29,6 @@ from collections.abc import AsyncGenerator, Iterable, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
-from urllib.parse import urlparse
 from uuid import UUID
 
 import httpx2
@@ -44,8 +43,7 @@ from pydantic_ai.toolsets import WrapperToolset
 from pydantic_ai.toolsets.abstract import ToolsetTool
 
 from app.agents.spec import McpApproval
-from app.core.config import settings
-from app.core.sanitize import validate_webhook_url
+from app.core.sanitize import NO_PRIVATE_ADDRESSES, mcp_allowlist, validate_webhook_url
 
 if TYPE_CHECKING:
     from mcp import ClientSession
@@ -114,64 +112,6 @@ class McpProbeError(Exception):
     """
 
 
-def _allowed_hosts() -> frozenset[str]:
-    """`MCP_ALLOWED_HOSTS`, spelled the way `urlparse` spells a host.
-
-    Each entry is trimmed and lower-cased, a leading `[` and a trailing `]` are
-    dropped (each on its own, for an IPv6 address listed with brackets), and a
-    blank entry is skipped rather than read as a host. Nothing else is
-    folded: not a trailing dot, a port or a glob, so an entry matches one host
-    spelled exactly that way. Read on every call, so a test's monkeypatch is
-    seen and there is nothing to invalidate.
-    """
-    hosts = (
-        entry.strip().removeprefix("[").removesuffix("]").lower()
-        for entry in settings.MCP_ALLOWED_HOSTS
-    )
-    return frozenset(host for host in hosts if host)
-
-
-def trusted_hosts_for(server_url: str) -> frozenset[str]:
-    """The listed hosts the OAuth flow for the connection at *server_url* may reach.
-
-    All of `MCP_ALLOWED_HOSTS` when the connection's own host is on it, and none
-    otherwise. Its discovery documents name the addresses the flow fetches, so
-    the decision is made from the URL the connection was saved with, never from
-    an address a server named. That keeps a public server from aiming its token
-    endpoint at a listed host. A flow that began at a listed host may reach the
-    others: a member could already save a connection to any of them, so they
-    open nothing new. A URL `urlparse` cannot read trusts nothing; the guard
-    that checks it next writes the refusal.
-
-    Each host is in the set twice when its spellings differ: as `urlparse`
-    reads a URL a server wrote, and as httpx2 sends it, a name IDNA-encoded.
-    The pinned client checks the URL httpx2 built, so a listed `täst.internal`
-    has to match `xn--tst-qla.internal` there.
-    """
-    try:
-        host = urlparse(server_url).hostname
-    except ValueError:
-        return frozenset()
-    listed = _allowed_hosts()
-    spellings = listed | {_on_the_wire(entry) for entry in listed}
-    if host is None or _on_the_wire(host) not in spellings:
-        return frozenset()
-    return spellings
-
-
-def _on_the_wire(host: str) -> str:
-    """*host* as httpx2 puts it in a request: a name IDNA-encoded, an address as written.
-
-    httpx2's own encoder rather than the `idna` codec, which is IDNA 2003 and
-    spells `straße` differently. A host it cannot encode is kept as typed and
-    matches nothing it would send.
-    """
-    try:
-        return httpx2.URL(scheme="http", host=host).raw_host.decode("ascii")
-    except httpx2.InvalidURL:
-        return host
-
-
 async def validate_mcp_url(url: str, *, honour_allowlist: bool = False) -> str:
     """SSRF-check a URL before we talk to it (same policy as webhooks).
 
@@ -187,9 +127,11 @@ async def validate_mcp_url(url: str, *, honour_allowlist: bool = False) -> str:
     Args:
         url: The URL to check; http or https.
         honour_allowlist: Pass `True` only for a connection's own address, as
-            `mcp_connection._checked_url` checks it. A host on
-            `MCP_ALLOWED_HOSTS` then skips the address check and is not
-            resolved. A URL a remote server chose keeps the strict default.
+            `mcp_connection._checked_url` checks it. A host the MCP allowlist
+            (`MCP_ALLOWED_HOSTS` and `OUTBOUND_PRIVATE_ALLOWLIST`) admits
+            may then answer a private address; it is still resolved, and
+            loopback and metadata answers stay refused. A URL a remote server
+            chose keeps the strict default.
 
     Returns:
         The URL, unchanged.
@@ -197,9 +139,12 @@ async def validate_mcp_url(url: str, *, honour_allowlist: bool = False) -> str:
     Raises:
         SSRFBlockedError: If the URL is blocked by SSRF protection.
         UrlRefusedError: If the URL is malformed.
+        PrivateAllowlistEntryError: If an allowlist entry is one Settings would
+            have refused. Settings validates both lists at boot, so this is
+            reachable only when the settings were bypassed.
     """
-    trusted = _allowed_hosts() if honour_allowlist else frozenset()
-    return await asyncio.to_thread(validate_webhook_url, url, trusted_hosts=trusted)
+    allowlist = mcp_allowlist() if honour_allowlist else NO_PRIVATE_ADDRESSES
+    return await asyncio.to_thread(validate_webhook_url, url, private_allowlist=allowlist)
 
 
 @dataclass(frozen=True)
