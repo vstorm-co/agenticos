@@ -97,28 +97,30 @@ export function StartSession({ agentId }: { agentId: string }) {
         </Link>
       ))}
       <div className="max-w-xl space-y-3">
-        <Label htmlFor="improvement-target">{t("testSet")}</Label>
-        <Select
-          value={target}
-          onValueChange={(value) => {
-            setTarget(value);
-            setQuote(null);
-            setBudget("");
-          }}
-        >
-          <SelectTrigger id="improvement-target">
-            <SelectValue placeholder={t("chooseQuestions")} />
-          </SelectTrigger>
-          <SelectContent>
-            {datasets.datasets
-              .filter((d) => d.can_run)
-              .map((d) => (
-                <SelectItem key={d.id} value={d.id}>
-                  {d.name}
-                </SelectItem>
-              ))}
-          </SelectContent>
-        </Select>
+        <div className="space-y-3" data-tour="improvement-test-set">
+          <Label htmlFor="improvement-target">{t("testSet")}</Label>
+          <Select
+            value={target}
+            onValueChange={(value) => {
+              setTarget(value);
+              setQuote(null);
+              setBudget("");
+            }}
+          >
+            <SelectTrigger id="improvement-target">
+              <SelectValue placeholder={t("chooseQuestions")} />
+            </SelectTrigger>
+            <SelectContent>
+              {datasets.datasets
+                .filter((d) => d.can_run)
+                .map((d) => (
+                  <SelectItem key={d.id} value={d.id}>
+                    {d.name}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+        </div>
         {datasets.error && <p role="alert">{getErrorMessage(datasets.error, tErrors)}</p>}
         <details className="rounded-lg border p-3">
           <summary className="cursor-pointer text-sm font-medium">{t("writeQuestions")}</summary>

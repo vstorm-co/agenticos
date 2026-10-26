@@ -4953,25 +4953,73 @@
         "title": "What came to you on its own",
         "body": "Findings from your watches and the nightly suggestions, urgent first. Filter by where they came from, or open Done to bring back one you declined."
       },
+      "improvement-test-set": {
+        "title": "Test questions",
+        "body": "Pick the questions a change is measured on. Some of them are used to write the changes; the rest are held out and decide whether it worked."
+      },
       "improvement-start": {
         "title": "Test set",
         "body": "We’ll read what went wrong, propose changes and test them on separate questions. Nothing goes live until you accept and publish it."
+      },
+      "improvement-questions": {
+        "title": "Questions and grading",
+        "body": "The questions and how each answer is graded are pinned when the session starts. Change the grading on the question set’s Grading tab; it applies to the next session."
+      },
+      "improvement-today": {
+        "title": "The first run",
+        "body": "Before anything changes, the agent answers every question as it is today. That run is the baseline each change is compared with."
+      },
+      "improvement-review": {
+        "title": "Review",
+        "body": "Open the full check to send an answer you doubt to Review. A person’s verdict there replaces the grader’s, and the result is worked out again."
       },
       "improvement-results": {
         "title": "Result",
         "body": "Testing in the background. You can close this page — we’ll let you know when it is ready."
       },
+      "improvement-automatic-check": {
+        "title": "Automatic check",
+        "body": "On the first session, tick this to test these questions again on every publish. A version that breaks one of them does not reach a guarded environment."
+      },
+      "improvement-guard": {
+        "title": "Guard",
+        "body": "An environment can be guarded by an automatic check. Publishing makes a new version; a guarded environment moves to it only after its check passes."
+      },
       "improvement-accept": {
         "title": "Accept",
         "body": "Accept into the draft, or accept and publish together. Publishing uses the usual checks. A guarded environment keeps its current version until its automatic check passes."
+      },
+      "flow-improvement-test-set": {
+        "title": "Test questions",
+        "body": "Pick the questions a change is measured on. Some of them are used to write the changes; the rest are held out and decide whether it worked."
       },
       "flow-improvement-start": {
         "title": "Test set",
         "body": "We’ll read what went wrong, propose changes and test them on separate questions. Nothing goes live until you accept and publish it."
       },
+      "flow-improvement-questions": {
+        "title": "Questions and grading",
+        "body": "The questions and how each answer is graded are pinned when the session starts. Change the grading on the question set’s Grading tab; it applies to the next session."
+      },
+      "flow-improvement-today": {
+        "title": "The first run",
+        "body": "Before anything changes, the agent answers every question as it is today. That run is the baseline each change is compared with."
+      },
+      "flow-improvement-review": {
+        "title": "Review",
+        "body": "Open the full check to send an answer you doubt to Review. A person’s verdict there replaces the grader’s, and the result is worked out again."
+      },
       "flow-improvement-results": {
         "title": "Result",
         "body": "Testing in the background. You can close this page — we’ll let you know when it is ready."
+      },
+      "flow-improvement-automatic-check": {
+        "title": "Automatic check",
+        "body": "On the first session, tick this to test these questions again on every publish. A version that breaks one of them does not reach a guarded environment."
+      },
+      "flow-improvement-guard": {
+        "title": "Guard",
+        "body": "An environment can be guarded by an automatic check. Publishing makes a new version; a guarded environment moves to it only after its check passes."
       },
       "flow-improvement-accept": {
         "title": "Accept",

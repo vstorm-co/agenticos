@@ -4722,25 +4722,73 @@
         "title": "Co przyszło do ciebie samo",
         "body": "Znaleziska twoich obserwacji i nocne sugestie, pilne najpierw. Filtruj po źródle albo otwórz Załatwione, żeby przywrócić coś, co odrzuciłeś."
       },
+      "improvement-test-set": {
+        "title": "Pytania testowe",
+        "body": "Wybierz pytania, na których mierzymy zmianę. Część z nich służy do pisania zmian, a pozostałe są odłożone i rozstrzygają, czy zmiana zadziałała."
+      },
       "improvement-start": {
         "title": "Pytania",
         "body": "Przeczytamy, co poszło źle, zaproponujemy zmiany i sprawdzimy je na osobnych pytaniach. Zmiany wejdą w życie po Twojej akceptacji i publikacji."
+      },
+      "improvement-questions": {
+        "title": "Pytania i ocenianie",
+        "body": "Pytania i sposób oceniania odpowiedzi są przypinane na starcie sesji. Ocenianie zmienisz w zakładce Ocenianie zestawu pytań; zmiana obowiązuje od następnej sesji."
+      },
+      "improvement-today": {
+        "title": "Pierwszy run",
+        "body": "Zanim cokolwiek się zmieni, agent odpowiada na każde pytanie tak, jak dziś. Ten run to punkt odniesienia, z którym porównujemy każdą zmianę."
+      },
+      "improvement-review": {
+        "title": "Przegląd",
+        "body": "Otwórz pełne sprawdzenie, żeby wysłać wątpliwą odpowiedź do Przeglądu. Werdykt człowieka zastępuje tam ocenę oceniającego, a wynik jest liczony od nowa."
       },
       "improvement-results": {
         "title": "Wynik",
         "body": "Sprawdzanie trwa w tle. Możesz zamknąć tę stronę — powiadomimy Cię o wyniku."
       },
+      "improvement-automatic-check": {
+        "title": "Automatyczne sprawdzenie",
+        "body": "W pierwszej sesji zaznacz to pole, żeby sprawdzać te pytania przy każdej publikacji. Wersja, która psuje któreś z nich, nie trafi do chronionego środowiska."
+      },
+      "improvement-guard": {
+        "title": "Ochrona",
+        "body": "Środowisko może być chronione automatycznym sprawdzeniem. Publikacja tworzy nową wersję; chronione środowisko przechodzi na nią dopiero, gdy sprawdzenie przejdzie."
+      },
       "improvement-accept": {
         "title": "Akceptacja",
         "body": "Zaakceptuj do wersji roboczej lub zaakceptuj i opublikuj razem. Publikacja przechodzi standardowe sprawdzenia. Chronione środowisko zachowa obecną wersję, dopóki automatyczne sprawdzenie nie przejdzie."
+      },
+      "flow-improvement-test-set": {
+        "title": "Pytania testowe",
+        "body": "Wybierz pytania, na których mierzymy zmianę. Część z nich służy do pisania zmian, a pozostałe są odłożone i rozstrzygają, czy zmiana zadziałała."
       },
       "flow-improvement-start": {
         "title": "Pytania",
         "body": "Przeczytamy, co poszło źle, zaproponujemy zmiany i sprawdzimy je na osobnych pytaniach. Zmiany wejdą w życie po Twojej akceptacji i publikacji."
       },
+      "flow-improvement-questions": {
+        "title": "Pytania i ocenianie",
+        "body": "Pytania i sposób oceniania odpowiedzi są przypinane na starcie sesji. Ocenianie zmienisz w zakładce Ocenianie zestawu pytań; zmiana obowiązuje od następnej sesji."
+      },
+      "flow-improvement-today": {
+        "title": "Pierwszy run",
+        "body": "Zanim cokolwiek się zmieni, agent odpowiada na każde pytanie tak, jak dziś. Ten run to punkt odniesienia, z którym porównujemy każdą zmianę."
+      },
+      "flow-improvement-review": {
+        "title": "Przegląd",
+        "body": "Otwórz pełne sprawdzenie, żeby wysłać wątpliwą odpowiedź do Przeglądu. Werdykt człowieka zastępuje tam ocenę oceniającego, a wynik jest liczony od nowa."
+      },
       "flow-improvement-results": {
         "title": "Wynik",
         "body": "Sprawdzanie trwa w tle. Możesz zamknąć tę stronę — powiadomimy Cię o wyniku."
+      },
+      "flow-improvement-automatic-check": {
+        "title": "Automatyczne sprawdzenie",
+        "body": "W pierwszej sesji zaznacz to pole, żeby sprawdzać te pytania przy każdej publikacji. Wersja, która psuje któreś z nich, nie trafi do chronionego środowiska."
+      },
+      "flow-improvement-guard": {
+        "title": "Ochrona",
+        "body": "Środowisko może być chronione automatycznym sprawdzeniem. Publikacja tworzy nową wersję; chronione środowisko przechodzi na nią dopiero, gdy sprawdzenie przejdzie."
       },
       "flow-improvement-accept": {
         "title": "Akceptacja",

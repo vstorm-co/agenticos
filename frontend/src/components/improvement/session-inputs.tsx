@@ -175,7 +175,7 @@ export function TestQuestions({ session }: { session: Improvement }) {
   if (questions.error) return <p role="alert">{getErrorMessage(questions.error, tErrors)}</p>;
   if (questions.isLoading) return <p role="status">{t("loading")}</p>;
   return (
-    <section className="space-y-4">
+    <section className="space-y-4" data-tour="improvement-test-questions">
       <h2 className="font-medium">
         {t("questionCount", { count: questions.total, version: session.dataset_version })}
       </h2>
@@ -248,7 +248,7 @@ export function Today({ session }: { session: Improvement }) {
   const t = useTranslations("improvement");
   const firstCheck = session.iterations[0]?.eval_run_ids.at(-1);
   return (
-    <section className="space-y-4">
+    <section className="space-y-4" data-tour="improvement-today">
       <h2 className="font-medium">{t("steps.today")}</h2>
       {firstCheck ? (
         <BaselineResult runId={firstCheck} />
@@ -320,6 +320,7 @@ function BaselineQuestions({
       <Link
         className="text-sm underline underline-offset-4"
         href={`/agents/${agentId}/evals/${runId}`}
+        data-tour="improvement-open-check"
       >
         {t("openCheck")}
       </Link>

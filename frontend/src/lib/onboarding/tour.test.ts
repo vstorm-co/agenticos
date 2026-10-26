@@ -503,3 +503,19 @@ describe("voice call stops (#54)", () => {
 it("registers the dedicated first improvement journey", () => {
   expect(pageKey("/agents/a1/improve/s1")).toBe(IMPROVEMENT);
 });
+
+it("describes every stage of an improvement on its own page", () => {
+  expect(TOUR_STEPS.filter((step) => step.page === IMPROVEMENT).map((step) => step.target)).toEqual(
+    [
+      "improvement-test-set",
+      "improvement-start",
+      "improvement-test-questions",
+      "improvement-today",
+      "improvement-open-check",
+      "improvement-results",
+      "improvement-automatic-check",
+      "improvement-guard",
+      "improvement-accept",
+    ],
+  );
+});
