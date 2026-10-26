@@ -100,19 +100,6 @@ from app.clients.redis import RedisClient
 from app.api.deps import get_db_session
 
 
-@pytest.fixture(autouse=True)
-def _no_steps_written_after(monkeypatch: pytest.MonkeyPatch) -> None:
-    """No follow-ups model wrote next steps after any run here (#2301).
-
-    Most runner tests stub the build with a `MagicMock`, whose deps answer
-    `next_steps` with steps no JSON encoder can write - across the runner's,
-    the surfaces' and the delegation suites. The helper is covered on its own by
-    `test_agent_runner.py::TestNextStepsWrittenAfterTheAnswer`, which calls it
-    directly.
-    """
-    monkeypatch.setattr("app.services.agent_runner._written_next_steps", lambda _deps: [])
-
-
 @pytest.fixture
 def anyio_backend() -> str:
     """Specify the async backend for anyio tests.
@@ -314,6 +301,9 @@ async def mock_db_session() -> AsyncGenerator[AsyncMock]:
     # in the code being tested.
     mock.info = {}
     yield mock
+    from app.core.background import discard_deferred
+
+    discard_deferred(mock)
 
 
 @pytest.fixture

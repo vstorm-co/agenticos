@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, JsonValue
 
 from app.schemas.base import BaseSchema
 
@@ -153,6 +153,10 @@ class RunManifestRead(BaseSchema):
     settings: dict[str, Any] = Field(default_factory=dict)
     requests: list[ManifestRequest] = Field(default_factory=list)
     messages: list[dict[str, Any]] = Field(default_factory=list)
+    transcript: list[dict[str, JsonValue]] = Field(
+        default_factory=list,
+        description="Standalone proactive exchanges, including the final structured response",
+    )
     reviews: list[ManifestReview] = Field(default_factory=list)
     code_runs: list[ManifestCodeRun] = Field(default_factory=list)
     truncated: bool = False

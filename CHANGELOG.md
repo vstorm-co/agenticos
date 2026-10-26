@@ -31,6 +31,51 @@ Two things are versioned separately from this file and worth knowing about:
   format without pages, and the console's knowledge search shows that rather than
   `metadata.page_num` (#2489).
 
+## [1.21.0] - 2026-10-26
+
+### Added
+
+- Independent light and dark controls in signed-in and public app viewers.
+  Start app frames with a light preference instead of inheriting the console
+  theme; preserve authored colors, page state and stored versions.
+
+## [1.20.1] - 2026-10-26
+
+### Fixed
+
+- Explain why existing private provider keys or ChatGPT sign-ins cannot be
+  selected for organization speech to text, instead of implying the vault
+  has no credentials for the provider. Show provider icons and consistent masked
+  key hints in Voice calls and Dictation key selectors.
+
+## [1.20.0] - 2026-10-26
+
+### Added
+
+- Organize organization settings into permission-aware tabs, with shareable
+  tab URLs and form drafts preserved when switching sections.
+
+## [1.19.0] - 2026-10-26
+
+### Changed
+
+- Generate follow-up buttons only with an explicitly selected separate model,
+  after the answer is saved. Suggestions no longer block turn completion or the
+  next prompt; late results attach to their original answer. Channel buttons
+  are generated after the main reply is posted. Auxiliary requests retain
+  budget checks, privacy settings and independent cost accounting.
+  **Upgrade:** select **Model for next steps** in the Follow-ups capability to
+  enable suggestions. An empty profile now disables them; the main agent no
+  longer receives `suggest_next_steps`.
+
+## [1.18.1] - 2026-10-26
+
+### Fixed
+
+- Show proactive runs with their own icon and filter in Activity and Dashboard.
+  Record their model requests, tool results and final answer for inspection,
+  and explain the fixed AgenticOS attribution beside organization settings.
+
 ## [1.18.0] - 2026-10-26
 
 ### Fixed

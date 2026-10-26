@@ -10,6 +10,8 @@ import { apiClient } from "@/lib/api-client";
 import { useAuthStore, useOrgStore } from "@/stores";
 import { permissionsOf, ROLE_CATALOG } from "@/test-utils/role-catalog";
 import { assignableRoles } from "@/lib/assignable-roles";
+import type { MyPermissions } from "@/types/permissions";
+import { Perm } from "@/types/permissions";
 import type { OrgRole } from "@/types/organization";
 
 /**
@@ -39,9 +41,10 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 // The tenant is the organization in the path, so this file needs to move it.
 // The rest are what `vitest.setup.ts` provides, and for its reason.
 const path = vi.fn(() => "/");
+const query = vi.fn(() => new URLSearchParams());
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => query(),
   usePathname: () => path(),
   useParams: () => ({}),
   redirect: vi.fn(),
@@ -91,10 +94,14 @@ function member(
 }
 
 /** Answer every request the page makes, as a caller holding `role`. */
-function serve(role: string) {
+function serve(role: string, extraPermissions: MyPermissions["permissions"] = []) {
   vi.mocked(apiClient.get).mockImplementation((url: string) => {
     if (url === "/roles/catalog") return Promise.resolve(ROLE_CATALOG);
-    if (url.startsWith("/me/permissions")) return Promise.resolve(permissionsOf(role));
+    if (url.startsWith("/me/permissions"))
+      return Promise.resolve({
+        ...permissionsOf(role),
+        permissions: [...permissionsOf(role).permissions, ...extraPermissions],
+      });
     if (url === "/orgs")
       return Promise.resolve({
         items: [{ id: "org-1", name: "Acme", avatar_color: null }],
@@ -139,9 +146,12 @@ async function mount(orgId = "org-1") {
       <Suspense>{children}</Suspense>
     </QueryClientProvider>
   );
+  const params = Promise.resolve({ id: orgId });
+  const result: { view?: { rerender: (ui: ReactNode) => void } } = {};
   await act(async () => {
-    render(<MembersPage params={Promise.resolve({ id: orgId })} />, { wrapper });
+    result.view = render(<MembersPage params={params} />, { wrapper });
   });
+  return () => result.view?.rerender(<MembersPage params={params} />);
 }
 
 /** The table cell holding `email`'s role. */
@@ -154,6 +164,8 @@ async function roleCell(email: string): Promise<HTMLElement> {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  query.mockImplementation(() => new URLSearchParams());
+  window.history.replaceState({}, "", "/orgs/org-1/members");
   path.mockReturnValue("/orgs/org-1/members");
   useOrgStore.setState({ activeOrgId: "org-1", refusedOrgIds: [] });
   useAuthStore.setState({
@@ -323,4 +335,90 @@ describe("the members table's role control", () => {
 
     await waitFor(() => expect(within(row).getByRole("combobox")).toBeVisible());
   });
+});
+
+describe("organization settings tabs", () => {
+  it("shows members by default and preserves a profile draft while switching tabs", async () => {
+    serve("owner");
+    await mount();
+    expect(await screen.findByRole("tab", { name: "Members" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
+    window.history.replaceState({}, "", "?tab=voice#org-voice");
+    await userEvent.click(screen.getByRole("tab", { name: "Profile" }));
+    expect(window.location.hash).toBe("");
+    const name = screen.getByDisplayValue("Acme");
+    await userEvent.clear(name);
+    await userEvent.type(name, "New workspace");
+    expect(new URL(window.location.href).searchParams.get("tab")).toBe("profile");
+    await userEvent.click(screen.getByRole("tab", { name: "Members" }));
+    expect(name).not.toBeVisible();
+    expect(new URL(window.location.href).searchParams.has("tab")).toBe(false);
+    await userEvent.click(screen.getByRole("tab", { name: "Profile" }));
+    expect(screen.getByDisplayValue("New workspace")).toBeVisible();
+  });
+
+  it("opens a settings tab directly from its URL", async () => {
+    query.mockImplementation(() => new URLSearchParams("tab=voice"));
+    serve("owner", [{ permission: Perm.orgSettings, scope: "all" }]);
+    await mount();
+    await waitFor(() =>
+      expect(screen.getByRole("tab", { name: "Voice" })).toHaveAttribute("aria-selected", "true"),
+    );
+    expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
+    expect(screen.getByRole("tabpanel")).toHaveAttribute("data-state", "active");
+  });
+
+  it("follows a query change without remounting the page", async () => {
+    serve("viewer");
+    const rerender = await mount();
+    await screen.findByText("peer@acme.test");
+    query.mockImplementation(() => new URLSearchParams("tab=profile"));
+    rerender();
+    expect(screen.getByRole("tab", { name: "Profile" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByDisplayValue("Acme")).toBeVisible();
+  });
+
+  it("shows the settings sections only with their matching grants", async () => {
+    serve("owner", [
+      { permission: Perm.orgSettings, scope: "all" },
+      { permission: Perm.budgetsManage, scope: "all" },
+      { permission: Perm.approvalsDecide, scope: "all" },
+    ]);
+    await mount();
+    await waitFor(() =>
+      expect(screen.getAllByRole("tab").map((item) => item.textContent)).toEqual([
+        "Members",
+        "Profile",
+        "Budget and approvals",
+        "Proactivity",
+        "Voice",
+      ]),
+    );
+    await userEvent.click(screen.getByRole("tab", { name: "Proactivity" }));
+    expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
+    expect(screen.getByRole("tabpanel")).toHaveTextContent("Proactivity");
+  });
+
+  it.each(["voice", "governance", "proactivity", "assistant", "unknown"])(
+    "falls back to members for unavailable tab %s",
+    async (tab) => {
+      query.mockImplementation(() => new URLSearchParams({ tab }));
+      serve("viewer");
+      await mount();
+      await waitFor(() =>
+        expect(screen.getByRole("tab", { name: "Members" })).toHaveAttribute(
+          "aria-selected",
+          "true",
+        ),
+      );
+      expect(screen.getAllByRole("tab").map((item) => item.textContent)).toEqual([
+        "Members",
+        "Profile",
+      ]);
+      expect(await screen.findByText("peer@acme.test")).toBeVisible();
+    },
+  );
 });

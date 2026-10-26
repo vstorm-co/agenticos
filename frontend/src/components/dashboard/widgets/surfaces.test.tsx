@@ -27,6 +27,7 @@ function renderWidget() {
       by_surface: [
         { surface: "mattermost", runs: 31 },
         { surface: "web", runs: 16 },
+        { surface: "proactive", runs: 2 },
       ],
     },
     isLoading: false,
@@ -56,6 +57,13 @@ describe("the surfaces widget", () => {
     expect(href).toContain("/runs?");
     expect(href).toContain("surface=mattermost");
     expect(href).toContain("period=90d");
+  });
+
+  it("names proactive checks and links to their Activity filter", () => {
+    renderWidget();
+    const link = screen.getByRole("link", { name: "Proactive" });
+    expect(link.getAttribute("href")).toContain("surface=proactive");
+    expect(link.querySelector("svg")).not.toBeNull();
   });
 
   it("draws the surface's own mark beside its name", () => {

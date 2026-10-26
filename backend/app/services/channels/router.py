@@ -18,7 +18,7 @@ from pydantic_ai.messages import ModelMessage, ModelRequest, UserPromptPart
 from app.agents.steering import SteeringInbox
 from app.core.config import settings
 from app.core.exceptions import AppException, AuthorizationError, BadRequestError
-from app.db.models.agent_run import RunStatus
+from app.db.models.agent_run import AgentRun, RunStatus
 from app.repositories import (
     agent_exposure_repo,
     agent_repo,
@@ -32,7 +32,7 @@ from app.repositories import (
 from app.services import rate_limit, transcription_usage
 from app.services.channel_bot import unseal_bot_token
 from app.services.channel_link import ChannelLinkService
-from app.services.channels import get_adapter
+from app.services.channels import get_adapter, membership
 from app.services.channels.attachments import ChannelAttachmentService
 from app.services.channels.base import (
     CHANNEL_COMMANDS,
@@ -252,6 +252,63 @@ def _kept_back(paths: list[str]) -> list[str]:
 
 class ChannelMessageRouter:
     """Process an incoming channel message end-to-end."""
+
+    async def may_continue(
+        self, db: AsyncSession, run: AgentRun, incoming: IncomingMessage
+    ) -> bool:
+        """Recheck an already admitted turn before optional background model work.
+
+        An unlinked room participant acts through their recorded chat identity,
+        not the publisher used to account for their run.
+        """
+        bot = await channel_bot_repo.get_for_org(
+            db, UUID(incoming.bot_id), organization_id=run.organization_id
+        )
+        if (
+            bot is None
+            or not bot.is_active
+            or bot.organization_id != run.organization_id
+            or bot.platform != incoming.platform
+            or run.surface != incoming.platform
+        ):
+            return False
+        session = await channel_session_repo.get_by_bot_and_chat(
+            db, bot.id, incoming.platform_chat_id
+        )
+        if (
+            session is None
+            or not session.is_active
+            or session.chat_type != incoming.chat_type
+            or session.conversation_id != run.conversation_id
+            or run.channel_identity_id is None
+        ):
+            return False
+        identity = await channel_identity_repo.get_by_id(db, run.channel_identity_id)
+        if (
+            identity is None
+            or identity.platform != incoming.platform
+            or identity.platform_user_id != incoming.platform_user_id
+        ):
+            return False
+        exposure = await agent_exposure_repo.get_for_bot(
+            db, agent_id=run.agent_id, channel_bot_id=bot.id
+        )
+        if exposure is None or not exposure.is_active:
+            return False
+        try:
+            self._check_access(incoming, bot)
+        except AuthorizationError:
+            return False
+        if run.initiated_by_publisher_fallback:
+            if not self._admits_unlinked(incoming, bot):
+                return False
+        elif identity.user_id != run.user_id or not await self._sender_is_active_member(
+            db, bot, identity
+        ):
+            return False
+        return incoming.chat_type == "private" or await membership.is_still_member(
+            bot, channel_key(incoming.platform_chat_id), incoming.platform_user_id
+        )
 
     async def route(self, incoming: IncomingMessage, db: AsyncSession) -> None:
         """Claim the delivery, acquire the per-chat lock, then process.
@@ -764,6 +821,26 @@ class ChannelMessageRouter:
         elif answered.next_steps and answered.run_id is not None:
             await ChannelNextSteps(db).offer(
                 bot, incoming, run_id=answered.run_id, steps=answered.next_steps
+            )
+        elif answered.run_id is not None:
+            from app.core.background import spawn_after_commit
+            from app.services.channels.next_steps import offer_after_answer
+
+            spawn_after_commit(
+                db,
+                offer_after_answer(
+                    bot.organization_id,
+                    answered.run_id,
+                    IncomingMessage(
+                        platform=incoming.platform,
+                        bot_id=incoming.bot_id,
+                        platform_user_id=incoming.platform_user_id,
+                        platform_chat_id=incoming.platform_chat_id,
+                        chat_type=incoming.chat_type,
+                        text="",
+                    ),
+                ),
+                name=f"channel-next-steps:{answered.run_id}",
             )
         return True
 

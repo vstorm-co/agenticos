@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/states";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/ui";
 import { useArtifactView } from "@/hooks/use-artifacts";
+import type { ArtifactTheme } from "@/types/artifact";
 import { cn } from "@/lib/utils";
 
 /**
@@ -69,6 +70,8 @@ export function useLinkRequests(frame: React.RefObject<HTMLIFrameElement | null>
 }
 
 interface ArtifactFrameViewProps {
+  /** App preference, independent of the console; authored CSS stays in control. */
+  theme?: ArtifactTheme;
   /** A signed content address the server minted for this viewer. */
   url: string;
   title: string;
@@ -77,7 +80,12 @@ interface ArtifactFrameViewProps {
 }
 
 /** The page itself, in its sandbox. Shared by the console and the public link. */
-export function ArtifactFrameView({ url, title, className }: ArtifactFrameViewProps) {
+export function ArtifactFrameView({
+  url,
+  title,
+  className,
+  theme = "light",
+}: ArtifactFrameViewProps) {
   const frame = useRef<HTMLIFrameElement>(null);
   const [pending, setPending] = useLinkRequests(frame);
   return (
@@ -85,6 +93,7 @@ export function ArtifactFrameView({ url, title, className }: ArtifactFrameViewPr
       <iframe
         ref={frame}
         src={url}
+        style={{ colorScheme: theme }}
         title={title}
         sandbox={ARTIFACT_SANDBOX}
         referrerPolicy="no-referrer"
@@ -127,6 +136,7 @@ export function LinkRequestDialog({
 }
 
 interface ArtifactFrameProps {
+  theme?: ArtifactTheme;
   artifactId: string;
   /** A kept version to show, or null for the current one. */
   versionId: string | null;
@@ -141,7 +151,13 @@ interface ArtifactFrameProps {
  * version was pruned or access was withdrawn a moment ago - both are "this is not
  * available", and neither is worth a retry.
  */
-export function ArtifactFrame({ artifactId, versionId, title, className }: ArtifactFrameProps) {
+export function ArtifactFrame({
+  artifactId,
+  versionId,
+  title,
+  className,
+  theme,
+}: ArtifactFrameProps) {
   const t = useTranslations("artifacts");
   const ts = useTranslations("states");
   const view = useArtifactView(artifactId, versionId, true);
@@ -163,5 +179,7 @@ export function ArtifactFrame({ artifactId, versionId, title, className }: Artif
       />
     );
   }
-  return <ArtifactFrameView url={view.data.url} title={title} className={className} />;
+  return (
+    <ArtifactFrameView url={view.data.url} title={title} className={className} theme={theme} />
+  );
 }

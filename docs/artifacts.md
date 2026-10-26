@@ -10,6 +10,19 @@ have a home in the chat and in the [workspace](sandbox.md). An app is the
 thing that is *served*: it has an owner, a visibility and grants like an agent
 or a skill, and it can be given a public link for somebody with no account.
 
+## App appearance { #app-appearance }
+
+The signed-in app viewer and its public link have independent **light** and
+**dark** controls. Apps open with a light preference, regardless of the console
+or operating-system theme. Switching changes only the embedded page's
+`prefers-color-scheme` preference: it neither reloads the app nor rewrites its
+HTML, CSS or stored versions. An app with fixed colors keeps those colors;
+apps that support both modes can respond to the selected preference.
+
+The page still owns contrast. In the bundled page styles, `--ao-muted` is a
+background color; secondary text uses `--ao-muted-fg` or the `.ao-muted` class.
+Using the background token as text can make it unreadable in either mode.
+
 ## Publishing one
 
 Turn on the **Apps** capability for the agent. It adds two tools:

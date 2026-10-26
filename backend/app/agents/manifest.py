@@ -135,6 +135,7 @@ class RunRecorder:
     is a true statement about that run rather than a gap.
     """
 
+    last_response: ModelResponse | None = field(default=None, repr=False)
     instructions: str | None = None
     system_prompts: list[str] = field(default_factory=list)
     tools: list[RecordedTool] = field(default_factory=list)
@@ -165,6 +166,7 @@ class RunRecorder:
         as what the model ended up with. What each request *cost* is appended,
         because that is per request and is the whole of the waterfall.
         """
+        self.last_response = None
         self.instructions = _instructions(messages) or self.instructions
         self.system_prompts = _system_prompts(messages) or self.system_prompts
         self.tools = _tools(parameters)
@@ -175,6 +177,7 @@ class RunRecorder:
         self, response: ModelResponse, *, started: datetime, elapsed_ms: int, messages: int
     ) -> None:
         """Take down what came back, and how long it took."""
+        self.last_response = response
         usage = response.usage
         self.requests.append(
             RecordedRequest(
@@ -460,6 +463,8 @@ def fit(payload: dict[str, Any], limit: int = MAX_PAYLOAD_BYTES) -> tuple[dict[s
     if _size(payload) <= limit:
         return payload, False
     trimmed = {**payload, "messages": []}
+    if "transcript" in trimmed:
+        trimmed["transcript"] = []
     if _size(trimmed) <= limit:
         return trimmed, True
     # Then each script's calls lose their arguments and its code is clipped: what

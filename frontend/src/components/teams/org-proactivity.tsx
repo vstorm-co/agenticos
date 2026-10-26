@@ -82,7 +82,12 @@ export function OrgProactivity({ org }: { org: Organization }) {
   return (
     <SettingsSection title={t("title")} description={t("description")}>
       <div className="divide-foreground/10 space-y-6 divide-y [&>*:not(:first-child)]:pt-6">
-        {nightly && <NightlyForm org={org} />}
+        {nightly && (
+          <div className="space-y-4">
+            <p className="text-muted-foreground text-sm">{t("runAttribution")}</p>
+            <NightlyForm org={org} />
+          </div>
+        )}
         {welcome && <WelcomeForm org={org} />}
       </div>
     </SettingsSection>

@@ -205,10 +205,21 @@ describe("OrgVoiceSettings", () => {
   it("offers a provider with no key yet, and says how to add one", async () => {
     await mount({}, { vault: [] });
 
-    await choose("Provider", "OpenAI (no key yet)");
+    await choose("Provider", "OpenAI (no usable key)");
     expect(
       await screen.findByText(/No organization-wide OpenAI keys in the vault yet/),
     ).toBeInTheDocument();
+  });
+
+  it("names an existing private OpenAI key and explains its required access", async () => {
+    await mount({}, { vault: [key("Private OpenAI", "openai", "private")] });
+    await choose("Provider", "OpenAI (no usable key)");
+    expect(
+      await screen.findByText(/Private OpenAI.*shared with the whole organization/),
+    ).toBeVisible();
+    expect(
+      screen.queryByText(/No organization-wide OpenAI keys in the vault yet/),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the provider's fields, marking providers with no organization-wide key", async () => {
@@ -227,9 +238,9 @@ describe("OrgVoiceSettings", () => {
 
     // A private Mistral key does not count: this one is spent for everybody.
     await userEvent.click(screen.getByRole("combobox", { name: "Provider" }));
-    expect(await screen.findByRole("option", { name: "Mistral (no key yet)" })).not.toHaveAttribute(
-      "aria-disabled",
-    );
+    expect(
+      await screen.findByRole("option", { name: "Mistral (no usable key)" }),
+    ).not.toHaveAttribute("aria-disabled");
     expect(screen.getByRole("option", { name: "Groq" })).toBeInTheDocument();
   });
 
@@ -291,7 +302,7 @@ describe("OrgVoiceSettings", () => {
       screen.getByText(/^Sent with the organization's Groq key chosen below\./),
     ).toBeInTheDocument();
 
-    await choose("Key", "team-groq-2 (…abcd)");
+    await choose("Key", /^team-groq-2.*abcd$/);
     await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() =>
       expect(apiClient.patch).toHaveBeenCalledWith(`/orgs/${ORG_ID}`, {
@@ -471,7 +482,7 @@ describe("OrgVoiceSettings", () => {
     expect(within(alert).queryByRole("link")).not.toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Key" })).toHaveTextContent("Choose a key");
 
-    await choose("Key", "b (…abcd)");
+    await choose("Key", /^b.*abcd$/);
     await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() =>
       expect(apiClient.patch).toHaveBeenCalledWith(`/orgs/${ORG_ID}`, {

@@ -1,5 +1,5 @@
 ---
-source_sha: "2bfb4963d6ff"
+source_sha: "e6dd9fc401ef"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -2451,23 +2451,40 @@ osoba nie odpowiedziała na czas.
 
 ## Następne kroki { #follow-ups }
 
-Na końcu odpowiedzi `suggest_next_steps` proponuje pod nią do trzech następnych
-kroków jako przyciski, każdy najwyżej 80 znaków i sformułowany tak, jak
-powiedziałaby to osoba: „Zrób z tego tabelę”, „Rób to w każdy poniedziałek o
-9:00”. Kliknięcie wysyła krok jako jej następną wiadomość. Proponuje je tylko
-najnowsza odpowiedź, a w trakcie tury żadna. Agent pomija je po small talku albo
-po własnym pytaniu i nie powtarza kroków w odpowiedzi. W Slacku, Teams,
-Telegramie i Mattermost kroki przychodzą pod odpowiedzią jako wiadomość z
-przyciskami, a naciśnięcie jednego to naciskający mówiący ten krok - szczegóły są
-w [Kanałach](../channels.md#next-steps-as-buttons).
+Przyciski są obsługiwane w czacie konsoli i wymienionych kanałach wiadomości.
+Publiczne widgety, strony hostowane i surowe sockety embed nie obsługują kart
+propozycji, więc nie uruchamiają płatnego przebiegu follow-up. Przed generowaniem
+i dostarczeniem kanały ponownie sprawdzają zapisaną tożsamość nadawcy, powiązanie
+bota, aktualną politykę dostępu i członkostwo w pokoju. Dopuszczony nadawca bez
+podpiętego konta pozostaje odrębny od publikującego używanego do rozliczeń.
 
-**Model do następnych kroków** (`model_profile_id`) oddaje kroki osobnemu modelowi:
-agent nie dostaje już `suggest_next_steps`, a gdy jego odpowiedź jest gotowa, ten
-model czyta prośbę i odpowiedź i pisze do trzech kroków albo żadnego. Na trzy
-krótkie przyciski wystarczy mały, tani model, a agent nie wydaje już na nie
-zapytania. Wywołanie najpierw przechodzi przez budżety i jest księgowane na runie
-jak każde inne; takie, którego nie da się wykonać, kosztuje przyciski, nigdy
-odpowiedź. Puste pole zostawia kroki agentowi.
+Przyciski następnych kroków generuje wyłącznie osobny model wybrany w polu
+**Model następnych kroków** (`model_profile_id`). Puste pole wyłącza sugestie.
+Po aktualizacji wybierz profil w możliwości Follow-ups, aby nadal używać
+przycisków. Główny model nie dostaje `suggest_next_steps` i nie czeka na sugestie,
+aby zakończyć odpowiedź lub przyjąć następny prompt.
+
+Po zatwierdzeniu zapisu odpowiedzi opcjonalne zadanie w tle czyta pytanie tego
+runu i zapisaną odpowiedź. Zwraca do trzech krótkich kroków w języku użytkownika
+albo pustą listę. Konsola dostaje późniejsze zdarzenie z identyfikatorem rozmowy
+i konkretnej odpowiedzi; nowsza tura pozostaje bez zmian. Zapisane przyciski
+wracają po otwarciu rozmowy. Slack, Teams, Telegram i Mattermost rozpoczynają to
+zadanie po wysłaniu głównej odpowiedzi i osobno wysyłają przyciski.
+
+Model pomocniczy nie ma narzędzi ani instrukcji głównego agenta. Jego osobny run
+sprawdza budżety agenta, działu i organizacji, dziedziczy prywatność trace’ów i
+osobno zapisuje koszt, również po błędzie. Koszt głównej odpowiedzi się nie
+zmienia. Jeden proces dopuszcza cztery takie zadania naraz; nadmiar pomija.
+Wywołanie modelu ma limit 15 sekund, najwyżej dwóch żądań i 512 tokenów wyjścia.
+Nie ma automatycznego retry. Sugestie mogą przepaść przy zamykaniu procesu lub
+utracie połączenia; nigdy nie zastępują odpowiedzi błędem.
+
+Activity oznacza run pomocniczy jako **Następne kroki**. Dziedziczy on
+prawo odczytu rozmowy źródłowej i wchodzi do jej łącznego kosztu, ale nie oznacza
+rozmowy jako zajętej i nie zastępuje jej ostatniego głównego runu.
+
+`suggest_next_steps` pozostaje identyfikatorem zapisanych przycisków, dla historii
+i istniejących ustawień specyfikacji; główny model nie może wywołać tego narzędzia.
 
 `propose_setup` proponuje do trzech rzeczy do ustawienia, rysowanych jako karty
 pod odpowiedzią: własnego agenta osoby, rutynę albo usługę do podłączenia. Karta
