@@ -192,14 +192,15 @@ class CodingAgentConfig(BaseModel):
         kind=SecretKind.API_KEY,
         also_accepts=(SecretKind.OPENAI_CODEX,),
         # The harness decides the provider, so the picker and publish narrow to
-        # its keys. OpenRouter is the gateway Claude Code is documented behind
-        # (`base_url`); another gateway's key is stored as "Something else".
+        # its keys. Behind `base_url` the key is the gateway's - OpenRouter,
+        # LiteLLM, z.ai - which the platform cannot tell apart, so any key fits.
         purposes_by=PurposesByValue(
             field="harness",
             purposes={
-                "claude_code": ("anthropic", "openrouter"),
+                "claude_code": ("anthropic",),
                 "codex": ("openai", OPENAI_CODEX_PURPOSE),
             },
+            open_when_set={"claude_code": "base_url"},
         ),
         description=(
             "Claude Code: an Anthropic API key or a Claude subscription token. "

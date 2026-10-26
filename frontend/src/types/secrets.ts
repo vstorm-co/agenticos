@@ -86,6 +86,11 @@ export interface SecretRequirement {
 export interface PurposesByValue {
   field: string;
   purposes: Record<string, string[]>;
+  /**
+   * Per value, a config field that, once set, points the key at an endpoint the
+   * platform cannot name - Claude Code's `base_url` - so any key fits.
+   */
+  open_when_set: Record<string, string>;
 }
 
 /** "This config field is one of these values." Mirrors `SecretCondition`. */

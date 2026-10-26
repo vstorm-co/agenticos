@@ -721,6 +721,14 @@ class PurposesByValue(BaseModel):
             "narrows nothing."
         )
     )
+    open_when_set: dict[str, str] = Field(
+        default_factory=dict,
+        description=(
+            "For a value of that field, another config field which, once set, "
+            "points the key at an endpoint the platform cannot name - Claude "
+            "Code's `base_url` - so any key fits."
+        ),
+    )
 
 
 class SecretRequirement(BaseModel):
@@ -785,15 +793,18 @@ class SecretRequirement(BaseModel):
         """Which services a key for this configuration may be for, or `None`.
 
         The Builder's `purposesOf` reads the same three sources in the same order.
-        A field mapped to purposes says so outright. Otherwise a capability
+        A field mapped to purposes says so outright, unless the endpoint field
+        named for its value is set, when nothing narrows. Otherwise a capability
         offering several services gates its key on the choice, so the conditional
         field *is* the service; and one with a single service names it. `custom`
         fits any of them, which is the caller's to allow.
         """
         if self.purposes_by is not None and config is not None:
-            mapped = self.purposes_by.purposes.get(
-                str(getattr(config, self.purposes_by.field, None))
-            )
+            value = str(getattr(config, self.purposes_by.field, None))
+            endpoint = self.purposes_by.open_when_set.get(value)
+            if endpoint is not None and getattr(config, endpoint, None):
+                return None
+            mapped = self.purposes_by.purposes.get(value)
             if mapped is not None:
                 return mapped
         if self.required_when is not None and config is not None:

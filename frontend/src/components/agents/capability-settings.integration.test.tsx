@@ -667,7 +667,20 @@ describe("CapabilitySettings coding agent sign-in", () => {
       purpose: null,
       purposes_by: {
         field: "harness",
-        purposes: { claude_code: ["anthropic", "openrouter"], codex: ["openai", "openai_codex"] },
+        purposes: { claude_code: ["anthropic"], codex: ["openai", "openai_codex"] },
+        open_when_set: { claude_code: "base_url" },
+      },
+    },
+    // The harness's default is what a binding only switched on runs, stored or not.
+    config_schema: {
+      type: "object",
+      properties: {
+        harness: {
+          type: "string",
+          title: "Harness",
+          enum: ["claude_code", "codex"],
+          default: "claude_code",
+        },
       },
     },
   };
@@ -755,13 +768,46 @@ describe("CapabilitySettings coding agent sign-in", () => {
     );
   });
 
-  it("narrows on nothing for a harness the map does not name", async () => {
+  it("narrows a binding that stores no harness to Claude Code's keys", async () => {
     serve(VAULT);
-    mount(binding({ id: "coding_agent", config: { harness: "aider" } }), { definition: CODER });
+    mount(binding({ id: "coding_agent", config: {} }), { definition: CODER });
+
+    await userEvent.click(await screen.findByLabelText("Key or sign-in"));
+
+    expect(await screen.findByRole("option", { name: /Anthropic/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /OpenAI/ })).toBeNull();
+  });
+
+  it("offers every key behind a gateway, whose key the platform cannot name", async () => {
+    serve(VAULT);
+    mount(
+      binding({
+        id: "coding_agent",
+        config: { harness: "claude_code", base_url: "https://openrouter.ai/api" },
+      }),
+      { definition: CODER },
+    );
 
     await userEvent.click(await screen.findByLabelText("Key or sign-in"));
 
     expect(await screen.findByRole("option", { name: /LlamaParse/ })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /OpenAI/ })).toBeInTheDocument();
+  });
+
+  it("keeps Codex narrowed though a Claude Code gateway was left in its config", async () => {
+    serve(VAULT);
+    mount(
+      binding({
+        id: "coding_agent",
+        config: { harness: "codex", base_url: "https://openrouter.ai/api" },
+      }),
+      { definition: CODER },
+    );
+
+    await userEvent.click(await screen.findByLabelText("Key or sign-in"));
+
+    expect(await screen.findByRole("option", { name: /OpenAI/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Anthropic/ })).toBeNull();
   });
 
   it("tells Claude Code where its subscription token comes from", async () => {

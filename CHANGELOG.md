@@ -22,10 +22,13 @@ Two things are versioned separately from this file and worth knowing about:
 ### Fixed
 
 - The coding agent's key picker offers only keys for the chosen harness - Anthropic
-  (or OpenRouter) for Claude Code, OpenAI keys and ChatGPT sign-ins for Codex -
-  plus `custom` keys and the one already bound, and publish refuses a key stored
-  for the other harness's provider, naming both. A capability can now map a
-  config field's values to the purposes its key may have (#2485).
+  for Claude Code, OpenAI keys and ChatGPT sign-ins for Codex - plus `custom` keys
+  and the one already bound, and publish refuses a key stored for another
+  provider, naming the ones the harness takes. Claude Code behind `base_url` still
+  takes any key, the gateway's. Republishing an agent refused here means its key
+  was going to the wrong vendor and failing every task; rebind it, or store it as
+  `custom` if it is right. A capability can now map a config field's values to
+  the purposes its key may have (#2485).
 
 ## [1.18.0] - 2026-10-26
 

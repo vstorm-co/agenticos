@@ -1,5 +1,5 @@
 ---
-source_sha: "6a55e412c29a"
+source_sha: "056b9134ee9a"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1393,12 +1393,13 @@ personal está sujeto a las condiciones de Anthropic y OpenAI para esos planes, 
 pueden no permitirlo en un despliegue compartido.
 
 **La clave encaja con el harness.** El selector ofrece a Claude Code solo claves
-guardadas para Anthropic, o para OpenRouter detrás de `base_url`, y a Codex solo
-claves de OpenAI e inicios de sesión de ChatGPT. Una clave guardada como `custom`
-encaja con los dos, igual que la clave ya vinculada. Publicar rechaza una clave
-guardada para el proveedor del otro harness y nombra a ambos: una clave de OpenAI
-vinculada a Claude Code se publicaría y luego fallaría en cada tarea. La clave de
-otra pasarela compatible con Anthropic se guarda como `custom`.
+guardadas para Anthropic, y a Codex solo claves de OpenAI e inicios de sesión de
+ChatGPT. Una clave guardada como `custom` encaja con los dos, igual que la clave
+ya vinculada. Publicar rechaza una clave guardada para otro proveedor y nombra los
+que acepta el harness: una clave de OpenAI vinculada a Claude Code se publicaría y
+luego fallaría en cada tarea. Con `base_url` definido, la clave es de la
+pasarela - OpenRouter, LiteLLM u otra -, así que Claude Code acepta ahí cualquier
+clave.
 
 **Delegar en un coding agent.** Un delegado que enlaza `sandbox` por sí mismo se
 ejecuta en un workspace nuevo en memoria, sin shell, así que un coding agent al que se

@@ -344,6 +344,7 @@ export function CapabilityDetail({
             optional={!secretIsRequired(definition.requires_secret, keyed.config)}
             onChange={onChange}
             disabled={disabled}
+            schema={definition.config_schema}
           />
         )}
 
@@ -531,6 +532,8 @@ interface SecretFieldProps {
   optional: boolean;
   onChange: (binding: CapabilityBindingSpec) => void;
   disabled?: boolean;
+  /** The capability's config schema, for the defaults a binding does not store. */
+  schema: JsonSchema | null;
 }
 
 /**
@@ -561,15 +564,27 @@ function purposeOf(binding: CapabilityBindingSpec, requirement: SecretRequiremen
  * list offers what publish accepts. A field whose values are not service ids
  * maps each value to its purposes - the coding agent's harness, where Claude
  * Code takes an Anthropic key and Codex an OpenAI key or a ChatGPT sign-in
- * (#2485). Otherwise it is the one service `purposeOf` names.
+ * (#2485) - unless the endpoint field named for that value is set, when the key
+ * is the gateway's and any fits. Otherwise it is the one service `purposeOf`
+ * names.
  */
 function purposesOf(
   binding: CapabilityBindingSpec,
   requirement: SecretRequirement,
+  schema: JsonSchema | null,
 ): string[] | null {
   const mapping = requirement.purposes_by;
-  const mapped = mapping ? mapping.purposes[String(binding.config[mapping.field])] : undefined;
-  if (mapped !== undefined) return mapped;
+  if (mapping) {
+    // With the schema default, as the form shows it and as the server reads
+    // it: a binding only switched on stores no harness at all.
+    const value = String(
+      binding.config[mapping.field] ?? schema?.properties?.[mapping.field]?.default,
+    );
+    const endpoint = mapping.open_when_set[value];
+    if (endpoint !== undefined && binding.config[endpoint]) return null;
+    const mapped = mapping.purposes[value];
+    if (mapped !== undefined) return mapped;
+  }
   const purpose = purposeOf(binding, requirement);
   return purpose === null ? null : [purpose];
 }
@@ -625,14 +640,21 @@ function fitsPurpose(
 /** The picker's "no key" choice; Radix refuses an empty string as an item's value. */
 const NO_SECRET = "__none__";
 
-function SecretField({ binding, requirement, optional, onChange, disabled }: SecretFieldProps) {
+function SecretField({
+  binding,
+  requirement,
+  optional,
+  onChange,
+  disabled,
+  schema,
+}: SecretFieldProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
   const { secrets, isLoading, listError } = useSecrets();
   const fieldId = `${binding.id}-secret`;
   const errorId = `${fieldId}-error`;
   const purpose = purposeOf(binding, requirement);
-  const purposes = purposesOf(binding, requirement);
+  const purposes = purposesOf(binding, requirement, schema);
   const usable = secrets.filter(
     (secret) =>
       acceptsKind(requirement, secret.kind) && fitsPurpose(secret, purposes, binding.secret_id),

@@ -308,29 +308,49 @@ class TestPublishValidation:
 
     @pytest.mark.anyio
     @pytest.mark.parametrize(
-        ("harness", "kind", "purpose"),
+        ("config", "kind", "purpose"),
         [
-            ("claude_code", SecretKind.API_KEY, "anthropic"),
-            ("claude_code", SecretKind.API_KEY, "openrouter"),
-            ("claude_code", SecretKind.API_KEY, "custom"),
-            ("codex", SecretKind.API_KEY, "openai"),
-            ("codex", SecretKind.API_KEY, "custom"),
-            ("codex", SecretKind.OPENAI_CODEX, "openai_codex"),
+            ({"harness": "claude_code"}, SecretKind.API_KEY, "anthropic"),
+            ({"harness": "claude_code"}, SecretKind.API_KEY, "custom"),
+            ({}, SecretKind.API_KEY, "anthropic"),
+            ({"harness": "codex"}, SecretKind.API_KEY, "openai"),
+            ({"harness": "codex"}, SecretKind.API_KEY, "custom"),
+            ({"harness": "codex"}, SecretKind.OPENAI_CODEX, "openai_codex"),
+            # Behind a gateway the key is the gateway's, whichever it is - a
+            # spec stored before #2485 on a z.ai key keeps publishing.
+            (
+                {"harness": "claude_code", "base_url": "https://openrouter.ai/api"},
+                SecretKind.API_KEY,
+                "openrouter",
+            ),
+            (
+                {"harness": "claude_code", "base_url": "https://api.z.ai/api/anthropic"},
+                SecretKind.API_KEY,
+                "zai",
+            ),
+        ],
+        ids=[
+            "anthropic",
+            "claude-custom",
+            "default-harness",
+            "openai",
+            "codex-custom",
+            "chatgpt",
+            "openrouter-gateway",
+            "other-gateway",
         ],
     )
     async def test_a_key_for_the_coding_agents_harness_publishes(
-        self, secret_row, harness, kind, purpose
+        self, secret_row, config, kind, purpose
     ):
         """The harness names the provider; its key, a ChatGPT sign-in for Codex
-        and a `custom` key all fit (#2485)."""
+        and a `custom` key all fit, and any key behind `base_url` (#2485)."""
         secret_row.kind = kind.value
         secret_row.purpose = purpose
         secret_row.name = "Mine"
 
         problems, _, _ = await _publish_problems(
-            CapabilityBindingSpec(
-                id="coding_agent", secret_id=secret_row.id, config={"harness": harness}
-            ),
+            CapabilityBindingSpec(id="coding_agent", secret_id=secret_row.id, config=config),
             secret=secret_row,
         )
 
@@ -339,24 +359,31 @@ class TestPublishValidation:
 
     @pytest.mark.anyio
     @pytest.mark.parametrize(
-        ("harness", "purpose", "expected"),
+        ("config", "purpose", "expected"),
         [
-            ("claude_code", "openai", "anthropic or openrouter"),
-            ("codex", "anthropic", "openai or openai_codex"),
+            ({"harness": "claude_code"}, "openai", "anthropic"),
+            ({}, "openai", "anthropic"),
+            ({"harness": "claude_code"}, "openrouter", "anthropic"),
+            ({"harness": "codex"}, "anthropic", "openai or openai_codex"),
+        ],
+        ids=[
+            "openai-for-claude",
+            "default-harness",
+            "gateway-key-no-gateway",
+            "anthropic-for-codex",
         ],
     )
     async def test_a_key_for_the_other_harness_is_refused(
-        self, secret_row, harness, purpose, expected
+        self, secret_row, config, purpose, expected
     ):
         """Claude Code with an OpenAI key published and then failed at run time
-        (#2485). The refusal names both providers."""
+        (#2485), as did a gateway's key with no `base_url` to send it to. The
+        refusal names the providers the harness takes."""
         secret_row.purpose = purpose
         secret_row.name = "Mine"
 
         problems, _, _ = await _publish_problems(
-            CapabilityBindingSpec(
-                id="coding_agent", secret_id=secret_row.id, config={"harness": harness}
-            ),
+            CapabilityBindingSpec(id="coding_agent", secret_id=secret_row.id, config=config),
             secret=secret_row,
         )
 
@@ -639,6 +666,7 @@ def test_a_requirement_naming_no_service_narrows_nothing():
 class _Harness(BaseModel):
     harness: str = "claude_code"
     provider: str = "google"
+    base_url: str | None = None
 
 
 @pytest.mark.parametrize(
@@ -647,13 +675,25 @@ class _Harness(BaseModel):
         (_Harness(), ("anthropic", "openrouter")),
         (_Harness(harness="codex"), ("openai", "openai_codex")),
         (_Harness(harness="aider"), ("google",)),
+        (_Harness(base_url="https://gateway.example"), None),
+        (_Harness(base_url=""), ("anthropic", "openrouter")),
+        (_Harness(harness="codex", base_url="https://gateway.example"), ("openai", "openai_codex")),
         (None, ("fallback",)),
     ],
-    ids=["mapped", "other-value", "unmapped", "no-config"],
+    ids=[
+        "mapped",
+        "other-value",
+        "unmapped",
+        "endpoint-set",
+        "endpoint-empty",
+        "endpoint-not-this-values",
+        "no-config",
+    ],
 )
 def test_a_mapped_field_decides_the_purposes_before_the_others(config, purposes):
-    """A field whose values are not service ids is translated first; a value the
-    map does not name falls through to `required_when`, then `purpose` (#2485)."""
+    """A field whose values are not service ids is translated first, and a set
+    endpoint field opens its value to any key; a value the map does not name
+    falls through to `required_when`, then `purpose` (#2485)."""
     requirement = SecretRequirement(
         kind=SecretKind.API_KEY,
         description="A key",
@@ -665,6 +705,7 @@ def test_a_mapped_field_decides_the_purposes_before_the_others(config, purposes)
                 "claude_code": ("anthropic", "openrouter"),
                 "codex": ("openai", "openai_codex"),
             },
+            open_when_set={"claude_code": "base_url"},
         ),
     )
 
@@ -685,3 +726,6 @@ def test_the_coding_agent_maps_each_harness_to_purposes_the_vault_offers():
             entry = secret_purposes.get(purpose)
             assert entry is not None
             assert requirement.accepts(entry.kind.value)
+    for harness, endpoint in requirement.purposes_by.open_when_set.items():
+        assert harness in harnesses
+        assert endpoint in CodingAgentConfig.model_fields

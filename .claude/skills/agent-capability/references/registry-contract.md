@@ -96,8 +96,10 @@ exactly the moments the server will demand one, and only a value can cross the w
 
 Which *service* the key must be for is `purposes_for(config)`, read by publish and
 mirrored by the Builder's picker: `purposes_by` first (a field whose values are not
-service ids, mapped to the purposes each accepts — the coding agent's `harness`),
-then the `required_when` field's value, then `purpose`. A `custom` key always fits.
+service ids, mapped to the purposes each accepts — the coding agent's `harness`,
+read with its schema default — and lifted by `open_when_set` once an endpoint field
+such as `base_url` is set), then the `required_when` field's value, then `purpose`.
+A `custom` key always fits.
 
 `needs_secret(config)` is the one answer, consulted by publish validation *and* by
 the build, so the two cannot disagree — which would mean an agent that publishes and
