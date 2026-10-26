@@ -221,6 +221,7 @@ def prepared_run(model=None):
     host = Agent(model or TestModel(custom_output_args={"steps": [" Make a table ", "x" * 81]}))
     return SimpleNamespace(
         run=SimpleNamespace(id=uuid4()),
+        spec=AgentSpec(name="Helper"),
         built=SimpleNamespace(
             agent=host,
             budget=budget,
@@ -400,3 +401,90 @@ async def test_revoked_conversation_access_prevents_model_input_and_writes(scena
     s.runner.prepare.assert_not_awaited()
     s.service._generate.assert_not_awaited()
     s.mocks["store_next_steps"].assert_not_awaited()
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("disabled", [False, True])
+async def test_input_privacy_rules_screen_both_stored_messages_before_model(monkeypatch, disabled):
+    from pydantic_ai.messages import ModelResponse, ToolCallPart, UserPromptPart
+    from pydantic_ai.models.function import FunctionModel
+
+    observed = []
+
+    def respond(messages, info):
+        observed.extend(
+            part.content
+            for message in messages
+            for part in message.parts
+            if isinstance(part, UserPromptPart)
+        )
+        return ModelResponse(parts=[ToolCallPart("final_result", {"steps": ["Continue"]})])
+
+    monkeypatch.setattr(module, "run_heartbeat", no_heartbeat)
+    prepared = prepared_run(FunctionModel(respond))
+    prepared.spec = AgentSpec(
+        name="Helper",
+        capabilities=[
+            {
+                "id": "guardrails",
+                "enabled": not disabled,
+                "config": {"redact_pii_in": True, "redact_secrets_in": True},
+            }
+        ],
+    )
+    runner = SimpleNamespace(finish=AsyncMock())
+    private = "alice@example.com sk-" + "a" * 48
+    assert await FollowUpService(AsyncMock())._generate(runner, prepared, private, private) == [
+        "Continue"
+    ]
+    assert len(observed) == 1
+    assert ("alice@example.com" in observed[0]) is disabled
+    assert ("a" * 48 in observed[0]) is disabled
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("edge", ["in", "out", "args"])
+async def test_source_keyword_rules_refuse_suggestions_and_record_guardrail_status(
+    monkeypatch, edge
+):
+    monkeypatch.setattr(module, "run_heartbeat", no_heartbeat)
+    prepared = prepared_run(TestModel(custom_output_args={"steps": ["forbidden"]}))
+    prepared.spec = AgentSpec(
+        name="Helper",
+        capabilities=[
+            {
+                "id": "guardrails",
+                "config": {f"blocked_keywords_{edge}": "forbidden"},
+            }
+        ],
+    )
+    runner = SimpleNamespace(finish=AsyncMock())
+    assert (
+        await FollowUpService(AsyncMock())._generate(runner, prepared, "forbidden", "answer") == []
+    )
+    assert runner.finish.await_args.kwargs["status"] == RunStatus.GUARDRAIL_BLOCKED
+    if edge == "in":
+        assert prepared.built.ledger.input_tokens == 0
+    else:
+        assert prepared.built.ledger.input_tokens > 0
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("edge", ["out", "args"])
+async def test_structured_steps_redact_personal_data_before_persistence(monkeypatch, edge):
+    monkeypatch.setattr(module, "run_heartbeat", no_heartbeat)
+    prepared = prepared_run(TestModel(custom_output_args={"steps": ["Email alice@example.com"]}))
+    prepared.spec = AgentSpec(
+        name="Helper",
+        capabilities=[
+            {
+                "id": "guardrails",
+                "config": {f"redact_pii_{edge}": True},
+            }
+        ],
+    )
+    runner = SimpleNamespace(finish=AsyncMock())
+    steps = await FollowUpService(AsyncMock())._generate(runner, prepared, "q", "a")
+    assert len(steps) == 1
+    assert "alice@example.com" not in steps[0]
+    assert runner.finish.await_args.kwargs["status"] == RunStatus.COMPLETED

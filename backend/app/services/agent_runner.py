@@ -4827,7 +4827,7 @@ class AgentRunnerService:
             )
             pending = [a for a in approvals if a.status == ApprovalStatus.PENDING.value]
             await notifications.approval_requested(run, agent=agent, spec=spec, approvals=pending)
-        elif RunSurface(run.surface) is not RunSurface.WEB:
+        elif RunSurface(run.surface) not in {RunSurface.WEB, RunSurface.FOLLOW_UPS}:
             # A chat user watching `WEB` already sees a completion or a
             # failure on screen; every other surface is exactly the "stops
             # silently" gap this module's own docstring names.

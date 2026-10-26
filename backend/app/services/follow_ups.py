@@ -11,11 +11,19 @@ from uuid import UUID
 from pydantic_ai import Agent
 from pydantic_ai.models import Model
 from pydantic_ai.usage import UsageLimits
+from pydantic_ai_harness.guardrails.detectors import TextDetector
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, guarded_by, metered_by
 from app.agents.capabilities.follow_ups import FollowUpsConfig, kept_steps
 from app.agents.capabilities.follow_ups._capability import _INSTRUCTIONS, _SHOWN_CHARS, _Steps
+from app.agents.capabilities.guardrails import (
+    GuardrailBlocked,
+    GuardrailsConfig,
+    input_screen,
+    output_screen,
+    tool_args_screen,
+)
 from app.agents.deps import AgentDeps
 from app.agents.failures import run_failure_summary
 from app.agents.observability import inherited_instrumentation
@@ -75,6 +83,21 @@ def _helper(prepared: PreparedRun) -> Agent[AgentDeps, _Steps]:
     )
     helper.instrument = inherited_instrumentation(prepared.built.agent)
     return helper
+
+
+def _guardrails(spec: AgentSpec) -> GuardrailsConfig:
+    for binding in spec.capabilities:
+        if binding.id == "guardrails" and binding.enabled:
+            return GuardrailsConfig.model_validate(binding.config)
+    return GuardrailsConfig()
+
+
+def _screen(text: str, detector: TextDetector | None) -> str:
+    if detector is None:
+        return text
+    verdict = detector(text)
+    # Owned edge detectors allow, replace text, or raise GuardrailBlocked.
+    return str(verdict.replacement) if verdict.action == "replace" else text
 
 
 class FollowUpService:
@@ -191,6 +214,11 @@ class FollowUpService:
         error: str | None = None
         budget_scope: BudgetScope | None = None
         try:
+            config = _guardrails(prepared.spec)
+            incoming = input_screen(config)
+            # Screen before truncating: cutting through a secret can defeat its detector.
+            prompt = _screen(prompt, incoming)
+            answer = _screen(answer, incoming)
             helper = _helper(prepared)
             with guarded_by(prepared.built.budget), metered_by(prepared.built.ledger):
                 async with run_heartbeat(prepared.run.id), asyncio.timeout(_TIMEOUT_SECONDS):
@@ -202,8 +230,20 @@ class FollowUpService:
                             request_limit=min(2, prepared.built.usage_limits.request_limit or 2)
                         ),
                     )
+            outgoing = output_screen(config)
+            arguments = tool_args_screen(config)
+            # Text-only output guardrails skip structured/native responses. Screen
+            # every actual button before it can be stored or sent to a surface.
+            steps = [
+                _screen(_screen(step, None if outgoing is None else outgoing.screen), arguments)
+                for step in result.output.steps
+            ]
             status = RunStatus.COMPLETED
-            return kept_steps(result.output.steps)
+            return kept_steps(steps)
+        except GuardrailBlocked as exc:
+            status = RunStatus.GUARDRAIL_BLOCKED
+            error = str(exc)
+            return []
         except BudgetExceeded as exc:
             status = RunStatus.BUDGET_EXCEEDED
             budget_scope = exc.scope
