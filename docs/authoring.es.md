@@ -1,5 +1,5 @@
 ---
-source_sha: "3f6e5abe9cc7"
+source_sha: "0b2357df2b70"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -17,7 +17,8 @@ que se publica el draft.
 Hace tres cosas:
 
 - **Mejorar** un agent: sugerir cambios a partir de sus runs valorados
-  negativamente y fallidos.
+  negativamente y fallidos. En la consola, cada **Improve** abre el [asistente Improve](#the-improve-wizard);
+  una solicitud puntual sigue disponible por la API.
 - **Verificar** tus propios cambios: comparar el draft con la versión en la que
   se basa - la última publicada - con la misma evidencia y decir qué mejoran los
   cambios, qué arriesgan y qué quitaron.
@@ -70,7 +71,7 @@ que formar parte de la edición. La barra muestra esa línea encima de las citas
 del hallazgo, para que el lector juzgue si la respaldan. Un hallazgo de que la
 edición está respaldada sin ninguna cita que se pueda comprobar no se muestra.
 
-Cuando termina una solicitud de mejora con el Builder abierto, un diálogo muestra la cantidad de respuestas revisadas, cambios propuestos y guardados, y propuestas rechazadas con sus motivos. **Ver resultado** permite abrirlo de nuevo. Un resultado vacío explica que no se pudo aplicar nada, sin efecto esperado. El texto del efecto que contiene identificadores de runs se sustituye por una descripción con la cantidad de respuestas fuente enlazadas.
+Cuando termina una solicitud al asistente - Verificar, o Mejorar por la API - con el Builder abierto, un diálogo muestra la cantidad de respuestas revisadas, cambios propuestos y guardados, y propuestas rechazadas con sus motivos. **Ver resultado** permite abrirlo de nuevo. Un resultado vacío explica que no se pudo aplicar nada, sin efecto esperado. El texto del efecto que contiene identificadores de runs se sustituye por una descripción con la cantidad de respuestas fuente enlazadas.
 
 Cada texto cambiado - instrucciones, la descripción de una herramienta, un archivo de contexto - aparece como diff: líneas eliminadas y añadidas con las palabras cambiadas marcadas, unas pocas líneas sin cambios alrededor de cada cambio y el resto plegado, unificado o lado a lado en una pantalla ancha. Cada cambio conserva su justificación y la evidencia enlazada; los identificadores de runs en una justificación aparecen como conversaciones numeradas.
 
@@ -78,8 +79,8 @@ Tras completar una comprobación, las personas con `runs:view` pueden comparar r
 
 ## Sugerencias { #suggestions }
 
-Mejorar y Verificar abren la **barra del asistente** en la pestaña Build del
-agent. Cada sugerencia muestra el fragmento que cambia en su contexto, el porqué
+Las sugerencias de una sesión de mejora, de Verificar o de la API esperan en la
+**barra del asistente** de la pestaña Build del agent. Cada sugerencia muestra el fragmento que cambia en su contexto, el porqué
 y la evidencia, y cada una se decide por separado:
 
 | Acción | Qué ocurre |
@@ -344,7 +345,9 @@ Tras finalizar, `/{run_id}/rounds/{number}/select` convierte una ronda medida en
 
 ### El asistente Improve { #the-improve-wizard }
 
-Abra **Improve** en la cabecera del agente, desde la insignia **Needs attention** de la lista de agentes, desde la tarjeta del dashboard o desde la pestaña **Knowledge gaps** del agente. Es la acción principal de la cabecera cuando el agente tuvo respuestas valoradas negativamente o runs fallidos en los últimos 30 días. Una sesión vive en `/agents/<agent>/improve/<session>`; la página puede cerrarse y volver a abrirse mientras el trabajo continúa. Cada pantalla pide como mucho una decisión, indica quién decidió qué en ella y deja las opciones avanzadas bajo **Show details**.
+Abra **Improve** en la cabecera del agente o en la barra del asistente de la pestaña Build, desde la insignia **Needs attention** de la lista de agentes, desde la tarjeta del dashboard o desde la pestaña **Knowledge gaps** del agente. Es la acción principal de la cabecera cuando el agente tuvo respuestas valoradas negativamente o runs fallidos en los últimos 30 días.
+
+Cada **Improve** abre la sesión del agente que sigue en curso o espera una decisión, y una nueva solo si no hay ninguna. Una sesión vive en `/agents/<agent>/improve/<session>`; la página puede cerrarse y volver a abrirse mientras el trabajo continúa. Cada pantalla pide como mucho una decisión, indica quién decidió qué en ella y deja las opciones avanzadas bajo **Show details**.
 
 1. **Inicio.** Tres cifras de los últimos 30 días y luego las preguntas de prueba propias del agente, ya elegidas y estimadas: la estimación, con la duración aproximada de la sesión, aparece sin hacer clic y no gasta nada, así que **Start improving** es la única decisión. Otras preguntas de prueba, el límite de gasto, el agente auxiliar y una prueba de las respuestas actuales están bajo **Show details**. Un agente sin preguntas de prueba recibe **Write test questions for me**: las respuestas valoradas se convierten en preguntas, se escriben más para temas sin ejemplo y la estimación llega cuando están listas. La sugerencia tras la primera publicación abre esta pantalla para fijar una referencia.
 2. **Comprender.** Una frase cuenta los problemas que corregir en el agente y la información que falta en la base de conocimiento. Los ejemplos cuyas carencias se unieron a un mismo tema de lagunas de conocimiento forman una tarjeta. **Move to the other column** e **Ignore this** se guardan en la sesión mediante `PUT /{run_id}/evidence/{evidence_run_id}` con `decision` igual a `agent`, `missing_knowledge`, `ignored` o `null`. Los intentos posteriores dejan fuera de los cambios del agente los ejemplos ignorados y los movidos a la base de conocimiento; nada ya propuesto o medido cambia.

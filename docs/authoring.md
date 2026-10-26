@@ -15,7 +15,9 @@ draft is published.
 
 It does three things:
 
-- **Improve** an agent: suggest changes from its rated-down and failed runs.
+- **Improve** an agent: suggest changes from its rated-down and failed runs. In the
+  console every **Improve** opens the [Improve wizard](#the-improve-wizard); a
+  one-off request is still available through the API.
 - **Verify** your own edits: compare the draft with the version it is based on -
   the latest published one - against the same evidence, and say what the edits improve, what they risk and what they
   removed.
@@ -66,7 +68,7 @@ that line above the finding's quotes, for the reader to judge whether they back
 it. A finding that the edit is supported, left with no quote that could be
 checked, is not shown.
 
-When an Improve request finishes while the Builder is open, a result dialog shows the reviewed answer count, proposed and recorded changes, and rejected proposals with their reasons. You can reopen it with **Review result**. An empty result says that nothing could be applied and shows no expected effect. Expected-effect prose containing raw run identifiers is replaced with a description counting the linked source answers.
+When an assistant request - a Verify, or an Improve through the API - finishes while the Builder is open, a result dialog shows the reviewed answer count, proposed and recorded changes, and rejected proposals with their reasons. You can reopen it with **Review result**. An empty result says that nothing could be applied and shows no expected effect. Expected-effect prose containing raw run identifiers is replaced with a description counting the linked source answers.
 
 Every changed text - instructions, a tool description, a context file - shows as a diff: removed and added lines with the changed words marked, a few unchanged lines around each change and the rest folded, unified or side by side on a wide screen. Each change keeps its rationale and linked evidence; run identifiers in a rationale show as numbered conversations.
 
@@ -74,7 +76,8 @@ After a check completes, readers with `runs:view` can compare answers from both 
 
 ## Suggestions { #suggestions }
 
-Improve and Verify open the **assistant strip** on the agent's Build tab. Each
+Suggestions from an improvement session, a Verify or the API wait on the
+**assistant strip** on the agent's Build tab. Each
 suggestion shows the passage it changes in its surroundings, why, and the
 evidence, and each is decided on its own:
 
@@ -323,7 +326,9 @@ After completion, `/{run_id}/rounds/{number}/select` makes a measured round the 
 
 ### The Improve wizard { #the-improve-wizard }
 
-Open **Improve** in the agent header, from the **Needs attention** badge on the agent list, from the dashboard card or from the agent's **Knowledge gaps** tab. It is the header's primary action when the agent had answers rated down or failed runs in the last 30 days. A session lives at `/agents/<agent>/improve/<session>`; the page can be closed and reopened while work continues. Each screen asks for at most one decision, names who decided what on it, and keeps advanced options under **Show details**.
+Open **Improve** in the agent header or on the Build tab's assistant strip, from the **Needs attention** badge on the agent list, from the dashboard card or from the agent's **Knowledge gaps** tab. It is the header's primary action when the agent had answers rated down or failed runs in the last 30 days.
+
+Every **Improve** opens the agent's session still in progress or waiting for a decision, and a new one only when there is none. A session lives at `/agents/<agent>/improve/<session>`; the page can be closed and reopened while work continues. Each screen asks for at most one decision, names who decided what on it, and keeps advanced options under **Show details**.
 
 1. **Start.** Three numbers from the last 30 days, then the agent's own test questions, already chosen and priced: the estimate, with about how long the session takes, appears without a click and spends nothing, so **Start improving** is the one decision. Other test questions, the spending limit, the helper and a test of today's answers sit under **Show details**. An agent without test questions gets **Write test questions for me**: rated answers become questions, more are written for topics with no example, and the estimate follows once they are ready. The hint after a first publish opens this screen to set a baseline.
 2. **Understand.** One sentence counts the problems to fix in the agent and the information missing from the knowledge base. Examples whose misses joined one knowledge gap topic form one card. **Move to the other column** and **Ignore this** are kept on the session, through `PUT /{run_id}/evidence/{evidence_run_id}` with `decision` set to `agent`, `missing_knowledge`, `ignored` or `null`. Later attempts leave ignored examples, and those moved to the knowledge base, out of the agent's changes; nothing already proposed or measured changes.

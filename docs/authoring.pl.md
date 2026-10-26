@@ -1,5 +1,5 @@
 ---
-source_sha: "3f6e5abe9cc7"
+source_sha: "0b2357df2b70"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -17,7 +17,8 @@ robocza nie zostanie opublikowana.
 Robi trzy rzeczy:
 
 - **Ulepsza** agenta: sugeruje zmiany na podstawie jego negatywnie ocenionych i
-  nieudanych runów.
+  nieudanych runów. W konsoli każde **Popraw** otwiera [kreator Popraw](#the-improve-wizard);
+  jednorazowe żądanie jest nadal dostępne przez API.
 - **Sprawdza** Twoje zmiany: porównuje wersję roboczą z wersją, na której się
   opiera - najnowszą opublikowaną - na tych samych dowodach i mówi, co zmiany
   poprawiają, czym ryzykują i co usunęły.
@@ -70,7 +71,7 @@ pokazuje ją nad cytatami ustalenia, żeby czytelnik ocenił, czy go popierają.
 Ustalenie, że edycja ma poparcie, któremu nie został żaden cytat do sprawdzenia,
 nie jest pokazywane.
 
-Gdy żądanie poprawy kończy się przy otwartym Builderze, dialog wyniku pokazuje liczbę przejrzanych odpowiedzi, zaproponowane i zapisane zmiany oraz odrzucone propozycje z powodami. Można otworzyć go ponownie przyciskiem **Zobacz wynik**. Pusty wynik informuje, że niczego nie można zastosować, bez oczekiwanego efektu. Opis efektu zawierający surowe identyfikatory runów jest zastępowany opisem z liczbą podlinkowanych odpowiedzi źródłowych.
+Gdy żądanie asystenta - Sprawdź albo Ulepsz przez API - kończy się przy otwartym Builderze, dialog wyniku pokazuje liczbę przejrzanych odpowiedzi, zaproponowane i zapisane zmiany oraz odrzucone propozycje z powodami. Można otworzyć go ponownie przyciskiem **Zobacz wynik**. Pusty wynik informuje, że niczego nie można zastosować, bez oczekiwanego efektu. Opis efektu zawierający surowe identyfikatory runów jest zastępowany opisem z liczbą podlinkowanych odpowiedzi źródłowych.
 
 Każdy zmieniony tekst - instrukcje, opis narzędzia, plik kontekstowy - jest pokazany jako diff: usunięte i dodane linie z zaznaczonymi zmienionymi słowami, kilka niezmienionych linii wokół każdej zmiany i zwinięta reszta, jednolicie albo obok siebie na szerokim ekranie. Każda zmiana zachowuje uzasadnienie i linki do materiału źródłowego; identyfikatory runów w uzasadnieniu są pokazane jako ponumerowane rozmowy.
 
@@ -78,8 +79,8 @@ Po zakończeniu sprawdzenia osoby z `runs:view` mogą porównać odpowiedzi obu 
 
 ## Sugestie { #suggestions }
 
-Ulepsz i Sprawdź otwierają **pasek asystenta** na zakładce **Budowa** (Build)
-agenta. Każda
+Sugestie z sesji poprawy, ze Sprawdź albo z API czekają na **pasku asystenta** na
+zakładce **Budowa** (Build) agenta. Każda
 sugestia pokazuje zmieniany fragment w jego otoczeniu, powód i dowody, a o
 każdej decyduje się osobno:
 
@@ -335,7 +336,9 @@ Po zakończeniu `/{run_id}/rounds/{number}/select` ustawia zmierzoną rundę jak
 
 ### Kreator Popraw { #the-improve-wizard }
 
-Otwórz **Popraw** w nagłówku agenta, z plakietki **Wymaga uwagi** na liście agentów, z karty na dashboardzie albo z zakładki **Luki w wiedzy** agenta. To główna akcja nagłówka, gdy agent miał w ostatnich 30 dniach odpowiedzi ocenione negatywnie albo nieudane runy. Sesja ma adres `/agents/<agent>/improve/<session>`; stronę można zamknąć i otworzyć ponownie, gdy praca trwa. Każdy ekran prosi o najwyżej jedną decyzję, podaje, kto co na nim zdecydował, a opcje zaawansowane trzyma pod **Pokaż szczegóły**.
+Otwórz **Popraw** w nagłówku agenta albo na pasku asystenta na zakładce Budowa, z plakietki **Wymaga uwagi** na liście agentów, z karty na dashboardzie albo z zakładki **Luki w wiedzy** agenta. To główna akcja nagłówka, gdy agent miał w ostatnich 30 dniach odpowiedzi ocenione negatywnie albo nieudane runy.
+
+Każde **Popraw** otwiera sesję agenta, która trwa albo czeka na decyzję, a nową tylko wtedy, gdy takiej nie ma. Sesja ma adres `/agents/<agent>/improve/<session>`; stronę można zamknąć i otworzyć ponownie, gdy praca trwa. Każdy ekran prosi o najwyżej jedną decyzję, podaje, kto co na nim zdecydował, a opcje zaawansowane trzyma pod **Pokaż szczegóły**.
 
 1. **Start.** Trzy liczby z ostatnich 30 dni, potem własne pytania testowe agenta, już wybrane i wycenione: szacunek, razem z przybliżonym czasem trwania sesji, pojawia się bez kliknięcia i niczego nie wydaje, więc **Zacznij poprawianie** to jedyna decyzja. Inne pytania testowe, limit wydatków, agent pomocniczy i test dzisiejszych odpowiedzi są pod **Pokaż szczegóły**. Agent bez pytań testowych dostaje **Napisz dla mnie pytania testowe**: ocenione odpowiedzi stają się pytaniami, kolejne powstają dla tematów bez przykładu, a szacunek pojawia się, gdy są gotowe. Podpowiedź po pierwszej publikacji otwiera ten ekran, by ustalić punkt odniesienia.
 2. **Zrozumienie.** Jedno zdanie liczy problemy do poprawy w agencie i informacje, których brakuje w bazie wiedzy. Przykłady, których braki trafiły do jednego tematu luk w wiedzy, tworzą jedną kartę. **Przenieś do drugiej kolumny** i **Zignoruj** są zapisywane w sesji przez `PUT /{run_id}/evidence/{evidence_run_id}` z `decision` równym `agent`, `missing_knowledge`, `ignored` albo `null`. Kolejne próby pomijają w zmianach agenta przykłady zignorowane i przeniesione do bazy wiedzy; nic, co już zaproponowano lub zmierzono, się nie zmienia.

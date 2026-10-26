@@ -1,5 +1,5 @@
 ---
-source_sha: "3f6e5abe9cc7"
+source_sha: "0b2357df2b70"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -17,7 +17,8 @@ nichts erreicht irgendwen, bevor der Entwurf veröffentlicht ist.
 Er tut drei Dinge:
 
 - Einen Agent **verbessern**: Änderungen aus seinen negativ bewerteten und
-  fehlgeschlagenen Runs vorschlagen.
+  fehlgeschlagenen Runs vorschlagen. In der Konsole öffnet jedes **Verbessern** den
+  [Verbessern-Assistenten](#the-improve-wizard); eine einmalige Anfrage bleibt über die API möglich.
 - Ihre eigenen Änderungen **prüfen**: den Entwurf mit der Version, auf der er
   beruht - der zuletzt veröffentlichten -, anhand derselben Belege vergleichen und
   sagen, was die Änderungen verbessern, riskieren und entfernt haben.
@@ -72,7 +73,7 @@ Zeile muss Teil der Änderung sein. Die Leiste zeigt sie über den Zitaten des
 Befunds, damit der Leser beurteilen kann, ob sie sie stützen. Ein Befund, die
 Änderung sei belegt, dem kein prüfbares Zitat bleibt, wird nicht gezeigt.
 
-Endet eine Verbesserungsanfrage bei geöffnetem Builder, zeigt ein Ergebnisdialog die Anzahl geprüfter Antworten, vorgeschlagene und gespeicherte Änderungen sowie abgelehnte Vorschläge mit Gründen. **Ergebnis ansehen** öffnet ihn erneut. Ein leeres Ergebnis erklärt, dass nichts anwendbar war, ohne erwartete Wirkung. Wirkungstext mit rohen Run-Kennungen wird durch eine Beschreibung mit der Anzahl verlinkter Quellantworten ersetzt.
+Endet eine Anfrage an den Assistenten - Prüfen oder Verbessern über die API - bei geöffnetem Builder, zeigt ein Ergebnisdialog die Anzahl geprüfter Antworten, vorgeschlagene und gespeicherte Änderungen sowie abgelehnte Vorschläge mit Gründen. **Ergebnis ansehen** öffnet ihn erneut. Ein leeres Ergebnis erklärt, dass nichts anwendbar war, ohne erwartete Wirkung. Wirkungstext mit rohen Run-Kennungen wird durch eine Beschreibung mit der Anzahl verlinkter Quellantworten ersetzt.
 
 Jeder geänderte Text - Anweisungen, eine Tool-Beschreibung, eine Context-Datei - erscheint als Diff: entfernte und hinzugefügte Zeilen mit markierten geänderten Wörtern, einige unveränderte Zeilen um jede Änderung und der Rest eingeklappt, einheitlich oder auf einem breiten Bildschirm nebeneinander. Jede Änderung behält Begründung und verlinkte Belege; Run-Kennungen in einer Begründung erscheinen als nummerierte Gespräche.
 
@@ -80,8 +81,8 @@ Nach einer abgeschlossenen Prüfung können Leser mit `runs:view` Antworten beid
 
 ## Vorschläge { #suggestions }
 
-Verbessern und Prüfen öffnen die **Assistentenleiste** auf dem Tab **Bauen**
-(Build) des Agents. Jeder Vorschlag zeigt die Passage, die er ändert, in ihrem Umfeld, die
+Vorschläge aus einer Verbesserungssitzung, aus Prüfen oder aus der API warten in der
+**Assistentenleiste** auf dem Tab **Bauen** (Build) des Agents. Jeder Vorschlag zeigt die Passage, die er ändert, in ihrem Umfeld, die
 Begründung und die Belege, und über jeden wird einzeln entschieden:
 
 | Aktion | Was passiert |
@@ -355,7 +356,9 @@ Nach Abschluss macht `/{run_id}/rounds/{number}/select` eine gemessene Runde zum
 
 ### Der Verbessern-Assistent { #the-improve-wizard }
 
-Öffnen Sie **Verbessern** im Agentenkopf, über das Abzeichen **Braucht Aufmerksamkeit** in der Agentenliste, über die Dashboard-Karte oder über den Tab **Wissenslücken** des Agents. Es ist die Hauptaktion im Kopf, wenn der Agent in den letzten 30 Tagen negativ bewertete Antworten oder fehlgeschlagene Runs hatte. Eine Sitzung liegt unter `/agents/<agent>/improve/<session>`; die Seite lässt sich schließen und wieder öffnen, während die Arbeit weiterläuft. Jeder Bildschirm verlangt höchstens eine Entscheidung, nennt, wer dort was entschieden hat, und legt erweiterte Optionen unter **Details anzeigen**.
+Öffnen Sie **Verbessern** im Agentenkopf oder in der Assistentenleiste auf dem Tab Bauen, über das Abzeichen **Braucht Aufmerksamkeit** in der Agentenliste, über die Dashboard-Karte oder über den Tab **Wissenslücken** des Agents. Es ist die Hauptaktion im Kopf, wenn der Agent in den letzten 30 Tagen negativ bewertete Antworten oder fehlgeschlagene Runs hatte.
+
+Jedes **Verbessern** öffnet die Sitzung des Agents, die noch läuft oder auf eine Entscheidung wartet, und eine neue nur, wenn es keine gibt. Eine Sitzung liegt unter `/agents/<agent>/improve/<session>`; die Seite lässt sich schließen und wieder öffnen, während die Arbeit weiterläuft. Jeder Bildschirm verlangt höchstens eine Entscheidung, nennt, wer dort was entschieden hat, und legt erweiterte Optionen unter **Details anzeigen**.
 
 1. **Start.** Drei Zahlen aus den letzten 30 Tagen, dann die eigenen Testfragen des Agents, bereits gewählt und geschätzt: Die Schätzung erscheint samt ungefährer Dauer der Sitzung ohne Klick und gibt nichts aus, daher ist **Verbesserung starten** die einzige Entscheidung. Andere Testfragen, das Ausgabenlimit, der Hilfsagent und ein Test der heutigen Antworten liegen unter **Details anzeigen**. Ein Agent ohne Testfragen bekommt **Testfragen für mich schreiben**: Bewertete Antworten werden zu Fragen, weitere entstehen für Themen ohne Beispiel, und die Schätzung folgt, sobald sie bereit sind. Der Hinweis nach der ersten Veröffentlichung öffnet diesen Bildschirm, um einen Ausgangswert festzulegen.
 2. **Verstehen.** Ein Satz zählt die Probleme, die im Agent zu beheben sind, und die Informationen, die in der Wissensdatenbank fehlen. Beispiele, deren Lücken in ein Wissenslücken-Thema fielen, bilden eine Karte. **In die andere Spalte verschieben** und **Ignorieren** werden in der Sitzung gespeichert, über `PUT /{run_id}/evidence/{evidence_run_id}` mit `decision` gleich `agent`, `missing_knowledge`, `ignored` oder `null`. Spätere Versuche lassen ignorierte und in die Wissensdatenbank verschobene Beispiele aus den Änderungen am Agent heraus; bereits Vorgeschlagenes oder Gemessenes ändert sich nicht.
