@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Cpu, ScanText, Server, Trash2 } from "lucide-react";
+import { Server, Trash2 } from "lucide-react";
 
+import { LocalServiceIcon } from "@/components/kb/local-service-icon";
 import { LocalServiceDialog } from "@/components/kb/local-service-dialog";
 import {
   AlertDialog,
@@ -107,11 +108,10 @@ function LocalServiceRow({
 }) {
   const t = useTranslations("kb");
   const tc = useTranslations("common");
-  const Icon = service.kind === "embedding" ? Cpu : ScanText;
   return (
     <li className="hover:bg-accent flex items-center gap-3 px-4 py-3 transition-colors">
       <span className="bg-muted text-muted-foreground inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
-        <Icon className="h-4 w-4" />
+        <LocalServiceIcon kind={service.kind} className="h-5 w-5" />
       </span>
       <div className="min-w-0 flex-1">
         <p className="text-foreground truncate text-sm font-medium">

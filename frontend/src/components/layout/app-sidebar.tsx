@@ -115,7 +115,7 @@ function NavIcon({ icon: Icon }: { icon: NavItem["icon"] }) {
   return pending ? (
     <Loader2 className="h-4 w-4 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden />
   ) : (
-    <Icon className="h-4 w-4 shrink-0" aria-hidden />
+    <Icon className="h-4 w-4 shrink-0" strokeWidth={1.7} aria-hidden />
   );
 }
 
@@ -216,7 +216,7 @@ function NavGroupBlock({
             onClick={() => toggleGroup(key)}
             disabled={holdsActive}
             aria-expanded={open}
-            className="text-muted-foreground hover:text-foreground disabled:hover:text-muted-foreground flex h-6 items-center gap-1 rounded-md px-2.5 text-left text-xs font-medium tracking-wide uppercase transition-colors disabled:cursor-default"
+            className="text-muted-foreground hover:text-foreground disabled:hover:text-muted-foreground flex h-6 items-center gap-1 rounded-md px-2.5 text-left text-xs font-medium transition-colors disabled:cursor-default"
           >
             <span className="flex-1">{t(group.labelKey)}</span>
             <ChevronRight
@@ -225,7 +225,7 @@ function NavGroupBlock({
             />
           </button>
         ) : (
-          <div className="text-muted-foreground flex h-6 items-center px-2.5 text-xs font-medium tracking-wide uppercase">
+          <div className="text-muted-foreground flex h-6 items-center px-2.5 text-xs font-medium">
             {t(group.labelKey)}
           </div>
         ))}

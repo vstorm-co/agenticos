@@ -4,20 +4,13 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
-      // One ink fill, five neutrals. `default` is the page's single primary
-      // action and is drawn in ink - near-black on light surfaces, white on
-      // dark ones - the way the OpenAI and ElevenLabs consoles draw theirs.
-      // The accent never fills a button; it keeps the quieter jobs (links,
-      // selection, focus) so it still means "you are here". Pointer states
-      // step along explicit tokens rather than fading the fill with `/90`:
-      // an alpha fade lightens over white and darkens over graphite, so one
-      // class would drift in opposite directions between themes.
+      // Raised neutral actions stay legible without introducing a second palette.
       variant: {
         default:
-          "bg-primary text-primary-foreground shadow-card hover:bg-primary-hover active:bg-primary-active",
+          "border border-foreground/10 bg-action text-action-foreground shadow-sm hover:border-foreground/15 hover:bg-action-hover active:bg-action-active",
         destructive:
           "bg-destructive text-destructive-foreground shadow-card hover:bg-destructive/90",
         // Quiet: a faint edge on whatever it sits on, and a fill only under the

@@ -10,13 +10,13 @@ const reader = { id: "u-1", email: "ada@example.com", avatar_url: "u-1/a.png" } 
 beforeEach(() => useAuthStore.setState({ user: null, avatarVersion: 0 }));
 
 describe("the reader's face in a transcript", () => {
-  it("draws the generated face until a picture has loaded, so a missing file is never a hole", () => {
+  it("draws initials until a picture has loaded, so a missing file is never a hole", () => {
     // jsdom never loads an image: what it renders is what a 404 renders.
     useAuthStore.setState({ user: reader });
 
     const { container } = render(<YouFace />);
 
-    expect(container.querySelector("g.mo-root")).not.toBeNull();
+    expect(container).toHaveTextContent("AE");
     expect(container.querySelector("img")).toBeNull();
   });
 

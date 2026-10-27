@@ -2,7 +2,6 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { PageIcon } from "@/components/dashboard/page-icon";
 import { RestartTourButton } from "@/components/onboarding/restart-tour-button";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
@@ -38,7 +37,7 @@ export function PageHeader({
 }: PageHeaderProps) {
   const t = useTranslations("dashboard");
   return (
-    <div className={cn("mb-6 md:mb-8", className)}>
+    <div className={cn("mb-6", className)}>
       {breadcrumbs && breadcrumbs.length > 0 && (
         <nav aria-label={t("breadcrumb")} className="mb-3">
           <ol className="text-muted-foreground flex flex-wrap items-center gap-1.5 text-xs">
@@ -77,8 +76,7 @@ export function PageHeader({
           leave the page's primary button floating halfway down the header. */}
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
         <div className="min-w-0 flex-1 basis-80">
-          <div className="flex items-center gap-3">
-            <PageIcon />
+          <div className="flex min-h-9 items-center gap-3">
             <h1 className="text-foreground min-w-0 flex-1 text-xl leading-tight font-semibold tracking-tight text-balance md:text-2xl">
               {title}
             </h1>
@@ -101,9 +99,8 @@ export function PageHeader({
             </div>
           )}
           {description && (
-            // Two lines on a phone: a paragraph above the content pushed the
-            // page's first card below the fold before anything could be read.
-            <p className="text-muted-foreground mt-1.5 line-clamp-2 max-w-2xl text-sm leading-relaxed text-pretty md:line-clamp-none">
+            // Keep the introduction compact; the page content owns the space.
+            <p className="text-muted-foreground mt-1.5 line-clamp-2 max-w-2xl text-sm leading-relaxed text-pretty">
               {description}
             </p>
           )}

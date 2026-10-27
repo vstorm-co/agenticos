@@ -1,5 +1,5 @@
 ---
-source_sha: "f059e3252bba"
+source_sha: "5538880e71c7"
 ---
 
 # Kod konsoli { #the-consoles-code }
@@ -24,6 +24,17 @@ Playwright. Menedżer pakietów i runner: **bun**.
 
 Server Components są domyślne. `"use client"` jest od stanu, efektów i
 handlerów, a nie z przyzwyczajenia.
+
+## Wygląd konsoli { #console-presentation }
+
+Używaj `PageHeader` do zwartych tytułów i akcji. Katalogi kart korzystają z
+`ListCard layout="grid"`, bez dodatkowego panelu; tabele zachowują panel.
+Przyciski używają neutralnych tokenów `action`, niezależnych od `primary`
+dla zaznaczonych kontrolek i odznak. Fokus i krawędzie pól pozostają widoczne.
+
+Osoby i organizacje korzystają z `EntityAvatar`: zdjęcia są kadrowane do koła,
+a zastępują je inicjały na stałym kolorze. Agenci zachowują generowane twarze.
+Opisy w katalogach zajmują dwa wiersze; otwarcie elementu pokazuje pełny opis.
 
 ## Przeglądarka nigdy nie woła backendu { #the-browser-never-calls-the-backend }
 

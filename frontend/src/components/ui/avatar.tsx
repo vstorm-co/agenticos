@@ -16,7 +16,7 @@ const Avatar = React.forwardRef<
       // circle drew 12px initials whatever its size, so `text-[11px]` in a
       // 16px circle rendered as an unreadable smudge and `text-lg` in an 80px
       // one as two small letters in a lot of colour.
-      "relative flex h-10 w-10 shrink-0 overflow-hidden rounded-full text-xs",
+      "ring-foreground/10 relative flex h-10 w-10 shrink-0 overflow-hidden rounded-full text-xs ring-1",
       className,
     )}
     {...props}
@@ -30,7 +30,7 @@ const AvatarImage = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AvatarPrimitive.Image
     ref={ref}
-    className={cn("aspect-square h-full w-full", className)}
+    className={cn("aspect-square h-full w-full object-cover", className)}
     {...props}
   />
 ));

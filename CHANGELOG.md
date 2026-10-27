@@ -19,6 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- Refine console headers, neutral action buttons and sidebar glyphs. Skills and
+  context galleries use compact, consistently sized cards without nested panels.
+  People use photos or initials; organizations keep round, cropped avatars.
+  Local server controls show Ollama and LlamaIndex marks in both themes.
+
 ## [1.25.0] - 2026-10-27
 
 ### Changed

@@ -23,6 +23,8 @@ export function ListCard({
   counted,
   controls,
   namedByPage = false,
+  layout = "panel",
+  className,
   empty = false,
   contentClassName,
   headerTour,
@@ -47,6 +49,8 @@ export function ListCard({
    * and the title is kept for a screen reader only.
    */
   namedByPage?: boolean;
+  /** Card grids already provide their own surfaces; tables retain a panel. */
+  layout?: "panel" | "grid";
   /**
    * Under `namedByPage`: there is nothing yet, so there is nothing to count or
    * search, and a strip reading "0 skills" above "No skills yet" said it twice.
@@ -64,11 +68,15 @@ export function ListCard({
 } & HTMLAttributes<HTMLDivElement>) {
   if (namedByPage) {
     return (
-      <Card {...rest}>
+      <Card
+        className={cn(layout === "grid" && "border-0 bg-transparent shadow-none", className)}
+        {...rest}
+      >
         <CardHeader
           data-tour={headerTour}
           className={cn(
             "flex-col gap-3 space-y-0 border-b px-4 py-3 sm:min-h-14 sm:flex-row sm:items-center sm:justify-between sm:px-5",
+            layout === "grid" && "border-0 px-0 pt-0 pb-4 sm:px-0",
             empty && "sr-only",
           )}
         >
@@ -78,12 +86,21 @@ export function ListCard({
           </div>
           {controls}
         </CardHeader>
-        <CardContent className={contentPadding(contentClassName)}>{children}</CardContent>
+        <CardContent
+          className={
+            layout === "grid" ? cn("p-0", contentClassName) : contentPadding(contentClassName)
+          }
+        >
+          {children}
+        </CardContent>
       </Card>
     );
   }
   return (
-    <Card {...rest}>
+    <Card
+      className={cn(layout === "grid" && "border-0 bg-transparent shadow-none", className)}
+      {...rest}
+    >
       {/* A column on a phone: beside a search box and three filters the title
           was squeezed to "Catalo", and it is the one thing in the header that
           says what the card is. */}
@@ -99,7 +116,13 @@ export function ListCard({
         </div>
         {controls}
       </CardHeader>
-      <CardContent className={contentPadding(contentClassName)}>{children}</CardContent>
+      <CardContent
+        className={
+          layout === "grid" ? cn("p-0", contentClassName) : contentPadding(contentClassName)
+        }
+      >
+        {children}
+      </CardContent>
     </Card>
   );
 }

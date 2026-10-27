@@ -177,7 +177,7 @@ export default function SkillsPage() {
     return (
       <div className="space-y-6">
         {header}
-        <ListCard namedByPage title={t("skills")} counted={null}>
+        <ListCard layout="grid" namedByPage title={t("skills")} counted={null}>
           <LoadingState variant="skeleton-cards" rows={3} />
         </ListCard>
       </div>
@@ -208,6 +208,7 @@ export default function SkillsPage() {
       <ProposedChanges canEdit={canCreate} />
 
       <ListCard
+        layout="grid"
         data-tour="skills-list"
         namedByPage
         title={t("skills")}

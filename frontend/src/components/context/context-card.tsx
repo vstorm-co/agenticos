@@ -49,19 +49,15 @@ export function ContextCard({ file, canEdit, onOpen, onDelete }: ContextCardProp
         </DocPeek>
         <span className="flex flex-1 flex-col gap-1.5 p-4 pt-3.5 pb-12">
           <span className="flex items-center gap-2 pr-8">
-            <span className="text-foreground truncate font-mono text-sm font-medium">
-              {file.name}
-            </span>
+            <span className="text-foreground truncate text-sm font-semibold">{file.name}</span>
             <Badge variant={file.mode === "inject" ? "secondary" : "outline"}>
               {t(file.mode === "inject" ? "modeInject" : "modeLink")}
             </Badge>
             {!file.enabled && <Badge variant="outline">{t("disabled")}</Badge>}
           </span>
-          {file.description !== null && (
-            <span className="text-muted-foreground line-clamp-2 block text-sm">
-              {file.description}
-            </span>
-          )}
+          <span className="text-muted-foreground line-clamp-2 min-h-10 text-sm">
+            {file.description}
+          </span>
           <span className="text-muted-foreground mt-auto flex items-center gap-1 pt-1 text-xs">
             <FileText className="h-3.5 w-3.5 shrink-0" />
             {t("sizeWithFormat", { format: file.format, size: formatBytes(file.size_bytes) })}
