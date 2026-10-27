@@ -8547,7 +8547,7 @@
       "lookAround": {
         "label": "Na co patrzę?",
         "ask": "Wyjaśnij prostym językiem, co ta platforma może dla mnie zrobić.",
-        "askOnPage": "Jestem na stronie „{title}” ({path}). Wyjaśnij prostym językiem, na co patrzę i co mogę tu zrobić."
+        "askOnPage": "Jestem na {path}. Wyjaśnij prostym językiem, na co patrzę i co mogę tu zrobić."
       },
       "recipes": {
         "label": "Gotowe przepisy",

@@ -8774,7 +8774,7 @@
       "lookAround": {
         "label": "What am I looking at?",
         "ask": "Explain what this platform can do for me, in plain language.",
-        "askOnPage": "I'm on the page \"{title}\" ({path}). Explain what I'm looking at and what I can do here, in plain language."
+        "askOnPage": "I'm on {path}. Explain what I'm looking at and what I can do here, in plain language."
       },
       "recipes": {
         "label": "Ready-made recipes",
