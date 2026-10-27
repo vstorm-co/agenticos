@@ -1,5 +1,5 @@
 ---
-source_sha: "ca18d7a497f1"
+source_sha: "02a95e1f3647"
 ---
 
 # La sandbox { #the-sandbox }
@@ -64,6 +64,8 @@ arranque.
 
 El pin vive en el checkout, no en `AGENTICOS_VERSION`, así que un host que fija
 o revierte el backend a mano hace también checkout de la etiqueta de esa release ([Fija una release](deploy.md#the-images)).
+Una instalación sin checkout, como la que prepara `scripts/quickstart.sh`, descarga
+en su lugar el `docker-compose.yml` de esa release ([Instalación](install.md)).
 
 Una etiqueta móvil ya lo rompió una vez (#2484). Un `sandboxd:0.2` en caché
 servía una API más antigua que la que hablaba el cliente, y cada comando fallaba

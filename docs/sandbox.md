@@ -58,7 +58,9 @@ on the next start.
 
 The pin lives in the checkout, not in `AGENTICOS_VERSION`, so a host that pins
 or rolls back the backend by hand checks out that release's tag as well
-([Pin a release](deploy.md#the-images)).
+([Pin a release](deploy.md#the-images)). An install without a checkout, as
+`scripts/quickstart.sh` sets one up, downloads that release's `docker-compose.yml`
+instead ([Install](install.md)).
 
 A moving tag broke this before (#2484). A cached `sandboxd:0.2` served an older
 API than the client spoke, and every command failed as `sandboxd session '…' is

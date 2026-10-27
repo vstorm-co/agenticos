@@ -24,7 +24,9 @@ Two things are versioned separately from this file and worth knowing about:
 - Document how to pin or roll back a release by hand without pairing its
   backend with another release's sandbox service (#2484). The `sandboxd` image
   is pinned in the compose file, so a host that sets `AGENTICOS_VERSION` by hand
-  checks out that release's tag as well; `scripts/deploy.sh` already does.
+  checks out that release's tag as well; `scripts/deploy.sh` already does. An
+  install without a checkout, from `scripts/quickstart.sh`, downloads that
+  release's `docker-compose.yml` beside the pin.
 
 ## [1.25.0] - 2026-10-27
 

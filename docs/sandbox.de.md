@@ -1,5 +1,5 @@
 ---
-source_sha: "ca18d7a497f1"
+source_sha: "02a95e1f3647"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -64,7 +64,9 @@ hat, also ziehen `make dev` und `scripts/deploy.sh` ihn beim nächsten Start.
 
 Der Pin steht im Checkout, nicht in `AGENTICOS_VERSION`. Ein Host, der das Backend
 von Hand pinnt oder zurückrollt, checkt deshalb auch den Tag dieses Releases aus
-([Ein Release pinnen](deploy.md#the-images)).
+([Ein Release pinnen](deploy.md#the-images)). Eine Installation ohne Checkout, wie
+`scripts/quickstart.sh` sie einrichtet, lädt stattdessen die `docker-compose.yml`
+dieses Releases herunter ([Installation](install.md)).
 
 Ein beweglicher Tag hat das schon einmal kaputt gemacht (#2484). Ein
 zwischengespeichertes `sandboxd:0.2` bediente eine ältere API, als der Client
