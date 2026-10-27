@@ -4,13 +4,14 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { hunk } from "@/test-utils/authoring";
 import { SESSION } from "@/test-utils/improvement";
 import type { Hunk } from "@/types/authoring";
-import type { Improvement } from "@/types/improvement";
+import type { Improvement, ImprovementEvidence } from "@/types/improvement";
 import { AttemptChanges } from "./attempt-changes";
 
 const state = vi.hoisted(() => ({
   changes: [] as Hunk[],
   isLoading: false,
   error: null as Error | null,
+  evidence: undefined as ImprovementEvidence | undefined,
   select: vi.fn(),
   edit: vi.fn(),
 }));
@@ -24,7 +25,7 @@ vi.mock("@/hooks/use-improvements", () => ({
     selectChanges: { mutateAsync: state.select, isPending: false },
     editChange: { mutateAsync: state.edit, isPending: false },
   }),
-  useImprovementEvidence: () => ({ evidence: undefined }),
+  useImprovementEvidence: () => ({ evidence: state.evidence }),
 }));
 
 function atStop(included: string[]): Improvement {
@@ -42,6 +43,7 @@ beforeEach(() => {
   state.changes = [hunk({ id: "h1" }), hunk({ id: "h2", kind: "spec_field" })];
   state.isLoading = false;
   state.error = null;
+  state.evidence = undefined;
   state.select.mockResolvedValue({});
   state.edit.mockResolvedValue({});
 });
@@ -135,4 +137,35 @@ it("says it is loading, why it could not read the changes, and when there are no
   state.changes = [];
   view.rerender(<AttemptChanges session={{ ...atStop([]), iterations: [] }} editable />);
   expect(screen.getByText("No change was written in this attempt.")).toBeInTheDocument();
+});
+
+it("links a change's quote to the conversation it came from", () => {
+  state.evidence = {
+    items: [
+      {
+        run_id: "r1",
+        conversation_id: "c1",
+        kind: "chat",
+        status: "completed",
+        rating: -1,
+        question: "Can I return shoes?",
+        answer: "Refunds take 90 days",
+        comments: [],
+        branch: "agent",
+        reason: null,
+      },
+    ],
+    sample_limit: 20,
+    training_failures: 0,
+  };
+  state.changes = [
+    hunk({
+      id: "h1",
+      evidence: [
+        { run_id: "r1", quote: "Refunds take 90 days", source: "conversation", number: 1 },
+      ],
+    }),
+  ];
+  render(<AttemptChanges session={atStop(["h1"])} editable />);
+  expect(screen.getByRole("link", { name: "Conversation 1" })).toHaveAttribute("href", "/chat/c1");
 });
