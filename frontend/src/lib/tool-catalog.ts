@@ -301,6 +301,12 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     captionKey: "usingComputer",
     displayNameKey: "useComputer",
   },
+  computer_apps: {
+    kind: "list",
+    render: "generic",
+    captionKey: "listingApps",
+    displayNameKey: "listApps",
+  },
   // The screenshot kept for the user rather than looked at: the picture is the answer.
   computer_save_screenshot: {
     kind: "image",

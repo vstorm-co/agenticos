@@ -1,5 +1,6 @@
 # A Linux desktop for AgenticOS's `computer_use` capability: Xvfb, XFCE, Firefox,
-# and computerd on :8765. See README.md.
+# and computerd on :8765. See README.md. Built from the repository root, for the
+# one backend file it shares: Dockerfile.dockerignore lets only these through.
 FROM debian:bookworm-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -14,8 +15,9 @@ RUN apt-get update \
 # token. The entrypoint starts as root to split them - see entrypoint.sh.
 RUN useradd --create-home --uid 10001 --shell /bin/bash desk \
     && useradd --system --uid 10002 --no-create-home --shell /usr/sbin/nologin computerd
-COPY --chmod=0755 computerd.py /opt/computerd/computerd.py
-COPY --chmod=0755 entrypoint.sh /opt/computerd/entrypoint.sh
+COPY --chmod=0755 deploy/computer/computerd.py /opt/computerd/computerd.py
+COPY --chmod=0755 deploy/computer/entrypoint.sh /opt/computerd/entrypoint.sh
+COPY --chmod=0644 backend/app/agents/capabilities/computer_use/_desktop_apps.py /opt/computerd/desktop_apps.py
 
 WORKDIR /home/desk
 # Without a UTF-8 locale the desktop's apps drop every non-ASCII character typed into them.

@@ -133,7 +133,12 @@ def validate_daemon_url(config: ComputerUseConfig) -> None:
         ),
         CapabilityToolInfo(
             id="computer_act",
-            description="Act on the desktop: click, type, press keys, scroll, drag or wait.",
+            description="Act on the desktop: click, type, press keys, scroll, drag, open an app or wait.",
+        ),
+        CapabilityToolInfo(
+            id="computer_apps",
+            description="List the applications installed on the desktop, to open one with `launch`.",
+            side_effecting=False,
         ),
         CapabilityToolInfo(
             id="computer_save_screenshot",

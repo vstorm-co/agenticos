@@ -6,21 +6,23 @@
 # ///
 """computerd - one desktop, served to AgenticOS's `computer_use` capability.
 
-Two endpoints behind a bearer token:
+Three endpoints behind a bearer token:
 
     GET  /screenshot   the main screen as PNG; `x-screen-width` / `x-screen-height`
                        name the space the pointer moves in (points on a Retina Mac,
                        pixels on X11), `x-platform` what the panel calls it
     POST /actions      {"actions": [{"action": "click", "x": 10, "y": 20}, ...]}
                        carried out in order; 400 {"error": ...} on the first refusal
+    GET  /apps         the applications a `launch` action may name, as JSON
 
 and `GET /health`, unauthenticated, for a container's health check.
 
-A `launch` action opens an application by name: `open -a` on macOS, and on Linux
-the desktop entry its menu shows, through `exo-open`. In the
-container that runs as `desk`, not as the account holding the token, so the
-entrypoint starts `computerd.py launcher <socket>` as `desk` and names the socket
-in `COMPUTERD_LAUNCHER`; without it, computerd opens the application itself.
+`launch` and `/apps` are the container's only: there the desktop's own account
+runs `computerd.py launcher <socket>`, which lists and opens its menu's
+applications with `desktop_apps.py` (the backend's `_desktop_apps.py`, copied in
+by the Dockerfile), and the entrypoint names that socket in `COMPUTERD_LAUNCHER`.
+Without it both are refused, and the model is pointed at the desktop's own
+launcher.
 
 Standard library only on Linux (it shells out to `scrot` and `xdotool`, so X11
 only: a Wayland session reaches nothing but its XWayland windows that way); on
@@ -40,7 +42,7 @@ Settings, all from the environment:
     COMPUTERD_TOKEN   required; the API key the organization's vault holds for this desktop
     COMPUTERD_HOST    default 127.0.0.1 - set 0.0.0.0 only on a network you trust
     COMPUTERD_PORT    default 8765
-    COMPUTERD_LAUNCHER  Linux only; the socket of a launcher running as the desktop's user
+    COMPUTERD_LAUNCHER  the container's; the socket of the launcher running as the desktop's user
 """
 
 from __future__ import annotations
@@ -60,6 +62,7 @@ import tempfile
 import threading
 import time
 from abc import ABC, abstractmethod
+from dataclasses import asdict
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -67,8 +70,12 @@ from typing import Any
 
 MAX_TEXT = 2000
 MAX_BODY = 256 * 1024
-MAX_ERROR = 1000  # room for the list of installed applications a mistyped `launch` is told
+MAX_ERROR = 200
 APP_NAME = re.compile(r"\w[^/\\\x00-\x1f\x7f]{0,63}")  # as `Launch.app`: no path, option or control character
+NO_LAUNCH = (
+    "This desktop cannot open applications by name. Use its own launcher: cmd+space "
+    "and the name on a Mac, the Start menu elsewhere."
+)
 
 
 class Refused(Exception):
@@ -147,10 +154,6 @@ class Driver(ABC):
     def key(self, chord: str) -> None:
         """Press a chord such as `ctrl+shift+t`, `enter` or `cmd+space`; `split_chord` parses it."""
 
-    @abstractmethod
-    def launch(self, app: str) -> None:
-        """Open an installed application by the name its menu or Finder shows."""
-
 
 def split_chord(chord: str) -> list[str]:
     parts = [part.strip().lower() for part in chord.split("+") if part.strip()]
@@ -159,114 +162,50 @@ def split_chord(chord: str) -> list[str]:
     return parts
 
 
-def app_dirs() -> list[Path]:
-    """The menu's search path, the user's own directory first, with the XDG defaults."""
-    home = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local/share")
-    system = os.environ.get("XDG_DATA_DIRS") or "/usr/local/share:/usr/share"
-    return [Path(directory) / "applications" for directory in [home, *system.split(":")] if directory]
-
-
-def locale_keys() -> list[str]:
-    """The `Name[...]` keys this locale reads, most specific first, as the desktop entry spec orders them."""
-    locale = os.environ.get("LC_ALL") or os.environ.get("LC_MESSAGES") or os.environ.get("LANG", "")
-    rest, _, modifier = locale.partition("@")
-    lang, _, country = rest.partition(".")[0].partition("_")
-    if lang in {"", "C", "POSIX"}:
-        return []
-    keys = [f"{lang}_{country}@{modifier}"] if country and modifier else []
-    keys += [f"{lang}_{country}"] if country else []
-    keys += [f"{lang}@{modifier}"] if modifier else []
-    return [*keys, lang]
-
-
-def desktop_entry(text: str) -> dict[str, str]:
-    """The `[Desktop Entry]` group's keys; an action's own `Name` is in another group."""
-    keys: dict[str, str] = {}
-    main = False
-    for line in text.splitlines():
-        if line.startswith("["):
-            main = line.strip() == "[Desktop Entry]"
-        elif main:
-            key, sep, value = line.partition("=")
-            if sep:
-                keys.setdefault(key.strip(), value.strip())
-    return keys
-
-
-def find_app(query: str) -> Path:
-    """The desktop entry a `launch` names - matched as AgenticOS matches it in a sandbox.
-
-    Its file name, or its name in this locale or untranslated, exactly, or else
-    the one entry with the query in one of those, case-insensitively. An entry
-    earlier on the search path shadows a later one with the same file name, even
-    a hidden one. Two entries the query names equally are never guessed between.
-    """
-    order = locale_keys()
-    apps: dict[str, tuple[str, Path, frozenset[str]] | None] = {}
-    for directory in app_dirs():
-        for path in sorted(directory.glob("*.desktop")):
-            if path.stem in apps:
-                continue
-            try:
-                keys = desktop_entry(path.read_text(errors="replace"))
-            except OSError:
-                continue
-            default = keys.get("Name", "")
-            if not default or "true" in (keys.get("NoDisplay"), keys.get("Hidden")):
-                apps[path.stem] = None
-                continue
-            name = next((keys[f"Name[{k}]"] for k in order if keys.get(f"Name[{k}]")), default)
-            apps[path.stem] = (name, path, frozenset(n.casefold() for n in (path.stem, default, name)))
-    shown = [app for app in apps.values() if app is not None]
-    wanted = query.casefold()
-    found = [app for app in shown if wanted in app[2]] or [
-        app for app in shown if any(wanted in name for name in app[2])
-    ]
-    if len(found) == 1:
-        return found[0][1]
-    if found:
-        options = ", ".join(sorted(f"{name} ({path.stem})" for name, path, _ in found))
-        raise Refused(f"'{query}' could be any of: {options}. Launch one by its full name or the name in brackets.")
-    names = ", ".join(sorted({name for name, _, _ in shown})[:60]) or "none"
-    raise Refused(f"No application called '{query}' is installed. These are: {names}.")
-
-
-def open_app(query: str) -> None:
-    """Open the application a `launch` names, as whoever runs this."""
-    if shutil.which("exo-open") is None:
-        raise Refused("this desktop has no exo-open to open applications with")
-    path = find_app(query)
-    try:
-        # A session of its own and no pipes: the application inherits them, and
-        # waiting on one it holds open would wait until it quit.
-        code = subprocess.run(
-            ["exo-open", str(path)],
-            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            start_new_session=True, timeout=20, check=False,
-        ).returncode
-    except subprocess.TimeoutExpired as exc:
-        raise Refused(f"{path.name} did not open within 20 seconds") from exc
-    if code != 0:
-        raise Refused(f"exo-open could not open {path.name} (exit {code})")
-
-
 class _Launcher(socketserver.StreamRequestHandler):
-    """One `launch`, asked by computerd: the name in, `ok` or why not out, a line each."""
+    """One request from computerd - `list` or `launch <app>` - and its JSON answer, a line each."""
 
     def handle(self) -> None:
-        query = self.rfile.readline(256).decode(errors="replace").strip()
+        # Beside this file in the image only, and only the launcher needs it.
+        import desktop_apps
+
+        request = self.rfile.readline(256).decode(errors="replace").strip()
+        env = dict(os.environ)
+        reply: dict[str, Any]
         try:
-            if not APP_NAME.fullmatch(query):
-                raise Refused("'app' must be an application's name")
-            open_app(query)
-        except Refused as exc:
-            self.wfile.write(str(exc)[:MAX_ERROR].encode() + b"\n")
-            return
-        self.wfile.write(b"ok\n")
+            match request.split(" ", 1):
+                case ["list"]:
+                    reply = {"apps": [asdict(app) for app in desktop_apps.installed(env)]}
+                case ["launch", app] if APP_NAME.fullmatch(app):
+                    desktop_apps.launch(desktop_apps.find(app, desktop_apps.installed(env)))
+                    reply = {"ok": True}
+                case _:
+                    reply = {"error": "expected 'list' or 'launch <app>'"}
+        except desktop_apps.AppError as exc:
+            reply = {"error": str(exc)}
+        self.wfile.write(json.dumps(reply).encode() + b"\n")
+
+
+def ask_launcher(request: str) -> dict[str, Any]:
+    """Have the desktop's own account list or open its applications - see `serve_launcher`."""
+    launcher = os.environ.get("COMPUTERD_LAUNCHER")
+    if not launcher:
+        raise Refused(NO_LAUNCH)
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
+            conn.settimeout(40)
+            conn.connect(launcher)
+            conn.sendall(request.encode() + b"\n")
+            reply = json.loads(conn.makefile("rb").readline())
+    except (OSError, ValueError) as exc:
+        raise Refused(f"the desktop's launcher did not answer: {exc}") from exc
+    if "error" in reply:
+        raise Refused(reply["error"])
+    return reply
 
 
 def serve_launcher(path: str) -> None:
-    """Open applications for computerd, as the desktop's own account.
+    """List and open applications for computerd, as the desktop's own account.
 
     The socket is this account's and its directory's group's only; the
     entrypoint makes that group computerd's, so computerd can ask and nothing
@@ -329,25 +268,6 @@ class X11Driver(Driver):
 
     def key(self, chord: str) -> None:
         self._xdotool("key", "--", "+".join(self._KEYS.get(part, part) for part in split_chord(chord)))
-
-    def launch(self, app: str) -> None:
-        launcher = os.environ.get("COMPUTERD_LAUNCHER")
-        if not launcher:
-            open_app(app)
-            return
-        # In the container this account holds the token, so the desktop's own
-        # account opens the application - see `serve_launcher`.
-        try:
-            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
-                conn.settimeout(40)
-                conn.connect(launcher)
-                conn.sendall(app.encode() + b"\n")
-                reply = conn.makefile("rb").readline(4 * MAX_ERROR).decode(errors="replace").strip()
-        except OSError as exc:
-            raise Refused(f"the desktop's launcher did not answer: {exc}") from exc
-        if reply != "ok":
-            raise Refused(reply or "the desktop's launcher did not answer")
-
 
 class MacDriver(Driver):
     """The Mac's main display, through `screencapture` and Quartz events."""
@@ -474,15 +394,6 @@ class MacDriver(Driver):
             raise Refused(f"'{main}' is not a key this desktop knows")
         self._keystroke(self._KEYCODES[main], flags)
 
-    def launch(self, app: str) -> None:
-        try:
-            result = subprocess.run(["open", "-a", app], capture_output=True, text=True, timeout=20, check=False)
-        except subprocess.TimeoutExpired as exc:
-            raise Refused(f"{app} did not open within 20 seconds") from exc
-        if result.returncode != 0:
-            raise Refused(result.stderr.strip()[:200] or f"could not open {app}")
-
-
 def perform(driver: Driver, action: dict[str, Any]) -> None:
     kind = action.get("action")
     if kind == "click":
@@ -513,7 +424,7 @@ def perform(driver: Driver, action: dict[str, Any]) -> None:
         app = action.get("app")
         if not isinstance(app, str) or not APP_NAME.fullmatch(app):
             raise Refused("'app' must be an application's name: up to 64 characters, no slash or control character")
-        driver.launch(app)
+        ask_launcher(f"launch {app}")
     elif kind == "wait":
         seconds = action.get("seconds", 1.0)
         if not isinstance(seconds, int | float) or not 0 < seconds <= 10:
@@ -533,7 +444,7 @@ def make_handler(driver: Driver, token: str) -> type[BaseHTTPRequestHandler]:
         def log_message(self, format: str, *args: Any) -> None:
             sys.stderr.write(f"computerd: {self.command} {self.path} {args[1] if len(args) > 1 else ''}\n")
 
-        def _json(self, status: HTTPStatus, body: dict[str, Any]) -> None:
+        def _json(self, status: HTTPStatus, body: object) -> None:
             data = json.dumps(body).encode()
             self.send_response(status)
             self.send_header("content-type", "application/json")
@@ -552,10 +463,16 @@ def make_handler(driver: Driver, token: str) -> type[BaseHTTPRequestHandler]:
             if self.path == "/health":
                 self._json(HTTPStatus.OK, {"ok": True, "platform": driver.name})
                 return
-            if self.path != "/screenshot":
+            if self.path not in {"/screenshot", "/apps"}:
                 self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
                 return
             if not self._authorized():
+                return
+            if self.path == "/apps":
+                try:
+                    self._json(HTTPStatus.OK, ask_launcher("list")["apps"])
+                except Refused as exc:
+                    self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)[:MAX_ERROR]})
                 return
             try:
                 with lock:

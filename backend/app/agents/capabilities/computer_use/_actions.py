@@ -91,21 +91,20 @@ class Key(_Action):
 
 
 class Launch(_Action):
-    """Open an installed application by its name, rather than hunting for its icon."""
+    """Open an installed application by its name or id, rather than hunting for its icon."""
 
     action: Literal["launch"] = "launch"
-    # Never a path or an option: it is `open -a`'s argument on a Mac. Other
-    # punctuation is harmless - one argument there, only compared with the
-    # menu's names on Linux - and real names have it: "ImageMagick (color
-    # depth=q16)". No control characters: computerd's launcher reads one line.
+    # Never a path or an option, though it is only ever compared with the
+    # menu's names and ids. Other punctuation is harmless, and real names have
+    # it: "ImageMagick (color depth=q16)". No control characters: computerd's
+    # launcher reads one line.
     app: str = Field(
         min_length=1,
         max_length=64,
         pattern=r"^\w[^/\\\x00-\x1f\x7f]*$",
         description=(
-            "The application's name as its menu shows it: 'Firefox', 'Xfce Terminal', "
-            "'Safari', 'TextEdit'. It opens a moment after the action returns, so wait "
-            "before typing into it."
+            "An application's name or id exactly as `computer_apps` lists it: "
+            "'Firefox ESR', 'xfce4-terminal'. The action returns once its window is up."
         ),
     )
 

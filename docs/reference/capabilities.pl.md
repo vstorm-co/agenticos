@@ -1,5 +1,5 @@
 ---
-source_sha: "2fb1baddebe3"
+source_sha: "a236f31803c1"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -73,7 +73,7 @@ Przeglądarka jest kierowana do usługi przeglądarki wdrożenia
 | `web_research` | Wyszukiwanie w internecie | badania | `web_search` | `web:read` | dla usług płatnych | bez zmian |
 | `web_fetch` | Czytanie stron | badania | `web_fetch` | `web:fetch` | — | bez zmian |
 | `browser_use` | Przeglądarka | badania | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | przez dodatek `browser` | przekazana |
-| `computer_use` | Obsługa komputera | badania | `computer_screenshot`, `computer_act`, `computer_save_screenshot` | `computer:use` | dla daemona | przekazana |
+| `computer_use` | Obsługa komputera | badania | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot` | `computer:use` | dla daemona | przekazana |
 | `code_execution` | Obliczenia | analiza | `run_python` | `code:execute` | — | bez zmian |
 | `sandbox` | Sandbox | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | dla Daytony | przekazana |
 | `charts` | Wykresy | analiza | `create_chart` | — | — | bez zmian |
@@ -912,6 +912,8 @@ są usuwane.
 
 `computer_act` — *Act on the desktop: click, type, press keys, scroll, drag, open an app or wait.*
 
+`computer_apps` — *List the applications installed on the desktop, to open one with `launch`.*
+
 `computer_save_screenshot` — *Save a screenshot of the desktop for the user: shown in the chat and kept.*
 
 Agent obsługuje cały pulpit, więc może używać dowolnej aplikacji, nie tylko
@@ -957,19 +959,24 @@ przeciwnym razie domyślny runtime połączenia. Sandbox, który nie wskazuje
 `workbench`, który nie ma ekranu. Połączenie Daytony jest odrzucane, bo
 uruchamia własny obraz.
 
-**Otwieranie aplikacji.** Akcja `launch` otwiera aplikację po nazwie, zamiast
-szukać jej ikony. Na Macu to `open -a`. Na Linuksie to wpis menu, którego nazwa
-pliku albo nazwa w języku pulpitu lub nieprzetłumaczona pasuje dokładnie, a
-jeśli żaden, to jedyny, który ją zawiera. Przeszukiwany jest każdy katalog
-ścieżki menu (`$XDG_DATA_HOME` i `$XDG_DATA_DIRS`, więc także `/usr/local/share`
-i eksporty Flatpaka). Wpis otwiera `exo-open`, który mają runtime `desktop` i
-kontener computerd. Nazwa pasująca do kilku wpisów albo do żadnego jest
-odrzucana razem z listą nazw, a gdy dwa wpisy mają tę samą nazwę, także z ich
-nazwami plików, żeby model mógł wybrać jeszcze raz. `launch` przyjmuje tylko
-nazwę, nigdy ścieżkę ani argumenty: bez ukośnika i znaków sterujących, a na
-początku litera albo cyfra. W kontenerze computerd aplikacja działa jako `desk`, a nie jako
-konto, które trzyma token. Własny komputer użytkownika, osiągany przez
-aplikację desktopową, jeszcze tego nie obsługuje: model dostaje wskazówkę, żeby
+**Otwieranie aplikacji.** `computer_apps` wypisuje aplikacje, które pokazuje
+menu pulpitu, każdą z nazwą w języku pulpitu i identyfikatorem, czyli nazwą
+pliku wpisu menu. Akcja `launch` otwiera jedną z nich po jednym albo drugim,
+zamiast szukać jej ikony. Dopasowanie jest dokładne, bez względu na wielkość
+liter: nazwa, którą mają dwa wpisy, na przykład systemowy Firefox i Firefox z
+Flatpaka, jest odrzucana razem z ich identyfikatorami, a nieznana nazwa ze
+wskazówką, żeby wywołać `computer_apps`. Czytany jest każdy katalog ścieżki menu
+(`$XDG_DATA_HOME` i `$XDG_DATA_DIRS`, więc także `/usr/local/share` i eksporty
+Flatpaka), a wpis otwiera `exo-open`. Akcja wraca, gdy pojawi się nowe okno albo
+przesunie się fokus, a najpóźniej po dziesięciu sekundach, więc następny zrzut
+ekranu pokazuje aplikację. `launch` przyjmuje tylko nazwę, nigdy ścieżkę ani
+argumenty: bez ukośnika i znaków sterujących, a na początku litera albo cyfra.
+
+Uruchamianie działa tylko na pulpitach linuksowych: w sandboksie, na pulpicie
+E2B i w kontenerze computerd, gdzie aplikacja działa jako `desk`, a nie jako
+konto, które trzyma token. computerd na Macu albo na własnym pulpicie Linux
+operatora oraz własny komputer użytkownika, osiągany przez aplikację
+desktopową, odrzucają `launch` i `computer_apps`: model dostaje wskazówkę, żeby
 użył launchera tego komputera.
 
 Narzędzie `execute` nie jest potrzebne, a jego wyłączenie trzyma akcje na

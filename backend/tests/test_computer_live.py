@@ -120,6 +120,8 @@ async def test_local_computer_uses_the_paired_session_and_native_dimensions(
     calls = call.await_count
     with pytest.raises(ComputerError, match="cannot open applications by name"):
         await computer.perform(Launch(app="Safari"))
+    with pytest.raises(ComputerError, match="cannot open applications by name"):
+        await computer.apps()
     assert call.await_count == calls
     sleep = AsyncMock()
     monkeypatch.setattr(_backends.anyio, "sleep", sleep)

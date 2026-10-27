@@ -8,7 +8,12 @@ different size.
 
 import io
 import json
+import runpy
+import subprocess
+import sys
+from collections.abc import Callable
 from dataclasses import replace
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
@@ -43,6 +48,7 @@ from app.agents.capabilities.computer_use import (
     ComputerUse,
     ComputerUseConfig,
     _daemon_url_form,
+    _desktop_apps,
     validate_daemon_url,
 )
 from app.agents.capabilities.computer_use._actions import (
@@ -60,13 +66,14 @@ from app.agents.capabilities.computer_use._actions import (
     to_native,
 )
 from app.agents.capabilities.computer_use._backends import (
+    NO_LAUNCH,
     Capture,
     ComputerError,
     DaemonComputer,
     SandboxComputer,
-    find_app,
     open_sandbox_desktop,
     png_size,
+    read_apps,
     x11_keys,
     xdotool,
 )
@@ -122,6 +129,7 @@ class _Desktop:
         self.refuses = refuses
         self.blind = blind
         self.performed: list[Any] = []
+        self.installed: list[_desktop_apps.App] = []
         self.captures = 0
         self.closed = 0
 
@@ -135,6 +143,11 @@ class _Desktop:
         if action.action == self.refuses:
             raise ComputerError("no such window")
         self.performed.append(action)
+
+    async def apps(self) -> list[_desktop_apps.App]:
+        if self.refuses == "apps":
+            raise ComputerError(NO_LAUNCH)
+        return self.installed
 
     async def close(self) -> None:
         self.closed += 1
@@ -328,22 +341,7 @@ class TestX11:
         assert xdotool(TypeText(text=text)) == ["xdotool", "type", "--delay", "12", "--", text]
 
 
-_LISTING = """\
-locale\tpl_PL.UTF-8
-/home/desk/.local/share/applications/firefox-esr.desktop\tName=My Firefox\t
-/home/desk/.local/share/applications/xfce4-web-browser.desktop\tName=Web Browser\tHidden=true\t
-/usr/local/share/applications/org.mozilla.firefox.desktop\tName=Firefox\t
-/usr/share/applications/firefox.desktop\tName=Firefox\tName[pl]=\t
-/usr/share/applications/firefox-esr.desktop\tName=Firefox ESR\t
-/usr/share/applications/xfce4-terminal-emulator.desktop\tName=Terminal Emulator\tName[de]=Terminal\tName[pl_PL]=Emulator terminala\tName[pl]=Terminal\t
-/usr/share/applications/xfce4-terminal.desktop\tName=Xfce Terminal\tName[pl]=Terminal Xfce\t
-/usr/share/applications/xfce4-web-browser.desktop\tName=Web Browser\t
-/usr/share/applications/thunar-settings.desktop\tName=File Manager Settings\tNoDisplay=true\t
-/usr/share/applications/broken.desktop\t
-"""
-
-
-class TestLaunchingAnApp:
+class TestTheLaunchAction:
     @pytest.mark.parametrize(
         "app",
         [
@@ -372,80 +370,256 @@ class TestLaunchingAnApp:
         ],
     )
     def test_a_path_an_option_or_a_second_line_is_refused(self, app: str):
-        """It is `open -a`'s argument on a Mac and computerd's launcher reads one line: only a name may be."""
+        """It is a command's argument in the sandbox and computerd's launcher reads one line."""
         with pytest.raises(ValidationError):
             Launch(app=app)
 
-    @pytest.mark.parametrize(
-        ("query", "entry"),
-        [
-            ("xfce4-terminal", "/usr/share/applications/xfce4-terminal.desktop"),
-            ("XFCE TERMINAL", "/usr/share/applications/xfce4-terminal.desktop"),
-            ("terminal xfce", "/usr/share/applications/xfce4-terminal.desktop"),
-            ("Emulator terminala", "/usr/share/applications/xfce4-terminal-emulator.desktop"),
-            ("emulator", "/usr/share/applications/xfce4-terminal-emulator.desktop"),
-            ("org.mozilla.firefox", "/usr/local/share/applications/org.mozilla.firefox.desktop"),
-        ],
+
+def _entry(data_dir: Path, app_id: str, text: str) -> None:
+    (data_dir / "applications").mkdir(parents=True, exist_ok=True)
+    (data_dir / "applications" / f"{app_id}.desktop").write_text(text)
+
+
+@pytest.fixture
+def menu(tmp_path: Path) -> dict[str, str]:
+    """A Polish desktop's search path: the user's own directory, then two system ones."""
+    home, local, system = tmp_path / "home", tmp_path / "local", tmp_path / "system"
+    _entry(home, "firefox-esr", "[Desktop Entry]\nName=My Firefox\n")
+    _entry(home, "xfce4-web-browser", "[Desktop Entry]\nName=Web Browser\nHidden=true\n")
+    _entry(local, "org.mozilla.firefox", "[Desktop Entry]\nName=Firefox\n")
+    _entry(system, "firefox", "[Desktop Entry]\nName=Firefox\nName[pl]=\n")
+    _entry(system, "firefox-esr", "[Desktop Entry]\nName=Firefox ESR\n")
+    _entry(
+        system,
+        "xfce4-terminal-emulator",
+        "[Desktop Entry]\nName=Terminal Emulator\nName[de]=Terminal\n"
+        "Name[pl_PL]=Emulator terminala\nName[pl]=Terminal\n",
     )
-    def test_a_file_name_or_either_name_finds_its_entry_exactly_or_alone(
-        self, query: str, entry: str
+    _entry(
+        system,
+        "xfce4-terminal",
+        "[Desktop Entry]\nName=Xfce Terminal\nName[pl]=Terminal Xfce\n\n"
+        "[Desktop Action window]\nName=New Window\n",
+    )
+    _entry(system, "xfce4-web-browser", "[Desktop Entry]\nName=Web Browser\n")
+    _entry(system, "thunar-settings", "[Desktop Entry]\nName=Settings\nNoDisplay=true\n")
+    _entry(system, "broken", "")
+    (system / "applications" / "unreadable.desktop").mkdir()
+    return {"XDG_DATA_HOME": str(home), "XDG_DATA_DIRS": f"{local}:{system}", "LANG": "pl_PL.UTF-8"}
+
+
+class TestTheDesktopsApplications:
+    def test_the_menu_lists_each_shown_entry_once_by_its_name_in_the_desktops_language(
+        self, menu: dict[str, str]
     ):
-        assert find_app(query, _LISTING) == entry
+        """An earlier directory shadows a later one, even hidden; an action's `Name` is not the entry's."""
+        assert [(app.id, app.name) for app in _desktop_apps.installed(menu)] == [
+            ("xfce4-terminal-emulator", "Emulator terminala"),
+            ("org.mozilla.firefox", "Firefox"),
+            ("firefox", "Firefox"),
+            ("firefox-esr", "My Firefox"),
+            ("xfce4-terminal", "Terminal Xfce"),
+        ]
+        assert _desktop_apps.installed(menu)[-1].path.endswith(
+            "system/applications/xfce4-terminal.desktop"
+        )
 
-    def test_the_menus_own_language_is_preferred_and_other_languages_ignored(self):
-        """`Name[pl_PL]` before `Name[pl]`; a German "Terminal" names nothing on a Polish desktop."""
-        with pytest.raises(
-            ComputerError, match=r"could be any of: Emulator terminala \(xfce4-terminal-emulator\)"
-        ):
-            find_app("terminal", _LISTING)
-
-    def test_an_earlier_entry_shadows_a_later_one_even_hidden(self):
-        mine = "/home/desk/.local/share/applications/firefox-esr.desktop"
-        assert find_app("firefox-esr", _LISTING) == mine
-        assert find_app("My Firefox", _LISTING) == mine
-        with pytest.raises(ComputerError, match="No application called 'Firefox ESR'"):
-            find_app("Firefox ESR", _LISTING)
-        with pytest.raises(ComputerError, match="No application called 'Web Browser'"):
-            find_app("Web Browser", _LISTING)
-
-    def test_two_entries_with_one_name_are_told_apart_by_their_file_names(self):
-        with pytest.raises(
-            ComputerError,
-            match=r"'firefox' could be any of: Firefox \(firefox\), Firefox \(org\.mozilla\.firefox\)\. "
-            r"Launch one by its full name or the name in brackets\.",
-        ):
-            find_app("firefox", _LISTING)
-
-    def test_nothing_installed_by_that_name_lists_what_is(self):
-        with pytest.raises(
-            ComputerError,
-            match=r"No application called 'gimp' is installed\. These are: Emulator terminala, Firefox, My Firefox, Terminal Xfce\.",
-        ):
-            find_app("gimp", _LISTING)
-        with pytest.raises(ComputerError, match="These are: none"):
-            find_app("gimp", "")
+    def test_the_users_own_directory_defaults_to_their_home(self, tmp_path: Path):
+        _entry(tmp_path / ".local/share", "mine", "[Desktop Entry]\nName=Mine\n")
+        env = {"HOME": str(tmp_path), "XDG_DATA_DIRS": str(tmp_path / "none")}
+        assert [app.id for app in _desktop_apps.installed(env)] == ["mine"]
 
     @pytest.mark.parametrize(
-        ("locale", "shown"),
+        ("env", "shown"),
         [
-            ("sr_RS.UTF-8@latin", "sr_RS@latin"),
-            ("sr_RS.UTF-8", "sr_RS"),
-            ("sr@latin", "sr@latin"),
-            ("sr_ME@latin", "sr@latin"),
-            ("sr_ME", "sr"),
-            ("C.UTF-8", "untranslated"),
-            ("", "untranslated"),
+            ({"LANG": "sr_RS.UTF-8@latin"}, "sr_RS@latin"),
+            ({"LANG": "sr_RS.UTF-8"}, "sr_RS"),
+            ({"LANG": "sr@latin"}, "sr@latin"),
+            ({"LANG": "sr_ME@latin"}, "sr@latin"),
+            ({"LANG": "sr_ME"}, "sr"),
+            ({"LANG": "sr", "LC_MESSAGES": "C.UTF-8"}, "untranslated"),
+            ({"LC_ALL": "sr", "LC_MESSAGES": "C.UTF-8"}, "sr"),
+            ({}, "untranslated"),
         ],
     )
-    def test_a_translation_is_chosen_in_the_specifications_order(self, locale: str, shown: str):
+    def test_a_translation_is_chosen_in_the_specifications_order(
+        self, tmp_path: Path, env: dict[str, str], shown: str
+    ):
         names = "".join(
-            f"\tName[{key}]={key}" for key in ("sr_RS@latin", "sr_RS", "sr@latin", "sr")
+            f"Name[{key}]={key}\n" for key in ("sr_RS@latin", "sr_RS", "sr@latin", "sr")
         )
-        listing = (
-            f"locale\t{locale}\n/usr/share/applications/term.desktop\tName=untranslated{names}\n"
+        _entry(tmp_path, "term", f"[Desktop Entry]\nName=untranslated\n{names}")
+        [app] = _desktop_apps.installed(
+            {**env, "XDG_DATA_HOME": str(tmp_path), "XDG_DATA_DIRS": "/none"}
         )
-        with pytest.raises(ComputerError, match=rf"These are: {shown}\.$"):
-            find_app("gimp", listing)
+        assert app.name == shown
+
+    @pytest.mark.parametrize(
+        ("query", "app_id"),
+        [
+            ("xfce4-terminal", "xfce4-terminal"),
+            ("TERMINAL XFCE", "xfce4-terminal"),
+            ("Emulator terminala", "xfce4-terminal-emulator"),
+            ("firefox", "firefox"),
+            ("org.mozilla.firefox", "org.mozilla.firefox"),
+        ],
+    )
+    def test_an_id_or_a_name_finds_its_application_exactly(
+        self, menu: dict[str, str], query: str, app_id: str
+    ):
+        assert _desktop_apps.find(query, _desktop_apps.installed(menu)).id == app_id
+
+    def test_a_name_two_applications_share_is_answered_with_their_ids(self):
+        """A system and a Flatpak Firefox are both "Firefox"; the ids the answer names launch each."""
+        flatpak = _desktop_apps.App(id="org.mozilla.firefox", name="Firefox", path="/flatpak")
+        system = _desktop_apps.App(id="firefox-bin", name="Firefox", path="/system")
+        with pytest.raises(
+            _desktop_apps.AppError,
+            match=r"^'Firefox' is the name of 2 applications\. "
+            r"Launch one by its id: org\.mozilla\.firefox, firefox-bin\.$",
+        ):
+            _desktop_apps.find("Firefox", [flatpak, system])
+        assert _desktop_apps.find("firefox-bin", [flatpak, system]) == system
+
+    def test_an_id_is_matched_before_a_name(self):
+        """Or an id the ambiguity refusal points at could be refused as ambiguous in turn."""
+        named = _desktop_apps.App(id="org.mozilla.firefox", name="Firefox", path="/flatpak")
+        system = _desktop_apps.App(id="firefox", name="Firefox", path="/system")
+        assert _desktop_apps.find("firefox", [named, system]) == system
+
+    @pytest.mark.parametrize(
+        "query", ["terminal", "Xfce Terminal", "Firefox ESR", "Web Browser", "fire"]
+    )
+    def test_anything_else_is_never_guessed(self, menu: dict[str, str], query: str):
+        """Not a part of a name, another language's, nor an entry shadowed or hidden."""
+        with pytest.raises(
+            _desktop_apps.AppError,
+            match=rf"^No application is called '{query}'\. Call computer_apps for the installed ones\.$",
+        ):
+            _desktop_apps.find(query, _desktop_apps.installed(menu))
+
+
+class _Screen:
+    """`xdotool` and `exo-open` as `launch` sees them: windows that change as it polls."""
+
+    def __init__(self, *polls: tuple[str, str], exit_code: int = 0, hangs: bool = False) -> None:
+        self.polls = list(polls)
+        self.exit_code = exit_code
+        self.hangs = hangs
+        self.opened: list[tuple[list[str], dict[str, Any]]] = []
+        self.waited = 0
+
+    def run(self, argv: list[str], **kwargs: Any) -> MagicMock:
+        if argv[0] == "exo-open":
+            self.opened.append((argv, kwargs))
+            if self.hangs:
+                raise subprocess.TimeoutExpired(argv, kwargs["timeout"])
+            return MagicMock(returncode=self.exit_code)
+        # One look is a `search` then a `getactivewindow`; the last one repeats.
+        windows, focus = self.polls[0]
+        if argv[1] == "search":
+            return MagicMock(stdout=windows)
+        if len(self.polls) > 1:
+            self.polls.pop(0)
+        return MagicMock(stdout=f"{focus}\n")
+
+    def sleep(self, seconds: float) -> None:
+        self.waited += 1
+
+
+_APP = _desktop_apps.App(
+    id="firefox-esr", name="Firefox ESR", path="/usr/share/applications/firefox-esr.desktop"
+)
+
+
+class TestLaunchingAnApplication:
+    @pytest.fixture
+    def screen(self, monkeypatch: pytest.MonkeyPatch) -> Callable[..., _Screen]:
+        def make(*polls: tuple[str, str], **kwargs: Any) -> _Screen:
+            fake = _Screen(*polls, **kwargs)
+            monkeypatch.setattr(_desktop_apps.subprocess, "run", fake.run)
+            monkeypatch.setattr(_desktop_apps.time, "sleep", fake.sleep)
+            return fake
+
+        return make
+
+    @pytest.mark.parametrize("appeared", [("1\n2\n3", "1"), ("1\n2", "2")])
+    def test_a_launch_returns_once_a_window_appears_or_the_focus_moves(
+        self, screen: Callable[..., _Screen], appeared: tuple[str, str]
+    ):
+        fake = screen(("1\n2", "1"), ("1\n2", "1"), appeared)
+        _desktop_apps.launch(_APP)
+
+        [(argv, kwargs)] = fake.opened
+        assert argv == ["exo-open", _APP.path]
+        # Nothing the application inherits may hold the launch open until it quits.
+        assert kwargs["start_new_session"] is True
+        assert {kwargs[name] for name in ("stdin", "stdout", "stderr")} == {subprocess.DEVNULL}
+        assert (fake.waited, fake.polls) == (1, [appeared])
+
+    def test_an_application_that_shows_no_window_is_left_to_the_screenshot(
+        self, screen: Callable[..., _Screen], monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setattr(_desktop_apps, "WINDOW_SECONDS", 0.0)
+        fake = screen(("1", "1"))
+        _desktop_apps.launch(_APP)
+        assert (len(fake.opened), fake.waited) == (1, 0)
+
+    def test_a_failed_or_hung_open_is_a_sentence(self, screen: Callable[..., _Screen]):
+        screen(("1", "1"), exit_code=2)
+        with pytest.raises(
+            _desktop_apps.AppError, match=r"^Firefox ESR could not be opened \(exo-open exit 2\)\.$"
+        ):
+            _desktop_apps.launch(_APP)
+        screen(("1", "1"), hangs=True)
+        with pytest.raises(
+            _desktop_apps.AppError, match=r"^Firefox ESR did not open within 10 seconds\.$"
+        ):
+            _desktop_apps.launch(_APP)
+
+
+class TestTheDesktopAppsScript:
+    """What a sandbox runs with `python3 -c` and computerd's launcher imports."""
+
+    def test_list_prints_the_menu_as_json(
+        self, menu: dict[str, str], capsys: pytest.CaptureFixture[str]
+    ):
+        assert _desktop_apps.main(["list"], menu) == 0
+        assert read_apps(capsys.readouterr().out) == _desktop_apps.installed(menu)
+
+    def test_launch_opens_the_application_it_names(
+        self, menu: dict[str, str], monkeypatch: pytest.MonkeyPatch
+    ):
+        opened: list[_desktop_apps.App] = []
+        monkeypatch.setattr(_desktop_apps, "launch", opened.append)
+        assert _desktop_apps.main(["launch", "My Firefox"], menu) == 0
+        assert [app.id for app in opened] == ["firefox-esr"]
+
+    @pytest.mark.parametrize(
+        ("argv", "said"),
+        [
+            (
+                ["launch", "gimp"],
+                "No application is called 'gimp'. Call computer_apps for the installed ones.\n",
+            ),
+            ([], "Expected 'list' or 'launch <app>'.\n"),
+            (["launch", "a", "b"], "Expected 'list' or 'launch <app>'.\n"),
+        ],
+    )
+    def test_a_refusal_is_a_sentence_on_stderr(
+        self, menu: dict[str, str], capsys: pytest.CaptureFixture[str], argv: list[str], said: str
+    ):
+        assert _desktop_apps.main(argv, menu) == 1
+        assert capsys.readouterr() == ("", said)
+
+    def test_run_as_a_script_it_reads_its_arguments_and_the_environment(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ):
+        monkeypatch.setattr(sys, "argv", ["-c", "nonsense"])
+        with pytest.raises(SystemExit) as exited:
+            runpy.run_path(_desktop_apps.__file__, run_name="__main__")
+        assert exited.value.code == 1
+        assert capsys.readouterr().err == "Expected 'list' or 'launch <app>'.\n"
 
 
 def _daemon(handler: Any) -> DaemonComputer:
@@ -486,6 +660,26 @@ class TestTheDaemon:
 
         await _daemon(handler).perform(Key(keys="enter"))
         assert bodies == [b'{"actions":[{"action":"key","keys":"enter"}]}']
+
+    async def test_the_applications_are_asked_of_the_daemon(self):
+        seen: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(request)
+            return httpx.Response(
+                200, json=[{"id": "firefox-esr", "name": "Firefox ESR", "path": "/f"}]
+            )
+
+        assert await _daemon(handler).apps() == [
+            _desktop_apps.App(id="firefox-esr", name="Firefox ESR", path="/f")
+        ]
+        assert (seen[0].method, str(seen[0].url)) == ("GET", "http://desk:8765/apps")
+        assert seen[0].headers["authorization"] == "Bearer tok"
+
+    async def test_a_daemon_without_a_launcher_says_what_to_do_instead(self):
+        refused = httpx.Response(400, json={"error": NO_LAUNCH})
+        with pytest.raises(ComputerError, match="cannot open applications by name"):
+            await _daemon(lambda request: refused).apps()
 
     @pytest.mark.parametrize(
         ("response", "message"),
@@ -636,27 +830,34 @@ class TestTheSandboxDesktop:
             ["xdotool", "mousemove", "--sync", "5", "6", "click", "--repeat", "1", "1"]
         ]
 
-    async def test_a_launch_opens_the_desktop_entry_its_name_finds(self):
-        box = _Box(
-            stdout="locale\tC\n/usr/share/applications/firefox-esr.desktop\tName=Firefox ESR\n"
-        )
-        await _on(box).perform(Launch(app="firefox"))
+    async def test_a_launch_and_the_list_run_the_shared_script_in_the_sandbox(self):
+        box = _Box(stdout='[{"id": "firefox-esr", "name": "Firefox ESR", "path": "/f"}]')
+        desktop = _on(box)
+        await desktop.perform(Launch(app="Firefox ESR"))
+        apps = await desktop.apps()
 
-        (listed, _, _), (launched, _, env) = box.ran
-        assert listed[:2] == ["sh", "-c"]
-        assert launched[:2] == ["sh", "-c"]
-        assert 'exo-open "$1"' in launched[2]
-        # The entry is an argument, never part of the shell line.
-        assert launched[3:] == ["launch", "/usr/share/applications/firefox-esr.desktop"]
-        assert env == {"DISPLAY": ":0"}
-
-    async def test_a_launch_of_nothing_installed_opens_nothing(self):
-        box = _Box(
-            stdout="locale\tC\n/usr/share/applications/firefox-esr.desktop\tName=Firefox ESR\n"
+        source = Path(_desktop_apps.__file__).read_text()
+        (launched, shell, env), (listed, _, _) = box.ran
+        # The name is an argument, never part of a shell line.
+        assert (launched, shell, env) == (
+            ["python3", "-c", source, "launch", "Firefox ESR"],
+            False,
+            {"DISPLAY": ":0"},
         )
-        with pytest.raises(ComputerError, match="No application called 'gimp'"):
-            await _on(box).perform(Launch(app="gimp"))
-        assert len(box.ran) == 1
+        assert listed == ["python3", "-c", source, "list"]
+        assert apps == [_desktop_apps.App(id="firefox-esr", name="Firefox ESR", path="/f")]
+
+    async def test_a_launch_the_sandbox_refuses_is_its_own_sentence(self):
+        said = "No application is called 'gimp'. Call computer_apps for the installed ones."
+        with pytest.raises(ComputerError, match=rf"^The desktop refused to open gimp: {said}$"):
+            await _on(_Box(exit_code=1, stderr=f"{said}\n")).perform(Launch(app="gimp"))
+
+    @pytest.mark.parametrize("listing", ["", "not json", '[{"id": "x"}]', '{"apps": []}'])
+    async def test_a_list_that_cannot_be_read_is_a_sentence(self, listing: str):
+        with pytest.raises(
+            ComputerError, match=r"^The desktop's list of applications could not be read\.$"
+        ):
+            await _on(_Box(stdout=listing)).apps()
 
     async def test_a_refused_command_tells_the_model_what_the_desktop_said(self):
         with pytest.raises(ComputerError, match="refused to run the click action: no display"):
@@ -729,6 +930,20 @@ class TestFit:
 
 
 class TestTheTools:
+    async def test_the_applications_are_listed_by_name_and_id(self):
+        desktop = _Desktop()
+        desktop.installed = [
+            _desktop_apps.App(id="org.mozilla.firefox", name="Firefox", path="/a"),
+            _desktop_apps.App(id="xfce4-terminal", name="Terminal Xfce", path="/b"),
+        ]
+        listed = await _tools(desktop)["computer_apps"](_ctx())
+        assert listed == "Firefox (org.mozilla.firefox)\nTerminal Xfce (xfce4-terminal)"
+        assert desktop.captures == 0
+
+    async def test_no_applications_or_a_desktop_without_a_list_is_a_sentence(self):
+        assert await _tools(_Desktop())["computer_apps"](_ctx()) == "No applications are installed."
+        assert await _tools(_Desktop(refuses="apps"))["computer_apps"](_ctx()) == NO_LAUNCH
+
     async def test_a_screenshot_is_shown_to_the_model_and_the_person(self):
         frames = _Frames()
         desktop = _Desktop()
@@ -1329,6 +1544,7 @@ class TestRegistration:
         assert flags == {
             "computer_screenshot": False,
             "computer_act": None,
+            "computer_apps": False,
             "computer_save_screenshot": False,
         }
         assert definition.side_effecting

@@ -15,7 +15,7 @@ container.
 ## A Linux desktop in a container
 
 ```bash
-docker build -t agenticos-computer deploy/computer
+docker build -f deploy/computer/Dockerfile -t agenticos-computer .
 docker run -d --name agenticos-computer --shm-size=1g \
   -e COMPUTERD_TOKEN="$(openssl rand -hex 24)" \
   -p 127.0.0.1:8765:8765 agenticos-computer
@@ -30,7 +30,10 @@ each process as its account; do not run it with `--user`, and keep `SETUID` and
 `SETGID` if you drop capabilities. An application a `launch` action opens is
 started by a launcher running as `desk`, which computerd asks over a socket in
 `/run/launcher` that only the two accounts can reach, so the application never
-runs as the account holding the token. `SCREEN_SIZE` defaults to `1280x800`. Set
+runs as the account holding the token. The launcher also answers `GET /apps`,
+the menu's applications that `computer_apps` lists. It reads them with the
+backend's `_desktop_apps.py`, which a sandbox's desktop runs too, so the image is
+built from the repository root. `SCREEN_SIZE` defaults to `1280x800`. Set
 `VNC_PASSWORD` and publish port 6080 to watch the whole session in noVNC;
 without it, no VNC server starts, because VNC means full control of the
 desktop.
@@ -44,8 +47,9 @@ COMPUTERD_TOKEN="<the token>" uv run deploy/computer/computerd.py
 The inline script metadata pulls in Quartz. The first time it runs, macOS asks
 for Screen Recording and Accessibility for the app that started it (the
 terminal). Until both are granted, screenshots fail or show only the wallpaper,
-and clicks do nothing. A `launch` action runs `open -a` with the application's
-name. The daemon listens on `127.0.0.1` unless `COMPUTERD_HOST`
+and clicks do nothing. There is no `launch` action or application list here,
+only in the container: the model opens an application with Spotlight. The
+daemon listens on `127.0.0.1` unless `COMPUTERD_HOST`
 says otherwise. A deployment running in Docker on the same Mac reaches it at
 `host.docker.internal`.
 

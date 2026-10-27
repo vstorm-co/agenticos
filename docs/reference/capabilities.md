@@ -66,7 +66,7 @@ browser is pointed at the deployment's browser service
 | `web_research` | Web search | research | `web_search` | `web:read` | for paid services | as-is |
 | `web_fetch` | Read web pages | research | `web_fetch` | `web:fetch` | — | as-is |
 | `browser_use` | Web browser | research | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | via the `browser` extra | handed off |
-| `computer_use` | Computer use | research | `computer_screenshot`, `computer_act`, `computer_save_screenshot` | `computer:use` | for a daemon | handed off |
+| `computer_use` | Computer use | research | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot` | `computer:use` | for a daemon | handed off |
 | `code_execution` | Calculations | analysis | `run_python` | `code:execute` | — | as-is |
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona | handed off |
 | `charts` | Charts | analysis | `create_chart` | — | — | as-is |
@@ -866,6 +866,8 @@ Specs written before version 13 that bound the step-by-step browser
 
 `computer_act` — *Act on the desktop: click, type, press keys, scroll, drag, open an app or wait.*
 
+`computer_apps` — *List the applications installed on the desktop, to open one with `launch`.*
+
 `computer_save_screenshot` — *Save a screenshot of the desktop for the user: shown in the chat and kept.*
 
 The agent operates a whole desktop, so it can use any application, not only a
@@ -909,20 +911,25 @@ A sandbox that names neither is refused too, because the shipped default is
 `workbench`, which has no display. A Daytona connection is refused because it
 runs its own image.
 
-**Opening an application.** A `launch` action opens an application by its
-name rather than by finding its icon. On a Mac it is `open -a`. On Linux it is
-the menu entry whose file name, or whose name in the desktop's language or
-untranslated, matches, exactly or else as the only one containing it. Every
-directory on the menu's search path is looked in (`$XDG_DATA_HOME` and
+**Opening an application.** `computer_apps` lists the applications the
+desktop's menu shows, each by its name in the desktop's language and its id,
+the menu entry's file name. A `launch` action opens one of them by either,
+rather than by finding its icon. The match is exact, ignoring case: a name two
+entries share, such as a system and a Flatpak Firefox, is refused with their
+ids, and an unknown name is refused with a pointer to `computer_apps`. Every
+directory on the menu's search path is read (`$XDG_DATA_HOME` and
 `$XDG_DATA_DIRS`, so `/usr/local/share` and Flatpak's exports too), and the
-entry is opened with `exo-open`, which the `desktop` runtime and the computerd
-container have. A name that matches several entries, or none, is refused with
-the names, and the file names where two entries share a name, so the model can
-choose again. A launch takes a name only, never a path or arguments: no slash,
-no control character, and it starts with a letter or a digit. In the computerd container the application runs as `desk`, not
-as the account that holds the token. The person's own computer, reached through
-the desktop app, does not support it yet: the model is told to use that
-computer's own launcher instead.
+entry is opened with `exo-open`. The action returns once a new window appears
+or the focus moves, or after ten seconds, so the next screenshot shows the
+application. A launch takes a name only, never a path or arguments: no slash,
+no control character, and it starts with a letter or a digit.
+
+Launching works on Linux desktops only: a sandbox's, an E2B desktop and the
+computerd container, where the application runs as `desk`, not as the account
+that holds the token. A computerd on a Mac or on an operator's own Linux
+desktop, and the person's own computer reached through the desktop app, refuse
+`launch` and `computer_apps`: the model is told to use that computer's own
+launcher instead.
 
 The `execute` tool is not needed, and leaving it off keeps the desktop's actions
 behind `computer_act` and its approval: with `execute`, the agent can run

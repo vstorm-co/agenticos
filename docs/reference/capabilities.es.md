@@ -1,5 +1,5 @@
 ---
-source_sha: "2fb1baddebe3"
+source_sha: "a236f31803c1"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -73,7 +73,7 @@ guarda archivos. El navegador web apunta al servicio de navegador del despliegue
 | `web_research` | Búsqueda web | research | `web_search` | `web:read` | para servicios de pago | tal cual |
 | `web_fetch` | Leer páginas web | research | `web_fetch` | `web:fetch` | — | tal cual |
 | `browser_use` | Navegador web | research | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | mediante el extra `browser` | delegada |
-| `computer_use` | Computer use | research | `computer_screenshot`, `computer_act`, `computer_save_screenshot` | `computer:use` | para un daemon | delegada |
+| `computer_use` | Computer use | research | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot` | `computer:use` | para un daemon | delegada |
 | `code_execution` | Cálculos | analysis | `run_python` | `code:execute` | — | tal cual |
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | para Daytona | delegada |
 | `charts` | Gráficos | analysis | `create_chart` | — | — | tal cual |
@@ -929,6 +929,8 @@ la clave de TypeSafe.
 
 `computer_act` — *Act on the desktop: click, type, press keys, scroll, drag, open an app or wait.*
 
+`computer_apps` — *List the applications installed on the desktop, to open one with `launch`.*
+
 `computer_save_screenshot` — *Save a screenshot of the desktop for the user: shown in the chat and kept.*
 
 El agent maneja un escritorio entero, así que puede usar cualquier aplicación,
@@ -975,22 +977,27 @@ la conexión. Una sandbox que no nombra ninguno también se rechaza, porque el
 predeterminado que se distribuye es `workbench`, que no tiene pantalla. Una
 conexión de Daytona se rechaza porque ejecuta su propia imagen.
 
-**Abrir una aplicación.** Una acción `launch` abre una aplicación por su
-nombre, en lugar de buscar su icono. En un Mac es `open -a`. En Linux es la
-entrada del menú cuyo nombre de archivo, o cuyo nombre en el idioma del
-escritorio o sin traducir, coincide exactamente o, si no, la única que lo
-contiene. Se busca en cada directorio de la ruta de búsqueda del menú
-(`$XDG_DATA_HOME` y `$XDG_DATA_DIRS`, así que también `/usr/local/share` y las
-exportaciones de Flatpak). La entrada se abre con `exo-open`, que tienen el
-runtime `desktop` y el contenedor de computerd. Un nombre que coincide con
-varias entradas, o con ninguna, se rechaza con los nombres, y con los nombres
-de archivo cuando dos entradas comparten nombre, para que el modelo pueda
-elegir otra vez. `launch` acepta solo un nombre, nunca una ruta ni argumentos:
-sin barras ni caracteres de control, y empieza por una letra o un dígito. En el contenedor de
-computerd la aplicación se ejecuta como `desk`, no como la cuenta que guarda el
-token. El ordenador de la propia persona, al que se llega por la app de
-escritorio, todavía no lo admite: al modelo se le indica que use el lanzador de
-ese ordenador.
+**Abrir una aplicación.** `computer_apps` enumera las aplicaciones que muestra
+el menú del escritorio, cada una con su nombre en el idioma del escritorio y su
+id, el nombre de archivo de la entrada del menú. Una acción `launch` abre una de
+ellas por cualquiera de los dos, en lugar de buscar su icono. La coincidencia es
+exacta, sin distinguir mayúsculas: un nombre que comparten dos entradas, como un
+Firefox del sistema y uno de Flatpak, se rechaza con sus ids, y un nombre
+desconocido, con la indicación de llamar a `computer_apps`. Se lee cada
+directorio de la ruta de búsqueda del menú (`$XDG_DATA_HOME` y
+`$XDG_DATA_DIRS`, así que también `/usr/local/share` y las exportaciones de
+Flatpak), y la entrada se abre con `exo-open`. La acción vuelve en cuanto
+aparece una ventana nueva o se mueve el foco, o a los diez segundos, así que la
+siguiente captura muestra la aplicación. `launch` acepta solo un nombre, nunca
+una ruta ni argumentos: sin barras ni caracteres de control, y empieza por una
+letra o un dígito.
+
+Solo los escritorios Linux abren aplicaciones: el de un sandbox, un escritorio
+de E2B y el contenedor de computerd, donde la aplicación se ejecuta como `desk`,
+no como la cuenta que guarda el token. Un computerd en un Mac o en el propio
+escritorio Linux de un operador, y el ordenador de la propia persona, al que se
+llega por la app de escritorio, rechazan `launch` y `computer_apps`: al modelo se
+le indica que use el lanzador de ese ordenador.
 
 La tool `execute` no hace falta, y dejarla fuera mantiene las acciones del
 escritorio detrás de `computer_act` y de su aprobación: con `execute`, el agent

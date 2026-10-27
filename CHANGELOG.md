@@ -22,11 +22,13 @@ Two things are versioned separately from this file and worth knowing about:
 ### Added
 
 - A `launch` action in `computer_act` opens an application by name instead of
-  hunting for its icon: `open -a` on a Mac, and on Linux the matching menu entry
-  through `exo-open`. An ambiguous or unknown name is answered
-  with the installed names. The computerd container opens it as the desktop's
-  account, never the one holding the token. The agent is also told to wait after
-  a launch or a shortcut that opens a window before typing into it.
+  hunting for its icon, and a new `computer_apps` tool lists the names it takes.
+  A launch matches a name or id exactly and returns once the application's
+  window is up. It works on Linux desktops: a sandbox's, E2B's and the computerd
+  container, which opens it as the desktop's account, never the one holding the
+  token. Elsewhere the agent is told to use the computer's own launcher. The
+  agent is also told to wait after a shortcut that opens a window before typing
+  into it.
 
 - Browser connection cards with icons, independent per-chat desktop browser
   overrides, an automatically opened browser side panel, and tools for up to

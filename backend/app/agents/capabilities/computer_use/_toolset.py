@@ -419,10 +419,10 @@ def build_toolset(factory: ComputerFactory, policy: ToolPolicy) -> ComputerTools
         Click on the centre of what you mean to hit. To fill a field, click it,
         then `type`. Use `key` for shortcuts and keys like enter, tab or escape -
         `cmd` on a Mac and `ctrl` elsewhere. Open an application with `launch` and
-        its name. A launch, or a shortcut that opens something, returns before the
-        window appears: add a `wait` or end the batch there before typing. Never
-        type a password or a secret the user did not give you for this purpose;
-        ask them instead.
+        its name or id from `computer_apps`; it returns once the window is up. A
+        shortcut that opens something returns before the window appears: add a
+        `wait` or end the batch there before typing. Never type a password or a
+        secret the user did not give you for this purpose; ask them instead.
 
         Args:
             actions: What to do, in order - between 1 and the agent's per-call
@@ -512,6 +512,21 @@ def build_toolset(factory: ComputerFactory, policy: ToolPolicy) -> ComputerTools
         session.failure = failure
         return answer(ctx, _summary(done, len(actions), failure), image, latest)
 
+    async def computer_apps(ctx: RunContext[Any]) -> str:
+        """List the applications installed on the desktop, to open one with `launch`.
+
+        Returns:
+            One line per application: its name, then its id in brackets. Launch
+            one with `computer_act`'s `launch` action and either.
+        """
+        try:
+            apps = await (await session.desktop(ctx)).apps()
+        except ComputerError as exc:
+            return str(exc)
+        return (
+            "\n".join(f"{app.name} ({app.id})" for app in apps) or "No applications are installed."
+        )
+
     async def computer_save_screenshot(ctx: RunContext[Any], caption: str) -> str:
         """Save a screenshot of the desktop for the user: shown in the chat and kept.
 
@@ -578,6 +593,7 @@ def build_toolset(factory: ComputerFactory, policy: ToolPolicy) -> ComputerTools
     toolset = ComputerToolset(session, policy)
     toolset.add_function(computer_screenshot, takes_ctx=True)
     toolset.add_function(computer_act, takes_ctx=True)
+    toolset.add_function(computer_apps, takes_ctx=True)
     toolset.add_function(computer_save_screenshot, takes_ctx=True)
     return toolset
 

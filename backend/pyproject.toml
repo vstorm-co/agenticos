@@ -461,6 +461,11 @@ ignore = [
 # its output is redirected into a results file afterwards. It is not imported by
 # the application - nothing under `app/` may import it - and it carries no gate.
 "../loadtest/**" = ["T201"]
+# Never run in the API: a sandbox runs its source with `python3 -c` and the
+# computerd image copies it in, as the desktop's own account. Its answer is its
+# output (T201), and it runs the desktop's `xdotool` and `exo-open` by name with
+# an argv it builds itself, the entry path an argument (S603, S607).
+"app/agents/capabilities/computer_use/_desktop_apps.py" = ["T201", "S603", "S607"]
 # Postgres cannot parameterise an identifier, so a table name must be
 # interpolated. `_validate_collection_name` rejects anything but
 # [a-zA-Z0-9_] before it reaches a query, and every *value* is bound. This is

@@ -39,15 +39,17 @@ import logging
 import struct
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from pathlib import PurePosixPath
+from pathlib import Path
 from typing import Protocol
 from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
 import anyio
 import httpx
+from pydantic import TypeAdapter, ValidationError
 from pydantic_ai.workspaces import SupportsCommands, Workspace, WorkspaceError
 
+from app.agents.capabilities.computer_use import _desktop_apps
 from app.agents.capabilities.computer_use._actions import (
     AnyAction,
     Click,
@@ -59,6 +61,7 @@ from app.agents.capabilities.computer_use._actions import (
     TypeText,
     Wait,
 )
+from app.agents.capabilities.computer_use._desktop_apps import App
 from app.agents.capabilities.sandbox._e2b import E2BWorkspace
 from app.core.config import settings
 from app.core.sanitize import UrlRefusedError
@@ -117,6 +120,14 @@ class Computer(Protocol):
 
         Raises:
             ComputerError: The desktop refused it or could not be reached.
+        """
+        ...
+
+    async def apps(self) -> list[App]:
+        """The applications a `launch` may name.
+
+        Raises:
+            ComputerError: This desktop cannot open applications by name, or could not be reached.
         """
         ...
 
@@ -216,110 +227,27 @@ def xdotool(action: NativeAction) -> list[str] | None:
             return None
 
 
-_LIST_APPS = r"""
-printf 'locale\t%s\n' "${LC_ALL:-${LC_MESSAGES:-$LANG}}"
-IFS=:
-for dir in "${XDG_DATA_HOME:-$HOME/.local/share}" ${XDG_DATA_DIRS:-/usr/local/share:/usr/share}; do
-  for f in "$dir"/applications/*.desktop; do
-    [ -f "$f" ] && printf '%s\t%s\n' "$f" "$(awk '
-      /^\[/ { main = ($0 == "[Desktop Entry]") }
-      main && /^(Name(\[[^]]*\])?|NoDisplay|Hidden)=/' "$f" | tr '\n' '\t')"
-  done
-done
-exit 0
-"""
-"""The locale, then each desktop entry on the menu's search path, the user's own first.
+_DESKTOP_APPS = Path(_desktop_apps.__file__).read_text()
+"""`_desktop_apps`' source, which a sandbox runs with `python3 -c`: one lookup for every Linux desktop."""
 
-One `path<TAB>key=value<TAB>...` line an entry, holding the main group's `Name`,
-its translations, `NoDisplay` and `Hidden`; `find_app` picks the locale's name.
-"""
+_APPS: TypeAdapter[list[App]] = TypeAdapter(list[App])
 
-# A session of its own, so the application outlives the command; no output,
-# because the application inherits it and a pipe it holds open would hold the
-# command open until the application quit.
-_OPEN_APP = 'exec setsid -w timeout 20 exo-open "$1" </dev/null >/dev/null 2>&1'
+NO_LAUNCH = (
+    "This desktop cannot open applications by name. Use its own launcher: cmd+space "
+    "and the name on a Mac, the Start menu elsewhere."
+)
 
 
-@dataclass(frozen=True)
-class _App:
-    """A desktop entry the menu shows."""
-
-    path: str
-    stem: str
-    name: str
-    """What this desktop's menu calls it: the locale's own `Name`, else the untranslated one."""
-    names: frozenset[str]
-    """Casefolded: its file name, its untranslated `Name` and `name`, any of which launches it."""
-
-
-def _locale_keys(locale: str) -> list[str]:
-    """The `Name[...]` keys a locale such as `pl_PL.UTF-8` reads, most specific first.
-
-    The desktop entry specification's order: `lang_COUNTRY@MODIFIER`,
-    `lang_COUNTRY`, `lang@MODIFIER`, `lang`; the untranslated `Name` comes after.
-    """
-    rest, _, modifier = locale.partition("@")
-    lang, _, country = rest.partition(".")[0].partition("_")
-    if lang in {"", "C", "POSIX"}:
-        return []
-    keys = [f"{lang}_{country}@{modifier}"] if country and modifier else []
-    keys += [f"{lang}_{country}"] if country else []
-    keys += [f"{lang}@{modifier}"] if modifier else []
-    return [*keys, lang]
-
-
-def _parse_apps(listing: str) -> list[_App]:
-    """The entries `_LIST_APPS` found, as the menu shows them.
-
-    An entry earlier on the search path shadows a later one with the same file
-    name even when it is hidden, which is how a user hides a system application.
-    """
-    head, _, body = listing.partition("\n")
-    order = _locale_keys(head.removeprefix("locale\t"))
-    apps: dict[str, _App | None] = {}
-    for line in body.splitlines():
-        path, *fields = line.split("\t")
-        keys: dict[str, str] = {}
-        for field in fields:
-            key, _, value = field.partition("=")
-            keys.setdefault(key, value.strip())
-        stem = PurePosixPath(path).stem
-        default = keys.get("Name", "")
-        if not default or "true" in (keys.get("NoDisplay"), keys.get("Hidden")):
-            apps.setdefault(stem, None)
-            continue
-        name = next((keys[f"Name[{k}]"] for k in order if keys.get(f"Name[{k}]")), default)
-        names = frozenset(n.casefold() for n in (stem, default, name))
-        apps.setdefault(stem, _App(path=path, stem=stem, name=name, names=names))
-    return [app for app in apps.values() if app is not None]
-
-
-def find_app(query: str, listing: str) -> str:
-    """The desktop entry a `launch` names, from `_LIST_APPS`'s listing.
-
-    Its file name, or its name in the desktop's locale or untranslated, exactly,
-    or else the one entry with the query in one of those. Matching is case-insensitive,
-    and an entry earlier on the search path shadows a later one with the same
-    file name. Two entries the query names equally are never guessed between:
-    a system Firefox and a Flatpak one are both called Firefox.
+def read_apps(listing: str | bytes) -> list[App]:
+    """The applications a desktop listed, as `_desktop_apps.main` prints them.
 
     Raises:
-        ComputerError: None or several match; the model is told the names to choose from.
+        ComputerError: The listing is not one.
     """
-    apps = _parse_apps(listing)
-    wanted = query.casefold()
-    found = [app for app in apps if wanted in app.names] or [
-        app for app in apps if any(wanted in name for name in app.names)
-    ]
-    if len(found) == 1:
-        return found[0].path
-    if found:
-        options = ", ".join(sorted(f"{app.name} ({app.stem})" for app in found))
-        raise ComputerError(
-            f"'{query}' could be any of: {options}. Launch one by its full name or the name in brackets."
-        )
-    names = ", ".join(sorted({app.name for app in apps})[:60]) or "none"
-    raise ComputerError(f"No application called '{query}' is installed. These are: {names}.")
+    try:
+        return _APPS.validate_json(listing)
+    except ValidationError as exc:
+        raise ComputerError("The desktop's list of applications could not be read.") from exc
 
 
 def check_daemon_url(url: str) -> None:
@@ -413,6 +341,10 @@ class DaemonComputer:
         """Send one action; the daemon answers once it has been carried out."""
         await self._request("POST", "/actions", json={"actions": [action.model_dump()]})
 
+    async def apps(self) -> list[App]:
+        """The daemon's list, from its desktop's own account."""
+        return read_apps((await self._request("GET", "/apps")).content)
+
     async def close(self) -> None:
         """Close the client this desktop made; one it was handed is its caller's."""
         if self._owned:
@@ -426,8 +358,7 @@ def _error_text(response: httpx.Response) -> str:
     except ValueError:
         return f"HTTP {response.status_code}"
     error = body.get("error") if isinstance(body, dict) else None
-    # Long enough for the list of applications a `launch` that matched none is answered with.
-    return str(error)[:1000] if error else f"HTTP {response.status_code}"
+    return str(error)[:200] if error else f"HTTP {response.status_code}"
 
 
 E2B_DESKTOP_TEMPLATE = "desktop"
@@ -468,6 +399,9 @@ class E2BComputer:
 
     async def perform(self, action: NativeAction) -> None:
         await self._desktop.perform(action)
+
+    async def apps(self) -> list[App]:
+        return await self._desktop.apps()
 
     async def close(self) -> None:
         """Kill the sandbox: nothing else ends it before its lifetime runs out, on their bill."""
@@ -538,14 +472,15 @@ class LocalComputer:
     async def perform(self, action: NativeAction) -> None:
         """Send one action; the app answers once it has been carried out."""
         if isinstance(action, Launch):
-            raise ComputerError(
-                "This computer cannot open applications by name. Use its own launcher: "
-                "cmd+space and the name on a Mac, the Start menu elsewhere, then wait."
-            )
+            raise ComputerError(NO_LAUNCH)
         if isinstance(action, Wait):
             await anyio.sleep(action.seconds)
             return
         await self._call("screen.act", {"action": action.model_dump()})
+
+    async def apps(self) -> list[App]:
+        """None: the desktop app cannot open applications by name yet."""
+        raise ComputerError(NO_LAUNCH)
 
     async def close(self) -> None:
         """Tell the app the run is done with the screen, so its outline goes."""
@@ -658,9 +593,9 @@ class SandboxComputer:
     async def perform(self, action: NativeAction) -> None:
         """Carry out one action with `xdotool` inside the sandbox."""
         if isinstance(action, Launch):
-            listing = await self._run(["sh", "-c", _LIST_APPS], "list its applications")
-            entry = find_app(action.app, listing)
-            await self._run(["sh", "-c", _OPEN_APP, "launch", entry], f"open {action.app}")
+            await self._run(
+                ["python3", "-c", _DESKTOP_APPS, "launch", action.app], f"open {action.app}"
+            )
             return
         argv = xdotool(action)
         if argv is None:
@@ -668,6 +603,12 @@ class SandboxComputer:
             await anyio.sleep(action.seconds)
             return
         await self._run(argv, f"run the {action.action} action")
+
+    async def apps(self) -> list[App]:
+        """The sandbox's own list, read where its menu is."""
+        return read_apps(
+            await self._run(["python3", "-c", _DESKTOP_APPS, "list"], "list its applications")
+        )
 
 
 async def open_sandbox_desktop(workspace: Workspace, *, width: int, height: int) -> SandboxComputer:

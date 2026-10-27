@@ -21,6 +21,7 @@ def rig(
     desktop = MagicMock(
         capture=AsyncMock(return_value=module.Capture(image=b"frame", width=800, height=600)),
         perform=AsyncMock(),
+        apps=AsyncMock(return_value=[]),
     )
     opening = AsyncMock(return_value=desktop)
     factory = MagicMock(return_value=provider)
@@ -42,6 +43,7 @@ async def test_the_desktop_uses_the_tenants_key_and_releases_its_session(
     action = Wait(seconds=1)
     await computer.perform(action)
     desktop.perform.assert_awaited_once_with(action)
+    assert await computer.apps() is desktop.apps.return_value
     await computer.close()
     provider.destroy.assert_awaited_once_with(workspace.ref)
 

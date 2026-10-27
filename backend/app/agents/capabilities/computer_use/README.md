@@ -1,8 +1,9 @@
 # Computer use (`computer_use`)
 
-Three tools. With `computer_screenshot` and `computer_act` the model looks at a
+Four tools. With `computer_screenshot` and `computer_act` the model looks at a
 desktop, sends a few mouse and keyboard actions in that screenshot's pixels and
-gets a new screenshot back. `computer_save_screenshot` keeps one for the user.
+gets a new screenshot back. `computer_apps` lists the applications a `launch`
+action may open, and `computer_save_screenshot` keeps a screenshot for the user.
 Unlike `browser_use`, the desktop can run any application, not only a web page.
 #2094 is the issue.
 
@@ -95,22 +96,29 @@ need not be bound) and returned as a `desktop_screenshot` payload the chat draws
 `output/` too, which is what a channel reply posts and what a testing agent's
 report can link. It changes nothing on the desktop, so it is not side-effecting.
 
-**Opening an application:** a `launch` action names an application and the
-desktop opens it, because finding an icon in a screenshot and clicking it is the
-slowest and least reliable way there. On Linux the name is matched against the
-desktop entries the menu shows, in every directory of the XDG search path
-(`_backends.find_app`: a file name, or the name in the desktop's locale or
-untranslated, exactly, else the only one containing it) and opened with
-`exo-open`, the launcher the `desktop` runtime and the computerd image have;
-computerd does the same on Linux and runs `open -a` on a Mac. Several matches,
-or none, is a sentence with the names - and the file names, since a system and
-a Flatpak Firefox are both "Firefox" - not a guess. Only other languages'
-translations are not matched: a German "Terminal" would otherwise win over a
-Polish desktop's own names. The name is validated to a name - no slash, no
-leading dash, no control character - so it can never be a path or an option;
-other punctuation is allowed, because real names have it. computerd's
-container opens it through a launcher running as `desk`: computerd itself holds
+**Opening an application:** `computer_apps` lists what the desktop's menu
+shows, and a `launch` action opens one of them by its name or id, because
+finding an icon in a screenshot and clicking it is the slowest and least
+reliable way there. Listing and opening are the same code everywhere:
+`_desktop_apps.py`, standard library only, which a sandbox runs with
+`python3 -c` and the computerd image copies in beside the daemon. It reads the
+desktop entries on the XDG search path, an earlier directory's shadowing a
+later one with the same id, and names each in the desktop's locale. A launch
+must match an id or a name exactly, ignoring case, so it is never a guess: a
+name two entries share (a system and a Flatpak Firefox) is answered with their
+ids. It opens the entry with `exo-open` and returns once a new window shows or
+the focus moves, or after ten seconds, so the screenshot that follows has the
+application in it. The name is validated to a name - no slash, no leading
+dash, no control character - so it can never be a path or an option; other
+punctuation is allowed, because real names have it. computerd's container
+lists and opens through a launcher running as `desk`: computerd itself holds
 the token.
+
+Only Linux desktops launch: a sandbox's, E2B's and computerd's container. A
+computerd without its container's launcher, on a Mac or a person's own Linux
+desktop, and the person's own computer through the desktop app refuse
+`launch` and `computer_apps`, and the model is told to use that computer's own
+launcher instead.
 
 **Limits:** `max_actions_per_call` bounds one batch. `max_actions` bounds a run;
 past it the tool tells the model to stop and report what is left. A `type`
@@ -137,8 +145,9 @@ action carries at most 2000 characters.
   one screen, and nothing queues one run's clicks behind another's.
 - A cloud desktop. A cloud sandbox provider (E2B, for one) would arrive as a
   sandbox connection kind, and its desktop would come with it.
-- `launch` on the person's own computer. The desktop app's `screen.act` has no
-  launch, so the model is told to use the computer's own launcher.
+- `launch` on a Mac or a self-hosted Linux desktop, whether through computerd
+  or the person's own computer in the desktop app. Neither has a launcher yet,
+  so the model is told to use the computer's own.
 - A sandbox desktop is not hidden from the shell: an agent with `execute` can
   run `xdotool` itself, past an approval held on `computer_act`.
 
