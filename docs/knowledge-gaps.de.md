@@ -1,5 +1,5 @@
 ---
-source_sha: "3efb6afb1e56"
+source_sha: "e2584b648791"
 title: "Wissenslücken"
 description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden oder ohne Wissen geantwortet hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
 ---
@@ -127,13 +127,13 @@ ordnet jede nach ihren Urteilen ein: fehlendes Wissen, wo einer Wissensbasis
 Inhalt fehlte, nichts zu beheben, wo der Agent zu Recht abgelehnt hat, und sonst
 ein Fehler des Agents.
 
-Die Antworten mit fehlendem Wissen fallen aus dem heraus,
-was der Authoring-Assistent liest, und die Sitzung entwirft stattdessen ihre
-Themen, höchstens drei pro Runde, gleich wie wenige Personen gefragt haben: Jeden
-Entwurf prüft ein Mensch, bevor er hinzugefügt wird, und ein Entwurf aus der Frage
-einer einzigen Person sagt das. Ein Entwurf, um den niemand gebeten hat, wartet
-außerhalb einer Sitzung weiterhin, bis zwei verschiedene Personen gefragt haben. Die Runs eines Evals werden nie gelesen, also
-auch kein zurückgehaltener Fall.
+Die Antworten mit fehlendem Wissen fallen aus dem heraus, was der
+Authoring-Assistent liest, und ihre Fehlschläge werden sofort zu Themen
+gruppiert. Die Sitzung entwirft keines davon: Sie listet die Themen auf, die in
+der Wissensbasis fehlen, und ein Mensch entwirft die, die er braucht, wie
+[unten](#drafting-the-missing-content) beschrieben. Nichts wird entworfen, ohne
+dass ein Mensch darum bittet, ob in einer Sitzung oder außerhalb. Die Runs eines
+Evals werden nie gelesen, also auch kein zurückgehaltener Fall.
 
 ## Themen { #topics }
 
@@ -218,8 +218,9 @@ Wissens fehlgeschlagen sind, sollten jetzt bestehen.
 
 ## Den fehlenden Inhalt entwerfen { #drafting-the-missing-content }
 
-**Fehlenden Inhalt entwerfen** in einem geöffneten Thema bittet ein Modell, die
-Passage oder den FAQ-Eintrag zu schreiben, der der Wissensbasis fehlt. Das ist
+**Entwerfen** (Draft) in einem geöffneten Thema bittet ein Modell, die
+Passage oder den FAQ-Eintrag zu schreiben, der der Wissensbasis fehlt. Die
+Schaltfläche zeigt, was ein Entwurf höchstens kostet. Das ist
 ein Run des **Lücken-Entwerfers** (Knowledge gap drafter), eines
 [System-Agents](concepts.md#system-agents), den jede Organisation hat. Er sieht
 die 20 neuesten Fragen des Themas: was jede Person gefragt hat, wonach der Agent
@@ -232,9 +233,22 @@ hat, ist immer nur das eigene Ergebnis der Wissenssuche, nie das, was ein
 anderes Werkzeug für dieselben Worte zurückgab. Er sieht
 außerdem die [Kontextdateien](context.md), die die Agents des Themas in ihren
 veröffentlichten Versionen lesen, soweit du sie lesen darfst, damit der Entwurf
-den Regeln folgt, denen die Agents schon folgen. Ein Entwerfer, der die
-[Wissensbasis durchsucht](concepts.md#system-agent-spec), durchsucht auch diese,
-damit ein Entwurf nicht wiederholt, was ein Dokument schon sagt.
+den Regeln folgt, denen die Agents schon folgen. Er sieht, was eine Suche in
+der Wissensbasis für bis zu drei der Fragen beim Schreiben des Entwurfs
+zurückgibt, also auch ein Dokument, das seit den Fragen hinzugekommen ist, und
+ein Entwerfer, der die [Wissensbasis durchsucht](concepts.md#system-agent-spec),
+durchsucht auch diese. So oder so wiederholt ein Entwurf nicht, was ein Dokument
+schon sagt.
+
+Ein Entwurf wird im Hintergrund geschrieben, als du, mit deinem Zugriff, wie er
+beim Ausführen ist. Das Thema zeigt **Wird entworfen…** (Drafting…), bis der
+Entwurf fertig ist, und eine geöffnete Seite zeigt ihn ohne Neuladen; eine
+erneute Bitte startet in der Zwischenzeit nichts weiter. Ein Entwurf, der nicht
+geschrieben werden konnte, weil ein Budget aufgebraucht oder die
+KI-Unterstützung inzwischen ausgeschaltet wurde, sagt das, mit **Erneut
+versuchen** (Try again). Ein Entwurf aus den Fragen einer einzigen Person sagt
+das ebenfalls: Prüfe ihn im Wissen, dass er auf dem beruht, was eine Person
+gefragt hat.
 
 Der Entwurf füllt den Editor des Themas, mit einem Link zu seinem Run. Du
 kannst ihn als Markdown kopieren, und in die Wissensdatenbank kommt er erst,
@@ -245,7 +259,11 @@ jede solche Stelle auf, bis sie ersetzt ist.
 
 Wenn eine Kontextdatei oder ein Dokument die Fragen schon beantwortet, sagt der
 Lücken-Entwerfer das, und das Thema nennt diese Quelle: Verwirf dann das Thema, statt
-Inhalt hinzuzufügen. Ein neuer Entwurf ersetzt den alten. Wer den Lücken-Entwerfer bearbeiten darf, findet am Entwurf **Anweisungen des
+Inhalt hinzuzufügen. **Neu entwerfen** (Redraft) ersetzt den Entwurf. Wird
+nach einem Entwurf ein Dokument zur Wissensbasis hinzugefügt, sagt der Entwurf,
+dass sich die Wissensbasis danach geändert hat: Er kann das neue Dokument
+wiederholen oder ihm widersprechen, also schreibt **Neu entwerfen** ihn erneut
+gegen das, was die Wissensbasis jetzt enthält. Wer den Lücken-Entwerfer bearbeiten darf, findet am Entwurf **Anweisungen des
 Lücken-Entwerfers bearbeiten** und den Lücken-Entwerfer selbst unter **System-Agents** auf der
 Seite Agents.
 
@@ -283,7 +301,7 @@ und die API verweigert ihm den Zugriff.
 | Die Lücken eines Agents zu lesen | `runs:view` und `agents:view` auf dem Agent; Themen von Wissensdatenbanken, die du nicht lesen darfst, werden ausgelassen |
 | Zu verwerfen, wieder zu öffnen oder neu zu gruppieren | `runs:view` und `collections:edit` auf der Wissensdatenbank, aus deiner Rolle oder einem Bearbeitungs-Grant darauf |
 | Ein Thema zu einem Dataset hinzuzufügen | `runs:view` und `datasets:edit` auf dem Dataset |
-| Den fehlenden Inhalt zu entwerfen | `runs:view`, `collections:edit` auf der Wissensdatenbank und `agents:run` auf dem Knowledge gap drafter |
+| Ein Thema entwerfen | `runs:view`, `collections:edit` auf der Wissensdatenbank und `agents:run` auf dem Knowledge gap drafter |
 | Den Inhalt eines Themas zu schreiben, zu speichern oder hinzuzufügen | `runs:view` und `collections:edit` auf der Wissensdatenbank, aus deiner Rolle oder einem Bearbeitungs-Grant darauf |
 | Antworten zu prüfen | `runs:view`, `collections:edit` auf der Wissensdatenbank und `agents:run` auf dem Knowledge gap classifier |
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "3efb6afb1e56"
+source_sha: "e2584b648791"
 title: "Luki w wiedzy"
 description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego albo odpowiedział, że nie wie, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
 ---
@@ -121,13 +121,13 @@ wieku, i przypisuje każdą do grupy według jej werdyktów: brakująca wiedza, 
 bazie wiedzy brakowało treści, nic do poprawienia, gdy agent słusznie odmówił,
 a w pozostałych przypadkach błąd agenta.
 
-Odpowiedzi z brakującą wiedzą wypadają
-z tego, co czyta asystent tworzenia, a sesja zamiast tego pisze szkice ich
-tematów, najwyżej trzech na rundę, niezależnie od tego, ile osób pytało: każdy
-szkic przed dodaniem sprawdza człowiek, a szkic z pytania jednej osoby mówi o tym.
-Szkic, o który nikt nie prosił, poza sesją nadal czeka, aż o temat zapytają dwie
-różne osoby. Runy ewaluacji nie są nigdy czytane, więc żaden przypadek
-zachowany do sprawdzenia też nie.
+Odpowiedzi z brakującą wiedzą wypadają z tego, co czyta asystent tworzenia, a
+ich braki od razu są grupowane w tematy. Sesja nie pisze szkicu żadnego z nich:
+wymienia tematy, których brakuje w bazie wiedzy, a człowiek pisze szkice tych,
+których potrzebuje, jak [niżej](#drafting-the-missing-content). Nic nie powstaje
+jako szkic, dopóki nie poprosi o to człowiek, w sesji ani poza nią. Runy
+ewaluacji nie są nigdy czytane, więc żaden przypadek zachowany do sprawdzenia
+też nie.
 
 ## Tematy { #topics }
 
@@ -207,8 +207,9 @@ przejść.
 
 ## Szkic brakującej treści { #drafting-the-missing-content }
 
-**Napisz szkic brakującej treści** w otwartym temacie prosi model o napisanie
-fragmentu albo wpisu FAQ, którego brakuje w bazie wiedzy. To jeden run
+**Napisz szkic** (Draft) w otwartym temacie prosi model o napisanie
+fragmentu albo wpisu FAQ, którego brakuje w bazie wiedzy. Przycisk pokazuje
+najwyższy koszt jednego szkicu. To jeden run
 **autora szkiców luk** (Knowledge gap drafter),
 [agenta systemowego](concepts.md#system-agents), którego ma każda organizacja. Agent widzi 20 najnowszych pytań tematu: o co
 zapytała każda osoba, czego agent szukał i co znalazł, jaką odpowiedź dostała
@@ -220,9 +221,19 @@ samego wyszukiwania w bazie wiedzy, nigdy tego, co inne narzędzie zwróciło dl
 tych samych słów. Agent
 widzi też [pliki kontekstowe](context.md), które agenci tematu czytają w swoich
 opublikowanych wersjach, te, które możesz czytać, żeby szkic trzymał się reguł,
-których agenci już się trzymają. Autor szkiców ustawiony na
+których agenci już się trzymają. Widzi też, co zwraca wyszukiwanie w bazie
+wiedzy dla najwyżej trzech z tych pytań w chwili pisania szkicu, więc widzi
+dokument dodany, odkąd je zadano, a autor szkiców ustawiony na
 [przeszukiwanie bazy wiedzy](concepts.md#system-agent-spec) przeszukuje też tę
-bazę, żeby szkic nie powtarzał tego, co już mówi jakiś dokument.
+bazę. Tak czy inaczej szkic nie powtarza tego, co już mówi jakiś dokument.
+
+Szkic powstaje w tle, jako ty, z twoim dostępem takim, jaki jest w chwili jego
+pisania. Temat mówi **Piszę szkic…** (Drafting…), dopóki szkic nie jest gotowy,
+a otwarta strona pokazuje go bez przeładowania; ponowna prośba w tym czasie nic
+więcej nie uruchamia. Szkic, którego nie udało się napisać, bo budżet się
+wyczerpał albo w międzyczasie wyłączono wsparcie AI, mówi o tym, z przyciskiem
+**Spróbuj ponownie** (Try again). Szkic napisany z pytań jednej osoby też to
+mówi: sprawdź go, wiedząc, że opiera się na tym, o co pytała jedna osoba.
 
 Szkic wypełnia edytor tematu, z odnośnikiem do swojego runa. Możesz go
 skopiować jako Markdown, a do bazy wiedzy trafia dopiero wtedy, gdy ktoś go
@@ -231,8 +242,11 @@ liczby, daty albo reguły, wpisuje `{{what to fill in}}`, a edytor wymienia każ
 takie miejsce, dopóki nie zostanie zastąpione.
 
 Gdy plik kontekstowy albo dokument już odpowiada na te pytania, autor szkiców luk to
-mówi, a temat podaje to źródło: zamiast dodawać treść, odrzuć temat. Ponowny
-szkic zastępuje poprzedni. Kto może edytować autora szkiców luk, znajdzie przy szkicu **Edytuj instrukcje
+mówi, a temat podaje to źródło: zamiast dodawać treść, odrzuć temat.
+**Napisz szkic od nowa** (Redraft) zastępuje szkic. Gdy po napisaniu szkicu do
+bazy wiedzy zostanie dodany dokument, szkic mówi, że baza wiedzy zmieniła się
+po nim: może powtarzać nowy dokument albo mu przeczyć, więc **Napisz szkic od
+nowa** pisze go ponownie według tego, co baza wiedzy zawiera teraz. Kto może edytować autora szkiców luk, znajdzie przy szkicu **Edytuj instrukcje
 autora szkiców luk**, a samego autora szkiców luk w sekcji **Agenci systemowi** na stronie Agents.
 
 Szkic podaje swoje źródła: dokumenty bazy wiedzy, na których się opiera,
@@ -266,7 +280,7 @@ bez niego nie widzi karty ani widżetu, a API mu odmawia.
 | Czytać luki agenta | `runs:view` i `agents:view` na agencie; tematy baz wiedzy, których nie możesz czytać, są pomijane |
 | Odrzucić, otworzyć ponownie albo pogrupować | `runs:view` i `collections:edit` na bazie wiedzy, z twojej roli albo z grantu edycji na niej |
 | Dodać temat do datasetu | `runs:view` i `datasets:edit` na datasecie |
-| Napisać szkic brakującej treści | `runs:view`, `collections:edit` na bazie wiedzy i `agents:run` na autor szkiców luk |
+| Napisać szkic tematu | `runs:view`, `collections:edit` na bazie wiedzy i `agents:run` na autor szkiców luk |
 | Napisać, zapisać albo dodać treść tematu | `runs:view` i `collections:edit` na bazie wiedzy, z twojej roli albo z grantu edycji na niej |
 | Sprawdzić odpowiedzi | `runs:view`, `collections:edit` na bazie wiedzy i `agents:run` na Knowledge gap classifier |
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "3efb6afb1e56"
+source_sha: "e2584b648791"
 title: "Lagunas de conocimiento"
 description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, o respondió sin saber, agrupadas por tema, para saber qué documento falta."
 ---
@@ -127,13 +127,12 @@ clasifica cada una según sus veredictos: falta conocimiento si a una base de
 conocimiento le faltaba contenido, nada que corregir si el agent se negó con
 razón, y fallo del agent en los demás casos.
 
-Las que les falta conocimiento
-salen de lo que lee el asistente de autoría, y la sesión redacta en su lugar sus
-temas, tres como máximo por ronda, aunque haya preguntado poca gente: una persona
-revisa cada borrador antes de añadirlo, y un borrador basado en la pregunta de una
-sola persona lo indica. Fuera de una sesión, un borrador que nadie pidió sigue
-esperando a que pregunten dos personas distintas. Los runs de un eval nunca se leen, así que tampoco ningún
-caso reservado.
+Las que les falta conocimiento salen de lo que lee el asistente de autoría, y
+sus fallos se agrupan en temas en el acto. La sesión no redacta ninguno: enumera
+los temas que faltan en la base de conocimiento, y una persona redacta los que
+quiera, como se explica [más abajo](#drafting-the-missing-content). Nada se
+redacta si una persona no lo pide, dentro o fuera de una sesión. Los runs de un
+eval nunca se leen, así que tampoco ningún caso reservado.
 
 ## Temas { #topics }
 
@@ -219,9 +218,9 @@ deberían pasar ahora.
 
 ## Redactar el contenido que falta { #drafting-the-missing-content }
 
-**Redactar el contenido que falta**, en un tema abierto, pide a un modelo que
-escriba el fragmento o la entrada de FAQ que le falta a la base de conocimiento.
-Es un run del **Knowledge gap drafter**, un
+**Draft**, en un tema abierto, pide a un modelo que escriba el fragmento o la
+entrada de FAQ que le falta a la base de conocimiento. El botón muestra lo
+máximo que cuesta un borrador. Es un run del **Knowledge gap drafter**, un
 [agent del sistema](concepts.md#system-agents) que tiene cada organización. Ve
 las 20 preguntas más recientes del tema: qué preguntó cada persona, qué buscó y
 encontró el agent, qué respuesta recibió la persona y cualquier comentario
@@ -233,9 +232,20 @@ propia búsqueda en la base de conocimiento, nunca lo que otra herramienta
 devolvió para las mismas palabras. También ve los
 [archivos de contexto](context.md) que los agents del tema leen en sus
 versiones publicadas, los que tú puedes leer, para que el borrador siga las
-reglas que los agents ya siguen. Un redactor configurado para
-[buscar en la base de conocimiento](concepts.md#system-agent-spec) busca también
-en esta, para que un borrador no repita lo que ya dice un documento.
+reglas que los agents ya siguen. Ve lo que devuelve la base de conocimiento al
+buscar hasta tres de las preguntas mientras se escribe el borrador, así que ve
+un documento añadido desde que se hicieron, y un redactor configurado
+para [buscar en la base de conocimiento](concepts.md#system-agent-spec) busca
+también en esta. En cualquier caso, un borrador no repite lo que ya dice un
+documento.
+
+Un borrador se escribe en segundo plano, como tú, con tu acceso tal como esté
+cuando se ejecuta. El tema dice **Drafting…** hasta que el borrador está listo,
+y una página abierta lo muestra sin recargar; pedirlo de nuevo mientras tanto no
+inicia nada más. Un borrador que no se pudo escribir, porque se agotó un
+presupuesto o se desactivó la asistencia de IA mientras tanto, lo indica, con **Try again**.
+Un borrador escrito a partir de las preguntas de una sola persona también lo
+indica: revísalo sabiendo que se basa en lo que preguntó una persona.
 
 El borrador rellena el editor del tema, con un enlace a su run. Puedes copiarlo
 como Markdown, y solo llega a la base de conocimiento cuando alguien lo añade. El redactor no conoce los datos de tu empresa: donde una
@@ -244,7 +254,11 @@ respuesta necesita una cifra, una fecha o una regla, escribe
 
 Cuando un archivo de contexto o un documento ya responde a las preguntas, el
 redactor lo dice y el tema nombra esa fuente: descarta el tema en lugar de
-añadir contenido. Redactar de nuevo sustituye el borrador. Quien puede editar el drafter encuentra **Edit the drafter's
+añadir contenido. **Redraft** sustituye el borrador. Cuando se añade un
+documento a la base de conocimiento después de escribir un borrador, el borrador
+indica que la base de conocimiento cambió después de él: puede repetir el nuevo
+documento o contradecirlo, así que **Redraft** lo escribe de nuevo según lo que
+la base de conocimiento contiene ahora. Quien puede editar el drafter encuentra **Edit the drafter's
 instructions** en el borrador, y el propio drafter en **System agents**, en la
 página Agents.
 
@@ -280,7 +294,7 @@ miembro sin él no ve la pestaña ni el widget, y la API se lo deniega.
 | Leer las lagunas de un agent | `runs:view` y `agents:view` en el agent; se omiten los temas de bases de conocimiento que no puedes leer |
 | Descartar, reabrir o reagrupar | `runs:view` y `collections:edit` en la base de conocimiento, por tu rol o por un grant de edición sobre ella |
 | Añadir un tema a un dataset | `runs:view` y `datasets:edit` en el dataset |
-| Redactar el contenido que falta | `runs:view`, `collections:edit` en la base de conocimiento y `agents:run` en el Knowledge gap drafter |
+| Redactar un tema | `runs:view`, `collections:edit` en la base de conocimiento y `agents:run` en el Knowledge gap drafter |
 | Escribir, guardar o añadir el contenido de un tema | `runs:view` y `collections:edit` en la base de conocimiento, por tu rol o por un grant de edición sobre ella |
 | Revisar respuestas | `runs:view`, `collections:edit` en la base de conocimiento y `agents:run` en el Knowledge gap classifier |
 
