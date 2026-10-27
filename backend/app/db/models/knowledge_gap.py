@@ -231,6 +231,12 @@ class KnowledgeGapTopic(Base):
         nullable=True,
     )
     drafted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # The newest draft a person asked for: whether one is being written, or failed.
+    draft_job_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("background_jobs.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     # `model` or `person`, set with the draft's text: its run may be gone with
     # retention while the text stays the model's.
     draft_author: Mapped[str | None] = mapped_column(String(16), nullable=True)

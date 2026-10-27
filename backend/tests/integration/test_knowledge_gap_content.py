@@ -54,7 +54,7 @@ from tests.integration.test_knowledge_gaps import (
     _turn,
 )
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("knowledge_search")]
 
 
 class _AcceptingStore:
@@ -332,8 +332,9 @@ async def test_the_drafter_reads_the_agents_context_files_and_no_identifying_det
         ),
         drafting_run,
     ) as run_it:
-        drafted = await KnowledgeGapService(db).draft(ctx, topic_id)
+        await KnowledgeGapService(db).draft(ctx, topic_id)
 
+    drafted = await KnowledgeGapService(db).read(ctx, topic_id)
     prompt = run_it.await_args.kwargs["prompt"]
     assert "### Context file 1: refund-policy" in prompt
     assert "Digital goods are not refundable once downloaded." in prompt

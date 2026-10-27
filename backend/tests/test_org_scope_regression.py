@@ -122,7 +122,7 @@ TENANT_REQUIRED = [
     (knowledge_gap_repo, "classification_candidates"),
     (knowledge_gap_repo, "count_unchecked"),
     (knowledge_gap_repo, "classifications_of"),
-    (knowledge_gap_repo, "topics_of_answers"),
+    (knowledge_gap_repo, "last_document_added"),
     (knowledge_gap_repo, "record_classifications"),
     (knowledge_gap_repo, "still_asked"),
     (agent_repo, "get_system"),

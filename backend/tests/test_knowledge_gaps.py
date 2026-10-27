@@ -18,7 +18,7 @@ import numpy as np
 import pytest
 
 from app.core.config import settings
-from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.exceptions import BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.context import ContextFile
 from app.db.models.knowledge_gap import (
@@ -44,10 +44,11 @@ from app.services.knowledge_gaps import (
     _private,
     _verdicts,
 )
-from app.worker.jobs import ClassifyGaps, DraftGaps
+from app.worker.jobs import ClassifyGaps, DraftTopic
 from app.worker.tasks.knowledge_gap_tasks import (
+    _SessionSources,
     classify_knowledge_gaps,
-    draft_knowledge_gaps,
+    draft_knowledge_gap,
     group_knowledge_gaps,
 )
 
@@ -569,14 +570,15 @@ class TestTheDraftingPrompt:
             )
         ]
 
-        prompt = _drafting_prompt("Handbook", rows, [], [])
+        prompt = _drafting_prompt("Handbook", rows, [], [], [])
 
         assert '"Handbook"' in prompt
         assert "## Question 1" in prompt
         assert "Found: -" in prompt
         assert "x" * 1_500 + "..." in prompt
         assert "x" * 1_501 not in prompt
-        assert "Documents the agent found" not in prompt
+        assert "Documents found" not in prompt
+        assert "What the knowledge base holds now" not in prompt
 
     def test_the_agents_context_files_come_first_and_identifying_details_are_taken_out(self):
         rows = [
@@ -590,7 +592,7 @@ class TestTheDraftingPrompt:
         ]
         policy = ContextFile(name="refund-policy", content="Digital goods are not refundable.")
 
-        prompt = _drafting_prompt("Help center", rows, [], [policy])
+        prompt = _drafting_prompt("Help center", rows, [], [policy], [])
 
         assert "### Context file 1: refund-policy\nDigital goods are not refundable." in prompt
         assert prompt.index("## Context files") < prompt.index("## Question 1")
@@ -611,9 +613,30 @@ class TestTheDraftingPrompt:
             )
         ]
 
-        prompt = _drafting_prompt("Catalog", rows, [], [])
+        prompt = _drafting_prompt("Catalog", rows, [], [], [])
 
         assert "Found: SKU 12345 costs $5000 since 2026. Ask [redacted:email]" in prompt
+
+    def test_what_the_knowledge_base_holds_now_is_shown_without_personal_data(self):
+        rows = [
+            DraftingRow(
+                search=MagicMock(query="price"),
+                question=None,
+                answer=None,
+                found=None,
+                down_rating_comment=None,
+            )
+        ]
+        now = [
+            ("price for order 7781", "[1] Source: prices.md (score: 0.900)\nAsk ann@example.com")
+        ]
+
+        prompt = _drafting_prompt("Catalog", rows, [], [], now)
+
+        assert "## What the knowledge base holds now" in prompt
+        assert "Searched for: price for order [number]" in prompt
+        assert "Ask [redacted:email]" in prompt
+        assert prompt.index("holds now") < prompt.index("## Question 1")
 
 
 class TestWhatIdentifiesSomebody:
@@ -713,80 +736,82 @@ class TestTheVerdicts:
         assert (verdict.verdict, verdict.signal) == ("answer", None)
 
 
-def _draft_patches(*, topics: list[uuid.UUID], drafts: list[Any], acting: Any = "ctx") -> Any:
-    stack = ExitStack()
-    stack.enter_context(patch(f"{_TASKS}.get_worker_db_context", new=_Context))
-    group = stack.enter_context(
-        patch.object(KnowledgeGapService, "group_pending", new=AsyncMock(return_value=1))
-    )
-    stack.enter_context(
-        patch.object(
-            KnowledgeGapService,
-            "acting_as",
-            new=AsyncMock(return_value=MagicMock() if acting == "ctx" else acting),
-        )
-    )
-    stack.enter_context(
-        patch.object(KnowledgeGapService, "topics_to_draft", new=AsyncMock(return_value=topics))
-    )
-    draft = stack.enter_context(
-        patch.object(KnowledgeGapService, "draft", new=AsyncMock(side_effect=drafts))
-    )
-    return stack, group, draft
-
-
-def _draft_job() -> DraftGaps:
-    return DraftGaps(
-        organization_id=ORG, knowledge_base_ids=[KB], user_id=_ASKER, message_ids=[uuid.uuid4()]
-    )
+def _draft_job(user_id: uuid.UUID | None = _ASKER) -> DraftTopic:
+    return DraftTopic(organization_id=ORG, topic_id=uuid.uuid4(), user_id=user_id)
 
 
 class TestTheDraftingJob:
-    async def test_a_round_drafts_at_most_three_topics_each_unasked(self):
-        topics = [uuid.uuid4() for _ in range(5)]
-        stack, group, draft = _draft_patches(topics=topics, drafts=[None] * 5)
-        with stack:
-            drafted = await draft_knowledge_gaps(_draft_job())
+    @pytest.fixture
+    def worker(self) -> Iterator[AsyncMock]:
+        published = AsyncMock()
+        with (
+            patch(f"{_TASKS}.get_worker_db_context", new=_Context),
+            patch(f"{_TASKS}.change_feed.connect_in_worker", new=AsyncMock()),
+            patch(f"{_TASKS}.change_feed.publish_knowledge_gaps_grouped", new=published),
+        ):
+            yield published
 
-        assert drafted == 3
-        assert group.await_args.kwargs == {"organization_id": ORG, "knowledge_base_id": KB}
-        assert [call.args[1] for call in draft.await_args_list] == topics[:3]
-        assert all(call.kwargs == {"automatic": True} for call in draft.await_args_list)
+    async def test_a_draft_is_written_as_whoever_asked_and_the_page_hears_of_it(self, worker):
+        asker = MagicMock()
+        job = _draft_job()
+        with (
+            patch(f"{_TASKS}.job_context", new=AsyncMock(return_value=asker)),
+            patch.object(KnowledgeGapService, "draft", new=AsyncMock()) as draft,
+        ):
+            assert await draft_knowledge_gap(job)
 
-    @pytest.mark.parametrize("details", [{"askers": 1}, {"draft_author": "person"}])
-    async def test_a_topic_too_few_asked_or_a_person_wrote_is_passed_over(self, details):
-        topics = [uuid.uuid4() for _ in range(2)]
-        passed_over = BadRequestError(message="not drafted", details=details)
-        stack, _, draft = _draft_patches(topics=topics, drafts=[passed_over, None])
-        with stack:
-            drafted = await draft_knowledge_gaps(_draft_job())
+        assert draft.await_args.args == (asker, job.topic_id)
+        worker.assert_awaited_once_with(ORG)
 
-        assert drafted == 1
-        assert draft.await_count == 2
-
-    async def test_any_other_refusal_ends_the_round(self):
+    async def test_a_refused_draft_fails_the_job_and_the_page_still_hears_of_it(self, worker):
         spent = BadRequestError(message="budget", details={"agent": "drafter"})
-        stack, _, _ = _draft_patches(topics=[uuid.uuid4()], drafts=[spent])
-        with stack, pytest.raises(BadRequestError):
-            await draft_knowledge_gaps(_draft_job())
+        with (
+            patch(f"{_TASKS}.job_context", new=AsyncMock(return_value=MagicMock())),
+            patch.object(KnowledgeGapService, "draft", new=AsyncMock(side_effect=spent)),
+            pytest.raises(BadRequestError),
+        ):
+            await draft_knowledge_gap(_draft_job())
 
-    async def test_a_person_who_left_drafts_and_groups_nothing(self):
-        stack, group, draft = _draft_patches(topics=[uuid.uuid4()], drafts=[], acting=None)
-        with stack:
-            drafted = await draft_knowledge_gaps(_draft_job())
+        worker.assert_awaited_once_with(ORG)
 
-        assert drafted == 0
-        group.assert_not_awaited()
+    async def test_nothing_is_drafted_for_somebody_who_left(self, worker):
+        with (
+            patch(f"{_TASKS}.job_context", new=AsyncMock(return_value=None)),
+            patch.object(KnowledgeGapService, "draft", new=AsyncMock()) as draft,
+        ):
+            assert not await draft_knowledge_gap(_draft_job())
+
         draft.assert_not_awaited()
 
-    async def test_a_topic_gone_since_the_round_listed_it_is_passed_over(self):
-        gone = NotFoundError(message="Topic not found", details={})
-        stack, _, draft = _draft_patches(topics=[uuid.uuid4(), uuid.uuid4()], drafts=[gone, None])
-        with stack:
-            drafted = await draft_knowledge_gaps(_draft_job())
 
-        assert drafted == 1
-        assert draft.await_count == 2
+class TestTheSessionsKnowledgeStep:
+    async def test_a_knowledge_base_gone_from_the_sources_is_neither_read_nor_grouped(self):
+        job = ClassifyGaps(
+            organization_id=ORG,
+            knowledge_base_ids=[KB],
+            user_id=_ASKER,
+            message_ids=[uuid.uuid4()],
+            improvement_run_id=uuid.uuid4(),
+        )
+        frozen = _SessionSources(MagicMock(), [KB], list(job.message_ids or []), [])
+        gone = _SessionSources(frozen.ctx, [], [], [])
+        sources = AsyncMock(side_effect=[frozen, gone, gone])
+        with (
+            patch(f"{_TASKS}.get_worker_db_context", new=_Context),
+            patch(f"{_TASKS}.change_feed.connect_in_worker", new=AsyncMock()),
+            patch(f"{_TASKS}.change_feed.publish_knowledge_gaps_grouped", new=AsyncMock()),
+            patch(f"{_TASKS}._session_sources", new=sources),
+            patch(f"{_TASKS}._session_affords", new=AsyncMock(return_value=True)),
+            patch(f"{_TASKS}._wake_session", new=AsyncMock()),
+            patch.object(KnowledgeGapService, "classify_batch", new=AsyncMock()) as classify,
+            patch.object(KnowledgeGapService, "group_pending", new=AsyncMock()) as group,
+            patch(f"{_TASKS}.ingestion_spend_repo.record", new=AsyncMock()) as spend,
+        ):
+            assert await classify_knowledge_gaps(job) == 0
+
+        classify.assert_not_awaited()
+        group.assert_not_awaited()
+        spend.assert_not_awaited()
 
 
 def _owner() -> AuthContext:
@@ -853,7 +878,7 @@ class TestTheImprovementEstimate:
         with (
             patch.object(KnowledgeGapService, "_knowledge_base", new=AsyncMock(return_value=kb)),
             patch.object(
-                KnowledgeGapService, "_helper_estimate", new=AsyncMock(return_value=self.HELPER)
+                KnowledgeGapService, "_helper_price", new=AsyncMock(return_value=self.HELPER)
             ),
             patch.object(
                 knowledge_gap_repo, "classification_candidates", new=AsyncMock(return_value=[])
@@ -871,12 +896,12 @@ class TestTheImprovementEstimate:
     def _embeddings(self, model: str, source: EmbeddingKeySource) -> Any:
         return SimpleNamespace(model=model, provider="openai", key_source=source)
 
-    async def test_nothing_to_classify_quotes_only_the_drafts_and_the_grouping(self, kb):
+    async def test_nothing_to_classify_quotes_only_the_grouping_and_never_a_draft(self, kb):
         price = await self._estimate(
             self._embeddings("text-embedding-3-small", EmbeddingKeySource.ORGANIZATION)
         )
 
-        assert self.HELPER * 3 < price < self.HELPER * 4
+        assert Decimal(0) < price < self.HELPER
 
     @pytest.mark.parametrize(
         "resolved",

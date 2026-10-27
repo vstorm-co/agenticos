@@ -17,6 +17,7 @@ from app.schemas.knowledge_gap import (
     KnowledgeGapCasesAdded,
     KnowledgeGapContent,
     KnowledgeGapContentAdd,
+    KnowledgeGapDraftEstimate,
     KnowledgeGapToDataset,
     KnowledgeGapTopicDetail,
     KnowledgeGapTopicList,
@@ -124,15 +125,27 @@ async def add_gap_to_dataset(
     return await service.add_to_dataset(ctx, topic_id, data.dataset_id)
 
 
-@router.post("/{topic_id}/draft", response_model=KnowledgeGapTopicDetail)
+@router.post(
+    "/{topic_id}/draft",
+    response_model=KnowledgeGapTopicDetail,
+    status_code=status.HTTP_202_ACCEPTED,
+)
 async def draft_gap(topic_id: UUID, service: KnowledgeGapSvc, ctx: Auth) -> Any:
-    """Ask the organization's drafting agent for the passage this topic is missing.
+    """Queue a draft of the passage this topic is missing; the topic says while it is written.
 
-    A run of a system agent, metered and in Activity, refused while the
-    organization has AI assistance off. The draft is kept on the topic for a
-    person to check; nothing is added to the collection.
+    A run of the organization's drafting agent, as the caller, metered and in
+    Activity, refused up front while the organization has AI assistance off. It
+    reads the knowledge base as it is when it runs. The draft is kept on the
+    topic for a person to check; nothing is added to the collection. Asking
+    again while one is being written queues nothing more.
     """
-    return await service.draft(ctx, topic_id)
+    return await service.request_draft(ctx, topic_id)
+
+
+@router.get("/{topic_id}/draft/estimate", response_model=KnowledgeGapDraftEstimate)
+async def estimate_gap_draft(topic_id: UUID, service: KnowledgeGapSvc, ctx: Auth) -> Any:
+    """The most one draft of this topic costs, before anybody asks for it."""
+    return await service.draft_estimate(ctx, topic_id)
 
 
 @router.put("/{topic_id}/draft", response_model=KnowledgeGapTopicDetail)

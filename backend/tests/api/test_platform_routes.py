@@ -356,6 +356,7 @@ CALLS: tuple[Call, ...] = (
     Call("POST", "/knowledge-gaps/{topic_id}/dismiss", Perm.RUNS_VIEW),
     Call("POST", "/knowledge-gaps/{topic_id}/reopen", Perm.RUNS_VIEW),
     Call("POST", "/knowledge-gaps/{topic_id}/draft", Perm.RUNS_VIEW),
+    Call("GET", "/knowledge-gaps/{topic_id}/draft/estimate", Perm.RUNS_VIEW),
     Call(
         "PUT",
         "/knowledge-gaps/{topic_id}/draft",

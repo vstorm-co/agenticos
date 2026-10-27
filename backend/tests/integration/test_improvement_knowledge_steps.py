@@ -1,6 +1,7 @@
-"""Automatic knowledge work uses frozen sources, caller scopes and the session ledger."""
+"""Knowledge work: a session sorts and groups on its own ledger, a person asks for each draft."""
 
 from contextlib import contextmanager
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -11,7 +12,13 @@ from sqlalchemy import func, select
 
 from app.agents.capabilities.budget import record_ambient_cost
 from app.agents.system_agents import KNOWLEDGE_GAP_CLASSIFIER, KNOWLEDGE_GAP_DRAFTER
-from app.core.exceptions import AuthorizationError, BadRequestError
+from app.core.exceptions import (
+    AiAssistanceDisabledError,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+    SystemAgentOutputError,
+)
 from app.core.permissions import OrgRoleName, Perm
 from app.db.models.agent import AgentVersion
 from app.db.models.agent_run import AgentRun
@@ -21,6 +28,8 @@ from app.db.models.background_job import BackgroundJob
 from app.db.models.improvement import ImprovementRun
 from app.db.models.ingestion_spend import IngestionSpend
 from app.db.models.knowledge_gap import KnowledgeGapMember, KnowledgeGapTopic
+from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.rag_document import RAGDocument
 from app.repositories import dataset_repo, improvement_repo, knowledge_gap_repo
 from app.schemas.api_key import ApiKeyCreate
 from app.schemas.improvement import ImprovementStart, ImprovementTarget
@@ -29,15 +38,15 @@ from app.services.embedding_resolution import EmbeddingKeySource, ResolvedEmbedd
 from app.services.improvement_pipeline import ImprovementPipelineService
 from app.services.knowledge_gaps import KnowledgeGapService
 from app.services.model_profile import ModelProfileService
-from app.worker.jobs import ClassifyGaps, DraftGaps
-from app.worker.tasks.knowledge_gap_tasks import classify_knowledge_gaps, draft_knowledge_gaps
+from app.worker.jobs import ClassifyGaps, DraftTopic
+from app.worker.tasks.knowledge_gap_tasks import classify_knowledge_gaps, draft_knowledge_gap
 from tests.integration.test_authoring import Improver, _answering, _published, _sessions, _setup
 from tests.integration.test_authoring import _environment as _environment
 from tests.integration.test_eval_suites import _dataset
 from tests.integration.test_knowledge_gap_signals import _ANSWER, _asked, _decide, _rated_down
 from tests.integration.test_knowledge_gaps import _knowledge_base, _meaning, _member, _searched
 
-pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("_environment")]
+pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("_environment", "knowledge_search")]
 
 
 class Helpers(Improver):
@@ -171,15 +180,21 @@ async def _start(db, ctx, agent, dataset):
     return await service.read(ctx, agent.id, run.id)
 
 
-async def _job(db, run, *, draft=False):
+async def _job(db, run):
     iteration = await improvement_repo.get_iteration(
         db, organization_id=run.organization_id, run_id=run.id, number=1
     )
-    job = await db.get(
-        BackgroundJob, iteration.draft_job_id if draft else iteration.classify_job_id
-    )
-    return job, DraftGaps.model_validate(job.payload) if draft else ClassifyGaps.model_validate(
-        job.payload
+    job = await db.get(BackgroundJob, iteration.classify_job_id)
+    return job, ClassifyGaps.model_validate(job.payload)
+
+
+async def _draft_jobs(db) -> list[BackgroundJob]:
+    return list(
+        (
+            await db.scalars(
+                select(BackgroundJob).where(BackgroundJob.kind == "draft-knowledge-gap")
+            )
+        ).all()
     )
 
 
@@ -195,7 +210,7 @@ async def _classify(db, ctx, agent, read):
     return stored, found
 
 
-async def test_session_classifies_and_drafts_frozen_sources_without_changing_the_agent(db):
+async def test_a_session_sorts_and_groups_frozen_sources_drafts_nothing_and_keeps_the_agent(db):
     ctx, agent, kb, dataset, sources = await _world(db)
     original = dict(agent.draft_spec)
     with _providers(db, ctx) as model:
@@ -206,14 +221,7 @@ async def test_session_classifies_and_drafts_frozen_sources_without_changing_the
         await _rated_down(db, answer, ctx.user_id, "missing")
         await _searched(db, ctx, outsider, kb, query="UNRELATED_SOURCE parking")
         stored, found = await _classify(db, ctx, agent, read)
-        assert found == 2 and stored.stage == "drafting"
-        job, payload = await _job(db, stored, draft=True)
-        assert await draft_knowledge_gaps(payload) == 1
-        job.status = "succeeded"
-        await db.flush()
-        await ImprovementPipelineService(db).advance(read.id, ctx.organization_id)
-        assert stored.stage == "proposing"
-        await ImprovementPipelineService(db).advance(read.id, ctx.organization_id)
+        assert found == 2 and stored.stage == "proposing"
         current = await improvement_repo.get_iteration(
             db, organization_id=ctx.organization_id, run_id=read.id, number=1
         )
@@ -225,11 +233,10 @@ async def test_session_classifies_and_drafts_frozen_sources_without_changing_the
         assert [item.run_id for item in remaining.runs] == sources[:1]
         assert not any("UNRELATED_SOURCE" in prompt for prompt in model.prompts)
         assert not any("HELD_OUT_ONLY_MUST_STAY_PRIVATE" in prompt for prompt in model.prompts)
-    topics = list((await db.scalars(select(KnowledgeGapTopic))).all())
-    [draft] = [topic for topic in topics if topic.draft_content]
-    assert set(draft.draft_evidence_run_ids) <= set(sources)
-    assert len(draft.draft_evidence_run_ids) == 2
-    assert "{{parking location}}" in draft.draft_content
+        assert not any(prompt.startswith('The knowledge base "') for prompt in model.prompts)
+    [topic] = (await KnowledgeGapService(db).list_for_agent(ctx, agent.id)).items
+    assert not topic.has_draft and not topic.drafting
+    assert await _draft_jobs(db) == []
     assert agent.draft_spec == original
     assert await db.scalar(select(func.count()).select_from(KnowledgeGapMember)) == 2
     runs = list(
@@ -238,7 +245,7 @@ async def test_session_classifies_and_drafts_frozen_sources_without_changing_the
     spend = await db.scalar(
         select(IngestionSpend).where(IngestionSpend.improvement_run_id == read.id)
     )
-    assert len(runs) == 2 and spend.cost_usd == Decimal("0.0002")
+    assert len(runs) == 1 and spend.cost_usd == Decimal("0.0002")
     assert await improvement_repo.spent(db, read.id, organization_id=ctx.organization_id) == sum(
         (r.cost_usd for r in runs), spend.cost_usd
     )
@@ -289,29 +296,6 @@ async def test_full_step_cost_is_checked_again_when_the_worker_starts(db):
         assert not model.prompts
 
 
-async def test_a_failed_draft_retains_grouping_and_model_spend(db):
-    ctx, agent, _, dataset, _ = await _world(db)
-    with _providers(db, ctx, fail_draft=True):
-        read = await _start(db, ctx, agent, dataset)
-        stored, _ = await _classify(db, ctx, agent, read)
-        _, payload = await _job(db, stored, draft=True)
-        from app.core.exceptions import SystemAgentOutputError
-
-        with pytest.raises(SystemAgentOutputError):
-            await draft_knowledge_gaps(payload)
-    assert await improvement_repo.spent(
-        db, read.id, organization_id=ctx.organization_id
-    ) == Decimal("0.0402")
-    assert (
-        await db.scalar(
-            select(func.count())
-            .select_from(KnowledgeGapTopic)
-            .where(KnowledgeGapTopic.draft_content.is_not(None))
-        )
-        == 0
-    )
-
-
 async def test_a_narrowed_api_key_is_not_rebuilt_as_its_owners_full_role(db):
     ctx, agent, _, dataset, _ = await _world(db)
     key = await ApiKeyService(db).create(
@@ -355,12 +339,12 @@ async def test_a_knowledge_only_session_leaves_documents_for_a_human_without_an_
     with _providers(db, ctx):
         read = await _start(db, ctx, agent, dataset)
         stored, _ = await _classify(db, ctx, agent, read)
-        job, payload = await _job(db, stored, draft=True)
-        assert await draft_knowledge_gaps(payload) == 1
-        job.status = "succeeded"
-        await db.flush()
-        await ImprovementPipelineService(db).advance(read.id, ctx.organization_id)
         assert (stored.status, stored.stop_reason) == ("stopped", "knowledge_only")
+        assert await _draft_jobs(db) == []
+        [gap] = (await KnowledgeGapService(db).list_for_agent(ctx, agent.id)).items
+        await KnowledgeGapService(db).request_draft(ctx, gap.id)
+        [job] = await _draft_jobs(db)
+        assert await draft_knowledge_gap(DraftTopic.model_validate(job.payload))
         assert agent.current_version_id == before
         iteration = await improvement_repo.get_iteration(
             db, organization_id=ctx.organization_id, run_id=read.id, number=1
@@ -398,32 +382,6 @@ async def test_a_knowledge_only_session_leaves_documents_for_a_human_without_an_
         assert agent.current_version_id == before
 
 
-async def test_a_session_drafts_from_one_source_askers_questions_and_says_whose(db):
-    ctx, agent, kb, dataset, _ = await _world(db)
-    with _providers(db, ctx):
-        read = await _start(db, ctx, agent, dataset)
-        stored, _ = await _classify(db, ctx, agent, read)
-        _, payload = await _job(db, stored, draft=True)
-        await draft_knowledge_gaps(payload)
-        [topic] = list((await db.scalars(select(KnowledgeGapTopic))).all())
-        topic.draft_content = None
-        topic.draft_author = None
-        await db.flush()
-        [one_source] = (
-            await knowledge_gap_repo.topic_evidence(
-                db, topic.id, organization_id=ctx.organization_id
-            )
-        )[:1]
-        drafted = await KnowledgeGapService(db).draft(
-            ctx,
-            topic.id,
-            automatic=True,
-            improvement_run_id=read.id,
-            source_run_ids=[one_source.run_id],
-        )
-    assert drafted.has_draft and drafted.draft_askers == 1
-
-
 async def test_unknown_prices_refuse_the_estimate_without_a_paid_call(db):
     ctx, agent, _, dataset, _ = await _world(db)
     with (
@@ -437,49 +395,11 @@ async def test_unknown_prices_refuse_the_estimate_without_a_paid_call(db):
         assert not model.prompts
 
 
-async def test_a_draft_finished_after_cancellation_keeps_spend_but_not_content(db):
-    from sqlalchemy import update
-
-    ctx, agent, _, dataset, _ = await _world(db)
-    with _providers(db, ctx) as model:
-        read = await _start(db, ctx, agent, dataset)
-        stored, _ = await _classify(db, ctx, agent, read)
-        _, payload = await _job(db, stored, draft=True)
-        original = model.execute
-
-        async def execute(runner, *args, **kwargs):
-            result = await original(runner, *args, **kwargs)
-            await db.execute(
-                update(ImprovementRun)
-                .where(ImprovementRun.id == read.id)
-                .values(status="cancelled")
-                .execution_options(synchronize_session=False)
-            )
-            return result
-
-        model.execute = execute
-        with pytest.raises(BadRequestError, match="stopped"):
-            await draft_knowledge_gaps(payload)
-    assert await improvement_repo.spent(
-        db, read.id, organization_id=ctx.organization_id
-    ) == Decimal("0.0402")
-    assert (
-        await db.scalar(
-            select(func.count())
-            .select_from(KnowledgeGapTopic)
-            .where(KnowledgeGapTopic.draft_content.is_not(None))
-        )
-        == 0
-    )
-
-
 async def test_examples_group_by_topic_and_later_rounds_read_every_example(db):
     ctx, agent, _, dataset, sources = await _world(db)
     with _providers(db, ctx):
         read = await _start(db, ctx, agent, dataset)
         stored, _ = await _classify(db, ctx, agent, read)
-        job, payload = await _job(db, stored, draft=True)
-        await draft_knowledge_gaps(payload)
         service = ImprovementPipelineService(db)
         items = {
             item.run_id: item
@@ -513,42 +433,6 @@ async def _advances_queued_later(db, run_id) -> int:
     )
 
 
-@pytest.mark.parametrize("askers", [1, 2])
-async def test_a_session_drafts_a_topic_however_few_asked_and_records_how_many(db, askers):
-    ctx, agent, _, dataset, _ = await _world(db, askers=askers)
-    with _providers(db, ctx):
-        read = await _start(db, ctx, agent, dataset)
-        stored, _ = await _classify(db, ctx, agent, read)
-        assert stored.stage == "drafting"
-        _, payload = await _job(db, stored, draft=True)
-        assert await draft_knowledge_gaps(payload) == 1
-    [topic] = (await KnowledgeGapService(db).list_for_agent(ctx, agent.id)).items
-    assert (topic.has_draft, topic.draft_askers) == (True, askers)
-    timeline = (await ImprovementPipelineService(db).read(ctx, agent.id, read.id)).timeline
-    [finished] = [e for e in timeline if e.action == "improvement.drafting_finished"]
-    assert finished.reason is None
-
-
-async def test_a_session_leaves_a_draft_a_person_wrote_as_it_is(db):
-    ctx, agent, _, dataset, _ = await _world(db)
-    with _providers(db, ctx):
-        read = await _start(db, ctx, agent, dataset)
-        stored, _ = await _classify(db, ctx, agent, read)
-        _, payload = await _job(db, stored, draft=True)
-        await KnowledgeGapService(db).group_pending(
-            organization_id=ctx.organization_id, knowledge_base_id=payload.knowledge_base_ids[0]
-        )
-        [topic] = list((await db.scalars(select(KnowledgeGapTopic))).all())
-        topic.draft_title, topic.draft_content, topic.draft_author = "Ours", "Level -1.", "person"
-        await db.flush()
-        # Listed before the person saved, and beside a topic merged away since.
-        with patch.object(
-            KnowledgeGapService, "topics_to_draft", AsyncMock(return_value=[uuid4(), topic.id])
-        ):
-            assert await draft_knowledge_gaps(payload) == 0
-    assert (topic.draft_content, topic.draft_author) == ("Level -1.", "person")
-
-
 async def test_a_finished_knowledge_step_wakes_its_session_once_the_queue_records_it(db):
     from sqlalchemy import update
 
@@ -562,10 +446,159 @@ async def test_a_finished_knowledge_step_wakes_its_session_once_the_queue_record
         )
         await classify_knowledge_gaps(classify)
         assert await _advances_queued_later(db, read.id) == 1
-        stored, _ = await _classify(db, ctx, agent, read)
-        _, draft = await _job(db, stored, draft=True)
-        await db.execute(
-            update(BackgroundJob).where(BackgroundJob.status == "queued").values(status="succeeded")
+
+
+async def _gap(db, ctx, agent, dataset):
+    """The topic a stopped session left missing from the knowledge base."""
+    read = await _start(db, ctx, agent, dataset)
+    await _classify(db, ctx, agent, read)
+    [gap] = (await KnowledgeGapService(db).list_for_agent(ctx, agent.id)).items
+    return gap
+
+
+async def _document(db, kb, filename, *, added=None) -> RAGDocument:
+    document = RAGDocument(
+        id=uuid4(),
+        collection_name=kb.collection_name,
+        filename=filename,
+        filesize=10,
+        filetype="md",
+        organization_id=kb.organization_id,
+        knowledge_base_id=kb.id,
+        status="done",
+    )
+    if added is not None:
+        document.created_at = added
+    db.add(document)
+    await db.flush()
+    return document
+
+
+async def test_a_draft_asked_for_runs_once_reads_the_knowledge_base_now_and_goes_stale(
+    db, knowledge_search
+):
+    ctx, agent, kb, dataset, _ = await _world(db)
+    with _providers(db, ctx) as model:
+        gap = await _gap(db, ctx, agent, dataset)
+        service = KnowledgeGapService(db)
+        queued = await service.request_draft(ctx, gap.id)
+        again = await service.request_draft(ctx, gap.id)
+        [job] = await _draft_jobs(db)
+        assert queued.drafting and again.drafting and not queued.has_draft
+        await _document(db, kb, "visitors.md")
+        knowledge_search.return_value = (
+            "[1] Source: visitors.md (score: 0.910)\nVisitors park on level -2."
         )
-        await draft_knowledge_gaps(draft)
-        assert await _advances_queued_later(db, read.id) == 1
+        assert await draft_knowledge_gap(DraftTopic.model_validate(job.payload))
+        job.status = "succeeded"
+        await db.flush()
+    [prompt] = [p for p in model.prompts if p.startswith('The knowledge base "')]
+    assert "## What the knowledge base holds now" in prompt
+    assert "Visitors park on level -2." in prompt
+    assert "1. visitors.md" in prompt
+    assert knowledge_search.await_args.kwargs["kb_collection_names"] == [kb.collection_name]
+    drafted = await service.read(ctx, gap.id)
+    assert drafted.has_draft and not drafted.drafting and not drafted.draft_failed
+    assert not drafted.draft_stale and drafted.draft_askers == 2
+    await _document(db, kb, "lifts.md", added=datetime.now(UTC) + timedelta(minutes=1))
+    assert (await service.read(ctx, gap.id)).draft_stale
+
+
+async def test_a_draft_that_fails_is_shown_failed_until_a_newer_one_replaces_it(db):
+    ctx, agent, _, dataset, _ = await _world(db)
+    with _providers(db, ctx, fail_draft=True):
+        gap = await _gap(db, ctx, agent, dataset)
+        await KnowledgeGapService(db).request_draft(ctx, gap.id)
+        [job] = await _draft_jobs(db)
+        with pytest.raises(SystemAgentOutputError):
+            await draft_knowledge_gap(DraftTopic.model_validate(job.payload))
+        job.status = "dead"
+        await db.flush()
+    failed = await KnowledgeGapService(db).read(ctx, gap.id)
+    assert failed.draft_failed and not failed.drafting and not failed.has_draft
+
+
+async def test_a_draft_is_estimated_before_it_is_asked_for_and_unpriced_without_a_price(db):
+    ctx, agent, _, dataset, _ = await _world(db)
+    with _providers(db, ctx):
+        gap = await _gap(db, ctx, agent, dataset)
+        service = KnowledgeGapService(db)
+        assert (await service.draft_estimate(ctx, gap.id)).total_usd > 0
+        with patch("app.services.knowledge_gaps.price_request", return_value=None):
+            assert (await service.draft_estimate(ctx, gap.id)).total_usd is None
+
+
+async def test_a_draft_is_refused_up_front_with_ai_assistance_off_or_without_access(db):
+    ctx, agent, _, dataset, _ = await _world(db)
+    with _providers(db, ctx):
+        gap = await _gap(db, ctx, agent, dataset)
+        service = KnowledgeGapService(db)
+        reader = await _member(db, ctx, OrgRoleName.OPERATOR)
+        with pytest.raises(NotFoundError):
+            await service.request_draft(reader, gap.id)
+        with pytest.raises(NotFoundError):
+            await service.draft_estimate(reader, gap.id)
+        with (
+            patch("app.services.knowledge_gaps.current_impersonator", return_value=uuid4()),
+            pytest.raises(AuthorizationError, match="signed in as yourself"),
+        ):
+            await service.request_draft(ctx, gap.id)
+        organization = await db.get(Organization, ctx.organization_id)
+        organization.ai_assistance_enabled = False
+        await db.flush()
+        with pytest.raises(AiAssistanceDisabledError):
+            await service.request_draft(ctx, gap.id)
+        with pytest.raises(AiAssistanceDisabledError):
+            await service.draft_estimate(ctx, gap.id)
+    assert await _draft_jobs(db) == []
+
+
+async def test_a_draft_asked_for_by_somebody_who_left_is_not_written(db):
+    ctx, agent, _, dataset, _ = await _world(db)
+    with _providers(db, ctx) as model:
+        gap = await _gap(db, ctx, agent, dataset)
+        asked = await _member(db, ctx, OrgRoleName.ADMIN)
+        await KnowledgeGapService(db).request_draft(asked, gap.id)
+        [job] = await _draft_jobs(db)
+        member = await db.scalar(
+            select(OrganizationMember).where(OrganizationMember.user_id == asked.user_id)
+        )
+        await db.delete(member)
+        await db.flush()
+        assert not await draft_knowledge_gap(DraftTopic.model_validate(job.payload))
+        assert not any(p.startswith('The knowledge base "') for p in model.prompts)
+
+
+async def test_a_knowledge_gaps_check_groups_what_it_reads_and_drafts_nothing(db):
+    ctx, agent, kb, _, sources = await _world(db)
+    messages = await knowledge_gap_repo.answers_for_runs(
+        db, organization_id=ctx.organization_id, run_ids=sources
+    )
+    with _providers(db, ctx) as model:
+        await classify_knowledge_gaps(
+            ClassifyGaps(
+                organization_id=ctx.organization_id,
+                knowledge_base_ids=[kb.id],
+                user_id=ctx.user_id,
+                message_ids=list(messages.values()),
+            )
+        )
+        assert not any(p.startswith('The knowledge base "') for p in model.prompts)
+    [gap] = (await KnowledgeGapService(db).list_for_agent(ctx, agent.id)).items
+    assert not gap.has_draft and not gap.drafting
+    assert await _draft_jobs(db) == []
+
+
+async def test_a_session_left_drafting_moves_on_without_drafting(db):
+    ctx, agent, _, dataset, _ = await _world(db)
+    with _providers(db, ctx):
+        read = await _start(db, ctx, agent, dataset)
+        stored = await db.get(ImprovementRun, read.id)
+        job, payload = await _job(db, stored)
+        await classify_knowledge_gaps(payload)
+        job.status = "succeeded"
+        stored.stage = "drafting"
+        await db.flush()
+        await ImprovementPipelineService(db).advance(read.id, ctx.organization_id)
+    assert stored.stage == "proposing"
+    assert await _draft_jobs(db) == []

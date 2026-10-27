@@ -152,14 +152,13 @@ class ClassifyGaps(Payload):
     improvement_run_id: UUID | None = None
 
 
-class DraftGaps(Payload):
-    """The missing knowledge of these answers drafted, as the person a session acts for."""
+class DraftTopic(Payload):
+    """One knowledge gap topic drafted, as the person - or through the key - that asked."""
 
     organization_id: UUID
-    knowledge_base_ids: list[UUID] = Field(max_length=50)
-    user_id: UUID
-    message_ids: list[UUID] = Field(max_length=500)
-    improvement_run_id: UUID | None = None
+    topic_id: UUID
+    user_id: UUID | None
+    api_key_id: UUID | None = None
 
 
 class ThinkForPerson(Payload):
@@ -343,7 +342,7 @@ RUN_AUTHORING = Task(
     priority=Priority.INTERACTIVE,
 )
 # One attempt each: every classifying and drafting call is billed, and what one
-# recorded stays recorded, so a session reads the job's end and the verdicts it left.
+# recorded stays recorded, so a session or a topic reads the job's end.
 CLASSIFY_GAPS = Task(
     kind="classify-gaps",
     payload_type=ClassifyGaps,
@@ -352,12 +351,12 @@ CLASSIFY_GAPS = Task(
     timeout=timedelta(minutes=10),
     priority=Priority.INTERACTIVE,
 )
-DRAFT_GAPS = Task(
-    kind="draft-gaps",
-    payload_type=DraftGaps,
+DRAFT_TOPIC = Task(
+    kind="draft-knowledge-gap",
+    payload_type=DraftTopic,
     pool=Pool.AGENT,
     max_attempts=1,
-    timeout=timedelta(minutes=15),
+    timeout=timedelta(minutes=10),
     priority=Priority.INTERACTIVE,
 )
 # One attempt: the generator's call is billed. A job that ends without the
@@ -483,7 +482,7 @@ TASKS: dict[str, TaskKind] = {
         ADVANCE_IMPROVEMENT,
         SWEEP_IMPROVEMENTS,
         CLASSIFY_GAPS,
-        DRAFT_GAPS,
+        DRAFT_TOPIC,
         GENERATE_CASES,
         THINK_FOR_PERSON,
         LOOK_THROUGH_WATCH,

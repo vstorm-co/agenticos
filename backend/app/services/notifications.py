@@ -1813,7 +1813,7 @@ _STOP_SENTENCE = {
     "proposal": "writing the changes failed.",
     "eval": "testing the changes failed.",
     "superseded": "newer suggestions replaced these.",
-    "knowledge_only": "the problems need knowledge base documents to review.",
+    "knowledge_only": "topics are missing from the knowledge base - draft the ones you want.",
     "draft": "drafting the knowledge documents failed.",
 }
 

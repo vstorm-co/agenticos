@@ -15,7 +15,6 @@ from tests.integration.test_authoring import _environment as _environment
 from tests.integration.test_eval_suites import _owner
 from tests.integration.test_improvement_evidence import _serial_worker as _serial_worker
 from tests.integration.test_improvement_knowledge_steps import (
-    _classify,
     _job,
     _providers,
     _start,
@@ -65,23 +64,6 @@ async def test_a_running_classifier_without_progress_stops_the_parent(db: AsyncS
         await service.advance(read.id, ctx.organization_id)
         stopped = await service.read(ctx, agent.id, read.id)
         assert (stopped.status, stopped.stop_reason) == ("failed", "stalled")
-
-
-async def test_a_dead_drafter_keeps_classification_and_reports_its_failure(
-    db: AsyncSession,
-) -> None:
-    ctx, agent, _, dataset, _ = await _world(db)
-    with _providers(db, ctx):
-        read = await _start(db, ctx, agent, dataset)
-        row, _ = await _classify(db, ctx, agent, read)
-        job, _ = await _job(db, row, draft=True)
-        job.status = "dead"
-        await db.flush()
-        service = ImprovementPipelineService(db)
-        await service.advance(read.id, ctx.organization_id)
-        failed = await service.read(ctx, agent.id, read.id)
-        assert any(event.action == "improvement.drafting_failed" for event in failed.timeline)
-        assert failed.stage == "proposing"
 
 
 @pytest.mark.security

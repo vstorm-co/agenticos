@@ -206,36 +206,22 @@ def _ended(status: JobStatus | None) -> bool:
 def after_classifying(
     status: JobStatus | None, *, agent_answers: int, missing_knowledge: int
 ) -> Transition | None:
-    """Draft what is missing, or propose for what the agent got wrong; `None` while sorting.
+    """Propose for what the agent got wrong, or stop on missing knowledge; `None` while sorting.
 
-    The two branches are each optional: answers missing knowledge are drafted
-    first, then the agent's own faults are proposed for. An answer that was
-    not a problem goes to neither, and one whose cause stayed unknown is the
-    agent's to look at. A sort that failed leaves every answer to the agent.
+    Answers missing knowledge are grouped into topics for a person to draft the
+    ones they want; a session drafts none. So a session with the agent's own
+    faults goes on to propose for them, and one with only missing knowledge
+    ends there. An answer that was not a problem goes to neither, and one whose
+    cause stayed unknown is the agent's to look at. A sort that failed leaves
+    every answer to the agent.
     """
     if not _ended(status):
         return None
+    if agent_answers:
+        return _step(ImprovementStage.PROPOSING)
     if missing_knowledge:
-        return _step(ImprovementStage.DRAFTING)
-    if agent_answers:
-        return _step(ImprovementStage.PROPOSING)
+        return _stop(ImprovementStage.CLASSIFYING, StopReason.KNOWLEDGE_ONLY)
     return _stop(ImprovementStage.CLASSIFYING, StopReason.NO_PROPOSAL)
-
-
-def after_drafting(status: JobStatus | None, *, agent_answers: int) -> Transition | None:
-    """Propose for the agent's own faults after drafting; `None` while drafting.
-
-    Drafts are for a person to add, so a session with nothing else to change
-    ends there - and a drafting step that failed is that session's failure,
-    while one with the agent's faults left carries on to them.
-    """
-    if not _ended(status):
-        return None
-    if agent_answers:
-        return _step(ImprovementStage.PROPOSING)
-    if status in ("dead", "cancelled"):
-        return _fail(ImprovementStage.DRAFTING, StopReason.DRAFT)
-    return _stop(ImprovementStage.DRAFTING, StopReason.KNOWLEDGE_ONLY)
 
 
 def after_proposing(status: AuthoringStatus, *, hunks: int) -> Transition | None:

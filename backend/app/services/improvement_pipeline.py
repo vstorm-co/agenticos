@@ -135,10 +135,8 @@ from app.services.notifications import NotificationService
 from app.worker.jobs import (
     ADVANCE_IMPROVEMENT,
     CLASSIFY_GAPS,
-    DRAFT_GAPS,
     AdvanceImprovement,
     ClassifyGaps,
-    DraftGaps,
 )
 
 ANSWER_TIME_WINDOW = timedelta(days=30)
@@ -360,17 +358,18 @@ class ImprovementPipelineService:
     async def _knowledge_step(
         self, ctx: AuthContext, run: ImprovementRun, iteration: ImprovementIteration
     ) -> None:
+        if run.stage == Stage.DRAFTING:
+            # Sessions draft nothing; a row stored in this stage moves on as if its sort just ended.
+            agent, missing, _ = await self._knowledge_branches(ctx, run)
+            moved = rules.after_classifying(None, agent_answers=agent, missing_knowledge=missing)
+            assert moved is not None, "a sort with no job is over"
+            await self._move(run, moved)
+            return
         ids, messages, sources = await self.knowledge_sources(ctx, run)
-        classify = run.stage == Stage.CLASSIFYING
-        job_id = iteration.classify_job_id if classify else iteration.draft_job_id
+        job_id = iteration.classify_job_id
         if job_id is None:
-            stage = "classify" if classify else "draft"
             price = await KnowledgeGapService(self.db).improvement_estimate(
-                ctx,
-                ids,
-                messages,
-                stage=stage,
-                source_run_ids=sources,
+                ctx, ids, messages, source_run_ids=sources
             )
             spent = await improvement_repo.spent(
                 self.db, run.id, organization_id=run.organization_id
@@ -381,41 +380,23 @@ class ImprovementPipelineService:
                 )
                 return
             assert ctx.user_id is not None, "job_context resolved a key issuer or active member"
-            if classify:
-                child = await enqueue(
-                    self.db,
-                    CLASSIFY_GAPS,
-                    ClassifyGaps(
-                        organization_id=run.organization_id,
-                        knowledge_base_ids=ids,
-                        message_ids=messages,
-                        user_id=ctx.user_id,
-                        improvement_run_id=run.id,
-                    ),
+            child = await enqueue(
+                self.db,
+                CLASSIFY_GAPS,
+                ClassifyGaps(
                     organization_id=run.organization_id,
-                    concurrency_key=f"improvement-knowledge:{run.id}",
-                    dedupe_key=f"{run.id}:{stage}",
-                )
-            else:
-                child = await enqueue(
-                    self.db,
-                    DRAFT_GAPS,
-                    DraftGaps(
-                        organization_id=run.organization_id,
-                        knowledge_base_ids=ids,
-                        message_ids=messages,
-                        user_id=ctx.user_id,
-                        improvement_run_id=run.id,
-                    ),
-                    organization_id=run.organization_id,
-                    concurrency_key=f"improvement-knowledge:{run.id}",
-                    dedupe_key=f"{run.id}:{stage}",
-                )
+                    knowledge_base_ids=ids,
+                    message_ids=messages,
+                    user_id=ctx.user_id,
+                    improvement_run_id=run.id,
+                ),
+                organization_id=run.organization_id,
+                concurrency_key=f"improvement-knowledge:{run.id}",
+                dedupe_key=f"{run.id}:classify",
+            )
             assert child is not None, "a fresh step has no queued child"
             await improvement_repo.update_iteration(
-                self.db,
-                iteration=iteration,
-                values={"classify_job_id" if classify else "draft_job_id": child},
+                self.db, iteration=iteration, values={"classify_job_id": child}
             )
             await self._audit(run, "child_started")
             return
@@ -424,11 +405,7 @@ class ImprovementPipelineService:
             raise NotFoundError(message="Knowledge step not found")
         agent, missing, _ = await self._knowledge_branches(ctx, run)
         status = job.status if job else None
-        transition = (
-            rules.after_classifying(status, agent_answers=agent, missing_knowledge=missing)
-            if classify
-            else rules.after_drafting(status, agent_answers=agent)
-        )
+        transition = rules.after_classifying(status, agent_answers=agent, missing_knowledge=missing)
         if transition is None and rules.stalled(
             Stage(run.stage),
             waiting=status == "queued",
@@ -443,9 +420,7 @@ class ImprovementPipelineService:
             await self._move(run, rules.stall(Stage(run.stage)))
             return
         if transition is not None:
-            if not classify and status != "succeeded":
-                await self._audit(run, "drafting_failed")
-            if classify and status != "succeeded":
+            if status != "succeeded":
                 await self._audit(run, "classification_failed")
                 # The conversations remain available to the improver; a failed
                 # classifier is never presented as a successful grouping.
@@ -1195,16 +1170,12 @@ class ImprovementPipelineService:
             )
             total = forecast.total_usd
             forecast_affordable = forecast.affordable and forecast.reason is None
-        if mode == "resume" and run.stage in {Stage.CLASSIFYING, Stage.DRAFTING}:
+        if mode == "resume" and run.stage == Stage.CLASSIFYING:
             ids, messages, sources = await self._knowledge_sources(
                 ctx, inputs.agent, run_id=run.id, dataset_id=run.dataset_id
             )
             total += await KnowledgeGapService(self.db).improvement_estimate(
-                ctx,
-                ids,
-                messages,
-                source_run_ids=sources,
-                stage="all" if run.stage == Stage.CLASSIFYING else "draft",
+                ctx, ids, messages, source_run_ids=sources
             )
         spent = await improvement_repo.spent(self.db, run.id, organization_id=ctx.organization_id)
         org_left = await self.evals._org_left(ctx)
@@ -1414,12 +1385,6 @@ class ImprovementPipelineService:
         run = await improvement_repo.get_run(self.db, run_id, organization_id=organization_id)
         if run is not None and Status(run.status).active:
             await self._queue(run, run_after=None if after is None else datetime.now(UTC) + after)
-
-    async def drafts_written(self, run_id: UUID, *, organization_id: UUID, drafted: int) -> None:
-        """Put on the session's timeline how many knowledge topics its drafting step drafted."""
-        run = await improvement_repo.get_run(self.db, run_id, organization_id=organization_id)
-        assert run is not None, "the drafting job read its session a moment ago"
-        await self._audit(run, "drafting_finished", decided={"drafted": str(drafted)})
 
     async def _queue(self, run: ImprovementRun, *, run_after: datetime | None = None) -> None:
         # State is part of dedupe: the current job may enqueue its successor.

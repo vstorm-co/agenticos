@@ -25,6 +25,7 @@ import asyncio
 import os
 import re
 from collections.abc import AsyncGenerator, Iterator
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlalchemy import text
@@ -297,3 +298,14 @@ async def db(engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
 
         discard_deferred(session)
         await session.rollback()
+
+
+@pytest.fixture
+def knowledge_search() -> Iterator[AsyncMock]:
+    """A knowledge base search that finds nothing, for a draft that searches its knowledge base.
+
+    Retrieval embeds the query with the collection's provider, which no test reaches.
+    """
+    found = AsyncMock(return_value="No relevant documents found in the knowledge base.")
+    with patch("app.services.knowledge_gaps.search_knowledge_base", new=found):
+        yield found

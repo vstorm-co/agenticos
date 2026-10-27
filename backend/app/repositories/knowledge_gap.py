@@ -375,7 +375,6 @@ async def list_topics(
     skip: int,
     limit: int,
     topic_id: UUID | None = None,
-    topic_ids: Sequence[UUID] | None = None,
 ) -> tuple[list[TopicRow], int]:
     """Topics of these knowledge bases, the most asked first, with how many there are."""
     question_count = func.count(KnowledgeSearch.id)
@@ -410,8 +409,6 @@ async def list_topics(
         grouped = grouped.where(_status() == status)
     if topic_id is not None:
         grouped = grouped.where(KnowledgeGapTopic.id == topic_id)
-    if topic_ids is not None:
-        grouped = grouped.where(KnowledgeGapTopic.id.in_(list(topic_ids)))
     total = (await db.execute(select(func.count()).select_from(grouped.subquery()))).scalar_one()
     result = await db.execute(
         grouped.order_by(question_count.desc(), last_asked_at.desc(), KnowledgeGapTopic.id)
@@ -528,7 +525,6 @@ async def list_questions(
     threshold: float,
     agent_id: UUID | None,
     limit: int | None,
-    source_run_ids: Sequence[UUID] | None = None,
 ) -> list[QuestionRow]:
     """A topic's searches, newest first, each with what the person asked and the answer.
 
@@ -562,11 +558,6 @@ async def list_questions(
         .join(KnowledgeGapMember, KnowledgeGapMember.search_id == KnowledgeSearch.id)
         .where(
             KnowledgeGapMember.topic_id == topic_id,
-            *(
-                [KnowledgeSearch.run_id.in_(list(source_run_ids))]
-                if source_run_ids is not None
-                else []
-            ),
             *_members(organization_id=organization_id, threshold=threshold, agent_id=agent_id),
         )
         .order_by(KnowledgeSearch.created_at.desc(), KnowledgeSearch.id)
@@ -631,7 +622,6 @@ async def drafting_material(
     organization_id: UUID,
     threshold: float,
     limit: int,
-    source_run_ids: Sequence[UUID] | None = None,
     knowledge_tools: Mapping[UUID | None, frozenset[str]],
 ) -> list[DraftingRow]:
     """A topic's newest questions with the answer each got and what its search returned.
@@ -648,7 +638,6 @@ async def drafting_material(
         threshold=threshold,
         agent_id=None,
         limit=limit,
-        source_run_ids=source_run_ids,
     )
     answers = await _answers(db, rows)
     found = await _found(
@@ -837,6 +826,24 @@ async def documents_named(
         .limit(limit)
     )
     return list(result.scalars().all())
+
+
+async def last_document_added(
+    db: AsyncSession, knowledge_base_ids: Sequence[UUID], *, organization_id: UUID
+) -> dict[UUID, datetime]:
+    """When each of these knowledge bases last had a document added that did not fail."""
+    if not knowledge_base_ids:
+        return {}
+    result = await db.execute(
+        select(RAGDocument.knowledge_base_id, func.max(RAGDocument.created_at))
+        .where(
+            RAGDocument.organization_id == organization_id,
+            RAGDocument.knowledge_base_id.in_(list(knowledge_base_ids)),
+            RAGDocument.status != DocumentStatus.ERROR.value,
+        )
+        .group_by(RAGDocument.knowledge_base_id)
+    )
+    return {kb_id: added for kb_id, added in result.tuples() if kb_id is not None}
 
 
 async def documents_in(
@@ -1250,34 +1257,6 @@ async def classifications_of(
     for message_id, agent_id, signal, reason in result.all():
         found.setdefault(message_id, (agent_id, []))[1].append((signal, reason))
     return found
-
-
-async def topics_of_answers(
-    db: AsyncSession,
-    knowledge_base_ids: Sequence[UUID],
-    message_ids: Sequence[UUID],
-    *,
-    organization_id: UUID,
-) -> list[UUID]:
-    """The topics of these knowledge bases holding a miss of these answers' runs.
-
-    A miss read from an answer names it; a search that missed names the run.
-    """
-    runs = select(Message.run_id).where(Message.id.in_(list(message_ids)))
-    result = await db.execute(
-        select(distinct(KnowledgeGapMember.topic_id))
-        .join(KnowledgeSearch, KnowledgeSearch.id == KnowledgeGapMember.search_id)
-        .join(KnowledgeGapTopic, KnowledgeGapTopic.id == KnowledgeGapMember.topic_id)
-        .where(
-            KnowledgeSearch.organization_id == organization_id,
-            KnowledgeGapTopic.knowledge_base_id.in_(list(knowledge_base_ids)),
-            or_(
-                KnowledgeSearch.message_id.in_(list(message_ids)),
-                KnowledgeSearch.run_id.in_(runs),
-            ),
-        )
-    )
-    return list(result.scalars().all())
 
 
 async def topic_of_runs(

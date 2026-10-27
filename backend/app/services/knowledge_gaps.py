@@ -32,7 +32,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Literal
+from typing import NamedTuple
 from uuid import UUID
 
 import numpy as np
@@ -43,6 +43,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities import get as get_capability
 from app.agents.capabilities.budget import price_request
+from app.agents.capabilities.knowledge import search_knowledge_base
 from app.agents.capabilities.knowledge._log import MAX_QUERY_CHARS
 from app.agents.spec import AgentSpec
 from app.agents.system_agents import KNOWLEDGE_GAP_CLASSIFIER, KNOWLEDGE_GAP_DRAFTER, steps
@@ -60,6 +61,7 @@ from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm, Scope
 from app.core.phone import phone_text_error
 from app.db.locks import LockScope, hold_subject
+from app.db.models.background_job import BackgroundJob
 from app.db.models.context import ContextFile
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.knowledge_gap import (
@@ -79,6 +81,7 @@ from app.repositories import (
     member_repo,
     personal_data_repo,
 )
+from app.repositories import background_job as background_job_repo
 from app.repositories.knowledge_gap import (
     REFUSED,
     CandidateRow,
@@ -101,6 +104,7 @@ from app.schemas.knowledge_gap import (
     KnowledgeGapContentAdd,
     KnowledgeGapDocument,
     KnowledgeGapDraft,
+    KnowledgeGapDraftEstimate,
     KnowledgeGapDraftRead,
     KnowledgeGapFlag,
     KnowledgeGapQuestion,
@@ -124,7 +128,7 @@ from app.services.model_profile import ModelProfileService
 from app.services.rag.vectorstore import BaseVectorStore, embedder_for
 from app.services.rag_document import RAGDocumentService
 from app.services.system_agent_runner import SystemAgentRunner
-from app.worker.jobs import CLASSIFY_GAPS, ClassifyGaps
+from app.worker.jobs import CLASSIFY_GAPS, DRAFT_TOPIC, ClassifyGaps, DraftTopic
 
 logger = logging.getLogger(__name__)
 
@@ -146,18 +150,22 @@ KNOWLEDGE_CAPABILITY = "knowledge"
 DRAFT_DOCUMENTS = 20
 """The most documents a drafting model is offered to cite."""
 
-MIN_AUTOMATIC_ASKERS = 2
-"""How many different people must have asked before a topic is drafted without a person
-asking: one person's questions alone would steer what everybody is then told."""
-
-DRAFTS_PER_ROUND = 3
-"""The most topics one round of an improvement session drafts."""
+DRAFT_SEARCHES = 3
+"""The most of a topic's questions a draft searches the knowledge base for again, as it is now."""
 
 DRAFT_CONTEXT_FILES = 10
 """The most of the agents' context files a drafting model is shown."""
 
 DRAFT_CONTEXT_CHARS = 4_000
 """How much of each context file a drafting model is shown."""
+
+DRAFT_PROMPT_CHARS = (
+    DRAFT_QUESTIONS * 6_000 + DRAFT_SEARCHES * 2_000 + DRAFT_CONTEXT_FILES * DRAFT_CONTEXT_CHARS
+)
+"""The longest drafting prompt the bounds above allow, which a draft's estimate prices."""
+
+DRAFTING_JOB = ("queued", "running")
+"""The states of a draft's job while the draft is still to come."""
 
 
 EXAMPLES = 3
@@ -364,11 +372,9 @@ _FOUND_SOURCE = re.compile(
 )
 
 
-def _found_filenames(material: list[DraftingRow]) -> list[str]:
-    """The file names the topic's searches returned passages from, first seen first."""
-    names = (
-        match.group(1) for row in material for match in _FOUND_SOURCE.finditer(row.found or "")
-    )
+def _found_filenames(found: list[str | None]) -> list[str]:
+    """The file names these search results returned passages from, first seen first."""
+    names = (match.group(1) for text in found for match in _FOUND_SOURCE.finditer(text or ""))
     return list(dict.fromkeys(names))
 
 
@@ -377,8 +383,13 @@ def _drafting_prompt(
     material: list[DraftingRow],
     documents: list[RAGDocument],
     context_files: list[ContextFile],
+    found_now: list[tuple[str, str]],
 ) -> str:
     """The questions a draft is for, and the documents and context files it may cite, numbered.
+
+    `found_now` is what searching the knowledge base for some of the questions
+    returns as the draft is written - a document added since they were asked
+    is there, where each question's own `Found` is what it returned then.
 
     The rules are here rather than only in the drafter's instructions, which
     the organization may edit: what reaches a knowledge base reaches everybody
@@ -409,9 +420,18 @@ def _drafting_prompt(
                 for n, file in enumerate(context_files, start=1)
             )
         )
+    if found_now:
+        parts.append(
+            "## What the knowledge base holds now\n"
+            + "\n\n".join(
+                f"Searched for: {_private(_clip(query, 500))}\n"
+                f"Found: {_personal_data_out(_clip(found, 2_000))}"
+                for query, found in found_now
+            )
+        )
     if documents:
         parts.append(
-            "## Documents the agent found\n"
+            "## Documents found\n"
             + "\n".join(f"{n}. {doc.filename}" for n, doc in enumerate(documents, start=1))
         )
     for number, row in enumerate(material, start=1):
@@ -559,12 +579,35 @@ def _branch(signals: list[str]) -> CauseBranch:
     return "unknown"
 
 
-def _refuse_over_person(topic: KnowledgeGapTopic) -> None:
-    if topic.draft_author == DraftAuthor.PERSON.value:
-        raise BadRequestError(
-            message="A draft nobody asked for never replaces what a person wrote",
-            details={"topic_id": topic.id, "draft_author": topic.draft_author},
-        )
+class _DraftState(NamedTuple):
+    drafting: bool
+    failed: bool
+    stale: bool
+
+
+def _draft_state(
+    row: TopicRow, jobs: dict[UUID, BackgroundJob], changed: dict[UUID, datetime]
+) -> _DraftState:
+    """Whether a topic's asked-for draft is coming or failed, and whether its draft is stale.
+
+    A failure counts until a newer draft replaces it. A draft is stale once a
+    document was added to the knowledge base after it was written: it may repeat
+    or contradict that document. A covered or dismissed topic needs no draft.
+    """
+    topic = row.topic
+    job = jobs.get(topic.draft_job_id) if topic.draft_job_id is not None else None
+    drafted = topic.drafted_at
+    added = changed.get(topic.knowledge_base_id)
+    return _DraftState(
+        drafting=job is not None and job.status in DRAFTING_JOB,
+        failed=job is not None
+        and job.status in ("dead", "cancelled")
+        and (drafted is None or drafted < job.created_at),
+        stale=row.status == TopicStatus.OPEN.value
+        and drafted is not None
+        and added is not None
+        and drafted < added,
+    )
 
 
 def _cited[T](numbers: list[int], numbered: list[T]) -> tuple[list[T], int]:
@@ -643,6 +686,12 @@ class KnowledgeGapService:
             self.db, list(covered.values()), organization_id=ctx.organization_id
         )
         covering = {topic_id: _covering(documents[doc]) for topic_id, doc in covered.items()}
+        jobs = await background_job_repo.get_many(
+            self.db, [job_id for row in rows if (job_id := row.topic.draft_job_id) is not None]
+        )
+        changed = await knowledge_gap_repo.last_document_added(
+            self.db, list(bases), organization_id=ctx.organization_id
+        )
         return [
             KnowledgeGapTopicRead(
                 id=row.topic.id,
@@ -662,6 +711,9 @@ class KnowledgeGapService:
                 covered_by=covering.get(row.topic.id),
                 has_draft=row.topic.draft_content is not None,
                 draft_askers=row.topic.draft_askers,
+                drafting=(state := _draft_state(row, jobs, changed)).drafting,
+                draft_failed=state.failed,
+                draft_stale=state.stale,
                 can_edit=row.topic.knowledge_base_id in writable,
             )
             for row in rows
@@ -947,40 +999,110 @@ class KnowledgeGapService:
         known = [file.content for file in await self._context_files(ctx, row.agent_ids)]
         return _flags(text, sources=sources, known=known)
 
-    async def draft(
-        self,
-        ctx: AuthContext,
-        topic_id: UUID,
-        *,
-        automatic: bool = False,
-        improvement_run_id: UUID | None = None,
-        source_run_ids: Sequence[UUID] | None = None,
-    ) -> KnowledgeGapTopicDetail:
+    async def request_draft(self, ctx: AuthContext, topic_id: UUID) -> KnowledgeGapTopicDetail:
+        """Queue a draft of a topic's missing passage, as the caller; the topic says it is coming.
+
+        Every refusal :meth:`draft` would make before calling the model is made
+        here first, so a draft that cannot run is refused to the person asking
+        rather than failing out of sight. The job rebuilds the caller's authority
+        when it runs - a key's scopes as they are then - so an administrator
+        impersonating somebody cannot start one. While a draft of the topic is
+        queued or being written, asking again queues nothing more.
+
+        Raises:
+            AuthorizationError: For a caller without `runs:view` across the
+                organization, or one impersonating somebody.
+            NotFoundError: For a topic in a knowledge base the caller may not
+                change, or one with no questions left.
+            AiAssistanceDisabledError: The organization switched AI assistance off.
+            SystemAgentUnavailableError: The drafter cannot run for this caller.
+        """
+        _require_runs_view(ctx)
+        if current_impersonator() is not None:
+            raise AuthorizationError(
+                message="A draft runs as you, so ask for it signed in as yourself",
+                details={"topic_id": topic_id},
+            )
+        topic = await self._topic(ctx, topic_id, edit=True)
+        await self._row(ctx, topic)
+        kb = await self._knowledge_base(ctx, topic.knowledge_base_id, edit=True)
+        await SystemAgentRunner(self.db).require_runnable(
+            ctx, key=KNOWLEDGE_GAP_DRAFTER.key, agent_id=kb.gap_drafter_agent_id
+        )
+        job_id = await enqueue(
+            self.db,
+            DRAFT_TOPIC,
+            DraftTopic(
+                organization_id=ctx.organization_id,
+                topic_id=topic.id,
+                user_id=ctx.user_id,
+                api_key_id=ctx.api_key_id,
+            ),
+            organization_id=ctx.organization_id,
+            dedupe_key=f"knowledge-draft:{topic.id}",
+            dedupe_active=True,
+        )
+        if job_id is not None:
+            await knowledge_gap_repo.update_topic(
+                self.db, topic=topic, update_data={"draft_job_id": job_id}
+            )
+        return await self.read(ctx, topic.id)
+
+    async def draft_estimate(self, ctx: AuthContext, topic_id: UUID) -> KnowledgeGapDraftEstimate:
+        """The most one draft of a topic costs: its longest prompt at the drafter's price.
+
+        Raises:
+            AuthorizationError: For a caller without `runs:view` across the organization.
+            NotFoundError: For a topic in a knowledge base the caller may not change.
+            AiAssistanceDisabledError: The organization switched AI assistance off.
+            SystemAgentUnavailableError: The drafter cannot run for this caller.
+        """
+        _require_runs_view(ctx)
+        topic = await self._topic(ctx, topic_id, edit=True)
+        kb = await self._knowledge_base(ctx, topic.knowledge_base_id, edit=True)
+        return KnowledgeGapDraftEstimate(
+            total_usd=await self._helper_price(
+                ctx,
+                key=KNOWLEDGE_GAP_DRAFTER.key,
+                agent_id=kb.gap_drafter_agent_id,
+                chars=DRAFT_PROMPT_CHARS,
+            )
+        )
+
+    async def _search_now(
+        self, ctx: AuthContext, kb: KnowledgeBase, material: list[DraftingRow]
+    ) -> list[tuple[str, str]]:
+        queries = _distinct([row.search.query for row in material], keep=DRAFT_SEARCHES)
+        return [
+            (
+                query,
+                await search_knowledge_base(
+                    query,
+                    kb_collection_names=[kb.collection_name],
+                    organization_id=ctx.organization_id,
+                ),
+            )
+            for query in queries
+        ]
+
+    async def draft(self, ctx: AuthContext, topic_id: UUID) -> None:
         """Ask the drafting agent for the passage a topic's questions need, and keep it.
 
         One run of the organization's seeded knowledge-gap drafter, as the caller:
         refused while the organization has AI assistance switched off, metered
         against the drafter's and the organization's budgets, and listed in
         Activity. It is shown the topic's newest questions, the answers they got,
-        what each search returned and what readers said - with what identifies
-        people taken out - and the context files of the agents that were asked,
-        those the caller may read. What it writes is kept on the topic as a
-        draft for a person; nothing is added to the knowledge base. It replaces
-        the topic's draft, so it takes what dismissing does: a caller who may
-        change the topic's knowledge base.
-
-        `automatic` is for a draft no person asked for by hand, which never
-        replaces what a person wrote: neither before the model is called nor
-        once it has answered. Outside an improvement session it is refused until
-        :data:`MIN_AUTOMATIC_ASKERS` different people asked about the topic; a
-        session's draft is not, because a person reviews it before anything is
-        added, and the draft records how many people its questions came from.
+        what each search returned then and what searching for them returns now,
+        what readers said - with what identifies people taken out - and the
+        context files of the agents that were asked, those the caller may read.
+        What it writes is kept on the topic as a draft for a person, with how
+        many people its questions came from; nothing is added to the knowledge
+        base. It replaces the topic's draft, so it takes what dismissing does: a
+        caller who may change the topic's knowledge base.
 
         Raises:
             AuthorizationError: For a caller without `runs:view` across the organization.
             AiAssistanceDisabledError: The organization switched AI assistance off.
-            BadRequestError: For an automatic draft, outside a session, of a
-                topic too few people asked, or of one whose content a person wrote.
             NotFoundError: For a topic in a knowledge base the caller may not
                 change, or one with no questions left.
             BadRequestError: Somebody whose question the draft read was erased,
@@ -993,18 +1115,6 @@ class KnowledgeGapService:
         """
         _require_runs_view(ctx)
         topic = await self._topic(ctx, topic_id, edit=True)
-        if automatic and improvement_run_id is None:
-            asked = (await self._row(ctx, topic)).asker_count
-            if asked < MIN_AUTOMATIC_ASKERS:
-                raise BadRequestError(
-                    message=(
-                        "A topic is drafted without a person asking only once "
-                        f"{MIN_AUTOMATIC_ASKERS} different people asked about it"
-                    ),
-                    details={"topic_id": topic.id, "askers": asked},
-                )
-        if automatic:
-            _refuse_over_person(topic)
         material = await knowledge_gap_repo.drafting_material(
             self.db,
             topic.id,
@@ -1012,7 +1122,6 @@ class KnowledgeGapService:
             threshold=settings.KNOWLEDGE_GAP_MIN_SIMILARITY,
             limit=DRAFT_QUESTIONS,
             knowledge_tools=await self._knowledge_tools(ctx, topic),
-            source_run_ids=source_run_ids,
         )
         if not material:
             raise NotFoundError(message="Topic not found", details={"topic_id": topic_id})
@@ -1020,10 +1129,13 @@ class KnowledgeGapService:
         askers = await personal_data_repo.askers_of(
             self.db, {row.search.run_id for row in material}
         )
+        found_now = await self._search_now(ctx, kb, material)
         documents = await knowledge_gap_repo.documents_named(
             self.db,
             kb.id,
-            _found_filenames(material),
+            _found_filenames(
+                [*(found for _, found in found_now), *(row.found for row in material)]
+            ),
             organization_id=ctx.organization_id,
             limit=DRAFT_DOCUMENTS,
         )
@@ -1034,15 +1146,10 @@ class KnowledgeGapService:
             ctx,
             key=KNOWLEDGE_GAP_DRAFTER.key,
             agent_id=kb.gap_drafter_agent_id,
-            prompt=_drafting_prompt(kb.name, material, documents, context_files),
+            prompt=_drafting_prompt(kb.name, material, documents, context_files, found_now),
             output_type=KnowledgeGapDraft,
-            improvement_run_id=improvement_run_id,
             knowledge_base_ids=[kb.id],
         )
-        if improvement_run_id is not None:
-            from app.services.improvement_pipeline import ImprovementPipelineService
-
-            await ImprovementPipelineService(self.db).ensure_current(ctx, improvement_run_id)
         if askers - await personal_data_repo.present_among(self.db, askers):
             raise BadRequestError(
                 message=(
@@ -1072,14 +1179,12 @@ class KnowledgeGapService:
             ),
             run_id=result.run.id,
             unverified=unknown_documents + unknown_questions + unknown_context,
-            keep_persons=automatic,
             askers=len(askers),
             source_runs={row.search.run_id for row in material},
             source_inputs=[
                 text for row in material for text in (row.question, row.search.query) if text
             ],
         )
-        return await self.read(ctx, topic.id)
 
     async def record_draft(
         self,
@@ -1088,7 +1193,6 @@ class KnowledgeGapService:
         *,
         run_id: UUID | None = None,
         unverified: int = 0,
-        keep_persons: bool = False,
         source_runs: set[UUID] | None = None,
         source_inputs: list[str] | None = None,
         askers: int | None = None,
@@ -1102,21 +1206,15 @@ class KnowledgeGapService:
         out and counted with `unverified` - which the caller passes for sources
         it could not even resolve - so the draft never shows a source nobody
         checked. At most :data:`MAX_DRAFT_SOURCES` are kept. Any credential the
-        text repeats is redacted. With `keep_persons`, the topic is held and read
-        afresh first, so content a person saved meanwhile is never replaced.
-        `askers` is how many different people asked the questions the draft came
+        text repeats is redacted. `askers` is how many different people asked the questions the draft came
         from, kept so a draft from one person's questions is shown as such.
 
         Raises:
             AuthorizationError: For a caller without `runs:view` across the organization.
-            BadRequestError: With `keep_persons`, for a topic whose content a person wrote.
             NotFoundError: For a topic in a knowledge base the caller may not change.
         """
         _require_runs_view(ctx)
         topic = await self._topic(ctx, report.topic_id, edit=True)
-        if keep_persons:
-            topic = await knowledge_gap_repo.lock_topic(self.db, topic)
-            _refuse_over_person(topic)
         if source_runs is None:
             evidence = await knowledge_gap_repo.topic_evidence(
                 self.db, topic.id, organization_id=ctx.organization_id
@@ -1576,78 +1674,72 @@ class KnowledgeGapService:
         knowledge_base_ids: Sequence[UUID],
         message_ids: list[UUID],
         *,
-        stage: Literal["classify", "draft", "all"] = "all",
         source_run_ids: Sequence[UUID] = (),
     ) -> Decimal:
-        """Reserve bounded source classification, up to three drafts, and grouping embeddings.
+        """Reserve a session's bounded source classification and the embeddings grouping it.
 
-        These are estimates, not a mid-call spending cap. Every paid step is
-        quoted afresh before it starts. Unknown prices refuse automatic work.
+        A session drafts nothing: a person drafts the topics it found, one at a
+        time. These are estimates, not a mid-call spending cap; every paid step
+        is quoted afresh before it starts. Unknown prices refuse automatic work.
         """
         if not message_ids:
             return Decimal(0)
         total = Decimal(0)
         for kb_id in knowledge_base_ids:
             kb = await self._knowledge_base(ctx, kb_id, edit=True)
-            if stage in {"classify", "all"}:
-                candidates = await knowledge_gap_repo.classification_candidates(
-                    self.db,
-                    kb.id,
-                    organization_id=ctx.organization_id,
-                    threshold=settings.KNOWLEDGE_GAP_MIN_SIMILARITY,
-                    since=datetime.now(UTC) - CLASSIFY_WINDOW,
-                    limit=CLASSIFY_BATCH,
-                    message_ids=message_ids,
+            candidates = await knowledge_gap_repo.classification_candidates(
+                self.db,
+                kb.id,
+                organization_id=ctx.organization_id,
+                threshold=settings.KNOWLEDGE_GAP_MIN_SIMILARITY,
+                since=datetime.now(UTC) - CLASSIFY_WINDOW,
+                limit=CLASSIFY_BATCH,
+                message_ids=message_ids,
+            )
+            if candidates:
+                prompt = _classification_prompt(
+                    kb.name, candidates, await self._agent_sources(ctx, candidates)
                 )
-                if candidates:
-                    prompt = _classification_prompt(
-                        kb.name, candidates, await self._agent_sources(ctx, candidates)
-                    )
-                    total += await self._helper_estimate(
-                        ctx,
-                        key=KNOWLEDGE_GAP_CLASSIFIER.key,
-                        agent_id=kb.gap_classifier_agent_id,
-                        chars=len(prompt),
-                    )
-            if stage in {"draft", "all"}:
-                # Reserve the maximum bounded material before topics exist.
-                chars = DRAFT_QUESTIONS * 6000 + DRAFT_CONTEXT_FILES * DRAFT_CONTEXT_CHARS + 4000
-                total += DRAFTS_PER_ROUND * await self._helper_estimate(
+                classifying = await self._helper_price(
                     ctx,
-                    key=KNOWLEDGE_GAP_DRAFTER.key,
-                    agent_id=kb.gap_drafter_agent_id,
-                    chars=chars,
+                    key=KNOWLEDGE_GAP_CLASSIFIER.key,
+                    agent_id=kb.gap_classifier_agent_id,
+                    chars=len(prompt),
                 )
-                resolved = await embeddings_for_collection(kb.collection_name, ctx.organization_id)
-                if resolved is None or resolved.key_source.is_degraded:
-                    raise BadRequestError(
-                        message="Knowledge grouping needs this collection's embedding configuration"
-                    )
-                waiting = await knowledge_gap_repo.ungrouped_misses(
-                    self.db,
-                    kb.id,
-                    organization_id=ctx.organization_id,
-                    threshold=settings.KNOWLEDGE_GAP_MIN_SIMILARITY,
-                    limit=GROUPING_BATCH,
-                    source_run_ids=source_run_ids,
+                if classifying is None:
+                    raise BadRequestError(message="The knowledge helper has no known model price")
+                total += classifying
+            resolved = await embeddings_for_collection(kb.collection_name, ctx.organization_id)
+            if resolved is None or resolved.key_source.is_degraded:
+                raise BadRequestError(
+                    message="Knowledge grouping needs this collection's embedding configuration"
                 )
-                tokens = (
-                    sum(len(row.query.encode("utf-8")) for row in waiting)
-                    + len(message_ids) * MAX_QUERY_CHARS
-                )
-                embedding = price_request(
-                    RunUsage(input_tokens=tokens),
-                    resolved.model,
-                    resolved.provider,
-                )
-                if embedding is None:
-                    raise BadRequestError(message="Knowledge grouping has no known embedding price")
-                total += embedding
+            waiting = await knowledge_gap_repo.ungrouped_misses(
+                self.db,
+                kb.id,
+                organization_id=ctx.organization_id,
+                threshold=settings.KNOWLEDGE_GAP_MIN_SIMILARITY,
+                limit=GROUPING_BATCH,
+                source_run_ids=source_run_ids,
+            )
+            tokens = (
+                sum(len(row.query.encode("utf-8")) for row in waiting)
+                + len(message_ids) * MAX_QUERY_CHARS
+            )
+            embedding = price_request(
+                RunUsage(input_tokens=tokens),
+                resolved.model,
+                resolved.provider,
+            )
+            if embedding is None:
+                raise BadRequestError(message="Knowledge grouping has no known embedding price")
+            total += embedding
         return total.quantize(Decimal("0.000001"))
 
-    async def _helper_estimate(
+    async def _helper_price(
         self, ctx: AuthContext, *, key: str, agent_id: UUID | None, chars: int
-    ) -> Decimal:
+    ) -> Decimal | None:
+        """The most one run of a knowledge helper costs on a prompt this long; `None` unpriced."""
         agent = await SystemAgentRunner(self.db).require_runnable(ctx, key=key, agent_id=agent_id)
         version = (
             await agent_repo.get_version(
@@ -1664,9 +1756,7 @@ class KnowledgeGapService:
             model.model,
             model.provider,
         )
-        if priced is None:
-            raise BadRequestError(message="The knowledge helper has no known model price")
-        return priced * steps(spec)
+        return None if priced is None else priced * steps(spec)
 
     async def classify_batch(
         self,
@@ -1840,46 +1930,6 @@ class KnowledgeGapService:
             for agent_id, agent in agents.items()
             if await resolve_access(self.db, ctx, agent, Perm.AGENTS_VIEW, resource_type=AGENT)
         }
-
-    async def topics_to_draft(
-        self, ctx: AuthContext, knowledge_base_ids: list[UUID], message_ids: list[UUID]
-    ) -> list[UUID]:
-        """The open topics these answers' misses joined, most asked first, without a fresh draft.
-
-        A draft is fresh when it was written after the topic was last asked, so
-        a round never pays again for a topic no new question reached. A topic
-        whose content a person wrote is never drafted over: a model proposes,
-        it does not replace what somebody wrote.
-
-        Raises:
-            AuthorizationError: For a caller without `runs:view` across the organization.
-        """
-        _require_runs_view(ctx)
-        readable = [
-            kb.id
-            for kb in (await knowledge_base_repo.get_by_ids(self.db, knowledge_base_ids)).values()
-            if kb.organization_id == ctx.organization_id and await writable_kb(self.db, ctx, kb)
-        ]
-        topic_ids = await knowledge_gap_repo.topics_of_answers(
-            self.db, readable, message_ids, organization_id=ctx.organization_id
-        )
-        rows, _ = await knowledge_gap_repo.list_topics(
-            self.db,
-            organization_id=ctx.organization_id,
-            knowledge_base_ids=readable,
-            threshold=settings.KNOWLEDGE_GAP_MIN_SIMILARITY,
-            status=TopicStatus.OPEN.value,
-            agent_id=None,
-            skip=0,
-            limit=max(len(topic_ids), 1),
-            topic_ids=topic_ids,
-        )
-        return [
-            row.topic.id
-            for row in rows
-            if row.topic.draft_author != DraftAuthor.PERSON.value
-            and (row.topic.drafted_at is None or row.topic.drafted_at < row.last_asked_at)
-        ]
 
     async def waiting_to_be_grouped(self) -> list[tuple[UUID, UUID]]:
         """Every `(organization, knowledge base)` with a miss no topic has taken yet."""

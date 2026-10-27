@@ -11,7 +11,10 @@ from app.agents.capabilities.knowledge._log import (
     FoundPassage,
     KnowledgeSearchLog,
 )
-from app.agents.capabilities.knowledge._search import reset_retrieval_service
+from app.agents.capabilities.knowledge._search import (
+    reset_retrieval_service,
+    search_knowledge_base,
+)
 from app.services.rag.models import ParentContextMode
 
 __all__ = [
@@ -21,6 +24,7 @@ __all__ = [
     "KnowledgeConfig",
     "KnowledgeSearchLog",
     "reset_retrieval_service",
+    "search_knowledge_base",
 ]
 
 

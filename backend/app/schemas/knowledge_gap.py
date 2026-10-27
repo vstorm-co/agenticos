@@ -1,6 +1,7 @@
 """Knowledge gap schemas: recorded searches, topics and what is done with them."""
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
@@ -264,6 +265,20 @@ class KnowledgeGapTopicRead(BaseSchema):
             "from; absent for a person's draft or no draft"
         ),
     )
+    drafting: bool = Field(
+        default=False, description="A draft somebody asked for is queued or being written"
+    )
+    draft_failed: bool = Field(
+        default=False,
+        description="The newest draft somebody asked for ended without one; ask again",
+    )
+    draft_stale: bool = Field(
+        default=False,
+        description=(
+            "An open topic whose draft is older than a document added to its knowledge "
+            "base since: the draft may repeat or contradict it, so draft it again"
+        ),
+    )
     can_edit: bool = Field(
         default=False,
         description=(
@@ -271,6 +286,12 @@ class KnowledgeGapTopicRead(BaseSchema):
             "they may change its knowledge base, by their role or a grant on it. Hides "
             "controls; the server re-checks."
         ),
+    )
+
+
+class KnowledgeGapDraftEstimate(BaseSchema):
+    total_usd: Decimal | None = Field(
+        description="The most one draft of the topic costs; absent when its model has no price"
     )
 
 

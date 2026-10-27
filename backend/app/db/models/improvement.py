@@ -136,10 +136,10 @@ class StopReason(StrEnum):
     """A newer candidate or a person's own Improve replaced this one."""
 
     KNOWLEDGE_ONLY = "knowledge_only"
-    """Every bad answer was missing knowledge: the drafts wait in its Knowledge gaps."""
+    """Every bad answer was missing knowledge: its topics wait for a person to draft them."""
 
     DRAFT = "draft"
-    """Drafting the missing knowledge failed, and nothing was left for the agent."""
+    """A session's own drafting step failed; stored on sessions from when a session drafted."""
 
 
 class ImprovementVerdict(StrEnum):

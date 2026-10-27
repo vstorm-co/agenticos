@@ -47,7 +47,7 @@ from tests.integration.test_knowledge_gap_causes import _version
 from tests.integration.test_knowledge_gap_signals import _ANSWER, _asked
 from tests.integration.test_knowledge_gaps import _a_topic, _agent, _knowledge_base, _owner
 
-pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("_environment")]
+pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("_environment", "knowledge_search")]
 
 
 class ScriptedHelper:
@@ -175,8 +175,8 @@ async def test_knowledge_base_uses_and_can_clear_its_chosen_drafter(db):
     )
     model = ScriptedHelper(db, chosen)
     with model.replacing_runner():
-        drafted = await KnowledgeGapService(db).draft(ctx, topic_id)
-    assert drafted is not None and model.calls == [chosen.id]
+        await KnowledgeGapService(db).draft(ctx, topic_id)
+    assert model.calls == [chosen.id]
     await KnowledgeBaseService(db).update(kb.id, KnowledgeBaseUpdate(name="Renamed"), ctx=ctx)
     assert kb.gap_drafter_agent_id == chosen.id
     await KnowledgeBaseService(db).update(

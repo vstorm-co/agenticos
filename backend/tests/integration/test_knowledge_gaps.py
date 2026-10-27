@@ -74,7 +74,7 @@ from app.services.personal_data import PersonalDataService
 from app.services.system_agent_runner import SystemAgentResult
 from app.services.user import UserService
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("knowledge_search")]
 
 _START = datetime(2026, 10, 1, 9, 0, tzinfo=UTC)
 
@@ -1127,8 +1127,9 @@ async def test_a_draft_cites_only_the_documents_and_questions_it_was_shown(db) -
         ),
         drafting_run,
     ) as run_it:
-        drafted = await KnowledgeGapService(db).draft(ctx, topic_id)
+        await KnowledgeGapService(db).draft(ctx, topic_id)
 
+    drafted = await KnowledgeGapService(db).read(ctx, topic_id)
     prompt = run_it.await_args.kwargs["prompt"]
     assert kb.name in prompt
     assert "1. garage.pdf" in prompt

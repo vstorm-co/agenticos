@@ -31,7 +31,6 @@ from app.services.improvement_states import (
     Transition,
     after_analyzing,
     after_classifying,
-    after_drafting,
     after_evaluating,
     after_filtering,
     after_judging,
@@ -472,27 +471,34 @@ def test_statuses_split_into_active_waiting_and_finished() -> None:
 
 
 @pytest.mark.parametrize("status", ["queued", "running"])
-def test_sorting_and_drafting_wait_for_their_jobs(status) -> None:
+def test_sorting_waits_for_its_job(status) -> None:
     assert after_classifying(status, agent_answers=1, missing_knowledge=1) is None
-    assert after_drafting(status, agent_answers=1) is None
 
 
 @pytest.mark.parametrize(
-    ("agent_answers", "missing_knowledge", "stage"),
+    ("agent_answers", "missing_knowledge", "move"),
     [
-        (2, 1, ImprovementStage.DRAFTING),
-        (0, 3, ImprovementStage.DRAFTING),
-        (2, 0, ImprovementStage.PROPOSING),
+        (2, 1, Transition(ImprovementStatus.RUNNING, ImprovementStage.PROPOSING)),
+        (2, 0, Transition(ImprovementStatus.RUNNING, ImprovementStage.PROPOSING)),
+        (
+            0,
+            3,
+            Transition(
+                ImprovementStatus.STOPPED, ImprovementStage.CLASSIFYING, StopReason.KNOWLEDGE_ONLY
+            ),
+        ),
     ],
-    ids=["both", "only-gaps", "only-the-agent"],
+    ids=["both", "only-the-agent", "only-gaps"],
 )
-def test_missing_knowledge_is_drafted_first_and_the_agents_faults_proposed_for(
-    agent_answers, missing_knowledge, stage
+def test_the_agents_faults_are_proposed_for_and_missing_knowledge_is_never_drafted(
+    agent_answers, missing_knowledge, move
 ) -> None:
-    move = after_classifying(
-        "succeeded", agent_answers=agent_answers, missing_knowledge=missing_knowledge
+    assert (
+        after_classifying(
+            "succeeded", agent_answers=agent_answers, missing_knowledge=missing_knowledge
+        )
+        == move
     )
-    assert move == Transition(ImprovementStatus.RUNNING, stage)
 
 
 @pytest.mark.parametrize("status", ["succeeded", "dead", None])
@@ -501,39 +507,6 @@ def test_a_round_with_nothing_to_fix_proposes_nothing(status) -> None:
     assert move == Transition(
         ImprovementStatus.STOPPED, ImprovementStage.CLASSIFYING, StopReason.NO_PROPOSAL
     )
-
-
-@pytest.mark.parametrize(
-    ("status", "agent_answers", "move"),
-    [
-        ("succeeded", 1, Transition(ImprovementStatus.RUNNING, ImprovementStage.PROPOSING)),
-        ("dead", 1, Transition(ImprovementStatus.RUNNING, ImprovementStage.PROPOSING)),
-        (
-            "succeeded",
-            0,
-            Transition(
-                ImprovementStatus.STOPPED, ImprovementStage.DRAFTING, StopReason.KNOWLEDGE_ONLY
-            ),
-        ),
-        (
-            None,
-            0,
-            Transition(
-                ImprovementStatus.STOPPED, ImprovementStage.DRAFTING, StopReason.KNOWLEDGE_ONLY
-            ),
-        ),
-        (
-            "cancelled",
-            0,
-            Transition(ImprovementStatus.FAILED, ImprovementStage.DRAFTING, StopReason.DRAFT),
-        ),
-    ],
-    ids=["then-the-agent", "failed-then-the-agent", "only-gaps", "job-long-gone", "failed"],
-)
-def test_after_drafting_the_agents_faults_are_next_or_the_session_ends(
-    status, agent_answers, move
-) -> None:
-    assert after_drafting(status, agent_answers=agent_answers) == move
 
 
 def test_an_agent_crash_is_a_failure_and_only_missing_grades_are_inconclusive() -> None:
