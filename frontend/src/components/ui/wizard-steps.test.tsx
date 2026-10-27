@@ -67,6 +67,25 @@ it("lets a person inspect any step while retaining its actual recorded state", a
   await user.click(source);
   expect(onSelect).toHaveBeenCalledWith("source");
 });
+it("keeps a step that is not open yet in the tab order but out of reach", async () => {
+  const onSelect = vi.fn();
+  render(
+    <WizardSteps
+      steps={[
+        { id: "source", label: "Pick source", status: "done" },
+        { id: "configure", label: "Configure", status: "pending", disabled: true },
+      ]}
+      current="source"
+      onSelect={onSelect}
+    />,
+  );
+  const locked = screen.getByRole("button", { name: "Configure" });
+  expect(locked).toHaveAttribute("aria-disabled", "true");
+  expect(locked).not.toBeDisabled();
+  await userEvent.click(locked);
+  expect(onSelect).not.toHaveBeenCalled();
+  expect(screen.getByRole("button", { name: "Pick source" })).not.toHaveAttribute("aria-disabled");
+});
 it("supports keyboard selection and status descriptions in a compact stepper", async () => {
   const user = userEvent.setup();
   const onSelect = vi.fn();

@@ -290,7 +290,7 @@ it("handles missing questions, their loading and a failed read", async () => {
   expect(state.refetch).toHaveBeenCalled();
 });
 it("shows the actual baseline and keeps ungraded questions separate", () => {
-  render(<Today session={SESSION} />);
+  render(<Today session={SESSION} ready />);
   expect(screen.getByText("Before the changes: 3 of 4 handled well.")).toBeInTheDocument();
   expect(
     screen.getByText("Couldn't grade 3 questions: we'll leave them out of the comparison."),
@@ -302,43 +302,53 @@ it("shows the actual baseline and keeps ungraded questions separate", () => {
   );
 });
 it("does not fetch a nonexistent baseline and handles absent or inaccessible arms", () => {
-  const view = render(<Today session={{ ...SESSION, iterations: [] }} />);
+  const view = render(<Today session={{ ...SESSION, iterations: [] }} ready />);
   expect(screen.getByRole("status")).toBeInTheDocument();
   state.run = null;
-  view.rerender(<Today session={SESSION} />);
+  view.rerender(<Today session={SESSION} ready />);
   expect(screen.getByRole("status")).toBeInTheDocument();
   state.run = evalRun();
-  view.rerender(<Today session={SESSION} />);
+  view.rerender(<Today session={SESSION} ready />);
   expect(screen.getByRole("alert")).toBeInTheDocument();
   state.evalError = new Error("Forbidden");
-  view.rerender(<Today session={SESSION} />);
+  view.rerender(<Today session={SESSION} ready />);
   expect(screen.getByRole("button", { name: "Try reading again" })).toBeInTheDocument();
 });
 it("shows weak-answer loading and failures rather than a false clean result", () => {
   state.casesLoading = true;
-  const view = render(<Today session={SESSION} />);
+  const view = render(<Today session={SESSION} ready />);
   expect(screen.getByRole("status")).toBeInTheDocument();
   state.casesLoading = false;
   state.casesError = new Error("Unavailable");
-  view.rerender(<Today session={SESSION} />);
+  view.rerender(<Today session={SESSION} ready />);
   expect(screen.getByRole("button", { name: "Try reading again" })).toBeInTheDocument();
   state.casesError = null;
   state.cases = [];
-  view.rerender(<Today session={SESSION} />);
+  view.rerender(<Today session={SESSION} ready />);
   expect(screen.getByText(/No failed questions on this page/)).toBeInTheDocument();
 });
 
-it.each(["queued", "running", "failed", "cancelled"] as const)(
-  "does not report a partial %s baseline as a measurement",
-  (status) => {
-    state.run = evalRun({ status, arms: [arm({ role: "baseline" })] });
-    render(<Today session={SESSION} />);
-    expect(screen.queryByText(/Before the changes:/)).not.toBeInTheDocument();
-    expect(
-      screen.getByRole(status === "queued" || status === "running" ? "status" : "alert"),
-    ).toBeInTheDocument();
-  },
-);
+it("waits for every answer from the agent as it is today before reporting them", () => {
+  const view = render(
+    <Today session={{ ...SESSION, baseline_answers: { answered: 2, total: 4 } }} ready={false} />,
+  );
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "Asking the agent as it is today: 2 of 4 answered…",
+  );
+  expect(screen.queryByText(/Before the changes:/)).not.toBeInTheDocument();
+  view.rerender(<Today session={SESSION} ready={false} />);
+  expect(screen.getByRole("status")).toHaveTextContent(/still being tested/);
+});
+
+it("reports the answers from before while the changed agent is still being asked", () => {
+  state.run = evalRun({
+    status: "running",
+    agent_id: "a1",
+    arms: [arm({ id: "base", role: "baseline" })],
+  });
+  render(<Today session={SESSION} ready />);
+  expect(screen.getByText(/Before the changes:/)).toBeInTheDocument();
+});
 
 it("shows the grader reason and handles a missing persisted baseline answer", () => {
   state.cases = [
@@ -369,10 +379,10 @@ it("shows the grader reason and handles a missing persisted baseline answer", ()
       ],
     }),
   ];
-  const view = render(<Today session={SESSION} />);
+  const view = render(<Today session={SESSION} ready />);
   expect(screen.getByText("Grader: The answer uses the old deadline")).toBeInTheDocument();
   state.cases = [evalCase({ attempts: [] })];
-  view.rerender(<Today session={SESSION} />);
+  view.rerender(<Today session={SESSION} ready />);
   expect(screen.getByText("No answer is available.")).toBeInTheDocument();
 });
 it("waits for source counts instead of printing a missing response as zero", () => {
@@ -510,7 +520,7 @@ it("offers no sorting once the session is decided", () => {
 
 it("says nothing about ungraded questions when every question was graded", () => {
   state.run = evalRun({ agent_id: "a1", arms: [arm({ id: "base", role: "baseline" })] });
-  render(<Today session={SESSION} />);
+  render(<Today session={SESSION} ready />);
   expect(screen.queryByText(/Couldn't grade/)).not.toBeInTheDocument();
 });
 

@@ -679,8 +679,6 @@ it("walks a session from its questions to the guard that holds a publish", () =>
   expect(steps.every((step) => step.permission === Perm.runsView)).toBe(true);
   expect(steps.filter((step) => !step.optional).map((step) => step.target)).toEqual([
     "improvement-test-questions",
-    "improvement-today",
-    "improvement-results",
   ]);
   expect(steps.find((step) => step.id === "flow-improvement-review")?.activate).toBe(
     "improvement-step-today",

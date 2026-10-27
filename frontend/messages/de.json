@@ -11178,7 +11178,13 @@
       "publishedVersion": "Als Version {version} veröffentlicht",
       "startedBy": "Gestartet von {name} · {cost}",
       "cost": "Kosten {cost}"
-    }
+    },
+    "goToCurrent": "Zum aktuellen Schritt",
+    "understandWorking": "Wir lesen, was schiefging, und trennen, was sich im Agent beheben lässt und was in der Wissensdatenbank fehlt…",
+    "todayWorking": "Wir fragen den Agent in seiner heutigen Fassung: {answered} von {total} beantwortet…",
+    "writingAgain": "Versuch {number} von {max}: Wir schreiben andere Änderungen…",
+    "checkingChanges": "Diese Änderungen werden geprüft — Versuch {number} von {max}",
+    "checkingAttempt": "Versuch {number} von {max} wird geprüft."
   },
   "unsaved": {
     "title": "Du hast ungespeicherte Änderungen",

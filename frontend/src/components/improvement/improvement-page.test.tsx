@@ -1,7 +1,8 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, expect, it, vi } from "vitest";
-import type { Improvement } from "@/types/improvement";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { IMPROVEMENT_STEPS as STEPS, improvementSteps, isReachable } from "@/lib/improvement-steps";
+import type { Improvement, ImprovementIteration } from "@/types/improvement";
 import { ImprovementPage } from "./improvement-page";
 import { hunk } from "@/test-utils/authoring";
 import type { Hunk } from "@/types/authoring";
@@ -251,7 +252,9 @@ vi.mock("./understand", () => ({ Understand: () => <p>Source examples fixture</p
 vi.mock("./session-inputs", () => ({
   StartSignals: () => null,
   TestQuestions: () => <p>Pinned questions fixture</p>,
-  Today: () => <p>Baseline fixture</p>,
+  Today: ({ ready }: { ready: boolean }) => (
+    <p>{ready ? "Baseline fixture" : "Today in progress fixture"}</p>
+  ),
 }));
 
 it("draws Previous step exactly like Next step, each with its arrow", async () => {
@@ -282,13 +285,14 @@ it("keeps changed inclusion choices across steps and blocks accepting the old me
   expect(screen.queryByText(/The selection changed/)).not.toBeInTheDocument();
   expect(actions.finish.mutateAsync).not.toHaveBeenCalled();
 });
-it("can read an early session without a selected round", () => {
+it("says a waiting session is still reading what went wrong instead of listing nothing", () => {
   state.session!.status = "queued";
   state.session!.stage = null;
   state.session!.best_iteration_id = null;
   state.session!.iterations = [];
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
-  expect(screen.getByText("Source examples fixture")).toBeInTheDocument();
+  expect(screen.getByText(/Reading what went wrong/)).toBeInTheDocument();
+  expect(screen.queryByText("Source examples fixture")).not.toBeInTheDocument();
 });
 
 it("lets the person inspect a pinned step directly without claiming it published", async () => {
@@ -490,19 +494,44 @@ it.each([
     "bg-primary",
   );
 });
-it("can inspect earlier rounds while another round is running", async () => {
+it("follows a second attempt through Changes and Check, keeping Result shut", async () => {
   const first = state.session!.iterations[0]!;
-  state.session!.iterations.push({ ...first, id: "r2", number: 2, verdict: null });
+  state.session!.iterations = [
+    { ...first, verdict: "no_change" },
+    { ...first, id: "r2", number: 2, batch_id: null, verdict: null },
+  ];
   state.session!.iteration = 2;
   state.session!.status = "running";
   state.session!.stage = "proposing";
-  state.session!.best_iteration_id = "r1";
-  render(<ImprovementPage agentId="a1" sessionId="s1" />);
-  expect(screen.getByText(/preparing changes/)).toBeInTheDocument();
-  await userEvent.click(screen.getByRole("button", { name: "Check" }));
+  state.session!.best_iteration_id = null;
+  const view = render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.getByText("Attempt 1: no measurable change.")).toBeInTheDocument();
+  expect(screen.getByText("Attempt 2 of 3: writing different changes…")).toBeInTheDocument();
+  const result = screen.getByRole("button", { name: "Result" });
+  expect(result).toHaveAttribute("aria-disabled", "true");
+  await userEvent.click(result);
+  expect(screen.queryByText(/Better:/)).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Next step" }));
   expect(screen.getByText("Testing the changes")).toBeInTheDocument();
-  await userEvent.click(screen.getByRole("button", { name: "Result" }));
-  expect(screen.getByText(/Attempt 1/)).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Next step" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Go to the current step" })).toBeInTheDocument();
+  state.hunks = [hunk({ id: "h9" })];
+  state.session = {
+    ...state.session!,
+    stage: "evaluating",
+    iterations: [
+      state.session!.iterations[0]!,
+      { ...state.session!.iterations[1]!, batch_id: "b1" },
+    ],
+  };
+  view.rerender(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.getByText("Attempt 2 of 3 is being checked.")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Changes" }));
+  expect(screen.getByText("Checking these changes — attempt 2 of 3")).toBeInTheDocument();
+  expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Go to the current step" }));
+  expect(screen.getByText("Attempt 2 of 3 is being checked.")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Go to the current step" })).not.toBeInTheDocument();
 });
 
 it("opens the start screen for an authorized editor", () => {
@@ -586,4 +615,136 @@ it("announces why a step failed, and lists attempts that were never tested", asy
   expect(screen.getByText("Attempt 1: changes proposed, not tested yet.")).toBeInTheDocument();
   expect(screen.getByText("Attempt 2: no change was proposed.")).toBeInTheDocument();
   expect(screen.getByText("Changes held back for another attempt, not tested")).toBeInTheDocument();
+});
+
+it("waits for an attempt's changes that are not the agent's open batch", async () => {
+  const first = state.session!.iterations[0]!;
+  state.session = {
+    ...state.session!,
+    status: "running",
+    stage: "evaluating",
+    best_iteration_id: null,
+    iterations: [{ ...first, batch_id: "b9", verdict: null }],
+  };
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  await userEvent.click(screen.getByRole("button", { name: "Changes" }));
+  expect(screen.getByText("Checking these changes — attempt 1 of 3")).toBeInTheDocument();
+  expect(screen.getByText("Waiting for the selected suggestions to load.")).toBeInTheDocument();
+});
+
+const LABELS: Record<(typeof STEPS)[number], string> = {
+  understand: "Understand",
+  testSet: "Test set",
+  today: "Today",
+  changes: "Changes",
+  check: "Check",
+  result: "Result",
+  accept: "Accept",
+};
+const WORKING =
+  /Reading what went wrong|preparing changes|writing different changes|Today in progress fixture|Testing in the background|Preparing the test/;
+const FINAL =
+  /Source examples fixture|Baseline fixture|We couldn't find a change|The test has finished|newly fixed|Open version|Kept as draft/;
+
+describe("every step's state matches what its panel shows", () => {
+  const round = (number: number, extra: Partial<ImprovementIteration> = {}) => ({
+    id: `r${number}`,
+    number,
+    authoring_request_id: "p1",
+    batch_id: "b1",
+    eval_run_ids: [],
+    candidate_spec_hash: "hash",
+    attribution_eval_run_ids: {},
+    dropped_hunk_ids: [],
+    dropped: [],
+    verdict: "no_change" as const,
+    verdict_detail: { fixed: 0, broken: 0 },
+    cost_usd: "0.01",
+    started_at: "2026-10-24T12:00:00Z",
+    ended_at: null,
+    ...extra,
+  });
+  const fresh = round(1, { batch_id: null, verdict: null, verdict_detail: null });
+  const full = { answered: 4, total: 4 };
+  it.each([
+    ["a new session waiting", "queued", null, 1, [], null, null],
+    ["reading what went wrong", "running", "analyzing", 1, [], null, null],
+    ["sorting the examples", "running", "classifying", 1, [], null, null],
+    ["drafting knowledge", "running", "drafting", 1, [fresh], null, null],
+    ["writing the first changes", "running", "proposing", 1, [fresh], null, null],
+    [
+      "asking both sides",
+      "running",
+      "evaluating",
+      1,
+      [round(1, { verdict: null })],
+      null,
+      { answered: 2, total: 4 },
+    ],
+    ["grading attempt 1", "running", "judging", 1, [round(1, { verdict: null })], null, full],
+    [
+      "writing attempt 2 of 3",
+      "running",
+      "proposing",
+      2,
+      [round(1), round(2, { batch_id: null, verdict: null })],
+      null,
+      full,
+    ],
+    [
+      "checking attempt 2 of 3",
+      "running",
+      "evaluating",
+      2,
+      [round(1), round(2, { verdict: null })],
+      null,
+      full,
+    ],
+    ["a result to accept", "ready", "judging", 1, [round(1, { verdict: "better" })], null, full],
+    ["only missing knowledge", "stopped", "drafting", 1, [fresh], "knowledge_only", null],
+    ["nothing to learn from", "stopped", "analyzing", 1, [], "no_data", null],
+    [
+      "out of attempts",
+      "stopped",
+      "judging",
+      3,
+      [round(1), round(2, { verdict: "regression" }), round(3)],
+      "max_iterations",
+      full,
+    ],
+    ["a failed check", "failed", "evaluating", 1, [round(1, { verdict: null })], "eval", null],
+    ["kept as a draft", "accepted", "judging", 1, [round(1, { verdict: "better" })], null, full],
+  ] as const)("%s", async (_, status, stage, iteration, rounds, stop, before) => {
+    state.session = {
+      ...state.session!,
+      status,
+      stage,
+      iteration,
+      iterations: rounds.map((item) => ({ ...item })),
+      stop_reason: stop,
+      best_iteration_id: status === "ready" || status === "accepted" ? "r1" : null,
+      baseline_answers: before,
+    };
+    render(<ImprovementPage agentId="a1" sessionId="s1" />);
+    const views = improvementSteps(state.session);
+    const running = STEPS.some((id) => views[id].state === "running");
+    expect(
+      within(screen.getByRole("region", { name: "Session" })).getByRole("status"),
+    ).toHaveTextContent(running ? "Working" : /^(?!Working)/);
+    for (const id of STEPS) {
+      const trigger = screen.getByRole("button", { name: LABELS[id] });
+      if (!isReachable(views[id])) {
+        expect(trigger, id).toHaveAttribute("aria-disabled", "true");
+        continue;
+      }
+      await userEvent.click(trigger);
+      const panel = document.querySelector("[data-step-panel]")!;
+      if (views[id].state === "running") {
+        expect(panel.textContent, id).toMatch(WORKING);
+        expect(panel.textContent, id).not.toMatch(FINAL);
+      } else {
+        expect(panel.textContent, id).not.toMatch(WORKING);
+      }
+    }
+  });
 });

@@ -11295,7 +11295,13 @@
       "publishedVersion": "Published as version {version}",
       "startedBy": "Started by {name} · {cost}",
       "cost": "Cost {cost}"
-    }
+    },
+    "goToCurrent": "Go to the current step",
+    "understandWorking": "Reading what went wrong and sorting it into what the agent can fix and what the knowledge base is missing…",
+    "todayWorking": "Asking the agent as it is today: {answered} of {total} answered…",
+    "writingAgain": "Attempt {number} of {max}: writing different changes…",
+    "checkingChanges": "Checking these changes — attempt {number} of {max}",
+    "checkingAttempt": "Attempt {number} of {max} is being checked."
   },
   "unsaved": {
     "title": "You have unsaved changes",

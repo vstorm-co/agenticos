@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, CircleDot, Loader2 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Button } from "@/components/ui";
 import { WizardSteps } from "@/components/ui/wizard-steps";
+import { ChangePreview } from "@/components/authoring/result-dialog";
 import { ChangeSelection } from "./change-selection";
 import { useAgent } from "@/hooks/use-agents";
 import { useAgentAuthoring } from "@/hooks/use-authoring";
@@ -22,6 +23,7 @@ import { KnowledgeDrafts } from "./knowledge-drafts";
 import { RoundResults, RoundHistory } from "./round-results";
 import { TestQuestions, Today } from "./session-inputs";
 import { Understand } from "./understand";
+import { AttemptHistory } from "./attempt-history";
 import { CheckProgress } from "./check-progress";
 import { StepDecisions } from "./step-decisions";
 import { Details } from "./widgets";
@@ -31,9 +33,12 @@ import { SessionDecision } from "./session-decision";
 
 import {
   IMPROVEMENT_STEPS as STEPS,
+  currentAttempt,
   currentImprovementStep,
-  improvementStepStates,
+  improvementSteps,
+  isActive,
   isClosed,
+  isReachable,
   type ImprovementStep as Step,
 } from "@/lib/improvement-steps";
 export function ImprovementPage({ agentId, sessionId }: { agentId: string; sessionId: string }) {
@@ -95,16 +100,20 @@ function Session({
   const actions = useImprovement(agentId, sessionId);
   const authoringQuery = useAgentAuthoring(agentId);
   const { authoring } = authoringQuery;
-  const [selected, setSelected] = useState<Step | null>(null);
+  // Following, the screen moves on as the session does; a person who opens another
+  // step stays there until they go back to the current one.
+  const [follow, setFollow] = useState(true);
+  const [picked, setPicked] = useState<Step>("understand");
+  const [moves, setMoves] = useState(0);
   const content = useRef<HTMLDivElement>(null);
   // A screen read aloud starts at its heading, not at the step button just pressed.
   useEffect(() => {
-    if (selected === null) return;
+    if (moves === 0) return;
     const heading = content.current?.querySelector<HTMLElement>("h2, h3");
     if (!heading) return;
     heading.tabIndex = -1;
     heading.focus();
-  }, [selected]);
+  }, [moves]);
   const [error, setError] = useState<string | null>(null);
   const [automatic, setAutomatic] = useState(true);
   const [confirm, setConfirm] = useState(false);
@@ -134,9 +143,24 @@ function Session({
       ? null
       : "viewOnly";
   const current = currentImprovementStep(session);
-  const states = improvementStepStates(session);
-  const step = selected ?? current;
-  const active = ["queued", "running"].includes(session.status);
+  const views = improvementSteps(session);
+  const step = !follow && isReachable(views[picked]) ? picked : current;
+  const active = isActive(session);
+  const working = STEPS.some((id) => views[id].state === "running");
+  const attempt = currentAttempt(session);
+  function goTo(target: Step) {
+    setFollow(target === current);
+    setPicked(target);
+    setMoves((count) => count + 1);
+  }
+  function followCurrent() {
+    goTo(current);
+  }
+  const reachable = STEPS.filter((id) => isReachable(views[id]));
+  const previous = reachable.filter((id) => STEPS.indexOf(id) < STEPS.indexOf(step)).at(-1);
+  const next = reachable.find((id) => STEPS.indexOf(id) > STEPS.indexOf(step));
+  const latestBatch =
+    attempt?.batch_id && authoring?.batch?.id === attempt.batch_id ? authoring.batch : null;
   const chosen = session.iterations.find((r) => r.id === session.best_iteration_id);
   const selectedBatch = authoring?.batch?.id === chosen?.batch_id ? authoring?.batch : null;
   const measuredIds =
@@ -167,23 +191,33 @@ function Session({
   return (
     <ReadOnlyProvider value={readOnly}>
       <div className="space-y-6">
-        <SessionLine session={session} active={active} />
+        <SessionLine session={session} working={working} />
         <nav data-tour="improvement-steps" aria-label={t("stepsLabel")}>
           <WizardSteps
             responsive
             steps={STEPS.map((id) => ({
               id,
               label: t(`steps.${id}`),
-              status: states[id],
-              statusLabel: t(`stepState.${states[id]}`),
+              status: views[id].state,
+              statusLabel: t(`stepState.${views[id].state}`),
               tourId: `improvement-step-${id}`,
+              disabled: !isReachable(views[id]),
             }))}
             current={step}
             onSelect={(id) => {
               const target = STEPS.find((item) => item === id);
-              if (target) setSelected(target);
+              if (target) goTo(target);
             }}
           />
+          {step !== current && (
+            <button
+              type="button"
+              className="mt-2 text-sm underline underline-offset-4"
+              onClick={followCurrent}
+            >
+              {t("goToCurrent")}
+            </button>
+          )}
         </nav>
         <ReadOnlyNote />
         {session.stop_reason && (
@@ -199,10 +233,15 @@ function Session({
             <p className="mt-2 break-words">{session.error}</p>
           </details>
         )}
-        <div ref={content} className="space-y-6">
-          {step === "understand" && <Understand session={session} />}
+        <div ref={content} data-step-panel className="space-y-6">
+          {step === "understand" &&
+            (views.understand.content === "working" ? (
+              <WorkingNote>{t("understandWorking")}</WorkingNote>
+            ) : (
+              <Understand session={session} />
+            ))}
           {step === "testSet" && <TestQuestions session={session} />}
-          {step === "today" && <Today session={session} />}
+          {step === "today" && <Today session={session} ready={views.today.state === "done"} />}
           {step === "changes" && (
             <section className="grid gap-6 md:grid-cols-[2fr_1fr]" data-tour="improvement-changes">
               {chosen && selectedBatch?.hunks.length ? (
@@ -214,12 +253,42 @@ function Session({
                   onChange={(ids) => setDraftSelection({ roundId: chosen.id, ids })}
                   onStarted={() => {
                     setDraftSelection(null);
-                    setSelected(null);
+                    followCurrent();
                     setConfirm(false);
                   }}
                 />
               ) : active ? (
-                <p className="rounded-xl border p-6 text-sm">{t("changesWorking")}</p>
+                <section className="min-w-0 space-y-4">
+                  <AttemptHistory session={session} />
+                  {views.changes.content === "working" ? (
+                    <WorkingNote>
+                      {session.iteration > 1
+                        ? t("writingAgain", {
+                            number: session.iteration,
+                            max: session.max_iterations,
+                          })
+                        : t("changesWorking")}
+                    </WorkingNote>
+                  ) : (
+                    <>
+                      <h2 className="font-medium">
+                        {t("checkingChanges", {
+                          number: session.iteration,
+                          max: session.max_iterations,
+                        })}
+                      </h2>
+                      {latestBatch ? (
+                        latestBatch.hunks.map((hunk) => (
+                          <ChangePreview key={hunk.id} hunk={hunk} conversations={{}} />
+                        ))
+                      ) : (
+                        <p role="status" className="text-muted-foreground text-sm">
+                          {t("changesPending")}
+                        </p>
+                      )}
+                    </>
+                  )}
+                </section>
               ) : (
                 <section className="space-y-3 rounded-xl border p-6 text-sm">
                   <p>{t("noChangesFound")}</p>
@@ -242,7 +311,7 @@ function Session({
             </section>
           )}
           {step === "check" && (
-            <CheckProgress session={session} onShowResult={() => setSelected("result")} />
+            <CheckProgress session={session} onShowResult={() => goTo("result")} />
           )}
           {step === "result" && (
             <section className="space-y-4" data-tour="improvement-results">
@@ -391,30 +460,30 @@ function Session({
                   <Button
                     variant={acceptable ? "default" : "outline"}
                     disabled={selectionDirty || missingBatch}
-                    onClick={() => setSelected("accept")}
+                    onClick={() => goTo("accept")}
                   >
                     {t("accept")}
                   </Button>
                 )
               }
               onStarted={() => {
-                setSelected(null);
+                followCurrent();
                 setDraftSelection(null);
                 setConfirm(false);
               }}
             />
           )}
         <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
-          {STEPS.indexOf(step) > 0 ? (
-            <Button variant="outline" onClick={() => setSelected(STEPS[STEPS.indexOf(step) - 1]!)}>
+          {previous ? (
+            <Button variant="outline" onClick={() => goTo(previous)}>
               <ChevronLeft className="h-4 w-4" aria-hidden />
               {t("previousStep")}
             </Button>
           ) : (
             <span />
           )}
-          {step !== "result" && step !== "accept" && (
-            <Button variant="outline" onClick={() => setSelected(STEPS[STEPS.indexOf(step) + 1]!)}>
+          {next && step !== "result" && step !== "accept" && (
+            <Button variant="outline" onClick={() => goTo(next)}>
               {t("nextStep")}
               <ChevronRight className="h-4 w-4" aria-hidden />
             </Button>
@@ -449,7 +518,7 @@ function Session({
 }
 
 /** The session's state and spend in one line above the steps, on every step alike. */
-function SessionLine({ session, active }: { session: Improvement; active: boolean }) {
+function SessionLine({ session, working }: { session: Improvement; working: boolean }) {
   const t = useTranslations("improvement");
   const locale = useLocale();
   const cents = (value: string) =>
@@ -464,12 +533,12 @@ function SessionLine({ session, active }: { session: Improvement; active: boolea
       className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 text-sm"
     >
       <span role="status" className="text-foreground inline-flex items-center gap-1.5">
-        {active ? (
+        {working ? (
           <Loader2 className="text-chart size-3.5 animate-spin" aria-hidden />
         ) : (
           <CircleDot className="size-3.5" aria-hidden />
         )}
-        {t(`status.${session.status}`)}
+        {working ? t("status.running") : t(`status.${session.status}`)}
       </span>
       <span aria-hidden>·</span>
       <span>
@@ -486,5 +555,18 @@ function SessionLine({ session, active }: { session: Improvement; active: boolea
         <span className="bg-chart block h-full rounded-full" style={{ width: `${used}%` }} />
       </span>
     </section>
+  );
+}
+
+/** A step's panel while its work is in progress. */
+function WorkingNote({ children }: { children: ReactNode }) {
+  return (
+    <p
+      role="status"
+      className="text-muted-foreground flex items-center gap-2 rounded-xl border p-6 text-sm"
+    >
+      <Loader2 className="text-chart size-4 shrink-0 animate-spin" aria-hidden />
+      {children}
+    </p>
   );
 }

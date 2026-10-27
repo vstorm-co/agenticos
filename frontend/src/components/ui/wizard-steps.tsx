@@ -14,6 +14,8 @@ export interface WizardStep {
   statusLabel?: string;
   /** A `data-tour` anchor, so a walkthrough can open this step before pointing into it. */
   tourId?: string;
+  /** Not open yet: announced as unavailable and not selectable, but still in the tab order. */
+  disabled?: boolean;
 }
 
 interface WizardStepsProps {
@@ -57,8 +59,14 @@ function StepTrigger({
       aria-label={step.label}
       aria-describedby={step.statusLabel ? descriptionId : undefined}
       data-tour={step.tourId}
-      className="focus-visible:ring-ring block min-h-11 w-full rounded-md text-left focus-visible:ring-2 focus-visible:outline-none"
-      onClick={() => onSelect(step.id)}
+      aria-disabled={step.disabled || undefined}
+      className={cn(
+        "focus-visible:ring-ring block min-h-11 w-full rounded-md text-left focus-visible:ring-2 focus-visible:outline-none",
+        step.disabled && "cursor-not-allowed opacity-60",
+      )}
+      onClick={() => {
+        if (!step.disabled) onSelect(step.id);
+      }}
     >
       {children}
       {step.statusLabel && (

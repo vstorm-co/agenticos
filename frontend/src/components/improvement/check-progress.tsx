@@ -5,6 +5,8 @@ import { Button } from "@/components/ui";
 import { useEvalRun } from "@/hooks/use-eval-runs";
 import type { EvalRun } from "@/types/eval-runs";
 import type { Improvement } from "@/types/improvement";
+import { isActive } from "@/lib/improvement-steps";
+import { AttemptHistory } from "./attempt-history";
 import { StepError } from "./step-error";
 import { StateBadge, Stepper, type StageState } from "./widgets";
 
@@ -32,7 +34,8 @@ export function CheckProgress({
   const t = useTranslations("improvement");
   const round = session.iterations.find((item) => item.number === session.iteration);
   const runId = round?.eval_run_ids.at(-1);
-  const active = ["queued", "running"].includes(session.status);
+  const active = isActive(session);
+  const checking = session.stage === "evaluating" || session.stage === "judging";
   const measured = session.iterations.some((item) => item.verdict !== null);
   return (
     <section className="space-y-4 rounded-xl border p-4 sm:p-6" data-tour="improvement-check">
@@ -42,7 +45,17 @@ export function CheckProgress({
           {t("checkNotStarted")}
         </p>
       )}
+      {active && <AttemptHistory session={session} />}
+      {active && (
+        <p className="text-sm font-medium">
+          {t(checking ? "checkingAttempt" : "writingAgain", {
+            number: session.iteration,
+            max: session.max_iterations,
+          })}
+        </p>
+      )}
       {active &&
+        checking &&
         (runId ? (
           <RunStages runId={runId} judging={session.stage === "judging"} />
         ) : (

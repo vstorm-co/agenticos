@@ -2,9 +2,13 @@ import { expect, it } from "vitest";
 import { SESSION } from "@/test-utils/improvement";
 import type { Improvement } from "@/types/improvement";
 import {
+  currentAttempt,
   currentImprovementStep,
+  hasCandidate,
   improvementStepStates,
+  improvementSteps,
   isClosed,
+  isReachable,
   openImprovement,
 } from "./improvement-steps";
 
@@ -34,15 +38,20 @@ it("keeps the frozen question set readable while a new session waits", () => {
   expect(states.changes).toBe("pending");
 });
 it("shows the current check running even if an earlier round was measured", () => {
-  const states = improvementStepStates({ ...SESSION, status: "running", stage: "evaluating" });
+  const states = improvementStepStates({
+    ...SESSION,
+    status: "running",
+    stage: "evaluating",
+    baseline_answers: { answered: 4, total: 4 },
+  });
   expect(states.check).toBe("running");
   expect(states.today).toBe("done");
   expect(states.changes).toBe("done");
 });
-it("asks for one decision at a time: the result first, then acceptance", () => {
+it("asks for one decision at a time: a ready result waits on acceptance", () => {
   const states = improvementStepStates({ ...SESSION, status: "ready", stage: "judging" });
   expect(Object.values(states).filter((state) => state === "needs_you")).toHaveLength(1);
-  expect(states).toMatchObject({ changes: "done", result: "needs_you", accept: "pending" });
+  expect(states).toMatchObject({ changes: "done", result: "done", accept: "needs_you" });
 });
 it("sends a session that only needs knowledge to its drafts rather than to a result", () => {
   const states = improvementStepStates({
@@ -166,4 +175,77 @@ it("takes Improve back to the newest open session, past any that finished since"
     created_at: "2026-10-03",
   };
   expect(openImprovement([older, kept, newer])?.id).toBe("newer");
+});
+
+it("calls the answers from before done only once every one of them is in", () => {
+  const running: Improvement = { ...SESSION, status: "running", stage: "evaluating" };
+  expect(
+    improvementSteps({ ...running, baseline_answers: { answered: 2, total: 4 } }).today,
+  ).toEqual({ state: "running", content: "working" });
+  expect(
+    improvementSteps({ ...running, baseline_answers: { answered: 4, total: 4 } }).today,
+  ).toEqual({ state: "done", content: "result" });
+  expect(
+    improvementSteps({ ...running, baseline_answers: { answered: 0, total: 0 } }).today.state,
+  ).toBe("running");
+  expect(improvementSteps({ ...SESSION, status: "failed", baseline_answers: null }).today).toEqual({
+    state: "skipped",
+    content: "none",
+  });
+});
+
+it("skips Accept when there is nothing to accept, and opens it for a waiting candidate", () => {
+  expect(hasCandidate({ ...SESSION, status: "ready" })).toBe(true);
+  expect(hasCandidate({ ...SESSION, status: "ready", best_iteration_id: null })).toBe(false);
+  expect(
+    improvementStepStates({ ...SESSION, status: "stopped", best_iteration_id: null }).accept,
+  ).toBe("skipped");
+  const ready = improvementSteps({ ...SESSION, status: "ready" });
+  expect(ready.accept).toEqual({ state: "needs_you", content: "result" });
+  expect(isReachable(ready.accept)).toBe(true);
+  expect(isReachable({ state: "pending", content: "none" })).toBe(false);
+  expect(isReachable({ state: "skipped", content: "none" })).toBe(false);
+});
+
+it("follows the attempt the session is on, or the last one recorded", () => {
+  const [first] = SESSION.iterations;
+  const second = { ...first!, id: "r2", number: 2 };
+  expect(currentAttempt({ ...SESSION, iteration: 2, iterations: [first!, second] })?.id).toBe("r2");
+  expect(currentAttempt({ ...SESSION, iteration: 5, iterations: [first!, second] })?.id).toBe("r2");
+  expect(currentAttempt({ ...SESSION, iterations: [] })).toBeUndefined();
+});
+
+it("runs Changes and Check again for a later attempt and shows nothing before the first check", () => {
+  const [first] = SESSION.iterations;
+  const later = improvementSteps({
+    ...SESSION,
+    status: "running",
+    stage: "proposing",
+    iteration: 2,
+    iterations: [first!, { ...first!, id: "r2", number: 2, batch_id: null, verdict: null }],
+  });
+  expect(later.changes.state).toBe("running");
+  expect(later.check.state).toBe("running");
+  const checking = improvementSteps({
+    ...SESSION,
+    status: "running",
+    stage: "evaluating",
+    iteration: 2,
+    iterations: [first!, { ...first!, id: "r2", number: 2, verdict: null }],
+  });
+  expect(checking.changes).toEqual({ state: "done", content: "result" });
+  const firstProposal = improvementSteps({
+    ...SESSION,
+    status: "running",
+    stage: "proposing",
+    iterations: [{ ...first!, batch_id: null, verdict: null }],
+  });
+  expect(firstProposal.check).toEqual({ state: "pending", content: "none" });
+  const firstCheck = improvementSteps({
+    ...SESSION,
+    status: "running",
+    stage: "analyzing",
+    iterations: [],
+  });
+  expect(firstCheck.changes.state).toBe("pending");
 });

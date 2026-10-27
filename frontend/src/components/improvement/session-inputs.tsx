@@ -226,17 +226,23 @@ export function TestQuestions({ session }: { session: Improvement }) {
   );
 }
 
-export function Today({ session }: { session: Improvement }) {
+/**
+ * The agent's answers as it is today. They are the "before" side of the first
+ * attempt's check, so they are final once that side is answered, whatever the
+ * changed agent's side is still doing.
+ */
+export function Today({ session, ready }: { session: Improvement; ready: boolean }) {
   const t = useTranslations("improvement");
   const firstCheck = session.iterations[0]?.eval_run_ids.at(-1);
+  const before = session.baseline_answers;
   return (
     <section className="space-y-4" data-tour="improvement-today">
       <h2 className="font-medium">{t("steps.today")}</h2>
-      {firstCheck ? (
+      {ready && firstCheck ? (
         <BaselineResult runId={firstCheck} />
       ) : (
         <p role="status" className="text-muted-foreground text-sm">
-          {t("baselinePending")}
+          {before ? t("todayWorking", before) : t("baselinePending")}
         </p>
       )}
     </section>
@@ -246,10 +252,9 @@ function BaselineResult({ runId }: { runId: string }) {
   const t = useTranslations("improvement");
   const { run, error, refetch } = useEvalRun(runId);
   if (error) return <StepError error={error} retry={refetch} />;
-  const arm = run?.arms.find((item) => item.role === "baseline");
-  if (!run || run.status === "queued" || run.status === "running")
-    return <p role="status">{t("baselinePending")}</p>;
-  if (run.status !== "completed" || !arm) return <p role="alert">{t("baselineUnavailable")}</p>;
+  if (!run) return <p role="status">{t("loading")}</p>;
+  const arm = run.arms.find((item) => item.role === "baseline");
+  if (!arm) return <p role="alert">{t("baselineUnavailable")}</p>;
   const undecided = arm.summary.incomplete + arm.summary.ungraded;
   const handled = t("baselineHandled", { passed: arm.summary.passed, total: arm.summary.cases });
   return (

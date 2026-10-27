@@ -82,6 +82,8 @@ export interface Improvement {
   knowledge_eval_run_ids?: string[];
   /** Knowledge documents set aside with Not now in this session. */
   deferred_topic_ids?: string[];
+  /** How far the first attempt's check has asked the agent as it is today. */
+  baseline_answers?: { answered: number; total: number } | null;
   timeline: {
     action: string;
     at: string;

@@ -11078,7 +11078,13 @@
       "publishedVersion": "Opublikowano jako wersję {version}",
       "startedBy": "Uruchomienie: {name} · {cost}",
       "cost": "Koszt {cost}"
-    }
+    },
+    "goToCurrent": "Przejdź do bieżącego kroku",
+    "understandWorking": "Czytamy, co poszło nie tak, i dzielimy to na to, co da się poprawić w agencie, i to, czego brakuje w bazie wiedzy…",
+    "todayWorking": "Pytamy agenta w obecnej wersji: {answered} z {total} odpowiedzi…",
+    "writingAgain": "Próba {number} z {max}: piszemy inne zmiany…",
+    "checkingChanges": "Sprawdzamy te zmiany — próba {number} z {max}",
+    "checkingAttempt": "Sprawdzamy próbę {number} z {max}."
   },
   "unsaved": {
     "title": "Masz niezapisane zmiany",

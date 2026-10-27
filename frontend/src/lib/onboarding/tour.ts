@@ -190,6 +190,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "improvement-today",
     activate: "improvement-step-today",
     permission: Perm.runsView,
+    optional: true,
   },
   {
     id: "improvement-review",
@@ -205,6 +206,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "improvement-results",
     activate: "improvement-step-result",
     permission: Perm.runsView,
+    optional: true,
   },
   {
     id: "improvement-automatic-check",
