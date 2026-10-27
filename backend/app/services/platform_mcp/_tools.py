@@ -212,6 +212,40 @@ def _topic_state(topic: dict[str, Any], deferred: set[Any]) -> str:
     return "deferred" if topic["id"] in deferred else "missing"
 
 
+_REASON_CHARS = 150
+
+
+def _noise(noise: dict[str, Any] | None) -> dict[str, Any] | None:
+    """How far a session's test can be trusted, its example questions cut short."""
+    if noise is None:
+        return None
+    return {
+        **noise,
+        "examples": [
+            {**example, "input": example["input"][:_INPUT_CHARS]}
+            for example in noise.get("examples", [])
+        ],
+    }
+
+
+def _judged(case: dict[str, Any], arm_id: Any) -> str | None:
+    """Why the candidate's first answer to a case was graded as it was, in brief.
+
+    Read off the API's own case listing, where a case from a conversation the
+    caller cannot open already comes without its reasons.
+    """
+    attempts = sorted(
+        (attempt for attempt in case.get("attempts", []) if attempt["arm_id"] == arm_id),
+        key=lambda attempt: attempt["attempt"],
+    )
+    score = attempts[0].get("score") if attempts else None
+    if not score:
+        return None
+    results = sorted(score.get("results", []), key=lambda result: result["scorer"] != "judge")
+    reason = next((result["reason"] for result in results if result.get("reason")), None)
+    return reason[:_REASON_CHARS] if reason else None
+
+
 def _flips(cases: list[dict[str, Any]], flip: str) -> list[dict[str, Any]]:
     return [
         {
@@ -783,10 +817,14 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         sessions = await api.request("GET", f"/agents/{agent_id}/improvements")
         return {"items": [_session(agent_id, session) for session in sessions]}
 
-    async def get_improvement(agent_id: UUID, session_id: UUID) -> dict[str, Any]:
-        """One Improve session: its attempts and their verdicts, and what is missing from knowledge.
+    async def get_improvement(session_id: UUID) -> dict[str, Any]:
+        """One Improve session by its id: its attempts and verdicts, and what is missing from knowledge.
 
-        Needs access to the agent; the knowledge topics also need `runs:view`.
+        Needs access to its agent, whose `agent_id` the answer carries; the
+        knowledge topics and `measurement_noise` also need `runs:view`. When
+        `measurement_noise.noisy` is true, the test cannot tell a better version
+        from a worse one: the same version scored between `baseline_low` and
+        `baseline_high` on the same questions.
         Each attempt has its verdict, the questions it fixed and broke (confirmed
         on a rerun), the held-out pass rate before and after, and its cost.
         `chosen` marks the attempt the session keeps - picked by `chosen_by`, or
@@ -798,14 +836,17 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         `outcome` says what was decided. Point the person at `link` rather than
         retelling the wizard's screens.
         """
-        session = await api.request("GET", f"/agents/{agent_id}/improvements/{session_id}")
+        session = await api.request("GET", f"/improvements/{session_id}")
+        agent_id = session["agent_id"]
         chosen = session.get("best_iteration_id")
         result: dict[str, Any] = {
+            "agent_id": agent_id,
             **_session(agent_id, session),
             "attempts": [_attempt(iteration, chosen) for iteration in session["iterations"]],
             "chosen_by": _chosen_by(session),
             "can_discard": session.get("can_discard"),
             "can_restart": session.get("can_restart"),
+            "measurement_noise": _noise(session.get("measurement_noise")),
         }
         me = await api.request("GET", "/me/permissions")
         if not any(entry["permission"] == "runs:view" for entry in me.get("permissions", [])):
@@ -1028,7 +1069,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         """One eval run: how it ended and which questions it broke or fixed. Needs `runs:view`.
 
         `broken` and `fixed` name up to five questions each; `confirmed` means a
-        rerun gave the same answer, so it is not luck. The run page has the rest.
+        rerun gave the same answer, so it is not luck, and `judge_reason` is why
+        the new answer was graded as it was. The run page has the rest.
         """
         run = await api.request("GET", f"/eval-runs/{run_id}")
         outcome = run.get("outcome") or {}
@@ -1051,7 +1093,19 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             return result
         comparison = await api.request("GET", f"/eval-runs/{run_id}/comparison")
         cases = comparison.get("cases", [])
-        return {**result, "broken": _flips(cases, "regression"), "fixed": _flips(cases, "fixed")}
+        broken, fixed = _flips(cases, "regression"), _flips(cases, "fixed")
+        flipped = [case["case_id"] for case in broken + fixed]
+        if flipped:
+            listing = await api.request(
+                "GET",
+                f"/eval-runs/{run_id}/cases",
+                params={"case_id": flipped, "limit": len(flipped)},
+            )
+            candidate = comparison.get("candidate", {}).get("arm_id")
+            reasons = {case["case_id"]: _judged(case, candidate) for case in listing["items"]}
+            for case in broken + fixed:
+                case["judge_reason"] = reasons.get(case["case_id"])
+        return {**result, "broken": broken, "fixed": fixed}
 
     async def list_members(limit: int = 50, skip: int = 0) -> dict[str, Any]:
         """The members of this connection's organization, with their roles. Needs `members:view`."""

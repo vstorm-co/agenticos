@@ -110,7 +110,7 @@ async def get_eval_run_arm_spec(
     return await service.arm_spec(ctx, eval_run_id, arm_id)
 
 
-@router.get("/eval-runs/{eval_run_id}/cases", response_model=EvalCaseList)
+@router.get("/eval-runs/{eval_run_id}/cases", response_model=EvalCaseList, dependencies=[ASSISTANT])
 async def list_eval_run_cases(
     eval_run_id: UUID,
     service: EvalRunSvc,

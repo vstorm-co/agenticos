@@ -22,6 +22,7 @@ OTHER_TOPIC = "00000000-0000-4000-8000-0000000000b8"
 
 SESSION_READ: dict[str, Any] = {
     "id": str(SESSION),
+    "agent_id": str(AGENT),
     "status": "ready",
     "stage": "judging",
     "iteration": 2,
@@ -116,12 +117,12 @@ class TestReadingSessions:
     ) -> None:
         api.request = _responder(
             {
-                ("GET", f"/agents/{AGENT}/improvements/{SESSION}"): SESSION_READ,
+                ("GET", f"/improvements/{SESSION}"): SESSION_READ,
                 ("GET", "/me/permissions"): _permissions("agents:view"),
             }
         )
 
-        session = await _call(server, "get_improvement", agent_id=AGENT, session_id=SESSION)
+        session = await _call(server, "get_improvement", session_id=SESSION)
 
         assert [a["attempt"] for a in session["attempts"]] == [1, 2]
         best = session["attempts"][1]
@@ -146,12 +147,12 @@ class TestReadingSessions:
         the evidence route is never called on their behalf."""
         api.request = _responder(
             {
-                ("GET", f"/agents/{AGENT}/improvements/{SESSION}"): SESSION_READ,
+                ("GET", f"/improvements/{SESSION}"): SESSION_READ,
                 ("GET", "/me/permissions"): _permissions("agents:view"),
             }
         )
 
-        session = await _call(server, "get_improvement", agent_id=AGENT, session_id=SESSION)
+        session = await _call(server, "get_improvement", session_id=SESSION)
 
         assert "missing_knowledge" not in session
         paths = [call.args[1] for call in api.request.await_args_list]
@@ -169,7 +170,7 @@ class TestReadingSessions:
         }
         api.request = _responder(
             {
-                ("GET", f"/agents/{AGENT}/improvements/{SESSION}"): SESSION_READ,
+                ("GET", f"/improvements/{SESSION}"): SESSION_READ,
                 ("GET", "/me/permissions"): _permissions("agents:view", "runs:view"),
                 ("GET", f"/agents/{AGENT}/improvements/{SESSION}/evidence"): {
                     "items": [{"topic_id": TOPIC}, {"topic_id": OTHER_TOPIC}, {"topic_id": None}]
@@ -184,7 +185,7 @@ class TestReadingSessions:
             }
         )
 
-        session = await _call(server, "get_improvement", agent_id=AGENT, session_id=SESSION)
+        session = await _call(server, "get_improvement", session_id=SESSION)
 
         assert session["missing_knowledge"] == [
             {
@@ -220,12 +221,12 @@ class TestReadingSessions:
         }
         api.request = _responder(
             {
-                ("GET", f"/agents/{AGENT}/improvements/{SESSION}"): kept,
+                ("GET", f"/improvements/{SESSION}"): kept,
                 ("GET", "/me/permissions"): _permissions("agents:view"),
             }
         )
 
-        session = await _call(server, "get_improvement", agent_id=AGENT, session_id=SESSION)
+        session = await _call(server, "get_improvement", session_id=SESSION)
 
         first_attempt, second_attempt = session["attempts"]
         assert (first_attempt["chosen"], first_attempt["best"]) == (True, False)
@@ -237,12 +238,12 @@ class TestReadingSessions:
     ) -> None:
         api.request = _responder(
             {
-                ("GET", f"/agents/{AGENT}/improvements/{SESSION}"): SESSION_READ,
+                ("GET", f"/improvements/{SESSION}"): SESSION_READ,
                 ("GET", "/me/permissions"): _permissions("agents:view"),
             }
         )
 
-        session = await _call(server, "get_improvement", agent_id=AGENT, session_id=SESSION)
+        session = await _call(server, "get_improvement", session_id=SESSION)
 
         assert session["chosen_by"] is None
 
@@ -265,7 +266,7 @@ class TestReadingSessions:
         """A topic whose answer was added to the knowledge base is covered, never "a draft"."""
         api.request = _responder(
             {
-                ("GET", f"/agents/{AGENT}/improvements/{SESSION}"): {
+                ("GET", f"/improvements/{SESSION}"): {
                     **SESSION_READ,
                     "deferred_topic_ids": [TOPIC] if deferred else [],
                 },
@@ -286,9 +287,61 @@ class TestReadingSessions:
             }
         )
 
-        session = await _call(server, "get_improvement", agent_id=AGENT, session_id=SESSION)
+        session = await _call(server, "get_improvement", session_id=SESSION)
 
         assert [t["state"] for t in session["missing_knowledge"]] == [state]
+
+
+class TestTheNoise:
+    async def test_a_noisy_test_reads_as_such_with_its_examples_cut_short(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        noise = {
+            "noisy": True,
+            "held_out": 10,
+            "baseline_low": 0.5,
+            "baseline_high": 0.7,
+            "baseline_spread": 2,
+            "unstable": 3,
+            "by_attempt": [{"number": 1, "baseline_unstable": 2, "candidate_unstable": 1}],
+            "examples": [
+                {
+                    "case_id": str(uuid.uuid4()),
+                    "input": "y" * 400,
+                    "attempts": [{"number": 1, "baseline": [True, False], "candidate": [True]}],
+                }
+            ],
+        }
+        api.request = _responder(
+            {
+                ("GET", f"/improvements/{SESSION}"): {**SESSION_READ, "measurement_noise": noise},
+                ("GET", "/me/permissions"): _permissions("agents:view"),
+            }
+        )
+
+        session = await _call(server, "get_improvement", session_id=SESSION)
+
+        read = session["measurement_noise"]
+        assert read["noisy"] is True
+        assert (read["baseline_low"], read["baseline_high"]) == (0.5, 0.7)
+        assert len(read["examples"][0]["input"]) == 200
+
+    async def test_a_session_read_by_its_id_names_its_agent(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        """Nothing but the session id is needed, so a model cannot pair it with the wrong agent."""
+        api.request = _responder(
+            {
+                ("GET", f"/improvements/{SESSION}"): SESSION_READ,
+                ("GET", "/me/permissions"): _permissions("agents:view"),
+            }
+        )
+
+        session = await _call(server, "get_improvement", session_id=SESSION)
+
+        assert session["agent_id"] == str(AGENT)
+        assert session["link"] == improvement_link(AGENT, SESSION)
+        assert session["measurement_noise"] is None
 
 
 class TestAClosedSession:
@@ -321,12 +374,12 @@ class TestAClosedSession:
     ) -> None:
         api.request = _responder(
             {
-                ("GET", f"/agents/{AGENT}/improvements/{SESSION}"): self.PUBLISHED,
+                ("GET", f"/improvements/{SESSION}"): self.PUBLISHED,
                 ("GET", "/me/permissions"): _permissions("agents:view"),
             }
         )
 
-        session = await _call(server, "get_improvement", agent_id=AGENT, session_id=SESSION)
+        session = await _call(server, "get_improvement", session_id=SESSION)
 
         assert session["closed"] is True
         assert session["can_accept"] is False
@@ -441,19 +494,22 @@ class TestReadingAnEvalRun:
         },
     }
 
-    async def test_a_run_names_a_few_broken_and_fixed_questions(
+    async def test_a_run_names_a_few_broken_and_fixed_questions_with_the_grader_s_reason(
         self, server: FastMCP, api: MagicMock
     ) -> None:
+        candidate, baseline = str(uuid.uuid4()), str(uuid.uuid4())
+        canada, masked = str(uuid.uuid4()), str(uuid.uuid4())
         cases = [
             {"case_id": str(uuid.uuid4()), "input": "x" * 500, "flip": "fixed", "confirmed": True}
-            for _ in range(7)
+            for _ in range(6)
         ] + [
             {
-                "case_id": str(uuid.uuid4()),
-                "input": "Canada?",
-                "flip": "regression",
-                "confirmed": False,
+                "case_id": masked,
+                "input": "From a conversation you cannot open",
+                "flip": "fixed",
+                "confirmed": True,
             },
+            {"case_id": canada, "input": "Canada?", "flip": "regression", "confirmed": False},
             {
                 "case_id": str(uuid.uuid4()),
                 "input": "Same",
@@ -461,10 +517,50 @@ class TestReadingAnEvalRun:
                 "confirmed": False,
             },
         ]
+
+        def attempts(reason: str | None) -> list[dict[str, Any]]:
+            return [
+                {
+                    "arm_id": baseline,
+                    "attempt": 0,
+                    "score": {"results": [{"scorer": "judge", "reason": "the old answer"}]},
+                },
+                {
+                    "arm_id": candidate,
+                    "attempt": 1,
+                    "score": {"results": [{"scorer": "judge", "reason": "a rerun"}]},
+                },
+                {
+                    "arm_id": candidate,
+                    "attempt": 0,
+                    "score": None
+                    if reason is None
+                    else {
+                        "results": [
+                            {"scorer": "check", "reason": "contains 'ship'"},
+                            {"scorer": "judge", "reason": reason},
+                        ]
+                    },
+                },
+            ]
+
+        listing = {
+            "items": [
+                {
+                    "case_id": canada,
+                    "attempts": attempts("Says we ship to Canada; we do not. " * 10),
+                },
+                {"case_id": masked, "attempts": attempts(None)},
+            ]
+        }
         api.request = _responder(
             {
                 ("GET", f"/eval-runs/{RUN}"): self.RUN_READ,
-                ("GET", f"/eval-runs/{RUN}/comparison"): {"cases": cases},
+                ("GET", f"/eval-runs/{RUN}/comparison"): {
+                    "cases": cases,
+                    "candidate": {"arm_id": candidate},
+                },
+                ("GET", f"/eval-runs/{RUN}/cases"): listing,
             }
         )
 
@@ -472,9 +568,71 @@ class TestReadingAnEvalRun:
 
         assert run["verdict"] == "mixed"
         assert run["pass_rate"] == {"baseline": 0.5, "candidate": 0.7}
-        assert [case["input"] for case in run["broken"]] == ["Canada?"]
+        [broken] = run["broken"]
+        assert broken["input"] == "Canada?"
+        assert broken["judge_reason"].startswith("Says we ship to Canada")
+        assert len(broken["judge_reason"]) == 150
         assert len(run["fixed"]) == 5
-        assert all(len(case["input"]) == 200 for case in run["fixed"])
+        assert all(
+            len(case["input"]) == 200 for case in run["fixed"][:5] if case["case_id"] != masked
+        )
+        listed = api.request.await_args_list[-1]
+        assert listed.args == ("GET", f"/eval-runs/{RUN}/cases")
+        assert set(listed.kwargs["params"]["case_id"]) == {
+            c["case_id"] for c in run["broken"] + run["fixed"]
+        }
+
+    async def test_a_question_from_a_conversation_the_caller_cannot_open_has_no_reason(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        """The API leaves a masked case's score out; the tool never fills a reason in."""
+        candidate, masked = str(uuid.uuid4()), str(uuid.uuid4())
+        api.request = _responder(
+            {
+                ("GET", f"/eval-runs/{RUN}"): self.RUN_READ,
+                ("GET", f"/eval-runs/{RUN}/comparison"): {
+                    "cases": [
+                        {
+                            "case_id": masked,
+                            "input": "From a conversation you cannot open",
+                            "flip": "fixed",
+                            "confirmed": True,
+                        }
+                    ],
+                    "candidate": {"arm_id": candidate},
+                },
+                ("GET", f"/eval-runs/{RUN}/cases"): {
+                    "items": [
+                        {
+                            "case_id": masked,
+                            "attempts": [{"arm_id": candidate, "attempt": 0, "score": None}],
+                        }
+                    ]
+                },
+            }
+        )
+
+        run = await _call(server, "get_eval_run", run_id=RUN)
+
+        assert run["fixed"][0]["judge_reason"] is None
+
+    async def test_a_run_that_changed_nothing_reads_no_cases(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request = _responder(
+            {
+                ("GET", f"/eval-runs/{RUN}"): self.RUN_READ,
+                ("GET", f"/eval-runs/{RUN}/comparison"): {
+                    "cases": [],
+                    "candidate": {"arm_id": "a"},
+                },
+            }
+        )
+
+        run = await _call(server, "get_eval_run", run_id=RUN)
+
+        assert (run["broken"], run["fixed"]) == ([], [])
+        assert api.request.await_count == 2
 
     @pytest.mark.parametrize(("status", "paired"), [("running", True), ("completed", False)])
     async def test_a_run_without_a_finished_comparison_reads_without_one(
@@ -702,6 +860,8 @@ PATHS = [
     ("GET", "/datasets"),
     ("GET", f"/eval-runs/{RUN}"),
     ("GET", f"/eval-runs/{RUN}/comparison"),
+    ("GET", f"/eval-runs/{RUN}/cases"),
+    ("GET", f"/improvements/{SESSION}"),
     ("GET", f"/knowledge-gaps/{TOPIC}/draft/estimate"),
     ("POST", f"/knowledge-gaps/{TOPIC}/draft"),
 ]
