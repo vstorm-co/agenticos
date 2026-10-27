@@ -246,15 +246,17 @@ test("test questions, review and improvement publish keep a guarded environment 
   await page.getByLabel("Test questions", { exact: true }).click();
   await page.getByRole("option", { name: String(dataset.name), exact: true }).click();
   const estimate = page.getByText(/^About \d+ minutes?, up to .+ \(estimate\)/);
-  // Opened before the estimate lands, which redraws the box above it: the list
-  // either closes with the shift or stays on screen, never out of reach.
+  // Opened before the estimate lands, which redraws the box above it.
   await page.getByText("Helper that writes the changes", { exact: true }).click();
   const runWith = page.getByRole("combobox", { name: "Run with" });
   await runWith.click();
   await expect(estimate).toBeVisible();
   const choice = page.getByRole("option", { name: String(helper.name), exact: true });
-  // The list may still close as the page settles after the check below, so the
-  // pick is retried until it takes: reopened on screen, never clicked off it.
+  // The page keeps settling after the estimate; the open list stays on screen
+  // through it rather than closing or drifting off a phone's viewport.
+  await expect(choice).toBeInViewport();
+  await page.waitForTimeout(1_500);
+  await expect(choice).toBeInViewport();
   await expect(async () => {
     if (await choice.isVisible()) await expect(choice).toBeInViewport();
     else {

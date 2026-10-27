@@ -54,14 +54,14 @@ function SystemAgentSelect({ kind, value, onChange, disabled = false, wizard }: 
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
   // An open list locks the page's scrolling, so content landing above it (an
-  // estimate) would carry trigger and list off a phone's screen out of reach.
+  // estimate) could push trigger and list off a phone's screen; follow them.
   useEffect(() => {
     const element = trigger.current;
     if (!open || !element) return;
-    const top = element.getBoundingClientRect().top;
     let frame = requestAnimationFrame(function watch() {
-      if (Math.abs(element.getBoundingClientRect().top - top) > 1) setOpen(false);
-      else frame = requestAnimationFrame(watch);
+      const { top, bottom } = element.getBoundingClientRect();
+      if (top < 0 || bottom > window.innerHeight) element.scrollIntoView({ block: "nearest" });
+      frame = requestAnimationFrame(watch);
     });
     return () => cancelAnimationFrame(frame);
   }, [open]);

@@ -116,7 +116,7 @@ describe("a system agent selected where it runs", () => {
     );
   });
 
-  it("closes an open list once content above pushes its trigger away", async () => {
+  it("keeps an open list's trigger on screen when content above pushes it away", async () => {
     render(<SystemAgentChoice kind="improver" value={null} onChange={vi.fn()} />);
     await userEvent.click(screen.getByText("Authoring assistant"));
     const trigger = screen.getByRole("combobox", { name: "Run with" });
@@ -124,12 +124,19 @@ describe("a system agent selected where it runs", () => {
     vi.spyOn(trigger, "getBoundingClientRect").mockImplementation(
       () => ({ top, bottom: top + 36, left: 0, right: 200, width: 200, height: 36 }) as DOMRect,
     );
+    const scroll = vi.spyOn(trigger, "scrollIntoView").mockImplementation(() => {
+      top = 100;
+    });
     await userEvent.click(trigger);
-    expect(screen.getByRole("listbox")).toBeInTheDocument();
     await new Promise((resolve) => requestAnimationFrame(resolve));
+    top = 300;
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(scroll).not.toHaveBeenCalled();
+    top = window.innerHeight + 200;
+    await waitFor(() => expect(scroll).toHaveBeenCalledWith({ block: "nearest" }));
+    top = -50;
+    await waitFor(() => expect(scroll).toHaveBeenCalledTimes(2));
     expect(screen.getByRole("listbox")).toBeInTheDocument();
-    top = 640;
-    await waitFor(() => expect(screen.queryByRole("listbox")).toBeNull());
-    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
   });
 });
