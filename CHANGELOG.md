@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.27.0] - 2026-10-27
+
 ### Added
 
 - Show the running console build version in the sidebar footer, including the
