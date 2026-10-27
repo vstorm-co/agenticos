@@ -98,8 +98,12 @@ that opens Markdown, PDFs, images, spreadsheets and code in place.
 - **Upload files** and **Upload folder** put files at the top of the project, a
   folder keeping its tree. Each file is held to the deployment's upload limit.
 - **New folder** makes an empty folder for an agent to fill.
-- The bin beside a file or folder removes it, with everything inside a folder, for
-  every chat and agent in the project.
+- Use the **…** menu on a file or folder to rename, move or delete it. Drag an
+  entry onto a folder to move it, or onto **Project files** to move it to the root.
+  An existing destination is never overwritten.
+- **Edit file** opens a complete UTF-8 text file up to 1 MiB. Save your changes or
+  confirm discarding them before closing. Saving refuses a revision that changed
+  since the editor opened; reopen the file to review the newer version.
 
 The `.agenticos` directory and the platform's own folders are not writable from
 here; a path outside the project is refused before anything is written.
@@ -120,7 +124,7 @@ or the whole organization, each at a level.
 | Grant level | Permission | What it allows |
 |---|---|---|
 | `read` | `projects:view` | See the project, its files and its instructions |
-| `use` | `projects:use` | Chat in it, upload, make folders, remove files |
+| `use` | `projects:use` | Chat in it; add, edit, rename, move and remove files |
 | `edit` | `projects:edit` | Change its instructions and default agent, share it, delete it |
 
 Roles hold these at the usual scopes: an Owner or Admin reaches every project, a

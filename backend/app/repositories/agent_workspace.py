@@ -339,3 +339,21 @@ async def load_files(db: AsyncSession, rows: Sequence[AgentWorkspace]) -> None:
 async def delete(db: AsyncSession, *, workspace: AgentWorkspace) -> None:
     await db.delete(workspace)
     await db.flush()
+
+
+async def lock_project_files(db: AsyncSession, *, project_id: UUID, organization_id: UUID) -> None:
+    """Refresh and lock the stored snapshot before a person's file mutation.
+
+    Runs flush under the same row lock, so a rename/edit cannot pass its checks
+    against one snapshot then overwrite a newer committed document.
+    """
+    await db.execute(
+        select(AgentWorkspace)
+        .where(
+            AgentWorkspace.project_id == project_id,
+            AgentWorkspace.organization_id == organization_id,
+            AgentWorkspace.scope == "project",
+        )
+        .execution_options(populate_existing=True)
+        .with_for_update()
+    )

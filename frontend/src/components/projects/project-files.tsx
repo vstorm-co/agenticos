@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { FolderPlus, FolderUp, Upload } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { ProjectFileEditor } from "./project-file-editor";
 import { FileDropZone } from "@/components/rag/file-drop-zone";
 import { UploadProgressList } from "@/components/rag/upload-progress-list";
 import { FileExplorer } from "@/components/sandboxes/workspace-explorer";
@@ -29,7 +30,7 @@ import type { Project } from "@/types/projects";
  */
 export function ProjectFiles({ project }: { project: Project }) {
   const t = useTranslations("projects");
-  const { files, isLoading, error, upload, uploads, addFolder, remove } = useProjectFiles(
+  const { files, isLoading, error, upload, uploads, addFolder, move, remove } = useProjectFiles(
     project.id,
   );
   const source = useMemo<FileSource>(() => ({ kind: "project", id: project.id }), [project.id]);
@@ -117,6 +118,18 @@ export function ProjectFiles({ project }: { project: Project }) {
         error={error}
         toolbar={toolbar}
         onRemove={project.can_use ? setPendingRemove : undefined}
+        onMove={
+          project.can_use
+            ? async (source, destination) => {
+                await move.mutateAsync({ source, destination });
+              }
+            : undefined
+        }
+        renderEditor={
+          project.can_use
+            ? (path) => <ProjectFileEditor projectId={project.id} path={path} />
+            : undefined
+        }
       />
     </div>
   );
@@ -146,6 +159,7 @@ export function ProjectFiles({ project }: { project: Project }) {
           </DialogHeader>
           <FormField label={t("folderName")} htmlFor="project-folder-name">
             <Input
+              id="project-folder-name"
               value={folderName}
               onChange={(event) => setFolderName(event.target.value)}
               placeholder={t("folderPlaceholder")}

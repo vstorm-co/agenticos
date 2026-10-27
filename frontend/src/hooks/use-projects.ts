@@ -15,6 +15,7 @@ import {
   listProjectChats,
   listProjectFiles,
   listProjects,
+  moveProjectPath,
   projectOfConversation,
   removeProjectPath,
   updateProject,
@@ -186,6 +187,13 @@ export function useProjectFiles(projectId: string) {
     onSettled: refresh,
   });
 
+  const move = useMutation({
+    mutationFn: ({ source, destination }: { source: string; destination: string }) =>
+      moveProjectPath(projectId, source, destination),
+    onError: (failure) => toast.error(getErrorMessage(failure, tErrors)),
+    onSettled: refresh,
+  });
+
   const remove = useMutation({
     mutationFn: (path: string) => removeProjectPath(projectId, path),
     onSuccess: () => toast.success(t("removed")),
@@ -200,6 +208,7 @@ export function useProjectFiles(projectId: string) {
     upload,
     uploads,
     addFolder,
+    move,
     remove,
   };
 }

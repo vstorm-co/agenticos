@@ -8,13 +8,13 @@ let pathname = "/agents";
 vi.mock("next/navigation", () => ({ usePathname: () => pathname }));
 
 describe("SectionGlyph", () => {
-  it("takes the current section's hue, and the neutral one outside the nav", () => {
+  it("uses the same neutral surface across sections", () => {
     pathname = "/rag/xyz";
     const { container, rerender } = render(<SectionGlyph icon={Bot} />);
-    expect(container.firstElementChild).toHaveClass("domain-knowledge");
+    expect(container.firstElementChild).toHaveClass("bg-muted/70", "text-muted-foreground");
 
     pathname = "/profile";
     rerender(<SectionGlyph icon={Bot} />);
-    expect(container.firstElementChild).toHaveClass("domain-use");
+    expect(container.firstElementChild).toHaveClass("bg-muted/70", "text-muted-foreground");
   });
 });

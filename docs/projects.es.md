@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "3ddef12560ae"
+source_sha: "b3e4da33c56b"
 ---
 
 # Proyectos { #projects }
@@ -105,8 +105,12 @@ el sitio.
   proyecto; una carpeta conserva su árbol. Cada archivo está sujeto al límite de
   subida del despliegue.
 - **Nueva carpeta** crea una carpeta vacía para que un agent la llene.
-- La papelera junto a un archivo o una carpeta lo elimina - una carpeta con todo
-  lo que contiene - para cada chat y agent del proyecto.
+- El menú **…** de un archivo o carpeta permite cambiar el nombre, mover o
+  eliminar. Arrastra un elemento a una carpeta o a **Archivos del proyecto** para
+  moverlo a la raíz. Nunca se sobrescribe un destino existente.
+- **Editar archivo** abre archivos de texto UTF-8 completos de hasta 1 MiB.
+  Guarda los cambios o confirma que quieres descartarlos antes de cerrar. Si el
+  archivo cambió desde que lo abriste, se rechaza el guardado; vuelve a abrirlo.
 
 El directorio `.agenticos` y las carpetas propias de la plataforma no se pueden
 escribir desde aquí; una ruta fuera del proyecto se rechaza antes de escribir
@@ -129,7 +133,7 @@ diálogo **Compartir** que usa un agent o un skill: personas,
 | Nivel de permiso | Permiso | Lo que permite |
 |---|---|---|
 | `read` | `projects:view` | Ver el proyecto, sus archivos y sus instrucciones |
-| `use` | `projects:use` | Chatear en él, subir, crear carpetas, eliminar archivos |
+| `use` | `projects:use` | Chatear; añadir, editar, renombrar, mover y eliminar archivos |
 | `edit` | `projects:edit` | Cambiar sus instrucciones y su agent predeterminado, compartirlo, borrarlo |
 
 Los roles los tienen en los ámbitos habituales: Owner y Admin llegan a cada

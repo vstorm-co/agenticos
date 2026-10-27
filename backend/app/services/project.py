@@ -6,15 +6,22 @@ container in place of the agent's own, its instructions after the agent's - is
 the runner's, through :meth:`ProjectService.for_run`.
 """
 
+import hashlib
 import logging
 import posixpath
 from uuid import UUID
 
+from pydantic_ai_backends import StateBackend
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
 from app.core.config import settings
-from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+)
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent, AgentStatus
@@ -30,7 +37,13 @@ from app.repositories import (
     project_repo,
     resource_grant_repo,
 )
-from app.schemas.project import ProjectCreate, ProjectList, ProjectRead, ProjectUpdate
+from app.schemas.project import (
+    ProjectCreate,
+    ProjectFileText,
+    ProjectList,
+    ProjectRead,
+    ProjectUpdate,
+)
 from app.services.access import (
     AGENT,
     PROJECT,
@@ -64,6 +77,8 @@ def project_path(path: str) -> str:
         BadRequestError: For a path that leaves the directory, or one in a
             directory the platform keeps.
     """
+    if any(ord(char) < 32 for char in path):
+        raise BadRequestError(message="A path cannot contain control characters", details={})
     cleaned = path.strip().strip("/")
     normal = posixpath.normpath(cleaned) if cleaned else ""
     if not normal or normal == "." or normal.startswith(".."):
@@ -379,6 +394,99 @@ class ProjectService:
             raise NotFoundError(message="No such file", details={"path": path})
         return await self.workspaces.project_bytes(ctx, project, path=path)
 
+    async def editable_file(
+        self, ctx: AuthContext, project_id: UUID, *, path: str
+    ) -> ProjectFileText:
+        """A complete UTF-8 file and its revision, never a shortened preview."""
+        await self.get(ctx, project_id, perm=Perm.PROJECTS_USE)
+        data = await self.file_bytes(ctx, project_id, path=project_path(path))
+        return ProjectFileText(
+            content=_editable_text(data), revision=hashlib.sha256(data).hexdigest()
+        )
+
+    async def edit_file(
+        self, ctx: AuthContext, project_id: UUID, *, path: str, content: str, revision: str
+    ) -> ProjectFileText:
+        """Save text only if the file still matches what the editor opened."""
+        project = await self.get(ctx, project_id, perm=Perm.PROJECTS_USE)
+        target = project_path(path)
+        data = content.encode("utf-8")
+        _editable_text(data)
+        await agent_workspace_repo.lock_project_files(
+            self.db, project_id=project.id, organization_id=ctx.organization_id
+        )
+        opened = await self.workspaces.open_project(ctx, project)
+        completed = False
+        try:
+            current = await opened.workspace.read_bytes(target)
+            _editable_text(current)
+            if hashlib.sha256(current).hexdigest() != revision:
+                raise AlreadyExistsError(
+                    message="This file changed since you opened it. Reopen it before saving.",
+                    details={"path": target},
+                )
+            await opened.workspace.write_bytes(target, data)
+            completed = True
+        except FileNotFoundError as exc:
+            raise NotFoundError(message="No such file", details={"path": target}) from exc
+        finally:
+            result = await self.workspaces.close(opened)
+            if completed and isinstance(result, WorkspaceFlushFailure):
+                raise result.error
+        await self._touched(ctx, project, "project.file_edited", target)
+        return ProjectFileText(content=content, revision=hashlib.sha256(data).hexdigest())
+
+    async def move_path(
+        self, ctx: AuthContext, project_id: UUID, *, source: str, destination: str
+    ) -> str:
+        """Rename or move one entry without replacing another entry."""
+        project = await self.get(ctx, project_id, perm=Perm.PROJECTS_USE)
+        origin, target = project_path(source), project_path(destination)
+        if target == origin or target.startswith(f"{origin}/"):
+            raise BadRequestError(
+                message="Choose a different folder or name", details={"path": target}
+            )
+        await agent_workspace_repo.lock_project_files(
+            self.db, project_id=project.id, organization_id=ctx.organization_id
+        )
+        opened = await self.workspaces.open_project(ctx, project)
+        completed = False
+        try:
+            if not await opened.workspace.exists(origin):
+                raise NotFoundError(message="No such file or folder", details={"path": origin})
+            if await opened.workspace.exists(target):
+                raise AlreadyExistsError(
+                    message="That name already exists", details={"path": target}
+                )
+            parent = posixpath.dirname(target) or "."
+            if (
+                not await opened.workspace.exists(parent)
+                or not (await opened.workspace.stat(parent)).is_dir
+            ):
+                raise BadRequestError(
+                    message="Choose an existing destination folder", details={"path": parent}
+                )
+            if opened.document is not None:
+                _move_stored_path(opened.document, origin, target)
+            else:
+                # No shell interpolation and no replacement, even if another writer
+                # creates the destination after the existence check above.
+                moved = await opened.workspace.run(
+                    ["mv", "-T", "-n", "--", origin, target], timeout=60
+                )
+                if moved.exit_code != 0 or await opened.workspace.exists(origin):
+                    raise BadRequestError(
+                        message="Could not move the file or folder; refresh and try again",
+                        details={"path": origin},
+                    )
+            completed = True
+        finally:
+            result = await self.workspaces.close(opened)
+            if completed and isinstance(result, WorkspaceFlushFailure):
+                raise result.error
+        await self._touched(ctx, project, "project.path_moved", target)
+        return target
+
     async def add_file(self, ctx: AuthContext, project_id: UUID, *, path: str, data: bytes) -> str:
         """Put a file in the project's container, where every agent in it finds it.
 
@@ -508,3 +616,33 @@ class ProjectService:
                 "Choose a published agent, not one archived or switched off - a new chat "
                 "starts with it",
             )
+
+
+def _editable_text(data: bytes) -> str:
+    if len(data) > 1_048_576 or b"\x00" in data:
+        raise BadRequestError(message="Only text files up to 1 MiB can be edited here", details={})
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise BadRequestError(message="This file is not UTF-8 text", details={}) from exc
+
+
+def _move_stored_path(document: StateBackend, origin: str, target: str) -> None:
+    source, destination = f"/{origin}", f"/{target}"
+    files = {
+        path: value
+        for path, value in document.files.items()
+        if path == source or path.startswith(source + "/")
+    }
+    directories = {
+        path for path in document.directories if path == source or path.startswith(source + "/")
+    }
+    # Re-key metadata rather than copying bytes: empty folders and binary files
+    # survive, timestamps stay intact, and there is no partial recursive copy.
+    for path in files:
+        del document.files[path]
+    document.files.update(
+        {destination + path[len(source) :]: value for path, value in files.items()}
+    )
+    document.directories.difference_update(directories)
+    document.directories.update(destination + path[len(source) :] for path in directories)

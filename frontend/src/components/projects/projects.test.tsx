@@ -51,6 +51,7 @@ const files = {
   listing: vi.fn(),
   upload: { mutate: vi.fn(), isPending: false },
   addFolder: { mutateAsync: vi.fn(), isPending: false },
+  move: { mutateAsync: vi.fn(), isPending: false },
   remove: { mutateAsync: vi.fn(), isPending: false },
 };
 const chats = vi.fn();
@@ -75,6 +76,7 @@ vi.mock("@/hooks/use-projects", () => ({
     upload: files.upload,
     uploads: [],
     addFolder: files.addFolder,
+    move: files.move,
     remove: files.remove,
   }),
   useProjectChats: () => chats(),
@@ -470,12 +472,14 @@ describe("ProjectFiles", () => {
   it("removes a file once confirmed, and not before", async () => {
     files.remove.mutateAsync.mockResolvedValue(undefined);
     wrap(<ProjectFiles project={aProject()} />);
-    await userEvent.click(screen.getByRole("button", { name: "Remove brief.md" }));
+    await userEvent.click(screen.getByRole("button", { name: "Actions for brief.md" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
     expect(screen.getByText("Remove brief.md?")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Remove" }));
     expect(files.remove.mutateAsync).toHaveBeenCalledWith("brief.md");
 
-    await userEvent.click(screen.getByRole("button", { name: "Remove brief.md" }));
+    await userEvent.click(screen.getByRole("button", { name: "Actions for brief.md" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
     await userEvent.keyboard("{Escape}");
     expect(files.remove.mutateAsync).toHaveBeenCalledTimes(1);
   });

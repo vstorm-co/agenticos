@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "3ddef12560ae"
+source_sha: "b3e4da33c56b"
 ---
 
 # Projekte { #projects }
@@ -106,8 +106,13 @@ neben einer Ansicht, die Markdown, PDFs, Bilder, Tabellen und Code direkt öffne
   ab, ein Ordner behält seinen Baum. Jede Datei unterliegt dem Upload-Limit der
   Installation.
 - **Neuer Ordner** legt einen leeren Ordner an, den ein Agent füllen kann.
-- Der Papierkorb neben einer Datei oder einem Ordner entfernt sie - einen Ordner
-  mit allem darin - für jeden Chat und Agent im Projekt.
+- Im Menü **…** einer Datei oder eines Ordners kannst du umbenennen,
+  verschieben oder löschen. Ziehe einen Eintrag auf einen Ordner oder auf
+  **Projektdateien**, um ihn ins Stammverzeichnis zu verschieben. Ein bestehendes
+  Ziel wird nie überschrieben.
+- **Datei bearbeiten** öffnet vollständige UTF-8-Textdateien bis 1 MiB. Speichere
+  Änderungen oder bestätige das Verwerfen vor dem Schließen. Wurde die Datei
+  seit dem Öffnen geändert, wird das Speichern abgelehnt; öffne sie erneut.
 
 Das Verzeichnis `.agenticos` und die eigenen Ordner der Plattform sind hier nicht
 beschreibbar; ein Pfad außerhalb des Projekts wird abgelehnt, bevor etwas
@@ -131,7 +136,7 @@ Stufe.
 | Grant-Stufe | Berechtigung | Was sie erlaubt |
 |---|---|---|
 | `read` | `projects:view` | Das Projekt, seine Dateien und Anweisungen sehen |
-| `use` | `projects:use` | Darin chatten, hochladen, Ordner anlegen, Dateien entfernen |
+| `use` | `projects:use` | Darin chatten; Dateien hinzufügen, bearbeiten, umbenennen, verschieben und löschen |
 | `edit` | `projects:edit` | Anweisungen und Standard-Agent ändern, teilen, löschen |
 
 Rollen halten diese in den üblichen Bereichen: Owner und Admin erreichen jedes

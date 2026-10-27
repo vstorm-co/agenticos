@@ -21,6 +21,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Project file management: rename folders and files, move entries by drag and drop
+  or a folder picker, and edit UTF-8 text with revision and unsaved-change checks.
+
 - Configure custom OpenRouter endpoints for agent models and knowledge-base
   embeddings, including the regional EU API. Native OpenRouter keys and cache
   controls are retained. Model suggestions come from the chosen endpoint;
@@ -111,6 +114,9 @@ Two things are versioned separately from this file and worth knowing about:
   the vault, the same rule as a capability's secret (#2478).
 
 ### Fixed
+
+- Marking a chat as read preserves its initial conversation fetch, so the chosen
+  agent and a turn still running remain visible when reopening it.
 
 - The Builder's Endpoint field no longer shows the local example
   `http://localhost:11434/v1` for a model that has a key (#2478). OpenAI is

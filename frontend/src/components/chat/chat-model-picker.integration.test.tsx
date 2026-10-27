@@ -127,6 +127,7 @@ beforeEach(() => {
 describe("who may move this conversation onto another model", () => {
   it("offers the whole form to a caller holding connections:manage", async () => {
     await mount([Perm.agentsView, Perm.connectionsManage]);
+    await userEvent.click(screen.getByRole("button", { name: "Change model" }));
 
     expect(screen.getByRole("combobox", { name: "Provider" })).toBeInTheDocument();
     expect(screen.getByLabelText("Model")).toBeInTheDocument();
@@ -156,6 +157,7 @@ describe("who may move this conversation onto another model", () => {
     // match an existing profile select it, and `POST /providers/model-profiles`
     // is never sent.
     const onChange = await mount([Perm.agentsView, Perm.connectionsManage]);
+    await userEvent.click(screen.getByRole("button", { name: "Change model" }));
 
     await userEvent.click(screen.getByRole("combobox", { name: "Provider" }));
     await userEvent.click(screen.getByRole("option", { name: /OpenAI/ }));

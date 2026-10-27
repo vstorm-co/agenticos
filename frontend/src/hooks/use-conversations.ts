@@ -649,7 +649,12 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       readTickets.current.set(id, ticket);
       const account = useAuthStore.getState().user?.id;
       const organization = tenant;
-      await queryClient.cancelQueries({ queryKey: qk.conversations.list() });
+      await queryClient.cancelQueries({
+        queryKey: qk.conversations.list(),
+        // An initial fetch is also where the open chat learns its agent and run
+        // state. Cancelling it leaves the observer with neither data nor a retry.
+        predicate: (query) => query.state.data !== undefined,
+      });
       if (!stillSameAccount(account) || !stillSameTenant(organization)) return;
       const before = queryClient.getQueriesData<ConversationListResponse>({
         queryKey: qk.conversations.list(),
@@ -665,7 +670,19 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
           !stillSameTenant(organization)
         )
           return;
-        await queryClient.cancelQueries({ queryKey: qk.conversations.list() });
+        await queryClient.cancelQueries({
+          queryKey: qk.conversations.list(),
+          predicate: (query) => query.state.data !== undefined,
+        });
+        // Join any initial list still in flight before applying the committed
+        // marker. Refetching with no cached data joins its existing promise.
+        if (stillSameAccount(account) && stillSameTenant(organization)) {
+          await queryClient.refetchQueries({
+            queryKey: qk.conversations.list(),
+            type: "active",
+            predicate: (query) => query.state.data === undefined,
+          });
+        }
         if (
           readTickets.current.get(id) === ticket &&
           stillSameAccount(account) &&

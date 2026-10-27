@@ -2113,7 +2113,8 @@
     "showLess": "Weniger",
     "copy": "Kopieren",
     "copied": "Kopiert",
-    "searchShortcut": "Strg K"
+    "searchShortcut": "Strg K",
+    "filesRoot": "Projektdateien"
   },
   "dashboard": {
     "actions": {
@@ -8524,7 +8525,31 @@
     "uploadFailed": "Der Upload ist fehlgeschlagen",
     "noFilesYet": "Noch nichts in diesem Projekt",
     "noFilesHint": "Legen Sie Dateien oder einen ganzen Ordner hier ab, oder laden Sie sie hoch. Jeder Chat im Projekt liest sie und arbeitet damit.",
-    "noFilesViewer": "Dateien, die dem Projekt hinzugefügt werden, erscheinen hier."
+    "noFilesViewer": "Dateien, die dem Projekt hinzugefügt werden, erscheinen hier.",
+    "fileManager": {
+      "actions": "Aktionen für {name}",
+      "rename": "Umbenennen",
+      "move": "In Ordner verschieben",
+      "delete": "Löschen",
+      "name": "Name",
+      "destination": "Zielordner",
+      "root": "Projektdateien",
+      "moveFailed": "Verschieben fehlgeschlagen. Namen und Ziel prüfen und erneut versuchen.",
+      "cancel": "Abbrechen",
+      "saving": "Wird gespeichert…",
+      "confirm": "Bestätigen",
+      "edit": "Datei bearbeiten",
+      "loading": "Datei wird geladen…",
+      "contents": "Dateiinhalt",
+      "unsaved": "Ungespeicherte Änderungen",
+      "saved": "Gespeichert",
+      "textOnly": "UTF-8-Textdateien bis 1 MiB",
+      "close": "Schließen",
+      "save": "Änderungen speichern",
+      "discardTitle": "Änderungen verwerfen?",
+      "discardBody": "Die Änderungen wurden nicht gespeichert. Editor schließen und Änderungen verwerfen?",
+      "discard": "Änderungen verwerfen"
+    }
   },
   "voiceGlow": {
     "title": "Diktieranimation",

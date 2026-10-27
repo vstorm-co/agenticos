@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "3ddef12560ae"
+source_sha: "b3e4da33c56b"
 ---
 
 # Projekty { #projects }
@@ -100,8 +100,12 @@ który otwiera Markdown, PDF-y, obrazy, arkusze i kod na miejscu.
 - **Prześlij pliki** i **Prześlij folder** wkładają pliki na górę projektu;
   folder zachowuje swoje drzewo. Każdy plik podlega limitowi wgrywania wdrożenia.
 - **Nowy folder** tworzy pusty folder do wypełnienia przez agenta.
-- Kosz obok pliku lub folderu usuwa go - folder razem z zawartością - dla
-  każdego czatu i agenta w projekcie.
+- Menu **…** pliku lub folderu pozwala zmienić nazwę, przenieść lub usunąć.
+  Przeciągnij element na folder albo na **Pliki projektu**, aby przenieść go do
+  katalogu głównego. Istniejący element docelowy nie zostanie nadpisany.
+- **Edytuj plik** otwiera cały plik tekstowy UTF-8 do 1 MiB. Zapisz zmiany lub
+  potwierdź ich odrzucenie przed zamknięciem. Zapis odrzuca wersję zmienioną od
+  otwarcia edytora; otwórz plik ponownie, aby sprawdzić nowszą wersję.
 
 Katalog `.agenticos` i własne foldery platformy nie są stąd zapisywalne; ścieżka
 poza projektem jest odrzucana, zanim cokolwiek zostanie zapisane.
@@ -122,7 +126,7 @@ oknem **Udostępnij**, którego używa agent czy skill: osobom,
 | Poziom grantu | Uprawnienie | Na co pozwala |
 |---|---|---|
 | `read` | `projects:view` | Widzieć projekt, jego pliki i instrukcje |
-| `use` | `projects:use` | Czatować w nim, wgrywać, tworzyć foldery, usuwać pliki |
+| `use` | `projects:use` | Czatować w nim; dodawać, edytować, przenosić i usuwać pliki |
 | `edit` | `projects:edit` | Zmieniać instrukcje i domyślnego agenta, udostępniać, usuwać |
 
 Role mają te uprawnienia w zwykłych zakresach: Owner i Admin sięgają każdego

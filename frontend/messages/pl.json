@@ -2113,7 +2113,8 @@
     "showLess": "Mniej",
     "copy": "Kopiuj",
     "copied": "Skopiowano",
-    "searchShortcut": "Ctrl K"
+    "searchShortcut": "Ctrl K",
+    "filesRoot": "Pliki projektu"
   },
   "dashboard": {
     "actions": {
@@ -8426,7 +8427,31 @@
     "uploadFailed": "Przesyłanie się nie udało",
     "noFilesYet": "W tym projekcie nie ma jeszcze plików",
     "noFilesHint": "Upuść tu pliki albo cały folder, albo je prześlij. Każdy czat w projekcie je czyta i na nich pracuje.",
-    "noFilesViewer": "Pliki dodane do projektu pojawią się tutaj."
+    "noFilesViewer": "Pliki dodane do projektu pojawią się tutaj.",
+    "fileManager": {
+      "actions": "Działania dla {name}",
+      "rename": "Zmień nazwę",
+      "move": "Przenieś do folderu",
+      "delete": "Usuń",
+      "name": "Nazwa",
+      "destination": "Folder docelowy",
+      "root": "Pliki projektu",
+      "moveFailed": "Nie udało się przenieść. Sprawdź nazwę i folder docelowy, a następnie spróbuj ponownie.",
+      "cancel": "Anuluj",
+      "saving": "Zapisywanie…",
+      "confirm": "Potwierdź",
+      "edit": "Edytuj plik",
+      "loading": "Wczytywanie pliku…",
+      "contents": "Treść pliku",
+      "unsaved": "Niezapisane zmiany",
+      "saved": "Zapisano",
+      "textOnly": "Pliki tekstowe UTF-8, do 1 MiB",
+      "close": "Zamknij",
+      "save": "Zapisz zmiany",
+      "discardTitle": "Odrzucić zmiany?",
+      "discardBody": "Zmiany nie zostały zapisane. Zamknąć edytor i je odrzucić?",
+      "discard": "Odrzuć zmiany"
+    }
   },
   "voiceGlow": {
     "title": "Animacja dyktowania",

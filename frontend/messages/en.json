@@ -2113,7 +2113,8 @@
     "showLess": "Less",
     "copy": "Copy",
     "copied": "Copied",
-    "searchShortcut": "Ctrl K"
+    "searchShortcut": "Ctrl K",
+    "filesRoot": "Project files"
   },
   "dashboard": {
     "actions": {
@@ -8641,7 +8642,31 @@
     "uploadFailed": "The upload failed",
     "noFilesYet": "Nothing in this project yet",
     "noFilesHint": "Drop files or a whole folder here, or upload them. Every chat in the project reads and works in them.",
-    "noFilesViewer": "Files added to the project will appear here."
+    "noFilesViewer": "Files added to the project will appear here.",
+    "fileManager": {
+      "actions": "Actions for {name}",
+      "rename": "Rename",
+      "move": "Move to folder",
+      "delete": "Delete",
+      "name": "Name",
+      "destination": "Destination folder",
+      "root": "Project files",
+      "moveFailed": "The entry could not be moved. Check the name and destination, then try again.",
+      "cancel": "Cancel",
+      "saving": "Saving…",
+      "confirm": "Confirm",
+      "edit": "Edit file",
+      "loading": "Loading file…",
+      "contents": "File contents",
+      "unsaved": "Unsaved changes",
+      "saved": "Saved",
+      "textOnly": "UTF-8 text files, up to 1 MiB",
+      "close": "Close",
+      "save": "Save changes",
+      "discardTitle": "Discard changes?",
+      "discardBody": "Your edits have not been saved. Close the editor and discard them?",
+      "discard": "Discard changes"
+    }
   },
   "voiceGlow": {
     "title": "Voice glow",

@@ -1796,3 +1796,41 @@ it("does not roll back a newer read when an older read fails late", async () => 
   });
   expect(result.current.conversations[0]?.unread).toBe(false);
 });
+
+it("keeps the first list alive when a chat is marked read before it arrives", async () => {
+  let arrive: (value: unknown) => void = () => {
+    throw new Error("List not requested");
+  };
+  vi.mocked(apiClient.get).mockImplementation((path) =>
+    path.startsWith("/conversations?")
+      ? new Promise((resolve) => {
+          arrive = resolve;
+        })
+      : Promise.resolve({ items: [], total: 0 }),
+  );
+  vi.mocked(apiClient.post).mockResolvedValue(undefined);
+  const { result } = renderHook(() => useConversations(), { wrapper });
+  let marked: Promise<void> | undefined;
+  act(() => {
+    marked = result.current.markRead("c-1");
+  });
+  await waitFor(() => expect(apiClient.post).toHaveBeenCalledWith("/conversations/c-1/read", {}));
+  await act(async () => {
+    arrive({
+      items: [
+        conversation("c-1", {
+          unread: true,
+          agents: [{ id: "writer", name: "Writer" }],
+          running_since: "2026-10-27T12:00:00Z",
+        }),
+      ],
+      total: 1,
+    });
+    await marked;
+  });
+  expect(result.current.conversations[0]).toMatchObject({
+    unread: false,
+    agents: [{ id: "writer", name: "Writer" }],
+    running_since: "2026-10-27T12:00:00Z",
+  });
+});

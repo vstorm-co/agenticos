@@ -67,9 +67,8 @@ interface CreateContextDialogProps {
  * same pane a skill's is written in, so what somebody types here looks like what
  * they will read afterwards.
  *
- * The one decision that is never implicit is `mode`: it is a select rather than a
- * default, because injecting into every run and reading on demand are different
- * enough that the author should choose rather than discover.
+ * This edits the library entry. Whether it is injected or read on demand is
+ * chosen separately when the file is attached to an agent.
  */
 export function CreateContextDialog({
   open,

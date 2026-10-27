@@ -114,3 +114,28 @@ export async function createProjectFolder(id: string, path: string): Promise<{ p
 export async function removeProjectPath(id: string, path: string): Promise<void> {
   await apiClient.delete<void>(`${ROOT}/${id}/files?path=${encodeURIComponent(path)}`);
 }
+
+export interface EditableProjectFile {
+  content: string;
+  revision: string;
+}
+
+export function moveProjectPath(
+  id: string,
+  source: string,
+  destination: string,
+): Promise<{ path: string }> {
+  return apiClient.post(`${ROOT}/${id}/files/move`, { source, destination });
+}
+
+export function readEditableProjectFile(id: string, path: string): Promise<EditableProjectFile> {
+  return apiClient.get(`${ROOT}/${id}/files/text?${new URLSearchParams({ path })}`);
+}
+
+export function saveProjectFile(
+  id: string,
+  path: string,
+  file: EditableProjectFile,
+): Promise<EditableProjectFile> {
+  return apiClient.put(`${ROOT}/${id}/files/text?${new URLSearchParams({ path })}`, file);
+}

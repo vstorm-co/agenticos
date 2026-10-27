@@ -95,3 +95,21 @@ class ProjectList(BaseSchema):
 
 class ProjectFolderCreate(BaseSchema):
     path: str = Field(min_length=1, max_length=500, description="The folder to create")
+
+
+class ProjectPathMove(BaseSchema):
+    source: str = Field(min_length=1, max_length=500)
+    destination: str = Field(min_length=1, max_length=500)
+
+
+class ProjectFileText(BaseSchema):
+    model_config = {"str_strip_whitespace": False}
+    content: str
+    revision: str
+
+
+class ProjectFileEdit(BaseSchema):
+    # Preserve leading/trailing whitespace: it is the file, not a form label.
+    model_config = {"str_strip_whitespace": False}
+    content: str = Field(max_length=1_048_576)
+    revision: str = Field(pattern=r"^[a-f0-9]{64}$")

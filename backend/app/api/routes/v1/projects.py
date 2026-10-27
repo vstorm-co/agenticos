@@ -18,8 +18,11 @@ from app.core.permissions import Perm
 from app.schemas.conversation import ProjectChatList
 from app.schemas.project import (
     ProjectCreate,
+    ProjectFileEdit,
+    ProjectFileText,
     ProjectFolderCreate,
     ProjectList,
+    ProjectPathMove,
     ProjectRead,
     ProjectUpdate,
 )
@@ -164,3 +167,40 @@ async def delete_project_file(
     path: str = Query(description="The file or folder to remove, with everything in it"),
 ) -> None:
     await service.remove(ctx, project_id, path=path)
+
+
+@router.post("/{project_id}/files/move", response_model=None)
+async def move_project_path(
+    project_id: UUID, data: ProjectPathMove, service: ProjectSvc, ctx: Auth
+) -> dict[str, str]:
+    """Move or rename a file or folder. Existing destinations are never replaced."""
+    return {
+        "path": await service.move_path(
+            ctx, project_id, source=data.source, destination=data.destination
+        )
+    }
+
+
+@router.get("/{project_id}/files/text", response_model=ProjectFileText)
+async def editable_project_file(
+    project_id: UUID,
+    service: ProjectSvc,
+    ctx: Auth,
+    path: str = Query(min_length=1, max_length=500),
+) -> Any:
+    """Read a complete UTF-8 file up to 1 MiB for editing, with its revision."""
+    return await service.editable_file(ctx, project_id, path=path)
+
+
+@router.put("/{project_id}/files/text", response_model=ProjectFileText)
+async def edit_project_file(
+    project_id: UUID,
+    data: ProjectFileEdit,
+    service: ProjectSvc,
+    ctx: Auth,
+    path: str = Query(min_length=1, max_length=500),
+) -> Any:
+    """Save a text file; refuse a revision that changed since the editor opened."""
+    return await service.edit_file(
+        ctx, project_id, path=path, content=data.content, revision=data.revision
+    )
