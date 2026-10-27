@@ -93,6 +93,60 @@ def _merge_capabilities(
     return list(bindings.values())
 
 
+_SESSION_FIELDS = (
+    "id",
+    "status",
+    "stage",
+    "iteration",
+    "max_iterations",
+    "stop_reason",
+    "spent_usd",
+    "budget_usd",
+    "created_at",
+    "finished_at",
+)
+"""What a listing says about one improvement session; the rest is in `get_improvement`."""
+
+_CASES_SHOWN = 5
+"""Broken and fixed cases `get_eval_run` names, each; the run page has the rest."""
+
+_INPUT_CHARS = 200
+
+
+def improvement_link(agent_id: UUID | str, session_id: UUID | str) -> str:
+    """Where the person follows a session step by step: the Improve wizard."""
+    return f"/agents/{agent_id}/improve/{session_id}"
+
+
+def _attempt(iteration: dict[str, Any], best: Any) -> dict[str, Any]:
+    """One round of a session, as its verdict reads in plain numbers."""
+    detail = iteration.get("verdict_detail") or {}
+    return {
+        "attempt": iteration["number"],
+        "verdict": iteration.get("verdict"),
+        "fixed": detail.get("fixed"),
+        "broken": detail.get("broken"),
+        "held_out_pass_rate": {
+            "before": detail.get("baseline_pass_rate"),
+            "after": detail.get("candidate_pass_rate"),
+        },
+        "cost_usd": iteration.get("cost_usd"),
+        "best": iteration["id"] == best,
+    }
+
+
+def _flips(cases: list[dict[str, Any]], flip: str) -> list[dict[str, Any]]:
+    return [
+        {
+            "case_id": case["case_id"],
+            "input": case["input"][:_INPUT_CHARS],
+            "confirmed": case["confirmed"],
+        }
+        for case in cases
+        if case["flip"] == flip
+    ][:_CASES_SHOWN]
+
+
 def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
     """Every operation, bound to `api`."""
 
@@ -640,6 +694,138 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             json={"name": name, "description": description, "content": content},
         )
 
+    async def list_improvements(agent_id: UUID) -> dict[str, Any]:
+        """An agent's Improve sessions, newest first. Needs access to the agent.
+
+        Each has its status, the step it is on, the attempt it reached, why it
+        stopped and what it spent, and `link` - the Improve wizard, where the
+        person follows it. Read one with get_improvement.
+        """
+        sessions = await api.request("GET", f"/agents/{agent_id}/improvements")
+        return {
+            "items": [
+                {
+                    **{field: session.get(field) for field in _SESSION_FIELDS},
+                    "link": improvement_link(agent_id, session["id"]),
+                }
+                for session in sessions
+            ]
+        }
+
+    async def get_improvement(agent_id: UUID, session_id: UUID) -> dict[str, Any]:
+        """One Improve session: its attempts and their verdicts, and what is missing from knowledge.
+
+        Needs access to the agent; the knowledge topics also need `runs:view`.
+        Each attempt has its verdict, the questions it fixed and broke (confirmed
+        on a rerun), the held-out pass rate before and after, and its cost; `best`
+        marks the attempt the session would accept. Point the person at `link`
+        rather than retelling the wizard's screens.
+        """
+        session = await api.request("GET", f"/agents/{agent_id}/improvements/{session_id}")
+        best = session.get("best_iteration_id")
+        result: dict[str, Any] = {
+            **{field: session.get(field) for field in _SESSION_FIELDS},
+            "attempts": [_attempt(iteration, best) for iteration in session["iterations"]],
+            "can_discard": session.get("can_discard"),
+            "can_restart": session.get("can_restart"),
+            "published_version": session.get("published_version"),
+            "link": improvement_link(agent_id, session_id),
+        }
+        me = await api.request("GET", "/me/permissions")
+        if not any(entry["permission"] == "runs:view" for entry in me.get("permissions", [])):
+            return result
+        evidence = await api.request(
+            "GET", f"/agents/{agent_id}/improvements/{session_id}/evidence"
+        )
+        topic_ids = {item["topic_id"] for item in evidence["items"] if item.get("topic_id")}
+        deferred = set(session.get("deferred_topic_ids") or [])
+        topics = await api.request("GET", f"/knowledge-gaps/agents/{agent_id}")
+        result["missing_knowledge"] = [
+            {
+                "topic_id": topic["id"],
+                "label": topic["label"],
+                "knowledge_base": topic["knowledge_base_name"],
+                "has_draft": topic.get("has_draft", False),
+                "draft_stale": topic.get("draft_stale", False),
+                "not_now": topic["id"] in deferred,
+            }
+            for topic in topics["items"]
+            if topic["id"] in topic_ids
+        ]
+        return result
+
+    async def estimate_improvement(
+        agent_id: UUID,
+        dataset_id: UUID | None = None,
+        suite_id: UUID | None = None,
+        max_iterations: int = 3,
+    ) -> dict[str, Any]:
+        """What an Improve session would cost, before it starts. Needs `agents:edit`, `runs:view`
+        and `datasets:run` on the dataset.
+
+        Name exactly one of `dataset_id` (test questions) or `suite_id` (an
+        automatic check, which brings its dataset). `total_usd` is the most it
+        would spend over every attempt; tell the person before starting one.
+        """
+        target: dict[str, Any] = {"max_iterations": max_iterations}
+        if dataset_id is not None:
+            target["dataset_id"] = str(dataset_id)
+        if suite_id is not None:
+            target["suite_id"] = str(suite_id)
+        return await api.request("POST", f"/agents/{agent_id}/improvements/estimate", json=target)
+
+    async def list_datasets(
+        agent_id: UUID | None = None, limit: int = 50, skip: int = 0
+    ) -> dict[str, Any]:
+        """Test question sets (datasets) you can see, optionally those made for or run on one agent.
+
+        Needs `datasets:view`. `can_run` says whether an eval or an Improve session
+        may use it.
+        """
+        params: dict[str, str | int] = {"limit": limit, "skip": skip}
+        if agent_id is not None:
+            params["agent"] = str(agent_id)
+        listing = await api.request("GET", "/datasets", params=params)
+        return {
+            "total": listing["total"],
+            "items": [
+                {
+                    field: item.get(field)
+                    for field in ("id", "name", "case_count", "latest_version", "can_run")
+                }
+                for item in listing["items"]
+            ],
+        }
+
+    async def get_eval_run(run_id: UUID) -> dict[str, Any]:
+        """One eval run: how it ended and which questions it broke or fixed. Needs `runs:view`.
+
+        `broken` and `fixed` name up to five questions each; `confirmed` means a
+        rerun gave the same answer, so it is not luck. The run page has the rest.
+        """
+        run = await api.request("GET", f"/eval-runs/{run_id}")
+        outcome = run.get("outcome") or {}
+        result: dict[str, Any] = {
+            "id": run["id"],
+            "agent_id": run["agent_id"],
+            "dataset": run["dataset_name"],
+            "status": run["status"],
+            "cases": run["cases"],
+            "cost_usd": run["cost_usd"],
+            "verdict": outcome.get("verdict"),
+            "pass_rate": {
+                "baseline": outcome.get("baseline_pass_rate"),
+                "candidate": outcome.get("candidate_pass_rate"),
+            },
+            "regressions_confirmed": outcome.get("regressions_confirmed"),
+            "fixed_confirmed": outcome.get("fixed_confirmed"),
+        }
+        if run["status"] != "completed" or not run["paired"]:
+            return result
+        comparison = await api.request("GET", f"/eval-runs/{run_id}/comparison")
+        cases = comparison.get("cases", [])
+        return {**result, "broken": _flips(cases, "regression"), "fixed": _flips(cases, "fixed")}
+
     async def list_members(limit: int = 50, skip: int = 0) -> dict[str, Any]:
         """The members of this connection's organization, with their roles. Needs `members:view`."""
         me = await api.request("GET", "/me/permissions")
@@ -696,6 +882,11 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (list_capabilities, False),
         (list_skills, False),
         (create_skill, True),
+        (list_improvements, False),
+        (get_improvement, False),
+        (estimate_improvement, False),
+        (list_datasets, False),
+        (get_eval_run, False),
         (list_members, False),
         (invite_member, True),
         (search_mcp_servers, False),
