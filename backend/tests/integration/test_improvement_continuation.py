@@ -1,6 +1,7 @@
 """Explicit continuation retains the session's sources, costs, identity and limits."""
 
 from decimal import Decimal
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlalchemy import func, select
@@ -18,7 +19,7 @@ from app.db.models.eval_run import EvalRun
 from app.db.models.improvement import ImprovementRun
 from app.repositories import authoring_repo, improvement_repo
 from app.schemas.api_key import ApiKeyCreate
-from app.schemas.authoring import HunkDecision
+from app.schemas.authoring import AuthoringEstimate, HunkDecision
 from app.schemas.improvement import ContinuationConsent, ImprovementContinue, ImprovementDiscard
 from app.services.api_key import ApiKeyService
 from app.services.authoring import AuthoringService
@@ -332,3 +333,27 @@ async def test_a_budget_stopped_classifier_is_resumed_under_a_fresh_quote(db):
         new_job, new_payload = await _job(db, row)
         assert new_job.id != old_job.id
         assert await classify_knowledge_gaps(new_payload) == 2
+
+
+async def test_another_attempt_with_nothing_left_to_learn_from_says_so(db):
+    """Refused for its reason, not as an estimate the budget cannot cover."""
+    ctx, agent, ready = await _ready_proposal(db)
+    row = await db.get(ImprovementRun, ready.id)
+    assert row is not None
+    row.max_iterations = 3
+    await db.flush()
+    service = ImprovementPipelineService(db)
+    nothing = AuthoringEstimate(
+        runs=0,
+        rated_down=0,
+        calls=0,
+        estimate_usd=Decimal(0),
+        affordable=True,
+        reason="no_evidence",
+    )
+    with (
+        patch.object(AuthoringService, "estimate_agent", AsyncMock(return_value=nothing)),
+        pytest.raises(BadRequestError, match="nothing to learn from") as refused,
+    ):
+        await _consent(service, ctx, agent, ready)
+    assert refused.value.details == {"reason": "no_evidence"}

@@ -1469,11 +1469,13 @@ class ImprovementPipelineService:
                 improvement_run_id=run.id,
                 excluded_message_ids=await self._knowledge_exclusions(ctx, run),
             )
-            return (
-                proposal.estimate_usd,
-                proposal.estimate_usd,
-                proposal.affordable and proposal.reason is None,
-            )
+            if proposal.reason is not None:
+                raise BadRequestError(
+                    message="Another attempt has nothing to learn from: no answer this session "
+                    "reads still fails. Review the result, or end the session and start a new one.",
+                    details={"reason": proposal.reason},
+                )
+            return proposal.estimate_usd, proposal.estimate_usd, proposal.affordable
         if stage == Stage.EVALUATING:
             if iteration.batch_id is None:
                 raise NotFoundError(message="The candidate is no longer available")
