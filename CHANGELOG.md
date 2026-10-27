@@ -90,6 +90,29 @@ Two things are versioned separately from this file and worth knowing about:
   OpenAI key, so the Builder no longer offers it to Claude Code after a harness
   switch, where it published and then failed at run time (#2485). Keys added for
   Claude Code, or behind a gateway, are still stored as custom.
+- An app-scoped collection and an organization's knowledge base with the same
+  name keep their documents apart. Through the app collection, members of
+  other organizations could list the organization's documents
+  (`GET /rag/documents`) and download, read or delete them (`/rag/documents/{id}`
+  and `/kb/{kb_id}/documents/{doc_id}`). The organization's sync sources were
+  also reachable through the app base's `/kb/{kb_id}/sync-sources/{source_id}`
+  routes. Those documents also counted toward the app collection in
+  `GET /rag/collections/{name}/info`, where they could hold `indexing_status`
+  at `indexing`. A document filed under the app base now belongs to the app
+  collection, whichever organization uploaded it. The organization's listing
+  and counts leave it out. The same held for a personal knowledge base outside
+  any organization that shares its name with an app collection: every member
+  of every organization could list and download its owner's documents through
+  the app collection. A document now belongs to the knowledge base it is filed
+  under, in listings, counts and per-document checks (#2486).
+  `GET /kb` counted documents by collection name, so each base reported the
+  other's `document_count`, `indexed_count` and `chunk_count`; each base now
+  counts its own. `GET /kb/{kb_id}/sync-sources` and `GET /rag/sync/logs`
+  listed a private base's sync sources and runs to a member who reads only the
+  app base of the same name, and `DELETE /rag/sync/{sync_id}` let a writer of
+  one base cancel a run feeding the other. A sync source and its runs now
+  belong to the base its sync writes under. A run with no sync source is still
+  matched by its collection name.
 
 ## [1.25.0] - 2026-10-27
 

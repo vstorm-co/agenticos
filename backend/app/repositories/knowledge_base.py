@@ -290,6 +290,26 @@ async def list_by_collection_name(db: AsyncSession, collection_name: str) -> lis
     return list(result.scalars().all())
 
 
+async def list_by_collection_names(
+    db: AsyncSession, collection_names: Sequence[str]
+) -> dict[str, list[KnowledgeBase]]:
+    """:func:`list_by_collection_name` for several names in one query, keyed by name.
+
+    A name no base claims is absent from the map.
+    """
+    if not collection_names:
+        return {}
+    result = await db.execute(
+        select(KnowledgeBase)
+        .where(KnowledgeBase.collection_name.in_(collection_names))
+        .order_by(KnowledgeBase.created_at)
+    )
+    by_name: dict[str, list[KnowledgeBase]] = {}
+    for kb in result.scalars():
+        by_name.setdefault(kb.collection_name, []).append(kb)
+    return by_name
+
+
 async def get_for_collection(
     db: AsyncSession, collection_name: str, organization_id: UUID | None
 ) -> KnowledgeBase | None:
@@ -313,7 +333,20 @@ async def get_for_collection(
     answers the same way. `KnowledgeBaseService._shared_embedding` is what holds
     that true.
     """
-    candidates = await list_by_collection_name(db, collection_name)
+    return choose_for_collection(
+        await list_by_collection_name(db, collection_name), organization_id
+    )
+
+
+def choose_for_collection(
+    candidates: Sequence[KnowledgeBase], organization_id: UUID | None
+) -> KnowledgeBase | None:
+    """:func:`get_for_collection`'s choice among the bases claiming one name.
+
+    `candidates` are :func:`list_by_collection_name`'s rows, oldest first. Apart
+    so a caller resolving many rows against one name - a base's sync sources -
+    loads the candidates once and decides each row the way the sync does.
+    """
     for kb in candidates:
         if organization_id is None or kb.organization_id == organization_id:
             return kb

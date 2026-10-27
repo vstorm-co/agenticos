@@ -147,7 +147,7 @@ class TestTheRouteThatTheDocumentsTabUses:
         kb = MagicMock(collection_name="docs", organization_id=org)
         doc = MagicMock(id=uuid.uuid4(), collection_name="docs", organization_id=org)
         service = MagicMock(get_for_write=AsyncMock(return_value=kb))
-        documents = MagicMock(get_document=AsyncMock(return_value=doc), delete_document=AsyncMock())
+        documents = MagicMock(delete_document=AsyncMock())
         ingestion = MagicMock(remove_document=AsyncMock())
 
         await knowledge_bases.delete_kb_document(
@@ -156,6 +156,7 @@ class TestTheRouteThatTheDocumentsTabUses:
             service=service,
             rag_doc_service=documents,
             ingestion_service=ingestion,
+            access=MagicMock(kb_document=AsyncMock(return_value=doc)),
             ctx=MagicMock(),
         )
 
@@ -163,25 +164,31 @@ class TestTheRouteThatTheDocumentsTabUses:
 
     async def test_a_document_from_another_knowledge_base_is_not_deleted(self):
         """The check that was already here, kept under test because the signature
-        around it moved: without it a KB owner could pass any doc_id."""
+        around it moved: without it a KB owner could pass any doc_id. Whether a
+        document is the base's is `CollectionAccessService.kb_document`'s
+        (`tests/test_collection_access.py`); what the route owes is to ask it
+        before deleting anything."""
         from app.api.routes.v1 import knowledge_bases
         from app.core.exceptions import NotFoundError
 
-        doc = MagicMock(id=uuid.uuid4(), collection_name="somebody_elses")
-        documents = MagicMock(get_document=AsyncMock(return_value=doc), delete_document=AsyncMock())
+        kb = MagicMock(collection_name="docs")
+        documents = MagicMock(delete_document=AsyncMock())
+        access = MagicMock(
+            kb_document=AsyncMock(side_effect=NotFoundError(message="Document not found"))
+        )
 
         with pytest.raises(NotFoundError):
             await knowledge_bases.delete_kb_document(
                 kb_id=uuid.uuid4(),
-                doc_id=doc.id,
-                service=MagicMock(
-                    get_for_write=AsyncMock(return_value=MagicMock(collection_name="docs"))
-                ),
+                doc_id=uuid.uuid4(),
+                service=MagicMock(get_for_write=AsyncMock(return_value=kb)),
                 rag_doc_service=documents,
                 ingestion_service=MagicMock(),
+                access=access,
                 ctx=MagicMock(),
             )
 
+        assert access.kb_document.await_args.args[0] is kb
         documents.delete_document.assert_not_awaited()
 
 

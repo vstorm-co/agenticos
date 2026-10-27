@@ -243,7 +243,7 @@ class TestRetiringWhatAReplacementDeleted:
     """Every ingest path creates a fresh `rag_documents` row, the replacing one
     included, while the vector store keeps a single document. So the row that
     pointed at the deleted vectors has to go with them - otherwise
-    `counts_by_collection` keeps summing its `chunk_count`, and a directory
+    `counts_by_scope` keeps summing its `chunk_count`, and a directory
     synced nightly reports a collection growing by its own size every night.
     """
 

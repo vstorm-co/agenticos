@@ -235,7 +235,7 @@ async def get_collection_info(
     info = await vector_store.get_collection_info(
         collection.collection_name, ctx.organization_id, tenant=collection.vector_tenant
     )
-    return await rag_doc_svc.collection_info(info, organization_id=collection.organization_id)
+    return await rag_doc_svc.collection_info(info, kb=collection)
 
 
 @router.get(
@@ -518,8 +518,8 @@ async def list_sync_logs(
     limit: int = Query(20, ge=1, le=100),
 ) -> Any:
     """List sync operation logs for the caller's collections."""
-    collections = await access.readable_names_for(ctx, collection_name)
-    return await rag_sync_svc.list_sync_logs(collections=collections, limit=limit)
+    scope = await access.readable_sync_log_scope(ctx, collection_name)
+    return await rag_sync_svc.list_sync_logs(scope=scope, limit=limit)
 
 
 # Console-only: it reads a directory on the deployment's own disk, which an
