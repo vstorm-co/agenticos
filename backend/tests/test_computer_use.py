@@ -1295,7 +1295,7 @@ class TestTheCapability:
     def test_the_toolset_is_built_once_and_the_instructions_distrust_the_screen(self):
         capability = ComputerUse(factory=lambda workspace: None)  # ty: ignore[invalid-argument-type] - never awaited here
         assert capability.get_toolset() is capability.get_toolset()
-        assert "untrusted" in capability.get_instructions()
+        assert "untrusted" in capability.get_instructions()(_ctx())
 
 
 def _build(

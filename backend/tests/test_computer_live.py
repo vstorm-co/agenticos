@@ -197,3 +197,39 @@ async def test_the_capability_selects_the_chosen_native_or_e2b_desktop(
     else:
         native.assert_called_once_with(workspace)
         hosted.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("backend", "on_device", "launch"),
+    [
+        ("auto", True, False),
+        ("local", False, False),
+        ("auto", False, True),
+        ("daemon", True, True),
+    ],
+)
+def test_launch_is_recommended_only_where_the_desktop_has_it(
+    backend: Literal["auto", "local", "daemon"], on_device: bool, launch: bool
+) -> None:
+    """The desktop app refuses `launch`; told so up front, the model skips the refused round trip."""
+    from uuid import uuid4
+
+    from pydantic_ai.models.test import TestModel
+    from pydantic_ai.tools import RunContext
+    from pydantic_ai.usage import RunUsage
+    from pydantic_ai.workspaces import Workspace
+    from pydantic_ai_backends import StateBackend
+
+    from app.agents.capabilities.computer_use import ComputerUse
+    from app.schemas.local_target import LocalTarget
+    from app.services.device_hub import DeviceWorkspace
+
+    workspace = Workspace(
+        DeviceWorkspace(uuid4(), uuid4(), LocalTarget(folder="/approved"))
+        if on_device
+        else StateBackend()
+    )
+    ctx = RunContext(deps=None, model=TestModel(), usage=RunUsage(), workspace=workspace)
+    instructions = ComputerUse(backend=backend).get_instructions()(ctx)
+    assert ("with the `launch` action" in instructions) is launch
+    assert ("cmd+space" in instructions) is not launch
