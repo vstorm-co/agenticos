@@ -35,14 +35,21 @@ export function KnowledgeGapsPanel({
   scope,
   topicId,
   onTopicChange,
+  status: heldStatus,
+  onStatusChange,
 }: {
   scope: KnowledgeGapPanelScope;
   /** The open topic, held by a page that keeps it in its URL; the panel holds its own otherwise. */
   topicId?: string | null;
   onTopicChange?: (topicId: string | null) => void;
+  /** The status shown, held the same way as the topic. */
+  status?: KnowledgeGapStatus;
+  onStatusChange?: (status: KnowledgeGapStatus) => void;
 }) {
   const t = useTranslations("knowledgeGaps");
-  const [status, setStatus] = useState<KnowledgeGapStatus>("open");
+  const [ownStatus, setOwnStatus] = useState<KnowledgeGapStatus>("open");
+  const status = onStatusChange ? (heldStatus ?? "open") : ownStatus;
+  const setStatus = onStatusChange ?? setOwnStatus;
   const [page, setPage] = useState(0);
   const [ownTopic, setOwnTopic] = useState<string | null>(null);
   const openTopic = onTopicChange ? (topicId ?? null) : ownTopic;

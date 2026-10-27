@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger, badgeVariants } from "@/components/ui";
+import { useUrlState } from "@/hooks/use-url-state";
 import { ideaState } from "@/lib/authoring-groups";
 import type { AuthoringRequest, SuggestionBatch } from "@/types/authoring";
 import { ChangeGroups, type Entry, type EntryActions } from "./change-groups";
@@ -29,7 +29,9 @@ export function SuggestionTabs({
   actions: Omit<EntryActions, "open">;
 }) {
   const t = useTranslations("authoring.tabs");
-  const [chosen, setChosen] = useState<Tab | null>(null);
+  const [chosenParam, setChosen] = useUrlState("suggestions");
+  const chosen: Tab | null =
+    chosenParam === "review" || chosenParam === "decided" ? chosenParam : null;
   const open = batch?.status === "open";
   const hunks = batch?.hunks ?? [];
   const ideas = request
@@ -50,7 +52,7 @@ export function SuggestionTabs({
   const tab = chosen ?? (review.length > 0 ? "review" : "decided");
   const entryActions = { ...actions, open };
   return (
-    <Tabs value={tab} onValueChange={(value) => setChosen(value as Tab)}>
+    <Tabs value={tab} onValueChange={setChosen}>
       <TabsList aria-label={t("label")}>
         <TabsTrigger value="review">
           {t("toReview")}{" "}

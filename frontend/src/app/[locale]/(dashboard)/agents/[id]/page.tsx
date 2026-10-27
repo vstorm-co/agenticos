@@ -95,6 +95,7 @@ import { TestPanel } from "@/components/agents/test-panel/test-panel";
 import { useTestShortcut } from "@/components/agents/test-panel/use-test-shortcut";
 import { VersionHistory } from "@/components/agents/version-history";
 import { KnowledgeGapsPanel } from "@/components/knowledge-gaps/knowledge-gaps-panel";
+import { gapStatus } from "@/lib/knowledge-gap-status";
 import { ImproveButton, ImproveLink } from "@/components/agents/improve-link";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ErrorState } from "@/components/states";
@@ -156,6 +157,7 @@ import {
   useSkills,
   useUrlState,
 } from "@/hooks";
+import { useUrlOverlay } from "@/hooks/use-url-state";
 import {
   readSubagentsConfig,
   PERSONAL_CAPABILITIES,
@@ -349,6 +351,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const [shareOpen, setShareOpen] = useState(false);
   // In the address, so a reload or a shared link lands on the same tab.
   const [tabParam, changeTab] = useUrlState("tab");
+  const [gapTopic, gapTopicView] = useUrlOverlay("topic");
+  const [gapStatusParam, setGapStatusParam] = useUrlState("status");
   const setTab = (next: string) => changeTab(next === "build" ? null : next);
   // Set by the first publish only: the moment an agent can be reached is the
   // moment to say where it can be reached from, which people did not find on
@@ -2114,7 +2118,15 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     {t("improveFromGaps")}
                   </ImproveLink>
                 )}
-                <KnowledgeGapsPanel scope={{ kind: "agent", id }} />
+                <KnowledgeGapsPanel
+                  scope={{ kind: "agent", id }}
+                  topicId={gapTopic}
+                  onTopicChange={(topic) =>
+                    topic === null ? gapTopicView.close() : gapTopicView.open(topic)
+                  }
+                  status={gapStatus(gapStatusParam)}
+                  onStatusChange={(next) => setGapStatusParam(next === "open" ? null : next)}
+                />
               </div>
             </TabsContent>
           )}

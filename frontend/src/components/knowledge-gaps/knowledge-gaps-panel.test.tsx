@@ -205,4 +205,20 @@ describe("KnowledgeGapsPanel", () => {
     );
     expect(screen.queryByRole("button", { name: /^dialog/ })).toBeNull();
   });
+
+  it("shows the status a page holds in its URL, and hands a change back to it", async () => {
+    const onStatusChange = vi.fn();
+    render(
+      <KnowledgeGapsPanel
+        scope={{ kind: "collection", id: "kb1" }}
+        status="covered"
+        onStatusChange={onStatusChange}
+      />,
+    );
+    expect(state.calls.at(-1)?.[1]).toEqual({ status: "covered", skip: 0, limit: 50 });
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Show topics" }));
+    await userEvent.click(screen.getByRole("option", { name: "Dismissed" }));
+    expect(onStatusChange).toHaveBeenCalledWith("dismissed");
+  });
 });

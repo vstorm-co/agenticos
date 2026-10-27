@@ -12,6 +12,7 @@ import { SpendTab } from "@/components/runs/spend-tab";
 import { LoadingState } from "@/components/states";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
 import { useApprovals, usePermissions, useRuns, useSpend, useUrlState } from "@/hooks";
+import { useUrlOverlay } from "@/hooks/use-url-state";
 import { periodEnd, periodStart } from "@/lib/dashboard/period";
 import { formatPeriodParam, parsePeriodParam, type Period } from "@/lib/dashboard/period";
 import { PAGE_CLEARANCE } from "@/lib/page-clearance";
@@ -84,7 +85,8 @@ export default function RunsPage() {
   // reach one is to name it, and `FocusedRun` is what answers. A row in the
   // table opens the same view, which is why this too is state and not only a
   // parameter somebody arrives with.
-  const [focusedRunId, focusRun] = useUrlState("run");
+  const [focusedRunId, runView] = useUrlOverlay("run");
+  const focusRun = (id: string | null) => (id === null ? runView.close() : runView.open(id));
   // The dashboard's p95 figure links here sorted by duration over the same
   // window - the number and the runs behind it, one click apart. The sort
   // arrives as `?sort=`, the window as `?period=` below.
@@ -193,7 +195,7 @@ export default function RunsPage() {
               // it *replaced* the list - so the strip was live while every
               // tab's content stayed hidden and switching appeared to do
               // nothing at all (#934).
-              focusRun(null);
+              runView.replace(null);
             }}
           >
             <TabsList className="shrink-0" data-tour="activity-overview">

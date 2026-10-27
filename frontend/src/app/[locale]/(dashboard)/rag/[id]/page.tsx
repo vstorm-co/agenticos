@@ -30,7 +30,9 @@ import { IngestionPanel } from "@/components/kb/ingestion-panel";
 import { UploadOverrideDialog } from "@/components/kb/upload-override-dialog";
 import { KnowledgeGapHelpers } from "@/components/knowledge-gaps/knowledge-gap-helpers";
 import { KnowledgeGapsPanel } from "@/components/knowledge-gaps/knowledge-gaps-panel";
+import { gapStatus } from "@/lib/knowledge-gap-status";
 import { useKBDetail, usePermissions, usePollWhileIngesting, useUrlState } from "@/hooks";
+import { useUrlOverlay } from "@/hooks/use-url-state";
 import { overrideSize } from "@/lib/ingestion-config";
 import type { SyncSourceRead } from "@/lib/rag-api";
 import type { IngestionOverride, KBDocument } from "@/types";
@@ -71,7 +73,8 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
   // appears.
   const [tabParam, setTabParam] = useUrlState("tab");
   // A run in Activity links to the gap topic it drafted.
-  const [topicParam, setTopicParam] = useUrlState("topic");
+  const [topicParam, topicView] = useUrlOverlay("topic");
+  const [gapStatusParam, setGapStatusParam] = useUrlState("status");
   const setTab = (next: KBTab) => setTabParam(next === "documents" ? null : next);
   const {
     kb,
@@ -393,7 +396,11 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
               <KnowledgeGapsPanel
                 scope={{ kind: "collection", id }}
                 topicId={topicParam}
-                onTopicChange={setTopicParam}
+                onTopicChange={(topic) =>
+                  topic === null ? topicView.close() : topicView.open(topic)
+                }
+                status={gapStatus(gapStatusParam)}
+                onStatusChange={(next) => setGapStatusParam(next === "open" ? null : next)}
               />
             </div>
           </TabsContent>

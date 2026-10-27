@@ -36,6 +36,19 @@ describe("SuggestionTabs", () => {
     expect(screen.getByText("Nothing left to review.")).toBeInTheDocument();
   });
 
+  it("keeps the chosen tab in the address, so Back to the agent returns to it", async () => {
+    window.history.replaceState({}, "", "/agents/a1");
+    render(
+      <SuggestionTabs
+        batch={batch({ hunks: [hunk({ id: "w" })] })}
+        request={null}
+        actions={actions()}
+      />,
+    );
+    await userEvent.click(screen.getByRole("tab", { name: "Decided 0" }));
+    expect(new URL(window.location.href).searchParams.get("suggestions")).toBe("decided");
+  });
+
   it("opens on Decided, saying nothing is left, once every change is decided", () => {
     render(
       <SuggestionTabs
