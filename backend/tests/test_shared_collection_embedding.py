@@ -19,7 +19,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.core.exceptions import AuthorizationError, BadRequestError
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.repositories import collection_teardown_repo, knowledge_base_repo
 from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseUpdate
@@ -215,6 +215,7 @@ async def test_an_embedding_endpoint_can_be_set_or_explicitly_cleared(
     _holders(monkeypatch, [held])
     update = AsyncMock(return_value=held)
     monkeypatch.setattr(knowledge_base_repo, "update", update)
+    _embedding_key_access(monkeypatch, visible=True)
     await service.update(held.id, KnowledgeBaseUpdate(embedding_base_url=endpoint), ctx=_ctx())
     assert update.call_args.kwargs["embedding_base_url"] == endpoint
     assert update.call_args.kwargs["set_embedding_base_url"] is True
@@ -224,6 +225,7 @@ async def test_an_endpoint_change_cannot_split_a_shared_collection(service, monk
     held = _held(embedding_provider="openrouter")
     monkeypatch.setattr(service, "get_for_write", AsyncMock(return_value=held))
     _holders(monkeypatch, [held, _held(embedding_provider="openrouter")])
+    _embedding_key_access(monkeypatch, visible=True)
     with pytest.raises(BadRequestError):
         await service.update(
             held.id,
@@ -264,3 +266,43 @@ async def test_endpoint_update_distinguishes_omission_from_explicit_null():
         db, db_kb=held, embedding_base_url=None, set_embedding_base_url=True
     )
     assert held.embedding_base_url is None
+
+
+def _embedding_key_access(monkeypatch: pytest.MonkeyPatch, *, visible: bool) -> AsyncMock:
+    secret = MagicMock(id=SECRET, organization_id=ORG, purpose="openrouter")
+    monkeypatch.setattr(
+        "app.services.knowledge_base.organization_secret_repo.get", AsyncMock(return_value=secret)
+    )
+    access = AsyncMock(return_value=visible)
+    monkeypatch.setattr("app.services.knowledge_base.resolve_access", access)
+    return access
+
+
+@pytest.mark.parametrize("endpoint", ["https://eu.openrouter.ai/api/v1", None])
+async def test_changing_the_embedding_destination_requires_access_to_the_retained_key(
+    service, monkeypatch, endpoint
+):
+    held = _held(
+        embedding_provider="openrouter", embedding_base_url="https://regional.example/api/v1"
+    )
+    monkeypatch.setattr(service, "get_for_write", AsyncMock(return_value=held))
+    access = _embedding_key_access(monkeypatch, visible=False)
+    update = AsyncMock()
+    monkeypatch.setattr(knowledge_base_repo, "update", update)
+    with pytest.raises(BadRequestError, match="not in this organization's vault"):
+        await service.update(held.id, KnowledgeBaseUpdate(embedding_base_url=endpoint), ctx=_ctx())
+    assert access.await_args.args[3] == Perm.SECRETS_VIEW
+    update.assert_not_awaited()
+
+
+async def test_renaming_a_kb_does_not_require_reauthorizing_its_retained_embedding_key(
+    service, monkeypatch
+):
+    held = _held(embedding_provider="openrouter")
+    monkeypatch.setattr(service, "get_for_write", AsyncMock(return_value=held))
+    access = _embedding_key_access(monkeypatch, visible=False)
+    update = AsyncMock(return_value=held)
+    monkeypatch.setattr(knowledge_base_repo, "update", update)
+    await service.update(held.id, KnowledgeBaseUpdate(name="New name"), ctx=_ctx())
+    assert update.await_args.kwargs["name"] == "New name"
+    access.assert_not_awaited()

@@ -115,6 +115,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Changing a knowledge base embedding endpoint now requires access to its retained
+  vault key, including when resetting the endpoint to the provider default.
+
 - Marking a chat as read preserves its initial conversation fetch, so the chosen
   agent and a turn still running remain visible when reopening it.
 

@@ -25,6 +25,7 @@ vi.mock("@/lib/projects-api", () => ({
   uploadProjectFile: vi.fn(),
   createProjectFolder: vi.fn(),
   removeProjectPath: vi.fn(),
+  moveProjectPath: vi.fn(),
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -119,6 +120,8 @@ describe("useProjectFiles", () => {
 
     await act(() => result.current.addFolder.mutateAsync("notes"));
     expect(api.createProjectFolder).toHaveBeenCalledWith("p-1", "notes");
+    await act(() => result.current.move.mutateAsync({ source: "notes", destination: "drafts" }));
+    expect(api.moveProjectPath).toHaveBeenCalledWith("p-1", "notes", "drafts");
     await act(() => result.current.remove.mutateAsync("notes"));
     expect(toast.success).toHaveBeenLastCalledWith("Removed");
   });
@@ -128,6 +131,7 @@ describe("useProjectFiles", () => {
     vi.mocked(api.uploadProjectFile).mockRejectedValue(new Error("too big"));
     vi.mocked(api.createProjectFolder).mockRejectedValue(new Error("no"));
     vi.mocked(api.removeProjectPath).mockRejectedValue(new Error("no"));
+    vi.mocked(api.moveProjectPath).mockRejectedValue(new Error("no"));
     const { result } = renderHook(() => useProjectFiles("p-1"), { wrapper });
     await waitFor(() => expect(result.current.error).not.toBeNull());
 
@@ -137,8 +141,11 @@ describe("useProjectFiles", () => {
         .catch(() => undefined);
       await result.current.addFolder.mutateAsync("x").catch(() => undefined);
       await result.current.remove.mutateAsync("x").catch(() => undefined);
+      await result.current.move
+        .mutateAsync({ source: "x", destination: "y" })
+        .catch(() => undefined);
     });
-    expect(toast.error).toHaveBeenCalledTimes(3);
+    expect(toast.error).toHaveBeenCalledTimes(4);
   });
 });
 

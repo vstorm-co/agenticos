@@ -654,3 +654,22 @@ describe("ProjectPickerDialog", () => {
     );
   });
 });
+
+it("offers the project editor and wires a rename to the project's mutation", async () => {
+  files.move.mutateAsync.mockResolvedValue({ path: "renamed.md" });
+  wrap(<ProjectFiles project={aProject()} />);
+  await userEvent.click(screen.getByRole("button", { name: "brief.md" }));
+  expect(screen.getByRole("button", { name: "Edit file" })).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Actions for brief.md" }));
+  await userEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
+  const input = screen.getByRole("textbox", { name: "Name" });
+  await userEvent.clear(input);
+  await userEvent.type(input, "renamed.md");
+  await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+  await waitFor(() =>
+    expect(files.move.mutateAsync).toHaveBeenCalledWith({
+      source: "brief.md",
+      destination: "renamed.md",
+    }),
+  );
+});

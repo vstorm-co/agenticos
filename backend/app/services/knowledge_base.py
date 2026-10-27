@@ -645,6 +645,20 @@ class KnowledgeBaseService:
                 raise AuthorizationError(
                     message="Managing connections is required to change an embedding endpoint"
                 )
+            # Changing the destination lends the retained key to that host just
+            # as choosing a new key does. Managing connections alone is not
+            # authority to send a colleague's private credential elsewhere.
+            if (
+                kb.embedding_secret_id is not None
+                and data.embedding_secret_id is None
+                and not provider.keyless
+            ):
+                await self._check_embedding_secret(
+                    kb.embedding_secret_id,
+                    ctx=ctx,
+                    organization_id=kb.organization_id,
+                    provider=provider,
+                )
             wanted_url = await self._embedding_url(ctx, provider.provider, wanted_url)
             shared = await knowledge_base_repo.list_by_collection_name(self.db, kb.collection_name)
             if any(row.id != kb.id and row.embedding_base_url != wanted_url for row in shared):
