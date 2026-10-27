@@ -258,6 +258,31 @@ it("stops running work and explicitly retries a failed step", async () => {
   expect(actions.continueSession.mutateAsync).toHaveBeenCalledWith(quote);
 });
 
+it("retries a failed step from another step too, and then follows the session again", async () => {
+  state.session!.status = "failed";
+  state.session!.stage = "evaluating";
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  await userEvent.click(screen.getByRole("button", { name: "Changes" }));
+  expect(screen.queryByText("What this session came to")).toBeNull();
+  actions.estimateContinuation.mutateAsync.mockResolvedValue({
+    mode: "retry",
+    number: 1,
+    total_usd: "0.02",
+    budget_usd: "1",
+    affordable: true,
+    candidate_hash: "hash",
+  });
+  await userEvent.click(
+    screen.getByRole("button", { name: "Retry this step within the spending limit" }),
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Estimate continuing the session" }));
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Confirm the estimate and continue" }),
+  );
+  expect(actions.continueSession.mutateAsync).toHaveBeenCalled();
+  expect(await screen.findByText("What this session came to")).toBeInTheDocument();
+});
+
 vi.mock("./understand", () => ({ Understand: () => <p>Source examples fixture</p> }));
 vi.mock("./session-inputs", () => ({
   StartSignals: () => null,
