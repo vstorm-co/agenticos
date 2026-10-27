@@ -204,6 +204,72 @@ class TestReadingSessions:
         ]
 
 
+class TestAClosedSession:
+    """A published session is history: the Architect reads what was decided, not an offer."""
+
+    PUBLISHED: dict[str, Any] = {
+        **SESSION_READ,
+        "status": "published",
+        "published_version": 7,
+        "published_version_id": "00000000-0000-4000-8000-0000000000aa",
+        "timeline": [
+            {"action": "improvement.ready", "at": "2026-10-27T09:00:00Z", "actor_user_id": None},
+            {
+                "action": "improvement.round_selected",
+                "at": "2026-10-27T09:05:00Z",
+                "actor_user_id": "00000000-0000-4000-8000-0000000000ab",
+                "actor_name": "Bartek",
+            },
+            {
+                "action": "improvement.published",
+                "at": "2026-10-27T09:10:00Z",
+                "actor_user_id": "00000000-0000-4000-8000-0000000000ab",
+                "actor_name": "Bartek",
+            },
+        ],
+    }
+
+    async def test_a_published_session_says_what_was_decided_and_offers_nothing(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request = _responder(
+            {
+                ("GET", f"/agents/{AGENT}/improvements/{SESSION}"): self.PUBLISHED,
+                ("GET", "/me/permissions"): _permissions("agents:view"),
+            }
+        )
+
+        session = await _call(server, "get_improvement", agent_id=AGENT, session_id=SESSION)
+
+        assert session["closed"] is True
+        assert session["can_accept"] is False
+        assert session["outcome"] == {
+            "status": "published",
+            "attempt": 2,
+            "published_version": 7,
+            "published_version_id": "00000000-0000-4000-8000-0000000000aa",
+            "decided_by": "Bartek",
+            "decided_at": "2026-10-27T09:10:00Z",
+        }
+
+    async def test_a_listing_marks_closed_and_ready_sessions_apart(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        discarded = {**SESSION_READ, "id": str(uuid.uuid4()), "status": "rejected", "timeline": []}
+        api.request = _responder(
+            {("GET", f"/agents/{AGENT}/improvements"): [SESSION_READ, discarded, self.PUBLISHED]}
+        )
+
+        listing = await _call(server, "list_improvements", agent_id=AGENT)
+
+        ready, rejected, published = listing["items"]
+        assert (ready["closed"], ready["can_accept"], ready["outcome"]) == (False, True, None)
+        assert rejected["closed"] is True
+        assert rejected["outcome"]["attempt"] is None
+        assert rejected["outcome"]["decided_by"] is None
+        assert published["outcome"]["published_version"] == 7
+
+
 class TestEstimatingAndDatasets:
     async def test_an_estimate_names_one_target(self, server: FastMCP, api: MagicMock) -> None:
         api.request = AsyncMock(return_value={"total_usd": "0.04"})

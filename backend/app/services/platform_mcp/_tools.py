@@ -120,6 +120,53 @@ def improvement_link(agent_id: UUID | str, session_id: UUID | str) -> str:
     return f"/agents/{agent_id}/improve/{session_id}"
 
 
+_CLOSED = frozenset({"accepted", "published", "rejected", "cancelled", "stale"})
+"""A session that is a record now: nothing on it can be accepted, chosen or tried again."""
+
+_DECISIONS = frozenset(
+    {
+        "improvement.accepted",
+        "improvement.published",
+        "improvement.discarded",
+        "improvement.rejected",
+        "improvement.cancelled",
+    }
+)
+
+
+def _outcome(session: dict[str, Any]) -> dict[str, Any] | None:
+    """What was decided on a closed session: the attempt, the version, by whom and when."""
+    if session["status"] not in _CLOSED:
+        return None
+    best = session.get("best_iteration_id")
+    attempt = next((it["number"] for it in session.get("iterations", []) if it["id"] == best), None)
+    decisions = [
+        event
+        for event in session.get("timeline", [])
+        if event["action"] in _DECISIONS and event.get("actor_user_id")
+    ]
+    decision = max(decisions, key=lambda event: event["at"], default=None)
+    return {
+        "status": session["status"],
+        "attempt": attempt if session["status"] in ("accepted", "published") else None,
+        "published_version": session.get("published_version"),
+        "published_version_id": session.get("published_version_id"),
+        "decided_by": decision and (decision.get("actor_name") or decision["actor_user_id"]),
+        "decided_at": decision and decision["at"],
+    }
+
+
+def _session(agent_id: UUID | str, session: dict[str, Any]) -> dict[str, Any]:
+    """A session as a listing reads it: where it stands, and what may still be done with it."""
+    return {
+        **{field: session.get(field) for field in _SESSION_FIELDS},
+        "closed": session["status"] in _CLOSED,
+        "can_accept": session["status"] == "ready",
+        "outcome": _outcome(session),
+        "link": improvement_link(agent_id, session["id"]),
+    }
+
+
 def _attempt(iteration: dict[str, Any], best: Any) -> dict[str, Any]:
     """One round of a session, as its verdict reads in plain numbers."""
     detail = iteration.get("verdict_detail") or {}
@@ -701,18 +748,12 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
 
         Each has its status, the step it is on, the attempt it reached, why it
         stopped and what it spent, and `link` - the Improve wizard, where the
-        person follows it. Read one with get_improvement.
+        person follows it. A `closed` session is a record: its `outcome` says what
+        was decided - the attempt, the version it published, by whom - and nothing
+        on it can be accepted again. Read one with get_improvement.
         """
         sessions = await api.request("GET", f"/agents/{agent_id}/improvements")
-        return {
-            "items": [
-                {
-                    **{field: session.get(field) for field in _SESSION_FIELDS},
-                    "link": improvement_link(agent_id, session["id"]),
-                }
-                for session in sessions
-            ]
-        }
+        return {"items": [_session(agent_id, session) for session in sessions]}
 
     async def get_improvement(agent_id: UUID, session_id: UUID) -> dict[str, Any]:
         """One Improve session: its attempts and their verdicts, and what is missing from knowledge.
@@ -720,18 +761,18 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         Needs access to the agent; the knowledge topics also need `runs:view`.
         Each attempt has its verdict, the questions it fixed and broke (confirmed
         on a rerun), the held-out pass rate before and after, and its cost; `best`
-        marks the attempt the session would accept. Point the person at `link`
-        rather than retelling the wizard's screens.
+        marks the attempt the session would accept. Only a session with
+        `can_accept` can be accepted; a `closed` one is a record, and its
+        `outcome` says what was decided. Point the person at `link` rather than
+        retelling the wizard's screens.
         """
         session = await api.request("GET", f"/agents/{agent_id}/improvements/{session_id}")
         best = session.get("best_iteration_id")
         result: dict[str, Any] = {
-            **{field: session.get(field) for field in _SESSION_FIELDS},
+            **_session(agent_id, session),
             "attempts": [_attempt(iteration, best) for iteration in session["iterations"]],
             "can_discard": session.get("can_discard"),
             "can_restart": session.get("can_restart"),
-            "published_version": session.get("published_version"),
-            "link": improvement_link(agent_id, session_id),
         }
         me = await api.request("GET", "/me/permissions")
         if not any(entry["permission"] == "runs:view" for entry in me.get("permissions", [])):
