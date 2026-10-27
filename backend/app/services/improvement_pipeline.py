@@ -454,10 +454,9 @@ class ImprovementPipelineService:
         ctx: AuthContext,
         inputs: Inputs,
         target: ImprovementTarget,
-        *,
-        include_knowledge: bool = True,
-        improvement_run_id: UUID | None = None,
     ) -> ImprovementEstimate:
+        """What a session spends before it first waits for a person, with what one attempt
+        costs beside it: every step after that stop is priced when somebody takes it."""
         proposal = await self.authoring.estimate_agent(
             ctx,
             inputs.agent.id,
@@ -465,7 +464,6 @@ class ImprovementPipelineService:
                 window_days=target.window_days, improver_agent_id=target.improver_agent_id
             ),
             evidence_dataset_id=inputs.request.dataset_id,
-            improvement_run_id=improvement_run_id,
         )
         draft = AgentSpec.model_validate(inputs.agent.draft_spec)
         check = await self.evals.estimate(
@@ -481,18 +479,15 @@ class ImprovementPipelineService:
         full_eval = check.total_usd + check.rerun_ceiling_usd
         # Each round may need one repeat of an inconclusive comparison.
         per_round = proposal.estimate_usd + full_eval * (1 + rules.INCONCLUSIVE_RERUNS)
-        knowledge = Decimal(0)
-        if include_knowledge:
-            ids, messages, sources = await self._knowledge_sources(
-                ctx,
-                inputs.agent,
-                dataset_id=inputs.request.dataset_id,
-                window_days=target.window_days,
-            )
-            knowledge = await KnowledgeGapService(self.db).improvement_estimate(
-                ctx, ids, messages, source_run_ids=sources
-            )
-        total = per_round * target.max_iterations + knowledge
+        ids, messages, sources = await self._knowledge_sources(
+            ctx,
+            inputs.agent,
+            dataset_id=inputs.request.dataset_id,
+            window_days=target.window_days,
+        )
+        total = await KnowledgeGapService(self.db).improvement_estimate(
+            ctx, ids, messages, source_run_ids=sources
+        )
         org_left = await self.evals._org_left(ctx)
         now = datetime.now(UTC)
         answer_ms, _ = await agent_run_repo.latency_percentiles_ms(
@@ -504,7 +499,7 @@ class ImprovementPipelineService:
         )
         return ImprovementEstimate(
             proposal_usd=proposal.estimate_usd,
-            knowledge_usd=knowledge,
+            knowledge_usd=total,
             eval_usd=full_eval,
             per_round_usd=per_round,
             total_usd=total,

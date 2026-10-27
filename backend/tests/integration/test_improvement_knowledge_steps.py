@@ -170,7 +170,7 @@ async def _start(db, ctx, agent, dataset):
         ctx, agent.id, ImprovementTarget(dataset_id=dataset.id, max_iterations=1)
     )
     assert quote.knowledge_usd > 0
-    assert quote.total_usd == quote.per_round_usd + quote.knowledge_usd
+    assert quote.total_usd == quote.knowledge_usd
     run = await service.start(
         ctx,
         agent.id,

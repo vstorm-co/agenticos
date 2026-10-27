@@ -41,8 +41,14 @@ class ImprovementEstimate(BaseSchema):
     proposal_usd: Decimal
     knowledge_usd: Decimal = Decimal(0)
     eval_usd: Decimal
-    per_round_usd: Decimal
-    total_usd: Decimal
+    per_round_usd: Decimal = Field(
+        description="About what one attempt costs - its proposal and its check - each priced "
+        "again when a person takes it"
+    )
+    total_usd: Decimal = Field(
+        description="What the session spends before it first waits for a person: sorting its "
+        "examples. The spending limit caps everything after it"
+    )
     max_iterations: int
     cases: int
     evidence_runs: int

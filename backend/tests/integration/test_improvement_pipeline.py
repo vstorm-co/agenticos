@@ -34,6 +34,7 @@ from app.services.agent_runner import AgentRunnerService
 from app.services.authoring_worker import AuthoringWorker
 from app.services.eval_run_worker import EvalRunWorker
 from app.services.improvement_pipeline import ImprovementPipelineService
+from app.services.knowledge_gaps import KnowledgeGapService
 from tests.integration.test_authoring import (
     Improver,
     _answering,
@@ -409,7 +410,8 @@ async def test_second_start_is_a_conflict_and_estimate_writes_nothing(db):
     estimate = await service.estimate(
         ctx, agent.id, ImprovementTarget(dataset_id=dataset.id, max_iterations=2)
     )
-    assert estimate.total_usd == estimate.per_round_usd * 2
+    # The session is priced to its first stop; each attempt is priced when it is taken.
+    assert estimate.total_usd == estimate.knowledge_usd == 0
     assert estimate.per_round_usd == estimate.proposal_usd + 2 * estimate.eval_usd
     assert estimate.estimated_minutes >= 3
     assert await db.scalar(select(func.count()).select_from(ImprovementRun)) == 1
@@ -513,7 +515,11 @@ async def test_start_refuses_unfunded_session_and_private_progress_cannot_cross_
     with pytest.raises(NotFoundError):
         await ImprovementPipelineService(db).cancel(stranger, agent.id, read.id)
     await ImprovementPipelineService(db).cancel(ctx, agent.id, read.id)
-    with pytest.raises(PaymentRequiredError):
+    sorting = AsyncMock(return_value=Decimal("0.01"))
+    with (
+        patch.object(KnowledgeGapService, "improvement_estimate", sorting),
+        pytest.raises(PaymentRequiredError),
+    ):
         await ImprovementPipelineService(db).start(
             ctx, agent.id, ImprovementStart(dataset_id=dataset.id, budget_usd=Decimal("0.000001"))
         )
