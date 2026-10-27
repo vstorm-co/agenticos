@@ -259,9 +259,8 @@ async def test_opening_a_project_workspace_rechecks_its_current_generation(monke
             await service.open(spec, ctx=ctx, identity=identity, scope_override="project")
         service._open_config.assert_not_awaited()
     else:
-        assert (
-            await service.open(spec, ctx=ctx, identity=identity, scope_override="project") is opened
-        )
+        result = await service.open(spec, ctx=ctx, identity=identity, scope_override="project")
+        assert result is opened
         config = service._open_config.call_args.args[0]
         assert config.backend == "service"
         assert config.connection_id == current.sandbox_connection_id
