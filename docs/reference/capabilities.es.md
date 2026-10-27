@@ -1,5 +1,5 @@
 ---
-source_sha: "5d92a6a7df91"
+source_sha: "6fca2b3a3519"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -970,10 +970,9 @@ conexión de Daytona se rechaza porque ejecuta su propia imagen.
 
 **Abrir una aplicación.** Una acción `launch` abre una aplicación por su
 nombre, en lugar de buscar su icono. En un Mac es `open -a`. En Linux es la
-entrada del menú cuyo nombre o id coincide: primero exactamente, luego un nombre
-que empieza por el dado y luego uno que lo contiene. La entrada se abre con
-`exo-open`, que tienen el runtime `desktop` y el contenedor de computerd, o con
-`gtk-launch`. Un nombre que coincide con varias entradas, o con ninguna, se
+entrada del menú cuyo nombre o nombre de archivo coincide exactamente o, si no,
+la única que lo contiene. La entrada se abre con `exo-open`, que tienen el
+runtime `desktop` y el contenedor de computerd. Un nombre que coincide con varias entradas, o con ninguna, se
 rechaza con los nombres, para que el modelo pueda elegir otra vez. `launch`
 acepta solo un nombre, nunca una ruta ni argumentos. En el contenedor de
 computerd la aplicación se ejecuta como `desk`, no como la cuenta que guarda el

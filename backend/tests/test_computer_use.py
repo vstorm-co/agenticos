@@ -60,14 +60,12 @@ from app.agents.capabilities.computer_use._actions import (
     to_native,
 )
 from app.agents.capabilities.computer_use._backends import (
-    App,
     Capture,
     ComputerError,
     DaemonComputer,
     SandboxComputer,
     find_app,
     open_sandbox_desktop,
-    parse_apps,
     png_size,
     x11_keys,
     xdotool,
@@ -330,14 +328,14 @@ class TestX11:
         assert xdotool(TypeText(text=text)) == ["xdotool", "type", "--delay", "12", "--", text]
 
 
-_APPS = [
-    App(path="/home/me/.local/share/applications/firefox-esr.desktop", name="Firefox ESR"),
-    App(path="/usr/share/applications/xfce4-terminal-emulator.desktop", name="Terminal Emulator"),
-    App(path="/usr/share/applications/xfce4-terminal.desktop", name="Xfce Terminal"),
-    App(path="/usr/share/applications/xfce4-web-browser.desktop", name="Web Browser"),
-    App(path="/usr/share/applications/xfce-settings-manager.desktop", name="Settings Manager"),
-    App(path="/usr/share/applications/xfce4-settings-editor.desktop", name="Settings Editor"),
-]
+_LISTING = """\
+/home/desk/.local/share/applications/firefox-esr.desktop\tMy Firefox
+/usr/share/applications/firefox-esr.desktop\tFirefox ESR
+/usr/share/applications/xfce4-terminal-emulator.desktop\tTerminal Emulator
+/usr/share/applications/xfce4-terminal.desktop\tXfce Terminal
+/usr/share/applications/xfce4-web-browser.desktop\tWeb Browser
+/usr/share/applications/broken.desktop\t
+"""
 
 
 class TestLaunchingAnApp:
@@ -352,53 +350,42 @@ class TestLaunchingAnApp:
         "app", ["", "-a", "../../bin/sh", "/Applications/Calculator.app", "x; rm -rf /", "a" * 65]
     )
     def test_a_path_an_option_or_a_command_is_refused(self, app: str):
-        """It reaches `open -a` and a desktop entry lookup; only a name may."""
+        """It is `open -a`'s argument on a Mac and a desktop entry's name on Linux; only a name may be."""
         with pytest.raises(ValidationError):
             Launch(app=app)
 
     @pytest.mark.parametrize(
-        ("query", "name"),
+        ("query", "entry"),
         [
-            ("xfce4-terminal", "Xfce Terminal"),
-            ("web browser", "Web Browser"),
-            ("terminal", "Terminal Emulator"),
-            ("firefox", "Firefox ESR"),
-            ("browser", "Web Browser"),
+            ("xfce4-terminal", "/usr/share/applications/xfce4-terminal.desktop"),
+            ("XFCE TERMINAL", "/usr/share/applications/xfce4-terminal.desktop"),
+            ("web", "/usr/share/applications/xfce4-web-browser.desktop"),
         ],
     )
-    def test_an_exact_name_wins_then_its_start_then_any_part(self, query: str, name: str):
-        assert find_app(query, _APPS).name == name
+    def test_a_name_or_a_file_name_finds_its_entry_exactly_or_alone(self, query: str, entry: str):
+        assert find_app(query, _LISTING) == entry
 
-    def test_two_entries_of_one_exact_name_open_the_first(self):
-        mine = App(path="/home/me/.local/share/applications/web.desktop", name="Web Browser")
-        assert find_app("Web Browser", [mine, *_APPS]) is mine
+    def test_the_users_own_entry_shadows_the_systems(self):
+        mine = "/home/desk/.local/share/applications/firefox-esr.desktop"
+        assert find_app("firefox-esr", _LISTING) == mine
+        assert find_app("My Firefox", _LISTING) == mine
+        with pytest.raises(ComputerError, match="No application called 'Firefox ESR'"):
+            find_app("Firefox ESR", _LISTING)
 
     def test_several_matches_are_named_back_rather_than_guessed(self):
         with pytest.raises(
-            ComputerError, match="could be any of: Settings Editor, Settings Manager"
+            ComputerError, match="'terminal' could be any of: Terminal Emulator, Xfce Terminal"
         ):
-            find_app("settings", _APPS)
+            find_app("terminal", _LISTING)
 
     def test_nothing_installed_by_that_name_lists_what_is(self):
         with pytest.raises(
-            ComputerError, match=r"No application called 'gimp'.*Firefox ESR, Settings"
+            ComputerError,
+            match=r"No application called 'gimp' is installed\. These are: My Firefox, Terminal",
         ):
-            find_app("gimp", _APPS)
+            find_app("gimp", _LISTING)
         with pytest.raises(ComputerError, match="These are: none"):
-            find_app("gimp", [])
-
-    def test_the_listing_keeps_the_users_own_entry_of_an_id(self):
-        listing = (
-            "/home/me/.local/share/applications/firefox-esr.desktop\tMy Firefox\n"
-            "/usr/share/applications/firefox-esr.desktop\tFirefox ESR\n"
-            "garbage without a tab\n"
-            "/usr/share/applications/thunar.desktop\tThunar File Manager \n"
-        )
-        assert parse_apps(listing) == [
-            App(path="/home/me/.local/share/applications/firefox-esr.desktop", name="My Firefox"),
-            App(path="/usr/share/applications/thunar.desktop", name="Thunar File Manager"),
-        ]
-        assert parse_apps(listing)[0].id == "firefox-esr"
+            find_app("gimp", "")
 
 
 def _daemon(handler: Any) -> DaemonComputer:
@@ -596,7 +583,8 @@ class TestTheSandboxDesktop:
         (listed, _, _), (launched, _, env) = box.ran
         assert listed[:2] == ["sh", "-c"]
         assert launched[:2] == ["sh", "-c"]
-        assert "exo-open" in launched[2]
+        assert 'exo-open "$1"' in launched[2]
+        # The entry is an argument, never part of the shell line.
         assert launched[3:] == ["launch", "/usr/share/applications/firefox-esr.desktop"]
         assert env == {"DISPLAY": ":0"}
 

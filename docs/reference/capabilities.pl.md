@@ -1,5 +1,5 @@
 ---
-source_sha: "5d92a6a7df91"
+source_sha: "6fca2b3a3519"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -953,9 +953,9 @@ uruchamia własny obraz.
 
 **Otwieranie aplikacji.** Akcja `launch` otwiera aplikację po nazwie, zamiast
 szukać jej ikony. Na Macu to `open -a`. Na Linuksie to wpis menu, którego nazwa
-albo id pasuje: najpierw dokładnie, potem nazwa zaczynająca się od podanej,
-potem taka, która ją zawiera. Wpis otwiera `exo-open`, który mają runtime
-`desktop` i kontener computerd, albo `gtk-launch`. Nazwa pasująca do kilku
+albo nazwa pliku pasuje dokładnie, a jeśli żaden, to jedyny, który ją zawiera.
+Wpis otwiera `exo-open`, który mają runtime `desktop` i kontener computerd.
+Nazwa pasująca do kilku
 wpisów albo do żadnego jest odrzucana razem z listą nazw, żeby model mógł
 wybrać jeszcze raz. `launch` przyjmuje tylko nazwę, nigdy ścieżkę ani
 argumenty. W kontenerze computerd aplikacja działa jako `desk`, a nie jako

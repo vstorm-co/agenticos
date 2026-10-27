@@ -17,7 +17,7 @@ Two endpoints behind a bearer token:
 and `GET /health`, unauthenticated, for a container's health check.
 
 A `launch` action opens an application by name: `open -a` on macOS, and on Linux
-the desktop entry its menu shows, through `exo-open` or `gtk-launch`. In the
+the desktop entry its menu shows, through `exo-open`. In the
 container that runs as `desk`, not as the account holding the token, so the
 entrypoint starts `computerd.py launcher <socket>` as `desk` and names the socket
 in `COMPUTERD_LAUNCHER`; without it, computerd opens the application itself.
@@ -69,11 +69,7 @@ MAX_TEXT = 2000
 MAX_BODY = 256 * 1024
 MAX_ERROR = 1000  # room for the list of installed applications a mistyped `launch` is told
 APP_NAME = re.compile(r"\w[\w .+-]{0,63}")
-APP_DIRS = (
-    Path.home() / ".local/share/applications",
-    Path("/usr/local/share/applications"),
-    Path("/usr/share/applications"),
-)
+APP_DIRS = (Path.home() / ".local/share/applications", Path("/usr/share/applications"))
 
 
 class Refused(Exception):
@@ -154,7 +150,7 @@ class Driver(ABC):
 
     @abstractmethod
     def launch(self, app: str) -> None:
-        """Open an installed application by the name its menu shows, or the start of that name."""
+        """Open an installed application by the name its menu or Finder shows."""
 
 
 def split_chord(chord: str) -> list[str]:
@@ -164,83 +160,66 @@ def split_chord(chord: str) -> list[str]:
     return parts
 
 
-def _desktop_entry(path: Path) -> str | None:
-    """The name a desktop entry's menu item shows, or `None` if the menu hides it."""
-    group, name, kind = False, None, None
-    try:
-        lines = path.read_text(errors="replace").splitlines()
-    except OSError:
-        return None
-    for line in lines:
-        if line.startswith("["):
-            if group:
-                break
-            group = line.strip() == "[Desktop Entry]"
-        elif group and line.startswith("Name=") and name is None:
-            name = line[5:].strip()
-        elif group and line.startswith("Type="):
-            kind = line[5:].strip()
-        elif group and line.strip() in {"NoDisplay=true", "Hidden=true"}:
-            return None
-    return name if kind == "Application" and name else None
-
-
 def find_app(query: str) -> Path:
-    """The desktop entry a `launch` names - the same matching AgenticOS's sandbox desktop uses.
+    """The desktop entry a `launch` names - matched as AgenticOS matches it in a sandbox.
 
-    An exact name or id wins, then one that starts with the query, then one that
-    contains it; several at the first tier that has any is refused with their names.
+    Its name or its file name, exactly, or else the one entry with the query in
+    either, case-insensitively; the user's own entry shadows a system one.
     """
     apps: dict[str, tuple[str, Path]] = {}
     for directory in APP_DIRS:
         for path in sorted(directory.glob("*.desktop")):
-            name = _desktop_entry(path)
-            if name is not None:
-                apps.setdefault(path.stem, (name, path))
+            try:
+                text = path.read_text(errors="replace")
+            except OSError:
+                continue
+            name = re.search(r"^Name=(.+)$", text, re.MULTILINE)
+            if name and not re.search(r"^(NoDisplay|Hidden)=true", text, re.MULTILINE):
+                apps.setdefault(path.stem.casefold(), (name[1].strip(), path))
     wanted = query.casefold()
-    tiers = (lambda key: key == wanted, lambda key: key.startswith(wanted), lambda key: wanted in key)
-    for tier, matches in enumerate(tiers):
-        found = [(name, path) for id_, (name, path) in apps.items() if matches(name.casefold()) or matches(id_.casefold())]
-        if len(found) == 1 or (found and tier == 0):
-            return found[0][1]
-        if found:
-            raise Refused(f"'{query}' could be any of: {', '.join(sorted({n for n, _ in found})[:20])}. Name the one you mean.")
+    for stem, (name, path) in apps.items():
+        if wanted == stem or wanted == name.casefold():
+            return path
+    partial = [(name, path) for stem, (name, path) in apps.items() if wanted in stem or wanted in name.casefold()]
+    if len(partial) == 1:
+        return partial[0][1]
+    if partial:
+        names = ", ".join(sorted({name for name, _ in partial}))
+        raise Refused(f"'{query}' could be any of: {names}. Launch one by its full name.")
     names = ", ".join(sorted({name for name, _ in apps.values()})[:60]) or "none"
-    raise Refused(f"no application called '{query}' is installed. These are: {names}")
+    raise Refused(f"No application called '{query}' is installed. These are: {names}.")
 
 
 def open_app(query: str) -> None:
     """Open the application a `launch` names, as whoever runs this."""
+    if shutil.which("exo-open") is None:
+        raise Refused("this desktop has no exo-open to open applications with")
     path = find_app(query)
-    if shutil.which("exo-open"):
-        argv = ["exo-open", str(path)]
-    elif shutil.which("gtk-launch"):
-        argv = ["gtk-launch", path.stem]
-    else:
-        raise Refused("neither exo-open nor gtk-launch is installed")
-    # No accessibility bus here: without this, every launch warns about it on stderr.
-    env = {**os.environ, "NO_AT_BRIDGE": "1"}
-    # Into a file, not a pipe: the application inherits it and keeps it open,
-    # and reading a pipe would wait for the application to quit.
-    with tempfile.TemporaryFile() as stderr:
+    try:
+        # A session of its own and no pipes: the application inherits them, and
+        # waiting on one it holds open would wait until it quit.
         code = subprocess.run(
-            argv, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=stderr,
-            timeout=30, check=False, env=env, start_new_session=True,
+            ["exo-open", str(path)],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            start_new_session=True, timeout=20, check=False,
         ).returncode
-        if code != 0:
-            stderr.seek(0)
-            raise Refused(f"{argv[0]} failed: {stderr.read().decode(errors='replace').strip()[:200]}")
+    except subprocess.TimeoutExpired as exc:
+        raise Refused(f"{path.name} did not open within 20 seconds") from exc
+    if code != 0:
+        raise Refused(f"exo-open could not open {path.name} (exit {code})")
 
 
 class _Launcher(socketserver.StreamRequestHandler):
+    """One `launch`, asked by computerd: the name in, `ok` or why not out, a line each."""
+
     def handle(self) -> None:
         query = self.rfile.readline(256).decode(errors="replace").strip()
         try:
             if not APP_NAME.fullmatch(query):
                 raise Refused("'app' must be an application's name")
             open_app(query)
-        except (Refused, subprocess.SubprocessError, OSError) as exc:
-            self.wfile.write(f"{exc}"[:MAX_ERROR].encode() + b"\n")
+        except Refused as exc:
+            self.wfile.write(str(exc)[:MAX_ERROR].encode() + b"\n")
             return
         self.wfile.write(b"ok\n")
 
@@ -248,14 +227,13 @@ class _Launcher(socketserver.StreamRequestHandler):
 def serve_launcher(path: str) -> None:
     """Open applications for computerd, as the desktop's own account.
 
-    Readable and writable by this account's and the socket directory's group
-    only; the entrypoint makes that directory computerd's group, so computerd
-    can ask and nothing else in the container can.
+    The socket is this account's and its directory's group's only; the
+    entrypoint makes that group computerd's, so computerd can ask and nothing
+    else in the container can.
     """
     os.umask(0o007)
     Path(path).unlink(missing_ok=True)
     with socketserver.UnixStreamServer(path, _Launcher) as server:
-        print(f"computerd launcher: {path}", file=sys.stderr)
         server.serve_forever()
 
 
@@ -316,6 +294,8 @@ class X11Driver(Driver):
         if not launcher:
             open_app(app)
             return
+        # In the container this account holds the token, so the desktop's own
+        # account opens the application - see `serve_launcher`.
         try:
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
                 conn.settimeout(40)
@@ -454,7 +434,10 @@ class MacDriver(Driver):
         self._keystroke(self._KEYCODES[main], flags)
 
     def launch(self, app: str) -> None:
-        result = subprocess.run(["open", "-a", app], capture_output=True, text=True, timeout=30, check=False)
+        try:
+            result = subprocess.run(["open", "-a", app], capture_output=True, text=True, timeout=20, check=False)
+        except subprocess.TimeoutExpired as exc:
+            raise Refused(f"{app} did not open within 20 seconds") from exc
         if result.returncode != 0:
             raise Refused(result.stderr.strip()[:200] or f"could not open {app}")
 
@@ -581,7 +564,7 @@ def make_handler(driver: Driver, token: str) -> type[BaseHTTPRequestHandler]:
 
 
 def main() -> None:
-    if sys.argv[1:2] == ["launcher"] and len(sys.argv) == 3:
+    if len(sys.argv) == 3 and sys.argv[1] == "launcher":
         serve_launcher(sys.argv[2])
         return
     token = os.environ.get("COMPUTERD_TOKEN", "")

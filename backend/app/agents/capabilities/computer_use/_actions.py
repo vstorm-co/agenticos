@@ -90,22 +90,20 @@ class Key(_Action):
     )
 
 
-APP_NAME = r"^[\w][\w .+-]*$"
-"""What `launch` accepts: a name, never a path, an option or a command line."""
-
-
 class Launch(_Action):
     """Open an installed application by its name, rather than hunting for its icon."""
 
     action: Literal["launch"] = "launch"
+    # A name and nothing else: it is `open -a`'s argument on a Mac, so never a
+    # path, an option or a command line.
     app: str = Field(
         min_length=1,
         max_length=64,
-        pattern=APP_NAME,
+        pattern=r"^\w[\w .+-]*$",
         description=(
-            "The application's name as its menu shows it, or the start of it: 'Firefox', "
-            "'Terminal', 'File Manager', 'Safari', 'TextEdit'. It opens a moment after the "
-            "action returns, so wait or look before typing into it."
+            "The application's name as its menu shows it: 'Firefox', 'Xfce Terminal', "
+            "'Safari', 'TextEdit'. It opens a moment after the action returns, so wait "
+            "before typing into it."
         ),
     )
 
@@ -117,9 +115,9 @@ class Wait(_Action):
     seconds: float = Field(default=1.0, gt=0, le=10)
 
 
-Action = Annotated[
-    Click | Move | Drag | Scroll | TypeText | Key | Launch | Wait, Field(discriminator="action")
-]
+AnyAction = Click | Move | Drag | Scroll | TypeText | Key | Launch | Wait
+
+Action = Annotated[AnyAction, Field(discriminator="action")]
 
 
 @dataclass(frozen=True)
@@ -148,9 +146,7 @@ class Screen:
         return min(nx, self.native_width - 1), min(ny, self.native_height - 1)
 
 
-def points_of(
-    action: Click | Move | Drag | Scroll | TypeText | Key | Launch | Wait,
-) -> list[tuple[int, int]]:
+def points_of(action: AnyAction) -> list[tuple[int, int]]:
     """Every point an action names, in the order it names them."""
     if isinstance(action, Drag):
         return [(action.x, action.y), (action.to_x, action.to_y)]
@@ -159,9 +155,7 @@ def points_of(
     return []
 
 
-def to_native(
-    action: Click | Move | Drag | Scroll | TypeText | Key | Launch | Wait, screen: Screen
-) -> Click | Move | Drag | Scroll | TypeText | Key | Launch | Wait:
+def to_native(action: AnyAction, screen: Screen) -> AnyAction:
     """The same action, with every point moved into the backend's input space."""
     if isinstance(action, Drag):
         x, y = screen.to_native(action.x, action.y)
@@ -173,9 +167,7 @@ def to_native(
     return action
 
 
-def describe(
-    action: Click | Move | Drag | Scroll | TypeText | Key | Launch | Wait,
-) -> tuple[str, str]:
+def describe(action: AnyAction) -> tuple[str, str]:
     """An action as the live panel lists it: an operation and what it applied to.
 
     Typed text is shown, because the person watching is the person whose task this

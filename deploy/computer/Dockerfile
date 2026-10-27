@@ -7,7 +7,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         xvfb x11-utils xfce4 xfce4-terminal dbus-x11 xdotool scrot python3 \
         firefox-esr fonts-dejavu-core fonts-noto-color-emoji ca-certificates \
-        x11vnc novnc websockify procps \
+        x11vnc novnc websockify procps tini \
     && rm -rf /var/lib/apt/lists/*
 
 # Two accounts: `desk` is the desktop the agent drives, and `computerd` holds the
@@ -27,4 +27,6 @@ ENV DISPLAY=:0 \
 
 EXPOSE 8765 6080
 HEALTHCHECK --interval=15s --timeout=3s CMD python3 -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/health')"
-ENTRYPOINT ["/opt/computerd/entrypoint.sh"]
+# tini as PID 1: an application a `launch` opened outlives the launcher that
+# started it, and once it quits only PID 1 can reap it.
+ENTRYPOINT ["/usr/bin/tini", "--", "/opt/computerd/entrypoint.sh"]

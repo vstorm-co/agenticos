@@ -98,13 +98,14 @@ report can link. It changes nothing on the desktop, so it is not side-effecting.
 **Opening an application:** a `launch` action names an application and the
 desktop opens it, because finding an icon in a screenshot and clicking it is the
 slowest and least reliable way there. On Linux the name is matched against the
-desktop entries the menu shows (`_backends.find_app`: exact, then the start of a
-name, then any part of it), and the entry is opened with `exo-open` or
-`gtk-launch` in a session of its own; computerd does the same on Linux and runs
-`open -a` on a Mac. Several matches, or none, is a sentence with the names, not
-a guess. The name is validated to a name - no slash, no leading dash - so it can
-never be a path or an option. computerd's container opens it through a launcher
-running as `desk`: computerd itself holds the token.
+desktop entries the menu shows (`_backends.find_app`: a name or file name
+exactly, else the only one containing it) and opened with `exo-open`, the
+launcher the `desktop` runtime and the computerd image have; computerd does the
+same on Linux and runs `open -a` on a Mac. Several matches, or none, is a
+sentence with the names, not a guess. The name is validated to a name - no
+slash, no leading dash - so it can never be a path or an option. computerd's
+container opens it through a launcher running as `desk`: computerd itself holds
+the token.
 
 **Limits:** `max_actions_per_call` bounds one batch. `max_actions` bounds a run;
 past it the tool tells the model to stop and report what is left. A `type`

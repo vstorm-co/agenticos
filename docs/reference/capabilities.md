@@ -904,11 +904,10 @@ runs its own image.
 
 **Opening an application.** A `launch` action opens an application by its
 name rather than by finding its icon. On a Mac it is `open -a`. On Linux it is
-the menu entry whose name or id matches: an exact match first, then a name that
-starts with the given one, then one that contains it. The entry is opened with
-`exo-open`, which the `desktop` runtime and the computerd container have, or
-`gtk-launch`. A name that matches several entries, or none, is refused with the
-names, so the model can choose again. A launch takes a name only, never a path
+the menu entry whose name or file name matches, exactly or else as the only one
+containing it, opened with `exo-open`, which the `desktop` runtime and the
+computerd container have. A name that matches several entries, or none, is
+refused with the names, so the model can choose again. A launch takes a name only, never a path
 or arguments. In the computerd container the application runs as `desk`, not
 as the account that holds the token. The person's own computer, reached through
 the desktop app, does not support it yet: the model is told to use that

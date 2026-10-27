@@ -1,5 +1,5 @@
 ---
-source_sha: "5d92a6a7df91"
+source_sha: "6fca2b3a3519"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1012,10 +1012,9 @@ ausführt.
 
 **Eine Anwendung öffnen.** Eine `launch`-Aktion öffnet eine Anwendung über
 ihren Namen, statt ihr Symbol zu suchen. Auf einem Mac ist das `open -a`. Unter
-Linux ist es der Menüeintrag, dessen Name oder ID passt: zuerst exakt, dann ein
-Name, der mit dem angegebenen beginnt, dann einer, der ihn enthält. Geöffnet
-wird der Eintrag mit `exo-open`, das die Runtime `desktop` und der
-computerd-Container mitbringen, oder mit `gtk-launch`. Ein Name, der auf
+Linux ist es der Menüeintrag, dessen Name oder Dateiname exakt passt, sonst der
+einzige, der ihn enthält. Geöffnet wird der Eintrag mit `exo-open`, das die
+Runtime `desktop` und der computerd-Container mitbringen. Ein Name, der auf
 mehrere Einträge oder auf keinen passt, wird mit den Namen abgelehnt, damit das
 Modell neu wählen kann. `launch` nimmt nur einen Namen, nie einen Pfad oder
 Argumente. Im computerd-Container läuft die Anwendung als `desk`, nicht als das
