@@ -215,6 +215,26 @@ class TestEstimatingAndDatasets:
             "json": {"max_iterations": 3, "dataset_id": str(DATASET)}
         }
 
+    async def test_an_estimate_can_name_a_suite_instead(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request = AsyncMock(return_value={"total_usd": "0.04"})
+
+        await _call(server, "estimate_improvement", agent_id=AGENT, suite_id=DATASET)
+
+        assert api.request.await_args.kwargs == {
+            "json": {"max_iterations": 3, "suite_id": str(DATASET)}
+        }
+
+    async def test_every_dataset_is_listed_when_no_agent_is_named(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request = AsyncMock(return_value={"total": 0, "items": []})
+
+        await _call(server, "list_datasets")
+
+        assert api.request.await_args.kwargs == {"params": {"limit": 50, "skip": 0}}
+
     async def test_datasets_are_listed_by_name_size_and_whether_they_can_run(
         self, server: FastMCP, api: MagicMock
     ) -> None:
@@ -332,6 +352,34 @@ class TestActingOnASession:
             "json": {"max_iterations": 3, "budget_usd": "0.04", "suite_id": str(DATASET)}
         }
         assert started["link"] == improvement_link(AGENT, SESSION)
+
+    async def test_a_session_can_start_on_test_questions(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request = AsyncMock(return_value=SESSION_READ)
+
+        await _call(
+            server, "start_improvement", agent_id=AGENT, budget_usd="0.04", dataset_id=DATASET
+        )
+
+        assert api.request.await_args.kwargs == {
+            "json": {"max_iterations": 3, "budget_usd": "0.04", "dataset_id": str(DATASET)}
+        }
+
+    async def test_trying_again_is_quoted_first(self, server: FastMCP, api: MagicMock) -> None:
+        quote = {"mode": "next_round", "total_usd": "0.02", "candidate_hash": "c" * 64}
+        api.request = AsyncMock(return_value=quote)
+
+        quoted = await _call(
+            server, "estimate_improve_again", agent_id=AGENT, session_id=SESSION, budget_usd="0.05"
+        )
+
+        assert api.request.await_args.args == (
+            "POST",
+            f"/agents/{AGENT}/improvements/{SESSION}/continue/estimate",
+        )
+        assert api.request.await_args.kwargs == {"json": {"budget_usd": "0.05"}}
+        assert quoted == quote
 
     async def test_an_attempt_is_chosen_by_its_number(
         self, server: FastMCP, api: MagicMock
