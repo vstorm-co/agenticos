@@ -97,10 +97,11 @@ class Launch(_Action):
     # Never a path or an option, though it is only ever compared with the
     # menu's names and ids. Other punctuation is harmless, and real names have
     # it: "ImageMagick (color depth=q16)". No control characters: computerd's
-    # launcher reads one line.
+    # launcher reads one line. 255 is a file name's limit, so every id
+    # `computer_apps` lists, however deep its subdirectory, can be launched.
     app: str = Field(
         min_length=1,
-        max_length=64,
+        max_length=255,
         pattern=r"^\w[^/\\\x00-\x1f\x7f]*$",
         description=(
             "An application's name or id exactly as `computer_apps` lists it: "

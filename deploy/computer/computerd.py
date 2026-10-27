@@ -72,7 +72,7 @@ from typing import Any
 MAX_TEXT = 2000
 MAX_BODY = 256 * 1024
 MAX_ERROR = 200
-APP_NAME = re.compile(r"\w[^/\\\x00-\x1f\x7f]{0,63}")  # as `Launch.app`: no path, option or control character
+APP_NAME = re.compile(r"\w[^/\\\x00-\x1f\x7f]{0,254}")  # as `Launch.app`: no path, option or control character
 NO_LAUNCH = (
     "This desktop cannot open applications by name. Use its own launcher: cmd+space "
     "and the name on a Mac, the Start menu elsewhere."
@@ -170,7 +170,8 @@ class _Launcher(socketserver.StreamRequestHandler):
         # Beside this file in the image only, and only the launcher needs it.
         import desktop_apps
 
-        request = self.rfile.readline(256).decode(errors="replace").strip()
+        # `launch` and an app's 255 characters, each up to four bytes in UTF-8.
+        request = self.rfile.readline(1100).decode(errors="replace").strip()
         if not request:
             # `/health` connecting to see the launcher is up, and nothing more.
             return
@@ -445,7 +446,7 @@ def perform(driver: Driver, action: dict[str, Any]) -> None:
     elif kind == "launch":
         app = action.get("app")
         if not isinstance(app, str) or not APP_NAME.fullmatch(app):
-            raise Refused("'app' must be an application's name: up to 64 characters, no slash or control character")
+            raise Refused("'app' must be an application's name: up to 255 characters, no slash or control character")
         ask_launcher(f"launch {app}")
     elif kind == "wait":
         seconds = action.get("seconds", 1.0)

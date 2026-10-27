@@ -350,6 +350,7 @@ class TestTheLaunchAction:
             "org.gnome.Terminal",
             "Terminál",
             "ImageMagick (color depth=q16)",
+            "-".join(["vendor"] * 36),
         ],
     )
     def test_an_applications_name_is_accepted(self, app: str):
@@ -366,7 +367,7 @@ class TestTheLaunchAction:
             "x; rm -rf /",
             "a\\b",
             "a\nb",
-            "a" * 65,
+            "a" * 256,
         ],
     )
     def test_a_path_an_option_or_a_second_line_is_refused(self, app: str):
