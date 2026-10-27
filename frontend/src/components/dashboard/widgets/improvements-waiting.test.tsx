@@ -52,6 +52,13 @@ describe("ImprovementsWaitingWidget", () => {
       waiting({}),
       waiting({ id: "s2", agent_id: "a2", agent_name: "Sales", stage: "filtering" }),
       waiting({ id: "s3", agent_id: "a3", agent_name: "Support", status: "ready" }),
+      waiting({
+        id: "s4",
+        agent_id: "a4",
+        agent_name: "Billing",
+        stage: "filtering",
+        next_step_blocked: { reason: "missing_holdout", needed: 1 },
+      }),
     ];
     widget();
     const rows = screen.getAllByRole("listitem");
@@ -59,6 +66,7 @@ describe("ImprovementsWaitingWidget", () => {
       "Refund deskLook at what went wrongOpen",
       "SalesReview the changesOpen",
       "SupportReview the resultOpen",
+      "BillingBlocked: end it and start a new oneOpen",
     ]);
     expect(within(rows[1]!).getByRole("link", { name: "Sales" })).toHaveAttribute(
       "href",

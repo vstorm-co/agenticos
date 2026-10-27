@@ -35,6 +35,11 @@ export function notificationSummary(item: Notification, t: Translate, tStop: Tra
   if (!outcome) return item.summary;
   if (item.event_type === "improvement_finished" && outcome.status === "waiting") {
     if (!item.agent?.name) return item.summary;
+    if (outcome.next_step_blocked)
+      return t("outcome.improvement.waiting.blocked", {
+        agent: item.agent.name,
+        needed: outcome.next_step_blocked.needed,
+      });
     const stage = outcome.stage ?? outcome.reason;
     return t(`outcome.improvement.waiting.${stage === "filtering" ? "changes" : "understand"}`, {
       agent: item.agent.name,

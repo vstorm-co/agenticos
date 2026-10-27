@@ -58,8 +58,9 @@ export function NextStep({
     },
     [t, tErrors],
   );
+  const blockedBy = session.next_step_blocked;
   useEffect(() => {
-    if (!stop || readOnly || session.can_restart === false) return;
+    if (!stop || readOnly || session.can_restart === false || blockedBy) return;
     let current = true;
     estimate(asked).then(
       (value) => {
@@ -72,8 +73,9 @@ export function NextStep({
     return () => {
       current = false;
     };
-  }, [stop, readOnly, session.can_restart, asked, key, estimate, refusal]);
+  }, [stop, readOnly, session.can_restart, blockedBy, asked, key, estimate, refusal]);
   if (!stop || readOnly || session.can_restart === false) return null;
+  const refused = blockedBy ? t("unmeasurable", { count: blockedBy.needed }) : error;
   async function start(value: ContinuationEstimate) {
     setError(null);
     try {
@@ -100,7 +102,7 @@ export function NextStep({
       data-tour="improvement-next-step"
     >
       <p className="text-sm">{hint ?? t(`hint.${stop}`)}</p>
-      {!priced && !error && (
+      {!priced && !refused && (
         <p role="status" className="text-muted-foreground text-sm">
           {t("pricing")}
         </p>
@@ -149,9 +151,9 @@ export function NextStep({
           {t("likely", { cost: usd(priced.expected_usd, locale) })}
         </p>
       )}
-      {error && (
+      {refused && (
         <p role="alert" className="text-destructive text-sm">
-          {error}
+          {refused}
         </p>
       )}
     </section>

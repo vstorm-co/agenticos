@@ -145,6 +145,21 @@ it("says a step that cannot be measured is final for this session, rather than a
   );
 });
 
+it("says the session's own reason a step cannot be taken, without pricing it", () => {
+  render(
+    <NextStep
+      session={{ ...AT_CHANGES, next_step_blocked: { reason: "missing_holdout", needed: 2 } }}
+      onStarted={vi.fn()}
+    />,
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent(/2 more questions kept aside/);
+  expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "Next step: test the selected changes" }),
+  ).toBeDisabled();
+  expect(state.estimate).not.toHaveBeenCalled();
+});
+
 it("says why a price could not be read", async () => {
   state.estimate.mockRejectedValue(new Error("Pricing is unavailable"));
   render(<NextStep session={AT_UNDERSTAND} onStarted={vi.fn()} />);

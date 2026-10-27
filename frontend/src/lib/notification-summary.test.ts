@@ -94,6 +94,9 @@ it("says which step a session stopped at for a person, from its stage or its rea
   expect(waiting({ stage: "filtering" })).toBe("outcome.improvement.waiting.changes(Refund desk)");
   expect(waiting({ reason: "filtering" })).toBe("outcome.improvement.waiting.changes(Refund desk)");
   expect(
+    waiting({ reason: "filtering", next_step_blocked: { reason: "missing_holdout", needed: 2 } }),
+  ).toBe("outcome.improvement.waiting.blocked(Refund desk,2)");
+  expect(
     notificationSummary(
       row(
         "improvement_finished",

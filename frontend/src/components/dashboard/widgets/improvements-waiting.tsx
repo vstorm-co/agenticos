@@ -46,7 +46,7 @@ export function ImprovementsWaitingWidget({ title, hint, options }: DashboardWid
                   {item.agent_name}
                 </Link>
                 <span className="text-muted-foreground block truncate text-xs">
-                  {t(`what.${stopOf(item) ?? "result"}`)}
+                  {t(item.next_step_blocked ? "what.blocked" : `what.${stopOf(item) ?? "result"}`)}
                 </span>
               </span>
               <Button asChild size="sm" variant="outline" className="shrink-0">

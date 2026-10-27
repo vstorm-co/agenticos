@@ -2981,7 +2981,8 @@
         "what": {
           "understand": "Look at what went wrong",
           "changes": "Review the changes",
-          "result": "Review the result"
+          "result": "Review the result",
+          "blocked": "Blocked: end it and start a new one"
         }
       }
     },
@@ -7741,7 +7742,8 @@
         "failed": "Your improvement of {agent} could not finish.",
         "waiting": {
           "understand": "The analysis for {agent} is ready: look at what went wrong, then press Next step.",
-          "changes": "The changes for {agent} are ready to review, then press Next step to test them."
+          "changes": "The changes for {agent} are ready to review, then press Next step to test them.",
+          "blocked": "Your improvement of {agent} has changes, but too few test questions are left to check them: {needed, plural, one {# more is} other {# more are}} needed, and this session's questions are fixed. End it, add questions and start a new one."
         },
         "attemptFinished": "Your improvement of {agent} finished an attempt."
       },

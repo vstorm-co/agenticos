@@ -2980,7 +2980,8 @@
         "what": {
           "understand": "Zobacz, co poszło nie tak",
           "changes": "Przejrzyj zmiany",
-          "result": "Przejrzyj wynik"
+          "result": "Przejrzyj wynik",
+          "blocked": "Zablokowane: zakończ i zacznij nową"
         }
       }
     },
@@ -7514,7 +7515,8 @@
         "failed": "Poprawiania agenta {agent} nie udało się dokończyć.",
         "waiting": {
           "understand": "Analiza dla {agent} jest gotowa: zobacz, co poszło nie tak, i naciśnij Następny krok.",
-          "changes": "Zmiany dla {agent} są gotowe do przejrzenia; potem naciśnij Następny krok, aby je przetestować."
+          "changes": "Zmiany dla {agent} są gotowe do przejrzenia; potem naciśnij Następny krok, aby je przetestować.",
+          "blocked": "Poprawianie agenta {agent} ma zmiany, ale zostało za mało pytań testowych, by je sprawdzić: potrzeba jeszcze {needed, plural, one {# pytania} few {# pytań} many {# pytań} other {# pytania}}, a pytania tej sesji są ustalone. Zakończ ją, dodaj pytania i zacznij nową."
         },
         "attemptFinished": "Poprawianie agenta {agent} zakończyło próbę."
       },
