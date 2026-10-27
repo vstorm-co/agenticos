@@ -350,7 +350,10 @@ test("test questions, review and improvement publish keep a guarded environment 
   await expect(page.getByText("Waiting for you: review the changes")).toBeVisible();
 
   // One change is left out of the test and the other reworded; the test measures that choice.
-  await page.getByLabel("Include change 2 in the test").uncheck();
+  // The box shows the saved selection, so it clears once the server has the choice.
+  const secondChange = page.getByLabel("Include change 2 in the test");
+  await secondChange.click();
+  await expect(secondChange).not.toBeChecked();
   await page.getByRole("button", { name: "Change the wording" }).first().click();
   await page
     .getByRole("textbox", { name: "Wording of change 1" })
