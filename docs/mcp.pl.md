@@ -1,5 +1,5 @@
 ---
-source_sha: "e4bced8c03f1"
+source_sha: "aec7815c5d77"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1046,12 +1046,15 @@ odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
 | `estimate_improvement`, `start_improvement`, `use_attempt`, `accept_improvement`, `estimate_improve_again`, `improve_again`, `end_improvement` | dostęp do edycji agenta i `runs:view`; uruchomienie także `datasets:run`, publikacja `agents:publish` |
 | `list_datasets` | `datasets:view` |
 | `get_eval_run` | `runs:view` |
+| `estimate_knowledge_draft`, `draft_knowledge_topic` | `runs:view` i dostęp do edycji bazy wiedzy tematu |
 
 Narzędzia Popraw i evali wołają trasy, które nie należą jeszcze do publicznego API:
 odpowiadają Architektowi w aplikacji i klientowi MCP zalogowanemu przez OAuth, a
 kluczowi API organizacji odmawiają tak jak trasa konsoli. To akcje samego
 [kreatora Popraw](authoring.md#the-improve-wizard), więc obowiązują jego
-sprawdzenia, a Architekt używa tych, które coś zmieniają, tylko na prośbę.
+sprawdzenia, a Architekt używa tych, które coś zmieniają, tylko na prośbę. Klient MCP
+też może uruchamiać, przyjmować, publikować i kończyć sesje; tam zamiast karty
+Architekta decyduje własne okno zgody klienta.
 
 Wyszukiwanie przez `list_projects` zwraca tylko ID i nazwy projektów,
 pomijając opisy, instrukcje i pozostałe edytowalne etykiety. Odczyt wybranego projektu

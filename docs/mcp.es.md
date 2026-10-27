@@ -1,5 +1,5 @@
 ---
-source_sha: "e4bced8c03f1"
+source_sha: "aec7815c5d77"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1076,13 +1076,16 @@ permiso que faltaba.
 | `estimate_improvement`, `start_improvement`, `use_attempt`, `accept_improvement`, `estimate_improve_again`, `improve_again`, `end_improvement` | acceso de edición al agente y `runs:view`; iniciar también `datasets:run`, publicar `agents:publish` |
 | `list_datasets` | `datasets:view` |
 | `get_eval_run` | `runs:view` |
+| `estimate_knowledge_draft`, `draft_knowledge_topic` | `runs:view` y acceso de edición a la base de conocimiento del tema |
 
 Las herramientas de Improve y de evals llaman a rutas que aún no forman parte
 de la API pública: responden al Architect de la aplicación y a un cliente MCP
 conectado con OAuth, y rechazan una clave de API de la organización como lo hace
 una ruta de la consola. Son las propias acciones del
 [asistente Improve](authoring.md#the-improve-wizard), así que se aplican sus
-comprobaciones, y el Architect usa las que cambian algo solo cuando se lo piden.
+comprobaciones, y el Architect usa las que cambian algo solo cuando se lo piden. Un cliente
+MCP también puede iniciar, aceptar, publicar y terminar sesiones; allí, la propia
+solicitud de aprobación del cliente ocupa el lugar de la tarjeta del Architect.
 
 La búsqueda con `list_projects` devuelve solo identificadores y nombres,
 omitiendo descripciones, instrucciones y otras etiquetas editables. `get_project` lee un
