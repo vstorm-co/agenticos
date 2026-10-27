@@ -244,12 +244,12 @@ export function StartSession({ agentId }: { agentId: string }) {
 }
 
 /**
- * The limit a new session is offered: reading what went wrong and one attempt after
- * it, rounded up to a cent. The start is priced only to the first stop, but the limit
- * caps the whole session, so it has to leave room for the step after it.
+ * The limit a new session is offered: reading what went wrong, then every attempt it
+ * may make, rounded up to a cent. The start is priced only to the first stop, but the
+ * limit caps the whole session, so it has to leave room for the steps after it.
  */
 function sessionLimit(quote: ImprovementEstimate): string {
-  const whole = Number(quote.total_usd) + Number(quote.per_round_usd);
+  const whole = Number(quote.total_usd) + quote.max_iterations * Number(quote.per_round_usd);
   return String(Math.max(0.01, Math.ceil(whole * 100) / 100));
 }
 
