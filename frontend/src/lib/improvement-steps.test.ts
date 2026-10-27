@@ -72,6 +72,22 @@ it.each(["accepted", "published"] as const)(
     });
   },
 );
+it("leaves nothing waiting or running on a session that has ended", () => {
+  for (const status of ["cancelled", "stale"] as const) {
+    const states = improvementStepStates({
+      ...SESSION,
+      status,
+      stage: "judging",
+      stop_reason: null,
+      iterations: [{ ...SESSION.iterations[0]!, verdict: null }],
+    });
+    expect(
+      Object.values(states).filter((state) => state !== "done" && state !== "skipped"),
+    ).toEqual([]);
+    expect(states.result).toBe("skipped");
+  }
+});
+
 it("shows a rejected proposal as skipped, not accepted", () => {
   expect(improvementStepStates({ ...SESSION, status: "rejected" })).toMatchObject({
     changes: "skipped",

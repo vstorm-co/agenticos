@@ -9,12 +9,18 @@ import { ErrorState, LoadingState } from "@/components/states";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
 import { useImprovements } from "@/hooks/use-improvements";
 import { getErrorMessage } from "@/lib/api-error";
+import { isActive } from "@/lib/improvement-steps";
 import type { Improvement } from "@/types/improvement";
 
 /** How the session's chosen round - or its last - measured, in the wizard's own words. */
 function useResult(): (session: Improvement) => string {
   const t = useTranslations("improvement");
   return (session) => {
+    if (isActive(session))
+      return t("history.attemptUnderWay", {
+        number: session.iteration,
+        max: session.max_iterations,
+      });
     const round =
       session.iterations.find((item) => item.id === session.best_iteration_id) ??
       session.iterations.at(-1);

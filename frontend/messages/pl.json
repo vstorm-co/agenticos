@@ -10814,7 +10814,7 @@
     "trainQuestion": "Posłużyło do pisania zmian",
     "holdoutQuestion": "Nie posłużyło do pisania zmian",
     "sourceSignals": "Źródła do nauki",
-    "signalWindow": "Oceny i nieudane runy z ostatnich 30 dni.",
+    "signalWindow": "Oceny i nieudane runy z ostatnich 30 dni oraz pytania testowe z błędną odpowiedzią w ostatnim teście: razem to odpowiedzi z oceną.",
     "ratedSignals": "Odpowiedzi ocenione negatywnie",
     "failedSignals": "Nieudane runy",
     "noLearningExamples": "Na razie nie ma z czego się uczyć: nikt nie ocenił odpowiedzi w ostatnich 30 dniach. Najpierw oceń odpowiedź albo napisz pytania testowe.",
@@ -11207,7 +11207,7 @@
       "proposed": "Zaproponowane zmiany",
       "included": "Włączone do testu",
       "alreadyAdded": "{count, plural, one {# już dodany} few {# już dodane} many {# już dodanych} other {# już dodanego}}",
-      "partitionAbout": "Każda próba odkłada około {holdout, plural, one {# pytanie} few {# pytania} many {# pytań} other {# pytania}} do sprawdzenia wyniku; około {train, plural, one {# pomaga} few {# pomagają} many {# pomaga} other {# pomaga}} napisać zmiany.",
+      "partitionAbout": "Każda próba odkłada około {holdout, plural, one {# pytanie} few {# pytania} many {# pytań} other {# pytania}} do sprawdzenia wyniku; około {train, plural, one {# pomaga} few {# pomagają} many {# pomaga} other {# pomaga}} napisać zmiany. Pytanie zadane też w rozmowach, z których próba się uczy, pomaga pisać zmiany, więc odłożonych może być mniej.",
       "partitionAttempt": "Próba {attempt} odłożyła {holdout, plural, one {# pytanie} few {# pytania} many {# pytań} other {# pytania}} do sprawdzenia wyniku; {train, plural, one {# pomogło} few {# pomogły} many {# pomogło} other {# pomogło}} napisać zmiany."
     },
     "sessionLine": "Sesja",
@@ -11253,7 +11253,8 @@
       "notMeasured": "Nic nie zmierzono",
       "publishedVersion": "Opublikowano jako wersję {version}",
       "startedBy": "Uruchomienie: {name} · {cost}",
-      "cost": "Koszt {cost}"
+      "cost": "Koszt {cost}",
+      "attemptUnderWay": "Trwa próba {number} z {max}"
     },
     "goToCurrent": "Przejdź do bieżącego kroku",
     "understandWorking": "Czytamy, co poszło nie tak, i dzielimy to na to, co da się poprawić w agencie, i to, czego brakuje w bazie wiedzy…",
@@ -11357,7 +11358,8 @@
       "body": "Zostanie w historii agenta, a w agencie nic się nie zmieni. Potem możesz zacząć nową sesję.",
       "confirm": "Zakończ"
     },
-    "freshAttempt": "Każda próba zaczyna od bieżącej wersji; zmiany z wcześniejszych prób nie są przenoszone."
+    "freshAttempt": "Każda próba zaczyna od bieżącej wersji; zmiany z wcześniejszych prób nie są przenoszone.",
+    "trainSignals": "Nieudane odpowiedzi testowe"
   },
   "unsaved": {
     "title": "Masz niezapisane zmiany",

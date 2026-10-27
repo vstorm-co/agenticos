@@ -11031,7 +11031,7 @@
     "trainQuestion": "Used to write the changes",
     "holdoutQuestion": "Not used to write the changes",
     "sourceSignals": "Sources to learn from",
-    "signalWindow": "Ratings and failed runs from the last 30 days.",
+    "signalWindow": "Ratings and failed runs from the last 30 days, and test questions answered badly in the latest test: together, the answers with feedback.",
     "ratedSignals": "Answers rated down",
     "failedSignals": "Runs that failed",
     "noLearningExamples": "Nothing to learn from yet: nobody rated an answer in the last 30 days. Rate an answer or write test questions first.",
@@ -11424,7 +11424,7 @@
       "proposed": "Changes proposed",
       "included": "Included in the test",
       "alreadyAdded": "{count, plural, one {# already added} other {# already added}}",
-      "partitionAbout": "Each attempt keeps about {holdout, plural, one {# question} other {# questions}} aside to check the result; about {train, plural, one {# helps} other {# help}} write the changes.",
+      "partitionAbout": "Each attempt keeps about {holdout, plural, one {# question} other {# questions}} aside to check the result; about {train, plural, one {# helps} other {# help}} write the changes. A question also asked in the conversations it learns from helps write them instead, so fewer may be kept aside.",
       "partitionAttempt": "Attempt {attempt} kept {holdout, plural, one {# question} other {# questions}} aside to check the result; {train, plural, one {# helped} other {# helped}} write the changes."
     },
     "sessionLine": "Session",
@@ -11470,7 +11470,8 @@
       "notMeasured": "Nothing measured",
       "publishedVersion": "Published as version {version}",
       "startedBy": "Started by {name} · {cost}",
-      "cost": "Cost {cost}"
+      "cost": "Cost {cost}",
+      "attemptUnderWay": "Attempt {number} of {max} under way"
     },
     "goToCurrent": "Go to the current step",
     "understandWorking": "Reading what went wrong and sorting it into what the agent can fix and what the knowledge base is missing…",
@@ -11574,7 +11575,8 @@
       "body": "It stays in the agent's history, and nothing in the agent changes. You can start a new session afterwards.",
       "confirm": "End it"
     },
-    "freshAttempt": "Each attempt starts from the current version; changes from earlier attempts aren't carried over."
+    "freshAttempt": "Each attempt starts from the current version; changes from earlier attempts aren't carried over.",
+    "trainSignals": "Test answers failing"
   },
   "unsaved": {
     "title": "You have unsaved changes",

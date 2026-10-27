@@ -132,6 +132,9 @@ export function improvementSteps(
           ? "skipped"
           : "pending",
   };
+  // A closed session goes no further, so nothing on it waits or runs any more.
+  if (isClosed(session))
+    for (const step of IMPROVEMENT_STEPS) if (states[step] !== "done") states[step] = "skipped";
   const view = (state: ImprovementStepState): ImprovementStepView => ({
     state,
     content:

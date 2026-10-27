@@ -439,7 +439,7 @@ it("shows the question set a new session would test on, and nothing until it is 
   expect(screen.getByRole("heading", { name: "2 test questions" })).toBeInTheDocument();
   expect(
     screen.getByRole("img", {
-      name: "Each attempt keeps about 1 question aside to check the result; about 1 helps write the changes.",
+      name: /^Each attempt keeps about 1 question aside to check the result; about 1 helps write the changes\. A question also asked/,
     }),
   ).toBeInTheDocument();
   state.total = 3;

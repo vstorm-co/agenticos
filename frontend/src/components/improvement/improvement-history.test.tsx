@@ -68,6 +68,15 @@ describe("ImprovementHistory", () => {
     expect(cancelled).toHaveTextContent("Nothing measured");
   });
 
+  it("says an attempt is under way rather than an earlier attempt's result", () => {
+    state.sessions = [
+      { ...SESSION, status: "running", stage: "evaluating", iteration: 2, max_iterations: 3 },
+    ];
+    render(<ImprovementHistory agentId="a1" />);
+    expect(screen.getByRole("link")).toHaveTextContent("Attempt 2 of 3 under way");
+    expect(screen.getByRole("link")).not.toHaveTextContent("Better:");
+  });
+
   it("names the last round when none was chosen, and a verdict without counts as none", () => {
     state.sessions = [
       {

@@ -10914,7 +10914,7 @@
     "trainQuestion": "Zum Schreiben der Änderungen verwendet",
     "holdoutQuestion": "Nicht zum Schreiben der Änderungen verwendet",
     "sourceSignals": "Quellen zum Lernen",
-    "signalWindow": "Bewertungen und fehlgeschlagene Runs der letzten 30 Tage.",
+    "signalWindow": "Bewertungen und fehlgeschlagene Runs der letzten 30 Tage sowie Testfragen, die im letzten Test schlecht beantwortet wurden: zusammen die Antworten mit Feedback.",
     "ratedSignals": "Negativ bewertete Antworten",
     "failedSignals": "Fehlgeschlagene Runs",
     "noLearningExamples": "Noch nichts zum Lernen: In den letzten 30 Tagen hat niemand eine Antwort bewertet. Bewerten Sie zuerst eine Antwort oder schreiben Sie Testfragen.",
@@ -11307,7 +11307,7 @@
       "proposed": "Vorgeschlagene Änderungen",
       "included": "Im Test enthalten",
       "alreadyAdded": "{count, plural, one {# schon hinzugefügt} other {# schon hinzugefügt}}",
-      "partitionAbout": "Jeder Versuch legt etwa {holdout, plural, one {# Frage} other {# Fragen}} zurück, um das Ergebnis zu prüfen; etwa {train, plural, one {# hilft} other {# helfen}}, die Änderungen zu schreiben.",
+      "partitionAbout": "Jeder Versuch legt etwa {holdout, plural, one {# Frage} other {# Fragen}} zurück, um das Ergebnis zu prüfen; etwa {train, plural, one {# hilft} other {# helfen}}, die Änderungen zu schreiben. Eine Frage, die auch in den Gesprächen vorkommt, aus denen er lernt, hilft stattdessen beim Schreiben, daher können weniger zurückgelegt werden.",
       "partitionAttempt": "Versuch {attempt} hat {holdout, plural, one {# Frage} other {# Fragen}} zurückgelegt, um das Ergebnis zu prüfen; {train, plural, one {# half} other {# halfen}}, die Änderungen zu schreiben."
     },
     "sessionLine": "Sitzung",
@@ -11353,7 +11353,8 @@
       "notMeasured": "Nichts gemessen",
       "publishedVersion": "Als Version {version} veröffentlicht",
       "startedBy": "Gestartet von {name} · {cost}",
-      "cost": "Kosten {cost}"
+      "cost": "Kosten {cost}",
+      "attemptUnderWay": "Versuch {number} von {max} läuft"
     },
     "goToCurrent": "Zum aktuellen Schritt",
     "understandWorking": "Wir lesen, was schiefging, und trennen, was sich im Agent beheben lässt und was in der Wissensdatenbank fehlt…",
@@ -11457,7 +11458,8 @@
       "body": "Sie bleibt im Verlauf des Agenten, und am Agenten ändert sich nichts. Danach können Sie eine neue Sitzung starten.",
       "confirm": "Beenden"
     },
-    "freshAttempt": "Jeder Versuch beginnt bei der aktuellen Version; Änderungen aus früheren Versuchen werden nicht übernommen."
+    "freshAttempt": "Jeder Versuch beginnt bei der aktuellen Version; Änderungen aus früheren Versuchen werden nicht übernommen.",
+    "trainSignals": "Fehlgeschlagene Testantworten"
   },
   "unsaved": {
     "title": "Du hast ungespeicherte Änderungen",
