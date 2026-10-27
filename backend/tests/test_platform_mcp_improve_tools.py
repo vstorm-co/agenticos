@@ -132,8 +132,10 @@ class TestReadingSessions:
             "broken": 0,
             "held_out_pass_rate": {"before": 0.5, "after": 0.8},
             "cost_usd": "0.02",
+            "chosen": True,
             "best": True,
         }
+        assert not session["attempts"][0]["chosen"]
         assert not session["attempts"][0]["best"]
         assert session["link"] == improvement_link(AGENT, SESSION)
 
@@ -189,19 +191,104 @@ class TestReadingSessions:
                 "topic_id": TOPIC,
                 "label": "Do you ship to Germany?",
                 "knowledge_base": "Help center",
-                "has_draft": True,
-                "draft_stale": True,
-                "not_now": False,
+                "state": "draft_stale",
             },
             {
                 "topic_id": OTHER_TOPIC,
                 "label": "Gift cards?",
                 "knowledge_base": "Help center",
-                "has_draft": True,
-                "draft_stale": True,
-                "not_now": True,
+                "state": "draft_stale",
             },
         ]
+
+    async def test_an_attempt_kept_by_hand_is_chosen_without_being_the_best(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        """Bartek kept attempt 1, which broke a question: it is the chosen attempt, not the best."""
+        first = SESSION_READ["iterations"][0]["id"]
+        kept = {
+            **SESSION_READ,
+            "best_iteration_id": first,
+            "timeline": [
+                {
+                    "action": "improvement.round_selected",
+                    "at": "2026-10-27T09:05:00Z",
+                    "actor_user_id": "00000000-0000-4000-8000-0000000000ab",
+                    "actor_name": "Bartek",
+                }
+            ],
+        }
+        api.request = _responder(
+            {
+                ("GET", f"/agents/{AGENT}/improvements/{SESSION}"): kept,
+                ("GET", "/me/permissions"): _permissions("agents:view"),
+            }
+        )
+
+        session = await _call(server, "get_improvement", agent_id=AGENT, session_id=SESSION)
+
+        first_attempt, second_attempt = session["attempts"]
+        assert (first_attempt["chosen"], first_attempt["best"]) == (True, False)
+        assert (second_attempt["chosen"], second_attempt["best"]) == (False, True)
+        assert session["chosen_by"] == "Bartek"
+
+    async def test_an_attempt_the_session_kept_itself_has_nobody_behind_it(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request = _responder(
+            {
+                ("GET", f"/agents/{AGENT}/improvements/{SESSION}"): SESSION_READ,
+                ("GET", "/me/permissions"): _permissions("agents:view"),
+            }
+        )
+
+        session = await _call(server, "get_improvement", agent_id=AGENT, session_id=SESSION)
+
+        assert session["chosen_by"] is None
+
+    @pytest.mark.parametrize(
+        ("topic", "deferred", "state"),
+        [
+            ({"status": "covered", "has_draft": True}, False, "covered"),
+            ({"status": "dismissed"}, False, "dismissed"),
+            ({"status": "open", "drafting": True, "has_draft": True}, False, "drafting"),
+            ({"status": "open", "draft_failed": True}, False, "draft_failed"),
+            ({"status": "open", "has_draft": True}, False, "draft_ready"),
+            ({"status": "open", "has_draft": True, "draft_stale": True}, False, "draft_stale"),
+            ({"status": "open"}, True, "deferred"),
+            ({"status": "open"}, False, "missing"),
+        ],
+    )
+    async def test_each_topic_reads_as_where_it_stands(
+        self, server: FastMCP, api: MagicMock, topic: dict[str, Any], deferred: bool, state: str
+    ) -> None:
+        """A topic whose answer was added to the knowledge base is covered, never "a draft"."""
+        api.request = _responder(
+            {
+                ("GET", f"/agents/{AGENT}/improvements/{SESSION}"): {
+                    **SESSION_READ,
+                    "deferred_topic_ids": [TOPIC] if deferred else [],
+                },
+                ("GET", "/me/permissions"): _permissions("agents:view", "runs:view"),
+                ("GET", f"/agents/{AGENT}/improvements/{SESSION}/evidence"): {
+                    "items": [{"topic_id": TOPIC}]
+                },
+                ("GET", f"/knowledge-gaps/agents/{AGENT}"): {
+                    "items": [
+                        {
+                            "id": TOPIC,
+                            "label": "Do you ship to Germany?",
+                            "knowledge_base_name": "Help center",
+                            **topic,
+                        }
+                    ]
+                },
+            }
+        )
+
+        session = await _call(server, "get_improvement", agent_id=AGENT, session_id=SESSION)
+
+        assert [t["state"] for t in session["missing_knowledge"]] == [state]
 
 
 class TestAClosedSession:

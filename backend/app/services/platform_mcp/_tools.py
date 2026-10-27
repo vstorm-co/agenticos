@@ -167,7 +167,7 @@ def _session(agent_id: UUID | str, session: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _attempt(iteration: dict[str, Any], best: Any) -> dict[str, Any]:
+def _attempt(iteration: dict[str, Any], chosen: Any) -> dict[str, Any]:
     """One round of a session, as its verdict reads in plain numbers."""
     detail = iteration.get("verdict_detail") or {}
     return {
@@ -180,8 +180,36 @@ def _attempt(iteration: dict[str, Any], best: Any) -> dict[str, Any]:
             "after": detail.get("candidate_pass_rate"),
         },
         "cost_usd": iteration.get("cost_usd"),
-        "best": iteration["id"] == best,
+        "chosen": iteration["id"] == chosen,
+        "best": iteration.get("verdict") == "better",
     }
+
+
+_CHOOSING = frozenset({"improvement.round_selected", "improvement.selection_confirmed"})
+
+
+def _chosen_by(session: dict[str, Any]) -> str | None:
+    """Who chose the session's attempt by hand; `None` when the session's own rule did."""
+    choices = [
+        event
+        for event in session.get("timeline", [])
+        if event["action"] in _CHOOSING and event.get("actor_user_id")
+    ]
+    choice = max(choices, key=lambda event: event["at"], default=None)
+    return choice and (choice.get("actor_name") or choice["actor_user_id"])
+
+
+def _topic_state(topic: dict[str, Any], deferred: set[Any]) -> str:
+    """Where one missing-knowledge topic stands, in one word, as the knowledge gaps page shows it."""
+    if topic.get("status") in ("covered", "dismissed"):
+        return topic["status"]
+    if topic.get("drafting"):
+        return "drafting"
+    if topic.get("draft_failed"):
+        return "draft_failed"
+    if topic.get("has_draft"):
+        return "draft_stale" if topic.get("draft_stale") else "draft_ready"
+    return "deferred" if topic["id"] in deferred else "missing"
 
 
 def _flips(cases: list[dict[str, Any]], flip: str) -> list[dict[str, Any]]:
@@ -760,17 +788,22 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
 
         Needs access to the agent; the knowledge topics also need `runs:view`.
         Each attempt has its verdict, the questions it fixed and broke (confirmed
-        on a rerun), the held-out pass rate before and after, and its cost; `best`
-        marks the attempt the session would accept. Only a session with
+        on a rerun), the held-out pass rate before and after, and its cost.
+        `chosen` marks the attempt the session keeps - picked by `chosen_by`, or
+        by the session itself when that is empty - and `best` only an attempt
+        whose verdict is better; a chosen attempt need not be one. Each knowledge
+        topic has its `state`: missing, deferred, drafting, draft_failed,
+        draft_ready, draft_stale, covered or dismissed. Only a session with
         `can_accept` can be accepted; a `closed` one is a record, and its
         `outcome` says what was decided. Point the person at `link` rather than
         retelling the wizard's screens.
         """
         session = await api.request("GET", f"/agents/{agent_id}/improvements/{session_id}")
-        best = session.get("best_iteration_id")
+        chosen = session.get("best_iteration_id")
         result: dict[str, Any] = {
             **_session(agent_id, session),
-            "attempts": [_attempt(iteration, best) for iteration in session["iterations"]],
+            "attempts": [_attempt(iteration, chosen) for iteration in session["iterations"]],
+            "chosen_by": _chosen_by(session),
             "can_discard": session.get("can_discard"),
             "can_restart": session.get("can_restart"),
         }
@@ -782,15 +815,15 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         )
         topic_ids = {item["topic_id"] for item in evidence["items"] if item.get("topic_id")}
         deferred = set(session.get("deferred_topic_ids") or [])
-        topics = await api.request("GET", f"/knowledge-gaps/agents/{agent_id}")
+        topics = await api.request(
+            "GET", f"/knowledge-gaps/agents/{agent_id}", params={"limit": 100}
+        )
         result["missing_knowledge"] = [
             {
                 "topic_id": topic["id"],
                 "label": topic["label"],
                 "knowledge_base": topic["knowledge_base_name"],
-                "has_draft": topic.get("has_draft", False),
-                "draft_stale": topic.get("draft_stale", False),
-                "not_now": topic["id"] in deferred,
+                "state": _topic_state(topic, deferred),
             }
             for topic in topics["items"]
             if topic["id"] in topic_ids
