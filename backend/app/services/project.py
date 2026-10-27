@@ -120,6 +120,10 @@ class ProjectService:
     ) -> Project:
         """One project, when the caller may `perm` it.
 
+        Use/edit callers retain the project's row lock until transaction end.
+        This serializes file mutations and transfer registration with run startup;
+        the workspace snapshot lock is an additional guard, not their only lock.
+
         Raises:
             NotFoundError: If there is no such project or the caller may not see it.
             AuthorizationError: If the caller sees it and may not `perm` it.

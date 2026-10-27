@@ -412,3 +412,32 @@ async def test_source_and_target_connections_are_protected_while_copying(db) -> 
     assert not await project_repo.active_moves_for_connection(
         db, connection_id=source, organization_id=org.id
     )
+
+
+async def test_project_file_users_block_transfer_registration_until_commit(db, engine) -> None:
+    from sqlalchemy import text
+    from sqlalchemy.exc import DBAPIError
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    from app.core.permissions import AuthContext, Perm
+    from app.services.project import ProjectService
+
+    owner = await _user(db)
+    org = await _org(db, owner=owner)
+    project = await _project(db, org, owner, name="Serialized workspace", visibility="private")
+    await db.commit()
+    ctx = AuthContext(user_id=owner.id, organization_id=org.id, role="owner")
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as files, factory() as transfer:
+        # Upload, mkdir and remove all enter with PROJECTS_USE; queuing a
+        # transfer enters with PROJECTS_EDIT before checking active runs.
+        await ProjectService(files).get(ctx, project.id, perm=Perm.PROJECTS_USE)
+        await transfer.execute(text("SET LOCAL lock_timeout = '150ms'"))
+        with pytest.raises(DBAPIError) as refused:
+            await ProjectService(transfer).get(ctx, project.id, perm=Perm.PROJECTS_EDIT)
+        assert getattr(refused.value.orig, "sqlstate", None) == "55P03"
+        await transfer.rollback()
+        await files.commit()
+        assert (
+            await ProjectService(transfer).get(ctx, project.id, perm=Perm.PROJECTS_EDIT)
+        ).id == project.id

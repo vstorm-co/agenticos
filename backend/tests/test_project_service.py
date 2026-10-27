@@ -110,6 +110,15 @@ class TestWhoMaySeeAndChangeIt:
         with pytest.raises(AuthorizationError, match=says):
             await _service(_project(), Perm.PROJECTS_VIEW).get(_ctx(), uuid.uuid4(), perm=perm)
 
+    @pytest.mark.parametrize("perm", [Perm.PROJECTS_VIEW, Perm.PROJECTS_USE, Perm.PROJECTS_EDIT])
+    async def test_project_use_and_edit_share_the_transaction_lock(self, perm: Perm) -> None:
+        project = _project()
+        service = _service(project, Perm.PROJECTS_VIEW, perm)
+        assert await service.get(_ctx(), project.id, perm=perm) is project
+        assert module.project_repo.get.call_args.kwargs["for_update"] is (
+            perm is not Perm.PROJECTS_VIEW
+        )
+
     async def test_a_new_chat_needs_the_right_to_work_in_it(self) -> None:
         project = _project()
         service = _service(project, Perm.PROJECTS_VIEW, Perm.PROJECTS_USE)
