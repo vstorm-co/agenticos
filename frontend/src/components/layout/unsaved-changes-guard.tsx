@@ -14,10 +14,8 @@ import {
   DialogTitle,
 } from "@/components/ui";
 import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
+import { HELD_ENTRY as HELD, takeOwnTraversal, traverseHistory } from "@/lib/history-entries";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
-
-/** Marks the history entry pushed so that Back leaves it before it leaves the page. */
-const HELD = "__unsavedHeld";
 
 function heldState(): Record<string, unknown> {
   return { ...(window.history.state as Record<string, unknown> | null), [HELD]: true };
@@ -75,7 +73,11 @@ export function UnsavedChangesGuard() {
       if (target === null) return;
       event.preventDefault();
       event.stopPropagation();
-      useUnsavedChangesStore.getState().leave(() => router.push(target));
+      // In place of the page's duplicate entry, so Back from there skips no step.
+      const duplicate = Boolean((window.history.state as Record<string, unknown> | null)?.[HELD]);
+      useUnsavedChangesStore
+        .getState()
+        .leave(() => (duplicate ? router.replace(target) : router.push(target)));
     };
     document.addEventListener("click", onClick, true);
     return () => document.removeEventListener("click", onClick, true);
@@ -89,12 +91,36 @@ export function UnsavedChangesGuard() {
       window.history.pushState(heldState(), "", window.location.href);
     }
     const onPop = (event: PopStateEvent) => {
+      if (takeOwnTraversal()) return;
       if ((event.state as Record<string, unknown> | null)?.[HELD]) return;
       window.history.pushState(heldState(), "", window.location.href);
-      useUnsavedChangesStore.getState().leave(() => window.history.go(-2));
+      useUnsavedChangesStore.getState().leave(() => traverseHistory(-2));
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
+  }, [holding]);
+
+  useEffect(() => {
+    if (holding) return;
+    // A duplicate left once its changes are saved or dropped in place costs Back and
+    // Forward a press that changes nothing, so they step over it in their direction.
+    const navigation = (window as { navigation?: Navigation }).navigation;
+    let from: number | null = null;
+    const onEntry = (event: NavigationCurrentEntryChangeEvent) => {
+      from = event.from.index;
+    };
+    const onPop = (event: PopStateEvent) => {
+      if (takeOwnTraversal()) return;
+      if (!(event.state as Record<string, unknown> | null)?.[HELD]) return;
+      const to = navigation?.currentEntry?.index;
+      traverseHistory(from !== null && to !== undefined && to > from ? 1 : -1);
+    };
+    navigation?.addEventListener("currententrychange", onEntry);
+    window.addEventListener("popstate", onPop);
+    return () => {
+      navigation?.removeEventListener("currententrychange", onEntry);
+      window.removeEventListener("popstate", onPop);
+    };
   }, [holding]);
 
   return (

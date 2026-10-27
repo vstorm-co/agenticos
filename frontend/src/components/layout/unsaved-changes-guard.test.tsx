@@ -2,10 +2,11 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { takeOwnTraversal, traverseHistory } from "@/lib/history-entries";
 import { useUnsavedChangesStore, type UnsavedSource } from "@/stores/unsaved-changes-store";
 import { UnsavedChangesGuard } from "./unsaved-changes-guard";
 
-const router = vi.hoisted(() => ({ push: vi.fn() }));
+const router = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
 
 function hold(id = "editor", source: Partial<UnsavedSource> = {}) {
@@ -30,6 +31,7 @@ function page(...links: { href: string; label: string; target?: string; download
 const asked = () => screen.queryByRole("dialog", { name: "You have unsaved changes" });
 
 beforeEach(() => {
+  takeOwnTraversal();
   useUnsavedChangesStore.setState({ sources: {}, prompt: null, saving: false });
   window.history.replaceState(null, "", "/datasets/ds-1");
 });
@@ -48,16 +50,26 @@ describe("UnsavedChangesGuard", () => {
     expect(held.defaultPrevented).toBe(true);
   });
 
-  it("asks before a link leaves, and goes there once the change is discarded", async () => {
+  it("asks before a link leaves, and goes there in place of its own entry once discarded", async () => {
     page({ href: "/agents?tab=all#top", label: "Agents" });
     const editor = hold();
     await userEvent.click(screen.getByRole("link", { name: "Agents" }));
     expect(asked()).toBeInTheDocument();
-    expect(router.push).not.toHaveBeenCalled();
+    expect(router.replace).not.toHaveBeenCalled();
 
     await userEvent.click(screen.getByRole("button", { name: "Discard" }));
     expect(editor.discard).toHaveBeenCalled();
-    expect(router.push).toHaveBeenCalledWith("/agents?tab=all#top");
+    expect(router.replace).toHaveBeenCalledWith("/agents?tab=all#top");
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
+  it("pushes the link's page when its own entry was already replaced", async () => {
+    page({ href: "/agents", label: "Agents" });
+    hold();
+    window.history.replaceState({}, "", "/datasets/ds-1?tab=grading");
+    await userEvent.click(screen.getByRole("link", { name: "Agents" }));
+    await userEvent.click(screen.getByRole("button", { name: "Discard" }));
+    expect(router.push).toHaveBeenCalledWith("/agents");
   });
 
   it("stays on the page when asked to, with Escape as much as with the button", async () => {
@@ -91,7 +103,7 @@ describe("UnsavedChangesGuard", () => {
     await userEvent.keyboard("{Escape}");
     expect(asked()).toBeInTheDocument();
     await act(async () => finish(true));
-    expect(router.push).toHaveBeenCalledWith("/agents");
+    expect(router.replace).toHaveBeenCalledWith("/agents");
   });
 
   it("lets through what is not leaving this app's page", async () => {
@@ -150,5 +162,54 @@ describe("UnsavedChangesGuard", () => {
     const length = window.history.length;
     hold();
     expect(window.history.length).toBe(length);
+  });
+
+  it("lets a step back the app takes itself through without asking", () => {
+    const go = vi.spyOn(window.history, "go").mockImplementation(() => {});
+    page();
+    hold();
+    traverseHistory(-2);
+    act(() => {
+      window.dispatchEvent(new PopStateEvent("popstate", { state: null }));
+    });
+    expect(asked()).toBeNull();
+    expect(go).toHaveBeenCalledTimes(1);
+  });
+
+  it("steps Back over an entry left behind once nothing is held", () => {
+    const go = vi.spyOn(window.history, "go").mockImplementation(() => {});
+    page();
+    hold();
+    act(() => useUnsavedChangesStore.getState().unregister("editor"));
+    act(() => {
+      window.dispatchEvent(new PopStateEvent("popstate", { state: { __unsavedHeld: true } }));
+    });
+    expect(go).toHaveBeenCalledWith(-1);
+
+    go.mockClear();
+    act(() => {
+      // That step lands, and then Back onto an ordinary entry is left alone.
+      window.dispatchEvent(new PopStateEvent("popstate", { state: null }));
+      window.dispatchEvent(new PopStateEvent("popstate", { state: null }));
+    });
+    expect(go).not.toHaveBeenCalled();
+  });
+
+  it("steps Forward over it when Forward is what landed there", () => {
+    const go = vi.spyOn(window.history, "go").mockImplementation(() => {});
+    const navigation = Object.assign(new EventTarget(), { currentEntry: { index: 3 } });
+    Object.defineProperty(window, "navigation", { value: navigation, configurable: true });
+    try {
+      page();
+      act(() => {
+        navigation.dispatchEvent(
+          Object.assign(new Event("currententrychange"), { from: { index: 2 } }),
+        );
+        window.dispatchEvent(new PopStateEvent("popstate", { state: { __unsavedHeld: true } }));
+      });
+      expect(go).toHaveBeenCalledWith(1);
+    } finally {
+      Reflect.deleteProperty(window, "navigation");
+    }
   });
 });
