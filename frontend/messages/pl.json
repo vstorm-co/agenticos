@@ -11295,7 +11295,8 @@
       },
       "hintSingle": "W razie potrzeby popraw brzmienie. Następny krok jest wyceniany, zanim go naciśniesz.",
       "saveWordingFirst": "Najpierw zapisz albo odrzuć nowe brzmienie.",
-      "unmeasurable": "Tej próby nie da się przetestować: po pominięciu pytań, z których pochodzą jej przykłady, potrzeba jeszcze {count, plural, one {# odłożonego pytania} few {# odłożonych pytań} many {# odłożonych pytań} other {# odłożonego pytania}}. Ta sesja zachowuje pytania, z którymi wystartowała, więc dodanie nowych jej nie pomoże: zakończ sesję, dodaj pytania i zacznij nową."
+      "unmeasurable": "Tej próby nie da się przetestować: po pominięciu pytań, z których pochodzą jej przykłady, potrzeba jeszcze {count, plural, one {# odłożonego pytania} few {# odłożonych pytań} many {# odłożonych pytań} other {# odłożonego pytania}}. Ta sesja zachowuje pytania, z którymi wystartowała, więc dodanie nowych jej nie pomoże: zakończ sesję, dodaj pytania i zacznij nową.",
+      "likely": "Najpewniej ok. {cost}: wyższa kwota dotyczy tylko sytuacji, gdy odpowiedzi trzeba zadać ponownie."
     },
     "waitingFor": {
       "understand": "Czeka na Ciebie: zobacz, co poszło nie tak",

@@ -190,3 +190,21 @@ it("offers nothing to a reader who may not start an improvement on the agent", (
   expect(container).toBeEmptyDOMElement();
   expect(state.estimate).not.toHaveBeenCalled();
 });
+
+it("prices a check as the most it may cost, and says what it most likely costs", async () => {
+  state.estimate.mockResolvedValue({ ...QUOTE, total_usd: "0.28", expected_usd: "0.07" });
+  const view = render(<NextStep session={AT_CHANGES} onStarted={vi.fn()} />);
+  expect(
+    await screen.findByRole("button", { name: /test the selected changes · up to \$0\.28/ }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText(
+      "Most likely about $0.07: the higher figure holds only if answers have to be asked again.",
+    ),
+  ).toBeInTheDocument();
+  state.estimate.mockResolvedValue({ ...QUOTE, total_usd: "0.04", expected_usd: "0.04" });
+  view.unmount();
+  render(<NextStep session={AT_CHANGES} onStarted={vi.fn()} />);
+  await screen.findByRole("button", { name: /up to \$0\.04/ });
+  expect(screen.queryByText(/Most likely/)).not.toBeInTheDocument();
+});

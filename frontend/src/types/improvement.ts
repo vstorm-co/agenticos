@@ -13,6 +13,12 @@ export type ImprovementStatus =
   | "rejected";
 export type ImprovementStage =
   "analyzing" | "classifying" | "drafting" | "proposing" | "filtering" | "evaluating" | "judging";
+/** Why a waiting session's next step cannot be taken; the session's questions are fixed. */
+export interface NextStepBlocked {
+  reason: "missing_holdout";
+  /** How many more gradable questions kept aside the check needs. */
+  needed: number;
+}
 /** A session waiting for a person, as a list of them shows it. */
 export interface ImprovementAwaiting {
   id: string;
@@ -23,6 +29,7 @@ export interface ImprovementAwaiting {
   iteration: number;
   max_iterations: number;
   created_at: string;
+  next_step_blocked?: NextStepBlocked | null;
 }
 export interface ImprovementTarget {
   dataset_id?: string;
@@ -67,6 +74,8 @@ export interface ImprovementIteration {
   dropped: { hunk_id: string; reason: string }[];
   verdict: "better" | "no_change" | "regression" | "inconclusive" | null;
   verdict_detail: Record<string, string | number | null> | null;
+  /** How many questions the attempt is measured on; null until known. */
+  held_out?: number | null;
   cost_usd: string;
   started_at: string;
   ended_at: string | null;
@@ -96,6 +105,7 @@ export interface Improvement {
   best_iteration_id: string | null;
   /** What Next step starts at a stop: writing changes, or testing them. */
   next_step?: "propose" | "check" | null;
+  next_step_blocked?: NextStepBlocked | null;
   stop_reason: string | null;
   error: string | null;
   created_at: string;
@@ -197,7 +207,10 @@ export interface SelectionEstimate {
 export interface ContinuationEstimate {
   mode: "next_step" | "next_round" | "resume" | "retry";
   number: number;
+  /** The most the step may cost. */
   total_usd: string;
+  /** What it most likely costs, without asking again. */
+  expected_usd?: string;
   budget_usd: string;
   affordable: boolean;
   candidate_hash: string;

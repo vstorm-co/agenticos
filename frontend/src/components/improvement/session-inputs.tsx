@@ -100,20 +100,16 @@ function drawnHoldout(share: string, total: number): number {
   return Math.floor(Number(share) * total + 0.5 + 1e-9);
 }
 
-/** The attempt whose check counted the questions it kept aside, the newest first. */
-function checkedAttempt(session: Improvement) {
-  const checked = session.iterations.filter(
-    (item) => typeof item.verdict_detail?.held_out === "number",
-  );
-  const last = checked.at(-1);
-  return last && { attempt: last.number, heldOut: Number(last.verdict_detail!.held_out) };
+/** The newest attempt that knows how many questions it is measured on. */
+function countedAttempt(session: Improvement) {
+  const last = session.iterations.filter((item) => typeof item.held_out === "number").at(-1);
+  return last && { attempt: last.number, heldOut: last.held_out! };
 }
 
 /**
  * Where a question set's questions come from, and how many help write the changes
  * against how many are kept aside to check them: about the dataset's share before
- * an attempt is checked, since each attempt draws its own, and the count it kept
- * aside once it is.
+ * the session starts, and once it has, the count the newest attempt is measured on.
  */
 export function QuestionSetFigures({
   cases,
@@ -202,7 +198,7 @@ export function TestQuestions({ session }: { session: Improvement }) {
         <QuestionSetFigures
           cases={all.cases}
           share={holdoutShare(dataset)}
-          checked={checkedAttempt(session)}
+          checked={countedAttempt(session)}
         />
       )}
       <p className="text-muted-foreground text-sm">{t("pinnedQuestions")}</p>

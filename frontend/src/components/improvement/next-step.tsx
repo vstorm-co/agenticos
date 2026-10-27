@@ -144,6 +144,11 @@ export function NextStep({
           : t(`goUnpriced.${stop}`)}
         <ArrowRight className="h-4 w-4" aria-hidden />
       </Button>
+      {priced?.expected_usd && Number(priced.expected_usd) < Number(priced.total_usd) && (
+        <p className="text-muted-foreground text-xs">
+          {t("likely", { cost: usd(priced.expected_usd, locale) })}
+        </p>
+      )}
       {error && (
         <p role="alert" className="text-destructive text-sm">
           {error}

@@ -11512,7 +11512,8 @@
       },
       "hintSingle": "Correct the wording if needed. The next step is priced before you press.",
       "saveWordingFirst": "Save or discard the wording first.",
-      "unmeasurable": "This attempt can't be tested: {count, plural, one {# more question} other {# more questions}} kept aside would be needed once the ones its examples came from are left out. This session keeps the questions it started with, so adding some won't help it: end the session, add questions, and start a new one."
+      "unmeasurable": "This attempt can't be tested: {count, plural, one {# more question} other {# more questions}} kept aside would be needed once the ones its examples came from are left out. This session keeps the questions it started with, so adding some won't help it: end the session, add questions, and start a new one.",
+      "likely": "Most likely about {cost}: the higher figure holds only if answers have to be asked again."
     },
     "waitingFor": {
       "understand": "Waiting for you: look at what went wrong",

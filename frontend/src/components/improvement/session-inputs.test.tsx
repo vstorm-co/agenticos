@@ -554,13 +554,13 @@ it("says why from what each example holds, and falls back when it holds nothing"
   expect(screen.getByText(/test answer failed or has a review note/)).toBeInTheDocument();
 });
 
-it("counts what an attempt kept aside once it is checked, and about the share before", () => {
+it("counts what the newest attempt is measured on, and about the share before", () => {
   state.total = 2;
   const checked = {
     ...SESSION,
     iterations: [
-      { ...SESSION.iterations[0]!, verdict_detail: { held_out: 2 } },
-      { ...SESSION.iterations[0]!, number: 2, verdict_detail: null },
+      { ...SESSION.iterations[0]!, held_out: 2 },
+      { ...SESSION.iterations[0]!, number: 2, held_out: null },
     ],
   };
   const view = render(<TestQuestions session={checked} />);

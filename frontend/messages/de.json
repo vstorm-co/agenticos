@@ -11395,7 +11395,8 @@
       },
       "hintSingle": "Korrigieren Sie bei Bedarf den Wortlaut. Der nächste Schritt wird bepreist, bevor Sie ihn drücken.",
       "saveWordingFirst": "Speichern oder verwerfen Sie zuerst den Wortlaut.",
-      "unmeasurable": "Dieser Versuch kann nicht getestet werden: Ohne die Fragen, aus denen seine Beispiele stammen, wären {count, plural, one {# weitere zurückgelegte Frage} other {# weitere zurückgelegte Fragen}} nötig. Diese Sitzung behält die Fragen, mit denen sie begann, daher hilft es nicht, welche hinzuzufügen: Beenden Sie die Sitzung, fügen Sie Fragen hinzu und starten Sie eine neue."
+      "unmeasurable": "Dieser Versuch kann nicht getestet werden: Ohne die Fragen, aus denen seine Beispiele stammen, wären {count, plural, one {# weitere zurückgelegte Frage} other {# weitere zurückgelegte Fragen}} nötig. Diese Sitzung behält die Fragen, mit denen sie begann, daher hilft es nicht, welche hinzuzufügen: Beenden Sie die Sitzung, fügen Sie Fragen hinzu und starten Sie eine neue.",
+      "likely": "Wahrscheinlich etwa {cost}: Der höhere Betrag gilt nur, wenn Antworten erneut abgefragt werden müssen."
     },
     "waitingFor": {
       "understand": "Wartet auf Sie: sehen Sie sich an, was schiefging",
