@@ -419,7 +419,7 @@ Die API beantwortet jede Änderung an einer abgeschlossenen Sitzung mit `409`, a
 
 Der [Architekt](console.md#the-assistant) liest die Sitzungen, Testläufe und
 Testfragen eines Agenten und erklärt ein Ergebnis in einfachen Worten: was ein
-Versuch behoben und was er kaputt gemacht hat, ob eine Änderung durch erneutes
+Versuch behoben und was er verschlechtert hat, ob eine Änderung durch erneutes
 Fragen bestätigt wurde und wie sich die zurückgehaltenen Fragen verändert haben.
 Er verlinkt den Assistenten, statt ihn nachzuerzählen.
 
