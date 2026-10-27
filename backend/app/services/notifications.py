@@ -1815,7 +1815,10 @@ _STOP_SENTENCE = {
     "superseded": "newer suggestions replaced these.",
     "knowledge_only": "topics are missing from the knowledge base - draft the ones you want.",
     "draft": "drafting the knowledge documents failed.",
+    "expired": "nobody took the next step for seven days.",
 }
+# An attempt that did not do better ends where a person decides whether to try again.
+_RESULT_REASONS = frozenset({"no_change", "regression", "inconclusive"})
 
 
 _CHECK_SUMMARY = {
@@ -1854,6 +1857,8 @@ def _improvement_summary(agent_name: str, status: str, reason: str | None) -> st
     because = _STOP_SENTENCE.get(reason or "")
     if status == "failed":
         head = f"Your improvement of {agent_name} could not finish"
+    elif status == "stopped" and reason in _RESULT_REASONS:
+        head = f"Your improvement of {agent_name} finished an attempt"
     else:
         head = f"Your improvement of {agent_name} stopped"
     return f"{head}: {because}" if because else f"{head}."

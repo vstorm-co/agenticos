@@ -971,11 +971,7 @@ class ImprovementPipelineService:
             raise AuthorizationError(
                 message="Only the creator or an organization administrator can stop this session"
             )
-        if Status(run.status).active or run.status in {
-            Status.WAITING,
-            Status.READY,
-            Status.STOPPED,
-        }:
+        if Status(run.status).open:
             # Cancellation must still work after the creator loses resource access.
             await self._stop_children(run)
             await self._move(
@@ -1697,7 +1693,70 @@ class ImprovementPipelineService:
                     await self._queue(run)
                     count += 1
             after = rows[-1][0]
+        after = None
+        while rows := await improvement_repo.list_resting(self.db, after=after):
+            for run_id, org_id in rows:
+                await self._end_if_left(run_id, org_id)
+            after = rows[-1][0]
         return count
+
+    async def _end_if_left(self, run_id: UUID, organization_id: UUID) -> None:
+        """End a session waiting for a person once nobody took it further for a week, or at
+        once when its agent or test set changed under it.
+
+        A ready session's draft moves while its candidate is decided in the Builder, so
+        only the week ends one; and a session whose person lost access is left for
+        whoever acts next to be told.
+        """
+        run = await improvement_repo.get_run(
+            self.db, run_id, organization_id=organization_id, lock=True
+        )
+        if run is None or Status(run.status).active or not Status(run.status).open:
+            return
+        stage = Stage(run.stage) if run.stage else None
+        if rules.expired(run.stage_started_at or run.created_at, now=datetime.now(UTC)):
+            await self._move(run, rules.Transition(Status.STALE, stage, StopReason.EXPIRED))
+            return
+        if run.status == Status.READY:
+            return
+        user_id, api_key_id = self._acting_as(run)
+        try:
+            ctx = await job_context(
+                self.db, organization_id=organization_id, user_id=user_id, api_key_id=api_key_id
+            )
+            if ctx is None:
+                return
+            current = await self._inputs(
+                ctx,
+                run.agent_id,
+                ImprovementTarget(
+                    dataset_id=run.dataset_id if run.suite_id is None else None,
+                    suite_id=run.suite_id,
+                ),
+            )
+        except AuthenticationError, AuthorizationError:
+            return
+        except NotFoundError:
+            # Hidden from whoever it runs as is not gone: they are told when they act.
+            agent = await agent_repo.get(self.db, run.agent_id, organization_id=organization_id)
+            dataset = await dataset_repo.get(
+                self.db, run.dataset_id, organization_id=organization_id
+            )
+            if agent is not None and dataset is not None:
+                return
+            current = None
+        except BadRequestError:
+            current = None
+        pins = rules.Pins(
+            run.base_draft_hash,
+            run.base_version_id,
+            run.scoring_hash,
+            run.dataset_id,
+            run.suite_id,
+            run.suite_hash,
+        )
+        if current is None or rules.stale(pins, current.pins, archived=False):
+            await self._move(run, rules.Transition(Status.STALE, stage, StopReason.STALE))
 
     async def _settle_decisions(self, run: ImprovementRun) -> None:
         """Observe human decisions without acquiring an agent lock after the parent lock."""

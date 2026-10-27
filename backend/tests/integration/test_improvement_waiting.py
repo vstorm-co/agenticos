@@ -352,3 +352,105 @@ async def test_a_change_is_edited_only_at_the_stop_by_whoever_may_continue_and_o
     )
     with pytest.raises(BadRequestError, match="edited only while"):
         await service.edit_change(ctx, agent.id, waiting.id, hunk.id, reword)
+
+
+def _a_week_ago():
+    from datetime import UTC, datetime, timedelta
+
+    return datetime.now(UTC) - timedelta(days=7, minutes=1)
+
+
+async def test_a_session_left_waiting_for_a_week_expires_and_its_person_is_told(db):
+    ctx, agent, waiting = await _at_understand(db)
+    row = await db.get(ImprovementRun, waiting.id)
+    assert row is not None
+    row.stage_started_at = _a_week_ago()
+    await db.flush()
+    await ImprovementPipelineService(db).sweep()
+    assert (row.status, row.stop_reason) == ("stale", "expired")
+    summaries = [
+        notice.summary
+        for notice in await db.scalars(
+            select(Notification).where(Notification.event_type == "improvement_finished")
+        )
+    ]
+    assert any("nobody took the next step for seven days" in summary for summary in summaries)
+
+
+@pytest.mark.parametrize("change", ["draft", "archived", "dataset_gone"])
+async def test_a_waiting_session_goes_stale_at_once_when_what_it_measures_changes(db, change):
+    from app.db.models.agent import Agent
+
+    ctx, agent, waiting = await _at_understand(db)
+    row = await db.get(ImprovementRun, waiting.id)
+    stored = await db.get(Agent, agent.id)
+    assert row is not None and stored is not None
+    if change == "draft":
+        stored.draft_spec = {**stored.draft_spec, "instructions": "Changed under the session."}
+    elif change == "archived":
+        stored.status = "archived"
+    else:
+        row.dataset_id = uuid4()
+    await db.flush()
+    await ImprovementPipelineService(db).sweep()
+    assert (row.status, row.stop_reason) == ("stale", "stale")
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("who", ["left", "key_gone", "no_runs_view", "hidden"])
+async def test_a_session_whose_person_lost_access_is_left_for_them_to_be_told(db, who):
+    from app.core.permissions import Perm
+    from app.db.models.agent import Agent
+    from app.schemas.api_key import ApiKeyCreate
+    from app.services.api_key import ApiKeyService
+
+    ctx, agent, waiting = await _at_understand(db)
+    row = await db.get(ImprovementRun, waiting.id)
+    stored = await db.get(Agent, agent.id)
+    assert row is not None and stored is not None
+    stored.draft_spec = {**stored.draft_spec, "instructions": "Changed under the session."}
+    if who == "left":
+        row.created_by_user_id = None
+    elif who == "key_gone":
+        row.actor_user_id, row.actor_api_key_id = ctx.user_id, uuid4()
+    elif who == "no_runs_view":
+        key = await ApiKeyService(db).create(
+            ctx,
+            ApiKeyCreate(name="no runs", scopes=[Perm.AGENTS_VIEW, Perm.AGENTS_EDIT]),
+        )
+        row.actor_user_id, row.actor_api_key_id = ctx.user_id, key.id
+    else:
+        viewer = await _member(db, ctx, OrgRoleName.VIEWER)
+        row.actor_user_id = viewer.user_id
+    await db.flush()
+    await ImprovementPipelineService(db).sweep()
+    assert row.status == "waiting"
+
+
+async def test_a_ready_session_outlives_its_draft_moving_but_not_a_week(db):
+    from app.db.models.agent import Agent
+    from tests.integration.test_improvement_pipeline import _ready_proposal
+
+    ctx, agent, ready = await _ready_proposal(db)
+    row = await db.get(ImprovementRun, ready.id)
+    stored = await db.get(Agent, agent.id)
+    assert row is not None and stored is not None
+    stored.draft_spec = {**stored.draft_spec, "instructions": "Changed in the Builder."}
+    await db.flush()
+    service = ImprovementPipelineService(db)
+    await service.sweep()
+    assert row.status == "ready"
+    row.stage_started_at = _a_week_ago()
+    await db.flush()
+    await service.sweep()
+    assert (row.status, row.stop_reason) == ("stale", "expired")
+
+
+async def test_a_failed_session_can_be_stopped(db):
+    ctx, agent, waiting = await _at_understand(db)
+    row = await db.get(ImprovementRun, waiting.id)
+    assert row is not None
+    row.status, row.stage, row.stop_reason = "failed", "proposing", "proposal"
+    await db.flush()
+    stopped = await ImprovementPipelineService(db).cancel(ctx, agent.id, waiting.id)
+    assert stopped.status == "cancelled"

@@ -21,6 +21,7 @@ from app.db.models.improvement import (
 _ACTIVE = tuple(status.value for status in ACTIVE_STATUSES)
 _DECIDING = tuple(status.value for status in DECIDING_STATUSES)
 _OPEN = tuple(status.value for status in OPEN_STATUSES)
+_RESTING = tuple(status for status in _OPEN if status not in _ACTIVE)
 
 
 async def create_run(
@@ -105,6 +106,23 @@ async def get_active(
         )
     )
     return result.scalar_one_or_none()
+
+
+async def list_resting(
+    db: AsyncSession, *, after: UUID | None = None, limit: int = 200
+) -> list[tuple[UUID, UUID]]:
+    """`(run id, organization id)` of open sessions that wait for a person, a page at a time.
+
+    Unscoped, for the deployment's sweep, which ends one nobody took further for too
+    long or whose agent or test set changed under it.
+    """
+    statement = select(ImprovementRun.id, ImprovementRun.organization_id).where(
+        ImprovementRun.status.in_(_RESTING)
+    )
+    if after is not None:
+        statement = statement.where(ImprovementRun.id > after)
+    result = await db.execute(statement.order_by(ImprovementRun.id).limit(limit))
+    return [(row.id, row.organization_id) for row in result.all()]
 
 
 async def get_open(

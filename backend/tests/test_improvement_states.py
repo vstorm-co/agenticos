@@ -456,8 +456,21 @@ def test_a_stopped_or_failed_session_goes_on_only_when_a_person_asks() -> None:
     }
     assert _moves(ImprovementStatus.FAILED) == {
         ImprovementStatus.RUNNING,
+        ImprovementStatus.STALE,
+        ImprovementStatus.CANCELLED,
         ImprovementStatus.REJECTED,
     }
+
+
+def test_a_session_waits_for_a_person_a_week_at_most() -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from app.services.improvement_states import WAIT_LIMIT, expired
+
+    now = datetime.now(UTC)
+    assert timedelta(days=7) == WAIT_LIMIT
+    assert not expired(now - timedelta(days=7), now=now)
+    assert expired(now - timedelta(days=7, seconds=1), now=now)
 
 
 def test_only_a_measured_candidate_waits_for_a_person() -> None:

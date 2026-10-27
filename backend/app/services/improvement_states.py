@@ -59,6 +59,9 @@ STEP_TIMEOUT: dict[ImprovementStage, timedelta] = {
 }
 """How long a step may run without progress: the job timeout of whatever runs it."""
 
+WAIT_LIMIT = timedelta(days=7)
+"""How long a session waits for a person - for its next step or a decision - before it ends."""
+
 QUEUED_TIMEOUT = timedelta(minutes=2)
 """How long a queued session's first step may run: the step job's own timeout."""
 
@@ -113,8 +116,15 @@ _MOVES: dict[ImprovementStatus, frozenset[ImprovementStatus]] = {
             ImprovementStatus.REJECTED,
         }
     ),
-    # A failed step retried, or the session discarded.
-    ImprovementStatus.FAILED: frozenset({ImprovementStatus.RUNNING, ImprovementStatus.REJECTED}),
+    # A failed step retried, or the session ended: stopped, outdated or discarded.
+    ImprovementStatus.FAILED: frozenset(
+        {
+            ImprovementStatus.RUNNING,
+            ImprovementStatus.STALE,
+            ImprovementStatus.CANCELLED,
+            ImprovementStatus.REJECTED,
+        }
+    ),
     # Over, but what it suggested can still be discarded.
     ImprovementStatus.STALE: frozenset({ImprovementStatus.REJECTED}),
     ImprovementStatus.CANCELLED: frozenset({ImprovementStatus.REJECTED}),
@@ -449,6 +459,11 @@ def stalled(
         return False
     timeout = QUEUED_TIMEOUT if stage is None else STEP_TIMEOUT[stage]
     return now - last_progress > timeout + STALL_MARGIN
+
+
+def expired(waiting_since: datetime, *, now: datetime) -> bool:
+    """Whether a session has waited for a person longer than it is kept open."""
+    return now - waiting_since > WAIT_LIMIT
 
 
 def stall(stage: ImprovementStage | None) -> Transition:

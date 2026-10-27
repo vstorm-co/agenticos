@@ -17,7 +17,19 @@ from app.services.notifications import _improvement_summary
         (
             "stopped",
             "no_change",
-            "Your improvement of Refund desk stopped: no change made a measurable difference.",
+            "Your improvement of Refund desk finished an attempt: "
+            "no change made a measurable difference.",
+        ),
+        (
+            "stale",
+            "expired",
+            "Your improvement of Refund desk stopped: nobody took the next step for seven days.",
+        ),
+        (
+            "waiting",
+            "filtering",
+            "Your improvement of Refund desk has changes to choose from. "
+            "Pick the ones to check, then take the next step.",
         ),
         (
             "failed",

@@ -392,8 +392,9 @@ class ImprovementIteration(Base):
     # What the person who asked for this attempt told its helper.
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     # The attempt's own draw of which questions it learns from and which it is
-    # measured on, frozen when its check starts so a rerun cannot redraw it.
-    # Unset, the dataset's stored partition applies.
+    # measured on, frozen when the attempt is made: its proposal never reads its
+    # measured questions and a rerun cannot redraw them. Unset, the dataset's
+    # stored partition applies.
     split_seed: Mapped[int | None] = mapped_column(Integer, nullable=True)
     train_case_ids: Mapped[list[uuid.UUID] | None] = mapped_column(
         ARRAY(PG_UUID(as_uuid=True)), nullable=True
