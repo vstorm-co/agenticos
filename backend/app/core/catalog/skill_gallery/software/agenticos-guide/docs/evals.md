@@ -425,7 +425,30 @@ the held-out questions were graded both ways.
 What steadies grading: criteria answered yes or no instead of on a scale, a
 deterministic check for length and format rather than a judge's opinion of them,
 more cases - about 30 kept aside for an Improve session - and a stronger judge
-model.
+model, which the organization's [Grading model](governance.md#ai-assistance)
+sets for new judges.
+
+### How steady the answers are { #how-steady-the-answers-are }
+
+A **stability run** measures the noise before anything is compared. It asks
+every case of the dataset, then asks each one again - `reruns` times, once by
+default - and compares nothing. The run counts the cases graded passing one time
+and failing another: as many as two of them, or a fifth of the cases asked, mean
+a comparison on this dataset would most likely show nothing, because the answers
+or their grading move on their own. Only a case with a graded first answer and a
+graded re-ask counts.
+
+Before an [Improve session](authoring.md#the-improve-wizard) starts, the test of
+how the agent answers today is a stability run of the draft, asking each
+question twice: by default for a dataset of fewer than 40 questions, and on
+request for a larger one, since it doubles the cost. When it finds the answers
+unsteady, the start screen says the session will most likely show nothing, with
+a link to the grading criteria and to the Grading model. The latest such run of
+the draft is shown again after the page is reloaded.
+
+Through the API it is `stability: true` on a run of the draft or a version,
+without `paired_baseline` or `baseline_run_id`; its read has `purpose` `stability`
+and `stability` with `asked`, `unstable` and `noisy`.
 
 ### What the verdict says { #what-the-verdict-says }
 

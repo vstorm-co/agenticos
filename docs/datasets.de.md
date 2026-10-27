@@ -1,5 +1,5 @@
 ---
-source_sha: "5f704951dbbe"
+source_sha: "e05612aec339"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -433,6 +433,7 @@ gelesen wird, und eine darüber wird mit Verweis auf `judge.pass_at` abgelehnt.
 | `json_schema` | `schema`, optional `path` | Die Antwort JSON ist, das dem JSON Schema entspricht |
 | `max_cost_usd` | `value` | Der Run nicht mehr als das gekostet hat |
 | `max_latency_ms` | `value` | Der Run nicht länger als das gedauert hat |
+| `length` | `unit` (`characters` oder `words`), `min` und/oder `max`, optional `path` | Die Antwort mindestens `min` und höchstens `max` lang ist |
 | `judge` | `criterion` | Der Bewerter das Kriterium mit der Bestehensgrenze oder höher bewertet |
 
 `path` liest in eine Antwort hinein, die JSON ist: `items.0.name` ist der Name
@@ -447,6 +448,9 @@ festgehalten, damit ein einzelnes Muster das Scoring nicht aufhalten kann. Aus
 demselben Grund darf ein JSON Schema weder `pattern` noch `patternProperties`
 verwenden - eine `regex`-Prüfung mit `path` leistet dasselbe unter derselben
 Frist -, und sein `$ref` muss innerhalb des Schemas zeigen.
+
+Eine `length`-Prüfung zählt als Wort jede Folge von Zeichen, die keine
+Leerzeichen sind, und braucht mindestens eine Grenze.
 
 Eine `judge`-Prüfung ist ein Kriterium nur für einen Fall, bewertet im selben
 Run des Bewerters wie die Rubrik des Datasets. Verwenden Sie sie für das, was eine Regel
@@ -541,6 +545,15 @@ folgt. Eine Bewertung, deren Begründung überwiegend aus den Worten des
 Kriteriums besteht, ohne ein Zitat, das die Antwort enthält, ist ein Fehler:
 Nichts zeigt, dass der Bewerter die Antwort gelesen hat. Eine Höchstnote ohne
 Zitat aus der Antwort bleibt bestehen und wird als nicht belegt markiert.
+
+Ein Bewerter bewertet eine Ja-oder-Nein-Frage am beständigsten, deshalb schlägt
+der Kriterien-Editor vor, jedes Kriterium als solche zu formulieren, und die
+Skala des Bewerters bietet **Ja/Nein-Benotung verwenden** an, eine Skala von 2,
+die bei 2 besteht. Ein Kriterium, das eine Regel prüfen kann - eine Länge,
+gültiges JSON, ein in Anführungszeichen genannter Anfang, eine Aufzählung -, sagt
+das, und **Regel hinzufügen** fügt diese Prüfung zu denen hinzu, die jeder Fall
+bekommt: Sie kosten nichts und bewerten jedes Mal gleich. Der Vorschlag liest die
+Worte des Kriteriums selbst und ruft kein Modell auf.
 
 Kann der Bewerter nicht bewerten, werden seine Kriterien als übersprungen oder
 als Fehler festgehalten, mit einer Begründung, die die Ursache nennt:

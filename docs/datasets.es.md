@@ -1,5 +1,5 @@
 ---
-source_sha: "5f704951dbbe"
+source_sha: "e05612aec339"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -413,6 +413,7 @@ encima de ella se rechaza nombrando `judge.pass_at`.
 | `json_schema` | `schema`, opcional `path` | La respuesta es JSON que cumple el JSON Schema |
 | `max_cost_usd` | `value` | El run no costó más que esto |
 | `max_latency_ms` | `value` | El run no tardó más que esto |
+| `length` | `unit` (`characters` o `words`), `min` y/o `max`, opcional `path` | La respuesta mide como mínimo `min` y como máximo `max` |
 | `judge` | `criterion` | El juez de evals califica el criterio en la nota de aprobado o por encima |
 
 `path` lee dentro de una respuesta que es JSON: `items.0.name` es el nombre del
@@ -426,6 +427,9 @@ un patrón no puede bloquear la puntuación. Por la misma razón, un JSON Schema
 puede usar `pattern` ni `patternProperties` (una comprobación `regex` con `path`
 hace lo mismo bajo el mismo límite de tiempo), y su `$ref` debe apuntar dentro
 del esquema.
+
+Una comprobación `length` cuenta como palabra cada secuencia de caracteres que no
+son espacios en blanco, y necesita al menos un límite.
 
 Una comprobación `judge` es un criterio solo para un caso, calificado en el
 mismo run del juez que la rúbrica del dataset. Úsala para lo que una regla no
@@ -515,6 +519,14 @@ Una calificación cuyo motivo está hecho sobre todo de las palabras del propio
 criterio, sin una cita que la respuesta contenga, es un error: nada muestra que
 el juez leyera la respuesta. Una calificación máxima sin cita de la respuesta
 se mantiene, marcada como no verificada.
+
+Un juez califica con más consistencia una pregunta de sí o no, así que el editor
+de criterios sugiere formular cada criterio como una, y la escala del juez ofrece
+**Use yes/no grading**, una escala de 2 que aprueba en 2. Un criterio que una
+regla puede comprobar (una longitud, JSON válido, un comienzo entre comillas, una
+lista con viñetas) lo indica, y **Add the rule** añade esa comprobación a las que
+recibe cada caso, que no cuestan nada y califican igual cada vez. La sugerencia
+lee las propias palabras del criterio y no llama a ningún modelo.
 
 Cuando el juez no puede calificar, sus criterios se registran como omitidos o
 como errores, con un motivo que nombra la causa: la asistencia de IA está

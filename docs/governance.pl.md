@@ -1,5 +1,5 @@
 ---
-source_sha: "5c1758c446ab"
+source_sha: "55bd73acc7da"
 ---
 
 # Governance { #governance }
@@ -1697,6 +1697,17 @@ Ocenianie nadal wykonuje sprawdzenia oparte na regułach i dopasowanie wywołań
 narzędzi, zapisuje kryteria sędziego jako pominięte z podaniem przyczyny i
 zostawia przypadek, którego sędzia był wymagany, jako nieoceniony, a nie
 zaliczony. Werdykty ludzi pozostają dostępne.
+
+**Model oceniający**, obok przełącznika, to model, na którym oceniają nowi
+sędziowie. Sędzia słabszy od agenta, którego ocenia, źle odczytuje odpowiedzi,
+które agent podał dobrze, więc gdy żaden nie jest wybrany, nowy sędzia dostaje
+najtańszy z modeli czatu organizacji, którego pisanie kosztuje więcej niż model
+agenta - wersji roboczej albo opublikowanej, tej, która kosztuje więcej - a gdy
+takiego modelu nie ma albo brak cen do porównania, jak dotąd pierwszy inny model
+organizacji. Dotyczy to sędziów tworzonych od tej chwili, np. tego, którego
+dostaje pierwszy zestaw testowy agenta; istniejący sędzia zachowuje swój model,
+bo zapisana ocena znaczy to, co ocenił ten model. Każda zmiana jest zapisywana
+jako `organization.grading_model`.
 
 Te funkcje działają jako [sędziowie](concepts.md#system-agents). Każdy run jest
 zwykłym runem: przed każdym wywołaniem modelu jest sprawdzany względem własnego

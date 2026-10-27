@@ -1,5 +1,5 @@
 ---
-source_sha: "0100879e7f21"
+source_sha: "df48d1dc5b0a"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -455,7 +455,31 @@ punktów, albo jedna piąta odłożonych pytań dostała obie oceny.
 
 Co stabilizuje ocenę: kryteria z odpowiedzią tak albo nie zamiast skali,
 deterministyczny check długości i formatu zamiast opinii sędziego, więcej
-przypadków - około 30 odłożonych dla sesji Popraw - i mocniejszy model sędziego.
+przypadków - około 30 odłożonych dla sesji Popraw - i mocniejszy model sędziego,
+który dla nowych sędziów ustawia [Model oceniający](governance.md#ai-assistance)
+organizacji.
+
+### Jak stabilne są odpowiedzi { #how-steady-the-answers-are }
+
+**Run stabilności** mierzy szum, zanim cokolwiek zostanie porównane. Zadaje
+każdy przypadek datasetu, a potem każdy jeszcze raz - `reruns` razy, domyślnie
+raz - i niczego nie porównuje. Run liczy przypadki ocenione raz jako zaliczone,
+a raz jako niezaliczone: już dwa takie albo jedna piąta zadanych przypadków
+znaczą, że porównanie na tym datasecie najpewniej nic nie pokaże, bo odpowiedzi
+albo ich ocena zmieniają się same. Liczy się tylko przypadek z ocenioną pierwszą
+odpowiedzią i ocenionym ponownym zadaniem.
+
+Zanim zacznie się [sesja Popraw](authoring.md#the-improve-wizard), test tego, jak
+agent odpowiada dziś, jest runem stabilności wersji roboczej, który zadaje każde
+pytanie dwa razy: domyślnie dla datasetu z mniej niż 40 pytaniami, a na życzenie
+dla większego, bo podwaja koszt. Gdy uzna odpowiedzi za niestabilne, ekran
+startowy mówi, że sesja najpewniej nic nie pokaże, z linkiem do kryteriów oceny
+i do ustawienia Model oceniający. Ostatni taki run wersji roboczej jest
+pokazywany ponownie po przeładowaniu strony.
+
+W API jest to `stability: true` na runie wersji roboczej albo wersji, bez
+`paired_baseline` ani `baseline_run_id`; jego odczyt ma `purpose` `stability`
+oraz `stability` z `asked`, `unstable` i `noisy`.
 
 ### Co mówi werdykt { #what-the-verdict-says }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "0100879e7f21"
+source_sha: "df48d1dc5b0a"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -487,7 +487,32 @@ bewertet wurde.
 Was die Bewertung festigt: Kriterien, die mit Ja oder Nein statt auf einer Skala
 beantwortet werden, eine deterministische Prüfung von Länge und Format statt des
 Urteils eines Bewerters, mehr Fälle - etwa 30 zurückgelegte für eine Verbessern-
-Sitzung - und ein stärkeres Bewerter-Modell.
+Sitzung - und ein stärkeres Bewerter-Modell, das für neue Bewerter das
+[Bewertungsmodell](governance.md#ai-assistance) der Organisation festlegt.
+
+### Wie beständig die Antworten sind { #how-steady-the-answers-are }
+
+Ein **Stabilitäts-Run** misst das Rauschen, bevor etwas verglichen wird. Er
+stellt jeden Fall des Datasets und dann jeden noch einmal - `reruns`-mal,
+standardmäßig einmal - und vergleicht nichts. Der Run zählt die Fälle, die
+einmal als bestanden und einmal als nicht bestanden bewertet wurden: Schon zwei
+davon oder ein Fünftel der gestellten Fälle bedeuten, dass ein Vergleich auf
+diesem Dataset höchstwahrscheinlich nichts zeigen würde, weil sich die Antworten
+oder ihre Bewertung von selbst bewegen. Nur ein Fall mit einer bewerteten ersten
+Antwort und einer bewerteten Wiederholung zählt.
+
+Bevor eine [Verbessern-Sitzung](authoring.md#the-improve-wizard) beginnt, ist der
+Test, wie der Agent heute antwortet, ein Stabilitäts-Run des Entwurfs, der jede
+Frage zweimal stellt: standardmäßig bei einem Dataset mit weniger als 40 Fragen
+und auf Wunsch bei einem größeren, da er die Kosten verdoppelt. Findet er die
+Antworten unbeständig, sagt der Startbildschirm, dass die Sitzung
+höchstwahrscheinlich nichts zeigen wird, mit einem Link zu den
+Bewertungskriterien und zum Bewertungsmodell. Der letzte solche Run des Entwurfs
+wird nach dem Neuladen der Seite wieder angezeigt.
+
+Über die API ist es `stability: true` bei einem Run des Entwurfs oder einer
+Version, ohne `paired_baseline` oder `baseline_run_id`; seine Leseantwort hat
+`purpose` `stability` und `stability` mit `asked`, `unstable` und `noisy`.
 
 ### Was das Urteil sagt { #what-the-verdict-says }
 

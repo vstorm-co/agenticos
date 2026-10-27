@@ -1,5 +1,5 @@
 ---
-source_sha: "5c1758c446ab"
+source_sha: "55bd73acc7da"
 ---
 
 # Governance { #governance }
@@ -1806,6 +1806,18 @@ Grenze. Das Scoring führt weiterhin seine regelbasierten Prüfungen und den
 Abgleich der Tool-Aufrufe aus, hält die Kriterien des Judge mit der Begründung
 als übersprungen fest und lässt einen Fall, dessen Judge erforderlich war,
 unbewertet statt bestanden. Urteile von Menschen bleiben verfügbar.
+
+**Bewertungsmodell**, neben dem Schalter, ist das Modell, mit dem neue Bewerter
+bewerten. Ein Bewerter, der schwächer ist als der Agent, den er bewertet, liest
+Antworten falsch, die der Agent richtig hatte. Ist keines gewählt, nimmt ein
+neuer Bewerter daher das günstigste Chat-Modell der Organisation, das beim
+Schreiben mehr kostet als das des Agents - des Entwurfs oder der
+veröffentlichten Version, je nachdem, welches mehr kostet -, und ohne ein
+solches Modell oder ohne Preis zum Vergleich wie bisher das erste andere Modell
+der Organisation. Es gilt für Bewerter, die ab dann angelegt werden, etwa den des
+ersten Testsets eines Agents; ein bestehender Bewerter behält sein Modell, da
+eine gespeicherte Bewertung meint, was dieses Modell bewertet hat. Jede Änderung
+wird als `organization.grading_model` festgehalten.
 
 Diese Funktionen laufen als [Bewerter](concepts.md#system-agents). Jeder Run
 ist ein gewöhnlicher Run: Er wird vor jedem Modellaufruf gegen das eigene

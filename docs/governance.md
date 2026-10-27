@@ -1578,6 +1578,16 @@ rule-based checks and tool-call matching, records the judge's criteria as
 skipped with the reason, and leaves a case whose judge was required unscored
 rather than passed. People's verdicts stay available.
 
+**Grading model**, beside the switch, is the model new judges grade on. A
+judge weaker than the agent it grades misreads answers the agent got right, so
+with none chosen, a new judge takes the cheapest of the organization's chat
+models that costs more to write with than the agent's - the draft's or the
+published version's, whichever costs more - and, with no such model or no
+price to compare, the organization's first other model, as before. It applies
+to judges created from then on, such as the one an agent's first test set
+gets; an existing judge keeps its model, since a stored grade means what that
+model graded. Each change is recorded as `organization.grading_model`.
+
 These features run as [judges](concepts.md#system-agents). Each run is an
 ordinary run: it is budget-checked against the judge's own monthly budget and
 the organization's before every model call, its cost is recorded, and it is

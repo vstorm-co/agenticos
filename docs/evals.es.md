@@ -1,5 +1,5 @@
 ---
-source_sha: "0100879e7f21"
+source_sha: "df48d1dc5b0a"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -454,7 +454,31 @@ de las dos maneras.
 Lo que estabiliza la calificación: criterios de sí o no en lugar de una escala,
 una comprobación determinista de longitud y formato en lugar de la opinión de un
 juez, más casos - unas 30 apartadas para una sesión de Improve - y un modelo de
-juez más potente.
+juez más potente, que el [Grading model](governance.md#ai-assistance) de la
+organización fija para los jueces nuevos.
+
+### Cuán estables son las respuestas { #how-steady-the-answers-are }
+
+Un **run de estabilidad** mide el ruido antes de comparar nada. Pregunta cada
+caso del dataset, luego vuelve a preguntar cada uno - `reruns` veces, una por
+defecto - y no compara nada. El run cuenta los casos calificados como aprobados
+una vez y suspendidos otra: con solo dos de ellos, o una quinta parte de los
+casos preguntados, lo más probable es que una comparación en este dataset no
+muestre nada, porque las respuestas o su calificación se mueven solas. Solo
+cuenta un caso con una primera respuesta calificada y una repetición calificada.
+
+Antes de que empiece una [sesión de Improve](authoring.md#the-improve-wizard), la
+prueba de cómo responde hoy el agent es un run de estabilidad del borrador que
+hace cada pregunta dos veces: por defecto con un dataset de menos de 40
+preguntas, y a petición con uno mayor, porque duplica el coste. Cuando encuentra
+inestables las respuestas, la pantalla de inicio dice que lo más probable es que
+la sesión no muestre nada, con un enlace a los criterios de calificación y al
+Grading model. El último run así del borrador se vuelve a mostrar después de
+recargar la página.
+
+A través de la API es `stability: true` en un run del borrador o de una versión,
+sin `paired_baseline` ni `baseline_run_id`; su lectura tiene `purpose`
+`stability` y `stability` con `asked`, `unstable` y `noisy`.
 
 ### Qué dice el veredicto { #what-the-verdict-says }
 

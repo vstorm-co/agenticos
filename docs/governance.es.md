@@ -1,5 +1,5 @@
 ---
-source_sha: "5c1758c446ab"
+source_sha: "55bd73acc7da"
 ---
 
 # Governance { #governance }
@@ -1686,6 +1686,18 @@ puntuación sigue ejecutando sus comprobaciones basadas en reglas y la
 comparación de llamadas a herramientas, registra los criterios del juez como
 omitidos con el motivo, y deja sin puntuar, en lugar de aprobado, un caso cuyo
 juez era obligatorio. Los veredictos de las personas siguen disponibles.
+
+**Grading model**, junto al interruptor, es el modelo con el que califican los
+jueces nuevos. Un juez más débil que el agent que califica malinterpreta
+respuestas que el agent acertó, así que, sin ninguno elegido, un juez nuevo toma
+el más barato de los modelos de chat de la organización que cueste más al
+escribir que el del agent (el del borrador o el de la versión publicada, el que
+cueste más) y, sin tal modelo o sin precio que comparar, el primer otro modelo
+de la organización, como hasta ahora. Se aplica a los jueces creados desde
+entonces, como el que recibe el primer conjunto de prueba de un agent; un juez
+existente conserva su modelo, porque una calificación guardada significa lo que
+calificó ese modelo. Cada cambio queda registrado como
+`organization.grading_model`.
 
 Estas funciones se ejecutan como [jueces](concepts.md#system-agents). Cada run
 es un run normal: se comprueba contra el budget mensual propio del juez y el de

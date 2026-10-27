@@ -1,5 +1,5 @@
 ---
-source_sha: "5f704951dbbe"
+source_sha: "e05612aec339"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -407,6 +407,7 @@ niej jest odrzucany ze wskazaniem `judge.pass_at`.
 | `json_schema` | `schema`, opcjonalnie `path` | Odpowiedź to JSON zgodny z JSON Schema |
 | `max_cost_usd` | `value` | Run kosztował nie więcej niż tyle |
 | `max_latency_ms` | `value` | Run trwał nie dłużej niż tyle |
+| `length` | `unit` (`characters` lub `words`), `min` i/lub `max`, opcjonalnie `path` | Odpowiedź ma długość co najmniej `min` i najwyżej `max` |
 | `judge` | `criterion` | Sędzia ewaluacji ocenia kryterium na progu zaliczenia lub wyżej |
 
 `path` sięga do wnętrza odpowiedzi, która jest JSON-em: `items.0.name` to nazwa
@@ -419,6 +420,9 @@ niż dziesiątą część sekundy, zostaje przerwany i zapisany jako błąd, wi�
 wzorzec nie może zatrzymać oceniania. Z tego samego powodu JSON Schema nie może
 używać `pattern` ani `patternProperties` - to samo robi check `regex` z `path`,
 z tym samym limitem czasu - a jej `$ref` musi wskazywać wewnątrz schematu.
+
+Sprawdzenie `length` liczy jako słowo każdy ciąg znaków innych niż białe, i
+potrzebuje co najmniej jednej granicy.
 
 Sprawdzenie `judge` to kryterium tylko dla jednego przypadku, oceniane w tym
 samym runie sędziego co rubryka datasetu. Używaj go do tego, czego reguła nie
@@ -508,6 +512,14 @@ uzasadnienie składa się głównie ze słów samego kryterium, bez cytatu, któ
 odpowiedź zawiera, jest błędem: nic nie pokazuje, że sędzia przeczytał
 odpowiedź. Najwyższa ocena bez cytatu z odpowiedzi zostaje, oznaczona jako
 niezweryfikowana.
+
+Sędzia najspójniej ocenia pytanie, na które odpowiada się tak albo nie, więc
+edytor kryteriów podpowiada, by tak formułować każde kryterium, a skala sędziego
+oferuje **Oceniaj tak/nie** - skalę 2, która zalicza na 2. Kryterium, które może
+sprawdzić reguła - długość, poprawny JSON, początek podany w cudzysłowie, lista
+punktowana - mówi o tym, a **Dodaj regułę** dodaje to sprawdzenie do tych, które
+dostaje każdy przypadek: nic nie kosztują i za każdym razem oceniają tak samo.
+Podpowiedź czyta słowa samego kryterium i nie wywołuje żadnego modelu.
 
 Gdy sędzia nie może ocenić, jego kryteria są zapisywane jako pominięte albo
 jako błędy, z uzasadnieniem podającym przyczynę: wsparcie AI jest wyłączone,

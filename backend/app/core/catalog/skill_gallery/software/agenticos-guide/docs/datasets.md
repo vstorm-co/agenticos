@@ -384,6 +384,7 @@ read on the stored scale, and one above it is refused naming `judge.pass_at`.
 | `json_schema` | `schema`, optional `path` | The answer is JSON matching the JSON Schema |
 | `max_cost_usd` | `value` | The run cost no more than this |
 | `max_latency_ms` | `value` | The run took no longer than this |
+| `length` | `unit` (`characters` or `words`), `min` and/or `max`, optional `path` | The answer is at least `min` and at most `max` long |
 | `judge` | `criterion` | The eval judge grades the criterion at or above the pass mark |
 
 `path` reads into an answer that is JSON: `items.0.name` is the first item's
@@ -396,6 +397,9 @@ of a second on an answer stops and is recorded as an error, so one pattern
 cannot hold up scoring. For the same reason a JSON Schema may not use `pattern`
 or `patternProperties` - a `regex` check with a `path` does the same under the
 deadline - and its `$ref` must point inside the schema.
+
+A `length` check counts words as runs of anything but whitespace, and needs at
+least one bound.
 
 A `judge` check is a criterion for one case only, graded in the same judge run
 as the dataset's rubric. Use it for what a rule cannot express, such as "refuses
@@ -479,6 +483,14 @@ its grade rests on and names the rule the grade follows from. A grade whose
 reason is mostly the criterion's own words, with no quote the answer holds, is
 an error: nothing shows the judge read the answer. A top grade with nothing
 quoted from the answer stands, marked unverified.
+
+A judge grades a yes-or-no question most consistently, so the criteria editor
+suggests phrasing each criterion as one, and the judge's scale offers **Use
+yes/no grading**, a scale of 2 that passes at 2. A criterion a rule can check -
+a length, valid JSON, a quoted opening, a bulleted list - says so, and **Add the
+rule** adds that check to the ones every case gets, which cost nothing and grade
+the same way every time. The suggestion reads the criterion's own words and
+calls no model.
 
 When the judge cannot grade, its criteria are recorded as skipped or as errors,
 with a reason that names the cause: AI assistance is switched off, the judge
