@@ -51,7 +51,11 @@ export function AttemptChanges({
       setUnsaved((ids) => (open ? [...ids, hunkId] : ids.filter((id) => id !== hunkId))),
     [],
   );
-  const included = attempt?.included_hunk_ids ?? [];
+  const saved = attempt?.included_hunk_ids ?? [];
+  const savedKey = JSON.stringify(saved);
+  // A tick shows at once; the session's next read replaces it, and a refused save puts it back.
+  const [ticking, setTicking] = useState<{ from: string; ids: string[] } | null>(null);
+  const included = ticking?.from === savedKey ? ticking.ids : saved;
   if (error) return <p role="alert">{getErrorMessage(error, tErrors)}</p>;
   if (isLoading) return <p role="status">{t("loading")}</p>;
   if (changes.length === 0) return <p className="text-muted-foreground text-sm">{t("none")}</p>;
@@ -80,15 +84,16 @@ export function AttemptChanges({
                   checked={ticked}
                   disabled={last || actions.selectChanges.isPending}
                   aria-label={t("include", { number: index + 1 })}
-                  onCheckedChange={(checked) =>
-                    void act(() =>
-                      actions.selectChanges.mutateAsync(
-                        checked === true
-                          ? [...included, hunk.id]
-                          : included.filter((id) => id !== hunk.id),
-                      ),
-                    )
-                  }
+                  onCheckedChange={(checked) => {
+                    const next =
+                      checked === true
+                        ? [...included, hunk.id]
+                        : included.filter((id) => id !== hunk.id);
+                    setTicking({ from: savedKey, ids: next });
+                    void act(() => actions.selectChanges.mutateAsync(next)).then(
+                      (kept) => kept || setTicking(null),
+                    );
+                  }}
                 />
                 {t("includeLabel")}
                 {last && <span className="text-muted-foreground text-xs">{t("lastOne")}</span>}

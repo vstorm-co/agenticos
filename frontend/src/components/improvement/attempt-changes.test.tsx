@@ -61,6 +61,19 @@ it("ticks which changes to test, and keeps the last one ticked", async () => {
   expect(state.select).toHaveBeenLastCalledWith(["h2"]);
 });
 
+it("shows a tick at once, and puts it back with the reason when it is not saved", async () => {
+  let refuse: (reason: Error) => void = () => {};
+  state.select.mockReturnValueOnce(new Promise((_, reject) => (refuse = reject)));
+  render(<AttemptChanges session={atStop(["h1"])} editable />);
+  const second = screen.getByRole("checkbox", { name: "Include change 2 in the test" });
+  await userEvent.click(second);
+  expect(second).toBeChecked();
+  expect(screen.getByRole("checkbox", { name: "Include change 1 in the test" })).toBeEnabled();
+  refuse(new Error("The session moved on"));
+  expect(await screen.findByRole("alert")).toHaveTextContent("The session moved on");
+  expect(second).not.toBeChecked();
+});
+
 it("rewords a change before it is tested, and only a change of the instructions", async () => {
   render(<AttemptChanges session={atStop(["h1"])} editable />);
   expect(screen.getAllByRole("button", { name: "Change the wording" })).toHaveLength(1);
