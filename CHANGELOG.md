@@ -60,7 +60,7 @@ environment without a person's decision.
 - **New permissions.** `datasets:view`, `datasets:edit`, `datasets:run` and
   `promotions:override` join the catalog with defaults for every built-in role.
   Starting or estimating an eval also needs `runs:view`.
-- **Migrations `0160_datasets.py` to `0213_grading_model.py`** add
+- **Migrations `0160_datasets.py` to `0214_profile_key_column_again.py`** add
   the dataset, eval, suite, knowledge gap and improvement tables and new
   columns on agents, agent runs, MCP connections, knowledge-base documents, API
   keys and background jobs, and extend the agent kind and notification event
