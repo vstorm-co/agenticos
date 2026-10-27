@@ -7,7 +7,9 @@ from app.services.improvement_data import (
     CaseIdentity,
     case_partition,
     drawn_holdout,
+    holdout_count,
     input_hash,
+    measurable,
     measurement,
 )
 
@@ -77,3 +79,41 @@ def test_held_out_copy_of_a_training_question_is_excluded_before_learning() -> N
     )
     assert result.holdout_case_ids == [UUID(int=3)]
     assert result.excluded_case_ids == [UUID(int=2)]
+
+
+def test_an_attempt_keeps_aside_what_its_check_can_measure_before_anything_else() -> None:
+    ids = [UUID(int=number) for number in range(1, 11)]
+    can = set(ids[:4])
+    for seed in range(20):
+        drawn = drawn_holdout(ids, share=Decimal("0.5"), seed=seed, measurable=can)
+        assert len(drawn) == holdout_count(10, Decimal("0.5")) == 5
+        assert can <= set(drawn)
+    several = set(ids[:8])
+    assert (
+        len(
+            {
+                frozenset(drawn_holdout(ids, share=Decimal("0.5"), seed=seed, measurable=several))
+                for seed in range(20)
+            }
+        )
+        > 1
+    )
+    assert all(
+        set(drawn_holdout(ids, share=Decimal("0.5"), seed=seed, measurable=several)) <= several
+        for seed in range(20)
+    )
+
+
+def test_a_question_is_measurable_only_when_gradable_asked_once_and_not_from_the_evidence() -> None:
+    source = UUID(int=20)
+    cases = [
+        CaseIdentity(UUID(int=1), "holdout", "New question", None, True),
+        CaseIdentity(UUID(int=2), "holdout", "  REFUND   policy? ", None, True),
+        CaseIdentity(UUID(int=3), "holdout", "A generated paraphrase", source, True),
+        CaseIdentity(UUID(int=4), "holdout", "Nothing grades this", None, False),
+        CaseIdentity(UUID(int=5), "train", "Asked twice", None, True),
+        CaseIdentity(UUID(int=6), "holdout", "asked   TWICE", None, True),
+    ]
+    assert measurable(cases, evidence_inputs=["refund policy?"], evidence_run_ids=[source]) == {
+        UUID(int=1)
+    }

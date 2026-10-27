@@ -158,13 +158,19 @@ async def test_every_change_an_attempt_proposed_reads_without_a_chosen_round(db)
     assert await service.changes(ctx, agent.id, ready.id, attempt=99) == []
 
 
-async def test_a_session_with_no_chosen_round_has_no_changes_to_show(db):
+async def test_a_session_with_no_kept_attempt_shows_the_attempt_in_hand(db):
     ctx, agent, ready = await _ready_proposal(db)
     run = await db.get(ImprovementRun, ready.id)
     assert run is not None
     run.best_iteration_id = None
     await db.flush()
-    assert await ImprovementPipelineService(db).changes(ctx, agent.id, ready.id) == []
+    service = ImprovementPipelineService(db)
+    in_hand = await service.changes(ctx, agent.id, ready.id, attempt=run.iteration)
+    included = set(ready.iterations[0].included_hunk_ids or [change.id for change in in_hand])
+
+    shown = await service.changes(ctx, agent.id, ready.id)
+
+    assert shown and {change.id for change in shown} == included
 
 
 @pytest.mark.security

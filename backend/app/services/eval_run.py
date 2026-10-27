@@ -81,6 +81,7 @@ from app.repositories import (
     member_repo,
     organization_repo,
 )
+from app.repositories.authoring import EvidenceInputs
 from app.repositories.eval_run import RunExecution
 from app.schemas.dataset import StoredCaseContent
 from app.schemas.eval_run import (
@@ -133,6 +134,7 @@ from app.services.eval_comparison import (
     summarize,
 )
 from app.services.eval_suite_threshold import judge
+from app.services.improvement_data import CaseIdentity, measurable, measurement
 from app.services.improvement_states import NOISY_SPREAD_QUESTIONS, NOISY_UNSTABLE_SHARE
 from app.services.model_profile import ModelProfileService
 from app.services.notifications import NotificationService
@@ -1179,8 +1181,47 @@ class EvalRunService:
     ) -> ImprovementMeasurement:
         """The questions a check learns from and is measured on, by the dataset's stored
         partition or, given `holdout`, by an attempt's own draw."""
-        from app.services.improvement_data import CaseIdentity, measurement
+        cases, sources = await self._identities(
+            ctx,
+            plan,
+            evidence_run_ids=evidence_run_ids,
+            evidence_conversations=evidence_conversations,
+            holdout=holdout,
+        )
+        return measurement(
+            cases,
+            evidence_inputs=sources.inputs,
+            evidence_run_ids=sources.run_ids,
+            already_excluded=plan.excluded_case_ids,
+        )
 
+    async def improvement_measurable(
+        self,
+        ctx: AuthContext,
+        plan: RunPlan,
+        *,
+        evidence_run_ids: Sequence[UUID],
+        evidence_conversations: Sequence[UUID],
+    ) -> set[UUID]:
+        """The questions an attempt's check could measure, whichever it keeps aside."""
+        cases, sources = await self._identities(
+            ctx,
+            plan,
+            evidence_run_ids=evidence_run_ids,
+            evidence_conversations=evidence_conversations,
+            holdout=None,
+        )
+        return measurable(cases, evidence_inputs=sources.inputs, evidence_run_ids=sources.run_ids)
+
+    async def _identities(
+        self,
+        ctx: AuthContext,
+        plan: RunPlan,
+        *,
+        evidence_run_ids: Sequence[UUID],
+        evidence_conversations: Sequence[UUID],
+        holdout: Collection[UUID] | None,
+    ) -> tuple[list[CaseIdentity], EvidenceInputs]:
         sources = await authoring_repo.evidence_inputs(
             self.db,
             organization_id=ctx.organization_id,
@@ -1195,23 +1236,19 @@ class EvalRunService:
         ai_enabled = await AiAssistanceService(self.db).is_enabled(
             organization_id=ctx.organization_id
         )
-        return measurement(
-            [
-                CaseIdentity(
-                    case.case_id,
-                    case.improvement_partition
-                    if holdout is None
-                    else ("holdout" if case.case_id in holdout else "train"),
-                    case.input,
-                    case.source_run_id,
-                    decidable(case, plan.scoring, ai_enabled=ai_enabled),
-                )
-                for case in plan.cases
-            ],
-            evidence_inputs=sources.inputs,
-            evidence_run_ids=sources.run_ids,
-            already_excluded=plan.excluded_case_ids,
-        )
+        cases = [
+            CaseIdentity(
+                case.case_id,
+                case.improvement_partition
+                if holdout is None
+                else ("holdout" if case.case_id in holdout else "train"),
+                case.input,
+                case.source_run_id,
+                decidable(case, plan.scoring, ai_enabled=ai_enabled),
+            )
+            for case in plan.cases
+        ]
+        return cases, sources
 
     @staticmethod
     def _measurement(run: EvalRun) -> ImprovementMeasurement | None:

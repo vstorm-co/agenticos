@@ -78,6 +78,7 @@ from app.repositories import organization as organization_repo
 from app.repositories import user as user_repo
 from app.schemas.change_event import ChangeEvent
 from app.schemas.eval_suite import EvalSuiteSummary, ThresholdReason
+from app.schemas.improvement import NextStepBlocked
 from app.services.notification_center import NotificationCenterService, absolute_context_url
 from app.services.spend import month_start, organization_spend_since
 
@@ -1014,12 +1015,14 @@ class NotificationService:
         status: str,
         reason: str | None,
         end: str,
+        next_step_blocked: NextStepBlocked | None = None,
     ) -> None:
         """One end of a session - each end once, however often it is reported.
 
         A session ends more than once: stopped on its budget, continued, then
         ready. `end` names which end this is, so the next one is not taken for a
         repeat of the last. No evidence text is put in the notification.
+        `next_step_blocked` says why a stop's next step cannot be taken.
         """
         if user_id is None:
             return
@@ -1031,13 +1034,16 @@ class NotificationService:
             recipients=list(recipients),
             event_type=NotificationEventType.IMPROVEMENT_FINISHED,
             occurrence_id=f"{run_id}:{end}",
-            summary=_improvement_summary(agent.name, status, reason),
+            summary=_improvement_summary(agent.name, status, reason, blocked=next_step_blocked),
             context_url=path,
             render_context={
                 "agent_name": agent.name,
                 **agent_face(agent),
                 "status": status,
                 "reason": reason,
+                "next_step_blocked": None
+                if next_step_blocked is None
+                else next_step_blocked.model_dump(),
                 "app_name": settings.PROJECT_NAME,
                 "run_url": absolute_context_url(path),
             },
@@ -1842,8 +1848,16 @@ _WAITING_SUMMARY = {
 }
 
 
-def _improvement_summary(agent_name: str, status: str, reason: str | None) -> str:
+def _improvement_summary(
+    agent_name: str, status: str, reason: str | None, *, blocked: NextStepBlocked | None = None
+) -> str:
     """The bell's English line for a finished session; it names no internal status."""
+    if blocked is not None:
+        return (
+            f"Your improvement of {agent_name} has changes, but too few test questions are "
+            f"left to check them: {blocked.needed} more are needed, and this session's "
+            "questions are fixed. End it, add questions and start a new one."
+        )
     if reason in _CHECK_SUMMARY:
         return _CHECK_SUMMARY[reason].format(agent=agent_name)
     if status in _DECIDED_SUMMARY:

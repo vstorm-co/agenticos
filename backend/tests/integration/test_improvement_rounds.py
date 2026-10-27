@@ -11,12 +11,14 @@ from app.core.exceptions import BadRequestError, ConcurrentChangeError, PaymentR
 from app.db.models.dataset import Dataset, DatasetCase
 from app.db.models.eval_run import EvalRun
 from app.db.models.improvement import ImprovementRun
+from app.db.models.notification import Notification
 from app.repositories import authoring_repo, improvement_repo
 from app.schemas.improvement import (
     AttributionConsent,
     ContinuationConsent,
     ImprovementContinue,
     ImprovementStart,
+    NextStepBlocked,
 )
 from app.services.agent_runner import AgentRunnerService
 from app.services.authoring_worker import AuthoringWorker
@@ -143,6 +145,7 @@ async def _two_rounds(db):
     with patch("app.services.improvement_pipeline.drawn_holdout", return_value=measured):
         second_read = await _next_step(db, ctx, started.id, note="KEEP_THE_REFUND_WINDOW_NOTE")
     assert second_read.status == "running" and second_read.iteration == 2
+    assert [item.held_out for item in second_read.iterations] == [5, 5]
     second = await _round(db, ctx, agent, started.id, "ROUND_GOOD")
     return ctx, agent, started, first, second
 
@@ -180,6 +183,7 @@ async def test_regression_starts_a_blind_second_round_and_best_is_selectable(db)
         str(i) for i in two.holdout_case_ids
     }
     assert [item.verdict_detail["held_out"] for item in ready.iterations] == [5, 5]
+    assert [item.held_out for item in ready.iterations] == [5, 5]
     # Training evidence follows the attempt's own learning questions, not the stored partition.
     learned = await service.authoring.evidence.for_improvement(
         ctx, started.id, train_case_ids=two.holdout_case_ids
@@ -201,7 +205,7 @@ async def test_regression_starts_a_blind_second_round_and_best_is_selectable(db)
     assert current is not None and current.id == ready.iterations[0].batch_id
 
 
-async def test_an_attempt_whose_draw_leaves_too_few_to_measure_is_not_checked(db):
+async def test_an_attempt_whose_draw_would_leave_too_few_to_measure_is_never_written(db):
     ctx, agent, _ = await _setup(db)
     dataset, _ = await _marked_dataset(db, ctx, share=Decimal("0.5"))
     service = ImprovementPipelineService(db)
@@ -214,13 +218,51 @@ async def test_an_attempt_whose_draw_leaves_too_few_to_measure_is_not_checked(db
         await service.advance(started.id, ctx.organization_id)
     await _next_step(db, ctx, started.id)
     await _round(db, ctx, agent, started.id, "ROUND_BAD")
+    with pytest.raises(BadRequestError, match="only 4 test questions") as refused:
+        await _next_step(db, ctx, started.id)
+    assert refused.value.details == {"missing_holdout": 1}
+    stopped = await service.read(ctx, agent.id, started.id)
+    assert (stopped.status, stopped.iteration, len(stopped.iterations)) == ("stopped", 1, 1)
+
+
+async def test_an_attempt_that_still_draws_too_few_to_measure_is_not_checked(db):
+    ctx, agent, _ = await _setup(db)
+    dataset, measured = await _marked_dataset(db, ctx, share=Decimal("0.625"))
+    service = ImprovementPipelineService(db)
+    started = await service.start(
+        ctx,
+        agent.id,
+        ImprovementStart(dataset_id=dataset.id, budget_usd=Decimal(100), max_iterations=3),
+    )
+    for _ in range(2):
+        await service.advance(started.id, ctx.organization_id)
     await _next_step(db, ctx, started.id)
+    await _round(db, ctx, agent, started.id, "ROUND_BAD")
+    with patch("app.services.improvement_pipeline.drawn_holdout", return_value=measured[:4]):
+        drawn = await _next_step(db, ctx, started.id)
+    assert drawn.iterations[1].held_out == 4
     with pytest.raises(BadRequestError, match="Add 1 more") as refused:
         await _round(db, ctx, agent, started.id, "ROUND_GOOD")
     assert refused.value.details == {"missing_holdout": 1}
     waiting = await service.read(ctx, agent.id, started.id)
     assert (waiting.status, waiting.stage, waiting.iteration) == ("waiting", "filtering", 2)
     assert not waiting.iterations[1].eval_run_ids
+    blocked = NextStepBlocked(reason="missing_holdout", needed=1)
+    assert waiting.next_step_blocked == blocked
+    [listed] = await service.awaiting(ctx)
+    assert listed.next_step_blocked == blocked
+    notices = list(
+        await db.scalars(
+            select(Notification)
+            .where(Notification.event_type == "improvement_finished")
+            .order_by(Notification.created_at)
+        )
+    )
+    assert notices[-1].render_context["next_step_blocked"] == {
+        "reason": "missing_holdout",
+        "needed": 1,
+    }
+    assert "1 more are needed" in notices[-1].summary
 
 
 async def test_attribution_needs_consent_to_the_current_price_and_is_idempotent(db):
@@ -293,6 +335,47 @@ async def test_the_next_round_cannot_start_when_its_whole_forecast_exceeds_budge
         )
     stopped = await service.read(ctx, agent.id, started.id)
     assert stopped.iteration == 1 and len(stopped.iterations) == 1
+
+
+async def test_try_again_is_refused_before_it_costs_anything_when_too_few_questions_measure_it(
+    db,
+):
+    ctx, agent, _ = await _setup(db)
+    dataset = await _dataset(db, ctx, cases=5)
+    service = ImprovementPipelineService(db)
+    started = await service.start(
+        ctx,
+        agent.id,
+        ImprovementStart(dataset_id=dataset.id, budget_usd=Decimal(100), max_iterations=3),
+    )
+    for _ in range(2):
+        await service.advance(started.id, ctx.organization_id)
+    await _next_step(db, ctx, started.id)
+    await _round(db, ctx, agent, started.id, "ROUND_BAD")
+    stopped = await service.read(ctx, agent.id, started.id)
+    assert stopped.status == "stopped"
+    stored = await db.get(Dataset, dataset.id)
+    assert stored is not None
+    stored.improvement_holdout_share = Decimal("0.5")
+    await db.flush()
+
+    # Five questions keep three aside per attempt, short of the five a result needs.
+    with pytest.raises(BadRequestError, match="only 3 test questions") as refused:
+        await service.estimate_continuation(
+            ctx, agent.id, started.id, ImprovementContinue(budget_usd=stopped.budget_usd)
+        )
+
+    assert refused.value.details == {"missing_holdout": 2}
+    after = await service.read(ctx, agent.id, started.id)
+    assert (after.iteration, len(after.iterations), after.spent_usd) == (
+        1,
+        1,
+        stopped.spent_usd,
+    )
+    from app.schemas.improvement import ImprovementDiscard
+
+    ended = await service.discard(ctx, agent.id, started.id, ImprovementDiscard(confirmed=True))
+    assert ended.status == "rejected"
 
 
 @pytest.mark.parametrize(

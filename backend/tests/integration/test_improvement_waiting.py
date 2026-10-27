@@ -97,8 +97,9 @@ async def test_a_session_waits_after_understand_and_proposes_only_when_asked(db)
         AuthoringStart(window_days=30),
         improvement_run_id=waiting.id,
     )
-    assert (quote.mode, quote.total_usd, quote.affordable) == (
+    assert (quote.mode, quote.total_usd, quote.expected_usd, quote.affordable) == (
         "next_step",
+        proposal.estimate_usd,
         proposal.estimate_usd,
         True,
     )
@@ -111,7 +112,7 @@ async def test_a_session_waits_after_understand_and_proposes_only_when_asked(db)
 async def test_a_session_waits_after_changes_and_checks_only_what_a_person_chose(db):
     ctx, agent, waiting = await _at_changes(db)
     assert (waiting.status, waiting.stage, waiting.next_step) == ("waiting", "filtering", "check")
-    assert waiting.finished_at is None
+    assert waiting.finished_at is None and waiting.next_step_blocked is None
     service = ImprovementPipelineService(db)
     await service.advance(waiting.id, ctx.organization_id)
     assert not (await service.read(ctx, agent.id, waiting.id)).iterations[0].eval_run_ids
@@ -122,6 +123,8 @@ async def test_a_session_waits_after_changes_and_checks_only_what_a_person_chose
     everything = await service.estimate_continuation(
         ctx, agent.id, waiting.id, ImprovementContinue(budget_usd=waiting.budget_usd)
     )
+    # The most a check may cost includes the repeat an inconclusive result gets.
+    assert 0 < everything.expected_usd * 2 <= everything.total_usd
 
     chosen = await service.choose_changes(
         ctx, agent.id, waiting.id, ImprovementSelection(hunk_ids=[hunks[0].id])
@@ -141,6 +144,9 @@ async def test_a_session_waits_after_changes_and_checks_only_what_a_person_chose
     consent = await _consent(service, ctx, agent, chosen)
     checking = await service.continue_run(ctx, agent.id, waiting.id, consent)
     assert (checking.status, checking.stage) == ("running", "evaluating")
+    assert [change.id for change in await service.changes(ctx, agent.id, waiting.id)] == [
+        hunks[0].id
+    ]
     [check_id] = checking.iterations[0].eval_run_ids
     again = await service.continue_run(ctx, agent.id, waiting.id, consent)
     assert again.iterations[0].eval_run_ids == [check_id]

@@ -120,6 +120,7 @@ from app.schemas.improvement import (
     KnowledgeCheckConsent,
     KnowledgeCheckEstimate,
     KnowledgeCheckTarget,
+    NextStepBlocked,
     SelectionConsent,
     SelectionEstimate,
     TopicDeferral,
@@ -138,7 +139,12 @@ from app.services.dataset import DatasetService, redact_credentials
 from app.services.embedding_resolution import embeddings_for_collection
 from app.services.eval_run import EvalRunService, scoring_hash, spec_hash
 from app.services.eval_suite import EvalSuiteService
-from app.services.improvement_data import drawn_holdout, input_hash
+from app.services.improvement_data import (
+    MIN_HOLDOUT_CASES,
+    drawn_holdout,
+    holdout_count,
+    input_hash,
+)
 from app.services.knowledge_gaps import KnowledgeGapService, draft_fingerprint
 from app.services.notifications import NotificationService
 from app.worker.jobs import (
@@ -218,7 +224,22 @@ class ContinuationPlan:
     session: ImprovementRun
     iteration: ImprovementIteration
     inputs: Inputs
+    measurable: set[UUID]
+    """For a new attempt drawn on continuing, the questions its check could measure."""
     quote: ContinuationEstimate
+
+
+def blocked_next_step(
+    run: ImprovementRun, iteration: ImprovementIteration | None
+) -> NextStepBlocked | None:
+    """Why the next step at a Changes stop cannot be taken, read from what the attempt's
+    analysis or draw counted; no estimate is made for it."""
+    if run.status != Status.WAITING or run.stage != Stage.FILTERING or iteration is None:
+        return None
+    missing = (iteration.verdict_detail or {}).get("missing_holdout")
+    if not isinstance(missing, int) or missing < 1:
+        return None
+    return NextStepBlocked(reason="missing_holdout", needed=missing)
 
 
 class ImprovementPipelineService:
@@ -820,6 +841,15 @@ class ImprovementPipelineService:
                 iteration=row.iteration,
                 max_iterations=row.max_iterations,
                 created_at=row.created_at,
+                next_step_blocked=blocked_next_step(
+                    row,
+                    await improvement_repo.get_iteration(
+                        self.db,
+                        organization_id=row.organization_id,
+                        run_id=row.id,
+                        number=row.iteration,
+                    ),
+                ),
             )
             for row in rows
             if (name := names[row.agent_id]) is not None
@@ -854,11 +884,15 @@ class ImprovementPipelineService:
             if proposed is None or proposed.batch_id is None:
                 return []
             return await self.authoring.changes_of(ctx, agent, proposed.batch_id, None)
-        if run.status == Status.WAITING and run.stage == Stage.FILTERING:
-            # Waiting at Changes, the attempt's own changes are the ones to choose and edit.
-            chosen = next((item for item in rounds if item.number == run.iteration), None)
-        else:
-            chosen = next((item for item in rounds if item.id == run.best_iteration_id), None)
+        current = next((item for item in rounds if item.number == run.iteration), None)
+        best = next((item for item in rounds if item.id == run.best_iteration_id), None)
+        # Until a result keeps an attempt, the attempt in hand - chosen at Changes, then
+        # checked - is the one whose changes these are.
+        chosen = (
+            current
+            if best is None or Status(run.status).active or run.status == Status.WAITING
+            else best
+        )
         if chosen is None or chosen.batch_id is None:
             return []
         return await self.authoring.changes_of(
@@ -890,6 +924,9 @@ class ImprovementPipelineService:
         result.can_restart = await self._may_continue(ctx, run)
         if run.status == Status.WAITING:
             result.next_step = "check" if run.stage == Stage.FILTERING else "propose"
+        result.next_step_blocked = blocked_next_step(
+            run, next((item for item in iterations if item.number == run.iteration), None)
+        )
         measured = [self._round_result(item) for item in iterations if item.verdict is not None]
         hint = rules.no_progress(measured)
         if hint is not None:
@@ -899,6 +936,10 @@ class ImprovementPipelineService:
             self.db, run.id, organization_id=run.organization_id
         )
         result.iterations = [ImprovementIterationRead.model_validate(item) for item in iterations]
+        for attempt in result.iterations:
+            detail = attempt.verdict_detail or {}
+            counted = detail.get("held_out", detail.get("gradable_holdout"))
+            attempt.held_out = counted if isinstance(counted, int) else None
         first = next((item for item in iterations if item.number == 1), None)
         current = next(
             (item for item in iterations if item.number == run.iteration),
@@ -1259,6 +1300,7 @@ class ImprovementPipelineService:
         await self._assert_idle(run, rounds)
         mode: Literal["next_step", "next_round", "resume", "retry"]
         number = current.number
+        measurable: set[UUID] = set()
         if run.status == Status.WAITING:
             mode = "next_step"
         elif run.status == Status.STOPPED and (
@@ -1288,6 +1330,17 @@ class ImprovementPipelineService:
             if number > run.max_iterations:
                 raise BadRequestError(message="The session reached its attempt limit")
             mode = "next_round"
+            if deferred is None:
+                measurable = await self._measurable(ctx, inputs, run)
+                share, cases = await self._split_cases(run)
+                held = min(holdout_count(len(cases), share), len(measurable & set(cases)))
+                if held < MIN_HOLDOUT_CASES:
+                    raise BadRequestError(
+                        message=f"Another attempt could be checked on only {held} test questions, "
+                        f"fewer than the {MIN_HOLDOUT_CASES} a result needs. The session's questions "
+                        "are fixed when it starts: end it, add test questions and start a new one.",
+                        details={"missing_holdout": MIN_HOLDOUT_CASES - held},
+                    )
         else:
             raise BadRequestError(
                 message="This step needs a new session or a review decision before it can continue"
@@ -1306,7 +1359,7 @@ class ImprovementPipelineService:
             raise BadRequestError(
                 message="An earlier attempt already checked exactly these changes; choose others"
             )
-        total, step_affordable = await self._step_price(ctx, inputs, run, current, stage)
+        total, expected, step_affordable = await self._step_price(ctx, inputs, run, current, stage)
         spent = await improvement_repo.spent(self.db, run.id, organization_id=ctx.organization_id)
         org_left = await self.evals._org_left(ctx)
         fingerprint = hashlib.sha256(
@@ -1337,10 +1390,12 @@ class ImprovementPipelineService:
             run,
             current,
             inputs,
+            measurable,
             ContinuationEstimate(
                 mode=mode,
                 number=number,
                 total_usd=total,
+                expected_usd=expected,
                 budget_usd=data.budget_usd,
                 candidate_hash=fingerprint,
                 affordable=step_affordable
@@ -1366,11 +1421,14 @@ class ImprovementPipelineService:
         run: ImprovementRun,
         iteration: ImprovementIteration,
         stage: Stage | None,
-    ) -> tuple[Decimal, bool]:
-        """What the paid step a continuation starts costs, and whether its own budgets allow it.
+    ) -> tuple[Decimal, Decimal, bool]:
+        """The most the paid step a continuation starts may cost, what it most likely costs,
+        and whether its own budgets allow it.
 
-        Only that step: every later paid step waits for a person again. A check includes
-        the one repeat an inconclusive result gets, as the check itself would start it.
+        Only that step: every later paid step waits for a person again. A check may cost
+        up to the one repeat an inconclusive result gets, as the check itself would start
+        it, and asking again every answer whose result changed; it most likely costs one
+        check without either.
         """
         if stage == Stage.PROPOSING:
             proposal = await self.authoring.estimate_agent(
@@ -1382,7 +1440,11 @@ class ImprovementPipelineService:
                 improvement_run_id=run.id,
                 excluded_message_ids=await self._knowledge_exclusions(ctx, run),
             )
-            return proposal.estimate_usd, proposal.affordable and proposal.reason is None
+            return (
+                proposal.estimate_usd,
+                proposal.estimate_usd,
+                proposal.affordable and proposal.reason is None,
+            )
         if stage == Stage.EVALUATING:
             if iteration.batch_id is None:
                 raise NotFoundError(message="The candidate is no longer available")
@@ -1426,7 +1488,11 @@ class ImprovementPipelineService:
                 self.db, iteration.eval_run_ids, organization_id=ctx.organization_id
             )
             repeats = max(0, rules.INCONCLUSIVE_RERUNS - completed)
-            return (check.total_usd + check.rerun_ceiling_usd) * (1 + repeats), check.affordable
+            return (
+                (check.total_usd + check.rerun_ceiling_usd) * (1 + repeats),
+                check.total_usd,
+                check.affordable,
+            )
         if stage == Stage.CLASSIFYING:
             ids, messages, sources = await self._knowledge_sources(
                 ctx, inputs.agent, run_id=run.id, dataset_id=run.dataset_id
@@ -1434,8 +1500,8 @@ class ImprovementPipelineService:
             price = await KnowledgeGapService(self.db).improvement_estimate(
                 ctx, ids, messages, source_run_ids=sources
             )
-            return price, True
-        return Decimal(0), True
+            return price, price, True
+        return Decimal(0), Decimal(0), True
 
     async def estimate_continuation(
         self, ctx: AuthContext, agent_id: UUID, run_id: UUID, data: ImprovementContinue
@@ -1477,7 +1543,7 @@ class ImprovementPipelineService:
                 following = await improvement_repo.create_iteration(
                     self.db, organization_id=ctx.organization_id, run_id=run.id, number=quote.number
                 )
-                await self._draw_split(run, following)
+                await self._draw_split(run, following, plan.measurable)
             await improvement_repo.update_iteration(
                 self.db, iteration=following, values={"note": data.note}
             )
@@ -1965,6 +2031,9 @@ class ImprovementPipelineService:
         user_id, _ = self._acting_as(run)
         if agent is None or user_id is None:
             return
+        current = await improvement_repo.get_iteration(
+            self.db, organization_id=run.organization_id, run_id=run.id, number=run.iteration
+        )
         await NotificationService(self.db).improvement_finished(
             agent=agent,
             run_id=run.id,
@@ -1972,6 +2041,7 @@ class ImprovementPipelineService:
             status=run.status,
             reason=reason or (run.stage if run.status == Status.WAITING else run.stop_reason),
             end=end,
+            next_step_blocked=blocked_next_step(run, current),
         )
 
     async def check_finished(self, check: EvalRun) -> None:
@@ -2583,8 +2653,8 @@ class ImprovementPipelineService:
             attempt_holdout=iteration.holdout_case_ids,
         )
 
-    async def _draw_split(self, run: ImprovementRun, iteration: ImprovementIteration) -> None:
-        """Give a new attempt its own draw of the questions it learns from and is measured on."""
+    async def _split_cases(self, run: ImprovementRun) -> tuple[Decimal, list[UUID]]:
+        """The share a new attempt keeps aside, and the pinned questions it draws them from."""
         dataset = await dataset_repo.get(
             self.db, run.dataset_id, organization_id=run.organization_id
         )
@@ -2599,9 +2669,36 @@ class ImprovementPipelineService:
             )
             if case.anonymised_at is None
         ]
+        return dataset.improvement_holdout_share, cases
+
+    async def _measurable(self, ctx: AuthContext, inputs: Inputs, run: ImprovementRun) -> set[UUID]:
+        """The pinned questions a new attempt's check could measure, whichever it keeps aside."""
+        pack = await self.authoring.evidence.for_improvement(ctx, run.id)
+        plan = await self.evals.plan(
+            ctx,
+            run.agent_id,
+            self._eval_request(inputs, run),
+            scoring=DatasetScoring.model_validate(run.pinned_scoring),
+            candidate_spec=AgentSpec.model_validate(inputs.agent.draft_spec),
+            exclude_conversations=pack.conversation_ids,
+        )
+        return await self.evals.improvement_measurable(
+            ctx,
+            plan,
+            evidence_run_ids=run.chat_evidence_run_ids or [],
+            evidence_conversations=pack.conversation_ids,
+        )
+
+    async def _draw_split(
+        self, run: ImprovementRun, iteration: ImprovementIteration, measurable: set[UUID]
+    ) -> None:
+        """Give a new attempt its own draw of the questions it learns from and is measured on,
+        and count how many of those its check can measure."""
+        share, cases = await self._split_cases(run)
         seed = secrets.randbelow(2**31 - 1)
-        holdout = drawn_holdout(cases, share=dataset.improvement_holdout_share, seed=seed)
+        holdout = drawn_holdout(cases, share=share, seed=seed, measurable=measurable)
         held = set(holdout)
+        gradable = len(held & measurable)
         await improvement_repo.update_iteration(
             self.db,
             iteration=iteration,
@@ -2609,6 +2706,11 @@ class ImprovementPipelineService:
                 "split_seed": seed,
                 "train_case_ids": [case_id for case_id in cases if case_id not in held],
                 "holdout_case_ids": holdout,
+                "verdict_detail": {
+                    "gradable_holdout": gradable,
+                    "minimum_holdout": MIN_HOLDOUT_CASES,
+                    "missing_holdout": max(0, MIN_HOLDOUT_CASES - gradable),
+                },
             },
         )
 

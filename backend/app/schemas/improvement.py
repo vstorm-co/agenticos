@@ -77,6 +77,12 @@ class ImprovementIterationRead(BaseSchema):
     dropped: list[DroppedHunk] = Field(default_factory=list)
     verdict: ImprovementVerdict | None
     verdict_detail: dict[str, int | float | str | None] | None
+    held_out: int | None = Field(
+        default=None,
+        description="How many questions the attempt is measured on - kept aside, and no copy "
+        "of its evidence: counted by its check once it ran, before that by the analysis or "
+        "its draw; null until known",
+    )
     cost_usd: Decimal
     started_at: datetime
     ended_at: datetime | None
@@ -170,6 +176,16 @@ class MeasurementNoise(BaseSchema):
     examples: list[NoisyQuestion] = Field(default_factory=list)
 
 
+class NextStepBlocked(BaseSchema):
+    """Why a waiting session's next step cannot be taken."""
+
+    reason: Literal["missing_holdout"] = Field(
+        description="missing_holdout: the attempt keeps aside too few gradable questions "
+        "to measure its check, and the session's questions are fixed"
+    )
+    needed: int = Field(ge=1, description="How many more such questions the check needs")
+
+
 class ImprovementRead(BaseSchema):
     round_hint: Literal["no_change", "inconclusive"] | None = Field(
         default=None,
@@ -180,6 +196,10 @@ class ImprovementRead(BaseSchema):
         default=None,
         description="What a person's next step starts while the session waits: a proposal "
         "after Understand, or the check of the chosen changes after Changes",
+    )
+    next_step_blocked: NextStepBlocked | None = Field(
+        default=None,
+        description="Why the next step cannot be taken at this stop; null when it can",
     )
     published_version_id: UUID | None = None
     published_version: int | None = None
@@ -243,6 +263,10 @@ class ImprovementAwaiting(BaseSchema):
     iteration: int
     max_iterations: int
     created_at: datetime
+    next_step_blocked: NextStepBlocked | None = Field(
+        default=None,
+        description="Why the next step cannot be taken at this stop; null when it can",
+    )
 
 
 class TopicDeferral(BaseSchema):
@@ -258,7 +282,11 @@ class ImprovementContinue(BaseSchema):
 class ContinuationEstimate(BaseSchema):
     mode: Literal["next_step", "next_round", "resume", "retry"]
     number: int
-    total_usd: Decimal
+    total_usd: Decimal = Field(description="The most the step may cost; consent is given to it")
+    expected_usd: Decimal = Field(
+        description="What the step most likely costs: a check without the repeat an "
+        "inconclusive result gets, or asking again the answers whose result changed"
+    )
     budget_usd: Decimal
     affordable: bool
     candidate_hash: str

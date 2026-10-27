@@ -69,6 +69,17 @@ def test_a_finished_improvement_reads_as_a_sentence(status, reason, summary):
     assert _improvement_summary("Refund desk", status, reason) == summary
 
 
+def test_a_stop_whose_next_step_is_blocked_says_what_to_do_instead():
+    from app.schemas.improvement import NextStepBlocked
+
+    blocked = NextStepBlocked(reason="missing_holdout", needed=2)
+    assert _improvement_summary("Refund desk", "waiting", "filtering", blocked=blocked) == (
+        "Your improvement of Refund desk has changes, but too few test questions are left to "
+        "check them: 2 more are needed, and this session's questions are fixed. End it, add "
+        "questions and start a new one."
+    )
+
+
 def _row(event_type: str, context: dict[str, object] | None) -> Notification:
     return Notification(
         id=uuid4(),
