@@ -263,6 +263,9 @@ CALLS: tuple[Call, ...] = (
     ),
     Call("GET", "/agents/mcp-catalog", Perm.AGENTS_VIEW),
     Call("GET", "/agents", Perm.AGENTS_VIEW),
+    # How close the organization is to its agent limit: only a caller who can
+    # create an agent has a use for it.
+    Call("GET", "/agents/ceiling", Perm.AGENTS_EDIT),
     Call("POST", "/agents", Perm.AGENTS_EDIT, body={"spec": _SPEC}),
     # A system agent is an agent too, so it is gated like `create`.
     Call("POST", "/agents/system", Perm.AGENTS_EDIT, body={"kind": "judge", "name": "Grader"}),

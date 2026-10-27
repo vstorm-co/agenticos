@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useDeploymentSettings } from "./use-deployment-settings";
 import { apiClient } from "@/lib/api-client";
+import { qk } from "@/lib/query-keys";
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), patch: vi.fn(), delete: vi.fn(), upload: vi.fn() },
@@ -174,5 +175,29 @@ describe("refetching", () => {
     await result.current.refetch();
 
     expect(apiClient.get).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("saving the agent limit", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(apiClient.get).mockResolvedValue(SETTINGS);
+    vi.mocked(apiClient.patch).mockResolvedValue(SETTINGS);
+  });
+
+  it("recounts the Agents page's ceiling, not only the form", async () => {
+    // The ceiling is its own query, fresh for 30 s: a limit saved here would
+    // otherwise go unseen by New agent until it went stale.
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(qk.agents.ceiling(), { limit: 5, held: 5, at_limit: true });
+    const { result } = renderHook(() => useDeploymentSettings(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+
+    await result.current.save.mutateAsync({ max_agents_per_organization: 10 });
+
+    expect(client.getQueryState(qk.agents.ceiling())?.isInvalidated).toBe(true);
   });
 });

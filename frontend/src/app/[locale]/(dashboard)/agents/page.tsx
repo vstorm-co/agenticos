@@ -6,6 +6,11 @@ import { useRouter } from "next/navigation";
 import { Bot, Library, Plus } from "lucide-react";
 
 import { AgentCard } from "@/components/agents/agent-card";
+import {
+  AGENT_LIMIT_NOTICE_ID,
+  AgentLimitNotice,
+  isAtAgentLimit,
+} from "@/components/agents/agent-limit-notice";
 import { CatalogSection } from "@/components/agents/catalog-section";
 import { SystemAgentsSection } from "@/components/agents/system-agents-section";
 import { AgentTemplateDialog } from "@/components/agents/agent-template-dialog";
@@ -25,7 +30,7 @@ import {
   SearchInput,
   Skeleton,
 } from "@/components/ui";
-import { useAgentAttention, useAgents, usePermissions } from "@/hooks";
+import { useAgentAttention, useAgentCeiling, useAgents, usePermissions } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { resolvePreset } from "@/lib/dashboard/period";
 import { Perm } from "@/types/permissions";
@@ -111,6 +116,9 @@ export default function AgentsPage() {
   });
   const { can } = usePermissions();
   const canEdit = can(Perm.agentsEdit);
+  const { ceiling, known: ceilingKnown } = useAgentCeiling({ enabled: canEdit });
+  const atLimit = isAtAgentLimit(ceiling);
+  const tLimit = useTranslations("agentLimit");
   // Which agents need a look over the last thirty days - read only by whoever may see runs.
   const lately = resolvePreset("30d");
   const { agents: needingAttention } = useAgentAttention(
@@ -205,12 +213,18 @@ export default function AgentsPage() {
               <Button
                 variant="outline"
                 data-tour="agents-templates"
+                disabled={!ceilingKnown}
                 onClick={() => setTemplatesOpen(true)}
               >
                 <Library className="h-4 w-4" />
                 {tTemplates("browse")}
               </Button>
-              <Button data-tour="agents-new" onClick={() => setCreateOpen(true)}>
+              <Button
+                data-tour="agents-new"
+                disabled={!ceilingKnown || atLimit}
+                aria-describedby={atLimit ? AGENT_LIMIT_NOTICE_ID : undefined}
+                onClick={() => setCreateOpen(true)}
+              >
                 <Plus className="h-4 w-4" />
                 {t("newAgent")}
               </Button>
@@ -218,6 +232,10 @@ export default function AgentsPage() {
           ) : undefined
         }
       />
+
+      {canEdit && atLimit ? (
+        <AgentLimitNotice ceiling={ceiling} id={AGENT_LIMIT_NOTICE_ID} />
+      ) : null}
 
       <CatalogSection
         title={t("agentsCount", { count: total })}
@@ -255,7 +273,11 @@ export default function AgentsPage() {
                   filtersActive
                     ? t("noAgentHereMatches")
                     : canEdit
-                      ? t("createOneGiveInstructions")
+                      ? !ceilingKnown
+                        ? undefined
+                        : atLimit
+                          ? tLimit("emptyGallery")
+                          : t("createOneGiveInstructions")
                       : t("nobodyHasSharedAgent")
                 }
                 cta={
@@ -264,7 +286,7 @@ export default function AgentsPage() {
                         label: t("clearFilters"),
                         onClick: clearFilters,
                       }
-                    : canEdit
+                    : canEdit && ceilingKnown && !atLimit
                       ? {
                           label: (
                             <>
@@ -305,7 +327,7 @@ export default function AgentsPage() {
 
       <SystemAgentsSection query={query} agentsMatched={visible.length > 0} />
 
-      <AgentTemplateDialog open={templatesOpen} onOpenChange={setTemplatesOpen} />
+      <AgentTemplateDialog open={templatesOpen} onOpenChange={setTemplatesOpen} ceiling={ceiling} />
       <CreateAgentDialog
         open={createOpen}
         onOpenChange={setCreateOpen}

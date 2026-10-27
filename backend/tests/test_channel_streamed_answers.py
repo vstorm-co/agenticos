@@ -3,7 +3,7 @@
 import contextlib
 from collections.abc import AsyncIterator
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, Literal
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
@@ -13,7 +13,6 @@ from pydantic_ai.messages import (
     FunctionToolCallEvent,
     FunctionToolResultEvent,
     OutputToolCallEvent,
-    RetryPromptPart,
     ToolCallPart,
     ToolReturnPart,
 )
@@ -368,8 +367,9 @@ class _ToolNode:
 
 
 class TestStepsFromARun:
+    @pytest.mark.parametrize("outcome", ["failed", "retried"])
     async def test_each_tool_call_is_a_step_from_its_call_to_its_result(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, monkeypatch: pytest.MonkeyPatch, outcome: Literal["failed", "retried"]
     ) -> None:
         from pydantic_ai import Agent
 
@@ -378,7 +378,12 @@ class TestStepsFromARun:
             FunctionToolResultEvent(ToolReturnPart("web_search", "ok", tool_call_id="a")),
             FunctionToolCallEvent(ToolCallPart("lookup", {}, tool_call_id="b")),
             FunctionToolResultEvent(
-                RetryPromptPart("bad args", tool_name="lookup", tool_call_id="b")
+                ToolReturnPart(
+                    tool_name="lookup",
+                    tool_call_id="b",
+                    content={"url": "https://provider.invalid/?key=fixture"},
+                    outcome=outcome,
+                )
             ),
             FunctionToolResultEvent(ToolReturnPart("ghost", "ok", tool_call_id="c")),
             # The structured answer is the reply itself, not a step towards it.
@@ -408,6 +413,7 @@ class TestStepsFromARun:
             ("b", "error"),
             ("c", "complete"),
         ]
+        assert steps[3].sources == ()
         assert steps[0].title == "Searching the web…"
         assert steps[4].title == "Working on it…"
 

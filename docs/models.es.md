@@ -1,5 +1,5 @@
 ---
-source_sha: "a43a833ec82f"
+source_sha: "0a268874d05a"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -40,7 +40,69 @@ El spec de un agent nombra uno con `model_profile_id`, y el run lo resuelve.
     lista de aquí, y un campo que no puede expresar «ese» es un campo que la
     gente esquiva editando el spec a mano.
 
+### Un perfil en el que un agent no puede ejecutarse { #a-profile-an-agent-cannot-run-on }
+
+Un perfil puede nombrar un modelo que no mantiene una conversación: un modelo de
+texto a voz como `gpt-4o-mini-tts`, un modelo de voz en tiempo real, un modelo de
+transcripción, un modelo de
+imágenes, un modelo de vídeo o un modelo de embeddings. Un agent en uno de ellos
+falla en su primer turno. El texto a voz, la generación de imágenes y la
+transcripción no usan perfiles: cada función nombra su propio provider y su propio
+modelo.
+
+La plataforma conoce estos modelos por sus propios catálogos (las listas de texto
+a voz, voz en tiempo real, transcripción, imágenes, vídeo y embeddings).
+`GET /providers/model-profiles` marca cada perfil con `chat_capable` y
+`output_modalities`, y `GET /providers/{provider}/models` marca cada sugerencia
+con `chat_capable`. Esos dos campos también leen el listado de un provider que
+indica qué emite cada modelo (OpenRouter y el router de Hugging Face lo hacen),
+cuando el proceso de la API ya lo ha obtenido. Ese listado solo cambia lo que
+ofrece un selector. Nunca rechaza una publicación, porque otro proceso de la API
+puede no haberlo obtenido.
+
+La consola también actualiza los perfiles guardados
+cuando el listado llega después. Los alias de provider como `openai_codex` y
+`google_cloud` usan los catálogos del proveedor correspondiente. Entonces:
+
+- El panel de modelo del Builder, los selectores de revisor y de especialista, los
+  campos del modelo de los pasos siguientes y del modelo de pasos del navegador y
+  el selector del modelo que describe imágenes en la base de conocimiento no
+  ofrecen un modelo así. Si un agent ya nombra uno, el Builder lo sigue mostrando,
+  marcado como un modelo que no es de chat. A un miembro que gestiona conexiones,
+  el Builder también le lista los demás, marcados y sin poder elegirse, para que
+  se puedan eliminar.
+- El selector de modelo del chat y el formulario para añadir un modelo del Builder
+  no sugieren un modelo así y rechazan uno escrito a mano.
+- La publicación rechaza un modelo así como modelo del agent, de un revisor o de
+  un especialista, como modelo de pasos del navegador o como modelo de los pasos
+  siguientes, y lo nombra. También rechaza un perfil cuyos fallbacks incluyen un
+  modelo así. La misma comprobación se ejecuta al volver a una versión, en la
+  comprobación del borrador, en la prueba del Builder y al activar una capability
+  desde el chat. Una versión guardada en un modelo así sigue cargándose, pero no se
+  puede restaurar mientras su perfil nombre un modelo que no es de chat o lo liste
+  como fallback. Apunta ese perfil a un modelo de chat o publica una versión nueva.
+- Un run deja un fallback así fuera de su cadena, igual que uno eliminado, cuando
+  se añadió al perfil después de publicar.
+- Una conversación que nombra un modelo así en lugar del modelo del agent, desde
+  el chat o a través de la API, se rechaza antes de que empiece el run.
+- Un modelo que los catálogos no clasifican, como un modelo de Ollama o un modelo
+  publicado esta mañana, está permitido. Un modelo desconocido no es un rechazo.
+  Un perfil con su propio endpoint (`base_url`) nunca se clasifica, sea cual sea
+  el id del modelo: los catálogos describen la API propia del provider, y un
+  servidor compatible con OpenAI puede servir un modelo de chat con cualquier
+  nombre.
+
+El selector de modelo de proactividad sigue la misma regla. La comprobación de los
+catálogos estables también se aplica al configurar la proactividad y al resolver
+un perfil para una petición de texto normal, incluida la descripción de imágenes
+al configurar y en el worker. Las configuraciones antiguas siguen cargándose;
+hay que sustituir un modelo incompatible antes de usarlas. Sigue siendo posible
+desactivar la función. Los nombres de despliegues de Azure no se clasifican a
+partir de los identificadores de modelos base del catálogo.
+
 ### Fallbacks { #fallbacks }
+
+El runner usa solo los tres primeros fallbacks; solo esos se comprueban al publicar.
 
 Un perfil puede listar perfiles de fallback, probados en orden. La caída de un
 provider no debería tumbar los agents de una organización cuando esta tiene una

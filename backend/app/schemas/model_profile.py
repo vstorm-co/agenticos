@@ -13,11 +13,12 @@ anything not in it.
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, computed_field
 
 from app.agents.model_resolver import ModelApi
 from app.core.secret_kinds import SecretKind
 from app.schemas.base import BaseSchema, TimestampSchema
+from app.services.model_outputs import listed_model_outputs
 
 
 class ProviderInfo(BaseSchema):
@@ -122,6 +123,32 @@ class ModelProfileRead(BaseSchema, TimestampSchema):
         ),
     )
 
+    @computed_field  # type: ignore[prop-decorator]  # pydantic's documented form
+    @property
+    def output_modalities(self) -> list[str]:
+        """What the model emits - `["text"]`, `["audio"]` - where the platform knows.
+
+        Empty means not known, which is every custom endpoint (a `base_url`,
+        whatever the provider) and most models:
+        absent is *not* text-only, the same rule as a provider listing's field.
+        """
+        return list(
+            listed_model_outputs(self.provider, self.model, base_url=self.base_url).modalities
+        )
+
+    @computed_field  # type: ignore[prop-decorator]  # pydantic's documented form
+    @property
+    def chat_capable(self) -> bool:
+        """Whether an agent can run on this model (#2487).
+
+        False only for a model the platform knows is something else - a
+        text-to-speech, transcription, image, video or embedding model. Agent and
+        chat model pickers leave those out; the profile stays listed so it can be
+        removed. A model it cannot classify is true, and so is every profile
+        with a `base_url`: the catalogs describe the vendor's API, not that server.
+        """
+        return listed_model_outputs(self.provider, self.model, base_url=self.base_url).chat
+
 
 class ModelProfileList(BaseSchema):
     items: list[ModelProfileRead]
@@ -143,6 +170,14 @@ class ProviderModelRead(BaseSchema):
             '`["text", "image"]`. Empty means the listing says nothing, which is most of '
             "them: absent is *not* text-only, so a client filtering on it must treat an empty "
             "list as unknown rather than as a refusal."
+        ),
+    )
+    chat_capable: bool = Field(
+        default=True,
+        description=(
+            "Whether an agent can run on this model. False only for one the platform knows "
+            "is something else - text to speech, transcription, image, video or embeddings - "
+            "which a picker for an agent's model leaves out (#2487). Unknown is true."
         ),
     )
 

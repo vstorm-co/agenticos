@@ -193,7 +193,6 @@ class CollectionInfo(BaseModel):
     name: str
     total_vectors: int
     dim: int
-    indexing_status: str = "complete"
 
 
 class DocumentInfo(BaseModel):

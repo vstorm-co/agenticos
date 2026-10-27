@@ -1,5 +1,5 @@
 ---
-source_sha: "3cb7cbd6a52e"
+source_sha: "118cac574f64"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -353,7 +353,8 @@ ihn einmal.
 mit `collections:view` und `collections:edit` (die Vorlage *Wissen einspeisen*).
 Das Einlesen läuft im Hintergrund, eine Suche direkt nach dem Hochladen findet das
 Dokument also womöglich noch nicht; `GET /api/v1/kb/$KB_ID/documents` zeigt seinen
-Status.
+Status, und `GET /api/v1/kb/$KB_ID/ingestion` antwortet `complete`, sobald keines
+mehr verarbeitet wird.
 
 ```bash
 # Find the knowledge base, upload a file into it, and search it.

@@ -45,9 +45,9 @@ from app.repositories import (
     organization_secret_repo,
 )
 from app.services.model_catalog import models_for
+from app.services.model_outputs import model_outputs, not_chat_refusal
 from app.services.openai_codex import VaultCodexCredentials
 from app.services.organization_secret import OrganizationSecretService
-from app.services.system_agents import SystemAgentService
 
 logger = logging.getLogger(__name__)
 
@@ -268,6 +268,10 @@ class ModelProfileService:
             target_id=str(profile.id),
             details={"label": label, "provider": provider, "model": model},
         )
+        # The agent registry reads this module's fallback depth, and system
+        # agents are built on the registry: imported here, not at the top.
+        from app.services.system_agents import SystemAgentService
+
         await SystemAgentService(self.db).adopt_model(organization_id=ctx.organization_id)
         return profile
 
@@ -493,13 +497,13 @@ class ModelProfileService:
         unseal the same key. Taking the organization directly says that plainly,
         instead of inventing a caller for the sake of a signature.
 
-        Precedence, most specific first: the profile that was asked for, then
-        the organization's default. There is deliberately no environment
-        fallback - a deployment serving several tenants must never quietly bill
-        one organization's run to a platform-wide key.
+        An explicit profile is required. There is no organization or environment
+        default: a deployment serving several tenants must never quietly swap
+        the model somebody chose or bill a platform-wide key.
 
         Raises:
-            NotFoundError: If neither a named profile nor a default exists.
+            NotFoundError: If the named profile is missing or none was selected.
+            BadRequestError: If the profile names a known non-chat model.
         """
         profile = None
         if profile_id is not None:
@@ -520,6 +524,12 @@ class ModelProfileService:
                 message="This agent has no model selected",
             )
 
+        outputs = model_outputs(profile.provider, profile.model, base_url=profile.base_url)
+        if not outputs.chat:
+            raise BadRequestError(
+                message=not_chat_refusal(profile.label, profile.model, outputs),
+                details={"profile_id": str(profile.id)},
+            )
         credential = await self.resolve_credential(organization_id, profile)
 
         fallbacks: list[tuple[ResolvedCredential, str]] = []
@@ -534,6 +544,18 @@ class ModelProfileService:
                     # A deleted fallback should degrade the chain, not the run.
                     logger.warning(
                         "Model profile %s lists missing fallback %s", profile.id, fallback_id
+                    )
+                    continue
+                if not model_outputs(
+                    fallback.provider, fallback.model, base_url=fallback.base_url
+                ).chat:
+                    # A speech or embedding model cannot take over a conversation
+                    # (#2487): publish refuses one, and a fallback added to the
+                    # profile afterwards degrades the chain the same way.
+                    logger.warning(
+                        "Model profile %s lists fallback %s, which is not a chat model; skipping",
+                        profile.id,
+                        fallback.id,
                     )
                     continue
                 try:

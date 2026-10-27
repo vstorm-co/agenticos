@@ -386,6 +386,9 @@
     "noInstructionsWritten": "Nie napisano instrukcji",
     "noKey": "brak klucza",
     "noKey2": "brak klucza",
+    "notAChatModel": "to nie model czatu",
+    "notAChatModelHint": "{model} nie jest modelem czatu - służy do zamiany tekstu na mowę, transkrypcji, obrazów lub embeddingów, więc agent nie może na nim działać. Przed publikacją wybierz model czatu.",
+    "notAChatModelRefused": "{model} nie jest modelem czatu - agent nie może na nim działać. Wybierz model czatu.",
     "noMembersChooseFrom": "Brak członków do wyboru - ta organizacja to tylko Ty.",
     "noModelAskAdmin": "Modele są dodawane w Builderze przez członka, który zarządza połączeniami. Gdy jakiś istnieje, można go tu wybrać.",
     "noNote": "Brak notatki",
@@ -532,6 +535,7 @@
     "searchSkills": "Szukaj skilli…",
     "secret": "Sekret",
     "secretMissingFromVault": "Sekret wybrany tutaj nie znajduje się w vault tej organizacji - został usunięty albo spec napisano dla innej organizacji. Publikowanie go odrzuca.",
+    "secretForDifferentService": "Klucz „{name}” jest przeznaczony do innej usługi. Wybierz klucz pasujący do tej konfiguracji.",
     "secretOfWrongKind": "„{name}” jest rodzaju {kind}; ta capability potrzebuje {needed}. Publikowanie to odrzuca.",
     "secretUnchanged": "Pozostaw puste, aby zachować zapisany sekret",
     "separateWithCommas": "Oddzielaj przecinkami",
@@ -1407,6 +1411,7 @@
       "model": "Model",
       "needsConnectionsManage": "Wybór innego modelu wymaga uprawnienia, którego nie masz. Może go zmienić ktoś, kto zarządza połączeniami tej organizacji.",
       "noProviderKey": "W vault nie ma jeszcze klucza {provider}.",
+      "notAChatModel": "{model} nie jest modelem czatu, więc ta rozmowa nie może na nim działać. Wybierz inny model.",
       "provider": "Provider",
       "runModel": "Uruchom na tym modelu",
       "thisChat": "Tylko ten czat"
@@ -4836,6 +4841,10 @@
         "title": "Budżet i zgody",
         "body": "Ustaw limit wydatków organizacji i zarządzaj zwolnieniami z akceptacji. Dostępne opcje zależą od Twoich uprawnień."
       },
+      "org-proactivity-model": {
+        "title": "Wybierz model proaktywności",
+        "body": "Wybierz dostawcę, model i klucz z Vault, a potem dodaj profil modelu. Utworzenie profilu zapisuje go od razu; Save stosuje go do nocnych sugestii i obserwacji MCP. Te zadania korzystają z tego modelu niezależnie od agenta startowego AgenticOS widocznego w Aktywności."
+      },
       "org-proactivity": {
         "title": "Proaktywność",
         "body": "Skonfiguruj nocne sugestie, obserwowanie połączeń i proaktywne powitania w czacie. Tutaj wybierzesz model, harmonogram i budżet na osobę."
@@ -5486,7 +5495,10 @@
       "uploading": "Wgrywanie…",
       "uploading2": "Wgrywanie…",
       "vectorCount": "{count, plural, one {1 wektor} few {# wektory} many {# wektorów} other {# wektora}}",
-      "vectorCountLoaded": "{count, plural, one {1 wektor} few {# wektory} many {# wektorów} other {# wektora}} we wczytanych dokumentach"
+      "vectorCountLoaded": "{count, plural, one {1 wektor} few {# wektory} many {# wektorów} other {# wektora}} we wczytanych dokumentach",
+      "indexingInProgress": "{count, plural, one {Indeksowanie: 1 dokument w toku} few {Indeksowanie: # dokumenty w toku} many {Indeksowanie: # dokumentów w toku} other {Indeksowanie: # dokumentu w toku}}",
+      "indexingComplete": "Indeksowanie zakończone",
+      "indexingFailed": "{count, plural, one {1 dokument z błędem} few {# dokumenty z błędem} many {# dokumentów z błędem} other {# dokumentu z błędem}}"
     },
     "mcp-servers": {
       "catalogCompiledIntoBackend": "Katalog jest wkompilowany w backend, a nikt nie dodał własnego serwera. Pusta lista oznacza tutaj, że ten deployment nie dostarcza żadnego.",
@@ -6878,7 +6890,6 @@
       "nightlyHint": "Przegląd tygodnia każdej osoby: rutyna dla prośby, którą powtarza, jej profil i pierwsze wiadomości, które proponuje jej pusty czat. Każdy może z tego zrezygnować we własnych ustawieniach.",
       "model": "Model",
       "modelHint": "Na czym działa nocny przegląd i obserwacje. Wystarczy mały, tani model.",
-      "modelPlaceholder": "Wybierz model",
       "modelRequired": "Przed włączeniem wybierz model, na którym ma działać.",
       "label": "Limit na osobę (USD miesięcznie)",
       "days": "Dni",
@@ -6902,6 +6913,8 @@
       "watchesHint": "Każdy wybiera, co obserwować na swoich podłączonych kontach - pull requesty czekające na niego, zaległą fakturę - i dostaje informację, co nowego. Tylko czyta, a znaleziska są prywatne dla każdej osoby.",
       "watchMinutes": "Najczęściej",
       "watchMinutesHint": "Jak często pojedyncza obserwacja może najwyżej sprawdzać. Częściej znaczy drożej.",
+      "switchOrganizationHint": "Przełącz się na tę organizację przed konfiguracją proaktywności, aby korzystać z jej profili modeli i kluczy.",
+      "switchOrganization": "Przełącz na {name}",
       "runAttribution": "Sprawdzenia w tle są widoczne w Activity pod opublikowanym agentem startowym AgenticOS. To przypisanie jest stałe w platformie. Korzystają z wybranego poniżej modelu proaktywności, niezależnie od modelu samego agenta."
     }
   },
@@ -7405,6 +7418,12 @@
       "manufacturing": "Produkcja i logistyka",
       "general": "Ogólnego przeznaczenia"
     }
+  },
+  "agentLimit": {
+    "title": "Ta organizacja osiągnęła limit agentów",
+    "body": "To wdrożenie pozwala na {limit, plural, one {# agenta} few {# agentów} many {# agentów} other {# agenta}} w organizacji, a ta ma {held}. Zarchiwizuj agenta, którego już nie używasz, żeby zrobić miejsce na nowego, albo poproś administratora o podniesienie limitu.",
+    "bodyReached": "To wdrożenie pozwala na {limit, plural, one {# agenta} few {# agentów} many {# agentów} other {# agenta}} w organizacji, a ta osiągnęła już ten limit. Zarchiwizuj agenta, którego już nie używasz, żeby zrobić miejsce na nowego, albo poproś administratora o podniesienie limitu.",
+    "emptyGallery": "Żaden z agentów tej organizacji nie jest Ci udostępniony, a organizacja ma ich już tyle, na ile pozwala to wdrożenie."
   },
   "notifications": {
     "markAllRead": "Oznacz wszystkie jako przeczytane",

@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Literal
 
 import anyio
 from pydantic_ai.messages import (
+    ERROR_OUTCOMES,
     AgentStreamEvent,
     DeferredToolRequestsEvent,
     FunctionToolCallEvent,
@@ -20,7 +21,6 @@ from pydantic_ai.messages import (
     PartDeltaEvent,
     PartEndEvent,
     PartStartEvent,
-    RetryPromptPart,
     SpeechPart,
     SpeechPartDelta,
 )
@@ -37,7 +37,7 @@ from pydantic_ai.realtime import (
 
 from app.schemas.conversation import MessageRead
 from app.schemas.voice import CaptionFrame, NoticeFrame, StateFrame, ToolFrame, TurnSavedFrame
-from app.services.transcript import tool_result_text, tool_retry_notice
+from app.services.transcript import tool_failure_notice, tool_result_text
 from app.services.voice.approvals import SendFrame
 from app.services.voice.guard import WITHHELD
 from app.services.voice.transcript import SpeechClock, SpokenToolCall, trim_to_played
@@ -269,10 +269,11 @@ class EventPump:
                 # As a text run stores it (`transcript._result_text`): a retry is a
                 # failed call, and its text is whatever raised, so the row holds the
                 # shared notice rather than a vendor's error and URL.
-                if isinstance(event.part, RetryPromptPart):
-                    tool.result, tool.success = tool_retry_notice(event.part), False
+                if event.part.outcome in ERROR_OUTCOMES:
+                    tool.result, tool.success = tool_failure_notice(event.part), False
                 else:
                     tool.result = tool_result_text(event.part.content)
+                    tool.success = event.part.outcome == "success"
                 tool.completed_at = datetime.now(UTC)
                 await self._send(ToolFrame(type="tool", name=tool.tool_name, status="done"))
         else:

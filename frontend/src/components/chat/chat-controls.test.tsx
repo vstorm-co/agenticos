@@ -25,7 +25,7 @@ vi.mock("@/hooks", () => ({
     profiles: state.profiles,
     createProfile: { mutateAsync: vi.fn(), isPending: false },
   }),
-  useProviderModels: () => ({ models: [], source: "curated", isLoading: false }),
+  useProviderModels: () => ({ models: [], refused: [], source: "curated", isLoading: false }),
   useSecretPurposes: () => ({ purposes: [], isLoading: false }),
   useSecrets: () => ({ secrets: [] }),
   usePermissions: () => ({ can: () => state.mayDecide }),

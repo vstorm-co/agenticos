@@ -363,6 +363,19 @@ deployment's own.
 
 ## Deploying a change
 
+### The retry-history boundary in 1.25.0 { #retry-history-upgrade }
+
+Version 1.25.0 adopts Pydantic AI 2.61's `retried` tool outcomes and separate
+`retry-feedback` messages. Existing histories and run checkpoints load without a
+database migration or republishing agents. Histories containing these parts need
+the new reader: an older backend cannot replay these message shapes.
+
+Upgrade all API and worker processes together, draining or stopping the old
+processes before the new ones accept work. Do not mix older and newer backend
+replicas against the same database. After either new retry form has been written, a
+code-only rollback across this boundary is unsupported; retaining the new reader
+or restoring a pre-upgrade database snapshot is required.
+
 ### By hand
 
 ```bash

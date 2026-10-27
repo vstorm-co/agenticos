@@ -38,9 +38,24 @@ def beats(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
     return stamp
 
 
+def observe_beats(beats: AsyncMock, count: int, *, fail_first: bool = False) -> asyncio.Event:
+    """Signal observed writes; runner load must not decide how many fit in 50 ms."""
+    observed = asyncio.Event()
+
+    async def stamp(*_args: object, **_kwargs: object) -> None:
+        if fail_first and beats.await_count == 1:
+            raise ConnectionError("gone")
+        if beats.await_count >= count:
+            observed.set()
+
+    beats.side_effect = stamp
+    return observed
+
+
 async def test_a_running_run_is_stamped_every_beat(beats: AsyncMock) -> None:
+    observed = observe_beats(beats, 2)
     async with run_heartbeat(RUN):
-        await asyncio.sleep(0.05)
+        await asyncio.wait_for(observed.wait(), timeout=2)
 
     assert beats.await_count >= 2
     assert {call.kwargs["run_id"] for call in beats.await_args_list} == {RUN}
@@ -51,18 +66,19 @@ async def test_a_failed_stamp_is_logged_and_the_next_one_tried(
 ) -> None:
     """The run is fine; ending it over a dropped connection would be the sweep's
     mistake made early."""
-    beats.side_effect = [ConnectionError("gone"), None, None, None, None, None]
+    observed = observe_beats(beats, 2, fail_first=True)
 
     async with run_heartbeat(RUN):
-        await asyncio.sleep(0.05)
+        await asyncio.wait_for(observed.wait(), timeout=2)
 
     assert beats.await_count >= 2
     assert "run_heartbeat_failed" in caplog.text
 
 
 async def test_the_beat_stops_with_the_run(beats: AsyncMock) -> None:
+    observed = observe_beats(beats, 1)
     async with run_heartbeat(RUN):
-        await asyncio.sleep(0.03)
+        await asyncio.wait_for(observed.wait(), timeout=2)
     stamped = beats.await_count
 
     await asyncio.sleep(0.05)

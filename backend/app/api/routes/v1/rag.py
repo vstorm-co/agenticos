@@ -218,14 +218,24 @@ async def drop_collection(
 async def get_collection_info(
     name: str,
     vector_store: VectorStoreSvc,
+    rag_doc_svc: RAGDocumentSvc,
     access: CollectionAccessSvc,
     ctx: Auth,
 ) -> Any:
-    """Retrieve stats for a specific collection."""
+    """Retrieve stats for a specific collection, and whether it is still indexing.
+
+    `indexing_status` is `indexing` while any of the collection's documents is
+    queued or being ingested and `complete` once none is; `processing_count`,
+    `indexed_count` and `failed_count` say how many documents are in each state.
+    A failed document does not keep the collection `indexing` - it shows in
+    `failed_count`. Wait for `complete` before relying on search results:
+    `total_vectors` grows while the worker is still working through an upload.
+    """
     collection = await access.readable(ctx, name)
-    return await vector_store.get_collection_info(
+    info = await vector_store.get_collection_info(
         collection.collection_name, ctx.organization_id, tenant=collection.vector_tenant
     )
+    return await rag_doc_svc.collection_info(info, organization_id=collection.organization_id)
 
 
 @router.get(

@@ -79,6 +79,15 @@ describe("extractSources", () => {
     expect(sources[1]?.subtitle).toBeUndefined();
   });
 
+  it("names the section a page-less passage opens with (#2489)", () => {
+    const result =
+      '[1] Source: guide.md, section "Install", chunk 3 [docs] (score: 0.700)\nRun it.';
+    const sources = extractSources(message({ toolCalls: [toolCall({ result })] }), t);
+
+    expect(sources).toHaveLength(1);
+    expect(sources[0]).toMatchObject({ title: "guide.md", subtitle: "Install · chunk 3" });
+  });
+
   it("reads web hits, naming each by its domain", () => {
     const sources = extractSources(
       message({ toolCalls: [toolCall({ name: "web_search", result: WEB_RESULT })] }),

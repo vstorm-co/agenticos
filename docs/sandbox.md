@@ -46,6 +46,54 @@ the token in `SANDBOXD_TOKEN`. The other two sandbox backends a spec can name �
 `daytona` and `state` — are a hosted service and a document in Postgres, and
 neither involves any of the above.
 
+### The service and the backend move together
+
+The service and the backend's client come from the same `pydantic-ai-backend`
+release, and a client calls routes that only its own release serves. So every
+compose file pins the image at exactly the version in `backend/uv.lock`, and a
+backend test fails when the compose files or the licence inventory name another.
+Bump the lock, the compose files and the inventory in one change. A new pin is
+a tag the host does not have yet, so `make dev` and `scripts/deploy.sh` pull it
+on the next start.
+
+A moving tag broke this before (#2484). A cached `sandboxd:0.2` served an older
+API than the client spoke, and every command failed as `sandboxd session '…' is
+gone`, although the session was alive. The platform now tells the two apart. When
+a 404 carries FastAPI's bare `{"detail":"Not Found"}` rather than the service's
+own `No such session`, it reads the service's index at `/`. If the index lacks a
+route the client needs, the tool call fails and the agent is told:
+
+```text
+The sandbox service does not serve /sessions/{session_id}/run,
+/sessions/{session_id}/runs/{run_id}/stop - its version does not match this
+platform (expected <version>). Run ghcr.io/vstorm-co/sandboxd:<version> and
+redeploy it
+```
+
+The same check handles a `409` while attaching a session reference saved before
+the upgrade: an old service may reject that reference even though the session
+still exists. Only a confirmed missing endpoint turns the conflict into a version
+mismatch; ordinary conflicts and unavailable indexes keep their original error.
+
+The message leaves out the service's address, which members and the model may
+not be allowed to see; the backend logs it as `sandboxd_version_mismatch`. The
+session is not reported as lost, but the conversation forgets its recorded
+reference to it: an older service refuses to attach to a live session by
+reference. The next turn opens the session by name, so after the upgrade the
+conversation picks up the same session if the service kept it.
+
+`agenticos cmd doctor` makes the same check against every registered
+connection, and names the image to run. Redeploy the stack that runs the
+service: `scripts/deploy.sh` in production (it starts the `sandbox` profile when
+`SANDBOXD_TOKEN` is set), `make dev` on a laptop. `make prod` leaves the service
+alone, because it does not start that profile; on a stack started that way,
+pull and recreate it yourself:
+
+```bash
+docker compose --env-file backend/.env -f docker-compose-prod.yml --profile sandbox pull sandboxd
+docker compose --env-file backend/.env -f docker-compose-prod.yml --profile sandbox up -d sandboxd
+```
+
 !!! danger "The token is root-equivalent"
 
     Whoever holds it can start containers on that host. Treat it as the Docker

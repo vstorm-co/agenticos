@@ -1,5 +1,5 @@
 ---
-source_sha: "a43a833ec82f"
+source_sha: "0a268874d05a"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -43,7 +43,69 @@ auf.
     aus, und ein Feld, das "genau das" nicht ausdrücken kann, ist ein Feld, das
     Menschen umgehen, indem sie den Spec von Hand editieren.
 
+### Ein Profil, auf dem kein Agent laufen kann { #a-profile-an-agent-cannot-run-on }
+
+Ein Profil kann ein Modell benennen, das kein Gespräch führen kann: ein
+Sprachausgabe-Modell wie `gpt-4o-mini-tts`, ein Realtime-Sprachmodell, ein
+Transkriptionsmodell, ein
+Bildmodell, ein Videomodell oder ein Embedding-Modell. Ein Agent darauf scheitert
+schon an seinem ersten Zug. Sprachausgabe, Bildgenerierung und Transkription
+nutzen keine Profile: Jede dieser Funktionen benennt ihren eigenen Provider und ihr
+eigenes Modell.
+
+Die Plattform kennt diese Modelle aus ihren eigenen Katalogen (den Listen für
+Realtime-Sprache, Sprachausgabe, Transkription, Bilder, Video und Embeddings).
+`GET /providers/model-profiles` markiert jedes Profil mit `chat_capable` und
+`output_modalities`, und `GET /providers/{provider}/models` markiert jeden
+Vorschlag mit `chat_capable`. Diese beiden Felder lesen auch das Listing eines
+Providers, das angibt, was jedes Modell ausgibt (OpenRouter und der Hugging Face
+Router tun das), sofern der API-Prozess es bereits abgerufen hat. Dieses Listing
+ändert nur, was eine Auswahl anbietet. Es lehnt nie eine Veröffentlichung ab, weil
+ein anderer API-Prozess es vielleicht nicht abgerufen hat. Die Konsole aktualisiert
+auch gespeicherte Profile, wenn das Listing später eintrifft. Provider-Aliase wie
+`openai_codex` und `google_cloud` verwenden die Kataloge des jeweiligen Anbieters.
+Dann gilt:
+
+- Das Modell-Panel im Builder, die Auswahl für Reviewer und Spezialisten, die
+  Felder für das Modell der Folgeschritte und das Schrittmodell des Browsers und
+  die Modellauswahl für Bildbeschreibungen in der Wissensdatenbank bieten ein
+  solches Modell nicht an. Benennt ein Agent bereits eines, zeigt der Builder es
+  weiterhin an, markiert als kein Chat-Modell. Einem Mitglied, das Verbindungen
+  verwaltet, listet der Builder auch die übrigen solchen Modelle, markiert und
+  nicht wählbar, damit sie entfernt werden können.
+- Die Modellauswahl im Chat und das Formular zum Hinzufügen eines Modells im
+  Builder schlagen ein solches Modell nicht vor und lehnen ein eingetipptes ab.
+- Die Veröffentlichung lehnt ein solches Modell als Modell des Agents, eines
+  Reviewers oder eines Spezialisten, als Schrittmodell des Browsers oder als Modell
+  für Folgeschritte ab und nennt es. Sie lehnt auch ein Profil ab, dessen Fallbacks
+  ein solches Modell enthalten. Dieselbe Prüfung läuft beim Rollback, bei der
+  Entwurfsprüfung, beim Testlauf im Builder und beim Aktivieren einer Capability
+  aus dem Chat. Eine gespeicherte Version auf einem solchen Modell lädt weiterhin,
+  lässt sich aber nicht wiederherstellen, solange ihr Profil kein Chat-Modell
+  benennt oder eines als Fallback auflistet. Stellen Sie dieses Profil auf ein
+  Chat-Modell um oder veröffentlichen Sie eine neue Version.
+- Ein Run lässt einen solchen Fallback aus seiner Kette weg, genau wie einen
+  gelöschten, wenn er dem Profil nach der Veröffentlichung hinzugefügt wurde.
+- Ein Gespräch, das statt des Modells des Agents ein solches Modell nennt, aus dem
+  Chat oder über die API, wird abgelehnt, bevor der Run beginnt.
+- Ein Modell, das die Kataloge nicht einordnen, etwa ein Ollama-Modell oder ein
+  heute Morgen veröffentlichtes Modell, ist erlaubt. Ein unbekanntes Modell ist
+  keine Ablehnung. Ein Profil mit eigenem Endpoint (`base_url`) wird nie
+  eingeordnet, unabhängig von seiner Modell-ID: Die Kataloge beschreiben die
+  eigene API des Providers, und ein OpenAI-kompatibler Server kann ein Chat-Modell
+  unter jedem Namen anbieten.
+
+Die Modellauswahl für proaktive Arbeit folgt derselben Regel. Die Prüfung der
+festen Kataloge läuft auch bei der Konfiguration proaktiver Arbeit und beim
+Auflösen eines Profils für eine gewöhnliche Textanfrage, einschließlich der
+Bildbeschreibung bei der Konfiguration und im Worker. Alte Konfigurationen laden
+weiterhin; ein inkompatibles Modell muss vor der Nutzung ersetzt werden. Das
+Ausschalten bleibt möglich. Azure-Deployment-Namen werden nicht anhand der
+Basismodell-IDs des Katalogs klassifiziert.
+
 ### Fallbacks { #fallbacks }
+
+Der Runner verwendet nur die ersten drei Fallbacks; nur diese werden bei der Veröffentlichung geprüft.
 
 Ein Profile kann Fallback-Profiles auflisten, die der Reihe nach versucht werden.
 Der Ausfall eines Providers sollte die Agents einer Organisation nicht lahmlegen,

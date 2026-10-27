@@ -78,6 +78,12 @@ cost says it is partial.
   refreshed is sealed over the same secret - its refresh token is single-use.
   Codex's `auth.json` also wants an `id_token`, which the sign-in does not keep;
   the CLI reads only its claims, so one is made of the access token's.
+  The requirement's `purposes_by` maps each harness to the purposes its key may
+  have - `anthropic` for Claude Code, `openai` or `openai_codex` for Codex,
+  `custom` for either - and both the Builder's picker and publish read it, so an
+  OpenAI key bound to Claude Code is refused before it can run (#2485). Its
+  `open_when_set` lifts that for Claude Code once `base_url` is set: the key is
+  then the gateway's, whichever gateway it is.
   A credential reaches the command through its environment, never on its
   command line.
 

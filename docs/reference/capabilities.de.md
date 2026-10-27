@@ -1,5 +1,5 @@
 ---
-source_sha: "4902f06b1500"
+source_sha: "7f99143a0028"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -193,6 +193,17 @@ Durchsucht die Collections, die der Spec des Agents bindet, und belegt, was es
 verwendet hat. Das Modell bestimmt, *was* gesucht wird, niemals *wo*: Die
 Collections werden vor dem Run aus dem Spec aufgelöst und der Capability übergeben,
 sodass ein Agent keine Collection erreichen kann, die ihm niemand zugeordnet hat.
+
+Jedes Ergebnis nennt sein Dokument und die Stelle des Treffers darin. Ein PDF, eine
+Präsentation oder eine Textverarbeitungsdatei wie `.doc`, `.odt` oder `.rtf` nennt
+die Seite. Eine Markdown-Datei, eine Tabelle, eine Webseite oder ein Bild hat keine
+Seite, die ein Leser öffnen kann. Sie nennt nur den Dokumentnamen, ebenso wie
+Textdateien und `.docx`-Dateien. Chunks bewahren keine verlässlichen Abschnittsgrenzen.
+Eine Zeile mit einer Raute wird deshalb nicht als Überschrift interpretiert: Sie
+kann ein Kommentar in einem Codeblock sein, der im vorherigen Chunk begann.
+
+Das entscheidet der Dokumenttyp, wenn das Ergebnis angezeigt wird, sodass eine
+früher ingestierte Collection keine erneute Ingestion braucht.
 
 | Konfiguration | Standard | Bereich |
 |---|---|---|
@@ -1487,6 +1498,15 @@ Agent ausführen dürfen. Die Arbeit auf
 einem persönlichen Abo unterliegt den Bedingungen von Anthropic und OpenAI für diese
 Pläne, die das auf einem geteilten Deployment womöglich nicht erlauben.
 
+**Der Key passt zum Harness.** Die Auswahl bietet Claude Code nur Keys an, die für
+Anthropic gespeichert sind, und Codex nur OpenAI-Keys und ChatGPT-Anmeldungen. Ein
+als `custom` gespeicherter Key passt zu beiden, ebenso der schon gebundene. Die
+Veröffentlichung lehnt einen Key ab, der für einen anderen Anbieter gespeichert
+ist, und nennt die, die das Harness annimmt: Ein OpenAI-Key an Claude Code würde
+veröffentlicht und dann bei jeder Aufgabe scheitern. Ist `base_url` gesetzt,
+gehört der Key dem Gateway - OpenRouter, LiteLLM oder einem anderen -, daher nimmt
+Claude Code dort jeden Key an.
+
 **An einen Coding Agent delegieren.** Ein Delegierter, der `sandbox` selbst bindet,
 läuft in einem frischen Workspace im Speicher ohne Shell, sodass ein per Delegation
 erreichter Coding Agent sein Harness nirgends starten kann. Geben Sie dem
@@ -2126,7 +2146,7 @@ besser bei Arbeit, die mehrere Schritte gleichzeitig im Kopf braucht.
 
 | Konfiguration | Standard | Werte |
 |---|---|---|
-| `effort` | ungesetzt | `minimal`, `low`, `medium`, `high`, `xhigh` |
+| `effort` | ungesetzt | `minimal`, `low`, `medium`, `high`, `xhigh`, `max` |
 
 Ungesetzt bedeutet den eigenen Standardaufwand des Providers. Eine Stufe, die ein
 Provider nicht hat, wird auf die nächstliegende abgebildet, sodass ein Spec über

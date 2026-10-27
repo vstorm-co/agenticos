@@ -283,6 +283,29 @@ class AgentDetail(AgentRead):
     draft_spec: AgentSpec
 
 
+class AgentCeiling(BaseSchema):
+    """The deployment's agent limit for this organization, and whether it is reached.
+
+    Read by a console to say a create would be refused before it is attempted.
+    The count is every agent in the organization that is not archived - the
+    same count a create is refused on - so it includes agents the caller may
+    not see. It is therefore given only to a caller whose `agents:view` reaches
+    every agent in the organization; anyone else gets `at_limit` alone, which
+    is no more than a refused create would tell them.
+    """
+
+    limit: int | None = Field(
+        description="Agents the deployment allows per organization. Null is no limit"
+    )
+    held: int | None = Field(
+        description=(
+            "Agents this organization holds, archived ones excluded. Null when there "
+            "is no limit, or the caller cannot see every agent in the organization"
+        )
+    )
+    at_limit: bool = Field(description="Whether a new agent would be refused for the limit")
+
+
 class AgentList(BaseSchema):
     items: list[AgentRead]
     total: int

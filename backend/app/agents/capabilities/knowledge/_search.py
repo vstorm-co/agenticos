@@ -9,6 +9,7 @@ from uuid import UUID
 from app.core.config import settings
 from app.core.exceptions import AppException, ExternalServiceError
 from app.db.session import on_the_pooled_loop
+from app.services.rag.citation import citation_locator
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.filters import RetrievalFilters
 from app.services.rag.models import ParentContextMode, SearchResult
@@ -85,21 +86,22 @@ def _format_results(results: list[Any]) -> str:
     formatted = []
     for i, result in enumerate(results, start=1):
         source = result.metadata.get("filename", "unknown")
-        page = result.metadata.get("page_num", "")
         chunk = result.metadata.get("chunk_num", "")
         col = result.metadata.get("collection", "")
-        page_info = f", page {page}" if page else ""
+        # Only a real page is a location: Markdown's stored "page 1" is
+        # structural, and a chunk's opening hash line may be code (#2489).
+        locator = citation_locator(result.metadata)
         chunk_info = f", chunk {chunk}" if chunk else ""
         col_info = f" [{col}]" if col else ""
         # The expanded passage when small-to-big retrieval added surrounding
         # context, else the matched chunk itself (#1651). The score and citation
         # stay the matched chunk's; only the text the model reads grows.
         body = result.expanded_content or result.content
-        # The page and chunk name the match; said so when the passage below
+        # The locator and chunk name the match; said so when the passage below
         # reaches past it, so a citation is not read as covering the whole text.
         context_info = ", with surrounding text" if result.expanded_content else ""
         formatted.append(
-            f"[{i}] Source: {source}{page_info}{chunk_info}{col_info}{context_info} "
+            f"[{i}] Source: {source}{locator}{chunk_info}{col_info}{context_info} "
             f"(score: {result.score:.3f})\n"
             f"{body}"
         )

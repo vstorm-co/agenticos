@@ -393,3 +393,70 @@ describe("ModelProfilePicker", () => {
     expect(within(current).getByText("Current model")).toBeInTheDocument();
   });
 });
+
+describe("a model an agent cannot run on (#2487)", () => {
+  const speech = profile({
+    id: "tts",
+    label: "OpenAI · gpt-4o-mini-tts",
+    model: "gpt-4o-mini-tts",
+    chat_capable: false,
+  });
+
+  it("is not offered as an agent's model", () => {
+    mount({ profiles: [profile(), speech] });
+
+    expect(screen.getByRole("radio", { name: "openai default" })).toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: "OpenAI · gpt-4o-mini-tts" })).toBeNull();
+  });
+
+  it("is not counted among the saved models", () => {
+    mount({ allowAdd: true, profiles: [profile(), speech] });
+
+    expect(screen.getByText("Use a saved model (1)")).toBeInTheDocument();
+  });
+
+  it("leaves a panel with only such models saying there is no model to choose", () => {
+    mount({ profiles: [speech] });
+
+    expect(screen.queryByRole("radio")).toBeNull();
+    expect(screen.getByText(/no models yet/i)).toBeInTheDocument();
+  });
+
+  it("stays visible, and marked, where an agent already names it", () => {
+    // Nothing disappears silently: an agent stored on a speech model still shows
+    // it, says it cannot run, and is one click from a model that can.
+    mount({ value: "tts", profiles: [profile(), speech] });
+
+    expect(screen.getByRole("radio", { name: "OpenAI · gpt-4o-mini-tts" })).toBeChecked();
+    const current = screen.getByRole("group", { name: "Current model" });
+    expect(within(current).getByText("not a chat model")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "gpt-4o-mini-tts is not a chat model - it is for text to speech, transcription, images or embeddings, and an agent cannot run on it. Choose a chat model before publishing.",
+    );
+    expect(screen.getAllByText("not a chat model")).toHaveLength(2);
+  });
+
+  it("stays listed where models are managed, so it can be removed but not chosen", async () => {
+    // The Builder is the only place the console deletes a profile; hiding one
+    // there would leave it removable through the API alone.
+    const onChange = vi.fn();
+    mount({ allowAdd: true, allowRemove: true, onChange, profiles: [profile(), speech] });
+
+    const row = screen.getByRole("radio", { name: "OpenAI · gpt-4o-mini-tts" });
+    expect(row).toBeDisabled();
+    // Counted as what can be chosen, though it is listed for removal.
+    expect(screen.getByText("Use a saved model (1)")).toBeInTheDocument();
+    await userEvent.click(row);
+    expect(onChange).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("button", { name: "Remove OpenAI · gpt-4o-mini-tts" }));
+    expect(deleteProfile.mutate).toHaveBeenCalledWith("tts");
+  });
+
+  it("marks nothing for a model the server did not classify", () => {
+    mount({ value: "p1", profiles: [profile({ chat_capable: undefined })] });
+
+    expect(screen.queryByText("not a chat model")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+});

@@ -14,6 +14,7 @@ The recorder wraps a real local workspace in a temporary directory: what it reco
 is what a real backend answered, including the way a real one fails.
 """
 
+import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -21,6 +22,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import anyio
+import httpx
 import pytest
 from pydantic_ai.workspaces import (
     LocalWorkspaceBackend,
@@ -46,7 +48,11 @@ class _Recorded:
 
 
 def _wrap(
-    root: Path, db: _Recorded | None = None, *, run_id: uuid.UUID | None = None
+    root: Path,
+    db: _Recorded | None = None,
+    *,
+    run_id: uuid.UUID | None = None,
+    explain_unavailable: AsyncMock | None = None,
 ) -> tuple[RecordingWorkspace, _Recorded]:
     session = db or _Recorded()
     return (
@@ -57,6 +63,7 @@ def _wrap(
             session_key="xc-1",
             agent_id=uuid.uuid4(),
             run_id=run_id,
+            explain_unavailable=explain_unavailable,
         ),
         session,
     )
@@ -257,6 +264,110 @@ class TestALostSession:
 
         assert recorder.lost
         assert session.rows == []
+
+
+class TestASessionExplainedAsSomethingElse:
+    """A "session is gone" the service did not mean - a route it lacks (#2484) -
+    is raised as what it is, and noted as a mismatch rather than a loss."""
+
+    class _Mismatch(WorkspaceUnavailableError):
+        pass
+
+    def _explaining(
+        self, tmp_path: Path, answer: Exception | None
+    ) -> tuple[RecordingWorkspace, _Recorded, AsyncMock]:
+        explain = AsyncMock(return_value=answer)
+        recorder, session = _wrap(tmp_path, explain_unavailable=explain)
+        return recorder, session, explain
+
+    async def test_an_explained_operation_is_recorded_as_the_explanation(self, tmp_path: Path):
+        mismatch = self._Mismatch("sandboxd does not serve /run")
+        recorder, session, explain = self._explaining(tmp_path, mismatch)
+        gone = WorkspaceUnavailableError("gone: Not Found")
+
+        with (
+            patch.object(recorder.wrapped, "run", AsyncMock(side_effect=gone)),
+            pytest.raises(self._Mismatch) as raised,
+        ):
+            await recorder.run(["ls"])
+
+        assert raised.value.__cause__ is gone
+        explain.assert_awaited_once_with(gone)
+        assert not recorder.lost
+        assert recorder.mismatched
+        [row] = session.rows
+        assert row.ok is False
+        assert row.detail == "_Mismatch"
+
+    async def test_an_explained_question_does_not_lose_the_session(self, tmp_path: Path):
+        mismatch = self._Mismatch("sandboxd does not serve /run")
+        recorder, _, _ = self._explaining(tmp_path, mismatch)
+
+        with (
+            patch.object(
+                recorder.wrapped, "working_dir", AsyncMock(side_effect=WorkspaceUnavailableError())
+            ),
+            pytest.raises(self._Mismatch),
+        ):
+            await recorder.working_dir()
+
+        assert not recorder.lost
+
+    @pytest.mark.parametrize("operation", ["run", "working_dir"])
+    async def test_a_saved_session_conflict_can_be_explained_without_marking_it_lost(
+        self, tmp_path: Path, operation: str
+    ) -> None:
+        mismatch = self._Mismatch("sandboxd version mismatch")
+        recorder, session, explain = self._explaining(tmp_path, mismatch)
+        request = httpx.Request("POST", "http://sandboxd/sessions")
+        conflict = httpx.HTTPStatusError(
+            "Session exists", request=request, response=httpx.Response(409, request=request)
+        )
+        with (
+            patch.object(recorder.wrapped, operation, AsyncMock(side_effect=conflict)),
+            pytest.raises(self._Mismatch),
+        ):
+            if operation == "run":
+                await recorder.run(["ls"])
+            else:
+                await recorder.working_dir()
+        explain.assert_awaited_once_with(conflict)
+        assert recorder.mismatched and not recorder.lost
+        if operation == "run":
+            assert session.rows[0].detail == "_Mismatch"
+
+    async def test_an_unexplained_loss_is_still_a_loss(self, tmp_path: Path):
+        recorder, session, _ = self._explaining(tmp_path, None)
+        gone = WorkspaceUnavailableError("No such session")
+
+        with (
+            patch.object(recorder.wrapped, "run", AsyncMock(side_effect=gone)),
+            pytest.raises(WorkspaceUnavailableError) as raised,
+        ):
+            await recorder.run(["ls"])
+
+        assert raised.value is gone
+        assert recorder.lost
+        assert not recorder.mismatched
+        assert session.rows[0].detail == "WorkspaceUnavailableError"
+
+    async def test_a_probe_cancelled_midway_still_records_the_loss(self, tmp_path: Path):
+        """A run stopped while the index is asked keeps its audit row, and the
+        session is believed gone, as it was before anything was asked."""
+        recorder, session, explain = self._explaining(tmp_path, None)
+        explain.side_effect = asyncio.CancelledError
+        gone = WorkspaceUnavailableError("gone: Not Found")
+
+        with (
+            patch.object(recorder.wrapped, "run", AsyncMock(side_effect=gone)),
+            pytest.raises(asyncio.CancelledError),
+        ):
+            await recorder.run(["ls"])
+
+        assert recorder.lost
+        [row] = session.rows
+        assert row.ok is False
+        assert row.detail == "WorkspaceUnavailableError"
 
 
 class TestReadingTheLog:

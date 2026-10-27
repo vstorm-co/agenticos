@@ -59,6 +59,7 @@ TRIGGERS: tuple[tuple[str, str], ...] = (
     ("backend/app/core/catalog/mcp_servers.json", "docs/mcp.md"),
     ("backend/app/services/model_profile.py", "docs/models.md"),
     ("backend/app/services/model_catalog.py", "docs/models.md"),
+    ("backend/app/services/model_outputs.py", "docs/models.md"),
     ("backend/app/core/vault.py", "docs/secrets.md"),
     ("backend/app/core/secret_kinds.py", "docs/secrets.md"),
     ("desktop/", "docs/desktop.md"),

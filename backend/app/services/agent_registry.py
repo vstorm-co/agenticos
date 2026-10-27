@@ -76,7 +76,7 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.core.field_errors import field_problems, refused_field
-from app.core.permissions import AuthContext, Perm
+from app.core.permissions import AuthContext, Perm, Scope
 from app.core.secret_kinds import SecretKind
 from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent, AgentKind, AgentStatus, AgentVersion
@@ -108,6 +108,7 @@ from app.repositories import (
 from app.schemas.agent import (
     MAX_CATEGORIES,
     MAX_TAGS,
+    AgentCeiling,
     AgentRead,
     AgentTemplateCatalog,
     AgentTemplateRead,
@@ -150,6 +151,8 @@ from app.services.file_storage import (
     avatar_filename,
     get_file_storage,
 )
+from app.services.model_outputs import model_outputs, not_chat_refusal
+from app.services.model_profile import MAX_FALLBACK_DEPTH
 from app.services.notifications import NotificationService
 from app.services.resource_usage import groups_sharing
 from app.services.sandbox_connection import SandboxConnectionService
@@ -1681,14 +1684,14 @@ class AgentRegistryService:
         if spec.model_profile_id is None:
             problems.add(["No model selected - pick one before publishing"])
         else:
-            problems.add(await self._model_profile_problems(ctx, spec.model_profile_id))
+            problems.add(await self.model_profile_problems(ctx, spec.model_profile_id))
         # And each reviewer's, refused here rather than when a run first reaches
         # its cadence and finds nothing to review with.
         for reviewer in spec.reviewers:
             if reviewer.model_profile_id is None:
                 problems.add([f"Reviewer '{reviewer.name}': pick the model it reviews with"])
             else:
-                problems.add(await self._model_profile_problems(ctx, reviewer.model_profile_id))
+                problems.add(await self.model_profile_problems(ctx, reviewer.model_profile_id))
             if not reviewer.instructions.strip():
                 problems.add([f"Reviewer '{reviewer.name}': say what it looks for"])
 
@@ -1785,7 +1788,7 @@ class AgentRegistryService:
         if pattern == "context_ids":
             return await self._context_problems(ctx, spec.context_ids[-1:])
         if pattern == "model_profile_id" and spec.model_profile_id is not None:
-            return await self._model_profile_problems(ctx, spec.model_profile_id)
+            return await self.model_profile_problems(ctx, spec.model_profile_id)
         if pattern == "mcp_servers/{server}/allowed_tools":
             return await self._mcp_problems(ctx, spec.mcp_servers)
         return []
@@ -1823,9 +1826,9 @@ class AgentRegistryService:
         else:
             problems.add(await _browser_problems(config, has_secret=binding.secret_id is not None))
             if isinstance(config, WebBrowserConfig) and config.step_model_profile_id is not None:
-                problems.add(await self._model_profile_problems(ctx, config.step_model_profile_id))
+                problems.add(await self.model_profile_problems(ctx, config.step_model_profile_id))
             if isinstance(config, FollowUpsConfig) and config.model_profile_id is not None:
-                problems.add(await self._model_profile_problems(ctx, config.model_profile_id))
+                problems.add(await self.model_profile_problems(ctx, config.model_profile_id))
             problems.add(ungateable_tool_problems(binding, definition, config))
         # A tool_approval key that matches nothing is the dangerous kind of
         # typo: it is not an error at run time, it is silence - the tool the
@@ -1842,14 +1845,40 @@ class AgentRegistryService:
         problems.add(await self._secret_problems(ctx, binding, definition))
         return problems
 
-    async def _model_profile_problems(self, ctx: AuthContext, profile_id: UUID) -> list[str]:
-        """Whether a named model profile is still this organization's to run on."""
+    async def model_profile_problems(self, ctx: AuthContext, profile_id: UUID) -> list[str]:
+        """Whether a named model profile is still this organization's to run on.
+
+        And whether it is a model anything can run *on*: a profile can name a
+        text-to-speech or embedding model, and an agent on it fails on its first
+        turn (#2487). Refused only where the catalogs know what the model is - an
+        unknown model is allowed. Its fallbacks too: a provider failure hands the
+        run to the next one in the chain, and a speech model there turns an outage
+        into a run that fails anyway.
+        """
         profile = await credential_repo.get_profile(
             self.db, profile_id, organization_id=ctx.organization_id
         )
         if profile is None:
             return ["The selected model profile no longer exists"]
-        return []
+        outputs = model_outputs(profile.provider, profile.model, base_url=profile.base_url)
+        if not outputs.chat:
+            return [not_chat_refusal(profile.label, profile.model, outputs)]
+        problems: list[str] = []
+        fallback_ids = [UUID(pid) for pid in profile.fallback_profile_ids[:MAX_FALLBACK_DEPTH]]
+        fallbacks = await credential_repo.get_profiles_by_ids(
+            self.db, fallback_ids, organization_id=ctx.organization_id
+        )
+        # In the chain's order. One that no longer exists is skipped at run
+        # time, not refused here.
+        for fallback in (fallbacks[pid] for pid in fallback_ids if pid in fallbacks):
+            found = model_outputs(fallback.provider, fallback.model, base_url=fallback.base_url)
+            if not found.chat:
+                problems.append(
+                    f"Model '{profile.label}' falls back to '{fallback.label}' "
+                    f"({fallback.model}), which is {found.kind}, not a chat model - "
+                    "remove it from the fallbacks"
+                )
+        return problems
 
     async def _collection_problems(
         self, ctx: AuthContext, collection_ids: Sequence[UUID]
@@ -2089,19 +2118,10 @@ class AgentRegistryService:
                 f"Capability '{binding.id}' needs a {requirement.kind.value} secret, but "
                 f"'{secret.name}' holds a {secret.kind}"
             ]
-        # Kind is not enough: an OpenAI key bound to a Google binding is the same
-        # `api_key`, and would be sent in Google's auth header at every call. A
-        # `custom` key - every key stored before purposes existed, and any for a
-        # service the deployment does not name - is the author's word, as in the
-        # Builder's picker (#2258).
-        purpose = requirement.purpose_for(config)
-        if purpose is not None and secret.purpose not in (purpose, "custom"):
-            return [
-                f"Capability '{binding.id}' is set to use {purpose}, but '{secret.name}' "
-                f"is a key for {secret.purpose}"
-            ]
         # A sign-in is accepted for the coding agent only because Codex runs on
         # one; switched to Claude Code, it would refuse every task at run time.
+        # Ahead of the purpose check, whose refusal would name the purpose rather
+        # than say what a sign-in is.
         if (
             isinstance(config, CodingAgentConfig)
             and secret.kind == SecretKind.OPENAI_CODEX.value
@@ -2110,6 +2130,17 @@ class AgentRegistryService:
             return [
                 f"'{secret.name}' is a ChatGPT sign-in, which only Codex runs on - pick an "
                 "Anthropic key or Claude subscription token for Claude Code"
+            ]
+        # Kind is not enough: an OpenAI key bound to a Google binding is the same
+        # `api_key`, and would be sent in Google's auth header at every call. A
+        # `custom` key - every key stored before purposes existed, and any for a
+        # service the deployment does not name - is the author's word, as in the
+        # Builder's picker (#2258, #2485).
+        purposes = requirement.purposes_for(config)
+        if purposes is not None and secret.purpose not in (*purposes, "custom"):
+            return [
+                f"Capability '{binding.id}' is set to use {' or '.join(purposes)}, but "
+                f"'{secret.name}' is a key for {secret.purpose}"
             ]
         return []
 
@@ -2371,7 +2402,7 @@ class AgentRegistryService:
         # already checked - so only a profile it *did* name is a reference that
         # can be broken, or borrowed from another organization.
         if specialist.model_profile_id is not None:
-            problems.add(await self._model_profile_problems(ctx, specialist.model_profile_id))
+            problems.add(await self.model_profile_problems(ctx, specialist.model_profile_id))
         # Its instructions are filled the way the parent's are, so a typo in a
         # variable is refused here too rather than sent to the model as braces.
         problems.merge(_variable_problems(specialist.to_agent_spec(fallback_model_profile_id=None)))
@@ -3275,6 +3306,30 @@ class AgentRegistryService:
         if cache_key not in walk.pins:
             walk.pins[cache_key] = await self._resolve_pin(ctx, ref)
         return walk.pins[cache_key]
+
+    async def ceiling(self, ctx: AuthContext) -> AgentCeiling:
+        """The organization's agent limit, and whether a create would be refused for it.
+
+        Counted as `_refuse_past_the_ceiling` counts, but without its lock - a
+        forecast; the refusal stays the guarantee. The route gates this on
+        `agents:edit`: a caller with no create has nothing to forecast.
+
+        The count is of every agent in the organization, so `held` goes only to
+        a caller whose `agents:view` already reaches all of them. Given to a
+        Member, who sees their own and what was shared, it minus their listing's
+        `total` would be how many agents are hidden from them, and polling it
+        would show when somebody else creates one. They get `at_limit` alone,
+        which a refused create would tell them anyway: at the limit the count is
+        the limit.
+        """
+        limit = (await DeploymentSettingsService(self.db).limits()).agents_per_organization
+        if limit is None:
+            return AgentCeiling(limit=None, held=None, at_limit=False)
+        held = await agent_repo.count_for_organization(self.db, organization_id=ctx.organization_id)
+        sees_every_agent = ctx.scope_for(Perm.AGENTS_VIEW) is Scope.ALL
+        return AgentCeiling(
+            limit=limit, held=held if sees_every_agent else None, at_limit=held >= limit
+        )
 
     async def _refuse_past_the_ceiling(self, ctx: AuthContext) -> None:
         """Refuse a transition that would put this organization over the limit.

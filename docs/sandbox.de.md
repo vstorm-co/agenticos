@@ -1,5 +1,5 @@
 ---
-source_sha: "a6d439761d0a"
+source_sha: "531c17a016ca"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -51,6 +51,57 @@ ausgeliefert als `ghcr.io/vstorm-co/sandboxd`; das Backend spricht über HTTP mi
 ihm, mit dem Token in `SANDBOXD_TOKEN`. Die beiden anderen Sandbox-Backends, die
 ein Spec benennen kann — `daytona` und `state` — sind ein gehosteter Dienst und ein
 Dokument in Postgres, und keines von beiden hat mit dem oben Genannten zu tun.
+
+### Dienst und Backend ändern sich gemeinsam { #the-service-and-the-backend-move-together }
+
+Der Dienst und der Client des Backends stammen aus demselben Release von
+`pydantic-ai-backend`, und ein Client ruft Routen auf, die nur sein eigenes
+Release bedient. Deshalb pinnt jede Compose-Datei das Image auf genau die Version
+in `backend/uv.lock`, und ein Backend-Test schlägt fehl, wenn die Compose-Dateien
+oder das Lizenzinventar eine andere nennen. Heben Sie Lock, Compose-Dateien und
+Inventar in einer Änderung an. Ein neuer Pin ist ein Tag, den der Host noch nicht
+hat, also ziehen `make dev` und `scripts/deploy.sh` ihn beim nächsten Start.
+
+Ein beweglicher Tag hat das schon einmal kaputt gemacht (#2484). Ein
+zwischengespeichertes `sandboxd:0.2` bediente eine ältere API, als der Client
+sprach, und jeder Befehl scheiterte mit `sandboxd session '…' is gone`, obwohl die
+Sitzung lebte. Die Plattform unterscheidet die beiden Fälle jetzt. Trägt eine 404
+das nackte `{"detail":"Not Found"}` von FastAPI statt des dienst-eigenen
+`No such session`, liest die Plattform den Index des Dienstes unter `/`. Fehlt
+im Index eine Route, die der Client braucht, schlägt der Tool-Aufruf fehl, und
+der Agent erfährt:
+
+```text
+The sandbox service does not serve /sessions/{session_id}/run,
+/sessions/{session_id}/runs/{run_id}/stop - its version does not match this
+platform (expected <version>). Run ghcr.io/vstorm-co/sandboxd:<version> and
+redeploy it
+```
+
+Dieselbe Prüfung behandelt einen `409` beim Verbinden einer vor dem Upgrade
+gespeicherten Sitzungsreferenz: Ein alter Dienst kann sie trotz bestehender Sitzung
+ablehnen. Nur ein bestätigter fehlender Endpunkt macht daraus einen Versionsfehler;
+normale Konflikte und nicht erreichbare Indizes behalten ihren ursprünglichen Fehler.
+
+Die Meldung lässt die Adresse des Dienstes weg, die Mitglieder und das Modell
+womöglich nicht sehen dürfen; das Backend protokolliert sie als
+`sandboxd_version_mismatch`. Die Sitzung wird nicht als verloren gemeldet, aber
+die Unterhaltung vergisst ihre gespeicherte Referenz darauf: Ein älterer Dienst
+verweigert das Anhängen an eine lebende Sitzung per Referenz. Der nächste Zug
+öffnet die Sitzung über ihren Namen, also findet die Unterhaltung nach dem
+Upgrade dieselbe Sitzung wieder, wenn der Dienst sie behalten hat.
+
+`agenticos cmd doctor` macht dieselbe Prüfung für jede registrierte Verbindung und
+nennt das Image, das laufen muss. Deployen Sie den Stack, der den Dienst
+betreibt, neu: `scripts/deploy.sh` in Produktion (es startet das Profil `sandbox`,
+wenn `SANDBOXD_TOKEN` gesetzt ist), `make dev` auf dem Laptop. `make prod` lässt
+den Dienst in Ruhe, weil es dieses Profil nicht startet; auf einem so gestarteten
+Stack ziehen und erstellen Sie ihn selbst neu:
+
+```bash
+docker compose --env-file backend/.env -f docker-compose-prod.yml --profile sandbox pull sandboxd
+docker compose --env-file backend/.env -f docker-compose-prod.yml --profile sandbox up -d sandboxd
+```
 
 !!! danger "Der Token ist root-äquivalent"
 

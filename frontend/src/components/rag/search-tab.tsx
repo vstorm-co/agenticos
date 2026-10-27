@@ -207,9 +207,9 @@ export function SearchTab({ kbs }: SearchTabProps) {
                       {String(result.metadata?.filename ?? "?")}
                     </span>
                   )}
-                  {result.metadata?.page_num != null && (
+                  {result.page != null && (
                     <Badge variant="outline" className="font-mono text-xs">
-                      {t("page", { page: String(result.metadata.page_num) })}
+                      {t("page", { page: String(result.page) })}
                     </Badge>
                   )}
                   {source && (

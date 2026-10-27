@@ -386,6 +386,9 @@
     "noInstructionsWritten": "No instructions written",
     "noKey": "no key",
     "noKey2": "no key",
+    "notAChatModel": "not a chat model",
+    "notAChatModelHint": "{model} is not a chat model - it is for text to speech, transcription, images or embeddings, and an agent cannot run on it. Choose a chat model before publishing.",
+    "notAChatModelRefused": "{model} is not a chat model - an agent cannot run on it. Choose a chat model.",
     "noMembersChooseFrom": "No members to choose from - this organization is just you.",
     "noModelAskAdmin": "Models are added in the Builder by a member who manages connections. Once one exists, it can be chosen here.",
     "noNote": "No note",
@@ -532,6 +535,7 @@
     "searchSkills": "Search skills…",
     "secret": "Secret",
     "secretMissingFromVault": "The secret selected here is not in this organization's vault - it was deleted, or the spec was written against another organization. Publishing refuses it.",
+    "secretForDifferentService": "Key \"{name}\" is for a different service. Choose a key for this configuration.",
     "secretOfWrongKind": "\"{name}\" is of kind {kind}; this capability needs {needed}. Publishing refuses it.",
     "secretUnchanged": "Leave blank to keep the stored secret",
     "separateWithCommas": "Separate with commas",
@@ -1407,6 +1411,7 @@
       "model": "Model",
       "needsConnectionsManage": "Choosing another model needs a permission you do not hold. Somebody who can manage this organization's connections can change it.",
       "noProviderKey": "No {provider} key in the vault yet.",
+      "notAChatModel": "{model} is not a chat model, so this conversation cannot run on it. Choose another model.",
       "provider": "Provider",
       "runModel": "Run on this model",
       "thisChat": "Just this chat"
@@ -5067,6 +5072,10 @@
         "title": "Budget and approvals",
         "body": "Set the organization spending limit and manage approval waivers. Controls depend on your permissions."
       },
+      "org-proactivity-model": {
+        "title": "Choose the proactivity model",
+        "body": "Choose a provider, model and vault key, then add the model profile. Creating a profile stores it immediately; Save applies it to nightly suggestions and MCP watches. These checks use this model independently of the AgenticOS starter shown in Activity."
+      },
       "org-proactivity": {
         "title": "Proactivity",
         "body": "Configure nightly suggestions, connection watches and proactive chat greetings. Choose the model, schedule and per-person budget here."
@@ -5716,7 +5725,10 @@
       "uploading": "Uploading…",
       "uploading2": "Uploading…",
       "vectorCount": "{count, plural, =1 {1 vector} other {# vectors}}",
-      "vectorCountLoaded": "{count, plural, =1 {1 vector} other {# vectors}} in the documents loaded"
+      "vectorCountLoaded": "{count, plural, =1 {1 vector} other {# vectors}} in the documents loaded",
+      "indexingInProgress": "{count, plural, =1 {Indexing: 1 document in progress} other {Indexing: # documents in progress}}",
+      "indexingComplete": "Indexing complete",
+      "indexingFailed": "{count, plural, =1 {1 document failed} other {# documents failed}}"
     },
     "mcp-servers": {
       "catalogCompiledIntoBackend": "The catalog is compiled into the backend, and nobody has added a server of their own. An empty list here means this deployment ships none.",
@@ -7109,7 +7121,6 @@
       "nightlyHint": "A look at each person's week: a routine for a request they keep repeating, their profile, and the first messages their empty chat offers. People can opt out in their own settings.",
       "model": "Model",
       "modelHint": "What the nightly look and the watches run on. A small, inexpensive model is enough.",
-      "modelPlaceholder": "Choose a model",
       "modelRequired": "Choose the model it runs on before turning it on.",
       "label": "Limit per person (USD a month)",
       "days": "Days",
@@ -7133,6 +7144,8 @@
       "watchesHint": "People choose what to watch in their own connected accounts - pull requests waiting on them, an overdue invoice - and hear what is new. It only reads, and what it finds is private to each person.",
       "watchMinutes": "Most often",
       "watchMinutesHint": "How often one watch may look at most. More often costs more.",
+      "switchOrganizationHint": "Switch to this organization before configuring proactivity so its model profiles and keys are used.",
+      "switchOrganization": "Switch to {name}",
       "runAttribution": "Background checks appear under the published AgenticOS starter agent in Activity. This assignment is fixed by the platform. They use the proactivity model selected below, independently of the agent’s own model."
     }
   },
@@ -7632,6 +7645,12 @@
       "manufacturing": "Manufacturing and logistics",
       "general": "General purpose"
     }
+  },
+  "agentLimit": {
+    "title": "This organization is at its agent limit",
+    "body": "This deployment allows {limit, plural, =1 {1 agent} other {# agents}} per organization, and this one has {held}. Archive an agent you no longer run to make room for a new one, or ask an administrator to raise the limit.",
+    "bodyReached": "This deployment allows {limit, plural, =1 {1 agent} other {# agents}} per organization, and this one has reached it. Archive an agent you no longer run to make room for a new one, or ask an administrator to raise the limit.",
+    "emptyGallery": "None of this organization's agents are shared with you, and it already holds as many as this deployment allows."
   },
   "notifications": {
     "markAllRead": "Mark all read",

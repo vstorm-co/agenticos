@@ -105,6 +105,14 @@ function serve({ documentsTotal = 57, sources = [] as unknown[], isDefault = fal
     if (path.endsWith("/connectors")) return { items: [] };
     if (path.endsWith("/sync-sources")) return { items: sources, total: sources.length };
     if (path.includes("/sync-sources")) return { items: [], total: 0 };
+    if (path.endsWith("/ingestion")) {
+      return {
+        indexing_status: "complete",
+        processing_count: 0,
+        indexed_count: 1,
+        failed_count: 0,
+      };
+    }
     // Whatever the dashboard chrome asks for on the way past.
     if (!path.startsWith("/kb/kb-1")) return { items: [], total: 0 };
     return { ...COLLECTION, is_default: isDefault };

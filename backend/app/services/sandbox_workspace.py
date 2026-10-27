@@ -86,6 +86,7 @@ from app.repositories import project_repo
 from app.services.access import PROJECT, accessible_ids, resolve_access
 from app.services.sandbox_connection import ResolvedConnection, SandboxConnectionService
 from app.services.sandbox_runtimes import runtime_briefing, runtime_parses_documents
+from app.services.sandboxd_compat import explain_unavailable
 from app.services.skill_workspace import LEGACY_SKILLS_ROOT, RESERVED_SKILL_PREFIXES
 
 logger = logging.getLogger(__name__)
@@ -793,6 +794,11 @@ class SandboxWorkspaceService:
             agent_id=identity.agent_id,
             run_id=identity.run_id,
             on_settled=notice.settled if notice is not None else None,
+            explain_unavailable=(
+                partial(explain_unavailable, base_url=sandbox.service_url, client=_sandboxd_http())
+                if isinstance(sandbox, SandboxdWorkspace)
+                else None
+            ),
         )
         return OpenWorkspace(
             workspace=recorder,
@@ -1170,7 +1176,7 @@ class SandboxWorkspaceService:
         return merged, sorted(merged_dirs)
 
     async def _settle_session(self, workspace: OpenWorkspace) -> bool:
-        """Record which session this workspace is now, and whether it was lost.
+        """Record which session this workspace is now, or forget a lost or mismatched one.
 
         A session the run opened is recorded on the row, so the next run attaches
         to it rather than opening one by name - which is what lets a purged one
@@ -1179,9 +1185,13 @@ class SandboxWorkspaceService:
         the tool or the staging that hit it, and the turn after it should not hit
         it again.
 
+        A session on a service of another version is forgotten the same way,
+        though it is alive (see the branch below).
+
         Returns:
-            Whether the session was lost, in which case there is nothing on the
-            host to prune.
+            Whether the session was lost or mismatched. Either way its spills are
+            not pruned: a lost session has none left, and a mismatched one is on a
+            service that cannot run the prune.
         """
         row = (
             None
@@ -1201,6 +1211,16 @@ class SandboxWorkspaceService:
                 await self._discard_lost_sandbox(
                     workspace.sandbox, row.session_id or workspace.scope_key
                 )
+            await workspace_repo.record_session(self.db, workspace=row, session_id=None)
+            return True
+        if isinstance(recorder, RecordingWorkspace) and recorder.mismatched:
+            # Alive, but on a service of another version (#2484). Its ref is
+            # forgotten so the next run opens the scope by name: an older service
+            # ignores attach-by-ref and refuses a live session with a 409.
+            logger.warning(
+                "workspace_session_version_mismatch",
+                extra={"scope_key": workspace.scope_key, "session_id": row.session_id},
+            )
             await workspace_repo.record_session(self.db, workspace=row, session_id=None)
             return True
         ref = workspace.workspace.ref

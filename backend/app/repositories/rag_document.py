@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import and_, exists, func, literal, or_, select, tuple_
+from sqlalchemy import ColumnElement, and_, exists, func, literal, or_, select, tuple_
 from sqlalchemy import delete as sql_delete
 from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
@@ -35,6 +35,19 @@ class CollectionCounts:
     documents: int
     chunks: int
     indexed: int
+
+
+@dataclass(frozen=True)
+class IngestionCounts:
+    """Where a collection's, or a knowledge base's, documents are in their ingestion.
+
+    `processing` is every row the pipeline has not settled - a queued upload is
+    already `processing`, there is no separate pending state in the column.
+    """
+
+    processing: int
+    indexed: int
+    failed: int
 
 
 async def get_by_id(db: AsyncSession, doc_id: UUID) -> RAGDocument | None:
@@ -592,6 +605,45 @@ async def counts_by_collection(
         name: CollectionCounts(documents=int(documents), chunks=int(chunks), indexed=int(indexed))
         for name, documents, chunks, indexed in result.all()
     }
+
+
+async def ingestion_counts(
+    db: AsyncSession, *, collection_name: str, organization_id: UUID | None
+) -> IngestionCounts:
+    """How many of one collection's documents are processing, indexed or failed.
+
+    Scoped like `get_all`: the name is not unique across tenants, so a document
+    counts when it is in this collection *and* stamped with the knowledge base's
+    organization - another tenant's upload into a same-named collection must not
+    hold this one at `indexing`. `None` is a deployment-wide knowledge base and
+    matches on the collection alone.
+    """
+    scope: ColumnElement[bool] = RAGDocument.collection_name == collection_name
+    if organization_id is not None:
+        scope = and_(scope, RAGDocument.organization_id == organization_id)
+    return await _count_by_status(db, scope)
+
+
+async def ingestion_counts_for_kb(db: AsyncSession, kb_id: UUID) -> IngestionCounts:
+    """How many of one knowledge base's documents are processing, indexed or failed.
+
+    The rows `get_for_kb` lists, so the counts agree with the base's own document
+    list even when another base shares its collection name.
+    """
+    return await _count_by_status(db, RAGDocument.knowledge_base_id == kb_id)
+
+
+async def _count_by_status(db: AsyncSession, scope: ColumnElement[bool]) -> IngestionCounts:
+    """One aggregate with a `FILTER` per status over the rows `scope` selects."""
+    result = await db.execute(
+        select(
+            func.count().filter(RAGDocument.status == DocumentStatus.PROCESSING),
+            func.count().filter(RAGDocument.status == DocumentStatus.DONE),
+            func.count().filter(RAGDocument.status == DocumentStatus.ERROR),
+        ).where(scope)
+    )
+    processing, indexed, failed = result.one()
+    return IngestionCounts(processing=int(processing), indexed=int(indexed), failed=int(failed))
 
 
 async def delete_by_collection(db: AsyncSession, collection_name: str) -> list[str]:

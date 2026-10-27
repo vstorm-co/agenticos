@@ -177,6 +177,16 @@ asks *what* to search, never *where*: collections are resolved from the spec
 before the run and handed to the capability, so an agent cannot reach a collection
 nobody connected to it.
 
+Each result names its document and where in it the match is. A PDF, a presentation
+or a word-processing file such as `.doc`, `.odt` or `.rtf` gives the page. A
+Markdown file, a spreadsheet, a web page or an image has no page a reader can open.
+It gives only the document name, as do plain-text and `.docx` files. Chunks do not
+retain reliable section boundaries, so a leading hash line is not inferred to be
+a heading: it may be a code comment from a block that began in a previous chunk.
+
+This is decided from the document's type when the result is shown, so a collection
+ingested earlier needs no re-ingestion.
+
 | Config | Default | Range |
 |---|---|---|
 | `default_top_k` | 5 | 1–50 |
@@ -1337,6 +1347,14 @@ key that everyone who may run the agent may share.
 Running on a personal subscription is subject to Anthropic's and OpenAI's terms for
 those plans, which may not allow it on a shared deployment.
 
+**The key fits the harness.** The picker offers Claude Code only keys stored for
+Anthropic, and Codex only OpenAI keys and ChatGPT sign-ins. A key stored for
+`custom` fits either, and so does the key already bound. Publish refuses a key
+stored for another provider and names the ones the harness takes: an OpenAI key
+bound to Claude Code would publish and then fail at every task. With `base_url`
+set, the key is the gateway's - OpenRouter, LiteLLM or any other - so Claude Code
+takes any key there.
+
 **Delegating to a coding agent.** A delegate that binds `sandbox` itself runs in a
 fresh in-memory workspace with no shell, so a coding agent reached by delegation has
 nowhere to run its harness. Give the delegating agent the `sandbox` capability on a
@@ -1894,7 +1912,7 @@ work that needs several steps held in mind at once.
 
 | Config | Default | Values |
 |---|---|---|
-| `effort` | unset | `minimal`, `low`, `medium`, `high`, `xhigh` |
+| `effort` | unset | `minimal`, `low`, `medium`, `high`, `xhigh`, `max` |
 
 Unset means the provider's own default effort. A level a provider does not have
 maps to its closest one, so a spec stays portable across a model swap.

@@ -1,5 +1,5 @@
 ---
-source_sha: "4902f06b1500"
+source_sha: "7f99143a0028"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -192,6 +192,18 @@ Busca en las colecciones que vincula el spec del agent y cita lo que ha usado. E
 modelo pide *qué* buscar, nunca *dónde*: las colecciones se resuelven desde el spec
 antes del run y se entregan a la capability, así que un agent no puede alcanzar una
 colección que nadie le conectó.
+
+Cada resultado nombra su documento y dónde está la coincidencia en él. Un PDF, una
+presentación o un archivo de procesador de textos como `.doc`, `.odt` o `.rtf` da la
+página. Un archivo Markdown, una hoja de cálculo, una página web o una imagen no
+tiene una página que un lector pueda abrir. Da solo el nombre del documento, igual
+que los archivos de texto y `.docx`. Los chunks no conservan límites de sección
+fiables, por lo que una línea que empieza por una almohadilla no se interpreta
+como encabezado: puede ser un comentario de un bloque de código que empezó en el
+chunk anterior.
+
+Lo decide el tipo del documento al mostrar el resultado, así que una colección
+ingerida antes no necesita volver a ingerirse.
 
 | Configuración | Valor por defecto | Rango |
 |---|---|---|
@@ -1429,6 +1441,15 @@ clave que puedan compartir todos los que pueden ejecutar el agent. Trabajar con 
 personal está sujeto a las condiciones de Anthropic y OpenAI para esos planes, que
 pueden no permitirlo en un despliegue compartido.
 
+**La clave encaja con el harness.** El selector ofrece a Claude Code solo claves
+guardadas para Anthropic, y a Codex solo claves de OpenAI e inicios de sesión de
+ChatGPT. Una clave guardada como `custom` encaja con los dos, igual que la clave
+ya vinculada. Publicar rechaza una clave guardada para otro proveedor y nombra los
+que acepta el harness: una clave de OpenAI vinculada a Claude Code se publicaría y
+luego fallaría en cada tarea. Con `base_url` definido, la clave es de la
+pasarela - OpenRouter, LiteLLM u otra -, así que Claude Code acepta ahí cualquier
+clave.
+
 **Delegar en un coding agent.** Un delegado que enlaza `sandbox` por sí mismo se
 ejecuta en un workspace nuevo en memoria, sin shell, así que un coding agent al que se
 llega por delegación no tiene dónde ejecutar su harness. Da al agent que delega la
@@ -2030,7 +2051,7 @@ caro, mejor en trabajo que exige tener varios pasos en la cabeza a la vez.
 
 | Configuración | Valor por defecto | Valores |
 |---|---|---|
-| `effort` | sin poner | `minimal`, `low`, `medium`, `high`, `xhigh` |
+| `effort` | sin poner | `minimal`, `low`, `medium`, `high`, `xhigh`, `max` |
 
 Sin poner significa el esfuerzo por defecto del propio provider. Un nivel que un
 provider no tenga se asigna al más cercano que tenga, de modo que un spec sigue

@@ -1,5 +1,5 @@
 ---
-source_sha: "4902f06b1500"
+source_sha: "7f99143a0028"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -187,6 +187,17 @@ Przeszukuje kolekcje, które wiąże spec agenta, i cytuje to, czego użył. Mod
 pyta, *czego* szukać, nigdy *gdzie*: kolekcje są rozwiązywane ze speca przed
 runem i przekazywane capability, więc agent nie sięgnie do kolekcji, której nikt
 do niego nie podłączył.
+
+Każdy wynik podaje swój dokument i miejsce dopasowania w nim. PDF, prezentacja lub
+plik edytora tekstu taki jak `.doc`, `.odt` czy `.rtf` podaje stronę. Plik Markdown,
+arkusz kalkulacyjny, strona internetowa lub obraz nie ma strony, którą czytelnik
+może otworzyć. Podaje tylko nazwę dokumentu, podobnie jak pliki tekstowe i `.docx`.
+Chunki nie zachowują wiarygodnych granic sekcji, więc wiersz zaczynający się od
+krzyżyka nie jest traktowany jako nagłówek: może być komentarzem w bloku kodu,
+którego początek znalazł się w poprzednim chunku.
+
+O tym decyduje typ dokumentu w chwili pokazania wyniku, więc kolekcja zaindeksowana
+wcześniej nie wymaga ponownej ingestii.
 
 | Konfiguracja | Domyślnie | Zakres wartości |
 |---|---|---|
@@ -1399,6 +1410,14 @@ zadanie, może go odczytać. Podpinaj klucz, który mogą dzielić wszyscy, któ
 uruchamiać agenta. Praca na prywatnej subskrypcji podlega warunkom Anthropic i OpenAI dla tych
 planów, które mogą na to nie pozwalać we współdzielonym wdrożeniu.
 
+**Klucz pasuje do harnessu.** Picker proponuje Claude Code tylko klucze zapisane
+dla Anthropic, a Codex tylko klucze OpenAI i logowania ChatGPT. Klucz zapisany
+jako `custom` pasuje do obu, tak samo jak klucz już podpięty. Publikacja odrzuca
+klucz zapisany dla innego dostawcy i nazywa tych, których harness przyjmuje: klucz
+OpenAI podpięty do Claude Code przeszedłby publikację, a potem zawodził przy
+każdym zadaniu. Gdy `base_url` jest ustawiony, klucz należy do bramki - OpenRouter,
+LiteLLM czy innej - więc Claude Code przyjmuje tam dowolny klucz.
+
 **Delegowanie do coding agenta.** Delegat, który sam wiąże `sandbox`, działa w świeżym
 workspace w pamięci, bez shella, więc coding agent osiągany przez delegowanie nie ma
 gdzie uruchomić harnessu. Daj delegującemu agentowi capability `sandbox` na połączeniu
@@ -1980,7 +1999,7 @@ przy pracy wymagającej utrzymania w głowie kilku kroków naraz.
 
 | Konfiguracja | Domyślnie | Wartości |
 |---|---|---|
-| `effort` | nieustawione | `minimal`, `low`, `medium`, `high`, `xhigh` |
+| `effort` | nieustawione | `minimal`, `low`, `medium`, `high`, `xhigh`, `max` |
 
 Nieustawione oznacza własny domyślny wysiłek providera. Poziom, którego provider
 nie ma, mapuje się na najbliższy, więc spec pozostaje przenośny przy zmianie modelu.

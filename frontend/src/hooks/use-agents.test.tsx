@@ -1,11 +1,13 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useIsMutating } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
+import { useOnboardingStore } from "@/stores/onboarding-store";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
 import {
   useAgent,
+  useAgentCeiling,
   useAgentVersion,
   useAgentVersions,
   useAllAgentVersions,
@@ -21,7 +23,8 @@ import {
 import { useAgentEnvironments } from "./use-agent-environments";
 import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
-import type { AgentSpec } from "@/types/agents";
+import { qk } from "@/lib/query-keys";
+import type { AgentSpec, SpecialistSpec } from "@/types/agents";
 
 const SPEC: AgentSpec = {
   spec_version: 3,
@@ -107,6 +110,10 @@ describe("useSystemAgents", () => {
       params: { kind: "improver", limit: "100" },
     });
   });
+});
+
+beforeEach(() => {
+  useOnboardingStore.setState({ isOpen: false, flowId: null, flowAgentId: null, index: 0 });
 });
 
 describe("useAgents", () => {
@@ -560,6 +567,86 @@ describe("useAgents mutations", () => {
     expect(toast.success).toHaveBeenCalledWith("Created Support");
   });
 
+  it("records its own created agent before refreshing a guided create's ceiling", async () => {
+    let created = false;
+    let seenDuringRefresh: string | null = null;
+    vi.mocked(apiClient.get).mockImplementation(async () => {
+      if (created) seenDuringRefresh = useOnboardingStore.getState().flowAgentId;
+      return { items: [], total: 0 };
+    });
+    vi.mocked(apiClient.post).mockImplementation(async () => {
+      created = true;
+      return { id: "new-agent", name: "New" };
+    });
+    useOnboardingStore.getState().openFlow("create-agent");
+    const { result } = renderHook(() => useAgents(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await result.current.create.mutateAsync({ spec: SPEC });
+    expect(seenDuringRefresh).toBe("new-agent");
+    expect(useOnboardingStore.getState().flowAgentId).toBe("new-agent");
+  });
+
+  it("exposes a pending create to the coach until its response settles", async () => {
+    const response = Promise.withResolvers<{ id: string; name: string }>();
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(apiClient.post).mockReturnValue(response.promise);
+    const { result } = renderHook(
+      () => ({
+        agents: useAgents(),
+        creating: useIsMutating({ mutationKey: qk.agents.create() }),
+      }),
+      { wrapper },
+    );
+    const pending = result.current.agents.create.mutateAsync({ spec: SPEC });
+    await waitFor(() => expect(result.current.creating).toBe(1));
+    response.resolve({ id: "new-agent", name: "New" });
+    await pending;
+    await waitFor(() => expect(result.current.creating).toBe(0));
+  });
+
+  it.each(["closed", "other-flow", "later-step", "already-bound"])(
+    "does not replace a guided agent for an unrelated create: %s",
+    async (state) => {
+      const flow = useOnboardingStore.getState();
+      flow.openFlow(state === "other-flow" ? "create-skill" : "create-agent");
+      if (state === "closed") flow.close();
+      if (state === "later-step") flow.setIndex(1);
+      if (state === "already-bound") flow.setFlowAgentId("original-agent");
+      vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+      vi.mocked(apiClient.post).mockResolvedValue({ id: "unrelated-agent", name: "Other" });
+      const { result } = renderHook(() => useAgents(), { wrapper });
+      await result.current.create.mutateAsync({ spec: SPEC });
+      expect(useOnboardingStore.getState().flowAgentId).toBe(
+        state === "already-bound" ? "original-agent" : null,
+      );
+    },
+  );
+
+  it.each(["closed", "reopened", "other-flow", "page-tour", "later-step", "already-bound"])(
+    "ignores a late create after its original walk changes: %s",
+    async (transition) => {
+      const response = Promise.withResolvers<{ id: string; name: string }>();
+      vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+      vi.mocked(apiClient.post).mockReturnValue(response.promise);
+      const flow = useOnboardingStore.getState();
+      flow.openFlow("create-agent");
+      const { result } = renderHook(() => useAgents(), { wrapper });
+      const pending = result.current.create.mutateAsync({ spec: SPEC });
+      await waitFor(() => expect(apiClient.post).toHaveBeenCalledOnce());
+      if (transition === "closed") flow.close();
+      if (transition === "reopened") flow.openFlow("create-agent");
+      if (transition === "other-flow") flow.openFlow("create-skill");
+      if (transition === "page-tour") flow.openPage();
+      if (transition === "later-step") flow.setIndex(1);
+      if (transition === "already-bound") flow.setFlowAgentId("original-agent");
+      response.resolve({ id: "late-agent", name: "Late" });
+      await pending;
+      expect(useOnboardingStore.getState().flowAgentId).toBe(
+        transition === "already-bound" ? "original-agent" : null,
+      );
+    },
+  );
+
   it("leaves a failed creation to the dialog rather than toasting it", async () => {
     // The regression this guards: a toast here duplicates the field-level
     // message the dialog already shows, in a place nobody can act on.
@@ -695,6 +782,128 @@ describe("useAgents mutations", () => {
     await expect(result.current.remove.mutateAsync("a1")).rejects.toThrow();
 
     expect(toast.error).toHaveBeenCalledWith("in use");
+  });
+});
+
+const SPECIALIST: SpecialistSpec = {
+  name: "invoice-parser",
+  description: "Pulls line items out of an invoice",
+  instructions: "Read the invoice.",
+  model_profile_id: null,
+  model_settings: {},
+  capabilities: [],
+  collection_ids: [],
+  skill_ids: [],
+  context_ids: [],
+  max_steps: null,
+  preferred_mode: null,
+};
+
+describe("the agent ceiling", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  function shared() {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const Wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    return { client, wrapper: Wrapper };
+  }
+
+  it("reads the ceiling from its own route, and is unknown until it lands", async () => {
+    let answer: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.get).mockReturnValue(
+      new Promise((resolve) => {
+        answer = resolve;
+      }),
+    );
+    const { result } = renderHook(() => useAgentCeiling(), { wrapper });
+    expect(result.current).toEqual({ ceiling: null, known: false });
+
+    answer({ limit: 3, held: 3, at_limit: true });
+    await waitFor(() => expect(result.current.known).toBe(true));
+    expect(result.current.ceiling).toEqual({ limit: 3, held: 3, at_limit: true });
+    expect(apiClient.get).toHaveBeenCalledWith("/agents/ceiling");
+  });
+
+  it("is known without asking when disabled, for a caller with no create to gate", () => {
+    const { result } = renderHook(() => useAgentCeiling({ enabled: false }), { wrapper });
+    expect(result.current).toEqual({ ceiling: null, known: true });
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it("counts a failed read as known, leaving the refusal to the server", async () => {
+    vi.mocked(apiClient.get).mockRejectedValue(new Error("down"));
+    const { result } = renderHook(() => useAgentCeiling(), { wrapper });
+    await waitFor(() => expect(result.current.known).toBe(true));
+    expect(result.current.ceiling).toBeNull();
+  });
+
+  it("discards a cached refusal when the ceiling refresh fails", async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ limit: 1, held: 1, at_limit: true });
+    const { client, wrapper: Wrapper } = shared();
+    const { result } = renderHook(() => useAgentCeiling(), { wrapper: Wrapper });
+    await waitFor(() => expect(result.current.ceiling?.at_limit).toBe(true));
+    vi.mocked(apiClient.get).mockRejectedValueOnce(new Error("unavailable"));
+    await client.invalidateQueries({ queryKey: qk.agents.ceiling() });
+    await waitFor(() => expect(result.current.ceiling).toBeNull());
+    expect(result.current.known).toBe(true);
+  });
+
+  it("is kept fresher than the list and refetched on focus", async () => {
+    // Another member's archive or a raised limit reaches this caller through no
+    // event of theirs.
+    vi.mocked(apiClient.get).mockResolvedValue({ limit: null, held: null, at_limit: false });
+    const { client, wrapper: Wrapper } = shared();
+    renderHook(() => useAgentCeiling(), { wrapper: Wrapper });
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
+    const options = client.getQueryCache().find({ queryKey: qk.agents.ceiling() })?.options;
+    expect(options).toMatchObject({ staleTime: 30_000, refetchOnWindowFocus: true });
+  });
+
+  it.each([
+    ["create", (r: ReturnType<typeof useAgents>) => r.create.mutateAsync({ spec: SPEC })],
+    ["clone", (r: ReturnType<typeof useAgents>) => r.clone.mutateAsync("a1")],
+    ["unarchive", (r: ReturnType<typeof useAgents>) => r.unarchive.mutateAsync("a1")],
+    [
+      "promote",
+      (r: ReturnType<typeof useAgents>) =>
+        r.promote.mutateAsync({ specialist: SPECIALIST, fallbackModelProfileId: null }),
+    ],
+  ])("recounts after a refused %s", async (_name, run) => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(apiClient.post).mockRejectedValue(new Error("at the limit"));
+    const { client, wrapper: Wrapper } = shared();
+    client.setQueryData(qk.agents.ceiling(), { limit: 5, held: 4, at_limit: false });
+    const { result } = renderHook(() => useAgents(), { wrapper: Wrapper });
+
+    await expect(run(result.current)).rejects.toThrow("at the limit");
+
+    expect(client.getQueryState(qk.agents.ceiling())?.isInvalidated).toBe(true);
+  });
+
+  it("hands a refused create to the dialog without waiting for the recount", async () => {
+    vi.mocked(apiClient.post).mockRejectedValue(new Error("handle taken"));
+    let reads = 0;
+    vi.mocked(apiClient.get).mockImplementation(() => {
+      reads += 1;
+      // The first ceiling read answers; the recount after the refusal never does.
+      return reads === 1
+        ? Promise.resolve({ limit: 5, held: 1, at_limit: false })
+        : new Promise(() => {});
+    });
+    const { wrapper: Wrapper } = shared();
+    const { result } = renderHook(
+      () => ({ agents: useAgents({ enabled: false }), ceiling: useAgentCeiling() }),
+      {
+        wrapper: Wrapper,
+      },
+    );
+    await waitFor(() => expect(result.current.ceiling.known).toBe(true));
+
+    await expect(result.current.agents.create.mutateAsync({ spec: SPEC })).rejects.toThrow(
+      "handle taken",
+    );
   });
 });
 

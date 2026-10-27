@@ -386,6 +386,9 @@
     "noInstructionsWritten": "Keine Instruktionen geschrieben",
     "noKey": "kein Schlüssel",
     "noKey2": "kein Schlüssel",
+    "notAChatModel": "kein Chat-Modell",
+    "notAChatModelHint": "{model} ist kein Chat-Modell - es dient der Sprachausgabe, Transkription, Bildern oder Embeddings, und ein Agent kann nicht darauf laufen. Wählen Sie vor dem Veröffentlichen ein Chat-Modell.",
+    "notAChatModelRefused": "{model} ist kein Chat-Modell - ein Agent kann nicht darauf laufen. Wählen Sie ein Chat-Modell.",
     "noMembersChooseFrom": "Keine Mitglieder zur Auswahl – diese Organisation sind nur Sie.",
     "noModelAskAdmin": "Modelle werden im Builder von einem Mitglied hinzugefügt, das Verbindungen verwaltet. Sobald eines besteht, lässt es sich hier wählen.",
     "noNote": "Keine Notiz",
@@ -532,6 +535,7 @@
     "searchSkills": "Skills suchen …",
     "secret": "Secret",
     "secretMissingFromVault": "Das hier gewählte Secret liegt nicht im Vault dieser Organisation – es wurde gelöscht, oder der Spec wurde für eine andere Organisation geschrieben. Das Veröffentlichen lehnt es ab.",
+    "secretForDifferentService": "Der Schlüssel „{name}“ ist für einen anderen Dienst bestimmt. Wählen Sie einen Schlüssel für diese Konfiguration.",
     "secretOfWrongKind": "„{name}“ ist von der Art {kind}; diese Capability braucht {needed}. Das Veröffentlichen lehnt es ab.",
     "secretUnchanged": "Leer lassen, um das gespeicherte Secret zu behalten",
     "separateWithCommas": "Mit Kommas trennen",
@@ -1407,6 +1411,7 @@
       "model": "Modell",
       "needsConnectionsManage": "Ein anderes Modell zu wählen braucht eine Berechtigung, die Sie nicht haben. Jemand, der die Verbindungen dieser Organisation verwalten darf, kann es ändern.",
       "noProviderKey": "Noch kein {provider}-Schlüssel im Vault.",
+      "notAChatModel": "{model} ist kein Chat-Modell, daher kann diese Unterhaltung nicht darauf laufen. Wählen Sie ein anderes Modell.",
       "provider": "Provider",
       "runModel": "Auf diesem Modell ausführen",
       "thisChat": "Nur dieser Chat"
@@ -4949,6 +4954,10 @@
         "title": "Budget und Freigaben",
         "body": "Lege das Ausgabenlimit der Organisation fest und verwalte Freigabeausnahmen. Die verfügbaren Optionen hängen von deinen Berechtigungen ab."
       },
+      "org-proactivity-model": {
+        "title": "Proaktivitätsmodell auswählen",
+        "body": "Wähle Anbieter, Modell und Vault-Schlüssel und füge das Modellprofil hinzu. Das Profil wird sofort gespeichert; Save übernimmt es für nächtliche Vorschläge und MCP-Beobachtungen. Diese Prüfungen verwenden dieses Modell unabhängig vom AgenticOS-Startagenten in der Aktivität."
+      },
       "org-proactivity": {
         "title": "Proaktivität",
         "body": "Konfiguriere nächtliche Vorschläge, die Überwachung von Verbindungen und proaktive Chatbegrüßungen. Wähle hier Modell, Zeitplan und Budget pro Person."
@@ -5598,7 +5607,10 @@
       "uploading": "Wird hochgeladen …",
       "uploading2": "Wird hochgeladen …",
       "vectorCount": "{count, plural, =1 {1 Vektor} other {# Vektoren}}",
-      "vectorCountLoaded": "{count, plural, =1 {1 Vektor} other {# Vektoren}} in den geladenen Dokumenten"
+      "vectorCountLoaded": "{count, plural, =1 {1 Vektor} other {# Vektoren}} in den geladenen Dokumenten",
+      "indexingInProgress": "{count, plural, =1 {Indexierung: 1 Dokument in Bearbeitung} other {Indexierung: # Dokumente in Bearbeitung}}",
+      "indexingComplete": "Indexierung abgeschlossen",
+      "indexingFailed": "{count, plural, =1 {1 Dokument fehlgeschlagen} other {# Dokumente fehlgeschlagen}}"
     },
     "mcp-servers": {
       "catalogCompiledIntoBackend": "Der Katalog ist ins Backend kompiliert, und niemand hat einen eigenen Server hinzugefügt. Eine leere Liste hier heißt, dass dieses Deployment keinen mitliefert.",
@@ -6992,7 +7004,6 @@
       "nightlyHint": "Ein Blick auf die Woche jeder Person: eine Routine für eine Anfrage, die sie wiederholt, ihr Profil und die ersten Nachrichten, die ihr leerer Chat anbietet. Jede Person kann das in ihren eigenen Einstellungen abschalten.",
       "model": "Modell",
       "modelHint": "Worauf der nächtliche Blick und die Beobachtungen laufen. Ein kleines, günstiges Modell reicht.",
-      "modelPlaceholder": "Modell wählen",
       "modelRequired": "Wählen Sie das Modell, bevor Sie es einschalten.",
       "label": "Limit pro Person (USD im Monat)",
       "days": "Tage",
@@ -7016,6 +7027,8 @@
       "watchesHint": "Jede Person wählt, was in ihren eigenen verbundenen Konten beobachtet wird - Pull Requests, die auf sie warten, eine überfällige Rechnung - und erfährt, was neu ist. Es wird nur gelesen, und Funde sind für jede Person privat.",
       "watchMinutes": "Höchstens",
       "watchMinutesHint": "Wie oft eine einzelne Beobachtung höchstens nachsehen darf. Häufiger kostet mehr.",
+      "switchOrganizationHint": "Wechsle vor dem Konfigurieren der Proaktivität zu dieser Organisation, damit ihre Modellprofile und Schlüssel verwendet werden.",
+      "switchOrganization": "Zu {name} wechseln",
       "runAttribution": "Hintergrundprüfungen erscheinen in Activity unter dem veröffentlichten AgenticOS-Startagenten. Diese Zuordnung ist in der Plattform festgelegt. Sie verwenden das unten gewählte Proaktivitätsmodell, unabhängig vom eigenen Modell des Agenten."
     }
   },
@@ -7515,6 +7528,12 @@
       "manufacturing": "Produktion und Logistik",
       "general": "Allgemeiner Einsatz"
     }
+  },
+  "agentLimit": {
+    "title": "Diese Organisation hat ihr Agenten-Limit erreicht",
+    "body": "Dieses Deployment erlaubt {limit, plural, =1 {1 Agenten} other {# Agenten}} pro Organisation, und diese hat {held}. Archivieren Sie einen Agenten, den Sie nicht mehr nutzen, um Platz für einen neuen zu schaffen, oder bitten Sie einen Administrator, das Limit zu erhöhen.",
+    "bodyReached": "Dieses Deployment erlaubt {limit, plural, =1 {1 Agenten} other {# Agenten}} pro Organisation, und diese hat das Limit erreicht. Archivieren Sie einen Agenten, den Sie nicht mehr nutzen, um Platz für einen neuen zu schaffen, oder bitten Sie einen Administrator, das Limit zu erhöhen.",
+    "emptyGallery": "Keiner der Agenten dieser Organisation ist mit Ihnen geteilt, und sie hat bereits so viele, wie dieses Deployment erlaubt."
   },
   "notifications": {
     "markAllRead": "Alle als gelesen markieren",

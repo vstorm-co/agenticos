@@ -351,6 +351,7 @@ export function CapabilityDetail({
             optional={!secretIsRequired(definition.requires_secret, keyed.config)}
             onChange={onChange}
             disabled={disabled}
+            schema={definition.config_schema}
           />
         )}
 
@@ -543,6 +544,8 @@ interface SecretFieldProps {
   optional: boolean;
   onChange: (binding: CapabilityBindingSpec) => void;
   disabled?: boolean;
+  /** The capability's config schema, for the defaults a binding does not store. */
+  schema: JsonSchema | null;
 }
 
 /**
@@ -567,6 +570,44 @@ function purposeOf(binding: CapabilityBindingSpec, requirement: SecretRequiremen
 }
 
 /**
+ * Which services a key in this slot may be for, or null when nothing says.
+ *
+ * The same order `SecretRequirement.purposes_for` reads on the server, so the
+ * list offers what publish accepts. A field whose values are not service ids
+ * maps each value to its purposes - the coding agent's harness, where Claude
+ * Code takes an Anthropic key and Codex an OpenAI key or a ChatGPT sign-in
+ * (#2485) - unless the endpoint field named for that value is set, when the key
+ * is the gateway's and any fits. Otherwise it is the one service `purposeOf`
+ * names.
+ */
+function purposesOf(
+  binding: CapabilityBindingSpec,
+  requirement: SecretRequirement,
+  schema: JsonSchema | null,
+): string[] | null {
+  const mapping = requirement.purposes_by;
+  if (mapping) {
+    // With the schema default, as the form shows it and as the server reads
+    // it: a binding only switched on stores no harness at all.
+    const value = String(
+      binding.config[mapping.field] ?? schema?.properties?.[mapping.field]?.default,
+    );
+    const endpoint = mapping.open_when_set[value];
+    if (endpoint !== undefined) {
+      const address =
+        binding.config[endpoint] === undefined
+          ? schema?.properties?.[endpoint]?.default
+          : binding.config[endpoint];
+      if (address) return null;
+    }
+    const mapped = mapping.purposes[value];
+    if (mapped !== undefined) return mapped;
+  }
+  const purpose = purposeOf(binding, requirement);
+  return purpose === null ? null : [purpose];
+}
+
+/**
  * Whether a stored key belongs in the list for this slot.
  *
  * Kind alone is too wide: eleven `api_key` rows are eleven indistinguishable
@@ -580,10 +621,17 @@ function purposeOf(binding: CapabilityBindingSpec, requirement: SecretRequiremen
  * a selection vanishing from its own control, on a spec that was saved and is
  * still valid, looks like data loss whatever the reason.
  */
-function fitsPurpose(secret: Secret, purpose: string | null, selectedId: string | null): boolean {
+function fitsPurpose(
+  secret: Secret,
+  purposes: string[] | null,
+  selectedId: string | null,
+): boolean {
   const declared = secret.purpose ?? "custom";
   return (
-    purpose === null || declared === purpose || declared === "custom" || secret.id === selectedId
+    purposes === null ||
+    purposes.includes(declared) ||
+    declared === "custom" ||
+    secret.id === selectedId
   );
 }
 
@@ -610,16 +658,30 @@ function fitsPurpose(secret: Secret, purpose: string | null, selectedId: string 
 /** The picker's "no key" choice; Radix refuses an empty string as an item's value. */
 const NO_SECRET = "__none__";
 
-function SecretField({ binding, requirement, optional, onChange, disabled }: SecretFieldProps) {
+function SecretField({
+  binding,
+  requirement,
+  optional,
+  onChange,
+  disabled,
+  schema,
+}: SecretFieldProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
   const { secrets, isLoading, listError } = useSecrets();
   const fieldId = `${binding.id}-secret`;
   const errorId = `${fieldId}-error`;
   const purpose = purposeOf(binding, requirement);
+  const purposes = purposesOf(binding, requirement, schema);
+  const signIn = signInFor(binding);
+  // This additional refusal belongs to the coding agent alone. Other
+  // capabilities may accept ChatGPT credentials through `also_accepts`.
+  const rejectsChatGPT = binding.id === CODING_AGENT_ID && signIn !== "chatgpt";
   const usable = secrets.filter(
     (secret) =>
-      acceptsKind(requirement, secret.kind) && fitsPurpose(secret, purpose, binding.secret_id),
+      acceptsKind(requirement, secret.kind) &&
+      fitsPurpose(secret, purposes, binding.secret_id) &&
+      (secret.kind !== "openai_codex" || !rejectsChatGPT || secret.id === binding.secret_id),
   );
   const state = vaultState(isLoading, listError, usable.length);
   // Having selected nothing is a fact about the spec, so it is said whatever the
@@ -628,12 +690,19 @@ function SecretField({ binding, requirement, optional, onChange, disabled }: Sec
   // is what a full vault also looks like - a stored secret would otherwise read
   // as deleted on every load.
   const vaultWasRead = state === "ready" || state === "empty";
-  const signIn = signInFor(binding);
+  const selected = secrets.find((secret) => secret.id === binding.secret_id);
+  // Retain the selection so switching harnesses never silently drops a key,
+  // but explain why publish would refuse it at the field that can fix it.
+  const incompatible =
+    selected !== undefined &&
+    (!fitsPurpose(selected, purposes, null) ||
+      (selected.kind === "openai_codex" && rejectsChatGPT));
   const problem =
     optional && binding.secret_id === null
       ? null
       : binding.secret_id === null || vaultWasRead
-        ? secretProblem(requirement, binding.secret_id, secrets, t)
+        ? (secretProblem(requirement, binding.secret_id, secrets, t) ??
+          (incompatible ? t("secretForDifferentService", { name: selected.name }) : null))
         : null;
 
   return (
@@ -708,7 +777,9 @@ function SecretField({ binding, requirement, optional, onChange, disabled }: Sec
           kind="api_key"
           // The chosen method *is* the service the key is for - "tavily",
           // "brave". Recording it is what lets the select above offer only the
-          // right keys next time instead of every API key in the vault.
+          // right keys next time instead of every API key in the vault. Not
+          // `purposesOf`: the coding agent's key may be a Claude subscription
+          // token, which stored as `anthropic` would be lent to model calls.
           purpose={purpose ?? "custom"}
           suggestedName={
             signIn === null ? secretNameFor(binding.id) : t("codingAgentKeyName", { signIn })

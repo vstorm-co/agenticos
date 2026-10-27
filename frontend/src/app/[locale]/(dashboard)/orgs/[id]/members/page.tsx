@@ -69,6 +69,7 @@ import { ROUTES } from "@/lib/constants";
 import { useOrgStore } from "@/stores";
 import { useAssistant } from "@/hooks/use-assistant";
 import { useChanged } from "@/hooks/use-changed";
+import { useTenantId } from "@/hooks/use-organizations";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -119,6 +120,7 @@ export default function OrgMembersPage({ params }: PageProps) {
   const canSettings = can(Perm.orgSettings);
   const { assistant } = useAssistant();
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
+  const tenantId = useTenantId();
   const [tabParam, setTabParam] = useUrlState("tab");
   const sections = [
     { id: "members", label: "members", visible: true },
@@ -128,7 +130,11 @@ export default function OrgMembersPage({ params }: PageProps) {
       label: "tabGovernance",
       visible: can(Perm.budgetsManage) || can(Perm.approvalsDecide) || canSettings,
     },
-    { id: "proactivity", label: "tabProactivity", visible: can(Perm.budgetsManage) || canSettings },
+    {
+      id: "proactivity",
+      label: "tabProactivity",
+      visible: tenantId !== id || can(Perm.budgetsManage) || canSettings,
+    },
     { id: "voice", label: "tabVoice", visible: canSettings },
     {
       id: "assistant",

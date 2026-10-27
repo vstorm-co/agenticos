@@ -38,6 +38,7 @@ from app.services import skill_library, speech_to_text
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.file_storage import avatar_filename, get_file_storage
 from app.services.invitation_admission import admits
+from app.services.model_outputs import model_outputs, not_chat_refusal
 from app.services.proactive import ProactiveService
 from app.services.skills import SkillService
 from app.services.speech_to_text_settings import SpeechToTextSettingsService
@@ -574,15 +575,20 @@ class OrganizationService:
             if "proactive_model_profile_id" in named
             else org.proactive_model_profile_id
         )
-        if (
-            "proactive_model_profile_id" in named
-            and profile_id is not None
-            and await credential_repo.get_profile(self.db, profile_id, organization_id=org.id)
-            is None
-        ):
-            raise refused_field(
-                "proactive_model_profile_id", "That model is not one of this organization's"
-            )
+        if profile_id is not None and ("proactive_model_profile_id" in named or enabled or watches):
+            profile = await credential_repo.get_profile(self.db, profile_id, organization_id=org.id)
+            if profile is None:
+                raise refused_field(
+                    "proactive_model_profile_id", "That model is not one of this organization's"
+                )
+            outputs = model_outputs(profile.provider, profile.model, base_url=profile.base_url)
+            if not outputs.chat and (
+                enabled or watches or profile_id != org.proactive_model_profile_id
+            ):
+                raise refused_field(
+                    "proactive_model_profile_id",
+                    not_chat_refusal(profile.label, profile.model, outputs),
+                )
         if (enabled or watches) and profile_id is None:
             raise refused_field(
                 "proactive_model_profile_id",

@@ -258,6 +258,7 @@ describe("search", () => {
           score: 0.874,
           metadata: { filename: "handbook.pdf", page_num: 12, collection: "handbook" },
           parent_doc_id: "vec-1",
+          page: 12,
         },
       ],
     });
@@ -273,6 +274,34 @@ describe("search", () => {
     expect(screen.getByText("0.874")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Handbook/ })).toHaveAttribute("href", "/rag/kb-1");
     expect(screen.getByText("Vacations are requested through the portal.")).toBeInTheDocument();
+    expect(screen.getByText("rag.search.page")).toBeInTheDocument();
+  });
+
+  it("shows no page for a result whose format has none, whatever page_num says (#2489)", async () => {
+    // Every Markdown chunk is stored with page_num 1; the API's `page` is null
+    // for it, and that is what the badge follows.
+    mockApi([kb("kb-1", "Handbook", "handbook")]);
+    vi.mocked(searchDocuments).mockResolvedValue({
+      results: [
+        {
+          content: "Capabilities are listed per agent.",
+          score: 0.81,
+          metadata: { filename: "capabilities.pl.md", page_num: 1, collection: "handbook" },
+          parent_doc_id: "vec-2",
+          page: null,
+        },
+      ],
+    });
+
+    render(<RAGPage />, { wrapper });
+    await waitFor(() => expect(screen.getByText("Handbook")).toBeInTheDocument());
+    const user = await openSearchTab();
+
+    await user.type(screen.getByPlaceholderText("rag.search.placeholder"), "capabilities");
+    await user.click(screen.getByRole("button", { name: "rag.search.button" }));
+
+    await waitFor(() => expect(screen.getByText("capabilities.pl.md")).toBeInTheDocument());
+    expect(screen.queryByText("rag.search.page")).not.toBeInTheDocument();
   });
 });
 

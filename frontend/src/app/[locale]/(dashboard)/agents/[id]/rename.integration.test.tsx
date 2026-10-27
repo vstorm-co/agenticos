@@ -118,7 +118,7 @@ vi.mock("@/hooks", async () => {
       can: (permission: Permission) => state.permissions.includes(permission),
       isLoaded: state.permissionsLoaded,
     }),
-    useProviderModels: () => ({ models: [], source: null, isLoading: false }),
+    useProviderModels: () => ({ models: [], refused: [], source: null, isLoading: false }),
     useRuns: () => ({ runs: [] }),
     useSecretPurposes: () => ({ purposes: [] }),
     useSecrets: () => ({ secrets: [] }),

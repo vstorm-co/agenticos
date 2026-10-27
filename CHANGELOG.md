@@ -227,6 +227,102 @@ environment without a person's decision.
 - A suite and a promotion override can be set up only by a person signed in as
   themselves, not through an API key or impersonation.
 
+## [1.25.0] - 2026-10-27
+
+### Changed
+
+- Upgrade the backend dependency snapshot, including Pydantic AI 2.61 and
+  harness 0.61, and adapt tool retries, streamed errors and cache reminders to
+  the new message parts (#2476). The Thinking capability also exposes the SDK’s
+  new `max` effort level. Existing retry histories and checkpoints still
+  load without a database migration or republishing agents. **Upgrade action:**
+  drain or stop the old API and workers before starting the upgraded processes;
+  do not mix versions. Once a history contains the new retry parts, a code-only
+  rollback to the previous SDK cannot read it. See the
+  [retry-history upgrade boundary](docs/deploy.md#retry-history-upgrade).
+
+## [1.24.0] - 2026-10-27
+
+### Added
+
+- Organization proactivity uses the Agent Builder's provider, model and vault-key
+  picker, including inline model-profile creation for members with
+  `connections:manage`. Budget managers can select existing profiles, and saving
+  the organization applies the choice to nightly suggestions and MCP watches.
+
+## [1.23.0] - 2026-10-27
+
+### Added
+
+- `GET /agents/ceiling`, for a caller with `agents:edit`: the deployment's
+  agents-per-organization limit (`limit`, null for none) and whether a create
+  would hit it (`at_limit`). The organization's count against it (`held`) is
+  given only to a caller whose `agents:view` reaches every agent, since it
+  includes agents others cannot see (#2488).
+
+- `GET /kb/{kb_id}/ingestion` says whether one knowledge base's documents are
+  still indexing, with `processing_count`, `indexed_count` and `failed_count`,
+  counted over the documents its page lists. It is part of the public API
+  (#2486).
+
+### Fixed
+
+- The coding agent's key picker offers only keys for the chosen harness - Anthropic
+  for Claude Code, OpenAI keys and ChatGPT sign-ins for Codex - plus `custom` keys
+  and the one already bound, and publish refuses a key stored for another
+  provider, naming the ones the harness takes. Claude Code behind `base_url` still
+  takes any key, the gateway's. Republishing an agent refused here means its key
+  was going to the wrong vendor and failing every task; rebind it, or store it as
+  `custom` if it is right. A capability can now map a config field's values to
+  the purposes its key may have (#2485). The picker respects endpoint defaults,
+  preserves sign-ins accepted by other capabilities and marks a retained key
+  that no longer fits after a harness change.
+
+- Knowledge citations name a page only for sources that have pages, such as PDF,
+  presentations and paginated office formats. Markdown, text, `.docx`, HTML,
+  spreadsheets and images name only the document; a stored structural page 1 or
+  a header-like code comment is not a location. The rule applies when results
+  are shown, so existing collections need no re-ingestion. Knowledge search in
+  the console follows the same rule (#2489).
+
+- Say an organization is at its agent limit before a create is attempted. At
+  the limit the Agents page disables **New agent** and template installs with
+  the reason, instead of refusing the create after the dialog is filled in, and
+  onboarding no longer offers to guide a create there. The server-side refusal
+  is unchanged (#2488).
+
+- Keep known realtime voice, text-to-speech, transcription, image, video and
+  embedding models out of agent and chat model pickers. Profiles and provider
+  suggestions report `chat_capable`; saved profiles also update when a provider
+  listing arrives later. Publish, rollback, draft checks and test runs reject
+  incompatible primary, reviewer, specialist and capability models, including
+  the first three fallbacks the runner can use. Runs reject incompatible
+  conversation overrides before starting, skip incompatible fallbacks and avoid
+  inventing specialists on them. Architect chooses a chat model. Provider
+  aliases share their vendor's classifications; unknown models and custom
+  endpoints remain allowed. Stored specs still load; a version on an incompatible
+  model must be corrected before republishing or restoring it (#2487).
+
+- Report a collection as `indexing` on `GET /rag/collections/{name}/info` while
+  any of its documents is still queued or being ingested, and `complete` only
+  once none is. The response adds `processing_count`, `indexed_count` and
+  `failed_count`; a failed document is counted there rather than holding the
+  collection at `indexing`. The knowledge base page shows its own state from
+  `GET /kb/{kb_id}/ingestion` and keeps refreshing until the whole batch has
+  settled (#2486).
+
+- Pin `sandboxd` to `ghcr.io/vstorm-co/sandboxd:0.2.37`, the version of the
+  backend's `pydantic-ai-backend` client, in every compose file. A cached
+  `sandboxd:0.2` older than the client answered every command with a 404 that the
+  platform reported as a lost session. A sandbox service that does not serve a
+  route the client needs now fails the tool call with a version mismatch that
+  names the image to run, including legacy conflicts when attaching saved session
+  references. The conversation reopens its session by name on the next turn.
+  `agenticos cmd doctor` checks each sandbox connection's routes. To
+  upgrade, redeploy with `scripts/deploy.sh` or `make dev`, which pull the pinned
+  tag. `make prod` does not start the `sandbox` profile, so on a stack started
+  with it, pull and recreate `sandboxd` with `--profile sandbox` (#2484).
+
 ## [1.22.0] - 2026-10-26
 
 ### Added
@@ -17121,7 +17217,10 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.22.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.25.0...HEAD
+[1.25.0]: https://github.com/vstorm-co/agenticos/compare/v1.24.0...v1.25.0
+[1.24.0]: https://github.com/vstorm-co/agenticos/compare/v1.23.0...v1.24.0
+[1.23.0]: https://github.com/vstorm-co/agenticos/compare/v1.22.0...v1.23.0
 [1.22.0]: https://github.com/vstorm-co/agenticos/compare/v1.21.0...v1.22.0
 [0.0.32]: https://github.com/vstorm-co/agenticos/compare/v0.0.31...v0.0.32
 [0.0.31]: https://github.com/vstorm-co/agenticos/compare/v0.0.30...v0.0.31

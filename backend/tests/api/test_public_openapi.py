@@ -49,6 +49,7 @@ async def test_it_is_served_without_a_credential_and_holds_only_public_routes(
 
     assert f"{settings.API_V1_STR}/agents" in paths
     assert f"{settings.API_V1_STR}/kb/{{kb_id}}/documents" in paths
+    assert f"{settings.API_V1_STR}/kb/{{kb_id}}/ingestion" in paths
     # Console-only routes, and key management, are not part of the contract.
     assert f"{settings.API_V1_STR}/api-keys" not in paths
     assert f"{settings.API_V1_STR}/users/me" not in paths

@@ -32,6 +32,7 @@ from app.schemas.knowledge_base import (
     KnowledgeBaseUpdate,
 )
 from app.schemas.rag import (
+    RAGIngestionStatus,
     RAGIngestResponse,
     RAGParsedContent,
     RAGSyncLogList,
@@ -161,6 +162,25 @@ async def list_kb_documents(
     """
     await service.get(kb_id, ctx=ctx)
     return await rag_doc_service.list_for_kb(kb_id=kb_id, skip=skip, limit=limit, filename=filename)
+
+
+@router.get("/{kb_id}/ingestion", response_model=RAGIngestionStatus)
+async def get_kb_ingestion(
+    kb_id: UUID,
+    service: KnowledgeBaseSvc,
+    rag_doc_service: RAGDocumentSvc,
+    ctx: Auth,
+) -> Any:
+    """Whether a Knowledge Base's documents are still indexing.
+
+    Counted over the documents `GET /kb/{kb_id}/documents` lists - all of them,
+    not one page - so it agrees with that list even when another base shares the
+    collection name. `indexing` while any is queued or being ingested and
+    `complete` once none is; a failed document shows in `failed_count` and does
+    not hold it at `indexing`.
+    """
+    await service.get(kb_id, ctx=ctx)
+    return await rag_doc_service.ingestion_for_kb(kb_id)
 
 
 @router.post(

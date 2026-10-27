@@ -114,6 +114,10 @@ export function useDeploymentSettings() {
     mutationFn: (patch: DeploymentSettingsPatch) =>
       apiClient.patch<DeploymentSettings>("/admin/settings", patch),
     onSuccess: async () => {
+      // The agent limit is one of these settings, and the Agents page reads it
+      // through its own query: without this it would offer New agent past a limit
+      // just lowered, or withhold it under one just raised, until that went stale.
+      void queryClient.invalidateQueries({ queryKey: qk.agents.ceiling() });
       await invalidate();
       toast.success(t("settingsSaved"));
     },
