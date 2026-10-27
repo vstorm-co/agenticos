@@ -280,6 +280,37 @@ describe("OrgProactivity", () => {
     );
   });
 
+  it.each(["success", "failure"])(
+    "waits for profile creation before saving settings (%s)",
+    async (outcome) => {
+      state.held = [Perm.budgetsManage, Perm.connectionsManage];
+      const creation = Promise.withResolvers<ModelProfile>();
+      state.createModel.mockReturnValueOnce(creation.promise);
+      const first = state.profiles[0]!;
+      render(<OrgProactivity org={org(ON)} />);
+      await userEvent.type(screen.getByLabelText("Limit per person (USD a month)"), "0");
+      await userEvent.click(screen.getByRole("combobox", { name: "Model" }));
+      await userEvent.type(screen.getByPlaceholderText("Search models…"), "claude-next");
+      await userEvent.click(screen.getByRole("option", { name: /^Use claude-next/ }));
+      await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+      expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+      expect(state.setProactivity).not.toHaveBeenCalled();
+      await act(async () => {
+        if (outcome === "success") creation.resolve({ ...first, id: "created-profile" });
+        else creation.reject(new Error("Creation failed"));
+        await creation.promise.catch(() => undefined);
+      });
+      expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+      await userEvent.click(screen.getByRole("button", { name: "Save" }));
+      expect(state.setProactivity).toHaveBeenCalledWith(
+        "o1",
+        expect.objectContaining({
+          proactive_model_profile_id: outcome === "success" ? "created-profile" : "mp-1",
+        }),
+      );
+    },
+  );
+
   it.each(["o1", "o2"])(
     "keeps a newer stored model in organization %s after late creation",
     async (targetOrg) => {

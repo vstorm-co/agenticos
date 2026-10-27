@@ -34,6 +34,8 @@ import { useTranslations } from "next-intl";
 interface AddModelProps {
   /** Called with the new model once it exists, so the picker can select it. */
   onCreated: (profile: ModelProfile) => void;
+  /** Balance each started creation, including one whose form unmounts while awaiting it. */
+  onCreationPendingChange?: (pending: boolean) => void;
   /**
    * The model the agent runs on today, which this form *starts on*.
    *
@@ -182,7 +184,13 @@ function markable(acceptsEndpoint: boolean): { fields: readonly string[] } {
   return { fields: acceptsEndpoint ? ["model", "base_url", "secret_id"] : ["model", "secret_id"] };
 }
 
-export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelProps) {
+export function AddModel({
+  onCreated,
+  onCreationPendingChange,
+  onCancel,
+  disabled,
+  selected,
+}: AddModelProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
   // Root, for the absolute keys `modelPlaceholder` answers with - see the note on
@@ -325,6 +333,7 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
       setFailure({ ...NO_FAILURE, ...notChat });
       return;
     }
+    onCreationPendingChange?.(true);
     try {
       const profile = await createProfile.mutateAsync({
         label: label.trim() || `${provider.label} · ${model.trim()}`,
@@ -354,6 +363,8 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
       // gives (#898) - so what is left for the line above the button is a
       // permission, a fault, or a conflict on the derived name.
       setFailure(submitFailure(error, markable(acceptsEndpoint), tErrors));
+    } finally {
+      onCreationPendingChange?.(false);
     }
   };
 

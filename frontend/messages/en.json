@@ -4584,6 +4584,10 @@
         "title": "Budget and approvals",
         "body": "Set the organization spending limit and manage approval waivers. Controls depend on your permissions."
       },
+      "org-proactivity-model": {
+        "title": "Choose the proactivity model",
+        "body": "Choose a provider, model and vault key, then add the model profile. Creating a profile stores it immediately; Save applies it to nightly suggestions and MCP watches. These checks use this model independently of the AgenticOS starter shown in Activity."
+      },
       "org-proactivity": {
         "title": "Proactivity",
         "body": "Configure nightly suggestions, connection watches and proactive chat greetings. Choose the model, schedule and per-person budget here."

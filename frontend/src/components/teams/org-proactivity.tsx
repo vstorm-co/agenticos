@@ -116,6 +116,7 @@ function NightlyForm({ org }: { org: Organization }) {
   const { profiles, profilesStatus } = useModelProviders();
   const { can } = usePermissions();
   const [form, setForm] = useState(() => stored(org));
+  const [pendingCreations, setPendingCreations] = useState(0);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
@@ -197,12 +198,17 @@ function NightlyForm({ org }: { org: Organization }) {
               errors[MODEL_FIELD] ? "org-proactive-model-error" : "org-proactive-model-hint"
             }
           >
-            <legend className="text-sm font-medium">{t("model")}</legend>
+            <legend className="text-sm font-medium" data-tour="org-proactivity-model">
+              {t("model")}
+            </legend>
             <ModelProfilePicker
               profiles={profiles}
               profilesStatus={profilesStatus}
               value={form.modelId}
               onChange={(modelId) => edit({ modelId })}
+              onCreationPendingChange={(pending) =>
+                setPendingCreations((count) => count + (pending ? 1 : -1))
+              }
               allowAdd={can(Perm.connectionsManage)}
               disabled={saving}
             />
@@ -313,7 +319,7 @@ function NightlyForm({ org }: { org: Organization }) {
         <WatchPolicy minutes={form.watchMinutes} disabled={saving} onChange={edit} />
       )}
       {changed && (
-        <Button onClick={save} disabled={saving}>
+        <Button onClick={save} disabled={saving || pendingCreations > 0}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : t("save")}
         </Button>
       )}

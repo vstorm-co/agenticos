@@ -31,6 +31,7 @@ interface ModelProfilePickerProps {
   /** `null` means "whatever the organization's default is". */
   value: string | null;
   onChange: (profileId: string | null) => void;
+  onCreationPendingChange?: (pending: boolean) => void;
 
   /**
    * Whether this panel can create a model, which also decides its shape.
@@ -103,6 +104,7 @@ export function ModelProfilePicker({
   profilesStatus,
   value,
   onChange,
+  onCreationPendingChange,
   allowAdd = false,
   allowRemove = false,
   disabled,
@@ -266,6 +268,7 @@ export function ModelProfilePicker({
         key={`${selected?.id ?? "none"}:${selectionVersion}`}
         selected={selected}
         disabled={disabled}
+        onCreationPendingChange={onCreationPendingChange}
         onCreated={(profile) => {
           // A newer choice or an unmounted picker no longer owns this result.
           if (currentSelection.current !== selectionVersion) return;
