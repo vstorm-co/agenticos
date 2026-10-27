@@ -337,6 +337,8 @@ function respond(path: string, options?: { params?: Record<string, string> }): u
       return RATINGS;
     case "/authoring/waiting":
       return { agents: [], skills: 0, contexts: 0 };
+    case "/improvements":
+      return [];
     default:
       return { items: [], total: 0 };
   }
