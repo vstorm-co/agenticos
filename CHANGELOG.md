@@ -19,6 +19,45 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Change a model's key, endpoint, API, settings or name in place with
+  `PATCH /providers/model-profiles/{id}` (#2478). The profile keeps its id, so
+  every agent on it uses the change from its next run, with no republish. The
+  Builder's model panel saves a key, endpoint or API change on the model in use
+  as this edit, under **Update model**, and says that every agent on the model
+  switches with it. **Add model** stays for another provider or model. The edit
+  is gated on `connections:manage`, accepts only a key the caller can see in the
+  organization's vault for the profile's provider, and is audited as
+  `model_profile.updated` with the changed field names only. See
+  [Changing a profile's key or endpoint](docs/models.md#changing-a-profiles-key-or-endpoint).
+
+### Changed
+
+- Deleting a model profile that agents use is refused with `409 IN_USE`
+  (#2478). `details.agents` names each agent the caller can see, and
+  `details.hidden_agents` counts the rest. A profile counts as in use when an
+  agent's draft, served version or an environment's pinned version names it
+  anywhere, including reviewers, specialists and capability settings. The Builder
+  shows the refusal with the agent names. **Upgrade action:** a script that
+  deletes profiles must move the agents on them first, or edit the profile
+  instead.
+- A model profile whose key was deleted from the vault is listed with
+  `missing_key: true` (#2478). Agent and chat model pickers no longer offer it,
+  the Builder marks it **no key** and says how to fix it, and publish refuses it
+  by name. A self-hosted profile with an endpoint and no key is not affected.
+- Creating a model profile now also requires that the caller can see its key in
+  the vault, the same rule as a capability's secret (#2478).
+
+### Fixed
+
+- The Builder's Endpoint field no longer shows the local example
+  `http://localhost:11434/v1` for a model that has a key (#2478). OpenAI is
+  marked `keyless` because OpenAI-compatible servers exist, and the field showed
+  the Ollama example as grey placeholder text, which read as an endpoint filled
+  in after a key was switched. The example now shows only when the endpoint is
+  required. A self-hosted model is no longer badged **no key** either.
+
 ## [1.25.0] - 2026-10-27
 
 ### Changed

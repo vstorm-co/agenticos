@@ -1,5 +1,5 @@
 ---
-source_sha: "0a268874d05a"
+source_sha: "714894100328"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -92,6 +92,54 @@ działa też przy konfiguracji proaktywności i przy rozwiązywaniu profilu do z
 konfiguracje nadal się wczytują; przed użyciem trzeba zastąpić niezgodny model.
 Wyłączenie funkcji pozostaje możliwe. Nazwy wdrożeń Azure nie są klasyfikowane
 na podstawie identyfikatorów modeli bazowych z katalogu.
+
+### Zmiana klucza lub endpointu profilu { #changing-a-profiles-key-or-endpoint }
+
+Agenci wskazują profil po jego id. Aby przenieść model na inny klucz, inny
+endpoint albo drugie API OpenAI, edytuj profil w miejscu:
+`PATCH /providers/model-profiles/{id}` zmienia `secret_id`, `base_url`, `api`,
+`params` lub `label` i zachowuje id. Każdy agent na tym profilu używa zmiany od
+następnego runu. Nikt nie musi niczego ponownie publikować.
+
+W panelu modelu w Builderze zmień klucz, endpoint lub API używanego modelu.
+Przycisk zmienia się wtedy na **Zaktualizuj model**, a panel mówi, że każdy agent
+na tym modelu przełączy się razem z nim. **Dodaj model** pozostaje przyciskiem dla
+innego providera lub modelu oraz dla modelu, któremu nadajesz własną nazwę. Użyj
+**Nazwij to inaczej**, aby dać tylko temu agentowi osobny model.
+
+Edycja podlega tym samym regułom co tworzenie i wymaga tego samego uprawnienia
+`connections:manage`. Nowy klucz musi być w vaulcie tej organizacji, musi być dla
+ciebie widoczny i musi być zapisany dla providera profilu. Provider, który
+wymaga klucza, nie może go stracić. Provider bez klucza (keyless) bez klucza
+zachowuje endpoint. Etykieta musi pozostać unikalna. Log audytu zapisuje
+`model_profile.updated` z nazwami zmienionych pól, nie z ich wartościami. Nie
+możesz zmienić providera ani id modelu. Inny model to inny profil.
+
+### Profil bez klucza { #a-profile-without-a-key }
+
+Jeśli usuniesz klucz z vaulta, jego profile zostają z `secret_id` ustawionym na
+null. `GET /providers/model-profiles` oznacza taki profil jako
+`missing_key: true`, chyba że to provider keyless z endpointem, na przykład Ollama
+w twojej sieci. Wtedy:
+
+- Pickery modelu agenta i czatu go nie oferują. Jeśli agent już go wskazuje,
+  Builder pokazuje go z oznaczeniem **brak klucza** i prosi o przypisanie klucza.
+- Publikacja go odrzuca i podaje nazwę modelu. Run na nim kończy się błędem
+  „no key configured”.
+- Aby go naprawić, otwórz agenta na tym modelu, wybierz klucz w sekcji **Model** i
+  naciśnij **Zaktualizuj model**. Każdy agent na tym modelu znów działa.
+
+### Usuwanie profilu { #deleting-a-profile }
+
+`DELETE /providers/model-profiles/{id}` odrzuca profil, którego używają agenci.
+Odpowiedź to `409 IN_USE`, a `details.agents` wymienia każdego agenta, którego
+widzisz, z id i nazwą. `details.hidden_agents` liczy agentów, których nie widzisz.
+Profil jest w użyciu, gdy szkic agenta, jego serwowana wersja albo wersja
+przypięta przez środowisko wskazuje ten profil gdziekolwiek: jako model agenta,
+recenzenta lub specjalisty albo w capability, na przykład model follow-upów lub
+model kroków przeglądarki. Zarchiwizowani agenci i stare wersje, których nic nie
+serwuje, się nie liczą. Najpierw przenieś tych agentów na inny model. Aby zmienić
+tylko klucz, edytuj profil.
 
 ### Fallbacki { #fallbacks }
 

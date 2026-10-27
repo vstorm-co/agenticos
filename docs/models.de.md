@@ -1,5 +1,5 @@
 ---
-source_sha: "0a268874d05a"
+source_sha: "714894100328"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -102,6 +102,61 @@ Bildbeschreibung bei der Konfiguration und im Worker. Alte Konfigurationen laden
 weiterhin; ein inkompatibles Modell muss vor der Nutzung ersetzt werden. Das
 Ausschalten bleibt möglich. Azure-Deployment-Namen werden nicht anhand der
 Basismodell-IDs des Katalogs klassifiziert.
+
+### Schlüssel oder Endpunkt eines Profils ändern { #changing-a-profiles-key-or-endpoint }
+
+Agents verweisen über die id auf ein Profil. Um ein Modell auf einen anderen
+Schlüssel, einen anderen Endpunkt oder die andere OpenAI-API umzustellen,
+bearbeiten Sie das Profil an Ort und Stelle: `PATCH /providers/model-profiles/{id}`
+ändert `secret_id`, `base_url`, `api`, `params` oder `label` und behält die id.
+Jeder Agent auf dem Profil nutzt die Änderung ab seinem nächsten Run. Niemand
+muss etwas neu veröffentlichen.
+
+Ändern Sie im Modellbereich des Builders den Schlüssel, den Endpunkt oder die API
+des verwendeten Modells. Die Schaltfläche heißt dann **Modell aktualisieren**,
+und der Bereich sagt, dass jeder Agent auf diesem Modell mitwechselt. **Modell
+hinzufügen** bleibt die Schaltfläche für einen anderen Provider oder ein anderes
+Modell und für ein Modell, dem Sie einen eigenen Namen geben. Mit **Nennen Sie
+ihn anders** erhält nur dieser Agent ein eigenes Modell.
+
+Eine Bearbeitung folgt denselben Regeln wie das Anlegen und braucht dieselbe
+Berechtigung `connections:manage`. Ein neuer Schlüssel muss im Vault dieser
+Organisation liegen, für Sie sichtbar sein und für den Provider des Profils
+gespeichert sein. Ein Provider, der einen Schlüssel braucht, kann ihn nicht
+verlieren. Ein Provider ohne Schlüsselpflicht (keyless) ohne Schlüssel behält
+einen Endpunkt. Ein Label muss eindeutig bleiben. Das Audit-Log speichert
+`model_profile.updated` mit den Namen der geänderten Felder, nicht mit ihren
+Werten. Provider und Modell-id können Sie nicht ändern. Ein anderes Modell ist
+ein anderes Profil.
+
+### Ein Profil ohne Schlüssel { #a-profile-without-a-key }
+
+Wenn Sie einen Schlüssel aus dem Vault löschen, bleiben seine Profile mit
+`secret_id` auf null bestehen. `GET /providers/model-profiles` markiert ein
+solches Profil mit `missing_key: true`, außer es ist ein keyless Provider mit
+Endpunkt, etwa ein Ollama in Ihrem Netz. Dann:
+
+- Die Modellauswahl für Agents und Chat bietet es nicht an. Verweist ein Agent
+  bereits darauf, zeigt der Builder es mit dem Hinweis **kein Schlüssel** und
+  fordert Sie auf, ihm einen Schlüssel zu geben.
+- Das Veröffentlichen lehnt es ab und nennt das Modell. Ein Run darauf scheitert
+  mit „no key configured“.
+- Zum Reparieren öffnen Sie einen Agent auf diesem Modell, wählen unter **Modell**
+  einen Schlüssel und klicken auf **Modell aktualisieren**. Jeder Agent auf dem
+  Modell funktioniert wieder.
+
+### Ein Profil löschen { #deleting-a-profile }
+
+`DELETE /providers/model-profiles/{id}` lehnt ein Profil ab, das Agents nutzen.
+Die Antwort ist `409 IN_USE`, und `details.agents` listet jeden Agent, den Sie
+sehen können, mit id und Namen. `details.hidden_agents` zählt die Agents, die Sie
+nicht sehen. Ein Profil ist in Gebrauch, wenn der Entwurf eines Agents, seine
+ausgelieferte Version oder eine von einer Umgebung gepinnte Version das Profil
+irgendwo nennt: als Modell des Agents, eines Reviewers oder eines Spezialisten
+oder in einer Capability, etwa als Follow-up-Modell oder als Modell für
+Browser-Schritte. Archivierte Agents und alte Versionen, die nichts ausliefert,
+zählen nicht. Verschieben Sie diese Agents zuerst auf ein anderes Modell. Um nur
+den Schlüssel zu ändern, bearbeiten Sie stattdessen das Profil.
 
 ### Fallbacks { #fallbacks }
 

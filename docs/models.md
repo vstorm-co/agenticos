@@ -85,6 +85,54 @@ time. Old configurations still load; replace an incompatible model before using
 them. Switching off remains possible. Azure deployment names are not classified
 from the catalog's base-model IDs.
 
+### Changing a profile's key or endpoint
+
+Agents name a profile by its id. To move a model to another key, another
+endpoint or the other OpenAI API, edit the profile in place:
+`PATCH /providers/model-profiles/{id}` changes `secret_id`, `base_url`, `api`,
+`params` or `label` and keeps the id. Every agent on the profile uses the change
+from its next run. Nobody has to republish anything.
+
+In the Builder's model panel, change the key, the endpoint or the API of the model
+in use. The button then reads **Update model**, and the panel says that every
+agent on this model switches with it. **Add model** is still the button for
+another provider or model, and for a model you give a name of its own. Use
+**Name it something else** to give only this agent a separate model.
+
+An edit has the same rules as creation and needs the same `connections:manage`
+permission. A new key must be in this organization's vault, be visible to you,
+and be stored for the profile's provider. A provider that needs a key cannot lose
+it. A keyless provider with no key keeps an endpoint. A label must stay unique.
+The audit log records `model_profile.updated` with the names of the changed
+fields, not their values. You cannot change the provider or the model id. Another
+model is another profile.
+
+### A profile without a key
+
+If you delete a key from the vault, its profiles stay with `secret_id` set to
+null. `GET /providers/model-profiles` marks such a profile `missing_key: true`,
+unless it is a keyless provider with an endpoint, such as an Ollama on your
+network. Then:
+
+- Agent and chat model pickers do not offer it. If an agent already names it, the
+  Builder shows it with a **no key** badge and tells you to give it a key.
+- Publish refuses it and names the model. A run on it fails with "no key
+  configured".
+- To repair it, open an agent on that model and choose a key under **Model**, then
+  press **Update model**. Every agent on the model works again.
+
+### Deleting a profile
+
+`DELETE /providers/model-profiles/{id}` refuses a profile that agents use. The
+answer is `409 IN_USE`, and `details.agents` lists each agent you can see, by id
+and name. `details.hidden_agents` counts the agents you cannot see. A profile is
+in use when an agent's draft, its served version or a version that an environment
+pins names the profile anywhere: as the agent's model, a reviewer's or a
+specialist's, or in a capability, such as the follow-ups model or the browser step
+model. Archived agents and old versions that nothing serves do not count. Move
+those agents to another model first. To change only the key, edit the profile
+instead.
+
 ### Fallbacks
 
 A profile may list fallback profiles, tried in order. Only the first three are

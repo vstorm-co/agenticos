@@ -1,5 +1,5 @@
 ---
-source_sha: "bb212f4c1701"
+source_sha: "5afb693c7c13"
 ---
 
 # Conceptos { #concepts }
@@ -613,7 +613,10 @@ Esa indirección es lo importante. Rotar una clave, o mover cada agent de un
 modelo a otro, es una edición en un perfil y no en cuarenta specs.
 
 Un perfil sin credencial detrás se marca como `no key` allá donde aparezca,
-porque ese es el único dato que decide si el agent puede ejecutarse siquiera.
+porque ese es el único dato que decide si el agent puede ejecutarse siquiera. Los
+selectores no lo ofrecen y la publicación lo rechaza hasta que vuelva a tener
+clave. Un perfil que usan agents no se puede borrar; consulta
+[Cambiar la clave o el endpoint de un perfil](models.md#changing-a-profiles-key-or-endpoint).
 
 Los precios vienen de [`genai-prices`](https://github.com/pydantic/genai-prices),
 que mantiene Pydantic, en lugar de una tabla en este repositorio — una tabla
