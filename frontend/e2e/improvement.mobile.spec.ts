@@ -120,11 +120,57 @@ async function seedImprovableAgent(page: Page) {
   return { api, headers, stamp, model, agent, helper, dataset, initial };
 }
 
+/**
+ * Waits until the session stops where a person decides - `waiting`, with what
+ * its Next step starts - or reaches `status` at its result.
+ */
+async function until(
+  api: APIRequestContext,
+  headers: Record<string, string>,
+  path: string,
+  status: "waiting" | "ready",
+  nextStep?: "propose" | "check",
+) {
+  await expect
+    .poll(
+      async () => {
+        const session = await read(api, path, headers);
+        const there = session.status === status && (!nextStep || session.next_step === nextStep);
+        return there ? "there" : `${String(session.status)} at ${String(session.stage)}`;
+      },
+      { timeout: 180_000 },
+    )
+    .toBe("there");
+}
+
+/** The priced Next step a person takes at a stop, through the wizard's own routes. */
+async function nextStep(api: APIRequestContext, headers: Record<string, string>, path: string) {
+  const session = await read(api, path, headers);
+  const quote = await write(api, "post", `${path}/continue/estimate`, headers, {
+    budget_usd: session.budget_usd,
+  });
+  await write(api, "post", `${path}/continue`, headers, {
+    confirmed: true,
+    budget_usd: quote.budget_usd,
+    estimate_usd: quote.total_usd,
+    candidate_hash: quote.candidate_hash,
+  });
+}
+
+/** From a fresh session to its checked result: past both stops, each with its Next step. */
+async function toResult(api: APIRequestContext, headers: Record<string, string>, path: string) {
+  await until(api, headers, path, "waiting", "propose");
+  await nextStep(api, headers, path);
+  await until(api, headers, path, "waiting", "check");
+  await nextStep(api, headers, path);
+  await until(api, headers, path, "ready");
+}
+
 /** Actual API, worker and persisted rows; only the external model is a fixture. */
 test("test questions, review and improvement publish keep a guarded environment on its version", async ({
   page,
 }, info) => {
-  test.setTimeout(420_000);
+  test.setTimeout(600_000);
   const { api, headers, stamp, model, agent, helper, dataset, initial } =
     await seedImprovableAgent(page);
   await page.goto("/datasets");
@@ -277,22 +323,51 @@ test("test questions, review and improvement publish keep a guarded environment 
   await page.getByRole("button", { name: "Start improving" }).click();
   await expect(page).toHaveURL(/\/improve\/[0-9a-f-]+$/);
   const sessionId = new URL(page.url()).pathname.split("/").at(-1);
-  await expect
-    .poll(
-      async () =>
-        (await read(api, `/agents/${id(agent)}/improvements/${sessionId}`, headers)).status,
-      { timeout: 180_000 },
-    )
-    .toBe("ready");
+  const path = `/agents/${id(agent)}/improvements/${sessionId}`;
+
+  // It reads what went wrong, then waits for a person before it spends more.
+  await until(api, headers, path, "waiting", "propose");
+  await expect(page.getByText("Waiting for you: look at what went wrong")).toBeVisible();
+  await capture(page, info, "improvement-understand");
+  await page.getByRole("button", { name: /^Next step: write the changes/ }).click();
+  await until(api, headers, path, "waiting", "check");
+  await expect(page.getByText("Waiting for you: review the changes")).toBeVisible();
+
+  // One change is left out of the test and the other reworded; the test measures that choice.
+  await page.getByLabel("Include change 2 in the test").uncheck();
+  await page.getByRole("button", { name: "Change the wording" }).first().click();
+  await page
+    .getByRole("textbox", { name: "Wording of change 1" })
+    .fill("PONG-IMPROVEMENT-AFTER (reviewed)");
+  await page.getByRole("button", { name: "Save the wording" }).click();
+  await expect(page.getByText("Reworded by you")).toBeVisible();
+  await capture(page, info, "improvement-changes");
+  await page.getByRole("button", { name: /^Next step: test the selected changes/ }).click();
+  await until(api, headers, path, "ready");
+  const first = await read(api, path, headers);
+  const [attempt] = (first.iterations as Record<string, unknown>[] | undefined) ?? [];
+  expect(attempt?.included_hunk_ids).toHaveLength(1);
   await page.reload();
   await expect(
     page.getByText(/^Attempt \d+ made .+ better: \d+ questions? fixed and none broke\./),
   ).toBeVisible();
-  await expect(page.getByRole("button", { name: "Review and accept the changes" })).toBeEnabled();
   await capture(page, info, "improvement-result");
-  await page.getByRole("button", { name: "Changes", exact: true }).click();
-  await expect(page.getByText("PONG-IMPROVEMENT-AFTER", { exact: false }).first()).toBeVisible();
-  await capture(page, info, "improvement-changes");
+
+  // Another attempt only when asked, with a note the helper reads: it words its second change apart.
+  await page.getByRole("button", { name: "Try again" }).click();
+  await page
+    .getByLabel("Note for the helper (optional)")
+    .fill("E2E-NOTE: keep the reviewed token.");
+  await page.getByRole("button", { name: "Estimate continuing the session" }).click();
+  await page.getByRole("button", { name: "Confirm the estimate and continue" }).click();
+  await until(api, headers, path, "waiting", "check");
+  await page.reload();
+  await expect(page.getByText("Waiting for you: review the changes")).toBeVisible();
+  await expect(page.getByText(/as the note asks/).first()).toBeVisible();
+  await page.getByRole("button", { name: /^Next step: test the selected changes/ }).click();
+  await until(api, headers, path, "ready");
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Review and accept the changes" })).toBeEnabled();
   await page.getByRole("button", { name: "Accept", exact: true }).click();
   await expect(page.getByRole("button", { name: "Publish version 2" })).toBeDisabled();
   await capture(page, info, "improvement-accept");
@@ -335,18 +410,13 @@ test("a first improvement offers the automatic check, and ticking it creates the
     max_iterations: 3,
     budget_usd: "5",
   });
-  await expect
-    .poll(
-      async () =>
-        (await read(api, `/agents/${id(agent)}/improvements/${id(session)}`, headers)).status,
-      { timeout: 180_000 },
-    )
-    .toBe("ready");
+  await toResult(api, headers, `/agents/${id(agent)}/improvements/${id(session)}`);
   await page.goto(`/agents/${id(agent)}/improve/${id(session)}`);
   const wizard = page.url();
   const stops = await walkPageTour(page);
-  expect(stops[0]).toBe("Test questions");
-  expect(stops).toEqual(expect.arrayContaining(["Check", "Result"]));
+  // The session's walk names its steps, then each of the five.
+  expect(stops[0]).toBe("Steps");
+  expect(stops).toEqual(expect.arrayContaining(["Understand", "Changes", "Check", "Result"]));
   expect(page.url()).toBe(wizard);
   await expect(page.getByText("Something went wrong")).toHaveCount(0);
   // The walk leaves the wizard on its last stop, under the guided run it offers.
@@ -374,13 +444,7 @@ test("a session kept as a draft is history: Improve starts the next, and the his
     max_iterations: 3,
     budget_usd: "5",
   });
-  await expect
-    .poll(
-      async () =>
-        (await read(api, `/agents/${id(agent)}/improvements/${id(session)}`, headers)).status,
-      { timeout: 180_000 },
-    )
-    .toBe("ready");
+  await toResult(api, headers, `/agents/${id(agent)}/improvements/${id(session)}`);
   await page.goto(`/agents/${id(agent)}/improve/${id(session)}`);
   await page.getByRole("button", { name: "Accept", exact: true }).click();
   await page.getByLabel("I have reviewed the selected changes and want to apply them.").check();
@@ -402,13 +466,19 @@ test("a session kept as a draft is history: Improve starts the next, and the his
   await expect(page.getByRole("button", { name: /Publish version/ })).toHaveCount(0);
 
   // The step read is in the address, so Back from where it leads returns to that step.
-  await page.locator('[data-tour="improvement-step-testSet"]').click();
-  await expect(page).toHaveURL(new RegExp(`/improve/${id(session)}\\?step=testSet$`));
-  await page.getByRole("link", { name: "Open the question set" }).click();
-  await expect(page).toHaveURL(new RegExp(`/datasets/${id(dataset)}$`));
+  await page.locator('[data-tour="improvement-step-check"]').click();
+  await expect(page).toHaveURL(new RegExp(`/improve/${id(session)}\\?step=check$`));
+  await page.locator('[data-tour="improvement-open-check"]').click();
+  await expect(page).toHaveURL(/\/evals\/[^/?]+$/);
   await page.goBack();
-  await expect(page).toHaveURL(new RegExp(`/improve/${id(session)}\\?step=testSet$`));
-  await expect(page.locator('[data-tour="improvement-test-questions"]')).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/improve/${id(session)}\\?step=check$`));
+  await expect(page.locator('[data-tour="improvement-check"]')).toBeVisible();
+  await page.goBack();
+  await expect(page).toHaveURL(new RegExp(`/agents/${id(agent)}\\?tab=history$`));
+
+  // A link to a step that no longer exists opens the one that took its place, in its place.
+  await page.goto(`/agents/${id(agent)}/improve/${id(session)}?step=today`);
+  await expect(page).toHaveURL(new RegExp(`/improve/${id(session)}\\?step=check$`));
   await page.goBack();
   await expect(page).toHaveURL(new RegExp(`/agents/${id(agent)}\\?tab=history$`));
 });

@@ -139,6 +139,9 @@ function contractProperties(body: ChatRequest): Record<string, object> | null {
   }
 }
 
+/** The marker `improvement.mobile.spec.ts` writes in its note to the helper; it is answered differently. */
+const TRY_AGAIN_NOTE = "E2E-NOTE";
+
 /** Fixed JSON answers only for the improvement journey's explicit fixture marker.
  * The real API, worker, evidence builder and eval scorer still do all their work.
  */
@@ -147,6 +150,9 @@ function improvementReply(body: ChatRequest): string | null {
   const properties = contractProperties(body);
   if (properties === null) return null;
   if ("summary" in properties && "expected_effect" in properties && "instructions" in properties) {
+    // Two changes, so one can be left out of a test; a person's note to the helper
+    // words the second apart, so the attempt it asks for is no repeat of the last.
+    const noted = allText(body).includes(TRY_AGAIN_NOTE);
     return JSON.stringify({
       summary: "The fixture answers with the old return policy.",
       expected_effect: "Use the reviewed policy token for the test questions.",
@@ -156,6 +162,15 @@ function improvementReply(body: ChatRequest): string | null {
           new_text: "PONG-IMPROVEMENT-AFTER",
           after: "",
           rationale: "The deterministic checks expect the reviewed policy.",
+          evidence: [],
+        },
+        {
+          old_text: "and nothing else.",
+          new_text: noted
+            ? "and nothing else, as the note asks."
+            : "and nothing else, in one line.",
+          after: "",
+          rationale: "An answer of the token alone is what the checks compare.",
           evidence: [],
         },
       ],
