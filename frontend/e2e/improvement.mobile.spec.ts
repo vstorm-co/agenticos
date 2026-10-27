@@ -253,13 +253,17 @@ test("test questions, review and improvement publish keep a guarded environment 
   await runWith.click();
   await expect(estimate).toBeVisible();
   const choice = page.getByRole("option", { name: String(helper.name), exact: true });
-  if (await choice.isVisible()) await expect(choice).toBeInViewport();
-  else {
-    await runWith.scrollIntoViewIfNeeded();
-    await runWith.click();
-  }
-  await choice.click();
-  await expect(runWith).toHaveText(String(helper.name));
+  // The list may still close as the page settles after the check below, so the
+  // pick is retried until it takes: reopened on screen, never clicked off it.
+  await expect(async () => {
+    if (await choice.isVisible()) await expect(choice).toBeInViewport();
+    else {
+      await runWith.scrollIntoViewIfNeeded();
+      await runWith.click();
+    }
+    await choice.click({ timeout: 2_000 });
+    await expect(runWith).toHaveText(String(helper.name), { timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
   await expect(estimate).toBeVisible();
   const budget = page.getByLabel("Session spending limit (USD)");
   await expect(budget).toBeVisible();

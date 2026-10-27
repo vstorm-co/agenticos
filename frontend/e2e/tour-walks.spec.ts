@@ -1,3 +1,5 @@
+import type { Page } from "@playwright/test";
+
 import { expect, test } from "./fixtures";
 import { AUTH_STATE, walkPageTour } from "./helpers";
 
@@ -7,14 +9,22 @@ import { AUTH_STATE, walkPageTour } from "./helpers";
  */
 test.use({ storageState: AUTH_STATE });
 
+/** The organization the console has made active, once its store has recorded it. */
+async function activeOrganization(page: Page): Promise<string> {
+  const read = () =>
+    page.evaluate(() => {
+      const value: unknown = JSON.parse(localStorage.getItem("org-storage") ?? "null");
+      if (typeof value !== "object" || value === null || !("state" in value)) return "";
+      const state = value.state as { activeOrgId?: unknown };
+      return typeof state.activeOrgId === "string" ? state.activeOrgId : "";
+    });
+  await expect.poll(read).not.toBe("");
+  return read();
+}
+
 test("a dataset's tour opens each tab it describes and runs to its end", async ({ page }) => {
   await page.goto("/datasets");
-  const organizationId = await page.evaluate(() => {
-    const value: unknown = JSON.parse(localStorage.getItem("org-storage") ?? "null");
-    if (typeof value !== "object" || value === null || !("state" in value)) return "";
-    const state = value.state as { activeOrgId?: unknown };
-    return typeof state.activeOrgId === "string" ? state.activeOrgId : "";
-  });
+  const organizationId = await activeOrganization(page);
   const headers = { "X-Organization-Id": organizationId };
   const created = await page.request.post("/api/datasets", {
     headers,
@@ -47,13 +57,7 @@ test("a dataset's tour opens each tab it describes and runs to its end", async (
 
 test("an organization's tour opens each settings tab it describes", async ({ page }) => {
   await page.goto("/dashboard");
-  const organizationId = await page.evaluate(() => {
-    const value: unknown = JSON.parse(localStorage.getItem("org-storage") ?? "null");
-    if (typeof value !== "object" || value === null || !("state" in value)) return "";
-    const state = value.state as { activeOrgId?: unknown };
-    return typeof state.activeOrgId === "string" ? state.activeOrgId : "";
-  });
-  expect(organizationId).not.toBe("");
+  const organizationId = await activeOrganization(page);
 
   await page.goto(`/orgs/${organizationId}/members`);
   const tabFor: Record<string, string> = {
