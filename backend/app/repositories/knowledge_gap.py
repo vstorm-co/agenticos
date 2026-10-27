@@ -1284,6 +1284,34 @@ async def topic_of_runs(
     return dict(result.all())
 
 
+class CoveringDocument(NamedTuple):
+    document: RAGDocument
+    covered_at: datetime | None
+
+
+async def covering_documents(
+    db: AsyncSession, topic_ids: Sequence[UUID], *, organization_id: UUID
+) -> dict[UUID, CoveringDocument]:
+    """The document covering each of these topics that is covered now, and since when."""
+    if not topic_ids:
+        return {}
+    # Aliased so the status's own subquery over documents is not correlated with it.
+    covering = aliased(RAGDocument)
+    result = await db.execute(
+        select(KnowledgeGapTopic.id, covering, KnowledgeGapTopic.covered_at)
+        .join(covering, covering.id == KnowledgeGapTopic.covered_by_document_id)
+        .where(
+            KnowledgeGapTopic.organization_id == organization_id,
+            KnowledgeGapTopic.id.in_(list(topic_ids)),
+            _status() == TopicStatus.COVERED.value,
+        )
+    )
+    return {
+        topic_id: CoveringDocument(document, covered_at)
+        for topic_id, document, covered_at in result.all()
+    }
+
+
 async def answers_for_runs(
     db: AsyncSession, *, organization_id: UUID, run_ids: Sequence[UUID]
 ) -> dict[UUID, UUID]:

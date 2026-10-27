@@ -109,6 +109,7 @@ from app.schemas.improvement import (
     ImprovementSelection,
     ImprovementStart,
     ImprovementTarget,
+    KnowledgeAdded,
     KnowledgeCheckConsent,
     KnowledgeCheckEstimate,
     KnowledgeCheckTarget,
@@ -327,13 +328,28 @@ class ImprovementPipelineService:
         pack = await self.authoring.evidence.for_improvement(ctx, run.id)
         training = sum(item.evidence_kind == "train_eval" for item in pack.runs)
         branches = {c.message_id: c.branch for c in causes.values()}
+        # An answer whose knowledge was added since has nothing left to draft.
+        answers = await knowledge_gap_repo.answers_for_runs(
+            self.db, organization_id=run.organization_id, run_ids=source_runs
+        )
+        run_of = {message_id: run_id for run_id, message_id in answers.items()}
+        topics = await knowledge_gap_repo.topic_of_runs(
+            self.db, ids, source_runs, organization_id=run.organization_id
+        )
+        added = await knowledge_gap_repo.covering_documents(
+            self.db, list(set(topics.values())), organization_id=run.organization_id
+        )
         agent = (
             training
             + len(source_runs)
             - len(messages)
             + sum(branch in {"agent", "unknown"} for branch in branches.values())
         )
-        missing = sum(branch == "missing_knowledge" for branch in branches.values())
+        missing = sum(
+            branch == "missing_knowledge"
+            and not ((source := run_of.get(message_id)) is not None and topics.get(source) in added)
+            for message_id, branch in branches.items()
+        )
         excluded = [
             message_id
             for message_id, branch in branches.items()
@@ -665,9 +681,13 @@ class ImprovementPipelineService:
         topics = await knowledge_gap_repo.topic_of_runs(
             self.db, readable, list(messages), organization_id=ctx.organization_id
         )
+        covering = await knowledge_gap_repo.covering_documents(
+            self.db, list(set(topics.values())), organization_id=ctx.organization_id
+        )
         items: list[ImprovementEvidenceItem] = []
         for item in pack.runs:
             cause = causes.get(messages[item.run_id]) if item.run_id in messages else None
+            added = covering.get(topic) if (topic := topics.get(item.run_id)) else None
             items.append(
                 ImprovementEvidenceItem(
                     run_id=item.run_id,
@@ -693,6 +713,17 @@ class ImprovementPipelineService:
                     ),
                     reason=redact_credentials(cause.reason)[0] if cause else None,
                     topic_id=topics.get(item.run_id),
+                    knowledge_added=KnowledgeAdded(
+                        document_id=added.document.id,
+                        filename=added.document.filename,
+                        knowledge_base_id=added.document.knowledge_base_id,
+                        added_at=added.covered_at,
+                    )
+                    if added is not None
+                    and cause is not None
+                    and cause.branch == "missing_knowledge"
+                    and added.document.knowledge_base_id is not None
+                    else None,
                 )
             )
         return ImprovementEvidence(

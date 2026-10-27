@@ -19,6 +19,7 @@ DATASET = uuid.UUID("00000000-0000-4000-8000-0000000000e1")
 BEST = "00000000-0000-4000-8000-0000000000f2"
 TOPIC = "00000000-0000-4000-8000-0000000000b9"
 OTHER_TOPIC = "00000000-0000-4000-8000-0000000000b8"
+COVERED_TOPIC = "00000000-0000-4000-8000-0000000000b7"
 
 SESSION_READ: dict[str, Any] = {
     "id": str(SESSION),
@@ -173,13 +174,19 @@ class TestReadingSessions:
                 ("GET", f"/improvements/{SESSION}"): SESSION_READ,
                 ("GET", "/me/permissions"): _permissions("agents:view", "runs:view"),
                 ("GET", f"/agents/{AGENT}/improvements/{SESSION}/evidence"): {
-                    "items": [{"topic_id": TOPIC}, {"topic_id": OTHER_TOPIC}, {"topic_id": None}]
+                    "items": [
+                        {"topic_id": TOPIC},
+                        {"topic_id": OTHER_TOPIC},
+                        {"topic_id": COVERED_TOPIC},
+                        {"topic_id": None},
+                    ]
                 },
                 ("GET", f"/knowledge-gaps/agents/{AGENT}"): {
                     "items": [
                         topic,
                         {**topic, "id": OTHER_TOPIC, "label": "Gift cards?"},
                         {**topic, "id": str(uuid.uuid4()), "label": "Another session's"},
+                        {**topic, "id": COVERED_TOPIC, "label": "Added since", "status": "covered"},
                     ]
                 },
             }

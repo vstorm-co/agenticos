@@ -10721,7 +10721,8 @@
     "cause": {
       "agent": "Do poprawy w agencie",
       "missing_knowledge": "Braki w bazie wiedzy",
-      "not_a_problem": "Nie wymaga poprawy"
+      "not_a_problem": "Nie wymaga poprawy",
+      "knowledge_added": "Już w bazie wiedzy"
     },
     "noExamplesInGroup": "Brak wybranych przykładów w tej grupie.",
     "trainExample": "Pytanie testowe",
@@ -10951,7 +10952,7 @@
     "changesReplaced": "Te sugestie nie są już dostępne. Otwórz agenta, aby sprawdzić aktualną wersję roboczą.",
     "openVersion": "Otwórz wersję {version}",
     "publishVersion": "Opublikuj wersję {version}",
-    "problemsFound": "Znaleźliśmy {total, plural, one {# problem} few {# problemy} many {# problemów} other {# problemu}}: {agent} do poprawy w agencie, {knowledge} to informacje, których brakuje w bazie wiedzy.",
+    "problemsFound": "Znaleźliśmy {total, plural, one {# problem} few {# problemy} many {# problemów} other {# problemu}}: {agent} do poprawy w agencie{knowledge, plural, =0 {} other {, {knowledge} to informacje, których brakuje w bazie wiedzy}}{added, plural, =0 {} other {, przy {added} brakowało wiedzy, którą od tego czasu dodano do bazy wiedzy}}.",
     "topicExamples": "Rozmowy na jeden temat: {count}",
     "otherExamples": "{count, plural, one {# inna rozmowa} few {# inne rozmowy} many {# innych rozmów} other {# innej rozmowy}} na ten temat",
     "questionSources": "{count, plural, one {# pytanie testowe} few {# pytania testowe} many {# pytań testowych} other {# pytania testowego}}: {down} z odpowiedzi ocenionych negatywnie, {liked} z odpowiedzi ocenionych pozytywnie, {written} napisanych dla tematów bez przykładu{other, plural, =0 {} other {, # dodanych ręcznie lub zaimportowanych}}.",
@@ -10973,7 +10974,7 @@
     "shouldFix": "Powinno naprawić",
     "resultAgent": "W agencie: nowo naprawione {fixed}, nowo zepsute {broken}.",
     "resultAgentUnknown": "W agencie: jeszcze brak zmierzonego wyniku.",
-    "resultKnowledge": "W bazie wiedzy: {count, plural, =0 {niczego nie brakuje} one {brakuje # tematu} few {brakuje # tematów} many {brakuje # tematów} other {brakuje # tematu}}.",
+    "resultKnowledge": "W bazie wiedzy: {count, plural, =0 {niczego nie brakuje} one {brakuje # tematu} few {brakuje # tematów} many {brakuje # tematów} other {brakuje # tematu}}{added, plural, =0 {} one {, # temat dodano od tego czasu} few {, # tematy dodano od tego czasu} many {, # tematów dodano od tego czasu} other {, # tematu dodano od tego czasu}}.",
     "acceptKnowledge": "W bazie wiedzy: {count, plural, =0 {nic do dodania} one {# dokument do dodania} few {# dokumenty do dodania} many {# dokumentów do dodania} other {# dokumentu do dodania}}",
     "noKnowledgeDocuments": "W bazie wiedzy niczego nie brakuje.",
     "reviewAndAdd": "Przejrzyj i dodaj",
@@ -11080,7 +11081,8 @@
       "heldOut": "Pytania nieużyte do napisania zmian",
       "reasons": "Dlaczego i na czym się opiera",
       "proposed": "Zaproponowane zmiany",
-      "included": "Włączone do testu"
+      "included": "Włączone do testu",
+      "alreadyAdded": "{count, plural, one {# już dodany} few {# już dodane} many {# już dodanych} other {# już dodanego}}"
     },
     "sessionLine": "Sesja",
     "budgetUsed": "Wykorzystany limit wydatków",
@@ -11138,7 +11140,10 @@
       "changed": "Zmieniona wersja",
       "count": "{answered} z {total}",
       "reused": "Z testu sprzed rozpoczęcia tej sesji"
-    }
+    },
+    "knowledgeAddedHint": "Te odpowiedzi powstały, zanim dodano dokument, który je obejmuje, więc nie ma już czego szkicować. Zapytaj ponownie, żeby sprawdzić, czy agent go teraz znajduje.",
+    "knowledgeAddedOn": "{dated, select, yes {Dodano {date}:} other {Dodano od tego czasu:}} <link>{name}</link>",
+    "noKnowledgeTopics": "{added, plural, =0 {Ta sesja nie znalazła braków w bazie wiedzy, więc nie ma szkicu do przetestowania.} one {Nie ma czego testować: jedyny temat, którego brakowało według tej sesji, został już dodany do bazy wiedzy.} few {Nie ma czego testować: # tematy, których brakowało według tej sesji, zostały już dodane do bazy wiedzy.} many {Nie ma czego testować: # tematów, których brakowało według tej sesji, zostało już dodanych do bazy wiedzy.} other {Nie ma czego testować: # tematu, których brakowało według tej sesji, zostało już dodanych do bazy wiedzy.}}"
   },
   "unsaved": {
     "title": "Masz niezapisane zmiany",

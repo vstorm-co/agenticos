@@ -276,6 +276,15 @@ class KnowledgeCheckConsent(KnowledgeCheckTarget):
     draft_hash: str = Field(min_length=64, max_length=64)
 
 
+class KnowledgeAdded(BaseSchema):
+    """The document since added to cover what an answer was missing."""
+
+    document_id: UUID
+    filename: str
+    knowledge_base_id: UUID
+    added_at: datetime | None = Field(description="When the document covered the topic")
+
+
 class ImprovementEvidenceItem(BaseSchema):
     run_id: UUID
     conversation_id: UUID | None
@@ -291,6 +300,11 @@ class ImprovementEvidenceItem(BaseSchema):
         default=None,
         description="The knowledge gap topic its miss joined, when one did; examples sharing one "
         "are one problem",
+    )
+    knowledge_added: KnowledgeAdded | None = Field(
+        default=None,
+        description="For an answer missing knowledge, the document added since to its topic: "
+        "nothing is left to draft for it",
     )
 
 

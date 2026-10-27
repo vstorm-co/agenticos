@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { SESSION } from "@/test-utils/improvement";
@@ -363,6 +363,41 @@ it("groups examples by topic into problems and says how many each column holds",
       .getAllByRole("link", { name: "Open conversation" })
       .map((link) => link.getAttribute("href")),
   ).toContain("/chat/c5");
+});
+
+it("keeps answers whose knowledge was added since apart from what is still missing", async () => {
+  withTopic();
+  const added = {
+    document_id: "doc1",
+    filename: "shipping.md",
+    knowledge_base_id: "kb1",
+    added_at: "2026-10-27T07:52:00Z",
+  };
+  for (const item of state.sources!.items.filter((each) => each.topic_id === "t1"))
+    item.knowledge_added = added;
+  state.sources!.items.push({
+    ...state.sources!.items.at(-1)!,
+    run_id: "r8",
+    question: "Gift cards?",
+    topic_id: "t2",
+    knowledge_added: { ...added, added_at: null },
+  });
+  render(<Understand session={SESSION} />);
+  expect(
+    screen.getByText(
+      "We found 4 problems: 2 we can fix in the agent, 2 lacked knowledge that has since been added to the knowledge base.",
+    ),
+  ).toBeInTheDocument();
+  const group = screen.getByRole("region", { name: "Already in the knowledge base" });
+  expect(within(group).getByText(/Gift cards\?/)).toBeInTheDocument();
+  expect(within(group).getByText(/Added Oct 27:/)).toBeInTheDocument();
+  expect(within(group).getByText(/Added since:/)).toBeInTheDocument();
+  expect(within(group).getAllByRole("link", { name: "shipping.md" })[0]).toHaveAttribute(
+    "href",
+    "/rag/kb1?tab=documents",
+  );
+  const missing = screen.getByRole("region", { name: "Missing from the knowledge base" });
+  expect(within(missing).getByText("No selected examples in this group.")).toBeInTheDocument();
 });
 
 it("shows the examples to read, with nothing to ignore, put back or move", async () => {

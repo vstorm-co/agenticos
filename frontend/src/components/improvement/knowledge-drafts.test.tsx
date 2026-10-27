@@ -22,6 +22,7 @@ const state = vi.hoisted(() => ({
   supported: false,
   noRun: false,
   total: 8,
+  added: [] as { id: string }[],
 }));
 vi.mock("@/hooks/use-improvements", () => ({
   useImprovement: () => ({
@@ -37,6 +38,7 @@ vi.mock("./outcome", () => ({
       ...(state.topics ? [{ id: "t1", has_draft: true, can_edit: true, label: "Returns" }] : []),
       ...state.extra,
     ],
+    added: state.added,
   }),
 }));
 vi.mock("@/hooks/use-knowledge-gaps", () => ({
@@ -156,6 +158,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.topics = true;
   state.extra = [];
+  state.added = [];
   state.runStatus = "completed";
   state.invalidated = false;
   state.retrievalInvalid = false;
@@ -225,11 +228,23 @@ it("uses the existing human review and add flow", async () => {
 it("keeps the knowledge verdict separate even after the draft disappears", () => {
   state.topics = false;
   render(<KnowledgeDrafts session={{ ...SESSION, knowledge_eval_run_ids: ["k1"] }} />);
+  expect(screen.getByText(/found nothing missing from the knowledge base/)).toBeInTheDocument();
   expect(screen.getByText("Better: fixes 2, breaks nothing")).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Open the full check" })).toHaveAttribute(
     "href",
     "/agents/a1/evals/k1",
   );
+});
+it("says there is nothing to test once what the session found missing was added", () => {
+  state.topics = false;
+  state.added = [{ id: "t8" }, { id: "t9" }];
+  render(<KnowledgeDrafts session={SESSION} />);
+  expect(
+    screen.getByText(
+      "Nothing to test: the 2 topics this session found missing have since been added to the knowledge base.",
+    ),
+  ).toBeInTheDocument();
+  expect(screen.queryByText(/Draft a topic first/)).not.toBeInTheDocument();
 });
 it("does not present an invalidated result as an improvement", () => {
   state.invalidated = true;

@@ -152,6 +152,30 @@ it("counts confirmed changes large, unconfirmed ones beside them, and links the 
   expect(screen.getByText("Topics missing knowledge").closest("a")).toBeNull();
 });
 
+it("counts only what is still missing, and says how much was added since", () => {
+  state.topics = [
+    topic("t1", { status: "covered" }),
+    topic("t2", { status: "covered" }),
+    topic("t3", { status: "dismissed" }),
+  ];
+  render(<ResultSummary session={SESSION} round={ROUND} />);
+  expect(
+    screen.getByRole("group", {
+      name: "In the agent: 3 questions newly fixed, 0 newly broken. In the knowledge base: nothing missing, 2 added since.",
+    }),
+  ).toBeInTheDocument();
+  const tile = screen.getByText("Topics missing knowledge").closest<HTMLElement>("div.flex-col")!;
+  expect(tile).toHaveTextContent("0");
+  expect(tile).toHaveTextContent("2 already added");
+  expect(within(tile).queryByRole("link")).not.toBeInTheDocument();
+});
+
+it("offers Draft with its cost on an open topic the session found", () => {
+  state.topics = [topic("t1", { has_draft: false })];
+  render(<KnowledgeDocuments session={SESSION} />);
+  expect(screen.getByRole("button", { name: "Draft · $0.02" })).toBeInTheDocument();
+});
+
 it("lists only this session's topics beside the changes and opens a draft inside the wizard", async () => {
   render(<KnowledgeDocuments session={{ ...SESSION, deferred_topic_ids: ["t2"] }} />);
   expect(screen.getByText("Missing from the knowledge base")).toBeInTheDocument();

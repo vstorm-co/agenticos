@@ -10938,7 +10938,8 @@
     "cause": {
       "agent": "Fix in the agent",
       "missing_knowledge": "Missing from the knowledge base",
-      "not_a_problem": "Not a problem to fix"
+      "not_a_problem": "Not a problem to fix",
+      "knowledge_added": "Already in the knowledge base"
     },
     "noExamplesInGroup": "No selected examples in this group.",
     "trainExample": "Test question",
@@ -11168,7 +11169,7 @@
     "changesReplaced": "These suggestions are no longer available. Open the agent to review the current draft.",
     "openVersion": "Open version {version}",
     "publishVersion": "Publish version {version}",
-    "problemsFound": "We found {total, plural, one {# problem} other {# problems}}: {agent} we can fix in the agent, {knowledge, plural, one {# is information} other {# are information}} missing from the knowledge base.",
+    "problemsFound": "We found {total, plural, one {# problem} other {# problems}}: {agent} we can fix in the agent{knowledge, plural, =0 {} one {, # is information missing from the knowledge base} other {, # are information missing from the knowledge base}}{added, plural, =0 {} other {, # lacked knowledge that has since been added to the knowledge base}}.",
     "topicExamples": "{count} conversations about one topic",
     "otherExamples": "{count, plural, one {# more conversation} other {# more conversations}} about this",
     "questionSources": "{count, plural, one {# test question} other {# test questions}}: {down} from answers people rated down, {liked} from answers they liked, {written} written for topics with no example{other, plural, =0 {} other {, # added by hand or imported}}.",
@@ -11190,7 +11191,7 @@
     "shouldFix": "Should fix",
     "resultAgent": "In the agent: {fixed, plural, one {# question newly fixed} other {# questions newly fixed}}, {broken} newly broken.",
     "resultAgentUnknown": "In the agent: no measured result yet.",
-    "resultKnowledge": "In the knowledge base: {count, plural, =0 {nothing missing} one {# topic missing} other {# topics missing}}.",
+    "resultKnowledge": "In the knowledge base: {count, plural, =0 {nothing missing} one {# topic missing} other {# topics missing}}{added, plural, =0 {} one {, # added since} other {, # added since}}.",
     "acceptKnowledge": "In the knowledge base: {count, plural, =0 {nothing to add} one {# document to add} other {# documents to add}}",
     "noKnowledgeDocuments": "Nothing is missing from the knowledge base.",
     "reviewAndAdd": "Review and add",
@@ -11297,7 +11298,8 @@
       "heldOut": "Questions not used to write the changes",
       "reasons": "Why, and what it is based on",
       "proposed": "Changes proposed",
-      "included": "Included in the test"
+      "included": "Included in the test",
+      "alreadyAdded": "{count, plural, one {# already added} other {# already added}}"
     },
     "sessionLine": "Session",
     "budgetUsed": "Spending limit used",
@@ -11355,7 +11357,10 @@
       "changed": "Changed version",
       "count": "{answered} of {total}",
       "reused": "From a test before this session started"
-    }
+    },
+    "knowledgeAddedHint": "These answers came before a document covering them was added, so there is nothing left to draft. Ask again to check the agent now finds it.",
+    "knowledgeAddedOn": "{dated, select, yes {Added {date}:} other {Added since:}} <link>{name}</link>",
+    "noKnowledgeTopics": "{added, plural, =0 {This session found nothing missing from the knowledge base, so there is no draft to test.} one {Nothing to test: the one topic this session found missing has since been added to the knowledge base.} other {Nothing to test: the # topics this session found missing have since been added to the knowledge base.}}"
   },
   "unsaved": {
     "title": "You have unsaved changes",

@@ -10821,7 +10821,8 @@
     "cause": {
       "agent": "Im Agenten korrigieren",
       "missing_knowledge": "Fehlendes Wissen in der Wissensdatenbank",
-      "not_a_problem": "Kein zu behebendes Problem"
+      "not_a_problem": "Kein zu behebendes Problem",
+      "knowledge_added": "Schon in der Wissensdatenbank"
     },
     "noExamplesInGroup": "Keine ausgewählten Beispiele in dieser Gruppe.",
     "trainExample": "Testfrage",
@@ -11051,7 +11052,7 @@
     "changesReplaced": "Diese Vorschläge sind nicht mehr verfügbar. Öffnen Sie den Agenten, um den aktuellen Entwurf zu prüfen.",
     "openVersion": "Version {version} öffnen",
     "publishVersion": "Version {version} veröffentlichen",
-    "problemsFound": "Wir haben {total, plural, one {# Problem} other {# Probleme}} gefunden: {agent} können wir im Agent beheben, bei {knowledge} fehlen Informationen in der Wissensdatenbank.",
+    "problemsFound": "Wir haben {total, plural, one {# Problem} other {# Probleme}} gefunden: {agent} können wir im Agent beheben{knowledge, plural, =0 {} other {, bei {knowledge} fehlen Informationen in der Wissensdatenbank}}{added, plural, =0 {} other {, bei {added} fehlte Wissen, das inzwischen zur Wissensdatenbank hinzugefügt wurde}}.",
     "topicExamples": "Gespräche zu einem Thema: {count}",
     "otherExamples": "{count, plural, one {# weiteres Gespräch} other {# weitere Gespräche}} dazu",
     "questionSources": "{count, plural, one {# Testfrage} other {# Testfragen}}: {down} aus negativ bewerteten Antworten, {liked} aus positiv bewerteten Antworten, {written} für Themen ohne Beispiel geschrieben{other, plural, =0 {} other {, # von Hand hinzugefügt oder importiert}}.",
@@ -11073,7 +11074,7 @@
     "shouldFix": "Soll beheben",
     "resultAgent": "Im Agent: {fixed} neu behoben, {broken} neu verschlechtert.",
     "resultAgentUnknown": "Im Agent: noch kein gemessenes Ergebnis.",
-    "resultKnowledge": "In der Wissensdatenbank: {count, plural, =0 {fehlt nichts} one {fehlt # Thema} other {fehlen # Themen}}.",
+    "resultKnowledge": "In der Wissensdatenbank: {count, plural, =0 {fehlt nichts} one {fehlt # Thema} other {fehlen # Themen}}{added, plural, =0 {} one {, # inzwischen hinzugefügt} other {, # inzwischen hinzugefügt}}.",
     "acceptKnowledge": "In der Wissensdatenbank: {count, plural, =0 {nichts hinzuzufügen} one {# Dokument hinzuzufügen} other {# Dokumente hinzuzufügen}}",
     "noKnowledgeDocuments": "In der Wissensdatenbank fehlt nichts.",
     "reviewAndAdd": "Prüfen und hinzufügen",
@@ -11180,7 +11181,8 @@
       "heldOut": "Fragen, die nicht zum Schreiben der Änderungen verwendet wurden",
       "reasons": "Warum, und worauf es beruht",
       "proposed": "Vorgeschlagene Änderungen",
-      "included": "Im Test enthalten"
+      "included": "Im Test enthalten",
+      "alreadyAdded": "{count, plural, one {# schon hinzugefügt} other {# schon hinzugefügt}}"
     },
     "sessionLine": "Sitzung",
     "budgetUsed": "Genutztes Ausgabenlimit",
@@ -11238,7 +11240,10 @@
       "changed": "Geänderte Fassung",
       "count": "{answered} von {total}",
       "reused": "Aus einem Test vor Beginn dieser Sitzung"
-    }
+    },
+    "knowledgeAddedHint": "Diese Antworten entstanden, bevor ein Dokument dazu hinzugefügt wurde, daher gibt es nichts mehr zu entwerfen. Fragen Sie erneut, um zu prüfen, ob der Agent es jetzt findet.",
+    "knowledgeAddedOn": "{dated, select, yes {Hinzugefügt am {date}:} other {Inzwischen hinzugefügt:}} <link>{name}</link>",
+    "noKnowledgeTopics": "{added, plural, =0 {Diese Sitzung hat keine Lücken in der Wissensdatenbank gefunden, daher gibt es keinen Entwurf zum Testen.} one {Nichts zu testen: Das eine Thema, das laut dieser Sitzung fehlte, wurde inzwischen zur Wissensdatenbank hinzugefügt.} other {Nichts zu testen: Die # Themen, die laut dieser Sitzung fehlten, wurden inzwischen zur Wissensdatenbank hinzugefügt.}}"
   },
   "unsaved": {
     "title": "Du hast ungespeicherte Änderungen",

@@ -130,6 +130,14 @@ export interface KnowledgeCheckEstimate {
   reason: string | null;
 }
 
+/** The document added since to cover what an answer was missing. */
+export interface KnowledgeAdded {
+  document_id: string;
+  filename: string;
+  knowledge_base_id: string;
+  added_at: string | null;
+}
+
 export interface ImprovementEvidenceItem {
   run_id: string;
   conversation_id: string | null;
@@ -143,6 +151,8 @@ export interface ImprovementEvidenceItem {
   reason: string | null;
   /** The knowledge gap topic its miss joined; examples sharing one are one problem. */
   topic_id?: string | null;
+  /** Set when its topic is covered now: nothing is left to draft for it. */
+  knowledge_added?: KnowledgeAdded | null;
 }
 export interface ImprovementEvidence {
   items: ImprovementEvidenceItem[];

@@ -602,3 +602,60 @@ async def test_a_session_left_drafting_moves_on_without_drafting(db):
         await ImprovementPipelineService(db).advance(read.id, ctx.organization_id)
     assert stored.stage == "proposing"
     assert await _draft_jobs(db) == []
+
+
+async def test_an_answer_whose_knowledge_was_added_since_is_not_counted_missing(db):
+    from app.db.models.conversation import Message
+
+    ctx, agent, kb, dataset, sources = await _world(db)
+    answer = await db.scalar(
+        select(Message).where(Message.run_id == sources[0], Message.role == "assistant")
+    )
+    answer.content = "I don't know where visitors can park."
+    await db.flush()
+    with _providers(db, ctx):
+        read = await _start(db, ctx, agent, dataset)
+        stored = await db.get(ImprovementRun, read.id)
+        job, payload = await _job(db, stored)
+        await classify_knowledge_gaps(payload)
+        job.status = "succeeded"
+        [topic] = list((await db.scalars(select(KnowledgeGapTopic))).all())
+        # The person added the document after the answers it covers were given.
+        document = await _document(db, kb, "parking.md")
+        topic.status = "covered"
+        topic.covered_by_document_id = document.id
+        topic.covered_at = datetime.now(UTC)
+        await db.flush()
+        service = ImprovementPipelineService(db)
+        await service.advance(read.id, ctx.organization_id)
+        assert (stored.status, stored.stop_reason) == ("stopped", "no_proposal")
+        evidence = {
+            item.run_id: item
+            for item in (await service.evidence(ctx, agent.id, run_id=read.id)).items
+        }
+    for source in sources:
+        item = evidence[source]
+        assert item.branch == "missing_knowledge" and item.topic_id == topic.id
+        assert item.knowledge_added is not None
+        assert (item.knowledge_added.document_id, item.knowledge_added.filename) == (
+            document.id,
+            "parking.md",
+        )
+        assert item.knowledge_added.knowledge_base_id == kb.id
+        assert item.knowledge_added.added_at == topic.covered_at
+
+
+async def test_a_document_that_failed_to_ingest_leaves_the_knowledge_missing(db):
+    ctx, agent, kb, dataset, sources = await _world(db)
+    with _providers(db, ctx):
+        read = await _start(db, ctx, agent, dataset)
+        await _classify(db, ctx, agent, read)
+        [topic] = list((await db.scalars(select(KnowledgeGapTopic))).all())
+        document = await _document(db, kb, "parking.md")
+        document.status = "error"
+        topic.status = "covered"
+        topic.covered_by_document_id = document.id
+        topic.covered_at = datetime.now(UTC)
+        await db.flush()
+        items = (await ImprovementPipelineService(db).evidence(ctx, agent.id, run_id=read.id)).items
+    assert all(item.knowledge_added is None for item in items)

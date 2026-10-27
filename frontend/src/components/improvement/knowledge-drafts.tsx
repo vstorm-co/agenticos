@@ -27,7 +27,7 @@ export function KnowledgeDrafts({ session }: { session: Improvement }) {
   const locale = useLocale();
   const actions = useImprovement(session.agent_id, session.id);
   const readOnly = useReadOnly();
-  const { topics, error: topicsError } = useSessionTopics(session);
+  const { topics, added, error: topicsError } = useSessionTopics(session);
   const [topicId, setTopicId] = useState("");
   const [mode, setMode] = useState<"context" | "retrieval">("context");
   const [selected, setSelected] = useState<string[]>([]);
@@ -218,7 +218,11 @@ export function KnowledgeDrafts({ session }: { session: Improvement }) {
           )}
         </>
       ) : (
-        <p className="text-muted-foreground text-sm">{t("noKnowledgeDrafts")}</p>
+        <p className="text-muted-foreground text-sm">
+          {topics.length > 0
+            ? t("noKnowledgeDrafts")
+            : t("noKnowledgeTopics", { added: added.length })}
+        </p>
       )}
       {undrafted.length > 0 && (
         <div className="space-y-2">

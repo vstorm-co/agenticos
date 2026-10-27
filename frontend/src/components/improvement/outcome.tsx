@@ -26,7 +26,8 @@ export const DOCUMENTS_ANCHOR = "improvement-documents";
 
 /**
  * The open topics this session's own examples led to, drafted or not: a draft is
- * written only when somebody asks for one.
+ * written only when somebody asks for one. `added` are its topics a document
+ * covers since, which have nothing left to draft.
  */
 export function useSessionTopics(session: Improvement) {
   const gaps = useKnowledgeGaps({ kind: "agent", id: session.agent_id });
@@ -34,6 +35,7 @@ export function useSessionTopics(session: Improvement) {
   const ours = new Set(sources.evidence?.items.map((item) => item.topic_id).filter(Boolean));
   return {
     topics: gaps.topics.filter((topic) => topic.status === "open" && ours.has(topic.id)),
+    added: gaps.topics.filter((topic) => topic.status === "covered" && ours.has(topic.id)),
     error: gaps.error ?? sources.error,
     retry: () => Promise.all([gaps.refetch(), sources.refetch()]),
   };
@@ -51,14 +53,14 @@ export function ResultSummary({
   round: ImprovementIteration | undefined;
 }) {
   const t = useTranslations("improvement");
-  const { topics } = useSessionTopics(session);
+  const { topics, added } = useSessionTopics(session);
   const measured = counts(round);
   const runId = round?.eval_run_ids.at(-1);
   const { comparison } = useEvalComparison(runId ?? "", { enabled: runId !== undefined });
   const unconfirmed = (flip: "fixed" | "regression") =>
     comparison?.cases.filter((c) => c.flip === flip && !c.confirmed).length ?? 0;
   const more = (count: number) => (count > 0 ? t("notConfirmedMore", { count }) : undefined);
-  const knowledge = t("resultKnowledge", { count: topics.length });
+  const knowledge = t("resultKnowledge", { count: topics.length, added: added.length });
   return (
     <Tiles
       label={`${measured ? t("resultAgent", measured) : t("resultAgentUnknown")} ${knowledge}`}
@@ -83,6 +85,8 @@ export function ResultSummary({
           tone: "violet",
           icon: BookOpen,
           href: topics.length > 0 ? `#${DOCUMENTS_ANCHOR}` : undefined,
+          caption:
+            added.length > 0 ? t("widgets.alreadyAdded", { count: added.length }) : undefined,
         },
       ]}
     />
