@@ -487,7 +487,7 @@ function Session({
           )}
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          {active && readOnly === null && (
+          {(active || session.status === "failed") && readOnly === null && (
             <Button
               variant="outline"
               disabled={actions.cancel.isPending}

@@ -7742,7 +7742,8 @@
         "waiting": {
           "understand": "The analysis for {agent} is ready: look at what went wrong, then press Next step.",
           "changes": "The changes for {agent} are ready to review, then press Next step to test them."
-        }
+        },
+        "attemptFinished": "Your improvement of {agent} finished an attempt."
       },
       "test": {
         "completed": "Your test finished.",

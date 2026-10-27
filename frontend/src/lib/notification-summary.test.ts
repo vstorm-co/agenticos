@@ -109,6 +109,16 @@ it("says which step a session stopped at for a person, from its stage or its rea
   ).toBe("server summary");
 });
 
+it("words an attempt that did not do better as finished, not stopped", () => {
+  expect(
+    notificationSummary(
+      row("improvement_finished", { status: "stopped", reason: "no_change" }),
+      t,
+      stop,
+    ),
+  ).toBe("outcome.improvement.attemptFinished(Refund desk) stop:no_change");
+});
+
 it("words a session nobody took further, which closed on its own", () => {
   expect(
     notificationSummary(

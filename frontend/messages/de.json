@@ -7625,7 +7625,8 @@
         "waiting": {
           "understand": "Die Analyse für {agent} ist fertig: Sehen Sie sich an, was schiefging, und drücken Sie dann Nächster Schritt.",
           "changes": "Die Änderungen für {agent} sind bereit zur Prüfung; drücken Sie dann Nächster Schritt, um sie zu testen."
-        }
+        },
+        "attemptFinished": "Die Verbesserung von {agent} hat einen Versuch abgeschlossen."
       },
       "test": {
         "completed": "Ihr Test ist abgeschlossen.",

@@ -4,6 +4,8 @@ import type { Notification } from "@/lib/notifications-api";
 const IMPROVEMENT = ["ready", "stopped", "failed", "stale"];
 const TEST = ["completed", "failed", "cancelled", "budget_exceeded"];
 const GENERATION = ["ready", "failed"];
+// An attempt that did not do better ends where a person decides whether to try again.
+const RESULT_REASONS = ["no_change", "regression", "inconclusive"];
 const STOP_REASONS = [
   "no_data",
   "no_proposal",
@@ -42,7 +44,12 @@ export function notificationSummary(item: Notification, t: Translate, tStop: Tra
   if (item.event_type === "improvement_finished" && IMPROVEMENT.includes(outcome.status)) {
     if (!item.agent?.name) return item.summary;
     // A session ended as stale is said the way a stopped one is, with why it ended.
-    const status = outcome.status === "stale" ? "stopped" : outcome.status;
+    const status =
+      outcome.status === "stale"
+        ? "stopped"
+        : outcome.status === "stopped" && RESULT_REASONS.includes(outcome.reason ?? "")
+          ? "attemptFinished"
+          : outcome.status;
     const head = t(`outcome.improvement.${status}`, { agent: item.agent.name });
     return outcome.status !== "ready" && outcome.reason && STOP_REASONS.includes(outcome.reason)
       ? `${head} ${tStop(outcome.reason)}`
