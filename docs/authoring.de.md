@@ -1,5 +1,5 @@
 ---
-source_sha: "24160f167bda"
+source_sha: "64cc9482644a"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -430,11 +430,11 @@ Assistenten fortsetzen, und umgekehrt.
 
 Gefragt, was zu tun ist, empfiehlt er einen Schritt und fragt zuerst. Jede
 Änderung wartet auf Ihre Freigabe auf einer Karte, nach einem Satz dazu, was und
-warum; Starten und Wiederholen zeigen die Schätzung, die zum Budget der Sitzung
-wird. Er ruft als Sie dieselben Aktionen wie der Assistent auf, daher gelten
-dieselben Prüfungen: Ein geänderter Agent lehnt die Übernahme ab, eine
-geschützte Umgebung wartet auf ihren Check, und das Audit-Log verzeichnet Sie,
-mit der Kennung des Architekten daneben.
+warum; Starten zeigt, was die Analyse kostet, und das Ausgabenlimit der ganzen
+Sitzung, jeder weitere Schritt seinen eigenen Preis. Er ruft als Sie dieselben
+Aktionen wie der Assistent auf, daher gelten dieselben Prüfungen: Ein geänderter
+Agent lehnt die Übernahme ab, eine geschützte Umgebung wartet auf ihren Check,
+und das Audit-Log verzeichnet Sie, mit der Kennung des Architekten daneben.
 
 ### Einen neuen Skill vorschlagen { #proposing-a-new-skill }
 

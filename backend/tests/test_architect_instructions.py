@@ -89,3 +89,11 @@ def test_attempts_compare_by_their_change_not_their_pass_rates(instructions: str
     rule = _bullet(instructions, "Explaining a result")
     assert "compare attempts by their change" in rule
     assert "never by pass rates" in rule
+
+
+def test_the_start_quote_is_the_analysis_not_the_whole_session(instructions: str) -> None:
+    """A session's start is priced only up to its first stop; later steps are priced as taken."""
+    rule = _bullet(instructions, "Starting")
+    assert "Never call `total_usd` the price of the whole session" in rule
+    assert "`per_round_usd`" in rule
+    assert "spending limit" in rule

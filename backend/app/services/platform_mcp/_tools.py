@@ -908,8 +908,10 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         and `datasets:run` on the dataset.
 
         Name exactly one of `dataset_id` (test questions) or `suite_id` (an
-        automatic check, which brings its dataset). `total_usd` is the most it
-        would spend over every attempt; tell the person before starting one.
+        automatic check, which brings its dataset). `total_usd` is what it costs
+        up to its first stop, after Understand, and `per_round_usd` about what
+        one attempt costs - each later step is priced when it is taken. Tell the
+        person both before starting one.
         """
         target: dict[str, Any] = {"max_iterations": max_iterations}
         if dataset_id is not None:
@@ -928,9 +930,10 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         """Start an Improve session, only when the person asked for one. Needs `agents:edit`,
         `runs:view` and `datasets:run` on the dataset.
 
-        Run estimate_improvement first and pass its `total_usd` as `budget_usd`:
-        the session never spends more, and one below the estimate is refused. Say
-        the price before calling. The session stops for the person after
+        Run estimate_improvement first. `budget_usd` is the spending limit for the
+        whole session, never below its `total_usd`: the person's figure, or
+        `total_usd` plus `per_round_usd` for one attempt. The session never
+        spends more. Say the price and the limit before calling. The session stops for the person after
         Understand, after Changes and at the result, and changes nothing in the
         agent until it is accepted. An agent has one open session at a time: with
         one open, this refuses and names it - end it first, when the person asks.

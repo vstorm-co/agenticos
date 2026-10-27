@@ -1,5 +1,5 @@
 ---
-source_sha: "24160f167bda"
+source_sha: "64cc9482644a"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -406,10 +406,11 @@ można kontynuować w kreatorze, i odwrotnie.
 
 Zapytany, co robić, poleca jeden krok i najpierw pyta. Każda zmiana, którą
 wprowadza, czeka na Twoją zgodę na karcie, po jednym zdaniu o tym, co i
-dlaczego; uruchomienie i ponowienie pokazują szacunek, który staje się budżetem
-sesji. Woła te same akcje co kreator, jako Ty, więc obowiązują te same
-sprawdzenia: zmieniony agent odmawia przyjęcia, chronione środowisko czeka na
-swój check, a dziennik audytu zapisuje Ciebie, z poświadczeniem Architekta obok.
+dlaczego; uruchomienie pokazuje koszt analizy i limit wydatków całej sesji, a
+każdy kolejny krok swoją cenę. Woła te same akcje co kreator, jako Ty, więc
+obowiązują te same sprawdzenia: zmieniony agent odmawia przyjęcia, chronione
+środowisko czeka na swój check, a dziennik audytu zapisuje Ciebie, z
+poświadczeniem Architekta obok.
 
 ### Propozycja nowego skilla { #proposing-a-new-skill }
 

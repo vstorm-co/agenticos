@@ -396,10 +396,11 @@ be continued in the wizard, and the other way round.
 
 Asked what to do, it recommends one step and asks first. Every change it makes
 waits for your approval on a card, after one sentence saying what and why;
-starting and trying again show the estimate, which becomes the session's budget.
-It calls the wizard's own actions as you, so the same checks apply: a changed
-agent refuses the acceptance, a guarded environment waits for its check, and the
-audit log records you, with the Architect's credential named beside you.
+starting shows what the analysis costs and the spending limit for the whole
+session, and every later step shows its own price. It calls the wizard's own
+actions as you, so the same checks apply: a changed agent refuses the
+acceptance, a guarded environment waits for its check, and the audit log records
+you, with the Architect's credential named beside you.
 
 ### Proposing a new skill { #proposing-a-new-skill }
 
