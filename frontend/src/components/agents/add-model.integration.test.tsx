@@ -1226,7 +1226,7 @@ describe("the model the agent is already on", () => {
     await userEvent.click(screen.getByRole("option", { name: /Router key two/ }));
 
     // Said before it is pressed: the change is not this agent's alone.
-    expect(screen.getByText(/Every agent that uses this model switches with it/)).toHaveTextContent(
+    expect(screen.getByText(/Everything that uses this model switches with it/)).toHaveTextContent(
       "OpenRouter · openai/gpt-5.5",
     );
     await userEvent.click(screen.getByRole("button", { name: "Update model" }));
@@ -1249,6 +1249,31 @@ describe("the model the agent is already on", () => {
     expect(state.updateProfile.mutateAsync).toHaveBeenCalledWith({
       id: "p-1",
       changes: { secret_id: "s-9", base_url: null, api: null },
+    });
+  });
+
+  it("keeps a self-hosted model keyless when only its endpoint changes", async () => {
+    // The form falls back on the provider's first key for a new model. On a
+    // shared self-hosted one that would key it, and send the key to the endpoint
+    // for every agent on it, with nobody having picked it.
+    state.secrets = [secret({ id: "s-1", purpose: "openai", name: "OpenAI prod" })];
+    mount({
+      selected: inUse({
+        provider: "openai",
+        model: "gpt-5",
+        secret_id: null,
+        base_url: "http://gw/v1",
+        api: "chat",
+      }),
+    });
+
+    await userEvent.clear(screen.getByLabelText("Endpoint"));
+    await userEvent.type(screen.getByLabelText("Endpoint"), "http://gw2/v1");
+    await userEvent.click(screen.getByRole("button", { name: "Update model" }));
+
+    expect(state.updateProfile.mutateAsync).toHaveBeenCalledWith({
+      id: "p-1",
+      changes: { secret_id: null, base_url: "http://gw2/v1", api: "chat" },
     });
   });
 

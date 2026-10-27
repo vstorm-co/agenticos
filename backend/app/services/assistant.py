@@ -38,7 +38,7 @@ from app.repositories.agent_run import RunFilters
 from app.schemas.assistant import AssistantRead, AssistantSignals, AssistantUpdate
 from app.services import agent_templates
 from app.services.agent_registry import AgentRegistryService, slugify
-from app.services.model_profile import runs_agents
+from app.services.model_profile import usable_for_agents
 from app.services.sandbox_connection import SandboxConnectionService
 
 logger = logging.getLogger(__name__)
@@ -203,7 +203,7 @@ class AssistantService:
             for profile in await credential_repo.list_profiles(
                 self.db, organization_id=organization_id
             )
-            if runs_agents(profile)
+            if usable_for_agents(profile)
         ]
         if not profiles:
             return agent

@@ -1,5 +1,5 @@
 ---
-source_sha: "e084d213e2b5"
+source_sha: "b2690527c166"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -1464,8 +1464,10 @@ per kolekcja: włącz go w konfiguracji ingestii bazy wiedzy i wybierz tam profi
 modelu ze zdolnością wizyjną. Picker jest ten sam, którego używa builder agentów,
 więc provider, model i jego klucz da się zdefiniować bez wychodzenia z dialogu —
 wdrożenie bez żadnego profilu modelu nie jest ślepą uliczką. Czego nie oferuje,
-to usunięcie profilu: to należy tam, gdzie zarządza się modelami organizacji, bo
-każdy agent wycelowany w dany profil go traci. Wygenerowane opisy są dołączane do
+to usunięcie profilu: to należy tam, gdzie zarządza się modelami organizacji, a
+profilu, którego używają agenci, w ogóle nie da się usunąć.
+
+Wygenerowane opisy są dołączane do
 tekstu dokumentu dla lepszego wyszukiwania semantycznego.
 
 ## Z kanału { #from-a-channel }

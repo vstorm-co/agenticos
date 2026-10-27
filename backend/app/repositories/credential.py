@@ -8,7 +8,7 @@ must not look like an ordinary call (see tests/test_org_scope_regression.py).
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.credential import ModelProfile
@@ -95,20 +95,31 @@ async def create_profile(
 
 
 async def update_profile(
-    db: AsyncSession, profile: ModelProfile, *, update_data: dict[str, Any]
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    profile: ModelProfile,
+    update_data: dict[str, Any],
 ) -> ModelProfile:
-    """Write changed columns onto a profile the caller already read in its organization."""
-    for field, value in update_data.items():
-        setattr(profile, field, value)
+    """Write changed columns onto a profile, by an `UPDATE` scoped to its organization.
+
+    The row is the one the service read; the statement still names the tenant, so
+    a profile handed in from elsewhere matches nothing rather than being written.
+    """
+    await db.execute(
+        update(ModelProfile)
+        .where(ModelProfile.id == profile.id, ModelProfile.organization_id == organization_id)
+        .values(**update_data)
+    )
     await db.flush()
     await db.refresh(profile)
     return profile
 
 
-async def delete_profile(db: AsyncSession, profile_id: UUID, *, organization_id: UUID) -> bool:
-    profile = await get_profile(db, profile_id, organization_id=organization_id)
-    if profile is None:
-        return False
-    await db.delete(profile)
+async def delete_profile(db: AsyncSession, profile_id: UUID, *, organization_id: UUID) -> None:
+    await db.execute(
+        delete(ModelProfile).where(
+            ModelProfile.id == profile_id, ModelProfile.organization_id == organization_id
+        )
+    )
     await db.flush()
-    return True

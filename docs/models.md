@@ -101,11 +101,20 @@ another provider or model, and for a model you give a name of its own. Use
 
 An edit has the same rules as creation and needs the same `connections:manage`
 permission. A new key must be in this organization's vault, be visible to you,
-and be stored for the profile's provider. A provider that needs a key cannot lose
-it. A keyless provider with no key keeps an endpoint. A label must stay unique.
-The audit log records `model_profile.updated` with the names of the changed
-fields, not their values. You cannot change the provider or the model id. Another
-model is another profile.
+and be stored for the profile's provider. A new endpoint checks the stored key in
+the same way, because the endpoint is where the key is sent. A provider that needs
+a key cannot lose it. A keyless provider with no key keeps an endpoint. A label
+must stay unique.
+
+If you change the endpoint and send no `api`, an API that was
+only the old endpoint's default moves to the new endpoint's default, and an API
+somebody chose stays. The audit log records `model_profile.updated` with the
+names of the changed fields, not their values. You cannot change the provider or
+the model id. Another model is another profile.
+
+`connections:manage` is therefore the authority to move every agent on a model,
+including agents you cannot edit: a new endpoint receives their requests from
+the next run. Grant it to the people who manage the organization's models.
 
 ### A profile without a key
 
@@ -129,8 +138,11 @@ and name. `details.hidden_agents` counts the agents you cannot see. A profile is
 in use when an agent's draft, its served version or a version that an environment
 pins names the profile anywhere: as the agent's model, a reviewer's or a
 specialist's, or in a capability, such as the follow-ups model or the browser step
-model. Archived agents and old versions that nothing serves do not count. Move
-those agents to another model first. To change only the key, edit the profile
+model.
+
+Archived agents count, because unarchiving restores the version they
+served. Old versions that nothing serves do not count. Move those agents to
+another model first. To change only the key, edit the profile
 instead.
 
 ### Fallbacks

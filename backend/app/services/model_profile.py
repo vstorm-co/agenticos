@@ -122,7 +122,7 @@ async def validate_endpoint_url(url: str) -> str:
     return url
 
 
-def runs_agents(profile: ModelProfile) -> bool:
+def usable_for_agents(profile: ModelProfile) -> bool:
     """Whether an agent can run on this profile at all.
 
     A chat model (#2487) with something to authenticate with (#2478). Publish
@@ -361,10 +361,17 @@ class ModelProfileService:
         a different model is a different profile.
 
         The result is validated as a whole, by the rules creation applies, because
-        an edit is the same profile arriving at a new combination. Only a key that
-        changes is checked against the vault: the one already stored was checked
-        when it was set, and a manager editing the endpoint of a model keyed by a
-        colleague's private key is not lending anything new.
+        an edit is the same profile arriving at a new combination. The key is
+        checked against the vault - the caller has to be able to see it - when it
+        changes *and* when the endpoint does: the endpoint is where the key is sent,
+        so moving a model keyed by a colleague's private key to another host lends
+        that key as surely as choosing it. A label, params or API change sends the
+        key nowhere new and is not checked again.
+
+        An endpoint change without an API keeps an API that was chosen on purpose,
+        and moves one that was only the old endpoint's default to the new one's -
+        the rule creation applies to an omitted API. Clearing a gateway therefore
+        returns a profile on Chat Completions to the provider's own Responses.
 
         Audited with the names of the fields that changed and never their values -
         a URL can carry more than a host, and a key id says which secret moved.
@@ -392,6 +399,8 @@ class ModelProfileService:
         api: ModelApi | None = _stored_api(profile.api)
         if "api" in sent:
             api = changes.api if changes.api is not None else spec.default_api(base_url)
+        elif api == spec.default_api(profile.base_url):
+            api = spec.default_api(base_url)
         _check_shape(spec, secret_id=secret_id, base_url=base_url, api=api)
 
         wanted: dict[str, object] = {"secret_id": secret_id, "base_url": base_url, "api": api}
@@ -405,12 +414,14 @@ class ModelProfileService:
         if not update_data:
             return profile
 
-        if "label" in update_data:
-            await self._check_label_free(ctx, changes.label or "")
-        if secret_id is not None and "secret_id" in update_data:
+        if changes.label is not None and "label" in update_data:
+            await self._check_label_free(ctx, changes.label)
+        if secret_id is not None and ("secret_id" in update_data or "base_url" in update_data):
             await self._check_key(ctx, secret_id, provider=profile.provider)
 
-        updated = await credential_repo.update_profile(self.db, profile, update_data=update_data)
+        updated = await credential_repo.update_profile(
+            self.db, organization_id=ctx.organization_id, profile=profile, update_data=update_data
+        )
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -427,9 +438,10 @@ class ModelProfileService:
 
         Refused while an agent's draft, the version it serves or a version an
         environment pins names the profile anywhere - as its model, a reviewer's,
-        a specialist's or a capability's (#2478). The id is what those agents
-        run on, so deleting it would leave each without a model until somebody
-        edits and republishes it. The refusal names the agents the caller can see
+        a specialist's or a capability's (#2478) - archived agents included, since
+        unarchiving one restores the version it served. The id is what those
+        agents run on, so deleting it would leave each without a model until
+        somebody edits and republishes it. The refusal names the agents the caller can see
         and counts the rest; to replace a model's key, edit the profile instead.
 
         Raises:
@@ -470,7 +482,7 @@ class ModelProfileService:
             self.db, organization_id=ctx.organization_id, model_profile_id=profile_id
         )
         await credential_repo.delete_profile(
-            self.db, profile_id, organization_id=ctx.organization_id
+            self.db, profile.id, organization_id=ctx.organization_id
         )
         await record_audit(
             self.db,

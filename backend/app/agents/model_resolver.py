@@ -234,7 +234,7 @@ def get_provider(provider: str) -> ProviderSpec:
     return spec
 
 
-def lacks_key(provider: str, *, secret_id: object | None, base_url: str | None) -> bool:
+def lacks_key(provider: str, *, secret_id: UUID | None, base_url: str | None) -> bool:
     """Whether a profile has nothing to authenticate with and cannot run (#2478).
 
     A profile with no `secret_id` is usable only on a keyless provider that names

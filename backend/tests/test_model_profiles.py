@@ -55,7 +55,7 @@ from app.services.model_profile import (
     MAX_FALLBACK_DEPTH,
     ModelProfileService,
     provider_catalog,
-    runs_agents,
+    usable_for_agents,
     validate_endpoint_url,
 )
 from app.services.openai_codex import VaultCodexCredentials
@@ -645,10 +645,18 @@ class TestAModelInUseIsNotDeleted:
         assert refusal.details["hidden_agents"] == 1
 
 
+_STORED = object()
+
+
 class TestEditingAProfileInPlace:
     """A key or endpoint change keeps the id every agent names (#2478)."""
 
-    async def _update(self, ctx, profile, changes, *, secret=None, visible=True, taken=None):
+    async def _update(self, ctx, profile, changes, *, secret=_STORED, visible=True, taken=None):
+        if secret is _STORED:
+            # The key the profile already has, visible to the caller unless a test
+            # says otherwise - an endpoint change looks it up again.
+            secret = _vault_secret(ctx, purpose=profile.provider)
+            secret.id = profile.secret_id
         with (
             patch(
                 "app.services.model_profile.credential_repo.get_profile",
@@ -667,7 +675,7 @@ class TestEditingAProfileInPlace:
             ) as access,
             patch(
                 "app.services.model_profile.credential_repo.update_profile",
-                new=AsyncMock(side_effect=lambda _db, row, update_data: row),
+                new=AsyncMock(side_effect=lambda _db, **kwargs: kwargs["profile"]),
             ) as update,
             patch("app.services.model_profile.record_audit", new=AsyncMock()) as audit,
         ):
@@ -687,7 +695,8 @@ class TestEditingAProfileInPlace:
         )
 
         assert result is profile
-        assert update.await_args.kwargs == {"update_data": {"secret_id": secret.id}}
+        assert update.await_args.kwargs["update_data"] == {"secret_id": secret.id}
+        assert update.await_args.kwargs["organization_id"] == ctx.organization_id
         assert access.await_args.args[2] is secret
         assert audit.await_args.kwargs["action"] == "model_profile.updated"
         assert audit.await_args.kwargs["target_id"] == str(profile.id)
@@ -759,7 +768,7 @@ class TestEditingAProfileInPlace:
 
         _, update, _, access = await self._update(ctx, profile, {"secret_id": None})
 
-        assert update.await_args.kwargs == {"update_data": {"secret_id": None}}
+        assert update.await_args.kwargs["update_data"] == {"secret_id": None}
         access.assert_not_awaited()
 
     @pytest.mark.anyio
@@ -787,7 +796,7 @@ class TestEditingAProfileInPlace:
         assert refused.value.details["fields"][0]["field"] == "api"
 
     @pytest.mark.anyio
-    async def test_a_new_endpoint_keeps_the_stored_api_unless_one_is_sent(self):
+    async def test_a_new_endpoint_rechecks_the_key_and_moves_a_default_api(self):
         ctx = _ctx()
         profile = _profile(ctx, api="responses")
 
@@ -795,12 +804,56 @@ class TestEditingAProfileInPlace:
             ctx, profile, {"base_url": "https://eu.api.openai.com/v1"}
         )
 
-        assert update.await_args.kwargs == {
-            "update_data": {"base_url": "https://eu.api.openai.com/v1"}
+        # Responses was only the provider's own endpoint's default; an endpoint of
+        # the caller's gets Chat Completions unless it says otherwise.
+        assert update.await_args.kwargs["update_data"] == {
+            "base_url": "https://eu.api.openai.com/v1",
+            "api": "chat",
         }
-        # The key did not change, so it is not looked up again.
+        # The endpoint is where the key goes, so the stored key is looked up again.
+        access.assert_awaited_once()
+        assert audit.await_args.kwargs["details"] == {"fields": ["api", "base_url"]}
+
+    @pytest.mark.anyio
+    async def test_a_new_endpoint_for_a_key_the_caller_cannot_see_is_refused(self):
+        """The endpoint is where the key is sent. Moving a model keyed by a
+        colleague's private key to the caller's own host would hand them that key
+        on the next run, so it is the same refusal as choosing the key."""
+        ctx = _ctx()
+        profile = _profile(ctx)
+
+        with pytest.raises(BadRequestError) as refused:
+            await self._update(
+                ctx, profile, {"base_url": "https://attacker.example/v1"}, visible=False
+            )
+
+        assert refused.value.message == "That key is not in this organization's vault"
+
+    @pytest.mark.anyio
+    async def test_a_label_or_api_change_does_not_look_the_key_up_again(self):
+        ctx = _ctx()
+        profile = _profile(ctx, api="responses")
+
+        _, update, _, access = await self._update(
+            ctx, profile, {"label": "Prod", "api": "chat"}, visible=False
+        )
+
+        assert update.await_args.kwargs["update_data"] == {"label": "Prod", "api": "chat"}
         access.assert_not_awaited()
-        assert audit.await_args.kwargs["details"] == {"fields": ["base_url"]}
+
+    @pytest.mark.anyio
+    async def test_a_default_api_follows_a_new_endpoint_and_a_chosen_one_stays(self):
+        ctx = _ctx()
+        defaulted = _profile(ctx, base_url="https://gw.example/v1", api="chat")
+        chosen = _profile(ctx, base_url="https://gw.example/v1", api="responses")
+
+        _, moved, _, _ = await self._update(ctx, defaulted, {"base_url": None})
+        _, kept, _, _ = await self._update(ctx, chosen, {"base_url": "https://gw2.example/v1"})
+
+        # Chat Completions was only the gateway's default; OpenAI's own endpoint
+        # gets Responses, as on creation.
+        assert moved.await_args.kwargs["update_data"] == {"base_url": None, "api": "responses"}
+        assert kept.await_args.kwargs["update_data"] == {"base_url": "https://gw2.example/v1"}
 
     @pytest.mark.anyio
     async def test_a_null_api_stores_the_default_for_the_new_endpoint(self):
@@ -819,7 +872,7 @@ class TestEditingAProfileInPlace:
     @pytest.mark.anyio
     async def test_clearing_the_endpoint_returns_to_the_providers_own_api(self):
         ctx = _ctx()
-        profile = _profile(ctx, base_url="https://gw.example/v1", api="chat")
+        profile = _profile(ctx, base_url="https://gw.example/v1", api="responses")
 
         _, update, _, _ = await self._update(ctx, profile, {"base_url": None})
 
@@ -902,7 +955,7 @@ class TestAProfileWithoutAKey:
         profile = _profile(ctx, model=model)
         if not secret:
             profile.secret_id = None
-        assert runs_agents(profile) is usable
+        assert usable_for_agents(profile) is usable
 
 
 class TestProfileListing:

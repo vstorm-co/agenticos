@@ -1,5 +1,5 @@
 ---
-source_sha: "714894100328"
+source_sha: "4f55a357816a"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -109,11 +109,21 @@ innego providera lub modelu oraz dla modelu, któremu nadajesz własną nazwę. 
 
 Edycja podlega tym samym regułom co tworzenie i wymaga tego samego uprawnienia
 `connections:manage`. Nowy klucz musi być w vaulcie tej organizacji, musi być dla
-ciebie widoczny i musi być zapisany dla providera profilu. Provider, który
-wymaga klucza, nie może go stracić. Provider bez klucza (keyless) bez klucza
-zachowuje endpoint. Etykieta musi pozostać unikalna. Log audytu zapisuje
-`model_profile.updated` z nazwami zmienionych pól, nie z ich wartościami. Nie
-możesz zmienić providera ani id modelu. Inny model to inny profil.
+ciebie widoczny i musi być zapisany dla providera profilu. Nowy endpoint sprawdza
+zapisany klucz w ten sam sposób, bo to do endpointu klucz jest wysyłany.
+Provider, który wymaga klucza, nie może go stracić. Provider bez klucza
+(keyless) bez klucza zachowuje endpoint. Etykieta musi pozostać unikalna.
+
+Jeśli zmienisz endpoint i nie wyślesz `api`, API, które było tylko domyślnym dla starego
+endpointu, przechodzi na domyślne dla nowego, a API wybrane przez kogoś zostaje.
+Log audytu zapisuje `model_profile.updated` z nazwami zmienionych pól, nie z ich
+wartościami. Nie możesz zmienić providera ani id modelu. Inny model to inny
+profil.
+
+`connections:manage` jest więc uprawnieniem do przeniesienia każdego agenta na
+danym modelu, także agentów, których nie możesz edytować: nowy endpoint dostaje
+ich zapytania od następnego runu. Nadaj je osobom, które zarządzają modelami
+organizacji.
 
 ### Profil bez klucza { #a-profile-without-a-key }
 
@@ -137,7 +147,10 @@ widzisz, z id i nazwą. `details.hidden_agents` liczy agentów, których nie wid
 Profil jest w użyciu, gdy szkic agenta, jego serwowana wersja albo wersja
 przypięta przez środowisko wskazuje ten profil gdziekolwiek: jako model agenta,
 recenzenta lub specjalisty albo w capability, na przykład model follow-upów lub
-model kroków przeglądarki. Zarchiwizowani agenci i stare wersje, których nic nie
+model kroków przeglądarki.
+
+Zarchiwizowani agenci się liczą, bo przywrócenie z
+archiwum przywraca wersję, którą serwowali. Stare wersje, których nic nie
 serwuje, się nie liczą. Najpierw przenieś tych agentów na inny model. Aby zmienić
 tylko klucz, edytuj profil.
 

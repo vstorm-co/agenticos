@@ -371,7 +371,7 @@
     "notAChatModelHint": "{model} is not a chat model - it is for text to speech, transcription, images or embeddings, and an agent cannot run on it. Choose a chat model before publishing.",
     "modelHasNoKeyHint": "This model's key was deleted from the vault, so nothing can run on it. Give it a key in the model panel, or choose another model.",
     "updateModel": "Update model",
-    "updateModelHint": "Saves the new key, endpoint or API on {label}. Every agent that uses this model switches with it. To change only this agent, choose “Name it something else” and add a separate model.",
+    "updateModelHint": "Saves the new key, endpoint or API on {label}. Everything that uses this model switches with it: every agent, and any collection or scheduled work on it. To leave those as they are, choose “Name it something else” and add a separate model.",
     "notAChatModelRefused": "{model} is not a chat model - an agent cannot run on it. Choose a chat model.",
     "noMembersChooseFrom": "No members to choose from - this organization is just you.",
     "noModelAskAdmin": "Models are added in the Builder by a member who manages connections. Once one exists, it can be chosen here.",

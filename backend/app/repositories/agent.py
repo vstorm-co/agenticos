@@ -350,7 +350,8 @@ async def naming_model_profile(
 
     "Live" is the version the agent serves and any version an environment pins.
     An older version nobody serves is history and holds nothing up. An archived
-    agent refuses runs, so it does not count either.
+    agent counts: unarchiving restores the version it served, and that version
+    would name a model that is gone.
     """
     needle = str(profile_id)
     pinned = select(AgentEnvironment.version_id).where(AgentEnvironment.agent_id == Agent.id)
@@ -367,7 +368,6 @@ async def naming_model_profile(
         select(Agent)
         .where(
             Agent.organization_id == organization_id,
-            Agent.status != AgentStatus.ARCHIVED.value,
             or_(cast(Agent.draft_spec, Text).contains(needle), live_version),
         )
         .order_by(Agent.name.asc())

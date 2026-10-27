@@ -1,5 +1,5 @@
 ---
-source_sha: "714894100328"
+source_sha: "4f55a357816a"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -117,11 +117,21 @@ otro provider u otro modelo, y para un modelo al que das un nombre propio. Usa
 Una edición sigue las mismas reglas que la creación y necesita el mismo permiso
 `connections:manage`. Una clave nueva debe estar en el vault de esta
 organización, ser visible para ti y estar guardada para el provider del perfil.
-Un provider que necesita clave no puede perderla. Un provider keyless sin clave
-conserva un endpoint. La etiqueta debe seguir siendo única. El registro de
-auditoría guarda `model_profile.updated` con los nombres de los campos cambiados,
-no sus valores. No puedes cambiar el provider ni el id del modelo. Otro modelo es
-otro perfil.
+Un endpoint nuevo comprueba la clave guardada del mismo modo, porque el endpoint
+es adonde se envía la clave. Un provider que necesita clave no puede perderla. Un
+provider keyless sin clave conserva un endpoint. La etiqueta debe seguir siendo
+única.
+
+Si cambias el endpoint y no envías `api`, una API que solo era la
+predeterminada del endpoint anterior pasa a la predeterminada del nuevo, y una
+API elegida a propósito se mantiene. El registro de auditoría guarda
+`model_profile.updated` con los nombres de los campos cambiados, no sus valores.
+No puedes cambiar el provider ni el id del modelo. Otro modelo es otro perfil.
+
+`connections:manage` es, por tanto, la autoridad para mover a cada agent sobre un
+modelo, incluidos los agents que no puedes editar: un endpoint nuevo recibe sus
+peticiones desde el siguiente run. Concédelo a quienes gestionan los modelos de
+la organización.
 
 ### Un perfil sin clave { #a-profile-without-a-key }
 
@@ -145,8 +155,11 @@ id y nombre. `details.hidden_agents` cuenta los agents que no puedes ver. Un
 perfil está en uso cuando el borrador de un agent, su versión servida o una
 versión que fija un entorno nombra el perfil en cualquier lugar: como modelo del
 agent, de un revisor o de un especialista, o en una capability, como el modelo de
-follow-ups o el modelo de los pasos del navegador. Los agents archivados y las
-versiones antiguas que nada sirve no cuentan. Mueve primero esos agents a otro
+follow-ups o el modelo de los pasos del navegador.
+
+Los agents archivados cuentan,
+porque desarchivarlos restaura la versión que servían. Las versiones antiguas que
+nada sirve no cuentan. Mueve primero esos agents a otro
 modelo. Para cambiar solo la clave, edita el perfil.
 
 ### Fallbacks { #fallbacks }

@@ -1,5 +1,5 @@
 ---
-source_sha: "714894100328"
+source_sha: "4f55a357816a"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -122,12 +122,22 @@ ihn anders** erhält nur dieser Agent ein eigenes Modell.
 Eine Bearbeitung folgt denselben Regeln wie das Anlegen und braucht dieselbe
 Berechtigung `connections:manage`. Ein neuer Schlüssel muss im Vault dieser
 Organisation liegen, für Sie sichtbar sein und für den Provider des Profils
-gespeichert sein. Ein Provider, der einen Schlüssel braucht, kann ihn nicht
-verlieren. Ein Provider ohne Schlüsselpflicht (keyless) ohne Schlüssel behält
-einen Endpunkt. Ein Label muss eindeutig bleiben. Das Audit-Log speichert
+gespeichert sein. Ein neuer Endpunkt prüft den gespeicherten Schlüssel genauso,
+denn an den Endpunkt wird der Schlüssel gesendet. Ein Provider, der einen
+Schlüssel braucht, kann ihn nicht verlieren. Ein Provider ohne Schlüsselpflicht
+(keyless) ohne Schlüssel behält einen Endpunkt. Ein Label muss eindeutig bleiben.
+
+Ändern Sie den Endpunkt ohne `api`, wechselt eine API, die nur der Standard des
+alten Endpunkts war, auf den Standard des neuen; eine bewusst gewählte API
+bleibt. Das Audit-Log speichert
 `model_profile.updated` mit den Namen der geänderten Felder, nicht mit ihren
 Werten. Provider und Modell-id können Sie nicht ändern. Ein anderes Modell ist
 ein anderes Profil.
+
+`connections:manage` ist damit die Befugnis, jeden Agent auf einem Modell
+umzustellen, auch Agents, die Sie nicht bearbeiten dürfen: ein neuer Endpunkt
+erhält ihre Anfragen ab dem nächsten Run. Vergeben Sie sie an die Personen, die
+die Modelle der Organisation verwalten.
 
 ### Ein Profil ohne Schlüssel { #a-profile-without-a-key }
 
@@ -154,8 +164,11 @@ nicht sehen. Ein Profil ist in Gebrauch, wenn der Entwurf eines Agents, seine
 ausgelieferte Version oder eine von einer Umgebung gepinnte Version das Profil
 irgendwo nennt: als Modell des Agents, eines Reviewers oder eines Spezialisten
 oder in einer Capability, etwa als Follow-up-Modell oder als Modell für
-Browser-Schritte. Archivierte Agents und alte Versionen, die nichts ausliefert,
-zählen nicht. Verschieben Sie diese Agents zuerst auf ein anderes Modell. Um nur
+Browser-Schritte.
+
+Archivierte Agents zählen, denn das Wiederherstellen aus dem
+Archiv stellt die Version wieder her, die sie ausgeliefert haben. Alte Versionen,
+die nichts ausliefert, zählen nicht. Verschieben Sie diese Agents zuerst auf ein anderes Modell. Um nur
 den Schlüssel zu ändern, bearbeiten Sie stattdessen das Profil.
 
 ### Fallbacks { #fallbacks }

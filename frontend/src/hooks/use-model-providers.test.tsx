@@ -323,6 +323,25 @@ describe("useModelProviders", () => {
     );
   });
 
+  it("falls back on the server's sentence for a model the list no longer holds", async () => {
+    const { toast } = await import("sonner");
+    vi.mocked(apiClient.delete).mockRejectedValue(
+      new ApiError(409, "Model 'Old' is used by 1 agent: Helpdesk.", {
+        error: {
+          code: "IN_USE",
+          message: "Model 'Old' is used by 1 agent: Helpdesk.",
+          details: { agents: [{ id: "a1", name: "Helpdesk" }], hidden_agents: 0 },
+        },
+      }),
+    );
+    const { result } = renderHook(() => useModelProviders(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await expect(result.current.deleteProfile.mutateAsync("gone")).rejects.toThrow();
+
+    expect(toast.error).toHaveBeenCalledWith("Model 'Old' is used by 1 agent: Helpdesk.");
+  });
+
   it("removes a model", async () => {
     vi.mocked(apiClient.delete).mockResolvedValue(undefined);
     const { result } = renderHook(() => useModelProviders(), { wrapper });

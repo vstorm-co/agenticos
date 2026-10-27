@@ -108,13 +108,20 @@ class ModelProfileUpdate(BaseSchema):
     `label` and `params` cannot be cleared, and `null` leaves them as they are.
     """
 
-    label: str | None = Field(default=None, min_length=1, max_length=128)
+    label: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=128,
+        description="A new name, unique in the organization. `null` keeps the current one.",
+    )
     secret_id: UUID | None = Field(
         default=None,
         description=(
             "The vault secret to key the model with. It has to be this organization's, "
             "visible to the caller, and stored for the profile's provider. `null` is "
-            "accepted only for a keyless provider that keeps an endpoint."
+            "accepted only for a keyless provider that keeps an endpoint. A new "
+            "`base_url` checks the stored key the same way: the endpoint is where the "
+            "key is sent."
         ),
     )
     base_url: str | None = Field(
@@ -129,10 +136,15 @@ class ModelProfileUpdate(BaseSchema):
         default=None,
         description=(
             "`responses` or `chat`, for a provider whose catalog entry lists `apis`. "
-            "Omitted, the stored choice stays; `null` stores the default for the endpoint."
+            "`null` stores the default for the endpoint. Omitted, the stored choice "
+            "stays, unless it was the old endpoint's default and `base_url` changes - "
+            "then it moves to the new endpoint's default, as on creation."
         ),
     )
-    params: dict[str, Any] | None = None
+    params: dict[str, Any] | None = Field(
+        default=None,
+        description="Replaces the profile's default model settings. `null` keeps them.",
+    )
 
 
 class ModelProfileRead(BaseSchema, TimestampSchema):

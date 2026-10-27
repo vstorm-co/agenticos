@@ -27,9 +27,11 @@ Two things are versioned separately from this file and worth knowing about:
   Builder's model panel saves a key, endpoint or API change on the model in use
   as this edit, under **Update model**, and says that every agent on the model
   switches with it. **Add model** stays for another provider or model. The edit
-  is gated on `connections:manage`, accepts only a key the caller can see in the
-  organization's vault for the profile's provider, and is audited as
-  `model_profile.updated` with the changed field names only. See
+  is gated on `connections:manage`, which therefore moves every agent on the
+  model. A new key, or a new endpoint for the stored key, must be a key the
+  caller can see in the organization's vault for the profile's provider. The
+  edit is audited as `model_profile.updated` with the changed field names only.
+  See
   [Changing a profile's key or endpoint](docs/models.md#changing-a-profiles-key-or-endpoint).
 
 ### Changed
@@ -38,7 +40,8 @@ Two things are versioned separately from this file and worth knowing about:
   (#2478). `details.agents` names each agent the caller can see, and
   `details.hidden_agents` counts the rest. A profile counts as in use when an
   agent's draft, served version or an environment's pinned version names it
-  anywhere, including reviewers, specialists and capability settings. The Builder
+  anywhere, including reviewers, specialists and capability settings, and
+  archived agents count too. The Builder
   shows the refusal with the agent names. **Upgrade action:** a script that
   deletes profiles must move the agents on them first, or edit the profile
   instead.

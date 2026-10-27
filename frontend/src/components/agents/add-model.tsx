@@ -355,7 +355,13 @@ export function AddModel({
         // All three, every time: the server compares them with what is stored
         // and writes only what differs, so what the form shows is what is saved.
         changes: {
-          secret_id: chosenKey || null,
+          // A self-hosted model with no key keeps none unless one is picked: the
+          // key this form falls back on is a suggestion for a new model, and on a
+          // shared one it would be sent to the endpoint for every agent on it.
+          secret_id:
+            secretId === "" && selected.secret_id === null && hasKey(selected)
+              ? null
+              : chosenKey || null,
           base_url: customEndpoint ? baseUrl.trim() : null,
           api,
         },
@@ -392,7 +398,7 @@ export function AddModel({
         secret_id: chosenKey || null,
         // Only when the provider has one. Sending it otherwise is refused rather
         // than dropped, which is the right refusal but a pointless round trip.
-        base_url: acceptsEndpoint && baseUrl.trim() !== "" ? baseUrl.trim() : null,
+        base_url: customEndpoint ? baseUrl.trim() : null,
         // Sent even when it is the default, so what the select shows is what is
         // stored - and a refusal, were there one, would be about this field.
         api,

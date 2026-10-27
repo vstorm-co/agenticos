@@ -45,7 +45,6 @@ export interface NewModelProfile {
  * clears a key, an endpoint or an API choice where the server allows it.
  */
 export interface ModelProfileChanges {
-  label?: string;
   secret_id?: string | null;
   base_url?: string | null;
   api?: ModelApi | null;
@@ -169,11 +168,13 @@ export function useModelProviders() {
     onError: (error, id) => {
       // Agents still run on it: say which, so the reader knows what to move.
       const inUse = modelInUse(error);
-      if (inUse === null) {
+      const label = profiles.data?.items.find((profile) => profile.id === id)?.label;
+      // The server's own sentence when this list no longer holds the model: it
+      // names the model and the agents too, only in English.
+      if (inUse === null || label === undefined) {
         toast.error(getErrorMessage(error, tErrors));
         return;
       }
-      const label = profiles.data?.items.find((profile) => profile.id === id)?.label ?? "";
       toast.error(
         inUse.names.length > 0
           ? t("modelInUse", { label, names: inUse.names.join(", "), hidden: inUse.hidden })

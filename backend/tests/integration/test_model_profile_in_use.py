@@ -17,7 +17,7 @@ from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.credential import ModelProfile
 from app.db.models.organization import Organization
 from app.db.models.user import User
-from app.repositories import agent_repo
+from app.repositories import agent_repo, credential_repo
 from app.schemas.model_profile import ModelProfileUpdate
 from app.services.model_profile import ModelProfileService
 
@@ -130,14 +130,17 @@ async def test_every_place_a_profile_is_named_counts_and_history_does_not(db):
     await _version(db, moved_on, 1, {"model_profile_id": pid})
     moved_on.current_version_id = (await _version(db, moved_on, 2, {})).id
 
-    await _agent(db, org, "Archived", draft={"model_profile_id": pid}, status=AgentStatus.ARCHIVED)
+    # Archived still counts: unarchiving restores the version it served.
+    archived = await _agent(
+        db, org, "Archived", draft={"model_profile_id": pid}, status=AgentStatus.ARCHIVED
+    )
     # Another tenant's agent naming the same id is not this organization's business.
     await _agent(db, other_org, "Elsewhere", draft={"model_profile_id": pid})
     await db.flush()
 
     users = await agent_repo.naming_model_profile(db, organization_id=org.id, profile_id=profile.id)
 
-    assert [agent.id for agent in users] == [on_draft.id, pinned.id, served.id]
+    assert [agent.id for agent in users] == [archived.id, on_draft.id, pinned.id, served.id]
 
 
 async def test_deleting_a_profile_an_agent_runs_on_is_refused_and_keeps_it(db):
@@ -179,3 +182,15 @@ async def test_an_edit_keeps_the_id_and_a_taken_label_is_refused(db):
     assert updated.base_url == "http://gpu-box:11434/v1"
     with pytest.raises(AlreadyExistsError):
         await service.update_profile(ctx, profile.id, ModelProfileUpdate(label="Taken"))
+
+
+async def test_the_repository_writes_nothing_for_another_organization(db):
+    org, _ = await _org(db)
+    other, _ = await _org(db)
+    profile = await _profile(db, org)
+
+    await credential_repo.update_profile(
+        db, organization_id=other.id, profile=profile, update_data={"label": "Hijacked"}
+    )
+
+    assert profile.label == "Ollama · llama4"
