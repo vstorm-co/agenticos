@@ -1,5 +1,5 @@
 ---
-source_sha: "e1ff6a6a50fd"
+source_sha: "acd35149885e"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -715,8 +715,7 @@ por varias páginas. Para una página que solo hay que leer, la
 en manos del propio agent: una acción por llamada, elegida por el modelo del run en su
 propio turno, y cada una responde con la página después de la acción - su dirección, los
 elementos numerados y su texto. Sin una segunda petición por paso, y el agent dice en el
-chat lo que hace entre acciones. La página seleccionada permanece encima del campo de mensajes; el chat muestra enlaces
-compactos a la vista. Una persona puede tomar el control entre acciones. Medido con Claude a través de OpenRouter: un paso de
+chat lo que hace entre acciones. El navegador se abre automáticamente en un panel lateral a toda altura junto al chat. Una persona puede tomar el control entre acciones. Medido con Claude a través de OpenRouter: un paso de
 `browse_web` dura 3,5-5 s, casi todo la petición al modelo del propio paso; una tarea de
 dos clics que el agent manejó él mismo tardó 13 s, y con `browse_web` unos 20. Las
 herramientas convienen para una tarea corta o una que alguien quiere ver, `browse_web`

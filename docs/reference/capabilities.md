@@ -660,7 +660,7 @@ page you only need to read, [web fetch](#web-fetch) is faster and has no side ef
 in the agent's own hands: one action a call, chosen by the run's model in its own turn,
 each answered with the page after it - its address, the numbered elements and its
 text. No second request per step, and the agent says what it is doing in the chat
-between actions. The selected page stays above the composer, with compact transcript links; a person
+between actions. The browser opens automatically in a full-height side panel beside the chat. A person
 can take it over between actions. Measured on Claude through OpenRouter, a step of `browse_web` is 3.5-5 s, almost
 all of it the step's own model request; a two-click task the agent drove itself took
 13 s where `browse_web` took about 20. Prefer the tools for a short task or one a

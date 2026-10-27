@@ -111,8 +111,8 @@ Only authenticated image-view sockets count as viewers; trace consumers and a
 resumable chat buffer do not. Images stop without a viewer and resume on return.
 Metadata updates preserve the latest JPEG for viewers opening the live view.
 A final image is kept even without a viewer; it does not enter the chat stream.
-The console anchors the selected preview above the composer, with compact
-transcript links and a tab strip; the side panel keeps its own selected view.
+The console opens a full-height browser side panel automatically, with compact
+transcript links to reopen it after closing.
 
 While a person holds the tab, input is consumed independently of preview capture.
 They can navigate, move through history and reload within `allowed_domains`.

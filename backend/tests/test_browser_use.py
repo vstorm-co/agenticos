@@ -3070,3 +3070,25 @@ async def test_private_checkpoint_failure_modes(tool, checkpoint, monkeypatch):
             )
     if checkpoint in ("blank", "closed"):
         assert save.call_args.args[2] == []
+
+
+@pytest.mark.parametrize(
+    "message", ["Execution context was destroyed", "Inspected target navigated or closed"]
+)
+async def test_a_navigation_replacing_the_evaluation_context_is_retried_then_refused_if_closed(
+    message, monkeypatch
+):
+    from app.agents.capabilities.browser_use import _page
+
+    monkeypatch.setattr(_page, "_EVAL_BACKOFF", 0)
+    client = MagicMock()
+    evaluate = AsyncMock(side_effect=[RuntimeError(message), {"result": {"value": "ready"}}])
+    client.send.Runtime.evaluate = evaluate
+    page = CdpPage(
+        client, "session", PagePolicy(allowed_domains=None, candidate_cap=60, preview_width=1024)
+    )
+    assert (await page._evaluate("document.readyState"))["value"] == "ready"
+    assert evaluate.await_count == 2
+    evaluate.side_effect = RuntimeError(message)
+    with pytest.raises(EndpointError, match="replaced or closed"):
+        await page._evaluate("document.readyState")

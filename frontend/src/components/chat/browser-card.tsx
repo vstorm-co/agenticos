@@ -1,8 +1,8 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useRef } from "react";
 
-import { ArrowUpRight, Globe, Maximize2, Monitor, Play, X } from "lucide-react";
+import { ArrowUpRight, Globe, Maximize2, Monitor } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { useShell } from "@/hooks/use-shell";
@@ -19,7 +19,6 @@ import { cn } from "@/lib/utils";
 import { useBrowserPanelStore } from "@/stores/browser-panel-store";
 import type { ToolCall } from "@/types";
 import type { PageComment } from "./browser-comment";
-import { BrowserTabs } from "./browser-tabs";
 import { BrowserWindow, hostOf } from "./browser-window";
 
 /** The browses running in this chat, and where a comment on one of their pages goes. */
@@ -121,11 +120,9 @@ function RecordedBrowse({ call }: { call: ToolCall }) {
 function InlineBrowser({
   browse: streamed,
   onComment,
-  docked = false,
 }: {
   browse: Browse;
   onComment?: (comment: PageComment) => void;
-  docked?: boolean;
 }) {
   const t = useTranslations("chat");
   const expand = useBrowserPanelStore((state) => state.open);
@@ -141,22 +138,8 @@ function InlineBrowser({
   const mine = running && live.browse?.callId === streamed.callId;
   const browse = withLivePreview(streamed, live.browse);
   return (
-    <div
-      className={cn(
-        "border-border bg-background w-full min-w-0 overflow-hidden rounded-2xl border shadow-sm",
-        docked ? "h-[min(32dvh,320px)] rounded-none border-0 shadow-none" : "aspect-[16/11]",
-      )}
-    >
-      {browse.nativeId ? (
-        <button
-          type="button"
-          onClick={() => expand(streamed.callId)}
-          className="text-muted-foreground hover:text-foreground flex h-full w-full flex-col items-center justify-center gap-2 text-sm"
-        >
-          <Globe className="size-5" aria-hidden />
-          {t("browserOpenNative")}
-        </button>
-      ) : expanded ? (
+    <div className="border-border bg-background aspect-[16/11] w-full min-w-0 overflow-hidden rounded-2xl border shadow-sm">
+      {expanded ? (
         <button
           type="button"
           onClick={() => expand(streamed.callId)}
@@ -184,7 +167,7 @@ function InlineBrowser({
   );
 }
 
-/** A compact transcript entry; the working page stays above the composer. */
+/** A compact transcript entry that reopens the browser side panel. */
 function BrowserLink({ browse }: { browse: Browse }) {
   const open = useBrowserPanelStore((state) => state.open);
   const t = useTranslations("chat");
@@ -192,75 +175,30 @@ function BrowserLink({ browse }: { browse: Browse }) {
     <button
       type="button"
       onClick={() => open(browse.callId)}
-      className="text-muted-foreground hover:text-foreground flex min-w-0 items-center gap-2 rounded-lg border px-3 py-2 text-sm"
+      className="text-muted-foreground hover:text-foreground inline-flex max-w-sm min-w-0 items-center gap-2 justify-self-start py-1 text-xs"
     >
       <Globe className="size-4 shrink-0" aria-hidden />
       <span className="truncate">{browse.title || hostOf(browse.url) || t("browserHeading")}</span>
-      <Maximize2 className="ml-auto size-3.5 shrink-0" aria-hidden />
+      <Maximize2 className="size-3 shrink-0" aria-hidden />
     </button>
   );
 }
 
-/** Stable preview independent of the transcript's narration and scroll position. */
-export function BrowserDock({
-  browses,
-  onComment,
-  onResume,
-}: {
-  browses: Browse[];
-  onComment?: (comment: PageComment) => void;
-  onResume: () => void;
-}) {
-  const t = useTranslations("chat");
-  const tabs = latestBrowserTabs(browses);
-  const latest = tabs.at(-1)?.callId;
-  const [selection, setSelection] = useState<{ callId: string; latest: string | undefined } | null>(
-    null,
-  );
-  const [hidden, setHidden] = useState<string | null>(null);
+/** Open each running browser session once, without overriding a reader's selection or closure. */
+export function BrowserPanelAutoOpen({ browses }: { browses: Browse[] }) {
+  const newest = latestBrowserTabs(browses).at(-1);
+  const opened = useRef(new Set<string>());
   const openCallId = useBrowserPanelStore((state) => state.openCallId);
   const open = useBrowserPanelStore((state) => state.open);
   const shell = useShell();
-  const newest = tabs.at(-1);
+  const callId = newest?.callId;
+  const session = newest?.runId ?? callId;
+  const running = newest ? isRunning(newest) : false;
+  const supported = !newest?.nativeId || (isDesktopShell(shell) && shell.window === "main");
   useEffect(() => {
-    if (newest?.nativeId && isRunning(newest) && isDesktopShell(shell) && shell.window === "main")
-      open(newest.callId);
-  }, [newest?.callId, newest?.nativeId, newest?.outcome, shell, open]);
-  const selectTab = (tab: Browse) => setSelection({ callId: tab.callId, latest });
-  const active =
-    tabs.find(
-      (tab) =>
-        tab.callId === (selection && selection.latest === latest ? selection.callId : latest),
-    ) ?? tabs.at(-1);
-  if (!active || hidden === latest || browses.some((browse) => browse.callId === openCallId))
-    return null;
-  return (
-    <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4">
-      <div className="bg-background overflow-hidden rounded-xl border shadow-sm">
-        <BrowserTabs tabs={tabs} selected={active.callId} onSelect={selectTab}>
-          {active.outcome && active.resumable && !active.nativeId && (
-            <button
-              type="button"
-              onClick={onResume}
-              className="text-muted-foreground hover:text-foreground hover:bg-muted flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-2 text-xs"
-            >
-              <Play className="size-3" aria-hidden />
-              {t("browserResume")}
-            </button>
-          )}
-          <button
-            type="button"
-            aria-label={t("browserClose")}
-            onClick={() => setHidden(latest ?? null)}
-            className="hover:bg-muted rounded-lg p-2"
-          >
-            <X className="size-3.5" aria-hidden />
-          </button>
-        </BrowserTabs>
-        <div role="tabpanel" aria-label={active.title || t("browserHeading")}>
-          <InlineBrowser key={active.callId} browse={active} onComment={onComment} docked />
-        </div>
-      </div>
-    </div>
-  );
+    if (!callId || !session || !running || !supported || opened.current.has(session)) return;
+    opened.current.add(session);
+    if (openCallId === null) open(callId);
+  }, [callId, session, running, supported, openCallId, open]);
+  return null;
 }

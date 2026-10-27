@@ -719,8 +719,15 @@ class CdpPage:
                     f"The browser stopped answering after {_COMMAND_TIMEOUT:.0f}s."
                 ) from exc
             except RuntimeError as exc:
-                if _CONTEXT_GONE not in str(exc) or attempt == _EVAL_ATTEMPTS - 1:
+                if not any(
+                    message in str(exc)
+                    for message in (_CONTEXT_GONE, "Inspected target navigated or closed")
+                ):
                     raise
+                if attempt == _EVAL_ATTEMPTS - 1:
+                    raise EndpointError(
+                        "The browser page was replaced or closed before it could be read."
+                    ) from exc
                 await asyncio.sleep(_EVAL_BACKOFF)
                 continue
             thrown = answer.get("exceptionDetails")

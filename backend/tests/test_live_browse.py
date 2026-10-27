@@ -807,7 +807,9 @@ async def test_failed_presence_subscription_closes_its_event_connection(
 
 
 def _preview_packet(event: BrowserEvent) -> live_browse._PreviewPacket:
-    return live_browse._PreviewPacket(event.model_dump_json(), event.image is not None)
+    return live_browse._PreviewPacket(
+        event.model_dump_json(), event.image is not None, event.kind == "browser_finished"
+    )
 
 
 async def test_preview_delivery_keeps_the_newest_image_and_preserves_narration() -> None:
@@ -939,3 +941,26 @@ async def test_conversation_checkpoints_expire_without_a_browser_or_cleanup_job(
     await live_browse.save_session("scope", "sealed")
     redis.set.assert_awaited_once_with("browse:session:scope", "sealed", ttl=3600)
     assert await live_browse.load_session("scope") == "sealed"
+
+
+async def test_the_final_image_reaches_a_viewer_before_the_finish_closes_its_socket() -> None:
+    from collections.abc import AsyncGenerator
+
+    async def source() -> AsyncGenerator[live_browse._PreviewPacket]:
+        yield _preview_packet(_step(1))
+        yield _preview_packet(_frame(1))
+        yield _preview_packet(
+            BrowserEvent(kind="browser_finished", call_id=CALL, step=1, outcome="done")
+        )
+
+    received: list[BrowserEvent] = []
+
+    async def deliver(raw: str) -> None:
+        received.append(BrowserEvent.model_validate_json(raw))
+
+    assert await live_browse._deliver_preview(source(), deliver)
+    assert [event.kind for event in received] == [
+        "browser_step",
+        "browser_frame",
+        "browser_finished",
+    ]

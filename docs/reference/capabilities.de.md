@@ -1,5 +1,5 @@
 ---
-source_sha: "e1ff6a6a50fd"
+source_sha: "acd35149885e"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -745,8 +745,7 @@ muss, ist [Web-Abruf](#web-fetch) schneller und ohne Nebenwirkungen.
 in den Händen des Agents: eine Aktion je Aufruf, gewählt vom Modell des Runs in seinem
 eigenen Zug, und jede antwortet mit der Seite danach - Adresse, nummerierte Elemente und
 Text. Keine zweite Anfrage pro Schritt, und der Agent sagt zwischen den Aktionen im Chat,
-was er tut. Die ausgewählte Seite bleibt über dem Eingabefeld; kompakte Einträge im Chat öffnen
-die Vorschau. Eine Person kann zwischen den Aktionen übernehmen. Gemessen mit Claude über OpenRouter: ein Schritt von `browse_web`
+was er tut. Der Browser öffnet sich automatisch in einem Panel in voller Höhe neben dem Chat. Eine Person kann zwischen den Aktionen übernehmen. Gemessen mit Claude über OpenRouter: ein Schritt von `browse_web`
 dauert 3,5-5 s, fast ganz die eigene Modellanfrage des Schritts; eine Aufgabe mit zwei
 Klicks, die der Agent selbst steuerte, dauerte 13 s, mit `browse_web` etwa 20. Die Tools
 eignen sich für kurze Aufgaben oder solche, die jemand verfolgen will, `browse_web` für

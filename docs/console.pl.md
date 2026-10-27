@@ -1,5 +1,5 @@
 ---
-source_sha: "8d758a290cf6"
+source_sha: "0c26862976ca"
 ---
 
 # Konsola { #the-console }
@@ -398,8 +398,10 @@ pełnym ekranie. Karta **Ostatnie wizualizacje** na dashboardzie pokazuje najnow
 rysunki zrobione dla ciebie, a każdy otwiera rozmowę, w której powstał.
 
 **Oglądanie przeglądania.** [Przeglądarka](reference/capabilities.md#browser-automation)
-zostaje nad polem wiadomości, gdy rozmowa się przewija. Pasek kart przełącza strony,
-a wpisy w rozmowie otwierają podgląd obok czatu lub na pełnym ekranie. Po zakończeniu
+otwiera się automatycznie w pełnym panelu obok przewijanej rozmowy.
+Na wąskim ekranie zajmuje cały widok. Po zamknięciu panelu zostaje w rozmowie
+mały przycisk do ponownego otwarcia. Pasek kart w panelu
+przełącza strony. Po zakończeniu
 zostaje ostatni obraz. **Wznów sesję** prosi agenta o odtworzenie prywatnej sesji,
 dostępnej przez maksymalnie godzinę. Zdalne strony zamykają się po każdym runie;
 wznowienie wczytuje adresy, cookies i local storage, ale nie niezapisane formularze

@@ -110,7 +110,7 @@ function applyTo(browse: Browse, frame: BrowserFrame): Browse {
       return {
         ...browse,
         image: frame.image ?? browse.image,
-        imageStep: frame.step,
+        imageStep: frame.image ? frame.step : browse.imageStep,
         url: frame.url ?? browse.url,
         title: frame.title ?? browse.title,
       };

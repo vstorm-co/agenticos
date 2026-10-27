@@ -1,5 +1,6 @@
 "use client";
 
+import { Play, X } from "lucide-react";
 import { useEffect } from "react";
 import { useTranslations } from "next-intl";
 
@@ -24,8 +25,10 @@ import { BrowserWindow } from "./browser-window";
 export function BrowserPanel({
   browses,
   onComment,
+  onResume,
 }: {
   browses: Browse[];
+  onResume?: () => void;
   /** Where a comment on the page goes - the conversation's composer. */
   onComment?: (comment: PageComment) => void;
 }) {
@@ -33,15 +36,21 @@ export function BrowserPanel({
   // The browse somebody opened, by id - never "the running one". A view that
   // followed whichever browse advanced last would swap page under a reader the
   // moment the other one moved.
-  const streamed = browseById(browses, openCallId);
+  const tabs = latestBrowserTabs(browses);
+  const selected = browseById(browses, openCallId);
+  // A resumed run gives the same tab a new call id; keep its selected page live.
+  const streamed = selected?.tabId
+    ? (tabs.find((tab) => tab.tabId === selected.tabId) ?? selected)
+    : selected;
   // Mounted only with something to show, so a conversation that is not
   // browsing opens no live view and holds no socket for one.
   return streamed === null ? null : (
     <OpenBrowser
       key={streamed.callId}
       streamed={streamed}
-      tabs={latestBrowserTabs(browses)}
+      tabs={tabs}
       onComment={onComment}
+      onResume={onResume}
     />
   );
 }
@@ -51,9 +60,11 @@ function OpenBrowser({
   streamed,
   tabs,
   onComment,
+  onResume,
 }: {
   streamed: Browse;
   tabs: Browse[];
+  onResume?: () => void;
   onComment?: (comment: PageComment) => void;
 }) {
   const close = useBrowserPanelStore((state) => state.close);
@@ -63,8 +74,7 @@ function OpenBrowser({
   const chat = useTranslations("chat");
   const running = isRunning(streamed);
   const live = useLiveBrowse(streamed.runId ?? "", streamed.callId, Boolean(streamed.runId));
-  // Only its own browse's copy, and never past the end, where the stream has
-  // the outcome and the socket has been let go.
+  // The chat owns completion; the live view supplies its cached final picture.
   const mine = running && live.browse?.callId === streamed.callId;
   const browse = withLivePreview(streamed, live.browse);
   const holding = Boolean(browse.heldBy);
@@ -72,6 +82,12 @@ function OpenBrowser({
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       // While a person holds the browser, Escape is a key for the page.
+      const target = event.target;
+      if (
+        event.defaultPrevented ||
+        (target instanceof HTMLElement && target.closest('[role="menu"], [role="dialog"]'))
+      )
+        return;
       if (event.key === "Escape" && !holding) close();
     };
     window.addEventListener("keydown", onKey);
@@ -128,7 +144,27 @@ function OpenBrowser({
                 tabs={tabs}
                 selected={streamed.callId}
                 onSelect={(tab) => open(tab.callId)}
-              />
+              >
+                {browse.outcome && browse.resumable && onResume && (
+                  <button
+                    type="button"
+                    onClick={onResume}
+                    className="hover:bg-muted flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-2 text-xs"
+                  >
+                    <Play className="size-3" aria-hidden />
+                    {chat("browserResume")}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  aria-label={chat("browserClose")}
+                  title={chat("browserClose")}
+                  onClick={close}
+                  className="text-muted-foreground hover:bg-muted hover:text-foreground flex size-7 shrink-0 items-center justify-center rounded-md"
+                >
+                  <X className="size-3.5" aria-hidden />
+                </button>
+              </BrowserTabs>
             )}
             <div className="min-h-0 flex-1">{content}</div>
           </>

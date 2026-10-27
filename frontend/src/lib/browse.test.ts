@@ -310,3 +310,12 @@ it("keeps completion authoritative while retaining the cached final picture", ()
     withLivePreview({ ...streamed, image: "streamed", imageStep: 4 }, { ...live, image: null }),
   ).toMatchObject({ image: "streamed", imageStep: 4 });
 });
+
+it("accepts a delayed first image after newer metadata without treating metadata as a picture", () => {
+  const [browse] = fold(
+    frame({ kind: "browser_opened", step: 0 }),
+    frame({ kind: "browser_frame", step: 5, url: "https://example.test/next" }),
+    frame({ kind: "browser_frame", step: 3, image: "delayed-first-picture" }),
+  );
+  expect(browse).toMatchObject({ image: "delayed-first-picture", imageStep: 3 });
+});

@@ -22,7 +22,8 @@ Two things are versioned separately from this file and worth knowing about:
 ### Added
 
 - Browser connection cards with icons, independent per-chat desktop browser
-  overrides, a preview anchored above the composer, and tools for up to eight tabs.
+  overrides, an automatically opened browser side panel, and tools for up to
+  eight tabs.
   Remote private sessions retain a final preview and encrypted reload checkpoints
   for one hour; browser processes close after each run.
 

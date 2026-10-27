@@ -407,6 +407,7 @@ PREVIEW_EVENT_LIMIT = 64
 class _PreviewPacket:
     raw: str
     picture: bool
+    terminal: bool = False
 
 
 async def _deliver_preview(
@@ -418,7 +419,7 @@ async def _deliver_preview(
     ordered and never silently dropped: overflow disconnects this viewer so it
     can reconnect to a fresh snapshot. Other viewers and the agent keep running.
     """
-    events: deque[str] = deque()
+    events: deque[_PreviewPacket] = deque()
     picture: str | None = None
     wake = asyncio.Event()
     done = False
@@ -432,7 +433,7 @@ async def _deliver_preview(
                     if packet.picture:
                         picture = packet.raw
                     elif len(events) < PREVIEW_EVENT_LIMIT:
-                        events.append(packet.raw)
+                        events.append(packet)
                     else:
                         slow = True
                         tasks.cancel_scope.cancel()
@@ -448,8 +449,8 @@ async def _deliver_preview(
                 await wake.wait()
                 wake.clear()
                 while events or picture is not None:
-                    if events:
-                        raw = events.popleft()
+                    if events and not (events[0].terminal and picture is not None):
+                        raw = events.popleft().raw
                     else:
                         assert picture is not None
                         raw, picture = picture, None
@@ -557,6 +558,8 @@ async def stream(websocket: WebSocket, *, auth_token: str, run_id: str, call_id:
                     yield _PreviewPacket(
                         str(message["data"]),
                         message.get("channel") == _key(run_id, call_id, "pictures"),
+                        message.get("channel") == _key(run_id, call_id, "events")
+                        and json.loads(str(message["data"])).get("kind") == "browser_finished",
                     )
 
         async def forward() -> None:

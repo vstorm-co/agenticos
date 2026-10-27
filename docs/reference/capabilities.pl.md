@@ -1,5 +1,5 @@
 ---
-source_sha: "e1ff6a6a50fd"
+source_sha: "acd35149885e"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -703,8 +703,7 @@ ma skutków ubocznych.
 w rękach samego agenta: jedna akcja na wywołanie, wybrana przez model runa w jego
 własnej turze, a każda odpowiada stroną po akcji - adresem, ponumerowanymi elementami
 i tekstem. Bez drugiego zapytania na krok, a agent mówi w czacie, co robi, między
-akcjami. Wybrana strona zostaje nad polem wiadomości, a w rozmowie są zwięzłe odnośniki
-do podglądu. Człowiek może przejąć kartę między akcjami.
+akcjami. Przeglądarka otwiera się automatycznie w pełnym panelu obok czatu. Człowiek może przejąć kartę między akcjami.
 Zmierzone na Claude przez OpenRouter: krok `browse_web` trwa 3,5-5 s, prawie w całości
 osobne zapytanie do modelu; zadanie z dwoma kliknięciami, które agent poprowadził sam,
 zajęło 13 s, a `browse_web` około 20. Narzędzia są lepsze do krótkiego zadania albo
