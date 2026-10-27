@@ -538,18 +538,22 @@ def test_an_agent_crash_is_a_failure_and_only_missing_grades_are_inconclusive() 
     assert judge(replace(_BETTER, crashed=2, incomplete=1)) is ImprovementVerdict.INCONCLUSIVE
 
 
-def test_best_round_prefers_quality_stability_success_then_the_earlier_round() -> None:
+def test_best_round_prefers_a_better_verdict_then_the_larger_change_then_the_earlier() -> None:
     from app.services.improvement_states import RoundResult, best_round
 
     rounds = [
-        RoundResult(1, ImprovementVerdict.REGRESSION, 1, 0.9),
-        RoundResult(2, ImprovementVerdict.NO_CHANGE, 0, 0.8),
-        RoundResult(3, ImprovementVerdict.BETTER, 0, 0.9),
+        RoundResult(1, ImprovementVerdict.REGRESSION, 0, 1, 10),
+        RoundResult(2, ImprovementVerdict.NO_CHANGE, 0, 0, 10),
+        RoundResult(3, ImprovementVerdict.BETTER, 2, 0, 10),
     ]
     assert best_round(rounds) == 3
     assert best_round(rounds[:2]) == 2
-    assert best_round([*rounds, RoundResult(4, ImprovementVerdict.BETTER, 0, 0.9)]) == 3
-    assert best_round([RoundResult(1, ImprovementVerdict.INCONCLUSIVE, 0, None)]) is None
+    # Each attempt is measured on its own draw: three of twenty is less than two of ten.
+    assert best_round([*rounds, RoundResult(4, ImprovementVerdict.BETTER, 3, 0, 20)]) == 3
+    assert best_round([*rounds, RoundResult(4, ImprovementVerdict.BETTER, 3, 0, 10)]) == 4
+    assert best_round([*rounds, RoundResult(4, ImprovementVerdict.BETTER, 2, 0, 10)]) == 3
+    assert best_round([RoundResult(1, ImprovementVerdict.INCONCLUSIVE, 0, 0, 0)]) is None
+    assert RoundResult(1, ImprovementVerdict.NO_CHANGE, 1, 0, 0).change == 0.0
 
 
 @pytest.mark.parametrize(
@@ -568,7 +572,7 @@ def test_two_attempts_alike_hint_that_another_is_unlikely_to_help(verdicts, reas
     assert (
         no_progress(
             [
-                RoundResult(index + 1, ImprovementVerdict(verdict), 0, 0.8)
+                RoundResult(index + 1, ImprovementVerdict(verdict), 0, 0, 10)
                 for index, verdict in enumerate(verdicts)
             ]
         )

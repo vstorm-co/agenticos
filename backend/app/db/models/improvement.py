@@ -188,6 +188,7 @@ class VerdictDetail(TypedDict, total=False):
     fixed: int | None
     crashed: int
     gradable_holdout: int
+    held_out: int | None
     minimum_holdout: int
     missing_holdout: int
     broken: int | None

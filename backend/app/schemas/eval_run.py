@@ -77,6 +77,11 @@ class ProposalCheckRecord(BaseSchema):
     suggestions: int = Field(ge=1)
     improvement_run_id: UUID | None = None
     evidence_run_ids: list[UUID] = Field(default_factory=list)
+    attempt_holdout: list[UUID] | None = Field(
+        default=None,
+        description="An improvement attempt's own draw of measured questions; the dataset's "
+        "stored partition when unset",
+    )
     measurement: ImprovementMeasurement | None = None
     knowledge: KnowledgeCheckRecord | None = None
 

@@ -494,14 +494,16 @@ class AuthoringRun:
             await ImprovementPipelineService(self.db).ensure_current(
                 self.ctx, self.request.improvement_run_id
             )
+            attempt = await improvement_repo.attempt_of_request(
+                self.db, organization_id=self.request.organization_id, request_id=self.request.id
+            )
             pack = await self.evidence.for_improvement(
                 self.ctx,
                 self.request.improvement_run_id,
                 excluded_message_ids=self.request.excluded_message_ids,
+                train_case_ids=None if attempt is None else attempt.train_case_ids,
             )
-            note = await improvement_repo.attempt_note(
-                self.db, organization_id=self.request.organization_id, request_id=self.request.id
-            )
+            note = None if attempt is None else attempt.note
         else:
             pack = await self.evidence.for_agent(
                 self.ctx,

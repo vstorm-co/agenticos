@@ -8,10 +8,10 @@ from sqlalchemy import select
 
 from app.agents.spec import AgentSpec
 from app.core.exceptions import BadRequestError, ConcurrentChangeError, PaymentRequiredError
-from app.db.models.dataset import DatasetCase
+from app.db.models.dataset import Dataset, DatasetCase
 from app.db.models.eval_run import EvalRun
 from app.db.models.improvement import ImprovementRun
-from app.repositories import authoring_repo
+from app.repositories import authoring_repo, improvement_repo
 from app.schemas.improvement import (
     AttributionConsent,
     ContinuationConsent,
@@ -101,8 +101,9 @@ async def _round(db, ctx, agent, session_id, marker, *, exhaust_budget=False):
     return model
 
 
-async def _two_rounds(db):
-    ctx, agent, _ = await _setup(db)
+async def _marked_dataset(db, ctx, *, share: Decimal):
+    """Eight questions, the stored partition three to learn from and five to measure on,
+    with `share` the part a later attempt draws to measure on."""
     dataset = await _dataset(db, ctx, cases=8)
     rows = list(
         await db.scalars(
@@ -114,7 +115,16 @@ async def _two_rounds(db):
     for index, row in enumerate(rows):
         row.improvement_partition = "train" if index < 3 else "holdout"
         row.input = f"{'TRAIN' if index < 3 else 'HOLDOUT'}_QUESTION_MARKER_{index}"
+    stored = await db.get(Dataset, dataset.id)
+    assert stored is not None
+    stored.improvement_holdout_share = share
     await db.flush()
+    return dataset, [row.case_id for row in rows[3:]]
+
+
+async def _two_rounds(db):
+    ctx, agent, _ = await _setup(db)
+    dataset, measured = await _marked_dataset(db, ctx, share=Decimal("0.625"))
     service = ImprovementPipelineService(db)
     started = await service.start(
         ctx,
@@ -128,7 +138,10 @@ async def _two_rounds(db):
     first = await _round(db, ctx, agent, started.id, "ROUND_BAD")
     stopped = await service.read(ctx, agent.id, started.id)
     assert (stopped.status, stopped.stop_reason, stopped.iteration) == ("stopped", "regression", 1)
-    second_read = await _next_step(db, ctx, started.id, note="KEEP_THE_REFUND_WINDOW_NOTE")
+    # The second attempt draws its own five of the eight; which five is fixed here so the
+    # questions the better candidate fixes are among them.
+    with patch("app.services.improvement_pipeline.drawn_holdout", return_value=measured):
+        second_read = await _next_step(db, ctx, started.id, note="KEEP_THE_REFUND_WINDOW_NOTE")
     assert second_read.status == "running" and second_read.iteration == 2
     second = await _round(db, ctx, agent, started.id, "ROUND_GOOD")
     return ctx, agent, started, first, second
@@ -141,12 +154,42 @@ async def test_regression_starts_a_blind_second_round_and_best_is_selectable(db)
     assert ready.status == "ready"
     assert [item.verdict for item in ready.iterations] == ["regression", "better"]
     assert ready.best_iteration_id == ready.iterations[1].id
-    assert "TRAIN_QUESTION_MARKER" in "\n".join(second.prompts)
     assert "KEEP_THE_REFUND_WINDOW_NOTE" in "\n".join(second.prompts)
     assert "KEEP_THE_REFUND_WINDOW_NOTE" not in "\n".join(first.prompts)
     assert [item.note for item in ready.iterations] == [None, "KEEP_THE_REFUND_WINDOW_NOTE"]
-    assert "Baseline answer:" in "\n".join(second.prompts)
-    assert "HOLDOUT_" not in "\n".join([*first.prompts, *second.prompts])
+    # The first attempt learns from the stored partition; the second draws its own.
+    assert "HOLDOUT_" not in "\n".join(first.prompts)
+    one, two = await improvement_repo.list_iterations(
+        db, organization_id=ctx.organization_id, run_id=started.id
+    )
+    assert one.holdout_case_ids is None and one.split_seed is None
+    assert two.holdout_case_ids is not None and two.train_case_ids is not None
+    assert len(two.holdout_case_ids) == 5 and len(two.train_case_ids) == 3
+    cases = {
+        case.case_id: case.input
+        for case in await db.scalars(
+            select(DatasetCase).where(DatasetCase.dataset_id == started.dataset_id)
+        )
+    }
+    assert set(two.holdout_case_ids) | set(two.train_case_ids) == set(cases)
+    assert not any(cases[case_id] in "\n".join(second.prompts) for case_id in two.holdout_case_ids)
+    check = await db.get(EvalRun, two.eval_run_ids[-1])
+    assert check is not None
+    assert check.proposal_check["attempt_holdout"] == [str(i) for i in two.holdout_case_ids]
+    assert set(check.proposal_check["measurement"]["holdout_case_ids"]) == {
+        str(i) for i in two.holdout_case_ids
+    }
+    assert [item.verdict_detail["held_out"] for item in ready.iterations] == [5, 5]
+    # Training evidence follows the attempt's own learning questions, not the stored partition.
+    learned = await service.authoring.evidence.for_improvement(
+        ctx, started.id, train_case_ids=two.holdout_case_ids
+    )
+    assert learned.runs
+    assert all(
+        "HOLDOUT_" in (item.prompt or "")
+        for item in learned.runs
+        if item.evidence_kind == "train_eval"
+    )
     assert ready.iterations[0].cost_usd > 0 and ready.iterations[1].cost_usd > 0
     assert sum(item.cost_usd for item in ready.iterations) == ready.spent_usd
     assert "ROUND_" not in AgentSpec.model_validate(agent.draft_spec).instructions
@@ -156,6 +199,28 @@ async def test_regression_starts_a_blind_second_round_and_best_is_selectable(db)
         db, organization_id=ctx.organization_id, agent_id=agent.id
     )
     assert current is not None and current.id == ready.iterations[0].batch_id
+
+
+async def test_an_attempt_whose_draw_leaves_too_few_to_measure_is_not_checked(db):
+    ctx, agent, _ = await _setup(db)
+    dataset, _ = await _marked_dataset(db, ctx, share=Decimal("0.5"))
+    service = ImprovementPipelineService(db)
+    started = await service.start(
+        ctx,
+        agent.id,
+        ImprovementStart(dataset_id=dataset.id, budget_usd=Decimal(100), max_iterations=3),
+    )
+    for _ in range(2):
+        await service.advance(started.id, ctx.organization_id)
+    await _next_step(db, ctx, started.id)
+    await _round(db, ctx, agent, started.id, "ROUND_BAD")
+    await _next_step(db, ctx, started.id)
+    with pytest.raises(BadRequestError, match="Add 1 more") as refused:
+        await _round(db, ctx, agent, started.id, "ROUND_GOOD")
+    assert refused.value.details == {"missing_holdout": 1}
+    waiting = await service.read(ctx, agent.id, started.id)
+    assert (waiting.status, waiting.stage, waiting.iteration) == ("waiting", "filtering", 2)
+    assert not waiting.iterations[1].eval_run_ids
 
 
 async def test_attribution_needs_consent_to_the_current_price_and_is_idempotent(db):

@@ -700,8 +700,13 @@ async def train_answers(
     since: datetime,
     limit: int = 200,
     dataset_version: int | None = None,
+    case_ids: Sequence[UUID] | None = None,
 ) -> list[TrainAnswer]:
-    """Only current, non-erased training revisions; holdout content never enters this result."""
+    """Only current, non-erased training revisions; holdout content never enters this result.
+
+    `case_ids` are an improvement attempt's own learning questions, in place of the
+    dataset's stored partition.
+    """
     from app.db.models.case_score import CaseScore
     from app.db.models.dataset import DatasetCase
     from app.db.models.eval_run import EvalRun, EvalRunArm, EvalRunCase
@@ -720,7 +725,9 @@ async def train_answers(
             EvalRun.organization_id == organization_id,
             DatasetCase.organization_id == organization_id,
             DatasetCase.dataset_id.in_(dataset_ids),
-            DatasetCase.improvement_partition == "train",
+            DatasetCase.improvement_partition == "train"
+            if case_ids is None
+            else DatasetCase.case_id.in_(case_ids),
             DatasetCase.anonymised_at.is_(None),
             (
                 DatasetCase.removed_in.is_(None)

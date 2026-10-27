@@ -31,7 +31,7 @@ import hashlib
 import json
 import logging
 from collections import defaultdict
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -1135,6 +1135,7 @@ class EvalRunService:
                         plan,
                         evidence_run_ids=proposal_check.evidence_run_ids,
                         evidence_conversations=exclude_conversations,
+                        holdout=proposal_check.attempt_holdout,
                     )
                 }
             )
@@ -1174,7 +1175,10 @@ class EvalRunService:
         *,
         evidence_run_ids: Sequence[UUID],
         evidence_conversations: Sequence[UUID],
+        holdout: Collection[UUID] | None = None,
     ) -> ImprovementMeasurement:
+        """The questions a check learns from and is measured on, by the dataset's stored
+        partition or, given `holdout`, by an attempt's own draw."""
         from app.services.improvement_data import CaseIdentity, measurement
 
         sources = await authoring_repo.evidence_inputs(
@@ -1195,7 +1199,9 @@ class EvalRunService:
             [
                 CaseIdentity(
                     case.case_id,
-                    case.improvement_partition,
+                    case.improvement_partition
+                    if holdout is None
+                    else ("holdout" if case.case_id in holdout else "train"),
                     case.input,
                     case.source_run_id,
                     decidable(case, plan.scoring, ai_enabled=ai_enabled),
@@ -1455,6 +1461,7 @@ class EvalRunService:
                         plan,
                         evidence_run_ids=proposal_check.evidence_run_ids,
                         evidence_conversations=exclude_conversations,
+                        holdout=proposal_check.attempt_holdout,
                     )
                 }
             )

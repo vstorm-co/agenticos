@@ -135,22 +135,35 @@ class AttemptNoise(BaseSchema):
 class MeasurementNoise(BaseSchema):
     """Whether the session's test can tell a better version from a worse one.
 
-    Read from the attempts' stored checks: the same version scored differently
-    on the same held-out questions, between attempts or on re-asking.
+    Read from the attempts' stored checks. Each attempt is measured on its own draw
+    of held-out questions, so re-asks within an attempt and today's version on the
+    questions two attempts share are what compare.
     """
 
     noisy: bool
-    held_out: int = Field(description="Held-out questions the attempts compared")
+    held_out: int = Field(description="Distinct held-out questions the attempts measured")
+    within: int = Field(
+        default=0, description="Held-out questions graded both ways when asked again in one attempt"
+    )
+    shared: int = Field(default=0, description="Held-out questions two or more attempts measured")
+    between: int | None = Field(
+        default=None,
+        description="Shared questions today's version was graded differently on in two "
+        "attempts; null when too few are shared to tell",
+    )
+    too_few_shared: bool = Field(
+        default=True, description="Fewer shared questions than it takes to compare attempts"
+    )
     baseline_low: float | None = Field(
-        description="Today's version's lowest held-out pass rate across the attempts"
+        description="Today's version's lowest pass rate on the shared questions across attempts"
     )
     baseline_high: float | None = Field(description="And its highest")
-    baseline_spread: int = Field(
-        description="Held-out questions between today's version's lowest and highest score"
+    baseline_spread: int | None = Field(
+        description="Shared questions between today's version's lowest and highest score"
     )
     unstable: int = Field(
-        description="Held-out questions graded both ways on re-asking, or graded differently "
-        "for today's version in two attempts"
+        description="Distinct held-out questions graded both ways when asked again, or "
+        "differently for today's version on a shared question"
     )
     by_attempt: list[AttemptNoise] = Field(default_factory=list)
     examples: list[NoisyQuestion] = Field(default_factory=list)

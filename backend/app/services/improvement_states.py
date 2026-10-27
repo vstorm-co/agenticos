@@ -325,6 +325,7 @@ class CheckResult:
     baseline_pass_rate: float | None
     suite: SuiteOutcome | None = None
     crashed: int = 0
+    held_out: int | None = None
 
 
 def judge(result: CheckResult) -> ImprovementVerdict:
@@ -386,12 +387,19 @@ def after_judging(
 class RoundResult:
     number: int
     verdict: ImprovementVerdict
+    fixed: int
     broken: int
-    pass_rate: float | None
+    held_out: int
+
+    @property
+    def change(self) -> float:
+        """What the attempt changed against its own baseline, as a share of its held-out
+        questions: each attempt is measured on its own draw, so counts alone do not compare."""
+        return (self.fixed - self.broken) / self.held_out if self.held_out else 0.0
 
 
 def best_round(rounds: list[RoundResult]) -> int | None:
-    """Prefer a measured improvement, then stability and settled success.
+    """Prefer a measured improvement, then the larger change against its own baseline.
 
     Inconclusive rounds are not evidence for selecting a candidate. Earlier
     rounds win exact ties, so a costly repeat cannot displace the same result.
@@ -404,12 +412,7 @@ def best_round(rounds: list[RoundResult]) -> int | None:
     }
     best = max(
         measured,
-        key=lambda item: (
-            order[item.verdict],
-            -item.broken,
-            item.pass_rate if item.pass_rate is not None else -1,
-            -item.number,
-        ),
+        key=lambda item: (order[item.verdict], item.change, -item.number),
         default=None,
     )
     return None if best is None else best.number
@@ -464,20 +467,25 @@ def estimated_minutes(
 
 
 NOISY_SPREAD_QUESTIONS = 2
-"""Held-out questions today's version may move by between attempts before the test is noise.
+"""Shared held-out questions today's version may move by between attempts before the test is
+noise.
 
-Every attempt asks the same version the same held-out questions, so any movement
-is the grading, not the agent. A typical attempt fixes one or two questions, and
-a check that wobbles by as many cannot tell that fix from chance.
+Today's version is the same in every attempt, so on the questions two attempts both
+measure any movement is the grading, not the agent. A typical attempt fixes one or
+two questions, and a check that wobbles by as many cannot tell that fix from chance.
 """
 
 NOISY_SPREAD_POINTS = 0.15
-"""The same wobble as a share of the held-out pass rate, for a set small enough
-that two questions is already a large share."""
+"""The same wobble as a share of the shared pass rate, for a set small enough that two
+questions is already a large share."""
 
 NOISY_UNSTABLE_SHARE = 0.2
 """Share of held-out questions graded both ways without the agent changing that
 makes the test noise: a fifth of the set is more than an attempt usually moves."""
+
+MIN_SHARED_QUESTIONS = 5
+"""Shared held-out questions below which two attempts' scores of today's version say nothing:
+each attempt draws its own, so only the questions both measured compare."""
 
 NOISE_EXAMPLES = 5
 """Unstable questions shown as examples; the counts cover the rest."""
@@ -495,11 +503,9 @@ class CheckedCase:
 
 @dataclass(frozen=True)
 class CheckedAttempt:
-    """One measured attempt's check: today's version's held-out score and every question."""
+    """One measured attempt's check: every held-out question it graded."""
 
     number: int
-    baseline_passed: int
-    baseline_rate: float | None
     cases: tuple[CheckedCase, ...]
 
 
@@ -507,33 +513,33 @@ def _both_ways(grades: Sequence[bool | None]) -> bool:
     return len({grade for grade in grades if grade is not None}) > 1
 
 
+def _first(case: CheckedCase) -> bool | None:
+    return case.baseline[0] if case.baseline else None
+
+
 def measurement_noise(attempts: Sequence[CheckedAttempt]) -> MeasurementNoise | None:
     """Whether the attempts' checks could tell a better version from a worse one.
 
-    Nothing is asked again: the signal is read from what the checks stored. Today's
-    version is the same in every attempt, so a different held-out score, a question
-    graded differently from one attempt to the next, or re-asks graded both ways
-    within one attempt are all the grading moving rather than the agent.
+    Nothing is asked again: the signal is read from what the checks stored. Within
+    an attempt, re-asks graded both ways are the grading moving. Between attempts,
+    each measured on its own draw of questions, only the questions they share
+    compare: today's version scored differently on them is the grading too.
     """
     if not attempts:
         return None
-    held_out = max(len(attempt.cases) for attempt in attempts)
-    scored = [attempt for attempt in attempts if attempt.baseline_rate is not None]
-    rates = [attempt.baseline_rate for attempt in scored if attempt.baseline_rate is not None]
-    low, high = (min(rates), max(rates)) if rates else (None, None)
-    passed = [attempt.baseline_passed for attempt in scored]
-    spread = max(passed) - min(passed) if passed else 0
-    first_grades: dict[UUID, set[bool]] = {}
+    holders: dict[UUID, int] = {}
     for attempt in attempts:
         for case in attempt.cases:
-            if case.baseline and case.baseline[0] is not None:
-                first_grades.setdefault(case.case_id, set()).add(case.baseline[0])
-    unstable = {case_id for case_id, grades in first_grades.items() if len(grades) > 1}
+            holders[case.case_id] = holders.get(case.case_id, 0) + 1
+    held_out = len(holders)
+    shared = {case_id for case_id, count in holders.items() if count >= 2}
+    too_few_shared = len(shared) < MIN_SHARED_QUESTIONS
+    within: set[UUID] = set()
     by_attempt = []
     for attempt in attempts:
         baseline = {case.case_id for case in attempt.cases if _both_ways(case.baseline)}
         candidate = {case.case_id for case in attempt.cases if _both_ways(case.candidate)}
-        unstable |= baseline | candidate
+        within |= baseline | candidate
         by_attempt.append(
             AttemptNoise(
                 number=attempt.number,
@@ -541,11 +547,33 @@ def measurement_noise(attempts: Sequence[CheckedAttempt]) -> MeasurementNoise | 
                 candidate_unstable=len(candidate),
             )
         )
+    between: set[UUID] = set()
+    low = high = None
+    spread: int | None = None
+    if not too_few_shared:
+        first_grades: dict[UUID, set[bool]] = {}
+        passed: list[int] = []
+        rates: list[float] = []
+        for attempt in attempts:
+            graded = [
+                (case.case_id, grade)
+                for case in attempt.cases
+                if case.case_id in shared and (grade := _first(case)) is not None
+            ]
+            for case_id, grade in graded:
+                first_grades.setdefault(case_id, set()).add(grade)
+            if graded:
+                hits = sum(grade for _, grade in graded)
+                passed.append(hits)
+                rates.append(hits / len(graded))
+        between = {case_id for case_id, grades in first_grades.items() if len(grades) > 1}
+        if rates:
+            low, high = min(rates), max(rates)
+            spread = max(passed) - min(passed)
+    unstable = within | between
     wobble = round(high - low, 6) if low is not None and high is not None else 0.0
-    noisy = (
-        spread >= NOISY_SPREAD_QUESTIONS
-        or wobble >= NOISY_SPREAD_POINTS
-        or (held_out > 0 and len(unstable) / held_out >= NOISY_UNSTABLE_SHARE)
+    noisy = (held_out > 0 and len(unstable) / held_out >= NOISY_UNSTABLE_SHARE) or (
+        spread is not None and (spread >= NOISY_SPREAD_QUESTIONS or wobble >= NOISY_SPREAD_POINTS)
     )
     shown: list[UUID] = []
     for attempt in attempts:
@@ -577,6 +605,10 @@ def measurement_noise(attempts: Sequence[CheckedAttempt]) -> MeasurementNoise | 
     return MeasurementNoise(
         noisy=noisy,
         held_out=held_out,
+        within=len(within),
+        shared=len(shared),
+        between=None if too_few_shared else len(between),
+        too_few_shared=too_few_shared,
         baseline_low=low,
         baseline_high=high,
         baseline_spread=spread,

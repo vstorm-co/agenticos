@@ -204,6 +204,7 @@ class EvidenceService:
         dataset_id: UUID | None = None,
         dataset_version: int | None = None,
         chat_run_ids: Sequence[UUID] | None = None,
+        train_case_ids: Sequence[UUID] | None = None,
     ) -> EvidencePack:
         """The agent's runs worth reading, less those that gave `excluded_message_ids`.
 
@@ -226,6 +227,7 @@ class EvidenceService:
             window_days=window_days,
             dataset_id=dataset_id,
             dataset_version=dataset_version,
+            case_ids=train_case_ids,
         )
         # Training failures and review notes precede chat examples, within one bound.
         used = {run.run_id for run in train}
@@ -237,8 +239,15 @@ class EvidenceService:
         )
 
     async def for_improvement(
-        self, ctx: AuthContext, run_id: UUID, *, excluded_message_ids: Sequence[UUID] = ()
+        self,
+        ctx: AuthContext,
+        run_id: UUID,
+        *,
+        excluded_message_ids: Sequence[UUID] = (),
+        train_case_ids: Sequence[UUID] | None = None,
     ) -> EvidencePack:
+        """A session's frozen evidence, its training answers read from `train_case_ids` - an
+        attempt's own learning questions - when given."""
         from app.core.exceptions import AuthorizationError, NotFoundError
         from app.repositories import improvement_repo
         from app.services.dataset import DatasetService
@@ -262,6 +271,7 @@ class EvidenceService:
             dataset_id=session.dataset_id,
             dataset_version=session.dataset_version,
             chat_run_ids=session.chat_evidence_run_ids or [],
+            train_case_ids=train_case_ids,
         )
 
     async def _train(
@@ -272,6 +282,7 @@ class EvidenceService:
         window_days: int,
         dataset_id: UUID | None = None,
         dataset_version: int | None = None,
+        case_ids: Sequence[UUID] | None = None,
     ) -> tuple[list[PackedRun], str]:
         from app.repositories import eval_run_repo
         from app.services.eval_run import EvalRunService
@@ -298,6 +309,7 @@ class EvidenceService:
             dataset_ids=sorted(allowed),
             dataset_version=dataset_version,
             since=since,
+            case_ids=case_ids,
         )
         packed: list[PackedRun] = []
         seen: set[UUID] = set()

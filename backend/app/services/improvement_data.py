@@ -5,7 +5,7 @@ import re
 import unicodedata
 from collections.abc import Collection, Sequence
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
 
 from app.schemas.dataset import CasePartitionLiteral
@@ -25,6 +25,20 @@ def case_partition(case_id: UUID, holdout_share: Decimal) -> CasePartitionLitera
     """
     bucket = int(hashlib.sha256(str(case_id).encode()).hexdigest()[:8], 16)
     return "holdout" if Decimal(bucket) < holdout_share * (2**32) else "train"
+
+
+def drawn_holdout(case_ids: Sequence[UUID], *, share: Decimal, seed: int) -> list[UUID]:
+    """An attempt's own measured questions: exactly the dataset's share of them, drawn by `seed`.
+
+    Drawn as one set rather than question by question, so a small dataset gets
+    its whole share instead of whatever each question's coin gave it, and the
+    same seed always draws the same questions.
+    """
+    count = int((share * len(case_ids)).to_integral_value(rounding=ROUND_HALF_UP))
+    ranked = sorted(
+        case_ids, key=lambda case_id: hashlib.sha256(f"{seed}:{case_id}".encode()).hexdigest()
+    )
+    return ranked[:count]
 
 
 def input_hash(text: str) -> str:

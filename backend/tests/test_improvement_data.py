@@ -3,7 +3,13 @@
 from decimal import Decimal
 from uuid import UUID
 
-from app.services.improvement_data import CaseIdentity, case_partition, input_hash, measurement
+from app.services.improvement_data import (
+    CaseIdentity,
+    case_partition,
+    drawn_holdout,
+    input_hash,
+    measurement,
+)
 
 
 def test_partition_depends_only_on_identity_and_extreme_shares_are_exact() -> None:
@@ -13,6 +19,16 @@ def test_partition_depends_only_on_identity_and_extreme_shares_are_exact() -> No
     assert frozen == {case_id: case_partition(case_id, Decimal("0.5")) for case_id in ids[:10]}
     assert {case_partition(case_id, Decimal(0)) for case_id in ids} == {"train"}
     assert {case_partition(case_id, Decimal(1)) for case_id in ids} == {"holdout"}
+
+
+def test_an_attempt_draws_exactly_its_share_and_the_same_seed_draws_the_same_questions() -> None:
+    ids = [UUID(int=number) for number in range(1, 12)]
+    first = drawn_holdout(ids, share=Decimal("0.5"), seed=7)
+    assert len(first) == 6 and set(first) <= set(ids)
+    assert drawn_holdout(ids, share=Decimal("0.5"), seed=7) == first
+    assert set(drawn_holdout(ids, share=Decimal("0.5"), seed=8)) != set(first)
+    assert drawn_holdout(ids, share=Decimal(0), seed=7) == []
+    assert set(drawn_holdout(ids, share=Decimal(1), seed=7)) == set(ids)
 
 
 def test_input_hash_evenly_handles_case_whitespace_and_unicode_width() -> None:

@@ -35,13 +35,13 @@ def _case(n: int, baseline=(True,), candidate=(True,)) -> CheckedCase:
     )
 
 
-def _attempt(number: int, passed: int, cases: list[CheckedCase]) -> CheckedAttempt:
-    return CheckedAttempt(
-        number=number,
-        baseline_passed=passed,
-        baseline_rate=passed / len(cases),
-        cases=tuple(cases),
-    )
+def _attempt(number: int, cases: list[CheckedCase]) -> CheckedAttempt:
+    return CheckedAttempt(number=number, cases=tuple(cases))
+
+
+def _scored(ids: range, passed: int) -> list[CheckedCase]:
+    """Today's version passing the first `passed` of these questions on its first answer."""
+    return [_case(i, baseline=(index < passed,)) for index, i in enumerate(ids)]
 
 
 def _steady(n: int = 10) -> list[CheckedCase]:
@@ -52,38 +52,59 @@ def test_a_session_with_no_measured_attempt_has_no_signal():
     assert measurement_noise([]) is None
 
 
-def test_the_same_version_scoring_two_questions_apart_is_noise():
-    noise = measurement_noise([_attempt(1, 5, _steady()), _attempt(2, 7, _steady())])
+def test_the_same_version_scoring_two_shared_questions_apart_is_noise():
+    noise = measurement_noise(
+        [_attempt(1, _scored(range(10), 5)), _attempt(2, _scored(range(10), 7))]
+    )
     assert noise is not None
     assert noise.noisy
     assert (noise.baseline_low, noise.baseline_high, noise.baseline_spread) == (0.5, 0.7, 2)
-    assert noise.held_out == 10
+    assert (noise.held_out, noise.shared, noise.between, noise.too_few_shared) == (
+        10,
+        10,
+        2,
+        False,
+    )
 
 
-def test_one_question_of_twenty_is_within_what_the_test_can_tell():
-    noise = measurement_noise([_attempt(1, 10, _steady(20)), _attempt(2, 11, _steady(20))])
+def test_one_shared_question_of_twenty_is_within_what_the_test_can_tell():
+    noise = measurement_noise(
+        [_attempt(1, _scored(range(20), 10)), _attempt(2, _scored(range(20), 11))]
+    )
     assert noise is not None
     assert not noise.noisy
     assert noise.baseline_spread == 1
-    assert noise.unstable == 0
-    assert noise.examples == []
+    assert (noise.within, noise.between, noise.unstable) == (0, 1, 1)
 
 
-def test_one_question_of_a_small_set_already_moves_the_score_too_far():
-    noise = measurement_noise([_attempt(1, 3, _steady(5)), _attempt(2, 4, _steady(5))])
+def test_one_question_of_a_small_shared_set_already_moves_the_score_too_far():
+    noise = measurement_noise(
+        [_attempt(1, _scored(range(5), 3)), _attempt(2, _scored(range(5), 4))]
+    )
     assert noise is not None
     assert noise.baseline_spread == 1
     assert noise.noisy
+
+
+def test_attempts_sharing_too_few_questions_are_judged_on_their_re_asks_alone():
+    noise = measurement_noise(
+        [_attempt(1, _scored(range(10), 2)), _attempt(2, _scored(range(6, 16), 9))]
+    )
+    assert noise is not None
+    assert (noise.shared, noise.too_few_shared, noise.between) == (4, True, None)
+    assert (noise.baseline_low, noise.baseline_high, noise.baseline_spread) == (None, None, None)
+    assert noise.held_out == 16
+    assert not noise.noisy
 
 
 def test_a_fifth_of_the_questions_graded_both_ways_is_noise_and_a_tenth_is_not():
     mixed = [_case(0, baseline=(True, False, True)), _case(1, candidate=(False, True))]
-    calm = _attempt(1, 10, [*mixed[:1], *_steady(10)[1:]])
+    calm = _attempt(1, [*mixed[:1], *_steady(10)[1:]])
     assert not measurement_noise([calm]).noisy  # type: ignore[union-attr]
-    noise = measurement_noise([_attempt(1, 10, [*mixed, *_steady(10)[2:]])])
+    noise = measurement_noise([_attempt(1, [*mixed, *_steady(10)[2:]])])
     assert noise is not None
-    assert noise.noisy
-    assert noise.unstable == 2
+    assert noise.noisy and noise.too_few_shared
+    assert (noise.within, noise.unstable) == (2, 2)
     assert noise.by_attempt[0].model_dump() == {
         "number": 1,
         "baseline_unstable": 1,
@@ -91,12 +112,12 @@ def test_a_fifth_of_the_questions_graded_both_ways_is_noise_and_a_tenth_is_not()
     }
 
 
-def test_today_s_version_graded_differently_between_attempts_counts_as_unstable():
-    first = _attempt(1, 10, [_case(0, baseline=(True, True, True)), *_steady(10)[1:]])
-    second = _attempt(2, 9, [_case(0, baseline=(False, False, False)), *_steady(10)[1:]])
+def test_today_s_version_graded_differently_on_a_shared_question_counts_as_unstable():
+    first = _attempt(1, [_case(0, baseline=(True, True, True)), *_steady(10)[1:]])
+    second = _attempt(2, [_case(0, baseline=(False, False, False)), *_steady(10)[1:]])
     noise = measurement_noise([first, second])
     assert noise is not None
-    assert noise.unstable == 1
+    assert (noise.unstable, noise.between, noise.within) == (1, 1, 0)
     assert [a.baseline_unstable for a in noise.by_attempt] == [0, 0]
     [example] = noise.examples
     assert example.input == "Question 0"
@@ -108,7 +129,7 @@ def test_today_s_version_graded_differently_between_attempts_counts_as_unstable(
 
 def test_ungraded_answers_neither_count_as_a_change_nor_hide_one():
     noise = measurement_noise(
-        [_attempt(1, 9, [_case(0, baseline=(None, True), candidate=(None,)), *_steady(10)[1:]])]
+        [_attempt(1, [_case(0, baseline=(None, True), candidate=(None,)), *_steady(10)[1:]])]
     )
     assert noise is not None
     assert noise.unstable == 0
@@ -116,18 +137,18 @@ def test_ungraded_answers_neither_count_as_a_change_nor_hide_one():
 
 def test_examples_stop_at_the_limit_while_the_count_covers_every_question():
     cases = [_case(i, baseline=(True, False)) for i in range(NOISE_EXAMPLES + 2)]
-    noise = measurement_noise([_attempt(1, len(cases), cases)])
+    noise = measurement_noise([_attempt(1, cases)])
     assert noise is not None
     assert noise.unstable == NOISE_EXAMPLES + 2
     assert [e.input for e in noise.examples] == [f"Question {i}" for i in range(NOISE_EXAMPLES)]
 
 
-def test_an_attempt_without_a_baseline_score_leaves_the_spread_to_the_others():
-    unscored = CheckedAttempt(number=1, baseline_passed=0, baseline_rate=None, cases=())
-    noise = measurement_noise([unscored])
+def test_shared_questions_nobody_graded_leave_the_spread_unknown():
+    ungraded = [_case(i, baseline=(None,)) for i in range(6)]
+    noise = measurement_noise([_attempt(1, ungraded), _attempt(2, ungraded), _attempt(3, [])])
     assert noise is not None
-    assert (noise.baseline_low, noise.baseline_high, noise.baseline_spread) == (None, None, 0)
-    assert noise.held_out == 0
+    assert (noise.baseline_low, noise.baseline_high, noise.baseline_spread) == (None, None, None)
+    assert (noise.shared, noise.between, noise.held_out) == (6, 0, 6)
     assert not noise.noisy
 
 
@@ -217,8 +238,8 @@ def service(monkeypatch):
         cases=[_flip(0, True, reruns=[False, True]), *[_flip(i, True) for i in range(1, 10)]],
     )
     second = SimpleNamespace(
-        baseline_summary=SimpleNamespace(passed=7, pass_rate=0.7),
-        cases=[_flip(i, True) for i in range(10)],
+        baseline_summary=SimpleNamespace(passed=8, pass_rate=0.8),
+        cases=[_flip(i, i < 8) for i in range(10)],
     )
     compare = AsyncMock(side_effect=[first, second])
     monkeypatch.setattr(pipeline.evals, "compare", compare)
@@ -231,7 +252,8 @@ async def test_a_settled_session_reads_its_noise_from_each_measured_attempt(serv
     noise = read.measurement_noise
     assert noise is not None
     assert noise.noisy
-    assert (noise.baseline_low, noise.baseline_high, noise.baseline_spread) == (0.5, 0.7, 2)
+    assert (noise.baseline_low, noise.baseline_high, noise.baseline_spread) == (0.8, 1.0, 2)
+    assert (noise.within, noise.between, noise.unstable) == (1, 2, 3)
     assert [a.number for a in noise.by_attempt] == [1, 2]
     assert noise.examples[0].attempts[0].baseline == [True, False, True]
     assert compare.await_count == 2

@@ -7,6 +7,7 @@ transition without repeating a model call. Only an explicit human finish accepts
 
 import hashlib
 import json
+import secrets
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -46,6 +47,7 @@ from app.db.models.authoring import (
     BatchStatus,
     HunkKind,
     HunkStatus,
+    SpecProposalBatch,
     SpecProposalHunk,
 )
 from app.db.models.eval_run import ArmRole, EvalRun
@@ -133,7 +135,7 @@ from app.services.dataset import DatasetService, redact_credentials
 from app.services.embedding_resolution import embeddings_for_collection
 from app.services.eval_run import EvalRunService, scoring_hash, spec_hash
 from app.services.eval_suite import EvalSuiteService
-from app.services.improvement_data import input_hash
+from app.services.improvement_data import drawn_holdout, input_hash
 from app.services.knowledge_gaps import KnowledgeGapService, draft_fingerprint
 from app.services.notifications import NotificationService
 from app.worker.jobs import (
@@ -849,16 +851,7 @@ class ImprovementPipelineService:
         result.can_restart = await self._may_continue(ctx, run)
         if run.status == Status.WAITING:
             result.next_step = "check" if run.stage == Stage.FILTERING else "propose"
-        measured = [
-            rules.RoundResult(
-                item.number,
-                ImprovementVerdict(item.verdict),
-                (item.verdict_detail or {}).get("broken") or 0,
-                (item.verdict_detail or {}).get("candidate_pass_rate"),
-            )
-            for item in iterations
-            if item.verdict is not None
-        ]
+        measured = [self._round_result(item) for item in iterations if item.verdict is not None]
         hint = rules.no_progress(measured)
         if hint is not None:
             result.round_hint = "no_change" if hint == StopReason.NO_CHANGE else "inconclusive"
@@ -939,12 +932,9 @@ class ImprovementPipelineService:
                 comparison = await self.evals.compare(ctx, iteration.eval_run_ids[-1])
             except NotFoundError:
                 continue
-            theirs = comparison.baseline_summary
             attempts.append(
                 rules.CheckedAttempt(
                     number=iteration.number,
-                    baseline_passed=0 if theirs is None else theirs.passed,
-                    baseline_rate=None if theirs is None else theirs.pass_rate,
                     cases=tuple(
                         rules.CheckedCase(
                             case_id=case.case_id,
@@ -1385,7 +1375,18 @@ class ImprovementPipelineService:
                 exclude_conversations=batch.evidence_conversation_ids,
                 judge_version_id=run.judge_version_id,
                 judge_pinned=True,
+                proposal_check=await self._check_record(
+                    ctx, run, iteration, batch, max(1, len(iteration.included_hunk_ids or []))
+                ),
             )
+            measured = check.proposal_check.measurement if check.proposal_check else None
+            assert measured is not None, "an attempt's check is always measured"
+            if measured.gradable_holdout < measured.minimum_holdout:
+                missing = measured.minimum_holdout - measured.gradable_holdout
+                raise BadRequestError(
+                    message=f"Add {missing} more test questions to measure this attempt",
+                    details={"missing_holdout": missing},
+                )
             completed = await improvement_repo.completed_checks(
                 self.db, iteration.eval_run_ids, organization_id=ctx.organization_id
             )
@@ -1441,6 +1442,7 @@ class ImprovementPipelineService:
                 following = await improvement_repo.create_iteration(
                     self.db, organization_id=ctx.organization_id, run_id=run.id, number=quote.number
                 )
+                await self._draw_split(run, following)
             await improvement_repo.update_iteration(
                 self.db, iteration=following, values={"note": data.note}
             )
@@ -2268,8 +2270,16 @@ class ImprovementPipelineService:
                 run_id=run.id,
                 number=max(item.number for item in rounds) + 1,
             )
+            # Proposed from this attempt's evidence, so measured on this attempt's split.
             await improvement_repo.update_iteration(
-                self.db, iteration=deferred, values={"batch_id": separate.id}
+                self.db,
+                iteration=deferred,
+                values={
+                    "batch_id": separate.id,
+                    "split_seed": iteration.split_seed,
+                    "train_case_ids": iteration.train_case_ids,
+                    "holdout_case_ids": iteration.holdout_case_ids,
+                },
             )
             remaining = model_changes
             await self._audit(run, "candidate_split")
@@ -2391,19 +2401,7 @@ class ImprovementPipelineService:
             else EvalSuiteCheck(
                 suite_id=inputs.suite.id, name=inputs.suite.name, threshold=inputs.suite.threshold
             ),
-            proposal_check=ProposalCheckRecord(
-                kind="agent",
-                base_version=None,
-                on_draft=True,
-                suggestions=count,
-                improvement_run_id=run.id,
-                evidence_run_ids=list(
-                    {
-                        *(run.chat_evidence_run_ids or []),
-                        *await self.authoring.evidence_run_ids(ctx, batch),
-                    }
-                ),
-            ),
+            proposal_check=await self._check_record(ctx, run, iteration, batch, count),
         )
         await improvement_repo.update_iteration(
             self.db,
@@ -2411,6 +2409,60 @@ class ImprovementPipelineService:
             values={"eval_run_ids": [*iteration.eval_run_ids, child.id], "verdict": None},
         )
         await self._audit(run, "child_started")
+
+    async def _check_record(
+        self,
+        ctx: AuthContext,
+        run: ImprovementRun,
+        iteration: ImprovementIteration,
+        batch: SpecProposalBatch,
+        suggestions: int,
+    ) -> ProposalCheckRecord:
+        """What an attempt's check records: its evidence, kept out of the measured questions,
+        and the attempt's own draw of those questions."""
+        return ProposalCheckRecord(
+            kind="agent",
+            base_version=None,
+            on_draft=True,
+            suggestions=suggestions,
+            improvement_run_id=run.id,
+            evidence_run_ids=list(
+                {
+                    *(run.chat_evidence_run_ids or []),
+                    *await self.authoring.evidence_run_ids(ctx, batch),
+                }
+            ),
+            attempt_holdout=iteration.holdout_case_ids,
+        )
+
+    async def _draw_split(self, run: ImprovementRun, iteration: ImprovementIteration) -> None:
+        """Give a new attempt its own draw of the questions it learns from and is measured on."""
+        dataset = await dataset_repo.get(
+            self.db, run.dataset_id, organization_id=run.organization_id
+        )
+        version = await dataset_repo.get_version(
+            self.db, run.dataset_id, run.dataset_version, organization_id=run.organization_id
+        )
+        assert dataset is not None and version is not None, "the quote checked the pinned set"
+        cases = [
+            case.case_id
+            for case in await dataset_repo.list_cases(
+                self.db, version.id, organization_id=run.organization_id, limit=None
+            )
+            if case.anonymised_at is None
+        ]
+        seed = secrets.randbelow(2**31 - 1)
+        holdout = drawn_holdout(cases, share=dataset.improvement_holdout_share, seed=seed)
+        held = set(holdout)
+        await improvement_repo.update_iteration(
+            self.db,
+            iteration=iteration,
+            values={
+                "split_seed": seed,
+                "train_case_ids": [case_id for case_id in cases if case_id not in held],
+                "holdout_case_ids": holdout,
+            },
+        )
 
     @staticmethod
     def _check_result(child: EvalRunRead, comparison: EvalComparisonRead) -> rules.CheckResult:
@@ -2435,6 +2487,21 @@ class ImprovementPipelineService:
             candidate_pass_rate=mine.pass_rate,
             baseline_pass_rate=None if theirs is None else theirs.pass_rate,
             suite=outcome,
+            held_out=None
+            if child.proposal_check is None or child.proposal_check.measurement is None
+            else len(child.proposal_check.measurement.holdout_case_ids),
+        )
+
+    @staticmethod
+    def _round_result(item: ImprovementIteration) -> rules.RoundResult:
+        assert item.verdict is not None
+        detail = item.verdict_detail or {}
+        return rules.RoundResult(
+            item.number,
+            ImprovementVerdict(item.verdict),
+            detail.get("fixed") or 0,
+            detail.get("broken") or 0,
+            detail.get("held_out") or 0,
         )
 
     @staticmethod
@@ -2448,6 +2515,7 @@ class ImprovementPipelineService:
             "crashed": result.crashed,
             "candidate_pass_rate": result.candidate_pass_rate,
             "baseline_pass_rate": result.baseline_pass_rate,
+            "held_out": result.held_out,
         }
 
     async def recompute_after_review(self, ctx: AuthContext, check_ids: list[UUID]) -> None:
@@ -2561,12 +2629,7 @@ class ImprovementPipelineService:
             budget=run.budget_usd,
         )
         results = [
-            rules.RoundResult(
-                item.number,
-                ImprovementVerdict(item.verdict),
-                (item.verdict_detail or {}).get("broken") or 0,
-                (item.verdict_detail or {}).get("candidate_pass_rate"),
-            )
+            self._round_result(item)
             for item in rounds
             if item.verdict is not None
             and (bool(iteration.previous_eval_run_ids) or item.number <= iteration.number)
@@ -2690,7 +2753,11 @@ class ImprovementPipelineService:
             case.case_id
             for case in cases
             if case.case_id in selected
-            and case.improvement_partition == "holdout"
+            and (
+                case.improvement_partition == "holdout"
+                if iteration.holdout_case_ids is None
+                else case.case_id in iteration.holdout_case_ids
+            )
             and case.anonymised_at is None
             and case.source_run_id not in source_runs
             and case.source_conversation_id not in conversations
@@ -2753,6 +2820,7 @@ class ImprovementPipelineService:
             suggestions=1,
             improvement_run_id=run.id,
             evidence_run_ids=list(source_runs),
+            attempt_holdout=iteration.holdout_case_ids,
             knowledge=KnowledgeCheckRecord(
                 topic_id=topic.id, draft_hash=hashed, supported=supported, mode=data.mode
             ),
@@ -3230,6 +3298,7 @@ class ImprovementPipelineService:
                     suggestions=1,
                     improvement_run_id=run.id,
                     evidence_run_ids=evidence_ids,
+                    attempt_holdout=iteration.holdout_case_ids,
                 ),
             )
             ids[str(hunk_id)] = str(child.id)
