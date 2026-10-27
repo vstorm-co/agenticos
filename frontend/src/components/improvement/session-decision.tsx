@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 
-import { ChangePreview } from "@/components/authoring/result-dialog";
 import { LoadingState } from "@/components/states";
 import { Badge } from "@/components/ui";
 import { useAgentEvalSuites } from "@/hooks/use-eval-suites";
 import { useImprovementChanges, useImprovementEvidence } from "@/hooks/use-improvements";
 import { useKnowledgeGaps } from "@/hooks/use-knowledge-gaps";
 import type { Improvement } from "@/types/improvement";
+import { MeasuredChange } from "./measured-change";
 import { StepError } from "./step-error";
 
 /** The timeline entries that end a session, as the API records them. */
@@ -41,7 +41,7 @@ function Changes({ session }: { session: Improvement }) {
           <Badge variant={hunk.status === "accepted" ? "success" : "secondary"}>
             {t(`changeState.${hunk.status}`)}
           </Badge>
-          <ChangePreview hunk={hunk} sources={sources} />
+          <MeasuredChange hunk={hunk} sources={sources} />
         </article>
       ))}
     </section>

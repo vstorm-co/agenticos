@@ -936,3 +936,54 @@ describe("every step's state matches what its panel shows", () => {
     }
   });
 });
+
+describe("accepting an attempt", () => {
+  const openAccept = async () => {
+    render(<ImprovementPage agentId="a1" sessionId="s1" />);
+    await userEvent.click(screen.getByRole("button", { name: "Review and accept the changes" }));
+  };
+
+  it("shows the change being accepted, as it was measured", async () => {
+    state.hunks = [hunk({ id: "h1", new_text: "Helper text.", edited_text: "My wording." })];
+    await openAccept();
+    expect(screen.getByRole("heading", { name: "The change you are accepting" })).toBeVisible();
+    expect(screen.getByText("Reworded by you")).toBeInTheDocument();
+  });
+
+  it("presses nothing on the person when the attempt brought no measured gain", async () => {
+    state.session!.iterations[0] = {
+      ...state.session!.iterations[0]!,
+      verdict: "no_change",
+      verdict_detail: { fixed: 0, broken: 0 },
+    };
+    await openAccept();
+    expect(
+      screen.getByText(
+        /^Attempt 1 did not make .+ better\. Accepting it changes .+ with no measured gain\.$/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/Check these questions automatically/)).not.toBeChecked();
+    expect(screen.getByRole("button", { name: "Keep as draft" })).toHaveClass("bg-primary");
+    expect(screen.getByRole("button", { name: "Accept and publish" })).not.toHaveClass(
+      "bg-primary",
+    );
+  });
+
+  it("leads with publishing and the standing check when the attempt was better", async () => {
+    await openAccept();
+    expect(screen.queryByText(/with no measured gain/)).toBeNull();
+    expect(screen.getByLabelText(/Check these questions automatically/)).toBeChecked();
+    expect(screen.getByRole("button", { name: "Accept and publish" })).toHaveClass("bg-primary");
+    expect(screen.getByRole("button", { name: "Keep as draft" })).not.toHaveClass("bg-primary");
+  });
+});
+
+it("lists every attempt on a finished session's Changes, not the selection it decided", () => {
+  state.session = { ...state.session!, status: "accepted", finished_at: "2026-10-24T13:00:00Z" };
+  state.hunks = [hunk({ id: "h1", new_text: "Helper text.", accepted_text: "My wording." })];
+  window.history.replaceState({}, "", "/?step=changes");
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.getByRole("heading", { name: "What each attempt tried" })).toBeVisible();
+  expect(screen.getByText("Reworded by you")).toBeInTheDocument();
+  expect(screen.queryByRole("checkbox", { name: /Include change/ })).toBeNull();
+});

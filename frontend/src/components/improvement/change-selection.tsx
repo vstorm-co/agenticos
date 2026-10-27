@@ -4,12 +4,12 @@ import { useState } from "react";
 import { FilePen, ListChecks, Target } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { Button, Checkbox } from "@/components/ui";
-import { ChangePreview } from "@/components/authoring/result-dialog";
 import { usd } from "@/components/evals/format";
 import { useImprovement, useImprovementEvidence } from "@/hooks/use-improvements";
 import { getErrorMessage } from "@/lib/api-error";
 import type { Hunk } from "@/types/authoring";
 import type { Improvement, ImprovementIteration, SelectionEstimate } from "@/types/improvement";
+import { MeasuredChange } from "./measured-change";
 import { RoundTitle } from "./round-results";
 import { Tiles } from "./widgets";
 import { useReadOnly } from "./read-only";
@@ -91,7 +91,7 @@ export function ChangeSelection({
               {t("includeInTest")}
             </label>
           )}
-          <ChangePreview hunk={hunk} sources={sources} />
+          <MeasuredChange hunk={hunk} sources={sources} />
           {hunk.expected_effect && (
             <div className="bg-success/5 border-success/30 flex items-start gap-2 rounded-lg border p-3 text-sm">
               <Target className="text-success mt-0.5 size-4 shrink-0" aria-hidden />

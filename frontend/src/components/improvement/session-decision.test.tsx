@@ -32,7 +32,12 @@ vi.mock("@/hooks/use-eval-suites", () => ({
   useAgentEvalSuites: () => ({ suites: state.suites }),
 }));
 vi.mock("@/components/authoring/result-dialog", () => ({
-  ChangePreview: ({ hunk }: { hunk: Hunk }) => <p>{`Change ${hunk.id}`}</p>,
+  ChangePreview: ({ hunk }: { hunk: Hunk }) => (
+    <>
+      <p>{`Change ${hunk.id}`}</p>
+      <p>{hunk.new_text}</p>
+    </>
+  ),
 }));
 
 function ended(status: Improvement["status"], extra: Partial<Improvement> = {}): Improvement {
@@ -164,4 +169,20 @@ describe("SessionDecision", () => {
     render(<SessionDecision session={ended("published")} />);
     expect(screen.getByText(words)).toBeInTheDocument();
   });
+});
+
+it("shows the reworded text that was measured and accepted, not the helper's", () => {
+  state.changes = [
+    hunk({
+      id: "h1",
+      status: "accepted",
+      new_text: "Helper text.",
+      edited_text: "My wording.",
+      accepted_text: "My wording.",
+    }),
+  ];
+  render(<SessionDecision session={ended("accepted")} />);
+  expect(screen.getByText("My wording.")).toBeInTheDocument();
+  expect(screen.queryByText("Helper text.")).toBeNull();
+  expect(screen.getByText("Reworded by you")).toBeInTheDocument();
 });

@@ -250,3 +250,12 @@ it("shows the changes but none of the choosing once the wizard is only read", ()
     screen.queryByRole("button", { name: "Estimate checking selected changes" }),
   ).not.toBeInTheDocument();
 });
+
+it("shows a reworded change with the wording that was measured", () => {
+  const view = render(
+    <Form hunks={[hunk({ id: "h1", new_text: "Helper text.", edited_text: "My wording." })]} />,
+  );
+  expect(screen.getByText("Reworded by you")).toBeInTheDocument();
+  expect(view.container).toHaveTextContent("My wording.");
+  expect(view.container).not.toHaveTextContent("Helper text.");
+});

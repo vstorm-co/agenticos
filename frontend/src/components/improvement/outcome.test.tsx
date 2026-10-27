@@ -245,6 +245,11 @@ it("states what the new version fixes, breaks and costs, and what it was tested 
     name: "In the agent: version 4 will fix 3 questions, break 0, cost +2% per answer. Tested on 12 questions, 5 of them not used to write the changes.",
   });
   expect(within(tiles).getByText("+2%")).toBeInTheDocument();
+  expect(
+    screen.getByText(
+      "Cost per answer +2% compared with today's version, measured on the 5 questions kept aside.",
+    ),
+  ).toBeInTheDocument();
   expect(within(tiles).getByText("5 not used to write the changes")).toBeInTheDocument();
   state.compared = comparison({
     baseline_summary: { ...SUMMARY, cost_usd: "0" },

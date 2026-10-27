@@ -4,7 +4,7 @@ import { hunk } from "@/test-utils/authoring";
 import { SESSION } from "@/test-utils/improvement";
 import type { Hunk } from "@/types/authoring";
 import type { Improvement } from "@/types/improvement";
-import { TriedChanges } from "./tried-changes";
+import { AcceptedChanges, TriedChanges } from "./tried-changes";
 
 const state = vi.hoisted(() => ({
   changes: {} as Record<number, Hunk[]>,
@@ -130,4 +130,31 @@ it("says it is loading, why it could not read an attempt's changes, and when it 
   state.changes = {};
   view.rerender(<TriedChanges session={session} />);
   expect(screen.getByText("No change was written in this attempt.")).toBeInTheDocument();
+});
+
+it("shows only the changes an attempt tested before it is accepted, as reworded", () => {
+  state.changes = {
+    1: [
+      hunk({ id: "h1", new_text: "Helper text.", accepted_text: "Accepted wording." }),
+      hunk({ id: "h2", new_text: "Left out." }),
+    ],
+  };
+  state.evidence = [{ run_id: "run-1", conversation_id: null, kind: "chat", question: "Q" }];
+  const round = { ...SESSION.iterations[0]!, number: 1, included_hunk_ids: ["h1"] };
+  const view = render(<AcceptedChanges session={SESSION} round={round} />);
+  expect(screen.getByRole("heading", { name: "The change you are accepting" })).toBeVisible();
+  expect(screen.getByText("Reworded by you")).toBeInTheDocument();
+  expect(view.container).toHaveTextContent("Accepted wording.");
+  expect(view.container).not.toHaveTextContent("Left out.");
+  view.rerender(
+    <AcceptedChanges session={SESSION} round={{ ...round, included_hunk_ids: null }} />,
+  );
+  expect(screen.getByRole("heading", { name: "The 2 changes you are accepting" })).toBeVisible();
+  state.isLoading = true;
+  view.rerender(<AcceptedChanges session={SESSION} round={round} />);
+  expect(screen.getByRole("status")).toBeInTheDocument();
+  state.isLoading = false;
+  state.error = new Error("gone");
+  view.rerender(<AcceptedChanges session={SESSION} round={round} />);
+  expect(screen.getByRole("alert")).toBeInTheDocument();
 });

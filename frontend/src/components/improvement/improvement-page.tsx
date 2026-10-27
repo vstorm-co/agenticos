@@ -26,10 +26,11 @@ import { Understand } from "./understand";
 import { AttemptChanges } from "./attempt-changes";
 import { AttemptHistory } from "./attempt-history";
 import { CheckProgress } from "./check-progress";
-import { TriedChanges } from "./tried-changes";
+import { AcceptedChanges, TriedChanges } from "./tried-changes";
 import { EndSession } from "./end-session";
 import { NextStep } from "./next-step";
 import { StepDecisions } from "./step-decisions";
+import { NotBetterWarning } from "./attempt-choice";
 import { AcceptSummary, GuardNote, KnowledgeDocuments } from "./outcome";
 import { ResultStep } from "./result-decision";
 import { ReadOnlyNote, ReadOnlyProvider, type ReadOnlyReason } from "./read-only";
@@ -133,7 +134,7 @@ function Session({
     heading.focus();
   }, [moves]);
   const [error, setError] = useState<string | null>(null);
-  const [automatic, setAutomatic] = useState(true);
+  const [automaticChoice, setAutomatic] = useState<boolean | null>(null);
   const [confirm, setConfirm] = useState(false);
   const [draftSelection, setDraftSelection] = useState<{ roundId: string; ids: string[] } | null>(
     null,
@@ -183,6 +184,9 @@ function Session({
   const previous = reachable.filter((id) => STEPS.indexOf(id) < STEPS.indexOf(step)).at(-1);
   const next = reachable.find((id) => STEPS.indexOf(id) > STEPS.indexOf(step));
   const chosen = session.iterations.find((r) => r.id === session.best_iteration_id);
+  const gain = chosen?.verdict === "better";
+  // Without a measured gain nothing is pressed on the person: no standing check, no publish first.
+  const automatic = automaticChoice ?? gain;
   const selectedBatch = authoring?.batch?.id === chosen?.batch_id ? authoring?.batch : null;
   const measuredIds =
     chosen?.included_hunk_ids ??
@@ -270,7 +274,7 @@ function Session({
                     onEditing={setWordingOpen}
                   />
                 </section>
-              ) : chosen && selectedBatch?.hunks.length ? (
+              ) : chosen && selectedBatch?.hunks.length && !isClosed(session) ? (
                 <ChangeSelection
                   session={session}
                   round={chosen}
@@ -353,6 +357,10 @@ function Session({
             <section className="space-y-4 rounded-xl border p-6" data-tour="improvement-accept">
               <h2 className="font-medium">{t("steps.accept")}</h2>
               <AcceptSummary session={session} round={chosen} />
+              {chosen && !gain && <NotBetterWarning round={chosen} agent={agentName} />}
+              {chosen && session.status === "ready" && (
+                <AcceptedChanges session={session} round={chosen} />
+              )}
               {session.status === "ready" && <KnowledgeDocuments session={session} accept />}
               {session.status === "ready" && readOnly === null && (
                 <>
@@ -406,7 +414,7 @@ function Session({
                   </label>
                   <div className="flex flex-wrap gap-3">
                     <Button
-                      variant="outline"
+                      variant={gain || !canPublish ? "outline" : "default"}
                       disabled={
                         !confirm ||
                         missingBatch ||
@@ -428,6 +436,7 @@ function Session({
                     </Button>
                     {canPublish && (
                       <Button
+                        variant={gain ? "default" : "outline"}
                         disabled={
                           !confirm ||
                           missingBatch ||

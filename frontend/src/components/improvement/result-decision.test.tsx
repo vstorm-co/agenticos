@@ -306,7 +306,7 @@ it("judges noise only within attempts when they shared too few questions, and sa
   });
   expect(
     screen.getByText(
-      /^The test can't tell a better version from a worse one: 3 of the 10 questions kept aside got/,
+      /^The test can't tell a better version from a worse one: 3 of the 10 questions kept aside across the 2 attempts got/,
     ),
   ).toBeInTheDocument();
   expect(

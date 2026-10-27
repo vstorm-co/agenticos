@@ -55,7 +55,6 @@ export function AttemptChoice({ session, agent }: { session: Improvement; agent:
   }
   const pending = picked && picked.id !== kept ? picked : undefined;
   const risky = pending !== undefined && pending.verdict !== "better";
-  const broken = Number(pending?.verdict_detail?.broken ?? 0);
   return (
     <fieldset className="space-y-2">
       <legend className="mb-2 text-sm font-medium">{t("title")}</legend>
@@ -81,13 +80,7 @@ export function AttemptChoice({ session, agent }: { session: Improvement; agent:
       ))}
       {pending && (
         <div className="space-y-2 pt-1">
-          {risky && (
-            <p role="status" className="text-warning text-sm">
-              {pending.verdict === "regression" && broken > 0
-                ? t("broke", { number: pending.number, broken, agent })
-                : t("notBetter", { number: pending.number, agent })}
-            </p>
-          )}
+          {risky && <NotBetterWarning round={pending} agent={agent} />}
           <Button
             variant={risky ? "outline" : "default"}
             disabled={actions.selectRound.isPending}
@@ -103,5 +96,18 @@ export function AttemptChoice({ session, agent }: { session: Improvement; agent:
         </p>
       )}
     </fieldset>
+  );
+}
+
+/** What keeping an attempt that was not better costs: the questions it broke, or no gain. */
+export function NotBetterWarning({ round, agent }: { round: ImprovementIteration; agent: string }) {
+  const t = useTranslations("improvement.keep");
+  const broken = Number(round.verdict_detail?.broken ?? 0);
+  return (
+    <p role="status" className="text-warning text-sm">
+      {round.verdict === "regression" && broken > 0
+        ? t("broke", { number: round.number, broken, agent })
+        : t("notBetter", { number: round.number, agent })}
+    </p>
   );
 }

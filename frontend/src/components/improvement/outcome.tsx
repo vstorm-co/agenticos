@@ -220,34 +220,41 @@ function AgentSentence({
           maximumFractionDigits: 0,
         }).format(change);
   return (
-    <Tiles
-      label={t("acceptAgent", {
-        version: version ?? 0,
-        fixed,
-        broken,
-        costKnown: change === null ? "no" : "yes",
-        cost,
-        total,
-        heldOut: after?.cases ?? 0,
-      })}
-      tiles={[
-        { label: t("widgets.fixes"), value: fixed, tone: "teal", icon: CheckCircle2 },
-        { label: t("widgets.breaks"), value: broken, tone: "rose", icon: XCircle },
-        {
-          label: t("widgets.costPerAnswer"),
-          value: change === null ? "–" : cost,
-          tone: "amber",
-          icon: Coins,
-        },
-        {
-          label: t("widgets.testedOn"),
-          value: total,
-          tone: "indigo",
-          icon: ListChecks,
-          caption: t("widgets.heldOutCaption", { count: after?.cases ?? 0 }),
-        },
-      ]}
-    />
+    <div className="space-y-2">
+      <Tiles
+        label={t("acceptAgent", {
+          version: version ?? 0,
+          fixed,
+          broken,
+          costKnown: change === null ? "no" : "yes",
+          cost,
+          total,
+          heldOut: after?.cases ?? 0,
+        })}
+        tiles={[
+          { label: t("widgets.fixes"), value: fixed, tone: "teal", icon: CheckCircle2 },
+          { label: t("widgets.breaks"), value: broken, tone: "rose", icon: XCircle },
+          {
+            label: t("widgets.costPerAnswer"),
+            value: change === null ? "–" : cost,
+            tone: "amber",
+            icon: Coins,
+          },
+          {
+            label: t("widgets.testedOn"),
+            value: total,
+            tone: "indigo",
+            icon: ListChecks,
+            caption: t("widgets.heldOutCaption", { count: after?.cases ?? 0 }),
+          },
+        ]}
+      />
+      {change !== null && (
+        <p className="text-muted-foreground text-xs">
+          {t("costExplained", { cost, heldOut: after?.cases ?? 0 })}
+        </p>
+      )}
+    </div>
   );
 }
 

@@ -1,10 +1,10 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { ChangePreview } from "@/components/authoring/result-dialog";
 import { useAttemptChanges, useImprovementEvidence } from "@/hooks/use-improvements";
 import { getErrorMessage } from "@/lib/api-error";
 import type { Improvement, ImprovementIteration } from "@/types/improvement";
+import { MeasuredChange } from "./measured-change";
 import { StateBadge } from "./widgets";
 
 /**
@@ -62,21 +62,46 @@ function AttemptProposals({
     <div className="mt-3 space-y-4">
       {changes.map((hunk) => (
         <div key={hunk.id} className="space-y-2">
-          <div className="flex flex-wrap gap-2">
-            <StateBadge tone="neutral">
-              {t(!tested || tested.includes(hunk.id) ? "tested" : "notTested", {
-                number: round.number,
-              })}
-            </StateBadge>
-            {hunk.edited_text && <StateBadge tone="neutral">{t("edited")}</StateBadge>}
-          </div>
-          {hunk.edited_text && <p className="text-muted-foreground text-xs">{t("editedReason")}</p>}
-          <ChangePreview
-            hunk={hunk.edited_text ? { ...hunk, new_text: hunk.edited_text } : hunk}
-            sources={sources}
-          />
+          <StateBadge tone="neutral">
+            {t(!tested || tested.includes(hunk.id) ? "tested" : "notTested", {
+              number: round.number,
+            })}
+          </StateBadge>
+          <MeasuredChange hunk={hunk} sources={sources} />
         </div>
       ))}
     </div>
+  );
+}
+
+/** The changes an attempt tested, as measured, for the person about to accept them. */
+export function AcceptedChanges({
+  session,
+  round,
+}: {
+  session: Improvement;
+  round: ImprovementIteration;
+}) {
+  const t = useTranslations("improvement");
+  const tErrors = useTranslations("errors");
+  const { changes, isLoading, error } = useAttemptChanges(
+    session.agent_id,
+    session.id,
+    round.number,
+  );
+  const { evidence } = useImprovementEvidence(session.agent_id, { sessionId: session.id });
+  const sources = Object.fromEntries((evidence?.items ?? []).map((item) => [item.run_id, item]));
+  if (error) return <p role="alert">{getErrorMessage(error, tErrors)}</p>;
+  if (isLoading) return <p role="status">{t("attemptChanges.loading")}</p>;
+  const tested = changes.filter(
+    (hunk) => !round.included_hunk_ids || round.included_hunk_ids.includes(hunk.id),
+  );
+  return (
+    <section className="space-y-3">
+      <h3 className="text-sm font-medium">{t("acceptChanges", { count: tested.length })}</h3>
+      {tested.map((hunk) => (
+        <MeasuredChange key={hunk.id} hunk={hunk} sources={sources} />
+      ))}
+    </section>
   );
 }

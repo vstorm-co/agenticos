@@ -40,6 +40,14 @@ const PER_ATTEMPT: readonly ImprovementStep[] = ["changes", "check"];
 /** How long after an attempt began the Try again that began it is recorded. */
 const SAME_REQUEST_MS = 60_000;
 
+/** The note a Try again left for the attempt it started, when it left one. */
+function noteOf(session: Improvement, event: Event): string | null {
+  const started = session.iterations.find(
+    (round) => Math.abs(Date.parse(round.started_at) - Date.parse(event.at)) < SAME_REQUEST_MS,
+  );
+  return started?.note ?? null;
+}
+
 /** The people who decided something on this step, newest last, when their names may be shown. */
 export function StepDecisions({ session, step }: { session: Improvement; step: ImprovementStep }) {
   const t = useTranslations("improvement.decided");
@@ -79,14 +87,20 @@ export function StepDecisions({ session, step }: { session: Improvement; step: I
             })}
           </li>
         )}
-        {decided.map((event, index) => (
-          <li key={`${event.action}:${event.at}:${index}`}>
-            {t(placeOf(event)![1], {
-              name: event.actor_name!,
-              at: new Date(event.at).toLocaleString(locale),
-            })}
-          </li>
-        ))}
+        {decided.map((event, index) => {
+          const note =
+            event.action === "improvement.continuation_confirmed" && noteOf(session, event);
+          return (
+            <li key={`${event.action}:${event.at}:${index}`}>
+              {t(placeOf(event)![1], {
+                name: event.actor_name!,
+                at: new Date(event.at).toLocaleString(locale),
+                noted: note ? "yes" : "no",
+                note: note || "",
+              })}
+            </li>
+          );
+        })}
       </ul>
     </section>
   );

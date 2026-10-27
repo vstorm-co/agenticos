@@ -88,3 +88,20 @@ it("names who asked for another attempt and what they asked, and only this attem
   view.rerender(<StepDecisions session={session} step="check" />);
   expect(screen.queryByRole("region")).toBeNull();
 });
+
+it("records which attempt a person chose to keep, and the note a Try again left", () => {
+  const session: Improvement = {
+    ...SESSION,
+    iterations: [
+      { ...SESSION.iterations[0]!, number: 1 },
+      { ...SESSION.iterations[0]!, id: "r2", number: 2, started_at: AT, note: "Be shorter" },
+    ],
+    timeline: [
+      event("improvement.continuation_confirmed", "Ben"),
+      event("improvement.round_selected", "Ben"),
+    ],
+  };
+  render(<StepDecisions session={session} step="result" />);
+  expect(screen.getByText(/^Ben asked for another attempt: “Be shorter” · /)).toBeInTheDocument();
+  expect(screen.getByText(/^Ben chose which attempt to keep · /)).toBeInTheDocument();
+});
