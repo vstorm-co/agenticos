@@ -144,7 +144,10 @@ it.each([
     { reason: "nothing_to_learn" as const },
     /fixed every question it learns from, so another attempt has nothing to learn from/,
   ],
-  [{ reason: "missing_holdout" as const, needed: 2 }, /2 more questions kept aside/],
+  [
+    { reason: "missing_holdout" as const, needed: 2 },
+    /too few questions to measure: 2 more are needed/,
+  ],
 ])("says why another attempt is not offered: %o", (blocked, why) => {
   const session = { ...SESSION, status: "ready" as const, try_again_blocked: blocked };
   expect(continuation(session).canContinue).toBe(false);

@@ -11580,7 +11580,8 @@
     },
     "freshAttempt": "Each attempt starts from the current version; changes from earlier attempts aren't carried over.",
     "trainSignals": "Test answers failing",
-    "tryAgainNothingToLearn": "The last attempt fixed every question it learns from, so another attempt has nothing to learn from. Accept it or end the session."
+    "tryAgainNothingToLearn": "The last attempt fixed every question it learns from, so another attempt has nothing to learn from. Accept it or end the session.",
+    "tryAgainUnmeasurable": "Another attempt would have too few questions to measure: {count, plural, one {# more is} other {# more are}} needed, and this session's questions are fixed. End it, add questions and start a new one."
   },
   "unsaved": {
     "title": "You have unsaved changes",

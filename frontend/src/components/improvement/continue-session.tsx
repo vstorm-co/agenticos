@@ -152,7 +152,7 @@ export function ContinueSession({
       ) : session.try_again_blocked && !resume ? (
         <p role="status" className="text-sm">
           {session.try_again_blocked.reason === "missing_holdout"
-            ? t("nextUp.unmeasurable", { count: session.try_again_blocked.needed ?? 1 })
+            ? t("tryAgainUnmeasurable", { count: session.try_again_blocked.needed ?? 1 })
             : t("tryAgainNothingToLearn")}
         </p>
       ) : (
