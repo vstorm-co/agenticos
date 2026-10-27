@@ -655,7 +655,11 @@ class TestFileManagement:
                 _ctx(), self.project.id, path="missing", content="new", revision=original.revision
             )
 
-    @pytest.mark.parametrize("data", [b"\x00binary", b"\xff", b"x" * 1_048_577])
+    @pytest.mark.parametrize(
+        "data",
+        [b"\x00binary", b"\xff", b"x" * 1_048_577],
+        ids=["binary", "invalid-utf8", "over-one-mib"],
+    )
     async def test_the_editor_refuses_binary_and_overlarge_files(self, data: bytes) -> None:
         self.service.workspaces.project_bytes = AsyncMock(return_value=data)
         with pytest.raises(BadRequestError):
