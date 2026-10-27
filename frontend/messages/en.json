@@ -11058,7 +11058,7 @@
     "baseline": "Test how the agent answers today",
     "estimate": "Estimate again",
     "estimating": "Estimating the time and cost…",
-    "sessionQuote": "About {minutes, plural, one {# minute} other {# minutes}}, up to {cost} (estimate) to read what went wrong in {count, plural, one {# question} other {# questions}}. Each next step is priced before you press it, and the limit below caps the whole session.",
+    "sessionQuote": "About {minutes, plural, one {# minute} other {# minutes}}, up to {cost} (estimate) to read what went wrong in {count, plural, one {# question} other {# questions}}. Each attempt after that costs about {perRound} and is priced before you press it; the limit of {limit} caps the whole session.",
     "evidence": "Based on {count, plural, one {# answer} other {# answers}} with feedback.",
     "budget": "Session spending limit (USD)",
     "start": "Start improving",

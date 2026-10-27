@@ -78,6 +78,7 @@ vi.mock("@/components/agents/system-agent-choice", () => ({
 
 const QUOTE = {
   total_usd: "0.12",
+  per_round_usd: "0.04",
   cases: 12,
   max_iterations: 3,
   evidence_runs: 5,
@@ -111,9 +112,21 @@ it("prices the agent's own test set at once, so Start improving is the one decis
   expect(state.start).toHaveBeenCalledWith({
     dataset_id: "own",
     max_iterations: 3,
-    budget_usd: "0.12",
+    budget_usd: "0.24",
   });
   expect(state.push).toHaveBeenCalledWith("/agents/a1/improve/s1");
+});
+
+it("prices only reading what went wrong, and offers a limit for every attempt after it", async () => {
+  state.estimate.mockResolvedValue({ ...QUOTE, total_usd: "0", per_round_usd: "0.0333" });
+  render(<StartSession agentId="a1" />);
+  expect(
+    await screen.findByText(
+      /up to \$0\.00 \(estimate\) to read what went wrong in 12 questions\. Each attempt after that costs about \$0\.0333 .* the limit of \$0\.10 caps the whole session\./,
+    ),
+  ).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Start improving" }));
+  expect(state.start).toHaveBeenCalledWith(expect.objectContaining({ budget_usd: "0.1" }));
 });
 
 it("keeps the question set, the limit, the helper and today's test under Show details", async () => {

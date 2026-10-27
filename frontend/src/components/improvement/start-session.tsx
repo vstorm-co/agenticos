@@ -66,7 +66,7 @@ export function StartSession({ agentId }: { agentId: string }) {
   const key = `${asked}:${written}`;
   const quote = quoted?.key === key ? quoted.value : null;
   const refused = refusal?.key === key ? refusal.message : null;
-  const limit = budget ?? quote?.total_usd ?? "";
+  const limit = budget ?? (quote ? sessionLimit(quote) : "");
   const estimateSession = sessions.estimate.mutateAsync;
   // An estimate spends nothing, so the price and the time are on screen as soon
   // as there is something to price; only starting asks for a click.
@@ -142,7 +142,8 @@ export function StartSession({ agentId }: { agentId: string }) {
                 minutes: quote.estimated_minutes,
                 cost: usd(quote.total_usd, locale),
                 count: quote.cases,
-                rounds: quote.max_iterations,
+                perRound: usd(quote.per_round_usd, locale),
+                limit: usd(limit, locale),
               })}
             </p>
             {quote.reason && <p role="status">{tr(`reason.${quote.reason}`)}</p>}
@@ -234,6 +235,16 @@ export function StartSession({ agentId }: { agentId: string }) {
       </div>
     </div>
   );
+}
+
+/**
+ * The limit a new session is offered: reading what went wrong, then every attempt it
+ * may make, rounded up to a cent. The start is priced only to the first stop, but the
+ * limit caps the whole session, so it has to leave room for the steps after it.
+ */
+function sessionLimit(quote: ImprovementEstimate): string {
+  const whole = Number(quote.total_usd) + quote.max_iterations * Number(quote.per_round_usd);
+  return String(Math.max(0.01, Math.ceil(whole * 100) / 100));
 }
 
 /**

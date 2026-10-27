@@ -10941,7 +10941,7 @@
     "baseline": "Heutige Antworten des Agenten testen",
     "estimate": "Erneut schätzen",
     "estimating": "Zeit und Kosten werden geschätzt…",
-    "sessionQuote": "Etwa {minutes, plural, one {# Minute} other {# Minuten}}, bis zu {cost} (Schätzung), um zu lesen, was bei {count, plural, one {# Frage} other {# Fragen}} schiefging. Jeder nächste Schritt wird bepreist, bevor Sie ihn drücken, und das Limit unten gilt für die ganze Sitzung.",
+    "sessionQuote": "Etwa {minutes, plural, one {# Minute} other {# Minuten}}, bis zu {cost} (Schätzung), um zu lesen, was bei {count, plural, one {# Frage} other {# Fragen}} schiefging. Jeder Versuch danach kostet ca. {perRound} und wird bepreist, bevor Sie ihn drücken; das Limit von {limit} gilt für die ganze Sitzung.",
     "evidence": "Auf Grundlage von {count, plural, one {# Antwort} other {# Antworten}} mit Feedback.",
     "budget": "Ausgabenlimit der Sitzung (USD)",
     "start": "Verbesserung starten",

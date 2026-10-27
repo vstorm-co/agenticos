@@ -10841,7 +10841,7 @@
     "baseline": "Sprawdź, jak agent odpowiada dzisiaj",
     "estimate": "Oszacuj ponownie",
     "estimating": "Szacowanie czasu i kosztu…",
-    "sessionQuote": "Około {minutes, plural, one {# minuty} few {# minut} many {# minut} other {# minuty}}, do {cost} (szacunkowo), aby przeczytać, co poszło nie tak, na {count, plural, one {# pytaniu} few {# pytaniach} many {# pytaniach} other {# pytania}}. Każdy następny krok wyceniamy, zanim go naciśniesz, a limit poniżej obejmuje całą sesję.",
+    "sessionQuote": "Około {minutes, plural, one {# minuty} few {# minut} many {# minut} other {# minuty}}, do {cost} (szacunkowo), aby przeczytać, co poszło nie tak, na {count, plural, one {# pytaniu} few {# pytaniach} many {# pytaniach} other {# pytania}}. Każda kolejna próba kosztuje ok. {perRound} i jest wyceniana, zanim ją naciśniesz; limit {limit} obejmuje całą sesję.",
     "evidence": "Na podstawie {count, plural, one {# odpowiedzi} few {# odpowiedzi} many {# odpowiedzi} other {# odpowiedzi}} z informacją zwrotną.",
     "budget": "Limit wydatków sesji (USD)",
     "start": "Zacznij poprawianie",
