@@ -21,6 +21,10 @@ Read the file first when one is listed; it is the documentation page itself, bun
 | Using AgenticOS from Claude Code, Codex, Cursor or Claude Desktop (AgenticOS as an MCP server) | `docs/mcp.md`, section "AgenticOS as an MCP server" |
 | Calling the HTTP API, API keys, streaming, errors | `docs/api.md` |
 | Ongoing work, shared files across chats, creating a project, an LLM wiki | `docs/projects.md` |
+| Improving an agent: the Improve wizard, its steps, attempts, held-out questions, accepting and publishing | `docs/authoring.md` |
+| Eval runs: estimates, baselines, confirmed and unconfirmed changes, suites and their thresholds | `docs/evals.md` |
+| Test questions (datasets): cases, versions, grading, the held-out share | `docs/datasets.md` |
+| Questions the knowledge base could not answer, grouped into topics, and drafting documents for them | `docs/knowledge-gaps.md` |
 | Roles, scopes, sharing an agent | https://vstorm-co.github.io/agenticos/permissions/ |
 | Budgets, approvals, alerts, the audit log | https://vstorm-co.github.io/agenticos/governance/ |
 | Slack, Telegram, Mattermost, the website widget | https://vstorm-co.github.io/agenticos/channels/ |
