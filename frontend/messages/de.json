@@ -3821,7 +3821,8 @@
     "backgroundJobs": "Hintergrund-Jobs",
     "loadingPage": "Seite wird geöffnet",
     "inbox": "Posteingang",
-    "inboxCount": "{count, plural, =1 {1 wartet} other {# warten}}"
+    "inboxCount": "{count, plural, =1 {1 wartet} other {# warten}}",
+    "consoleVersion": "Konsolenversion {version}"
   },
   "navigation": {
     "dashboard": "Dashboard",

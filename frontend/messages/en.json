@@ -3939,7 +3939,8 @@
     "backgroundJobs": "Background jobs",
     "loadingPage": "Opening the page",
     "inbox": "Inbox",
-    "inboxCount": "{count, plural, =1 {1 waiting} other {# waiting}}"
+    "inboxCount": "{count, plural, =1 {1 waiting} other {# waiting}}",
+    "consoleVersion": "Console version {version}"
   },
   "navigation": {
     "dashboard": "Dashboard",

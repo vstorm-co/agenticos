@@ -3709,7 +3709,8 @@
     "backgroundJobs": "Zadania w tle",
     "loadingPage": "Otwieranie strony",
     "inbox": "Inbox",
-    "inboxCount": "{count, plural, =1 {1 czeka} few {# czekają} many {# czeka} other {# czeka}}"
+    "inboxCount": "{count, plural, =1 {1 czeka} few {# czekają} many {# czeka} other {# czeka}}",
+    "consoleVersion": "Wersja konsoli {version}"
   },
   "navigation": {
     "dashboard": "Panel",

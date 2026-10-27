@@ -696,3 +696,5 @@ quiet one.
   ones you do not use.
 - A page showing "nothing yet" may be **a failed request**, not an empty
   resource.
+
+The sidebar footer shows the console build version beside search and notifications, including in the collapsed rail and mobile menu. It comes from the frontend package version embedded in that build, so checking it needs no network request. The tooltip identifies it as the console version; an API process upgraded separately can run another version.

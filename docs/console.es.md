@@ -1,5 +1,5 @@
 ---
-source_sha: "3459fcd244b0"
+source_sha: "093be48b0e0d"
 ---
 
 # La consola { #the-console }
@@ -739,3 +739,5 @@ que un problema real se lea como algo tranquilo.
   los que no uses.
 - Una página que muestra "todavía nada" puede ser **una petición fallida**, no un
   recurso vacío.
+
+El pie de la barra lateral muestra la versión de compilación de la consola junto a la búsqueda y las notificaciones, también en la barra contraída y el menú móvil. Procede de la versión del paquete frontend incluida en la compilación y no requiere solicitudes de red. El texto emergente la identifica como versión de la consola; un proceso API actualizado por separado puede ejecutar otra versión.

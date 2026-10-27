@@ -1,5 +1,5 @@
 ---
-source_sha: "3459fcd244b0"
+source_sha: "093be48b0e0d"
 ---
 
 # Die Konsole { #the-console }
@@ -784,3 +784,5 @@ dem ein echtes Problem als ein stilles gelesen wird.
   können die ausblenden, die Sie nicht nutzen.
 - Eine Seite, die "noch nichts da" zeigt, kann **eine fehlgeschlagene Anfrage**
   sein und keine leere Ressource.
+
+Die Seitenleistenfußzeile zeigt die Build-Version der Konsole neben Suche und Benachrichtigungen, auch in der eingeklappten Leiste und im mobilen Menü. Sie stammt aus der im Build eingebetteten Frontend-Paketversion und benötigt keine Netzwerkanfrage. Der Tooltip kennzeichnet sie als Konsolenversion; ein separat aktualisierter API-Prozess kann eine andere Version ausführen.

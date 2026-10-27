@@ -21,6 +21,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Show the running console build version in the sidebar footer, including the
+  collapsed rail and mobile navigation.
+
 - Projects can choose a sandbox connection or stored files when created. Settings
   show the connection used by their shared workspace and explain sharing and code
   execution. Existing projects can transfer files between connections or stored

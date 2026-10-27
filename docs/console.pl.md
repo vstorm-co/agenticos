@@ -1,5 +1,5 @@
 ---
-source_sha: "3459fcd244b0"
+source_sha: "093be48b0e0d"
 ---
 
 # Konsola { #the-console }
@@ -720,3 +720,5 @@ problem zostaje odczytany jako cisza.
   korzystasz, możesz ukryć.
 - Strona pokazująca "nic jeszcze nie ma" może być **nieudanym żądaniem**, a nie
   pustym zasobem.
+
+Stopka panelu bocznego pokazuje wersję kompilacji konsoli obok wyszukiwania i powiadomień, także w zwiniętym panelu i menu mobilnym. Numer pochodzi z wersji pakietu frontendu zapisanej w kompilacji, więc jego odczyt nie wymaga żądania sieciowego. Podpowiedź określa go jako wersję konsoli; osobno aktualizowany proces API może mieć inną wersję.
