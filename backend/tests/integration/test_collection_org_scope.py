@@ -18,12 +18,16 @@ import uuid
 import pytest
 from pydantic import SecretStr
 
+from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.core.secret_kinds import ApiKeySecret
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.organization import Organization
+from app.db.models.rag_document import RAGDocument
+from app.db.models.sync_source import SyncSource
 from app.db.models.user import User
-from app.repositories import knowledge_base_repo
+from app.repositories import knowledge_base_repo, rag_document_repo
+from app.services.collection_access import CollectionAccessService
 from app.services.embedding_resolution import EmbeddingKeySource, embeddings_for_collection
 from app.services.organization_secret import OrganizationSecretService
 
@@ -144,10 +148,11 @@ class TestTheEmbeddingResolverUnsealsOnlyTheCallersKey:
 class TestTheDocumentListingStaysInsideTheOrganization:
     @pytest.mark.security
     async def test_a_shared_name_lists_only_this_organizations_documents(self, db) -> None:
-        """Codex on #2062: the legacy listing filtered on the collection's name alone."""
-        from app.db.models.rag_document import RAGDocument
-        from app.repositories import rag_document_repo
+        """Codex on #2062: the legacy listing filtered on the collection's name alone.
 
+        An app-scoped scope (`None`) is no longer the name alone either: with no
+        base on the rows, it holds only the untagged one (#2486).
+        """
         mine, _ = await _org(db, name="Acme")
         theirs, _ = await _org(db, name="Globex")
         for organization_id, filename in (
@@ -171,10 +176,137 @@ class TestTheDocumentListingStaysInsideTheOrganization:
         app_rows, app_total = await rag_document_repo.get_all(db, scopes=[("handbook", None)])
 
         assert [row.filename for row in org_rows] == ["ours.pdf"] and org_total == 1
-        assert sorted(row.filename for row in app_rows) == [
-            "everyones.pdf",
-            "ours.pdf",
-            "theirs.pdf",
-        ]
-        assert app_total == 3
+        assert [row.filename for row in app_rows] == ["everyones.pdf"] and app_total == 1
         assert await rag_document_repo.get_all(db, scopes=[]) == ([], 0)
+
+
+async def _document(
+    db, filename: str, *, organization_id: uuid.UUID | None, kb: KnowledgeBase | None
+) -> RAGDocument:
+    doc = RAGDocument(
+        organization_id=organization_id,
+        knowledge_base_id=None if kb is None else kb.id,
+        collection_name="both",
+        filename=filename,
+        filesize=1,
+        filetype="pdf",
+        status="done",
+    )
+    db.add(doc)
+    await db.flush()
+    return doc
+
+
+class TestAnAppCollectionKeepsApartFromASameNamedTenantBase:
+    """#2486: an app-scoped base and an organization's base claiming one name.
+
+    An app-scoped base is readable by every member of every organization, and an
+    app admin who also edits in organization A can give both bases one name. A
+    row matched on that name alone - or on the uploader's organization alone -
+    is then org A's document shown to org B through the app base, or an app
+    upload by an org A member counted as org A's.
+    """
+
+    async def _seed(self, db) -> dict[str, object]:
+        org_a, owner_a = await _org(db, name="Alpha")
+        org_b, member_b = await _org(db, name="Beta")
+        kb_a = _kb(org_a.id, "both")
+        db.add(kb_a)
+        await db.flush()
+        kb_app = _kb(None, "both", scope=KBScope.APP.value)
+        db.add(kb_app)
+        await db.flush()
+        return {
+            "kb_a": kb_a,
+            "kb_app": kb_app,
+            "org_a": org_a,
+            "ctx_a": AuthContext(
+                user_id=owner_a.id, organization_id=org_a.id, role=OrgRoleName.OWNER
+            ),
+            "ctx_b": AuthContext(
+                user_id=member_b.id, organization_id=org_b.id, role=OrgRoleName.MEMBER
+            ),
+            "tenant": await _document(db, "tenant.pdf", organization_id=org_a.id, kb=kb_a),
+            # An app admin who is an org A member uploads into the app base.
+            "app_by_a": await _document(db, "app-by-a.pdf", organization_id=org_a.id, kb=kb_app),
+            "app_by_b": await _document(db, "app-by-b.pdf", organization_id=org_b.id, kb=kb_app),
+            # A deployment-wide sync's row: no base, no organization.
+            "untagged": await _document(db, "untagged.pdf", organization_id=None, kb=None),
+        }
+
+    @pytest.mark.security
+    async def test_another_organization_lists_only_the_app_bases_documents(self, db) -> None:
+        seeded = await self._seed(db)
+        access = CollectionAccessService(db)
+
+        scopes = await access.readable_scopes_for(seeded["ctx_b"], "both")
+        rows, total = await rag_document_repo.get_all(db, scopes=scopes)
+
+        assert sorted(row.filename for row in rows) == [
+            "app-by-a.pdf",
+            "app-by-b.pdf",
+            "untagged.pdf",
+        ]
+        assert total == 3
+
+    @pytest.mark.security
+    async def test_the_tenants_listing_leaves_out_rows_filed_under_the_app_base(self, db) -> None:
+        seeded = await self._seed(db)
+
+        rows, total = await rag_document_repo.get_all(db, scopes=[("both", seeded["org_a"].id)])
+
+        assert [row.filename for row in rows] == ["tenant.pdf"] and total == 1
+
+    @pytest.mark.security
+    async def test_a_tenants_document_is_not_reachable_through_the_app_base(self, db) -> None:
+        seeded = await self._seed(db)
+        access = CollectionAccessService(db)
+        kb_app, kb_a = seeded["kb_app"], seeded["kb_a"]
+
+        with pytest.raises(NotFoundError):
+            await access.readable_document(seeded["ctx_b"], str(seeded["tenant"].id))
+        with pytest.raises(NotFoundError):
+            await access.kb_document(kb_app, str(seeded["tenant"].id))
+        # Nor is an app-base row reachable through the tenant's own base.
+        with pytest.raises(NotFoundError):
+            await access.kb_document(kb_a, str(seeded["app_by_a"].id))
+
+        for key in ("app_by_a", "app_by_b", "untagged"):
+            doc_id = str(seeded[key].id)
+            assert (await access.readable_document(seeded["ctx_b"], doc_id)).id == seeded[key].id
+            assert (await access.kb_document(kb_app, doc_id)).id == seeded[key].id
+        assert (await access.kb_document(kb_a, str(seeded["tenant"].id))).id == seeded["tenant"].id
+
+    @pytest.mark.security
+    async def test_a_tenants_sync_source_is_not_reachable_through_the_app_base(self, db) -> None:
+        """A source carries an organization and no base: it belongs to the base its
+        sync writes under, which is its organization's own before an app one."""
+        seeded = await self._seed(db)
+        access = CollectionAccessService(db)
+        kb_app, kb_a = seeded["kb_app"], seeded["kb_a"]
+        tenants = SyncSource(
+            organization_id=seeded["org_a"].id,
+            name="Alpha drive",
+            connector_type="gdrive",
+            collection_name="both",
+            config={},
+        )
+        # An app admin's source for the app base, filed under an organization
+        # that holds no base by this name.
+        apps = SyncSource(
+            organization_id=seeded["ctx_b"].organization_id,
+            name="App drive",
+            connector_type="gdrive",
+            collection_name="both",
+            config={},
+        )
+        db.add_all([tenants, apps])
+        await db.flush()
+
+        with pytest.raises(NotFoundError):
+            await access.kb_sync_source(kb_app, str(tenants.id))
+        with pytest.raises(NotFoundError):
+            await access.kb_sync_source(kb_a, str(apps.id))
+
+        assert (await access.kb_sync_source(kb_a, str(tenants.id))).id == tenants.id
+        assert (await access.kb_sync_source(kb_app, str(apps.id))).id == apps.id

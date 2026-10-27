@@ -21,10 +21,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- `GET /rag/collections/{name}/info` on an app-scoped collection counts only
-  that collection's documents. A tenant's knowledge base sharing its name no
-  longer adds its documents to the counts or holds `indexing_status` at
-  `indexing`, and the reverse holds for the tenant's own collection (#2486).
+- An app-scoped collection and an organization's knowledge base with the same
+  name keep their documents apart. Through the app collection, members of
+  other organizations could list the organization's documents
+  (`GET /rag/documents`) and download, read or delete them (`/rag/documents/{id}`
+  and `/kb/{kb_id}/documents/{doc_id}`). The organization's sync sources were
+  also reachable through the app base's `/kb/{kb_id}/sync-sources/{source_id}`
+  routes. Those documents also counted toward the app collection in
+  `GET /rag/collections/{name}/info`, where they could hold `indexing_status`
+  at `indexing`. A document filed under the app base now belongs to the app
+  collection, whichever organization uploaded it. The organization's listing
+  and counts leave it out (#2486).
 
 ## [1.25.0] - 2026-10-27
 
