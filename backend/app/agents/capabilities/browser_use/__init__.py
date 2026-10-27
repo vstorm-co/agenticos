@@ -14,6 +14,7 @@ from app.agents.capabilities._registry import (
 )
 from app.agents.capabilities.browser_use._capability import WebBrowser
 from app.agents.capabilities.browser_use._elements import HARD_CANDIDATE_CAP
+from app.agents.capabilities.browser_use._history import BROWSER_REPORT_TOOLS
 from app.agents.capabilities.browser_use._local import page_factory as local_page_factory
 from app.agents.capabilities.browser_use._route import (
     Connection,
@@ -467,7 +468,13 @@ def _build(ctx: CapabilityBuildContext) -> AbstractCapability[object]:
         and not config.timezone
         and not config.locale
     )
+    aliases = {
+        tool: override.name
+        for tool, override in ctx.binding.tool_overrides.items()
+        if override.name is not None
+    }
     return WebBrowser(
+        report_tool_names=frozenset(aliases.get(tool, tool) for tool in BROWSER_REPORT_TOOLS),
         resume_local=isinstance(local_session, UUID) and native_local,
         page_factory=local_page_factory(local_session, native=native_local)
         if isinstance(local_session, UUID)

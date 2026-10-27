@@ -1,5 +1,5 @@
 ---
-source_sha: "acd35149885e"
+source_sha: "d1e3cf92658b"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -720,6 +720,14 @@ chat lo que hace entre acciones. El navegador se abre automáticamente en un pan
 dos clics que el agent manejó él mismo tardó 13 s, y con `browse_web` unos 20. Las
 herramientas convienen para una tarea corta o una que alguien quiere ver, `browse_web`
 para una tarea larga entregada entera.
+
+Antes de cada petición al modelo, los resultados anteriores de herramientas directas
+pierden solo sus tablas obsoletas de elementos numerados. Se conservan la tabla más
+reciente, el texto de los artículos y los resultados de acciones; la conversación
+guardada mantiene los resultados completos. La navegación DOM usa la vista previa
+independiente y captura una imagen final tras detenerla. Vision sigue esperando la
+imagen para el modelo. La disponibilidad depende del contenido visible y no de cambios
+ajenos en segundo plano; un documento vacío recibe un reintento acotado de lectura.
 
 **Varias pestañas y reanudación.** `browser_new_tab(url)` abre una página aparte,
 `browser_tabs` lista identificadores, `browser_switch_tab(tab_id)` selecciona y lee una

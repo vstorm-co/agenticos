@@ -1495,16 +1495,19 @@ class TestWhatASurfaceIsShown:
         scroll = _step(Scroll(action="scroll"))
         result = await _browse(page, _decider(scroll, scroll, DONE), sink=frames, preview=True)
         assert result.outcome == "done"
-        assert page.shots == 0
+        assert page.shots == 1
 
     async def test_no_preview_and_no_vision_takes_no_screenshot(self):
         page = _FakePage()
         await _browse(page, _decider(DONE), preview=False)
         assert page.shots == 0
 
-    async def test_vision_shows_the_model_the_screenshot_even_with_no_preview(self):
+    @pytest.mark.parametrize("preview", [False, True])
+    async def test_vision_shows_the_model_the_screenshot_with_or_without_preview(
+        self, preview: bool
+    ):
         seen: list[Any] = []
-        await _browse(_FakePage(), _decider(DONE, seen=seen), preview=False, vision=True)
+        await _browse(_FakePage(), _decider(DONE, seen=seen), preview=preview, vision=True)
         assert seen[0][3] == "data:image/jpeg;base64,AAAA"
 
     async def test_without_vision_the_model_is_sent_no_picture(self):
@@ -1539,10 +1542,10 @@ class TestWhatASurfaceIsShown:
         result = await _browse(page, _decider(DONE), sink=frames, preview=True)
 
         assert result.outcome == "done"
-        # Metadata finds nobody before starting any image work.
-        assert all(frame.image is None for frame in frames.of("browser_frame"))
+        # No live capture without a viewer; one final picture remains for reopening.
+        assert sum(frame.image is not None for frame in frames.of("browser_frame")) == 1
         assert "stream:on" not in page.done
-        assert page.shots == 0
+        assert page.shots == 1
 
     async def test_a_page_with_no_picture_sends_no_frame(self):
         frames = _Frames()
@@ -2479,10 +2482,9 @@ class TestADirectActionAndThePerson:
             self._view(frames), BrowseSession(page=page), Click(action="click", index=0)
         )
 
-        # The toolset owns continuous painting; an individual action only
-        # captures its final observation.
+        # Continuous painting belongs to the toolset; tools only read the DOM.
         assert "stream:on" not in page.done
-        assert page.shots == 1
+        assert page.shots == 0
 
     async def test_a_page_with_no_picture_paints_nothing_after_the_action(self):
         frames = _Frames()
@@ -3092,3 +3094,83 @@ async def test_a_navigation_replacing_the_evaluation_context_is_retried_then_ref
     evaluate.side_effect = RuntimeError(message)
     with pytest.raises(EndpointError, match="replaced or closed"):
         await page._evaluate("document.readyState")
+
+
+async def test_a_direct_action_never_waits_for_a_screenshot() -> None:
+    from app.agents.capabilities.browser_use._direct import DirectView
+
+    page = _FakePage(_snapshot(_element(0), text="Loaded article"))
+    page.screenshot = AsyncMock(side_effect=AssertionError("A tool must not capture a preview"))
+    frames = _Frames()
+    view = DirectView(
+        call_id="call", sink=frames, control=None, run_id="run", remember=None, preview=True
+    )
+    result = await act_directly(view, BrowseSession(page=page), Scroll(action="scroll"))
+    assert "Loaded article" in result
+    page.screenshot.assert_not_awaited()
+
+
+async def test_a_replacing_empty_document_is_read_again_before_returning_to_the_model() -> None:
+    from app.agents.capabilities.browser_use._direct import DirectView
+
+    page = _FakePage(_snapshot(_element(0)), _snapshot(text=""), _snapshot(text="Loaded article"))
+    view = DirectView(
+        call_id="call", sink=None, control=None, run_id=None, remember=None, preview=False
+    )
+    result = await act_directly(view, BrowseSession(page=page), Scroll(action="scroll"))
+    assert "Loaded article" in result
+    assert page.done.count("settle") == 2
+
+
+@pytest.mark.parametrize("url,expected", [("https://example.test/empty", 2), ("about:blank", 1)])
+async def test_an_intentionally_empty_page_has_bounded_readiness_retries(
+    url: str, expected: int
+) -> None:
+    from app.agents.capabilities.browser_use._direct import DirectView, open_view
+
+    page = _FakePage(_snapshot(url=url, text=""))
+    page.snapshot = AsyncMock(return_value=_snapshot(url=url, text=""))
+    view = DirectView(
+        call_id="call", sink=None, control=None, run_id=None, remember=None, preview=False
+    )
+    await open_view(view, BrowseSession(page=page), "Read")
+    assert page.snapshot.await_count == expected
+
+
+async def test_direct_tools_capture_only_one_final_frame_after_the_preview_stops() -> None:
+    page = _two_buttons()
+    frames = _Frames()
+    toolset = _toolset(_Opener(page), preview=True)
+    async with toolset:
+        await _direct(toolset, "browser_open", {"url": "https://example.test/"}, sink=frames)
+        await _direct(toolset, "browser_click", {"element": 0}, sink=frames)
+        await _direct(toolset, "browser_scroll", {"direction": "down"}, sink=frames)
+        assert page.shots == 0
+    assert page.shots == 1
+    kinds = [event.kind for event in frames.frames]
+    assert kinds[-2:] == ["browser_frame", "browser_finished"]
+
+
+async def test_dom_browse_loop_only_captures_a_final_picture() -> None:
+    page = _FakePage(*[_snapshot(scroll_y=float(index)) for index in range(4)])
+    frames = _Frames()
+    await _browse(
+        page, _decider(_step(Scroll(action="scroll"))), sink=frames, preview=True, max_steps=2
+    )
+    assert page.shots == 1
+    assert [event.kind for event in frames.frames][-2:] == ["browser_frame", "browser_finished"]
+
+
+@pytest.mark.parametrize(
+    "failure", [DomainRefused("Left allowed domains"), EndpointError("Closed page")]
+)
+async def test_a_missing_final_loop_picture_still_completes_and_closes_the_stream(
+    failure: Exception,
+) -> None:
+    page = _FakePage()
+    page.screenshot = AsyncMock(side_effect=failure)
+    frames = _Frames()
+    result = await _browse(page, _decider(DONE), sink=frames, preview=True)
+    assert result.outcome == "done"
+    assert frames.frames[-1].kind == "browser_finished"
+    assert page.done[-1] == "stream:off"

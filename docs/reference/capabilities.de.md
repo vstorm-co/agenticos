@@ -1,5 +1,5 @@
 ---
-source_sha: "acd35149885e"
+source_sha: "d1e3cf92658b"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -750,6 +750,14 @@ dauert 3,5-5 s, fast ganz die eigene Modellanfrage des Schritts; eine Aufgabe mi
 Klicks, die der Agent selbst steuerte, dauerte 13 s, mit `browse_web` etwa 20. Die Tools
 eignen sich für kurze Aufgaben oder solche, die jemand verfolgen will, `browse_web` für
 eine lange Aufgabe, die ganz abgegeben wird.
+
+Vor jeder Modellanfrage verlieren ältere direkte Werkzeugergebnisse nur ihre
+veralteten Tabellen nummerierter Elemente. Die neueste Tabelle, Artikeltexte und
+Aktionsergebnisse bleiben erhalten; das gespeicherte Gespräch enthält die vollständigen
+Ergebnisse. DOM-Browsing nutzt den unabhängigen Vorschaustream und erfasst nach dessen
+Ende ein letztes Bild. Vision wartet weiterhin auf die Modelleingabe. Die Bereitschaft
+richtet sich nach sichtbarem Seiteninhalt statt nach unabhängigen Hintergrundänderungen;
+ein leeres Dokument erhält einen begrenzten erneuten Leseversuch.
 
 **Mehrere Tabs und Fortsetzen.** `browser_new_tab(url)` öffnet eine eigene Seite,
 `browser_tabs` listet IDs, `browser_switch_tab(tab_id)` wählt und liest eine Seite,

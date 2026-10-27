@@ -666,6 +666,13 @@ all of it the step's own model request; a two-click task the agent drove itself 
 13 s where `browse_web` took about 20. Prefer the tools for a short task or one a
 person wants to watch, `browse_web` for a long task handed off whole.
 
+Before each model request, older direct-tool results lose only their obsolete
+numbered element tables. The latest table, article text and action outcomes remain;
+the saved conversation keeps the full results. DOM browsing uses the independent
+preview stream and captures one final image after stopping it. Vision still waits
+for its model input. Readiness follows visible page content rather than unrelated
+background mutations; an empty document gets one bounded retry.
+
 **Several tabs and resuming.** `browser_new_tab(url)` opens a separate page,
 `browser_tabs` lists ids, `browser_switch_tab(tab_id)` selects and reads a page,
 and `browser_close_tab(tab_id)` closes one. At most eight tabs are open per run.

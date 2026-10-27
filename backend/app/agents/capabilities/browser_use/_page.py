@@ -107,11 +107,23 @@ new Promise(resolve => {
   const started = performance.now();
   let changed = started;
   let mutated = false;
-  const observer = new MutationObserver(() => { changed = performance.now(); mutated = true; });
-  observer.observe(document, {subtree: true, childList: true, attributes: true, characterData: true});
+  const relevant = node => {
+    const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+    if (!element) return false;
+    const root = document.querySelector('main, [role="main"], article');
+    if (root && !root.contains(element) && !element.contains(root) && !element.closest('dialog, [role="dialog"], [role="menu"]')) return false;
+    const bounds = element.getBoundingClientRect();
+    return bounds.width > 0 && bounds.height > 0 && bounds.bottom >= 0 && bounds.top < innerHeight;
+  };
+  const observer = new MutationObserver(records => {
+    if (records.some(record => relevant(record.target))) { changed = performance.now(); mutated = true; }
+  });
+  observer.observe(document, {subtree: true, childList: true, characterData: true,
+    attributes: true, attributeFilter: ['aria-busy', 'aria-expanded', 'disabled', 'hidden', 'checked', 'selected']});
   const finish = value => { observer.disconnect(); clearInterval(poll); clearTimeout(limit); resolve(value); };
   const poll = setInterval(() => {
-    if (document.readyState !== 'loading' && ((performance.now() - changed >= 80 && (mutated || performance.now() - started >= 400)) || performance.now() - started >= 1500)) finish(true);
+    const content = location.href === 'about:blank' || (document.body && (document.body.innerText.trim() || document.body.querySelector('input, button, textarea, select, iframe, canvas, svg, img')));
+    if (document.readyState !== 'loading' && ((content && performance.now() - changed >= 80 && (mutated || performance.now() - started >= 400)) || performance.now() - started >= 1500)) finish(true);
   }, 20);
   const limit = setTimeout(() => finish(false), 5000);
 })

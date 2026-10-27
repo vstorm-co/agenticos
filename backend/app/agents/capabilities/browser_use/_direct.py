@@ -23,6 +23,7 @@ from app.agents.capabilities.browser_use._endpoint import EndpointError
 from app.agents.capabilities.browser_use._loop import (
     OPERATION,
     BrowseSession,
+    PageSession,
     RememberSignIn,
     _StepClock,
     act,
@@ -83,9 +84,18 @@ def page_report(snapshot: Snapshot, done: str | None = None) -> str:
     return "\n".join(lines)
 
 
+async def _ready_snapshot(page: PageSession) -> Snapshot:
+    """Give an empty, replacing document a bounded chance to finish before asking the model."""
+    snapshot = await page.snapshot()
+    if not snapshot.elements and not snapshot.text and snapshot.url != "about:blank":
+        await page.settle()
+        snapshot = await page.snapshot()
+    return snapshot
+
+
 async def open_view(view: DirectView, session: BrowseSession, goal: str) -> Snapshot:
     """Announce the view and show the page the tab is on now."""
-    snapshot = await session.page.snapshot()
+    snapshot = await _ready_snapshot(session.page)
     session.last = snapshot
     await view.emit(
         BrowserEvent(
@@ -102,7 +112,6 @@ async def open_view(view: DirectView, session: BrowseSession, goal: str) -> Snap
             run_id=view.run_id,
         )
     )
-    await _paint(view, session, snapshot)
     return snapshot
 
 
@@ -174,10 +183,9 @@ async def act_directly(view: DirectView, session: BrowseSession, action: Action)
         session.last = snapshot
         return page_report(snapshot, f"nothing happened - {refused}")
     session.history += (line,)
-    snapshot = await page.snapshot()
+    snapshot = await _ready_snapshot(page)
     session.last = snapshot
     clock.mark("snapshot")
-    await _paint(view, session, snapshot)
     clock.mark("screenshot")
     clock.log(session.steps, OPERATION[type(action)])
     return page_report(snapshot, line)
@@ -219,21 +227,3 @@ async def close_view(view: DirectView, session: BrowseSession | None) -> None:
             title=title,
         )
     )
-
-
-async def _paint(view: DirectView, session: BrowseSession, snapshot: Snapshot) -> None:
-    """One frame of the page as it stands, for whoever is watching."""
-    if not view.preview:
-        return
-    image = await session.page.screenshot()
-    if image is not None:
-        await view.emit(
-            BrowserEvent(
-                kind="browser_frame",
-                call_id=view.call_id,
-                step=session.steps,
-                url=snapshot.url,
-                title=snapshot.title,
-                image=image,
-            )
-        )

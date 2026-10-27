@@ -402,7 +402,7 @@ async def _drive(
             clock.mark("snapshot")
 
             image: str | None = None
-            if previews_land or policy.vision:
+            if policy.vision:
                 image = await page.screenshot()
             clock.mark("screenshot")
             if previews_land and image is not None:
@@ -510,6 +510,7 @@ async def _drive(
                     # that something was. Model-written; a surface renders it as data.
                     detail=action.answer[:_DETAIL_LIMIT],
                     snapshot=snapshot,
+                    preview=preview,
                 )
             if isinstance(action, AskPerson):
                 arrived = None
@@ -536,6 +537,7 @@ async def _drive(
                         text=_remembered(session, reason),
                         detail=reason,
                         snapshot=snapshot,
+                        preview=preview,
                     )
                 session.history += (f"step {step_no}: {step.next_goal} - asked a person",)
                 await held(
@@ -558,6 +560,7 @@ async def _drive(
                     text=_remembered(session, action.reason),
                     detail=action.reason,
                     snapshot=snapshot,
+                    preview=preview,
                 )
 
             signature = _signature(snapshot, step)
@@ -576,6 +579,7 @@ async def _drive(
                     text=_remembered(session, reason),
                     detail=reason,
                     snapshot=snapshot,
+                    preview=preview,
                 )
 
             try:
@@ -614,6 +618,7 @@ async def _drive(
             text=_remembered(session, reason),
             detail=reason,
             snapshot=snapshot,
+            preview=preview,
         )
 
 
@@ -967,6 +972,7 @@ async def _finish(
     text: str,
     detail: str,
     snapshot: Snapshot,
+    preview: Preview | None,
 ) -> BrowseResult:
     """Send the closing frame and return the result, for every way a browse ends.
 
@@ -974,6 +980,23 @@ async def _finish(
     finish leaves a spinner running for ever, and the outcome a reader most needs
     is the one on the paths that are easiest to return from early.
     """
+    if preview is not None:
+        await preview.close()
+        try:
+            image = await session.page.screenshot()
+        except DomainRefused, EndpointError:
+            image = None
+        if image is not None:
+            await emit(
+                BrowserEvent(
+                    kind="browser_frame",
+                    call_id=call_id,
+                    step=session.steps,
+                    url=snapshot.url,
+                    title=snapshot.title,
+                    image=image,
+                )
+            )
     await emit(
         BrowserEvent(
             kind="browser_finished",

@@ -271,6 +271,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Browser model requests omit obsolete element tables while retaining article
+  text and full stored results. DOM actions use the independent preview stream
+  with one final capture; readiness ignores unrelated background changes and
+  retries an initially empty document once. MCP tool catalogs stay unchanged.
+
 - Browser panels open beside wide chats, resize by pointer or keyboard, and
   expand to full screen without reopening their native tab. Narrow chats and
   phones keep a full-screen view.

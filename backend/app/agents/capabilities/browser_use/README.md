@@ -111,6 +111,20 @@ Only authenticated image-view sockets count as viewers; trace consumers and a
 resumable chat buffer do not. Images stop without a viewer and resume on return.
 Metadata updates preserve the latest JPEG for viewers opening the live view.
 A final image is kept even without a viewer; it does not enter the chat stream.
+DOM tools and DOM-only `browse_web` steps do not capture screenshots. The owned
+preview stream paints independently; teardown joins it before capturing one final
+image and sending completion. Vision decisions still await the image they consume.
+
+`WebBrowser.before_model_request` copies older direct-tool reports without their
+obsolete element tables. The latest table, page text, URLs and action outcomes
+remain intact; the persisted transcript is unchanged. Factory ordering puts this
+after compaction and before system reminders. MCP tool schemas are unchanged.
+
+Readiness tracks visible main content and dialogs, ignoring presentation-only
+attribute changes and activity outside the content. It retains bounded DOM quiet
+and load waits. A newly empty direct-tool read gets one bounded readiness retry
+before its result is returned, including when navigation replaces the document.
+
 The console opens a full-height browser side panel automatically, with compact
 transcript links to reopen it after closing.
 
