@@ -136,7 +136,7 @@ async def test_deleting_a_project_keeps_its_chats_and_takes_its_container(db) ->
         agent_id=None,
         project_id=project.id,
         scope="project",
-        scope_key=f"dp-{uuid.uuid4().hex[:20]}",
+        scope_key=f"dp-{project.id.hex}",
         backend="state",
     )
     found = await workspace_repo.get_for_project(db, organization_id=org.id, project_id=project.id)
@@ -225,7 +225,7 @@ async def test_a_project_chat_works_in_its_projects_container(db) -> None:
         agent_id=None,
         project_id=project.id,
         scope="project",
-        scope_key=f"dp-{uuid.uuid4().hex[:20]}",
+        scope_key=f"dp-{project.id.hex}",
         backend="state",
     )
 

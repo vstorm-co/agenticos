@@ -263,6 +263,7 @@ class TestWriting:
         assert session.deleted == [row]
 
 
+@pytest.mark.security
 async def test_project_file_mutations_refresh_the_snapshot_under_a_tenant_scoped_lock() -> None:
     db = _RecordingSession(None)
     organization, project = uuid.uuid4(), uuid.uuid4()
