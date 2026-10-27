@@ -264,7 +264,9 @@ it("says plainly when the test cannot tell the versions apart, and how to fix it
     "/agents/judge-1",
   );
   primary("End without changes");
-  const list = screen.getByText("6 questions were graded differently with nothing changed");
+  const list = screen.getByText(
+    "6 of the 10 questions kept aside were graded differently with nothing changed",
+  );
   expect(list.closest("details")).not.toHaveAttribute("open");
   await userEvent.click(list);
   expect(screen.getByText("Do you deliver within Poland?")).toBeVisible();
@@ -279,7 +281,7 @@ it("names the questions graded both ways when today's score itself held still", 
   });
   expect(
     screen.getByText(
-      /^The test can't tell a better version from a worse one: 6 questions got a different grade when asked again, with nothing changed\./,
+      /^The test can't tell a better version from a worse one: 6 of the 10 questions kept aside got a different grade when asked again, with nothing changed\./,
     ),
   ).toBeInTheDocument();
 });
@@ -303,7 +305,9 @@ it("judges noise only within attempts when they shared too few questions, and sa
     },
   });
   expect(
-    screen.getByText(/^The test can't tell a better version from a worse one: 3 questions got/),
+    screen.getByText(
+      /^The test can't tell a better version from a worse one: 3 of the 10 questions kept aside got/,
+    ),
   ).toBeInTheDocument();
   expect(
     screen.getByText(

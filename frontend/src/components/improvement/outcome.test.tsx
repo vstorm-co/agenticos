@@ -139,6 +139,11 @@ it("counts confirmed changes large, unconfirmed ones beside them, and links the 
   expect(within(tiles).getByText("Newly broken").closest("div.flex-col")).not.toHaveTextContent(
     "not confirmed",
   );
+  expect(
+    screen.getByText(
+      "Not confirmed: the answer changed once, but not the same way when asked again.",
+    ),
+  ).toBeInTheDocument();
   // Every open topic of the session counts, drafted or not, whoever may change it.
   const topics = within(tiles).getByText("Topics missing knowledge").closest("a")!;
   expect(topics).toHaveTextContent("3");
@@ -150,6 +155,7 @@ it("counts confirmed changes large, unconfirmed ones beside them, and links the 
     screen.getByRole("group", { name: /^In the agent: no measured result yet\./ }),
   ).toBeInTheDocument();
   expect(screen.getByText("In the agent: no measured result yet.")).toBeInTheDocument();
+  expect(screen.queryByText(/^Not confirmed:/)).toBeNull();
   state.topics = [];
   view.rerender(<ResultSummary session={SESSION} round={ROUND} />);
   expect(screen.getByText("Topics missing knowledge").closest("a")).toBeNull();

@@ -63,35 +63,39 @@ export function ResultSummary({
     comparison?.cases.filter((c) => c.flip === flip && !c.confirmed).length ?? 0;
   const more = (count: number) => (count > 0 ? t("notConfirmedMore", { count }) : undefined);
   const knowledge = t("resultKnowledge", { count: topics.length, added: added.length });
+  const pending = measured ? unconfirmed("fixed") + unconfirmed("regression") : 0;
   return (
-    <Tiles
-      label={`${measured ? t("resultAgent", measured) : t("resultAgentUnknown")} ${knowledge}`}
-      tiles={[
-        {
-          label: t("newlyFixed"),
-          value: measured?.fixed ?? "–",
-          tone: "teal",
-          icon: CheckCircle2,
-          caption: measured ? more(unconfirmed("fixed")) : t("resultAgentUnknown"),
-        },
-        {
-          label: t("newlyBroken"),
-          value: measured?.broken ?? "–",
-          tone: "rose",
-          icon: XCircle,
-          caption: measured ? more(unconfirmed("regression")) : undefined,
-        },
-        {
-          label: t("widgets.missingTopics"),
-          value: topics.length,
-          tone: "violet",
-          icon: BookOpen,
-          href: topics.length > 0 ? `#${DOCUMENTS_ANCHOR}` : undefined,
-          caption:
-            added.length > 0 ? t("widgets.alreadyAdded", { count: added.length }) : undefined,
-        },
-      ]}
-    />
+    <div className="space-y-2">
+      <Tiles
+        label={`${measured ? t("resultAgent", measured) : t("resultAgentUnknown")} ${knowledge}`}
+        tiles={[
+          {
+            label: t("newlyFixed"),
+            value: measured?.fixed ?? "–",
+            tone: "teal",
+            icon: CheckCircle2,
+            caption: measured ? more(unconfirmed("fixed")) : t("resultAgentUnknown"),
+          },
+          {
+            label: t("newlyBroken"),
+            value: measured?.broken ?? "–",
+            tone: "rose",
+            icon: XCircle,
+            caption: measured ? more(unconfirmed("regression")) : undefined,
+          },
+          {
+            label: t("widgets.missingTopics"),
+            value: topics.length,
+            tone: "violet",
+            icon: BookOpen,
+            href: topics.length > 0 ? `#${DOCUMENTS_ANCHOR}` : undefined,
+            caption:
+              added.length > 0 ? t("widgets.alreadyAdded", { count: added.length }) : undefined,
+          },
+        ]}
+      />
+      {pending > 0 && <p className="text-muted-foreground text-xs">{t("notConfirmedHint")}</p>}
+    </div>
   );
 }
 

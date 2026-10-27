@@ -453,11 +453,23 @@ export function AttemptSummary({
         (round.verdict === "better" ? (
           <StateBadge tone="good">{t("attempt.best")}</StateBadge>
         ) : (
-          <StateBadge tone="neutral">{t("attempt.chosen")}</StateBadge>
+          personChose(session) && <StateBadge tone="neutral">{t("attempt.chosen")}</StateBadge>
         ))}
       <span className="text-muted-foreground ml-auto">{usd(round.cost_usd, locale)}</span>
     </>
   );
+}
+
+/**
+ * Whether a person chose the kept attempt since the last verdict. Otherwise the
+ * session kept it on its own, which says nothing for an attempt that was not better.
+ */
+function personChose(session: Improvement): boolean {
+  const last = (action: string) =>
+    session.timeline.filter((event) => event.action === action).at(-1)?.at;
+  const chose = last("improvement.round_selected");
+  const judged = last("improvement.verdict");
+  return chose !== undefined && (judged === undefined || Date.parse(chose) > Date.parse(judged));
 }
 
 /**

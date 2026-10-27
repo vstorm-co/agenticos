@@ -408,15 +408,43 @@ it("offers no paid check once the wizard is only read", () => {
     screen.queryByRole("button", { name: "Estimate individual checks" }),
   ).not.toBeInTheDocument();
 });
-it("calls a chosen attempt that was not better chosen, never best", () => {
-  render(
-    <AttemptRow
-      session={SESSION}
-      round={{ ...ROUND, verdict: "regression", verdict_detail: { fixed: 0, broken: 2 } }}
-    />,
-  );
+const event = (action: string, at: string) => ({
+  action,
+  at,
+  stage: null,
+  status: null,
+  reason: null,
+});
+
+it("calls an attempt that was not better chosen only once a person chose it, never best", () => {
+  const round = {
+    ...ROUND,
+    verdict: "regression" as const,
+    verdict_detail: { fixed: 0, broken: 2 },
+  };
+  const verdict = event("improvement.verdict", "2026-10-27T15:59:40Z");
+  const view = render(<AttemptRow session={{ ...SESSION, timeline: [verdict] }} round={round} />);
+  expect(screen.queryByText("Chosen attempt")).toBeNull();
+  const chose = event("improvement.round_selected", "2026-10-27T16:03:54Z");
+  view.rerender(<AttemptRow session={{ ...SESSION, timeline: [verdict, chose] }} round={round} />);
   expect(screen.getByText("Chosen attempt")).toBeInTheDocument();
   expect(screen.queryByText("Best attempt")).toBeNull();
+});
+
+it("forgets a choice made before a later verdict", () => {
+  render(
+    <AttemptRow
+      session={{
+        ...SESSION,
+        timeline: [
+          event("improvement.round_selected", "2026-10-27T16:00:00Z"),
+          event("improvement.verdict", "2026-10-27T16:10:00Z"),
+        ],
+      }}
+      round={{ ...ROUND, verdict: "no_change", verdict_detail: { fixed: 0, broken: 0 } }}
+    />,
+  );
+  expect(screen.queryByText("Chosen attempt")).toBeNull();
 });
 
 const afterBar = (name: RegExp) =>

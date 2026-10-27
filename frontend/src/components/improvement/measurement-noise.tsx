@@ -34,7 +34,7 @@ export function noiseSentence(
         low: percent(noise.baseline_low),
         high: percent(noise.baseline_high),
       })
-    : t(`${key}Unstable`, { within: noise.within });
+    : t(`${key}Unstable`, { within: noise.within, heldOut: noise.held_out });
 }
 
 /** Said when the attempts kept aside too few of the same questions to compare them. */
@@ -95,7 +95,7 @@ export function UnstableQuestions({ noise }: { noise: MeasurementNoise }) {
   const t = useTranslations("improvement.noise");
   if (noise.examples.length === 0) return null;
   return (
-    <Details summary={t("unstableTitle", { count: noise.unstable })}>
+    <Details summary={t("unstableTitle", { count: noise.unstable, heldOut: noise.held_out })}>
       <ul className="space-y-3">
         {noise.examples.map((question) => (
           <li key={question.case_id} className="space-y-1 text-sm">
