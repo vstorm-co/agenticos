@@ -1,5 +1,5 @@
 ---
-source_sha: "86a0e965d1ca"
+source_sha: "87f7b04ce512"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -28,10 +28,11 @@ eigener Strichart. Ein Punkt ist rot, wo der Run Fälle verschlechtert hat, grü
 wo er sie behoben hat, bernsteinfarben, wo beides, und hohl für einen Entwurf; der
 Hover sagt, was lief, wogegen und wann, und ein Klick öffnet den Run.
 
-Die Achse benennt jeden Punkt danach, was lief und wann - mit der Uhrzeit für
-einen Run von heute, mit dem Datum für frühere. Ab mehr als 12 Runs erscheint
-unter dem Diagramm ein Bereich, der mit den letzten 12 öffnet; zieh seine Griffe
-oder verschieb sie mit den Pfeiltasten, um mehr oder weniger zu sehen.
+Die Achse benennt die Runs nach ihrem Start - mit der Uhrzeit für einen Run von
+heute, mit dem Datum für frühere, einmal je Tag. Ab mehr als 10 Runs zeigt ein
+Schalter über dem Diagramm die letzten 10, die letzten 30 oder alle Runs; er
+öffnet mit den letzten 10, und die Wahl bleibt in der Adresse der Seite, sodass
+Zurück und ein Link sie behalten.
 
 Darunter stehen seine Runs, nach Dataset gruppiert, jeder mit dem, was gegen was
 getestet wurde, seinem Urteil (Verschlechtert 2, Insgesamt schlechter ·

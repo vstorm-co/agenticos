@@ -25,9 +25,10 @@ where the run broke cases, green where it fixed them, amber where it did both,
 and hollow for a draft; hovering it says what ran, against what and when, and
 clicking it opens the run.
 
-The axis names each point by what ran and when - the time for a run today, the
-date before. Past 12 runs a range appears under the chart, starting on the last
-12; drag its handles, or move them with the arrow keys, to see more or fewer.
+The axis names the runs by when they started - the time for a run today, the
+date before, once for a day of runs. Past 10 runs a switch above the chart shows
+the last 10, the last 30 or every run; it opens on the last 10, and the choice
+stays in the page's address, so Back and a link keep it.
 
 Below it are its runs, grouped by dataset, each naming what was tested against
 what, its verdict (Breaks 2, Worse overall · 4 broke, First result, Pending) and

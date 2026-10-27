@@ -1,5 +1,5 @@
 ---
-source_sha: "86a0e965d1ca"
+source_sha: "87f7b04ce512"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -27,10 +27,11 @@ una con su propio trazo. Un punto es rojo donde el run rompió casos, verde dond
 los arregló, ámbar donde hizo ambas cosas y hueco para un borrador; al pasar el
 cursor dice qué se ejecutó, frente a qué y cuándo, y un clic abre el run.
 
-El eje nombra cada punto por lo que se ejecutó y cuándo: la hora para un run de
-hoy, la fecha para los anteriores. Con más de 12 runs aparece un rango debajo
-del gráfico, que se abre con los últimos 12; arrastra sus tiradores, o muévelos
-con las flechas, para ver más o menos.
+El eje nombra los runs por cuándo empezaron: la hora para un run de hoy, la
+fecha para los anteriores, una vez por día. Con más de 10 runs, un selector
+encima del gráfico muestra los últimos 10, los últimos 30 o todos; se abre con
+los últimos 10, y la elección queda en la dirección de la página, así que Atrás
+y un enlace la conservan.
 
 Debajo están sus runs, agrupados por dataset, cada uno indicando qué se probó
 frente a qué, su veredicto (Breaks 2, Worse overall · 4 broke, First result,
