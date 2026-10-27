@@ -16,7 +16,7 @@ export type CheckSuggestion =
   | { kind: "startsWith"; check: CaseCheck; text: string };
 
 const NUMBER = String.raw`(\d{1,3}(?:,\d{3})+|\d+)`;
-const UNIT = String.raw`(words?|char(?:acter)?s?)\b`;
+const UNIT = String.raw`(words?|characters?|chars?)\b`;
 const AT_MOST = String.raw`(?:at most|no more than|not more than|no longer than|under|fewer than|less than|shorter than|maximum of|max(?:imum)?|up to|within)`;
 const AT_LEAST = String.raw`(?:at least|no fewer than|no less than|not less than|no shorter than|minimum of|min(?:imum)?|more than|over|longer than)`;
 
