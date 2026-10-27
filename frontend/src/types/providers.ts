@@ -93,6 +93,12 @@ export interface ModelProfile {
    * never hidden.
    */
   chat_capable?: boolean;
+  /**
+   * Whether it has nothing to authenticate with, so no run can use it (#2478):
+   * its key was deleted from the vault or never set, on a provider that needs
+   * one. A keyless provider with an endpoint is false. Absent reads as false.
+   */
+  missing_key?: boolean;
   created_at?: string;
 }
 

@@ -30,7 +30,7 @@ import {
   useSecretPurposes,
   useSecrets,
 } from "@/hooks";
-import { modelDetail, runsAgents } from "@/lib/model-profiles";
+import { hasKey, modelDetail, runsAgents, usableForAgents } from "@/lib/model-profiles";
 import type { PublishedModel } from "@/types/agents";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
@@ -99,7 +99,9 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
   const matching = profiles.filter(
     (profile) => profile.provider === providerId && profile.model === model.trim(),
   );
-  const hasCustomEndpoint = matching.some((profile) => !!profile.base_url && runsAgents(profile));
+  const hasCustomEndpoint = matching.some(
+    (profile) => !!profile.base_url && usableForAgents(profile),
+  );
 
   const canApply =
     provider !== undefined &&
@@ -120,10 +122,16 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
     const listingRefuses = refused.includes(modelId);
     const existing = matching.find(
       (profile) =>
-        runsAgents(profile) && (!!profile.base_url || (!loadingModels && !listingRefuses)),
+        usableForAgents(profile) && (!!profile.base_url || (!loadingModels && !listingRefuses)),
     );
     if (existing) {
       onChange(existing.id);
+      return;
+    }
+    // The organization has this model, but its key was deleted (#2478). A second
+    // profile under the same name is refused, and the fix is a key for this one.
+    if (!listingRefuses && matching.some((profile) => runsAgents(profile) && !hasKey(profile))) {
+      setFailure(t("modelHasNoKey", { model: modelId }));
       return;
     }
     if (matching.length > 0 || listingRefuses) {

@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Check, KeyRound, Plus } from "lucide-react";
+import { Check, KeyRound, Plus, Save } from "lucide-react";
 
 import { NO_FAILURE, submitFailure } from "@/lib/api-error";
-import { runsAgents } from "@/lib/model-profiles";
+import { hasKey, runsAgents } from "@/lib/model-profiles";
 import { ModelCombobox } from "@/components/agents/model-combobox";
 import { InlineChatGPTSignIn } from "@/components/vault/chatgpt-sign-in";
 import { InlineSecret } from "@/components/vault/inline-secret";
@@ -34,7 +34,10 @@ import { useTranslations } from "next-intl";
 interface AddModelProps {
   /** Called with the new model once it exists, so the picker can select it. */
   onCreated: (profile: ModelProfile) => void;
-  /** Balance each started creation, including one whose form unmounts while awaiting it. */
+  /**
+   * Balance each started creation - or edit of `selected` - including one whose
+   * form unmounts while awaiting it.
+   */
   onCreationPendingChange?: (pending: boolean) => void;
   /**
    * The model the agent runs on today, which this form *starts on*.
@@ -197,7 +200,7 @@ export function AddModel({
   // `placeholderWords`. The chat's picker resolves the same keys from its own
   // namespace, so they cannot be relative to either caller's.
   const tRoot = useTranslations();
-  const { createProfile, catalog } = useModelProviders();
+  const { createProfile, updateProfile, catalog } = useModelProviders();
   const { purposes } = useSecretPurposes();
   const { secrets } = useSecrets();
   const { can } = usePermissions();
@@ -301,10 +304,32 @@ export function AddModel({
     api === (selected.api ?? null) &&
     // The key is part of "changed" too: an organization with two keys for one
     // provider can re-point a model at the other, and a submit that ignored this
-    // would select the old profile and silently drop the key just picked.
-    (secretId === "" || secretId === (selected.secret_id ?? ""));
+    // would select the old profile and silently drop the key just picked. A model
+    // whose key was deleted is changed by the key this form offers it, too -
+    // "In use" above a model nothing can run on would be the wrong answer.
+    (secretId === ""
+      ? hasKey(selected) || chosenKey === ""
+      : secretId === (selected.secret_id ?? ""));
+
+  // The model in use with only its key, endpoint or API changed: that is an
+  // edit of the model, not a second one (#2478). Every agent names a model by
+  // its id, so saving it in place moves all of them at once - and adding a
+  // second profile under the same derived name was refused as a duplicate. A
+  // name typed in, or another provider or model, is a new model as before.
+  const editing =
+    selected !== undefined &&
+    !unchanged &&
+    provider?.id === selected.provider &&
+    model.trim() === selected.model &&
+    label.trim() === "";
 
   const customEndpoint = acceptsEndpoint && baseUrl.trim() !== "";
+  // Whether this model cannot run without an endpoint: a keyless provider with
+  // no key to use. Only then is the field a question with an Ollama address for
+  // an example. `keyless` alone is true of OpenAI too, because OpenAI-compatible
+  // servers exist - so an OpenAI model with a key showed `localhost:11434` in its
+  // empty Endpoint field, which read as an address filled in for it (#2478).
+  const endpointRequired = (capabilities?.keyless ?? false) && chosenKey === "";
   const canSubmit =
     provider !== undefined &&
     model.trim() !== "" &&
@@ -317,6 +342,29 @@ export function AddModel({
   const chooseKey = (id: string) => {
     setSecretId(id);
     setFailure(NO_FAILURE);
+  };
+
+  const update = async () => {
+    /* v8 ignore next -- `editing` is only true with a selection and a provider */
+    if (selected === undefined || provider === undefined) return;
+    setFailure(NO_FAILURE);
+    onCreationPendingChange?.(true);
+    try {
+      await updateProfile.mutateAsync({
+        id: selected.id,
+        // All three, every time: the server compares them with what is stored
+        // and writes only what differs, so what the form shows is what is saved.
+        changes: {
+          secret_id: chosenKey || null,
+          base_url: customEndpoint ? baseUrl.trim() : null,
+          api,
+        },
+      });
+    } catch (error) {
+      setFailure(submitFailure(error, markable(acceptsEndpoint), tErrors));
+    } finally {
+      onCreationPendingChange?.(false);
+    }
   };
 
   const submit = async () => {
@@ -529,11 +577,7 @@ export function AddModel({
           htmlFor="add-model-endpoint"
           label={t("endpoint")}
           error={failure.fields.base_url}
-          description={
-            capabilities?.keyless === true
-              ? t("gatewayLitellmProxyModel")
-              : t("optionalPointModelAt")
-          }
+          description={endpointRequired ? t("gatewayLitellmProxyModel") : t("optionalPointModelAt")}
         >
           <Input
             id="add-model-endpoint"
@@ -542,11 +586,7 @@ export function AddModel({
               setBaseUrl(event.target.value);
               setFailure(NO_FAILURE);
             }}
-            placeholder={
-              capabilities?.keyless === true
-                ? "http://localhost:11434/v1"
-                : t("leaveEmptyProviderS")
-            }
+            placeholder={endpointRequired ? "http://localhost:11434/v1" : t("leaveEmptyProviderS")}
             autoComplete="off"
             spellCheck={false}
           />
@@ -610,14 +650,34 @@ export function AddModel({
           was a 403. */}
       {failure.toast !== null && <p className="text-destructive text-xs">{failure.toast}</p>}
 
+      {/* Said before the button rather than after the save: the change reaches
+          every agent on this model, not only the one being built. */}
+      {editing && selected !== undefined && (
+        <p className="text-muted-foreground text-xs">
+          {t("updateModelHint", { label: selected.label })}
+        </p>
+      )}
+
       <div className="flex items-center gap-2 pt-1">
-        {unchanged ? (
+        {unchanged && (
           // A state, not an action: there is nothing to add until a field changes.
           <span className="text-muted-foreground inline-flex h-8 items-center gap-1.5 text-sm">
             <Check className="text-success h-4 w-4" />
             {t("modelInUse")}
           </span>
-        ) : (
+        )}
+        {editing && (
+          <Button
+            type="button"
+            size="sm"
+            disabled={disabled || !canSubmit || updateProfile.isPending}
+            onClick={update}
+          >
+            <Save className="h-4 w-4" />
+            {t("updateModel")}
+          </Button>
+        )}
+        {!unchanged && !editing && (
           <Button
             type="button"
             size="sm"

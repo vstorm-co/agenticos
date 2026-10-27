@@ -23,6 +23,7 @@ const rig = vi.hoisted(() => ({
     secret_id: string | null;
     base_url?: string | null;
     chat_capable?: boolean;
+    missing_key?: boolean;
   }[],
   modelsLoading: false,
   skillTotal: 0,
@@ -476,7 +477,8 @@ describe("useOnboardingFlow", () => {
   });
 
   it("teaches adding a model when the org has none", () => {
-    rig.profiles = [{ secret_id: null, base_url: null }]; // a profile with no usable key
+    // A profile whose key was deleted, as the server lists it (#2478).
+    rig.profiles = [{ secret_id: null, base_url: null, missing_key: true }];
     const { result } = renderHook(() => useOnboardingFlow());
     act(() => useOnboardingStore.getState().openFlow("create-agent"));
     const ids = result.current.steps.map((step) => step.id);

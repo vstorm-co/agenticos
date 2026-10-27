@@ -12,10 +12,11 @@ import {
   useSpeechToTextProviders,
 } from "./use-model-providers";
 import { apiClient } from "@/lib/api-client";
+import { ApiError } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
 
 vi.mock("@/lib/api-client", () => ({
-  apiClient: { get: vi.fn(), post: vi.fn(), delete: vi.fn() },
+  apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
 }));
 const toastSuccess = vi.fn();
 vi.mock("sonner", () => ({
@@ -257,6 +258,69 @@ describe("useModelProviders", () => {
       await refresh;
     });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
+  });
+
+  it("changes a model in place, keeping its id", async () => {
+    vi.mocked(apiClient.patch).mockResolvedValue({ id: "p1", label: "OpenAI · gpt-5" });
+    const { result } = renderHook(() => useModelProviders(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.updateProfile.mutateAsync({ id: "p1", changes: { secret_id: "s2" } });
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/providers/model-profiles/p1", {
+      secret_id: "s2",
+    });
+    expect(toastSuccess).toHaveBeenCalledWith("Updated OpenAI · gpt-5");
+  });
+
+  function inUse(agents: { id: string; name: string }[], hidden: number) {
+    return new ApiError(409, "in use", {
+      error: { code: "IN_USE", message: "in use", details: { agents, hidden_agents: hidden } },
+    });
+  }
+
+  it("names the agents a refused removal is still used by (#2478)", async () => {
+    const { toast } = await import("sonner");
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [{ id: "p1", label: "OpenAI · gpt-5", provider: "openai", model: "gpt-5" }],
+      total: 1,
+    });
+    vi.mocked(apiClient.delete).mockRejectedValue(
+      inUse(
+        [
+          { id: "a1", name: "Helpdesk" },
+          { id: "a2", name: "Researcher" },
+        ],
+        1,
+      ),
+    );
+    const { result } = renderHook(() => useModelProviders(), { wrapper });
+    await waitFor(() => expect(result.current.profiles).toHaveLength(1));
+
+    await expect(result.current.deleteProfile.mutateAsync("p1")).rejects.toThrow();
+
+    expect(toast.error).toHaveBeenCalledWith(
+      "OpenAI · gpt-5 is still used by Helpdesk, Researcher and one agent you cannot see. " +
+        "Move them to another model first, or change this model's key instead of deleting it.",
+    );
+  });
+
+  it("counts the agents a refusal could not name", async () => {
+    const { toast } = await import("sonner");
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [{ id: "p9", label: "Haiku", provider: "anthropic", model: "claude-haiku-5" }],
+      total: 1,
+    });
+    vi.mocked(apiClient.delete).mockRejectedValue(inUse([], 2));
+    const { result } = renderHook(() => useModelProviders(), { wrapper });
+    await waitFor(() => expect(result.current.profiles).toHaveLength(1));
+
+    await expect(result.current.deleteProfile.mutateAsync("p9")).rejects.toThrow();
+
+    expect(toast.error).toHaveBeenCalledWith(
+      "Haiku is still used by 2 agents you cannot see. " +
+        "Ask an admin to move them to another model first.",
+    );
   });
 
   it("removes a model", async () => {
