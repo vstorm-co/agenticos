@@ -331,8 +331,9 @@ async def test_a_regressed_round_moves_on_to_a_candidate_already_deferred_to_the
     deferred.batch_id = await _candidate_batch(db, ctx, agent, row)
     await db.flush()
     await _round(db, ctx, agent, started.id, "ROUND_BAD")
-    moved = await service.read(ctx, agent.id, started.id)
-    assert moved.iterations[0].verdict == "regression"
+    stopped = await service.read(ctx, agent.id, started.id)
+    assert (stopped.status, stopped.iterations[0].verdict) == ("stopped", "regression")
+    moved = await _next_step(db, ctx, started.id)
     assert (moved.status, moved.stage, moved.iteration) == ("running", "proposing", 2)
     assert [item.id for item in moved.iterations] == [moved.iterations[0].id, deferred.id]
     requests = await db.scalar(select(func.count()).select_from(AuthoringRequest))

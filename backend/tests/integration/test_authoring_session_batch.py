@@ -18,6 +18,7 @@ from app.services.improvement_pipeline import ImprovementPipelineService
 from tests.integration.test_authoring import Improver, _answering, _sessions, _setup
 from tests.integration.test_authoring import _environment as _environment
 from tests.integration.test_eval_suites import _dataset
+from tests.integration.test_improvement_pipeline import _until_child
 
 pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("_environment")]
 
@@ -32,8 +33,7 @@ async def _proposing(db: AsyncSession) -> tuple[AuthContext, Agent, UUID, UUID]:
         agent.id,
         ImprovementStart(dataset_id=dataset.id, max_iterations=1, budget_usd=Decimal("5")),
     )
-    for _ in range(3):
-        await pipeline.advance(session.id, ctx.organization_id)
+    await _until_child(db, ctx, session.id)
     read = await pipeline.read(ctx, agent.id, session.id)
     request_id = read.iterations[0].authoring_request_id
     assert request_id is not None

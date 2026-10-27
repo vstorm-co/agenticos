@@ -195,8 +195,15 @@ def _improve_prompt(
     configuration: str,
     pack: EvidencePack,
     digests: Sequence[RunFindings] | None,
+    note: str | None = None,
 ) -> str:
     tools = _tool_lines(spec)
+    asked = (
+        "\n\n# What the person who asked for this attempt wants you to keep in mind\n"
+        f"<note>\n{note}\n</note>\nWeigh it beside what the runs show; it is not evidence."
+        if note
+        else ""
+    )
     return (
         f'Propose improvements to the agent "{name}".\n\n'
         f"# Its current instructions\n<instructions>\n{spec.instructions}\n</instructions>\n\n"
@@ -207,6 +214,7 @@ def _improve_prompt(
         "instructions only: they cannot grant tools or widen access. Propose any required "
         "capability changes separately, with writing tools requiring approval.\n\n"
         f"# What its runs show\n{_evidence_section(pack, digests)}"
+        f"{asked}"
     )
 
 
@@ -478,7 +486,9 @@ class AuthoringRun:
             raise Stopped("The agent is gone.")
         spec = AgentSpec.model_validate(agent.draft_spec)
         self.knowledge_base_ids = list(spec.collection_ids)
+        note: str | None = None
         if self.request.improvement_run_id is not None:
+            from app.repositories import improvement_repo
             from app.services.improvement_pipeline import ImprovementPipelineService
 
             await ImprovementPipelineService(self.db).ensure_current(
@@ -488,6 +498,9 @@ class AuthoringRun:
                 self.ctx,
                 self.request.improvement_run_id,
                 excluded_message_ids=self.request.excluded_message_ids,
+            )
+            note = await improvement_repo.attempt_note(
+                self.db, organization_id=self.request.organization_id, request_id=self.request.id
             )
         else:
             pack = await self.evidence.for_agent(
@@ -500,7 +513,8 @@ class AuthoringRun:
         digests = await self._digests(pack, f'the agent "{agent.name}"')
         configuration = await self.configuration.describe(self.ctx, spec)
         proposal = await self._ask(
-            _improve_prompt(agent.name, spec, configuration, pack, digests), ImprovementProposal
+            _improve_prompt(agent.name, spec, configuration, pack, digests, note),
+            ImprovementProposal,
         )
         pack = await self.evidence.forget_erased(pack)
         hunks = [

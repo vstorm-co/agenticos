@@ -76,8 +76,10 @@ class Answers(Model):
         return answer, run
 
 
-async def _next_step(db: AsyncSession, ctx: AuthContext, run_id: UUID) -> ImprovementRead:
-    """Take a waiting session's next step at its quoted price, as a person does."""
+async def _next_step(
+    db: AsyncSession, ctx: AuthContext, run_id: UUID, *, note: str | None = None
+) -> ImprovementRead:
+    """Take a session's next step - or try again - at its quoted price, as a person does."""
     service = ImprovementPipelineService(db)
     run = await db.get(ImprovementRun, run_id)
     assert run is not None
@@ -93,6 +95,7 @@ async def _next_step(db: AsyncSession, ctx: AuthContext, run_id: UUID) -> Improv
             budget_usd=quote.budget_usd,
             estimate_usd=quote.total_usd,
             candidate_hash=quote.candidate_hash,
+            note=note,
         ),
     )
 
@@ -534,6 +537,7 @@ async def test_stop_cancels_an_authoring_child_without_replacing_a_persons_batch
     )
 
 
+@pytest.mark.security
 async def test_a_check_over_the_budget_is_refused_and_the_session_keeps_waiting(db):
     ctx, agent, _, read = await _started(db)
     await _until_child(db, ctx, read.id)

@@ -61,6 +61,9 @@ class ImprovementIterationRead(BaseSchema):
     eval_run_ids: list[UUID]
     candidate_spec_hash: str | None
     included_hunk_ids: list[UUID] | None = None
+    note: str | None = Field(
+        default=None, description="What the person who asked for this attempt told its helper"
+    )
     previous_eval_run_ids: list[UUID] = Field(default_factory=list)
     attribution_eval_run_ids: dict[UUID, UUID] = Field(default_factory=dict)
     dropped_hunk_ids: list[UUID]
@@ -148,6 +151,11 @@ class MeasurementNoise(BaseSchema):
 
 
 class ImprovementRead(BaseSchema):
+    round_hint: Literal["no_change", "inconclusive"] | None = Field(
+        default=None,
+        description="When the last two attempts changed nothing, or could not tell, another "
+        "one is unlikely to help; only a hint, Try again stays available",
+    )
     next_step: Literal["propose", "check"] | None = Field(
         default=None,
         description="What a person's next step starts while the session waits: a proposal "
@@ -240,6 +248,12 @@ class ContinuationConsent(ImprovementContinue):
     confirmed: Literal[True]
     estimate_usd: Decimal = Field(ge=0, max_digits=12, decimal_places=6)
     candidate_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
+    note: str | None = Field(
+        default=None,
+        max_length=2000,
+        description="With Try again only: what the attempt's helper should keep in mind, "
+        "read beside its evidence",
+    )
 
 
 class ImprovementDiscard(BaseSchema):

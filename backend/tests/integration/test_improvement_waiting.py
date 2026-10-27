@@ -225,6 +225,21 @@ async def test_anyone_who_may_start_takes_the_next_step_and_the_session_runs_as_
     assert seen == [(builder.user_id, None)]
 
 
+async def test_a_note_goes_only_with_try_again(db):
+    ctx, agent, waiting = await _at_understand(db)
+    service = ImprovementPipelineService(db)
+    consent = (await _consent(service, ctx, agent, waiting)).model_copy(
+        update={"note": "Mind the refund window"}
+    )
+    with pytest.raises(BadRequestError) as refused:
+        await service.continue_run(ctx, agent.id, waiting.id, consent)
+    assert refused.value.details == {
+        "fields": [{"field": "note", "message": "A note goes only with Try again"}]
+    }
+    assert (await service.read(ctx, agent.id, waiting.id)).status == "waiting"
+
+
+@pytest.mark.security
 async def test_a_session_stopped_for_permission_resumes_for_free_as_whoever_continues_it(db):
     ctx, agent, waiting = await _at_understand(db)
     row = await db.get(ImprovementRun, waiting.id)

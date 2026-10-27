@@ -415,19 +415,16 @@ def best_round(rounds: list[RoundResult]) -> int | None:
     return None if best is None else best.number
 
 
-def round_stop(rounds: list[RoundResult], *, maximum: int) -> StopReason | None:
-    """Whether another proposal can add information after this round."""
-    latest = rounds[-1]
-    if latest.verdict == ImprovementVerdict.BETTER:
+def no_progress(rounds: list[RoundResult]) -> StopReason | None:
+    """Why another attempt is unlikely to add anything: the last two changed nothing, or
+    neither could be told apart from the base. A hint for a person, never a stop."""
+    if len(rounds) < 2:
         return None
-    if len(rounds) >= 2:
-        previous = rounds[-2]
-        if previous.verdict == latest.verdict == ImprovementVerdict.NO_CHANGE:
-            return StopReason.NO_CHANGE
-        if previous.verdict == latest.verdict == ImprovementVerdict.INCONCLUSIVE:
-            return StopReason.INCONCLUSIVE
-    if latest.number >= maximum:
-        return StopReason.MAX_ITERATIONS
+    previous, latest = rounds[-2], rounds[-1]
+    if previous.verdict == latest.verdict == ImprovementVerdict.NO_CHANGE:
+        return StopReason.NO_CHANGE
+    if previous.verdict == latest.verdict == ImprovementVerdict.INCONCLUSIVE:
+        return StopReason.INCONCLUSIVE
     return None
 
 

@@ -9,7 +9,7 @@ import hashlib
 import json
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Literal
@@ -854,6 +854,19 @@ class ImprovementPipelineService:
         result.can_restart = await self._may_continue(ctx, run)
         if run.status == Status.WAITING:
             result.next_step = "check" if run.stage == Stage.FILTERING else "propose"
+        measured = [
+            rules.RoundResult(
+                item.number,
+                ImprovementVerdict(item.verdict),
+                (item.verdict_detail or {}).get("broken") or 0,
+                (item.verdict_detail or {}).get("candidate_pass_rate"),
+            )
+            for item in iterations
+            if item.verdict is not None
+        ]
+        hint = rules.no_progress(measured)
+        if hint is not None:
+            result.round_hint = "no_change" if hint == StopReason.NO_CHANGE else "inconclusive"
         result.can_discard = ctx.user_id == run.created_by_user_id or ctx.has(Perm.ORG_SETTINGS)
         result.spent_usd = await improvement_repo.spent(
             self.db, run.id, organization_id=run.organization_id
@@ -1240,24 +1253,6 @@ class ImprovementPipelineService:
         elif run.status == Status.FAILED and run.stage in {Stage.PROPOSING, Stage.EVALUATING}:
             mode = "retry"
         elif current.verdict is not None and run.status in {Status.READY, Status.STOPPED}:
-            measured = [
-                rules.RoundResult(
-                    item.number,
-                    ImprovementVerdict(item.verdict),
-                    (item.verdict_detail or {}).get("broken") or 0,
-                    (item.verdict_detail or {}).get("candidate_pass_rate"),
-                )
-                for item in rounds
-                if item.verdict
-            ]
-            if (
-                current.verdict == ImprovementVerdict.INCONCLUSIVE
-                or run.stop_reason in {StopReason.REPEAT_CANDIDATE, StopReason.INCONCLUSIVE}
-                or rules.round_stop(measured, maximum=run.max_iterations) is not None
-            ):
-                raise BadRequestError(
-                    message="The session reached its round or no-progress limit; review the result or start a new session"
-                )
             deferred = next(
                 (
                     item
@@ -1271,7 +1266,7 @@ class ImprovementPipelineService:
             )
             number = deferred.number if deferred else max(item.number for item in rounds) + 1
             if number > run.max_iterations:
-                raise BadRequestError(message="The session reached its round limit")
+                raise BadRequestError(message="The session reached its attempt limit")
             mode = "next_round"
         else:
             raise BadRequestError(
@@ -1440,15 +1435,20 @@ class ImprovementPipelineService:
             raise PaymentRequiredError(
                 message="The full continuation estimate exceeds the spending limit or available budget"
             )
+        if data.note is not None and quote.mode != "next_round":
+            raise refused_field("note", "A note goes only with Try again")
         stage = self._continued_stage(run, quote.mode)
         if quote.mode == "next_round":
             following = await improvement_repo.get_iteration(
                 self.db, organization_id=ctx.organization_id, run_id=run.id, number=quote.number
             )
             if following is None:
-                await improvement_repo.create_iteration(
+                following = await improvement_repo.create_iteration(
                     self.db, organization_id=ctx.organization_id, run_id=run.id, number=quote.number
                 )
+            await improvement_repo.update_iteration(
+                self.db, iteration=following, values={"note": data.note}
+            )
         elif stage == Stage.PROPOSING:
             await improvement_repo.update_iteration(
                 self.db, iteration=iteration, values={"authoring_request_id": None}
@@ -2203,7 +2203,7 @@ class ImprovementPipelineService:
         elif run.stage == Stage.EVALUATING:
             await self._evaluate(ctx, inputs, run, iteration)
         elif run.stage == Stage.JUDGING:  # pragma: no branch - the stages above are exhaustive
-            await self._judge(ctx, inputs, run, iteration)
+            await self._judge(ctx, run, iteration)
 
     async def _candidate(
         self,
@@ -2523,7 +2523,7 @@ class ImprovementPipelineService:
                 await self._audit(run, "review_recomputed", actor_user_id=ctx.subject_id)
 
     async def _judge(
-        self, ctx: AuthContext, inputs: Inputs, run: ImprovementRun, iteration: ImprovementIteration
+        self, ctx: AuthContext, run: ImprovementRun, iteration: ImprovementIteration
     ) -> None:
         child = await self.evals.get(ctx, iteration.eval_run_ids[-1])
         comparison = await self.evals.compare(ctx, child.id)
@@ -2581,54 +2581,10 @@ class ImprovementPipelineService:
         await improvement_repo.update_run(
             self.db, run=run, values={"best_iteration_id": None if best is None else best.id}
         )
-        # A confirming rerun belongs to this round, before considering a new proposal.
+        # A confirming rerun belongs to this round; any other verdict waits for a person.
         if transition.status.active:
             await self._move(run, transition)
             return
-        # Archived measurements mark a person's selected recheck; only the
-        # initial automatic measurement may propose another round on its own.
-        if verdict != ImprovementVerdict.BETTER and not iteration.previous_eval_run_ids:
-            reason = (
-                StopReason.INCONCLUSIVE
-                if verdict == ImprovementVerdict.INCONCLUSIVE
-                else rules.round_stop(results, maximum=run.max_iterations)
-            )
-            if reason is None:
-                target = ImprovementTarget(
-                    dataset_id=run.dataset_id if run.suite_id is None else None,
-                    suite_id=run.suite_id,
-                    window_days=run.window_days,
-                    improver_agent_id=run.improver_agent_id,
-                    max_iterations=1,
-                )
-                estimate = await self._estimate(
-                    ctx,
-                    replace(inputs, request=self._eval_request(inputs, run)),
-                    target,
-                    include_knowledge=False,
-                    improvement_run_id=run.id,
-                )
-                if not estimate.affordable or not rules.affordable(
-                    spent=spent, step_estimate=estimate.total_usd, budget=run.budget_usd
-                ):
-                    reason = StopReason.BUDGET
-            if reason is None:
-                following = next(
-                    (item for item in rounds if item.number == run.iteration + 1), None
-                )
-                if following is None:
-                    await improvement_repo.create_iteration(
-                        self.db,
-                        organization_id=run.organization_id,
-                        run_id=run.id,
-                        number=run.iteration + 1,
-                    )
-                await improvement_repo.update_run(
-                    self.db, run=run, values={"iteration": run.iteration + 1}
-                )
-                await self._move(run, rules.Transition(Status.RUNNING, Stage.PROPOSING))
-                return
-            transition = rules.Transition(Status.STOPPED, Stage.JUDGING, reason)
         if transition.status == Status.READY:
             # The waiting candidate is the best round, which an equal later round does not displace.
             assert best is not None, "a round judged ready was measured"

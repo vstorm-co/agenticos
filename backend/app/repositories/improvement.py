@@ -192,6 +192,16 @@ async def list_for_person(
     return list(result.scalars().all())
 
 
+async def attempt_note(db: AsyncSession, *, organization_id: UUID, request_id: UUID) -> str | None:
+    """The note a person left for the attempt this proposal request belongs to."""
+    return await db.scalar(
+        select(ImprovementIteration.note).where(
+            ImprovementIteration.organization_id == organization_id,
+            ImprovementIteration.authoring_request_id == request_id,
+        )
+    )
+
+
 async def update_run(
     db: AsyncSession, *, run: ImprovementRun, values: dict[str, Any]
 ) -> ImprovementRun:

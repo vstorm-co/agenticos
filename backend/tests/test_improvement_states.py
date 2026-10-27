@@ -553,25 +553,24 @@ def test_best_round_prefers_quality_stability_success_then_the_earlier_round() -
 
 
 @pytest.mark.parametrize(
-    ("verdicts", "maximum", "reason"),
+    ("verdicts", "reason"),
     [
-        (["regression"], 3, None),
-        (["no_change", "no_change"], 3, StopReason.NO_CHANGE),
-        (["inconclusive", "inconclusive"], 3, StopReason.INCONCLUSIVE),
-        (["regression", "no_change", "regression"], 3, StopReason.MAX_ITERATIONS),
-        (["better"], 1, None),
+        (["regression"], None),
+        (["no_change", "no_change"], StopReason.NO_CHANGE),
+        (["inconclusive", "inconclusive"], StopReason.INCONCLUSIVE),
+        (["regression", "no_change", "regression"], None),
+        (["no_change", "better"], None),
     ],
 )
-def test_round_stop_conditions(verdicts, maximum, reason) -> None:
-    from app.services.improvement_states import RoundResult, round_stop
+def test_two_attempts_alike_hint_that_another_is_unlikely_to_help(verdicts, reason) -> None:
+    from app.services.improvement_states import RoundResult, no_progress
 
     assert (
-        round_stop(
+        no_progress(
             [
                 RoundResult(index + 1, ImprovementVerdict(verdict), 0, 0.8)
                 for index, verdict in enumerate(verdicts)
-            ],
-            maximum=maximum,
+            ]
         )
         == reason
     )

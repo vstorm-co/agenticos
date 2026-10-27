@@ -7,12 +7,17 @@ import pytest
 from sqlalchemy import select
 
 from app.agents.spec import AgentSpec
-from app.core.exceptions import ConcurrentChangeError
+from app.core.exceptions import BadRequestError, ConcurrentChangeError, PaymentRequiredError
 from app.db.models.dataset import DatasetCase
 from app.db.models.eval_run import EvalRun
 from app.db.models.improvement import ImprovementRun
 from app.repositories import authoring_repo
-from app.schemas.improvement import AttributionConsent, ImprovementStart
+from app.schemas.improvement import (
+    AttributionConsent,
+    ContinuationConsent,
+    ImprovementContinue,
+    ImprovementStart,
+)
 from app.services.agent_runner import AgentRunnerService
 from app.services.authoring_worker import AuthoringWorker
 from app.services.eval_run_worker import EvalRunWorker
@@ -121,7 +126,9 @@ async def _two_rounds(db):
         await service.advance(started.id, ctx.organization_id)
     await _next_step(db, ctx, started.id)
     first = await _round(db, ctx, agent, started.id, "ROUND_BAD")
-    second_read = await service.read(ctx, agent.id, started.id)
+    stopped = await service.read(ctx, agent.id, started.id)
+    assert (stopped.status, stopped.stop_reason, stopped.iteration) == ("stopped", "regression", 1)
+    second_read = await _next_step(db, ctx, started.id, note="KEEP_THE_REFUND_WINDOW_NOTE")
     assert second_read.status == "running" and second_read.iteration == 2
     second = await _round(db, ctx, agent, started.id, "ROUND_GOOD")
     return ctx, agent, started, first, second
@@ -135,6 +142,9 @@ async def test_regression_starts_a_blind_second_round_and_best_is_selectable(db)
     assert [item.verdict for item in ready.iterations] == ["regression", "better"]
     assert ready.best_iteration_id == ready.iterations[1].id
     assert "TRAIN_QUESTION_MARKER" in "\n".join(second.prompts)
+    assert "KEEP_THE_REFUND_WINDOW_NOTE" in "\n".join(second.prompts)
+    assert "KEEP_THE_REFUND_WINDOW_NOTE" not in "\n".join(first.prompts)
+    assert [item.note for item in ready.iterations] == [None, "KEEP_THE_REFUND_WINDOW_NOTE"]
     assert "Baseline answer:" in "\n".join(second.prompts)
     assert "HOLDOUT_" not in "\n".join([*first.prompts, *second.prompts])
     assert ready.iterations[0].cost_usd > 0 and ready.iterations[1].cost_usd > 0
@@ -197,11 +207,26 @@ async def test_the_next_round_cannot_start_when_its_whole_forecast_exceeds_budge
     for _ in range(2):
         await service.advance(started.id, ctx.organization_id)
     await _next_step(db, ctx, started.id)
-    row = await db.get(ImprovementRun, started.id)
-    assert row is not None
     await _round(db, ctx, agent, started.id, "ROUND_BAD", exhaust_budget=True)
     stopped = await service.read(ctx, agent.id, started.id)
-    assert stopped.stop_reason == "budget"
+    assert (stopped.status, stopped.stop_reason) == ("stopped", "regression")
+    quote = await service.estimate_continuation(
+        ctx, agent.id, started.id, ImprovementContinue(budget_usd=stopped.budget_usd)
+    )
+    assert quote.mode == "next_round" and not quote.affordable
+    with pytest.raises(PaymentRequiredError):
+        await service.continue_run(
+            ctx,
+            agent.id,
+            started.id,
+            ContinuationConsent(
+                confirmed=True,
+                budget_usd=quote.budget_usd,
+                estimate_usd=quote.total_usd,
+                candidate_hash=quote.candidate_hash,
+            ),
+        )
+    stopped = await service.read(ctx, agent.id, started.id)
     assert stopped.iteration == 1 and len(stopped.iterations) == 1
 
 
@@ -210,10 +235,10 @@ async def test_the_next_round_cannot_start_when_its_whole_forecast_exceeds_budge
     [
         (["ROUND_BAD", "ROUND_BAD"], 3, "repeat_candidate"),
         (["NEUTRAL_ONE", "NEUTRAL_TWO"], 3, "no_change"),
-        (["ROUND_BAD_ONE", "ROUND_BAD_TWO"], 2, "max_iterations"),
+        (["ROUND_BAD_ONE", "ROUND_BAD_TWO"], 2, "regression"),
     ],
 )
-async def test_round_loop_stops_without_overwriting_a_persons_batch(db, markers, maximum, reason):
+async def test_attempts_a_person_asks_for_never_overwrite_their_batch(db, markers, maximum, reason):
     from tests.integration.test_authoring import _improve
 
     ctx, agent, _ = await _setup(db)
@@ -232,10 +257,18 @@ async def test_round_loop_stops_without_overwriting_a_persons_batch(db, markers,
     for _ in range(2):
         await service.advance(started.id, ctx.organization_id)
     await _next_step(db, ctx, started.id)
-    for marker in markers:
+    for number, marker in enumerate(markers, start=1):
+        if number > 1:
+            await _next_step(db, ctx, started.id)
         await _round(db, ctx, agent, started.id, marker)
     stopped = await service.read(ctx, agent.id, started.id)
     assert stopped.status == "stopped" and stopped.stop_reason == reason
+    assert stopped.round_hint == ("no_change" if reason == "no_change" else None)
+    if stopped.iteration == maximum:
+        with pytest.raises(BadRequestError, match="attempt limit"):
+            await service.estimate_continuation(
+                ctx, agent.id, started.id, ImprovementContinue(budget_usd=stopped.budget_usd)
+            )
     current = await authoring_repo.get_open_batch(
         db, organization_id=ctx.organization_id, agent_id=agent.id
     )
@@ -246,8 +279,6 @@ async def test_round_loop_stops_without_overwriting_a_persons_batch(db, markers,
 
 @pytest.mark.security
 async def test_attribution_refuses_a_changed_base_and_an_exhausted_session_budget(db):
-    from app.core.exceptions import PaymentRequiredError
-
     ctx, agent, started, _, _ = await _two_rounds(db)
     service = ImprovementPipelineService(db)
     quote = await service.estimate_attribution(ctx, agent.id, started.id, 2)
