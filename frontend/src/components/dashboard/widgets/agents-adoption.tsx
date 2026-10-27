@@ -27,7 +27,7 @@ export function AgentsAdoptionWidget({
 
   return (
     <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
-      <UsageBody period={period} emptyKey="agents" options={options}>
+      <UsageBody period={period} emptyKey="agents" loadingVariant="bars" options={options}>
         {(usage) => {
           const byAgent = usage.by_agent ?? [];
           const ran = new Set(byAgent.map((row) => row.agent_id));

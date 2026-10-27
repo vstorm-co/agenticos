@@ -37,11 +37,11 @@ export function MySummaryWidget({ title, hint, period, seeAll, options }: Dashbo
   return (
     <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {isLoading ? (
-        <WidgetSkeleton />
+        <WidgetSkeleton variant="metrics" />
       ) : error ? (
         <WidgetErrorBody onRetry={() => refetch()} />
       ) : (
-        <div className="grid flex-1 grid-cols-2 gap-5 lg:grid-cols-4">
+        <div className="grid flex-1 grid-cols-2 gap-5 @[40rem]/widget:grid-cols-4">
           <Figure
             tone="indigo"
             label={t("runs")}

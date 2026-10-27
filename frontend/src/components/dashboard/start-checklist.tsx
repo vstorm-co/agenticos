@@ -175,8 +175,8 @@ function Checklist({
         <div className="flex items-center gap-4">
           <ProgressRing done={done.length} total={steps.length} />
           <div className="min-w-0 flex-1">
-            <h2 className="text-base font-semibold tracking-tight">{t("title")}</h2>
-            <p className="text-muted-foreground text-sm">{t("left", { count: open.length })}</p>
+            <h2 className="text-sm font-semibold tracking-tight">{t("title")}</h2>
+            <p className="text-muted-foreground text-xs">{t("left", { count: open.length })}</p>
           </div>
           <Button
             variant="ghost"
@@ -190,15 +190,17 @@ function Checklist({
         </div>
 
         {/* The one thing to do now, said plainly and with its own button. */}
-        <div className="bg-muted/60 flex items-start gap-3.5 rounded-xl p-4">
-          <span className="bg-card text-foreground shadow-card flex h-10 w-10 shrink-0 items-center justify-center rounded-xl">
+        <div className="bg-foreground/[0.03] flex items-start gap-3.5 rounded-xl p-4">
+          <span className="bg-foreground/[0.04] text-muted-foreground flex h-10 w-10 shrink-0 items-center justify-center rounded-lg">
             <NextIcon className="h-5 w-5" aria-hidden />
           </span>
           <div className="min-w-0 flex-1 space-y-3">
             <div>
               <p className="text-muted-foreground text-xs">{t("next")}</p>
               <p className="text-sm font-semibold">{t(`steps.${next.id}`)}</p>
-              <p className="text-muted-foreground text-sm">{t(`hints.${next.id}`)}</p>
+              <p className="text-muted-foreground text-xs leading-relaxed">
+                {t(`hints.${next.id}`)}
+              </p>
             </div>
             <StepAction step={next} className="h-8">
               {t("start")}
@@ -233,7 +235,7 @@ function Checklist({
         )}
 
         {done.length > 0 && (
-          <div className="mt-auto space-y-2 border-t pt-4">
+          <div className="border-foreground/8 mt-auto space-y-2 border-t pt-4">
             <p className="text-muted-foreground text-xs">{t("doneHeading")}</p>
             <ul className="flex flex-wrap gap-1.5">
               {done.map((step) => (

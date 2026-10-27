@@ -1,5 +1,5 @@
 ---
-source_sha: "19f92e0445c6"
+source_sha: "eda91cea1794"
 ---
 
 # Die Konsole { #the-console }
@@ -99,6 +99,8 @@ Discover beginnt auf dem Dashboard mit illustrierten Fähigkeiten. Beim Überfah
 einer Kurve in *Your period* erscheinen Zeitabschnitt und Wert; Ausgaben werden
 als Geldbetrag formatiert. Projekte zeigen Beschreibungen, Agentenzeilen dieselben
 Avatare wie im Chat.
+
+Dashboard-Karten verwenden einheitliche kompakte Zeilen, Dienstsymbole und Statusbezeichnungen. Kennzahlen und Diagramme passen sich der Kartenbreite an, auch in eigenen Anordnungen. Ladeplatzhalter entsprechen dem Inhaltstyp; ein nicht verfügbares Briefing bietet einen erneuten Versuch an, statt fälschlich keine Vorschläge zu melden.
 
 ## Der Posteingang { #the-inbox }
 

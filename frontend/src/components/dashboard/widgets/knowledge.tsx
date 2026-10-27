@@ -31,7 +31,7 @@ export function KnowledgeWidget({ title, hint, seeAll, options }: DashboardWidge
   if (isLoading) {
     return (
       <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
-        <WidgetSkeleton />
+        <WidgetSkeleton variant="metrics" columns={3} />
       </WidgetFrame>
     );
   }
@@ -52,7 +52,7 @@ export function KnowledgeWidget({ title, hint, seeAll, options }: DashboardWidge
           description={t("empty.description")}
         />
       ) : (
-        <div className="grid flex-1 grid-cols-3 content-center gap-4">
+        <div className="grid flex-1 grid-cols-3 content-start gap-4">
           <Figure label={t("collections")} value={kbs.length.toLocaleString()} />
           <Figure
             label={t("documents")}

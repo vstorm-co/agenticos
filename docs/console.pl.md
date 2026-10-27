@@ -1,5 +1,5 @@
 ---
-source_sha: "19f92e0445c6"
+source_sha: "eda91cea1794"
 ---
 
 # Konsola { #the-console }
@@ -93,6 +93,8 @@ prywatnego Inbox. Każda zakładka ma własne przyciski tworzenia.
 Discover na dashboardzie zaczyna się od ilustrowanych możliwości. Najedź na wykres
 w *Your period*, aby zobaczyć przedział i wartość; koszty są kwotami. Projekty
 pokazują opisy, a wiersze agentów używają tych samych avatarów co chat.
+
+Karty dashboardu korzystają ze spójnych, zwartych wierszy, oznaczeń usług i etykiet statusu. Liczniki i wykresy dostosowują się do szerokości karty, również we własnych układach. Placeholdery odpowiadają rodzajowi ładowanej zawartości; niedostępny briefing pokazuje możliwość ponowienia zamiast informacji o braku propozycji.
 
 ## Inbox { #the-inbox }
 

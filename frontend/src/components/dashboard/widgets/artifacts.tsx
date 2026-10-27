@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { PanelsTopLeft } from "lucide-react";
+import { ArrowUpRight, PanelsTopLeft } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { useArtifacts } from "@/hooks/use-artifacts";
@@ -38,17 +38,28 @@ export function ArtifactsWidget({ title, hint, seeAll, options }: DashboardWidge
           description={t("empty.description")}
         />
       ) : (
-        <ul className="divide-border divide-y">
+        <ul className="space-y-1">
           {artifacts.map((artifact) => (
             <li key={artifact.id}>
               <Link
                 href={ROUTES.ARTIFACT_DETAIL(artifact.id)}
-                className="hover:bg-accent/40 flex items-center justify-between gap-3 rounded-md px-1 py-2"
+                className="hover:bg-muted/60 focus-visible:ring-ring flex items-center gap-3 rounded-lg px-1 py-2.5 outline-none focus-visible:ring-2"
               >
-                <span className="text-foreground truncate text-sm">{artifact.title}</span>
-                <span className="text-muted-foreground shrink-0 text-xs">
-                  {timeAgo(artifact.published_at, tTime, locale)}
+                <span
+                  className="bg-foreground/[0.04] text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-lg"
+                  aria-hidden
+                >
+                  <PanelsTopLeft className="size-4" />
                 </span>
+                <span className="min-w-0 flex-1">
+                  <span className="text-foreground block truncate text-sm font-medium">
+                    {artifact.title}
+                  </span>
+                  <span className="text-muted-foreground block text-xs">
+                    {timeAgo(artifact.published_at, tTime, locale)}
+                  </span>
+                </span>
+                <ArrowUpRight className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
               </Link>
             </li>
           ))}

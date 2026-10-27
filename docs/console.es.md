@@ -1,5 +1,5 @@
 ---
-source_sha: "19f92e0445c6"
+source_sha: "eda91cea1794"
 ---
 
 # La consola { #the-console }
@@ -99,6 +99,8 @@ Discover comienza con capacidades ilustradas en el dashboard. Al pasar el punter
 por una curva de *Your period* aparecen el intervalo y el valor; los costes se
 muestran como importes. Los proyectos muestran descripciones y los agentes usan
 los mismos avatares que en el chat.
+
+Las tarjetas del panel usan filas compactas coherentes, símbolos de servicios y etiquetas de estado. Las cifras y los gráficos se adaptan al ancho de la tarjeta, también en diseños personalizados. Los indicadores de carga reflejan el tipo de contenido; un resumen no disponible permite reintentar en vez de afirmar que no hay propuestas.
 
 ## La bandeja { #the-inbox }
 

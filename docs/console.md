@@ -87,6 +87,8 @@ On the dashboard, Discover starts with illustrated capabilities. Hover over a
 *Your period* sparkline to read its bucket and value; spend is formatted as money.
 Projects show descriptions, and agent rows use the same avatars as chat.
 
+Dashboard cards use the same compact rows, service marks and status labels. Counts and charts adapt to the card width, including custom layouts. Loading placeholders follow the kind of content being loaded; an unavailable briefing shows a retry instead of claiming that no proposals exist.
+
 ## The inbox { #the-inbox }
 
 **Inbox**, under Chat in the sidebar, is what the platform brought you on its

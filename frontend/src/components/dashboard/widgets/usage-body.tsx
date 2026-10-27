@@ -1,5 +1,17 @@
 "use client";
 
+import {
+  Activity,
+  Bot,
+  ChartNoAxesCombined,
+  CircleCheckBig,
+  Coins,
+  Gauge,
+  Layers2,
+  Route,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 
@@ -10,6 +22,18 @@ import type { UsageStats } from "@/types/stats";
 import { cn } from "@/lib/utils";
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 
+const EMPTY_ICON: Record<string, LucideIcon> = {
+  summary: ChartNoAxesCombined,
+  runs: Activity,
+  agents: Bot,
+  "model-mix": Layers2,
+  surfaces: Route,
+  outcomes: CircleCheckBig,
+  latency: Gauge,
+  "active-users": Users,
+  spend: Coins,
+};
+
 /**
  * The state handling every composed-response widget shares. All of them ask
  * the same query (deduped by key into one request), and all of them read
@@ -19,11 +43,13 @@ import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-stat
  */
 export function UsageBody({
   period,
+  loadingVariant = "chart",
   emptyKey,
   options,
   children,
 }: {
   period: Period;
+  loadingVariant?: "list" | "chart" | "metrics" | "bars";
   emptyKey: string;
   /** The card's own narrowing, if it declared any. Rides the query key too. */
   options?: WidgetOptions;
@@ -35,11 +61,12 @@ export function UsageBody({
     { filter: { agentId: options?.agentId, userId: options?.userId, groupId: options?.groupId } },
   );
 
-  if (isLoading) return <WidgetSkeleton />;
+  if (isLoading) return <WidgetSkeleton variant={loadingVariant} />;
   if (error) return <WidgetErrorBody onRetry={() => refetch()} />;
   if (!usage || !usage.total_runs) {
     return (
       <WidgetEmptyBody
+        icon={EMPTY_ICON[emptyKey]}
         title={t(`${emptyKey}.empty.title`)}
         description={t(`${emptyKey}.empty.description`)}
       />

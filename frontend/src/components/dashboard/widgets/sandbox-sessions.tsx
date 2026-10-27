@@ -131,14 +131,16 @@ function SessionRow({ connectionId, session, agentName, watching, onToggle }: Se
 
   return (
     <li className="space-y-1.5">
-      <div className="flex items-center gap-2 text-xs">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs">
         {/* Hibernated is not dead: the sandbox was stopped to free a slot, and
             its files and its log are both still there. */}
         <Badge variant={session.alive ? "secondary" : "outline"} className="shrink-0">
           {session.state}
         </Badge>
         <span className="min-w-0 flex-1">
-          <span className="text-foreground block truncate">{agentName ?? t("unattributed")}</span>
+          <span className="text-foreground block truncate font-medium">
+            {agentName ?? t("unattributed")}
+          </span>
           <span className="text-muted-foreground block truncate">{t(scopeKey(session.scope))}</span>
         </span>
         <span className="text-muted-foreground shrink-0 font-mono">{session.runtime}</span>

@@ -22,7 +22,7 @@ import {
  */
 export function useSuggestions() {
   const client = useQueryClient();
-  const { data } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.suggestions.mine(),
     queryFn: listSuggestions,
   });
@@ -32,6 +32,9 @@ export function useSuggestions() {
 
   return {
     suggestions: data ?? ([] as Suggestion[]),
+    isLoading,
+    error,
+    refetch,
     accept: accept.mutateAsync,
     dismiss: dismiss.mutateAsync,
   };

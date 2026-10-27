@@ -22,13 +22,13 @@ export function MyTopAgentsWidget({ title, hint, period, seeAll, options }: Dash
   return (
     <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {isLoading ? (
-        <WidgetSkeleton />
+        <WidgetSkeleton variant="bars" />
       ) : error ? (
         <WidgetErrorBody onRetry={() => refetch()} />
       ) : !usage || !usage.total_runs ? (
         <WidgetEmptyBody icon={Bot} title={t("empty.title")} description={t("empty.description")} />
       ) : (
-        <div className="flex h-full flex-col justify-between gap-2">
+        <div className="flex h-full flex-col gap-4">
           <BarList
             items={(usage.by_agent ?? []).slice(0, 4).map((row) => ({
               label: row.name,

@@ -36,6 +36,9 @@ Two things are versioned separately from this file and worth knowing about:
 - Separate agent routines from personal connection watches in two Routines tabs.
   Lead dashboard discovery with illustrated capabilities, show bucket values on
   summary chart hover, and simplify project and agent widgets.
+- Unify dashboard list rows, status indicators, shared-resource counts and
+  loading states across the widget catalog. Summary columns follow card width
+  in custom layouts. Briefing failures now offer Retry instead of appearing empty.
 
 ## [1.25.0] - 2026-10-27
 

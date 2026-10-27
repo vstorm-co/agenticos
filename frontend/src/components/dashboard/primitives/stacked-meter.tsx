@@ -64,10 +64,7 @@ export function StackedMeter({
       </div>
       <ul className="space-y-1.5">
         {segments.map((segment) => (
-          <li
-            key={segment.label}
-            className={cn("flex items-center gap-2 text-xs", segment.value === 0 && "opacity-45")}
-          >
+          <li key={segment.label} className="flex items-center gap-2 text-xs">
             <span
               className="size-2.5 shrink-0 rounded-[3px]"
               style={{ background: segment.color }}

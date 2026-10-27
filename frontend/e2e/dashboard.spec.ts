@@ -32,6 +32,33 @@ test.describe("Dashboard", () => {
     }
   });
 
+  test("sizes summary columns to the card rather than the screen", async ({ page }) => {
+    await page.route("**/api/me/dashboard-layout", (route) =>
+      route.fulfill({
+        json: {
+          entries: [
+            { widget: "my-summary", span: "s6", rows: "r3" },
+            { widget: "shared-with-you", span: "s6", rows: "r3" },
+          ],
+        },
+      }),
+    );
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto("/dashboard?view=org");
+    const card = page
+      .locator(".dash-widget")
+      .filter({ has: page.getByRole("heading", { name: "Your period", exact: true }) });
+    const figures = card.locator("div.grid").first();
+    await expect(figures).toBeVisible();
+    const columnCount = () =>
+      figures.evaluate(
+        (element) => getComputedStyle(element).gridTemplateColumns.split(/\s+/).length,
+      );
+    await expect.poll(columnCount).toBe(2);
+    await page.setViewportSize({ width: 2560, height: 1000 });
+    await expect.poll(columnCount).toBe(4);
+  });
+
   test("shows the owner their sections, with data where the seed has any", async ({ page }) => {
     // The sections are the organization's view; everybody opens on their own.
     await page.goto("/dashboard?view=org");
