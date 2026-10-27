@@ -90,6 +90,26 @@ class Key(_Action):
     )
 
 
+APP_NAME = r"^[\w][\w .+-]*$"
+"""What `launch` accepts: a name, never a path, an option or a command line."""
+
+
+class Launch(_Action):
+    """Open an installed application by its name, rather than hunting for its icon."""
+
+    action: Literal["launch"] = "launch"
+    app: str = Field(
+        min_length=1,
+        max_length=64,
+        pattern=APP_NAME,
+        description=(
+            "The application's name as its menu shows it, or the start of it: 'Firefox', "
+            "'Terminal', 'File Manager', 'Safari', 'TextEdit'. It opens a moment after the "
+            "action returns, so wait or look before typing into it."
+        ),
+    )
+
+
 class Wait(_Action):
     """Do nothing for a moment, to let something load or animate."""
 
@@ -98,7 +118,7 @@ class Wait(_Action):
 
 
 Action = Annotated[
-    Click | Move | Drag | Scroll | TypeText | Key | Wait, Field(discriminator="action")
+    Click | Move | Drag | Scroll | TypeText | Key | Launch | Wait, Field(discriminator="action")
 ]
 
 
@@ -129,7 +149,7 @@ class Screen:
 
 
 def points_of(
-    action: Click | Move | Drag | Scroll | TypeText | Key | Wait,
+    action: Click | Move | Drag | Scroll | TypeText | Key | Launch | Wait,
 ) -> list[tuple[int, int]]:
     """Every point an action names, in the order it names them."""
     if isinstance(action, Drag):
@@ -140,8 +160,8 @@ def points_of(
 
 
 def to_native(
-    action: Click | Move | Drag | Scroll | TypeText | Key | Wait, screen: Screen
-) -> Click | Move | Drag | Scroll | TypeText | Key | Wait:
+    action: Click | Move | Drag | Scroll | TypeText | Key | Launch | Wait, screen: Screen
+) -> Click | Move | Drag | Scroll | TypeText | Key | Launch | Wait:
     """The same action, with every point moved into the backend's input space."""
     if isinstance(action, Drag):
         x, y = screen.to_native(action.x, action.y)
@@ -153,7 +173,9 @@ def to_native(
     return action
 
 
-def describe(action: Click | Move | Drag | Scroll | TypeText | Key | Wait) -> tuple[str, str]:
+def describe(
+    action: Click | Move | Drag | Scroll | TypeText | Key | Launch | Wait,
+) -> tuple[str, str]:
     """An action as the live panel lists it: an operation and what it applied to.
 
     Typed text is shown, because the person watching is the person whose task this
@@ -176,5 +198,7 @@ def describe(action: Click | Move | Drag | Scroll | TypeText | Key | Wait) -> tu
             return "TYPE", text
         case Key():
             return "KEY", action.keys
+        case Launch():
+            return "LAUNCH", action.app
         case _:
             return "WAIT", f"{action.seconds:g}s"

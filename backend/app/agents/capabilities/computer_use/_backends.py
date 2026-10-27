@@ -37,7 +37,7 @@ way that chat's file and shell tools are, so it needs no address and no token.
 import base64
 import logging
 import struct
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from typing import Protocol
 from urllib.parse import urlsplit
@@ -51,6 +51,7 @@ from app.agents.capabilities.computer_use._actions import (
     Click,
     Drag,
     Key,
+    Launch,
     Move,
     Scroll,
     TypeText,
@@ -69,7 +70,7 @@ from app.services.device_hub import (
 
 logger = logging.getLogger(__name__)
 
-NativeAction = Click | Move | Drag | Scroll | TypeText | Key | Wait
+NativeAction = Click | Move | Drag | Scroll | TypeText | Key | Launch | Wait
 
 DISPLAY = ":0"
 """The X display a sandbox's desktop runs on."""
@@ -181,7 +182,8 @@ def x11_keys(chord: str) -> str:
 def xdotool(action: NativeAction) -> list[str] | None:
     """The `xdotool` command that carries out an action on an X11 display.
 
-    `None` for a wait, which is a sleep here rather than a process on the desktop.
+    `None` for a wait, which is a sleep here rather than a process on the desktop,
+    and for a launch, which is not `xdotool`'s.
     An argv rather than a shell line, so typed text reaches `xdotool` as one
     argument whatever it holds.
     """
@@ -209,6 +211,99 @@ def xdotool(action: NativeAction) -> list[str] | None:
             return ["xdotool", "key", "--", x11_keys(action.keys)]
         case _:
             return None
+
+
+@dataclass(frozen=True)
+class App:
+    """An application a Linux desktop's menu offers: its desktop entry and the name shown."""
+
+    path: str
+    name: str
+
+    @property
+    def id(self) -> str:
+        """The desktop entry's id, `firefox-esr` for `.../firefox-esr.desktop`."""
+        return self.path.rsplit("/", 1)[-1].removesuffix(".desktop")
+
+
+_LIST_APPS = r"""
+for dir in "$HOME/.local/share/applications" /usr/local/share/applications /usr/share/applications; do
+  for f in "$dir"/*.desktop; do
+    [ -f "$f" ] || continue
+    awk -v f="$f" '
+      /^\[/ { if (group) exit; group = ($0 == "[Desktop Entry]"); next }
+      group && /^Name=/ && name == "" { name = substr($0, 6) }
+      group && /^Type=/ { type = substr($0, 6) }
+      group && /^(NoDisplay|Hidden)=true/ { hidden = 1 }
+      END { if (type == "Application" && !hidden && name != "") print f "\t" name }' "$f"
+  done
+done
+"""
+"""Every application the menu shows, one `path<TAB>name` line each, the user's own first."""
+
+_LAUNCH_APP = r"""
+export NO_AT_BRIDGE=1
+if command -v exo-open >/dev/null; then set -- exo-open "$1"
+elif command -v gtk-launch >/dev/null; then set -- gtk-launch "$(basename "$1")"
+else echo "neither exo-open nor gtk-launch is installed" >&2; exit 1
+fi
+err=$(mktemp)
+setsid -w timeout 20 "$@" </dev/null >/dev/null 2>"$err"
+code=$?
+cat "$err" >&2; rm -f "$err"
+[ $code -eq 124 ] && echo "it did not start within 20 seconds" >&2
+exit $code
+"""
+"""Open one desktop entry in a session of its own, so it outlives the command that opened it.
+
+`NO_AT_BRIDGE` because no accessibility bus runs there, and without it every
+launch's stderr opens with a warning about that. `timeout`, because an entry
+that fails can leave its launcher waiting on an error dialog nobody closes. Its
+output goes to a file, not the command's own: the application inherits it and
+keeps it open, and the command would not end until the application did.
+
+`exo-open` is XFCE's, on the `desktop` runtime and the computerd image; `gtk-launch`
+the GTK one other desktops have.
+"""
+
+
+def parse_apps(listing: str) -> list[App]:
+    """The applications `_LIST_APPS` printed, the first of each id only - the user's own."""
+    apps: dict[str, App] = {}
+    for line in listing.splitlines():
+        path, _, name = line.partition("\t")
+        if path and name:
+            app = App(path=path, name=name.strip())
+            apps.setdefault(app.id, app)
+    return list(apps.values())
+
+
+def find_app(query: str, apps: Sequence[App]) -> App:
+    """The application a `launch` names, matched against its menu name and its id.
+
+    An exact match wins, then a name that starts with the query, then one that
+    contains it - "terminal" finds "Terminal Emulator", "firefox" finds "Firefox
+    ESR". Several at the first tier that has any is a question back to the model,
+    rather than a guess at which one it meant.
+
+    Raises:
+        ComputerError: Nothing matches, or several do; the model is told which.
+    """
+    wanted = query.casefold()
+    tiers: tuple[Callable[[str], bool], ...] = (
+        lambda key: key == wanted,
+        lambda key: key.startswith(wanted),
+        lambda key: wanted in key,
+    )
+    for tier, matches in enumerate(tiers):
+        found = [app for app in apps if matches(app.name.casefold()) or matches(app.id.casefold())]
+        if len(found) == 1 or (found and tier == 0):
+            return found[0]
+        if found:
+            names = ", ".join(sorted({app.name for app in found})[:20])
+            raise ComputerError(f"'{query}' could be any of: {names}. Name the one you mean.")
+    names = ", ".join(sorted({app.name for app in apps})[:60]) or "none"
+    raise ComputerError(f"No application called '{query}' is installed. These are: {names}.")
 
 
 def check_daemon_url(url: str) -> None:
@@ -315,7 +410,7 @@ def _error_text(response: httpx.Response) -> str:
     except ValueError:
         return f"HTTP {response.status_code}"
     error = body.get("error") if isinstance(body, dict) else None
-    return str(error)[:200] if error else f"HTTP {response.status_code}"
+    return str(error)[:1000] if error else f"HTTP {response.status_code}"
 
 
 E2B_DESKTOP_TEMPLATE = "desktop"
@@ -425,6 +520,11 @@ class LocalComputer:
 
     async def perform(self, action: NativeAction) -> None:
         """Send one action; the app answers once it has been carried out."""
+        if isinstance(action, Launch):
+            raise ComputerError(
+                "This computer cannot open applications by name. Use its own launcher: "
+                "cmd+space and the name on a Mac, the Start menu elsewhere, then wait."
+            )
         if isinstance(action, Wait):
             await anyio.sleep(action.seconds)
             return
@@ -501,7 +601,7 @@ class SandboxComputer:
         # One file per run's desktop: runs sharing a workspace share its `/tmp`.
         self._shot = f"/tmp/agenticos-screen-{uuid4().hex}.png"  # noqa: S108 - inside the sandbox
 
-    async def _run(self, argv: list[str], what: str) -> None:
+    async def _run(self, argv: list[str], what: str) -> str:
         try:
             result = await self._workspace.run(argv, env={"DISPLAY": DISPLAY}, timeout=60)
         except (WorkspaceError, OSError) as exc:
@@ -512,6 +612,7 @@ class SandboxComputer:
         if result.exit_code != 0:
             said = (result.stderr or result.stdout).strip()[:200] or f"exit {result.exit_code}"
             raise ComputerError(f"The desktop refused to {what}: {said}")
+        return result.stdout
 
     async def capture(self) -> Capture:
         """Take a screenshot; on X11 the picture and the pointer share one space."""
@@ -539,6 +640,11 @@ class SandboxComputer:
 
     async def perform(self, action: NativeAction) -> None:
         """Carry out one action with `xdotool` inside the sandbox."""
+        if isinstance(action, Launch):
+            listing = await self._run(["sh", "-c", _LIST_APPS], "list its applications")
+            app = find_app(action.app, parse_apps(listing))
+            await self._run(["sh", "-c", _LAUNCH_APP, "launch", app.path], f"open {app.name}")
+            return
         argv = xdotool(action)
         if argv is None:
             assert isinstance(action, Wait)

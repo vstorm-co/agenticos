@@ -409,7 +409,7 @@ def build_toolset(factory: ComputerFactory, policy: ToolPolicy) -> ComputerTools
         return answer(ctx, f"{TOLD}\n{said}" if person else said, image, screen)
 
     async def computer_act(ctx: RunContext[Any], actions: list[Action]) -> ToolReturn | str:
-        """Act on the desktop: click, type, press keys, scroll, drag or wait.
+        """Act on the desktop: click, type, press keys, scroll, drag, open an app or wait.
 
         Send the actions for one small step of the task - open a menu and choose
         an item, fill one field and press Tab - then look at the screenshot that
@@ -418,8 +418,11 @@ def build_toolset(factory: ComputerFactory, policy: ToolPolicy) -> ComputerTools
 
         Click on the centre of what you mean to hit. To fill a field, click it,
         then `type`. Use `key` for shortcuts and keys like enter, tab or escape -
-        `cmd` on a Mac and `ctrl` elsewhere. Never type a password or a secret the
-        user did not give you for this purpose; ask them instead.
+        `cmd` on a Mac and `ctrl` elsewhere. Open an application with `launch` and
+        its name. A launch, or a shortcut that opens something, returns before the
+        window appears: add a `wait` or end the batch there before typing. Never
+        type a password or a secret the user did not give you for this purpose;
+        ask them instead.
 
         Args:
             actions: What to do, in order - between 1 and the agent's per-call

@@ -90,7 +90,7 @@ async def test_local_computer_uses_the_paired_session_and_native_dimensions(
     from pydantic_ai.workspaces import Workspace
 
     from app.agents.capabilities.computer_use import _backends
-    from app.agents.capabilities.computer_use._actions import Wait
+    from app.agents.capabilities.computer_use._actions import Launch, Wait
     from app.schemas.local_target import LocalTarget
     from app.services.device_hub import DeviceCallFailed, DeviceWorkspace
 
@@ -117,6 +117,10 @@ async def test_local_computer_uses_the_paired_session_and_native_dimensions(
     assert (screenshot.width, screenshot.height) == (100, 80)
     await computer.perform(Click(x=20, y=10))
     assert call.call_args.args[1] == "screen.act"
+    calls = call.await_count
+    with pytest.raises(ComputerError, match="cannot open applications by name"):
+        await computer.perform(Launch(app="Safari"))
+    assert call.await_count == calls
     sleep = AsyncMock()
     monkeypatch.setattr(_backends.anyio, "sleep", sleep)
     await computer.perform(Wait(seconds=0.5))

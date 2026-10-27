@@ -1,5 +1,5 @@
 ---
-source_sha: "e1ff6a6a50fd"
+source_sha: "5d92a6a7df91"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -904,7 +904,7 @@ są usuwane.
 
 `computer_screenshot` — *Take a screenshot of the desktop.*
 
-`computer_act` — *Act on the desktop: click, type, press keys, scroll, drag or wait.*
+`computer_act` — *Act on the desktop: click, type, press keys, scroll, drag, open an app or wait.*
 
 `computer_save_screenshot` — *Save a screenshot of the desktop for the user: shown in the chat and kept.*
 
@@ -950,6 +950,18 @@ przeciwnym razie domyślny runtime połączenia. Sandbox, który nie wskazuje
 żadnego, też jest odrzucany, bo domyślny runtime dostarczany z platformą to
 `workbench`, który nie ma ekranu. Połączenie Daytony jest odrzucane, bo
 uruchamia własny obraz.
+
+**Otwieranie aplikacji.** Akcja `launch` otwiera aplikację po nazwie, zamiast
+szukać jej ikony. Na Macu to `open -a`. Na Linuksie to wpis menu, którego nazwa
+albo id pasuje: najpierw dokładnie, potem nazwa zaczynająca się od podanej,
+potem taka, która ją zawiera. Wpis otwiera `exo-open`, który mają runtime
+`desktop` i kontener computerd, albo `gtk-launch`. Nazwa pasująca do kilku
+wpisów albo do żadnego jest odrzucana razem z listą nazw, żeby model mógł
+wybrać jeszcze raz. `launch` przyjmuje tylko nazwę, nigdy ścieżkę ani
+argumenty. W kontenerze computerd aplikacja działa jako `desk`, a nie jako
+konto, które trzyma token. Własny komputer użytkownika, osiągany przez
+aplikację desktopową, jeszcze tego nie obsługuje: model dostaje wskazówkę, żeby
+użył launchera tego komputera.
 
 Narzędzie `execute` nie jest potrzebne, a jego wyłączenie trzyma akcje na
 pulpicie za `computer_act` i jego akceptacją: z `execute` agent może uruchomić

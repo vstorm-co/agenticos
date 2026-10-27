@@ -1,5 +1,5 @@
 ---
-source_sha: "e1ff6a6a50fd"
+source_sha: "5d92a6a7df91"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -920,7 +920,7 @@ la clave de TypeSafe.
 
 `computer_screenshot` — *Take a screenshot of the desktop.*
 
-`computer_act` — *Act on the desktop: click, type, press keys, scroll, drag or wait.*
+`computer_act` — *Act on the desktop: click, type, press keys, scroll, drag, open an app or wait.*
 
 `computer_save_screenshot` — *Save a screenshot of the desktop for the user: shown in the chat and kept.*
 
@@ -967,6 +967,19 @@ ejecución: el `runtime` de la capability Sandbox o, si no, el predeterminado de
 la conexión. Una sandbox que no nombra ninguno también se rechaza, porque el
 predeterminado que se distribuye es `workbench`, que no tiene pantalla. Una
 conexión de Daytona se rechaza porque ejecuta su propia imagen.
+
+**Abrir una aplicación.** Una acción `launch` abre una aplicación por su
+nombre, en lugar de buscar su icono. En un Mac es `open -a`. En Linux es la
+entrada del menú cuyo nombre o id coincide: primero exactamente, luego un nombre
+que empieza por el dado y luego uno que lo contiene. La entrada se abre con
+`exo-open`, que tienen el runtime `desktop` y el contenedor de computerd, o con
+`gtk-launch`. Un nombre que coincide con varias entradas, o con ninguna, se
+rechaza con los nombres, para que el modelo pueda elegir otra vez. `launch`
+acepta solo un nombre, nunca una ruta ni argumentos. En el contenedor de
+computerd la aplicación se ejecuta como `desk`, no como la cuenta que guarda el
+token. El ordenador de la propia persona, al que se llega por la app de
+escritorio, todavía no lo admite: al modelo se le indica que use el lanzador de
+ese ordenador.
 
 La tool `execute` no hace falta, y dejarla fuera mantiene las acciones del
 escritorio detrás de `computer_act` y de su aprobación: con `execute`, el agent

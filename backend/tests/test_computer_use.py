@@ -49,6 +49,7 @@ from app.agents.capabilities.computer_use._actions import (
     Click,
     Drag,
     Key,
+    Launch,
     Move,
     Screen,
     Scroll,
@@ -59,11 +60,14 @@ from app.agents.capabilities.computer_use._actions import (
     to_native,
 )
 from app.agents.capabilities.computer_use._backends import (
+    App,
     Capture,
     ComputerError,
     DaemonComputer,
     SandboxComputer,
+    find_app,
     open_sandbox_desktop,
+    parse_apps,
     png_size,
     x11_keys,
     xdotool,
@@ -265,6 +269,7 @@ class TestTheLivePanelsWords:
             (Scroll(x=1, y=2, direction="up", amount=5), ("SCROLL", "up 5 at (1, 2)")),
             (TypeText(text="hello"), ("TYPE", "hello")),
             (Key(keys="ctrl+c"), ("KEY", "ctrl+c")),
+            (Launch(app="Firefox"), ("LAUNCH", "Firefox")),
             (Wait(seconds=1.5), ("WAIT", "1.5s")),
         ],
     )
@@ -316,12 +321,84 @@ class TestX11:
     def test_each_action_becomes_one_command(self, action: Any, command: str):
         assert xdotool(action) == command.split()
 
-    def test_a_wait_is_no_command_at_all(self):
+    def test_a_wait_or_a_launch_is_no_xdotool_command(self):
         assert xdotool(Wait()) is None
+        assert xdotool(Launch(app="Firefox")) is None
 
     def test_typed_text_is_one_argument_whatever_it_holds(self):
         text = "a'; rm -rf / #"
         assert xdotool(TypeText(text=text)) == ["xdotool", "type", "--delay", "12", "--", text]
+
+
+_APPS = [
+    App(path="/home/me/.local/share/applications/firefox-esr.desktop", name="Firefox ESR"),
+    App(path="/usr/share/applications/xfce4-terminal-emulator.desktop", name="Terminal Emulator"),
+    App(path="/usr/share/applications/xfce4-terminal.desktop", name="Xfce Terminal"),
+    App(path="/usr/share/applications/xfce4-web-browser.desktop", name="Web Browser"),
+    App(path="/usr/share/applications/xfce-settings-manager.desktop", name="Settings Manager"),
+    App(path="/usr/share/applications/xfce4-settings-editor.desktop", name="Settings Editor"),
+]
+
+
+class TestLaunchingAnApp:
+    @pytest.mark.parametrize(
+        "app", ["Firefox", "Visual Studio Code", "org.gnome.Terminal", "Terminál"]
+    )
+    def test_an_applications_name_is_accepted(self, app: str):
+        assert Launch(app=app).app == app
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        "app", ["", "-a", "../../bin/sh", "/Applications/Calculator.app", "x; rm -rf /", "a" * 65]
+    )
+    def test_a_path_an_option_or_a_command_is_refused(self, app: str):
+        """It reaches `open -a` and a desktop entry lookup; only a name may."""
+        with pytest.raises(ValidationError):
+            Launch(app=app)
+
+    @pytest.mark.parametrize(
+        ("query", "name"),
+        [
+            ("xfce4-terminal", "Xfce Terminal"),
+            ("web browser", "Web Browser"),
+            ("terminal", "Terminal Emulator"),
+            ("firefox", "Firefox ESR"),
+            ("browser", "Web Browser"),
+        ],
+    )
+    def test_an_exact_name_wins_then_its_start_then_any_part(self, query: str, name: str):
+        assert find_app(query, _APPS).name == name
+
+    def test_two_entries_of_one_exact_name_open_the_first(self):
+        mine = App(path="/home/me/.local/share/applications/web.desktop", name="Web Browser")
+        assert find_app("Web Browser", [mine, *_APPS]) is mine
+
+    def test_several_matches_are_named_back_rather_than_guessed(self):
+        with pytest.raises(
+            ComputerError, match="could be any of: Settings Editor, Settings Manager"
+        ):
+            find_app("settings", _APPS)
+
+    def test_nothing_installed_by_that_name_lists_what_is(self):
+        with pytest.raises(
+            ComputerError, match=r"No application called 'gimp'.*Firefox ESR, Settings"
+        ):
+            find_app("gimp", _APPS)
+        with pytest.raises(ComputerError, match="These are: none"):
+            find_app("gimp", [])
+
+    def test_the_listing_keeps_the_users_own_entry_of_an_id(self):
+        listing = (
+            "/home/me/.local/share/applications/firefox-esr.desktop\tMy Firefox\n"
+            "/usr/share/applications/firefox-esr.desktop\tFirefox ESR\n"
+            "garbage without a tab\n"
+            "/usr/share/applications/thunar.desktop\tThunar File Manager \n"
+        )
+        assert parse_apps(listing) == [
+            App(path="/home/me/.local/share/applications/firefox-esr.desktop", name="My Firefox"),
+            App(path="/usr/share/applications/thunar.desktop", name="Thunar File Manager"),
+        ]
+        assert parse_apps(listing)[0].id == "firefox-esr"
 
 
 def _daemon(handler: Any) -> DaemonComputer:
@@ -414,10 +491,17 @@ class _Box:
     """
 
     def __init__(
-        self, *, exit_code: int = 0, stderr: str = "", fails: bool = False, attached: bool = True
+        self,
+        *,
+        exit_code: int = 0,
+        stdout: str = "",
+        stderr: str = "",
+        fails: bool = False,
+        attached: bool = True,
     ) -> None:
         self.ran: list[tuple[Any, bool, dict[str, str]]] = []
         self.exit_code = exit_code
+        self.stdout = stdout
         self.stderr = stderr
         self.fails = fails
         self.attached = attached
@@ -437,7 +521,7 @@ class _Box:
         if self.fails:
             raise WorkspaceError("sandbox gone")
         self.ran.append((command, shell, dict(env or {})))
-        return CommandResult(exit_code=self.exit_code, stdout="", stderr=self.stderr)
+        return CommandResult(exit_code=self.exit_code, stdout=self.stdout, stderr=self.stderr)
 
     async def read_bytes(self, path: str) -> bytes:
         if self.unreadable:
@@ -504,6 +588,23 @@ class TestTheSandboxDesktop:
         assert [argv for argv, _, _ in box.ran] == [
             ["xdotool", "mousemove", "--sync", "5", "6", "click", "--repeat", "1", "1"]
         ]
+
+    async def test_a_launch_opens_the_desktop_entry_its_name_finds(self):
+        box = _Box(stdout="/usr/share/applications/firefox-esr.desktop\tFirefox ESR\n")
+        await _on(box).perform(Launch(app="firefox"))
+
+        (listed, _, _), (launched, _, env) = box.ran
+        assert listed[:2] == ["sh", "-c"]
+        assert launched[:2] == ["sh", "-c"]
+        assert "exo-open" in launched[2]
+        assert launched[3:] == ["launch", "/usr/share/applications/firefox-esr.desktop"]
+        assert env == {"DISPLAY": ":0"}
+
+    async def test_a_launch_of_nothing_installed_opens_nothing(self):
+        box = _Box(stdout="/usr/share/applications/firefox-esr.desktop\tFirefox ESR\n")
+        with pytest.raises(ComputerError, match="No application called 'gimp'"):
+            await _on(box).perform(Launch(app="gimp"))
+        assert len(box.ran) == 1
 
     async def test_a_refused_command_tells_the_model_what_the_desktop_said(self):
         with pytest.raises(ComputerError, match="refused to run the click action: no display"):

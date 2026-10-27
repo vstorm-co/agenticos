@@ -857,7 +857,7 @@ Specs written before version 13 that bound the step-by-step browser
 
 `computer_screenshot` — *Take a screenshot of the desktop.*
 
-`computer_act` — *Act on the desktop: click, type, press keys, scroll, drag or wait.*
+`computer_act` — *Act on the desktop: click, type, press keys, scroll, drag, open an app or wait.*
 
 `computer_save_screenshot` — *Save a screenshot of the desktop for the user: shown in the chat and kept.*
 
@@ -901,6 +901,18 @@ run reads it: the Sandbox capability's `runtime`, else the connection's default.
 A sandbox that names neither is refused too, because the shipped default is
 `workbench`, which has no display. A Daytona connection is refused because it
 runs its own image.
+
+**Opening an application.** A `launch` action opens an application by its
+name rather than by finding its icon. On a Mac it is `open -a`. On Linux it is
+the menu entry whose name or id matches: an exact match first, then a name that
+starts with the given one, then one that contains it. The entry is opened with
+`exo-open`, which the `desktop` runtime and the computerd container have, or
+`gtk-launch`. A name that matches several entries, or none, is refused with the
+names, so the model can choose again. A launch takes a name only, never a path
+or arguments. In the computerd container the application runs as `desk`, not
+as the account that holds the token. The person's own computer, reached through
+the desktop app, does not support it yet: the model is told to use that
+computer's own launcher instead.
 
 The `execute` tool is not needed, and leaving it off keeps the desktop's actions
 behind `computer_act` and its approval: with `execute`, the agent can run

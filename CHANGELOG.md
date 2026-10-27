@@ -21,6 +21,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- A `launch` action in `computer_act` opens an application by name instead of
+  hunting for its icon: `open -a` on a Mac, and on Linux the matching menu entry
+  through `exo-open` or `gtk-launch`. An ambiguous or unknown name is answered
+  with the installed names. The computerd container opens it as the desktop's
+  account, never the one holding the token. The agent is also told to wait after
+  a launch or a shortcut that opens a window before typing into it.
+
 - Browser connection cards with icons, independent per-chat desktop browser
   overrides, a preview anchored above the composer, and tools for up to eight tabs.
   Remote private sessions retain a final preview and encrypted reload checkpoints

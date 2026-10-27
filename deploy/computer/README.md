@@ -27,7 +27,10 @@ desktop and the desktop has a terminal, so anything `desk` can read the agent
 can show on screen. `desk` cannot read the token, the VNC password or either
 process's environment. The container therefore starts as root, only to start
 each process as its account; do not run it with `--user`, and keep `SETUID` and
-`SETGID` if you drop capabilities. `SCREEN_SIZE` defaults to `1280x800`. Set
+`SETGID` if you drop capabilities. An application a `launch` action opens is
+started by a launcher running as `desk`, which computerd asks over a socket in
+`/run/launcher` that only the two accounts can reach, so the application never
+runs as the account holding the token. `SCREEN_SIZE` defaults to `1280x800`. Set
 `VNC_PASSWORD` and publish port 6080 to watch the whole session in noVNC;
 without it, no VNC server starts, because VNC means full control of the
 desktop.
@@ -41,7 +44,8 @@ COMPUTERD_TOKEN="<the token>" uv run deploy/computer/computerd.py
 The inline script metadata pulls in Quartz. The first time it runs, macOS asks
 for Screen Recording and Accessibility for the app that started it (the
 terminal). Until both are granted, screenshots fail or show only the wallpaper,
-and clicks do nothing. The daemon listens on `127.0.0.1` unless `COMPUTERD_HOST`
+and clicks do nothing. A `launch` action runs `open -a` with the application's
+name. The daemon listens on `127.0.0.1` unless `COMPUTERD_HOST`
 says otherwise. A deployment running in Docker on the same Mac reaches it at
 `host.docker.internal`.
 

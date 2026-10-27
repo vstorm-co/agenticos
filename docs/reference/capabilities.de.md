@@ -1,5 +1,5 @@
 ---
-source_sha: "e1ff6a6a50fd"
+source_sha: "5d92a6a7df91"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -958,7 +958,7 @@ entfallen.
 
 `computer_screenshot` — *Take a screenshot of the desktop.*
 
-`computer_act` — *Act on the desktop: click, type, press keys, scroll, drag or wait.*
+`computer_act` — *Act on the desktop: click, type, press keys, scroll, drag, open an app or wait.*
 
 `computer_save_screenshot` — *Save a screenshot of the desktop for the user: shown in the chat and kept.*
 
@@ -1009,6 +1009,19 @@ Verbindung. Eine Sandbox, die keine von beiden nennt, wird ebenfalls verweigert,
 denn die mitgelieferte Standard-Runtime ist `workbench`, die keinen Bildschirm
 hat. Eine Daytona-Verbindung wird verweigert, weil sie ihr eigenes Image
 ausführt.
+
+**Eine Anwendung öffnen.** Eine `launch`-Aktion öffnet eine Anwendung über
+ihren Namen, statt ihr Symbol zu suchen. Auf einem Mac ist das `open -a`. Unter
+Linux ist es der Menüeintrag, dessen Name oder ID passt: zuerst exakt, dann ein
+Name, der mit dem angegebenen beginnt, dann einer, der ihn enthält. Geöffnet
+wird der Eintrag mit `exo-open`, das die Runtime `desktop` und der
+computerd-Container mitbringen, oder mit `gtk-launch`. Ein Name, der auf
+mehrere Einträge oder auf keinen passt, wird mit den Namen abgelehnt, damit das
+Modell neu wählen kann. `launch` nimmt nur einen Namen, nie einen Pfad oder
+Argumente. Im computerd-Container läuft die Anwendung als `desk`, nicht als das
+Konto, das den Token hält. Der eigene Computer der Person, erreicht über die
+Desktop-App, unterstützt das noch nicht: Das Modell wird angewiesen, stattdessen
+den Starter dieses Computers zu benutzen.
 
 Das Tool `execute` wird nicht gebraucht, und wer es weglässt, hält die Aktionen
 auf dem Desktop hinter `computer_act` und dessen Freigabe: Mit `execute` kann

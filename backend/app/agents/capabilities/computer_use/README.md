@@ -95,6 +95,17 @@ need not be bound) and returned as a `desktop_screenshot` payload the chat draws
 `output/` too, which is what a channel reply posts and what a testing agent's
 report can link. It changes nothing on the desktop, so it is not side-effecting.
 
+**Opening an application:** a `launch` action names an application and the
+desktop opens it, because finding an icon in a screenshot and clicking it is the
+slowest and least reliable way there. On Linux the name is matched against the
+desktop entries the menu shows (`_backends.find_app`: exact, then the start of a
+name, then any part of it), and the entry is opened with `exo-open` or
+`gtk-launch` in a session of its own; computerd does the same on Linux and runs
+`open -a` on a Mac. Several matches, or none, is a sentence with the names, not
+a guess. The name is validated to a name - no slash, no leading dash - so it can
+never be a path or an option. computerd's container opens it through a launcher
+running as `desk`: computerd itself holds the token.
+
 **Limits:** `max_actions_per_call` bounds one batch. `max_actions` bounds a run;
 past it the tool tells the model to stop and report what is left. A `type`
 action carries at most 2000 characters.
@@ -120,6 +131,8 @@ action carries at most 2000 characters.
   one screen, and nothing queues one run's clicks behind another's.
 - A cloud desktop. A cloud sandbox provider (E2B, for one) would arrive as a
   sandbox connection kind, and its desktop would come with it.
+- `launch` on the person's own computer. The desktop app's `screen.act` has no
+  launch, so the model is told to use the computer's own launcher.
 - A sandbox desktop is not hidden from the shell: an agent with `execute` can
   run `xdotool` itself, past an approval held on `computer_act`.
 
