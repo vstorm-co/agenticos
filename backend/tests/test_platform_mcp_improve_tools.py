@@ -606,7 +606,7 @@ class TestAClosedSession:
             {("GET", f"/agents/{AGENT}/improvements"): [SESSION_READ, discarded, self.PUBLISHED]}
         )
 
-        listing = await _call(server, "list_improvements", agent_id=AGENT)
+        listing = await _call(server, "list_improvements", agent_id=AGENT, history=True)
 
         ready, rejected, published = listing["items"]
         assert (ready["closed"], ready["can_accept"], ready["outcome"]) == (False, True, None)
@@ -659,7 +659,7 @@ class TestTheNewestSessionAndTheLiveVersion:
             }
         )
 
-        listing = await _call(server, "list_improvements", agent_id=AGENT)
+        listing = await _call(server, "list_improvements", agent_id=AGENT, history=True)
 
         newest, older = listing["items"]
         assert listing["current_published_version"] == 8
@@ -782,7 +782,7 @@ class TestWhatCanBeDoneNow:
 
         listing = await _call(server, "list_improvements", agent_id=AGENT)
 
-        assert listing == {"current_published_version": 8, "items": []}
+        assert listing == {"current_published_version": 8, "items": [], "earlier_sessions": 0}
 
     @pytest.mark.parametrize(
         ("changes", "actions"),
@@ -1096,7 +1096,7 @@ class TestOnlyTheNewestSessionAndAPersonsChoice:
 
     async def _newest(self, api: MagicMock, server: FastMCP, *sessions: Any) -> Any:
         api.request = _responder({("GET", f"/agents/{AGENT}/improvements"): list(sessions)})
-        return await _call(server, "list_improvements", agent_id=AGENT)
+        return await _call(server, "list_improvements", agent_id=AGENT, history=True)
 
     async def test_a_stopped_result_offers_keeping_each_attempt_as_the_wizard_does(
         self, server: FastMCP, api: MagicMock
@@ -1156,6 +1156,109 @@ class TestOnlyTheNewestSessionAndAPersonsChoice:
             "link",
             "newest",
         }
+
+
+class TestTheLastRound:
+    """After the newest session it still listed older ones with links, offered Try again
+    where a session had nothing left to learn from, and asked its question in prose."""
+
+    MIXED = {
+        **SESSION_READ,
+        "status": "ready",
+        "stop_reason": None,
+        "can_restart": True,
+        "timeline": [],
+    }
+
+    async def test_only_the_newest_session_is_listed_unless_history_is_asked_for(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        older = {
+            **SESSION_READ,
+            "id": str(uuid.uuid4()),
+            "status": "rejected",
+            "created_at": "2026-10-20T08:00:00Z",
+        }
+        api.request = _responder({("GET", f"/agents/{AGENT}/improvements"): [older, self.MIXED]})
+
+        listing = await _call(server, "list_improvements", agent_id=AGENT)
+        everything = await _call(server, "list_improvements", agent_id=AGENT, history=True)
+
+        assert [item["id"] for item in listing["items"]] == [str(SESSION)]
+        assert listing["earlier_sessions"] == 1
+        assert [item["id"] for item in everything["items"]] == [str(SESSION), older["id"]]
+
+    @pytest.mark.parametrize(
+        ("blocked", "why"),
+        [
+            (
+                {"reason": "nothing_to_learn"},
+                "Another attempt has nothing to learn from: no answer this session reads "
+                "still fails.",
+            ),
+            (
+                {"reason": "missing_holdout", "needed": 3},
+                "Another attempt can't be checked: 3 more questions kept aside would be "
+                "needed, and this session's questions are fixed.",
+            ),
+            (
+                {"reason": "missing_holdout", "needed": 1},
+                "Another attempt can't be checked: 1 more question kept aside would be needed",
+            ),
+        ],
+        ids=["nothing to learn", "too few kept aside", "one too few"],
+    )
+    async def test_a_blocked_try_again_is_not_offered_and_the_summary_says_why(
+        self, server: FastMCP, api: MagicMock, blocked: dict[str, Any], why: str
+    ) -> None:
+        api.request = _responder(
+            {
+                ("GET", f"/agents/{AGENT}/improvements"): [
+                    {**self.MIXED, "try_again_blocked": blocked}
+                ]
+            }
+        )
+
+        [newest] = (await _call(server, "list_improvements", agent_id=AGENT))["items"]
+
+        assert newest["can_try_again"] is False
+        assert not any(action.startswith("Try again") for action in newest["next_actions"])
+        assert f"Trying again is not offered: {why}" in newest["summary"]
+
+    async def test_the_closing_question_is_ready_as_ask_user_question_arguments(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request = _responder({("GET", f"/agents/{AGENT}/improvements"): [self.MIXED]})
+
+        [newest] = (await _call(server, "list_improvements", agent_id=AGENT))["items"]
+
+        [question] = newest["ask"]["questions"]
+        assert [option["label"] for option in question["options"]] == newest["next_actions"]
+        assert question["question"] == "What would you like to do?"
+
+    @pytest.mark.parametrize(
+        ("changes", "labels"),
+        [
+            ({"status": "running"}, ["Stop the session", "Not now"]),
+            ({"status": "published"}, None),
+        ],
+        ids=["one action", "closed"],
+    )
+    async def test_a_single_action_still_offers_two_choices_and_a_closed_one_none(
+        self,
+        server: FastMCP,
+        api: MagicMock,
+        changes: dict[str, Any],
+        labels: list[str] | None,
+    ) -> None:
+        api.request = _responder(
+            {("GET", f"/agents/{AGENT}/improvements"): [{**self.MIXED, **changes}]}
+        )
+
+        [newest] = (await _call(server, "list_improvements", agent_id=AGENT))["items"]
+
+        ask = newest["ask"]
+        assert (ask and [o["label"] for o in ask["questions"][0]["options"]]) == labels
 
 
 class TestFindingSessionsWithoutAnId:

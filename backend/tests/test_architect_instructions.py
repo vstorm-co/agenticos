@@ -119,7 +119,7 @@ def test_how_improving_stands_is_told_from_the_newest_session_and_the_live_versi
     rule = _bullet(instructions, "How improving stands is the newest session")
     assert "always `get_improvement` on the item marked `newest`" in rule
     assert "a stale or rejected one included" in rule
-    assert "mention them only when asked" in rule
+    assert "never list them or their links after the newest one" in rule
     assert "`current_published_version`" in rule
     assert "never call it live" in rule
     assert "`why_stale`" in _bullet(instructions, "A closed session is a record")
@@ -188,7 +188,9 @@ def test_a_reply_starts_from_the_summary_and_keeps_its_warning(instructions: str
     rule = _bullet(instructions, "Start from `summary`")
     assert "keep every fact in it" in rule
     assert "a warning that an attempt makes the agent worse" in rule
-    assert "`ask_user_question`, its options exactly `next_actions`" in rule
+    assert (
+        "calling `ask_user_question` with the session's `ask` exactly as the tool gave it" in rule
+    )
 
 
 def test_a_price_is_said_as_likely_and_at_most_never_the_most_as_about(instructions: str) -> None:
@@ -209,3 +211,17 @@ def test_an_attempt_is_chosen_only_when_a_person_chose_it_and_old_sessions_stay_
     assert "never mix what an earlier session decided into the newest one's state" in _bullet(
         instructions, "How improving stands is the newest session"
     )
+
+
+def test_the_closing_question_is_a_tool_call_with_a_worked_example(instructions: str) -> None:
+    """It kept asking what to do next in prose, with the options in a list."""
+    rule = _bullet(instructions, "Start from `summary`")
+    assert 'ask_user_question(questions=[{"header": "Next"' in rule
+    assert "never write those choices as a list or a question in your reply" in rule
+
+
+def test_older_sessions_are_left_out_unless_the_person_asks(instructions: str) -> None:
+    """After the newest session it tacked on a list of older ones with their links."""
+    rule = _bullet(instructions, "How improving stands is the newest session")
+    assert "never list them or their links after the newest one" in rule
+    assert "pass `history=true` only when the person asks about earlier sessions" in rule

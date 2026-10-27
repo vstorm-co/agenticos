@@ -351,6 +351,26 @@ def _where(session: dict[str, Any], item: dict[str, Any], live: int | None) -> s
     return f"The newest session stopped after {attempt}: {why}"
 
 
+_ASK_LIMIT = 6
+"""The most options one ask_user_question question offers."""
+
+
+def _ask(actions: list[str]) -> dict[str, Any] | None:
+    """The ask_user_question arguments that offer exactly these actions, ready to pass on."""
+    if not actions:
+        return None
+    options = [*actions, "Not now"] if len(actions) == 1 else actions
+    return {
+        "questions": [
+            {
+                "header": "Next",
+                "question": "What would you like to do?",
+                "options": [{"label": label} for label in options[:_ASK_LIMIT]],
+            }
+        ]
+    }
+
+
 def _summary(session: dict[str, Any], item: dict[str, Any], live: int | None) -> str:
     """How improving stands, in a few plain sentences built from the session's own facts."""
     sentences = [
@@ -363,6 +383,9 @@ def _summary(session: dict[str, Any], item: dict[str, Any], live: int | None) ->
         chosen = _chosen_number(session)
         if chooser is not None and chosen is not None:
             sentences.append(f"{chooser} chose attempt {chosen} to accept.")
+    blocked = _try_again_blocked(session)
+    if blocked is not None and not item["closed"]:
+        sentences.append(f"Trying again is not offered: {blocked}")
     actions = item["next_actions"]
     if actions:
         price = (item.get("waiting_for") or {}).get("price") or {}
@@ -406,10 +429,26 @@ def _attempts_used(session: dict[str, Any]) -> int:
     )
 
 
+def _try_again_blocked(session: dict[str, Any]) -> str | None:
+    """Why the session refuses another attempt even with attempts left, in plain words."""
+    blocked = session.get("try_again_blocked")
+    if blocked is None:
+        return None
+    if blocked["reason"] == "missing_holdout":
+        needed = blocked.get("needed") or 0
+        return (
+            f"Another attempt can't be checked: {needed} more "
+            f"{'question' if needed == 1 else 'questions'} kept aside would be needed, "
+            "and this session's questions are fixed."
+        )
+    return "Another attempt has nothing to learn from: no answer this session reads still fails."
+
+
 def _can_try_again(session: dict[str, Any]) -> bool:
     """The wizard's rule: a measured session with attempts left, unless its stop rules it out."""
     return (
-        session.get("can_restart") is not False
+        _try_again_blocked(session) is None
+        and session.get("can_restart") is not False
         and session["status"] in {"ready", "stopped"}
         and any(iteration.get("verdict") for iteration in session.get("iterations", []))
         and _attempts_used(session) < session["max_iterations"]
@@ -1150,7 +1189,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             "why_stale": _why_stale(session, started_from=started_from, live=live),
         }
 
-    async def _agent_sessions(agent_id: UUID | str) -> dict[str, Any]:
+    async def _agent_sessions(agent_id: UUID | str, *, history: bool = True) -> dict[str, Any]:
         sessions = await api.request("GET", f"/agents/{agent_id}/improvements")
         live, numbers = await _versions(agent_id)
         ordered = sorted(sessions, key=lambda session: session["created_at"], reverse=True)
@@ -1170,7 +1209,14 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
                     "price": await _next_step_price(agent_id, ordered[0]),
                 }
             newest["summary"] = _summary(ordered[0], newest, live)
-        return {"current_published_version": live, "items": items}
+            newest["ask"] = _ask(newest["next_actions"])
+        if history:
+            return {"current_published_version": live, "items": items}
+        return {
+            "current_published_version": live,
+            "items": items[:1],
+            "earlier_sessions": len(items[1:]),
+        }
 
     async def _open_sessions() -> dict[str, Any]:
         """Every open session on the agents the caller can read, newest first."""
@@ -1212,7 +1258,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         )
 
     async def list_improvements(
-        agent_id: UUID | None = None, agent_name: str | None = None
+        agent_id: UUID | None = None, agent_name: str | None = None, history: bool = False
     ) -> dict[str, Any]:
         """Improve sessions, newest first. Needs access to the agent, and `runs:view` without one.
 
@@ -1237,19 +1283,22 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         start, at `attempt` of `max_attempts`. It has its status, the step it is
         on, why it stopped and what it spent, the version it
         `started_from_version`, and `link` - the Improve wizard, where the person
-        follows it. Older sessions are records only - status, `outcome`,
-        `why_stale` and `link` - to mention only when the person asks about
-        them. Read one with get_improvement.
+        follows it. It also carries `ask`: the ask_user_question arguments that
+        offer exactly its `next_actions` - pass them as they are. Only the newest
+        session is listed, with a count of `earlier_sessions`; pass
+        `history=true` only when the person asks about earlier sessions, which
+        are then records - status, `outcome`, `why_stale` and `link`. Read one
+        with get_improvement.
         """
         if agent_id is not None:
-            return await _agent_sessions(agent_id)
+            return await _agent_sessions(agent_id, history=history)
         if agent_name is None:
             return await _open_sessions()
         agent = await _agent_named(agent_name)
         return {
             "agent_id": agent["id"],
             "agent_name": agent["name"],
-            **await _agent_sessions(agent["id"]),
+            **await _agent_sessions(agent["id"], history=history),
         }
 
     async def _next_step_price(agent_id: UUID | str, session: dict[str, Any]) -> dict[str, Any]:
@@ -1271,7 +1320,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         """One Improve session by its id: its attempts and verdicts, and what is missing from knowledge.
 
         `summary` says how the session stands in plain sentences - start a reply
-        from it and keep every fact in it, a warning above all.
+        from it and keep every fact in it, a warning above all - and `ask` holds
+        the ask_user_question arguments offering its `next_actions`.
         `current_published_version` is the agent's live version; call the
         session's published version live only when the two are equal, and a
         stale session says `why_stale`.
@@ -1319,6 +1369,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
                 "price": await _next_step_price(agent_id, session),
             }
         result["summary"] = _summary(session, result, live)
+        result["ask"] = _ask(result["next_actions"])
         me = await api.request("GET", "/me/permissions")
         if not any(entry["permission"] == "runs:view" for entry in me.get("permissions", [])):
             return result
