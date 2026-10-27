@@ -541,8 +541,9 @@ interface SecretFieldProps {
  * nothing says.
  *
  * Where `purposesOf` has no mapping to read, it is the one service the slot
- * narrows to, and what `inlinePurposeOf` stores a new key under. Two sources, in this order, because they answer for different shapes of
- * capability. A capability offering several services gates its key on the choice,
+ * narrows to, and what `inlinePurposeOf` stores a new key under. Two sources,
+ * in this order, because they answer for different shapes of capability. A
+ * capability offering several services gates its key on the choice,
  * so the conditional field *is* the service and the binding's own configuration
  * has the answer. A capability with one service needs its key unconditionally, so
  * there is no condition to read and the requirement names the service outright.
