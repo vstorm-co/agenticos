@@ -1040,6 +1040,8 @@
     "systemChoice": {
       "label": "Ausführen mit",
       "default": "Standard der Organisation",
+      "defaultNamed": "{helper} (Standard)",
+      "only": "Läuft mit {helper}, dem Standard der Organisation. <link>Auf seiner Seite ändern</link>.",
       "unpublished": "Nicht veröffentlicht",
       "missing": "Ausgewählter Agent ist nicht verfügbar",
       "loadFailed": "Agenten konnten nicht geladen werden. Versuchen Sie es erneut.",

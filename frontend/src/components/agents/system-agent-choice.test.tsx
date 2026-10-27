@@ -1,24 +1,27 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SystemAgentChoice } from "./system-agent-choice";
 
 const query = vi.hoisted(() => vi.fn());
+const only = vi.hoisted(() => ({ seeded: false }));
 vi.mock("@/hooks/use-agents", () => ({
   useAgentsOfKind: (kind: string) => {
     query(kind);
+    const seed = {
+      id: "seed",
+      name: "Default",
+      kind,
+      system_key: "seeded",
+      status: "published",
+      current_version_id: "v1",
+      published_model: { label: "gpt-4.1-mini" },
+    };
+    if (only.seeded) return { agents: [seed], isLoading: false, error: null };
     return {
       agents: [
-        {
-          id: "seed",
-          name: "Default",
-          kind,
-          system_key: "seeded",
-          status: "published",
-          current_version_id: "v1",
-          published_model: null,
-        },
+        seed,
         {
           id: "own",
           name: "My assistant",
@@ -45,6 +48,10 @@ vi.mock("@/hooks/use-agents", () => ({
 }));
 
 describe("a system agent selected where it runs", () => {
+  beforeEach(() => {
+    only.seeded = false;
+  });
+
   it("loads only the right kind when expanded and passes the selected identity", async () => {
     query.mockClear();
     const change = vi.fn();
@@ -70,5 +77,32 @@ describe("a system agent selected where it runs", () => {
     render(<SystemAgentChoice kind="improver" value={null} onChange={vi.fn()} wizard />);
     await userEvent.click(screen.getByText("Helper that writes the changes"));
     expect(screen.getByText(/reads the feedback and writes the changes/)).toBeInTheDocument();
+  });
+
+  it("names the organization's default helper and its model", async () => {
+    render(<SystemAgentChoice kind="improver" value={null} onChange={vi.fn()} />);
+    await userEvent.click(screen.getByText("Authoring assistant"));
+    expect(screen.getByRole("combobox", { name: "Run with" })).toHaveTextContent(
+      "Default · gpt-4.1-mini (default)",
+    );
+  });
+
+  it("offers no choice when the kind has no alternative, and links to the helper", async () => {
+    only.seeded = true;
+    render(<SystemAgentChoice kind="judge" value={null} onChange={vi.fn()} />);
+    await userEvent.click(screen.getByText("Judge"));
+    expect(screen.queryByRole("combobox")).toBeNull();
+    expect(screen.getByText(/Runs with Default · gpt-4\.1-mini/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Change it on its page" })).toHaveAttribute(
+      "href",
+      "/agents/seed",
+    );
+  });
+
+  it("keeps the choice open while a custom helper is stored, so it can be reset", async () => {
+    only.seeded = true;
+    render(<SystemAgentChoice kind="judge" value="gone" onChange={vi.fn()} />);
+    await userEvent.click(screen.getByText("Judge"));
+    expect(screen.getByRole("combobox", { name: "Run with" })).toBeInTheDocument();
   });
 });

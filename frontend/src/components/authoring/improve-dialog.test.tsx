@@ -1,21 +1,34 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AuthoringEstimate } from "@/types/authoring";
 import { ImproveDialog } from "./improve-dialog";
 
+const helpers = vi.hoisted(() => ({ alternatives: true }));
 vi.mock("@/hooks/use-agents", () => ({
   useAgentsOfKind: () => ({
     agents: [
       {
-        id: "helper",
-        name: "Selected helper",
-        system_key: null,
+        id: "seeded",
+        name: "Authoring assistant",
+        system_key: "improver",
         status: "published",
-        current_version_id: "v1",
-        published_model: null,
+        current_version_id: "v0",
+        published_model: { label: "gpt-4.1-mini" },
       },
+      ...(helpers.alternatives
+        ? [
+            {
+              id: "helper",
+              name: "Selected helper",
+              system_key: null,
+              status: "published",
+              current_version_id: "v1",
+              published_model: null,
+            },
+          ]
+        : []),
     ],
     isLoading: false,
     error: null,
@@ -33,6 +46,10 @@ function quote(overrides: Partial<AuthoringEstimate> = {}): AuthoringEstimate {
     ...overrides,
   };
 }
+
+beforeEach(() => {
+  helpers.alternatives = true;
+});
 
 describe("ImproveDialog", () => {
   it("shows what it would read and cost, and starts on the second click", async () => {
@@ -154,4 +171,20 @@ it("re-estimates after changing the improver and starts with the selected helper
     window_days: 30,
     improver_agent_id: "helper",
   });
+});
+
+it("names the default helper and offers no choice when it is the only one", async () => {
+  helpers.alternatives = false;
+  render(
+    <ImproveDialog
+      kind="improve"
+      estimate={vi.fn().mockResolvedValue(quote())}
+      start={vi.fn()}
+      onOpenChange={vi.fn()}
+    />,
+  );
+  await screen.findByText(/It will read/);
+  await userEvent.click(screen.getByText("Authoring assistant"));
+  expect(screen.queryByRole("combobox", { name: "Run with" })).toBeNull();
+  expect(screen.getByText(/Runs with Authoring assistant · gpt-4\.1-mini/)).toBeInTheDocument();
 });

@@ -14,7 +14,7 @@ import {
 } from "@/components/ui";
 import { useAgentsOfKind } from "@/hooks/use-agents";
 import { ROUTES } from "@/lib/constants";
-import type { SystemAgentKind } from "@/types/agents";
+import type { Agent, SystemAgentKind } from "@/types/agents";
 
 interface ChoiceProps {
   kind: SystemAgentKind;
@@ -48,10 +48,29 @@ function SystemAgentSelect({ kind, value, onChange, disabled = false, wizard }: 
   const tw = useTranslations("improvement.helper");
   const id = useId();
   const { agents, isLoading, error } = useAgentsOfKind(kind);
-  const picked =
-    value === null
-      ? agents.find((agent) => agent.system_key != null)
-      : agents.find((agent) => agent.id === value);
+  const fallback = agents.find((agent) => agent.system_key != null);
+  const alternatives = agents.filter((agent) => agent.system_key == null);
+  const picked = value === null ? fallback : agents.find((agent) => agent.id === value);
+  const hint = (
+    <p className="text-muted-foreground text-xs">{wizard ? tw("hint") : t("systemChoice.hint")}</p>
+  );
+  if (fallback && value === null && alternatives.length === 0) {
+    return (
+      <div className="mt-3 space-y-2">
+        <p>
+          {t.rich("systemChoice.only", {
+            helper: identity(fallback),
+            link: (chunks) => (
+              <Link className="underline" href={ROUTES.AGENT_DETAIL(fallback.id)}>
+                {chunks}
+              </Link>
+            ),
+          })}
+        </p>
+        {hint}
+      </div>
+    );
+  }
   return (
     <div className="mt-3 space-y-2">
       <FormField htmlFor={id} label={t("systemChoice.label")}>
@@ -64,19 +83,21 @@ function SystemAgentSelect({ kind, value, onChange, disabled = false, wizard }: 
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="default">{t("systemChoice.default")}</SelectItem>
-            {agents
-              .filter((agent) => agent.system_key == null)
-              .map((agent) => (
-                <SelectItem
-                  key={agent.id}
-                  value={agent.id}
-                  disabled={agent.current_version_id === null || agent.status === "archived"}
-                >
-                  {agent.name}
-                  {agent.current_version_id === null ? ` · ${t("systemChoice.unpublished")}` : ""}
-                </SelectItem>
-              ))}
+            <SelectItem value="default">
+              {fallback
+                ? t("systemChoice.defaultNamed", { helper: identity(fallback) })
+                : t("systemChoice.default")}
+            </SelectItem>
+            {alternatives.map((agent) => (
+              <SelectItem
+                key={agent.id}
+                value={agent.id}
+                disabled={agent.current_version_id === null || agent.status === "archived"}
+              >
+                {agent.name}
+                {agent.current_version_id === null ? ` · ${t("systemChoice.unpublished")}` : ""}
+              </SelectItem>
+            ))}
             {value !== null && picked === undefined && (
               <SelectItem value={value} disabled>
                 {t("systemChoice.missing")}
@@ -100,9 +121,11 @@ function SystemAgentSelect({ kind, value, onChange, disabled = false, wizard }: 
           )}
         </p>
       )}
-      <p className="text-muted-foreground text-xs">
-        {wizard ? tw("hint") : t("systemChoice.hint")}
-      </p>
+      {hint}
     </div>
   );
+}
+
+function identity(agent: Agent): string {
+  return agent.published_model ? `${agent.name} · ${agent.published_model.label}` : agent.name;
 }

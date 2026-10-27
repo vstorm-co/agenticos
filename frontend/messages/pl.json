@@ -1040,6 +1040,8 @@
     "systemChoice": {
       "label": "Uruchamiaj przez",
       "default": "Domyślny agent organizacji",
+      "defaultNamed": "{helper} (domyślny)",
+      "only": "Działa na {helper}, domyślnym agencie organizacji. <link>Zmień go na jego stronie</link>.",
       "unpublished": "Nieopublikowany",
       "missing": "Wybrany agent jest niedostępny",
       "loadFailed": "Nie udało się wczytać agentów. Spróbuj ponownie.",

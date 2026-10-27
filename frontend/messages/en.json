@@ -1040,6 +1040,8 @@
     "systemChoice": {
       "label": "Run with",
       "default": "Organization's default",
+      "defaultNamed": "{helper} (default)",
+      "only": "Runs with {helper}, the organization's default. <link>Change it on its page</link>.",
       "unpublished": "Not published",
       "missing": "Selected agent is unavailable",
       "loadFailed": "Could not load available agents. Try again.",
