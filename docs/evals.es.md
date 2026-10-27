@@ -1,5 +1,5 @@
 ---
-source_sha: "df48d1dc5b0a"
+source_sha: "0903ccf49c32"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -447,9 +447,10 @@ justo en su umbral - una escala de 1 a 5 que aprueba desde 4, por ejemplo -
 califica casi la misma respuesta de las dos maneras, así que la misma versión
 puntúa distinto en los mismos casos. Una [sesión de Improve](authoring.md#the-improve-wizard)
 lo lee de sus propias comprobaciones, sin una nueva llamada al modelo, y su
-Resultado lo dice cuando la versión de hoy se movió dos preguntas apartadas o 15
-puntos entre intentos, o una quinta parte de las preguntas apartadas se calificó
-de las dos maneras.
+Resultado lo dice cuando hubo respuestas calificadas de las dos maneras al
+preguntar de nuevo dentro de un intento, o la versión de hoy se movió entre
+intentos en las preguntas apartadas que compartían; menos de cinco compartidas
+son demasiado pocas para juzgarlo.
 
 Lo que estabiliza la calificación: criterios de sí o no en lugar de una escala,
 una comprobación determinista de longitud y formato en lugar de la opinión de un

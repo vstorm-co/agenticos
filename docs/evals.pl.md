@@ -1,5 +1,5 @@
 ---
-source_sha: "df48d1dc5b0a"
+source_sha: "0903ccf49c32"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -450,8 +450,9 @@ progu - skala od 1 do 5 zaliczana od 4, na przykład - ocenia prawie tę samą
 odpowiedź na oba sposoby, więc ta sama wersja dostaje różne wyniki na tych samych
 przypadkach. [Sesja Popraw](authoring.md#the-improve-wizard) odczytuje to z
 własnych sprawdzeń, bez nowego wywołania modelu, a jej Wynik mówi o tym, gdy
-dzisiejsza wersja przesunęła się między próbami o dwa odłożone pytania albo 15
-punktów, albo jedna piąta odłożonych pytań dostała obie oceny.
+odpowiedzi dostały obie oceny przy ponownym zadaniu w obrębie próby albo
+dzisiejsza wersja przesunęła się między próbami na wspólnych dla nich odłożonych
+pytaniach - mniej niż pięć wspólnych to za mało, by to ocenić.
 
 Co stabilizuje ocenę: kryteria z odpowiedzią tak albo nie zamiast skali,
 deterministyczny check długości i formatu zamiast opinii sędziego, więcej

@@ -418,9 +418,10 @@ The grading can move as much as the model. A judge whose criterion sits on its
 threshold - a 1 to 5 scale passing at 4, say - grades nearly the same answer
 both ways, so the same version scores differently on the same cases. An
 [Improve session](authoring.md#the-improve-wizard) reads this from its own
-checks, with no new model call, and its Result says so when today's version
-moved by two held-out questions or 15 points between attempts, or a fifth of
-the held-out questions were graded both ways.
+checks, with no new model call, and its Result says so when answers were graded
+both ways on re-asking within an attempt, or today's version moved between
+attempts on the held-out questions they shared - fewer than five shared are too
+few to judge.
 
 What steadies grading: criteria answered yes or no instead of on a scale, a
 deterministic check for length and format rather than a judge's opinion of them,

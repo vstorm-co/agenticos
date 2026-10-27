@@ -1,5 +1,5 @@
 ---
-source_sha: "df48d1dc5b0a"
+source_sha: "0903ccf49c32"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -479,10 +479,11 @@ Kriterium auf seiner Schwelle liegt - eine Skala von 1 bis 5, die ab 4 besteht,
 etwa - bewertet fast dieselbe Antwort beide Male verschieden, sodass dieselbe
 Version auf denselben Fällen unterschiedlich abschneidet. Eine
 [Verbessern-Sitzung](authoring.md#the-improve-wizard) liest das aus ihren eigenen
-Prüfungen, ohne neuen Modellaufruf, und ihr Ergebnis sagt es, wenn sich die
-heutige Version zwischen Versuchen um zwei zurückgelegte Fragen oder 15 Punkte
-bewegt hat oder ein Fünftel der zurückgelegten Fragen beide Male verschieden
-bewertet wurde.
+Prüfungen, ohne neuen Modellaufruf, und ihr Ergebnis sagt es, wenn Antworten
+innerhalb eines Versuchs beim erneuten Stellen verschieden bewertet wurden oder
+sich die heutige Version zwischen Versuchen auf ihren gemeinsamen zurückgelegten
+Fragen bewegt hat - weniger als fünf gemeinsame sind zu wenige, um das zu
+beurteilen.
 
 Was die Bewertung festigt: Kriterien, die mit Ja oder Nein statt auf einer Skala
 beantwortet werden, eine deterministische Prüfung von Länge und Format statt des
