@@ -3365,7 +3365,8 @@
     "moreOptions": "More options",
     "citedFileGone": "This file is no longer in its knowledge base - it was deleted or replaced after it was cited.",
     "embeddingEndpoint": "Endpoint",
-    "embeddingEndpointHint": "Leave empty for the global OpenRouter API, or enter a regional URL such as https://eu.openrouter.ai/api/v1. EU routing requires an eligible OpenRouter plan; ZDR is configured separately on OpenRouter."
+    "embeddingEndpointHint": "Leave empty for the global OpenRouter API, or enter a regional URL such as https://eu.openrouter.ai/api/v1. EU routing requires an eligible OpenRouter plan; ZDR is configured separately on OpenRouter.",
+    "noConnectorsAvailable": "No source connectors are available. An administrator can enable a connector for this deployment."
   },
   "knowledgeBases": {
     "active": "Active",
@@ -4703,7 +4704,7 @@
       "dislikes": "Dislikes",
       "eachRowSaysWhat": "Each row says what was checked. Auto-refreshes every 30s.",
       "everyCheckPassed": "Every check passed",
-      "everyStatusHereComes": "Every status here comes from a probe that ran when this page loaded. There is no uptime history: nothing records one, and a number that looks like one would be made up.",
+      "everyStatusHereComes": "Live checks from this deployment. Results refresh every 30 seconds while auto-refresh is on.",
       "failedFetchHealth": "Failed to fetch health",
       "failingServices": "Failing: {names}",
       "inspect": "Inspect",
@@ -4733,7 +4734,7 @@
       "serviceRedis": "Redis",
       "serviceRedisDetail": "Cache & queue broker",
       "serviceScheduler": "Scheduled jobs",
-      "serviceSchedulerDetail": "Triggers, emails and sweeps, via Prefect",
+      "serviceSchedulerDetail": "Triggers, emails and maintenance jobs",
       "serviceVectorStore": "Vector store",
       "serviceVectorStoreDetail": "pgvector, same database",
       "services": "Services",
@@ -5390,7 +5391,7 @@
       "activity2": "Activity",
       "agentColumn": "Agent",
       "agentFilter": "Filter by agent",
-      "agentsAreRunningWithout": "Agents are running without needing you.",
+      "agentsAreRunningWithout": "Requests that need your decision will appear here.",
       "answered": "They answered",
       "anyAgent": "All agents",
       "anyModel": "Any model",
@@ -5472,7 +5473,7 @@
       "nothingRecordedBecause": "The run never reached a model - stopped by a budget or a guardrail - or it ran before this was recorded.",
       "nothingRecordedForThisRun": "Nothing was recorded for this run",
       "nothingSpentYet": "Nothing spent yet.",
-      "nothingWaiting": "Nothing waiting",
+      "nothingWaiting": "No approvals pending",
       "openTheAgent": "Open the agent",
       "openTheChatBehind": "Open the chat this run happened in",
       "openTheRunItCame": "Open the run it came from",
@@ -5666,7 +5667,7 @@
       "displayName": "Display name",
       "email": "Email",
       "emailChannel": "Email",
-      "emailsAboutRunsNobody": "Emails about runs nobody is watching. Each switch is checked before the email is sent. These are your own opt-outs and only ever subtract: an agent decides who should hear about it, and switching one off here removes you from that list whatever the agent says. Who an agent tells is set on the agent, under Limits.",
+      "emailsAboutRunsNobody": "Choose the emails you receive about budgets, approvals and usage. Each agent’s Limits settings decide who is notified.",
       "failedDeleteAccount": "Failed to delete account",
       "failedLoadPreferences": "Failed to load notification preferences",
       "failedSavePreference": "Failed to save preference",
@@ -5784,7 +5785,8 @@
       "prefCapabilityRequested": "A capability asked for",
       "prefCapabilityRequestedTrigger": "Somebody asked for a capability one of your agents lacks. Sent to the agent's owner, once per person and capability.",
       "prefFinding": "Findings from your watches",
-      "prefFindingTrigger": "Something a watch was asked to say at once, and the morning briefing of the rest."
+      "prefFindingTrigger": "Something a watch was asked to say at once, and the morning briefing of the rest.",
+      "whoReceivesThis": "Who receives this?"
     },
     "skills": {
       "agentsBoundSkillWill": "Agents bound to this skill will run without it from their next run. This cannot be undone.",
@@ -6050,7 +6052,7 @@
       "button": "Search",
       "failedDescription": "The search request failed, so whether anything matches is unknown.",
       "failedTitle": "Couldn't run the search",
-      "noBases": "Nothing to search yet - create a knowledge base and upload a document first.",
+      "noBases": "Create a knowledge base and upload documents. Their content becomes searchable here.",
       "noResults": "No results found",
       "noResultsHint": "Try a different query or another knowledge base",
       "page": "p.{page}",
@@ -6059,7 +6061,11 @@
       "retry": "Try again",
       "scopeLabel": "Search scope",
       "searching": "Searching...",
-      "openFile": "Open {name}"
+      "openFile": "Open {name}",
+      "noBasesTitle": "Add knowledge to search",
+      "queryLabel": "Search query",
+      "idleTitle": "Find the source behind an answer",
+      "idleDescription": "Search by topic or ask a question. Results link back to the original document so you can check the source."
     },
     "skippedCount": "{count} skipped",
     "sourceName": "Source name",

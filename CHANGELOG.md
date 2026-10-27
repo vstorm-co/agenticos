@@ -41,6 +41,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Refine empty states, metadata badges and mobile settings across the console.
+  Knowledge search offers a clear starting point and permission-aware creation;
+  narrow integration panels keep their controls visible. Approval history uses
+  a compact queue status, member actions fit small screens, and urgent Inbox
+  badges remain legible in dark mode. Password-reset failures stay retryable
+  instead of claiming an email was sent.
 - Keep chat model changes collapsed behind the current model summary. File-row
   actions reveal on hover or keyboard focus without cutting filenames; long
   project files scroll inside their preview. Inbox finding titles link to

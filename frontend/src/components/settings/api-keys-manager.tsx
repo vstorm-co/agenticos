@@ -123,23 +123,32 @@ export function ApiKeysManager() {
           </Button>
         )}
       </header>
-      <div className="px-5 py-5">
-        <DataTable
-          columns={columns}
-          rows={keys}
-          getRowKey={(key) => key.id}
-          loading={isLoading}
-          error={
-            error ? (
-              <ErrorState
-                title={t("couldNotLoad")}
-                cta={{ label: tc("retry"), onClick: () => void refetch() }}
-              />
-            ) : undefined
-          }
-          empty={<EmptyState icon={KeyRound} title={t("emptyTitle")} description={t("emptyWhy")} />}
+      {!isLoading && !error && keys.length === 0 ? (
+        <EmptyState
+          icon={KeyRound}
+          title={t("emptyTitle")}
+          description={t("emptyWhy")}
+          className="flex-1 border-0 bg-transparent"
         />
-      </div>
+      ) : (
+        <div className="px-5 py-5">
+          <DataTable
+            className="rounded-none border-0"
+            columns={columns}
+            rows={keys}
+            getRowKey={(key) => key.id}
+            loading={isLoading}
+            error={
+              error ? (
+                <ErrorState
+                  title={t("couldNotLoad")}
+                  cta={{ label: tc("retry"), onClick: () => void refetch() }}
+                />
+              ) : undefined
+            }
+          />
+        </div>
+      )}
       {catalog && (
         <CreateApiKeyDialog
           open={creating}

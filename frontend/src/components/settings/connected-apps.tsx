@@ -92,6 +92,7 @@ export function ConnectedApps() {
       ) : (
         <div className="px-5 py-5">
           <DataTable
+            className="rounded-none border-0"
             columns={columns}
             rows={apps}
             getRowKey={(app) => app.id}

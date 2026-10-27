@@ -67,7 +67,7 @@ describe("colour roles", () => {
     expect(new Set(rendered).size).toBe(variants.length);
   });
 
-  it("keeps status badges on semantic ink while buttons use action surfaces", () => {
+  it("keeps metadata badges quiet while buttons use action surfaces", () => {
     render(
       <>
         <Button>save</Button>
@@ -78,7 +78,7 @@ describe("colour roles", () => {
     const badge = classesOf(screen.getByText("live").className);
     expect(button).toContain("bg-action");
     expect(button).toContain("text-action-foreground");
-    expect(badge).toContain("bg-primary");
-    expect(badge).toContain("text-primary-foreground");
+    expect(badge).toContain("bg-foreground/8");
+    expect(badge).toContain("text-foreground");
   });
 });

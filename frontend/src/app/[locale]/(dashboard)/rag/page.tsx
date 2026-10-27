@@ -141,7 +141,7 @@ export default function RAGPage() {
               cta={{ label: t("retry"), onClick: () => fetchKBs() }}
             />
           ) : (
-            <SearchTab kbs={sorted} />
+            <SearchTab kbs={sorted} onCreate={mayEdit ? () => setCreateOpen(true) : undefined} />
           )}
         </TabsContent>
 
@@ -215,7 +215,10 @@ export default function RAGPage() {
             and cloned into each base that needs it. `targets` is the base list,
             so this tab needs it loaded - which is why it is the same query
             rather than a second one. */}
-        <TabsContent value="integrations" className="grid flex-1 gap-6 xl:grid-cols-2">
+        <TabsContent
+          value="integrations"
+          className="grid min-w-0 flex-1 grid-cols-1 gap-6 xl:grid-cols-2"
+        >
           <div data-tour="knowledge-integrations" className="flex min-h-0 flex-col">
             <ReusableIntegrations targets={kbs} />
           </div>

@@ -69,7 +69,7 @@ describe("SuggestionRows", () => {
       />,
     );
 
-    const rows = screen.getAllByRole("group");
+    const rows = screen.getAllByRole("listitem");
     expect(rows.map((row) => row.getAttribute("aria-label"))).toEqual([
       "Title eng",
       "Title idea",

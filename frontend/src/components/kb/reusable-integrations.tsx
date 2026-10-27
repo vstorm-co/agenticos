@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Copy, Plug, Trash2 } from "lucide-react";
 
 import { ConnectorIcon } from "@/components/rag/connector-icon";
+import { ErrorState } from "@/components/states";
 import { SyncSourceWizard } from "@/components/rag/sync-source-wizard";
 import {
   AlertDialog,
@@ -30,6 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
   Spinner,
+  Skeleton,
 } from "@/components/ui";
 import { usePermissions, useReusableIntegrations } from "@/hooks";
 import { useOrgStore } from "@/stores";
@@ -90,8 +92,8 @@ export function ReusableIntegrations({ targets }: ReusableIntegrationsProps) {
   };
 
   return (
-    <section className="border-border bg-card flex min-h-64 flex-1 flex-col overflow-hidden rounded-xl border">
-      <div className="border-border flex min-h-28 items-start justify-between gap-3 border-b px-5 py-4">
+    <section className="border-border bg-card flex min-h-64 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border">
+      <div className="border-border flex min-h-28 flex-col items-start justify-between gap-3 border-b px-5 py-4 sm:flex-row">
         <div className="min-w-0 flex-1">
           <h2 className="text-foreground text-sm font-semibold">{t("reusableIntegrations")}</h2>
           <p className="text-muted-foreground mt-1 line-clamp-2 text-xs leading-relaxed">
@@ -112,12 +114,22 @@ export function ReusableIntegrations({ targets }: ReusableIntegrationsProps) {
       </div>
 
       {error ? (
-        <p className="text-destructive text-xs">{error}</p>
+        <ErrorState description={error} className="m-4 border-0 py-8" />
       ) : isLoading ? (
-        <p className="text-muted-foreground text-xs">{t("loadingIntegrations")}</p>
+        <div role="status" aria-label={t("loadingIntegrations")} className="space-y-4 p-4">
+          {[0, 1].map((index) => (
+            <div key={index} className="flex items-center gap-3" aria-hidden>
+              <Skeleton className="size-8 shrink-0 rounded-lg" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-2/3" />
+                <Skeleton className="h-3 w-4/5" />
+              </div>
+            </div>
+          ))}
+        </div>
       ) : integrations.length === 0 ? (
         <p className="text-muted-foreground flex flex-1 items-center justify-center px-5 py-12 text-center text-sm">
-          {t("nothingHereYetAdd")}
+          {t(connectors.length > 0 ? "nothingHereYetAdd" : "noConnectorsAvailable")}
         </p>
       ) : (
         <ul className="divide-border flex-1 divide-y">

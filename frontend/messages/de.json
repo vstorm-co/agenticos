@@ -3365,7 +3365,8 @@
     "moreOptions": "Weitere Optionen",
     "citedFileGone": "Diese Datei ist nicht mehr in ihrer Wissensdatenbank - sie wurde nach dem Zitieren gelöscht oder ersetzt.",
     "embeddingEndpoint": "Endpunkt",
-    "embeddingEndpointHint": "Leer lassen für die globale OpenRouter-API oder eine regionale URL wie https://eu.openrouter.ai/api/v1 eingeben. EU-Routing erfordert einen passenden OpenRouter-Tarif; ZDR wird separat bei OpenRouter konfiguriert."
+    "embeddingEndpointHint": "Leer lassen für die globale OpenRouter-API oder eine regionale URL wie https://eu.openrouter.ai/api/v1 eingeben. EU-Routing erfordert einen passenden OpenRouter-Tarif; ZDR wird separat bei OpenRouter konfiguriert.",
+    "noConnectorsAvailable": "Keine Quell-Konnektoren verfügbar. Ein Administrator kann einen Konnektor für diese Installation aktivieren."
   },
   "knowledgeBases": {
     "active": "Aktiv",
@@ -4585,7 +4586,7 @@
       "dislikes": "Negative Bewertungen",
       "eachRowSaysWhat": "Jede Zeile sagt, was geprüft wurde. Aktualisiert sich alle 30 Sek.",
       "everyCheckPassed": "Jede Prüfung bestanden",
-      "everyStatusHereComes": "Jeder Status hier stammt aus einer Prüfung, die beim Laden dieser Seite lief. Es gibt keine Verfügbarkeitshistorie: Nichts zeichnet eine auf, und eine Zahl, die wie eine aussähe, wäre erfunden.",
+      "everyStatusHereComes": "Aktuelle Prüfungen dieser Installation. Bei aktivierter automatischer Aktualisierung werden die Ergebnisse alle 30 Sekunden erneuert.",
       "failedFetchHealth": "Zustand konnte nicht abgerufen werden",
       "failingServices": "Fehlerhaft: {names}",
       "inspect": "Untersuchen",
@@ -4615,7 +4616,7 @@
       "serviceRedis": "Redis",
       "serviceRedisDetail": "Cache & Queue-Broker",
       "serviceScheduler": "Geplante Jobs",
-      "serviceSchedulerDetail": "Trigger, E-Mails und Sweeps, über Prefect",
+      "serviceSchedulerDetail": "Trigger, E-Mails und Wartungsaufgaben",
       "serviceVectorStore": "Vektorspeicher",
       "serviceVectorStoreDetail": "pgvector, dieselbe Datenbank",
       "services": "Dienste",
@@ -5272,7 +5273,7 @@
       "activity2": "Aktivität",
       "agentColumn": "Agent",
       "agentFilter": "Nach Agent filtern",
-      "agentsAreRunningWithout": "Agents laufen, ohne Sie zu brauchen.",
+      "agentsAreRunningWithout": "Anfragen, die deine Entscheidung benötigen, erscheinen hier.",
       "answered": "Antwort erhalten",
       "anyAgent": "Alle Agents",
       "anyModel": "Beliebiges Modell",
@@ -5354,7 +5355,7 @@
       "nothingRecordedBecause": "Der Run hat nie ein Modell erreicht – von einem Budget oder einem Guardrail gestoppt – oder er lief, bevor dies aufgezeichnet wurde.",
       "nothingRecordedForThisRun": "Für diesen Run wurde nichts aufgezeichnet",
       "nothingSpentYet": "Noch nichts ausgegeben.",
-      "nothingWaiting": "Nichts wartet",
+      "nothingWaiting": "Keine ausstehenden Freigaben",
       "openTheAgent": "Den Agent öffnen",
       "openTheChatBehind": "Den Chat öffnen, in dem dieser Run stattfand",
       "openTheRunItCame": "Den Run öffnen, aus dem er stammt",
@@ -5548,7 +5549,7 @@
       "displayName": "Anzeigename",
       "email": "E-Mail",
       "emailChannel": "E-Mail",
-      "emailsAboutRunsNobody": "E-Mails über Runs, die niemand beobachtet. Jeder Schalter wird geprüft, bevor die E-Mail gesendet wird. Das sind Ihre eigenen Abmeldungen und sie nehmen immer nur weg: Ein Agent entscheidet, wer von ihm erfahren soll, und einen hier abzuschalten nimmt Sie von dieser Liste, was der Agent auch sagt. Wem ein Agent Bescheid gibt, wird am Agent unter Limits gesetzt.",
+      "emailsAboutRunsNobody": "Wähle E-Mails zu Budgets, Freigaben und Nutzung. Die Limits-Einstellungen des jeweiligen Agenten bestimmen die Empfänger.",
       "failedDeleteAccount": "Konto konnte nicht gelöscht werden",
       "failedLoadPreferences": "Benachrichtigungseinstellungen konnten nicht geladen werden",
       "failedSavePreference": "Einstellung konnte nicht gespeichert werden",
@@ -5666,7 +5667,8 @@
       "prefCapabilityRequested": "Eine Capability angefragt",
       "prefCapabilityRequestedTrigger": "Jemand hat eine Capability angefragt, die einem Ihrer Agents fehlt. An den Besitzer des Agents, einmal pro Person und Capability.",
       "prefFinding": "Funde Ihrer Beobachtungen",
-      "prefFindingTrigger": "Was eine Beobachtung sofort melden sollte, und das Morgen-Briefing für den Rest."
+      "prefFindingTrigger": "Was eine Beobachtung sofort melden sollte, und das Morgen-Briefing für den Rest.",
+      "whoReceivesThis": "Wer erhält diese Nachricht?"
     },
     "skills": {
       "agentsBoundSkillWill": "An diesen Skill gebundene Agents laufen ab ihrem nächsten Run ohne ihn. Das lässt sich nicht rückgängig machen.",
@@ -5932,7 +5934,7 @@
       "button": "Suchen",
       "failedDescription": "Die Suchanfrage ist fehlgeschlagen, ob etwas passt, ist also unbekannt.",
       "failedTitle": "Suche konnte nicht ausgeführt werden",
-      "noBases": "Noch nichts zu durchsuchen – legen Sie zuerst eine Wissensdatenbank an und laden Sie ein Dokument hoch.",
+      "noBases": "Erstelle eine Wissensdatenbank und lade Dokumente hoch. Ihre Inhalte lassen sich hier durchsuchen.",
       "noResults": "Keine Ergebnisse gefunden",
       "noResultsHint": "Versuchen Sie eine andere Suchanfrage oder eine andere Wissensdatenbank",
       "page": "S. {page}",
@@ -5941,7 +5943,11 @@
       "retry": "Erneut versuchen",
       "scopeLabel": "Suchbereich",
       "searching": "Wird gesucht …",
-      "openFile": "{name} öffnen"
+      "openFile": "{name} öffnen",
+      "noBasesTitle": "Wissen zum Durchsuchen hinzufügen",
+      "queryLabel": "Suchanfrage",
+      "idleTitle": "Die Quelle einer Antwort finden",
+      "idleDescription": "Suche nach einem Thema oder stelle eine Frage. Die Ergebnisse verlinken auf das Originaldokument, damit du die Quelle prüfen kannst."
     },
     "skippedCount": "{count} übersprungen",
     "sourceName": "Name der Quelle",

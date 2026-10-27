@@ -3365,7 +3365,8 @@
     "moreOptions": "Więcej opcji",
     "citedFileGone": "Tego pliku nie ma już w bazie wiedzy - został usunięty albo zastąpiony po tym, jak go zacytowano.",
     "embeddingEndpoint": "Endpoint",
-    "embeddingEndpointHint": "Puste pole oznacza globalne API OpenRouter. Możesz podać regionalny URL, np. https://eu.openrouter.ai/api/v1. Routing EU wymaga odpowiedniego planu OpenRouter; ZDR ustawia się osobno w OpenRouter."
+    "embeddingEndpointHint": "Puste pole oznacza globalne API OpenRouter. Możesz podać regionalny URL, np. https://eu.openrouter.ai/api/v1. Routing EU wymaga odpowiedniego planu OpenRouter; ZDR ustawia się osobno w OpenRouter.",
+    "noConnectorsAvailable": "Brak dostępnych konektorów źródeł. Administrator może włączyć konektor w tej instalacji."
   },
   "knowledgeBases": {
     "active": "Aktywna",
@@ -4473,7 +4474,7 @@
       "dislikes": "Łapki w dół",
       "eachRowSaysWhat": "Każdy wiersz mówi, co sprawdzono. Odświeża się co 30 s.",
       "everyCheckPassed": "Każde sprawdzenie przeszło",
-      "everyStatusHereComes": "Każdy status pochodzi z sondy uruchomionej przy wczytaniu tej strony. Nie ma historii dostępności: nic jej nie zapisuje, a liczba, która by ją udawała, byłaby wymyślona.",
+      "everyStatusHereComes": "Bieżące kontrole tej instalacji. Wyniki odświeżają się co 30 sekund, gdy automatyczne odświeżanie jest włączone.",
       "failedFetchHealth": "Nie udało się pobrać stanu",
       "failingServices": "Niedziałające: {names}",
       "inspect": "Sprawdź",
@@ -4503,7 +4504,7 @@
       "serviceRedis": "Redis",
       "serviceRedisDetail": "Cache i broker kolejki",
       "serviceScheduler": "Zadania zaplanowane",
-      "serviceSchedulerDetail": "Wyzwalacze, e-maile i czyszczenia, przez Prefect",
+      "serviceSchedulerDetail": "Wyzwalacze, e-maile i zadania utrzymaniowe",
       "serviceVectorStore": "Baza wektorowa",
       "serviceVectorStoreDetail": "pgvector, ta sama baza danych",
       "services": "Usługi",
@@ -5161,7 +5162,7 @@
       "activity2": "Aktywność",
       "agentColumn": "Agent",
       "agentFilter": "Filtruj według agenta",
-      "agentsAreRunningWithout": "Agenci działają, nie potrzebując Ciebie.",
+      "agentsAreRunningWithout": "Tutaj pojawią się prośby wymagające Twojej decyzji.",
       "answered": "Odpowiedzieli",
       "anyAgent": "Wszyscy agenci",
       "anyModel": "Dowolny model",
@@ -5243,7 +5244,7 @@
       "nothingRecordedBecause": "Run nie dotarł do modelu - zatrzymał go budget albo guardrail - albo odbył się, zanim zaczęto to zapisywać.",
       "nothingRecordedForThisRun": "Dla tego runu nic nie zapisano",
       "nothingSpentYet": "Jeszcze nic nie wydano.",
-      "nothingWaiting": "Nic nie czeka",
+      "nothingWaiting": "Brak oczekujących zatwierdzeń",
       "openTheAgent": "Otwórz agenta",
       "openTheChatBehind": "Otwórz czat, w którym odbył się ten run",
       "openTheRunItCame": "Otwórz run, z którego pochodzi",
@@ -5437,7 +5438,7 @@
       "displayName": "Wyświetlana nazwa",
       "email": "E-mail",
       "emailChannel": "E-mail",
-      "emailsAboutRunsNobody": "E-maile o runach, których nikt nie obserwuje. Każdy przełącznik jest sprawdzany przed wysłaniem. To Twoje własne rezygnacje i tylko odejmują: agent decyduje, kto ma się dowiedzieć, a wyłączenie tu usuwa Cię z tej listy niezależnie od tego, co mówi agent. Kogo agent powiadamia, ustawia się na agencie, w Limitach.",
+      "emailsAboutRunsNobody": "Wybierz e-maile o budżetach, zatwierdzeniach i zużyciu. Ustawienia Limits każdego agenta określają odbiorców.",
       "failedDeleteAccount": "Nie udało się usunąć konta",
       "failedLoadPreferences": "Nie udało się wczytać ustawień powiadomień",
       "failedSavePreference": "Nie udało się zapisać ustawienia",
@@ -5555,7 +5556,8 @@
       "prefCapabilityRequested": "Prośba o capability",
       "prefCapabilityRequestedTrigger": "Ktoś poprosił o capability, której brakuje jednemu z twoich agentów. Do właściciela agenta, raz na osobę i capability.",
       "prefFinding": "Znaleziska twoich obserwacji",
-      "prefFindingTrigger": "Coś, o czym obserwacja miała dać znać od razu, i poranny briefing reszty."
+      "prefFindingTrigger": "Coś, o czym obserwacja miała dać znać od razu, i poranny briefing reszty.",
+      "whoReceivesThis": "Kto otrzymuje powiadomienie?"
     },
     "skills": {
       "agentsBoundSkillWill": "Agenci związani z tym skillem będą od następnego runu działać bez niego. Tego nie da się cofnąć.",
@@ -5821,7 +5823,7 @@
       "button": "Szukaj",
       "failedDescription": "Żądanie wyszukiwania nie powiodło się, więc nie wiadomo, czy cokolwiek pasuje.",
       "failedTitle": "Nie udało się wykonać wyszukiwania",
-      "noBases": "Nie ma jeszcze czego szukać - utwórz bazę wiedzy i wgraj dokument.",
+      "noBases": "Utwórz bazę wiedzy i prześlij dokumenty. Ich treść będzie można przeszukiwać tutaj.",
       "noResults": "Brak wyników",
       "noResultsHint": "Spróbuj innego zapytania albo innej bazy wiedzy",
       "page": "s.{page}",
@@ -5830,7 +5832,11 @@
       "retry": "Spróbuj ponownie",
       "scopeLabel": "Zakres wyszukiwania",
       "searching": "Szukam...",
-      "openFile": "Otwórz {name}"
+      "openFile": "Otwórz {name}",
+      "noBasesTitle": "Dodaj wiedzę do wyszukiwania",
+      "queryLabel": "Zapytanie",
+      "idleTitle": "Znajdź źródło odpowiedzi",
+      "idleDescription": "Wpisz temat lub zadaj pytanie. Wyniki prowadzą do oryginalnych dokumentów, aby można było sprawdzić źródło."
     },
     "skippedCount": "{count} pominiętych",
     "sourceName": "Nazwa źródła",

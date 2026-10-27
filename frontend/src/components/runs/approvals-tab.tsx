@@ -12,7 +12,6 @@ import { EmptyState, ErrorState } from "@/components/states";
 import { ListCard, ListCardFootRow, Pager, Skeleton } from "@/components/ui";
 import { useApprovalHistory, useApprovals } from "@/hooks";
 import { periodEnd, periodStart, type Period } from "@/lib/dashboard/period";
-import { cn } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 
 /**
@@ -72,6 +71,7 @@ export function ApprovalsTab({
 
   return (
     <ListCard
+      fill
       title={t("approvalsTitle")}
       counted={
         isLoading || history.isLoading
@@ -118,12 +118,19 @@ export function ApprovalsTab({
               <Skeleton className="h-24 w-full" />
               <Skeleton className="h-24 w-full" />
             </div>
+          ) : approvals.length === 0 && history.approvals.length > 0 ? (
+            <div className="flex items-center gap-3 px-5 py-5" role="status">
+              <CheckCircle2 className="text-muted-foreground h-5 w-5 shrink-0" aria-hidden />
+              <div>
+                <p className="text-sm font-medium">{t("nothingWaiting")}</p>
+                <p className="text-muted-foreground mt-0.5 text-xs">
+                  {t("agentsAreRunningWithout")}
+                </p>
+              </div>
+            </div>
           ) : approvals.length === 0 ? (
             <EmptyState
-              className={cn(
-                "rounded-none border-0 shadow-none",
-                history.approvals.length > 0 && "min-h-0 py-6",
-              )}
+              className="flex-1 rounded-none border-0 bg-transparent shadow-none"
               icon={CheckCircle2}
               title={t("nothingWaiting")}
               description={t("agentsAreRunningWithout")}

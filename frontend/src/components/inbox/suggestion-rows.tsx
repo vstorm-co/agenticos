@@ -9,7 +9,7 @@ import {
   useSuggestionActions,
   useSuggestionSource,
 } from "@/components/chat/suggestion-actions";
-import { Button } from "@/components/ui";
+import { Badge, Button } from "@/components/ui";
 import type { Suggestion } from "@/lib/suggestions-api";
 import { cn, timeAgo } from "@/lib/utils";
 
@@ -45,7 +45,6 @@ export function SuggestionRows({
           return (
             <li
               key={suggestion.id}
-              role="group"
               aria-label={suggestion.title}
               className={cn(
                 "hover:bg-muted/40 grid grid-cols-[2rem_minmax(0,1fr)] items-start gap-x-3 gap-y-2 transition-colors",
@@ -79,9 +78,9 @@ export function SuggestionRows({
                     )}
                   </p>
                   {suggestion.urgent && (
-                    <span className="bg-destructive/10 text-destructive shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium">
+                    <Badge variant="destructive" className="shrink-0 px-2 text-[11px]">
                       {t("urgent")}
-                    </span>
+                    </Badge>
                   )}
                 </div>
                 <span className="text-muted-foreground mt-1 block text-xs">
