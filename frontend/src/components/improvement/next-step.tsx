@@ -7,7 +7,7 @@ import { Button, Input, Label } from "@/components/ui";
 import { usd } from "@/components/evals/format";
 import { useImprovement } from "@/hooks/use-improvements";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
-import { stopOf } from "@/lib/improvement-steps";
+import { currentAttempt, stopOf } from "@/lib/improvement-steps";
 import type { ContinuationEstimate, Improvement } from "@/types/improvement";
 import { useReadOnly } from "./read-only";
 
@@ -40,7 +40,9 @@ export function NextStep({
   const [quote, setQuote] = useState<{ key: string; value: ContinuationEstimate } | null>(null);
   const [moved, setMoved] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const key = JSON.stringify([asked, session.status, session.stage, session.iteration]);
+  // Choosing or rewording a change changes what the check measures, and so its price.
+  const candidate = currentAttempt(session)?.candidate_spec_hash;
+  const key = JSON.stringify([asked, session.status, session.stage, session.iteration, candidate]);
   const priced = quote?.key === key ? quote.value : null;
   const estimate = actions.estimateContinuation.mutateAsync;
   useEffect(() => {

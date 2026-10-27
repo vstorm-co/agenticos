@@ -61,6 +61,26 @@ it("names testing the selected changes at the stop after Changes, and waits for 
   expect(go).toBeEnabled();
 });
 
+it("prices the check again once the changes it measures are chosen or reworded", async () => {
+  const attempt = (hash: string): Improvement => ({
+    ...AT_CHANGES,
+    iterations: [{ ...SESSION.iterations[0]!, candidate_spec_hash: hash }],
+  });
+  const view = render(<NextStep session={attempt("a".repeat(64))} onStarted={vi.fn()} />);
+  await screen.findByRole("button", { name: "Next step: test the selected changes · about $0.04" });
+  state.estimate.mockResolvedValue({ ...QUOTE, total_usd: "0.05", candidate_hash: "b".repeat(64) });
+  view.rerender(<NextStep session={attempt("b".repeat(64))} onStarted={vi.fn()} />);
+  await userEvent.click(
+    await screen.findByRole("button", {
+      name: "Next step: test the selected changes · about $0.05",
+    }),
+  );
+  expect(state.estimate).toHaveBeenCalledTimes(2);
+  expect(state.start).toHaveBeenCalledWith(
+    expect.objectContaining({ candidate_hash: "b".repeat(64) }),
+  );
+});
+
 it("re-prices after a changed price and says so before anything is spent", async () => {
   state.start.mockRejectedValueOnce(new ApiError(409, "The price changed"));
   render(<NextStep session={AT_UNDERSTAND} onStarted={vi.fn()} />);
