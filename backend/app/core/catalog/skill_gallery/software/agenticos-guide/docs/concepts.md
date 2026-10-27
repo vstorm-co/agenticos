@@ -584,7 +584,10 @@ That indirection is the point. Rotating a key, or moving every agent from one mo
 to another, is an edit to one profile rather than to forty specs.
 
 A profile with no credential behind it is marked `no key` everywhere it appears,
-because that is the one fact deciding whether the agent can run at all.
+because that is the one fact deciding whether the agent can run at all. Pickers do
+not offer it and publish refuses it until it has a key again. A profile that agents
+use cannot be deleted; see
+[Changing a profile's key or endpoint](models.md#changing-a-profiles-key-or-endpoint).
 
 Prices come from [`genai-prices`](https://github.com/pydantic/genai-prices), which
 Pydantic maintains, rather than from a table in this repository — a hand-kept table

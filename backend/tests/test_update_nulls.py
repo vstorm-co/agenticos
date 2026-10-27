@@ -43,6 +43,7 @@ from app.db.models.artifact import Artifact
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.context import ContextFile
 from app.db.models.conversation import Conversation
+from app.db.models.credential import ModelProfile
 from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.deployment_settings import DeploymentSettings
 from app.db.models.group import Group, GroupMember
@@ -78,6 +79,7 @@ from app.schemas.knowledge_base import KnowledgeBaseUpdate
 from app.schemas.local_service import LocalServiceUpdate
 from app.schemas.mcp_connection import McpConnectionUpdate, OrgMcpConnectionUpdate
 from app.schemas.memory import MemoryNoteUpdate
+from app.schemas.model_profile import ModelProfileUpdate
 from app.schemas.notification import NotificationPreferenceUpdate
 from app.schemas.organization import OrganizationMemberUpdate, OrganizationUpdate
 from app.schemas.project import ProjectUpdate
@@ -120,6 +122,7 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     LocalServiceUpdate: LocalService,
     McpConnectionUpdate: McpConnection,
     MemoryNoteUpdate: AgentMemoryFile,
+    ModelProfileUpdate: ModelProfile,
     NotificationPreferenceUpdate: None,
     OrgMcpConnectionUpdate: McpConnection,
     OrganizationMemberUpdate: OrganizationMember,
