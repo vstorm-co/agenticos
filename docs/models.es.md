@@ -1,5 +1,5 @@
 ---
-source_sha: "8eebc2ccdc3b"
+source_sha: "03612a4d4028"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -136,15 +136,18 @@ la organización.
 ### Un perfil sin clave { #a-profile-without-a-key }
 
 Si borras una clave del vault, sus perfiles se quedan con `secret_id` a null.
-`GET /providers/model-profiles` marca ese perfil con `missing_key: true`, salvo
-que sea un provider keyless con endpoint, como un Ollama en tu red u OpenAI
-detrás de un gateway. Ese perfil sigue ejecutándose sin clave contra su endpoint.
-Entonces:
+`GET /providers/model-profiles` los marca con `missing_key: true`. Un perfil
+guardado sin clave a propósito es otra cosa: un modelo autoalojado o un gateway
+que no autentica nada, en un provider keyless con endpoint, como un Ollama en tu
+red o un servidor compatible con OpenAI. Lo registra como `runs_without_key` y
+sigue ejecutándose. Un perfil de gateway que tenía clave y la perdió se marca con
+`missing_key` como cualquier otro. Entonces:
 
 - Los selectores de modelo del agent y del chat no lo ofrecen. Si un agent ya lo
   nombra, el Builder lo muestra con la marca **no key** y te pide que le des una
   clave.
-- La publicación lo rechaza y nombra el modelo. Un run sobre él falla con
+- La publicación lo rechaza y nombra el modelo. También rechaza un perfil cuyos
+  tres primeros fallbacks incluyen uno sin clave, porque un run lo saltaría. Un run sobre él falla con
   "no key configured".
 - Para repararlo, abre un agent sobre ese modelo, elige una clave en **Model** y
   pulsa **Update model**. Cada agent sobre el modelo vuelve a funcionar.

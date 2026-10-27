@@ -1,5 +1,5 @@
 ---
-source_sha: "8eebc2ccdc3b"
+source_sha: "03612a4d4028"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -142,15 +142,20 @@ die Modelle der Organisation verwalten.
 ### Ein Profil ohne Schlüssel { #a-profile-without-a-key }
 
 Wenn Sie einen Schlüssel aus dem Vault löschen, bleiben seine Profile mit
-`secret_id` auf null bestehen. `GET /providers/model-profiles` markiert ein
-solches Profil mit `missing_key: true`, außer es ist ein keyless Provider mit
-Endpunkt, etwa ein Ollama in Ihrem Netz oder OpenAI hinter einem Gateway. Ein
-solches Profil läuft ohne Schlüssel gegen seinen Endpunkt weiter. Dann:
+`secret_id` auf null bestehen, und `GET /providers/model-profiles` markiert sie
+mit `missing_key: true`. Ein Profil, das absichtlich ohne Schlüssel gespeichert
+wurde, ist etwas anderes: ein selbst gehostetes Modell oder ein Gateway, das
+nichts authentifiziert, auf einem keyless Provider mit Endpunkt, etwa ein Ollama
+in Ihrem Netz oder ein OpenAI-kompatibler Server. Es speichert das als
+`runs_without_key` und läuft weiter. Ein Gateway-Profil, das einen Schlüssel hatte
+und ihn verloren hat, wird wie jedes andere mit `missing_key` markiert. Dann:
 
 - Die Modellauswahl für Agents und Chat bietet es nicht an. Verweist ein Agent
   bereits darauf, zeigt der Builder es mit dem Hinweis **kein Schlüssel** und
   fordert Sie auf, ihm einen Schlüssel zu geben.
-- Das Veröffentlichen lehnt es ab und nennt das Modell. Ein Run darauf scheitert
+- Das Veröffentlichen lehnt es ab und nennt das Modell. Es lehnt auch ein Profil
+  ab, unter dessen ersten drei Fallbacks eines ohne Schlüssel ist, weil ein Run es
+  überspringen würde. Ein Run darauf scheitert
   mit „no key configured“.
 - Zum Reparieren öffnen Sie einen Agent auf diesem Modell, wählen unter **Modell**
   einen Schlüssel und klicken auf **Modell aktualisieren**. Jeder Agent auf dem

@@ -119,15 +119,18 @@ the next run. Grant it to the people who manage the organization's models.
 ### A profile without a key
 
 If you delete a key from the vault, its profiles stay with `secret_id` set to
-null. `GET /providers/model-profiles` marks such a profile `missing_key: true`,
-unless it is a keyless provider with an endpoint, such as an Ollama on your
-network or OpenAI behind a gateway. Such a profile keeps running with no key,
-against its endpoint. Then:
+null, and `GET /providers/model-profiles` marks them `missing_key: true`. A
+profile saved with no key on purpose is different: a self-hosted model or a
+gateway that authenticates nothing, on a keyless provider with an endpoint, such
+as an Ollama on your network or an OpenAI-compatible server. It records that as
+`runs_without_key` and keeps running. A gateway profile that had a key and lost
+it is marked `missing_key` like any other. Then:
 
 - Agent and chat model pickers do not offer it. If an agent already names it, the
   Builder shows it with a **no key** badge and tells you to give it a key.
-- Publish refuses it and names the model. A run on it fails with "no key
-  configured".
+- Publish refuses it and names the model. It also refuses a profile whose first
+  three fallbacks include one with no key, because a run would skip it. A run on
+  it fails with "no key configured".
 - To repair it, open an agent on that model and choose a key under **Model**, then
   press **Update model**. Every agent on the model works again.
 

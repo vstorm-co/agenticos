@@ -38,6 +38,7 @@ from app.core.secret_kinds import (
     unseal_secret,
 )
 from app.core.vault import VaultScope
+from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import AgentStatus
 from app.db.models.credential import ModelProfile
 from app.repositories import (
@@ -132,10 +133,13 @@ def usable_for_agents(profile: ModelProfile) -> bool:
     the ones this answers true for. It cannot see a fallback chain or whether a
     ChatGPT sign-in is the caller's; publish checks those.
     """
-    return model_outputs(
-        profile.provider, profile.model, base_url=profile.base_url
-    ).chat and not lacks_key(
-        profile.provider, secret_id=profile.secret_id, base_url=profile.base_url
+    if not model_outputs(profile.provider, profile.model, base_url=profile.base_url).chat:
+        return False
+    return not lacks_key(
+        profile.provider,
+        secret_id=profile.secret_id,
+        base_url=profile.base_url,
+        runs_without_key=profile.runs_without_key,
     )
 
 
@@ -267,6 +271,7 @@ class ModelProfileService:
             params=params,
             fallback_profile_ids=[str(pid) for pid in (fallback_profile_ids or [])],
             context_length=await self._context_length(ctx, provider, model),
+            runs_without_key=secret_id is None,
         )
         await record_audit(
             self.db,
@@ -342,8 +347,9 @@ class ModelProfileService:
             )
 
     async def _get_profile(self, ctx: AuthContext, profile_id: UUID) -> ModelProfile:
+        """The profile, locked until this transaction ends: every caller writes it."""
         profile = await credential_repo.get_profile(
-            self.db, profile_id, organization_id=ctx.organization_id
+            self.db, profile_id, organization_id=ctx.organization_id, for_update=True
         )
         if profile is None:
             raise NotFoundError(
@@ -404,7 +410,15 @@ class ModelProfileService:
             api = spec.default_api(base_url)
         _check_shape(spec, secret_id=secret_id, base_url=base_url, api=api)
 
-        wanted: dict[str, object] = {"secret_id": secret_id, "base_url": base_url, "api": api}
+        wanted: dict[str, object] = {
+            "secret_id": secret_id,
+            "base_url": base_url,
+            "api": api,
+            # Saved with no key means meant to run with none (`_check_shape` has
+            # just allowed it); saved with one means it needs one, so a later
+            # delete of that key reads as "no key" rather than as self-hosted.
+            "runs_without_key": secret_id is None,
+        }
         if changes.label is not None:
             wanted["label"] = changes.label
         if changes.params is not None:
@@ -449,6 +463,10 @@ class ModelProfileService:
             NotFoundError: If the profile is not this organization's.
             InUseError: If an agent still names it.
         """
+        # Exclusive against every write that can name a profile - a draft save,
+        # a publish, a promotion - which take it shared: the check below and the
+        # delete are then one step as far as those writes can see (#2478).
+        await hold_subject(self.db, LockScope.MODEL_PROFILE_REFERENCES, ctx.organization_id)
         profile = await self._get_profile(ctx, profile_id)
         users = await agent_repo.naming_model_profile(
             self.db, organization_id=ctx.organization_id, profile_id=profile_id
@@ -537,7 +555,12 @@ class ModelProfileService:
         the request, and the honest answer is the same refusal as before.
         """
         if profile.secret_id is None:
-            if not lacks_key(profile.provider, secret_id=None, base_url=profile.base_url):
+            if not lacks_key(
+                profile.provider,
+                secret_id=None,
+                base_url=profile.base_url,
+                runs_without_key=profile.runs_without_key,
+            ):
                 return ResolvedCredential(
                     provider=profile.provider,
                     secret=NoSecret(),

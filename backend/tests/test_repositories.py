@@ -155,6 +155,83 @@ class TestAgentRepositoryLock:
         assert "FOR NO KEY UPDATE" not in sql
 
 
+class TestWritesThatNameAModelProfile:
+    """Every write that can name a model profile takes the shared side of the lock a
+    profile's delete takes exclusively, so the delete's in-use check cannot be
+    overtaken by one (#2478). `tests/integration/test_model_profile_in_use.py`
+    shows the two sides meeting on a real database."""
+
+    @staticmethod
+    def _session() -> MagicMock:
+        session = MagicMock()
+        session.execute = AsyncMock()
+        session.flush = AsyncMock()
+        session.refresh = AsyncMock()
+        return session
+
+    @staticmethod
+    def _locked(session: MagicMock) -> bool:
+        return any(
+            "pg_advisory_xact_lock_shared" in str(call.args[0])
+            for call in session.execute.await_args_list
+        )
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("update_data", "locks"),
+        [
+            ({"draft_spec": {}}, True),
+            ({"current_version_id": None}, True),
+            ({"avatar_color": 3}, False),
+        ],
+    )
+    async def test_an_agent_update_locks_only_when_it_can_name_one(self, update_data, locks):
+        from uuid import uuid4
+
+        from app.repositories import agent as agent_repo
+
+        session = self._session()
+        agent = MagicMock(organization_id=uuid4())
+
+        await agent_repo.update(session, agent=agent, update_data=update_data)
+
+        assert self._locked(session) is locks
+
+    @pytest.mark.anyio
+    async def test_a_new_agent_and_a_new_version_lock(self):
+        from uuid import uuid4
+
+        from app.repositories import agent as agent_repo
+
+        created, published = self._session(), self._session()
+
+        await agent_repo.create(
+            created,
+            organization_id=uuid4(),
+            slug="a",
+            name="A",
+            description=None,
+            draft_spec={},
+            owner_user_id=None,
+            created_by_user_id=None,
+            visibility="org",
+            categories=[],
+            tags=[],
+        )
+        await agent_repo.create_version(
+            published,
+            agent_id=uuid4(),
+            organization_id=uuid4(),
+            version=1,
+            spec={},
+            note=None,
+            published_by_user_id=None,
+        )
+
+        assert self._locked(created)
+        assert self._locked(published)
+
+
 class TestPublishedStarters:
     """One path read out of each frozen spec, for the listing (#2301)."""
 

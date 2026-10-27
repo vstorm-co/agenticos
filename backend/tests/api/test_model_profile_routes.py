@@ -114,6 +114,7 @@ def _stored(model: str) -> MagicMock:
         params={},
         fallback_profile_ids=[],
         context_length=None,
+        runs_without_key=False,
         created_at=datetime(2026, 10, 26, tzinfo=UTC),
         updated_at=None,
     )

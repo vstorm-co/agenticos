@@ -234,14 +234,23 @@ def get_provider(provider: str) -> ProviderSpec:
     return spec
 
 
-def lacks_key(provider: str, *, secret_id: UUID | None, base_url: str | None) -> bool:
+def lacks_key(
+    provider: str,
+    *,
+    secret_id: UUID | None,
+    base_url: str | None,
+    runs_without_key: bool,
+) -> bool:
     """Whether a profile has nothing to authenticate with and cannot run (#2478).
 
-    A profile with no `secret_id` is usable only on a keyless provider that names
-    an endpoint: an Ollama or a LiteLLM proxy on this network. Every other one is
-    a profile whose key was never set or was deleted from the vault, which the
-    foreign key's `ON DELETE SET NULL` makes an ordinary state. `keyless` alone is
-    not enough, because it is true of `openai` too.
+    A profile with no `secret_id` is usable only when it was saved to run with no
+    key (`runs_without_key`) on a keyless provider that names an endpoint: an
+    Ollama or a LiteLLM proxy on this network, an OpenAI-compatible gateway that
+    authenticates nothing. Every other one is a profile whose key was never set
+    or was deleted from the vault, which the foreign key's `ON DELETE SET NULL`
+    makes an ordinary state. The provider and the endpoint cannot tell those two
+    apart - `keyless` is true of `openai`, and a gateway profile that had a key
+    keeps its endpoint when the key goes - which is why the intent is stored.
 
     One rule for every reader: the profile listing's `missing_key`, publish, and
     the resolver that refuses the run.
@@ -249,7 +258,7 @@ def lacks_key(provider: str, *, secret_id: UUID | None, base_url: str | None) ->
     if secret_id is not None:
         return False
     spec = PROVIDERS.get(provider)
-    return spec is None or not spec.keyless or not base_url
+    return not (runs_without_key and spec is not None and spec.keyless and base_url)
 
 
 @dataclass(frozen=True)

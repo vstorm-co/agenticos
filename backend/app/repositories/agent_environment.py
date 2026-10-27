@@ -6,6 +6,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.locks import LockScope, hold_subject_shared
 from app.db.models.agent_environment import AgentEnvironment
 
 
@@ -99,6 +100,9 @@ async def create(
     logfire_token_secret_id: UUID | None = None,
     service_name: str | None = None,
 ) -> AgentEnvironment:
+    # Pinning a version is how an environment comes to name its model profiles,
+    # so it is held off while one of them is being deleted (#2478).
+    await hold_subject_shared(db, LockScope.MODEL_PROFILE_REFERENCES, organization_id)
     environment = AgentEnvironment(
         organization_id=organization_id,
         agent_id=agent_id,
@@ -119,6 +123,10 @@ async def create(
 async def update(
     db: AsyncSession, *, environment: AgentEnvironment, update_data: dict[str, Any]
 ) -> AgentEnvironment:
+    if "version_id" in update_data:
+        await hold_subject_shared(
+            db, LockScope.MODEL_PROFILE_REFERENCES, environment.organization_id
+        )
     for field, value in update_data.items():
         setattr(environment, field, value)
     await db.flush()

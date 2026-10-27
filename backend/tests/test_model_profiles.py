@@ -169,6 +169,7 @@ def _profile(
     profile.api = api
     profile.params = {}
     profile.fallback_profile_ids = [str(pid) for pid in (fallbacks or [])]
+    profile.runs_without_key = False
     return profile
 
 
@@ -517,7 +518,7 @@ class TestProfileCreation:
             ctx = _ctx()
             await ModelProfileService(_db()).delete_profile(ctx, uuid.uuid4())
 
-        assert get.await_args.kwargs == {"organization_id": ctx.organization_id}
+        assert get.await_args.kwargs == {"organization_id": ctx.organization_id, "for_update": True}
         delete.assert_not_called()
         assert audit.await_count == 0
         assert "Model profile not found" in refused.value.message
@@ -734,7 +735,7 @@ class TestEditingAProfileInPlace:
             await ModelProfileService(_db()).update_profile(
                 ctx, uuid.uuid4(), ModelProfileUpdate(label="Mine now")
             )
-        assert get.await_args.kwargs == {"organization_id": ctx.organization_id}
+        assert get.await_args.kwargs == {"organization_id": ctx.organization_id, "for_update": True}
         update.assert_not_called()
 
     @pytest.mark.anyio
@@ -784,7 +785,12 @@ class TestEditingAProfileInPlace:
 
         _, update, _, access = await self._update(ctx, profile, {"secret_id": None})
 
-        assert update.await_args.kwargs["update_data"] == {"secret_id": None}
+        # Saved with no key on purpose, so a later look cannot take it for a
+        # profile whose key was deleted.
+        assert update.await_args.kwargs["update_data"] == {
+            "secret_id": None,
+            "runs_without_key": True,
+        }
         access.assert_not_awaited()
 
     @pytest.mark.anyio
@@ -936,19 +942,22 @@ class TestAProfileWithoutAKey:
     """A key deleted from the vault leaves its profiles behind with nothing to send (#2478)."""
 
     @pytest.mark.parametrize(
-        ("provider", "secret_id", "base_url", "missing"),
+        ("provider", "secret_id", "base_url", "on_purpose", "missing"),
         [
-            ("openai", None, None, True),
-            ("anthropic", None, None, True),
-            ("ollama", None, "http://ollama:11434/v1", False),
-            ("openai", None, "http://vllm:8000/v1", False),
-            ("anthropic", None, "https://gw.example", True),
-            ("openai", uuid.uuid4(), None, False),
-            ("not-a-provider", None, "http://x", True),
+            ("openai", None, None, False, True),
+            ("anthropic", None, None, False, True),
+            ("ollama", None, "http://ollama:11434/v1", True, False),
+            ("openai", None, "http://vllm:8000/v1", True, False),
+            # A gateway profile that had a key and lost it keeps its endpoint;
+            # only the stored intent tells it from one that never needed one.
+            ("openai", None, "http://gw.example/v1", False, True),
+            ("anthropic", None, "https://gw.example", True, True),
+            ("openai", uuid.uuid4(), None, False, False),
+            ("not-a-provider", None, "http://x", True, True),
         ],
     )
     def test_the_listing_says_which_have_nothing_to_authenticate_with(
-        self, provider, secret_id, base_url, missing
+        self, provider, secret_id, base_url, on_purpose, missing
     ):
         read = ModelProfileRead(
             id=uuid.uuid4(),
@@ -957,10 +966,14 @@ class TestAProfileWithoutAKey:
             model="m",
             secret_id=secret_id,
             base_url=base_url,
+            runs_without_key=on_purpose,
             created_at=datetime(2026, 10, 27, tzinfo=UTC),
         )
         assert read.missing_key is missing
-        assert lacks_key(provider, secret_id=secret_id, base_url=base_url) is missing
+        assert (
+            lacks_key(provider, secret_id=secret_id, base_url=base_url, runs_without_key=on_purpose)
+            is missing
+        )
 
     @pytest.mark.parametrize(
         ("model", "secret", "usable"),
@@ -1667,6 +1680,7 @@ class TestAnEndpointOfItsOwn:
         ctx = _ctx()
         profile = _profile(ctx, provider="ollama", model="llama3.3")
         profile.secret_id = None
+        profile.runs_without_key = True
         profile.base_url = "http://localhost:11434/v1"
 
         with patch(
@@ -1835,6 +1849,7 @@ class TestTheApiAProfileUses:
         ctx = _ctx()
         profile = _profile(ctx, base_url="http://vllm:8000/v1", api="chat")
         profile.secret_id = None
+        profile.runs_without_key = True
 
         credential = await ModelProfileService(_db()).resolve_credential(
             ctx.organization_id, profile
@@ -1848,6 +1863,7 @@ class TestTheApiAProfileUses:
         ctx = _ctx()
         profile = _profile(ctx, base_url="http://vllm:8000/v1", api="realtime")
         profile.secret_id = None
+        profile.runs_without_key = True
 
         with pytest.raises(ValidationError):
             await ModelProfileService(_db()).resolve_credential(ctx.organization_id, profile)
