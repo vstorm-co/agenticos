@@ -1,7 +1,7 @@
 import type { Translate } from "@/lib/agent-step-captions";
 import type { Notification } from "@/lib/notifications-api";
 
-const IMPROVEMENT = ["ready", "stopped", "failed"];
+const IMPROVEMENT = ["ready", "stopped", "failed", "stale"];
 const TEST = ["completed", "failed", "cancelled", "budget_exceeded"];
 const GENERATION = ["ready", "failed"];
 const STOP_REASONS = [
@@ -41,7 +41,9 @@ export function notificationSummary(item: Notification, t: Translate, tStop: Tra
   }
   if (item.event_type === "improvement_finished" && IMPROVEMENT.includes(outcome.status)) {
     if (!item.agent?.name) return item.summary;
-    const head = t(`outcome.improvement.${outcome.status}`, { agent: item.agent.name });
+    // A session ended as stale is said the way a stopped one is, with why it ended.
+    const status = outcome.status === "stale" ? "stopped" : outcome.status;
+    const head = t(`outcome.improvement.${status}`, { agent: item.agent.name });
     return outcome.status !== "ready" && outcome.reason && STOP_REASONS.includes(outcome.reason)
       ? `${head} ${tStop(outcome.reason)}`
       : head;

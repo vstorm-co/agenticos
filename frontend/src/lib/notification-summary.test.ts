@@ -112,7 +112,7 @@ it("says which step a session stopped at for a person, from its stage or its rea
 it("words a session nobody took further, which closed on its own", () => {
   expect(
     notificationSummary(
-      row("improvement_finished", { status: "stopped", reason: "expired" }),
+      row("improvement_finished", { status: "stale", reason: "expired" }),
       t,
       stop,
     ),
