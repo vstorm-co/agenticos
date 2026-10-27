@@ -1840,11 +1840,11 @@ _DECIDED_SUMMARY = {
 
 
 # Where a session waits, by the step it finished: reading the examples, sorting
-# them, or proposing changes for a person to choose from.
+# them, or proposing changes for a person to look over.
 _WAITING_SUMMARY = {
     "analyzing": "Your improvement of {agent} has read its examples. Look them over, then take the next step.",
     "classifying": "Your improvement of {agent} has sorted its examples. Look them over, then take the next step.",
-    "filtering": "Your improvement of {agent} has changes to choose from. Pick the ones to check, then take the next step.",
+    "filtering": "Your improvement of {agent} has changes ready. Look them over, then take the next step to check them.",
 }
 
 

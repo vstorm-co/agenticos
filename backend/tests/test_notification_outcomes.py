@@ -28,8 +28,8 @@ from app.services.notifications import _improvement_summary
         (
             "waiting",
             "filtering",
-            "Your improvement of Refund desk has changes to choose from. "
-            "Pick the ones to check, then take the next step.",
+            "Your improvement of Refund desk has changes ready. "
+            "Look them over, then take the next step to check them.",
         ),
         (
             "failed",
