@@ -219,49 +219,6 @@ function fillStyle(fill: string) {
   return fill.startsWith("var(") ? { background: fill } : undefined;
 }
 
-/** How a set of answers came out: handled well, not handled, and not graded. */
-export function Handled({
-  passed,
-  failed,
-  undecided,
-  label,
-}: {
-  passed: number;
-  failed: number;
-  undecided: number;
-  label: string;
-}) {
-  const t = useTranslations("improvement.widgets");
-  return (
-    <Proportion
-      label={label}
-      parts={[
-        {
-          label: t("handled"),
-          value: passed,
-          fill: "bg-success",
-          icon: CheckCircle2,
-          ink: "text-success",
-        },
-        {
-          label: t("notHandled"),
-          value: failed,
-          fill: "bg-destructive",
-          icon: XCircle,
-          ink: "text-destructive",
-        },
-        {
-          label: t("notGraded"),
-          value: undecided,
-          fill: "bg-muted-foreground/40",
-          icon: CircleDashed,
-          ink: "text-muted-foreground",
-        },
-      ]}
-    />
-  );
-}
-
 /**
  * Handled well before and after, as two bars against the same total and the
  * difference beside them. The whole is an image named by `label`, the sentence

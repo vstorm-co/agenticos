@@ -4994,10 +4994,6 @@
         "title": "Test questions",
         "body": "The questions each change is tested on, as they were when the session started. Some help write the changes; the rest are kept aside to check the result."
       },
-      "improvement-today": {
-        "title": "Today",
-        "body": "Before anything changes, the agent answers the questions as it is today. Each change is compared with these answers."
-      },
       "improvement-review": {
         "title": "Review",
         "body": "Doubt a grade? Open the full check and send the answer to Review. A person's decision replaces the grader's, and the result is worked out again."
@@ -5029,10 +5025,6 @@
       "flow-improvement-questions": {
         "title": "Test questions",
         "body": "The questions each change is tested on, as they were when the session started. Some help write the changes; the rest are kept aside to check the result."
-      },
-      "flow-improvement-today": {
-        "title": "Today",
-        "body": "Before anything changes, the agent answers the questions as it is today. Each change is compared with these answers."
       },
       "flow-improvement-review": {
         "title": "Review",
@@ -5081,6 +5073,14 @@
       "org-proactivity": {
         "title": "Proactivity",
         "body": "Configure nightly suggestions, connection watches and proactive chat greetings. Choose the model, schedule and per-person budget here."
+      },
+      "improvement-check": {
+        "title": "Check",
+        "body": "Today's version and the changed one answer the same questions in one test. Each bar shows how far each has got, and the result opens once the test is done."
+      },
+      "flow-improvement-check": {
+        "title": "Check",
+        "body": "Today's version and the changed one answer the same questions in one test. Each bar shows how far each has got, and the result opens once the test is done."
       }
     },
     "chooseLanguage": "Language",
@@ -10956,10 +10956,6 @@
     "sourcePreviousQuestions": "Previous questions",
     "sourceNextQuestions": "Next questions",
     "editQuestions": "Open the question set",
-    "baselinePending": "Today's answers are still being tested. They appear here with the grader's sentences when the test finishes.",
-    "baselineHandled": "Before the changes: {passed} of {total} handled well.",
-    "baselineUndecided": "Couldn't grade {count, plural, one {# question} other {# questions}}: we'll leave them out of the comparison.",
-    "noWeakQuestions": "No failed questions on this page. Open the full check to review all outcomes.",
     "title": "Improve {name}",
     "heading": "Improve",
     "intro": "We’ll read what went wrong, propose changes and test them on separate questions. Nothing goes live until you accept and publish it.",
@@ -11041,7 +11037,6 @@
     "steps": {
       "understand": "Understand",
       "testSet": "Test set",
-      "today": "Today",
       "changes": "Changes",
       "check": "Check",
       "result": "Result",
@@ -11260,9 +11255,6 @@
       "published": "{name} published the new version · {at}"
     },
     "widgets": {
-      "handled": "Handled well",
-      "notHandled": "Not handled well",
-      "notGraded": "Not graded",
       "ofTotal": "{count} of {total}",
       "whereFrom": "Where the questions come from",
       "fromRatedDown": "From answers rated down",
@@ -11274,7 +11266,6 @@
       "keptAside": "Kept aside to check the result",
       "partitionLabel": "{train, plural, one {# question helps} other {# questions help}} write the changes; {holdout, plural, one {# is} other {# are}} kept aside to check the result.",
       "tooFew": "Too few questions",
-      "weakQuestions": "Questions it did not handle well",
       "comments": "{count, plural, one {# comment} other {# comments}}",
       "toReview": "Documents to review",
       "missingTopics": "Topics missing knowledge",
@@ -11337,10 +11328,15 @@
     },
     "goToCurrent": "Go to the current step",
     "understandWorking": "Reading what went wrong and sorting it into what the agent can fix and what the knowledge base is missing…",
-    "todayWorking": "Asking the agent as it is today: {answered} of {total} answered…",
     "writingAgain": "Attempt {number} of {max}: writing different changes…",
     "checkingChanges": "Checking these changes — attempt {number} of {max}",
-    "checkingAttempt": "Attempt {number} of {max} is being checked."
+    "checkingAttempt": "Attempt {number} of {max} is being checked.",
+    "checkBars": {
+      "today": "Today's version",
+      "changed": "Changed version",
+      "count": "{answered} of {total}",
+      "reused": "From a test before this session started"
+    }
   },
   "unsaved": {
     "title": "You have unsaved changes",

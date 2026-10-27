@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
 import { ThumbsDown } from "lucide-react";
 
-import { BeforeAfter, Details, Handled, Proportion, StateBadge, Stepper, Tiles } from "./widgets";
+import { BeforeAfter, Details, Proportion, StateBadge, Stepper, Tiles } from "./widgets";
 
 it("lays tiles out by how many there are, under the name that says them as a sentence", () => {
   const view = render(
@@ -67,29 +67,6 @@ it("draws only the parts that hold something and prints every count in the key",
   expect(screen.getByText("Written").closest("li")).toHaveClass("opacity-50");
   expect(screen.getByText("Rated").closest("li")).toHaveTextContent("2");
   expect(container.querySelectorAll("li svg")).toHaveLength(0);
-});
-
-it("splits answers into handled well, not handled and not graded, each with its icon", () => {
-  render(
-    <Handled
-      label="Before the changes: 4 of 10 handled well."
-      passed={4}
-      failed={5}
-      undecided={1}
-    />,
-  );
-  expect(
-    screen.getByRole("img", { name: "Before the changes: 4 of 10 handled well." }),
-  ).toBeInTheDocument();
-  for (const [label, count] of [
-    ["Handled well", "4"],
-    ["Not handled well", "5"],
-    ["Not graded", "1"],
-  ] as const)
-    expect(screen.getByText(label).closest("li")).toHaveTextContent(count);
-  expect(screen.getByText("Handled well").closest("li")!.querySelector("svg")).toHaveClass(
-    "text-success",
-  );
 });
 
 it("shows before and after against one total, with the difference and its direction", () => {

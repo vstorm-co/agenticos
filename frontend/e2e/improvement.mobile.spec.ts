@@ -346,7 +346,7 @@ test("a first improvement offers the automatic check, and ticking it creates the
   const wizard = page.url();
   const stops = await walkPageTour(page);
   expect(stops[0]).toBe("Test questions");
-  expect(stops).toEqual(expect.arrayContaining(["Today", "Result"]));
+  expect(stops).toEqual(expect.arrayContaining(["Check", "Result"]));
   expect(page.url()).toBe(wizard);
   await expect(page.getByText("Something went wrong")).toHaveCount(0);
   // The walk leaves the wizard on its last stop, under the guided run it offers.

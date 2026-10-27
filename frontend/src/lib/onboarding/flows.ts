@@ -957,8 +957,8 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
     ],
   },
   // A session's own walk: what each step did, from its questions to the guard that
-  // holds a publish. A step the wizard keeps shut until its work exists - Today
-  // before the first answers, Result and Accept while the session works - is optional.
+  // holds a publish. A step the wizard keeps shut until its work exists - Check
+  // before the test starts, Result and Accept while the session works - is optional.
   "improvement-session": {
     id: "improvement-session",
     permission: Perm.runsView,
@@ -971,10 +971,10 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         permission: Perm.runsView,
       },
       {
-        id: "flow-improvement-today",
+        id: "flow-improvement-check",
         page: IMPROVEMENT,
-        target: "improvement-today",
-        activate: "improvement-step-today",
+        target: "improvement-check",
+        activate: "improvement-step-check",
         permission: Perm.runsView,
         optional: true,
       },
@@ -982,7 +982,7 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         id: "flow-improvement-review",
         page: IMPROVEMENT,
         target: "improvement-open-check",
-        activate: "improvement-step-today",
+        activate: "improvement-step-check",
         permission: Perm.runsView,
         optional: true,
       },

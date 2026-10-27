@@ -21,7 +21,7 @@ import { Perm } from "@/types/permissions";
 import { ContinueSession } from "./continue-session";
 import { StartSession } from "./start-session";
 import { KnowledgeDrafts } from "./knowledge-drafts";
-import { TestQuestions, Today } from "./session-inputs";
+import { TestQuestions } from "./session-inputs";
 import { Understand } from "./understand";
 import { AttemptHistory } from "./attempt-history";
 import { CheckProgress } from "./check-progress";
@@ -107,6 +107,10 @@ function Session({
   // Without ?step= the screen follows the session; a person who opens another step
   // stays there, and can link to it, until they go back to the current one.
   const [stepParam, setStepParam] = useUrlState("step");
+  // Older links name a step `today`, whose answers Check shows; they open Check.
+  useEffect(() => {
+    if (stepParam === "today") setStepParam("check");
+  }, [stepParam, setStepParam]);
   const [moves, setMoves] = useState(0);
   const content = useRef<HTMLDivElement>(null);
   // A screen read aloud starts at its heading, not at the step button just pressed.
@@ -147,7 +151,7 @@ function Session({
       : "viewOnly";
   const current = currentImprovementStep(session);
   const views = improvementSteps(session);
-  const picked = STEPS.find((id) => id === stepParam);
+  const picked = STEPS.find((id) => id === (stepParam === "today" ? "check" : stepParam));
   const step = picked && isReachable(views[picked]) ? picked : current;
   const active = isActive(session);
   const working = STEPS.some((id) => views[id].state === "running");
@@ -238,7 +242,6 @@ function Session({
               <Understand session={session} />
             ))}
           {step === "testSet" && <TestQuestions session={session} />}
-          {step === "today" && <Today session={session} ready={views.today.state === "done"} />}
           {step === "changes" && (
             <section className="grid gap-6 md:grid-cols-[2fr_1fr]" data-tour="improvement-changes">
               {chosen && selectedBatch?.hunks.length ? (

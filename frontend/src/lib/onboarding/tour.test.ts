@@ -618,7 +618,7 @@ it("describes every stage of an improvement on its own page", () => {
   expect(TOUR_STEPS.filter((step) => step.page === IMPROVEMENT).map((step) => step.target)).toEqual(
     [
       "improvement-test-questions",
-      "improvement-today",
+      "improvement-check",
       "improvement-open-check",
       "improvement-results",
       "improvement-automatic-check",

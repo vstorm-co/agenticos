@@ -4763,10 +4763,6 @@
         "title": "Pytania testowe",
         "body": "Pytania, na których testujemy każdą zmianę, w postaci z chwili rozpoczęcia sesji. Część pomaga pisać zmiany, pozostałe są odłożone, by sprawdzić wynik."
       },
-      "improvement-today": {
-        "title": "Dzisiaj",
-        "body": "Zanim cokolwiek się zmieni, agent odpowiada na pytania tak jak dziś. Każdą zmianę porównujemy z tymi odpowiedziami."
-      },
       "improvement-review": {
         "title": "Przegląd",
         "body": "Masz wątpliwości co do oceny? Otwórz pełne sprawdzenie i wyślij odpowiedź do przeglądu. Decyzja człowieka zastępuje ocenę oceniającego, a wynik jest liczony od nowa."
@@ -4798,10 +4794,6 @@
       "flow-improvement-questions": {
         "title": "Pytania testowe",
         "body": "Pytania, na których testujemy każdą zmianę, w postaci z chwili rozpoczęcia sesji. Część pomaga pisać zmiany, pozostałe są odłożone, by sprawdzić wynik."
-      },
-      "flow-improvement-today": {
-        "title": "Dzisiaj",
-        "body": "Zanim cokolwiek się zmieni, agent odpowiada na pytania tak jak dziś. Każdą zmianę porównujemy z tymi odpowiedziami."
       },
       "flow-improvement-review": {
         "title": "Przegląd",
@@ -4850,6 +4842,14 @@
       "org-proactivity": {
         "title": "Proaktywność",
         "body": "Skonfiguruj nocne sugestie, obserwowanie połączeń i proaktywne powitania w czacie. Tutaj wybierzesz model, harmonogram i budżet na osobę."
+      },
+      "improvement-check": {
+        "title": "Sprawdzenie",
+        "body": "Obecna wersja i zmieniona odpowiadają na te same pytania w jednym teście. Każdy pasek pokazuje, ile każda już odpowiedziała, a wynik otwiera się po zakończeniu testu."
+      },
+      "flow-improvement-check": {
+        "title": "Sprawdzenie",
+        "body": "Obecna wersja i zmieniona odpowiadają na te same pytania w jednym teście. Każdy pasek pokazuje, ile każda już odpowiedziała, a wynik otwiera się po zakończeniu testu."
       }
     },
     "chooseLanguage": "Język",
@@ -10739,10 +10739,6 @@
     "sourcePreviousQuestions": "Poprzednie pytania",
     "sourceNextQuestions": "Następne pytania",
     "editQuestions": "Otwórz zbiór pytań",
-    "baselinePending": "Dzisiejsze odpowiedzi są jeszcze testowane. Pojawią się tu wraz z uwagami oceniającego, gdy test się zakończy.",
-    "baselineHandled": "Przed zmianami: {passed} z {total} odpowiedzi poprawnych.",
-    "baselineUndecided": "Nie udało się ocenić {count, plural, one {# pytania} other {# pytań}}: pominiemy je w porównaniu.",
-    "noWeakQuestions": "Na tej stronie nie ma nieudanych pytań. Otwórz pełny test, aby przejrzeć wszystkie wyniki.",
     "title": "Popraw {name}",
     "heading": "Popraw",
     "intro": "Przeczytamy, co poszło źle, zaproponujemy zmiany i sprawdzimy je na osobnych pytaniach. Zmiany wejdą w życie po Twojej akceptacji i publikacji.",
@@ -10824,7 +10820,6 @@
     "steps": {
       "understand": "Zrozumienie",
       "testSet": "Pytania",
-      "today": "Dzisiaj",
       "changes": "Zmiany",
       "check": "Sprawdzenie",
       "result": "Wynik",
@@ -11043,9 +11038,6 @@
       "published": "{name} opublikował(a) nową wersję · {at}"
     },
     "widgets": {
-      "handled": "Obsłużone dobrze",
-      "notHandled": "Obsłużone źle",
-      "notGraded": "Bez oceny",
       "ofTotal": "{count} z {total}",
       "whereFrom": "Skąd pochodzą pytania",
       "fromRatedDown": "Z odpowiedzi ocenionych negatywnie",
@@ -11057,7 +11049,6 @@
       "keptAside": "Odłożone do sprawdzenia wyniku",
       "partitionLabel": "{train, plural, one {# pytanie pomaga} few {# pytania pomagają} many {# pytań pomaga} other {# pytania pomaga}} napisać zmiany; {holdout, plural, one {# jest odłożone} few {# są odłożone} many {# jest odłożonych} other {# jest odłożonych}} do sprawdzenia wyniku.",
       "tooFew": "Za mało pytań",
-      "weakQuestions": "Pytania, z którymi sobie nie poradził",
       "comments": "{count, plural, one {# komentarz} few {# komentarze} many {# komentarzy} other {# komentarza}}",
       "toReview": "Dokumenty do przejrzenia",
       "missingTopics": "Brakujące tematy wiedzy",
@@ -11120,10 +11111,15 @@
     },
     "goToCurrent": "Przejdź do bieżącego kroku",
     "understandWorking": "Czytamy, co poszło nie tak, i dzielimy to na to, co da się poprawić w agencie, i to, czego brakuje w bazie wiedzy…",
-    "todayWorking": "Pytamy agenta w obecnej wersji: {answered} z {total} odpowiedzi…",
     "writingAgain": "Próba {number} z {max}: piszemy inne zmiany…",
     "checkingChanges": "Sprawdzamy te zmiany — próba {number} z {max}",
-    "checkingAttempt": "Sprawdzamy próbę {number} z {max}."
+    "checkingAttempt": "Sprawdzamy próbę {number} z {max}.",
+    "checkBars": {
+      "today": "Obecna wersja",
+      "changed": "Zmieniona wersja",
+      "count": "{answered} z {total}",
+      "reused": "Z testu sprzed rozpoczęcia tej sesji"
+    }
   },
   "unsaved": {
     "title": "Masz niezapisane zmiany",

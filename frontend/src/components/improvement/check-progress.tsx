@@ -1,10 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
 import { useEvalRun } from "@/hooks/use-eval-runs";
 import type { EvalRun } from "@/types/eval-runs";
-import type { Improvement } from "@/types/improvement";
+import type { CheckAnswers, Improvement } from "@/types/improvement";
 import { isActive } from "@/lib/improvement-steps";
 import { AttemptHistory } from "./attempt-history";
 import { StepError } from "./step-error";
@@ -54,6 +55,20 @@ export function CheckProgress({
           })}
         </p>
       )}
+      {active && checking && (session.baseline_answers || session.candidate_answers) && (
+        <div className="space-y-3">
+          {session.baseline_answers && (
+            <AnswerBar
+              label={t("checkBars.today")}
+              answers={session.baseline_answers}
+              note={session.baseline_answers.reused ? t("checkBars.reused") : undefined}
+            />
+          )}
+          {session.candidate_answers && (
+            <AnswerBar label={t("checkBars.changed")} answers={session.candidate_answers} />
+          )}
+        </div>
+      )}
       {active &&
         checking &&
         (runId ? (
@@ -76,6 +91,15 @@ export function CheckProgress({
       )}
       {!active && !measured && session.stop_reason !== "budget" && (
         <p className="text-muted-foreground text-sm">{t("checkSkipped")}</p>
+      )}
+      {runId && (
+        <Link
+          className="block text-sm underline underline-offset-4"
+          href={`/agents/${session.agent_id}/evals/${runId}`}
+          data-tour="improvement-open-check"
+        >
+          {t("openCheck")}
+        </Link>
       )}
     </section>
   );
@@ -100,5 +124,46 @@ function RunStages({ runId, judging }: { runId: string; judging: boolean }) {
         }))}
       />
     </>
+  );
+}
+
+/**
+ * How far one side of the check has answered. Today's version and the changed one
+ * are asked in the same run, so each gets its own bar rather than a step of its own.
+ */
+function AnswerBar({
+  label,
+  answers,
+  note,
+}: {
+  label: string;
+  answers: CheckAnswers;
+  note?: string;
+}) {
+  const t = useTranslations("improvement");
+  const { answered, total } = answers;
+  return (
+    <div className="space-y-1">
+      <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
+        <span className="font-medium">{label}</span>
+        <span className="text-muted-foreground tabular-nums">
+          {t("checkBars.count", { answered, total })}
+        </span>
+      </div>
+      <div
+        role="progressbar"
+        aria-label={label}
+        aria-valuemin={0}
+        aria-valuemax={total}
+        aria-valuenow={answered}
+        className="bg-muted h-2 overflow-hidden rounded-full"
+      >
+        <div
+          className="bg-chart h-full rounded-full transition-[width] duration-500"
+          style={{ width: `${total > 0 ? (answered / total) * 100 : 0}%` }}
+        />
+      </div>
+      {note && <p className="text-muted-foreground text-xs">{note}</p>}
+    </div>
   );
 }

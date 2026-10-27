@@ -669,7 +669,7 @@ it("walks a session from its questions to the guard that holds a publish", () =>
   const steps = FLOWS["improvement-session"].steps;
   expect(steps.map((step) => step.target)).toEqual([
     "improvement-test-questions",
-    "improvement-today",
+    "improvement-check",
     "improvement-open-check",
     "improvement-results",
     "improvement-automatic-check",
@@ -681,6 +681,6 @@ it("walks a session from its questions to the guard that holds a publish", () =>
     "improvement-test-questions",
   ]);
   expect(steps.find((step) => step.id === "flow-improvement-review")?.activate).toBe(
-    "improvement-step-today",
+    "improvement-step-check",
   );
 });

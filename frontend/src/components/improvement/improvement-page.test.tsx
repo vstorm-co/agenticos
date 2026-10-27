@@ -297,9 +297,6 @@ vi.mock("./understand", () => ({ Understand: () => <p>Source examples fixture</p
 vi.mock("./session-inputs", () => ({
   StartSignals: () => null,
   TestQuestions: () => <p>Pinned questions fixture</p>,
-  Today: ({ ready }: { ready: boolean }) => (
-    <p>{ready ? "Baseline fixture" : "Today in progress fixture"}</p>
-  ),
 }));
 
 it("draws Previous step exactly like Next step, each with its arrow", async () => {
@@ -714,19 +711,30 @@ it.each([
   );
 });
 
+it("opens Check from an old link to Today, rewriting the address", () => {
+  state.session = { ...state.session!, status: "running", stage: "evaluating" };
+  window.history.replaceState({}, "", "/?step=today");
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.getByRole("button", { name: "Check" }).closest("li")).toHaveAttribute(
+    "aria-current",
+    "step",
+  );
+  expect(new URLSearchParams(window.location.search).get("step")).toBe("check");
+  expect(screen.queryByRole("button", { name: "Today" })).not.toBeInTheDocument();
+});
+
 const LABELS: Record<(typeof STEPS)[number], string> = {
   understand: "Understand",
   testSet: "Test set",
-  today: "Today",
   changes: "Changes",
   check: "Check",
   result: "Result",
   accept: "Accept",
 };
 const WORKING =
-  /Reading what went wrong|preparing changes|writing different changes|Today in progress fixture|Testing in the background|Preparing the test/;
+  /Reading what went wrong|preparing changes|writing different changes|Testing in the background|Preparing the test/;
 const FINAL =
-  /Source examples fixture|Baseline fixture|We couldn't find a change|The test has finished|newly fixed|Open version|Kept as draft/;
+  /Source examples fixture|We couldn't find a change|The test has finished|newly fixed|Open version|Kept as draft/;
 
 describe("every step's state matches what its panel shows", () => {
   const round = (number: number, extra: Partial<ImprovementIteration> = {}) => ({

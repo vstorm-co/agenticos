@@ -3,7 +3,6 @@ import type { Improvement } from "@/types/improvement";
 export const IMPROVEMENT_STEPS = [
   "understand",
   "testSet",
-  "today",
   "changes",
   "check",
   "result",
@@ -68,7 +67,6 @@ export function improvementSteps(
   const groupingFailed = session.timeline.some(
     (event) => event.action === "improvement.classification_failed",
   );
-  const before = session.baseline_answers;
   const states: Record<ImprovementStep, ImprovementStepState> = {
     understand:
       active && (!session.stage || ["analyzing", "classifying"].includes(stage))
@@ -79,14 +77,6 @@ export function improvementSteps(
             ? "done"
             : "skipped",
     testSet: noData || session.status === "stale" ? "needs_you" : "done",
-    today:
-      before && before.total > 0 && before.answered === before.total
-        ? "done"
-        : active && before
-          ? "running"
-          : active
-            ? "pending"
-            : "skipped",
     changes: accepted
       ? "done"
       : session.status === "rejected"

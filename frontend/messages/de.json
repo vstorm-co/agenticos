@@ -4876,10 +4876,6 @@
         "title": "Testfragen",
         "body": "Die Fragen, mit denen jede Änderung getestet wird, so wie sie beim Start der Sitzung waren. Einige helfen beim Schreiben der Änderungen, die übrigen werden beiseitegelegt, um das Ergebnis zu prüfen."
       },
-      "improvement-today": {
-        "title": "Heute",
-        "body": "Bevor sich etwas ändert, beantwortet der Agent die Fragen so wie heute. Jede Änderung wird mit diesen Antworten verglichen."
-      },
       "improvement-review": {
         "title": "Prüfung",
         "body": "Zweifel an einer Bewertung? Öffnen Sie die vollständige Prüfung und senden Sie die Antwort zur Prüfung. Die Entscheidung eines Menschen ersetzt die des Bewerters, und das Ergebnis wird neu berechnet."
@@ -4911,10 +4907,6 @@
       "flow-improvement-questions": {
         "title": "Testfragen",
         "body": "Die Fragen, mit denen jede Änderung getestet wird, so wie sie beim Start der Sitzung waren. Einige helfen beim Schreiben der Änderungen, die übrigen werden beiseitegelegt, um das Ergebnis zu prüfen."
-      },
-      "flow-improvement-today": {
-        "title": "Heute",
-        "body": "Bevor sich etwas ändert, beantwortet der Agent die Fragen so wie heute. Jede Änderung wird mit diesen Antworten verglichen."
       },
       "flow-improvement-review": {
         "title": "Prüfung",
@@ -4963,6 +4955,14 @@
       "org-proactivity": {
         "title": "Proaktivität",
         "body": "Konfiguriere nächtliche Vorschläge, die Überwachung von Verbindungen und proaktive Chatbegrüßungen. Wähle hier Modell, Zeitplan und Budget pro Person."
+      },
+      "improvement-check": {
+        "title": "Prüfung",
+        "body": "Die heutige und die geänderte Fassung beantworten dieselben Fragen in einem Test. Jeder Balken zeigt, wie weit jede ist, und das Ergebnis öffnet sich, sobald der Test fertig ist."
+      },
+      "flow-improvement-check": {
+        "title": "Prüfung",
+        "body": "Die heutige und die geänderte Fassung beantworten dieselben Fragen in einem Test. Jeder Balken zeigt, wie weit jede ist, und das Ergebnis öffnet sich, sobald der Test fertig ist."
       }
     },
     "chooseLanguage": "Sprache",
@@ -10839,10 +10839,6 @@
     "sourcePreviousQuestions": "Vorherige Fragen",
     "sourceNextQuestions": "Nächste Fragen",
     "editQuestions": "Fragensammlung öffnen",
-    "baselinePending": "Die heutigen Antworten werden noch getestet. Sie erscheinen hier mit den Sätzen des Bewerters, sobald der Test abgeschlossen ist.",
-    "baselineHandled": "Vor den Änderungen: {passed} von {total} gut beantwortet.",
-    "baselineUndecided": "{count, plural, one {# Frage konnte} other {# Fragen konnten}} nicht bewertet werden: Wir lassen sie beim Vergleich außen vor.",
-    "noWeakQuestions": "Keine fehlgeschlagenen Fragen auf dieser Seite. Öffnen Sie den vollständigen Test für alle Ergebnisse.",
     "title": "{name} verbessern",
     "heading": "Verbessern",
     "intro": "Wir lesen, was schiefging, schlagen Änderungen vor und prüfen sie mit getrennten Fragen. Erst Ihre Annahme und Veröffentlichung machen die Änderungen wirksam.",
@@ -10924,7 +10920,6 @@
     "steps": {
       "understand": "Verstehen",
       "testSet": "Testfragen",
-      "today": "Heute",
       "changes": "Änderungen",
       "check": "Prüfung",
       "result": "Ergebnis",
@@ -11143,9 +11138,6 @@
       "published": "{name} hat die neue Version veröffentlicht · {at}"
     },
     "widgets": {
-      "handled": "Gut beantwortet",
-      "notHandled": "Nicht gut beantwortet",
-      "notGraded": "Nicht bewertet",
       "ofTotal": "{count} von {total}",
       "whereFrom": "Woher die Fragen kommen",
       "fromRatedDown": "Aus negativ bewerteten Antworten",
@@ -11157,7 +11149,6 @@
       "keptAside": "Zurückgelegt, um das Ergebnis zu prüfen",
       "partitionLabel": "{train, plural, one {# Frage hilft} other {# Fragen helfen}}, die Änderungen zu schreiben; {holdout, plural, one {# wird} other {# werden}} zurückgelegt, um das Ergebnis zu prüfen.",
       "tooFew": "Zu wenige Fragen",
-      "weakQuestions": "Fragen, die er nicht gut beantwortet hat",
       "comments": "{count, plural, one {# Kommentar} other {# Kommentare}}",
       "toReview": "Zu prüfende Dokumente",
       "missingTopics": "Fehlende Wissensthemen",
@@ -11220,10 +11211,15 @@
     },
     "goToCurrent": "Zum aktuellen Schritt",
     "understandWorking": "Wir lesen, was schiefging, und trennen, was sich im Agent beheben lässt und was in der Wissensdatenbank fehlt…",
-    "todayWorking": "Wir fragen den Agent in seiner heutigen Fassung: {answered} von {total} beantwortet…",
     "writingAgain": "Versuch {number} von {max}: Wir schreiben andere Änderungen…",
     "checkingChanges": "Diese Änderungen werden geprüft — Versuch {number} von {max}",
-    "checkingAttempt": "Versuch {number} von {max} wird geprüft."
+    "checkingAttempt": "Versuch {number} von {max} wird geprüft.",
+    "checkBars": {
+      "today": "Heutige Fassung",
+      "changed": "Geänderte Fassung",
+      "count": "{answered} von {total}",
+      "reused": "Aus einem Test vor Beginn dieser Sitzung"
+    }
   },
   "unsaved": {
     "title": "Du hast ungespeicherte Änderungen",

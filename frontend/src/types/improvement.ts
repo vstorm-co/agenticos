@@ -33,6 +33,12 @@ export interface ImprovementEstimate {
   affordable: boolean;
   reason: string | null;
 }
+/** How far one side of a check has answered; a reused side answered in an earlier run. */
+export interface CheckAnswers {
+  answered: number;
+  total: number;
+  reused?: boolean;
+}
 export interface ImprovementIteration {
   id: string;
   number: number;
@@ -83,7 +89,9 @@ export interface Improvement {
   /** Knowledge documents set aside with Not now in this session. */
   deferred_topic_ids?: string[];
   /** How far the first attempt's check has asked the agent as it is today. */
-  baseline_answers?: { answered: number; total: number } | null;
+  baseline_answers?: CheckAnswers | null;
+  /** How far the current attempt's check has asked the changed agent. */
+  candidate_answers?: CheckAnswers | null;
   timeline: {
     action: string;
     at: string;

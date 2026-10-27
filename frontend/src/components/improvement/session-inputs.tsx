@@ -2,19 +2,18 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, ListX, ThumbsDown, XCircle } from "lucide-react";
+import { AlertTriangle, ListX, ThumbsDown } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
 import { useImprovementEvidence } from "@/hooks/use-improvements";
 import { useDatasetCases } from "@/hooks/use-datasets";
-import { useEvalRun, useEvalCases } from "@/hooks/use-eval-runs";
 import { useAgentAttention } from "@/hooks/use-usage-stats";
 import { getErrorMessage } from "@/lib/api-error";
 import type { Improvement } from "@/types/improvement";
 import type { DatasetCase } from "@/types/datasets";
 import { WriteQuestions } from "./write-questions";
 import { StepError } from "./step-error";
-import { Details, Handled, Proportion, StateBadge, Tiles } from "./widgets";
+import { Details, Proportion, StateBadge, Tiles } from "./widgets";
 import { useReadOnly } from "./read-only";
 
 export function StartSignals({ agentId, datasetId }: { agentId: string; datasetId: string }) {
@@ -223,112 +222,5 @@ export function TestQuestions({ session }: { session: Improvement }) {
         {t("editQuestions")}
       </Link>
     </section>
-  );
-}
-
-/**
- * The agent's answers as it is today. They are the "before" side of the first
- * attempt's check, so they are final once that side is answered, whatever the
- * changed agent's side is still doing.
- */
-export function Today({ session, ready }: { session: Improvement; ready: boolean }) {
-  const t = useTranslations("improvement");
-  const firstCheck = session.iterations[0]?.eval_run_ids.at(-1);
-  const before = session.baseline_answers;
-  return (
-    <section className="space-y-4" data-tour="improvement-today">
-      <h2 className="font-medium">{t("steps.today")}</h2>
-      {ready && firstCheck ? (
-        <BaselineResult runId={firstCheck} />
-      ) : (
-        <p role="status" className="text-muted-foreground text-sm">
-          {before ? t("todayWorking", before) : t("baselinePending")}
-        </p>
-      )}
-    </section>
-  );
-}
-function BaselineResult({ runId }: { runId: string }) {
-  const t = useTranslations("improvement");
-  const { run, error, refetch } = useEvalRun(runId);
-  if (error) return <StepError error={error} retry={refetch} />;
-  if (!run) return <p role="status">{t("loading")}</p>;
-  const arm = run.arms.find((item) => item.role === "baseline");
-  if (!arm) return <p role="alert">{t("baselineUnavailable")}</p>;
-  const undecided = arm.summary.incomplete + arm.summary.ungraded;
-  const handled = t("baselineHandled", { passed: arm.summary.passed, total: arm.summary.cases });
-  return (
-    <>
-      <figure className="space-y-3 rounded-xl border p-4">
-        <figcaption className="text-lg font-medium">{handled}</figcaption>
-        <Handled
-          label={handled}
-          passed={arm.summary.passed}
-          failed={Math.max(0, arm.summary.cases - arm.summary.passed - undecided)}
-          undecided={undecided}
-        />
-      </figure>
-      {undecided > 0 && (
-        <p className="text-muted-foreground text-sm">
-          {t("baselineUndecided", { count: undecided })}
-        </p>
-      )}
-      <BaselineQuestions runId={runId} agentId={run.agent_id} armId={arm.id} />
-    </>
-  );
-}
-function BaselineQuestions({
-  runId,
-  agentId,
-  armId,
-}: {
-  runId: string;
-  agentId: string;
-  armId: string;
-}) {
-  const t = useTranslations("improvement");
-  const questions = useEvalCases(runId, { arm: armId, outcome: "failed", limit: 20 });
-  if (questions.error) return <StepError error={questions.error} retry={questions.refetch} />;
-  if (questions.isLoading) return <p role="status">{t("loading")}</p>;
-  return (
-    <div className="space-y-3">
-      {questions.cases.length ? (
-        <>
-          <h3 className="text-sm font-medium">{t("widgets.weakQuestions")}</h3>
-          {questions.cases.map((item) => {
-            const attempt = item.attempts.find((a) => a.arm_id === armId && a.attempt === 0);
-            return (
-              <Details
-                key={item.case_id}
-                summary={
-                  <span className="inline-flex items-start gap-2">
-                    <XCircle className="text-destructive mt-0.5 size-4 shrink-0" aria-hidden />
-                    <span className="break-words">{item.input}</span>
-                  </span>
-                }
-              >
-                <p className="text-sm break-words whitespace-pre-wrap">
-                  {attempt?.answer || t("unavailableAnswer")}
-                </p>
-                {attempt?.score?.results.map((grade, index) => (
-                  <p key={index} className="text-muted-foreground text-sm break-words">
-                    {t("graderSaid", { reason: grade.reason })}
-                  </p>
-                ))}
-              </Details>
-            );
-          })}
-        </>
-      ) : (
-        <p className="text-muted-foreground text-sm">{t("noWeakQuestions")}</p>
-      )}
-      <Link
-        className="text-sm underline underline-offset-4"
-        href={`/agents/${agentId}/evals/${runId}`}
-        data-tour="improvement-open-check"
-      >
-        {t("openCheck")}
-      </Link>
-    </div>
   );
 }

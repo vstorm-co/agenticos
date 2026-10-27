@@ -34,7 +34,6 @@ it("keeps the frozen question set readable while a new session waits", () => {
   const session: Improvement = { ...SESSION, status: "queued", stage: null, iterations: [] };
   const states = improvementStepStates(session);
   expect(states.testSet).toBe("done");
-  expect(states.today).toBe("pending");
   expect(states.changes).toBe("pending");
 });
 it("shows the current check running even if an earlier round was measured", () => {
@@ -42,10 +41,8 @@ it("shows the current check running even if an earlier round was measured", () =
     ...SESSION,
     status: "running",
     stage: "evaluating",
-    baseline_answers: { answered: 4, total: 4 },
   });
   expect(states.check).toBe("running");
-  expect(states.today).toBe("done");
   expect(states.changes).toBe("done");
 });
 it("asks for one decision at a time: a ready result waits on acceptance", () => {
@@ -87,7 +84,6 @@ it.each(["failed", "cancelled", "stale"] as const)(
     const session: Improvement = { ...SESSION, status, stage: null, iterations: unmeasured };
     expect(currentImprovementStep(session)).toBe("result");
     expect(improvementStepStates(session)).toMatchObject({
-      today: "skipped",
       check: "skipped",
       understand: "skipped",
       changes: "skipped",
@@ -104,7 +100,7 @@ it("marks the question set as needing attention when analysis stopped for lack o
       stop_reason: "no_data",
       iterations: unmeasured,
     }),
-  ).toMatchObject({ understand: "needs_you", testSet: "needs_you", today: "skipped" });
+  ).toMatchObject({ understand: "needs_you", testSet: "needs_you" });
 });
 it("leaves knowledge-only drafts for a person and skips the unrun agent test", () => {
   expect(
@@ -115,7 +111,7 @@ it("leaves knowledge-only drafts for a person and skips the unrun agent test", (
       stop_reason: "knowledge_only",
       iterations: unmeasured,
     }),
-  ).toMatchObject({ changes: "needs_you", check: "skipped", today: "skipped", understand: "done" });
+  ).toMatchObject({ changes: "needs_you", check: "skipped", understand: "done" });
 });
 it("does not disguise failed grouping as a completed analysis decision", () => {
   expect(
@@ -177,21 +173,15 @@ it("takes Improve back to the newest open session, past any that finished since"
   expect(openImprovement([older, kept, newer])?.id).toBe("newer");
 });
 
-it("calls the answers from before done only once every one of them is in", () => {
-  const running: Improvement = { ...SESSION, status: "running", stage: "evaluating" };
-  expect(
-    improvementSteps({ ...running, baseline_answers: { answered: 2, total: 4 } }).today,
-  ).toEqual({ state: "running", content: "working" });
-  expect(
-    improvementSteps({ ...running, baseline_answers: { answered: 4, total: 4 } }).today,
-  ).toEqual({ state: "done", content: "result" });
-  expect(
-    improvementSteps({ ...running, baseline_answers: { answered: 0, total: 0 } }).today.state,
-  ).toBe("running");
-  expect(improvementSteps({ ...SESSION, status: "failed", baseline_answers: null }).today).toEqual({
-    state: "skipped",
-    content: "none",
-  });
+it("has six steps, today's answers asked inside Check rather than a step of their own", () => {
+  expect(Object.keys(improvementSteps(SESSION))).toEqual([
+    "understand",
+    "testSet",
+    "changes",
+    "check",
+    "result",
+    "accept",
+  ]);
 });
 
 it("skips Accept when there is nothing to accept, and opens it for a waiting candidate", () => {

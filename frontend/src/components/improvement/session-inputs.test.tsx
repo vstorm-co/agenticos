@@ -1,12 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
-import { arm, attempt, evalCase, evalRun, SUMMARY } from "@/test-utils/eval-runs";
-import { caseScore } from "@/test-utils/scores";
 import { SESSION } from "@/test-utils/improvement";
-import type { EvalRun, EvalCase } from "@/types/eval-runs";
 import type { ImprovementEvidence } from "@/types/improvement";
-import { StartSignals, TestQuestions, Today } from "./session-inputs";
+import { StartSignals, TestQuestions } from "./session-inputs";
 import { ReadOnlyProvider } from "./read-only";
 import { Understand } from "./understand";
 const state = vi.hoisted(() => ({
@@ -26,11 +23,6 @@ const state = vi.hoisted(() => ({
     { id: "q2", input: "Shipping?", improvement_partition: "holdout", reference_answer: null },
   ],
   questionError: null as Error | null,
-  evalError: null as Error | null,
-  run: null as EvalRun | null,
-  cases: [] as EvalCase[],
-  casesError: null as Error | null,
-  casesLoading: false,
   datasetHook: vi.fn(),
   evidenceHook: vi.fn(),
   refetch: vi.fn(),
@@ -69,15 +61,6 @@ vi.mock("@/hooks/use-datasets", () => ({
       refetch: state.refetch,
     };
   },
-}));
-vi.mock("@/hooks/use-eval-runs", () => ({
-  useEvalRun: () => ({ run: state.run, error: state.evalError, refetch: state.refetch }),
-  useEvalCases: () => ({
-    cases: state.cases,
-    isLoading: state.casesLoading,
-    error: state.casesError,
-    refetch: state.refetch,
-  }),
 }));
 beforeEach(() => {
   vi.clearAllMocks();
@@ -135,13 +118,8 @@ beforeEach(() => {
       },
     ],
   };
-  state.sourceError =
-    state.attentionError =
-    state.questionError =
-    state.evalError =
-    state.casesError =
-      null;
-  state.loading = state.casesLoading = false;
+  state.sourceError = state.attentionError = state.questionError = null;
+  state.loading = false;
   state.rated = 5;
   state.total = 21;
   state.questions = [
@@ -153,13 +131,6 @@ beforeEach(() => {
     },
     { id: "q2", input: "Shipping?", improvement_partition: "holdout", reference_answer: null },
   ];
-  state.run = evalRun({
-    agent_id: "a1",
-    arms: [
-      arm({ id: "base", role: "baseline", summary: { ...SUMMARY, incomplete: 1, ungraded: 2 } }),
-    ],
-  });
-  state.cases = [evalCase({ attempts: [attempt({ arm_id: "base", answer: "90 days" })] })];
 });
 it("shows real signal counts and labels the bounded training sample", () => {
   render(<StartSignals agentId="a1" datasetId="d1" />);
@@ -287,102 +258,6 @@ it("handles missing questions, their loading and a failed read", async () => {
   await userEvent.click(screen.getByRole("button", { name: "Try reading again" }));
   expect(state.refetch).toHaveBeenCalled();
 });
-it("shows the actual baseline and keeps ungraded questions separate", () => {
-  render(<Today session={SESSION} ready />);
-  expect(screen.getByText("Before the changes: 3 of 4 handled well.")).toBeInTheDocument();
-  expect(
-    screen.getByText("Couldn't grade 3 questions: we'll leave them out of the comparison."),
-  ).toBeInTheDocument();
-  expect(screen.getByText("90 days")).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: "Open the full check" })).toHaveAttribute(
-    "href",
-    `/agents/a1/evals/${SESSION.iterations[0]!.eval_run_ids[0]}`,
-  );
-});
-it("does not fetch a nonexistent baseline and handles absent or inaccessible arms", () => {
-  const view = render(<Today session={{ ...SESSION, iterations: [] }} ready />);
-  expect(screen.getByRole("status")).toBeInTheDocument();
-  state.run = null;
-  view.rerender(<Today session={SESSION} ready />);
-  expect(screen.getByRole("status")).toBeInTheDocument();
-  state.run = evalRun();
-  view.rerender(<Today session={SESSION} ready />);
-  expect(screen.getByRole("alert")).toBeInTheDocument();
-  state.evalError = new Error("Forbidden");
-  view.rerender(<Today session={SESSION} ready />);
-  expect(screen.getByRole("button", { name: "Try reading again" })).toBeInTheDocument();
-});
-it("shows weak-answer loading and failures rather than a false clean result", () => {
-  state.casesLoading = true;
-  const view = render(<Today session={SESSION} ready />);
-  expect(screen.getByRole("status")).toBeInTheDocument();
-  state.casesLoading = false;
-  state.casesError = new Error("Unavailable");
-  view.rerender(<Today session={SESSION} ready />);
-  expect(screen.getByRole("button", { name: "Try reading again" })).toBeInTheDocument();
-  state.casesError = null;
-  state.cases = [];
-  view.rerender(<Today session={SESSION} ready />);
-  expect(screen.getByText(/No failed questions on this page/)).toBeInTheDocument();
-});
-
-it("waits for every answer from the agent as it is today before reporting them", () => {
-  const view = render(
-    <Today session={{ ...SESSION, baseline_answers: { answered: 2, total: 4 } }} ready={false} />,
-  );
-  expect(screen.getByRole("status")).toHaveTextContent(
-    "Asking the agent as it is today: 2 of 4 answered…",
-  );
-  expect(screen.queryByText(/Before the changes:/)).not.toBeInTheDocument();
-  view.rerender(<Today session={SESSION} ready={false} />);
-  expect(screen.getByRole("status")).toHaveTextContent(/still being tested/);
-});
-
-it("reports the answers from before while the changed agent is still being asked", () => {
-  state.run = evalRun({
-    status: "running",
-    agent_id: "a1",
-    arms: [arm({ id: "base", role: "baseline" })],
-  });
-  render(<Today session={SESSION} ready />);
-  expect(screen.getByText(/Before the changes:/)).toBeInTheDocument();
-});
-
-it("shows the grader reason and handles a missing persisted baseline answer", () => {
-  state.cases = [
-    evalCase({
-      attempts: [
-        attempt({
-          arm_id: "base",
-          score: caseScore({
-            results: [
-              {
-                scorer: "check",
-                required: true,
-                score: 0,
-                reason_code: null,
-                unverified_quotes: [],
-                rule: null,
-                unverified: false,
-                judge_said: null,
-                judge_run_id: null,
-                knowledge: [],
-                name: "return window",
-                status: "fail",
-                reason: "The answer uses the old deadline",
-              },
-            ],
-          }),
-        }),
-      ],
-    }),
-  ];
-  const view = render(<Today session={SESSION} ready />);
-  expect(screen.getByText("Grader: The answer uses the old deadline")).toBeInTheDocument();
-  state.cases = [evalCase({ attempts: [] })];
-  view.rerender(<Today session={SESSION} ready />);
-  expect(screen.getByText("No answer is available.")).toBeInTheDocument();
-});
 it("waits for source counts instead of printing a missing response as zero", () => {
   state.sources = null;
   render(<StartSignals agentId="a1" datasetId="" />);
@@ -498,12 +373,6 @@ it("shows the examples to read, with nothing to ignore, put back or move", async
   await userEvent.click(screen.getByText("Refund?"));
   expect(screen.queryByRole("button")).not.toBeInTheDocument();
   expect(screen.queryByText(/ignore it|Ignored \(/)).not.toBeInTheDocument();
-});
-
-it("says nothing about ungraded questions when every question was graded", () => {
-  state.run = evalRun({ agent_id: "a1", arms: [arm({ id: "base", role: "baseline" })] });
-  render(<Today session={SESSION} ready />);
-  expect(screen.queryByText(/Couldn't grade/)).not.toBeInTheDocument();
 });
 
 it("says more questions are needed without offering to write them once only read", () => {
