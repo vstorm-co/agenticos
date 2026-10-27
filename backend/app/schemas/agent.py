@@ -963,12 +963,12 @@ class TemplateInstallRequest(BaseSchema):
 class TemplateInstallResult(BaseSchema):
     """What was created, and what the person still has to do.
 
-    An installed template is a **draft**: it names no model, because this
-    platform has no organization-wide default on purpose - unless the
-    organization has exactly one model an agent can run on, which the draft
-    starts on (#2483) - and it may name no collection. Both are decisions the spec refuses to make on somebody's
-    behalf, so the result carries them back rather than publishing something
-    that would answer its first question from nowhere.
+    An installed template is a **draft**. It names no model, because this
+    platform has no organization-wide default on purpose, unless the
+    organization has exactly one model an agent can run on and the draft starts
+    on that (#2483). It may name no collection, which is never chosen for
+    anybody. So the result carries back what is still to attach rather than
+    publishing something that would answer its first question from nowhere.
     """
 
     agent_id: UUID

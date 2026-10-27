@@ -101,7 +101,8 @@ organization's assistant, chooses its own model when it publishes.
 The model is written into the draft, so the agent publishes without anybody opening
 **Model**, and its history shows which model it was published on. A spec that names
 a model keeps it. The draft then counts as using the model, so the model cannot be
-deleted until the agent moves to another one. To replace the model, edit it in place
+deleted until the agent moves to another model or is deleted; archiving it is not
+enough. To change only the model's key or endpoint, edit it in place
 ([Changing a profile's key or endpoint](#changing-a-profiles-key-or-endpoint)).
 
 The draft stays without a model when the organization has none, or more than one.

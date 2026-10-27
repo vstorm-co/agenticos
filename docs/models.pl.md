@@ -1,5 +1,5 @@
 ---
-source_sha: "83195747d5e2"
+source_sha: "e87078e468ca"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -95,30 +95,31 @@ na podstawie identyfikatorów modeli bazowych z katalogu.
 
 ### Model, na którym startuje nowy agent { #the-model-a-new-agent-starts-on }
 
-Nie ma domyślnego modelu dla całej organizacji. Spec agenta wskazuje jego model,
-a publikacja odrzuca spec, który żadnego nie wskazuje.
+Nie ma domyślnego modelu dla całej organizacji. Spec agenta wskazuje jego model, a
+publikacja odrzuca spec, który żadnego nie wskazuje.
 
 Nowy agent, który nie wskazuje modelu, startuje na modelu organizacji, gdy
-organizacja ma dokładnie jeden model, na którym agent może działać. To model
-czatowy z kluczem albo model self-hosted zapisany do działania bez klucza, który
-publikacja przyjmuje w obecnej postaci, razem z fallbackami. Dotyczy to każdego sposobu tworzenia agenta: **Nowy agent** w
-konsoli, `POST /agents` bez `model_profile_id`, szablonu, kopii szkicu bez modelu
-oraz wypromowanego specjalisty. Architect, asystent organizacji, sam wybiera
-swój model przy publikacji.
+organizacja ma dokładnie jeden model, na którym agent może działać. To model czatowy
+z kluczem albo model self-hosted zapisany do działania bez klucza, który publikacja
+przyjmuje w obecnej postaci, razem z fallbackami. Dotyczy to każdego sposobu
+tworzenia agenta: **Nowy agent** w konsoli, `POST /agents` bez `model_profile_id`,
+szablonu, kopii szkicu bez modelu oraz wypromowanego specjalisty. Architekt,
+asystent organizacji, sam wybiera swój model przy publikacji.
 
-Model jest zapisywany w szkicu, więc agent
-publikuje się bez otwierania sekcji **Model**, a jego historia pokazuje, na jakim
-modelu został opublikowany. Spec, który wskazuje model, zachowuje go.
-Szkic liczy się wtedy jako użycie modelu: modelu nie da się usunąć, dopóki agent
-nie przejdzie na inny. Aby go zastąpić, edytuj go w miejscu
-([Zmiana klucza lub endpointu profilu](#changing-a-profiles-key-or-endpoint)).
+Model jest zapisywany w szkicu, więc agent publikuje się bez otwierania sekcji
+**Model**, a jego historia pokazuje, na jakim modelu został opublikowany. Spec,
+który wskazuje model, zachowuje go. Szkic liczy się wtedy jako użycie modelu: modelu
+nie da się usunąć, dopóki agent nie przejdzie na inny model albo nie zostanie
+usunięty; archiwizacja nie wystarczy. Aby zmienić tylko klucz lub endpoint modelu,
+edytuj go w miejscu ([Zmiana klucza lub endpointu
+profilu](#changing-a-profiles-key-or-endpoint)).
 
 Szkic zostaje bez modelu, gdy organizacja nie ma żadnego modelu albo ma więcej niż
 jeden. Profile, na których agent nie może działać, nie są liczone: profil bez
-klucza, model text-to-speech i pozostałe modele z sekcji
-[Profil, na którym agent nie może działać](#a-profile-an-agent-cannot-run-on).
-Model na [logowaniu ChatGPT](#running-on-a-chatgpt-subscription) nigdy nie jest
-wybierany za kogoś, bo to subskrypcja jednej osoby, ale jest liczony jako model.
+klucza, model text-to-speech i pozostałe modele z sekcji [Profil, na którym agent
+nie może działać](#a-profile-an-agent-cannot-run-on). Model na [logowaniu
+ChatGPT](#running-on-a-chatgpt-subscription) nigdy nie jest wybierany za kogoś, bo
+to subskrypcja jednej osoby, ale jest liczony jako model.
 
 Publikacja odrzuca wtedy szkic komunikatem *No model selected - pick one under
 Build > Model before publishing*. Odmowa oznacza też pole (`model_profile_id` w

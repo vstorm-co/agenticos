@@ -1386,7 +1386,8 @@ class AgentRegistryService:
         Only one: with two, which of them an agent runs on is a choice about cost
         and quality that belongs to its author, so the draft stays empty and
         publish asks for it. One means a profile `usable_for_agents` - a chat
-        model with a key (#2478) - that publish would also accept as it stands,
+        model with a key, or a self-hosted one saved to run without one (#2478) -
+        that publish would also accept as it stands,
         fallback chain included, so the agent publishes without anybody opening
         Model. Never one on a ChatGPT sign-in: that is one person's subscription,
         and nobody else's run may spend it. It still counts towards "only one",
