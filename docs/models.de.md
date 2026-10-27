@@ -1,5 +1,5 @@
 ---
-source_sha: "3097b2e765d2"
+source_sha: "ee29d9fe1a47"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -110,11 +110,13 @@ Modell, und die Veröffentlichung lehnt eine Spec ab, die keines nennt.
 
 Ein neuer Agent, der kein Modell nennt, startet mit dem Modell der Organisation,
 wenn die Organisation genau ein Modell hat, auf dem ein Agent laufen kann. Das ist
-ein Chat-Modell mit Schlüssel, das die Veröffentlichung so akzeptiert, wie es ist,
-Fallbacks eingeschlossen. Das gilt für jeden Weg, einen Agenten anzulegen:
+ein Chat-Modell mit Schlüssel oder ein selbst gehostetes Modell, das ohne
+Schlüssel gespeichert wurde, und die Veröffentlichung akzeptiert es so, wie es
+ist, Fallbacks eingeschlossen. Das gilt für jeden Weg, einen Agenten anzulegen:
 **Neuer Agent** in der Konsole, `POST /agents` ohne `model_profile_id`, eine
-Vorlage, eine Kopie eines Entwurfs ohne Modell und ein beförderter Spezialist. Das
-Modell wird in den Entwurf geschrieben. So lässt sich der Agent veröffentlichen,
+Vorlage, eine Kopie eines Entwurfs ohne Modell und ein beförderter Spezialist.
+
+Das Modell wird in den Entwurf geschrieben. So lässt sich der Agent veröffentlichen,
 ohne dass jemand **Modell** öffnet, und seine Historie zeigt, mit welchem Modell er
 veröffentlicht wurde. Eine Spec, die ein Modell nennt, behält es.
 
@@ -170,15 +172,20 @@ die Modelle der Organisation verwalten.
 ### Ein Profil ohne Schlüssel { #a-profile-without-a-key }
 
 Wenn Sie einen Schlüssel aus dem Vault löschen, bleiben seine Profile mit
-`secret_id` auf null bestehen. `GET /providers/model-profiles` markiert ein
-solches Profil mit `missing_key: true`, außer es ist ein keyless Provider mit
-Endpunkt, etwa ein Ollama in Ihrem Netz oder OpenAI hinter einem Gateway. Ein
-solches Profil läuft ohne Schlüssel gegen seinen Endpunkt weiter. Dann:
+`secret_id` auf null bestehen, und `GET /providers/model-profiles` markiert sie
+mit `missing_key: true`. Ein Profil, das absichtlich ohne Schlüssel gespeichert
+wurde, ist etwas anderes: ein selbst gehostetes Modell oder ein Gateway, das
+nichts authentifiziert, auf einem keyless Provider mit Endpunkt, etwa ein Ollama
+in Ihrem Netz oder ein OpenAI-kompatibler Server. Es speichert das als
+`runs_without_key` und läuft weiter. Ein Gateway-Profil, das einen Schlüssel hatte
+und ihn verloren hat, wird wie jedes andere mit `missing_key` markiert. Dann:
 
 - Die Modellauswahl für Agents und Chat bietet es nicht an. Verweist ein Agent
   bereits darauf, zeigt der Builder es mit dem Hinweis **kein Schlüssel** und
   fordert Sie auf, ihm einen Schlüssel zu geben.
-- Das Veröffentlichen lehnt es ab und nennt das Modell. Ein Run darauf scheitert
+- Das Veröffentlichen lehnt es ab und nennt das Modell. Es lehnt auch ein Profil
+  ab, unter dessen ersten drei Fallbacks eines ohne Schlüssel ist, weil ein Run es
+  überspringen würde. Ein Run darauf scheitert
   mit „no key configured“.
 - Zum Reparieren öffnen Sie einen Agent auf diesem Modell, wählen unter **Modell**
   einen Schlüssel und klicken auf **Modell aktualisieren**. Jeder Agent auf dem

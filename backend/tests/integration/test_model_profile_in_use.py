@@ -5,21 +5,25 @@ and the versions environments pin - exactly what a mocked session cannot answer.
 Each case is one place a profile id can live, and one that must not count.
 """
 
+import asyncio
 import uuid
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import delete, select
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
-from app.core.exceptions import AlreadyExistsError, InUseError
+from app.core.exceptions import AlreadyExistsError, BadRequestError, InUseError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.credential import ModelProfile
 from app.db.models.organization import Organization
+from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.user import User
 from app.repositories import agent_repo, credential_repo
-from app.schemas.model_profile import ModelProfileUpdate
+from app.schemas.model_profile import ModelProfileRead, ModelProfileUpdate
 from app.services.model_profile import ModelProfileService
+from tests.integration._keys import provider_key
 
 pytestmark = pytest.mark.anyio
 
@@ -194,3 +198,135 @@ async def test_the_repository_writes_nothing_for_another_organization(db):
     )
 
     assert profile.label == "Ollama · llama4"
+
+
+async def test_an_id_quoted_in_instructions_is_not_a_reference(db):
+    """A whole JSON value counts; the same characters inside a longer string do not."""
+    org, _ = await _org(db)
+    profile = await _profile(db, org)
+    await _agent(
+        db,
+        org,
+        "Talks about it",
+        draft={"instructions": f"Never switch to model {profile.id}, it is slow."},
+    )
+    named = await _agent(db, org, "Runs on it", draft={"specialists": [{"x": [str(profile.id)]}]})
+    await db.flush()
+
+    users = await agent_repo.naming_model_profile(db, organization_id=org.id, profile_id=profile.id)
+
+    assert [agent.id for agent in users] == [named.id]
+
+
+async def test_a_delete_waits_for_a_draft_save_in_flight_and_then_sees_it(engine: AsyncEngine):
+    """The in-use check and the delete are one step to a concurrent spec write.
+
+    A draft save naming the profile holds the shared side of the lock until it
+    commits; the delete takes the exclusive side first, so it waits, and its
+    check then reads the committed draft and refuses (#2478).
+    """
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as setup:
+        org, owner = await _org(setup)
+        profile = await _profile(setup, org)
+        agent = await _agent(setup, org, "Helpdesk", draft={"name": "Helpdesk"})
+        await setup.commit()
+    ctx = AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER)
+
+    async with factory() as saving, factory() as deleting:
+        row = await saving.get(Agent, agent.id)
+        assert row is not None
+        await agent_repo.update(
+            saving, agent=row, update_data={"draft_spec": {"model_profile_id": str(profile.id)}}
+        )
+        delete = asyncio.create_task(ModelProfileService(deleting).delete_profile(ctx, profile.id))
+        await asyncio.sleep(0.3)
+        # Still waiting on the uncommitted draft save.
+        assert not delete.done()
+
+        await saving.commit()
+        with pytest.raises(InUseError):
+            await asyncio.wait_for(delete, timeout=10)
+        await deleting.rollback()
+
+    async with factory() as check:
+        assert (await check.execute(select(ModelProfile.id))).scalars().all() == [profile.id]
+
+
+async def test_a_profile_saved_with_a_key_reads_as_keyless_once_the_key_is_gone(db):
+    """A gateway profile that had a key keeps its endpoint when the key is
+    deleted; the stored intent is what says it is now missing one."""
+    org, owner = await _org(db)
+    secret_id = await provider_key(db, org.id)
+    ctx = AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER)
+    service = ModelProfileService(db)
+    with_key = await credential_repo.create_profile(
+        db,
+        organization_id=org.id,
+        label="Gateway",
+        provider="openai",
+        model="gpt-5",
+        secret_id=secret_id,
+        base_url="http://gw.example/v1",
+        runs_without_key=False,
+    )
+    keyless = await service.update_profile(
+        ctx,
+        (
+            await credential_repo.create_profile(
+                db,
+                organization_id=org.id,
+                label="vLLM",
+                provider="openai",
+                model="llama",
+                secret_id=secret_id,
+                base_url="http://vllm:8000/v1",
+            )
+        ).id,
+        ModelProfileUpdate(secret_id=None),
+    )
+    await db.execute(delete(OrganizationSecret).where(OrganizationSecret.id == secret_id))
+    await db.flush()
+    await db.refresh(with_key)
+
+    assert with_key.secret_id is None
+    assert ModelProfileRead.model_validate(with_key).missing_key is True
+    assert ModelProfileRead.model_validate(keyless).missing_key is False
+
+
+async def test_two_edits_cannot_each_take_half_of_what_a_profile_needs(engine: AsyncEngine):
+    """One edit drops the key of a gateway profile, the other its endpoint. Each is
+    allowed on its own; together they leave a profile that cannot run. The second
+    waits for the first and validates what it committed (#2478)."""
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as setup:
+        org, owner = await _org(setup)
+        secret_id = await provider_key(setup, org.id)
+        profile = await credential_repo.create_profile(
+            setup,
+            organization_id=org.id,
+            label="Gateway",
+            provider="openai",
+            model="gpt-5",
+            secret_id=secret_id,
+            base_url="http://gw.example/v1",
+        )
+        await setup.commit()
+    ctx = AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER)
+
+    async with factory() as first, factory() as second:
+        await ModelProfileService(first).update_profile(
+            ctx, profile.id, ModelProfileUpdate(secret_id=None)
+        )
+        racing = asyncio.create_task(
+            ModelProfileService(second).update_profile(
+                ctx, profile.id, ModelProfileUpdate(base_url=None)
+            )
+        )
+        await asyncio.sleep(0.3)
+        assert not racing.done()
+
+        await first.commit()
+        with pytest.raises(BadRequestError):
+            await asyncio.wait_for(racing, timeout=10)
+        await second.rollback()

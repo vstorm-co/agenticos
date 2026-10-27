@@ -104,6 +104,24 @@ async def test_the_organizations_only_model_is_written_into_a_new_draft(db: Asyn
     assert await _created_model(db, ctx) == only.id
 
 
+async def test_a_self_hosted_model_saved_without_a_key_is_one(db: AsyncSession) -> None:
+    """No key on purpose is not a missing key (#2478), so it can be the only model."""
+    organization, ctx = await _organization(db)
+    local = ModelProfile(
+        organization_id=organization.id,
+        label="Ollama · llama4",
+        provider="ollama",
+        model="llama4",
+        secret_id=None,
+        base_url="http://ollama:11434/v1",
+        runs_without_key=True,
+    )
+    db.add(local)
+    await db.flush()
+
+    assert await _created_model(db, ctx) == local.id
+
+
 @pytest.mark.parametrize(
     "shape",
     [

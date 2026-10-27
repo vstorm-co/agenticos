@@ -1,5 +1,5 @@
 ---
-source_sha: "3097b2e765d2"
+source_sha: "ee29d9fe1a47"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -100,10 +100,12 @@ a publikacja odrzuca spec, który żadnego nie wskazuje.
 
 Nowy agent, który nie wskazuje modelu, startuje na modelu organizacji, gdy
 organizacja ma dokładnie jeden model, na którym agent może działać. To model
-czatowy z kluczem, który publikacja przyjmuje w obecnej postaci, razem z
-fallbackami. Dotyczy to każdego sposobu tworzenia agenta: **Nowy agent** w
+czatowy z kluczem albo model self-hosted zapisany do działania bez klucza, który
+publikacja przyjmuje w obecnej postaci, razem z fallbackami. Dotyczy to każdego sposobu tworzenia agenta: **Nowy agent** w
 konsoli, `POST /agents` bez `model_profile_id`, szablonu, kopii szkicu bez modelu
-oraz wypromowanego specjalisty. Model jest zapisywany w szkicu, więc agent
+oraz wypromowanego specjalisty.
+
+Model jest zapisywany w szkicu, więc agent
 publikuje się bez otwierania sekcji **Model**, a jego historia pokazuje, na jakim
 modelu został opublikowany. Spec, który wskazuje model, zachowuje go.
 
@@ -154,14 +156,17 @@ organizacji.
 ### Profil bez klucza { #a-profile-without-a-key }
 
 Jeśli usuniesz klucz z vaulta, jego profile zostają z `secret_id` ustawionym na
-null. `GET /providers/model-profiles` oznacza taki profil jako
-`missing_key: true`, chyba że to provider keyless z endpointem, na przykład Ollama
-w twojej sieci albo OpenAI za gatewayem. Taki profil dalej działa bez klucza,
-na swoim endpoincie. Wtedy:
+null, a `GET /providers/model-profiles` oznacza je jako `missing_key: true`.
+Profil zapisany bez klucza celowo to co innego: model hostowany samodzielnie
+albo gateway, który niczego nie uwierzytelnia, na providerze keyless z
+endpointem, na przykład Ollama w twojej sieci albo serwer zgodny z OpenAI.
+Zapisuje to jako `runs_without_key` i dalej działa. Profil przed gatewayem, który
+miał klucz i go stracił, jest oznaczany `missing_key` jak każdy inny. Wtedy:
 
 - Pickery modelu agenta i czatu go nie oferują. Jeśli agent już go wskazuje,
   Builder pokazuje go z oznaczeniem **brak klucza** i prosi o przypisanie klucza.
-- Publikacja go odrzuca i podaje nazwę modelu. Run na nim kończy się błędem
+- Publikacja go odrzuca i podaje nazwę modelu. Odrzuca też profil, którego
+  pierwsze trzy fallbacki obejmują profil bez klucza, bo run by go pominął. Run na nim kończy się błędem
   „no key configured”.
 - Aby go naprawić, otwórz agenta na tym modelu, wybierz klucz w sekcji **Model** i
   naciśnij **Zaktualizuj model**. Każdy agent na tym modelu znów działa.

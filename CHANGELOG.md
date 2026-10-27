@@ -34,8 +34,8 @@ Two things are versioned separately from this file and worth knowing about:
   See
   [Changing a profile's key or endpoint](docs/models.md#changing-a-profiles-key-or-endpoint).
 - A new agent starts on the organization's model when the organization has
-  exactly one model an agent can run on: a chat model with a key that publish
-  accepts (#2483). This applies to **New agent**, `POST /agents` without a
+  exactly one model an agent can run on: a chat model with a key, or a
+  self-hosted one saved without a key, that publish accepts (#2483). This applies to **New agent**, `POST /agents` without a
   `model_profile_id`, templates, copies and promoted specialists, and the model
   is written into the draft, so the agent publishes without opening **Model**.
   With no model or several, the draft has no model as before. A model on a
@@ -53,15 +53,22 @@ Two things are versioned separately from this file and worth knowing about:
   (#2478). `details.agents` names each agent the caller can see and marks the
   archived ones, and `details.hidden_agents` counts the rest. A profile counts as in use when an
   agent's draft, served version or an environment's pinned version names it
-  anywhere, including reviewers, specialists and capability settings, and
-  archived agents count too. The Builder
+  anywhere as a JSON value, including reviewers, specialists and capability
+  settings, and archived agents count too. The check and the delete hold off
+  concurrent draft saves, publishes and promotions in the organization. The Builder
   shows the refusal with the agent names. **Upgrade action:** a script that
   deletes profiles must move the agents on them first, or edit the profile
   instead.
 - A model profile whose key was deleted from the vault is listed with
   `missing_key: true` (#2478). Agent and chat model pickers no longer offer it,
   the Builder marks it **no key** and says how to fix it, and publish refuses it
-  by name. A self-hosted profile with an endpoint and no key is not affected.
+  by name, and refuses a profile whose first three fallbacks include one. A
+  profile saved with no key on purpose (a self-hosted model, a gateway that
+  authenticates nothing) records that as `runs_without_key` and is not affected;
+  a gateway profile that had a key and lost it now reads as missing one. The
+  migration `0175_profile_runs_without_key` marks every existing keyless profile
+  with an endpoint as running without a key, so nothing that resolves today
+  stops.
 - Creating a model profile now also requires that the caller can see its key in
   the vault, the same rule as a capability's secret (#2478).
 

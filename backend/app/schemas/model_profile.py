@@ -163,6 +163,14 @@ class ModelProfileRead(BaseSchema, TimestampSchema):
     base_url: str | None = None
     #: Null for every provider that serves one API.
     api: ModelApi | None = None
+    runs_without_key: bool = Field(
+        default=False,
+        description=(
+            "Whether the profile was saved to run with no key - a self-hosted model or a "
+            "gateway that authenticates nothing. False on a profile whose key was deleted, "
+            "which `missing_key` then reports."
+        ),
+    )
     params: dict[str, Any] = Field(default_factory=dict)
     fallback_profile_ids: list[str] = Field(default_factory=list)
     context_length: int | None = Field(
@@ -211,7 +219,12 @@ class ModelProfileRead(BaseSchema, TimestampSchema):
         network - is false. Agent and chat model pickers leave such a profile out
         and mark it "no key"; publish refuses it until it gets a key.
         """
-        return lacks_key(self.provider, secret_id=self.secret_id, base_url=self.base_url)
+        return lacks_key(
+            self.provider,
+            secret_id=self.secret_id,
+            base_url=self.base_url,
+            runs_without_key=self.runs_without_key,
+        )
 
 
 class ModelProfileList(BaseSchema):

@@ -1,5 +1,5 @@
 ---
-source_sha: "3097b2e765d2"
+source_sha: "ee29d9fe1a47"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -107,11 +107,13 @@ nombra su modelo, y la publicación rechaza una spec que no nombra ninguno.
 
 Un agent nuevo que no nombra un modelo empieza con el modelo de la organización
 cuando la organización tiene exactamente un modelo en el que un agent puede
-ejecutarse. Es un modelo de chat con clave que la publicación acepta tal como
-está, fallbacks incluidos. Se aplica a todas las formas de crear un agent:
-**Nuevo agent** en la consola, `POST /agents` sin `model_profile_id`, una
-plantilla, una copia de un borrador sin modelo y un especialista promovido. El
-modelo se escribe en el borrador, así que el agent se publica sin que nadie abra
+ejecutarse. Es un modelo de chat con clave, o uno autoalojado guardado para
+ejecutarse sin clave, que la publicación acepta tal como está, fallbacks
+incluidos. Se aplica a todas las formas de crear un agent:
+**New agent** en la consola, `POST /agents` sin `model_profile_id`, una
+plantilla, una copia de un borrador sin modelo y un especialista promovido.
+
+El modelo se escribe en el borrador, así que el agent se publica sin que nadie abra
 **Model**, y su historial muestra con qué modelo se publicó. Una spec que nombra
 un modelo lo conserva.
 
@@ -164,15 +166,18 @@ la organización.
 ### Un perfil sin clave { #a-profile-without-a-key }
 
 Si borras una clave del vault, sus perfiles se quedan con `secret_id` a null.
-`GET /providers/model-profiles` marca ese perfil con `missing_key: true`, salvo
-que sea un provider keyless con endpoint, como un Ollama en tu red u OpenAI
-detrás de un gateway. Ese perfil sigue ejecutándose sin clave contra su endpoint.
-Entonces:
+`GET /providers/model-profiles` los marca con `missing_key: true`. Un perfil
+guardado sin clave a propósito es otra cosa: un modelo autoalojado o un gateway
+que no autentica nada, en un provider keyless con endpoint, como un Ollama en tu
+red o un servidor compatible con OpenAI. Lo registra como `runs_without_key` y
+sigue ejecutándose. Un perfil de gateway que tenía clave y la perdió se marca con
+`missing_key` como cualquier otro. Entonces:
 
 - Los selectores de modelo del agent y del chat no lo ofrecen. Si un agent ya lo
   nombra, el Builder lo muestra con la marca **no key** y te pide que le des una
   clave.
-- La publicación lo rechaza y nombra el modelo. Un run sobre él falla con
+- La publicación lo rechaza y nombra el modelo. También rechaza un perfil cuyos
+  tres primeros fallbacks incluyen uno sin clave, porque un run lo saltaría. Un run sobre él falla con
   "no key configured".
 - Para repararlo, abre un agent sobre ese modelo, elige una clave en **Model** y
   pulsa **Update model**. Cada agent sobre el modelo vuelve a funcionar.
