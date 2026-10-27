@@ -400,6 +400,17 @@ test("a session kept as a draft is history: Improve starts the next, and the his
   await expect(decided).toContainText("Kept as a draft");
   await expect(page.getByRole("button", { name: "Keep as draft" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /Publish version/ })).toHaveCount(0);
+
+  // The step read is in the address, so Back from where it leads returns to that step.
+  await page.locator('[data-tour="improvement-step-testSet"]').click();
+  await expect(page).toHaveURL(new RegExp(`/improve/${id(session)}\\?step=testSet$`));
+  await page.getByRole("link", { name: "Open the question set" }).click();
+  await expect(page).toHaveURL(new RegExp(`/datasets/${id(dataset)}$`));
+  await page.goBack();
+  await expect(page).toHaveURL(new RegExp(`/improve/${id(session)}\\?step=testSet$`));
+  await expect(page.locator('[data-tour="improvement-test-questions"]')).toBeVisible();
+  await page.goBack();
+  await expect(page).toHaveURL(new RegExp(`/agents/${id(agent)}\\?tab=history$`));
 });
 
 async function capture(page: Page, info: TestInfo, name: string) {
