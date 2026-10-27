@@ -436,11 +436,13 @@ WRITES = {
 }
 
 
+@pytest.mark.security
 def test_the_reads_never_wait_for_approval() -> None:
     catalog = {tool.name: tool for tool in platform_tool_catalog()}
     assert all(not catalog[name].writes and not catalog[name].held for name in READS)
 
 
+@pytest.mark.security
 def test_every_write_waits_for_the_person_s_approval() -> None:
     """Starting, choosing, accepting, publishing and ending all reach a card first: none is
     ungated, so no binding's policy lets one through unseen."""
