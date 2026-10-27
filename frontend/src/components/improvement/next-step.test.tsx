@@ -135,3 +135,18 @@ it("offers nothing on a session that is not stopped for a person, or that is onl
   expect(container).toBeEmptyDOMElement();
   expect(state.estimate).not.toHaveBeenCalled();
 });
+
+it("drops a price or a refusal that arrives after the footer is gone", async () => {
+  let settle: (value: ContinuationEstimate) => void = () => {};
+  state.estimate.mockReturnValueOnce(new Promise((resolve) => (settle = resolve)));
+  const first = render(<NextStep session={AT_UNDERSTAND} onStarted={vi.fn()} />);
+  first.unmount();
+  settle(QUOTE);
+  let refuse: (reason: Error) => void = () => {};
+  state.estimate.mockReturnValueOnce(new Promise((_, reject) => (refuse = reject)));
+  const second = render(<NextStep session={AT_UNDERSTAND} onStarted={vi.fn()} />);
+  second.unmount();
+  refuse(new Error("Pricing is unavailable"));
+  await Promise.resolve();
+  expect(state.start).not.toHaveBeenCalled();
+});

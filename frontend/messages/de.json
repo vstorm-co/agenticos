@@ -11067,7 +11067,8 @@
       "eval": "Der Prüfschritt ist fehlgeschlagen.",
       "superseded": "Neuere Vorschläge haben diese Sitzung ersetzt.",
       "knowledge_only": "In der Wissensdatenbank fehlen einige Themen. Entwerfen Sie die, die Sie brauchen, prüfen Sie jeden Entwurf und fügen Sie ihn hinzu.",
-      "draft": "Das Entwerfen fehlenden Wissens ist fehlgeschlagen."
+      "draft": "Das Entwerfen fehlenden Wissens ist fehlgeschlagen.",
+      "expired": "Niemand hat diese Sitzung 7 Tage lang weitergeführt, daher wurde sie geschlossen. Starten Sie eine neue, um es erneut zu versuchen."
     },
     "before": "Vorher",
     "after": "Nachher",
@@ -11370,7 +11371,13 @@
       "changes": "Wartet auf Sie: prüfen Sie die Änderungen"
     },
     "helperNote": "Hinweis für den Helfer (optional)",
-    "helperNoteHint": "Schreiben Sie, was anders versucht werden soll, etwa welche Antworten am wichtigsten sind. Bis zu 2.000 Zeichen."
+    "helperNoteHint": "Schreiben Sie, was anders versucht werden soll, etwa welche Antworten am wichtigsten sind. Bis zu 2.000 Zeichen.",
+    "endOpen": {
+      "action": "Beenden und eine neue starten",
+      "title": "Die offene Sitzung beenden?",
+      "body": "Ein Agent wird in jeweils einer Sitzung verbessert. Die beendete Sitzung bleibt im Verlauf des Agents und ändert nichts am Agent; danach können Sie hier eine neue starten.",
+      "confirm": "Beenden"
+    }
   },
   "unsaved": {
     "title": "Du hast ungespeicherte Änderungen",

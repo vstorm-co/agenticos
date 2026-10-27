@@ -11184,7 +11184,8 @@
       "eval": "The test step failed.",
       "superseded": "A newer set of suggestions replaced this one.",
       "knowledge_only": "Some topics are missing from the knowledge base. Draft the ones you want, check each draft and add it.",
-      "draft": "Drafting knowledge failed."
+      "draft": "Drafting knowledge failed.",
+      "expired": "Nobody took this session further for 7 days, so it closed. Start a new one to try again."
     },
     "before": "Before",
     "after": "After",
@@ -11487,7 +11488,13 @@
       "changes": "Waiting for you: review the changes"
     },
     "helperNote": "Note for the helper (optional)",
-    "helperNoteHint": "Say what to try differently, for example which answers matter most. Up to 2,000 characters."
+    "helperNoteHint": "Say what to try differently, for example which answers matter most. Up to 2,000 characters.",
+    "endOpen": {
+      "action": "End it and start a new one",
+      "title": "End the open session?",
+      "body": "An agent improves in one session at a time. Ending this one keeps it in the agent's history and changes nothing in the agent; then you can start a new one here.",
+      "confirm": "End it"
+    }
   },
   "unsaved": {
     "title": "You have unsaved changes",

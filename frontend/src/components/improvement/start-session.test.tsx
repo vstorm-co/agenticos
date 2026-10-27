@@ -5,6 +5,8 @@ import { useOrgStore } from "@/stores/org-store";
 import { StartSession } from "./start-session";
 
 const state = vi.hoisted(() => ({
+  cancel: vi.fn(),
+  discard: vi.fn(),
   estimate: vi.fn(),
   start: vi.fn(),
   push: vi.fn(),
@@ -41,6 +43,10 @@ vi.mock("@/hooks/use-datasets", () => ({
   },
 }));
 vi.mock("@/hooks/use-improvements", () => ({
+  useImprovement: () => ({
+    cancel: { mutateAsync: state.cancel, isPending: false },
+    discard: { mutateAsync: state.discard, isPending: false },
+  }),
   useImprovements: () => ({
     sessions: state.sessions,
     error: state.sessionError,
@@ -202,6 +208,32 @@ it("points to the one session still open instead of every past one", () => {
   const links = screen.getAllByRole("link", { name: /in progress/ });
   expect(links).toHaveLength(1);
   expect(links[0]).toHaveAttribute("href", "/agents/a1/improve/open");
+});
+
+it.each([
+  ["ready", "discard"],
+  ["waiting", "discard"],
+  ["running", "cancel"],
+] as const)(
+  "ends an open %s session before a new one, once the person confirms",
+  async (status, ending) => {
+    state.sessions = [{ id: "open", created_at: "2026-10-25T10:00:00Z", status }];
+    render(<StartSession agentId="a1" />);
+    await userEvent.click(screen.getByRole("button", { name: "End it and start a new one" }));
+    expect(state[ending]).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "End it" }));
+    expect(state[ending]).toHaveBeenCalledOnce();
+    expect(state[ending === "cancel" ? "discard" : "cancel"]).not.toHaveBeenCalled();
+  },
+);
+
+it("says why the open session could not be ended", async () => {
+  state.sessions = [{ id: "open", created_at: "2026-10-25T10:00:00Z", status: "ready" }];
+  state.discard.mockRejectedValueOnce(new Error("Only the creator may end it"));
+  render(<StartSession agentId="a1" />);
+  await userEvent.click(screen.getByRole("button", { name: "End it and start a new one" }));
+  await userEvent.click(screen.getByRole("button", { name: "End it" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Only the creator may end it");
 });
 
 it("says why an estimate or a read failed, without starting work", async () => {

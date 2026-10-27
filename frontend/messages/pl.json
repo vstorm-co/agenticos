@@ -10967,7 +10967,8 @@
       "eval": "Sprawdzenie się nie powiodło.",
       "superseded": "Nowsze propozycje zastąpiły tę sesję.",
       "knowledge_only": "W bazie wiedzy brakuje niektórych tematów. Napisz szkice tych, których potrzebujesz, sprawdź każdy i dodaj go.",
-      "draft": "Przygotowanie brakującej wiedzy się nie powiodło."
+      "draft": "Przygotowanie brakującej wiedzy się nie powiodło.",
+      "expired": "Nikt nie poprowadził tej sesji dalej przez 7 dni, więc się zamknęła. Rozpocznij nową, aby spróbować ponownie."
     },
     "before": "Przed",
     "after": "Po",
@@ -11270,7 +11271,13 @@
       "changes": "Czeka na Ciebie: przejrzyj zmiany"
     },
     "helperNote": "Notatka dla pomocnika (opcjonalnie)",
-    "helperNoteHint": "Napisz, co spróbować inaczej, na przykład które odpowiedzi są najważniejsze. Do 2000 znaków."
+    "helperNoteHint": "Napisz, co spróbować inaczej, na przykład które odpowiedzi są najważniejsze. Do 2000 znaków.",
+    "endOpen": {
+      "action": "Zakończ ją i zacznij nową",
+      "title": "Zakończyć otwartą sesję?",
+      "body": "Agent może mieć tylko jedną sesję poprawy naraz. Zakończona sesja zostaje w historii agenta i niczego w nim nie zmienia; potem możesz tu zacząć nową.",
+      "confirm": "Zakończ"
+    }
   },
   "unsaved": {
     "title": "Masz niezapisane zmiany",

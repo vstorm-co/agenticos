@@ -6,6 +6,7 @@ import { Clock } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import {
   Button,
+  ConfirmDialog,
   Input,
   Label,
   Select,
@@ -20,11 +21,11 @@ import { TodayCheck } from "./today-check";
 import { WriteQuestions } from "./write-questions";
 import { usd } from "@/components/evals/format";
 import { useDatasets } from "@/hooks/use-datasets";
-import { useImprovements } from "@/hooks/use-improvements";
+import { useImprovement, useImprovements } from "@/hooks/use-improvements";
 import { getErrorMessage } from "@/lib/api-error";
-import { openImprovement } from "@/lib/improvement-steps";
+import { isActive, openImprovement } from "@/lib/improvement-steps";
 import { useOrgStore } from "@/stores/org-store";
-import type { ImprovementEstimate } from "@/types/improvement";
+import type { Improvement, ImprovementEstimate } from "@/types/improvement";
 
 /**
  * Screen 0: the agent's own test set is chosen and priced before anything is
@@ -101,15 +102,18 @@ export function StartSession({ agentId }: { agentId: string }) {
       <StartSignals agentId={agentId} datasetId={target} />
       {sessions.error && <p role="alert">{getErrorMessage(sessions.error, tErrors)}</p>}
       {open && (
-        <Link
-          className="block rounded-lg border p-3 text-sm underline underline-offset-4"
-          href={`/agents/${agentId}/improve/${open.id}`}
-        >
-          {t("resumeOpen", {
-            date: new Date(open.created_at).toLocaleString(locale),
-            status: t(`status.${open.status}`),
-          })}
-        </Link>
+        <div className="space-y-2 rounded-lg border p-3">
+          <Link
+            className="block text-sm underline underline-offset-4"
+            href={`/agents/${agentId}/improve/${open.id}`}
+          >
+            {t("resumeOpen", {
+              date: new Date(open.created_at).toLocaleString(locale),
+              status: t(`status.${open.status}`),
+            })}
+          </Link>
+          <EndOpen session={open} />
+        </div>
       )}
       <div className="max-w-xl space-y-3">
         {baselineFirst && <p className="font-medium">{t("baselineFirst")}</p>}
@@ -229,5 +233,51 @@ export function StartSession({ agentId }: { agentId: string }) {
         </details>
       </div>
     </div>
+  );
+}
+
+/**
+ * An agent has one open session at a time, so a new one starts only once the open
+ * one ends: a working session stops, one waiting for a decision is discarded.
+ */
+function EndOpen({ session }: { session: Improvement }) {
+  const t = useTranslations("improvement.endOpen");
+  const tErrors = useTranslations("errors");
+  const actions = useImprovement(session.agent_id, session.id);
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const ending = isActive(session) ? actions.cancel : actions.discard;
+  return (
+    <>
+      <Button variant="outline" size="sm" onClick={() => setConfirming(true)}>
+        {t("action")}
+      </Button>
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title={t("title")}
+        description={
+          <>
+            {t("body")}
+            {error && (
+              <span role="alert" className="text-destructive mt-2 block">
+                {error}
+              </span>
+            )}
+          </>
+        }
+        confirmLabel={t("confirm")}
+        loading={ending.isPending}
+        onConfirm={async () => {
+          setError(null);
+          try {
+            await ending.mutateAsync();
+            setConfirming(false);
+          } catch (failure) {
+            setError(getErrorMessage(failure, tErrors));
+          }
+        }}
+      />
+    </>
   );
 }
