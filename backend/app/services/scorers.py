@@ -29,6 +29,7 @@ from app.schemas.scoring import (
     DatasetScoring,
     JsonSchemaCheck,
     JudgeCheck,
+    LengthCheck,
     ScorerKind,
     ScorerResult,
     TextCheck,
@@ -215,6 +216,29 @@ def _schema_check(check: JsonSchemaCheck, answer: ScoredAnswer, *, required: boo
     return _result(name, passed=False, reason=f"{where}: {error.message}"[:500], required=required)
 
 
+def _length_check(check: LengthCheck, answer: ScoredAnswer, *, required: bool) -> ScorerResult:
+    bounds = " to ".join(
+        bound
+        for bound in (
+            None if check.min is None else f"at least {check.min}",
+            None if check.max is None else f"at most {check.max}",
+        )
+        if bound
+    )
+    where = f" at `{check.path}`" if check.path else ""
+    name = f"{bounds} {check.unit}{where}"
+    try:
+        value = answer.text if check.path is None else _value(answer, check.path)
+    except _NoValue as exc:
+        return _result(name, passed=False, reason=str(exc), required=required)
+    subject = value if isinstance(value, str) else json.dumps(value)
+    measured = len(subject.split()) if check.unit == "words" else len(subject)
+    passed = (check.min is None or measured >= check.min) and (
+        check.max is None or measured <= check.max
+    )
+    return _result(name, passed=passed, reason=f"{measured} {check.unit}", required=required)
+
+
 def _ceiling_check(check: CeilingCheck, answer: ScoredAnswer, *, required: bool) -> ScorerResult:
     if check.type == "max_cost_usd":
         name, measured, unit = f"cost at most ${check.value:g}", answer.cost_usd, "$"
@@ -265,6 +289,8 @@ def run_checks(
             results.append(_text_check(check, answer, required=required))
         elif isinstance(check, JsonSchemaCheck):
             results.append(_schema_check(check, answer, required=required))
+        elif isinstance(check, LengthCheck):
+            results.append(_length_check(check, answer, required=required))
         else:
             results.append(_ceiling_check(check, answer, required=required))
     return results, judged

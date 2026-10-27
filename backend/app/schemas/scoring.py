@@ -155,6 +155,28 @@ class CeilingCheck(BaseSchema):
     value: float = Field(ge=0)
 
 
+class LengthCheck(BaseSchema):
+    """The answer, or the value at `path`, is at least `min` and at most `max` long.
+
+    Counted in characters or in words - runs of anything but whitespace. At least
+    one bound is set, and `min` is not above `max`.
+    """
+
+    type: Literal["length"]
+    unit: Literal["characters", "words"] = "characters"
+    min: int | None = Field(default=None, ge=0, le=1_000_000)
+    max: int | None = Field(default=None, ge=0, le=1_000_000)
+    path: str | None = Field(default=None, max_length=200)
+
+    @model_validator(mode="after")
+    def _bounded(self) -> LengthCheck:
+        if self.min is None and self.max is None:
+            raise ValueError("A length check needs a least or a most length")
+        if self.min is not None and self.max is not None and self.min > self.max:
+            raise ValueError(f"The least length, {self.min}, is above the most, {self.max}")
+        return self
+
+
 class JudgeCheck(BaseSchema):
     """A criterion for this case alone, graded by the eval judge.
 
@@ -167,7 +189,8 @@ class JudgeCheck(BaseSchema):
 
 
 Check = Annotated[
-    TextCheck | JsonSchemaCheck | CeilingCheck | JudgeCheck, Field(discriminator="type")
+    TextCheck | JsonSchemaCheck | CeilingCheck | LengthCheck | JudgeCheck,
+    Field(discriminator="type"),
 ]
 CHECK = TypeAdapter(Check)
 

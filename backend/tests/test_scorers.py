@@ -13,6 +13,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.schemas.scoring import (
+    CHECK,
     CaseScoreRead,
     DatasetScoring,
     JudgeCheck,
@@ -1066,3 +1067,48 @@ class TestScopedJudgeCriteria:
         assert scoring_hash(scoring) == original
         scoring.judge.criteria[0].tags = ["refund"]
         assert scoring_hash(scoring) != original
+
+
+class TestLengthCheck:
+    @pytest.mark.parametrize(
+        ("check", "text", "status", "reason"),
+        [
+            ({"type": "length", "unit": "words", "max": 3}, "one two three", "pass", "3 words"),
+            (
+                {"type": "length", "unit": "words", "max": 3},
+                "one two three four",
+                "fail",
+                "4 words",
+            ),
+            ({"type": "length", "min": 5}, "four", "fail", "4 characters"),
+            ({"type": "length", "min": 2, "max": 4}, "abc", "pass", "3 characters"),
+        ],
+    )
+    def test_an_answer_is_measured_against_its_bounds(self, check, text, status, reason) -> None:
+        result = _check(check, _answer(text))
+        assert (result.status, result.reason) == (status, reason)
+
+    def test_its_name_says_the_bounds(self) -> None:
+        check = {"type": "length", "unit": "words", "min": 2, "max": 10, "path": "summary"}
+        result = _check(check, _answer('{"summary": "two words"}'))
+        assert result.name == "at least 2 to at most 10 words at `summary`"
+        assert (result.status, result.reason) == ("pass", "2 words")
+
+    def test_a_value_that_is_not_text_is_measured_as_json(self) -> None:
+        result = _check({"type": "length", "max": 5, "path": "n"}, _answer('{"n": [1, 2]}'))
+        assert (result.status, result.reason) == ("fail", "6 characters")
+
+    def test_nothing_where_the_path_looks_fails_it(self) -> None:
+        result = _check({"type": "length", "max": 5, "path": "missing"}, _answer("{}"))
+        assert result.status == "fail"
+
+    @pytest.mark.parametrize(
+        ("check", "message"),
+        [
+            ({"type": "length"}, "needs a least or a most length"),
+            ({"type": "length", "min": 5, "max": 2}, "is above the most"),
+        ],
+    )
+    def test_a_check_without_sound_bounds_is_refused(self, check, message) -> None:
+        with pytest.raises(ValidationError, match=message):
+            CHECK.validate_python(check)
