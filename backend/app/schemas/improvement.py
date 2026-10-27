@@ -88,11 +88,15 @@ class ImprovementEvent(BaseSchema):
     )
 
 
-class BaselineAnswers(BaseSchema):
-    """The agent's answers as it is today, asked in the first attempt's check."""
+class CheckAnswers(BaseSchema):
+    """How far one side of a check has answered its questions."""
 
     answered: int = Field(description="First answers finished, failed ones included")
     total: int = Field(description="First answers asked")
+    reused: bool = Field(
+        default=False,
+        description="Answered in an earlier run, so this check asked nothing new on this side",
+    )
 
 
 class ImprovementRead(BaseSchema):
@@ -130,9 +134,14 @@ class ImprovementRead(BaseSchema):
         default_factory=list,
         description="Knowledge documents set aside with Not now in this session",
     )
-    baseline_answers: BaselineAnswers | None = Field(
+    baseline_answers: CheckAnswers | None = Field(
         default=None,
         description="How far the first attempt's check has asked the agent as it is today; "
+        "none before that check starts",
+    )
+    candidate_answers: CheckAnswers | None = Field(
+        default=None,
+        description="How far the current attempt's check has asked the changed agent; "
         "none before that check starts",
     )
 

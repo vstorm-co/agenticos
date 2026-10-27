@@ -82,7 +82,7 @@ async def _ready_proposal(db):
     await _until_child(db, ctx, read.id)
     first = await ImprovementPipelineService(db).read(ctx, agent.id, read.id)
     assert first.stage == "proposing"
-    assert first.baseline_answers is None
+    assert first.baseline_answers is None and first.candidate_answers is None
     request_id = first.iterations[0].authoring_request_id
     assert request_id is not None
     for _ in range(2):
@@ -110,8 +110,8 @@ async def _ready_proposal(db):
     await ImprovementPipelineService(db).advance(read.id, ctx.organization_id)
     evaluating = await ImprovementPipelineService(db).read(ctx, agent.id, read.id)
     [eval_id] = evaluating.iterations[0].eval_run_ids
-    assert evaluating.baseline_answers is not None
-    assert evaluating.baseline_answers.answered == 0 < evaluating.baseline_answers.total
+    for side in (evaluating.baseline_answers, evaluating.candidate_answers):
+        assert side is not None and side.answered == 0 < side.total and not side.reused
     # A worker restart sees the existing child, even before it has been claimed.
     await ImprovementPipelineService(db).advance(read.id, ctx.organization_id)
     assert (await ImprovementPipelineService(db).read(ctx, agent.id, read.id)).iterations[
@@ -133,9 +133,12 @@ async def _ready_proposal(db):
     await ImprovementPipelineService(db).advance(read.id, ctx.organization_id)
     ready = await ImprovementPipelineService(db).read(ctx, agent.id, read.id)
     assert ready.status == "ready", ready
-    assert ready.baseline_answers == evaluating.baseline_answers.model_copy(
-        update={"answered": evaluating.baseline_answers.total}
-    )
+    for before, after in (
+        (evaluating.baseline_answers, ready.baseline_answers),
+        (evaluating.candidate_answers, ready.candidate_answers),
+    ):
+        assert before is not None
+        assert after == before.model_copy(update={"answered": before.total})
     assert AgentSpec.model_validate(agent.draft_spec) == original
     assert agent.current_version_id == version
     batch = await authoring_repo.get_open_batch(
@@ -156,7 +159,7 @@ async def _ready_proposal(db):
 
 
 async def test_the_before_answers_are_counted_where_a_reused_baseline_gave_them(db):
-    from app.db.models.eval_run import EvalRunArm, EvalRunCase
+    from app.db.models.eval_run import ArmRole, EvalRunArm, EvalRunCase
     from app.repositories import eval_run_repo
 
     ctx, _, ready = await _ready_proposal(db)
@@ -166,14 +169,16 @@ async def test_the_before_answers_are_counted_where_a_reused_baseline_gave_them(
         for arm in await eval_run_repo.list_arms(db, [eval_id], organization_id=ctx.organization_id)
     }
     baseline, candidate = arms["baseline"], arms["candidate"]
-    answered = await eval_run_repo.baseline_answers(
-        db, eval_id, organization_id=ctx.organization_id
+    org = ctx.organization_id
+    answered = await eval_run_repo.arm_answers(
+        db, eval_id, role=ArmRole.BASELINE, organization_id=org
     )
-    assert answered is not None and answered[0] == answered[1] > 0
+    assert answered is not None and answered.answered == answered.total > 0
+    assert not answered.reused
     await db.execute(delete(EvalRunCase).where(EvalRunCase.arm_id == baseline.id))
-    assert await eval_run_repo.baseline_answers(
-        db, eval_id, organization_id=ctx.organization_id
-    ) == (0, 0)
+    assert await eval_run_repo.arm_answers(
+        db, eval_id, role=ArmRole.BASELINE, organization_id=org
+    ) == (0, 0, False)
     await db.execute(
         update(EvalRunArm)
         .where(EvalRunArm.id == baseline.id)
@@ -181,10 +186,12 @@ async def test_the_before_answers_are_counted_where_a_reused_baseline_gave_them(
         .execution_options(synchronize_session=False)
     )
     db.expire_all()
-    reused = await eval_run_repo.baseline_answers(db, eval_id, organization_id=ctx.organization_id)
-    assert reused is not None and reused[1] > 0
+    reused = await eval_run_repo.arm_answers(
+        db, eval_id, role=ArmRole.BASELINE, organization_id=org
+    )
+    assert reused is not None and reused.total > 0 and reused.reused
     assert (
-        await eval_run_repo.baseline_answers(db, uuid4(), organization_id=ctx.organization_id)
+        await eval_run_repo.arm_answers(db, uuid4(), role=ArmRole.BASELINE, organization_id=org)
         is None
     )
 

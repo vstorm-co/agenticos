@@ -47,7 +47,7 @@ from app.db.models.authoring import (
     HunkStatus,
     SpecProposalHunk,
 )
-from app.db.models.eval_run import EvalRun
+from app.db.models.eval_run import ArmRole, EvalRun
 from app.db.models.improvement import (
     DroppedHunk,
     ImprovementIteration,
@@ -93,7 +93,7 @@ from app.schemas.eval_threshold import EvalSuiteCheck
 from app.schemas.improvement import (
     AttributionConsent,
     AttributionEstimate,
-    BaselineAnswers,
+    CheckAnswers,
     ContinuationConsent,
     ContinuationEstimate,
     ImprovementContinue,
@@ -778,15 +778,12 @@ class ImprovementPipelineService:
         )
         result.iterations = [ImprovementIterationRead.model_validate(item) for item in iterations]
         first = next((item for item in iterations if item.number == 1), None)
-        counted = (
-            await eval_run_repo.baseline_answers(
-                self.db, first.eval_run_ids[-1], organization_id=run.organization_id
-            )
-            if first is not None and first.eval_run_ids
-            else None
+        current = next(
+            (item for item in iterations if item.number == run.iteration),
+            iterations[-1] if iterations else None,
         )
-        if counted is not None:
-            result.baseline_answers = BaselineAnswers(answered=counted[0], total=counted[1])
+        result.baseline_answers = await self._answers(run, first, ArmRole.BASELINE)
+        result.candidate_answers = await self._answers(run, current, ArmRole.CANDIDATE)
         if ctx.has(Perm.RUNS_VIEW):
             result.knowledge_eval_run_ids = await improvement_repo.knowledge_checks(
                 self.db, run.id, organization_id=ctx.organization_id
@@ -816,6 +813,17 @@ class ImprovementPipelineService:
         if not ctx.has(Perm.RUNS_VIEW):
             result.error = None
         return result
+
+    async def _answers(
+        self, run: ImprovementRun, round_: ImprovementIteration | None, role: ArmRole
+    ) -> CheckAnswers | None:
+        """How far one side of a round's latest check has answered."""
+        if round_ is None or not round_.eval_run_ids:
+            return None
+        counted = await eval_run_repo.arm_answers(
+            self.db, round_.eval_run_ids[-1], role=role, organization_id=run.organization_id
+        )
+        return None if counted is None else CheckAnswers(**counted._asdict())
 
     @staticmethod
     def _name(people: dict[UUID, User], user_id: UUID | None) -> str | None:

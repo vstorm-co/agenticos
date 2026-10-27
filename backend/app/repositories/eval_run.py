@@ -465,13 +465,19 @@ async def list_arm_cases(
     return list(result.scalars().all())
 
 
-async def baseline_answers(
-    db: AsyncSession, eval_run_id: UUID, *, organization_id: UUID
-) -> tuple[int, int] | None:
-    """How many first answers a run's baseline side has finished, and of how many.
+class ArmAnswers(NamedTuple):
+    answered: int
+    total: int
+    reused: bool
 
-    A reused baseline answered in the run it was reused from, so its own arm is
-    counted. None for a run without a baseline.
+
+async def arm_answers(
+    db: AsyncSession, eval_run_id: UUID, *, role: ArmRole, organization_id: UUID
+) -> ArmAnswers | None:
+    """How many first answers one side of a run has finished, and of how many.
+
+    A reused side answered in the run it was reused from, so that arm is
+    counted. None for a run without that side.
     """
     arm = (
         (
@@ -480,7 +486,7 @@ async def baseline_answers(
                 .where(
                     EvalRunArm.eval_run_id == eval_run_id,
                     EvalRunArm.organization_id == organization_id,
-                    EvalRunArm.role == ArmRole.BASELINE.value,
+                    EvalRunArm.role == role.value,
                 )
                 .order_by(EvalRunArm.position)
             )
@@ -500,7 +506,7 @@ async def baseline_answers(
             )
         )
     ).one()
-    return int(answered), int(total)
+    return ArmAnswers(int(answered), int(total), arm.reused_from_arm_id is not None)
 
 
 async def case_of_score(
