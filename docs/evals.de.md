@@ -1,5 +1,5 @@
 ---
-source_sha: "87f7b04ce512"
+source_sha: "0100879e7f21"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -473,6 +473,21 @@ in der Tabelle.
 Die Seite des Runs sagt es, wenn nichts hielt, aber drei oder mehr Fälle sich
 einmal änderten oder die beiden Bestehensquoten 20 Punkte oder mehr
 auseinanderliegen.
+
+Die Bewertung kann sich so sehr bewegen wie das Modell. Ein Bewerter, dessen
+Kriterium auf seiner Schwelle liegt - eine Skala von 1 bis 5, die ab 4 besteht,
+etwa - bewertet fast dieselbe Antwort beide Male verschieden, sodass dieselbe
+Version auf denselben Fällen unterschiedlich abschneidet. Eine
+[Verbessern-Sitzung](authoring.md#the-improve-wizard) liest das aus ihren eigenen
+Prüfungen, ohne neuen Modellaufruf, und ihr Ergebnis sagt es, wenn sich die
+heutige Version zwischen Versuchen um zwei zurückgelegte Fragen oder 15 Punkte
+bewegt hat oder ein Fünftel der zurückgelegten Fragen beide Male verschieden
+bewertet wurde.
+
+Was die Bewertung festigt: Kriterien, die mit Ja oder Nein statt auf einer Skala
+beantwortet werden, eine deterministische Prüfung von Länge und Format statt des
+Urteils eines Bewerters, mehr Fälle - etwa 30 zurückgelegte für eine Verbessern-
+Sitzung - und ein stärkeres Bewerter-Modell.
 
 ### Was das Urteil sagt { #what-the-verdict-says }
 

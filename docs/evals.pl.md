@@ -1,5 +1,5 @@
 ---
-source_sha: "87f7b04ce512"
+source_sha: "0100879e7f21"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -444,6 +444,18 @@ przejrzenie niepotwierdzonych przypadków w tabeli.
 
 Strona runu mówi to wprost, gdy nic się nie utrzymało, a co najmniej trzy
 przypadki zmieniły się raz albo odsetki zaliczeń dzieli 20 punktów lub więcej.
+
+Ocena może się poruszać tak samo jak model. Sędzia, którego kryterium leży na
+progu - skala od 1 do 5 zaliczana od 4, na przykład - ocenia prawie tę samą
+odpowiedź na oba sposoby, więc ta sama wersja dostaje różne wyniki na tych samych
+przypadkach. [Sesja Popraw](authoring.md#the-improve-wizard) odczytuje to z
+własnych sprawdzeń, bez nowego wywołania modelu, a jej Wynik mówi o tym, gdy
+dzisiejsza wersja przesunęła się między próbami o dwa odłożone pytania albo 15
+punktów, albo jedna piąta odłożonych pytań dostała obie oceny.
+
+Co stabilizuje ocenę: kryteria z odpowiedzią tak albo nie zamiast skali,
+deterministyczny check długości i formatu zamiast opinii sędziego, więcej
+przypadków - około 30 odłożonych dla sesji Popraw - i mocniejszy model sędziego.
 
 ### Co mówi werdykt { #what-the-verdict-says }
 

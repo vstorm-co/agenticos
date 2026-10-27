@@ -414,6 +414,19 @@ unconfirmed cases in the table.
 A run's page says so when nothing held but three or more cases changed once, or
 the two pass rates are 20 points apart or more.
 
+The grading can move as much as the model. A judge whose criterion sits on its
+threshold - a 1 to 5 scale passing at 4, say - grades nearly the same answer
+both ways, so the same version scores differently on the same cases. An
+[Improve session](authoring.md#the-improve-wizard) reads this from its own
+checks, with no new model call, and its Result says so when today's version
+moved by two held-out questions or 15 points between attempts, or a fifth of
+the held-out questions were graded both ways.
+
+What steadies grading: criteria answered yes or no instead of on a scale, a
+deterministic check for length and format rather than a judge's opinion of them,
+more cases - about 30 kept aside for an Improve session - and a stronger judge
+model.
+
 ### What the verdict says { #what-the-verdict-says }
 
 The verdict rests on the confirmed flips only. One confirmed regression makes
