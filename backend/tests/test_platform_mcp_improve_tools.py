@@ -388,7 +388,12 @@ class TestStepByStep:
         self, server: FastMCP, api: MagicMock, next_step: str, after: str, runs: str
     ) -> None:
         waiting = {**self.WAITING, "next_step": next_step}
-        quote = {"total_usd": "0.01", "budget_usd": "0.05", "affordable": True}
+        quote = {
+            "total_usd": "0.01",
+            "expected_usd": "0.004",
+            "budget_usd": "0.05",
+            "affordable": True,
+        }
         api.request = _responder(
             {
                 ("GET", f"/agents/{AGENT}/improvements"): [waiting],
@@ -417,6 +422,7 @@ class TestStepByStep:
             "mode": "next_step",
             "number": 1,
             "total_usd": "0.01",
+            "expected_usd": "0.004",
             "budget_usd": "0.05",
             "affordable": True,
             "candidate_hash": "d" * 64,
@@ -447,6 +453,7 @@ class TestStepByStep:
             "next_step": "propose changes",
             "price": {
                 "total_usd": "0.01",
+                "expected_usd": "0.004",
                 "budget_usd": "0.05",
                 "affordable": True,
                 "candidate_hash": "d" * 64,
@@ -854,6 +861,7 @@ class TestTheWizardsWords:
                 ("GET", f"/agents/{AGENT}/improvements"): [session],
                 ("POST", f"/agents/{AGENT}/improvements/{SESSION}/continue/estimate"): {
                     "total_usd": "0.01",
+                    "expected_usd": "0.004",
                     "budget_usd": "0.05",
                     "affordable": True,
                     "candidate_hash": "d" * 64,
@@ -889,8 +897,9 @@ class TestTheWizardsWords:
 
 
 class TestTheSummary:
-    """Told how improving stood, it left out the live version and that the attempt kept
-    broke a question - the one fact that matters before accepting."""
+    """Told how improving stood, it left out the live version and that an attempt broke a
+    question - the one fact that matters before accepting - and called an attempt "the one
+    kept" before anybody had chosen one."""
 
     WORSE_KEPT = {
         **SESSION_READ,
@@ -900,7 +909,7 @@ class TestTheSummary:
         "best_iteration_id": SESSION_READ["iterations"][0]["id"],
     }
 
-    async def test_a_ready_session_keeping_a_worse_attempt_warns_beside_the_live_version(
+    async def test_a_ready_session_warns_of_a_worse_attempt_beside_the_live_version(
         self, server: FastMCP, api: MagicMock
     ) -> None:
         api.request = _responder(
@@ -911,10 +920,12 @@ class TestTheSummary:
 
         assert newest["summary"] == (
             "v8 is live. The newest session has a result to decide on, after attempt 2 of 3. "
-            "Warning: attempt 1, the one kept, makes the agent worse - it breaks 1 question "
-            "the agent answered well before, and fixes 2. What can be done now: Accept the "
-            "chosen attempt; Try again (attempt 3 of 3); End the session."
+            "Warning: attempt 1 makes the agent worse - it breaks 1 question the agent "
+            "answered well before, and fixes 2. Attempt 2 fixes 3 questions and breaks none. "
+            "What can be done now: Accept attempt 1; Keep attempt 2; Try again (attempt 3 of "
+            "3); End the session."
         )
+        assert "kept" not in newest["summary"]
 
     async def test_one_session_read_carries_the_same_summary(
         self, server: FastMCP, api: MagicMock
@@ -930,7 +941,7 @@ class TestTheSummary:
         session = await _call(server, "get_improvement", session_id=SESSION)
 
         assert session["summary"].startswith("v8 is live.")
-        assert "Warning: attempt 1, the one kept, makes the agent worse" in session["summary"]
+        assert "Warning: attempt 1 makes the agent worse" in session["summary"]
 
     @pytest.mark.parametrize(
         ("changes", "live", "says"),
@@ -943,7 +954,7 @@ class TestTheSummary:
             (
                 {"status": "ready", "stop_reason": None},
                 V8,
-                "Attempt 2, the one kept, fixes 3 questions and breaks none.",
+                "Attempt 2 fixes 3 questions and breaks none.",
             ),
             (
                 {"status": "published", "published_version": 7},
@@ -985,7 +996,7 @@ class TestTheSummary:
                     "best_iteration_id": None,
                 },
                 V8,
-                "Attempt 1, the one kept, made no measurable difference.",
+                "Attempt 1 made no measurable difference.",
             ),
             (
                 {
@@ -997,7 +1008,7 @@ class TestTheSummary:
                     "best_iteration_id": None,
                 },
                 V8,
-                "The test could not tell whether attempt 1, the one kept, helped.",
+                "The test could not tell whether attempt 1 helped.",
             ),
             (
                 {
@@ -1008,7 +1019,8 @@ class TestTheSummary:
                 },
                 V8,
                 "waits at the Understand stop for a go-ahead. What can be done now: Next step: "
-                "propose changes; End the session. The next step costs about $0.01.",
+                "propose changes; End the session. The next step most likely costs about "
+                "$0.004, at most $0.01.",
             ),
         ],
         ids=[
@@ -1041,6 +1053,7 @@ class TestTheSummary:
                 ("GET", f"/agents/{AGENT}/improvements"): [{**SESSION_READ, **changes}],
                 ("POST", f"/agents/{AGENT}/improvements/{SESSION}/continue/estimate"): {
                     "total_usd": "0.01",
+                    "expected_usd": "0.004",
                     "budget_usd": "0.05",
                     "affordable": True,
                     "candidate_hash": "d" * 64,
@@ -1051,6 +1064,98 @@ class TestTheSummary:
         [newest] = (await _call(server, "list_improvements", agent_id=AGENT))["items"]
 
         assert says in newest["summary"]
+
+
+class TestOnlyTheNewestSessionAndAPersonsChoice:
+    """It mixed an ended session into the newest one's state, said "the one kept" before
+    anyone chose, and left out "Keep attempt 1 anyway" on the result."""
+
+    STOPPED = {
+        **SESSION_READ,
+        "status": "stopped",
+        "stop_reason": "regression",
+        "can_restart": True,
+        "best_iteration_id": SESSION_READ["iterations"][0]["id"],
+        "timeline": [],
+    }
+
+    def _chose(self, at: str) -> dict[str, Any]:
+        return {
+            **self.STOPPED,
+            "status": "ready",
+            "timeline": [
+                {"action": "improvement.verdict", "at": "2026-10-27T09:00:00Z"},
+                {
+                    "action": "improvement.round_selected",
+                    "at": at,
+                    "actor_user_id": "00000000-0000-4000-8000-0000000000ab",
+                    "actor_name": "Bartek",
+                },
+            ],
+        }
+
+    async def _newest(self, api: MagicMock, server: FastMCP, *sessions: Any) -> Any:
+        api.request = _responder({("GET", f"/agents/{AGENT}/improvements"): list(sessions)})
+        return await _call(server, "list_improvements", agent_id=AGENT)
+
+    async def test_a_stopped_result_offers_keeping_each_attempt_as_the_wizard_does(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        [newest] = (await self._newest(api, server, self.STOPPED))["items"]
+
+        assert newest["next_actions"][:2] == ["Keep attempt 1 anyway", "Keep attempt 2"]
+
+    async def test_one_attempt_or_no_access_offers_no_choice(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        one = {**self.STOPPED, "iterations": SESSION_READ["iterations"][:1]}
+        [single] = (await self._newest(api, server, one))["items"]
+        [locked] = (await self._newest(api, server, {**self.STOPPED, "can_restart": False}))[
+            "items"
+        ]
+
+        assert not any(action.startswith("Keep") for action in single["next_actions"])
+        assert not any(action.startswith("Keep") for action in locked["next_actions"])
+
+    async def test_a_choice_a_person_made_after_the_verdict_is_said(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        [newest] = (await self._newest(api, server, self._chose("2026-10-27T09:05:00Z")))["items"]
+
+        assert "Bartek chose attempt 1 to accept." in newest["summary"]
+
+    async def test_a_choice_older_than_the_verdict_is_not_said(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        [newest] = (await self._newest(api, server, self._chose("2026-10-27T08:55:00Z")))["items"]
+
+        assert "chose" not in newest["summary"]
+
+    async def test_older_sessions_are_records_without_offers(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        older = {
+            **SESSION_READ,
+            "id": str(uuid.uuid4()),
+            "status": "rejected",
+            "created_at": "2026-10-20T08:00:00Z",
+        }
+
+        newest, earlier = (await self._newest(api, server, older, self.STOPPED))["items"]
+
+        assert newest["next_actions"]
+        assert set(earlier) == {
+            "id",
+            "status",
+            "created_at",
+            "finished_at",
+            "closed",
+            "outcome",
+            "why_stale",
+            "started_from_version",
+            "link",
+            "newest",
+        }
 
 
 class TestFindingSessionsWithoutAnId:
@@ -1070,6 +1175,7 @@ class TestFindingSessionsWithoutAnId:
         published = {**SESSION_READ, "id": str(uuid.uuid4()), "status": "published"}
         quote = {
             "total_usd": "0.01",
+            "expected_usd": "0.004",
             "budget_usd": "0.05",
             "affordable": True,
             "candidate_hash": "d" * 64,

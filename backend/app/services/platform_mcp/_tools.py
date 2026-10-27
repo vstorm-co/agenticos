@@ -218,6 +218,20 @@ def _waiting(session: dict[str, Any]) -> dict[str, Any] | None:
     return _NEXT_STEPS.get(session.get("next_step") or "")
 
 
+_EARLIER_FIELDS = (
+    "id",
+    "status",
+    "created_at",
+    "finished_at",
+    "closed",
+    "outcome",
+    "why_stale",
+    "started_from_version",
+    "link",
+    "newest",
+)
+"""What a listing keeps of a session older than the newest: a record, never an offer."""
+
 _CHECKING_STAGES = frozenset({"evaluating", "judging"})
 _PROPOSING_STAGES = frozenset({"proposing", "filtering", "drafting"})
 
@@ -269,27 +283,49 @@ def _questions(count: int) -> str:
     return f"{count} question" if count == 1 else f"{count} questions"
 
 
-def _kept_attempt(session: dict[str, Any]) -> dict[str, Any] | None:
-    """The attempt the session keeps, else its latest measured one."""
-    measured = [it for it in session.get("iterations", []) if it.get("verdict")]
-    chosen = session.get("best_iteration_id")
-    return next((it for it in measured if it["id"] == chosen), measured[-1] if measured else None)
+def _measured(session: dict[str, Any]) -> list[dict[str, Any]]:
+    """The session's attempts that have a verdict, within its attempt limit."""
+    return [
+        it
+        for it in session.get("iterations", [])
+        if it.get("verdict") and it["number"] <= session["max_iterations"]
+    ]
 
 
-def _verdict_sentence(attempt: dict[str, Any]) -> str:
+def _person_chose(session: dict[str, Any]) -> str | None:
+    """Who chose the attempt to keep, when a person did so after the latest verdict."""
+    events = session.get("timeline", [])
+    chose = [
+        e for e in events if e["action"] == "improvement.round_selected" and e.get("actor_user_id")
+    ]
+    judged = [e["at"] for e in events if e["action"] == "improvement.verdict"]
+    last = max(chose, key=lambda event: event["at"], default=None)
+    if last is None or (judged and last["at"] <= max(judged)):
+        return None
+    return last.get("actor_name") or last["actor_user_id"]
+
+
+def _attempt_sentence(attempt: dict[str, Any]) -> str:
     detail = attempt.get("verdict_detail") or {}
     fixed, broken = detail.get("fixed") or 0, detail.get("broken") or 0
     number = attempt["number"]
     if broken or attempt["verdict"] == "regression":
         return (
-            f"Warning: attempt {number}, the one kept, makes the agent worse - it breaks "
+            f"Warning: attempt {number} makes the agent worse - it breaks "
             f"{_questions(broken)} the agent answered well before, and fixes {fixed}."
         )
     if attempt["verdict"] == "better":
-        return f"Attempt {number}, the one kept, fixes {_questions(fixed)} and breaks none."
+        return f"Attempt {number} fixes {_questions(fixed)} and breaks none."
     if attempt["verdict"] == "no_change":
-        return f"Attempt {number}, the one kept, made no measurable difference."
-    return f"The test could not tell whether attempt {number}, the one kept, helped."
+        return f"Attempt {number} made no measurable difference."
+    return f"The test could not tell whether attempt {number} helped."
+
+
+def _price_sentence(price: dict[str, Any]) -> str:
+    return (
+        f"The next step most likely costs about ${price['expected_usd']}, "
+        f"at most ${price['total_usd']}."
+    )
 
 
 def _where(session: dict[str, Any], item: dict[str, Any], live: int | None) -> str:
@@ -321,15 +357,23 @@ def _summary(session: dict[str, Any], item: dict[str, Any], live: int | None) ->
         f"v{live} is live." if live is not None else "No version of the agent is published yet.",
         _where(session, item, live),
     ]
-    kept = _kept_attempt(session)
-    if kept is not None and not item["closed"]:
-        sentences.append(_verdict_sentence(kept))
+    if not item["closed"]:
+        sentences += [_attempt_sentence(attempt) for attempt in _measured(session)]
+        chooser = _person_chose(session)
+        chosen = _chosen_number(session)
+        if chooser is not None and chosen is not None:
+            sentences.append(f"{chooser} chose attempt {chosen} to accept.")
     actions = item["next_actions"]
     if actions:
         price = (item.get("waiting_for") or {}).get("price") or {}
-        cost = f" The next step costs about ${price['total_usd']}." if "total_usd" in price else ""
+        cost = f" {_price_sentence(price)}" if "total_usd" in price else ""
         sentences.append("What can be done now: " + "; ".join(actions) + "." + cost)
     return " ".join(sentences)
+
+
+def _chosen_number(session: dict[str, Any]) -> int | None:
+    chosen = session.get("best_iteration_id")
+    return next((it["number"] for it in _measured(session) if it["id"] == chosen), None)
 
 
 _RESUMABLE_STAGES = frozenset({"classifying", "drafting", "proposing", "evaluating"})
@@ -374,6 +418,23 @@ def _can_try_again(session: dict[str, Any]) -> bool:
     )
 
 
+def _keep_actions(session: dict[str, Any]) -> list[str]:
+    """The wizard's choice between measured attempts: each one the session does not keep yet."""
+    measured = _measured(session)
+    if (
+        session["status"] not in {"ready", "stopped"}
+        or len(measured) < 2
+        or session.get("can_restart") is False
+    ):
+        return []
+    kept = session.get("best_iteration_id") if session["status"] == "ready" else None
+    return [
+        f"Keep attempt {it['number']}" + ("" if it["verdict"] == "better" else " anyway")
+        for it in measured
+        if it["id"] != kept
+    ]
+
+
 def _next_actions(session: dict[str, Any]) -> list[str]:
     """What the wizard offers on a session right now, in its own words; none on a closed one."""
     status = session["status"]
@@ -388,7 +449,11 @@ def _next_actions(session: dict[str, Any]) -> list[str]:
     if session.get("can_restart") is not False and _resumable(session):
         actions.append("Retry this step" if status == "failed" else "Continue this step")
     if status == "ready":
-        actions.append("Accept the chosen attempt")
+        chosen = _chosen_number(session)
+        actions.append(
+            "Accept the chosen attempt" if chosen is None else f"Accept attempt {chosen}"
+        )
+    actions += _keep_actions(session)
     if _can_try_again(session):
         attempt = _attempts_used(session) + 1
         actions.append(f"Try again (attempt {attempt} of {session['max_iterations']})")
@@ -1093,6 +1158,9 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             {**_session(agent_id, session), **_history(session, live, numbers), "newest": False}
             for session in ordered
         ]
+        items[1:] = [
+            {field: item[field] for field in _EARLIER_FIELDS if field in item} for item in items[1:]
+        ]
         if items:
             newest = items[0]
             newest.update(newest=True, live_version=live)
@@ -1162,16 +1230,16 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         For one agent, `current_published_version` is the version live now; a
         session's `outcome.published_version` is only what it published then. The
         first item is `newest` - the one to describe when asked how improving
-        stands - and carries `live_version` and, while it waits, the next step's
-        `price`. Every session lists its `next_actions`: what the wizard offers
-        on it now, in its words, empty once it is closed; `can_try_again` says
-        whether another attempt may start, at `attempt` of `max_attempts`.
-        Each has its status, the step it is on, the attempt it reached, why it
-        stopped and what it spent, the version it `started_from_version`, and
-        `link` - the Improve wizard, where the person follows it. A `closed`
-        session is a record: its `outcome` says what was decided - the attempt,
-        the version it published, by whom - and nothing on it can be accepted
-        again; a stale one says `why_stale`. Read one with get_improvement.
+        stands - and carries `live_version`, while it waits the next step's
+        `price` (`expected_usd` most likely, `total_usd` at most), and its
+        `next_actions`: what the wizard offers on it now, in its words, empty
+        once it is closed; `can_try_again` says whether another attempt may
+        start, at `attempt` of `max_attempts`. It has its status, the step it is
+        on, why it stopped and what it spent, the version it
+        `started_from_version`, and `link` - the Improve wizard, where the person
+        follows it. Older sessions are records only - status, `outcome`,
+        `why_stale` and `link` - to mention only when the person asks about
+        them. Read one with get_improvement.
         """
         if agent_id is not None:
             return await _agent_sessions(agent_id)
@@ -1196,7 +1264,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             return {"unavailable": _plain(str(refused))}
         return {
             field: quote[field]
-            for field in ("total_usd", "budget_usd", "affordable", "candidate_hash")
+            for field in ("total_usd", "expected_usd", "budget_usd", "affordable", "candidate_hash")
         }
 
     async def get_improvement(session_id: UUID) -> dict[str, Any]:

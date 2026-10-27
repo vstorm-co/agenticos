@@ -164,7 +164,7 @@ def test_a_repeated_question_about_state_gets_a_fresh_call(instructions: str) ->
 def test_the_page_is_read_from_its_path_not_its_title(instructions: str) -> None:
     """Asked "what am I looking at?", it answered with the console's generic page title."""
     section = instructions.split("# Showing where things are", 1)[1]
-    assert "the path in brackets tells you what they are looking at" in section
+    assert "its path tells you what they are looking at" in section
     assert "never repeat it" in section
     assert "`/agents/<agent id>/improve/<session id>` is that Improve session" in section
     assert "`get_improvement` with the session id" in section
@@ -187,5 +187,25 @@ def test_a_reply_starts_from_the_summary_and_keeps_its_warning(instructions: str
     the options in prose."""
     rule = _bullet(instructions, "Start from `summary`")
     assert "keep every fact in it" in rule
-    assert "a warning that the kept attempt makes the agent worse" in rule
+    assert "a warning that an attempt makes the agent worse" in rule
     assert "`ask_user_question`, its options exactly `next_actions`" in rule
+
+
+def test_a_price_is_said_as_likely_and_at_most_never_the_most_as_about(instructions: str) -> None:
+    """It gave the most a step may cost, $0.32, as "about", where the wizard said about $0.05."""
+    rule = _bullet(instructions, "Step by step")
+    assert "`expected_usd` is the likely cost and `total_usd` only the most" in rule
+    assert 'never say "about" of the most' in rule
+
+
+def test_an_attempt_is_chosen_only_when_a_person_chose_it_and_old_sessions_stay_apart(
+    instructions: str,
+) -> None:
+    """It called an attempt "the one kept" before anyone chose, and mixed an ended session's
+    rejected attempt into the newest session's state."""
+    assert "only when the summary says a person chose it" in _bullet(
+        instructions, "Explaining a result"
+    )
+    assert "never mix what an earlier session decided into the newest one's state" in _bullet(
+        instructions, "How improving stands is the newest session"
+    )
