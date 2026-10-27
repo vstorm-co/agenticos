@@ -279,7 +279,7 @@ async def test_a_waiting_session_is_cancelled_and_its_stops_are_told_to_its_pers
         )
     ]
     assert any("has read its examples" in summary for summary in summaries)
-    assert any("has changes to choose from" in summary for summary in summaries)
+    assert any("has changes ready" in summary for summary in summaries)
     cancelled = await ImprovementPipelineService(db).cancel(ctx, agent.id, waiting.id)
     assert cancelled.status == "cancelled"
 
