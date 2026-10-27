@@ -8,7 +8,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, and_, case, exists, func, or_, select, update
+from sqlalchemy import ColumnElement, and_, case, exists, func, or_, select, true, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent import Agent
@@ -698,6 +698,7 @@ async def train_answers(
     agent_id: UUID,
     dataset_ids: Sequence[UUID],
     since: datetime,
+    until: datetime | None = None,
     limit: int = 200,
     dataset_version: int | None = None,
     case_ids: Sequence[UUID] | None = None,
@@ -705,7 +706,7 @@ async def train_answers(
     """Only current, non-erased training revisions; holdout content never enters this result.
 
     `case_ids` are an improvement attempt's own learning questions, in place of the
-    dataset's stored partition.
+    dataset's stored partition. `until` leaves out runs from that moment on.
     """
     from app.db.models.case_score import CaseScore
     from app.db.models.dataset import DatasetCase
@@ -740,6 +741,7 @@ async def train_answers(
             EvalRun.agent_id == agent_id,
             EvalRun.status == "completed",
             EvalRun.created_at >= since,
+            EvalRun.created_at < until if until is not None else true(),
             EvalRunArm.role == "candidate",
             EvalRunCase.attempt == 0,
         )

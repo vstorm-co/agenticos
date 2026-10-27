@@ -158,6 +158,10 @@ async def test_training_preview_preserves_the_run_reader_boundary(db):
         owner, agent.id, window_days=30, dataset_id=dataset.id
     )
     assert len(own) == 1 and own[0].prompt == case.input
+    before_the_check, _ = await EvidenceService(db)._train(
+        owner, agent.id, window_days=30, dataset_id=dataset.id, at=stored.created_at
+    )
+    assert before_the_check == []
     preview = await ImprovementPipelineService(db).evidence(
         curator, agent.id, dataset_id=dataset.id
     )

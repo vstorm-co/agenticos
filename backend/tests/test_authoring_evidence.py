@@ -490,6 +490,36 @@ class TestImprovementEvidenceRefusals:
         assert lookup.await_args.kwargs["organization_id"] == ctx.organization_id
 
 
+class TestASessionsEvidenceAsAnalyzed:
+    async def test_it_reads_the_evidence_as_it_stood_when_the_session_started(
+        self, monkeypatch, mock_db_session
+    ):
+        from datetime import UTC, datetime
+
+        from app.services.dataset import DatasetService
+
+        started = datetime(2026, 10, 27, 16, 0, tzinfo=UTC)
+        session = SimpleNamespace(
+            agent_id=uuid.uuid4(),
+            dataset_id=uuid.uuid4(),
+            dataset_version=1,
+            window_days=30,
+            chat_evidence_run_ids=[],
+            created_at=started,
+        )
+        monkeypatch.setattr(improvement_repo, "get_run", AsyncMock(return_value=session))
+        monkeypatch.setattr(DatasetService, "get", AsyncMock())
+        read = AsyncMock(return_value=EvidencePack(runs=[]))
+        monkeypatch.setattr(EvidenceService, "for_agent", read)
+        ctx = SimpleNamespace(organization_id=uuid.uuid4(), has=lambda _perm: True)
+        service = EvidenceService(mock_db_session)
+
+        await service.for_improvement(ctx, uuid.uuid4(), as_analyzed=True)
+        assert read.await_args.kwargs["at"] == started
+        await service.for_improvement(ctx, uuid.uuid4())
+        assert read.await_args.kwargs["at"] is None
+
+
 class TestProposalSourceIdentities:
     async def _ids(self, monkeypatch, mock_db_session, *, request_id, request):
         monkeypatch.setattr(authoring_repo, "get_request", AsyncMock(return_value=request))

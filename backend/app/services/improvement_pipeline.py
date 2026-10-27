@@ -670,7 +670,7 @@ class ImprovementPipelineService:
             raise AuthorizationError(message="Reading improvement evidence needs runs:view")
         if run_id is not None:
             await self._row(ctx, agent_id, run_id)
-            pack = await self.authoring.evidence.for_improvement(ctx, run_id)
+            pack = await self.authoring.evidence.for_improvement(ctx, run_id, as_analyzed=True)
         else:
             if dataset_id is not None:
                 await DatasetService(self.db).get(ctx, dataset_id, perm=Perm.DATASETS_RUN)

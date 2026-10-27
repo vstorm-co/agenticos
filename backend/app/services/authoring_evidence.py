@@ -279,18 +279,21 @@ class EvidenceService:
         dataset_version: int | None = None,
         chat_run_ids: Sequence[UUID] | None = None,
         train_case_ids: Sequence[UUID] | None = None,
+        at: datetime | None = None,
     ) -> EvidencePack:
         """The agent's runs worth reading, less those that gave `excluded_message_ids`.
 
         An improvement session excludes the answers it found missing knowledge:
-        no change to the agent supplies what no source holds.
+        no change to the agent supplies what no source holds. `at` reads the
+        evidence as it stood then: its window ends there, and test answers
+        given since are left out.
         """
         rows = await authoring_repo.evidence_runs(
             self.db,
             organization_id=ctx.organization_id,
             agent_id=agent_id,
             excluded_message_ids=excluded_message_ids,
-            since=self._since(window_days),
+            since=self._since(window_days, at),
             limit=MAX_EVIDENCE_RUNS,
             only_run_ids=chat_run_ids,
         )
@@ -302,6 +305,7 @@ class EvidenceService:
             dataset_id=dataset_id,
             dataset_version=dataset_version,
             case_ids=train_case_ids,
+            at=at,
         )
         # Training failures and review notes precede chat examples, within one bound.
         used = {run.run_id for run in train}
@@ -319,9 +323,14 @@ class EvidenceService:
         *,
         excluded_message_ids: Sequence[UUID] = (),
         train_case_ids: Sequence[UUID] | None = None,
+        as_analyzed: bool = False,
     ) -> EvidencePack:
         """A session's frozen evidence, its training answers read from `train_case_ids` - an
-        attempt's own learning questions - when given."""
+        attempt's own learning questions - when given.
+
+        `as_analyzed` reads it as it stood when the session started, as its analysis
+        did, leaving out the answers its own checks gave since.
+        """
         from app.core.exceptions import AuthorizationError, NotFoundError
         from app.repositories import improvement_repo
         from app.services.dataset import DatasetService
@@ -346,6 +355,7 @@ class EvidenceService:
             dataset_version=session.dataset_version,
             chat_run_ids=session.chat_evidence_run_ids or [],
             train_case_ids=train_case_ids,
+            at=session.created_at if as_analyzed else None,
         )
 
     async def _train(
@@ -357,11 +367,12 @@ class EvidenceService:
         dataset_id: UUID | None = None,
         dataset_version: int | None = None,
         case_ids: Sequence[UUID] | None = None,
+        at: datetime | None = None,
     ) -> tuple[list[PackedRun], str]:
         from app.repositories import eval_run_repo
         from app.services.eval_run import EvalRunService
 
-        since = self._since(window_days)
+        since = self._since(window_days, at)
         candidates = await authoring_repo.evaluated_datasets(
             self.db, organization_id=ctx.organization_id, agent_id=agent_id, since=since
         )
@@ -383,6 +394,7 @@ class EvidenceService:
             dataset_ids=sorted(allowed),
             dataset_version=dataset_version,
             since=since,
+            until=at,
             case_ids=case_ids,
         )
         packed: list[PackedRun] = []
@@ -546,8 +558,8 @@ class EvidenceService:
         return await self._pack(rows)
 
     @staticmethod
-    def _since(window_days: int) -> datetime:
-        return datetime.now(UTC) - timedelta(days=window_days)
+    def _since(window_days: int, at: datetime | None = None) -> datetime:
+        return (at or datetime.now(UTC)) - timedelta(days=window_days)
 
     async def forget_erased(self, pack: EvidencePack) -> EvidencePack:
         """The pack without the runs of anybody being erased, or erased since it was read.
