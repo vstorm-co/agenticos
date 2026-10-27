@@ -56,16 +56,23 @@ Atlassian works alongside a streamable-HTTP one with nothing to configure.
     An operator can let a connection reach a server on the deployment's own
     network, such as a compose service or a server on a VPN or tailnet. To do
     this, list its host in
-    [`MCP_ALLOWED_HOSTS`](configuration.md#project-settings). A listed host
-    skips only the address check. The URL still needs `http` or `https`.
+    [`OUTBOUND_PRIVATE_ALLOWLIST`](configuration.md#project-settings): an exact
+    host, a suffix with a leading dot such as `.corp.example` (which does not
+    match `corp.example` itself), an IP address or a CIDR range such as
+    `10.1.2.0/24`. The setting also covers workflow HTTP steps, connectors and A2A.
+    `MCP_ALLOWED_HOSTS` takes the same forms but reaches MCP only, so use it
+    when nothing else may reach the host. A listed host may resolve to a private
+    address, but loopback, link-local and metadata answers are refused, and a
+    listed name that does not resolve yet can still be saved. The URL still needs
+    `http` or `https`.
 
     People can sign in to a listed server with OAuth too. Such a server often
     runs its own sign-in, so its discovery, client registration and token
     requests may reach the listed hosts, and no other private address. Each
     request is still pinned to the address it was checked at, and a listed name
-    that answers a loopback, link-local or cloud metadata address is refused. A
-    public server's sign-in never reaches a listed host, even when its metadata
-    names one.
+    that answers a loopback, link-local or cloud metadata address is refused. The
+    list applies only to a chain that starts at a listed host: a public server's
+    sign-in never reaches a listed host, even when its metadata names one.
 
     Every account on the deployment can then reach every port on that host. So
     list only a server that checks a token, and never `localhost` or a service
@@ -73,6 +80,11 @@ Atlassian works alongside a streamable-HTTP one with nothing to configure.
     connection is saved and at every sign-in and token refresh. Removing a host
     does not disconnect a saved connection, but an OAuth connection to it stops
     renewing its token.
+
+    A server that speaks only stdio cannot be connected, because a connection
+    is a URL. Run a stdio-to-Streamable-HTTP bridge on the private network,
+    list the bridge's host, and connect to that. The bridge must check a token
+    itself, as every account can reach it.
 
 ### Personal or organization-wide
 
@@ -382,10 +394,12 @@ Two edges remain, both narrow and both deliberate:
 - The **consent URL** is checked and then handed to somebody's browser, which
   resolves it itself. There is no pinning to do.
 - The **connection's own URL** is checked at save and resolved again when an agent
-  runs — operator-typed, so rebinding it means being the operator. A host on
-  `MCP_ALLOWED_HOSTS` skips the address check, and the OAuth requests of a
-  connection whose own host is listed may reach the listed hosts, pinned like
-  every other hop.
+  runs — operator-typed, so rebinding it means being the operator. A listed
+  host (`OUTBOUND_PRIVATE_ALLOWLIST` or `MCP_ALLOWED_HOSTS`) is resolved too and
+  every answer is checked: a private answer passes only for a host the list admits,
+  a loopback or metadata answer never does, and a host listed by name that does not
+  resolve yet can still be saved. The OAuth requests of a connection whose own host
+  is listed may reach the listed hosts, pinned like every other hop.
 
 Nothing a *model* chooses reaches this check at all, and nothing should: a URL an
 agent picked wants Pydantic AI's `safe_download`.
@@ -792,8 +806,8 @@ per-account endpoint.
 |---|---|---|
 | Slack | oauth | `https://mcp.slack.com/mcp` |
 | Microsoft Work IQ | oauth | `https://workiq.svc.cloud.microsoft/mcp` |
-| Outlook Mail (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_MailTools` |
-| Microsoft Teams (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_TeamsServer` |
+| Google Workspace (self-hosted) | oauth | self-hosted |
+| Microsoft 365 (self-hosted) | oauth | self-hosted |
 | Zoom | oauth | self-hosted |
 | Intercom | oauth | `https://mcp.intercom.com/sse` |
 | Notion | oauth | `https://mcp.notion.com/mcp` |
@@ -873,10 +887,6 @@ per-account endpoint.
 | Composio | token | self-hosted |
 | Activepieces | token | `https://mcp.activepieces.com/mcp` |
 | Cal.com | token | `https://mcp.cal.com/mcp` |
-| Outlook Calendar (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_CalendarTools` |
-| Word (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_WordServer` |
-| SharePoint (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_SharePointRemoteServer` |
-| OneDrive (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_OneDriveRemoteServer` |
 
 ### Anything else
 
@@ -902,17 +912,45 @@ To add an entry to the list, see
 
 ### Microsoft 365 and Outlook
 
-Microsoft publishes its own MCP servers for Microsoft 365, and the catalog lists
-them: **Work IQ** - one endpoint onto mail, meetings, chats and files - and the
-per-application Mail, Calendar, Teams, SharePoint, OneDrive and Word servers.
-Each needs a Microsoft 365 Copilot licence and an app registered in Microsoft
-Entra: add the server's Work IQ permission (for mail, `WorkIQ-MailServer`) and
-this console's redirect URL, which the connect dialog shows, then enter the app's
-client ID when you connect.
+Two catalog entries reach Microsoft 365, and they do different jobs.
 
-Entra registers no client on the spot, so the client
-ID is not optional. Microsoft marks the per-application servers as kept for
-compatibility and points new work at Work IQ.
+**Microsoft 365 (self-hosted)** is
+[`softeria/ms-365-mcp-server`](https://github.com/softeria/ms-365-mcp-server), a
+server you run with `--http` and an app registered in Microsoft Entra. It searches
+and reads Outlook mail, creates reply drafts in a thread, sends them, and manages
+calendar events. Add `--org-mode` to reach shared mailboxes and Teams. Enter its
+address, ending in `/mcp`; each connection signs in as one Microsoft account. A
+host on your own network needs `OUTBOUND_PRIVATE_ALLOWLIST` or `MCP_ALLOWED_HOSTS`,
+as above. This is the entry a workflow uses to answer mail: see
+[answer mail with an approved draft](howto/answer-mail-with-approved-draft.md).
+
+**Microsoft Work IQ** is Microsoft's own hosted server, for asking across mail,
+meetings, chats and files in one call. It differs in what it allows:
+
+- It blocks changes - create, update, send - until a tenant administrator allows
+  them by policy.
+- It is billed in Copilot Credits and answers 25 results by default.
+- It signs people in with Microsoft Entra only, as the person who connects: register
+  an app with the Work IQ permission and this
+  console's redirect URL, which the connect dialog shows, then enter its client
+  ID when you connect. Entra registers no client on the spot, so the client ID is
+  not optional.
+
+The per-application Work IQ servers - Mail, Calendar, Teams, SharePoint, OneDrive
+and Word - are no longer in the catalog, because Microsoft keeps them only for
+compatibility. A connection already made to one keeps working, by its address. An
+agent that binds one as each person's own service is refused at its next publish:
+bind **Microsoft 365 (self-hosted)** or **Microsoft Work IQ** instead.
+
+### Gmail and Google Workspace
+
+**Google Workspace (self-hosted)** is
+[`taylorwilsdon/google_workspace_mcp`](https://github.com/taylorwilsdon/google_workspace_mcp),
+run with `--transport streamable-http` and `MCP_ENABLE_OAUTH21=true`, using your own
+Google OAuth client. It searches and reads Gmail, drafts and sends mail in a
+thread, and works with Calendar, Drive and Sheets. Enter its address, ending in
+`/mcp`; each connection signs in as one Google account. [Answer mail with an approved draft](howto/answer-mail-with-approved-draft.md)
+shows it answering mail from a workflow.
 
 Outlook is also available through third-party MCP services. The bundled registry
 includes MintMCP entries for email and calendar:

@@ -2796,6 +2796,17 @@
       "stepApprovalsCounted": "{count, plural, one {# czeka} few {# czekają} many {# czeka} other {# czeka}}",
       "stepApprovalExpires": "wygasa {at}",
       "stepApprovalNamed": "{count, plural, one {# wskazany zatwierdzający} few {# wskazanych zatwierdzających} many {# wskazanych zatwierdzających} other {# wskazanych zatwierdzających}}",
+      "stepApprovalProposal": "Propozycja",
+      "stepApprovalRestore": "Przywróć oryginał",
+      "stepApprovalShowChanges": "Pokaż zmiany",
+      "stepApprovalHideChanges": "Ukryj zmiany",
+      "stepApprovalNoChanges": "Na razie brak zmian",
+      "stepApprovalUnchangedLines": "{count, plural, one {# niezmieniony wiersz} few {# niezmienione wiersze} many {# niezmienionych wierszy} other {# niezmienionego wiersza}}",
+      "stepApprovalDiffTooLong": "Zbyt długie, by porównać wiersz po wierszu.",
+      "stepApprovalEmpty": "Napisz propozycję, zanim ją zatwierdzisz.",
+      "stepApprovalLength": "{count, number} z {max, number} znaków",
+      "stepApprovalNotYours": "Decydować mogą tylko osoby wskazane w tym kroku.",
+      "stepApprovalEdited": "Zmieniono",
       "aParkedRunIsStill": "Wstrzymany run nadal czeka. Nic nie zostało rozstrzygnięte i nic nie wygasło.",
       "activity": "Aktywność",
       "activity2": "Aktywność",
@@ -3260,6 +3271,7 @@
         "channel_message": "Wiadomość na kanale",
         "github": "GitHub",
         "gmail": "Gmail",
+        "outlook": "Outlook",
         "app": "Strona"
       },
       "runsCount": "{count, plural, one {# uruchomienie} few {# uruchomienia} many {# uruchomień} other {# uruchomienia}}",
@@ -3410,6 +3422,10 @@
         "gmail": {
           "name": "Gmail",
           "description": "Nowy e-mail w podłączonej skrzynce organizacji uruchamia run."
+        },
+        "outlook": {
+          "name": "Outlook",
+          "description": "Nowy e-mail w folderze podłączonej skrzynki Microsoft 365 organizacji uruchamia run."
         }
       },
       "startRunOptional": "opcjonalne",
@@ -3562,6 +3578,7 @@
       "githubRegistered": "Zarejestrowany w {repository} przez konto GitHub organizacji i rejestrowany ponownie przy każdej publikacji.",
       "githubPasteIt": "Wklej ten adres w ustawieniach repozytorium, w Settings > Webhooks, z typem treści application/json i sekretem pokazanym przy publikacji. New secret pokaże nowy.",
       "triggerGmailLive": "Skrzynka Gmail organizacji jest czytana co minutę, a każda nowa wiadomość pasująca do wyzwalacza uruchamia run jako członek, który go opublikował. Wiadomość uruchamia run raz, niezależnie od tego, ile razy zostanie przeczytana.",
+      "triggerOutlookLive": "Skrzynka Microsoft 365 organizacji jest czytana co minutę, folder po folderze, a każda nowa wiadomość w folderze kroku, pasująca do wyzwalacza, uruchamia run jako członek, który go opublikował. Wiadomość uruchamia run raz, niezależnie od tego, ile razy zostanie przeczytana.",
       "settingsLimits": "Limity",
       "settingsLimitsHint": "Ile jego runów może działać naraz i ile mogą wydać. Każdy krok zachowuje własne limity - w tym pułap kosztu kroku agenta - a te obowiązują ponad nimi.",
       "settingsConcurrent": "Runy działające naraz",
@@ -3592,7 +3609,21 @@
         "stepFailed": "Błędy",
         "stepTime": "Średni czas",
         "stepCost": "Koszt",
-        "stepGone": "Krok, którego nie ma już w workflow"
+        "stepGone": "Krok, którego nie ma już w workflow",
+        "approvalsHeading": "Zatwierdzenia",
+        "approvalsHint": "Jak ludzie rozstrzygali to, o co pytały kroki zatwierdzania tego workflow, w tym samym okresie.",
+        "approvalsUnchanged": "Zatwierdzone bez zmian",
+        "approvalsUnchangedCaption": "Zatwierdzono {approved, number} z {decided, number}",
+        "approvalsEdited": "Zmienione przed zatwierdzeniem",
+        "approvalsEditedCaption": "Mediana zmiany {ratio}",
+        "approvalsNotMeasured": "Zmiany nie zmierzono",
+        "approvalsRejected": "Odrzucone",
+        "approvalsExpired": "Wygasłe",
+        "approvalsExpiredCaption": "{count, plural, one {# wygasła} few {# wygasły} many {# wygasło} other {# wygasło}}",
+        "approvalsDecideTime": "Czas do decyzji",
+        "approvalsDecideCaption": "95% w ciągu {p95}",
+        "approvalsRequests": "Prośby",
+        "approvalsMedianEdit": "Mediana zmiany"
       }
     }
   },
@@ -4328,6 +4359,21 @@
         "cost": "Koszt",
         "row": "{runs, plural, one {# run} few {# runy} many {# runów} other {# runu}}",
         "rowFailed": "{runs, plural, one {# run} few {# runy} many {# runów} other {# runu}}, nieudane: {failed, number}"
+      },
+      "approval-outcomes": {
+        "title": "Wyniki zatwierdzeń",
+        "description": "Jak ludzie rozstrzygali w tym okresie to, o co pytały ich Twoje workflow: zatwierdzone bez zmian, zmienione, odrzucone i ile to trwało.",
+        "empty": {
+          "title": "Brak próśb o zatwierdzenie w tym okresie",
+          "description": "Gdy ktoś zostanie o coś zapytany w kroku zatwierdzania, workflow pojawi się tutaj."
+        },
+        "unchanged": "Zatwierdzone bez zmian",
+        "edited": "Zmienione",
+        "editedCaption": "Mediana zmiany {ratio}",
+        "decideTime": "Czas do decyzji",
+        "notMeasured": "Zmiany nie zmierzono",
+        "rowRequests": "{requests, plural, one {# prośba} few {# prośby} many {# próśb} other {# prośby}}",
+        "row": "{requests, plural, one {# prośba} few {# prośby} many {# próśb} other {# prośby}}, {rate} zatwierdzonych bez zmian"
       },
       "suggestions": {
         "title": "Briefing",
@@ -6905,6 +6951,7 @@
     "description": "Opis",
     "descriptionModelReads": "Opis, który czyta model",
     "devStagingClientS": "dev, staging, nazwa klienta…",
+    "diffTooLong": "Zbyt długie, by porównać wiersz po wierszu.",
     "disabled": "wyłączone",
     "documentCount": "{count, plural, =1 {1 dokument} few {# dokumenty} many {# dokumentów} other {# dokumentu}}",
     "draft": "Wersja robocza",
@@ -9077,6 +9124,11 @@
         "ready": "Skrzynka organizacji jest podłączona i czytana co minutę.",
         "connect": "Żadna skrzynka nie jest jeszcze podłączona. Publikacja na nią poczeka.",
         "reauthorize": "Skrzynkę trzeba podłączyć ponownie, zanim da się ją czytać."
+      },
+      "microsoft": {
+        "ready": "Skrzynka Microsoft 365 organizacji jest podłączona i czytana co minutę.",
+        "connect": "Nie podłączono jeszcze skrzynki Microsoft 365. Publikowanie na nią czeka.",
+        "reauthorize": "Skrzynkę trzeba podłączyć ponownie, zanim będzie można ją czytać."
       },
       "github": {
         "ready": "Podłączone z uprawnieniem do zarządzania webhookami: publikacja zarejestruje hook za Ciebie.",

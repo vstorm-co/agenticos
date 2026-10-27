@@ -52,6 +52,7 @@ import { SuggestionsWidget } from "./suggestions";
 import { KnowledgeWidget } from "./knowledge";
 import { TablesWidget } from "./tables-widget";
 import { WorkflowsWidget } from "./workflows-widget";
+import { ApprovalOutcomesWidget } from "./approval-outcomes";
 import { SummaryWidget } from "./summary";
 import { SurfacesWidget } from "./surfaces";
 import { TopOrgsWidget } from "./top-orgs";
@@ -67,6 +68,7 @@ export const WIDGET_COMPONENTS: Record<WidgetId, ComponentType<DashboardWidgetPr
   knowledge: KnowledgeWidget,
   tables: TablesWidget,
   workflows: WorkflowsWidget,
+  "approval-outcomes": ApprovalOutcomesWidget,
   platform: PlatformWidget,
   health: HealthWidget,
   "background-jobs": BackgroundJobsWidget,

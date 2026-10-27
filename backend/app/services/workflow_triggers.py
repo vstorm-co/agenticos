@@ -44,6 +44,7 @@ from app.workflows.triggers import (
     FORM,
     GITHUB,
     GMAIL,
+    OUTLOOK,
     SCHEDULE,
     TABLE_RECORD,
     UNATTENDED,
@@ -85,7 +86,7 @@ class WorkflowTriggerSync:
             BadRequestError: A new-record trigger's filter no longer fits its table.
             AlreadyExistsError: Another workflow already starts from the channel
                 trigger's bot.
-            BadRequestError: A Gmail trigger, and no mailbox connected.
+            BadRequestError: A Gmail or Outlook trigger, and no mailbox connected.
         """
         trigger = live_trigger(graph)
         if trigger in UNATTENDED:
@@ -114,6 +115,8 @@ class WorkflowTriggerSync:
             )
         elif trigger == GMAIL:
             exposure = await self.exposures.switch_on_gmail(ctx, workflow, version, node.id)
+        elif trigger == OUTLOOK:
+            exposure = await self.exposures.switch_on_outlook(ctx, workflow, version, node.id)
         elif trigger == FORM:
             exposure = await self.exposures.switch_on_form(ctx, workflow, version, node.id)
         elif trigger == CHANNEL_MESSAGE:

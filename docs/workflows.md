@@ -14,7 +14,7 @@ no walkthrough.
 ## Creating and duplicating a workflow { #creating-and-duplicating-a-workflow }
 
 **New workflow** opens a dialog that starts you from a trigger or a template.
-**How does it start?** offers each trigger - **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Gmail**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** and **On failure of a workflow** - each an otherwise
+**How does it start?** offers each trigger - **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Gmail**, **Outlook**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** and **On failure of a workflow** - each an otherwise
 empty canvas that begins with it. The templates are ready-made starting points — **Starter**, a single step to rename
 and wire up, and **Two-step sequence**, two steps already connected for a linear
 flow. Pick one with **Use** and you land in the editor.
@@ -197,7 +197,9 @@ Drag the right edge, the bottom edge or the bottom-right corner of a selected st
 resize it. A card is 200 to 560 px wide and up to 400 px tall, and never shorter than its
 own content needs. More width fits more of the name and the summary; more height lets the
 name wrap onto up to three lines and then the summary onto two, and the ports stay at the
-bottom of the card. The size is saved with the draft, so undo, copy, paste, duplicate,
+bottom of the card.
+
+The size is saved with the draft, so undo, copy, paste, duplicate,
 published versions and export keep it. **Reset size** in the step's right-click menu puts
 it back to the default, and **Tidy up** spaces the steps around the sizes they have. A
 published version, a run and a comparison show the saved size without handles.
@@ -563,8 +565,10 @@ an agent step's cost ceiling among them:
 
 - **Runs under way at once** - a real run started past it is refused with `429`
   until one ends. A webhook's or GitHub's sender is told to retry, a schedule waits
-  for its next tick, a mailbox is read again, and a table event or a form answer
-  past it is refused. Test runs are neither counted nor held back.
+  for its next tick, and a table event or a form answer past it is refused. A mailbox
+  is read again a minute later, so the message waits for the run to end - unless the
+  runs holding the limit are waiting for an approval: the message is then skipped for
+  this workflow and the audit log records it (`workflow.mail_message_skipped`). Test runs are neither counted nor held back.
 - **Most one run may spend** - the run's own budget, the tighter of it and the
   version's: a run that reaches it stops before its next step, out of budget.
 - **Most its runs may spend a month** - counted over the calendar month in UTC,
@@ -609,6 +613,37 @@ monthly budget, in red once it is spent. **By step** lists where the time, the c
 and the failures came from, costliest first. Over the API it is
 `GET /api/v1/workflows/{id}/stats?days=30`.
 
+When the workflow asked a person for approval in that period, **Approvals** sums up how
+they decided: **Approved as proposed**, **Edited before approval** with the median share
+of the text the edits changed, **Rejected**, how many requests **expired**, and the
+**time to decide**, typical and 95 in 100. A table lists the same figures for each
+approval step.
+
+The window is the same days, counted by when the person was asked, and test runs are
+left out. The share approved and the share approved as proposed (`acceptance_rate` and
+`unchanged_rate` over the API; the card shows the second) are out of the requests that
+were decided, an approval or a rejection: a request that expired or was cancelled with
+its run was never decided, so it is counted but not part of them. A step that cannot be
+edited counts as approved as proposed. The figures state what happened and do not judge
+it.
+
+Figures are per step and per day, not per kind of message. To compare categories, route
+each one to its own approval step.
+
+How much an edit changed is measured once, when the person decides, by the same scorer
+as [`text.compare`](reference/workflow-nodes.md#text-compare), by character: `0` when
+they approved the proposal unchanged on a step that can be edited, up to `1` when
+nothing of it is left. A step that cannot be edited, a rejection and an expiry have no
+such figure. An edit decided before approvals were measured has none either and is left
+out of the median rather than counted as no change; when no edit in the period was
+measured, the card reads **Change not measured**.
+
+The same figures arrive over the API in the stats' `approvals` block. Across every
+workflow you can see, over the dates you choose, `GET
+/api/v1/workflow-approvals/stats?from=2026-10-01&to=2026-10-31` gives the totals and the
+five workflows with the most requests, and the dashboard's [**Approval
+outcomes**](console.md#the-dashboard) card shows them.
+
 The dashboard's **Workflows** card adds the same up across every workflow you can
 see, over the period the dashboard is set to: runs, failures, cost and the five
 busiest. Above them it counts the runs waiting for a person now - an approval or a
@@ -624,6 +659,15 @@ The run's answer - its text, its structured result, the passages it drew on and 
 many files it made, with the JSON itself under **Raw output** - and every step it
 took, iteration by iteration, sit alongside. A run still going
 refreshes itself every couple of seconds, and **Cancel run** stops it, and withdraws the timers its waiting steps had queued. Its **Files** list what its steps stored - a download, a rendered page, a script's output - each one downloadable.
+
+A run waiting on an [**Ask for approval**](reference/workflow-nodes.md#human-approval)
+step shows in the **Approvals** tab of Activity. When the step is set to **Let the
+approver edit** and has a proposal bound, such as a drafted reply, the approver
+changes it in an editor there, with **Restore original** and **Show changes**, and
+approves their version. The step then hands on `final`, `original` and `edited`, so
+a later step sends what the person approved. A decider the step does not name sees
+the proposal read-only, and a request decided with a changed version
+shows an **Edited** badge under **Decided**.
 
 
 In the list a test run's version reads **Draft (test)** and a real one's
@@ -646,7 +690,7 @@ test run starts from where that run was. Over the API, `POST
 ## Starting a workflow from outside the console { #starting-a-workflow-from-outside-the-console }
 
 A workflow starts from one **trigger**, the first node on its canvas. The
-**Triggers** group at the top of the step picker holds them all: **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Gmail**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** and **On failure of a workflow**. Adding one to a
+**Triggers** group at the top of the step picker holds them all: **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Gmail**, **Outlook**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** and **On failure of a workflow**. Adding one to a
 workflow that already has a trigger replaces it in place, and the wires and
 bindings that leave the old one leave the new one. **New workflow** starts a
 workflow from the trigger you pick there.
@@ -807,9 +851,51 @@ with DKIM - so a `From` anyone can type does not start a run. Messages labelled
 **Label** names one of those.
 
 The run gets the `sender`, `to`, `subject`, `text`, `snippet`, `labels` and the
-mailbox's `message_id`. A message read twice starts its run once, and one the
-organization had no room to run yet is read again a minute later. See
-[trigger.gmail](reference/workflow-nodes.md#trigger-gmail).
+mailbox's `message_id`, and the thread the message belongs to: `thread_id`, the
+`rfc_message_id` (the `Message-ID` header), `in_reply_to`, `references`,
+`received_at` and the `html` body. The sender writes the three header fields, so a
+reply can be threaded with them but they prove nothing about who sent it. A message
+read twice starts its run once, and one the organization had no room to run yet is
+read again a minute later. See
+[trigger.gmail](reference/workflow-nodes.md#trigger-gmail). To read the `html` body
+as text, links or what a CSS selector picks, bind it to
+[`html.parse`](reference/workflow-nodes.md#html-parse).
+
+An **Outlook** trigger does the same for the organization's Microsoft 365 mailbox,
+connected through the **Outlook** portal. Microsoft Graph is read one folder at a
+time, so the step names the **Folder** it watches - the inbox unless it says
+otherwise - and, to read a shared mailbox the connected account can open, a
+**Shared mailbox**. The filters are **Subject contains**, **Sender contains**,
+**Has attachments**, **Importance** and **Category**. The first time a folder is
+read it starts from the moment the workflow was published or last switched on, so
+mail already there starts nothing.
+
+Naming a shared mailbox the organization's Microsoft grant can open takes the permission
+to manage connections, as it does for Outlook agent triggers; a workflow already
+listening to one keeps it through later publishes, and changing it needs the permission again. If Outlook says the folder can no longer be read, the workflow is
+switched off and the audit log says why.
+
+The run gets the same fields as a Gmail
+run, with `labels` holding the message's categories and `mailbox` the shared
+mailbox it came from. See
+[trigger.outlook](reference/workflow-nodes.md#trigger-outlook).
+
+Both mail triggers take outside input: anyone can send the mailbox a message, so
+bind what the run does with it as you would for a webhook.
+
+A message's `attachments` list each file's name, declared type and size; a mailbox
+lists at most 20 per message, and a `text` or `html` body is read up to 20,000
+characters. A run the mailbox started stores them as files of the run, and each one
+carries its `file` and `stored: true`. Of the attachments listed, only the first 10
+are considered, up to 25 MiB together, and each must fit the chat-upload size limit
+and file-type allowlist and the organization's storage quota.
+
+One that is left out carries a `reason`: `too_many` (past the first 10),
+`too_large`, `type_not_allowed`, `quota` or `unreadable` - the mailbox answered 400,
+401, 403 or 404 for it, or its grant is missing, switched off or cannot be renewed.
+A test run reads nothing from the mailbox, so its attachments are `not_fetched`.
+When the mailbox fails in a way a retry may cure, the step fails with
+`MAIL_ATTACHMENT_UNREACHABLE` and is retried.
 
 ### From a channel message { #from-a-channel-message }
 

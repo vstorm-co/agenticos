@@ -391,6 +391,22 @@ exercises a path nothing else here checks.
     **HSTS is deliberately left to the proxy**, which is where TLS terminates. A
     proxy that sets its own CSP should be at least as strict as this one.
 
+### Services on your own network
+
+A request a member configures - a workflow HTTP step, a Git, website or S3 source,
+an A2A agent or an MCP connection - is refused when its host resolves to a
+private address, so a wiki, a Git server or an MCP server inside your network is
+out of reach by default. To open one, list it in `OUTBOUND_PRIVATE_ALLOWLIST` in
+`backend/.env`, as a host, a `.suffix`, an address or a CIDR range, and restart
+the API and the worker. See the setting's row in
+[the configuration reference](configuration.md#project-settings) for the forms,
+what is refused whatever you list and what every account can then reach. List
+only services that check their own credential.
+
+`agenticos cmd doctor` reports the list as its `private network` line. It fails
+when a listed range covers the database or Redis, and warns about a range wider
+than /16 (IPv4) or /48 (IPv6).
+
 ### Turning the sandbox on
 
 The service that runs an agent's code is behind a compose profile, because it is

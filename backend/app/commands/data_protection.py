@@ -38,6 +38,7 @@ from tabulate import tabulate
 from app.commands import command, info, success, warning
 from app.commands.vault_rotate import SEALED_TABLES
 from app.core.config import settings
+from app.core.sanitize import deployment_allowlist
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_embed import AgentEmbed
 from app.db.models.agent_environment import AgentEnvironment
@@ -251,6 +252,7 @@ def _settings_section() -> Section:
             ", ".join(settings.BROWSER_CDP_ALLOWED_HOSTS) or "none",
         ],
         ["MCP_ALLOWED_HOSTS", ", ".join(settings.MCP_ALLOWED_HOSTS) or "none"],
+        ["OUTBOUND_PRIVATE_ALLOWLIST", ", ".join(deployment_allowlist().entries) or "none"],
         ["GOOGLE_CLIENT_ID", "set" if settings.GOOGLE_CLIENT_ID else "unset"],
     ]
     return Section(

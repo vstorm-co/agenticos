@@ -1,5 +1,5 @@
 ---
-source_sha: "3530a3aa9612"
+source_sha: "173a9224092a"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -254,6 +254,10 @@ conviene saber sobre cómo lee:
 - **Una semana perdida se repara sola.** Google guarda alrededor de una semana de
   historial. Un cursor más antiguo que eso se resincroniza con el ahora en vez de
   dejar el buzón aparcado para siempre.
+- **El prompt nombra el mensaje y su hilo.** Junto al remitente, el asunto y el
+  texto, el agente recibe una línea `Message-ID:` y una línea `Thread:`, cada una solo
+  si el correo traía una. Un valor de más de 998 caracteres se omite, nunca se corta,
+  y el cuerpo HTML, las referencias y los adjuntos no están en el prompt.
 - **Un consentimiento retirado detiene los triggers.** Cuando Google rechaza el
   grant para siempre - el refresh token se revocó o la cuenta quitó la
   aplicación -, los triggers del buzón se apagan, la tarjeta pide volver a
@@ -312,8 +316,11 @@ En qué se diferencia de Gmail:
   como leído con la misma facilidad que de uno que acaba de llegar; solo dispara el
   correo recibido desde la última lectura de la carpeta.
 - **El run lee texto.** El cuerpo llega como texto plano - Exchange convierte él
-  mismo un mensaje HTML - con los nombres, tipos y tamaños de los adjuntos. Los
-  adjuntos en sí no se descargan.
+  mismo un mensaje HTML - y el prompt nombra los adjuntos en una línea `Attachments:`,
+  solo los nombres. Solo se listan los adjuntos de archivo: un correo adjunto o un
+  enlace a la nube no. Los archivos en sí no se descargan. Como en Gmail, el prompt
+  también lleva una línea `Message-ID:` y una `Thread:`, cada una solo si el mensaje
+  traía una.
 - **Una carpeta que no se puede leer detiene sus triggers.** Una carpeta borrada y
   creada de nuevo en la misma ruta se vuelve a buscar y se sigue leyendo. Una que
   ya no existe, o un buzón compartido que dejó de estarlo, apaga los triggers que
@@ -325,6 +332,9 @@ En qué se diferencia de Gmail:
   fijo y responde a uno descartado con `syncStateNotFound`; la carpeta se vuelve a
   leer desde justo antes de su última lectura, así que nada se dispara dos veces y
   nada se pierde.
+- **Una ráfaga se pone en cola.** Un tic lee como mucho 25 mensajes completos, el más
+  antiguo primero. El resto se queda en el cursor y se lee en tics posteriores, así que
+  una carpeta movida en bloque o la acumulación tras una caída no pierde nada.
 
 Los ids de entrega son los ids de mensaje inmutables de Outlook, así que un
 mensaje leído dos veces - un tick repetido, un sondeo lento que se solapa con el

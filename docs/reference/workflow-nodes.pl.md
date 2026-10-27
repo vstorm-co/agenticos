@@ -1,5 +1,5 @@
 ---
-source_sha: "1887baea5a17"
+source_sha: "d4b30e7a0a40"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -140,9 +140,57 @@ wiadomość musi też przejść sprawdzenie uwierzytelnienia nadawcy (DMARC albo
 DKIM domeny nadawcy). Wiadomości z etykietą `SENT`, `DRAFT`, `SPAM` lub `TRASH` są
 pomijane, chyba że **Label** je wskazuje.
 
+Wyjście niesie wątek - `thread_id`, `rfc_message_id`, `in_reply_to`, `references`,
+`received_at` - oraz treść `html`, czytaną do 20 000 znaków. Pola nagłówkowe pisze
+nadawca, więc wiążą odpowiedź z wątkiem, ale nic nie dowodzą o tym, kto wysłał
+wiadomość.
+
+Run uruchomiony przez skrzynkę zapisuje załączniki wiadomości jako pliki runa, ale tylko
+gdy workflow je czyta: graf, który nie wiąże ani `attachments` triggera, ani całego jego
+wyjścia, zostawia każdy załącznik jako `not_fetched`. Każdy zapisany plik wlicza się do
+limitu plików organizacji, a do triggera bez **Sender contains** może napisać każdy, więc
+wiąż `attachments` tylko wtedy, gdy krok potrzebuje plików.
+
+Skrzynka podaje najwyżej 20 na wiadomość, a brane jest pod uwagę tylko pierwsze 10 z
+wymienionych, do 25 MiB łącznie, każdy w limicie rozmiaru uploadu czatu, na liście
+dozwolonych typów plików i w limicie miejsca organizacji. Pominięty załącznik
+zostaje w `attachments` z polem `reason`: `too_many`, `too_large`,
+`type_not_allowed`, `quota`, `unreadable` lub `not_fetched`. Run, którego skrzynka
+nie uruchomiła - testowy - niczego nie czyta, więc każdy załącznik jest
+`not_fetched`.
+
+`unreadable` oznacza odpowiedź 400, 401, 403 lub 404 dla załącznika albo grant
+skrzynki, który jest brakujący, wyłączony lub nie da się go odnowić. Każda inna
+awaria dostawcy kończy krok błędem `MAIL_ATTACHMENT_UNREACHABLE`, który jest
+ponawiany. Oba wyzwalacze poczty przyjmują dane z zewnątrz.
+
 ::: app.workflows.nodes.trigger_gmail._handler.GmailTriggerConfig
 
 ::: app.workflows.nodes._triggers.EmailTriggerOutput
+
+::: app.workflows.nodes._triggers.MailAttachment
+
+### trigger.outlook { #trigger-outlook }
+
+**Outlook.** Startuje od nowej wiadomości w folderze podłączonej skrzynki Microsoft
+365 organizacji, pasującej do wszystkich ustawionych filtrów, czytanej raz na
+minutę. Publikacja jest odrzucana, dopóki skrzynka nie jest podłączona.
+`triggered_by` to `outlook`. Microsoft Graph jest czytany folder po folderze, więc
+**Folder** i **Shared mailbox** są miejscem, w którym poller szuka, a zarazem
+filtrem, a pierwszy odczyt folderu zaczyna się od chwili opublikowania lub ostatniego włączenia workflow. Wskazanie skrzynki
+współdzielonej, którą otwiera grant Microsoft organizacji, wymaga uprawnienia do
+zarządzania połączeniami, tak jak w triggerach agentów Outlook; workflow, który już
+nasłuchuje takiej skrzynki, zachowuje ją przy kolejnych publikacjach, a jej zmiana znowu
+wymaga tego uprawnienia.
+**Sender contains** dopasowuje adres nadawcy, jak w Gmailu, i wymaga poczty,
+którą uwierzytelniła domena nadawcy albo która przyszła z wnętrza tenanta. Folder
+lub skrzynka współdzielona, które według Outlooka nie dają się odczytać,
+wyłączają workflow, z `mailbox_folder_unreadable` w dzienniku audytu. Zapisana konfiguracja,
+która przestała przechodzić walidację, jest pomijana przez poller. Załączniki są
+zapisywane jak w [trigger.gmail](#trigger-gmail), a `labels` zawiera kategorie
+wiadomości. Jej wyjście jest takie samo jak [trigger.gmail](#trigger-gmail).
+
+::: app.workflows.nodes.trigger_outlook._handler.OutlookTriggerConfig
 
 ### trigger.channel_message { #trigger-channel-message }
 
@@ -212,6 +260,109 @@ po elemencie wymaga obiektów, inaczej kończy się `COMBINE_NEEDS_OBJECTS`.
 ::: app.workflows.nodes.data_filter._handler.DataFilterConfig
 
 ::: app.workflows.nodes.data_combine._handler.DataCombineConfig
+
+## text.compare { #text-compare }
+
+**Compare texts** ocenia, jak bardzo podobne są dwa teksty, `a` i `b`: 1, gdy są takie
+same po pominięciu ignorowanych różnic, 0, gdy nie mają nic wspólnego. Nie wywołuje
+modelu i nic nie kosztuje, a te same dwa teksty zawsze dają te same liczby (wyniki
+są zaokrąglane do sześciu miejsc). **Metoda** określa, co jest liczone:
+
+- `char_ratio` (domyślna) to udział znaków, których edytor nie musiałby ruszać,
+  liczony z dokładnej odległości edycyjnej po znakach.
+- `token_f1` to udział słów wspólnych dla obu tekstów, bez względu na kolejność.
+- `line_diff` to udział linii, które się nie zmieniły.
+
+Złożone i rozłożone akcenty nigdy nie są edycją, podobnie jak zakończenia linii.
+Resztę ustawia krok. **Ignore whitespace** jest domyślnie włączone: zwija odstępy
+w obrębie linii, przycina każdą linię i usuwa puste linie. Podziały linii nadal się
+liczą, więc miejsca końca linii ignoruje tylko `token_f1`, który liczy słowa.
+**Ignore case** i **Ignore punctuation** są domyślnie wyłączone. Słowa w `token_f1`
+to ciągi liter, cyfr i podkreślników: dzieli na apostrofach i nie dzieli na słowa
+tekstu pisanego bez spacji.
+
+**Leave out quoted mail and signatures** pomija każdą linię, której pierwszy
+niebiały znak to `>` (także cytaty z wcięciem), wiersz z atrybucją nad cytatem oraz
+wszystko po separatorze podpisu `-- ` lub samym `--` albo po linii
+`----- Original Message -----`. To heurystyka dla poczty w czystym tekście: nie
+wykrywa cytatów HTML, odpowiedzi, w której cytat nie jest oznaczony `>`, atrybucji
+zawiniętej na dwie linie (zostaje) ani podpisu bez separatora.
+
+Każdy tekst ma co najwyżej 100 000 znaków, liczonych przed jakąkolwiek normalizacją;
+ocena dwóch takich tekstów trwa kilka sekund. Dłuższy tekst kończy run błędem
+`INVALID_BINDING` jeszcze przed uruchomieniem kroku, więc `error.handle` nie może go
+przekierować. Krok, w którym nic nie jest powiązane z `a` i `b`, kończy się błędem
+`TEXT_COMPARE_NOT_CONFIGURED`; gdy jeden jest powiązany, a drugi nie, run kończy się
+błędem `INVALID_BINDING`. Puste teksty są dozwolone: dwa puste dają wynik 1, jeden
+pusty daje 0. Paleta rysuje krok z ikoną różnic, wśród kroków danych.
+
+::: app.workflows.nodes.text_compare._handler.TextCompareConfig
+
+::: app.workflows.nodes.text_compare._handler.TextCompareOutput
+
+## html.parse { #html-parse }
+
+**Parse HTML** zamienia HTML na jego tekst, linki i elementy wybrane selektorem CSS.
+Służy do HTML-a, który spotyka przepływ: treści maila, body z `http.request`,
+strony zapisanej przez `http.download`. `text.extract` czyta dokumenty, nie
+znaczniki - oddałby tagi jako tekst. Powiąż albo `html` (najwyżej 2 000 000 znaków),
+albo `file` (najwyżej 5 000 000 bajtów, sprawdzane przed odczytem pliku), nie oba
+naraz. Plik jest dekodowany ze znacznika kolejności bajtów, z `<meta charset>` lub z
+samych bajtów, w razie potrzeby stratnie, a jego zadeklarowany typ nie jest
+sprawdzany: PDF czyta się jako zniekształcony tekst i nie jest odrzucany. Znak NUL
+czyta się jako U+FFFD.
+
+Krok ma trzy wyjścia, każde ograniczone:
+
+- `text` to czytelny tekst jako Markdown, obcięty na **Most characters of text**
+  (domyślnie 100 000; `text_truncated` mówi, że go obcięto). Nagłówki, listy i kod
+  zostają; skrypty, style, menu (`nav`), stopki i `<head>` nie. Tak samo czyta
+  stronę konektor webowy kolekcji wiedzy. `title` to `<title>` strony, obcięty do
+  500 znaków, albo `null`, gdy go nie ma (także pusty `<title>`).
+- `links` zawiera każde `a[href]` raz, w kolejności dokumentu, z tekstem jego
+  pierwszej kotwicy (obciętym do 500 znaków). Link jest rozwiązywany względem
+  **Base address**, gdy jest ustawiony, a bez niego zostaje tak, jak napisano. Linki
+  do adresów `javascript:`, `vbscript:` i `data:` są pomijane, żeby kolejny krok,
+  który żąda każdego linku, nigdy nie dostał skryptu; pomijany jest też `href`
+  dłuższy niż 2048 znaków i taki, którego nie da się odczytać jako adresu.
+  Krok zachowuje najwyżej 500 linków i sprawdza pierwsze 5000 kotwic;
+  `links_truncated` mówi, że strona miała więcej.
+- `matches` zawiera elementy wybrane przez **CSS selector**, w kolejności
+  dokumentu, najwyżej **Most matches** (domyślnie 20, do 200); `match_count` mówi,
+  ile wybrał selektor przed obcięciem. Każde dopasowanie ma `text` i zewnętrzny
+  `html` (oba obcięte do 10 000 znaków) oraz pierwszych 50 `attributes`, przy czym
+  atrybut wielowartościowy, np. `class`, jest łączony spacjami, a każda wartość
+  obcięta do 2000 znaków. Bez selektora nie ma dopasowań. Selektor, który nie jest
+  poprawnym CSS-em, jest odrzucany przy publikacji z podaniem pola.
+
+Nic nie jest pobierane i nic się nie uruchamia. Nie jest żądany żaden obraz, arkusz
+stylów, **Base address** ani link, skrypt jest tylko tekstem, a parser pochodzi z
+biblioteki standardowej - to nie parser XML, więc żadna encja spoza strony nie jest
+rozwijana.
+
+Parsowanie działa w procesie potomnym z 20 sekundami czasu zegarowego, limitem CPU i
+limitem pamięci, bo selektor taki jak `p div div` na głęboko zagnieżdżonym znaczniku
+może trwać minuty. Po 20 sekundach proces jest zabijany, a krok kończy się błędem
+`HTML_TOO_COMPLEX`, bez ponawiania. Praca na każdą kotwicę i każde dopasowanie jest
+również ograniczona, więc jedna strona nie spowolni kroku ani nie rozdmie jego
+wyjścia.
+
+| Co się stało | Wynik |
+|---|---|
+| Brak ustawień lub wejścia | `HTML_PARSE_NOT_CONFIGURED` |
+| `html` ponad 2 000 000 znaków albo powiązane naraz `html` i `file` | `INVALID_BINDING`, jeszcze przed uruchomieniem kroku |
+| Plik nie istnieje albo ma ponad 5 000 000 bajtów | `FILE_NOT_FOUND`, `FILE_TOO_LARGE` |
+| Żaden dekoder nie czyta bajtów albo proces czytający pada | `HTML_NOT_READABLE`, szczegół `reason` mówi który przypadek |
+| Strona zajmuje ponad 20 sekund | `HTML_TOO_COMPLEX` |
+
+`INVALID_BINDING` kończy run, zanim krok się uruchomi, więc `error.handle` nie może
+go przekierować; za duży plik to `FILE_TOO_LARGE`, którym krok kończy się błędem i
+który da się przekierować.
+Paleta rysuje krok z ikoną kodu, wśród kroków danych.
+
+::: app.workflows.nodes.html_parse._handler.HtmlParseConfig
+
+::: app.workflows.nodes.html_parse._handler.HtmlParseOutput
 
 ## Transform { #transform }
 
@@ -327,7 +478,7 @@ Publikacja sprawdza, czy autor może używać modelu.
 | Krok | Robi | Przekazuje dalej |
 |---|---|---|
 | `ai.prompt` | Odpowiada na zbindowany `prompt` według `instructions` kroku | `text`, a `structured`, gdy `structured_output_schema` prosi o obiekt |
-| `ai.classify` | Przypisuje zbindowany `text` do jednej z `categories` kroku albo do `other` | Wychodzi portem kategorii, z `category`, jednozdaniowym `reason` i `text` |
+| `ai.classify` | Przypisuje zbindowany `text` do jednej z `categories` kroku albo do `other` | Wychodzi portem kategorii, z `category`, jednozdaniowym `reason`, `text` i `confidence`; poniżej `min_confidence` - portem `unsure` |
 | `ai.extract` | Wyciąga ze zbindowanego `text` pola nazwane w `output_schema`, pomijając to, czego tekst nie mówi | `data`, obiekt tego kształtu |
 | `ai.rewrite` | Streszcza (`short`, `medium`, `long`), tłumaczy na `language` albo przepisuje zbindowany `text` w danym `style` | `text` |
 
@@ -336,7 +487,20 @@ tylko nazwą jednej z nich albo `other`. Odpowiedź, która nie jest obiektem, o
 który prosił krok, kończy go błędem `STRUCTURED_OUTPUT_MISMATCH`; wyczerpany
 limit - błędem `AGENT_BUDGET_EXCEEDED`.
 
+Gdy ustawiono `min_confidence`, model podaje też własną pewność co do kategorii,
+od 0 do 1. To jego deklaracja, nie prawdopodobieństwo, i nie jest skalibrowana:
+zanim zaufasz progowi, sprawdź go na własnych przypadkach za pomocą
+[ewaluacji](../workflows.md#evals-for-a-model-step) kroku. Minimum dodaje port
+`unsure` po `other`: poniżej niego krok wychodzi tym portem, niosąc to samo
+wyjście, więc `category` nadal jest do dyspozycji workflow.
+
+Bez minimum model nie jest pytany o liczbę, prompt się nie zmienia, `confidence`
+jest null, a kategoria zawsze wygrywa. Odpowiedź bez liczby nigdy nie wychodzi
+portem `unsure`, a gdy ten port istnieje, `unsure` nie może być nazwą kategorii.
+
 ::: app.workflows.nodes.ai_classify._handler.AiClassifyConfig
+
+::: app.workflows.nodes.ai_classify._handler.AiClassifyOutput
 
 ## Decyzje { #decisions }
 
@@ -345,6 +509,10 @@ API TypeSafe z vaulta. Jev nie pisze tekstu: odpowiada na pytanie z pewnością 
 do 1, w jednym żądaniu, i może odpowiedzieć tylko jedną z odpowiedzi, na które krok
 pozwala. Poniżej `min_confidence` kroku wychodzi on portem `unsure`, więc to
 workflow decyduje, co człowiek albo agent zrobi z wątpliwym przypadkiem.
+
+`decide.*` wywołuje wyłącznie hostowanego Jev od TypeSafe. Wątpliwe przypadki na
+modelu hostowanym u siebie kieruj przez `ai.classify` z `min_confidence`, który
+wychodzi portem `unsure` tak samo.
 
 | Krok | Pyta | Wychodzi portem |
 |---|---|---|
@@ -451,11 +619,16 @@ efektami ubocznymi.
 ## http.request { #http-request }
 
 Wywołuje API HTTP. Każde żądanie i każde przekierowanie przechodzi kontrolę SSRF
-wdrożenia i jest wysyłane pod adres, który ta kontrola zatwierdziła.
+wdrożenia i jest wysyłane pod adres, który ta kontrola zatwierdziła. Prywatny host, który operator wpisał do
+[`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings), też jest dopuszczany, ale tylko dla URL-a, który od niego zaczyna: przekierowanie z URL-a publicznego nigdy do niego nie dociera.
+
+URL podpięty z publicznego wyzwalacza (webhooka, formularza, e-maila) albo z argumentów narzędzia agenta może wskazać dowolny host z listy, więc wpisuj tylko hosty, które same sprawdzają swoje poświadczenie.
+
 Poświadczenie to [HTTP credential](../secrets.md#kinds) z vaulta i jest wysyłane
 tylko do originów, na które pozwala sekret. Odpowiedź jest czytana w granicy
 `max_response_bytes` i oddawana bez `Set-Cookie`, nagłówków uwierzytelniania i
-samego tokena.
+samego tokena. Odpowiedź w HTML wraca jako tekst w `body`; powiąż ją z
+[`html.parse`](#html-parse), by odczytać jej tekst, linki i elementy.
 
 Dane uwierzytelniające idą jako token bearer, uwierzytelnianie Basic, nagłówek o
 podanej nazwie albo, z `query`, parametr URL o podanej nazwie. **Import cURL** w
@@ -474,7 +647,7 @@ originie nie dostaje danych uwierzytelniających.
 
 | Co się stało | Wynik |
 |---|---|
-| URL prywatny, loopback, metadata albo nie http(s) | `URL_REFUSED`, nic nie wysłano |
+| URL to loopback, metadata, nie http(s) albo prywatny i spoza [`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings) operatora | `URL_REFUSED`, nic nie wysłano |
 | URL spoza originów poświadczenia | `SECRET_ORIGIN_DENIED`, nic nie wysłano |
 | Połączenie nigdy się nie otworzyło | `HTTP_UNREACHABLE`, ponawiane |
 | Wysłane, brak odpowiedzi, `GET` albo nagłówek idempotencji | `HTTP_NO_RESPONSE`, ponawiane |
@@ -515,15 +688,46 @@ powierzasz, wybierz `all`.
 
 Wyjście to `text` odpowiedzi, jej `structured` dane, gdy narzędzie je zwraca, i
 `is_error`. Błąd, którym odpowiada narzędzie, kończy krok błędem
-`MCP_TOOL_ERROR`, chyba że `on_tool_error` to `complete`. MCP nie ma klucza
-idempotencji, więc awaria po wywołaniu powtarza je przy ponowieniu.
+`MCP_TOOL_ERROR`, chyba że `on_tool_error` to `complete`.
+
+MCP nie ma własnego klucza idempotencji. Serwer, który przyjmuje taki klucz jako
+argument narzędzia, można mimo to uczynić bezpiecznym przy ponowieniu: ustaw
+**Idempotency key argument** (`idempotency_key_argument`) na nazwę tego argumentu,
+a krok wyśle tam swój stały klucz operacji - taki sam przy każdej próbie kroku i
+inny w każdej iteracji pętli - bez względu na to, jaką wartość do niego podpięto.
+Narzędzie musi deklarować ten argument jako tekst.
+
+Publikacja odrzuca argument,
+którego brakuje w zapisanym schemacie narzędzia, a narzędzie bez zapisanego
+schematu przechodzi, więc najpierw przetestuj serwer. W czasie runu krok przed
+wywołaniem wypisuje narzędzia serwera i kończy się błędem
+`MCP_IDEMPOTENCY_ARGUMENT_UNDECLARED`, niczego nie wywołując, gdy aktualny schemat
+nie ma takiego argumentu. Krok z kluczem liczy się jako idempotentny: silnik może
+go uruchomić ponownie.
+
+Gdy wywołanie się urwie, dalszy przebieg zależy od tego, czy mogło dotrzeć do
+serwera:
+
+- **Przed wywołaniem** - nie udało się połączyć z serwerem albo nie odpowiedział
+  na połączenie lub listę narzędzi - nic nie wysłano, a krok kończy się
+  ponawianym `MCP_CALL_FAILED`.
+- **Po wywołaniu, wywołanie z kluczem albo narzędzie oznaczone przez serwer jako
+  tylko do odczytu** (w liście, którą krok właśnie odczytał, a w razie braku w tej
+  zapisanej przy teście serwera) - ten sam ponawiany błąd, bo powtórzenie jest
+  bezpieczne.
+- **Po wywołaniu, każde inne narzędzie, bez klucza** - narzędzie mogło zadziałać,
+  a odpowiedź nie nadeszła. Krok kończy się jako **Uncertain** z komunikatem *The
+  tool was called and no answer came back; it may have acted*, a run czeka na
+  człowieka, który sprawdza drugi system, zanim uruchomi krok ponownie.
 
 | Co się stało | Wynik |
 |---|---|
 | Serwera nie ma albo jest wyłączony | `MCP_SERVER_UNAVAILABLE`, nic nie wysłano |
 | Jego poświadczenie trzeba ponownie autoryzować | `MCP_SERVER_UNAUTHORIZED`, nic nie wysłano |
 | Serwer nie oferuje narzędzia | `MCP_TOOL_NOT_FOUND` |
-| Nie udało się połączyć z serwerem albo połączenie zerwało się | `MCP_CALL_FAILED` |
+| Nie udało się połączyć z serwerem albo połączenie zerwało się przed bezpiecznym wywołaniem lub po nim | `MCP_CALL_FAILED`, ponawiany |
+| Połączenie zerwało się po wywołaniu bez klucza narzędzia nieznanego jako tylko do odczytu | Uncertain: run zatrzymuje się dla człowieka |
+| Narzędzie nie deklaruje **Idempotency key argument** | `MCP_IDEMPOTENCY_ARGUMENT_UNDECLARED`, nic nie wysłano |
 | Narzędzie odpowiedziało błędem | `MCP_TOOL_ERROR` albo odpowiedź jako wyjście |
 | Ustrukturyzowana odpowiedź ma ponad 1 MiB | `MCP_RESULT_TOO_LARGE` |
 
@@ -583,7 +787,44 @@ pyta raz, więc ponowienie ani iteracja pętli nigdy nie pytają dwa razy o to s
 
 Wskazani zatwierdzający muszą być aktywnymi członkami z `approvals:decide`. Publikacja to sprawdza, a krok sprawdza ponownie przed wysłaniem prośby; utrata tego uprawnienia kończy krok kodem `APPROVER_UNAVAILABLE` zamiast zostawiać prośbę, której nikt nie może rozstrzygnąć.
 
+Krok może nieść **propozycję**: tekst powiązany z `proposal`, na przykład
+przygotowaną odpowiedź. Zatwierdzający czyta ją obok prośby. Po włączeniu
+`editable` kolejka pokazuje ją w edytorze, jako `text` albo `markdown`
+(`proposal_format`), pod etykietą `proposal_label` („Propozycja (Proposal)”, gdy pusta), a
+zatwierdzający może zatwierdzić zmienioną wersję. Krok bez powiązanego tekstu
+otwiera pusty edytor, na wypadek gdy przygotowanie niczego nie dało. `details` się
+nie zmienia i ma pozostać krótkie; propozycja może mieć do 100 000 znaków.
+
+Zatwierdzone wyjście niesie trzy pola obok decyzji:
+
+- `final` to wersja, którą zatwierdzający zatwierdził, a gdy niczego nie zmienił,
+  sama propozycja.
+- `original` to propozycja w chwili prośby, `""`, gdy edytowalny krok nie miał nic
+  powiązanego.
+- `edited` jest prawdą, gdy `final` różni się od `original`. Końce linii,
+  spacje na końcu linii i puste miejsce wokół tekstu nie są różnicą.
+
+Edytowana wersja jest zapisywana bez białych znaków na początku i na końcu, więc
+edycja zaczynająca się od wciętego bloku kodu traci to pierwsze wcięcie.
+
+Zatwierdzona prośba kroku `editable` zapisuje też swój współczynnik zmiany
+(`edit_ratio`), czyli to, jak bardzo zatwierdzający zmienił propozycję, od `0` do `1`.
+[Statystyki](../workflows.md#running-a-workflow) workflow podają go razem z pozostałymi
+wynikami zatwierdzeń.
+
+Krok, który nie jest `editable`, pokazuje propozycję tylko do odczytu, a po
+zatwierdzeniu przekazuje ją bez zmian jako `final` z `edited` równym false, więc
+kolejne kroki mogą wiązać `final` niezależnie od trybu kroku. Odrzucenie albo
+wygaśnięcie nie niesie `final`. Wysłanie edytowanej wersji do kroku, który nie jest
+`editable`, albo razem z odrzuceniem, kończy się odmową `422`. Decydujący, którego
+krok nie wskazuje, widzi propozycję tylko do odczytu.
+
+Jeśli workflow wysyła zatwierdzone `final` przez [`mcp.call`](#mcp-call), ustaw
+`approval` tego kroku na `none`, bo inaczej osoba zostanie zapytana dwa razy.
+
 ::: app.workflows.nodes.human_approval._handler.HumanApprovalConfig
+
+::: app.workflows.nodes.human_approval._handler.HumanApprovalInput
 
 ::: app.workflows.nodes.human_approval._handler.HumanApprovalOutput
 

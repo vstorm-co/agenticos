@@ -1,5 +1,5 @@
 ---
-source_sha: "4ff10ed3b024"
+source_sha: "735b6c801d0d"
 ---
 
 # Workflows { #workflows }
@@ -19,7 +19,7 @@ znajduje się w sekcji **Workflows** w konsoli. Strona **listy** Workflows ma
 ## Tworzenie i duplikowanie workflow { #creating-and-duplicating-a-workflow }
 
 **New workflow** otwiera okno, które pozwala zacząć od wyzwalacza lub od szablonu.
-**How does it start?** oferuje każdy wyzwalacz - **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Gmail**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** i **On failure of a workflow** - każdy jako poza nim
+**How does it start?** oferuje każdy wyzwalacz - **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Gmail**, **Outlook**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** i **On failure of a workflow** - każdy jako poza nim
 pusta kanwa, która od niego się zaczyna. Szablony to gotowe punkty wyjścia — **Starter**, pojedynczy krok do zmiany nazwy i podłączenia, oraz
 **Two-step sequence**, dwa już połączone kroki dla liniowego przebiegu. Wybierz
 jeden przyciskiem **Use**, a znajdziesz się w edytorze.
@@ -205,7 +205,9 @@ Przeciągnij prawą krawędź, dolną krawędź lub prawy dolny róg zaznaczoneg
 zmienić jego rozmiar. Karta ma od 200 do 560 px szerokości i do 400 px wysokości, i nigdy
 nie jest niższa, niż wymaga jej zawartość. Większa szerokość mieści więcej nazwy i
 podsumowania; większa wysokość pozwala zawinąć nazwę do trzech wierszy, a potem
-podsumowanie do dwóch, a porty zostają na dole karty. Rozmiar jest zapisywany razem z
+podsumowanie do dwóch, a porty zostają na dole karty.
+
+Rozmiar jest zapisywany razem z
 wersją roboczą, więc cofanie, kopiowanie, wklejanie, duplikowanie, opublikowane wersje i
 eksport go zachowują. **Przywróć rozmiar** (Reset size) w menu kontekstowym kroku przywraca domyślny
 rozmiar, a **Uporządkuj** (Tidy up) rozmieszcza kroki wokół ich rozmiarów. Opublikowana wersja, run
@@ -573,8 +575,11 @@ limitami każdego kroku - w tym pułapem kosztu kroku agenta:
 
 - **Runs under way at once** - prawdziwy run uruchomiony ponad limit jest odrzucany
   z `429`, dopóki któryś się nie skończy. Nadawca webhooka lub GitHub dostaje prośbę
-  o ponowienie, harmonogram czeka na kolejny takt, skrzynka jest czytana ponownie, a
-  zdarzenie tabeli lub odpowiedź z formularza ponad limit są odrzucane. Runy testowe
+  o ponowienie, harmonogram czeka na kolejny takt, a zdarzenie tabeli lub odpowiedź z formularza ponad
+  limit są odrzucane. Skrzynka jest czytana ponownie minutę później, więc wiadomość czeka
+  na koniec runu - chyba że limit zajmują runy czekające na zatwierdzenie: wiadomość jest
+  wtedy pomijana dla tego workflow, a dziennik audytu to zapisuje
+  (`workflow.mail_message_skipped`). Runy testowe
   nie są ani liczone, ani wstrzymywane.
 - **Most one run may spend** - własny budżet runu, ciaśniejszy z niego i budżetu
   wersji: run, który go osiągnie, zatrzymuje się przed kolejnym krokiem, poza budżetem.
@@ -625,6 +630,39 @@ budżetu workflow - na czerwono, gdy jest wyczerpany. **By step** pokazuje, ską
 wziął się czas, koszt i błędy, od najdroższych. Przez API to
 `GET /api/v1/workflows/{id}/stats?days=30`.
 
+Jeśli workflow w tym okresie prosił osobę o zatwierdzenie, sekcja **Zatwierdzenia
+(Approvals)** podsumowuje, jak ludzie zdecydowali: **Zatwierdzone bez zmian (Approved as
+proposed)**, **Zmienione przed zatwierdzeniem (Edited before approval)** z medianą tego,
+jaką część tekstu zmieniły poprawki, **Odrzucone (Rejected)**, ile próśb **wygasło**,
+oraz **Czas do decyzji (Time to decide)**, typowy i taki, w jakim zapada 95 na 100.
+Tabela podaje te same liczby dla każdego kroku zatwierdzenia.
+
+Okno to te same dni, liczone od chwili, gdy osobę o coś zapytano, a runy testowe są
+pominięte. Odsetek zatwierdzonych i odsetek zatwierdzonych bez zmian (w API
+`acceptance_rate` i `unchanged_rate`; karta pokazuje drugi) liczy się z próśb, o których
+zdecydowano, czyli zatwierdzonych lub odrzuconych: prośba, która wygasła albo została
+anulowana wraz z runem, nie doczekała się decyzji, więc jest policzona, ale nie wchodzi
+do odsetków. Krok, którego nie można edytować, liczy się jako zatwierdzony bez zmian.
+Liczby podają, co się stało, i niczego nie oceniają.
+
+Liczby są per krok i per dzień, nie per rodzaj wiadomości. Aby porównać kategorie,
+skieruj każdą do własnego kroku zatwierdzenia.
+
+To, jak bardzo poprawka coś zmieniła, mierzy się raz, w chwili decyzji, tym samym
+narzędziem co [`text.compare`](reference/workflow-nodes.md#text-compare), znak po znaku:
+`0`, gdy osoba zatwierdziła propozycję bez zmian w kroku, który można edytować, aż do
+`1`, gdy nic z niej nie zostało. Krok, którego nie można edytować, odrzucenie i
+wygaśnięcie nie mają takiej liczby. Poprawka rozstrzygnięta, zanim zatwierdzenia zaczęto
+mierzyć, też jej nie ma i nie wchodzi do mediany, zamiast liczyć się jako brak zmian;
+gdy w okresie nie zmierzono żadnej poprawki, karta pokazuje **Change not measured**
+(„Nie zmierzono zmiany”).
+
+Te same liczby przychodzą przez API w bloku `approvals` statystyk. Dla wszystkich
+workflow, które widzisz, w wybranych datach, `GET
+/api/v1/workflow-approvals/stats?from=2026-10-01&to=2026-10-31` podaje sumy i pięć
+workflow z największą liczbą próśb, a pokazuje je karta **Wyniki zatwierdzeń (Approval
+outcomes)** na [dashboardzie](console.md#the-dashboard).
+
 Karta **Workflows** na dashboardzie sumuje to samo dla każdego workflow, który
 widzisz, w okresie ustawionym na dashboardzie: runy, błędy, koszt i pięć najczęściej
 uruchamianych. Nad nimi liczy runy, które czekają teraz na człowieka - na
@@ -642,6 +680,16 @@ Odpowiedź runa - jego tekst, wynik strukturalny, fragmenty, na których się op
 liczba utworzonych plików, z samym JSON-em pod **Raw output** - oraz każdy wykonany
 krok, iteracja po iteracji, są obok.
 Trwający run odświeża się co kilka sekund, a **Cancel run** go zatrzymuje i wycofuje liczniki, które ustawiły jego czekające kroki. Jego **Files** wymieniają to, co zapisały jego kroki - pobrany plik, wyrenderowaną stronę, wynik skryptu - każde do pobrania.
+
+Run czekający na krok [**Ask for approval**](reference/workflow-nodes.md#human-approval)
+widać w zakładce **Zatwierdzenia (Approvals)** w Activity. Gdy krok ma ustawione **Let the approver
+edit** i powiązaną propozycję, na przykład przygotowaną odpowiedź, zatwierdzający
+zmienia ją tam w edytorze, z przyciskami **Przywróć oryginał (Restore original)** i
+**Pokaż zmiany (Show changes)**, i zatwierdza swoją wersję. Krok przekazuje wtedy
+dalej `final`, `original` i `edited`, więc kolejny krok wysyła to, co osoba
+zatwierdziła. Decydujący, którego krok nie wskazuje, widzi propozycję tylko do odczytu, a
+prośba rozstrzygnięta ze zmienioną wersją ma pod **Zdecydowane (Decided)** znacznik
+**Zmieniono (Edited)**.
 
 
 Na liście wersja testowego przebiegu to **Draft (test)**, a prawdziwego
@@ -666,7 +714,7 @@ testowy zaczyna od miejsca, w którym tamten był. Przez API ponawia `POST
 ## Uruchamianie workflow spoza konsoli { #starting-a-workflow-from-outside-the-console }
 
 Workflow startuje od jednego **wyzwalacza**, pierwszego węzła na jego kanwie. Grupa
-**Triggers** na górze wyboru kroków ma je wszystkie: **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Gmail**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** i
+**Triggers** na górze wyboru kroków ma je wszystkie: **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Gmail**, **Outlook**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** i
 **On failure of a workflow**. Dodanie jednego do workflow, który
 ma już wyzwalacz, zastępuje stary w tym samym miejscu, a połączenia i powiązania
 wychodzące ze starego wychodzą z nowego. **New workflow** zaczyna workflow od
@@ -831,9 +879,51 @@ runa. Wiadomości z etykietą `SENT`, `DRAFT`, `SPAM` lub `TRASH` nie są nowymi
 wiadomościami i niczego nie uruchamiają, chyba że **Label** wskazuje jedną z nich.
 
 Run dostaje `sender`, `to`, `subject`, `text`, `snippet`, `labels` i `message_id`
-skrzynki. Wiadomość przeczytana dwa razy uruchamia run raz, a ta, dla której
-organizacja nie miała jeszcze miejsca, jest czytana ponownie minutę później. Zobacz
-[trigger.gmail](reference/workflow-nodes.md#trigger-gmail).
+skrzynki oraz wątek, do którego wiadomość należy: `thread_id`, `rfc_message_id`
+(nagłówek `Message-ID`), `in_reply_to`, `references`, `received_at` i treść `html`.
+Trzy pola nagłówkowe pisze nadawca, więc pozwalają powiązać odpowiedź z wątkiem, ale
+nic nie dowodzą o tym, kto wysłał wiadomość. Wiadomość przeczytana dwa razy uruchamia
+run raz, a ta, dla której organizacja nie miała jeszcze miejsca, jest czytana
+ponownie minutę później. Zobacz
+[trigger.gmail](reference/workflow-nodes.md#trigger-gmail). Aby odczytać treść `html`
+jako tekst, linki albo to, co wybiera selektor CSS, powiąż ją z
+[`html.parse`](reference/workflow-nodes.md#html-parse).
+
+Wyzwalacz **Outlook** robi to samo dla skrzynki Microsoft 365 organizacji,
+podłączonej przez portal **Outlook**. Microsoft Graph jest czytany folder po
+folderze, więc krok wskazuje **Folder**, który obserwuje - domyślnie skrzynkę
+odbiorczą - oraz, aby czytać skrzynkę współdzieloną, którą podłączone konto może
+otworzyć, **Shared mailbox**. Filtry to **Subject contains**, **Sender contains**,
+**Has attachments**, **Importance** i **Category**. Pierwszy odczyt folderu zaczyna
+się od chwili opublikowania lub ostatniego włączenia workflow, więc poczta, która już tam leży, niczego nie
+uruchamia.
+
+Wskazanie skrzynki współdzielonej, którą otwiera grant Microsoft organizacji, wymaga
+uprawnienia do zarządzania połączeniami, tak jak w triggerach agentów Outlook; workflow, który
+już nasłuchuje takiej skrzynki, zachowuje ją przy kolejnych publikacjach, a jej zmiana
+znowu wymaga tego uprawnienia. Jeśli Outlook zgłosi, że folderu nie da się już czytać, workflow jest
+wyłączany, a dziennik audytu podaje powód. Run dostaje te same pola co run z Gmaila,
+przy czym `labels` zawiera kategorie wiadomości, a `mailbox` skrzynkę współdzieloną,
+z której przyszła. Zobacz
+[trigger.outlook](reference/workflow-nodes.md#trigger-outlook).
+
+Oba wyzwalacze poczty przyjmują dane z zewnątrz: każdy może wysłać wiadomość do
+skrzynki, więc to, co run z nią robi, wiąż tak jak dla webhooka.
+
+Pole `attachments` wiadomości wymienia nazwę, zadeklarowany typ i rozmiar każdego
+pliku; skrzynka podaje najwyżej 20 na wiadomość, a treść `text` lub `html` jest
+czytana do 20 000 znaków. Run uruchomiony przez skrzynkę zapisuje je jako pliki
+runa, a każdy dostaje `file` i `stored: true`. Z wymienionych załączników brane jest
+pod uwagę tylko pierwsze 10, do 25 MiB łącznie, a każdy musi mieścić się w limicie
+rozmiaru uploadu czatu, na liście dozwolonych typów plików i w limicie miejsca
+organizacji.
+
+Pominięty załącznik ma `reason`: `too_many` (poza pierwszymi 10), `too_large`,
+`type_not_allowed`, `quota` albo `unreadable` - skrzynka odpowiedziała na niego
+kodem 400, 401, 403 lub 404 albo jej grant jest brakujący, wyłączony lub nie da się
+go odnowić. Testowy run niczego nie czyta ze skrzynki, więc jego załączniki mają
+`not_fetched`. Gdy skrzynka zawodzi w sposób, który ponowienie może naprawić, krok
+kończy się błędem `MAIL_ATTACHMENT_UNREACHABLE` i jest ponawiany.
 
 ### Z wiadomości na kanale { #from-a-channel-message }
 

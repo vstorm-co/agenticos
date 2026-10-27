@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { EntityAvatar } from "@/components/ui";
+import { EntityAvatar, LineDiff } from "@/components/ui";
 import { displayName, type IdentifiedMember } from "@/components/orgs/member-identity";
 import { LoadingState } from "@/components/states";
 import {
@@ -25,7 +25,6 @@ import {
   VERSIONS_PAGE_SIZE,
 } from "@/hooks";
 import { useOrgStore } from "@/stores";
-import { collapseUnchanged, diffLines, diffStat } from "@/lib/diff";
 import { cn, formatDate, timeAgo } from "@/lib/utils";
 import type { AgentEnvironment, AgentSpec, AgentVersion } from "@/types/agents";
 import { useLocale, useTranslations } from "next-intl";
@@ -396,52 +395,14 @@ export function VersionHistory({
  */
 export function SpecDiff({ before, after }: { before: AgentSpec; after: AgentSpec }) {
   const t = useTranslations("agents");
-  const lines = useMemo(() => diffLines(specText(before), specText(after)), [before, after]);
-  const stat = diffStat(lines);
-  const rows = useMemo(() => collapseUnchanged(lines), [lines]);
-
-  if (stat.added === 0 && stat.removed === 0) {
-    return <p className="text-muted-foreground text-sm">{t("identicalNothingChanged")}</p>;
-  }
-
   return (
-    <div className="space-y-2">
-      <p className="font-mono text-xs">
-        <span className="text-emerald-600 dark:text-emerald-400">+{stat.added}</span>{" "}
-        <span className="text-destructive">−{stat.removed}</span>
-      </p>
-      {/* No line-number gutters: they numbered a serialization nobody has a
-          copy of, and two columns of them out-inked the diff itself. */}
-      <div className="max-h-96 overflow-auto rounded-md border">
-        <table className="w-full border-collapse font-mono text-xs leading-5">
-          <tbody>
-            {rows.map((row, index) =>
-              row.kind === "gap" ? (
-                <tr key={`gap-${index}`} className="bg-muted/40">
-                  <td colSpan={2} className="text-muted-foreground px-3 py-1 text-center">
-                    {t("unchangedLines", { count: row.hidden })}
-                  </td>
-                </tr>
-              ) : (
-                <tr
-                  key={`${row.kind}-${row.before ?? ""}-${row.after ?? ""}-${index}`}
-                  className={cn(
-                    row.kind === "same" && "text-muted-foreground",
-                    row.kind === "added" && "bg-emerald-500/10",
-                    row.kind === "removed" && "bg-destructive/10",
-                  )}
-                >
-                  <td className="text-muted-foreground w-6 px-2 py-0.5 text-center select-none">
-                    {row.kind === "added" ? "+" : row.kind === "removed" ? "−" : ""}
-                  </td>
-                  <td className="w-full py-0.5 pr-2 whitespace-pre-wrap">{row.text}</td>
-                </tr>
-              ),
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <LineDiff
+      before={specText(before)}
+      after={specText(after)}
+      identicalLabel={t("identicalNothingChanged")}
+      unchangedLabel={(count) => t("unchangedLines", { count })}
+      tooLongLabel={t("diffTooLong")}
+    />
   );
 }
 

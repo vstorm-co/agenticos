@@ -1,5 +1,5 @@
 ---
-source_sha: "4ff10ed3b024"
+source_sha: "735b6c801d0d"
 ---
 
 # Workflows { #workflows }
@@ -19,7 +19,7 @@ abspielt; der Editor selbst hat keine Führung.
 ## Einen Workflow erstellen und duplizieren { #creating-and-duplicating-a-workflow }
 
 **New workflow** öffnet einen Dialog, der Sie mit einem Trigger oder einer Vorlage
-beginnen lässt. **How does it start?** bietet jeden Trigger an - **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Gmail**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** und **On failure of a workflow** -, jeder
+beginnen lässt. **How does it start?** bietet jeden Trigger an - **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Gmail**, **Outlook**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** und **On failure of a workflow** -, jeder
 eine sonst leere Zeichenfläche, die mit ihm beginnt. Die Vorlagen sind fertige
 Ausgangspunkte — **Starter**, ein
 einzelner Schritt zum Umbenennen und Verdrahten, und **Two-step sequence**, zwei
@@ -229,7 +229,9 @@ ausgewählten Schritts, um seine Größe zu ändern. Eine Karte ist 200 bis 560 
 bis zu 400 px hoch und nie niedriger, als ihr Inhalt braucht. Mehr Breite nimmt mehr vom
 Namen und von der Zusammenfassung auf; mehr Höhe lässt den Namen auf bis zu drei Zeilen
 umbrechen und danach die Zusammenfassung auf zwei, und die Ports bleiben am unteren Rand
-der Karte. Die Größe wird mit dem Entwurf gespeichert, daher bleibt sie bei Rückgängig,
+der Karte.
+
+Die Größe wird mit dem Entwurf gespeichert, daher bleibt sie bei Rückgängig,
 Kopieren, Einfügen, Duplizieren, veröffentlichten Versionen und Export erhalten.
 **Größe zurücksetzen** (Reset size) im Kontextmenü des Schritts stellt die Standardgröße wieder her,
 und **Aufräumen** (Tidy up) ordnet die Schritte um ihre Größen herum an. Eine veröffentlichte
@@ -632,8 +634,11 @@ eigenen Grenzen jedes Schritts - darunter die Kostenobergrenze eines Agentenschr
 - **Runs under way at once** - ein echter Lauf, der darüber hinaus gestartet wird,
   wird mit `429` abgelehnt, bis einer endet. Der Absender eines Webhooks oder GitHub
   wird um einen erneuten Versuch gebeten, ein Zeitplan wartet auf seinen nächsten
-  Takt, ein Postfach wird erneut gelesen, und ein Tabellenereignis oder eine
-  Formularantwort darüber hinaus wird abgelehnt. Testläufe werden weder gezählt noch
+  Takt, und ein Tabellenereignis oder eine Formularantwort darüber hinaus wird
+  abgelehnt. Ein Postfach wird eine Minute später erneut gelesen, die Nachricht wartet
+  also, bis ein Lauf endet - außer die Läufe, die das Limit belegen, warten auf eine
+  Freigabe: Dann wird die Nachricht für diesen Workflow übersprungen, und das Audit-Log
+  hält es fest (`workflow.mail_message_skipped`). Testläufe werden weder gezählt noch
   zurückgehalten.
 - **Most one run may spend** - das eigene Budget des Laufs, das engere aus ihm und dem
   der Version: Ein Lauf, der es erreicht, hält vor seinem nächsten Schritt an,
@@ -686,6 +691,42 @@ Testläufe eingeschlossen, im Vergleich zum Monatsbudget des Workflows - rot, so
 aufgebraucht ist. **By step** zeigt, woher Zeit, Kosten und Fehler kamen, die teuersten
 zuerst. Über die API ist es `GET /api/v1/workflows/{id}/stats?days=30`.
 
+Hat der Workflow in diesem Zeitraum eine Person um Freigabe gebeten, fasst **Freigaben
+(Approvals)** zusammen, wie entschieden wurde: **Wie vorgeschlagen freigegeben (Approved
+as proposed)**, **Vor der Freigabe bearbeitet (Edited before approval)** mit dem Median
+des Textanteils, den die Änderungen betrafen, **Abgelehnt (Rejected)**, wie viele
+Anfragen **abgelaufen** sind, und die **Zeit bis zur Entscheidung (Time to decide)**,
+die typische und die, innerhalb derer 95 von 100 entschieden waren. Eine Tabelle nennt
+dieselben Zahlen für jeden Freigabeschritt.
+
+Das Fenster sind dieselben Tage, gezählt ab dem Zeitpunkt, an dem die Person gefragt
+wurde; Testläufe bleiben außen vor. Der Anteil der Freigegebenen und der Anteil der wie
+vorgeschlagen Freigegebenen (über die API `acceptance_rate` und `unchanged_rate`; die
+Karte zeigt den zweiten) beziehen sich auf die Anfragen, über die entschieden wurde,
+also freigegebene oder abgelehnte: Eine Anfrage, die abgelaufen ist oder mit ihrem Run
+abgebrochen wurde, wurde nie entschieden; sie wird gezählt, geht aber nicht in die
+Quoten ein. Ein Schritt, der sich nicht bearbeiten lässt, zählt als wie vorgeschlagen
+freigegeben. Die Zahlen sagen, was geschah, und bewerten es nicht.
+
+Die Zahlen gelten je Schritt und je Tag, nicht je Art von Nachricht. Um Kategorien zu
+vergleichen, leiten Sie jede an einen eigenen Freigabeschritt.
+
+Wie stark eine Änderung den Text verändert hat, wird einmal gemessen, wenn die Person
+entscheidet, mit demselben Verfahren wie bei
+[`text.compare`](reference/workflow-nodes.md#text-compare), zeichenweise: `0`, wenn sie
+den Vorschlag in einem bearbeitbaren Schritt unverändert freigegeben hat, bis `1`, wenn
+nichts davon übrig ist. Ein Schritt, der sich nicht bearbeiten lässt, eine Ablehnung und
+ein Ablauf haben keine solche Zahl. Eine Änderung, die vor der Messung entschieden
+wurde, hat sie ebenfalls nicht und bleibt aus dem Median heraus, statt als keine
+Änderung zu zählen; wurde im Zeitraum keine Änderung gemessen, steht auf der Karte
+**Change not measured** („Änderung nicht gemessen“).
+
+Dieselben Zahlen kommen über die API im Block `approvals` der Statistik. Über alle
+Workflows, die Sie sehen, im gewählten Zeitraum liefert `GET
+/api/v1/workflow-approvals/stats?from=2026-10-01&to=2026-10-31` die Summen und die fünf
+Workflows mit den meisten Anfragen; die Karte **Freigabe-Ergebnisse (Approval
+outcomes)** im [Dashboard](console.md#the-dashboard) zeigt sie.
+
 Die Karte **Workflows** im Dashboard rechnet dasselbe über jeden Workflow zusammen,
 den Sie sehen, im Zeitraum, auf den das Dashboard eingestellt ist: Runs, Fehler,
 Kosten und die fünf aktivsten. Darüber zählt sie die Runs, die gerade auf eine Person
@@ -706,6 +747,17 @@ die er sich stützte, und wie viele Dateien er erzeugt hat, mit dem JSON selbst 
 stehen daneben. Ein laufender Run aktualisiert sich alle paar Sekunden, und **Cancel
 run** stoppt ihn. Seine **Files** listen, was seine Schritte gespeichert haben - einen Download, eine
 gerenderte Seite, die Ausgabe eines Skripts -, jeweils zum Herunterladen.
+
+Ein Run, der auf einen Schritt [**Ask for approval**](reference/workflow-nodes.md#human-approval)
+wartet, erscheint im Tab **Freigaben (Approvals)** unter Activity. Ist beim Schritt **Let the
+approver edit** gesetzt und ein Vorschlag gebunden, etwa eine vorbereitete Antwort,
+ändert die freigebende Person ihn dort in einem Editor, mit **Original
+wiederherstellen (Restore original)** und **Änderungen anzeigen (Show changes)**,
+und gibt ihre Fassung frei. Der Schritt gibt dann `final`, `original` und `edited`
+weiter, sodass ein späterer Schritt sendet, was die Person freigegeben hat. Wer entscheiden darf, vom
+Schritt aber nicht genannt wird, sieht den Vorschlag schreibgeschützt, und eine mit
+einer geänderten Fassung entschiedene Anfrage trägt unter **Entschieden (Decided)** das Zeichen
+**Bearbeitet (Edited)**.
 
 
 In der Liste lautet die Version eines Testlaufs **Draft (test)** und die eines echten
@@ -731,7 +783,7 @@ hat, sodass ein Testlauf dort beginnt, wo jener war. Über die API wiederholt `P
 ## Einen Workflow von außerhalb der Konsole starten { #starting-a-workflow-from-outside-the-console }
 
 Ein Workflow startet mit einem **Trigger**, dem ersten Knoten auf seiner
-Zeichenfläche. Die Gruppe **Triggers** oben in der Schrittauswahl enthält sie alle: **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Gmail**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** und **On failure of a workflow**. Einen
+Zeichenfläche. Die Gruppe **Triggers** oben in der Schrittauswahl enthält sie alle: **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Gmail**, **Outlook**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** und **On failure of a workflow**. Einen
 davon einem Workflow hinzuzufügen, der schon einen Trigger hat, ersetzt den alten an
 seiner Stelle, und die Verbindungen und Bindings, die den alten verlassen, verlassen
 den neuen. **New workflow** beginnt einen Workflow mit dem Trigger, den Sie dort
@@ -908,9 +960,55 @@ Nachrichten mit dem Label `SENT`, `DRAFT`, `SPAM` oder `TRASH` sind keine Eingä
 starten nichts, es sei denn, **Label** nennt eines davon.
 
 Der Lauf bekommt `sender`, `to`, `subject`, `text`, `snippet`, `labels` und die
-`message_id` des Postfachs. Eine zweimal gelesene Nachricht startet ihren Lauf einmal,
-und eine, für die die Organisation noch keinen Platz hatte, wird eine Minute später
-erneut gelesen. Siehe [trigger.gmail](reference/workflow-nodes.md#trigger-gmail).
+`message_id` des Postfachs sowie den Thread, zu dem die Nachricht gehört: `thread_id`,
+`rfc_message_id` (der `Message-ID`-Header), `in_reply_to`, `references`,
+`received_at` und den `html`-Inhalt. Die drei Header-Felder schreibt der Absender;
+mit ihnen lässt sich eine Antwort in den Thread einordnen, sie beweisen aber nichts
+darüber, wer die Nachricht gesendet hat. Eine zweimal gelesene Nachricht startet
+ihren Lauf einmal, und eine, für die die Organisation noch keinen Platz hatte, wird
+eine Minute später erneut gelesen. Siehe
+[trigger.gmail](reference/workflow-nodes.md#trigger-gmail). Um den `html`-Text als
+Text, als Links oder als das zu lesen, was ein CSS-Selektor auswählt, binden Sie ihn an
+[`html.parse`](reference/workflow-nodes.md#html-parse).
+
+Ein **Outlook**-Trigger tut dasselbe für das Microsoft-365-Postfach der Organisation,
+verbunden über das **Outlook**-Portal. Microsoft Graph wird Ordner für Ordner
+gelesen, deshalb nennt der Schritt den **Folder**, den er beobachtet - ohne Angabe
+den Posteingang - und, um ein gemeinsames Postfach zu lesen, das das verbundene Konto
+öffnen kann, das Feld **Shared mailbox**. Die Filter sind **Subject contains**, **Sender
+contains**, **Has attachments**, **Importance** und **Category**. Das erste Lesen
+eines Ordners beginnt mit dem Zeitpunkt, zu dem der Workflow veröffentlicht oder zuletzt
+eingeschaltet wurde; Post, die schon dort liegt, startet nichts.
+
+Ein gemeinsames Postfach, das der Microsoft-Grant der Organisation öffnen kann, zu
+nennen, erfordert die Berechtigung, Verbindungen zu verwalten, wie bei Outlook-Agent-Triggern;
+ein Workflow, der schon eines liest, behält es bei späteren Veröffentlichungen, und es zu
+ändern erfordert die Berechtigung erneut. Meldet Outlook, dass der Ordner nicht
+mehr gelesen werden kann, wird der Workflow ausgeschaltet, und das Audit-Log nennt
+den Grund.
+
+Der Lauf bekommt dieselben Felder wie ein Gmail-Lauf, wobei `labels` die
+Kategorien der Nachricht enthält und `mailbox` das gemeinsame Postfach, aus dem sie
+kam. Siehe [trigger.outlook](reference/workflow-nodes.md#trigger-outlook).
+
+Beide Mail-Trigger nehmen Eingaben von außen an: Jeder kann dem Postfach eine
+Nachricht schicken, binden Sie also, was der Lauf damit tut, wie bei einem Webhook.
+
+Die `attachments` einer Nachricht nennen Name, angegebenen Typ und Größe jeder
+Datei; ein Postfach liefert höchstens 20 pro Nachricht, und ein `text`- oder
+`html`-Inhalt wird bis zu 20.000 Zeichen gelesen. Ein Lauf, den das Postfach
+gestartet hat, speichert sie als Dateien des Runs, und jede trägt ihr `file` und
+`stored: true`. Von den genannten Anhängen werden nur die ersten 10 berücksichtigt,
+zusammen bis 25 MiB, und jeder muss in das Größenlimit für Chat-Uploads, die Liste
+erlaubter Dateitypen und das Speicherkontingent der Organisation passen.
+
+Ein ausgelassener Anhang trägt einen `reason`: `too_many` (nach den ersten 10),
+`too_large`, `type_not_allowed`, `quota` oder `unreadable` - das Postfach antwortete
+darauf mit 400, 401, 403 oder 404, oder sein Grant fehlt, ist ausgeschaltet oder
+lässt sich nicht erneuern. Ein Testlauf liest nichts aus dem Postfach, seine Anhänge
+sind daher `not_fetched`. Scheitert das Postfach auf eine Weise, die eine
+Wiederholung beheben kann, schlägt der Schritt mit `MAIL_ATTACHMENT_UNREACHABLE`
+fehl und wird wiederholt.
 
 ### Über eine Kanalnachricht { #from-a-channel-message }
 

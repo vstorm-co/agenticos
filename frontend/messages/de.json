@@ -222,6 +222,7 @@
     "description": "Beschreibung",
     "descriptionModelReads": "Beschreibung, die das Modell liest",
     "devStagingClientS": "dev, staging, der Name eines Kunden …",
+    "diffTooLong": "Zu lang für einen zeilenweisen Vergleich.",
     "disabled": "deaktiviert",
     "documentCount": "{count, plural, =1 {1 Dokument} other {# Dokumente}}",
     "draft": "Entwurf",
@@ -2813,6 +2814,21 @@
         "cost": "Kosten",
         "row": "{runs, plural, one {# Run} other {# Runs}}",
         "rowFailed": "{runs, plural, one {# Run} other {# Runs}}, {failed, number} fehlgeschlagen"
+      },
+      "approval-outcomes": {
+        "title": "Freigabe-Ergebnisse",
+        "description": "Wie Personen im Zeitraum über die Anfragen Ihrer Workflows entschieden haben: wie vorgeschlagen freigegeben, bearbeitet, abgelehnt und wie lange es dauerte.",
+        "empty": {
+          "title": "Keine Freigabeanfragen in diesem Zeitraum",
+          "description": "Ein Workflow mit Freigabeschritt erscheint hier, sobald jemand gefragt wird."
+        },
+        "unchanged": "Wie vorgeschlagen freigegeben",
+        "edited": "Bearbeitet",
+        "editedCaption": "Änderung im Median {ratio}",
+        "decideTime": "Zeit bis zur Entscheidung",
+        "notMeasured": "Änderung nicht gemessen",
+        "rowRequests": "{requests, plural, one {# Anfrage} other {# Anfragen}}",
+        "row": "{requests, plural, one {# Anfrage} other {# Anfragen}}, {rate} wie vorgeschlagen freigegeben"
       },
       "suggestions": {
         "title": "Briefing",
@@ -5655,6 +5671,17 @@
       "stepApprovalsCounted": "{count, plural, one {# wartet} other {# warten}}",
       "stepApprovalExpires": "läuft ab {at}",
       "stepApprovalNamed": "{count, plural, one {# benannte Freigabe} other {# benannte Freigaben}}",
+      "stepApprovalProposal": "Vorschlag",
+      "stepApprovalRestore": "Original wiederherstellen",
+      "stepApprovalShowChanges": "Änderungen anzeigen",
+      "stepApprovalHideChanges": "Änderungen ausblenden",
+      "stepApprovalNoChanges": "Noch keine Änderungen",
+      "stepApprovalUnchangedLines": "{count, plural, one {# unveränderte Zeile} other {# unveränderte Zeilen}}",
+      "stepApprovalDiffTooLong": "Zu lang für einen zeilenweisen Vergleich.",
+      "stepApprovalEmpty": "Schreiben Sie den Vorschlag, bevor Sie ihn freigeben.",
+      "stepApprovalLength": "{count, number} von {max, number} Zeichen",
+      "stepApprovalNotYours": "Nur die in diesem Schritt genannten Personen können darüber entscheiden.",
+      "stepApprovalEdited": "Bearbeitet",
       "surfaceTeams": "Microsoft Teams"
     },
     "sandboxes": {
@@ -6271,6 +6298,7 @@
         "channel_message": "Eine Kanalnachricht",
         "github": "GitHub",
         "gmail": "Gmail",
+        "outlook": "Outlook",
         "app": "Eine Seite"
       },
       "runsCount": "{count, plural, one {# Run} other {# Runs}}",
@@ -6421,6 +6449,10 @@
         "gmail": {
           "name": "Gmail",
           "description": "Eine neue E-Mail im verbundenen Postfach der Organisation startet einen Lauf."
+        },
+        "outlook": {
+          "name": "Outlook",
+          "description": "Eine neue E-Mail in einem Ordner des verbundenen Microsoft-365-Postfachs der Organisation startet einen Lauf."
         }
       },
       "startRunOptional": "optional",
@@ -6573,6 +6605,7 @@
       "githubRegistered": "Über das GitHub-Konto der Organisation in {repository} registriert und bei jeder Veröffentlichung neu registriert.",
       "githubPasteIt": "Fügen Sie diese Adresse in den Einstellungen des Repositorys unter Settings > Webhooks ein, mit dem Inhaltstyp application/json und dem Geheimnis, das beim Veröffentlichen gezeigt wurde. New secret zeigt ein neues.",
       "triggerGmailLive": "Das Gmail-Postfach der Organisation wird jede Minute gelesen, und jede neue Nachricht, die zum Trigger passt, startet einen Lauf als das Mitglied, das ihn veröffentlicht hat. Eine Nachricht startet einmal, wie oft sie auch gelesen wird.",
+      "triggerOutlookLive": "Das Microsoft-365-Postfach der Organisation wird jede Minute gelesen, Ordner für Ordner, und jede neue Nachricht im Ordner des Schritts, die zum Trigger passt, startet einen Lauf als das Mitglied, das ihn veröffentlicht hat. Eine Nachricht startet einmal, wie oft sie auch gelesen wird.",
       "settingsLimits": "Grenzen",
       "settingsLimitsHint": "Was seine Läufe gleichzeitig tun und ausgeben dürfen. Jeder Schritt behält seine eigenen Grenzen - darunter die Kostenobergrenze eines Agentenschritts -, und diese gelten darüber.",
       "settingsConcurrent": "Gleichzeitig laufende Läufe",
@@ -6603,7 +6636,21 @@
         "stepFailed": "Fehlgeschlagen",
         "stepTime": "Mittlere Dauer",
         "stepCost": "Kosten",
-        "stepGone": "Ein Schritt, den der Workflow nicht mehr hat"
+        "stepGone": "Ein Schritt, den der Workflow nicht mehr hat",
+        "approvalsHeading": "Freigaben",
+        "approvalsHint": "Wie über die Anfragen der Freigabeschritte dieses Workflows entschieden wurde, im selben Zeitraum.",
+        "approvalsUnchanged": "Wie vorgeschlagen freigegeben",
+        "approvalsUnchangedCaption": "{approved, number} von {decided, number} freigegeben",
+        "approvalsEdited": "Vor der Freigabe bearbeitet",
+        "approvalsEditedCaption": "Änderung im Median {ratio}",
+        "approvalsNotMeasured": "Änderung nicht gemessen",
+        "approvalsRejected": "Abgelehnt",
+        "approvalsExpired": "Abgelaufen",
+        "approvalsExpiredCaption": "{count, plural, one {# abgelaufen} other {# abgelaufen}}",
+        "approvalsDecideTime": "Zeit bis zur Entscheidung",
+        "approvalsDecideCaption": "95 % innerhalb von {p95}",
+        "approvalsRequests": "Anfragen",
+        "approvalsMedianEdit": "Änderung (Median)"
       }
     }
   },
@@ -8423,6 +8470,11 @@
         "ready": "Das Postfach der Organisation ist verbunden und wird jede Minute gelesen.",
         "connect": "Noch ist kein Postfach verbunden. Die Veröffentlichung wartet darauf.",
         "reauthorize": "Das Postfach muss neu verbunden werden, bevor es gelesen werden kann."
+      },
+      "microsoft": {
+        "ready": "Das Microsoft-365-Postfach der Organisation ist verbunden und wird jede Minute gelesen.",
+        "connect": "Noch kein Microsoft-365-Postfach verbunden. Das Veröffentlichen wartet darauf.",
+        "reauthorize": "Das Postfach muss erneut verbunden werden, bevor es gelesen werden kann."
       },
       "github": {
         "ready": "Mit der Berechtigung verbunden, Webhooks zu verwalten: Die Veröffentlichung registriert den Hook für Sie.",

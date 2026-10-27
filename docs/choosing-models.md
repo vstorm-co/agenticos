@@ -40,6 +40,11 @@ budget disappears.
     the other way round means debugging your instructions and the model at the
     same time, and you will blame the wrong one.
 
+A model's own report of how sure it is, as `ai.classify` can ask for with
+`min_confidence` set, ranks answers from more to less certain; it is not a
+probability. Smaller open-weights models report it less reliably. Choose the
+threshold from your own evals, not from the number's face value.
+
 ## Closed models or open weights
 
 Both are first-class here. The 28 providers include the closed frontier labs,

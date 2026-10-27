@@ -6,6 +6,8 @@ reconciler, a cancelled run closes its requests, and who may decide is who the
 step names.
 """
 
+import json
+import threading
 import uuid
 from collections.abc import Coroutine, Iterator
 from datetime import UTC, datetime, timedelta
@@ -13,16 +15,24 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+    ValidationError,
+)
 from app.core.permissions import AuthContext
+from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.notification import Notification
 from app.db.models.organization import OrganizationMember
 from app.db.models.user import User
 from app.db.models.workflow_approval import WorkflowApproval, WorkflowApprovalStatus
-from app.db.models.workflow_run import NodeRun, NodeRunStatus, WorkflowRunStatus
+from app.db.models.workflow_run import NodeAttempt, NodeRun, NodeRunStatus, WorkflowRunStatus
+from app.repositories import workflow_approval as approval_repo
+from app.schemas.workflow_approval import WorkflowApprovalRead
 from app.services.workflow_execution import approvals as approvals_service
 from app.services.workflow_execution.approvals import (
     WorkflowApprovalService,
@@ -121,13 +131,33 @@ async def _request(seeded: SeededRun) -> WorkflowApproval:
 
 
 async def _decide(
-    seeded: SeededRun, approval_id: uuid.UUID, *, approved: bool, ctx: AuthContext | None = None
-) -> None:
+    seeded: SeededRun,
+    approval_id: uuid.UUID,
+    *,
+    approved: bool,
+    ctx: AuthContext | None = None,
+    final: str | None = None,
+) -> WorkflowApprovalRead:
     async with seeded.factory() as db:
-        await WorkflowApprovalService(db).decide(
-            ctx or seeded.ctx, approval_id, approved=approved, note="checked the order"
+        decided = await WorkflowApprovalService(db).decide(
+            ctx or seeded.ctx, approval_id, approved=approved, note="checked the order", final=final
         )
         await db.commit()
+    return decided
+
+
+async def _audit(seeded: SeededRun) -> list[AppAdminAuditLog]:
+    async with seeded.factory() as db:
+        return list(
+            (
+                await db.execute(
+                    select(AppAdminAuditLog).where(
+                        AppAdminAuditLog.organization_id == seeded.org.id,
+                        AppAdminAuditLog.action.like("workflow_approval.%"),
+                    )
+                )
+            ).scalars()
+        )
 
 
 async def _another_member(seeded: SeededRun, *, role: str = "admin") -> AuthContext:
@@ -253,6 +283,401 @@ class TestTheWait:
         assert queue.total == 0
 
 
+def _editable_graph(proposal: str | None, **config: Any) -> Graph:
+    """The standard graph, with `proposal` bound to the step when there is one."""
+    shape = Graph(**config)
+    if proposal is not None:
+        shape.graph = shape.graph.model_copy(
+            update={
+                "bindings": (
+                    *shape.graph.bindings,
+                    Binding(
+                        target_node_id=shape.ask.id,
+                        target_field="proposal",
+                        source=LiteralValue(value=proposal),
+                    ),
+                )
+            }
+        )
+    return shape
+
+
+async def _record(seeded: SeededRun, approval_id: uuid.UUID, **values: Any) -> None:
+    """Decide the row the way the service will: by writing what it records."""
+    async with seeded.factory() as db:
+        approval = await approval_repo.get_for_node_run_for_update(
+            db, (await _request(seeded)).node_run_id
+        )
+        assert approval is not None and approval.id == approval_id
+        await approval_repo.update(
+            db,
+            approval=approval,
+            update_data={"decided_by_user_id": seeded.principal.id, **values},
+        )
+        await db.commit()
+
+
+async def _step_output(seeded: SeededRun, node_run_id: uuid.UUID) -> dict[str, Any]:
+    async with seeded.factory() as db:
+        attempts = (
+            await db.execute(
+                select(NodeAttempt)
+                .where(NodeAttempt.node_run_id == node_run_id, NodeAttempt.result.is_not(None))
+                .order_by(NodeAttempt.attempt_no.desc())
+            )
+        ).scalars()
+        result = next(iter(attempts)).result
+    assert result is not None
+    return dict(result["output"])
+
+
+class TestAnEditableStep:
+    async def test_an_editable_step_asks_with_its_proposal(self, engine: AsyncEngine):
+        seeded = await seed_run(
+            engine,
+            _editable_graph(
+                "Dear customer",
+                editable=True,
+                proposal_format="markdown",
+                proposal_label="Reply",
+            ).graph,
+        )
+        await drive(seeded)
+
+        request = await _request(seeded)
+        assert request.editable is True
+        assert request.proposal == "Dear customer"
+        assert request.proposal_format == "markdown"
+        assert request.proposal_label == "Reply"
+        assert (request.final, request.edited) == (None, False)
+
+    async def test_an_editable_step_with_nothing_bound_asks_with_an_empty_proposal(
+        self, engine: AsyncEngine
+    ):
+        seeded = await seed_run(engine, _editable_graph(None, editable=True).graph)
+        await drive(seeded)
+
+        request = await _request(seeded)
+        assert request.editable is True
+        assert request.proposal == ""
+        assert request.proposal_format == "text"
+        assert request.proposal_label is None
+
+    async def test_a_plain_step_keeps_a_bound_proposal_read_only(self, engine: AsyncEngine):
+        seeded = await seed_run(engine, _editable_graph("Dear customer").graph)
+        await drive(seeded)
+
+        request = await _request(seeded)
+        assert request.editable is False
+        assert request.proposal == "Dear customer"
+
+    async def test_a_plain_step_with_nothing_bound_stores_no_proposal(self, engine: AsyncEngine):
+        seeded = await seed_run(engine, Graph().graph)
+        await drive(seeded)
+
+        assert (await _request(seeded)).proposal is None
+
+    async def test_the_step_hands_on_what_the_row_records(self, engine: AsyncEngine):
+        shape = _editable_graph("A", editable=True)
+        seeded = await seed_run(engine, shape.graph)
+        await drive(seeded)
+        request = await _request(seeded)
+        await _record(
+            seeded,
+            request.id,
+            status=WorkflowApprovalStatus.APPROVED.value,
+            decided_at=datetime.now(UTC),
+            final="B",
+            edited=True,
+        )
+        await wake_approval_step(request.node_run_id, organization_id=seeded.org.id)
+        run = await drive(seeded)
+
+        assert run.status == WorkflowRunStatus.SUCCEEDED.value
+        output = await _step_output(seeded, request.node_run_id)
+        assert (output["final"], output["original"], output["edited"]) == ("B", "A", True)
+        assert routes(output) == frozenset({"approved"})
+        statuses = await node_statuses(seeded)
+        assert statuses[shape.yes.id] == NodeRunStatus.SUCCEEDED.value
+
+    async def test_a_plain_step_hands_on_the_recorded_final(self, engine: AsyncEngine):
+        seeded = await seed_run(engine, _editable_graph("A").graph)
+        await drive(seeded)
+        request = await _request(seeded)
+        await _record(
+            seeded,
+            request.id,
+            status=WorkflowApprovalStatus.APPROVED.value,
+            decided_at=datetime.now(UTC),
+            final="A",
+        )
+        await wake_approval_step(request.node_run_id, organization_id=seeded.org.id)
+        await drive(seeded)
+
+        output = await _step_output(seeded, request.node_run_id)
+        assert (output["final"], output["original"], output["edited"]) == ("A", "A", False)
+
+    async def test_an_expired_editable_request_carries_no_final(self, engine: AsyncEngine):
+        shape = _editable_graph("A", editable=True, timeout_hours=1)
+        seeded = await seed_run(engine, shape.graph)
+        await drive(seeded)
+        request = await _request(seeded)
+        async with seeded.factory() as db:
+            await db.execute(
+                update(WorkflowApproval)
+                .where(WorkflowApproval.id == request.id)
+                .values(expires_at=datetime.now(UTC) - timedelta(minutes=1))
+            )
+            await db.commit()
+        await wake_approval_step(request.node_run_id, organization_id=seeded.org.id)
+        await drive(seeded)
+
+        output = await _step_output(seeded, request.node_run_id)
+        assert output["decision"] == "expired"
+        assert (output["final"], output["original"], output["edited"]) == (None, "A", False)
+        assert routes(output) == frozenset({"rejected"})
+
+    async def _decided_step(
+        self,
+        engine: AsyncEngine,
+        wakes,
+        *,
+        proposal: str | None,
+        approved: bool = True,
+        final: str | None = None,
+        **config: Any,
+    ) -> tuple[SeededRun, WorkflowApproval, WorkflowApprovalRead]:
+        seeded = await seed_run(engine, _editable_graph(proposal, **config).graph)
+        await drive(seeded)
+        request = await _request(seeded)
+        decided = await _decide(seeded, request.id, approved=approved, final=final)
+        await wake_approval_step(request.node_run_id, organization_id=seeded.org.id)
+        await drive(seeded)
+        return seeded, request, decided
+
+    async def test_an_edited_approval_goes_on_with_the_edit(self, engine: AsyncEngine, wakes):
+        seeded, request, decided = await self._decided_step(
+            engine, wakes, proposal="Dear customer", final="Dear Ann", editable=True
+        )
+        output = await _step_output(seeded, request.node_run_id)
+        assert (output["final"], output["original"], output["edited"]) == (
+            "Dear Ann",
+            "Dear customer",
+            True,
+        )
+        assert (decided.final, decided.proposal, decided.edited) == (
+            "Dear Ann",
+            "Dear customer",
+            True,
+        )
+
+    async def test_an_approval_without_an_edit_hands_on_the_proposal(
+        self, engine: AsyncEngine, wakes
+    ):
+        seeded, request, decided = await self._decided_step(
+            engine, wakes, proposal="Dear customer", editable=True
+        )
+        output = await _step_output(seeded, request.node_run_id)
+        assert (output["final"], output["edited"]) == ("Dear customer", False)
+        assert (decided.final, decided.edited) == ("Dear customer", False)
+
+    async def test_a_whitespace_only_change_is_not_an_edit(self, engine: AsyncEngine, wakes):
+        seeded, request, decided = await self._decided_step(
+            engine, wakes, proposal="A\r\nB  \n", final="A\nB", editable=True
+        )
+        output = await _step_output(seeded, request.node_run_id)
+        assert (output["final"], output["edited"]) == ("A\nB", False)
+        assert decided.edited is False
+
+    async def test_a_plain_step_hands_its_proposal_on_as_final(self, engine: AsyncEngine, wakes):
+        seeded, request, decided = await self._decided_step(engine, wakes, proposal="Dear customer")
+        output = await _step_output(seeded, request.node_run_id)
+        assert (output["final"], output["original"], output["edited"]) == (
+            "Dear customer",
+            "Dear customer",
+            False,
+        )
+        assert (decided.final, decided.edited) == ("Dear customer", False)
+
+    async def test_a_plain_step_refuses_a_final_naming_the_field(self, engine: AsyncEngine, wakes):
+        seeded = await seed_run(engine, _editable_graph("A").graph)
+        await drive(seeded)
+        request = await _request(seeded)
+        with pytest.raises(ValidationError) as refused:
+            await _decide(seeded, request.id, approved=True, final="B")
+        assert refused.value.details["fields"][0]["field"] == "final"
+        assert (await _request(seeded)).status == WorkflowApprovalStatus.PENDING.value
+        assert await _audit(seeded) == []
+        assert wakes == []
+
+    async def test_a_final_for_a_decided_plain_step_is_a_validation_error_not_a_state_error(
+        self, engine: AsyncEngine, wakes
+    ):
+        seeded = await seed_run(engine, _editable_graph("A").graph)
+        await drive(seeded)
+        request = await _request(seeded)
+        await _decide(seeded, request.id, approved=True)
+        with pytest.raises(ValidationError) as refused:
+            await _decide(seeded, request.id, approved=True, final="B")
+        assert refused.value.details["fields"][0]["field"] == "final"
+
+    async def test_a_rejection_with_a_final_is_refused(self, engine: AsyncEngine, wakes):
+        seeded = await seed_run(engine, _editable_graph("A", editable=True).graph)
+        await drive(seeded)
+        request = await _request(seeded)
+        with pytest.raises(ValidationError) as refused:
+            await _decide(seeded, request.id, approved=False, final="B")
+        assert refused.value.details["fields"][0]["field"] == "final"
+        assert (await _request(seeded)).status == WorkflowApprovalStatus.PENDING.value
+        assert await _audit(seeded) == []
+
+    async def test_a_rejection_carries_no_final(self, engine: AsyncEngine, wakes):
+        seeded, request, decided = await self._decided_step(
+            engine, wakes, proposal="A", approved=False, editable=True
+        )
+        output = await _step_output(seeded, request.node_run_id)
+        assert (output["final"], output["original"], output["edited"]) == (None, "A", False)
+        assert (decided.final, decided.edited) == (None, False)
+
+    async def test_the_audit_holds_lengths_and_never_the_text(self, engine: AsyncEngine, wakes):
+        proposal, final = "PROPOSAL-MARKER-7f3", "FINAL-MARKER-91c plus more"
+        seeded, _request_row, _decided = await self._decided_step(
+            engine, wakes, proposal=proposal, final=final, editable=True
+        )
+        (entry,) = await _audit(seeded)
+        assert entry.action == "workflow_approval.approved"
+        assert entry.details is not None
+        assert (
+            entry.details["edited"],
+            entry.details["editable"],
+            entry.details["proposal_length"],
+            entry.details["final_length"],
+        ) == (True, True, len(proposal), len(final))
+        dumped = json.dumps(entry.details)
+        assert "PROPOSAL-MARKER-7f3" not in dumped and "FINAL-MARKER-91c" not in dumped
+
+    async def test_a_request_made_before_proposals_decides_as_before(
+        self, engine: AsyncEngine, wakes
+    ):
+        seeded = await seed_run(engine, Graph().graph)
+        await drive(seeded)
+        request = await _request(seeded)
+        async with seeded.factory() as db:
+            # The row as a deployment's older requests are: none of the new keywords.
+            await db.execute(delete(WorkflowApproval).where(WorkflowApproval.id == request.id))
+            legacy = await approval_repo.create(
+                db,
+                organization_id=request.organization_id,
+                workflow_id=request.workflow_id,
+                workflow_run_id=request.workflow_run_id,
+                node_run_id=request.node_run_id,
+                title=request.title,
+                details=request.details,
+                approver_user_ids=[],
+                expires_at=None,
+            )
+            await db.commit()
+        decided = await _decide(seeded, legacy.id, approved=True)
+        assert (decided.final, decided.edited) == (None, False)
+        assert decided.status == WorkflowApprovalStatus.APPROVED
+
+
+class TestWhatADecisionRecords:
+    async def _decided(
+        self,
+        engine: AsyncEngine,
+        wakes,
+        *,
+        proposal: str | None,
+        approved: bool = True,
+        final: str | None = None,
+        **config: Any,
+    ) -> tuple[SeededRun, WorkflowApproval, WorkflowApprovalRead]:
+        seeded = await seed_run(engine, _editable_graph(proposal, **config).graph)
+        await drive(seeded)
+        request = await _request(seeded)
+        decided = await _decide(seeded, request.id, approved=approved, final=final)
+        return seeded, await _request(seeded), decided
+
+    async def test_an_unchanged_approval_records_no_edit(self, engine: AsyncEngine, wakes):
+        seeded, row, _decided = await self._decided(
+            engine, wakes, proposal="Hello Anna", editable=True
+        )
+        assert (row.edited, row.edit_ratio) == (False, 0.0)
+
+    async def test_an_edited_approval_records_how_much_changed(self, engine: AsyncEngine, wakes):
+        seeded, row, _decided = await self._decided(
+            engine, wakes, proposal="Hello Anna", final="Hello Ann", editable=True
+        )
+        assert (row.edited, row.edit_ratio) == (True, round(1 / 10, 6))
+
+    async def test_a_whitespace_only_change_records_no_edit(self, engine: AsyncEngine, wakes):
+        seeded, row, _decided = await self._decided(
+            engine, wakes, proposal="A\r\nB  \n", final="A\nB", editable=True
+        )
+        assert (row.edited, row.edit_ratio) == (False, 0.0)
+
+    async def test_a_unicode_only_change_records_no_edit(self, engine: AsyncEngine, wakes):
+        # Composed and decomposed é (Zoé): the same text, however a browser or a mail
+        # client happened to write it.
+        seeded, row, _decided = await self._decided(
+            engine, wakes, proposal="Zo\u00e9", final="Zoe\u0301", editable=True
+        )
+        assert (row.edited, row.edit_ratio) == (False, 0.0)
+
+    async def test_an_editable_step_with_nothing_to_edit_records_no_edit(
+        self, engine: AsyncEngine, wakes
+    ):
+        seeded, row, _decided = await self._decided(engine, wakes, proposal=None, editable=True)
+        assert (row.edited, row.edit_ratio) == (False, 0.0)
+
+    async def test_a_rejection_records_no_ratio(self, engine: AsyncEngine, wakes):
+        seeded, row, _decided = await self._decided(
+            engine, wakes, proposal="A", approved=False, editable=True
+        )
+        assert row.edit_ratio is None
+
+    async def test_a_plain_step_records_no_ratio(self, engine: AsyncEngine, wakes):
+        seeded, row, _decided = await self._decided(engine, wakes, proposal="A")
+        assert row.edit_ratio is None
+
+    async def test_a_decision_is_scored_off_the_event_loop(
+        self, engine: AsyncEngine, wakes, monkeypatch: pytest.MonkeyPatch
+    ):
+        threads: list[bool] = []
+        real = approvals_service.text_similarity.compare
+
+        def spy(*args: Any, **kwargs: Any):
+            threads.append(threading.current_thread() is threading.main_thread())
+            return real(*args, **kwargs)
+
+        monkeypatch.setattr(approvals_service.text_similarity, "compare", spy)
+        await self._decided(engine, wakes, proposal="Hello Anna", final="Hello Ann", editable=True)
+        assert threads == [False]
+
+    async def test_the_audit_holds_the_ratio_and_never_the_text(self, engine: AsyncEngine, wakes):
+        seeded, _row, _decided = await self._decided(
+            engine,
+            wakes,
+            proposal="PROPOSAL-MARKER-7f3",
+            final="FINAL-MARKER-91c plus more",
+            editable=True,
+        )
+        (entry,) = await _audit(seeded)
+        assert entry.details is not None
+        ratio = entry.details["edit_ratio"]
+        assert isinstance(ratio, float) and 0 < ratio <= 1
+        dumped = json.dumps(entry.details)
+        assert "PROPOSAL-MARKER-7f3" not in dumped and "FINAL-MARKER-91c" not in dumped
+
+    async def test_a_rejection_audits_no_ratio(self, engine: AsyncEngine, wakes):
+        seeded, _row, _decided = await self._decided(
+            engine, wakes, proposal="A", approved=False, editable=True
+        )
+        (entry,) = await _audit(seeded)
+        assert entry.details is not None and entry.details["edit_ratio"] is None
+
+
 class TestWhoDecides:
     async def test_a_step_that_names_approvers_is_decided_only_by_them(
         self, engine: AsyncEngine, wakes
@@ -277,6 +702,45 @@ class TestWhoDecides:
         # A decision is final.
         with pytest.raises(BadRequestError, match="already approved"):
             await _decide(seeded, request.id, approved=False, ctx=approver)
+
+    async def test_a_final_from_someone_the_step_does_not_name_is_refused(
+        self, engine: AsyncEngine, wakes
+    ):
+        # A plain step, so the final is also a 422: the 403 provably wins.
+        seeded = await seed_run(engine, _editable_graph("A").graph)
+        approver = await _another_member(seeded)
+        await drive(seeded)
+        request = await _request(seeded)
+        async with seeded.factory() as db:
+            await db.execute(
+                update(WorkflowApproval)
+                .where(WorkflowApproval.id == request.id)
+                .values(approver_user_ids=[str(approver.user_id)])
+            )
+            await db.commit()
+
+        with pytest.raises(AuthorizationError):
+            await _decide(seeded, request.id, approved=True, final="B")
+        stored = await _request(seeded)
+        assert (stored.status, stored.final, stored.edited) == (
+            WorkflowApprovalStatus.PENDING.value,
+            None,
+            False,
+        )
+        assert await _audit(seeded) == []
+
+    async def test_a_final_for_another_organizations_request_is_not_found(
+        self, engine: AsyncEngine, wakes
+    ):
+        # A plain step, so the final is also a 422: the 404 provably wins.
+        seeded = await seed_run(engine, _editable_graph("A").graph)
+        await drive(seeded)
+        stranger = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="owner")
+        with pytest.raises(NotFoundError):
+            await _decide(
+                seeded, (await _request(seeded)).id, approved=True, ctx=stranger, final="B"
+            )
+        assert (await _request(seeded)).final is None
 
     async def test_a_request_of_another_organization_is_not_found(self, engine: AsyncEngine):
         seeded = await seed_run(engine, Graph().graph)
@@ -410,3 +874,22 @@ async def test_a_named_approver_without_decision_permission_cannot_park_a_run(
     run = await drive(named)
     assert run.status == "failed"
     assert run.error is not None and run.error["code"] == "APPROVER_UNAVAILABLE"
+
+
+class TestTheQueueCarriesTheProposal:
+    async def test_the_queue_lists_the_proposal_and_its_mode(self, engine: AsyncEngine):
+        seeded = await seed_run(
+            engine,
+            _editable_graph(
+                "Dear customer", editable=True, proposal_format="markdown", proposal_label="Reply"
+            ).graph,
+        )
+        await drive(seeded)
+        async with seeded.factory() as db:
+            (item,) = (await WorkflowApprovalService(db).queue(seeded.ctx, statuses=[])).items
+        assert (item.editable, item.proposal, item.proposal_format, item.proposal_label) == (
+            True,
+            "Dear customer",
+            "markdown",
+            "Reply",
+        )

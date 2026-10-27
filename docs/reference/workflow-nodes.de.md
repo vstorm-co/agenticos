@@ -1,5 +1,5 @@
 ---
-source_sha: "1887baea5a17"
+source_sha: "d4b30e7a0a40"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -150,9 +150,59 @@ Nachricht außerdem die Prüfung des authentifizierten Absenders bestehen (DMARC
 eine DKIM-Signatur der Absenderdomain). Nachrichten mit dem Label `SENT`, `DRAFT`,
 `SPAM` oder `TRASH` werden übersprungen, es sei denn, **Label** nennt sie.
 
+Die Ausgabe trägt den Thread - `thread_id`, `rfc_message_id`, `in_reply_to`,
+`references`, `received_at` - und den `html`-Inhalt, bis zu 20.000 Zeichen gelesen.
+Die Header-Felder schreibt der Absender; sie ordnen eine Antwort in den Thread ein
+und beweisen nichts darüber, wer die Nachricht gesendet hat.
+
+Ein Lauf, den das Postfach gestartet hat, speichert die Anhänge der Nachricht als
+Dateien des Runs, aber nur, wenn der Workflow sie liest: Ein Graph, der weder die
+`attachments` des Triggers noch seine gesamte Ausgabe bindet, lässt jeden Anhang
+`not_fetched`. Jede gespeicherte Datei zählt zum Dateikontingent der Organisation,
+und an einen Trigger ohne **Sender contains** kann jeder schreiben; binde `attachments`
+daher nur, wenn ein Schritt die Dateien braucht.
+
+Ein Postfach liefert höchstens 20 pro Nachricht, und nur die
+ersten 10 davon werden berücksichtigt, zusammen bis 25 MiB, jeder im Größenlimit für
+Chat-Uploads, in der Liste erlaubter Dateitypen und im Speicherkontingent der
+Organisation. Ein ausgelassener Anhang bleibt mit einem `reason` in `attachments`:
+`too_many`, `too_large`, `type_not_allowed`, `quota`, `unreadable` oder
+`not_fetched`. Ein Lauf, den das Postfach nicht gestartet hat - ein Testlauf - liest
+nichts, daher ist jeder Anhang `not_fetched`.
+
+`unreadable` ist eine Antwort mit 400, 401, 403 oder 404 für den Anhang oder ein
+Postfach-Grant, der fehlt, ausgeschaltet ist oder sich nicht erneuern lässt. Jeder
+andere Ausfall des Anbieters lässt den Schritt mit `MAIL_ATTACHMENT_UNREACHABLE`
+fehlschlagen, was wiederholt wird. Beide Mail-Trigger nehmen Eingaben von außen an.
+
 ::: app.workflows.nodes.trigger_gmail._handler.GmailTriggerConfig
 
 ::: app.workflows.nodes._triggers.EmailTriggerOutput
+
+::: app.workflows.nodes._triggers.MailAttachment
+
+### trigger.outlook { #trigger-outlook }
+
+**Outlook.** Gestartet von einer neuen Nachricht in einem Ordner des verbundenen
+Microsoft-365-Postfachs der Organisation, die zu allen gesetzten Filtern passt,
+einmal pro Minute gelesen. Die Veröffentlichung wird abgelehnt, bis ein Postfach
+verbunden ist. `triggered_by` ist `outlook`. Microsoft Graph wird Ordner für Ordner
+gelesen, deshalb sind **Folder** und **Shared mailbox** zugleich der Ort, an dem der
+Poller sucht, und ein Filter; das erste Lesen eines Ordners beginnt mit dem Zeitpunkt
+der Veröffentlichung oder des letzten Einschaltens des Workflows. Ein gemeinsames Postfach, das der
+Microsoft-Grant der Organisation öffnen kann, zu nennen, erfordert die Berechtigung,
+Verbindungen zu verwalten, wie bei Outlook-Agent-Triggern; ein Workflow, der schon eines
+liest, behält es bei späteren Veröffentlichungen, und es zu ändern erfordert die
+Berechtigung erneut. **Sender contains** prüft die Adresse des
+Absenders wie bei Gmail und verlangt Post, die die Absenderdomain authentifiziert hat
+oder die aus dem Tenant stammt. Ein Ordner oder gemeinsames Postfach, das Outlook als
+nicht lesbar meldet, schaltet den Workflow aus, mit `mailbox_folder_unreadable` im
+Audit-Log. Eine gespeicherte Konfiguration, die nicht mehr validiert, überspringt der
+Poller. Die Anhänge werden wie bei [trigger.gmail](#trigger-gmail) gespeichert, und
+`labels` enthält die Kategorien der Nachricht. Die Ausgabe ist dieselbe wie bei
+[trigger.gmail](#trigger-gmail).
+
+::: app.workflows.nodes.trigger_outlook._handler.OutlookTriggerConfig
 
 ### trigger.channel_message { #trigger-channel-message }
 
@@ -226,6 +276,116 @@ scheitert sonst mit `COMBINE_NEEDS_OBJECTS`.
 ::: app.workflows.nodes.data_filter._handler.DataFilterConfig
 
 ::: app.workflows.nodes.data_combine._handler.DataCombineConfig
+
+## text.compare { #text-compare }
+
+**Compare texts** bewertet, wie ähnlich sich zwei Texte, `a` und `b`, sind: 1, wenn sie
+nach Abzug der ignorierten Unterschiede gleich sind, 0, wenn sie nichts gemeinsam
+haben. Es ruft kein Modell auf und kostet nichts, und dieselben zwei Texte ergeben
+immer dieselben Zahlen (Werte werden auf sechs Stellen gerundet). Die **Methode**
+legt fest, was gezählt wird:
+
+- `char_ratio` (Standard) ist der Anteil der Zeichen, die ein Bearbeiter nicht
+  anfassen müsste, aus der exakten Editierdistanz über Zeichen.
+- `token_f1` ist der Anteil der Wörter, die beide Texte gemeinsam haben,
+  unabhängig von der Reihenfolge.
+- `line_diff` ist der Anteil der unveränderten Zeilen.
+
+Zusammengesetzte und zerlegte Akzente sind nie eine Änderung, ebenso wenig
+Zeilenenden. Den Rest bestimmt der Schritt. **Ignore whitespace** ist standardmäßig
+an: Es fasst Leerraum innerhalb einer Zeile zusammen, kürzt jede Zeile und lässt
+leere Zeilen weg. Zeilenumbrüche zählen weiter, daher ignoriert nur `token_f1`, das
+Wörter zählt, wo eine Zeile endet. **Ignore case** und **Ignore punctuation** sind
+standardmäßig aus. Die Wörter von `token_f1` sind Folgen aus Buchstaben, Ziffern und
+Unterstrichen: Es trennt an Apostrophen und zerlegt Text ohne Leerzeichen nicht in
+Wörter.
+
+**Leave out quoted mail and signatures** lässt jede Zeile weg, deren erstes
+Nicht-Leerzeichen ein `>` ist (auch eingerückte Zitate), die Einleitungszeile über
+einem Zitat und alles nach einem Signaturtrenner `-- ` oder einem bloßen `--` oder
+nach einer Zeile `----- Original Message -----`. Das ist eine Heuristik für
+Nur-Text-Mails: HTML-Zitate, eine Antwort, deren Zitat nicht mit `>` markiert ist,
+eine auf zwei Zeilen umbrochene Einleitung (sie bleibt stehen) und eine Signatur ohne
+Trenner erkennt sie nicht.
+
+Jeder Text hat höchstens 100.000 Zeichen, gezählt vor jeder Normalisierung; zwei
+Texte dieser Größe zu bewerten dauert einige Sekunden. Ein längerer Text beendet den
+Run mit `INVALID_BINDING`, bevor der Schritt läuft, sodass `error.handle` ihn nicht
+weiterleiten kann. Ein Schritt, bei dem weder `a` noch `b` gebunden ist, scheitert mit
+`TEXT_COMPARE_NOT_CONFIGURED`; ist nur eines gebunden, endet der Run mit
+`INVALID_BINDING`. Leere Texte sind erlaubt: zwei leere ergeben 1, ein leerer 0. Die
+Palette zeigt den Schritt mit einem Diff-Symbol bei den Datenschritten.
+
+::: app.workflows.nodes.text_compare._handler.TextCompareConfig
+
+::: app.workflows.nodes.text_compare._handler.TextCompareOutput
+
+## html.parse { #html-parse }
+
+**Parse HTML** liest HTML als Text, als Links und als die Elemente, die ein
+CSS-Selektor auswählt. Es ist für das HTML gedacht, dem ein Ablauf begegnet: ein
+Mail-Text, ein `http.request`-Body, eine von `http.download` gespeicherte Seite.
+`text.extract` liest Dokumente, kein Markup - es würde die Tags als Text
+zurückgeben. Binden Sie entweder `html` (höchstens 2.000.000 Zeichen) oder `file`
+(höchstens 5.000.000 Bytes, geprüft, bevor die Datei gelesen wird), nicht beides.
+Eine Datei wird anhand ihrer Byte-Order-Mark, ihres `<meta charset>` oder ihrer
+Bytes dekodiert, nötigenfalls verlustbehaftet, und ihr deklarierter Typ wird nicht
+geprüft: Ein PDF wird als verstümmelter Text gelesen und nicht abgelehnt. Ein
+NUL-Zeichen wird als U+FFFD gelesen.
+
+Der Schritt hat drei Ausgaben, alle begrenzt:
+
+- `text` ist der lesbare Text als Markdown, gekürzt auf **Most characters of text**
+  (standardmäßig 100.000; `text_truncated` sagt, dass gekürzt wurde). Überschriften,
+  Listen und Code bleiben; Skripte, Stile, Menüs (`nav`), Fußzeilen und der `<head>`
+  nicht. Der Web-Konnektor einer Wissenssammlung liest eine Seite genauso. `title`
+  ist der `<title>` der Seite, auf 500 Zeichen gekürzt, oder null, wenn die Seite keinen
+  hat (auch bei einem leeren `<title>`).
+- `links` enthält jedes `a[href]` einmal, in Dokumentreihenfolge, mit dem Text seines
+  ersten Ankers (auf 500 Zeichen gekürzt). Ein Link wird gegen **Base address**
+  aufgelöst, wenn eine gesetzt ist, sonst bleibt er, wie er geschrieben ist. Links
+  auf `javascript:`-, `vbscript:`- und `data:`-Adressen werden weggelassen, damit ein
+  späterer Schritt, der jeden Link abruft, nie ein Skript bekommt; ebenso ein `href`
+  über 2.048 Zeichen und einer, der sich nicht als Adresse lesen lässt. Höchstens 500
+  Links werden behalten und die ersten 5.000 Anker angesehen; `links_truncated` sagt,
+  dass die Seite mehr hatte.
+- `matches` enthält die Elemente, die **CSS selector** auswählt, in
+  Dokumentreihenfolge, höchstens **Most matches** (standardmäßig 20, bis 200);
+  `match_count` sagt, wie viele der Selektor vor dem Kürzen ausgewählt hat. Jeder
+  Treffer hat seinen `text` und sein äußeres `html` (beide auf 10.000 Zeichen
+  gekürzt) und seine ersten 50 `attributes`, wobei ein mehrwertiges wie `class` mit
+  Leerzeichen verbunden und jeder Wert auf 2.000 Zeichen gekürzt wird. Ohne Selektor
+  gibt es keine Treffer. Ein Selektor, der kein gültiges CSS ist, wird beim
+  Veröffentlichen unter Nennung des Felds abgelehnt.
+
+Nichts wird abgerufen und nichts ausgeführt. Kein Bild, kein Stylesheet, keine
+**Base address** und kein Link wird angefragt, ein Skript ist nur Text, und der
+Parser stammt aus der Standardbibliothek, ist kein XML-Parser, sodass keine Entität
+von außerhalb der Seite aufgelöst wird.
+
+Das Parsen läuft in einem Kindprozess mit 20 Sekunden Wanduhrzeit, einem CPU-Limit und
+einem Speicherlimit, weil ein Selektor wie `p div div` über tief verschachteltem
+Markup Minuten brauchen kann. Nach den 20 Sekunden wird der Kindprozess beendet und
+der Schritt scheitert mit `HTML_TOO_COMPLEX`, ohne erneuten Versuch. Auch der Aufwand
+je Anker und je Treffer ist begrenzt, sodass eine einzelne Seite den Schritt weder
+langsam noch seine Ausgabe groß machen kann.
+
+| Was passiert ist | Ergebnis |
+|---|---|
+| Keine Einstellungen oder keine Eingabe | `HTML_PARSE_NOT_CONFIGURED` |
+| `html` über 2.000.000 Zeichen, oder `html` und `file` beide gebunden | `INVALID_BINDING`, bevor der Schritt läuft |
+| Die Datei fehlt oder ist größer als 5.000.000 Bytes | `FILE_NOT_FOUND`, `FILE_TOO_LARGE` |
+| Kein Decoder kann die Bytes lesen, oder der Leseprozess stirbt | `HTML_NOT_READABLE`, das Detail `reason` sagt welches |
+| Die Seite braucht über 20 Sekunden | `HTML_TOO_COMPLEX` |
+
+`INVALID_BINDING` beendet den Run, bevor der Schritt läuft, sodass `error.handle` ihn
+nicht weiterleiten kann; eine zu große Datei ist das `FILE_TOO_LARGE`, mit dem der
+Schritt scheitert und das sich weiterleiten lässt.
+Die Palette zeigt den Schritt mit einem Code-Symbol bei den Datenschritten.
+
+::: app.workflows.nodes.html_parse._handler.HtmlParseConfig
+
+::: app.workflows.nodes.html_parse._handler.HtmlParseOutput
 
 ## Transform { #transform }
 
@@ -345,7 +505,7 @@ Veröffentlichen prüft, ob der Autor das Modell verwenden darf.
 | Schritt | Tut | Gibt weiter |
 |---|---|---|
 | `ai.prompt` | Beantwortet einen gebundenen `prompt` nach den `instructions` des Schritts | `text`, und `structured`, wenn `structured_output_schema` ein Objekt verlangt |
-| `ai.classify` | Ordnet einen gebundenen `text` einer der `categories` des Schritts zu, oder `other` | Verlässt den Schritt über den Port der Kategorie, mit `category`, einem einsätzigen `reason` und dem `text` |
+| `ai.classify` | Ordnet einen gebundenen `text` einer der `categories` des Schritts zu, oder `other` | Verlässt den Schritt über den Port der Kategorie, mit `category`, einem einsätzigen `reason`, dem `text` und `confidence`; unter `min_confidence` über `unsure` |
 | `ai.extract` | Zieht die in `output_schema` genannten Felder aus einem gebundenen `text` und lässt weg, was er nicht sagt | `data`, ein Objekt dieser Form |
 | `ai.rewrite` | Fasst zusammen (`short`, `medium`, `long`), übersetzt in `language` oder schreibt einen gebundenen `text` in einem `style` um | `text` |
 
@@ -355,7 +515,22 @@ nicht das verlangte Objekt ist, lässt den Schritt mit
 `STRUCTURED_OUTPUT_MISMATCH` fehlschlagen; ein ausgeschöpftes Limit mit
 `AGENT_BUDGET_EXCEEDED`.
 
+Ist `min_confidence` gesetzt, meldet das Modell zusätzlich seine eigene Konfidenz
+für die Kategorie, von 0 bis 1. Das ist seine Selbstauskunft, keine
+Wahrscheinlichkeit, und sie ist nicht kalibriert: Prüfen Sie einen Schwellenwert
+mit den [Evals](../workflows.md#evals-for-a-model-step) des Schritts an Ihren
+eigenen Fällen, bevor Sie ihm trauen. Das Minimum fügt nach `other` einen Port
+`unsure` hinzu: Unter dem Minimum geht es über diesen Port weiter, mit derselben
+Ausgabe, sodass die `category` dem Workflow weiter zur Verfügung steht.
+
+Ohne Minimum wird das Modell nicht nach einer Zahl gefragt, der Prompt bleibt
+unverändert, `confidence` ist null und die Kategorie gewinnt immer. Eine Antwort
+ohne Zahl verlässt den Schritt nie über `unsure`, und solange der Port existiert,
+darf `unsure` kein Kategoriename sein.
+
 ::: app.workflows.nodes.ai_classify._handler.AiClassifyConfig
+
+::: app.workflows.nodes.ai_classify._handler.AiClassifyOutput
 
 ## Entscheidungen { #decisions }
 
@@ -366,6 +541,10 @@ nur mit einer der Antworten antworten, die der Schritt zulässt. Unter dem
 `min_confidence` des Schritts verlässt er ihn stattdessen über seinen Port
 `unsure`, sodass ein Workflow dort entscheidet, was ein Mensch oder ein Agent mit
 einem zweifelhaften Fall tut.
+
+`decide.*` ruft nur TypeSafes gehostetes Jev auf. Um zweifelhafte Fälle mit einem
+selbst gehosteten Modell zu routen, nehmen Sie `ai.classify` mit `min_confidence`,
+das den Schritt genauso über `unsure` verlässt.
 
 | Schritt | Fragt | Verlässt über |
 |---|---|---|
@@ -477,10 +656,16 @@ aufgerufen haben kann.
 
 Ruft eine HTTP-API auf. Jede Anfrage und jede Weiterleitung durchläuft die
 SSRF-Prüfung des Deployments und wird an die Adresse gesendet, die diese Prüfung
-freigegeben hat. Ein Credential ist ein [HTTP credential](../secrets.md#kinds)
+freigegeben hat. Ein privater Host, den der Betreiber in [`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings) eingetragen hat, wird ebenfalls zugelassen, aber nur für eine URL, die dort beginnt: Eine Weiterleitung von einer öffentlichen URL erreicht ihn nie.
+
+Eine URL, die aus einem öffentlichen Trigger (Webhook, Formular, E-Mail) oder aus den Tool-Argumenten eines Agenten gebunden wird, kann jeden gelisteten Host nennen, listen Sie also nur Hosts, die ihre eigenen Zugangsdaten prüfen.
+
+Ein Credential ist ein [HTTP credential](../secrets.md#kinds)
 aus dem Vault und wird nur an die Origins gesendet, die das Secret erlaubt. Die
 Antwort wird innerhalb von `max_response_bytes` gelesen und ohne `Set-Cookie`,
-die Authentifizierungs-Header und das Token zurückgegeben.
+die Authentifizierungs-Header und das Token zurückgegeben. Eine HTML-Antwort kommt
+als Text in `body` zurück; binden Sie sie an [`html.parse`](#html-parse), um ihren Text,
+ihre Links und Elemente zu lesen.
 
 Die Zugangsdaten gehen als Bearer-Token, Basic-Authentifizierung, ein Header mit
 einem Namen deiner Wahl oder, mit `query`, ein URL-Parameter mit einem Namen deiner
@@ -499,7 +684,7 @@ nächste Seite auf einem anderen Origin bekommt keine Zugangsdaten.
 
 | Was passiert ist | Ergebnis |
 |---|---|
-| Die URL ist privat, Loopback, Metadata oder nicht http(s) | `URL_REFUSED`, nichts gesendet |
+| Die URL ist Loopback, Metadata, nicht http(s) oder privat und nicht in der [`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings) des Betreibers | `URL_REFUSED`, nichts gesendet |
 | Die URL liegt außerhalb der Origins des Credentials | `SECRET_ORIGIN_DENIED`, nichts gesendet |
 | Die Verbindung wurde nie geöffnet | `HTTP_UNREACHABLE`, wird wiederholt |
 | Gesendet, keine Antwort, `GET` oder Idempotenz-Header | `HTTP_NO_RESPONSE`, wird wiederholt |
@@ -539,16 +724,48 @@ nicht zutrauen.
 
 Die Ausgabe ist der `text` der Antwort, ihre `structured` Daten, wenn das Tool
 welche liefert, und `is_error`. Ein Fehler, mit dem das Tool antwortet, lässt den
-Schritt mit `MCP_TOOL_ERROR` scheitern, außer `on_tool_error` ist `complete`. MCP
-hat keinen Idempotenzschlüssel, daher wiederholt ein Absturz nach dem Aufruf ihn
-beim erneuten Versuch.
+Schritt mit `MCP_TOOL_ERROR` scheitern, außer `on_tool_error` ist `complete`.
+
+MCP hat keinen eigenen Idempotenzschlüssel. Ein Server, der einen solchen
+Schlüssel als Tool-Argument annimmt, lässt sich trotzdem wiederholungssicher
+machen: Setzen Sie **Idempotency key argument** (`idempotency_key_argument`) auf
+den Namen dieses Arguments, und der Schritt sendet dort seinen stabilen
+Operationsschlüssel - bei jedem Versuch des Schritts derselbe, in jeder Iteration
+einer Schleife ein anderer -, gleich welcher Wert daran gebunden war. Das Tool
+muss das Argument als Text deklarieren.
+
+Das Veröffentlichen lehnt ein Argument ab,
+das im aufgezeichneten Schema des Tools fehlt; ein Tool ohne aufgezeichnetes
+Schema geht durch, testen Sie den Server also zuerst. Zur Laufzeit listet der
+Schritt vor dem Aufruf die Tools des Servers und scheitert mit
+`MCP_IDEMPOTENCY_ARGUMENT_UNDECLARED`, ohne etwas aufzurufen, wenn das aktuelle
+Schema kein solches Argument hat. Ein Schritt mit Schlüssel gilt als idempotent:
+Die Engine darf ihn erneut ausführen.
+
+Bricht der Aufruf ab, hängt das Weitere davon ab, ob er den Server erreicht haben
+kann:
+
+- **Vor dem Aufruf** - der Server war nicht erreichbar oder antwortete nicht auf
+  die Verbindung oder die Tool-Liste - wurde nichts gesendet, und der Schritt
+  scheitert mit einem wiederholten `MCP_CALL_FAILED`.
+- **Nach dem Aufruf, mit Schlüssel oder bei einem Tool, das der Server als nur
+  lesend markiert** (in der Liste, die der Schritt gerade gelesen hat, sonst in
+  der beim Test des Servers aufgezeichneten) - derselbe wiederholte Fehler, weil
+  eine Wiederholung sicher ist.
+- **Nach dem Aufruf, jedes andere Tool, ohne Schlüssel** - das Tool kann gehandelt
+  haben, und es kam keine Antwort. Der Schritt endet als **Uncertain** mit *The
+  tool was called and no answer came back; it may have acted*, und der Run wartet
+  auf eine Person, die im anderen System nachsieht, bevor sie den Schritt erneut
+  ausführt.
 
 | Was passiert ist | Ergebnis |
 |---|---|
 | Der Server ist weg oder ausgeschaltet | `MCP_SERVER_UNAVAILABLE`, nichts gesendet |
 | Seine Zugangsdaten müssen neu autorisiert werden | `MCP_SERVER_UNAUTHORIZED`, nichts gesendet |
 | Der Server bietet das Tool nicht an | `MCP_TOOL_NOT_FOUND` |
-| Der Server war nicht erreichbar oder brach ab | `MCP_CALL_FAILED` |
+| Der Server war nicht erreichbar oder brach vor einem sicheren Aufruf oder danach ab | `MCP_CALL_FAILED`, wiederholt |
+| Er brach nach einem Aufruf ohne Schlüssel an einem Tool ab, das nicht als nur lesend bekannt ist | Uncertain: Der Run hält für eine Person an |
+| Das Tool deklariert das **Idempotency key argument** nicht | `MCP_IDEMPOTENCY_ARGUMENT_UNDECLARED`, nichts gesendet |
 | Das Tool antwortete mit einem Fehler | `MCP_TOOL_ERROR` oder die Antwort als Ausgabe |
 | Die strukturierte Antwort ist größer als 1 MiB | `MCP_RESULT_TOO_LARGE` |
 
@@ -610,7 +827,47 @@ Schleifeniteration nie zweimal nach demselben fragt.
 
 Benannte Genehmigende müssen aktive Mitglieder mit `approvals:decide` sein. Die Veröffentlichung prüft dies, der Schritt erneut vor der Anfrage. Fehlt diese Berechtigung inzwischen, endet der Schritt mit `APPROVER_UNAVAILABLE`, statt eine unentscheidbare Anfrage zu hinterlassen.
 
+Ein Schritt kann einen **Vorschlag** tragen: an `proposal` gebundener Text, etwa
+eine vorbereitete Antwort. Wer freigibt, liest ihn neben der Anfrage. Ist
+`editable` eingeschaltet, zeigt die Warteschlange ihn in einem Editor, als `text`
+oder `markdown` (`proposal_format`), unter `proposal_label` („Vorschlag (Proposal)“, wenn
+leer), und die freigebende Person darf eine geänderte Fassung freigeben. Ein
+Schritt ohne gebundenen Text öffnet einen leeren Editor, für den Fall, dass die
+Vorbereitung nichts ergab. `details` bleibt unverändert und kurz; der Vorschlag darf
+bis zu 100.000 Zeichen lang sein.
+
+Die freigegebene Ausgabe trägt neben der Entscheidung drei Felder:
+
+- `final` ist die Fassung, die freigegeben wurde, bei unveränderter Übernahme der
+  Vorschlag selbst.
+- `original` ist der Vorschlag zum Zeitpunkt der Anfrage, `""`, wenn ein
+  editierbarer Schritt nichts gebunden hatte.
+- `edited` ist wahr, wenn sich `final` von `original` unterscheidet. Zeilenenden,
+  Leerzeichen am Zeilenende und Leerraum um den Text sind kein Unterschied.
+
+Eine bearbeitete Fassung wird ohne führende und nachgestellte Leerzeichen gespeichert;
+eine Änderung, die mit einem eingerückten Codeblock beginnt, verliert diese erste
+Einrückung.
+
+Eine freigegebene Anfrage eines `editable`-Schritts hält außerdem ihr Änderungsmaß
+(`edit_ratio`) fest, also wie viel vom Vorschlag die Person geändert hat, von `0` bis
+`1`. Die [Statistik](../workflows.md#running-a-workflow) des Workflows meldet es mit den
+übrigen Freigabe-Ergebnissen.
+
+Ein Schritt, der nicht `editable` ist, zeigt seinen Vorschlag schreibgeschützt und
+gibt ihn nach der Freigabe unverändert als `final` weiter, mit `edited` auf false,
+sodass spätere Schritte `final` binden können, in welchem Modus der Schritt auch
+ist. Eine Ablehnung oder ein Ablauf trägt kein `final`. Eine bearbeitete Fassung an
+einen Schritt zu senden, der nicht `editable` ist, oder zusammen mit einer
+Ablehnung, wird mit `422` abgelehnt. Wer entscheiden darf, vom Schritt aber nicht
+genannt wird, sieht den Vorschlag schreibgeschützt.
+
+Sendet der Workflow das freigegebene `final` über [`mcp.call`](#mcp-call), setzen
+Sie `approval` dieses Schritts auf `none`, sonst wird die Person zweimal gefragt.
+
 ::: app.workflows.nodes.human_approval._handler.HumanApprovalConfig
+
+::: app.workflows.nodes.human_approval._handler.HumanApprovalInput
 
 ::: app.workflows.nodes.human_approval._handler.HumanApprovalOutput
 

@@ -6,7 +6,7 @@ meetings into their occurrences, with times asked for in UTC so nothing here
 converts a Windows zone name.
 """
 
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -34,6 +34,7 @@ class OutlookCalendarPortalAdapter(PortalAdapter):
         access_token: str,
         cursor: dict[str, Any] | None,
         places: Mapping[str, datetime] = NOWHERE,
+        html_places: Collection[str] = (),
     ) -> PolledEvents:
         """The meetings due an announcement for the leads in `places`.
 

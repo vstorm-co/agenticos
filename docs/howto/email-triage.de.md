@@ -1,5 +1,5 @@
 ---
-source_sha: "94fe4ff073a5"
+source_sha: "e132a630b16c"
 title: "Ihren Posteingang triagieren und Antworten entwerfen"
 description: "Verbinden Sie ein Postfach als abgefragten Ereignis-Trigger und lassen Sie einen Agent Antworten entwerfen oder Aufgaben extrahieren, ohne jemals etwas zu senden."
 ---
@@ -14,7 +14,7 @@ Lesen Sie das, bevor Sie etwas verbinden, denn davon hängt ab, ob die Seite unt
 
 **Er kann lesen.** Der Gmail-Trigger fragt das verbundene Postfach einmal pro Minute ab und übergibt dem Agent Betreff, Absender und Text einer neuen Nachricht. Die Bereitstellung bittet Google nur um den Scope `gmail.readonly`. Auf dem Zustimmungsbildschirm wird nichts weiter angefragt, es gibt also keine breitere Berechtigung, auf die man sich versehentlich verlassen könnte.
 
-**Er kann weder senden noch einen echten Gmail-Entwurf anlegen.** Es gibt kein Tool, weder hier noch im MCP-Katalog, das die Sende- oder Entwurfs-API von Gmail aufruft. Was die Vorlagen unten "Entwurf" nennen, ist der Antworttext des Agents, geschrieben in den ausgelösten Run. Er landet in **Activity**, in der Konversation dieses Runs, als Nachricht, die ein Mensch noch lesen und selbst in eine ausgehende E-Mail einfügen muss. Nichts wird je in Ihrem Namen gesendet, und nichts wird ins Postfach zurückgeschrieben.
+**Er kann weder senden noch einen echten Gmail-Entwurf anlegen.** Der Agent, den diese Seite aufbaut, hat kein Tool, das die Sende- oder Entwurfs-API von Gmail aufruft. Was die Vorlagen unten "Entwurf" nennen, ist der Antworttext des Agents, geschrieben in den ausgelösten Run. Er landet in **Activity**, in der Konversation dieses Runs, als Nachricht, die ein Mensch noch lesen und selbst in eine ausgehende E-Mail einfügen muss. Nichts wird je in Ihrem Namen gesendet, und nichts wird ins Postfach zurückgeschrieben. Soll die Antwort nach der Freigabe durch eine Person im Thread des Postfachs landen, als Entwurf oder als gesendete Nachricht, verwenden Sie einen Workflow: [E-Mails mit einem freigegebenen Entwurf beantworten](answer-mail-with-approved-draft.md).
 
 ## Was Sie brauchen { #what-you-need }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "d81630b8a397"
+source_sha: "e1e3582d471d"
 ---
 
 # La consola { #the-console }
@@ -19,7 +19,7 @@ al micrófono.
 La página de inicio es una **cuadrícula de widgets que tú ordenas**, y es la
 respuesta a "qué está pasando" sin abrir cinco páginas.
 
-Existen cuarenta y seis tarjetas. No las verás todas: **cada tarjeta está
+Existen cuarenta y ocho tarjetas. No las verás todas: **cada tarjeta está
 protegida por el permiso que necesitan sus datos**, así que un widget que no
 puedes leer nunca se monta y sus consultas nunca se lanzan — excepto tus
 propias notificaciones, más abajo, que solo necesitan que hayas iniciado
@@ -46,6 +46,13 @@ clic bajo **Customize**:
 | *(sin título, arriba del todo)* | El resumen, los runs en el tiempo y cómo terminaron |
 | **Needs attention** | Lo que está esperando: [aprobaciones](governance.md#approvals), fallos recientes, margen de budget, tus [notificaciones](#the-bell) más recientes |
 | **Usage & cost** | Qué agents se usan, gasto, [minutos de voz](#voice-calls), cuándo ocurre el trabajo, de dónde vienen los runs, mezcla de modelos, latencia, calidad de respuesta, quién lo usa |
+
+La tarjeta **Approval outcomes** espera en el catálogo, para quien pueda ver workflows.
+Muestra cómo decidieron las personas los [pasos de aprobación](workflows.md#running-a-workflow)
+que los workflows plantearon en el periodo. Muestra la proporción aprobada como se
+propuso, las ediciones y su mediana de cambio, el tiempo hasta decidir y los cinco
+workflows con más solicitudes. Está vacía cuando ninguna solicitud cae en el periodo
+del dashboard.
 
 El dashboard se abre con **Get started** hasta completar cada paso: contarles a
 los agents sobre ti, empezar una conversación, conectar un servicio con tu
@@ -707,7 +714,7 @@ que un problema real se lea como algo tranquilo.
 
 ## Recapitulación { #recap }
 
-- El dashboard son **cuarenta y seis widgets** que ordenas tú, guardados por
+- El dashboard son **cuarenta y ocho widgets** que ordenas tú, guardados por
   persona y por organización — todos menos tus propias notificaciones
   protegidos por el permiso que necesitan sus datos.
 - Una disposición guardada **puede ocultar y reordenar, pero nunca revelar** — la

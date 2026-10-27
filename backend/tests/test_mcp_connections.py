@@ -2734,7 +2734,7 @@ class TestMcpConnectionService:
     async def test_create_accepts_a_host_the_operator_listed(self, service, repo, monkeypatch):
         """`MCP_ALLOWED_HOSTS` is how a server on the deployment's own network
         gets connected at all. The real validator runs here, and the name is
-        never resolved: the operator vouched for it."""
+        resolved: the operator vouched for a private answer, nothing worse."""
         monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", ["postgres-mcp"])
         asked = TestOAuthRequestSafety._resolves(monkeypatch, "10.0.0.9")
 
@@ -2744,7 +2744,7 @@ class TestMcpConnectionService:
         )
 
         assert repo.create.call_args.kwargs["url"] == "http://postgres-mcp:8000/mcp"
-        assert asked == []
+        assert asked == ["postgres-mcp"]
 
     @pytest.mark.anyio
     async def test_moving_the_url_to_a_listed_host_is_accepted(self, service, repo, monkeypatch):
@@ -2763,7 +2763,7 @@ class TestMcpConnectionService:
         )
 
         assert repo.update.call_args.kwargs["update_data"]["url"] == "http://postgres-mcp:8000/mcp"
-        assert asked == []
+        assert asked == ["postgres-mcp"]
 
     @pytest.mark.anyio
     async def test_create_seals_the_token_for_its_owner(self, service, repo, monkeypatch):
@@ -4513,7 +4513,7 @@ class TestOrganizationConnections:
 
         assert repo.create_org_scoped.call_args.kwargs["url"] == "http://postgres-mcp:8000/mcp"
         assert audit.call_args.kwargs["details"]["url"] == "http://postgres-mcp:8000/mcp"
-        assert asked == []
+        assert asked == ["postgres-mcp"]
 
     @pytest.mark.anyio
     async def test_a_name_already_taken_in_this_organization_is_refused(
@@ -6458,3 +6458,68 @@ class TestDiscoveredScopes:
         )
 
         assert "prompt" not in httpx2.URL(url).params
+
+
+class TestPortalReadToken:
+    """The worker's way to a mailbox token: by organization, never by a member's request."""
+
+    @staticmethod
+    def _grant_lookup(monkeypatch, grant):
+        lookup = AsyncMock(return_value=grant)
+        monkeypatch.setattr(mcp_connection_service.mcp_connection_repo, "get_portal_grant", lookup)
+        return lookup
+
+    @pytest.mark.anyio
+    async def test_a_portal_read_token_is_none_without_a_grant(self, monkeypatch):
+        self._grant_lookup(monkeypatch, None)
+        service = McpConnectionService(AsyncMock())
+        assert await service.portal_read_token(organization_id=uuid4(), portal_key="google") is None
+
+    @pytest.mark.anyio
+    async def test_a_portal_read_token_is_none_for_a_switched_off_grant(self, monkeypatch):
+        self._grant_lookup(monkeypatch, _connection(is_enabled=False))
+        renew = AsyncMock(return_value="live-token")
+        monkeypatch.setattr(mcp_connection_service, "_oauth_access_token", renew)
+        service = McpConnectionService(AsyncMock())
+        assert await service.portal_read_token(organization_id=uuid4(), portal_key="google") is None
+        renew.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_portal_read_token_is_the_renewed_token_otherwise(self, monkeypatch):
+        grant = _connection(scope="org")
+        lookup = self._grant_lookup(monkeypatch, grant)
+        renew = AsyncMock(return_value="live-token")
+        monkeypatch.setattr(mcp_connection_service, "_oauth_access_token", renew)
+        org = uuid4()
+        service = McpConnectionService(AsyncMock())
+        assert await service.portal_read_token(organization_id=org, portal_key="google") == (
+            "live-token"
+        )
+        renew.assert_awaited_once_with(grant)
+        assert lookup.await_args.kwargs == {"organization_id": org, "portal_key": "google"}
+
+    @pytest.mark.anyio
+    async def test_a_grant_that_cannot_be_renewed_gives_no_token(self, monkeypatch):
+        self._grant_lookup(monkeypatch, _connection(scope="org"))
+        monkeypatch.setattr(
+            mcp_connection_service, "_oauth_access_token", AsyncMock(return_value=None)
+        )
+        service = McpConnectionService(AsyncMock())
+        assert await service.portal_read_token(organization_id=uuid4(), portal_key="google") is None
+
+    @pytest.mark.anyio
+    async def test_another_organizations_grant_is_never_read(self, monkeypatch):
+        """The lookup is by the caller's organization, so a grant held by organization B
+        is not found when A asks - whatever the repository would otherwise return."""
+        org_a, org_b = uuid4(), uuid4()
+        grants = {org_b: _connection(scope="org", organization_id=org_b)}
+
+        async def lookup(db, *, organization_id, portal_key):
+            return grants.get(organization_id)
+
+        monkeypatch.setattr(mcp_connection_service.mcp_connection_repo, "get_portal_grant", lookup)
+        renew = AsyncMock(return_value="b-token")
+        monkeypatch.setattr(mcp_connection_service, "_oauth_access_token", renew)
+        service = McpConnectionService(AsyncMock())
+        assert await service.portal_read_token(organization_id=org_a, portal_key="google") is None
+        renew.assert_not_awaited()

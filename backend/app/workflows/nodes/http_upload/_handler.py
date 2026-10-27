@@ -2,10 +2,10 @@
 
 The file is read from storage in chunks and streamed straight into the request
 body, never held whole, and sent with the type its row recorded. The same
-pinned transport, credential and origin rules as `http.request` apply. An
-upload is a write, so it never follows a redirect - a far side that moved
-answers with its `3xx`, and the step fails rather than send the file somewhere
-it was not pointed at.
+pinned transport, credential and origin rules as `http.request` apply, so a host on
+`OUTBOUND_PRIVATE_ALLOWLIST` is reachable. An upload is a write, so it never follows
+a redirect - a far side that moved answers with its `3xx`, and the step fails rather
+than send the file somewhere it was not pointed at.
 
 What a failure means for a retry follows `http.request`: a connection that
 never opened sent nothing and is retryable, while one that sent the file and
@@ -39,6 +39,7 @@ from app.workflows.nodes._http import (
     credential,
     failed,
     is_http_url,
+    private_allowlist_for,
     read_capped,
     response_output,
 )
@@ -126,8 +127,11 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
         headers[config.idempotency_key_header] = context.current().idempotency_key
     safe_to_retry = retry_guarantee_for(config) == "idempotent"
 
+    allowlist = await private_allowlist_for(config.url)
     try:
-        async with PinnedAsyncClient(timeout=httpx2.Timeout(config.timeout_seconds)) as client:
+        async with PinnedAsyncClient(
+            timeout=httpx2.Timeout(config.timeout_seconds), private_allowlist=allowlist
+        ) as client:
             request = client.build_request(
                 config.method,
                 authorized_url(config.auth, secret, config.url),

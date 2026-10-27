@@ -1336,6 +1336,22 @@ trail with what was asked, and stays listed under **Decided** with the tool call
 own record. A step that names its approvers can be decided only by
 them. One nobody decides in time expires, and a cancelled run cancels its requests.
 
+A step that is `editable` also shows the approver a proposal, such as a drafted
+reply, which they may change before approving it. The audit entry records whether
+the step was editable, whether the approver edited it (`edited`) and the length of
+the proposal and of the approved text (`proposal_length`, `final_length`), never
+the text itself. The text is kept on the request, in plaintext, until the run's
+history is deleted.
+
+The requests are also counted. A workflow's Stats card and its stats API report, per
+step and per day, how many were approved as proposed, edited, rejected or expired,
+how long people took to decide and how much their edits changed, each edit as a
+ratio from `0` to `1` (`edit_ratio`, also in the audit entry); see
+[Running a workflow](workflows.md#running-a-workflow). The organization-wide
+summary, `GET /api/v1/workflow-approvals/stats`, needs `workflows:view` and covers
+only the workflows the member may view. It holds no proposal or approved text and no
+figure for any one approver: it counts requests, not people.
+
 ### Artifact entries
 
 A page that reads table data is shared on its owner's consent, and each step of that

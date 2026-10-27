@@ -419,6 +419,29 @@ async def count_live_runs(
     )
 
 
+async def count_live_runs_with_status(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    workflow_id: UUID,
+    mode: str,
+    status: WorkflowRunStatus,
+) -> int:
+    """How many of one workflow's live runs in `mode` are in `status`."""
+    return int(
+        await db.scalar(
+            select(func.count()).where(
+                WorkflowRun.organization_id == organization_id,
+                WorkflowRun.workflow_id == workflow_id,
+                WorkflowRun.mode == mode,
+                WorkflowRun.status == status.value,
+                WorkflowRun.status.in_(_LIVE_RUN_STATUSES),
+            )
+        )
+        or 0
+    )
+
+
 async def spent_since(
     db: AsyncSession, *, organization_id: UUID, workflow_id: UUID, since: datetime
 ) -> Decimal:

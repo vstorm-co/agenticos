@@ -27,7 +27,12 @@ from app.db.models.workflow import WorkflowStatus
 from app.main import app
 from app.schemas.workflow import WorkflowDetail
 from app.schemas.workflow_eval import EvalCaseList, EvalCaseRead, EvalRunRead
-from app.schemas.workflow_stats import WorkflowsSummary, WorkflowStats
+from app.schemas.workflow_stats import (
+    EditRatioBucket,
+    WorkflowApprovalStats,
+    WorkflowsSummary,
+    WorkflowStats,
+)
 from app.services.workflow_registry import WorkflowRegistryService
 from app.services.workflow_triggers import SwitchedOn
 from app.workflows.graph.model import NodeInstance, NodePosition, WorkflowGraph
@@ -641,6 +646,20 @@ async def test_the_figures_route_reads_the_window_asked_and_refuses_one_out_of_r
             month_cost_usd=0.0,
             by_day=[],
             steps=[],
+            approvals=WorkflowApprovalStats(
+                requests=0,
+                pending=0,
+                approved_unchanged=0,
+                approved_edited=0,
+                rejected=0,
+                expired=0,
+                cancelled=0,
+                edit_ratios=[
+                    EditRatioBucket(upto=upto, count=0) for upto in (0.0, 0.1, 0.25, 0.5, 1.0)
+                ],
+                by_day=[],
+                steps=[],
+            ),
         )
     )
     with patch("app.services.workflow_stats.WorkflowStatsService.stats", new=figures):
@@ -649,6 +668,13 @@ async def test_the_figures_route_reads_the_window_asked_and_refuses_one_out_of_r
             refused = await http.get(_url(f"/{workflow_id}/stats"), params={"days": 0})
 
     assert answered.status_code == 200 and answered.json()["days"] == 7
+    approvals = answered.json()["approvals"]
+    assert (approvals["requests"], approvals["acceptance_rate"], approvals["steps"]) == (
+        0,
+        None,
+        [],
+    )
+    assert [bucket["upto"] for bucket in approvals["edit_ratios"]] == [0.0, 0.1, 0.25, 0.5, 1.0]
     assert figures.await_args.kwargs == {"days": 7}
     assert refused.status_code == 422
 

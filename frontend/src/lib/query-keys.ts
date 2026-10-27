@@ -112,6 +112,8 @@ export const qk = {
     versions: (id: string) => ["workflows", id, "versions", "pages"] as const,
     stats: (id: string, days: number) => ["workflows", id, "stats", days] as const,
     summary: (from: string, to: string) => ["workflows", "summary", from, to] as const,
+    approvalsSummary: (from: string, to: string) =>
+      ["workflows", "approvals-summary", from, to] as const,
     evals: (id: string, nodeId: string) => ["workflows", id, "evals", nodeId] as const,
     version: (id: string, versionId: string) => ["workflows", id, "versions", versionId] as const,
     // Every registered node type, for the editor's palette. Changes on redeploy,

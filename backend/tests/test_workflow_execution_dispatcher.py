@@ -1140,6 +1140,12 @@ class TestThePublicOrigin:
         assert dispatched.public_origin is True
 
     @pytest.mark.security
+    async def test_an_outlook_run_dispatches_with_a_public_origin(self, repo, event_log, test_node):
+        dispatched = await self._dispatched(repo, test_node, WorkflowRunTrigger.OUTLOOK)
+
+        assert dispatched.public_origin is True
+
+    @pytest.mark.security
     async def test_a_github_run_dispatches_with_a_public_origin(self, repo, event_log, test_node):
         dispatched = await self._dispatched(repo, test_node, WorkflowRunTrigger.GITHUB)
 

@@ -1,12 +1,17 @@
 """What the approvals queue reads and writes for a workflow step's request."""
 
 from datetime import datetime
+from typing import Final, Literal
 from uuid import UUID
 
 from pydantic import Field
 
 from app.db.models.workflow_approval import WorkflowApprovalStatus
 from app.schemas.base import BaseSchema
+
+# Equal to `app.services.virtual_tables.types.MAX_LONG_TEXT`, so a proposal can be
+# written to a long_text column; a unit test fails if the two drift apart.
+MAX_PROPOSAL_CHARS: Final = 100_000
 
 
 class WorkflowApprovalRead(BaseSchema):
@@ -28,6 +33,12 @@ class WorkflowApprovalRead(BaseSchema):
     decided_at: datetime | None
     note: str | None
     created_at: datetime
+    editable: bool
+    proposal: str | None
+    proposal_format: Literal["text", "markdown"]
+    proposal_label: str | None
+    final: str | None
+    edited: bool
 
 
 class WorkflowApprovalList(BaseSchema):
@@ -40,3 +51,12 @@ class WorkflowApprovalDecision(BaseSchema):
 
     approved: bool
     note: str | None = Field(default=None, max_length=500)
+    final: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=MAX_PROPOSAL_CHARS,
+        description=(
+            "The version approved, for a step that lets its approver edit. "
+            "Omitted, the proposal is approved as it is."
+        ),
+    )

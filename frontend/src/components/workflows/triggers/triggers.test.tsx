@@ -64,6 +64,7 @@ const CATALOG = [
   definition("trigger.channel_message", "Channel message"),
   definition("trigger.github", "GitHub"),
   definition("trigger.gmail", "Gmail"),
+  definition("trigger.outlook", "Outlook"),
   { id: "debug.echo", name: "Echo", category: "debug", version: 1 } as NodeDefinition,
 ];
 
@@ -345,6 +346,20 @@ describe("TriggerPanel", () => {
     expect(screen.getByText(/Gmail mailbox is read every minute/)).toBeTruthy();
     await userEvent.click(screen.getByRole("button", { name: "Pause" }));
     expect(hook.setActive.mutate).toHaveBeenCalledWith({ id: "e1", active: false });
+  });
+
+  it("explains the Outlook trigger once live", () => {
+    hook.exposure = exposure({ adapter: "outlook", schedule_kind: null, next_fire_at: null });
+    render(
+      <TriggerPanel
+        workflow={workflow("trigger.outlook")}
+        draft={draftOf("trigger.outlook")}
+        catalog={CATALOG}
+        canEdit
+      />,
+    );
+    expect(screen.getByText(/Microsoft 365 mailbox is read every minute/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Pause" })).toBeTruthy();
   });
 
   it("waits for the exposure, and shows nothing when the version has none", () => {

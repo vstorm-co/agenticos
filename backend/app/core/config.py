@@ -2,19 +2,38 @@
 # ruff: noqa: I001 - Imports structured for Jinja2 template conditionals
 
 import ipaddress
-import socket
 from decimal import Decimal
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import Field, computed_field, field_validator, model_validator, ValidationInfo
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.core.map_tiles import MapTiles, resolve as resolve_map_tiles
-from app.core.sanitize import METADATA_ADDRESSES, METADATA_HOSTS
+from app.core.sanitize import (
+    PrivateAllowlist,
+    PrivateAllowlistEntryError,
+    parse_private_allowlist,
+    wire_spelling,
+)
 
 SmtpTlsMode = Literal["auto", "implicit", "starttls"]
 """How an encrypted SMTP connection is opened: chosen by the port, or forced."""
+
+
+def _reaches_host(listed: PrivateAllowlist, host: str, *, suffix_reaches: bool) -> bool:
+    """Whether a parsed entry names *host*: exactly, by suffix, or by a network holding it."""
+    host = host.removeprefix("[").removesuffix("]").lower().removesuffix(".")
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        if suffix_reaches and listed.admits_name(host):
+            return True
+        return host in listed.names or wire_spelling(host) in listed.names
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped:
+        address = address.ipv4_mapped
+    return any(address in network for network in listed.networks)
 
 
 def find_env_file() -> Path | None:
@@ -1096,53 +1115,82 @@ class Settings(BaseSettings):
     BROWSER_EGRESS_PROXY: str = ""
 
     # Hosts an MCP connection's own URL may name although they resolve inside the
-    # deployment's network, such as a compose service. A listed host skips the
-    # address check in `app.agents.mcp.validate_mcp_url` for a connection's own
-    # URL, and the OAuth flow of such a connection may reach the listed hosts
-    # (`app.agents.mcp.trusted_hosts_for`). Matched exactly, case-folded. Empty
-    # refuses all.
+    # deployment's network, such as a compose service. A listed host may
+    # answer a private address in `app.agents.mcp.validate_mcp_url` for a
+    # connection's own URL (loopback, link-local and metadata answers stay
+    # refused, and a listed name that does not resolve yet can be saved), and the
+    # OAuth flow of such a connection may reach the listed hosts
+    # (`app.core.sanitize.allowlist_for`). Read by MCP only, with the same forms
+    # as `OUTBOUND_PRIVATE_ALLOWLIST`: a host, a `.suffix`, an address or a CIDR
+    # range, case-folded. Empty refuses all.
     MCP_ALLOWED_HOSTS: list[str] = []
 
     @field_validator("MCP_ALLOWED_HOSTS")
     @classmethod
     def validate_mcp_allowed_hosts(cls, v: list[str]) -> list[str]:
-        """Refuse an entry that can only be a cloud metadata service or this host.
+        """Refuse an entry the allowlist parser refuses, naming the setting.
 
-        A listed host skips the SSRF check, and `169.254.169.254` or
-        `metadata.google.internal` is never an MCP server, only the instance's
-        credentials - the same refusals `app.schemas.urls` makes for a service
-        an organization runs. Loopback is refused too: it is the API's own host,
-        where every port the deployment binds would open to every account. A
-        trailing dot is folded here because the URL may keep one and still
-        reach the same address, and an IPv4 address is read the way the
-        resolver reads it, so `2852039166` is `169.254.169.254`.
+        The same parser as `OUTBOUND_PRIVATE_ALLOWLIST`: a cloud metadata,
+        link-local or loopback address is refused however it is spelled, a
+        trailing dot is folded and an IPv4 address is read the way the resolver
+        reads it, so `2852039166` is `169.254.169.254`.
         """
-        for entry in v:
-            host = entry.strip().removeprefix("[").removesuffix("]").lower().rstrip(".")
-            if host in METADATA_HOSTS or host == "localhost" or host.endswith(".localhost"):
-                refused = True
-            else:
-                try:
-                    address = ipaddress.ip_address(host)
-                except ValueError:
-                    try:
-                        address = ipaddress.IPv4Address(socket.inet_aton(host))
-                    except OSError:
-                        address = None
-                if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped:
-                    address = address.ipv4_mapped
-                refused = address is not None and (
-                    address.is_link_local
-                    or address.is_loopback
-                    or address.is_unspecified
-                    or address in METADATA_ADDRESSES
-                )
-            if refused:
-                raise ValueError(
-                    f"MCP_ALLOWED_HOSTS lists {entry!r}, a cloud metadata, link-local or "
-                    "loopback address. A listed host skips the SSRF check, so remove it."
-                )
+        try:
+            parse_private_allowlist(v)
+        except PrivateAllowlistEntryError as exc:
+            raise ValueError(f"MCP_ALLOWED_HOSTS lists {exc.entry!r}, {exc.reason}") from exc
         return v
+
+    # Hosts and networks on the deployment's own network that outbound requests
+    # may reach although they resolve to private addresses: an exact host
+    # (`wiki`), a suffix (`.corp.example`, not the apex), an IP address or a CIDR
+    # range (`10.1.2.0/24`). Read by workflow HTTP steps, the git, web, S3 and A2A
+    # clients and MCP connections, each only for a request chain that starts at a
+    # listed host. Loopback, link-local, multicast and metadata addresses stay
+    # refused whatever is listed. Every member of every organization can reach
+    # every port on an admitted host, so list only what all of them may reach.
+    # Empty refuses all.
+    OUTBOUND_PRIVATE_ALLOWLIST: list[str] = []
+
+    @field_validator("OUTBOUND_PRIVATE_ALLOWLIST")
+    @classmethod
+    def validate_outbound_private_allowlist(cls, v: list[str]) -> list[str]:
+        """Refuse an entry that is malformed or reaches loopback, link-local or metadata."""
+        try:
+            parse_private_allowlist(v)
+        except PrivateAllowlistEntryError as exc:
+            raise ValueError(
+                f"OUTBOUND_PRIVATE_ALLOWLIST lists {exc.entry!r}, {exc.reason}"
+            ) from exc
+        return v
+
+    @model_validator(mode="after")
+    def validate_private_allowlist_spares_the_stores(self) -> Settings:
+        """Refuse an entry that reaches the database, Redis or the API itself.
+
+        Names and literals only: a validator does no DNS, so a range covering
+        their resolved addresses is `doctor`'s to report. A suffix over the API's
+        own name is allowed, since that name normally resolves publicly.
+        """
+        api_host = urlsplit(self.PUBLIC_BASE_URL).hostname
+        stores = (
+            (self.POSTGRES_HOST, "database", "POSTGRES_HOST", True),
+            (self.REDIS_HOST, "Redis", "REDIS_HOST", True),
+            (api_host, "API", "PUBLIC_BASE_URL", False),
+        )
+        for setting, entries in (
+            ("OUTBOUND_PRIVATE_ALLOWLIST", self.OUTBOUND_PRIVATE_ALLOWLIST),
+            ("MCP_ALLOWED_HOSTS", self.MCP_ALLOWED_HOSTS),
+        ):
+            for entry in entries:
+                listed = parse_private_allowlist([entry])
+                for host, what, name, suffix_reaches in stores:
+                    if host and _reaches_host(listed, host, suffix_reaches=suffix_reaches):
+                        raise ValueError(
+                            f"{setting} lists {entry!r}, which reaches this deployment's "
+                            f"{what} ({name}). Remove it."
+                        )
+        return self
 
     @field_validator("CORS_ORIGINS")
     @classmethod

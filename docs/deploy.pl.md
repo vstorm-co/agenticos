@@ -1,5 +1,5 @@
 ---
-source_sha: "4fd707e919ce"
+source_sha: "0c20a47827a4"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
@@ -397,6 +397,22 @@ sprawdza.
 
     **HSTS jest celowo pozostawione proxy**, czyli temu, gdzie terminuje TLS.
     Proxy ustawiające własne CSP powinno być co najmniej tak restrykcyjne jak to.
+
+### Usługi we własnej sieci { #services-on-your-own-network }
+
+Żądanie skonfigurowane przez członka - krok HTTP workflow, źródło Git,
+strony internetowej albo S3, agent A2A czy połączenie MCP - jest odrzucane, gdy jego host
+rozwiązuje się na adres prywatny, więc wiki, serwer Git albo serwer MCP wewnątrz
+Twojej sieci są domyślnie poza zasięgiem. Aby otworzyć któryś z nich, wpisz go do
+`OUTBOUND_PRIVATE_ALLOWLIST` w `backend/.env`, jako host, `.suffix`, adres albo
+zakres CIDR, i zrestartuj API oraz workera. W wierszu tego ustawienia w
+[opisie konfiguracji](configuration.md#project-settings) są dozwolone formy, to,
+co jest odrzucane niezależnie od listy, i to, do czego może wtedy sięgnąć każde
+konto. Wpisuj tylko usługi, które same sprawdzają swoje poświadczenie.
+
+`agenticos cmd doctor` pokazuje listę w wierszu `private network`. Kończy się
+błędem, gdy wpisany zakres obejmuje bazę danych albo Redis, i ostrzega przed
+zakresem szerszym niż /16 (IPv4) albo /48 (IPv6).
 
 ### Włączanie sandboksa { #turning-the-sandbox-on }
 

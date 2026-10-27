@@ -18,7 +18,7 @@ register(
         input_schema=None,
         output_schema=EmailTriggerOutput,
         ports=(Port(id="out", label="Out", kind="output", schema=EmailTriggerOutput),),
-        effect_kind="pure",
+        effect_kind="read",
         retry_guarantee="idempotent",
         handler=handle,
     )

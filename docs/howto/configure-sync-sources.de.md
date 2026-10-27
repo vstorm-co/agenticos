@@ -1,5 +1,5 @@
 ---
-source_sha: "593e85034342"
+source_sha: "71cd0f76685e"
 ---
 
 # Sync-Quellen einrichten { #configure-sync-sources }
@@ -311,6 +311,13 @@ S3_RAG_REGION=us-east-1                    # required for AWS, optional for MinI
 Bei MinIO lautet der Endpunkt üblicherweise `http://minio:9000` (Docker) oder
 `http://localhost:9000` (lokal).
 
+Die `endpoint_url` einer Quelle wird wie die Start-URL einer Website-Quelle
+geprüft, beim Speichern der Quelle und erneut, wenn ein Sync startet: Eine
+Loopback-, Link-Local- oder Cloud-Metadata-Adresse wird immer abgelehnt, und ein
+Endpunkt im privaten Netz, etwa ein MinIO-Container, braucht seinen Host in
+[`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings). Das
+`S3_RAG_ENDPOINT` des Betreibers wird nicht geprüft.
+
 ### 2. Konfigurationsfelder des S3-Connectors { #2-s3-connector-config-fields }
 
 | Feld | Typ | Pflicht | Vorgabe | Beschreibung |
@@ -356,8 +363,9 @@ uv run agenticos cmd rag-source-add \
 - **Das Netz des Deployments ist unerreichbar.** Jede Anfrage - robots.txt, die
   Sitemap, jede Seite und jede Weiterleitung - wird gegen dieselbe SSRF-Richtlinie
   geprüft wie Webhooks und MCP-Server. Sie geht an die Adresse, die die Prüfung
-  bestanden hat. Eine Start-URL, die auf eine private, Loopback-, Link-Local- oder
-  Cloud-Metadata-Adresse auflöst, wird beim Speichern der Quelle abgelehnt.
+  bestanden hat. Eine Start-URL, die auf eine Loopback-, Link-Local- oder
+  Cloud-Metadata-Adresse auflöst, wird beim Speichern der Quelle immer abgelehnt.
+  Eine, die auf eine private Adresse auflöst, wird ebenfalls abgelehnt, es sei denn, der Betreiber hat ihren Host in [`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings) eingetragen.
 - **robots.txt wird befolgt**, für Sitemaps und Seiten, einschließlich
   `Crawl-delay` bis zu zehn Sekunden. Der Crawler gibt sich als
   `AgenticOS-Crawler` zu erkennen. Er wartet zwischen Anfragen mindestens eine
@@ -468,7 +476,8 @@ Die URL muss `https://` sein. Ihr Host wird einmal aufgelöst und wie jede ander
 Adresse geprüft, die ein Mandant wählt: Ein Host, der auf eine private,
 Loopback- oder Link-Local-Adresse auflöst, wird beim Speichern der Quelle
 abgelehnt und beim Sync erneut, und git verbindet sich nur mit den Adressen, die
-diese Prüfung zugelassen hat. Weiterleitungen wird nicht gefolgt. Ein Deployment
+diese Prüfung zugelassen hat. Der Betreiber kann einen Host im Netz des Deployments
+mit [`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings) zulassen. Weiterleitungen wird nicht gefolgt. Ein Deployment
 hinter einem Egress-Proxy (`HTTPS_PROXY`) nutzt ihn weiterhin; der Proxy löst
 den Host dann selbst auf.
 
@@ -795,9 +804,9 @@ den Port enthält (etwa `http://localhost:9000`).
 ### Website: "resolves to private/internal address" { #website-resolves-to-privateinternal-address }
 
 Die Start-URL oder die Sitemap zeigt in das Netz des Deployments, oder ihr Name
-löst dorthin auf. Eine Website-Quelle liest nur öffentliche Adressen. Um eine
-interne Website zu indexieren, veröffentlichen Sie ihre Seiten an einem
-öffentlichen Ort oder laden Sie die Dateien direkt hoch.
+löst dorthin auf. Eine Website-Quelle liest nur öffentliche Adressen, es sei denn, der Betreiber
+trägt den Host der Website in [`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings) ein. Sonst veröffentlichen Sie ihre Seiten an
+einem öffentlichen Ort oder laden Sie die Dateien direkt hoch.
 
 ### Website: "The site's robots.txt could not be read, so it was not crawled" { #website-the-sites-robotstxt-could-not-be-read-so-it-was-not-crawled }
 
@@ -891,7 +900,8 @@ danach erneut aus, falls sich die Quelle in der Zwischenzeit geändert hat.
 
 Der Host des Repositorys löst innerhalb des Netzwerks des Deployments auf, also
 wird die Quelle abgelehnt. Ein selbst betriebener Git-Server unter einer internen
-Adresse ist für eine Sync-Quelle nicht erreichbar.
+Adresse ist für eine Sync-Quelle nicht erreichbar, es sei denn, der Betreiber
+trägt seinen Host in [`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings) ein.
 
 ### Git: "git is not installed on this worker" { #git-git-is-not-installed-on-this-worker }
 

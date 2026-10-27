@@ -2,6 +2,8 @@ import {
   ArrowUpDown,
   Bot,
   Code2,
+  CodeXml,
+  Diff,
   Download,
   File,
   FingerprintPattern,
@@ -60,6 +62,8 @@ describe("nodeVisual", () => {
     expect(nodeVisual("agent.run", "agent", "colour").icon).toBe(Bot);
     expect(nodeVisual("table.record.get", "tables", "colour").icon).toBe(Table2);
     expect(nodeVisual("http.download", "http", "colour").icon).toBe(Download);
+    expect(nodeVisual("text.compare", "data", "colour").icon).toBe(Diff);
+    expect(nodeVisual("html.parse", "data", "colour").icon).toBe(CodeXml);
     expect(nodeVisual("future.file.step", "files", "colour").icon).toBe(File);
     expect(nodeVisual("future.code.step", "code", "colour").icon).toBe(Code2);
   });
@@ -127,6 +131,10 @@ describe("nodeVisual", () => {
     expect(familyLabelClass("data", "colour")).toContain("--family-data-ink");
     expect(familyLabelClass("apps", "colour")).toContain("--family-apps-ink");
     expect(familyLabelClass("error", "colour")).toContain("--family-error-ink");
+  });
+
+  it("gives the Outlook trigger a mark of its own", () => {
+    expect(nodeVisual("trigger.outlook", "triggers", "colour").icon).not.toBe(Zap);
   });
 
   it("falls back to a neutral step for anything it does not know", () => {

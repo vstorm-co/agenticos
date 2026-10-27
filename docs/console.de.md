@@ -1,5 +1,5 @@
 ---
-source_sha: "d81630b8a397"
+source_sha: "e1e3582d471d"
 ---
 
 # Die Konsole { #the-console }
@@ -19,7 +19,7 @@ neben dem Mikrofon.
 Die Startseite ist ein **anordenbares Raster aus Widgets**, und sie ist die
 Antwort auf die Frage "was passiert gerade", ohne fünf Seiten zu öffnen.
 
-Es gibt sechsundvierzig Karten. Sie werden nicht alle davon sehen: **eine Karte
+Es gibt achtundvierzig Karten. Sie werden nicht alle davon sehen: **eine Karte
 hängt an der Berechtigung, die ihre Daten verlangen**, also wird ein Widget, das
 Sie nicht lesen dürfen, nie eingehängt und seine Abfragen werden nie gestellt —
 außer Ihren eigenen Benachrichtigungen weiter unten, die nur verlangen, dass Sie
@@ -45,6 +45,13 @@ Mitglieder, Sandboxes - wartet im Katalog, einen Klick entfernt unter **Customiz
 | *(ohne Titel, ganz oben)* | Die Zusammenfassung, Runs im Zeitverlauf und wie sie ausgingen |
 | **Needs attention** | Was wartet: [Freigaben](governance.md#approvals), jüngste Fehlschläge, Budget-Spielraum, Ihre jüngsten [Benachrichtigungen](#the-bell) |
 | **Usage & cost** | Welche Agents genutzt werden, Ausgaben, [Anrufminuten](#voice-calls), wann gearbeitet wird, woher Runs kommen, Modellmix, Latenz, Antwortqualität, wer es nutzt |
+
+Die Karte **Freigabe-Ergebnisse (Approval outcomes)** wartet im Katalog, für alle, die
+Workflows ansehen dürfen. Sie zeigt, wie Personen die [Freigabeschritte](workflows.md#running-a-workflow)
+entschieden haben, nach denen die Workflows im Zeitraum fragten. Sie zeigt den Anteil
+der wie vorgeschlagen Freigegebenen, die Bearbeitungen und ihre mediane Änderung, die
+Zeit bis zur Entscheidung und die fünf Workflows mit den meisten Anfragen. Sie bleibt
+leer, wenn im Zeitraum des Dashboards keine Anfrage gestellt wurde.
 
 Das Dashboard öffnet mit **Erste Schritte**, bis jeder Schritt erledigt ist:
 Agents etwas über sich erzählen, ein Gespräch beginnen, einen Dienst mit dem
@@ -749,7 +756,7 @@ dem ein echtes Problem als ein stilles gelesen wird.
 
 ## Zusammenfassung { #recap }
 
-- Das Dashboard besteht aus **sechsundvierzig Widgets**, die Sie selbst
+- Das Dashboard besteht aus **achtundvierzig Widgets**, die Sie selbst
   anordnen, gespeichert pro Person und pro Organisation — alle außer Ihren
   eigenen Benachrichtigungen hängen an der Berechtigung, die ihre Daten
   verlangen.

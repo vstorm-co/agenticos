@@ -13,7 +13,7 @@ it is, and an agent that should read the file does so with its own tools.
 """
 
 import logging
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from datetime import UTC, datetime
 from typing import Any
 
@@ -46,6 +46,7 @@ class GoogleDrivePortalAdapter(PortalAdapter):
         access_token: str,
         cursor: dict[str, Any] | None,
         places: Mapping[str, datetime] = NOWHERE,
+        html_places: Collection[str] = (),
     ) -> PolledEvents:
         """Files created or changed since the stored page token, and the next one.
 

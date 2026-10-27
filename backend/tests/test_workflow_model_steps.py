@@ -150,6 +150,134 @@ class TestClassify:
                     categories=tuple(classify.Category(name=n, description="d") for n in names),
                 )
 
+    # -- confidence and the unsure port -------------------------------------------
+
+    @staticmethod
+    def _with_minimum(minimum: float | None) -> classify.AiClassifyConfig:
+        return classify.AiClassifyConfig(
+            model_profile_id=MODEL,
+            categories=TestClassify.CONFIG.categories,
+            min_confidence=minimum,
+        )
+
+    async def _classified(self, asked, minimum, **answer):
+        asked.return_value = _answer(structured={"category": "support", "reason": "r", **answer})
+        result = await _run(
+            classify, self._with_minimum(minimum), classify.AiClassifyInput(text="x")
+        )
+        assert isinstance(result, Completed)
+        return result.output
+
+    async def test_a_confident_answer_leaves_by_its_category(self, asked):
+        output = await self._classified(asked, 0.7, confidence=0.9)
+        assert output.confidence == 0.9 and output.unsure is False
+        assert classify.routes(output.model_dump()) == frozenset({"support"})
+
+    async def test_an_answer_below_the_minimum_leaves_by_unsure(self, asked):
+        output = await self._classified(asked, 0.7, confidence=0.5)
+        assert output.unsure is True and output.category == "support"
+        assert classify.routes(output.model_dump()) == frozenset({"unsure"})
+
+    async def test_an_answer_at_the_minimum_is_not_unsure(self, asked):
+        output = await self._classified(asked, 0.7, confidence=0.7)
+        assert output.unsure is False
+        assert classify.routes(output.model_dump()) == frozenset({"support"})
+
+    async def test_without_a_minimum_the_step_ignores_any_confidence(self, asked):
+        output = await self._classified(asked, None, confidence=0.01)
+        assert output.confidence is None and output.unsure is False
+        assert classify.routes(output.model_dump()) == frozenset({"support"})
+
+    async def test_an_answer_without_a_confidence_never_routes_to_unsure(self, asked):
+        output = await self._classified(asked, 0.7)
+        assert output.confidence is None and output.unsure is False
+        assert classify.routes(output.model_dump()) == frozenset({"support"})
+
+    async def test_a_non_numeric_confidence_is_not_read_as_one(self, asked):
+        for value in (True, "0.9"):
+            output = await self._classified(asked, 0.7, confidence=value)
+            assert output.confidence is None and output.unsure is False
+
+    async def test_an_integer_confidence_is_read_as_a_float(self, asked):
+        output = await self._classified(asked, 0.7, confidence=1)
+        assert output.confidence == 1.0 and isinstance(output.confidence, float)
+
+    async def test_with_a_minimum_the_model_must_give_a_confidence(self, asked):
+        await self._classified(asked, 0.7, confidence=0.9)
+        spec: AgentSpec = asked.await_args.args[1]
+        assert spec.output_schema is not None
+        assert spec.output_schema["properties"]["confidence"] == {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": (
+                "How sure you are that the category is right, from 0 (a guess) to 1 (certain)."
+            ),
+        }
+        assert spec.output_schema["required"] == ["category", "reason", "confidence"]
+        assert "Give the reason in one sentence. Then say how sure you are" in spec.instructions
+
+    async def test_without_a_minimum_the_step_asks_exactly_what_it_asked_before(self, asked):
+        await self._classified(asked, None)
+        spec: AgentSpec = asked.await_args.args[1]
+        assert spec.instructions == (
+            "Classify the text you are given into exactly one of these categories:\n"
+            "- sales: Wants to buy\n"
+            "- support: Needs help\n"
+            "If none of them fits, answer other. Give the reason in one sentence."
+        )
+        assert spec.output_schema == {
+            "type": "object",
+            "properties": {
+                "category": {"type": "string", "enum": ["sales", "support", "other"]},
+                "reason": {"type": "string"},
+            },
+            "required": ["category", "reason"],
+        }
+
+    def test_the_unsure_port_exists_only_with_a_minimum(self):
+        assert [p.id for p in classify.ports_for(self._with_minimum(None))] == [
+            "in",
+            "sales",
+            "support",
+            "other",
+        ]
+        ports = classify.ports_for(self._with_minimum(0.7))
+        assert [p.id for p in ports] == ["in", "sales", "support", "other", "unsure"]
+        assert ports[-1].kind == "output" and ports[-1].schema is classify.AiClassifyOutput
+
+    def test_a_stored_output_from_before_routes_by_its_category(self):
+        stored = {"category": "sales", "reason": "r", "text": "t"}
+        assert classify.routes(stored) == frozenset({"sales"})
+
+    def test_a_stored_output_from_before_validates(self):
+        output = classify.AiClassifyOutput.model_validate(
+            {"category": "sales", "reason": "r", "text": "t"}
+        )
+        assert output.confidence is None and output.unsure is False
+
+    def test_a_stored_config_from_before_validates(self):
+        config = classify.AiClassifyConfig.model_validate(
+            {
+                "model_profile_id": MODEL,
+                "categories": [{"name": "sales", "description": "d"}],
+            }
+        )
+        assert config.min_confidence is None
+
+    def test_unsure_is_a_category_name_only_without_a_minimum(self):
+        categories = (classify.Category(name="unsure", description="d"),)
+        classify.AiClassifyConfig(model_profile_id=MODEL, categories=categories)
+        with pytest.raises(ValidationError, match="unsure"):
+            classify.AiClassifyConfig(
+                model_profile_id=MODEL, categories=categories, min_confidence=0.5
+            )
+
+    def test_a_minimum_outside_zero_to_one_is_refused(self):
+        for minimum in (-0.1, 1.1):
+            with pytest.raises(ValidationError):
+                self._with_minimum(minimum)
+
 
 class TestExtract:
     SCHEMA = {"type": "object", "properties": {"total": {"type": "number"}}}

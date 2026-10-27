@@ -21,9 +21,10 @@ unreadable the moment they switched. Neither is encrypted with a deployment-wide
 key any more; that gave a ciphertext no owner at all.
 
 The service also owns SSRF validation of submitted URLs (same policy as
-webhooks, except that a host on the deployment's `MCP_ALLOWED_HOSTS` skips the
-private-address check on a connection's own address, and the OAuth flow of such
-a connection may reach the listed hosts), the
+webhooks, except for the MCP allowlist - `MCP_ALLOWED_HOSTS` plus
+`OUTBOUND_PRIVATE_ALLOWLIST`: a host it admits may answer a private address, is
+still resolved with every answer checked, and the OAuth flow of such a
+connection may reach the listed hosts), the
 connectivity test that discovers a server's tools, and building per-turn agent
 toolsets - either from the user's own enabled connections (the general
 assistant) or from the organization-scoped ones a published agent's spec names.
@@ -34,7 +35,7 @@ import logging
 import re
 import secrets
 from collections import Counter
-from collections.abc import Awaitable, Callable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
@@ -155,8 +156,10 @@ async def _checked_url(url: str) -> str:
     refusal that is not a `UrlRefusedError`.
 
     Every caller passes a connection's own address - the four that save it,
-    `probe_sign_in` and `_oauth_start` - so `MCP_ALLOWED_HOSTS` is honoured
-    for all of them. The OAuth discovery after the last two reaches a listed
+    `probe_sign_in` and `_oauth_start` - so the MCP allowlist
+    (`MCP_ALLOWED_HOSTS` plus `OUTBOUND_PRIVATE_ALLOWLIST`) is honoured for all of
+    them. A listed host is still resolved, and only one that does not resolve yet
+    is accepted unseen. The OAuth discovery after the last two reaches a listed
     host exactly when the connection's own host is one (`mcp_oauth.discover`).
 
     Raises:
@@ -1453,7 +1456,11 @@ class McpConnectionService:
             await self._record_poll_failure(grant, "The mailbox response could not be processed")
 
     async def poll_grant(
-        self, grant: McpConnection, *, places: Mapping[str, datetime] = portals.NOWHERE
+        self,
+        grant: McpConnection,
+        *,
+        places: Mapping[str, datetime] = portals.NOWHERE,
+        html_places: Collection[str] = (),
     ) -> portals.PolledEvents | RevokedGrant | None:
         """Read one connected account, or say why it cannot be read.
 
@@ -1470,7 +1477,8 @@ class McpConnectionService:
         and disabling it would take it out of the claim and out of the card's reach
         at the same time.
 
-        `places` is passed through to the adapter - see `PortalAdapter.poll`.
+        `places` and `html_places` are passed through to the adapter - see
+        `PortalAdapter.poll`.
         """
         adapter = portals.get_adapter(grant.portal_key or "")
         if adapter is None:
@@ -1485,7 +1493,10 @@ class McpConnectionService:
         try:
             try:
                 read = await adapter.poll(
-                    access_token=token, cursor=grant.poll_cursor, places=places
+                    access_token=token,
+                    cursor=grant.poll_cursor,
+                    places=places,
+                    html_places=html_places,
                 )
             except portals.PortalError as exc:
                 if (exc.details or {}).get("status") != 401:
@@ -1505,7 +1516,10 @@ class McpConnectionService:
                     )
                     return None
                 read = await adapter.poll(
-                    access_token=renewed, cursor=grant.poll_cursor, places=places
+                    access_token=renewed,
+                    cursor=grant.poll_cursor,
+                    places=places,
+                    html_places=html_places,
                 )
         except portals.PortalError as exc:
             if (exc.details or {}).get("status") == 401:
@@ -2228,6 +2242,23 @@ class McpConnectionService:
         return await mcp_connection_repo.get_portal_grant(
             self.db, organization_id=ctx.organization_id, portal_key=portal_key
         )
+
+    async def portal_read_token(self, *, organization_id: UUID, portal_key: str) -> str | None:
+        """A live access token for the organization's grant on one polled portal.
+
+        For a step that reads the mailbox the poll reads (a mail's attachments), run
+        from a worker with no member's request behind it, so the tenant is the
+        argument and the lookup is by it. `None` when the organization has no grant,
+        an administrator switched it off, or it cannot be renewed - never an error,
+        because the caller degrades. The token goes to the caller's one provider
+        call and nowhere else.
+        """
+        grant = await mcp_connection_repo.get_portal_grant(
+            self.db, organization_id=organization_id, portal_key=portal_key
+        )
+        if grant is None or not grant.is_enabled:
+            return None
+        return await _oauth_access_token(grant)
 
     async def get_org_portal_connection(
         self, ctx: AuthContext, connection_id: UUID

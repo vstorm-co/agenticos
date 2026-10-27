@@ -18,19 +18,20 @@ import { Perm } from "@/types/permissions";
 /** Which portal's account a trigger listens through, and the mark that shows it. */
 export interface TriggerAccount {
   portal: string;
-  brand: "gmail" | "github";
+  brand: "gmail" | "microsoft" | "github";
 }
 
 /** The trigger steps that listen through a connected account. */
 export const ACCOUNT_TRIGGERS: Record<string, TriggerAccount> = {
   "trigger.gmail": { portal: "google", brand: "gmail" },
+  "trigger.outlook": { portal: "microsoft", brand: "microsoft" },
   "trigger.github": { portal: "github", brand: "github" },
 };
 
 /**
  * The organization's account a trigger step listens through, and connecting it.
  *
- * A Gmail trigger has nothing to listen to until a mailbox is connected, and a
+ * A Gmail or Outlook trigger has nothing to listen to until a mailbox is connected, and a
  * GitHub trigger registers its own hook only through an account that may manage
  * webhooks - so the step says which it has, where the builder is, rather than
  * leaving it to a refused publish or a hook nobody registered. Connecting is the

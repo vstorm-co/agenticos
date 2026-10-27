@@ -18,17 +18,20 @@ than as an error: the alternative is a mailbox that stops firing for ever becaus
 nobody looked at it for eight days.
 """
 
+import base64
+import json
 import logging
-from collections.abc import Mapping
-from datetime import datetime
+from collections.abc import Collection, Mapping
+from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import quote
 
 import httpx
 
 from app.services.portals.base import NOWHERE, PolledEvent, PolledEvents, PortalAdapter
-from app.services.portals.exceptions import PortalUnreachable
+from app.services.portals.exceptions import AttachmentTooLarge, PortalUnreachable
 from app.services.portals.mail_auth import authenticated
+from app.services.portals.mail_thread import thread_headers
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +46,9 @@ _MAX_MESSAGES_PER_POLL = 25
 # needs `full`, and the body is the whole point of "draft a reply to this".
 _MESSAGE_FORMAT = "full"
 _MAX_BODY_CHARS = 20_000
+_MAX_ATTACHMENTS = 20
+# How deep the MIME tree is walked, for the text and for the files in it.
+_MAX_DEPTH = 8
 
 
 def _headers(access_token: str) -> dict[str, str]:
@@ -78,12 +84,76 @@ def _body_text(part: dict[str, Any]) -> str:
     data = _nested(part, "body").get("data")
     if not isinstance(data, str) or not data or not mime.startswith("text/"):
         return ""
-    import base64
-
     try:
         return base64.urlsafe_b64decode(data + "=" * (-len(data) % 4)).decode("utf-8", "replace")
     except ValueError, TypeError:
         return ""
+
+
+def _received_at(message: dict[str, Any]) -> str:
+    """`internalDate` (epoch milliseconds, as a string) as ISO-8601 UTC, or `""`."""
+    raw = message.get("internalDate")
+    if not isinstance(raw, str) or not raw.isdecimal():
+        return ""
+    try:
+        return datetime.fromtimestamp(int(raw) / 1000, UTC).isoformat()
+    except OverflowError, OSError, ValueError:
+        return ""
+
+
+def _is_inline(part: dict[str, Any]) -> bool:
+    """Whether a part is shown in the body - an image in the signature - not attached.
+
+    An explicit `Content-Disposition` decides: `attachment` is a file whatever else
+    the part carries, `inline` is not one. Only a part with no disposition is
+    judged by a `Content-ID`, which is how a body refers to an image.
+    """
+    disposition = ""
+    has_content_id = False
+    for entry in part.get("headers") or []:
+        if not isinstance(entry, dict):
+            continue
+        name = str(entry.get("name") or "").casefold()
+        if name == "content-id":
+            has_content_id = True
+        elif name == "content-disposition":
+            disposition = str(entry.get("value") or "").lstrip().casefold()
+    if disposition.startswith("attachment"):
+        return False
+    return disposition.startswith("inline") or has_content_id
+
+
+def _attachments(part: dict[str, Any], depth: int = 0) -> list[dict[str, Any]]:
+    """The files a message carries, in order: named parts Gmail stores by id.
+
+    Inline parts are skipped, and so is a named part with its bytes in the message
+    itself - only an `attachmentId` can be read back later.
+    """
+    if depth > _MAX_DEPTH:
+        return []
+    found: list[dict[str, Any]] = []
+    body = _nested(part, "body")
+    identifier = body.get("attachmentId")
+    name = part.get("filename")
+    if (
+        isinstance(name, str)
+        and name
+        and isinstance(identifier, str)
+        and identifier
+        and not _is_inline(part)
+    ):
+        found.append(
+            {
+                "attachment_id": identifier,
+                "name": name,
+                "content_type": str(part.get("mimeType") or ""),
+                "size": body.get("size") if isinstance(body.get("size"), int) else None,
+            }
+        )
+    for child in part.get("parts") or []:
+        if isinstance(child, dict):
+            found += _attachments(child, depth + 1)
+    return found
 
 
 class GooglePortalAdapter(PortalAdapter):
@@ -95,6 +165,7 @@ class GooglePortalAdapter(PortalAdapter):
         access_token: str,
         cursor: dict[str, Any] | None,
         places: Mapping[str, datetime] = NOWHERE,
+        html_places: Collection[str] = (),
     ) -> PolledEvents:
         """New messages since the stored `historyId`, and the id to resume from.
 
@@ -224,8 +295,22 @@ class GooglePortalAdapter(PortalAdapter):
                 return None
             raise
         payload = body.get("payload")
+        # Parts Gmail stores apart, by `attachmentId`: the text walk and the HTML walk
+        # may want the same one, and it is fetched once.
+        stored: dict[str, dict[str, Any]] = {}
         text = await self._body(
-            client, access_token, message_id, payload if isinstance(payload, dict) else {}
+            client,
+            access_token,
+            message_id,
+            payload if isinstance(payload, dict) else {},
+            stored=stored,
+        )
+        html = await self._html(
+            client,
+            access_token,
+            message_id,
+            payload if isinstance(payload, dict) else {},
+            stored=stored,
         )
         sender = _header(body, "From")
         headers = [
@@ -233,6 +318,7 @@ class GooglePortalAdapter(PortalAdapter):
             for entry in _nested(body, "payload").get("headers") or []
             if isinstance(entry, dict)
         ]
+        thread = thread_headers(headers)
         return PolledEvent(
             # Gmail's own id for the message: stable across polls, so the
             # idempotency claim recognises a message a retried tick reads twice.
@@ -248,8 +334,133 @@ class GooglePortalAdapter(PortalAdapter):
                 "text": text[:_MAX_BODY_CHARS],
                 "snippet": str(body.get("snippet") or ""),
                 "message_id": message_id,
+                "thread_id": str(body.get("threadId") or ""),
+                **thread,
+                "received_at": _received_at(body),
+                "html": html[:_MAX_BODY_CHARS],
+                "attachments": _attachments(payload if isinstance(payload, dict) else {})[
+                    :_MAX_ATTACHMENTS
+                ],
             },
         )
+
+    async def _stored(
+        self,
+        client: httpx.AsyncClient,
+        access_token: str,
+        message_id: str,
+        attachment_id: str,
+        stored: dict[str, dict[str, Any]],
+    ) -> dict[str, Any]:
+        """The bytes of a part Gmail keeps apart, fetched once per message."""
+        if attachment_id not in stored:
+            stored[attachment_id] = await self._get(
+                client,
+                access_token,
+                f"/users/me/messages/{quote(message_id, safe='')}/attachments/{quote(attachment_id, safe='')}",
+                params=None,
+            )
+        return stored[attachment_id]
+
+    async def _html(
+        self,
+        client: httpx.AsyncClient,
+        access_token: str,
+        message_id: str,
+        part: dict[str, Any],
+        depth: int = 0,
+        *,
+        stored: dict[str, dict[str, Any]],
+    ) -> str:
+        """The first `text/html` part, fetched by id when Gmail stores it apart."""
+        if depth > _MAX_DEPTH or part.get("filename"):
+            return ""
+        if str(part.get("mimeType") or "") == "text/html":
+            attachment_id = _nested(part, "body").get("attachmentId")
+            if isinstance(attachment_id, str):
+                fetched = await self._stored(
+                    client, access_token, message_id, attachment_id, stored
+                )
+                return _body_text({**part, "body": fetched})
+            return _body_text(part)
+        for child in part.get("parts") or []:
+            if isinstance(child, dict) and (
+                found := await self._html(
+                    client, access_token, message_id, child, depth + 1, stored=stored
+                )
+            ):
+                return found
+        return ""
+
+    async def attachment(
+        self,
+        *,
+        access_token: str,
+        message_id: str,
+        attachment_id: str,
+        mailbox: str | None,
+        max_bytes: int,
+    ) -> bytes:
+        """One attachment's bytes; `mailbox` is ignored, Gmail reads the account's own.
+
+        Gmail answers JSON holding the bytes as base64url, so the answer is read
+        only as far as `max_bytes` of bytes can need (four characters for three)
+        and a refusal comes before anything is decoded.
+
+        Raises:
+            PortalUnreachable: Gmail could not be reached or refused, with its
+                status and none of its text.
+            AttachmentTooLarge: The attachment is over `max_bytes`.
+        """
+        path = (
+            f"/users/me/messages/{quote(message_id, safe='')}"
+            f"/attachments/{quote(attachment_id, safe='')}"
+        )
+        # Base64 is 4/3 of the bytes; the JSON around it holds the size and, in some
+        # answers, the attachment's own id.
+        wire_limit = max_bytes * 4 // 3 + 1024 + len(attachment_id)
+        received = bytearray()
+        async with httpx.AsyncClient(base_url=_API_BASE, timeout=_TIMEOUT) as client:
+            try:
+                async with client.stream("GET", path, headers=_headers(access_token)) as response:
+                    if not response.is_success:
+                        raise PortalUnreachable(
+                            message="Gmail refused the request",
+                            details={"portal_key": self.portal_key, "status": response.status_code},
+                        )
+                    async for chunk in response.aiter_bytes():
+                        received += chunk
+                        if len(received) > wire_limit:
+                            raise AttachmentTooLarge(details={"portal_key": self.portal_key})
+            except httpx.HTTPError as exc:
+                raise PortalUnreachable(
+                    message="Gmail could not be reached",
+                    details={"portal_key": self.portal_key, "error": exc.__class__.__name__},
+                ) from exc
+        try:
+            parsed = json.loads(received)
+        except ValueError as exc:
+            raise PortalUnreachable(
+                message="Gmail answered with something unreadable",
+                details={"portal_key": self.portal_key},
+            ) from exc
+        answer = parsed if isinstance(parsed, dict) else {}
+        declared = answer.get("size")
+        if isinstance(declared, int) and declared > max_bytes:
+            raise AttachmentTooLarge(details={"portal_key": self.portal_key})
+        data = answer.get("data")
+        if not isinstance(data, str):
+            return b""
+        try:
+            decoded = base64.urlsafe_b64decode(data + "=" * (-len(data) % 4))
+        except ValueError as exc:
+            raise PortalUnreachable(
+                message="Gmail answered with something unreadable",
+                details={"portal_key": self.portal_key},
+            ) from exc
+        if len(decoded) > max_bytes:
+            raise AttachmentTooLarge(details={"portal_key": self.portal_key})
+        return decoded
 
     async def _body(
         self,
@@ -258,20 +469,19 @@ class GooglePortalAdapter(PortalAdapter):
         message_id: str,
         part: dict[str, Any],
         depth: int = 0,
+        *,
+        stored: dict[str, dict[str, Any]] | None = None,
     ) -> str:
         """Read textual MIME parts even when Gmail stores their bytes separately."""
-        if depth > 8 or part.get("filename"):
+        if depth > _MAX_DEPTH or part.get("filename"):
             return ""
+        if stored is None:
+            stored = {}
         mime = str(part.get("mimeType") or "")
         body = _nested(part, "body")
         attachment_id = body.get("attachmentId")
         if mime in {"text/plain", "text/html"} and isinstance(attachment_id, str):
-            attachment = await self._get(
-                client,
-                access_token,
-                f"/users/me/messages/{quote(message_id, safe='')}/attachments/{quote(attachment_id, safe='')}",
-                params=None,
-            )
+            attachment = await self._stored(client, access_token, message_id, attachment_id, stored)
             return _body_text({**part, "body": attachment})[:_MAX_BODY_CHARS]
         if mime.startswith("text/"):
             return _body_text(part)[:_MAX_BODY_CHARS]
@@ -280,7 +490,9 @@ class GooglePortalAdapter(PortalAdapter):
         for child in part.get("parts") or []:
             if not isinstance(child, dict):
                 continue
-            found = await self._body(client, access_token, message_id, child, depth + 1)
+            found = await self._body(
+                client, access_token, message_id, child, depth + 1, stored=stored
+            )
             if str(child.get("mimeType") or "") == "text/plain":
                 plain = plain or found
             else:

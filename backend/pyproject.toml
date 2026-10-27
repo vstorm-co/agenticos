@@ -103,6 +103,11 @@ dependencies = [
     "openpyxl>=3.1.0",
     "llama-cloud>=2.18.0",
     "liteparse>=2.16.0",
+    # `html.parse` reads markup with bs4's standard-library parser and picks
+    # elements with soupsieve. Both already ship through `pydantic-ai-slim`'s
+    # web-fetch extra; declared here so a release of it cannot drop them.
+    "beautifulsoup4>=4.15.0",
+    "soupsieve>=2.9.2",
     # Google Drive speaks plain REST through `app/services/rag/drive_api.py`;
     # `google-auth` only signs the service account's token, over `requests`.
     # `google-api-python-client` was 108 MB of discovery documents for four URLs.
@@ -648,7 +653,7 @@ include = [
     # Its first sync connector caller: a crawl whose every link is chosen by the
     # site it reads, and the page text that decides what a sync re-embeds (#984).
     "app/services/rag/connectors/web.py",
-    "app/services/rag/connectors/web_page.py",
+    "app/services/rag/web_page.py",
     # Which host is sent the Entra app's secret, its Graph token or neither.
     "app/services/rag/connectors/sharepoint.py",
     # The query strings a knowledge search runs, and the one place an expansion
@@ -799,6 +804,7 @@ include = [
     "app/services/portals/google_calendar.py",
     "app/services/portals/google_drive.py",
     "app/services/portals/mail_auth.py",
+    "app/services/portals/mail_thread.py",
     "app/services/portals/microsoft_files.py",
     "app/services/portals/outlook_calendar.py",
     "app/services/portals/registry.py",
@@ -1077,6 +1083,8 @@ include = [
     # What a workflow's real runs did over a window, for its runs page.
     "app/schemas/workflow_stats.py",
     "app/services/workflow_stats.py",
+    # One text-similarity scorer: text.compare, approval edit ratios and evals.
+    "app/services/text_similarity.py",
     # A model step's evals: its cases, and the test runs that tried them.
     "app/db/models/workflow_eval.py",
     "app/repositories/workflow_eval.py",
@@ -1239,7 +1247,7 @@ include = [
     # Its first sync connector caller: a crawl whose every link is chosen by the
     # site it reads, and the page text that decides what a sync re-embeds (#984).
     "app/services/rag/connectors/web.py",
-    "app/services/rag/connectors/web_page.py",
+    "app/services/rag/web_page.py",
     # Which host is sent the Entra app's secret, its Graph token or neither.
     "app/services/rag/connectors/sharepoint.py",
     # The query strings a knowledge search runs, and the one place an expansion
@@ -1423,6 +1431,7 @@ include = [
     "app/services/portals/google_calendar.py",
     "app/services/portals/google_drive.py",
     "app/services/portals/mail_auth.py",
+    "app/services/portals/mail_thread.py",
     "app/services/portals/microsoft_files.py",
     "app/services/portals/outlook_calendar.py",
     "app/services/portals/registry.py",
@@ -1701,6 +1710,8 @@ include = [
     # What a workflow's real runs did over a window, for its runs page.
     "app/schemas/workflow_stats.py",
     "app/services/workflow_stats.py",
+    # One text-similarity scorer: text.compare, approval edit ratios and evals.
+    "app/services/text_similarity.py",
     # A model step's evals: its cases, and the test runs that tried them.
     "app/db/models/workflow_eval.py",
     "app/repositories/workflow_eval.py",

@@ -231,3 +231,70 @@ class TestMcpAllowedHosts:
         hosts = Settings(_env_file=None, MCP_ALLOWED_HOSTS=[entry]).MCP_ALLOWED_HOSTS
 
         assert hosts == [entry]
+
+
+class TestOutboundPrivateAllowlist:
+    """Read from the environment as a JSON list, like `MCP_ALLOWED_HOSTS`."""
+
+    def test_a_deployment_that_never_set_it_lists_nothing(self, monkeypatch):
+        monkeypatch.delenv("OUTBOUND_PRIVATE_ALLOWLIST", raising=False)
+
+        assert Settings(_env_file=None).OUTBOUND_PRIVATE_ALLOWLIST == []
+
+    def test_the_environment_names_entries_as_a_json_list(self, monkeypatch):
+        monkeypatch.setenv("OUTBOUND_PRIVATE_ALLOWLIST", '["10.1.2.0/24", ".corp.example"]')
+
+        assert Settings(_env_file=None).OUTBOUND_PRIVATE_ALLOWLIST == [
+            "10.1.2.0/24",
+            ".corp.example",
+        ]
+
+    @pytest.mark.parametrize("entry", ["127.0.0.0/8", ".internal", "http://wiki", "*.corp.example"])
+    def test_a_refused_entry_stops_the_settings_loading_naming_it(self, entry):
+        with pytest.raises(ValidationError, match="OUTBOUND_PRIVATE_ALLOWLIST lists") as raised:
+            Settings(_env_file=None, OUTBOUND_PRIVATE_ALLOWLIST=[entry])
+
+        assert repr(entry) in str(raised.value)
+
+    @pytest.mark.parametrize(
+        ("host", "entry"),
+        [("db", "db"), ("pg.svc.example", ".svc.example"), ("10.0.0.7", "10.0.0.0/24")],
+    )
+    def test_the_database_host_cannot_be_listed(self, host, entry):
+        with pytest.raises(ValidationError, match="reaches this deployment's database"):
+            Settings(_env_file=None, POSTGRES_HOST=host, OUTBOUND_PRIVATE_ALLOWLIST=[entry])
+
+    @pytest.mark.parametrize(
+        ("host", "entry"),
+        [("cache", "cache"), ("redis.svc.example", ".svc.example"), ("10.0.0.8", "10.0.0.0/24")],
+    )
+    def test_the_redis_host_cannot_be_listed(self, host, entry):
+        with pytest.raises(ValidationError, match="reaches this deployment's Redis"):
+            Settings(_env_file=None, REDIS_HOST=host, OUTBOUND_PRIVATE_ALLOWLIST=[entry])
+
+    def test_the_api_host_cannot_be_listed_but_a_suffix_over_it_can(self):
+        with pytest.raises(ValidationError, match="reaches this deployment's API"):
+            Settings(
+                _env_file=None,
+                PUBLIC_BASE_URL="https://agents.corp.example",
+                OUTBOUND_PRIVATE_ALLOWLIST=["agents.corp.example"],
+            )
+
+        accepted = Settings(
+            _env_file=None,
+            PUBLIC_BASE_URL="https://agents.corp.example",
+            OUTBOUND_PRIVATE_ALLOWLIST=[".corp.example"],
+        )
+        assert accepted.OUTBOUND_PRIVATE_ALLOWLIST == [".corp.example"]
+
+    def test_the_mcp_alias_is_checked_against_the_stores_too(self):
+        with pytest.raises(ValidationError, match="MCP_ALLOWED_HOSTS lists"):
+            Settings(_env_file=None, POSTGRES_HOST="db", MCP_ALLOWED_HOSTS=["db"])
+
+    def test_an_api_host_that_is_an_address_cannot_be_listed_by_a_range(self):
+        with pytest.raises(ValidationError, match="reaches this deployment's API"):
+            Settings(
+                _env_file=None,
+                PUBLIC_BASE_URL="https://10.0.0.9",
+                OUTBOUND_PRIVATE_ALLOWLIST=["10.0.0.0/24"],
+            )

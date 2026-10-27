@@ -20,7 +20,7 @@ from app.schemas.agent_trigger import MAX_INTERVAL_SECONDS, _cron_has_next
 from app.schemas.virtual_table import RecordFilter
 from app.schemas.virtual_table_trigger import MAX_FILTERS
 from app.services.workflow_execution import context
-from app.workflows.contracts.io import TableIORef
+from app.workflows.contracts.io import FileRef, TableIORef
 from app.workflows.contracts.results import Failed, WorkflowError
 
 
@@ -178,6 +178,29 @@ class GithubTriggerOutput(_Frozen):
     )
 
 
+AttachmentSkip = Literal[
+    "too_many", "too_large", "type_not_allowed", "quota", "unreadable", "not_fetched"
+]
+
+
+class MailAttachment(_Frozen):
+    """One attachment the message listed, and the stored file when the trigger staged it."""
+
+    attachment_id: str = Field(
+        max_length=4096, description="The mailbox's own id for the attachment"
+    )
+    name: str = Field(default="", max_length=1024)
+    content_type: str = Field(
+        default="", max_length=255, description="The type the sender declared"
+    )
+    byte_size: int | None = Field(default=None, ge=0, description="The size the mailbox declared")
+    stored: bool = Field(
+        default=False, description="Whether the trigger stored it as a file of this run"
+    )
+    file: FileRef | None = Field(default=None, description="The stored file, when stored")
+    reason: AttachmentSkip | None = Field(default=None, description="Why it was not stored")
+
+
 class EmailTriggerOutput(_Frozen):
     """One message that arrived in the connected mailbox."""
 
@@ -188,6 +211,22 @@ class EmailTriggerOutput(_Frozen):
     text: str = Field(default="", description="The plain-text body, as far as it was read")
     snippet: str = Field(default="", description="The mailbox's short preview of it")
     labels: list[str] = Field(default_factory=list, description="The mailbox's labels on it")
+    thread_id: str = Field(default="", description="The mailbox's own conversation key")
+    rfc_message_id: str = Field(
+        default="", description="The Message-ID header, with angle brackets"
+    )
+    in_reply_to: str = Field(
+        default="", description="The message this one answers, with angle brackets"
+    )
+    references: list[str] = Field(
+        default_factory=list, description="The thread's earlier Message-IDs, oldest first"
+    )
+    received_at: datetime | None = Field(default=None, description="When the mailbox received it")
+    html: str = Field(default="", description="The HTML body, as far as it was read")
+    mailbox: str = Field(
+        default="", description="The shared mailbox it was read from; empty for the account's own"
+    )
+    attachments: list[MailAttachment] = Field(default_factory=list)
 
 
 class FailedRunError(_Frozen):

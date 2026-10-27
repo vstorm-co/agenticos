@@ -1,5 +1,5 @@
 ---
-source_sha: "94fe4ff073a5"
+source_sha: "e132a630b16c"
 title: "Clasifica tu bandeja de entrada y redacta respuestas"
 description: "Conecta un buzón como trigger de eventos consultado periódicamente y haz que un agent redacte respuestas o extraiga tareas, sin enviar nunca nada."
 ---
@@ -14,7 +14,7 @@ Lee esto antes de conectar nada, porque decide si la página de abajo compensa e
 
 **Puede leer.** El trigger de Gmail consulta el buzón conectado una vez por minuto y entrega al agent el asunto, el remitente y el cuerpo de un mensaje nuevo. El despliegue solo pide a Google el alcance `gmail.readonly`: en la pantalla de consentimiento no se solicita nada más, así que no existe un permiso más amplio en el que apoyarse por accidente.
 
-**No puede enviar, ni crear un borrador real en Gmail.** No hay ninguna herramienta, ni aquí ni en el catálogo MCP, que llame a la API de envío o de borradores de Gmail. Lo que las plantillas de abajo llaman "borrador" es el texto de respuesta del agent, escrito en el run que se disparó: queda en **Activity**, en la conversación de ese run, como un mensaje que una persona tiene que leer y pegar ella misma en un correo saliente. Nunca se envía nada en tu nombre ni se escribe nada de vuelta en el buzón.
+**No puede enviar, ni crear un borrador real en Gmail.** El agent que se construye en esta página no tiene ninguna herramienta que llame a la API de envío o de borradores de Gmail. Lo que las plantillas de abajo llaman "borrador" es el texto de respuesta del agent, escrito en el run que se disparó: queda en **Activity**, en la conversación de ese run, como un mensaje que una persona tiene que leer y pegar ella misma en un correo saliente. Nunca se envía nada en tu nombre ni se escribe nada de vuelta en el buzón. Para que la respuesta quede en el hilo del buzón, como borrador o como correo enviado, después de que una persona la apruebe, usa un workflow: [responde al correo con un borrador aprobado](answer-mail-with-approved-draft.md).
 
 ## Qué necesitas { #what-you-need }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "3530a3aa9612"
+source_sha: "173a9224092a"
 ---
 
 # Konfigurowanie triggera zdarzeniowego { #setting-up-an-event-trigger }
@@ -251,6 +251,10 @@ warto wiedzieć o tym, jak to czyta:
 - **Przegapiony tydzień naprawia się sam.** Google trzyma około tygodnia
   historii. Kursor starszy niż to resynchronizuje się do teraz, zamiast zaparkować
   skrzynkę na zawsze.
+- **Prompt nazywa wiadomość i jej wątek.** Obok nadawcy, tematu i tekstu agent
+  dostaje wiersz `Message-ID:` i wiersz `Thread:`, każdy tylko wtedy, gdy poczta go
+  niosła. Wartość dłuższa niż 998 znaków jest pomijana, nigdy ucinana, a treści
+  HTML, referencji i załączników w prompcie nie ma.
 - **Wycofana zgoda zatrzymuje triggery.** Gdy Google odmawia grantu na dobre -
   refresh token został unieważniony albo konto usunęło aplikację - triggery
   skrzynki są wyłączane, kafelek prosi o ponowne podłączenie, a dziennik audytu
@@ -307,9 +311,11 @@ Czym różni się od Gmaila:
 - **Zmiana to nie nadejście.** Graph zgłasza wiadomość, którą ktoś oznaczył jako
   przeczytaną, równie chętnie jak tę, która właśnie przyszła; odpala tylko poczta
   otrzymana od ostatniego czytania folderu.
-- **Run czyta tekst.** Treść przychodzi jako zwykły tekst - Exchange sam
-  konwertuje wiadomość HTML - z wypisanymi nazwami, typami i rozmiarami
-  załączników. Same załączniki nie są pobierane.
+- **Run czyta tekst.** Treść przychodzi jako zwykły tekst - Exchange sam konwertuje
+  wiadomość HTML - a prompt wymienia załączniki w wierszu `Attachments:`, same nazwy.
+  Wypisywane są tylko załączniki-pliki: dołączona wiadomość ani link do chmury nie.
+  Same pliki nie są pobierane. Tak jak w Gmailu, prompt ma też wiersz `Message-ID:` i
+  `Thread:`, każdy tylko wtedy, gdy wiadomość go niosła.
 - **Folder, którego nie da się przeczytać, zatrzymuje swoje triggery.** Folder
   usunięty i utworzony ponownie pod tą samą ścieżką jest wyszukiwany jeszcze raz i
   czytany dalej. Folder, którego już nie ma, albo skrzynka współdzielona, która
@@ -320,6 +326,9 @@ Czym różni się od Gmaila:
   śledzenie zmian folderu bez stałego terminu i na porzucone odpowiada
   `syncStateNotFound`; folder jest wtedy czytany ponownie od chwili tuż przed
   ostatnim odczytem, więc nic nie odpala się dwa razy i nic nie przepada.
+- **Seria wiadomości trafia do kolejki.** Jeden tick czyta w całości co najwyżej 25
+  wiadomości, od najstarszej. Reszta zostaje w kursorze i jest czytana w kolejnych
+  tickach, więc folder przeniesiony hurtem albo zaległości po awarii niczego nie gubią.
 
 Identyfikatory dostarczeń to niezmienne identyfikatory wiadomości Outlooka, więc
 wiadomość przeczytana dwa razy - ponowiony tick, wolne odpytanie nachodzące na

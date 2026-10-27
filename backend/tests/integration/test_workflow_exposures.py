@@ -17,12 +17,13 @@ from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from itertools import pairwise
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import anyio
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.api import deps
@@ -53,7 +54,7 @@ from app.db.models.workflow_run import (
 from app.main import app
 from app.schemas.api_key import ApiKeyCreate
 from app.schemas.conversation import MessageRead
-from app.schemas.workflow import WorkflowPublish, WorkflowPublished
+from app.schemas.workflow import WorkflowPublish, WorkflowPublished, WorkflowSettings
 from app.schemas.workflow_exposure import (
     WebhookAdmitted,
     WebhookAnswer,
@@ -63,11 +64,17 @@ from app.schemas.workflow_exposure import (
 )
 from app.services.api_key import ApiKeyService
 from app.services.channels.base import IncomingMessage
-from app.services.portals import PolledEvent, RegisteredWebhook, WebhookRegistrationForbidden
+from app.services.portals import (
+    PolledEvent,
+    RegisteredWebhook,
+    WebhookRegistrationForbidden,
+    outlook_place,
+)
 from app.services.workflow_execution import WorkflowExecutionService
 from app.services.workflow_execution.exceptions import (
     WorkflowAdmissionQuotaError,
     WorkflowArchivedError,
+    WorkflowInlineStorageLimitError,
     WorkflowRunInputInvalidError,
     WorkflowRunInputTooLargeError,
     WorkflowTriggerMismatchError,
@@ -2088,8 +2095,12 @@ class TestGmail:
         service = WorkflowExposureService(db)
         mail = [_mail("m1"), _mail("m2", subject="Lunch?"), _mail("m3", labels=["INBOX"])]
 
-        assert await service.receive_polled_email(organization_id=org.id, events=mail)
-        assert await service.receive_polled_email(organization_id=org.id, events=mail)
+        assert await service.receive_polled_email(
+            organization_id=org.id, source="gmail", events=mail
+        )
+        assert await service.receive_polled_email(
+            organization_id=org.id, source="gmail", events=mail
+        )
 
         (run,) = await _runs(db)
         assert run.triggered_by == WorkflowRunTrigger.GMAIL.value
@@ -2102,7 +2113,216 @@ class TestGmail:
             "text": "Please pay invoice 42.",
             "snippet": "Please pay",
             "labels": ["INBOX", "IMPORTANT"],
+            "thread_id": "",
+            "rfc_message_id": "",
+            "in_reply_to": "",
+            "references": [],
+            "received_at": None,
+            "html": "",
+            "mailbox": "",
+            "attachments": [],
         }
+
+    async def test_a_reply_starts_its_run_with_its_thread_and_attachments_listed(self, db, tenant):
+        owner, org, workflow = tenant
+        await _mailbox(db, org)
+        await _publish(db, _ctx(owner, org), workflow, _graph("trigger.gmail"))
+        mail = _mail(
+            "m2",
+            thread_id="t-1",
+            rfc_message_id="<b@mail.example>",
+            in_reply_to="<a@mail.example>",
+            references=["<a@mail.example>"],
+            received_at="2026-10-26T09:31:00+00:00",
+            html="<p>Please pay.</p>",
+            attachments=[
+                {
+                    "attachment_id": "att-1",
+                    "name": "inv.pdf",
+                    "content_type": "application/pdf",
+                    "size": 2048,
+                },
+                {
+                    "attachment_id": "att-2",
+                    "name": "note.txt",
+                    "content_type": "text/plain",
+                    "size": "big",
+                },
+                {"name": "no-id.txt", "content_type": "text/plain", "size": 1},
+            ],
+        )
+
+        assert await WorkflowExposureService(db).receive_polled_email(
+            organization_id=org.id, source="gmail", events=[mail]
+        )
+
+        (run,) = await _runs(db)
+        assert run.input["thread_id"] == "t-1"
+        assert run.input["rfc_message_id"] == "<b@mail.example>"
+        assert run.input["in_reply_to"] == "<a@mail.example>"
+        assert run.input["references"] == ["<a@mail.example>"]
+        assert run.input["received_at"] == "2026-10-26T09:31:00Z"
+        assert run.input["html"] == "<p>Please pay.</p>"
+        assert run.input["attachments"] == [
+            {
+                "attachment_id": "att-1",
+                "name": "inv.pdf",
+                "content_type": "application/pdf",
+                "byte_size": 2048,
+                "stored": False,
+                "file": None,
+                "reason": "not_fetched",
+            },
+            {
+                "attachment_id": "att-2",
+                "name": "note.txt",
+                "content_type": "text/plain",
+                "byte_size": None,
+                "stored": False,
+                "file": None,
+                "reason": "not_fetched",
+            },
+        ]
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        ("field_path", "stored"),
+        [
+            (("attachments",), True),
+            ((), True),
+            (("subject",), False),
+            (("attachments_note",), False),
+        ],
+    )
+    async def test_attachments_are_stored_only_for_a_graph_that_reads_them(
+        self, db, tenant, field_path, stored
+    ):
+        owner, org, workflow = tenant
+        await _mailbox(db, org)
+        graph = _graph("trigger.gmail")
+        published = await _publish(db, _ctx(owner, org), workflow, graph)
+        reader = NodeInstance(
+            id=uuid.uuid4(),
+            definition_id="core.output",
+            definition_version=1,
+            layout=NodePosition(x=0, y=0),
+        )
+        pinned = await db.get(WorkflowVersion, published.id)
+        assert pinned is not None
+        pinned.graph = graph.model_copy(
+            update={
+                "nodes": (*graph.nodes, reader),
+                "bindings": (
+                    Binding(
+                        target_node_id=reader.id,
+                        target_field="value",
+                        source=NodeOutputRef(
+                            node_id=graph.entry_node_id, port="out", field_path=field_path
+                        ),
+                    ),
+                ),
+            }
+        ).model_dump(mode="json")
+        await db.flush()
+        mail = _mail("m1", attachments=[{"attachment_id": "a1", "name": "x.pdf", "size": 1}])
+
+        assert await WorkflowExposureService(db).receive_polled_email(
+            organization_id=org.id, source="gmail", events=[mail]
+        )
+
+        (run,) = await _runs(db)
+        assert [a["reason"] for a in run.input["attachments"]] == [
+            None if stored else "not_fetched"
+        ]
+
+    @pytest.mark.parametrize("received_at", ["", None, "yesterday"])
+    async def test_an_unreadable_receipt_time_is_left_empty(self, db, tenant, received_at):
+        owner, org, workflow = tenant
+        await _mailbox(db, org)
+        await _publish(db, _ctx(owner, org), workflow, _graph("trigger.gmail"))
+
+        assert await WorkflowExposureService(db).receive_polled_email(
+            organization_id=org.id, source="gmail", events=[_mail(received_at=received_at)]
+        )
+
+        (run,) = await _runs(db)
+        assert run.input["received_at"] is None
+
+    async def test_text_a_run_cannot_store_is_cleaned_so_the_mail_still_starts_it(self, db, tenant):
+        owner, org, workflow = tenant
+        await _mailbox(db, org)
+        await _publish(db, _ctx(owner, org), workflow, _graph("trigger.gmail"))
+        mail = _mail(
+            html="<p>a\x00b</p>",
+            subject="hi\ud800!",
+            attachments=[{"attachment_id": "a1", "name": "x\ud800.pdf", "size": 1}],
+        )
+
+        assert await WorkflowExposureService(db).receive_polled_email(
+            organization_id=org.id, source="gmail", events=[mail]
+        )
+
+        (run,) = await _runs(db)
+        assert run.input["html"] == "<p>ab</p>"
+        assert run.input["subject"] == "hi\ufffd!"
+        assert run.input["attachments"][0]["name"] == "x\ufffd.pdf"
+
+    async def test_a_message_whose_input_still_fails_validation_is_skipped(self, db, tenant):
+        owner, org, workflow = tenant
+        await _mailbox(db, org)
+        await _publish(db, _ctx(owner, org), workflow, _graph("trigger.gmail"))
+        service = WorkflowExposureService(db)
+        invalid = WorkflowRunInputInvalidError(problems=[])
+        with patch.object(service.runs, "admit_pinned", AsyncMock(side_effect=invalid)):
+            assert await service.receive_polled_email(
+                organization_id=org.id, source="gmail", events=[_mail()]
+            )
+        assert await _runs(db) == []
+
+    async def test_attachment_values_over_their_caps_are_cut_or_dropped(self, db, tenant):
+        owner, org, workflow = tenant
+        await _mailbox(db, org)
+        await _publish(db, _ctx(owner, org), workflow, _graph("trigger.gmail"))
+        mail = _mail(
+            attachments=[
+                {"attachment_id": "x" * 4097, "name": "dropped.pdf"},
+                {
+                    "attachment_id": "a1",
+                    "name": "n" * 2000 + ".pdf",
+                    "content_type": "t" * 300,
+                    "size": -5,
+                },
+                {"attachment_id": "a2", "name": "b", "size": True},
+                {"attachment_id": "a3", "name": "e" * 2000},
+            ]
+        )
+
+        assert await WorkflowExposureService(db).receive_polled_email(
+            organization_id=org.id, source="gmail", events=[mail]
+        )
+
+        (run,) = await _runs(db)
+        first, second, third = run.input["attachments"]
+        assert first["attachment_id"] == "a1"
+        assert first["name"] == "n" * 1020 + ".pdf" and len(first["name"]) == 1024
+        assert first["content_type"] == "t" * 255
+        assert first["byte_size"] is None
+        assert second["byte_size"] is None
+        assert third["name"] == "e" * 1024
+
+    async def test_a_receipt_time_without_a_zone_is_taken_as_utc(self, db, tenant):
+        owner, org, workflow = tenant
+        await _mailbox(db, org)
+        await _publish(db, _ctx(owner, org), workflow, _graph("trigger.gmail"))
+
+        assert await WorkflowExposureService(db).receive_polled_email(
+            organization_id=org.id,
+            source="gmail",
+            events=[_mail(received_at="2026-10-26T09:31:00")],
+        )
+
+        (run,) = await _runs(db)
+        assert run.input["received_at"] == "2026-10-26T09:31:00Z"
 
     async def test_a_new_version_keeps_listening_on_the_same_row(self, db, tenant):
         owner, org, workflow = tenant
@@ -2123,7 +2343,9 @@ class TestGmail:
             published.exposure.id,
             WorkflowExposureUpdate(is_active=False),
         )
-        assert await service.receive_polled_email(organization_id=org.id, events=[_mail()])
+        assert await service.receive_polled_email(
+            organization_id=org.id, source="gmail", events=[_mail()]
+        )
         await service.set_active(
             _ctx(owner, org),
             workflow.id,
@@ -2131,7 +2353,9 @@ class TestGmail:
             WorkflowExposureUpdate(is_active=True),
         )
         await db.execute(delete(OrganizationMember).where(OrganizationMember.user_id == owner.id))
-        assert await service.receive_polled_email(organization_id=org.id, events=[_mail()])
+        assert await service.receive_polled_email(
+            organization_id=org.id, source="gmail", events=[_mail()]
+        )
         assert await _runs(db) == []
 
     async def test_a_message_with_no_room_is_left_for_the_next_poll(self, db, tenant):
@@ -2143,10 +2367,14 @@ class TestGmail:
             scope="organization", limit=1, outstanding=1, requested=1
         )
         with patch.object(service.runs, "admit_pinned", AsyncMock(side_effect=refused)):
-            assert not await service.receive_polled_email(organization_id=org.id, events=[_mail()])
+            assert not await service.receive_polled_email(
+                organization_id=org.id, source="gmail", events=[_mail()]
+            )
         assert (await db.execute(select(WorkflowWebhookDelivery))).scalars().all() == []
 
-        assert await service.receive_polled_email(organization_id=org.id, events=[_mail()])
+        assert await service.receive_polled_email(
+            organization_id=org.id, source="gmail", events=[_mail()]
+        )
         assert len(await _runs(db)) == 1
 
     async def test_a_message_too_large_to_run_is_not_read_again(self, db, tenant):
@@ -2156,8 +2384,630 @@ class TestGmail:
         service = WorkflowExposureService(db)
         too_large = WorkflowRunInputTooLargeError(limit=1, size=2)
         with patch.object(service.runs, "admit_pinned", AsyncMock(side_effect=too_large)):
-            assert await service.receive_polled_email(organization_id=org.id, events=[_mail()])
+            assert await service.receive_polled_email(
+                organization_id=org.id, source="gmail", events=[_mail()]
+            )
         assert await _runs(db) == []
+
+    async def test_a_message_too_large_only_for_its_html_runs_without_it(self, db, tenant):
+        owner, org, workflow = tenant
+        await _mailbox(db, org)
+        await _publish(db, _ctx(owner, org), workflow, _graph("trigger.gmail"))
+        service = WorkflowExposureService(db)
+        real = service.runs.admit_pinned
+        seen: list[str] = []
+
+        async def refuse_the_html(*args: object, **kwargs: object):
+            run_input = cast(dict[str, str], kwargs["run_input"])
+            seen.append(run_input["html"])
+            if run_input["html"]:
+                raise WorkflowRunInputTooLargeError(limit=1, size=2)
+            return await real(*args, **kwargs)
+
+        with patch.object(service.runs, "admit_pinned", refuse_the_html):
+            assert await service.receive_polled_email(
+                organization_id=org.id,
+                source="gmail",
+                events=[_mail(html="<p>big</p>")],
+            )
+
+        assert seen == ["<p>big</p>", ""]
+        (run,) = await _runs(db)
+        assert run.input["html"] == ""
+        assert run.input["text"] == "Please pay invoice 42."
+
+
+async def _outlook_mailbox(db: AsyncSession, org: Organization) -> McpConnection:
+    grant = McpConnection(
+        id=uuid.uuid4(),
+        scope="org",
+        organization_id=org.id,
+        name="outlook",
+        url="https://graph.microsoft.com",
+        secret_key_version=1,
+        purpose="portal",
+        portal_key="microsoft",
+    )
+    db.add(grant)
+    await db.flush()
+    return grant
+
+
+def _outlook_mail(
+    message_id: str = "m1", *, folder: str = "inbox", mailbox: str = "", **fields: object
+) -> PolledEvent:
+    payload = {
+        "place": outlook_place(mailbox=mailbox or None, folder=folder),
+        "mailbox": mailbox,
+        "folder": folder,
+        "subject": "Invoice 42 overdue",
+        "from": "billing@acme.com",
+        "authenticated": True,
+        "to": "ops@example.com",
+        "categories": ["Finance", "Red"],
+        "text": "Please pay invoice 42.",
+        "snippet": "Please pay",
+        "message_id": message_id,
+        **fields,
+    }
+    return PolledEvent(delivery_id=f"outlook:{message_id}", payload=payload)
+
+
+async def _exposure_id(db: AsyncSession, workflow: Workflow) -> uuid.UUID:
+    return (
+        await db.execute(
+            select(WorkflowExposure.id).where(WorkflowExposure.workflow_id == workflow.id)
+        )
+    ).scalar_one()
+
+
+async def _disabled_audits(db: AsyncSession) -> list[AppAdminAuditLog]:
+    return list(
+        (
+            await db.execute(
+                select(AppAdminAuditLog).where(
+                    AppAdminAuditLog.action == "workflow.exposure_disabled"
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+
+class TestOutlook:
+    async def test_publishing_needs_a_connected_outlook_mailbox(self, db, tenant):
+        owner, org, workflow = tenant
+        await _mailbox(db, org)  # a Gmail mailbox is not an Outlook one
+        with pytest.raises(BadRequestError, match="Outlook mailbox"):
+            await _publish(db, _ctx(owner, org), workflow, _graph("trigger.outlook"))
+
+    async def test_a_message_in_the_watched_folder_starts_one_run_however_often_it_is_read(
+        self, db, tenant
+    ):
+        owner, org, workflow = tenant
+        await _outlook_mailbox(db, org)
+        published = await _publish(
+            db,
+            _ctx(owner, org),
+            workflow,
+            _graph(
+                "trigger.outlook",
+                {"folder": "Invoices", "mailbox": "shared@acme.com", "subject_contains": "INVOICE"},
+            ),
+        )
+        assert published.exposure is not None and published.exposure.webhook_url is None
+        service = WorkflowExposureService(db)
+        mail = [
+            _outlook_mail("m1", folder="Invoices", mailbox="shared@acme.com"),
+            _outlook_mail("m2", folder="Invoices", mailbox="shared@acme.com", subject="Lunch?"),
+        ]
+
+        for _ in range(2):
+            assert await service.receive_polled_email(
+                organization_id=org.id, source="outlook", events=mail
+            )
+
+        (run,) = await _runs(db)
+        assert run.triggered_by == WorkflowRunTrigger.OUTLOOK.value
+        assert run.execution_principal_user_id == owner.id
+        assert run.input["message_id"] == "m1"
+        assert run.input["labels"] == ["Finance", "Red"]
+        assert run.input["mailbox"] == "shared@acme.com"
+        assert run.input["sender"] == "billing@acme.com"
+
+    async def test_a_message_in_another_folder_or_mailbox_starts_nothing(self, db, tenant):
+        owner, org, workflow = tenant
+        await _outlook_mailbox(db, org)
+        await _publish(
+            db,
+            _ctx(owner, org),
+            workflow,
+            _graph("trigger.outlook", {"folder": "Invoices", "mailbox": "shared@acme.com"}),
+        )
+        elsewhere = [
+            _outlook_mail("m1", folder="inbox", mailbox="shared@acme.com"),
+            _outlook_mail("m2", folder="Invoices"),
+            _outlook_mail("m3", folder="Invoices", mailbox="other@acme.com"),
+        ]
+
+        assert await WorkflowExposureService(db).receive_polled_email(
+            organization_id=org.id, source="outlook", events=elsewhere
+        )
+
+        assert await _runs(db) == []
+
+    @pytest.mark.security
+    async def test_a_filter_on_the_sender_needs_an_authenticated_sender(self, db, tenant):
+        owner, org, workflow = tenant
+        await _outlook_mailbox(db, org)
+        await _publish(
+            db,
+            _ctx(owner, org),
+            workflow,
+            _graph("trigger.outlook", {"sender_contains": "@acme.com"}),
+        )
+        spoofed = _outlook_mail("m1", authenticated=False)
+
+        assert await WorkflowExposureService(db).receive_polled_email(
+            organization_id=org.id, source="outlook", events=[spoofed]
+        )
+        assert await _runs(db) == []
+
+        assert await WorkflowExposureService(db).receive_polled_email(
+            organization_id=org.id, source="outlook", events=[_outlook_mail("m2")]
+        )
+        assert len(await _runs(db)) == 1
+
+    @pytest.mark.security
+    async def test_naming_a_shared_mailbox_needs_the_permission_to_manage_connections(
+        self, db, tenant
+    ):
+        owner, org, _workflow_ = tenant
+        member = await _user(db)
+        await _member(db, org=org, user=member, role="member")
+        mine = await _workflow(db, org=org, owner=member)
+        await _outlook_mailbox(db, org)
+        ctx = _ctx(member, org, "member")
+        assert not ctx.has(Perm.MCP_MANAGE)
+
+        with pytest.raises(AuthorizationError, match="shared mailbox") as refused:
+            await _publish(db, ctx, mine, _graph("trigger.outlook", {"mailbox": "hr@acme.com"}))
+        (problem,) = refused.value.details["fields"]
+        assert problem["field"].endswith(".config.mailbox")
+        assert await WorkflowExposureService(db).polled_places(organization_id=org.id) == {}
+
+        # Their own mailbox is theirs to listen to.
+        await _publish(db, ctx, mine, _graph("trigger.outlook"))
+
+        # A person who may manage connections names the shared one ...
+        await _publish(
+            db, _ctx(owner, org), mine, _graph("trigger.outlook", {"mailbox": "hr@acme.com"})
+        )
+        # ... and a member's later publish that leaves it alone needs nothing more,
+        again = _graph("trigger.outlook", {"mailbox": "HR@acme.com", "subject_contains": "x"})
+        await _publish(db, ctx, mine, again)
+        # but changing it is refused again.
+        with pytest.raises(AuthorizationError, match="shared mailbox"):
+            await _publish(
+                db, ctx, mine, _graph("trigger.outlook", {"mailbox": "finance@acme.com"})
+            )
+
+    @pytest.mark.security
+    async def test_another_organizations_mail_never_starts_this_organizations_workflow(
+        self, db, tenant
+    ):
+        owner, org, workflow = tenant
+        stranger = await _user(db)
+        elsewhere = await _org(db, owner=stranger)
+        other_workflow = await _workflow(db, org=elsewhere, owner=stranger)
+        for member, organization, target in (
+            (owner, org, workflow),
+            (stranger, elsewhere, other_workflow),
+        ):
+            await _outlook_mailbox(db, organization)
+            await _publish(db, _ctx(member, organization), target, _graph("trigger.outlook"))
+
+        assert await WorkflowExposureService(db).receive_polled_email(
+            organization_id=org.id, source="outlook", events=[_outlook_mail("m1")]
+        )
+
+        (run,) = await _runs(db)
+        assert run.organization_id == org.id and run.workflow_id == workflow.id
+
+    @pytest.mark.security
+    async def test_a_gmail_trigger_never_admits_outlook_mail(self, db, tenant):
+        owner, org, workflow = tenant
+        other = await _another_workflow(db, org, owner)
+        await _mailbox(db, org)
+        await _outlook_mailbox(db, org)
+        await _publish(db, _ctx(owner, org), workflow, _graph("trigger.gmail"))
+        await _publish(db, _ctx(owner, org), other, _graph("trigger.outlook"))
+        service = WorkflowExposureService(db)
+
+        assert await service.receive_polled_email(
+            organization_id=org.id, source="outlook", events=[_outlook_mail("m1")]
+        )
+        assert [run.workflow_id for run in await _runs(db)] == [other.id]
+        assert await service.receive_polled_email(
+            organization_id=org.id, source="gmail", events=[_mail("g1")]
+        )
+        assert sorted(run.workflow_id for run in await _runs(db)) == sorted([other.id, workflow.id])
+        assert {run.triggered_by for run in await _runs(db)} == {"gmail", "outlook"}
+
+    async def test_a_workflow_nobody_can_run_any_more_starts_nothing(self, db, tenant, caplog):
+        owner, org, workflow = tenant
+        await _outlook_mailbox(db, org)
+        await _publish(db, _ctx(owner, org), workflow, _graph("trigger.outlook"))
+        await db.execute(delete(OrganizationMember).where(OrganizationMember.user_id == owner.id))
+
+        with caplog.at_level("WARNING"):
+            assert await WorkflowExposureService(db).receive_polled_email(
+                organization_id=org.id, source="outlook", events=[_outlook_mail()]
+            )
+
+        assert await _runs(db) == []
+        assert "workflow_mail_trigger_cannot_run" in caplog.text
+
+    async def test_a_full_organization_keeps_the_cursor(self, db, tenant):
+        owner, org, workflow = tenant
+        await _outlook_mailbox(db, org)
+        await _publish(db, _ctx(owner, org), workflow, _graph("trigger.outlook"))
+        service = WorkflowExposureService(db)
+        refused = WorkflowAdmissionQuotaError(
+            scope="organization", limit=1, outstanding=1, requested=1
+        )
+        with patch.object(service.runs, "admit_pinned", AsyncMock(side_effect=refused)):
+            assert not await service.receive_polled_email(
+                organization_id=org.id, source="outlook", events=[_outlook_mail()]
+            )
+
+        assert (await db.execute(select(WorkflowWebhookDelivery))).scalars().all() == []
+
+        assert await service.receive_polled_email(
+            organization_id=org.id, source="outlook", events=[_outlook_mail()]
+        )
+        assert len(await _runs(db)) == 1
+
+    async def _limited_to_one_run(self, db, tenant):
+        owner, org, workflow = tenant
+        await _outlook_mailbox(db, org)
+        await _publish(db, _ctx(owner, org), workflow, _graph("trigger.outlook"))
+        await WorkflowRegistryService(db).update_settings(
+            _ctx(owner, org), workflow.id, WorkflowSettings(max_concurrent_runs=1)
+        )
+        return org, workflow
+
+    async def test_a_message_refused_by_a_run_that_is_about_to_end_is_read_again(self, db, tenant):
+        org, _workflow_ = await self._limited_to_one_run(db, tenant)
+        service = WorkflowExposureService(db)
+        mail = [_outlook_mail("m1"), _outlook_mail("m2")]
+
+        # m1 starts a queued run, which holds the one place; m2 waits for the next read.
+        assert not await service.receive_polled_email(
+            organization_id=org.id, source="outlook", events=mail
+        )
+        (first,) = await _runs(db)
+        await db.execute(
+            update(WorkflowRun).where(WorkflowRun.id == first.id).values(status="succeeded")
+        )
+
+        assert await service.receive_polled_email(
+            organization_id=org.id, source="outlook", events=mail
+        )
+        assert len(await _runs(db)) == 2
+
+    async def test_a_message_refused_by_runs_waiting_for_approval_is_skipped_and_audited(
+        self, db, tenant, caplog
+    ):
+        org, workflow = await self._limited_to_one_run(db, tenant)
+        service = WorkflowExposureService(db)
+        assert await service.receive_polled_email(
+            organization_id=org.id, source="outlook", events=[_outlook_mail("m1")]
+        )
+        (first,) = await _runs(db)
+        await db.execute(
+            update(WorkflowRun)
+            .where(WorkflowRun.id == first.id)
+            .values(status=WorkflowRunStatus.WAITING_APPROVAL.value)
+        )
+
+        # A person's draft can hold the place for hours: m2 must not hold the mailbox.
+        assert await service.receive_polled_email(
+            organization_id=org.id, source="outlook", events=[_outlook_mail("m2")]
+        )
+
+        assert len(await _runs(db)) == 1
+        (record,) = [r for r in caplog.records if r.message == "workflow_mail_message_refused"]
+        assert record.__dict__["reason"] == "WorkflowAdmissionQuotaError"
+        (audit,) = (
+            (
+                await db.execute(
+                    select(AppAdminAuditLog).where(
+                        AppAdminAuditLog.action == "workflow.mail_message_skipped"
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert audit.target_id == str(workflow.id)
+        assert audit.details == {
+            "exposure_id": str(await _exposure_id(db, workflow)),
+            "reason": "runs_waiting_for_approval",
+        }
+
+    async def test_a_full_storage_allowance_keeps_the_cursor(self, db, tenant):
+        owner, org, workflow = tenant
+        await _outlook_mailbox(db, org)
+        await _publish(db, _ctx(owner, org), workflow, _graph("trigger.outlook"))
+        service = WorkflowExposureService(db)
+        full = WorkflowInlineStorageLimitError(scope="organization")
+        with patch.object(service.runs, "admit_pinned", AsyncMock(side_effect=full)):
+            assert not await service.receive_polled_email(
+                organization_id=org.id, source="outlook", events=[_outlook_mail()]
+            )
+
+    async def test_a_poll_that_read_no_mail_touches_no_exposure(self, db, tenant):
+        owner, org, workflow = tenant
+        await _outlook_mailbox(db, org)
+        await _publish(db, _ctx(owner, org), workflow, _graph("trigger.outlook"))
+        service = WorkflowExposureService(db)
+
+        with patch.object(
+            WorkflowGraph, "model_validate", side_effect=WorkflowGraph.model_validate
+        ) as validated:
+            assert await service.receive_polled_email(
+                organization_id=org.id, source="outlook", events=[]
+            )
+
+        validated.assert_not_called()
+
+    async def test_a_graph_is_validated_once_for_the_places_and_the_admission(self, db, tenant):
+        owner, org, workflow = tenant
+        await _outlook_mailbox(db, org)
+        await _publish(db, _ctx(owner, org), workflow, _graph("trigger.outlook"))
+        service = WorkflowExposureService(db)
+
+        with patch.object(
+            WorkflowGraph, "model_validate", side_effect=WorkflowGraph.model_validate
+        ) as validated:
+            await service.polled_places(organization_id=org.id)
+            assert await service.receive_polled_email(
+                organization_id=org.id, source="outlook", events=[_outlook_mail()]
+            )
+
+        # One for the places and the admission's config, one by `admit_pinned` itself.
+        assert validated.call_count == 2
+        assert len(await _runs(db)) == 1
+
+    async def test_the_places_of_live_outlook_workflows_are_read(self, db, tenant):
+        owner, org, workflow = tenant
+        paused = await _another_workflow(db, org, owner)
+        gmail = await _another_workflow(db, org, owner)
+        await _outlook_mailbox(db, org)
+        await _mailbox(db, org)
+        live = await _publish(
+            db,
+            _ctx(owner, org),
+            workflow,
+            _graph("trigger.outlook", {"folder": "Invoices", "mailbox": "shared@acme.com"}),
+        )
+        off = await _publish(db, _ctx(owner, org), paused, _graph("trigger.outlook"))
+        await _publish(db, _ctx(owner, org), gmail, _graph("trigger.gmail"))
+        service = WorkflowExposureService(db)
+        await service.set_active(
+            _ctx(owner, org), paused.id, off.exposure.id, WorkflowExposureUpdate(is_active=False)
+        )
+        stranger = await _user(db)
+        elsewhere = await _org(db, owner=stranger)
+        await _outlook_mailbox(db, elsewhere)
+        await _publish(
+            db,
+            _ctx(stranger, elsewhere),
+            await _workflow(db, org=elsewhere, owner=stranger),
+            _graph("trigger.outlook", {"folder": "Secret"}),
+        )
+        pinned = await db.get(WorkflowVersion, live.id)
+        assert pinned is not None
+
+        places = await service.polled_places(organization_id=org.id)
+
+        assert places == {
+            outlook_place(mailbox="shared@acme.com", folder="Invoices"): pinned.created_at
+        }
+
+    async def test_the_earliest_workflow_wins_a_shared_place_and_a_stale_config_is_skipped(
+        self, db, tenant, caplog
+    ):
+        owner, org, workflow = tenant
+        second = await _another_workflow(db, org, owner)
+        broken = await _another_workflow(db, org, owner)
+        await _outlook_mailbox(db, org)
+        first = await _publish(db, _ctx(owner, org), workflow, _graph("trigger.outlook"))
+        later = await _publish(db, _ctx(owner, org), second, _graph("trigger.outlook"))
+        bad = await _publish(db, _ctx(owner, org), broken, _graph("trigger.outlook"))
+        early = datetime(2026, 1, 1, tzinfo=UTC)
+        for published, moment in ((first, early), (later, early + timedelta(days=1))):
+            version = await db.get(WorkflowVersion, published.id)
+            assert version is not None
+            version.created_at = moment
+        stale = await db.get(WorkflowVersion, bad.id)
+        assert stale is not None
+        graph = dict(stale.graph)
+        graph["nodes"] = [{**node, "config": {"folders": "x"}} for node in graph["nodes"]]
+        stale.graph = graph
+        await db.flush()
+
+        with caplog.at_level("WARNING"):
+            places = await WorkflowExposureService(db).polled_places(organization_id=org.id)
+
+        assert places == {outlook_place(mailbox=None, folder="inbox"): early}
+        assert "workflow_mail_trigger_config_invalid" in caplog.text
+        # Admission skips the stale one too rather than raising out of the poll.
+        assert await WorkflowExposureService(db).receive_polled_email(
+            organization_id=org.id, source="outlook", events=[_outlook_mail()]
+        )
+        assert sorted(run.workflow_id for run in await _runs(db)) == sorted(
+            [workflow.id, second.id]
+        )
+
+    async def test_a_stored_graph_without_the_trigger_node_is_skipped_not_raised(
+        self, db, tenant, caplog
+    ):
+        owner, org, workflow = tenant
+        await _outlook_mailbox(db, org)
+        published = await _publish(db, _ctx(owner, org), workflow, _graph("trigger.outlook"))
+        pinned = await db.get(WorkflowVersion, published.id)
+        assert pinned is not None
+        pinned.graph = {**pinned.graph, "nodes": []}
+        await db.flush()
+        service = WorkflowExposureService(db)
+
+        with caplog.at_level("WARNING"):
+            assert await service.polled_places(organization_id=org.id) == {}
+            assert await service.receive_polled_email(
+                organization_id=org.id, source="outlook", events=[_outlook_mail()]
+            )
+
+        assert await _runs(db) == []
+        assert "workflow_mail_trigger_config_invalid" in caplog.text
+
+    async def test_a_refused_message_is_still_read_by_the_next_first_read_of_its_place(
+        self, db, tenant
+    ):
+        owner, org, workflow = tenant
+        await _outlook_mailbox(db, org)
+        published = await _publish(db, _ctx(owner, org), workflow, _graph("trigger.outlook"))
+        early = datetime(2026, 1, 1, tzinfo=UTC)
+        pinned = await db.get(WorkflowVersion, published.id)
+        assert pinned is not None
+        pinned.created_at = early
+        await db.flush()
+        service = WorkflowExposureService(db)
+        real = service.runs.admit_pinned
+        refused = WorkflowAdmissionQuotaError(
+            scope="organization", limit=1, outstanding=1, requested=1
+        )
+        calls = 0
+
+        async def admit_one_then_refuse(*args: object, **kwargs: object):
+            nonlocal calls
+            calls += 1
+            if calls > 1:
+                raise refused
+            return await real(*args, **kwargs)
+
+        with patch.object(service.runs, "admit_pinned", admit_one_then_refuse):
+            assert not await service.receive_polled_email(
+                organization_id=org.id,
+                source="outlook",
+                events=[_outlook_mail("m1"), _outlook_mail("m2")],
+            )
+        await db.flush()
+
+        assert len(await _runs(db)) == 1
+        # The test's one transaction keeps Postgres `now()` constant, so m1's run cannot
+        # visibly move the exposure's `updated_at`; set it later, as it is in production.
+        exposure = await db.get(WorkflowExposure, published.exposure.id)
+        assert exposure is not None
+        exposure.updated_at = early + timedelta(days=30)
+        await db.flush()
+        assert await service.polled_places(organization_id=org.id) == {
+            outlook_place(mailbox=None, folder="inbox"): early
+        }
+
+    async def test_a_resumed_outlook_workflow_reads_its_place_from_the_resume(self, db, tenant):
+        owner, org, workflow = tenant
+        await _outlook_mailbox(db, org)
+        graph = _graph("trigger.outlook")
+        published = await _publish(db, _ctx(owner, org), workflow, graph)
+        early = datetime(2026, 1, 1, tzinfo=UTC)
+        pinned = await db.get(WorkflowVersion, published.id)
+        assert pinned is not None
+        pinned.created_at = early
+        await db.flush()
+        service = WorkflowExposureService(db)
+        place = outlook_place(mailbox=None, folder="inbox")
+
+        await service.set_active(
+            _ctx(owner, org),
+            workflow.id,
+            published.exposure.id,
+            WorkflowExposureUpdate(is_active=False),
+        )
+        await service.set_active(
+            _ctx(owner, org),
+            workflow.id,
+            published.exposure.id,
+            WorkflowExposureUpdate(is_active=True),
+        )
+        resumed = (await service.polled_places(organization_id=org.id))[place]
+
+        # Mail from the pause is older than the place's start, so the poll starts nothing for it.
+        assert resumed > early
+        # A fire does not move it.
+        assert await service.receive_polled_email(
+            organization_id=org.id, source="outlook", events=[_outlook_mail()]
+        )
+        assert (await service.polled_places(organization_id=org.id))[place] == resumed
+
+        # Publishing again while paused counts as switching on too.
+        await service.set_active(
+            _ctx(owner, org),
+            workflow.id,
+            published.exposure.id,
+            WorkflowExposureUpdate(is_active=False),
+        )
+        exposure = await db.get(WorkflowExposure, published.exposure.id)
+        assert exposure is not None
+        exposure.run_input = {"watched_since": early.isoformat()}
+        await db.flush()
+        await _publish(db, _ctx(owner, org), workflow, graph)
+        assert (await service.polled_places(organization_id=org.id))[place] > early
+
+    async def test_an_unreadable_place_switches_its_workflow_off_with_an_audit_entry(
+        self, db, tenant
+    ):
+        owner, org, workflow = tenant
+        kept = await _another_workflow(db, org, owner)
+        await _outlook_mailbox(db, org)
+        gone = await _publish(
+            db, _ctx(owner, org), workflow, _graph("trigger.outlook", {"folder": "Invoices"})
+        )
+        stays = await _publish(db, _ctx(owner, org), kept, _graph("trigger.outlook"))
+        service = WorkflowExposureService(db)
+
+        stopped = await service.disable_unreadable(
+            organization_id=org.id,
+            places=frozenset({outlook_place(mailbox=None, folder="Invoices")}),
+        )
+
+        assert stopped == 1
+        off = await db.get(WorkflowExposure, gone.exposure.id)
+        on = await db.get(WorkflowExposure, stays.exposure.id)
+        assert off is not None and off.is_active is False
+        assert on is not None and on.is_active is True
+        (entry,) = await _disabled_audits(db)
+        assert entry.details["reason"] == "mailbox_folder_unreadable"
+        assert entry.details["exposure_id"] == str(off.id)
+        assert entry.organization_id == org.id
+
+    async def test_another_organizations_unreadable_place_switches_nothing_off(self, db, tenant):
+        owner, org, workflow = tenant
+        stranger = await _user(db)
+        elsewhere = await _org(db, owner=stranger)
+        await _outlook_mailbox(db, org)
+        mine = await _publish(db, _ctx(owner, org), workflow, _graph("trigger.outlook"))
+
+        stopped = await WorkflowExposureService(db).disable_unreadable(
+            organization_id=elsewhere.id,
+            places=frozenset({outlook_place(mailbox=None, folder="inbox")}),
+        )
+
+        assert stopped == 0
+        row = await db.get(WorkflowExposure, mine.exposure.id)
+        assert row is not None and row.is_active is True
 
 
 @pytest.mark.security

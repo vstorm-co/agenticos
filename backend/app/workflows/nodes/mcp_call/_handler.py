@@ -14,8 +14,14 @@ same inbox, decision and wake apply - and the step calls the tool once the
 request is approved, or fails with `MCP_CALL_REJECTED`. A server's read-only mark
 is its own claim; `all` is for a server that is not trusted to make it.
 
-A crash after the call and before the step settles calls the tool again on the
-retry: MCP has no idempotency key to send, so the step is at least once.
+MCP has no idempotency key of its own, so a tool that takes one as an argument is
+named by `idempotency_key_argument`: the step sends its stable operation key there
+(over any bound value), and a retry the server recognises is safe. What a failure
+means for a retry is decided by what could have reached the server. One before the
+tool was called (connect, initialize, list) sent nothing and is a retryable failure.
+One after it, for a keyed call or a tool the server marks read-only, is retryable
+too. One after an unkeyed call to any other tool may have acted, so the step ends
+`Uncertain` and waits for a person instead of repeating it.
 """
 
 import asyncio
@@ -42,7 +48,15 @@ from app.repositories import workflow_approval as approval_repo
 from app.services.mcp_connection import McpConnectionService, resolve_auth_headers
 from app.services.notification_center import NotificationCenterService
 from app.services.workflow_execution import context
-from app.workflows.contracts.results import Completed, Failed, NodeResult, Waiting, WorkflowError
+from app.workflows.contracts.definition import RetryGuarantee
+from app.workflows.contracts.results import (
+    Completed,
+    Failed,
+    NodeResult,
+    Uncertain,
+    Waiting,
+    WorkflowError,
+)
 
 if TYPE_CHECKING:
     from mcp.types import CallToolResult
@@ -70,6 +84,15 @@ class McpCallConfig(BaseModel):
         max_length=200,
         json_schema_extra={"x-mcp-tool": "connection_id"},
         description="The tool to call, as the server names it.",
+    )
+    idempotency_key_argument: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=64,
+        pattern=r"^[A-Za-z_][A-Za-z0-9_.-]*$",
+        title="Idempotency key argument",
+        description="Send this step's stable operation key as this tool argument, when the "
+        "tool declares it, so a retry the server recognises is safe.",
     )
     approval: Literal["writes", "all", "none"] = Field(
         default="writes",
@@ -126,6 +149,34 @@ class McpCallOutput(BaseModel):
     is_error: bool = Field(description="Whether the tool answered with an error")
 
 
+def retry_guarantee_for(config: BaseModel | None) -> RetryGuarantee:
+    """`idempotent` for a step that sends its key to the tool."""
+    if isinstance(config, McpCallConfig) and config.idempotency_key_argument is not None:
+        return "idempotent"
+    return "at_least_once"
+
+
+def _takes_text(schema: dict[str, Any], argument: str) -> bool:
+    """Whether a tool's input schema declares `argument` as a property that can be text."""
+    properties = schema.get("properties")
+    declared = properties.get(argument) if isinstance(properties, dict) else None
+    if not isinstance(declared, dict):
+        return False
+    kind = declared.get("type")
+    return kind is None or kind == "string" or (isinstance(kind, list) and "string" in kind)
+
+
+def _recorded(connection: McpConnection, tool: str) -> dict[str, Any] | None:
+    """The tool as the connection's last test recorded it, if it did."""
+    return next((t for t in connection.last_tools or [] if t.get("name") == tool), None)
+
+
+def _may_have_acted(*, called: bool, keyed: bool, read_only: bool) -> bool:
+    """Whether a failure left it unknown if the tool acted: it was called, with no key
+    for the server to recognise a repeat by, and it is not known to leave things alone."""
+    return called and not keyed and not read_only
+
+
 async def _connection(
     db: AsyncSession, ctx: AuthContext, connection_id: UUID
 ) -> McpConnection | None:
@@ -153,6 +204,13 @@ async def check_resources(
         tool.get("name") for tool in connection.last_tools
     }:
         problems.append(("tool", "The server did not offer this tool when it was last tested"))
+    if connection is not None and config.idempotency_key_argument is not None:
+        recorded = _recorded(connection, config.tool)
+        schema = None if recorded is None else recorded.get("input_schema")
+        if isinstance(schema, dict) and not _takes_text(schema, config.idempotency_key_argument):
+            problems.append(
+                ("idempotency_key_argument", "The tool does not take this argument as text")
+            )
     problems.extend(await _approver_problems(db, ctx, config))
     return problems
 
@@ -176,8 +234,10 @@ async def _approver_problems(
     return problems
 
 
-def _failed(code: str, message: str, **details: str) -> Failed:
-    return Failed(error=WorkflowError(code=code, message=message, details=dict(details)))
+def _failed(code: str, message: str, *, retryable: bool = False, **details: str) -> Failed:
+    return Failed(
+        error=WorkflowError(code=code, message=message, details=dict(details), retryable=retryable)
+    )
 
 
 def _credential_forms(headers: dict[str, str]) -> tuple[str, ...]:
@@ -267,14 +327,22 @@ async def _call(
     arguments: dict[str, Any] | None,
     *,
     ask_first: bool,
-) -> McpCallOutput | Literal["ask"] | Failed:
+    recorded_read_only: bool,
+) -> McpCallOutput | Literal["ask"] | Failed | Uncertain:
     """Call the tool - or, when `ask_first` and the server does not mark it
-    read-only, report `"ask"` without calling it."""
+    read-only, report `"ask"` without calling it.
+
+    A step with a key argument lists the tools first too, to check the tool declares it.
+    The step's key goes in after any approval, so a request for one never shows it.
+    """
     from mcp.types import CallToolResult
 
+    key_argument = config.idempotency_key_argument
+    read_only = recorded_read_only
+    called = False
     try:
         async with asyncio.timeout(config.timeout_seconds), mcp_session(url, headers) as session:
-            if ask_first:
+            if ask_first or key_argument is not None:
                 listed = await session.list_tools()
                 tool = next((tool for tool in listed.tools if tool.name == config.tool), None)
                 if tool is None:
@@ -283,13 +351,31 @@ async def _call(
                         "The server does not offer this tool",
                         tool=config.tool,
                     )
-                if not (tool.annotations is not None and tool.annotations.read_only_hint):
+                read_only = tool.annotations is not None and bool(tool.annotations.read_only_hint)
+                if key_argument is not None and not _takes_text(tool.input_schema, key_argument):
+                    return _failed(
+                        "MCP_IDEMPOTENCY_ARGUMENT_UNDECLARED",
+                        "The tool does not take the idempotency key argument as text",
+                        tool=config.tool,
+                        argument=key_argument,
+                    )
+                if ask_first and not read_only:
                     return "ask"
-            result = await session.call_tool(config.tool, arguments or {})
+            sent = dict(arguments or {})
+            if key_argument is not None:
+                sent[key_argument] = context.current().idempotency_key
+            called = True
+            result = await session.call_tool(config.tool, sent)
     except (Exception, BaseExceptionGroup) as exc:
         if carries_base_exception(exc):
             raise
-        return _failed("MCP_CALL_FAILED", probe_error_message(exc), tool=config.tool)
+        if _may_have_acted(called=called, keyed=key_argument is not None, read_only=read_only):
+            return Uncertain(
+                detail="The tool was called and no answer came back; it may have acted"
+            )
+        return _failed(
+            "MCP_CALL_FAILED", probe_error_message(exc), retryable=True, tool=config.tool
+        )
     if not isinstance(result, CallToolResult):
         return _failed(
             "MCP_CALL_FAILED",
@@ -362,6 +448,8 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
             )
         # Read now: the session closes before the call, and the row with it.
         url, server = connection.url, connection.label or connection.name
+        recorded = _recorded(connection, config.tool)
+        recorded_read_only = recorded is not None and bool(recorded.get("read_only"))
         approval = await approval_repo.get_for_node_run_for_update(db, current.node_run_id)
         if approval is not None and approval.status == WorkflowApprovalStatus.PENDING.value:
             return Waiting(reason="approval", resume_token=str(current.node_run_id))
@@ -382,6 +470,10 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
         headers,
         arguments,
         ask_first=approval is None and config.approval == "writes",
+        # A "writes" approval exists because the live listing said "write"; the
+        # resume does not list again, so a recorded read-only mark must not undo that.
+        recorded_read_only=recorded_read_only
+        and not (approval is not None and config.approval == "writes"),
     )
     if answer == "ask":
         async with get_worker_db_context() as db:
@@ -389,7 +481,7 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
             if refused is not None:
                 return refused
         return Waiting(reason="approval", resume_token=str(current.node_run_id))
-    if isinstance(answer, Failed):
+    if isinstance(answer, Failed | Uncertain):
         return answer
     if answer.is_error and config.on_tool_error == "fail":
         return _failed("MCP_TOOL_ERROR", answer.text[:500] or "The tool answered with an error")

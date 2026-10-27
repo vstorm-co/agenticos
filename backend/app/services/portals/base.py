@@ -8,13 +8,13 @@ delete. The base methods raise `WebhookRegistrationUnavailable`, so a portal is
 at a time - the same shape `app/services/channels/base.py` uses.
 """
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from types import MappingProxyType
 from typing import Any
 
-from app.services.portals.exceptions import WebhookRegistrationUnavailable
+from app.services.portals.exceptions import PortalUnreachable, WebhookRegistrationUnavailable
 
 
 @dataclass(frozen=True)
@@ -132,6 +132,7 @@ class PortalAdapter:
         access_token: str,
         cursor: dict[str, Any] | None,
         places: Mapping[str, datetime] = NOWHERE,
+        html_places: Collection[str] = (),
     ) -> PolledEvents:
         """What has happened at the provider since `cursor`, and the new cursor.
 
@@ -157,8 +158,33 @@ class PortalAdapter:
         keyed to the moment from which mail there is news. An adapter that reads
         the whole account ignores it.
 
+        **`html_places` are the places whose mail is also wanted as HTML**, because a
+        workflow listens there: the body costs a request per message and agent
+        triggers never read it. An adapter with no HTML body ignores it.
+
         Raises:
             PortalUnreachable: The provider could not be asked. The caller leaves
                 the cursor alone and tries again next tick.
         """
         raise WebhookRegistrationUnavailable(details={"portal_key": self.portal_key})
+
+    async def attachment(
+        self,
+        *,
+        access_token: str,
+        message_id: str,
+        attachment_id: str,
+        mailbox: str | None,
+        max_bytes: int,
+    ) -> bytes:
+        """One attachment's bytes, read only up to `max_bytes`.
+
+        Raises:
+            PortalUnreachable: The default - a portal that reads no mail - and any
+                provider refusal, carrying `status` (403/404 mean the message or the
+                attachment is gone or not readable) and never the provider's text.
+            AttachmentTooLarge: More than `max_bytes` arrived or was declared.
+        """
+        raise PortalUnreachable(
+            message="This portal does not read mail", details={"portal_key": self.portal_key}
+        )

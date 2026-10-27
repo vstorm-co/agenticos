@@ -10,6 +10,7 @@ names one of them.
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.workflows.contracts.results import Completed, Failed, NodeResult
+from app.workflows.nodes._mail import stage_attachments
 from app.workflows.nodes._triggers import EmailTriggerOutput, run_input_as
 
 
@@ -52,8 +53,17 @@ class GmailTriggerConfig(BaseModel):
 
 
 async def handle(config: BaseModel | None, node_input: BaseModel | None) -> NodeResult:
-    """Hand on the message the run was started with."""
+    """Hand on the message the run was started with, its attachments stored as files.
+
+    Only a run the mailbox admitted reads the mailbox; any other run hands the
+    attachments on unfetched. A repeat only reads mail and stores copies, so the
+    step is idempotent - but an attempt that was interrupted leaves its copies with
+    the run until run retention removes them.
+    """
     message = run_input_as(EmailTriggerOutput)
     if isinstance(message, Failed):
         return message
-    return Completed[EmailTriggerOutput](output=message)
+    staged = await stage_attachments(message, portal_key="google", admitted_by="gmail")
+    if isinstance(staged, Failed):
+        return staged
+    return Completed[EmailTriggerOutput](output=staged)

@@ -1,5 +1,5 @@
 ---
-source_sha: "3530a3aa9612"
+source_sha: "173a9224092a"
 ---
 
 # Einen Event-Trigger einrichten { #setting-up-an-event-trigger }
@@ -266,6 +266,10 @@ postet. Was Sie darüber wissen sollten, wie es liest:
 - **Eine verpasste Woche repariert sich selbst.** Google hält etwa eine Woche
   Historie vor. Ein Cursor, der älter ist als das, synchronisiert sich auf jetzt,
   statt das Postfach für immer stillzulegen.
+- **Der Prompt nennt die Nachricht und ihren Thread.** Neben Absender, Betreff und
+  Text bekommt der Agent eine Zeile `Message-ID:` und eine Zeile `Thread:`, jeweils
+  nur, wenn die Post eine trug. Ein Wert über 998 Zeichen wird weggelassen, nie
+  abgeschnitten, und HTML-Inhalt, Referenzen und Anhänge stehen nicht im Prompt.
 - **Eine zurückgezogene Zustimmung stoppt die Trigger.** Verweigert Google den
   Grant endgültig - das Refresh-Token wurde widerrufen oder das Konto hat die App
   entfernt -, werden die Trigger des Postfachs ausgeschaltet, die Karte bittet um
@@ -326,8 +330,11 @@ Was anders ist als bei Gmail:
   gelesen markiert hat, genauso bereitwillig wie eine, die gerade ankam; nur Mail,
   die seit dem letzten Lesen des Ordners empfangen wurde, löst aus.
 - **Der Run liest Text.** Der Inhalt kommt als reiner Text - Exchange wandelt eine
-  HTML-Nachricht selbst um - mit den Namen, Typen und Größen der Anhänge. Die
-  Anhänge selbst werden nicht heruntergeladen.
+  HTML-Nachricht selbst um -, und der Prompt nennt die Anhänge in einer Zeile
+  `Attachments:`, nur die Namen. Aufgeführt werden nur Datei-Anhänge: eine angehängte
+  E-Mail oder ein Cloud-Link nicht. Die Dateien selbst werden nicht heruntergeladen.
+  Wie bei Gmail hat der Prompt außerdem eine Zeile `Message-ID:` und `Thread:`,
+  jeweils nur, wenn die Nachricht eine trug.
 - **Ein Ordner, der nicht gelesen werden kann, stoppt seine Trigger.** Ein
   Ordner, der gelöscht und unter demselben Pfad neu angelegt wurde, wird erneut
   gesucht und weitergelesen. Ein endgültig verschwundener Ordner oder ein
@@ -339,6 +346,10 @@ Was anders ist als bei Gmail:
   hält die Änderungsverfolgung eines Ordners ohne feste Frist und beantwortet eine
   verworfene mit `syncStateNotFound`; der Ordner wird dann ab kurz vor dem letzten
   Lesen erneut gelesen, sodass nichts doppelt auslöst und nichts verloren geht.
+- **Ein Schub wird eingereiht.** Ein Tick liest höchstens 25 Nachrichten vollständig,
+  die älteste zuerst. Der Rest bleibt im Cursor und wird in späteren Ticks gelesen,
+  sodass ein im Block verschobener Ordner oder der Rückstau nach einem Ausfall nichts
+  verliert.
 
 Zustellungs-IDs sind Outlooks unveränderliche Nachrichten-IDs, eine zweimal
 gelesene Nachricht - ein wiederholter Tick, eine langsame Abfrage, die sich mit

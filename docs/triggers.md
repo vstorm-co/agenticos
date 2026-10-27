@@ -233,6 +233,10 @@ you should know about how it reads:
   (`SENT`, `DRAFT`, `SPAM` or `TRASH`).
 - **A missed week repairs itself.** Google keeps about a week of history. A cursor
   older than that resynchronises to now rather than parking the mailbox for ever.
+- **The prompt names the message and its thread.** Beside the sender, subject and
+  text, the agent gets a `Message-ID:` line and a `Thread:` line, each only when
+  the mail carried one. A value over 998 characters is left out, never cut, and the
+  HTML body, the references and the attachments are not in the prompt.
 - **A withdrawn consent stops the triggers.** When Google refuses the grant for
   good - the refresh token was revoked, or the account removed the app - the
   mailbox's triggers are turned off, the card asks you to reconnect, and the audit
@@ -285,9 +289,11 @@ What differs from Gmail:
 - **A change is not an arrival.** Graph reports a message somebody marked read as
   readily as one that just landed; only mail received since the folder was last
   read fires.
-- **The run reads text.** The body arrives as plain text - Exchange converts an
-  HTML message - with the attachments' names, types and sizes listed. The
-  attachments themselves are not downloaded.
+- **The run reads text.** The body arrives as plain text - Exchange converts an HTML
+  message - and the prompt names the attachments on an `Attachments:` line, names
+  only. Only file attachments are listed: an attached email or a cloud link is not.
+  The files themselves are not downloaded. As for Gmail, the prompt also has a
+  `Message-ID:` and a `Thread:` line, each only when the message carried one.
 - **A folder that cannot be read stops its triggers.** A folder deleted and made
   again under the same path is looked up again and read on. One that is gone for
   good, or a shared mailbox that is no longer shared, turns off the triggers
@@ -297,6 +303,9 @@ What differs from Gmail:
   change tracking for no fixed time and answers a dropped one with
   `syncStateNotFound`; the folder is then read again from just before its last
   read, so nothing fires twice and nothing is missed.
+- **A burst is queued.** One tick reads at most 25 messages in full, oldest first. The
+  rest stay in the cursor and are read on later ticks, so a folder moved in bulk or an
+  outage backlog loses nothing.
 
 Delivery ids are Outlook's immutable message ids, so a message read twice - a
 retried tick, a slow poll overlapping the next - fires each trigger once.

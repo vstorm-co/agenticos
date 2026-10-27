@@ -84,7 +84,9 @@ def network(monkeypatch: pytest.MonkeyPatch) -> Callable[..., _Wire]:
         monkeypatch.setattr(
             module,
             "PinnedAsyncClient",
-            lambda *, timeout: PinnedAsyncClient(timeout=timeout, transport=wire),
+            lambda *, timeout, private_allowlist: PinnedAsyncClient(
+                timeout=timeout, transport=wire, private_allowlist=private_allowlist
+            ),
         )
 
     def install(responder: Callable[[httpx2.Request], httpx2.Response] | None = None) -> _Wire:

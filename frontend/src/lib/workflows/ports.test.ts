@@ -93,6 +93,65 @@ describe("instancePorts", () => {
     expect(classifyCategories({})).toEqual([]);
   });
 
+  describe("a classifier's unsure port", () => {
+    const OUT = { type: "object", title: "AiClassifyOutput" };
+    const CLASSIFY = makeDefinition({
+      id: "ai.classify",
+      ports: [port("in", "input", null), port("other", "output", OUT)],
+    });
+    const categories = [{ name: "sales" }, { name: "support" }];
+
+    it("adds an unsure way out after other when the classifier has a minimum confidence", () => {
+      const ports = instancePorts(
+        instance({ definition_id: "ai.classify", config: { categories, min_confidence: 0.7 } }),
+        CLASSIFY,
+      );
+
+      expect(ports.map((p) => p.id)).toEqual(["in", "sales", "support", "other", "unsure"]);
+      expect(ports[4]).toEqual({ id: "unsure", label: "Unsure", kind: "output", schema: OUT });
+      expect(ports[4]?.schema).toBe(ports[3]?.schema);
+    });
+
+    it("draws the unsure port for a minimum of zero", () => {
+      const ports = instancePorts(
+        instance({ definition_id: "ai.classify", config: { categories, min_confidence: 0 } }),
+        CLASSIFY,
+      );
+      expect(ports.map((p) => p.id)).toEqual(["in", "sales", "support", "other", "unsure"]);
+    });
+
+    it("draws one unsure handle when a category is called unsure too", () => {
+      const ports = instancePorts(
+        instance({
+          definition_id: "ai.classify",
+          config: { categories: [{ name: "unsure" }], min_confidence: 0.5 },
+        }),
+        CLASSIFY,
+      );
+      expect(ports.filter((p) => p.id === "unsure")).toHaveLength(1);
+    });
+
+    it("draws no unsure port without a minimum", () => {
+      for (const config of [{ categories, min_confidence: null }, { categories }]) {
+        const ports = instancePorts(instance({ definition_id: "ai.classify", config }), CLASSIFY);
+        expect(ports.map((p) => p.id)).toEqual(["in", "sales", "support", "other"]);
+      }
+    });
+
+    it("keeps a category called unsure as a category when there is no minimum", () => {
+      const ports = instancePorts(
+        instance({
+          definition_id: "ai.classify",
+          config: { categories: [{ name: "sales" }, { name: "unsure" }] },
+        }),
+        CLASSIFY,
+      );
+
+      expect(ports.map((p) => p.id)).toEqual(["in", "sales", "unsure", "other"]);
+      expect(ports.filter((p) => p.id === "unsure")).toHaveLength(1);
+    });
+  });
+
   it("gives a step that routes its errors an error port carrying the WorkflowError", () => {
     const routed = instancePorts(instance({ policy: { on_error: "route" } }), ACTION);
     expect(routed.map((p) => p.id)).toEqual(["in", "out", ERROR_PORT]);

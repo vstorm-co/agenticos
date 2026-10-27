@@ -21,12 +21,14 @@ hands the agent a new message's subject, sender and body. The deployment asks
 Google only for the `gmail.readonly` scope — nothing more is requested at the
 consent screen, so there is no broader grant to accidentally rely on.
 
-**It cannot send, and it cannot create an actual Gmail draft.** There is no tool,
-here or in the MCP catalog, that calls Gmail's send or drafts API. What the
-templates below call a "draft" is the agent's answer text, written to the run
-that fired — it lands in **Activity**, in that run's conversation, as a message a
-person still has to read and paste into an outgoing email themselves. Nothing is
-ever sent on your behalf, and nothing is written back into the mailbox.
+**It cannot send, and it cannot create an actual Gmail draft.** The agent built on
+this page has no tool that calls Gmail's send or drafts API. What the templates below
+call a "draft" is the agent's answer text, written to the run that fired - it lands
+in **Activity**, in that run's conversation, as a message a person still has to read
+and paste into an outgoing email themselves. Nothing is ever sent on your behalf, and
+nothing is written back into the mailbox. To have the reply written into the
+mailbox's thread, as a draft or a sent mail, after a person approves it, use a
+workflow: [answer mail with an approved draft](answer-mail-with-approved-draft.md).
 
 ## What you need
 

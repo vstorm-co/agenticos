@@ -132,9 +132,54 @@ subdomains. With it set, the message must also pass the authenticated-sender che
 (DMARC, or a DKIM signature from the sender's domain). Mail labelled `SENT`,
 `DRAFT`, `SPAM` or `TRASH` is skipped unless **Label** names it.
 
+The output carries the thread - `thread_id`, `rfc_message_id`, `in_reply_to`,
+`references`, `received_at` - and the `html` body, read up to 20,000 characters. The
+sender writes the header fields, so they thread a reply and prove nothing about who
+sent it.
+
+A run the mailbox started stores the message's attachments as files of the run, but only
+when the workflow reads them: a graph that binds neither the trigger's `attachments` nor its
+whole output leaves every attachment `not_fetched`. Each stored file counts against the
+organization's file quota, and anybody can mail a trigger that sets no **Sender contains**,
+so bind `attachments` only when a step needs the files.
+
+A mailbox lists at most 20 per message and only the first 10 listed are considered, up
+to 25 MiB together, each within the chat-upload size limit and file type allowlist
+and the organization's storage quota. An attachment left out keeps its place in
+`attachments` with a `reason`: `too_many`, `too_large`, `type_not_allowed`, `quota`,
+`unreadable` or `not_fetched`. A run the mailbox did not start - a test run - reads
+nothing, so every attachment is `not_fetched`.
+
+`unreadable` is an answer of 400, 401, 403 or 404 for the attachment, or a mailbox
+grant that is missing, switched off or cannot be renewed. Any other provider failure
+fails the step with `MAIL_ATTACHMENT_UNREACHABLE`, which is retried. Both mail
+triggers take outside input.
+
 ::: app.workflows.nodes.trigger_gmail._handler.GmailTriggerConfig
 
 ::: app.workflows.nodes._triggers.EmailTriggerOutput
+
+::: app.workflows.nodes._triggers.MailAttachment
+
+### trigger.outlook { #trigger-outlook }
+
+**Outlook.** Started by a new message in a folder of the organization's connected
+Microsoft 365 mailbox that fits every filter set, read once a minute. Publishing is
+refused until a mailbox is connected. `triggered_by` is `outlook`. Microsoft Graph
+is read one folder at a time, so **Folder** and **Shared mailbox** are where the
+poll looks as well as a filter, and the first read of a folder starts at the moment
+the workflow was published or last switched on. Naming a shared mailbox the organization's
+Microsoft grant can open takes the permission to manage connections, as it does for
+Outlook agent triggers; a workflow already listening to one keeps it through later
+publishes, and changing it needs the permission again. **Sender contains** matches the sender's address, as
+for Gmail, and needs mail the sender's domain authenticated or that came from inside
+the tenant. A folder or shared mailbox Outlook says cannot be read switches the
+workflow off, with `mailbox_folder_unreadable` in the audit log. A stored
+configuration that no longer validates is skipped by the poll. The attachments are
+staged as for [trigger.gmail](#trigger-gmail), and `labels` holds the message's
+categories. Its output is the one of [trigger.gmail](#trigger-gmail).
+
+::: app.workflows.nodes.trigger_outlook._handler.OutlookTriggerConfig
 
 ### trigger.channel_message { #trigger-channel-message }
 
@@ -204,6 +249,105 @@ a field, the second's wins; merging item by item needs objects, and fails with
 ::: app.workflows.nodes.data_filter._handler.DataFilterConfig
 
 ::: app.workflows.nodes.data_combine._handler.DataCombineConfig
+
+## text.compare { #text-compare }
+
+**Compare texts** scores how alike two texts, `a` and `b`, are: 1 when they are the
+same once the ignored differences are set aside, 0 when they have nothing in common.
+It calls no model and costs nothing, and the same two texts always give the same
+numbers (scores are rounded to six places). The **method** says what is counted:
+
+- `char_ratio` (the default) is the share of characters an editor would not have to
+  touch, from the exact edit distance over characters.
+- `token_f1` is the share of words the two texts have in common, order ignored.
+- `line_diff` is the share of lines that are unchanged.
+
+Composed and decomposed accents are never an edit, and nor are line endings. The
+rest is up to the step. **Ignore whitespace** is on by default: it collapses the
+spacing within a line, trims each line and drops blank lines. Line breaks still
+count, so only `token_f1`, which counts words, ignores where a line ends. **Ignore
+case** and **Ignore punctuation** are off by default. The words of `token_f1` are
+runs of letters, digits and underscores: it splits on apostrophes and does not
+segment text written without spaces.
+
+**Leave out quoted mail and signatures** drops every line whose first
+non-whitespace character is `>` (indented quotes too), the attribution line above
+a quote, and everything after a `-- ` or bare `--` signature separator or an
+`----- Original Message -----` line. It is a heuristic for plain-text mail: it
+does not catch HTML quotes, a reply whose quote is not marked with `>`, an
+attribution wrapped over two lines (it stays in) or a signature with no separator.
+
+Each text is at most 100,000 characters, counted before any normalising; scoring two
+texts of that size takes a few seconds. A longer text ends the run with
+`INVALID_BINDING` before the step runs, so `error.handle` cannot route it. A step
+with nothing bound to `a` and `b` fails with `TEXT_COMPARE_NOT_CONFIGURED`; one
+bound and the other not ends the run with `INVALID_BINDING`. Empty texts are
+allowed: two empty texts score 1, one empty text scores 0. The palette draws the
+step with a diff icon, under the data steps.
+
+::: app.workflows.nodes.text_compare._handler.TextCompareConfig
+
+::: app.workflows.nodes.text_compare._handler.TextCompareOutput
+
+## html.parse { #html-parse }
+
+**Parse HTML** reads HTML into its text, its links and the elements a CSS selector
+picks. It is for the HTML a flow meets: a mail body, an `http.request` body, a page
+`http.download` stored. `text.extract` reads documents, not markup - it would hand
+the tags back as the text. Bind either `html` (at most 2,000,000 characters) or
+`file` (at most 5,000,000 bytes, checked before the file is read), not both. A file
+is decoded from its byte-order mark, its `<meta charset>` or its bytes, lossily if
+need be, and its declared type is not checked: a PDF reads as garbled text and is
+not refused. A NUL character reads as U+FFFD.
+
+The step has three outputs, each bounded:
+
+- `text` is the readable text as Markdown, cut at **Most characters of text**
+  (100,000 unless set; `text_truncated` says it was cut). Headings, lists and code
+  stay; scripts, styles, menus (`nav`), footers and the `<head>` do not. A knowledge
+  collection's web connector reads a page the same way. `title` is the page's
+  `<title>`, cut at 500 characters, or null when the page has none (an
+  empty `<title>` too).
+- `links` holds every `a[href]` once, in document order, with the text of its first
+  anchor (cut at 500 characters). A link is resolved against **Base address** when
+  one is set, and kept as written when not. Links to `javascript:`, `vbscript:` and
+  `data:` addresses are left out, so a later step that requests every link is never
+  handed a script, and so are an `href` over 2,048 characters and one that cannot be
+  read as an address. At most 500 links are kept and the first 5,000 anchors are
+  looked at; `links_truncated` says the page had more.
+- `matches` holds the elements **CSS selector** picks, in document order, at most
+  **Most matches** (20 unless set, up to 200); `match_count` says how many the
+  selector picked before the cut. Each match has its `text` and outer `html` (both
+  cut at 10,000 characters) and its first 50 `attributes`, a multi-valued one such
+  as `class` joined by spaces and each value cut at 2,000 characters. With no
+  selector there are no matches. A selector that is not valid CSS is refused at
+  publish, naming the field.
+
+Nothing is fetched and nothing runs. No image, stylesheet, **Base address** or link
+is requested, a script is only text, and the parser is the standard library's, not
+an XML parser, so no entity is expanded from outside the page.
+
+The parse runs in a child process with 20 seconds of wall-clock time, a CPU limit and
+a memory limit, because a selector such as `p div div` over deeply nested markup can
+take minutes. When the 20 seconds pass the child is killed and the step fails with
+`HTML_TOO_COMPLEX`, which is not retried. The work for each anchor and each match is
+bounded too, so one page cannot make the step slow or its output large.
+
+| What happened | Result |
+|---|---|
+| No settings or no input | `HTML_PARSE_NOT_CONFIGURED` |
+| `html` over 2,000,000 characters, or both `html` and `file` bound | `INVALID_BINDING`, before the step runs |
+| The file is missing, or over 5,000,000 bytes | `FILE_NOT_FOUND`, `FILE_TOO_LARGE` |
+| No decoder can read the bytes, or the reader process dies | `HTML_NOT_READABLE`, its `reason` detail says which |
+| The page takes over 20 seconds | `HTML_TOO_COMPLEX` |
+
+`INVALID_BINDING` ends the run before the step runs, so `error.handle` cannot route
+it; an oversized file is the `FILE_TOO_LARGE` the step fails with, which it can.
+The palette draws the step with a code icon, under the data steps.
+
+::: app.workflows.nodes.html_parse._handler.HtmlParseConfig
+
+::: app.workflows.nodes.html_parse._handler.HtmlParseOutput
 
 ## Transform { #transform }
 
@@ -319,7 +463,7 @@ Publishing checks that the author may use the model.
 | Step | Does | Hands on |
 |---|---|---|
 | `ai.prompt` | Answers a bound `prompt` under the step's `instructions` | `text`, and `structured` when `structured_output_schema` asks for an object |
-| `ai.classify` | Puts a bound `text` in one of the step's `categories`, or `other` | Leaves by the category's port, with the `category`, a one-sentence `reason` and the `text` |
+| `ai.classify` | Puts a bound `text` in one of the step's `categories`, or `other` | Leaves by the category's port, with the `category`, a one-sentence `reason`, the `text` and `confidence`; below `min_confidence`, by `unsure` |
 | `ai.extract` | Pulls the fields `output_schema` names out of a bound `text`, leaving out what it does not say | `data`, an object of that shape |
 | `ai.rewrite` | Summarizes (`short`, `medium`, `long`), translates into `language`, or rewrites a bound `text` in a `style` | `text` |
 
@@ -328,7 +472,20 @@ answer with one of their names or `other`. An answer that is not the object a
 step asked for fails it with `STRUCTURED_OUTPUT_MISMATCH`; a spent limit fails
 it with `AGENT_BUDGET_EXCEEDED`.
 
+With `min_confidence` set, the model also reports its own confidence in the
+category, from 0 to 1. That is its say-so, not a probability, and it is not
+calibrated: test a threshold on your own cases with the step's
+[evals](../workflows.md#evals-for-a-model-step) before trusting it. The minimum
+adds an `unsure` port after `other`: below it the step leaves by that port,
+carrying the same output, so the `category` is still there for the workflow to use.
+
+Without a minimum the model is not asked for a number, the prompt is unchanged,
+`confidence` is null and the category always wins. An answer with no number never
+leaves by `unsure`, and while the port exists `unsure` cannot be a category name.
+
 ::: app.workflows.nodes.ai_classify._handler.AiClassifyConfig
+
+::: app.workflows.nodes.ai_classify._handler.AiClassifyOutput
 
 ## Decisions { #decisions }
 
@@ -338,6 +495,10 @@ question with a confidence from 0 to 1, in one request, and it can only answer
 with one of the answers the step allows. Below the step's `min_confidence` the
 step leaves by its `unsure` port instead, so a workflow decides there what a
 person or an agent does with a doubtful case.
+
+`decide.*` calls TypeSafe's hosted Jev only. To route doubtful cases on a
+self-hosted model, use `ai.classify` with `min_confidence`, which leaves by
+`unsure` the same way.
 
 | Step | Asks | Leaves by |
 |---|---|---|
@@ -442,11 +603,18 @@ side effects.
 ## http.request { #http-request }
 
 Calls an HTTP API. Every request and every redirect passes the deployment's
-SSRF check and is sent to the address that check approved. A credential is an
+SSRF check and is sent to the address that check approved. A private host the operator
+lists in [`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings) is admitted
+too, but only for a URL that starts there: a redirect from a public URL never reaches it.
+
+A URL bound from a public trigger (a webhook, a form, an email) or from an agent's tool arguments can name any listed host, so list only hosts that check their own credential.
+
+A credential is an
 [HTTP credential](../secrets.md#kinds) from the vault, and it is
 sent only to the origins the secret allows. The response is read under
 `max_response_bytes` and handed back without `Set-Cookie`, the authentication
-headers or the token.
+headers or the token. A response that is HTML comes back as text in `body`; bind it
+to [`html.parse`](#html-parse) to read its text, links and elements.
 
 The credential goes as a bearer token, Basic authentication, a header you name
 or, with `query`, a URL parameter you name. **Import cURL** in the editor reads a
@@ -463,7 +631,7 @@ there is no next page, when a page has no items, or at `max_pages`, when
 
 | What happened | Result |
 |---|---|
-| The URL is private, loopback, metadata or not http(s) | `URL_REFUSED`, nothing sent |
+| The URL is loopback, metadata, not http(s), or private and not on the operator's [`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings) | `URL_REFUSED`, nothing sent |
 | The URL is outside the credential's origins | `SECRET_ORIGIN_DENIED`, nothing sent |
 | The connection never opened | `HTTP_UNREACHABLE`, retried |
 | Sent, no answer, `GET` or an idempotency header | `HTTP_NO_RESPONSE`, retried |
@@ -501,15 +669,43 @@ for a server you do not trust to make it.
 
 The output is the answer's `text`, its `structured` data when the tool returns
 some, and `is_error`. An error the tool answers with fails the step with
-`MCP_TOOL_ERROR` unless `on_tool_error` is `complete`. MCP has no idempotency
-key, so a crash after the call repeats it on the retry.
+`MCP_TOOL_ERROR` unless `on_tool_error` is `complete`.
+
+MCP has no idempotency key of its own. A server that takes one as a tool argument
+can still be made safe to retry: set **Idempotency key argument**
+(`idempotency_key_argument`) to that argument's name, and the step sends its stable
+operation key there - the same on every attempt of the step, and different for each
+iteration of a loop - whatever value was bound to it. The tool must declare the
+argument as text.
+
+Publishing refuses an argument that the tool's recorded
+schema lacks, and a tool whose schema was not recorded passes, so test the server
+first; at run time the step lists the server's tools before calling and fails with
+`MCP_IDEMPOTENCY_ARGUMENT_UNDECLARED`, calling nothing, when the live schema has no
+such argument. A keyed step counts as idempotent: the engine may run it again.
+
+When the call breaks off, what happens next depends on whether it can have reached
+the server:
+
+- **Before the call** - the server could not be reached, or did not answer the
+  connection or the tool listing - nothing was sent, and the step fails with a
+  `MCP_CALL_FAILED` that is retried.
+- **After the call, a keyed call or a tool the server marks read-only** (in the
+  listing the step just read, else in the one recorded when the server was
+  tested) - the same retried failure, because repeating it is safe.
+- **After the call, any other tool, with no key** - the tool may have acted and no
+  answer came back. The step ends **Uncertain** with *The tool was called and no
+  answer came back; it may have acted*, and the run waits for a person, who looks
+  at the other system before running the step again.
 
 | What happened | Result |
 |---|---|
 | The server is gone or turned off | `MCP_SERVER_UNAVAILABLE`, nothing sent |
 | Its credential needs authorizing again | `MCP_SERVER_UNAUTHORIZED`, nothing sent |
 | The server does not offer the tool | `MCP_TOOL_NOT_FOUND` |
-| The server could not be reached, or broke off | `MCP_CALL_FAILED` |
+| The server could not be reached, or broke off, before or after a safe call | `MCP_CALL_FAILED`, retried |
+| It broke off after an unkeyed call to a tool not known read-only | Uncertain: the run stops for a person |
+| The tool does not declare the **Idempotency key argument** | `MCP_IDEMPOTENCY_ARGUMENT_UNDECLARED`, nothing sent |
 | The tool answered with an error | `MCP_TOOL_ERROR`, or the answer as output |
 | The structured answer is over 1 MiB | `MCP_RESULT_TOO_LARGE` |
 
@@ -567,7 +763,44 @@ asks twice for the same thing.
 
 Named approvers must be active members holding `approvals:decide`. Publishing checks this, and the step checks again before asking; a person who lost that permission fails the step with `APPROVER_UNAVAILABLE` rather than leaving an undecidable request.
 
+A step can carry a **proposal**: text bound to `proposal`, such as a drafted
+reply. The approver reads it next to the request. Turn `editable` on and the
+queue shows it in an editor, as `text` or `markdown` (`proposal_format`) under
+`proposal_label` (`Proposal` when empty), and the approver may approve a changed
+version. A step with nothing bound opens an empty editor, for the case where
+drafting produced nothing. `details` is unchanged and stays short; the proposal
+may be up to 100,000 characters.
+
+The approved output carries three fields besides the decision:
+
+- `final` is the version the approver approved, the proposal itself when they
+  changed nothing.
+- `original` is the proposal as asked, `""` when an editable step had nothing
+  bound.
+- `edited` is true when `final` differs from `original`. Line endings,
+  trailing spaces and blank space around the text are not a difference.
+
+An edited version is stored with leading and trailing whitespace removed, so an
+edit that begins with an indented code block loses that first indentation.
+
+An approved request on an `editable` step also records its edit ratio, how much of
+the proposal the approver changed, from `0` to `1`. The workflow's
+[stats](../workflows.md#running-a-workflow) report it with the other approval
+outcomes.
+
+A step that is not `editable` shows its proposal read-only and, once approved,
+hands it on unchanged as `final` with `edited` false, so later steps can bind
+`final` whichever mode the step is in. A rejection or an expiry carries no
+`final`. Sending an edited version to a step that is not `editable`, or with a
+rejection, is refused with `422`. A decider the step does not name sees the
+proposal read-only.
+
+If the workflow sends the approved `final` through [`mcp.call`](#mcp-call), set
+that step's `approval` to `none`, or the person is asked twice.
+
 ::: app.workflows.nodes.human_approval._handler.HumanApprovalConfig
+
+::: app.workflows.nodes.human_approval._handler.HumanApprovalInput
 
 ::: app.workflows.nodes.human_approval._handler.HumanApprovalOutput
 

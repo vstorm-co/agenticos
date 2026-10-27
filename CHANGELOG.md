@@ -28,6 +28,102 @@ Two things are versioned separately from this file and worth knowing about:
   toolbar) keeps the neutral look, per browser. A selected step can be resized
   by its right edge, bottom edge or corner, its text wrapping into the space, and
   **Reset size** in its right-click menu undoes it.
+- **Approval outcomes on a workflow's Stats card.** An **Approvals** section sums
+  up how people decided what the workflow asked them: approved as proposed, edited
+  with the median change (each edit's `edit_ratio` is measured once when it is
+  decided, by the `text.compare` scorer), rejected, expired and the time to decide,
+  per step and per day, over the same days as the run figures. The stats API carries
+  them in `approvals`. `GET /api/v1/workflow-approvals/stats` adds the totals and
+  the five workflows with the most requests across those you may view, and the
+  **Approval outcomes** dashboard card, in the catalog, shows them. No text and no
+  per-approver figure leaves an approval. Requests decided before this release have
+  no edit ratio and are shown as not measured.
+
+- **`text.compare` scores how alike two texts are.** A data step that gives a score
+  from 0 to 1 by character edit ratio, word overlap or changed lines, with switches
+  to ignore case, whitespace, punctuation, and quoted mail and signatures.
+  Deterministic, no model and no cost; each text is at most 100,000 characters.
+
+- **`html.parse` reads HTML into its text, links and CSS-selector matches.** A data
+  step for a mail body, an `http.request` body or a stored page: the readable text
+  as Markdown, every link once (script and `data:` links left out) and the elements
+  a selector picks, from HTML text or a file. Everything is bounded, the parse is
+  stopped after 20 seconds, and nothing is fetched or executed.
+
+- **`ai.classify` can leave by `unsure` below a confidence.** With a
+  `min_confidence`, the model also states how sure it is of the category, from 0
+  to 1 (its own report, not a calibrated probability), and the step leaves by an
+  `unsure` port below it, as `decide.*` does. Steps without a minimum are
+  unchanged: same prompt, same ports, `confidence: null`.
+
+- **Two self-hosted mail servers in the MCP catalog.** `google-workspace` is
+  `taylorwilsdon/google_workspace_mcp` (Gmail, Calendar, Drive and Sheets, over
+  Streamable HTTP with `MCP_ENABLE_OAUTH21`, using your own Google OAuth client);
+  `ms-365` is `softeria/ms-365-mcp-server --http` (Outlook mail and calendar, with
+  `--org-mode` for shared mailboxes and Teams). Each connection signs in as one
+  account.
+- **A how-to, [answer mail with an approved draft](docs/howto/answer-mail-with-approved-draft.md).**
+  A mail trigger, a drafting step, an editable approval and an `mcp.call` that
+  leaves the approved text as a draft in the thread or sends it.
+- **`mcp.call` can send an idempotency key.** **Idempotency key argument** names a
+  tool argument that the step fills with its stable operation key, the same on
+  every retry. The tool must declare it as text: publishing refuses an argument the
+  recorded schema lacks, and a run fails with `MCP_IDEMPOTENCY_ARGUMENT_UNDECLARED`
+  without calling. A keyed step counts as idempotent.
+- **Workflows started from Outlook.** An **Outlook** trigger starts a run for each
+  new message in a folder of the organization's connected Microsoft 365 mailbox, or
+  of a shared mailbox, that fits its filter. The poll reads the folders the
+  workflows name and starts a new folder from when the workflow was published. A
+  workflow whose folder cannot be read is switched off, with
+  `mailbox_folder_unreadable` in the audit log. Migration
+  `0234_workflow_outlook_trigger.py`; its downgrade refuses while any `outlook`
+  exposure (switched off ones too) or a run it started exists, so unpublish the
+  workflow and delete its runs first. Both mail triggers take outside input.
+- **Mail threads, HTML and attachments on both mail triggers.** A Gmail or Outlook
+  run gets `thread_id`, `rfc_message_id`, `in_reply_to`, `references`,
+  `received_at` and `html` (up to 20,000 characters), and the message's attachments
+  (a mailbox lists at most 20) stored as files of the run: the first 10 listed and
+  25 MiB per message, within the chat-upload size limit and
+  type allowlist and the storage quota. One left out carries a reason, a test run
+  fetches nothing, and a provider failure fails the step with
+  `MAIL_ATTACHMENT_UNREACHABLE`, retried.
+
+- **`human.approval` can let the approver edit a proposal before approving it.**
+  Bind text such as a drafted reply to the step's new `proposal` input and turn on
+  `editable`; the Approvals tab shows an editor (`text` or `markdown`, under a
+  `proposal_label`) with **Restore original** and **Show changes**, and a decider the
+  step does not name sees it read-only. The approved step outputs `final`,
+  `original` and `edited`; a step that is not editable hands its proposal on as
+  `final` unchanged. `POST /api/v1/workflow-approvals/{id}` takes an optional
+  `final`, refused with `422` on a step that is not editable or with a rejection.
+  An edited `final` is stored without leading and trailing whitespace, and
+  `edited` ignores line endings, trailing spaces and blank space around the text. The audit entry records `editable`, `edited`
+  and the two lengths, never the text. A workflow that sends `final` through
+  `mcp.call` sets that step's `approval` to `none`. See
+  [the node reference](docs/reference/workflow-nodes.md#human-approval).
+- **`OUTBOUND_PRIVATE_ALLOWLIST` lets an operator open hosts on the
+  deployment's own network.** An entry is an exact host, a `.suffix` (which does
+  not match the apex), an IP address or a CIDR range. Workflow `http.request`,
+  `http.download` and `http.upload` steps, the `git`, `web` and S3 sources,
+  the A2A client and MCP connections honour it, and only for a request chain whose
+  first URL needs it, so a public site's redirect, OAuth metadata, A2A card or
+  crawl cannot reach a listed host. A source on the private network, for example a
+  self-hosted MinIO, needs its host listed. Loopback, link-local, multicast and cloud
+  metadata addresses stay refused whatever is listed, including a listed name
+  that answers one wherever the name is resolved, an MCP connection's own URL
+  included (a listed name that does not resolve yet can still be saved), and a name
+  with one unlisted private answer. Startup refuses a malformed entry, one that reaches
+  those addresses and one that names the database, Redis or the API itself, by
+  name or address; `doctor` catches a range that covers a store's resolved
+  address. Every account of every organization can
+  reach every port on an admitted host, so list only services that check their own
+  credential. `agenticos cmd doctor` gains a `private network` line and the HIPAA
+  sheet a `private-network` control. `MCP_ALLOWED_HOSTS` is not an alias and
+  keeps its MCP-only reach, but it now goes through the same parser: suffix and
+  CIDR entries work there, one trailing dot is dropped, and a listed name that
+  answers a loopback or metadata address is refused where the name is resolved.
+  The HIPAA `private-network` control counts both lists. See
+  [the configuration reference](docs/configuration.md#project-settings).
 - Bound cumulative inline workflow results per run and organization, including
   loop-generated outputs, with compact counters and retained-history backfill.
   Preserve fees and stop automatic retry when a result cannot be stored.
@@ -1023,6 +1119,39 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **`mcp.call` retries by what could have reached the server.** A failure before
+  the call - the server could not be reached, or did not answer the connection or
+  the tool listing - is a retried `MCP_CALL_FAILED`, for every call. A call that
+  breaks off after it was made is retried when it carries an idempotency key or
+  the tool is marked read-only; any other now ends **Uncertain** and waits for a
+  person, because the tool may have acted. `MCP_CALL_FAILED` used to fail the step
+  without a retry; a failure before the call is now retried.
+- **`work-iq`'s catalog entry states its limits:** changes (create, update, send)
+  are blocked until a tenant administrator allows them by policy, it is billed in
+  Copilot Credits, and it answers 25 results by default. The four watch
+  presets that used the Work IQ mail and Teams servers (`mail-needs-reply`,
+  `mail-invoices`, `mail-newsletters`, `teams-unanswered`) now point at `ms-365`;
+  `teams-unanswered` needs the server to run with `--org-mode`.
+- **A mail agent trigger's prompt names the message and its thread.** A Gmail or
+  Outlook trigger's prompt gains a `Message-ID:` and a `Thread:` line, each only when
+  the mail carried one; an id over 998 characters is left out. The Outlook poller
+  makes one more Graph request per message, to read the HTML body, for every
+  Outlook poll, agent triggers included. It also lists only file attachments, so
+  an attached email or a cloud link no longer appears on the prompt's
+  `Attachments:` line.
+
+- **BREAKING: startup refuses more `MCP_ALLOWED_HOSTS` entries.** An entry that
+  names `POSTGRES_HOST`, `REDIS_HOST` or the `PUBLIC_BASE_URL` host (which let an
+  MCP connection reach those services), a multicast address, a CIDR range or
+  suffix that covers a loopback, link-local or metadata address (such as
+  `127.0.0.0/8` or `.internal`), or anything that is not a host, a `.suffix`, an
+  IP address or a CIDR range (a port, a scheme or a glob such as `mcp:8080`,
+  `http://mcp` or `*`, which never matched anything) now stops startup. A listed
+  name that resolves to a loopback or metadata address, for example a sidecar
+  alias for `127.0.0.1`, is now refused when an MCP connection is saved. Remove or
+  fix such entries before upgrading; any other entry keeps working.
+- The agent version history shows "Too long to compare line by line." for a spec
+  over the diff's line limit, instead of two rows holding both whole texts.
 - **Workflow runs run on the Postgres job queue.** Every node attempt is a
   `workflow-dispatch-node` job on the agent pool, queued in the same transaction as
   its outbox row, so a run never starts without its job and a rolled-back start
@@ -1153,6 +1282,17 @@ Two things are versioned separately from this file and worth knowing about:
   `REVISION_CONFLICT` from `table.record.update`, `.upsert` or `.delete` fails
   the step at once, because the same revision would conflict on every retry;
   route it with `error.handle` to a fresh read instead (#1790).
+
+### Removed
+
+- **The six per-application Work IQ catalog entries** - `m365-mail`,
+  `m365-calendar`, `m365-teams`, `m365-sharepoint`, `m365-onedrive` and
+  `m365-word` - because Microsoft keeps those servers for compatibility only.
+  Connections already made keep working, by their address. An agent spec that binds
+  one as each person's own service still runs, but its next publish is refused with
+  a message naming the entry: bind `ms-365` (the self-hosted server, for mail and
+  calendar) or `work-iq` (to ask across Microsoft 365) instead. **BREAKING:** this
+  needs action only for a spec that binds one of them.
 
 ## [1.17.0] - 2026-10-25
 

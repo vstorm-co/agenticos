@@ -19,6 +19,8 @@ dashboard says green while a terminal says red.
 """
 
 import asyncio
+import ipaddress
+import socket
 from typing import TYPE_CHECKING
 
 import click
@@ -27,6 +29,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.commands import command, error, info, success, warning
 from app.core.config import settings
+from app.core.sanitize import deployment_allowlist, mcp_allowlist, parse_private_allowlist
 from app.db.session import get_db_context
 from app.schemas.health import SystemCheck
 from app.services.health import (
@@ -53,6 +56,11 @@ The browser allowlist holds hosts rather than addresses on purpose, so there is
 no configured port to read - which is why a silent host is reported here and
 does not fail the command.
 """
+
+# A listed network wider than this is a warning: it admits more addresses than
+# one site's servers, and every member of every organization can reach them.
+_WIDE_IPV4_PREFIX = 16
+_WIDE_IPV6_PREFIX = 48
 
 _MARK = {
     "healthy": ("ok", success),
@@ -203,6 +211,71 @@ def _file_storage() -> tuple[str, str]:
     if mode == "none":
         return "unconfigured", f"backend=s3 bucket={bucket} encryption=none"
     return "healthy", f"backend=s3 bucket={bucket} encryption={mode}"
+
+
+async def _private_network() -> tuple[str, str]:
+    """What the private allowlists let every member of every organization reach.
+
+    Both lists count: `OUTBOUND_PRIVATE_ALLOWLIST` and `MCP_ALLOWED_HOSTS`, which
+    reaches MCP connections. A listed network that contains the database's or
+    Redis's resolved address is a failure: boot refuses a store host by name or
+    literal, and cannot resolve one, so this is where a CIDR covering it is
+    found. A store host that does not resolve is skipped - the database and Redis
+    lines already say so.
+    """
+    allowed = mcp_allowlist()
+    described = "; ".join(
+        f"{setting} admits {', '.join(entries)}"
+        for setting, entries in (
+            ("OUTBOUND_PRIVATE_ALLOWLIST", deployment_allowlist().entries),
+            ("MCP_ALLOWED_HOSTS", parse_private_allowlist(settings.MCP_ALLOWED_HOSTS).entries),
+        )
+        if entries
+    )
+    if not allowed:
+        return (
+            "unconfigured",
+            "OUTBOUND_PRIVATE_ALLOWLIST and MCP_ALLOWED_HOSTS are empty - "
+            "private addresses are refused",
+        )
+
+    covered: list[str] = []
+    for setting, host in (
+        ("POSTGRES_HOST", settings.POSTGRES_HOST),
+        ("REDIS_HOST", settings.REDIS_HOST),
+    ):
+        try:
+            answers = await asyncio.to_thread(socket.getaddrinfo, host, None)
+        except OSError, UnicodeError:
+            continue
+        for answer in answers:
+            address = ipaddress.ip_address(str(answer[4][0]))
+            if any(
+                address in network
+                for network in allowed.networks
+                if network.version == address.version
+            ):
+                covered.append(f"{setting} ({address})")
+                break
+    if covered:
+        return (
+            "unhealthy",
+            f"{described}; a listed range covers {', '.join(covered)} - "
+            "every member could aim a request at the store",
+        )
+
+    wide = [
+        str(network)
+        for network in allowed.networks
+        if network.prefixlen < (_WIDE_IPV4_PREFIX if network.version == 4 else _WIDE_IPV6_PREFIX)
+    ]
+    if wide:
+        return (
+            "not_checked",
+            f"{described}; wider than /{_WIDE_IPV4_PREFIX} (IPv4) or "
+            f"/{_WIDE_IPV6_PREFIX} (IPv6): {', '.join(wide)} - list the hosts instead",
+        )
+    return "healthy", described
 
 
 async def _browser_endpoints() -> tuple[str, str]:
@@ -416,6 +489,9 @@ async def _run(profile: str | None = None) -> int:
 
     status, detail = await _browser_endpoints()
     failures += _report("browser endpoints", status, detail)
+
+    status, detail = await _private_network()
+    failures += _report("private network", status, detail)
 
     # Imported here like every probe with a dependency of its own: the renderer
     # reaches the artifact service, which a doctor without a database never needs.
