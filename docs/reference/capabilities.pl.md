@@ -1,5 +1,5 @@
 ---
-source_sha: "6fca2b3a3519"
+source_sha: "a9220999f672"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -703,12 +703,18 @@ ma skutków ubocznych.
 w rękach samego agenta: jedna akcja na wywołanie, wybrana przez model runa w jego
 własnej turze, a każda odpowiada stroną po akcji - adresem, ponumerowanymi elementami
 i tekstem. Bez drugiego zapytania na krok, a agent mówi w czacie, co robi, między
-akcjami. Wybrana strona zostaje nad polem wiadomości, a w rozmowie są zwięzłe odnośniki
-do podglądu. Człowiek może przejąć kartę między akcjami.
+akcjami. Przeglądarka otwiera się automatycznie w pełnym panelu obok czatu. Człowiek może przejąć kartę między akcjami.
 Zmierzone na Claude przez OpenRouter: krok `browse_web` trwa 3,5-5 s, prawie w całości
 osobne zapytanie do modelu; zadanie z dwoma kliknięciami, które agent poprowadził sam,
 zajęło 13 s, a `browse_web` około 20. Narzędzia są lepsze do krótkiego zadania albo
 takiego, które ktoś chce oglądać, `browse_web` do długiego zadania przekazanego w całości.
+
+Przed każdym wywołaniem modelu starsze wyniki narzędzi tracą tylko nieaktualne
+tabele numerowanych elementów. Ostatnia tabela, tekst artykułów i wyniki akcji
+pozostają, a zapisana rozmowa zachowuje pełne wyniki. Przeglądanie DOM korzysta
+z niezależnego podglądu i zapisuje końcowy obraz po zatrzymaniu transmisji. Vision
+nadal czeka na obraz dla modelu. Gotowość zależy od widocznej treści strony zamiast
+niezwiązanych zmian w tle; pusty dokument otrzymuje jedną ograniczoną próbę ponownego odczytu.
 
 **Kilka kart i wznowienie.** `browser_new_tab(url)` otwiera osobną stronę,
 `browser_tabs` zwraca identyfikatory, `browser_switch_tab(tab_id)` wybiera i odczytuje

@@ -29,7 +29,9 @@ Two things are versioned separately from this file and worth knowing about:
   a launch or a shortcut that opens a window before typing into it.
 
 - Browser connection cards with icons, independent per-chat desktop browser
-  overrides, a preview anchored above the composer, and tools for up to eight tabs.
+  overrides, an automatically opened browser side panel, and tools for up to
+  eight tabs. Visited-page cards retain the site icon, domain and article title
+  in conversation history.
   Remote private sessions retain a final preview and encrypted reload checkpoints
   for one hour; browser processes close after each run.
 
@@ -276,6 +278,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Browser model requests omit obsolete element tables while retaining article
+  text and full stored results. DOM actions use the independent preview stream
+  with one final capture; readiness ignores unrelated background changes and
+  retries an initially empty document once. MCP tool catalogs stay unchanged.
+
 - Browser panels open beside wide chats, resize by pointer or keyboard, and
   expand to full screen without reopening their native tab. Narrow chats and
   phones keep a full-screen view.
@@ -316,6 +323,10 @@ Two things are versioned separately from this file and worth knowing about:
   shorter motion without per-word blur.
 
 ### Fixed
+
+- Browser transcript cards no longer duplicate after clicks, rereads or returning
+  to a page. Each answer keeps one updated card per actual browser tab, live
+  and after reopening the conversation.
 
 - **Notifications on phones.** Both bell controls open a full-width bottom sheet
   with a visible close button and a scrollable inbox, keeping notifications

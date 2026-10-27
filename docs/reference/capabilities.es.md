@@ -1,5 +1,5 @@
 ---
-source_sha: "6fca2b3a3519"
+source_sha: "a9220999f672"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -715,12 +715,19 @@ por varias páginas. Para una página que solo hay que leer, la
 en manos del propio agent: una acción por llamada, elegida por el modelo del run en su
 propio turno, y cada una responde con la página después de la acción - su dirección, los
 elementos numerados y su texto. Sin una segunda petición por paso, y el agent dice en el
-chat lo que hace entre acciones. La página seleccionada permanece encima del campo de mensajes; el chat muestra enlaces
-compactos a la vista. Una persona puede tomar el control entre acciones. Medido con Claude a través de OpenRouter: un paso de
+chat lo que hace entre acciones. El navegador se abre automáticamente en un panel lateral a toda altura junto al chat. Una persona puede tomar el control entre acciones. Medido con Claude a través de OpenRouter: un paso de
 `browse_web` dura 3,5-5 s, casi todo la petición al modelo del propio paso; una tarea de
 dos clics que el agent manejó él mismo tardó 13 s, y con `browse_web` unos 20. Las
 herramientas convienen para una tarea corta o una que alguien quiere ver, `browse_web`
 para una tarea larga entregada entera.
+
+Antes de cada petición al modelo, los resultados anteriores de herramientas directas
+pierden solo sus tablas obsoletas de elementos numerados. Se conservan la tabla más
+reciente, el texto de los artículos y los resultados de acciones; la conversación
+guardada mantiene los resultados completos. La navegación DOM usa la vista previa
+independiente y captura una imagen final tras detenerla. Vision sigue esperando la
+imagen para el modelo. La disponibilidad depende del contenido visible y no de cambios
+ajenos en segundo plano; un documento vacío recibe un reintento acotado de lectura.
 
 **Varias pestañas y reanudación.** `browser_new_tab(url)` abre una página aparte,
 `browser_tabs` lista identificadores, `browser_switch_tab(tab_id)` selecciona y lee una

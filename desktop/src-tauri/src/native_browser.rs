@@ -386,7 +386,8 @@ pub async fn run(app: &AppHandle, op: &str, args: &Map<String, Value>) -> Result
                 return Err("This browser lease has ended.".into());
             }
             let close = args.get("close").and_then(Value::as_bool) == Some(true)
-                || tab.scope.is_none() || app.get_webview(id).is_none();
+                || tab.scope.is_none()
+                || app.get_webview(id).is_none();
             if close {
                 registry.tabs.remove(id);
             } else {

@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
+import { getErrorMessage } from "@/lib/api-error";
 import {
   controlNativeBrowser,
   nativeBrowserState,
@@ -11,6 +13,7 @@ import { reportShellFailure } from "@/lib/desktop/shell";
 
 /** Mount the live native renderer and join outstanding layout work before hiding it. */
 export function useNativeBrowser(id: string) {
+  const tErrors = useTranslations("errors");
   const viewport = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<NativeBrowserState | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -22,11 +25,11 @@ export function useNativeBrowser(id: string) {
         setError(null);
         return true;
       } catch (reason) {
-        setError(reason instanceof Error ? reason.message : String(reason));
+        setError(getErrorMessage(reason, tErrors, String(reason)));
         return false;
       }
     },
-    [id],
+    [id, tErrors],
   );
 
   useEffect(() => {
@@ -40,7 +43,7 @@ export function useNativeBrowser(id: string) {
           setError(null);
         }
       } catch (reason) {
-        if (alive) setError(reason instanceof Error ? reason.message : String(reason));
+        if (alive) setError(getErrorMessage(reason, tErrors, String(reason)));
       }
       if (alive) timer = setTimeout(() => void poll(), 500);
     };
@@ -49,7 +52,7 @@ export function useNativeBrowser(id: string) {
       alive = false;
       clearTimeout(timer);
     };
-  }, [id]);
+  }, [id, tErrors]);
 
   useEffect(() => {
     const element = viewport.current;
@@ -82,7 +85,7 @@ export function useNativeBrowser(id: string) {
             });
         })
         .catch((reason) => {
-          if (!disposed) setError(reason instanceof Error ? reason.message : String(reason));
+          if (!disposed) setError(getErrorMessage(reason, tErrors, String(reason)));
         });
     };
     const observer = new ResizeObserver(fit);
@@ -109,6 +112,6 @@ export function useNativeBrowser(id: string) {
         .then(() => controlNativeBrowser(id, "hide", { mount }))
         .catch((reason) => reportShellFailure("could not hide the native browser", reason));
     };
-  }, [id]);
+  }, [id, tErrors]);
   return { viewport, state, error, send };
 }

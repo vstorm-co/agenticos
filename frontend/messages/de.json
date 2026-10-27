@@ -1789,7 +1789,6 @@
     "browserShowSteps": "{count, plural, =0 {Schritte} one {# Schritt} other {# Schritte}}",
     "browserOpenNewTab": "In neuem Tab öffnen",
     "browserNoSteps": "Noch keine Schritte.",
-    "browserHolding": "Sie steuern - klicken, tippen und scrollen Sie auf der Seite",
     "browserLineBrowsed": "War auf {host}",
     "browserLineBrowsedWeb": "War im Web",
     "computerLineUsed": "Hat einen Computer bedient",
@@ -2123,9 +2122,9 @@
     },
     "turnLost": "Der Agent hat aufgehört, bevor er geantwortet hat - der Server, auf dem er lief, ist weggefallen.",
     "turnLostAskAgain": "Erneut fragen",
-    "browserOpenNative": "Lokalen Browser öffnen",
     "browserResume": "Sitzung fortsetzen",
-    "browserResumePrompt": "Setze die Browsersitzung fort. Lies die aktuelle Seite erneut, bevor du fortfährst."
+    "browserResumePrompt": "Setze die Browsersitzung fort. Lies die aktuelle Seite erneut, bevor du fortfährst.",
+    "browserMenu": "Browseroptionen"
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",
@@ -7959,7 +7958,7 @@
       },
       "allowed_domains": {
         "title": "Erlaubte Domains",
-        "description": "Erlaubte Hosts; null erlaubt alle, eine leere Liste verweigert alle. Muster wie *.example.com sind erlaubt. Prüfung bei jedem Schritt, nicht nur beim ersten."
+        "description": "Erlaubte Hosts; eine nicht gesetzte Liste erlaubt alle, eine leere Liste verweigert alle. Muster wie *.example.com sind erlaubt. Prüfung bei jedem Schritt, nicht nur beim ersten."
       },
       "max_steps": {
         "title": "Höchstens Schritte pro Aufruf",

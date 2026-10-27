@@ -1,5 +1,5 @@
 ---
-source_sha: "8d758a290cf6"
+source_sha: "cec82f53ecfb"
 ---
 
 # La consola { #the-console }
@@ -411,9 +411,13 @@ La tarjeta **Recent visuals** del panel muestra los últimos dibujados para uste
 cada uno abre la conversación en la que se dibujó.
 
 **Ver un recorrido.** El [navegador web](reference/capabilities.md#browser-automation)
-permanece encima del campo de mensajes mientras se desplaza la conversación. La barra
-de pestañas cambia de página; las entradas del chat abren la vista junto al chat o
-a pantalla completa. Al terminar queda la última imagen. **Reanudar sesión** pide al
+se abre automáticamente en un panel lateral a toda altura junto al chat.
+En pantallas estrechas ocupa toda la pantalla. Al cerrar el panel queda
+un enlace compacto en la conversación para volver a abrirlo. Las tarjetas de
+páginas visitadas muestran el icono del sitio, el dominio y el título, también
+al volver a abrir la conversación. Cada respuesta conserva una tarjeta por pestaña
+del navegador; los clics, las nuevas lecturas y volver atrás actualizan esa tarjeta.
+La barra de pestañas del panel cambia de página. Al terminar queda la última imagen. **Reanudar sesión** pide al
 agente restaurar la sesión privada, disponible durante una hora como máximo. Las páginas
 remotas se cierran tras cada ejecución. Reanudar carga las URL, cookies y local storage,
 pero no formularios sin guardar ni memoria JavaScript. El agente lee nuevos números de elementos.

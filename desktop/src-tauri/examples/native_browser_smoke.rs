@@ -283,8 +283,12 @@ async fn verify(app: &tauri::AppHandle, address: &str) -> Result<(), String> {
     native_browser::run(
         app,
         "browser.release",
-        &json!({"id":id,"lease":resumed["lease"],"close":true}).as_object().unwrap().clone(),
-    ).await?;
+        &json!({"id":id,"lease":resumed["lease"],"close":true})
+            .as_object()
+            .unwrap()
+            .clone(),
+    )
+    .await?;
     if app.get_webview(id).is_some() {
         return Err("An explicitly closed native tab survived release".into());
     }

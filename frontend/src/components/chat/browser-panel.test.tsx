@@ -63,7 +63,7 @@ describe("BrowserPanel - a browse beside the chat", () => {
     const { container, rerender } = render(<BrowserPanel browses={[]} />);
     expect(container).toBeEmptyDOMElement();
 
-    // A browse starting opens nothing by itself: it draws under its message.
+    // Opening is owned by BrowserPanelAutoOpen; this component only renders the selection.
     rerender(<BrowserPanel browses={[browse()]} />);
     expect(container).toBeEmptyDOMElement();
     expect(useBrowserPanelStore.getState().openCallId).toBeNull();
@@ -128,12 +128,16 @@ describe("BrowserPanel - a browse beside the chat", () => {
   it("links the browse's own page, and goes back under the message", async () => {
     useBrowserPanelStore.setState({ openCallId: "c1" });
     render(<BrowserPanel browses={[browse()]} />);
-    expect(screen.getByRole("link", { name: "Open in a new tab" })).toHaveAttribute(
+    await userEvent.click(screen.getByRole("button", { name: "Browser options" }));
+    expect(screen.getByRole("menuitem", { name: "Open in a new tab" })).toHaveAttribute(
       "href",
       "/browse/run-1/c1",
     );
 
-    await userEvent.click(screen.getByRole("button", { name: "Close the browser panel" }));
+    await userEvent.keyboard("{Escape}");
+    expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
+    await userEvent.click(screen.getByRole("button", { name: "Browser options" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Close the browser panel" }));
     expect(useBrowserPanelStore.getState().openCallId).toBeNull();
   });
 });
@@ -167,9 +171,11 @@ it("expands and docks the same remote browse without closing it", async () => {
   const view = render(<BrowserPanel browses={[browse()]} />);
   const panel = view.container.querySelector("[data-browser-panel]");
   expect(panel).toHaveAttribute("data-browser-panel", "docked");
-  await userEvent.click(screen.getByRole("button", { name: "Maximize" }));
+  await userEvent.click(screen.getByRole("button", { name: "Browser options" }));
+  await userEvent.click(screen.getByRole("menuitem", { name: "Maximize" }));
   expect(panel).toHaveAttribute("data-browser-panel", "fullscreen");
-  await userEvent.click(screen.getByRole("button", { name: "Back beside the chat" }));
+  await userEvent.click(screen.getByRole("button", { name: "Browser options" }));
+  await userEvent.click(screen.getByRole("menuitem", { name: "Back beside the chat" }));
   expect(panel).toHaveAttribute("data-browser-panel", "docked");
   expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
 });
@@ -184,4 +190,56 @@ it("switches pages from the side panel tab strip without keeping a duplicate pre
   await userEvent.click(screen.getByRole("tab", { name: "Docs" }));
   expect(useBrowserPanelStore.getState().openCallId).toBe("c2");
   expect(screen.getByRole("tab", { name: "Docs" })).toHaveAttribute("aria-selected", "true");
+});
+
+it("resumes a saved page from its panel and closes from the tab strip", async () => {
+  const resume = vi.fn();
+  useBrowserPanelStore.getState().open("c1");
+  render(
+    <BrowserPanel
+      browses={[browse({ navigable: true, resumable: true, outcome: "done" })]}
+      onResume={resume}
+    />,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Resume session" }));
+  expect(resume).toHaveBeenCalledOnce();
+  await userEvent.click(screen.getByRole("button", { name: "Close the browser panel" }));
+  expect(useBrowserPanelStore.getState().openCallId).toBeNull();
+});
+
+it("leaves Escape to dialogs and handlers that already consumed it", () => {
+  useBrowserPanelStore.getState().open("c1");
+  render(<BrowserPanel browses={[browse()]} />);
+  const dialog = document.createElement("div");
+  dialog.setAttribute("role", "dialog");
+  document.body.append(dialog);
+  fireEvent.keyDown(dialog, { key: "Escape" });
+  expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
+  dialog.remove();
+  const consumed = new KeyboardEvent("keydown", { key: "Escape", cancelable: true });
+  consumed.preventDefault();
+  window.dispatchEvent(consumed);
+  expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
+});
+
+it("follows the selected tab into its resumed run without selecting a different tab", () => {
+  const old = browse({ tabId: "one", navigable: true, outcome: "done" });
+  useBrowserPanelStore.getState().open("c1");
+  render(
+    <BrowserPanel
+      browses={[
+        old,
+        browse({
+          callId: "resumed",
+          tabId: "one",
+          navigable: true,
+          runId: "new-run",
+          title: "Resumed page",
+        }),
+        browse({ callId: "other", tabId: "two", navigable: true, title: "Other page" }),
+      ]}
+    />,
+  );
+  expect(screen.getByRole("heading", { name: "Resumed page" })).toBeInTheDocument();
+  expect(live.calls.at(-1)).toEqual(["new-run", "resumed", true]);
 });

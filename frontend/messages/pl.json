@@ -1789,7 +1789,6 @@
     "browserShowSteps": "{count, plural, =0 {Kroki} one {# krok} few {# kroki} many {# kroków} other {# kroku}}",
     "browserOpenNewTab": "Otwórz w nowej karcie",
     "browserNoSteps": "Jeszcze bez kroków.",
-    "browserHolding": "Sterujesz - klikaj, pisz i przewijaj stronę",
     "browserLineBrowsed": "Przeglądał {host}",
     "browserLineBrowsedWeb": "Przeglądał internet",
     "computerLineUsed": "Korzystał z komputera",
@@ -2123,9 +2122,9 @@
     },
     "turnLost": "Agent przerwał, zanim odpowiedział - serwer, na którym działał, przestał odpowiadać.",
     "turnLostAskAgain": "Zapytaj ponownie",
-    "browserOpenNative": "Otwórz lokalną przeglądarkę",
     "browserResume": "Wznów sesję",
-    "browserResumePrompt": "Wznów sesję przeglądarki. Odczytaj aktualną stronę przed kontynuowaniem."
+    "browserResumePrompt": "Wznów sesję przeglądarki. Odczytaj aktualną stronę przed kontynuowaniem.",
+    "browserMenu": "Opcje przeglądarki"
   },
   "common": {
     "archiveNamedConfirm": "Zarchiwizować {name}?",
@@ -7865,7 +7864,7 @@
       },
       "allowed_domains": {
         "title": "Dozwolone domeny",
-        "description": "Hosty, na których może być przeglądarka; null nie ogranicza, a pusta lista blokuje wszystkie. Dozwolone wzorce typu *.example.com. Sprawdzane w każdym kroku, nie tylko pierwszym."
+        "description": "Hosty, na których może być przeglądarka; brak listy nie ogranicza, a pusta lista blokuje wszystkie. Dozwolone wzorce typu *.example.com. Sprawdzane w każdym kroku, nie tylko pierwszym."
       },
       "max_steps": {
         "title": "Maksymalnie kroków na wywołanie",

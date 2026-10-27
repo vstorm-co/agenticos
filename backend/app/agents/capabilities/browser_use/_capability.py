@@ -8,14 +8,18 @@ there is no engine to install beside the platform and no second vendor that page
 content goes to (#2127).
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from pydantic_ai.capabilities import AbstractCapability
-from pydantic_ai.models import Model
-from pydantic_ai.tools import AgentDepsT
+from pydantic_ai.models import Model, ModelRequestContext
+from pydantic_ai.tools import AgentDepsT, RunContext
 from pydantic_ai.toolsets import AbstractToolset
 
+from app.agents.capabilities.browser_use._history import (
+    BROWSER_REPORT_TOOLS,
+    compact_browser_tables,
+)
 from app.agents.capabilities.browser_use._loop import LoopPolicy
 from app.agents.capabilities.browser_use._page import PagePolicy
 from app.agents.capabilities.browser_use._route import BrowserRoute
@@ -69,6 +73,7 @@ class WebBrowser(AbstractCapability[AgentDepsT]):
     candidate_cap: int = 60
     vision: bool = False
     preview: bool = True
+    report_tool_names: frozenset[str] = BROWSER_REPORT_TOOLS
 
     step_model: Model | None = field(default=None, repr=False, compare=False)
     """The model `browse_web` asks for each step, when the agent named one; else the run's."""
@@ -111,6 +116,15 @@ class WebBrowser(AbstractCapability[AgentDepsT]):
             "for up to one hour. Remote tabs close after each turn; resume reloads their "
             "URLs, cookies and local storage, not unsaved forms or JavaScript memory. "
             "Read the page again before using element numbers."
+        )
+
+    async def before_model_request(
+        self, ctx: RunContext[AgentDepsT], request_context: ModelRequestContext
+    ) -> ModelRequestContext:
+        """Retain page evidence while dropping obsolete element tables from this request."""
+        return replace(
+            request_context,
+            messages=compact_browser_tables(request_context.messages, self.report_tool_names),
         )
 
     def get_toolset(self) -> AbstractToolset[Any]:

@@ -1,5 +1,5 @@
 ---
-source_sha: "8d758a290cf6"
+source_sha: "cec82f53ecfb"
 ---
 
 # Die Konsole { #the-console }
@@ -436,9 +436,13 @@ Die Karte **Neueste Visuals** auf dem Dashboard zeigt die zuletzt für Sie
 gezeichneten, jede öffnet das Gespräch, in dem sie entstand.
 
 **Einem Durchlauf zusehen.** Der [Webbrowser](reference/capabilities.md#browser-automation)
-bleibt über dem Eingabefeld, während das Gespräch scrollt. Die Tableiste wechselt
-zwischen Seiten; Einträge im Gespräch öffnen die Vorschau neben dem Chat oder im
-Vollbild. Nach dem Lauf bleibt das letzte Bild. **Sitzung fortsetzen** bittet den
+öffnet sich automatisch in einem Panel in voller Höhe neben dem Gespräch.
+Auf schmalen Bildschirmen nutzt er das Vollbild. Nach dem Schließen bleibt
+ein kompakter Link im Gespräch, um das Panel erneut zu öffnen. Karten besuchter
+Seiten zeigen das Website-Symbol, die Domain und den Seitentitel, auch nach dem
+erneuten Öffnen des Gesprächs. Jede Antwort behält eine Karte pro Browser-Tab;
+Klicks, erneutes Lesen und Zurückgehen aktualisieren diese Karte.
+Die Tableiste im Panel wechselt zwischen den Seiten. Nach dem Lauf bleibt das letzte Bild. **Sitzung fortsetzen** bittet den
 Agent, den privaten Sitzungsstand wiederherzustellen, bis zu einer Stunde lang.
 Remote-Seiten schließen nach jedem Lauf. Fortsetzen lädt URLs, Cookies und Local
 Storage neu, aber keine ungespeicherten Formulare oder JavaScript-Zustände. Der Agent

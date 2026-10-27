@@ -89,7 +89,11 @@ export function BrowserNavigation({
         spellCheck={false}
         readOnly={!holding}
         className="bg-muted/70 focus-visible:ring-ring/30 focus-visible:border-border h-8 min-w-0 flex-1 rounded-lg border border-transparent px-2.5 text-base outline-none focus-visible:ring-2 @min-[480px]/browser-window:text-sm"
-        value={holding ? (draft ?? url ?? "") : (url ?? "")}
+        value={
+          holding
+            ? (draft ?? url ?? "")
+            : (url ?? "").replace(/^https?:\/\//, "").replace(/\/$/, "")
+        }
         onChange={(event) => {
           setDraft(event.target.value);
           setInvalid(false);

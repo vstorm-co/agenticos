@@ -31,9 +31,8 @@ import { UsageMeter } from "./usage-meter";
 import { WorkspaceFiles } from "./workspace-files";
 import { FilePreviewDialog } from "./file-preview-dialog";
 import type { Browse } from "@/lib/browse";
-import { LiveBrowsesProvider } from "./browser-card";
+import { BrowserPanelAutoOpen, LiveBrowsesProvider } from "./browser-card";
 import { ConversationVisualsProvider } from "./visual-panel";
-import { BrowserDock } from "./browser-card";
 import { BrowserPanel } from "./browser-panel";
 import { SourcesPanel } from "./sources-panel";
 import { MessageList } from "./message-list";
@@ -1249,6 +1248,7 @@ function ChatUI({
           a column narrowed by the sidebar and the conversation list. */}
         <div className="@container/chat relative flex h-full min-w-0 flex-1 flex-col">
           {!compact && <TurnRail entries={railEntries} />}
+          <BrowserPanelAutoOpen browses={browses} />
           <div
             ref={scrollContainerRef}
             className="flex-1 scrollbar-thin overflow-y-auto"
@@ -1393,11 +1393,6 @@ function ChatUI({
               compact && "bg-background",
             )}
           >
-            <BrowserDock
-              browses={browses}
-              onComment={commentOnPage}
-              onResume={() => sendMessage(t("browserResumePrompt"))}
-            />
             {personalGaps.length > 0 && (
               <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
                 <ConnectServicesCard gaps={personalGaps} />
@@ -1720,7 +1715,11 @@ function ChatUI({
         <FilePreviewDialog />
         <SourcesPanel contained={compact} />
         {/* The browser shares the chat's width; a narrow chat opens it full screen. */}
-        <BrowserPanel browses={browses} onComment={commentOnPage} />
+        <BrowserPanel
+          browses={browses}
+          onComment={commentOnPage}
+          onResume={() => sendMessage(t("browserResumePrompt"))}
+        />
       </div>
       {/* Beside the transcript rather than under it: what the agent is holding is
           something you glance at while reading, and a list that pushed the input
