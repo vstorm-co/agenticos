@@ -1,4 +1,4 @@
-import type { BrowseOutcome, BrowserFrame } from "@/types/chat";
+import type { BrowseOutcome, BrowserFrame, ToolCall } from "@/types/chat";
 
 /**
  * One step the browser took, as the panel lists it.
@@ -228,4 +228,25 @@ export function latestBrowserTabs(browses: Browse[]): Browse[] {
     tabs.set(id, browse);
   }
   return Array.from(tabs.values()).slice(-8);
+}
+
+/** Read page identity from the direct tools' stored report, accepting only web links. */
+export function recordedBrowserPage(call: Pick<ToolCall, "args" | "result">): {
+  url: string | null;
+  title: string | null;
+} {
+  const report =
+    typeof call.result === "string"
+      ? /^PAGE: (.+) - (https?:\/\/\S+)\s*$/m.exec(call.result)
+      : null;
+  const candidate = report?.[2] ?? call.args.start_url ?? call.args.url;
+  if (typeof candidate !== "string") return { url: null, title: null };
+  try {
+    const url = new URL(candidate);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return { url: null, title: null };
+    const title = report?.[1];
+    return { url: url.href, title: title && title !== "(untitled)" ? title.slice(0, 300) : null };
+  } catch {
+    return { url: null, title: null };
+  }
 }

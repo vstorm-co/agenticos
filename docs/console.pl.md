@@ -1,5 +1,5 @@
 ---
-source_sha: "0c26862976ca"
+source_sha: "1d3893d9eb4b"
 ---
 
 # Konsola { #the-console }
@@ -400,7 +400,8 @@ rysunki zrobione dla ciebie, a każdy otwiera rozmowę, w której powstał.
 **Oglądanie przeglądania.** [Przeglądarka](reference/capabilities.md#browser-automation)
 otwiera się automatycznie w pełnym panelu obok przewijanej rozmowy.
 Na wąskim ekranie zajmuje cały widok. Po zamknięciu panelu zostaje w rozmowie
-mały przycisk do ponownego otwarcia. Pasek kart w panelu
+mały przycisk do ponownego otwarcia. Karty odwiedzonych stron pokazują ikonę,
+domenę i tytuł, także po ponownym otwarciu rozmowy. Pasek kart w panelu
 przełącza strony. Po zakończeniu
 zostaje ostatni obraz. **Wznów sesję** prosi agenta o odtworzenie prywatnej sesji,
 dostępnej przez maksymalnie godzinę. Zdalne strony zamykają się po każdym runie;

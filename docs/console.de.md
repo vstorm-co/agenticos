@@ -1,5 +1,5 @@
 ---
-source_sha: "0c26862976ca"
+source_sha: "1d3893d9eb4b"
 ---
 
 # Die Konsole { #the-console }
@@ -438,7 +438,9 @@ gezeichneten, jede öffnet das Gespräch, in dem sie entstand.
 **Einem Durchlauf zusehen.** Der [Webbrowser](reference/capabilities.md#browser-automation)
 öffnet sich automatisch in einem Panel in voller Höhe neben dem Gespräch.
 Auf schmalen Bildschirmen nutzt er das Vollbild. Nach dem Schließen bleibt
-ein kompakter Link im Gespräch, um das Panel erneut zu öffnen.
+ein kompakter Link im Gespräch, um das Panel erneut zu öffnen. Karten besuchter
+Seiten zeigen das Website-Symbol, die Domain und den Seitentitel, auch nach dem
+erneuten Öffnen des Gesprächs.
 Die Tableiste im Panel wechselt zwischen den Seiten. Nach dem Lauf bleibt das letzte Bild. **Sitzung fortsetzen** bittet den
 Agent, den privaten Sitzungsstand wiederherzustellen, bis zu einer Stunde lang.
 Remote-Seiten schließen nach jedem Lauf. Fortsetzen lädt URLs, Cookies und Local

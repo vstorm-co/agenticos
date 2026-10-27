@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useRef } from "react";
 
-import { ArrowUpRight, Globe, Maximize2, Monitor } from "lucide-react";
+import { Maximize2, Monitor } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { useShell } from "@/hooks/use-shell";
@@ -10,6 +10,7 @@ import { isDesktopShell } from "@/lib/desktop/shell";
 import { useLiveBrowse } from "@/hooks/use-live-browse";
 import {
   DESKTOP_TOOLS,
+  recordedBrowserPage,
   isRunning,
   latestBrowserTabs,
   withLivePreview,
@@ -20,6 +21,7 @@ import { useBrowserPanelStore } from "@/stores/browser-panel-store";
 import type { ToolCall } from "@/types";
 import type { PageComment } from "./browser-comment";
 import { BrowserWindow, hostOf } from "./browser-window";
+import { BrowserVisit } from "./browser-visit";
 
 /** The browses running in this chat, and where a comment on one of their pages goes. */
 const LiveBrowses = createContext<{
@@ -76,36 +78,11 @@ export function TurnBrowses({ calls }: { calls: ToolCall[] }) {
 /** A browse from an earlier turn: where it went, and the way there. */
 function RecordedBrowse({ call }: { call: ToolCall }) {
   const t = useTranslations("chat");
-  // `browse_web` names where it started; `browser_open`, where it opened. A
-  // desktop has no address, only the fact that one was used.
-  const desktop = isDesktop(call);
-  const opened = call.args.start_url ?? call.args.url;
-  const start = typeof opened === "string" ? opened : null;
-  const host = hostOf(start);
-  const Icon = desktop ? Monitor : Globe;
+  if (!isDesktop(call)) return <BrowserVisit {...recordedBrowserPage(call)} />;
   return (
-    <div className="bg-foreground/[0.04] flex w-full min-w-0 items-center gap-3 rounded-2xl px-2.5 py-2">
-      <span className="ring-foreground/10 bg-background flex h-10 w-14 shrink-0 items-center justify-center rounded-lg ring-1">
-        <Icon className="text-muted-foreground size-4" aria-hidden />
-      </span>
-      <span className="text-foreground min-w-0 flex-1 truncate text-sm font-medium">
-        {desktop
-          ? t("computerLineUsed")
-          : host
-            ? t("browserLineBrowsed", { host })
-            : t("browserLineBrowsedWeb")}
-      </span>
-      {start && host && (
-        <a
-          href={start}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-muted-foreground hover:text-foreground inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium"
-        >
-          {t("browserVisitSite")}
-          <ArrowUpRight className="size-3.5" aria-hidden />
-        </a>
-      )}
+    <div className="text-muted-foreground flex items-center gap-2 py-1 text-xs">
+      <Monitor className="size-4" aria-hidden />
+      {t("computerLineUsed")}
     </div>
   );
 }
@@ -170,18 +147,8 @@ function InlineBrowser({
 /** A compact transcript entry that reopens the browser side panel. */
 function BrowserLink({ browse }: { browse: Browse }) {
   const open = useBrowserPanelStore((state) => state.open);
-  const t = useTranslations("chat");
-  return (
-    <button
-      type="button"
-      onClick={() => open(browse.callId)}
-      className="text-muted-foreground hover:text-foreground inline-flex max-w-sm min-w-0 items-center gap-2 justify-self-start py-1 text-xs"
-    >
-      <Globe className="size-4 shrink-0" aria-hidden />
-      <span className="truncate">{browse.title || hostOf(browse.url) || t("browserHeading")}</span>
-      <Maximize2 className="size-3 shrink-0" aria-hidden />
-    </button>
-  );
+  const page = recordedBrowserPage({ args: { url: browse.url }, result: undefined });
+  return <BrowserVisit url={page.url} title={browse.title} onOpen={() => open(browse.callId)} />;
 }
 
 /** Open each running browser session once, without overriding a reader's selection or closure. */

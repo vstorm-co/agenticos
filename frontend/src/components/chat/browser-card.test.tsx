@@ -148,7 +148,7 @@ describe("TurnBrowses - a browse as a browser under its message", () => {
     };
     render(<BrowserCards browses={[]} calls={[opened]} />);
 
-    expect(screen.getByText("Browsed www.bing.com")).toBeVisible();
+    expect(screen.getByText("Browsed bing.com")).toBeVisible();
   });
 
   it("says the agent browsed the web when the call named no page", () => {
@@ -269,6 +269,30 @@ it("labels browser links with their host or the browser name when no title is av
       ]}
     />,
   );
-  expect(screen.getByRole("button", { name: "example.test" })).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Browser" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Browsed example.test" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Browsed the web" })).toBeInTheDocument();
+});
+
+it("recovers a visited article's identity from its stored result when its arguments contain no URL", () => {
+  render(
+    <BrowserCards
+      browses={[]}
+      calls={[
+        {
+          ...call("article"),
+          name: "browser_click",
+          args: { element: 12 },
+          result:
+            "Done: clicked element 12.\n\nPAGE: Article about Poland - https://www.onet.pl/news/poland\nSCROLL: more below",
+        },
+      ]}
+    />,
+  );
+  expect(screen.getByText("Article about Poland")).toBeVisible();
+  expect(screen.getByText("onet.pl")).toBeVisible();
+  expect(screen.getByRole("link", { name: /Visit site/ })).toHaveAttribute(
+    "href",
+    "https://www.onet.pl/news/poland",
+  );
+  expect(screen.queryByText("Browsed the web")).toBeNull();
 });

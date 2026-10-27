@@ -385,7 +385,8 @@ you, each opening the conversation it was drawn in.
 **Watching a browse.** The [web browser](reference/capabilities.md#browser-automation)
 opens automatically in a full-height side panel while the transcript scrolls.
 On narrow screens it opens full screen. Closing the panel leaves a compact link
-in the conversation to reopen it.
+in the conversation to reopen it. Visited-page cards show the site icon, domain
+and page title, including when the conversation is reopened.
 The panel's tab strip switches between pages. After the run, the last image remains. **Resume session** asks the
 agent to restore the private conversation checkpoint, available for up to one hour.
 Remote pages close after each run; resuming reloads URLs, cookies and local storage,

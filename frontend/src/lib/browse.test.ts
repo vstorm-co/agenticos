@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { applyBrowserFrame, browseById, isRunning, withLivePreview, type Browse } from "./browse";
+import {
+  recordedBrowserPage,
+  applyBrowserFrame,
+  browseById,
+  isRunning,
+  withLivePreview,
+  type Browse,
+} from "./browse";
 import type { BrowserFrame } from "@/types";
 
 function frame(overrides: Partial<BrowserFrame> = {}): BrowserFrame {
@@ -318,4 +325,36 @@ it("accepts a delayed first image after newer metadata without treating metadata
     frame({ kind: "browser_frame", step: 3, image: "delayed-first-picture" }),
   );
   expect(browse).toMatchObject({ image: "delayed-first-picture", imageStep: 3 });
+});
+
+describe("recordedBrowserPage", () => {
+  it.each([
+    [
+      { args: {}, result: "PAGE: A - title - https://example.com/article\n" },
+      { url: "https://example.com/article", title: "A - title" },
+    ],
+    [
+      { args: { url: "https://old.example" }, result: "PAGE: New page - https://example.com/new" },
+      { url: "https://example.com/new", title: "New page" },
+    ],
+    [{ args: { start_url: "http://example.com" } }, { url: "http://example.com/", title: null }],
+    [
+      { args: { url: "https://example.com" }, result: { text: "not a report" } },
+      { url: "https://example.com/", title: null },
+    ],
+    [
+      { args: {}, result: "PAGE: (untitled) - https://example.com" },
+      { url: "https://example.com/", title: null },
+    ],
+    [
+      { args: {}, result: "PAGE: Invalid - https://[broken" },
+      { url: null, title: null },
+    ],
+    [{ args: { url: "javascript:alert(1)" } }, { url: null, title: null }],
+    [{ args: { url: "file:///etc/passwd" } }, { url: null, title: null }],
+    [{ args: { url: 123 } }, { url: null, title: null }],
+    [{ args: {} }, { url: null, title: null }],
+  ])("extracts a safe page identity from %j", (call, expected) => {
+    expect(recordedBrowserPage(call)).toEqual(expected);
+  });
 });
