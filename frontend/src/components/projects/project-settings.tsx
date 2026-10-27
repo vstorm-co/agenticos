@@ -22,6 +22,7 @@ import {
 import { useProject } from "@/hooks/use-projects";
 import { ROUTES } from "@/lib/constants";
 import type { Project } from "@/types/projects";
+import { ProjectSandboxSummary } from "./project-sandbox-choice";
 import { DefaultAgentSelect } from "./default-agent-select";
 
 /**
@@ -75,6 +76,7 @@ export function ProjectSettings({ project }: { project: Project }) {
         </CardContent>
       </Card>
 
+      <ProjectSandboxSummary project={project} />
       <Card>
         <CardHeader>
           <CardTitle>{t("details")}</CardTitle>

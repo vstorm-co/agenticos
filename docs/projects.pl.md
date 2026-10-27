@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "b3e4da33c56b"
+source_sha: "f96d01e1c088"
 ---
 
 # Projekty { #projects }
@@ -91,6 +91,14 @@ ale nie ma powłoki; gdy dwa czaty piszą do niego naraz, każdy zachowuje to, c
 zapisał, a gdy oba zmieniły ten sam plik, zostaje późniejszy zapis. Projekt zostaje na połączeniu sandboxa, na którym go
 utworzono, więc tego połączenia nie da się usunąć, dopóki jakiś projekt trzyma na
 nim pliki.
+
+Przy tworzeniu projektu pole **Sandbox projektu** pozwala wybrać zarejestrowane
+połączenie, tryb automatyczny lub **Tylko przechowywanie plików**. Tryb automatyczny
+zapamiętuje połączenie wybrane przy tworzeniu; gdy żadnego nie ma, przechowuje pliki.
+Wybór konkretnego połączenia wymaga `connections:view` i aktywnego połączenia w
+organizacji. Ustawienia projektu pokazują nazwę połączenia i środowisko. Wszystkie
+czaty projektu używają go zamiast sandboxa agenta. Istniejące projekty zachowują
+połączenie i pliki; wybór innego nie przenosi zawartości istniejącego projektu.
 
 ## Pliki { #files }
 

@@ -673,3 +673,15 @@ it("offers the project editor and wires a rename to the project's mutation", asy
     }),
   );
 });
+
+it("can create a files-only project instead of silently choosing a container", async () => {
+  projects.create.mutateAsync.mockResolvedValue(aProject({ backend: "state" }));
+  wrap(<CreateProjectDialog open onOpenChange={vi.fn()} onCreated={vi.fn()} />);
+  await userEvent.type(screen.getByLabelText("Name"), "Notes");
+  await userEvent.click(screen.getByRole("combobox", { name: "Project sandbox" }));
+  await userEvent.click(screen.getByRole("option", { name: "Stored files only" }));
+  await userEvent.click(screen.getByRole("button", { name: "Create" }));
+  expect(projects.create.mutateAsync).toHaveBeenCalledWith(
+    expect.objectContaining({ backend: "state", name: "Notes" }),
+  );
+});

@@ -90,6 +90,15 @@ they wrote, and where both changed one file, the later write stands. A project s
 created on, so that connection cannot be deleted while a project keeps its files
 there.
 
+When creating a project, **Project sandbox** lets you choose a registered sandbox
+connection, automatic selection, or **Stored files only**. Automatic selection pins
+the connection chosen at creation; if none is available, it uses stored files.
+Choosing a named connection requires `connections:view` and an active connection
+in your organization. The project's settings show its connection name and runtime;
+all project chats use this workspace in place of the agent's own sandbox. Existing
+projects keep their connection and files; choosing a different one does not migrate
+an existing project's contents.
+
 ## Files
 
 The project's **Files** tab is the container, browsable: a tree beside a reader

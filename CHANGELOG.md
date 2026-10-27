@@ -21,6 +21,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Projects can choose a sandbox connection or stored files when created. Settings
+  show the connection used by their shared workspace.
+
 - Project file management: rename folders and files, move entries by drag and drop
   or a folder picker, and edit UTF-8 text with revision and unsaved-change checks.
 

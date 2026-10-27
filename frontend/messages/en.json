@@ -8666,6 +8666,17 @@
       "discardTitle": "Discard changes?",
       "discardBody": "Your edits have not been saved. Close the editor and discard them?",
       "discard": "Discard changes"
+    },
+    "sandbox": {
+      "label": "Project sandbox",
+      "automatic": "Automatic",
+      "automaticNamed": "Automatic · {name}",
+      "stored": "Stored files only",
+      "storedHint": "Files are stored by the platform. Agents can read and write them, but cannot execute code here.",
+      "sharedHint": "Every chat in this project shares these files and this workspace. It replaces the sandbox configured on the answering agent.",
+      "failed": "Could not load sandbox connections. Automatic selection and stored files are still available.",
+      "configured": "Configured sandbox",
+      "containerHint": "A dedicated container on this connection. The connection is kept for the project’s lifetime."
     }
   },
   "voiceGlow": {

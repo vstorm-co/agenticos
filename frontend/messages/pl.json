@@ -8451,6 +8451,17 @@
       "discardTitle": "Odrzucić zmiany?",
       "discardBody": "Zmiany nie zostały zapisane. Zamknąć edytor i je odrzucić?",
       "discard": "Odrzuć zmiany"
+    },
+    "sandbox": {
+      "label": "Sandbox projektu",
+      "automatic": "Automatycznie",
+      "automaticNamed": "Automatycznie · {name}",
+      "stored": "Tylko przechowywanie plików",
+      "storedHint": "Platforma przechowuje pliki. Agenci mogą je czytać i zapisywać, ale nie wykonują tu kodu.",
+      "sharedHint": "Wszystkie czaty projektu współdzielą te pliki i środowisko. Zastępuje ono sandbox ustawiony u odpowiadającego agenta.",
+      "failed": "Nie udało się wczytać połączeń sandboxa. Nadal możesz wybrać tryb automatyczny lub przechowywanie plików.",
+      "configured": "Skonfigurowany sandbox",
+      "containerHint": "Osobny kontener na tym połączeniu. Projekt zachowuje to połączenie przez cały okres istnienia."
     }
   },
   "voiceGlow": {

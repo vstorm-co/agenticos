@@ -8549,6 +8549,17 @@
       "discardTitle": "Änderungen verwerfen?",
       "discardBody": "Die Änderungen wurden nicht gespeichert. Editor schließen und Änderungen verwerfen?",
       "discard": "Änderungen verwerfen"
+    },
+    "sandbox": {
+      "label": "Projekt-Sandbox",
+      "automatic": "Automatisch",
+      "automaticNamed": "Automatisch · {name}",
+      "stored": "Nur Dateien speichern",
+      "storedHint": "Die Plattform speichert die Dateien. Agenten können sie lesen und schreiben, hier aber keinen Code ausführen.",
+      "sharedHint": "Alle Chats dieses Projekts teilen Dateien und Arbeitsumgebung. Sie ersetzt die Sandbox des antwortenden Agenten.",
+      "failed": "Sandbox-Verbindungen konnten nicht geladen werden. Automatische Auswahl und Dateispeicherung bleiben verfügbar.",
+      "configured": "Konfigurierte Sandbox",
+      "containerHint": "Ein eigener Container auf dieser Verbindung. Das Projekt behält die Verbindung während seiner gesamten Laufzeit."
     }
   },
   "voiceGlow": {

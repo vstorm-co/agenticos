@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "b3e4da33c56b"
+source_sha: "f96d01e1c088"
 ---
 
 # Projekte { #projects }
@@ -96,6 +96,15 @@ schreiben zwei Chats zugleich hinein, behält jeder, was er geschrieben hat, und
 beide dieselbe Datei geändert haben, gilt der spätere Schreibvorgang.
 Ein Projekt bleibt auf der Sandbox-Verbindung, auf der es angelegt wurde, darum
 lässt sich diese Verbindung nicht löschen, solange ein Projekt dort Dateien hält.
+
+Beim Erstellen wählst du unter **Projekt-Sandbox** eine registrierte Verbindung,
+die automatische Auswahl oder **Nur Dateien speichern**. Die automatische Auswahl
+behält die beim Erstellen gewählte Verbindung; ohne verfügbare Verbindung werden
+Dateien gespeichert. Eine benannte Verbindung erfordert `connections:view` und
+eine aktive Verbindung deiner Organisation. Die Projekteinstellungen zeigen
+Verbindungsnamen und Laufzeitumgebung. Alle Projektchats nutzen diese Umgebung
+anstelle der Agenten-Sandbox. Bestehende Projekte behalten Verbindung und Dateien;
+eine andere Auswahl migriert keine vorhandenen Projektdateien.
 
 ## Dateien { #files }
 

@@ -362,9 +362,14 @@ class TestListing:
         assert (second.chat_count, second.can_use, second.default_agent_name) == (0, False, None)
 
     async def test_one_project_reads_the_same_way(self) -> None:
-        project = _project()
+        project = _project(sandbox_connection_id=uuid.uuid4())
         service = _service(None)
         with (
+            patch.object(
+                module.sandbox_connection_repo,
+                "names_for_ids",
+                AsyncMock(return_value={project.sandbox_connection_id: "Local sandbox"}),
+            ),
             patch.object(module.project_repo, "chat_activity", AsyncMock(return_value={})),
             patch.object(module, "groups_sharing", AsyncMock(return_value={project.id: []})),
             patch.object(module, "accessible_ids", AsyncMock(side_effect=[set(), set(), set()])),
@@ -372,6 +377,8 @@ class TestListing:
         ):
             read = await service.read(_ctx(), project)
         assert (read.name, read.chat_count, read.can_edit) == ("Launch", 0, False)
+
+        assert read.sandbox_connection_name == "Local sandbox"
 
 
 class TestARunInAProject:
@@ -736,3 +743,63 @@ async def test_a_failed_flush_is_not_reported_as_a_successful_file_mutation(oper
 def test_file_paths_cannot_contain_control_characters() -> None:
     with pytest.raises(BadRequestError, match="control characters"):
         project_path("a\x00b")
+
+
+async def test_a_project_can_choose_stored_files_even_when_a_sandbox_is_available() -> None:
+    created = _project(backend="state")
+    service = _service(None)
+    connections = MagicMock(ensure_local_connection=AsyncMock())
+    with (
+        patch.object(module, "SandboxConnectionService", return_value=connections),
+        patch.object(module.project_repo, "create", AsyncMock(return_value=created)) as create,
+        patch.object(module, "record_audit", AsyncMock()),
+    ):
+        await service.create(_ctx(), ProjectCreate(name="Notes", backend="state"))
+    assert create.await_args.kwargs["backend"] == "state"
+    assert create.await_args.kwargs["sandbox_connection_id"] is None
+    connections.ensure_local_connection.assert_not_awaited()
+
+
+async def test_a_project_pins_the_sandbox_connection_chosen_at_creation() -> None:
+    created = _project()
+    service = _service(None)
+    host = MagicMock(id=uuid.uuid4(), is_active=True)
+    connections = MagicMock(get=AsyncMock(return_value=host), ensure_local_connection=AsyncMock())
+    with (
+        patch.object(module, "SandboxConnectionService", return_value=connections),
+        patch.object(module.project_repo, "create", AsyncMock(return_value=created)) as create,
+        patch.object(module, "record_audit", AsyncMock()),
+    ):
+        await service.create(
+            _ctx(), ProjectCreate(name="Build", backend="service", sandbox_connection_id=host.id)
+        )
+    assert create.await_args.kwargs["backend"] == "service"
+    assert create.await_args.kwargs["sandbox_connection_id"] == host.id
+    connections.ensure_local_connection.assert_not_awaited()
+
+
+async def test_project_sandbox_selection_refuses_inactive_unavailable_and_unauthorized_hosts() -> (
+    None
+):
+    service = _service(None)
+    host = MagicMock(id=uuid.uuid4(), is_active=False)
+    connections = MagicMock(
+        get=AsyncMock(return_value=host), ensure_local_connection=AsyncMock(return_value=None)
+    )
+    with patch.object(module, "SandboxConnectionService", return_value=connections):
+        with pytest.raises(BadRequestError):
+            await service.create(
+                _ctx(),
+                ProjectCreate(name="Build", backend="service", sandbox_connection_id=host.id),
+            )
+        with pytest.raises(BadRequestError):
+            await service.create(
+                _ctx(), ProjectCreate(name="Build", backend="state", sandbox_connection_id=host.id)
+            )
+        with pytest.raises(BadRequestError):
+            await service.create(_ctx(), ProjectCreate(name="Build", backend="service"))
+        with (
+            patch.object(module.AuthContext, "has", return_value=False),
+            pytest.raises(AuthorizationError),
+        ):
+            await service.create(_ctx(), ProjectCreate(name="Build", sandbox_connection_id=host.id))

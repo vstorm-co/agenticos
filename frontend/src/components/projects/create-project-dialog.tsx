@@ -27,12 +27,13 @@ import { submitFailure } from "@/lib/api-error";
 import { DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import type { Project } from "@/types/projects";
+import { ProjectSandboxChoice } from "./project-sandbox-choice";
 import { DefaultAgentSelect } from "./default-agent-select";
 
 /** Private to its creator until they share it: a project is somebody's work first. */
 const ONLY_ME: Audience = { mode: "private", group_ids: [], user_ids: [] };
 
-type Field = "name" | "description" | "instructions" | "default_agent_id";
+type Field = "name" | "description" | "instructions" | "default_agent_id" | "sandbox_connection_id";
 
 /**
  * New project: a name, what it is for, the instructions every agent in it reads,
@@ -54,6 +55,7 @@ export function CreateProjectDialog({
   const [description, setDescription] = useState("");
   const [instructions, setInstructions] = useState("");
   const [agentId, setAgentId] = useState<string | null>(null);
+  const [sandbox, setSandbox] = useState("auto");
   const [audience, setAudience] = useState<Audience>(ONLY_ME);
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
 
@@ -64,12 +66,18 @@ export function CreateProjectDialog({
         description: description.trim() || null,
         instructions,
         default_agent_id: agentId,
+        ...(sandbox === "auto"
+          ? {}
+          : sandbox === "state"
+            ? { backend: "state" as const }
+            : { backend: "service" as const, sandbox_connection_id: sandbox }),
         ...audiencePayload(audience),
       });
       setName("");
       setDescription("");
       setInstructions("");
       setAgentId(null);
+      setSandbox("auto");
       setAudience(ONLY_ME);
       setErrors({});
       onCreated(project);
@@ -77,7 +85,13 @@ export function CreateProjectDialog({
       const failure = submitFailure(
         error,
         {
-          fields: ["name", "description", "instructions", "default_agent_id"] satisfies Field[],
+          fields: [
+            "name",
+            "description",
+            "instructions",
+            "default_agent_id",
+            "sandbox_connection_id",
+          ] satisfies Field[],
           identifiedBy: "name",
         },
         tErrors,
@@ -138,6 +152,12 @@ export function CreateProjectDialog({
               maxLength={20000}
             />
           </FormField>
+          <ProjectSandboxChoice
+            value={sandbox}
+            onChange={setSandbox}
+            enabled={open}
+            error={errors.sandbox_connection_id}
+          />
           <div className="space-y-1.5">
             <Label>{t("whoWorksInIt")}</Label>
             <AudiencePicker value={audience} onChange={setAudience} />

@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "b3e4da33c56b"
+source_sha: "f96d01e1c088"
 ---
 
 # Proyectos { #projects }
@@ -94,6 +94,15 @@ vez, cada uno conserva lo que escribió, y donde ambos cambiaron un mismo archiv
 queda la escritura posterior. Un proyecto se queda en
 la conexión de sandbox en la que se creó, así que esa conexión no se puede eliminar
 mientras un proyecto guarde archivos en ella.
+
+Al crear un proyecto, **Sandbox del proyecto** permite elegir una conexión
+registrada, la selección automática o **Solo almacenar archivos**. La selección
+automática conserva la conexión elegida al crear el proyecto; si no hay ninguna,
+almacena archivos. Elegir una conexión requiere `connections:view` y una conexión
+activa de tu organización. Los ajustes muestran su nombre y entorno de ejecución.
+Todos los chats del proyecto usan este entorno en lugar del sandbox del agente.
+Los proyectos existentes conservan su conexión y archivos; otra selección no migra
+el contenido de un proyecto existente.
 
 ## Archivos { #files }
 

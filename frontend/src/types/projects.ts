@@ -19,6 +19,8 @@ export interface Project {
   /** `service` - a container with a shell - or `state`, files the platform stores. */
   backend: "service" | "state";
   runtime: string | null;
+  sandbox_connection_id?: string | null;
+  sandbox_connection_name?: string | null;
   chat_count: number;
   last_active_at: string | null;
   shared_groups: string[];
@@ -36,6 +38,8 @@ export interface ProjectList {
 }
 
 export interface ProjectCreate {
+  backend?: "auto" | "service" | "state";
+  sandbox_connection_id?: string | null;
   name: string;
   description?: string | null;
   instructions?: string;

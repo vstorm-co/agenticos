@@ -29,6 +29,13 @@ class ProjectCreate(AudienceChoice):
             "keeps it private and shares it with them."
         ),
     )
+    backend: Literal["auto", "service", "state"] = Field(
+        default="auto",
+        description="Automatic sandbox selection, a service container, or stored files without a shell",
+    )
+    sandbox_connection_id: UUID | None = Field(
+        default=None, description="The organization's sandbox connection; omitted uses its default"
+    )
     name: str = Field(min_length=1, max_length=120, description="What the project is called")
     description: str | None = Field(
         default=None, max_length=500, description="One line on what the project is for"
@@ -56,6 +63,8 @@ class ProjectUpdate(BaseSchema):
 
 
 class ProjectRead(BaseSchema):
+    sandbox_connection_id: UUID | None = None
+    sandbox_connection_name: str | None = None
     id: UUID
     name: str
     description: str | None = None

@@ -121,3 +121,17 @@ async def clear_default(
 async def delete(db: AsyncSession, *, connection: SandboxConnection) -> None:
     await db.delete(connection)
     await db.flush()
+
+
+async def names_for_ids(
+    db: AsyncSession, *, organization_id: UUID, ids: list[UUID]
+) -> dict[UUID, str]:
+    """Friendly sandbox names for a project reader, without addresses or vault ids."""
+    if not ids:
+        return {}
+    rows = await db.execute(
+        select(SandboxConnection.id, SandboxConnection.name).where(
+            SandboxConnection.organization_id == organization_id, SandboxConnection.id.in_(ids)
+        )
+    )
+    return {row.id: row.name for row in rows.all()}

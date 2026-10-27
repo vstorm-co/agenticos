@@ -36,6 +36,7 @@ from app.repositories import (
     organization_assistant_repo,
     project_repo,
     resource_grant_repo,
+    sandbox_connection_repo,
 )
 from app.schemas.project import (
     ProjectCreate,
@@ -204,6 +205,15 @@ class ProjectService:
         runnable_agents = await self._answering(
             [agent for agent in agents.values() if agent.id in runnable_agents]
         )
+        connection_names = await sandbox_connection_repo.names_for_ids(
+            self.db,
+            organization_id=ctx.organization_id,
+            ids=[
+                project.sandbox_connection_id
+                for project in projects
+                if project.sandbox_connection_id is not None
+            ],
+        )
         reads = []
         for project in projects:
             count, last = activity.get(project.id, (0, None))
@@ -212,6 +222,9 @@ class ProjectService:
             reads.append(
                 ProjectRead.model_validate(project).model_copy(
                     update={
+                        "sandbox_connection_name": connection_names.get(
+                            project.sandbox_connection_id
+                        ),
                         "chat_count": count,
                         "last_active_at": last,
                         "shared_groups": groups[project.id],
@@ -239,9 +252,31 @@ class ProjectService:
         # the platform keeps where it has none; decided now, so the project does
         # not change what it is because somebody registered a host later - and on
         # that host, so a new organization default does not open it an empty one.
-        connection = await SandboxConnectionService(self.db).ensure_local_connection(
-            ctx.organization_id
-        )
+        connection = None
+        if data.backend == "state":
+            if data.sandbox_connection_id is not None:
+                raise refused_field(
+                    "sandbox_connection_id", "Stored files do not use a sandbox connection"
+                )
+        else:
+            connections = SandboxConnectionService(self.db)
+            if data.sandbox_connection_id is not None:
+                if not ctx.has(Perm.CONNECTIONS_VIEW):
+                    raise AuthorizationError(
+                        message="Viewing connections is required to choose a sandbox"
+                    )
+                connection = await connections.get(ctx, data.sandbox_connection_id)
+                if not connection.is_active:
+                    raise refused_field(
+                        "sandbox_connection_id", "Choose an active sandbox connection"
+                    )
+            else:
+                connection = await connections.ensure_local_connection(ctx.organization_id)
+            if data.backend == "service" and connection is None:
+                raise refused_field(
+                    "sandbox_connection_id",
+                    "No sandbox is available; connect one or choose stored files",
+                )
         narrowed = bool(data.group_ids or data.user_ids)
         project = await project_repo.create(
             self.db,
