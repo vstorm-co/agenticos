@@ -288,6 +288,60 @@ class TestTrainingFeedback:
         assert run.status == "train_eval_failure" and run.comments == []
         assert "(untagged): 0/1 passed" in feedback
 
+    async def test_a_failed_answer_s_grades_are_kept_apart_from_what_people_said(
+        self, monkeypatch, mock_db_session, evaluated
+    ):
+        case_id = uuid.uuid4()
+        arm = SimpleNamespace(id=uuid.uuid4(), eval_run_id=uuid.uuid4())
+        row = _train_row(case_id=case_id, arm=arm, answer="90 days")
+        row.score = SimpleNamespace(
+            results=[
+                {
+                    "scorer": "judge",
+                    "name": "Follows the policy",
+                    "required": True,
+                    "status": "fail",
+                    "score": 0.0,
+                    "reason": "1/5: It quotes 90 days",
+                },
+                {
+                    "scorer": "check",
+                    "name": "regex '30'",
+                    "required": True,
+                    "status": "fail",
+                    "reason": "Does not match",
+                },
+            ],
+            human_passed=None,
+            human_note=None,
+            reviewed_by_user_id=None,
+        )
+        monkeypatch.setattr(
+            authoring_evidence, "accessible_ids", AsyncMock(return_value={evaluated})
+        )
+        monkeypatch.setattr(authoring_repo, "train_answers", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(eval_run_repo, "list_cases", AsyncMock(return_value=[]))
+        monkeypatch.setattr(eval_run_repo, "list_arms", AsyncMock(return_value=[]))
+        monkeypatch.setattr(
+            EvalRunService, "outcomes", AsyncMock(return_value={case_id: (False, (), ())})
+        )
+        monkeypatch.setattr(
+            EvalRunService,
+            "compare",
+            AsyncMock(return_value=SimpleNamespace(cases=[], verdict="better")),
+        )
+        ctx = SimpleNamespace(organization_id=uuid.uuid4())
+
+        (run,), _ = await EvidenceService(mock_db_session)._train(ctx, uuid.uuid4(), window_days=30)
+
+        assert run.comments == []
+        assert [(grade.name, grade.status) for grade in run.grades] == [
+            ("Follows the policy", "fail"),
+            ("regex '30'", "fail"),
+        ]
+        assert "Graded: judge/Follows the policy: 1/5: It quotes 90 days" in run.render()
+        assert "It quotes 90 days" in run.source
+
     async def test_training_answers_of_datasets_the_caller_cannot_read_are_never_queried(
         self, monkeypatch, mock_db_session, evaluated
     ):

@@ -100,6 +100,7 @@ from app.schemas.improvement import (
     CheckAnswers,
     ContinuationConsent,
     ContinuationEstimate,
+    EvidenceGrade,
     ImprovementAwaiting,
     ImprovementContinue,
     ImprovementDiscard,
@@ -713,6 +714,15 @@ class ImprovementPipelineService:
                         text
                         for comment in item.comments
                         if (text := redact_credentials(comment)[0]) is not None
+                    ],
+                    grades=[
+                        EvidenceGrade(
+                            scorer=grade.scorer,
+                            name=grade.name,
+                            status=grade.status,
+                            reason=redact_credentials(grade.reason)[0] or "",
+                        )
+                        for grade in item.grades
                     ],
                     branch=(
                         "agent"

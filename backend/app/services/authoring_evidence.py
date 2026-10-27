@@ -70,6 +70,7 @@ class PackedRun:
         error: Why it failed, when it did.
         people: Whose words it holds - who asked, and who commented - so a
             quote of somebody being erased is not written down.
+        grades: How a test answer was graded, one result per check and criterion.
     """
 
     run_id: UUID
@@ -83,12 +84,21 @@ class PackedRun:
     error: str | None
     people: frozenset[UUID] = frozenset()
     evidence_kind: Literal["chat", "train_eval"] = "chat"
+    grades: tuple[ScorerResult, ...] = ()
+
+    @property
+    def grade_lines(self) -> list[str]:
+        return [
+            f"{grade.scorer}/{grade.name}: {_clip(grade.reason, _TURN_CHARS)}"
+            for grade in self.grades
+        ]
 
     def render(self) -> str:
         """The run as the prompt shows it."""
         rated = {-1: "rated down", 1: "rated up", 0: "not rated"}[self.rating]
         lines = [f"## Run {self.run_id} - {self.status}, {rated}"]
         lines += [f"Reader comment: {comment}" for comment in self.comments]
+        lines += [f"Graded: {line}" for line in self.grade_lines]
         lines.append(f"Asked: {self.prompt}")
         lines += [f"Called: {call}" for call in self.calls]
         lines.append(f"Answered: {self.answer}")
@@ -100,7 +110,16 @@ class PackedRun:
     def source(self) -> str:
         """Everything a quote may come from, whitespace-normalized."""
         return _normal(
-            "\n".join([*self.comments, self.prompt, *self.calls, self.answer, self.error or ""])
+            "\n".join(
+                [
+                    *self.comments,
+                    *self.grade_lines,
+                    self.prompt,
+                    *self.calls,
+                    self.answer,
+                    self.error or "",
+                ]
+            )
         )
 
 
@@ -383,11 +402,6 @@ class EvidenceService:
                 comments.append(f"Baseline answer: {_clip(baseline_answer, _TURN_CHARS)}")
             if flip in {"fixed", "regression"}:
                 comments.append(f"Confirmed {flip} in a train-part eval")
-            grade_text = "\n".join(
-                f"{result.scorer}/{result.name}: {result.reason}" for result in results
-            )
-            if grade_text:
-                comments.append(_clip(grade_text, _TURN_CHARS))
             people = {
                 person
                 for person in [
@@ -408,6 +422,7 @@ class EvidenceService:
                     rating=0,
                     evidence_kind="train_eval",
                     comments=comments,
+                    grades=tuple(results),
                     prompt=_clip(row.case.input, _TURN_CHARS),
                     answer=_clip(row.attempt.answer or "", _TURN_CHARS),
                     calls=[],

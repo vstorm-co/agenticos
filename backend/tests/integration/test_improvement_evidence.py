@@ -162,6 +162,10 @@ async def test_training_preview_preserves_the_run_reader_boundary(db):
         curator, agent.id, dataset_id=dataset.id
     )
     assert preview.training_failures == 1 and preview.items[0].question == case.input
+    assert preview.items[0].comments == []
+    assert [(grade.scorer, grade.status) for grade in preview.items[0].grades] == [
+        ("check", "fail")
+    ]
     limited = replace(
         curator, key_scopes=frozenset({Perm.AGENTS_VIEW, Perm.DATASETS_RUN, Perm.DATASETS_VIEW})
     )

@@ -16,6 +16,7 @@ from app.db.models.improvement import (
 )
 from app.schemas.base import BaseSchema
 from app.schemas.knowledge_gap import CauseBranch
+from app.schemas.scoring import ScorerKind, ScorerStatus
 
 
 class ImprovementTarget(BaseSchema):
@@ -336,6 +337,15 @@ class KnowledgeAdded(BaseSchema):
     added_at: datetime | None = Field(description="When the document covered the topic")
 
 
+class EvidenceGrade(BaseSchema):
+    """How one check or judge criterion graded a test answer."""
+
+    scorer: ScorerKind
+    name: str
+    status: ScorerStatus
+    reason: str
+
+
 class ImprovementEvidenceItem(BaseSchema):
     run_id: UUID
     conversation_id: UUID | None
@@ -345,6 +355,9 @@ class ImprovementEvidenceItem(BaseSchema):
     question: str | None
     answer: str | None
     comments: list[str]
+    grades: list[EvidenceGrade] = Field(
+        default_factory=list, description="How a test question's answer was graded"
+    )
     branch: CauseBranch = Field(description="The column the classifier put it in")
     reason: str | None = None
     topic_id: UUID | None = Field(
