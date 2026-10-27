@@ -317,13 +317,158 @@ class TestReadingAnEvalRun:
         assert api.request.await_count == 1
 
 
+class TestActingOnASession:
+    async def test_a_session_starts_with_the_estimate_as_its_cap(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request = AsyncMock(return_value=SESSION_READ)
+
+        started = await _call(
+            server, "start_improvement", agent_id=AGENT, budget_usd="0.04", suite_id=DATASET
+        )
+
+        assert api.request.await_args.args == ("POST", f"/agents/{AGENT}/improvements")
+        assert api.request.await_args.kwargs == {
+            "json": {"max_iterations": 3, "budget_usd": "0.04", "suite_id": str(DATASET)}
+        }
+        assert started["link"] == improvement_link(AGENT, SESSION)
+
+    async def test_an_attempt_is_chosen_by_its_number(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request = AsyncMock(return_value=SESSION_READ)
+
+        await _call(server, "use_attempt", agent_id=AGENT, session_id=SESSION, attempt=2)
+
+        assert api.request.await_args.args == (
+            "POST",
+            f"/agents/{AGENT}/improvements/{SESSION}/rounds/2/select",
+        )
+
+    @pytest.mark.parametrize("publish", [True, False])
+    async def test_accepting_is_one_confirmed_finish_publishing_only_when_asked(
+        self, server: FastMCP, api: MagicMock, publish: bool
+    ) -> None:
+        api.request = AsyncMock(
+            return_value={"session": {**SESSION_READ, "status": "published"}, "version": 4}
+        )
+
+        accepted = await server.call_tool(
+            "accept_improvement",
+            {"agent_id": str(AGENT), "session_id": str(SESSION), "publish": publish},
+        )
+
+        assert api.request.await_args.args == (
+            "POST",
+            f"/agents/{AGENT}/improvements/{SESSION}/finish",
+        )
+        assert api.request.await_args.kwargs == {
+            "json": {"confirmed": True, "publish": publish, "automatic_check": False}
+        }
+        assert accepted.structured_content["version"] == 4
+
+    @pytest.mark.parametrize(
+        ("status", "action", "body"),
+        [
+            ("running", "cancel", {}),
+            ("queued", "cancel", {}),
+            ("ready", "discard", {"json": {"confirmed": True}}),
+            ("stopped", "discard", {"json": {"confirmed": True}}),
+        ],
+    )
+    async def test_ending_stops_a_running_session_and_discards_a_finished_one(
+        self, server: FastMCP, api: MagicMock, status: str, action: str, body: dict[str, Any]
+    ) -> None:
+        path = f"/agents/{AGENT}/improvements/{SESSION}"
+        api.request = AsyncMock(
+            side_effect=[{**SESSION_READ, "status": status}, {**SESSION_READ, "status": "rejected"}]
+        )
+
+        ended = await _call(server, "end_improvement", agent_id=AGENT, session_id=SESSION)
+
+        assert api.request.await_args.args == ("POST", f"{path}/{action}")
+        assert api.request.await_args.kwargs == body
+        assert ended["status"] == "rejected"
+
+    async def test_trying_again_passes_on_the_estimate_it_was_quoted(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request = AsyncMock(return_value=SESSION_READ)
+
+        await _call(
+            server,
+            "improve_again",
+            agent_id=AGENT,
+            session_id=SESSION,
+            budget_usd="0.05",
+            estimate_usd="0.02",
+            candidate_hash="c" * 64,
+        )
+
+        assert api.request.await_args.args == (
+            "POST",
+            f"/agents/{AGENT}/improvements/{SESSION}/continue",
+        )
+        assert api.request.await_args.kwargs == {
+            "json": {
+                "confirmed": True,
+                "budget_usd": "0.05",
+                "estimate_usd": "0.02",
+                "candidate_hash": "c" * 64,
+            }
+        }
+
+
+READS = {
+    "list_improvements",
+    "get_improvement",
+    "estimate_improvement",
+    "estimate_improve_again",
+    "list_datasets",
+    "get_eval_run",
+}
+WRITES = {
+    "start_improvement",
+    "use_attempt",
+    "accept_improvement",
+    "end_improvement",
+    "improve_again",
+}
+
+
 def test_the_reads_never_wait_for_approval() -> None:
-    reads = {
-        "list_improvements",
-        "get_improvement",
-        "estimate_improvement",
-        "list_datasets",
-        "get_eval_run",
-    }
     catalog = {tool.name: tool for tool in platform_tool_catalog()}
-    assert all(not catalog[name].writes and not catalog[name].held for name in reads)
+    assert all(not catalog[name].writes and not catalog[name].held for name in READS)
+
+
+def test_every_write_waits_for_the_person_s_approval() -> None:
+    """Starting, choosing, accepting, publishing and ending all reach a card first: none is
+    ungated, so no binding's policy lets one through unseen."""
+    catalog = {tool.name: tool for tool in platform_tool_catalog()}
+    assert all(catalog[name].writes and not catalog[name].ungated for name in WRITES)
+
+
+PATHS = [
+    ("GET", f"/agents/{AGENT}/improvements"),
+    ("GET", f"/agents/{AGENT}/improvements/{SESSION}"),
+    ("GET", f"/agents/{AGENT}/improvements/{SESSION}/evidence"),
+    ("POST", f"/agents/{AGENT}/improvements/estimate"),
+    ("POST", f"/agents/{AGENT}/improvements"),
+    ("POST", f"/agents/{AGENT}/improvements/{SESSION}/rounds/2/select"),
+    ("POST", f"/agents/{AGENT}/improvements/{SESSION}/finish"),
+    ("POST", f"/agents/{AGENT}/improvements/{SESSION}/cancel"),
+    ("POST", f"/agents/{AGENT}/improvements/{SESSION}/discard"),
+    ("POST", f"/agents/{AGENT}/improvements/{SESSION}/continue/estimate"),
+    ("POST", f"/agents/{AGENT}/improvements/{SESSION}/continue"),
+    ("GET", f"/knowledge-gaps/agents/{AGENT}"),
+    ("GET", "/datasets"),
+    ("GET", f"/eval-runs/{RUN}"),
+    ("GET", f"/eval-runs/{RUN}/comparison"),
+]
+
+
+@pytest.mark.parametrize(("method", "path"), PATHS)
+def test_every_route_the_improve_tools_call_admits_the_tools_key(method: str, path: str) -> None:
+    from tests.test_platform_mcp_tools import _reachable
+
+    assert _reachable(method, path), f"no public or assistant route answers {method} {path}"

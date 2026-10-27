@@ -8,12 +8,14 @@ Every description names the permission the call needs, because the caller's key
 or token decides what succeeds and a model told up front stops asking for what
 it will be refused. Nothing here touches a credential. What deletes is undoing an
 agent draft its caller owns and never published, and removing a routine; what
-publishes is `publish_agent`, held for the person's approval like every write
-here but `UNGATED` (#2301).
+publishes is `publish_agent`, and `accept_improvement` when the person asked to
+publish, each held for the person's approval like every write here but
+`UNGATED` (#2301).
 """
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 
@@ -774,6 +776,126 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             target["suite_id"] = str(suite_id)
         return await api.request("POST", f"/agents/{agent_id}/improvements/estimate", json=target)
 
+    async def start_improvement(
+        agent_id: UUID,
+        budget_usd: Decimal,
+        dataset_id: UUID | None = None,
+        suite_id: UUID | None = None,
+        max_iterations: int = 3,
+    ) -> dict[str, Any]:
+        """Start an Improve session, only when the person asked for one. Needs `agents:edit`,
+        `runs:view` and `datasets:run` on the dataset.
+
+        Run estimate_improvement first and pass its `total_usd` as `budget_usd`:
+        the session never spends more, and one below the estimate is refused. Say
+        the price before calling. The session runs on its own up to a checked
+        result and changes nothing in the agent until it is accepted.
+        """
+        start: dict[str, Any] = {"max_iterations": max_iterations, "budget_usd": str(budget_usd)}
+        if dataset_id is not None:
+            start["dataset_id"] = str(dataset_id)
+        if suite_id is not None:
+            start["suite_id"] = str(suite_id)
+        session = await api.request("POST", f"/agents/{agent_id}/improvements", json=start)
+        return {
+            **{field: session.get(field) for field in _SESSION_FIELDS},
+            "link": improvement_link(agent_id, session["id"]),
+        }
+
+    async def use_attempt(agent_id: UUID, session_id: UUID, attempt: int) -> dict[str, Any]:
+        """Make one finished attempt of a session the one to accept. Needs `agents:edit` and
+        `runs:view`.
+
+        Only an attempt that has a verdict can be chosen. Name the attempt and why
+        before calling, from get_improvement's numbers.
+        """
+        session = await api.request(
+            "POST", f"/agents/{agent_id}/improvements/{session_id}/rounds/{attempt}/select"
+        )
+        return {
+            **{field: session.get(field) for field in _SESSION_FIELDS},
+            "link": improvement_link(agent_id, session_id),
+        }
+
+    async def accept_improvement(
+        agent_id: UUID, session_id: UUID, publish: bool, automatic_check: bool = False
+    ) -> dict[str, Any]:
+        """Accept a ready session's chosen attempt into the agent: as a draft, or published.
+        Needs `agents:edit` and `runs:view`; `publish` also needs `agents:publish`.
+
+        Publish only when the person asked for exactly that; otherwise accept as a
+        draft they publish themselves. An environment guarded by an automatic
+        check moves only once that check passes. `automatic_check` adds a check
+        that runs the session's test questions on every publish. Refused when the
+        agent changed since the session started.
+        """
+        finished = await api.request(
+            "POST",
+            f"/agents/{agent_id}/improvements/{session_id}/finish",
+            json={"confirmed": True, "publish": publish, "automatic_check": automatic_check},
+        )
+        return {
+            "status": finished["session"]["status"],
+            "version": finished.get("version"),
+            "link": improvement_link(agent_id, session_id),
+        }
+
+    async def end_improvement(agent_id: UUID, session_id: UUID) -> dict[str, Any]:
+        """End a session without changing the agent: stop a running one, discard a finished one.
+        Needs `agents:edit` and `runs:view`; only whoever started it, or an organization admin.
+        """
+        path = f"/agents/{agent_id}/improvements/{session_id}"
+        session = await api.request("GET", path)
+        if session["status"] in ("queued", "running"):
+            ended = await api.request("POST", f"{path}/cancel")
+        else:
+            ended = await api.request("POST", f"{path}/discard", json={"confirmed": True})
+        return {"status": ended["status"], "link": improvement_link(agent_id, session_id)}
+
+    async def estimate_improve_again(
+        agent_id: UUID, session_id: UUID, budget_usd: Decimal
+    ) -> dict[str, Any]:
+        """What trying a session again would cost, and whether it may. Needs `agents:edit`
+        and `runs:view`.
+
+        `mode` is the next attempt, resuming one stopped on the budget, or
+        retrying a failed step; the session refuses when another attempt cannot
+        help. Pass `total_usd` and `candidate_hash` on to improve_again.
+        """
+        return await api.request(
+            "POST",
+            f"/agents/{agent_id}/improvements/{session_id}/continue/estimate",
+            json={"budget_usd": str(budget_usd)},
+        )
+
+    async def improve_again(
+        agent_id: UUID,
+        session_id: UUID,
+        budget_usd: Decimal,
+        estimate_usd: Decimal,
+        candidate_hash: str,
+    ) -> dict[str, Any]:
+        """Try a session again, only when the person asked for it. Needs `agents:edit` and
+        `runs:view`, and only whoever started the session.
+
+        Pass `estimate_usd` and `candidate_hash` from estimate_improve_again and
+        say the price before calling; a session that changed since is refused.
+        """
+        session = await api.request(
+            "POST",
+            f"/agents/{agent_id}/improvements/{session_id}/continue",
+            json={
+                "confirmed": True,
+                "budget_usd": str(budget_usd),
+                "estimate_usd": str(estimate_usd),
+                "candidate_hash": candidate_hash,
+            },
+        )
+        return {
+            **{field: session.get(field) for field in _SESSION_FIELDS},
+            "link": improvement_link(agent_id, session_id),
+        }
+
     async def list_datasets(
         agent_id: UUID | None = None, limit: int = 50, skip: int = 0
     ) -> dict[str, Any]:
@@ -885,6 +1007,12 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (list_improvements, False),
         (get_improvement, False),
         (estimate_improvement, False),
+        (start_improvement, True),
+        (use_attempt, True),
+        (accept_improvement, True),
+        (end_improvement, True),
+        (estimate_improve_again, False),
+        (improve_again, True),
         (list_datasets, False),
         (get_eval_run, False),
         (list_members, False),
