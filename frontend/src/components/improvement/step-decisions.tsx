@@ -7,7 +7,6 @@ import type { Improvement } from "@/types/improvement";
 /** Which step each decision a person can make belongs to, and the message that words it. */
 const DECISIONS: Record<string, [ImprovementStep, string]> = {
   "improvement.started": ["understand", "started"],
-  "improvement.evidence_decided": ["understand", "evidence_decided"],
   "improvement.selection_confirmed": ["changes", "selection_confirmed"],
   "improvement.round_selected": ["result", "round_selected"],
   "improvement.attribution_started": ["result", "attribution_started"],

@@ -33,7 +33,6 @@ const state = vi.hoisted(() => ({
   casesLoading: false,
   datasetHook: vi.fn(),
   evidenceHook: vi.fn(),
-  decide: vi.fn(),
   refetch: vi.fn(),
 }));
 vi.mock("@/hooks/use-improvements", () => ({
@@ -44,7 +43,6 @@ vi.mock("@/hooks/use-improvements", () => ({
       isLoading: state.loading,
       error: state.sourceError,
       refetch: state.refetch,
-      decide: { mutateAsync: state.decide, isPending: false },
     };
   },
 }));
@@ -451,7 +449,7 @@ it("counts the test questions by where they came from and shows the answer to av
   ).toBeInTheDocument();
 });
 
-function sortable() {
+function withTopic() {
   state.sources!.items.push({
     run_id: "r5",
     conversation_id: "c5",
@@ -469,7 +467,7 @@ function sortable() {
 }
 
 it("groups examples by topic into problems and says how many each column holds", async () => {
-  sortable();
+  withTopic();
   state.sources!.items.push({
     ...state.sources!.items.at(-1)!,
     run_id: "r7",
@@ -492,30 +490,14 @@ it("groups examples by topic into problems and says how many each column holds",
   ).toContain("/chat/c5");
 });
 
-it("ignores and puts back a problem for the next attempt, and moves none between columns", async () => {
-  sortable();
-  state.sources!.items.push({ ...state.sources!.items[0]!, run_id: "r6", decision: "ignored" });
+it("shows the examples to read, with nothing to ignore, put back or move", async () => {
+  withTopic();
   render(<Understand session={SESSION} />);
-  expect(screen.getByText(/If an example should not count, ignore it/)).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: /other column/ })).not.toBeInTheDocument();
-  await userEvent.click(screen.getAllByRole("button", { name: "Ignore this" })[0]!);
-  expect(state.decide).toHaveBeenLastCalledWith({ runId: "r1", decision: "ignored" });
-  await userEvent.click(screen.getByText("Ignored (1)"));
-  await userEvent.click(screen.getByRole("button", { name: "Put it back" }));
-  expect(state.decide).toHaveBeenLastCalledWith({ runId: "r6", decision: null });
-  state.decide.mockRejectedValueOnce(new Error("Session decided"));
-  await userEvent.click(screen.getAllByRole("button", { name: "Ignore this" })[0]!);
-  expect(await screen.findByRole("alert")).toBeInTheDocument();
-});
-
-it("offers no sorting once the session is decided", () => {
-  render(
-    <ReadOnlyProvider value="finished">
-      <Understand session={{ ...SESSION, status: "published" }} />
-    </ReadOnlyProvider>,
-  );
-  expect(screen.queryByRole("button", { name: "Ignore this" })).not.toBeInTheDocument();
-  expect(screen.queryByText(/If an example should not count/)).not.toBeInTheDocument();
+  expect(screen.getByText("Refund?")).toBeInTheDocument();
+  expect(screen.getByText("Deadline?")).toBeInTheDocument();
+  await userEvent.click(screen.getByText("Refund?"));
+  expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  expect(screen.queryByText(/ignore it|Ignored \(/)).not.toBeInTheDocument();
 });
 
 it("says nothing about ungraded questions when every question was graded", () => {

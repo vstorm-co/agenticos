@@ -1,16 +1,12 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { MessageSquareQuote } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { Button } from "@/components/ui";
 import { useImprovementEvidence } from "@/hooks/use-improvements";
-import { getErrorMessage } from "@/lib/api-error";
-import type { EvidenceDecision, Improvement, ImprovementEvidenceItem } from "@/types/improvement";
+import type { Improvement, ImprovementEvidenceItem } from "@/types/improvement";
 import { StepError } from "./step-error";
 import { Details, Proportion } from "./widgets";
-import { useReadOnly } from "./read-only";
 
 type Column = "agent" | "missing_knowledge" | "not_a_problem";
 
@@ -32,41 +28,20 @@ function byTopic(items: ImprovementEvidenceItem[]): ImprovementEvidenceItem[][] 
 
 export function Understand({ session }: { session: Improvement }) {
   const t = useTranslations("improvement");
-  const tErrors = useTranslations("errors");
-  const readOnly = useReadOnly();
   const sources = useImprovementEvidence(session.agent_id, {
     sessionId: session.id,
     live: session.status === "running" || session.status === "queued",
   });
-  const [error, setError] = useState<string | null>(null);
   if (sources.error) return <StepError error={sources.error} retry={sources.refetch} />;
   if (sources.isLoading || !sources.evidence) return <p role="status">{t("loading")}</p>;
   const items = sources.evidence.items;
-  const kept = items.filter((item) => item.decision !== "ignored");
-  const ignored = items.filter((item) => item.decision === "ignored");
   const topics = {
-    agent: byTopic(kept.filter((item) => columnOf(item) === "agent")),
-    missing_knowledge: byTopic(kept.filter((item) => columnOf(item) === "missing_knowledge")),
-    not_a_problem: byTopic(kept.filter((item) => columnOf(item) === "not_a_problem")),
+    agent: byTopic(items.filter((item) => columnOf(item) === "agent")),
+    missing_knowledge: byTopic(items.filter((item) => columnOf(item) === "missing_knowledge")),
+    not_a_problem: byTopic(items.filter((item) => columnOf(item) === "not_a_problem")),
   };
-  const canSort = !readOnly;
-  async function decide(group: ImprovementEvidenceItem[], decision: EvidenceDecision | null) {
-    setError(null);
-    try {
-      for (const item of group.filter((entry) => entry.kind === "chat"))
-        await sources.decide.mutateAsync({ runId: item.run_id, decision });
-    } catch (e) {
-      setError(getErrorMessage(e, tErrors));
-    }
-  }
-  const card = (group: ImprovementEvidenceItem[], column: Column | "ignored") => (
-    <TopicCard
-      key={group[0]!.run_id}
-      items={group}
-      busy={sources.decide.isPending}
-      onIgnore={canSort && column !== "ignored" ? () => void decide(group, "ignored") : undefined}
-      onRestore={canSort && column === "ignored" ? () => void decide(group, null) : undefined}
-    />
+  const card = (group: ImprovementEvidenceItem[]) => (
+    <TopicCard key={group[0]!.run_id} items={group} />
   );
   const found = t("problemsFound", {
     total: topics.agent.length + topics.missing_knowledge.length,
@@ -101,16 +76,8 @@ export function Understand({ session }: { session: Improvement }) {
         </p>
       )}
       {items.length === 0 && <p className="text-sm">{t("noLearningExamples")}</p>}
-      {kept.some((item) => item.branch === "unknown") && (
+      {items.some((item) => item.branch === "unknown") && (
         <p className="text-muted-foreground text-sm">{t("unknownCauses")}</p>
-      )}
-      {canSort && kept.some((item) => item.kind === "chat") && (
-        <p className="text-muted-foreground text-sm">{t("sortingBody")}</p>
-      )}
-      {error && (
-        <p role="alert" className="text-destructive text-sm">
-          {error}
-        </p>
       )}
       <div className="grid gap-4 md:grid-cols-2">
         {(["agent", "missing_knowledge"] as const).map((column) => (
@@ -135,7 +102,7 @@ export function Understand({ session }: { session: Improvement }) {
               <span className="sr-only">({topics[column].length})</span>
             </h3>
             {topics[column].length ? (
-              topics[column].map((group) => card(group, column))
+              topics[column].map(card)
             ) : (
               <p className="text-muted-foreground text-sm">{t("noExamplesInGroup")}</p>
             )}
@@ -143,13 +110,8 @@ export function Understand({ session }: { session: Improvement }) {
         ))}
       </div>
       <Details summary={`${t("cause.not_a_problem")} (${topics.not_a_problem.length})`}>
-        {topics.not_a_problem.map((group) => card(group, "not_a_problem"))}
+        {topics.not_a_problem.map(card)}
       </Details>
-      {ignored.length > 0 && (
-        <Details summary={t("ignoredExamples", { count: ignored.length })}>
-          {byTopic(ignored).map((group) => card(group, "ignored"))}
-        </Details>
-      )}
       <p className="text-muted-foreground text-xs">
         {t("evidenceSample", { count: items.length, limit: sources.evidence.sample_limit })}
       </p>
@@ -157,20 +119,9 @@ export function Understand({ session }: { session: Improvement }) {
   );
 }
 
-function TopicCard({
-  items,
-  busy,
-  onIgnore,
-  onRestore,
-}: {
-  items: ImprovementEvidenceItem[];
-  busy: boolean;
-  onIgnore?: () => void;
-  onRestore?: () => void;
-}) {
+function TopicCard({ items }: { items: ImprovementEvidenceItem[] }) {
   const t = useTranslations("improvement");
   const [item, ...others] = items as [ImprovementEvidenceItem, ...ImprovementEvidenceItem[]];
-  const sortable = items.some((entry) => entry.kind === "chat");
   return (
     <article className="bg-background rounded-xl border text-sm">
       <details>
@@ -244,20 +195,6 @@ function TopicCard({
           )}
         </div>
       </details>
-      {sortable && (onIgnore || onRestore) && (
-        <div className="flex flex-wrap gap-2 border-t p-3">
-          {onIgnore && (
-            <Button variant="ghost" size="sm" disabled={busy} onClick={onIgnore}>
-              {t("ignoreExample")}
-            </Button>
-          )}
-          {onRestore && (
-            <Button variant="outline" size="sm" disabled={busy} onClick={onRestore}>
-              {t("restoreExample")}
-            </Button>
-          )}
-        </div>
-      )}
     </article>
   );
 }

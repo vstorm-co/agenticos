@@ -30,7 +30,7 @@ it("names who decided what on the step a person opens", () => {
   const view = render(<StepDecisions session={SESSION_WITH} step="understand" />);
   expect(screen.getByRole("region", { name: "Decided here" })).toBeInTheDocument();
   expect(screen.getByText(/^Ada started this session · /)).toBeInTheDocument();
-  expect(screen.getByText(/^Ada moved or ignored an example · /)).toBeInTheDocument();
+  expect(screen.getAllByRole("listitem")).toHaveLength(1);
   expect(screen.queryByText(/Ben/)).toBeNull();
   view.rerender(<StepDecisions session={SESSION_WITH} step="changes" />);
   expect(screen.getByText(/^Ben chose which changes to test · /)).toBeInTheDocument();

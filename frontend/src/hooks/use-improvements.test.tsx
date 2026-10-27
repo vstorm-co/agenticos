@@ -166,21 +166,6 @@ it("requires the continuation quote and confirms discarding explicitly", async (
   });
 });
 
-it("stores a person's sorting of one example and shows the answer at once", async () => {
-  vi.mocked(apiClient.get).mockResolvedValue({ items: [], sample_limit: 20, training_failures: 0 });
-  const sorted = { items: [], sample_limit: 21, training_failures: 0 };
-  vi.mocked(apiClient.put).mockResolvedValue(sorted);
-  const { result } = renderHook(() => useImprovementEvidence("a1", { sessionId: "s1" }), {
-    wrapper,
-  });
-  await waitFor(() => expect(result.current.evidence?.sample_limit).toBe(20));
-  await result.current.decide.mutateAsync({ runId: "r1", decision: "ignored" });
-  expect(apiClient.put).toHaveBeenCalledWith("/agents/a1/improvements/s1/evidence/r1", {
-    decision: "ignored",
-  });
-  await waitFor(() => expect(result.current.evidence?.sample_limit).toBe(21));
-});
-
 it("sets a knowledge document aside for the session and brings it back", async () => {
   vi.mocked(apiClient.get).mockResolvedValue({ id: "s1", status: "ready" });
   vi.mocked(apiClient.put).mockResolvedValue({ id: "s1" });

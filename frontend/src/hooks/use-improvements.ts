@@ -8,7 +8,6 @@ import { qk } from "@/lib/query-keys";
 import type {
   AttributionEstimate,
   ContinuationEstimate,
-  EvidenceDecision,
   KnowledgeCheckEstimate,
   KnowledgeCheckTarget,
   Improvement,
@@ -207,7 +206,6 @@ export function useImprovementEvidence(
     live = false,
   }: { sessionId?: string | null; datasetId?: string | null; live?: boolean } = {},
 ) {
-  const queryClient = useQueryClient();
   const query = useQuery({
     queryKey: qk.improvements.evidence(agentId, sessionId, datasetId),
     queryFn: () =>
@@ -219,17 +217,7 @@ export function useImprovementEvidence(
       ),
     refetchInterval: live ? IMPROVEMENT_FALLBACK_MS : false,
   });
-  const decide = useMutation({
-    mutationFn: ({ runId, decision }: { runId: string; decision: EvidenceDecision | null }) =>
-      apiClient.put<ImprovementEvidence>(
-        `/agents/${agentId}/improvements/${sessionId}/evidence/${runId}`,
-        { decision },
-      ),
-    onSuccess: (evidence) =>
-      queryClient.setQueryData(qk.improvements.evidence(agentId, sessionId, datasetId), evidence),
-  });
   return {
-    decide,
     evidence: query.data,
     isLoading: query.isLoading,
     error: query.error,
