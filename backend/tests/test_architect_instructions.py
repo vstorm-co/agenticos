@@ -80,6 +80,7 @@ def test_a_session_is_led_step_by_step_and_never_said_to_run_on_its_own(
     assert "`estimate_next_improvement_step`" in rule
     assert "ask before `run_next_improvement_step`" in rule
     assert "continued from the console" in rule
+    assert "longer than two hours they finish it with Next step" in rule
     assert "runs on its own" not in instructions
     assert "end it and start a new one" in _bullet(instructions, "Starting")
 

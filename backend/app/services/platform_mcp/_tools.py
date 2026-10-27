@@ -157,23 +157,17 @@ def _outcome(session: dict[str, Any]) -> dict[str, Any] | None:
 
 
 _NEXT_STEPS = {
-    "analyzing": "propose changes",
-    "classifying": "propose changes",
-    "filtering": "test the changes",
+    "propose": {"after": "Understand", "next_step": "propose changes"},
+    "check": {"after": "Changes", "next_step": "test the changes"},
 }
-"""What pressing Next step runs, by the step a waiting session stopped after."""
+"""Where a waiting session stopped and what pressing Next step runs, by its `next_step`."""
 
 
 def _waiting(session: dict[str, Any]) -> dict[str, Any] | None:
-    """What a session paused between steps is waiting for, and what the next step costs."""
+    """What a session paused between steps is waiting for."""
     if session["status"] != "waiting":
         return None
-    next_step = session.get("next_step") or {}
-    return {
-        "after": session.get("stage"),
-        "next_step": _NEXT_STEPS.get(session.get("stage") or ""),
-        "estimate_usd": next_step.get("estimate_usd"),
-    }
+    return _NEXT_STEPS.get(session.get("next_step") or "")
 
 
 def _session(agent_id: UUID | str, session: dict[str, Any]) -> dict[str, Any]:
@@ -854,7 +848,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         knowledge topics and `measurement_noise` also need `runs:view`. When
         `measurement_noise.noisy` is true, the test cannot tell a better version
         from a worse one. A session `waiting_for` the person says which step it
-        stopped after and what the next one runs and costs.
+        stopped after and what the next one runs; estimate_next_improvement_step
+        prices it.
         Each attempt has its verdict, the questions it fixed and broke (confirmed
         on a rerun) and its `change` - fixed less broken - on `held_out`
         questions of its own; compare attempts by that, not by the pass rates in
@@ -1080,7 +1075,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         )
         return {
             **estimate,
-            "next_step": _NEXT_STEPS.get(session.get("stage") or ""),
+            "waiting_for": _waiting(session),
             "link": improvement_link(session["agent_id"], session_id),
         }
 
@@ -1093,7 +1088,9 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         Pass `estimate_usd` and `candidate_hash` from
         estimate_next_improvement_step, and say the step and its price before
         calling; a session that changed since is refused. The step runs as the
-        person, and the session stops again at the next step or the result.
+        person, and the session stops again at the next step or the result. A
+        step that outlasts this conversation's two-hour credential stops, and the
+        person finishes it with Next step in the wizard.
         """
         session = await api.request("GET", f"/improvements/{session_id}")
         agent_id = session["agent_id"]

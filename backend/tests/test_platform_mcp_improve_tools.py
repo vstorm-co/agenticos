@@ -354,21 +354,22 @@ class TestStepByStep:
         **SESSION_READ,
         "status": "waiting",
         "stage": "classifying",
-        "next_step": {"estimate_usd": "0.01"},
+        "next_step": "propose",
     }
 
-    async def test_a_waiting_session_says_what_it_waits_for_and_the_price(
-        self, server: FastMCP, api: MagicMock
+    @pytest.mark.parametrize(
+        ("next_step", "after", "runs"),
+        [("propose", "Understand", "propose changes"), ("check", "Changes", "test the changes")],
+    )
+    async def test_a_waiting_session_says_where_it_stopped_and_what_comes_next(
+        self, server: FastMCP, api: MagicMock, next_step: str, after: str, runs: str
     ) -> None:
-        api.request = _responder({("GET", f"/agents/{AGENT}/improvements"): [self.WAITING]})
+        waiting = {**self.WAITING, "next_step": next_step}
+        api.request = _responder({("GET", f"/agents/{AGENT}/improvements"): [waiting]})
 
         [item] = (await _call(server, "list_improvements", agent_id=AGENT))["items"]
 
-        assert item["waiting_for"] == {
-            "after": "classifying",
-            "next_step": "propose changes",
-            "estimate_usd": "0.01",
-        }
+        assert item["waiting_for"] == {"after": after, "next_step": runs}
         assert item["closed"] is False
 
     async def test_a_session_not_waiting_waits_for_nothing(
@@ -389,7 +390,7 @@ class TestStepByStep:
         quote = {"mode": "next_step", "total_usd": "0.01", "candidate_hash": "d" * 64}
         api.request = _responder(
             {
-                ("GET", f"/improvements/{SESSION}"): {**self.WAITING, "stage": "filtering"},
+                ("GET", f"/improvements/{SESSION}"): {**self.WAITING, "next_step": "check"},
                 ("POST", f"/agents/{AGENT}/improvements/{SESSION}/continue/estimate"): quote,
             }
         )
@@ -400,14 +401,14 @@ class TestStepByStep:
         quoted = await _call(server, "estimate_next_improvement_step", **arguments)
 
         assert api.request.await_args.kwargs == {"json": {"budget_usd": sent}}
-        assert quoted["next_step"] == "test the changes"
+        assert quoted["waiting_for"]["next_step"] == "test the changes"
         assert quoted["candidate_hash"] == "d" * 64
         assert quoted["link"] == improvement_link(AGENT, SESSION)
 
     async def test_the_next_step_runs_on_the_quote_it_was_given(
         self, server: FastMCP, api: MagicMock
     ) -> None:
-        moved = {**self.WAITING, "status": "running", "stage": "proposing"}
+        moved = {**self.WAITING, "status": "running", "stage": "proposing", "next_step": None}
         api.request = _responder(
             {
                 ("GET", f"/improvements/{SESSION}"): self.WAITING,
