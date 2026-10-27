@@ -217,13 +217,22 @@ def xdotool(action: NativeAction) -> list[str] | None:
 
 
 _LIST_APPS = r"""
-for f in "$HOME"/.local/share/applications/*.desktop /usr/share/applications/*.desktop; do
-  [ -f "$f" ] && ! grep -qE '^(NoDisplay|Hidden)=true' "$f" &&
-    printf '%s\t%s\n' "$f" "$(grep -m1 '^Name=' "$f" | cut -d= -f2-)"
+printf 'locale\t%s\n' "${LC_ALL:-${LC_MESSAGES:-$LANG}}"
+IFS=:
+for dir in "${XDG_DATA_HOME:-$HOME/.local/share}" ${XDG_DATA_DIRS:-/usr/local/share:/usr/share}; do
+  for f in "$dir"/applications/*.desktop; do
+    [ -f "$f" ] && printf '%s\t%s\n' "$f" "$(awk '
+      /^\[/ { main = ($0 == "[Desktop Entry]") }
+      main && /^(Name(\[[^]]*\])?|NoDisplay|Hidden)=/' "$f" | tr '\n' '\t')"
+  done
 done
 exit 0
 """
-"""Each desktop entry the menu shows, one `path<TAB>name` line each, the user's own first."""
+"""The locale, then each desktop entry on the menu's search path, the user's own first.
+
+One `path<TAB>key=value<TAB>...` line an entry, holding the main group's `Name`,
+its translations, `NoDisplay` and `Hidden`; `find_app` picks the locale's name.
+"""
 
 # A session of its own, so the application outlives the command; no output,
 # because the application inherits it and a pipe it holds open would hold the
@@ -231,36 +240,85 @@ exit 0
 _OPEN_APP = 'exec setsid -w timeout 20 exo-open "$1" </dev/null >/dev/null 2>&1'
 
 
+@dataclass(frozen=True)
+class _App:
+    """A desktop entry the menu shows."""
+
+    path: str
+    stem: str
+    name: str
+    """What this desktop's menu calls it: the locale's own `Name`, else the untranslated one."""
+    names: frozenset[str]
+    """Casefolded: its file name, its untranslated `Name` and `name`, any of which launches it."""
+
+
+def _locale_keys(locale: str) -> list[str]:
+    """The `Name[...]` keys a locale such as `pl_PL.UTF-8` reads, most specific first.
+
+    The desktop entry specification's order: `lang_COUNTRY@MODIFIER`,
+    `lang_COUNTRY`, `lang@MODIFIER`, `lang`; the untranslated `Name` comes after.
+    """
+    rest, _, modifier = locale.partition("@")
+    lang, _, country = rest.partition(".")[0].partition("_")
+    if lang in {"", "C", "POSIX"}:
+        return []
+    keys = [f"{lang}_{country}@{modifier}"] if country and modifier else []
+    keys += [f"{lang}_{country}"] if country else []
+    keys += [f"{lang}@{modifier}"] if modifier else []
+    return [*keys, lang]
+
+
+def _parse_apps(listing: str) -> list[_App]:
+    """The entries `_LIST_APPS` found, as the menu shows them.
+
+    An entry earlier on the search path shadows a later one with the same file
+    name even when it is hidden, which is how a user hides a system application.
+    """
+    head, _, body = listing.partition("\n")
+    order = _locale_keys(head.removeprefix("locale\t"))
+    apps: dict[str, _App | None] = {}
+    for line in body.splitlines():
+        path, *fields = line.split("\t")
+        keys: dict[str, str] = {}
+        for field in fields:
+            key, _, value = field.partition("=")
+            keys.setdefault(key, value.strip())
+        stem = PurePosixPath(path).stem
+        default = keys.get("Name", "")
+        if not default or "true" in (keys.get("NoDisplay"), keys.get("Hidden")):
+            apps.setdefault(stem, None)
+            continue
+        name = next((keys[f"Name[{k}]"] for k in order if keys.get(f"Name[{k}]")), default)
+        names = frozenset(n.casefold() for n in (stem, default, name))
+        apps.setdefault(stem, _App(path=path, stem=stem, name=name, names=names))
+    return [app for app in apps.values() if app is not None]
+
+
 def find_app(query: str, listing: str) -> str:
     """The desktop entry a `launch` names, from `_LIST_APPS`'s listing.
 
-    Its name or its file name, exactly, or else the one entry with the query in
-    either. Matching is case-insensitive, and the user's own entry shadows a
-    system one with the same file name.
+    Its file name, or its name in the desktop's locale or untranslated, exactly,
+    or else the one entry with the query in one of those. Matching is case-insensitive,
+    and an entry earlier on the search path shadows a later one with the same
+    file name. Two entries the query names equally are never guessed between:
+    a system Firefox and a Flatpak one are both called Firefox.
 
     Raises:
         ComputerError: None or several match; the model is told the names to choose from.
     """
-    apps: dict[str, tuple[str, str]] = {}
-    for line in listing.splitlines():
-        path, _, name = line.partition("\t")
-        if name.strip():
-            apps.setdefault(PurePosixPath(path).stem.casefold(), (name.strip(), path))
+    apps = _parse_apps(listing)
     wanted = query.casefold()
-    for stem, (name, path) in apps.items():
-        if wanted == stem or wanted == name.casefold():
-            return path
-    partial = [
-        (name, path)
-        for stem, (name, path) in apps.items()
-        if wanted in stem or wanted in name.casefold()
+    found = [app for app in apps if wanted in app.names] or [
+        app for app in apps if any(wanted in name for name in app.names)
     ]
-    if len(partial) == 1:
-        return partial[0][1]
-    if partial:
-        names = ", ".join(sorted({name for name, _ in partial}))
-        raise ComputerError(f"'{query}' could be any of: {names}. Launch one by its full name.")
-    names = ", ".join(sorted({name for name, _ in apps.values()})[:60]) or "none"
+    if len(found) == 1:
+        return found[0].path
+    if found:
+        options = ", ".join(sorted(f"{app.name} ({app.stem})" for app in found))
+        raise ComputerError(
+            f"'{query}' could be any of: {options}. Launch one by its full name or the name in brackets."
+        )
+    names = ", ".join(sorted({app.name for app in apps})[:60]) or "none"
     raise ComputerError(f"No application called '{query}' is installed. These are: {names}.")
 
 

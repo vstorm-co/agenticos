@@ -68,8 +68,7 @@ from typing import Any
 MAX_TEXT = 2000
 MAX_BODY = 256 * 1024
 MAX_ERROR = 1000  # room for the list of installed applications a mistyped `launch` is told
-APP_NAME = re.compile(r"\w[\w .+-]{0,63}")
-APP_DIRS = (Path.home() / ".local/share/applications", Path("/usr/share/applications"))
+APP_NAME = re.compile(r"\w[^/\\\x00-\x1f\x7f]{0,63}")  # as `Launch.app`: no path, option or control character
 
 
 class Refused(Exception):
@@ -160,33 +159,75 @@ def split_chord(chord: str) -> list[str]:
     return parts
 
 
+def app_dirs() -> list[Path]:
+    """The menu's search path, the user's own directory first, with the XDG defaults."""
+    home = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local/share")
+    system = os.environ.get("XDG_DATA_DIRS") or "/usr/local/share:/usr/share"
+    return [Path(directory) / "applications" for directory in [home, *system.split(":")] if directory]
+
+
+def locale_keys() -> list[str]:
+    """The `Name[...]` keys this locale reads, most specific first, as the desktop entry spec orders them."""
+    locale = os.environ.get("LC_ALL") or os.environ.get("LC_MESSAGES") or os.environ.get("LANG", "")
+    rest, _, modifier = locale.partition("@")
+    lang, _, country = rest.partition(".")[0].partition("_")
+    if lang in {"", "C", "POSIX"}:
+        return []
+    keys = [f"{lang}_{country}@{modifier}"] if country and modifier else []
+    keys += [f"{lang}_{country}"] if country else []
+    keys += [f"{lang}@{modifier}"] if modifier else []
+    return [*keys, lang]
+
+
+def desktop_entry(text: str) -> dict[str, str]:
+    """The `[Desktop Entry]` group's keys; an action's own `Name` is in another group."""
+    keys: dict[str, str] = {}
+    main = False
+    for line in text.splitlines():
+        if line.startswith("["):
+            main = line.strip() == "[Desktop Entry]"
+        elif main:
+            key, sep, value = line.partition("=")
+            if sep:
+                keys.setdefault(key.strip(), value.strip())
+    return keys
+
+
 def find_app(query: str) -> Path:
     """The desktop entry a `launch` names - matched as AgenticOS matches it in a sandbox.
 
-    Its name or its file name, exactly, or else the one entry with the query in
-    either, case-insensitively; the user's own entry shadows a system one.
+    Its file name, or its name in this locale or untranslated, exactly, or else
+    the one entry with the query in one of those, case-insensitively. An entry
+    earlier on the search path shadows a later one with the same file name, even
+    a hidden one. Two entries the query names equally are never guessed between.
     """
-    apps: dict[str, tuple[str, Path]] = {}
-    for directory in APP_DIRS:
+    order = locale_keys()
+    apps: dict[str, tuple[str, Path, frozenset[str]] | None] = {}
+    for directory in app_dirs():
         for path in sorted(directory.glob("*.desktop")):
+            if path.stem in apps:
+                continue
             try:
-                text = path.read_text(errors="replace")
+                keys = desktop_entry(path.read_text(errors="replace"))
             except OSError:
                 continue
-            name = re.search(r"^Name=(.+)$", text, re.MULTILINE)
-            if name and not re.search(r"^(NoDisplay|Hidden)=true", text, re.MULTILINE):
-                apps.setdefault(path.stem.casefold(), (name[1].strip(), path))
+            default = keys.get("Name", "")
+            if not default or "true" in (keys.get("NoDisplay"), keys.get("Hidden")):
+                apps[path.stem] = None
+                continue
+            name = next((keys[f"Name[{k}]"] for k in order if keys.get(f"Name[{k}]")), default)
+            apps[path.stem] = (name, path, frozenset(n.casefold() for n in (path.stem, default, name)))
+    shown = [app for app in apps.values() if app is not None]
     wanted = query.casefold()
-    for stem, (name, path) in apps.items():
-        if wanted == stem or wanted == name.casefold():
-            return path
-    partial = [(name, path) for stem, (name, path) in apps.items() if wanted in stem or wanted in name.casefold()]
-    if len(partial) == 1:
-        return partial[0][1]
-    if partial:
-        names = ", ".join(sorted({name for name, _ in partial}))
-        raise Refused(f"'{query}' could be any of: {names}. Launch one by its full name.")
-    names = ", ".join(sorted({name for name, _ in apps.values()})[:60]) or "none"
+    found = [app for app in shown if wanted in app[2]] or [
+        app for app in shown if any(wanted in name for name in app[2])
+    ]
+    if len(found) == 1:
+        return found[0][1]
+    if found:
+        options = ", ".join(sorted(f"{name} ({path.stem})" for name, path, _ in found))
+        raise Refused(f"'{query}' could be any of: {options}. Launch one by its full name or the name in brackets.")
+    names = ", ".join(sorted({name for name, _, _ in shown})[:60]) or "none"
     raise Refused(f"No application called '{query}' is installed. These are: {names}.")
 
 
@@ -471,7 +512,7 @@ def perform(driver: Driver, action: dict[str, Any]) -> None:
     elif kind == "launch":
         app = action.get("app")
         if not isinstance(app, str) or not APP_NAME.fullmatch(app):
-            raise Refused("'app' must be an application's name: up to 64 letters, digits, spaces and . + -")
+            raise Refused("'app' must be an application's name: up to 64 characters, no slash or control character")
         driver.launch(app)
     elif kind == "wait":
         seconds = action.get("seconds", 1.0)

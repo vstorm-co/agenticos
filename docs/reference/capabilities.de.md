@@ -1,5 +1,5 @@
 ---
-source_sha: "a9220999f672"
+source_sha: "2fb1baddebe3"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1019,12 +1019,16 @@ ausführt.
 
 **Eine Anwendung öffnen.** Eine `launch`-Aktion öffnet eine Anwendung über
 ihren Namen, statt ihr Symbol zu suchen. Auf einem Mac ist das `open -a`. Unter
-Linux ist es der Menüeintrag, dessen Name oder Dateiname exakt passt, sonst der
-einzige, der ihn enthält. Geöffnet wird der Eintrag mit `exo-open`, das die
-Runtime `desktop` und der computerd-Container mitbringen. Ein Name, der auf
-mehrere Einträge oder auf keinen passt, wird mit den Namen abgelehnt, damit das
-Modell neu wählen kann. `launch` nimmt nur einen Namen, nie einen Pfad oder
-Argumente. Im computerd-Container läuft die Anwendung als `desk`, nicht als das
+Linux ist es der Menüeintrag, dessen Dateiname oder dessen Name in der Sprache
+des Desktops oder unübersetzt exakt passt, sonst der einzige, der ihn enthält.
+Gesucht wird in jedem Verzeichnis des Menü-Suchpfads (`$XDG_DATA_HOME` und
+`$XDG_DATA_DIRS`, also auch `/usr/local/share` und die Exporte von Flatpak).
+Geöffnet wird der Eintrag mit `exo-open`, das die Runtime `desktop` und der
+computerd-Container mitbringen. Ein Name, der auf mehrere Einträge oder auf
+keinen passt, wird mit den Namen abgelehnt, und mit den Dateinamen, wenn zwei
+Einträge denselben Namen tragen, damit das Modell neu wählen kann. `launch`
+nimmt nur einen Namen, nie einen Pfad oder Argumente: kein Schrägstrich, kein
+Steuerzeichen, und am Anfang steht ein Buchstabe oder eine Ziffer. Im computerd-Container läuft die Anwendung als `desk`, nicht als das
 Konto, das den Token hält. Der eigene Computer der Person, erreicht über die
 Desktop-App, unterstützt das noch nicht: Das Modell wird angewiesen, stattdessen
 den Starter dieses Computers zu benutzen.

@@ -329,28 +329,50 @@ class TestX11:
 
 
 _LISTING = """\
-/home/desk/.local/share/applications/firefox-esr.desktop\tMy Firefox
-/usr/share/applications/firefox-esr.desktop\tFirefox ESR
-/usr/share/applications/xfce4-terminal-emulator.desktop\tTerminal Emulator
-/usr/share/applications/xfce4-terminal.desktop\tXfce Terminal
-/usr/share/applications/xfce4-web-browser.desktop\tWeb Browser
+locale\tpl_PL.UTF-8
+/home/desk/.local/share/applications/firefox-esr.desktop\tName=My Firefox\t
+/home/desk/.local/share/applications/xfce4-web-browser.desktop\tName=Web Browser\tHidden=true\t
+/usr/local/share/applications/org.mozilla.firefox.desktop\tName=Firefox\t
+/usr/share/applications/firefox.desktop\tName=Firefox\tName[pl]=\t
+/usr/share/applications/firefox-esr.desktop\tName=Firefox ESR\t
+/usr/share/applications/xfce4-terminal-emulator.desktop\tName=Terminal Emulator\tName[de]=Terminal\tName[pl_PL]=Emulator terminala\tName[pl]=Terminal\t
+/usr/share/applications/xfce4-terminal.desktop\tName=Xfce Terminal\tName[pl]=Terminal Xfce\t
+/usr/share/applications/xfce4-web-browser.desktop\tName=Web Browser\t
+/usr/share/applications/thunar-settings.desktop\tName=File Manager Settings\tNoDisplay=true\t
 /usr/share/applications/broken.desktop\t
 """
 
 
 class TestLaunchingAnApp:
     @pytest.mark.parametrize(
-        "app", ["Firefox", "Visual Studio Code", "org.gnome.Terminal", "Terminál"]
+        "app",
+        [
+            "Firefox",
+            "Visual Studio Code",
+            "org.gnome.Terminal",
+            "Terminál",
+            "ImageMagick (color depth=q16)",
+        ],
     )
     def test_an_applications_name_is_accepted(self, app: str):
         assert Launch(app=app).app == app
 
     @pytest.mark.security
     @pytest.mark.parametrize(
-        "app", ["", "-a", "../../bin/sh", "/Applications/Calculator.app", "x; rm -rf /", "a" * 65]
+        "app",
+        [
+            "",
+            "-a",
+            "../../bin/sh",
+            "/Applications/Calculator.app",
+            "x; rm -rf /",
+            "a\\b",
+            "a\nb",
+            "a" * 65,
+        ],
     )
-    def test_a_path_an_option_or_a_command_is_refused(self, app: str):
-        """It is `open -a`'s argument on a Mac and a desktop entry's name on Linux; only a name may be."""
+    def test_a_path_an_option_or_a_second_line_is_refused(self, app: str):
+        """It is `open -a`'s argument on a Mac and computerd's launcher reads one line: only a name may be."""
         with pytest.raises(ValidationError):
             Launch(app=app)
 
@@ -359,33 +381,71 @@ class TestLaunchingAnApp:
         [
             ("xfce4-terminal", "/usr/share/applications/xfce4-terminal.desktop"),
             ("XFCE TERMINAL", "/usr/share/applications/xfce4-terminal.desktop"),
-            ("web", "/usr/share/applications/xfce4-web-browser.desktop"),
+            ("terminal xfce", "/usr/share/applications/xfce4-terminal.desktop"),
+            ("Emulator terminala", "/usr/share/applications/xfce4-terminal-emulator.desktop"),
+            ("emulator", "/usr/share/applications/xfce4-terminal-emulator.desktop"),
+            ("org.mozilla.firefox", "/usr/local/share/applications/org.mozilla.firefox.desktop"),
         ],
     )
-    def test_a_name_or_a_file_name_finds_its_entry_exactly_or_alone(self, query: str, entry: str):
+    def test_a_file_name_or_either_name_finds_its_entry_exactly_or_alone(
+        self, query: str, entry: str
+    ):
         assert find_app(query, _LISTING) == entry
 
-    def test_the_users_own_entry_shadows_the_systems(self):
+    def test_the_menus_own_language_is_preferred_and_other_languages_ignored(self):
+        """`Name[pl_PL]` before `Name[pl]`; a German "Terminal" names nothing on a Polish desktop."""
+        with pytest.raises(
+            ComputerError, match=r"could be any of: Emulator terminala \(xfce4-terminal-emulator\)"
+        ):
+            find_app("terminal", _LISTING)
+
+    def test_an_earlier_entry_shadows_a_later_one_even_hidden(self):
         mine = "/home/desk/.local/share/applications/firefox-esr.desktop"
         assert find_app("firefox-esr", _LISTING) == mine
         assert find_app("My Firefox", _LISTING) == mine
         with pytest.raises(ComputerError, match="No application called 'Firefox ESR'"):
             find_app("Firefox ESR", _LISTING)
+        with pytest.raises(ComputerError, match="No application called 'Web Browser'"):
+            find_app("Web Browser", _LISTING)
 
-    def test_several_matches_are_named_back_rather_than_guessed(self):
+    def test_two_entries_with_one_name_are_told_apart_by_their_file_names(self):
         with pytest.raises(
-            ComputerError, match="'terminal' could be any of: Terminal Emulator, Xfce Terminal"
+            ComputerError,
+            match=r"'firefox' could be any of: Firefox \(firefox\), Firefox \(org\.mozilla\.firefox\)\. "
+            r"Launch one by its full name or the name in brackets\.",
         ):
-            find_app("terminal", _LISTING)
+            find_app("firefox", _LISTING)
 
     def test_nothing_installed_by_that_name_lists_what_is(self):
         with pytest.raises(
             ComputerError,
-            match=r"No application called 'gimp' is installed\. These are: My Firefox, Terminal",
+            match=r"No application called 'gimp' is installed\. These are: Emulator terminala, Firefox, My Firefox, Terminal Xfce\.",
         ):
             find_app("gimp", _LISTING)
         with pytest.raises(ComputerError, match="These are: none"):
             find_app("gimp", "")
+
+    @pytest.mark.parametrize(
+        ("locale", "shown"),
+        [
+            ("sr_RS.UTF-8@latin", "sr_RS@latin"),
+            ("sr_RS.UTF-8", "sr_RS"),
+            ("sr@latin", "sr@latin"),
+            ("sr_ME@latin", "sr@latin"),
+            ("sr_ME", "sr"),
+            ("C.UTF-8", "untranslated"),
+            ("", "untranslated"),
+        ],
+    )
+    def test_a_translation_is_chosen_in_the_specifications_order(self, locale: str, shown: str):
+        names = "".join(
+            f"\tName[{key}]={key}" for key in ("sr_RS@latin", "sr_RS", "sr@latin", "sr")
+        )
+        listing = (
+            f"locale\t{locale}\n/usr/share/applications/term.desktop\tName=untranslated{names}\n"
+        )
+        with pytest.raises(ComputerError, match=rf"These are: {shown}\.$"):
+            find_app("gimp", listing)
 
 
 def _daemon(handler: Any) -> DaemonComputer:
@@ -577,7 +637,9 @@ class TestTheSandboxDesktop:
         ]
 
     async def test_a_launch_opens_the_desktop_entry_its_name_finds(self):
-        box = _Box(stdout="/usr/share/applications/firefox-esr.desktop\tFirefox ESR\n")
+        box = _Box(
+            stdout="locale\tC\n/usr/share/applications/firefox-esr.desktop\tName=Firefox ESR\n"
+        )
         await _on(box).perform(Launch(app="firefox"))
 
         (listed, _, _), (launched, _, env) = box.ran
@@ -589,7 +651,9 @@ class TestTheSandboxDesktop:
         assert env == {"DISPLAY": ":0"}
 
     async def test_a_launch_of_nothing_installed_opens_nothing(self):
-        box = _Box(stdout="/usr/share/applications/firefox-esr.desktop\tFirefox ESR\n")
+        box = _Box(
+            stdout="locale\tC\n/usr/share/applications/firefox-esr.desktop\tName=Firefox ESR\n"
+        )
         with pytest.raises(ComputerError, match="No application called 'gimp'"):
             await _on(box).perform(Launch(app="gimp"))
         assert len(box.ran) == 1

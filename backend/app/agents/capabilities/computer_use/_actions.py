@@ -94,12 +94,14 @@ class Launch(_Action):
     """Open an installed application by its name, rather than hunting for its icon."""
 
     action: Literal["launch"] = "launch"
-    # A name and nothing else: it is `open -a`'s argument on a Mac, so never a
-    # path, an option or a command line.
+    # Never a path or an option: it is `open -a`'s argument on a Mac. Other
+    # punctuation is harmless - one argument there, only compared with the
+    # menu's names on Linux - and real names have it: "ImageMagick (color
+    # depth=q16)". No control characters: computerd's launcher reads one line.
     app: str = Field(
         min_length=1,
         max_length=64,
-        pattern=r"^\w[\w .+-]*$",
+        pattern=r"^\w[^/\\\x00-\x1f\x7f]*$",
         description=(
             "The application's name as its menu shows it: 'Firefox', 'Xfce Terminal', "
             "'Safari', 'TextEdit'. It opens a moment after the action returns, so wait "

@@ -1,5 +1,5 @@
 ---
-source_sha: "a9220999f672"
+source_sha: "2fb1baddebe3"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -959,12 +959,15 @@ uruchamia własny obraz.
 
 **Otwieranie aplikacji.** Akcja `launch` otwiera aplikację po nazwie, zamiast
 szukać jej ikony. Na Macu to `open -a`. Na Linuksie to wpis menu, którego nazwa
-albo nazwa pliku pasuje dokładnie, a jeśli żaden, to jedyny, który ją zawiera.
-Wpis otwiera `exo-open`, który mają runtime `desktop` i kontener computerd.
-Nazwa pasująca do kilku
-wpisów albo do żadnego jest odrzucana razem z listą nazw, żeby model mógł
-wybrać jeszcze raz. `launch` przyjmuje tylko nazwę, nigdy ścieżkę ani
-argumenty. W kontenerze computerd aplikacja działa jako `desk`, a nie jako
+pliku albo nazwa w języku pulpitu lub nieprzetłumaczona pasuje dokładnie, a
+jeśli żaden, to jedyny, który ją zawiera. Przeszukiwany jest każdy katalog
+ścieżki menu (`$XDG_DATA_HOME` i `$XDG_DATA_DIRS`, więc także `/usr/local/share`
+i eksporty Flatpaka). Wpis otwiera `exo-open`, który mają runtime `desktop` i
+kontener computerd. Nazwa pasująca do kilku wpisów albo do żadnego jest
+odrzucana razem z listą nazw, a gdy dwa wpisy mają tę samą nazwę, także z ich
+nazwami plików, żeby model mógł wybrać jeszcze raz. `launch` przyjmuje tylko
+nazwę, nigdy ścieżkę ani argumenty: bez ukośnika i znaków sterujących, a na
+początku litera albo cyfra. W kontenerze computerd aplikacja działa jako `desk`, a nie jako
 konto, które trzyma token. Własny komputer użytkownika, osiągany przez
 aplikację desktopową, jeszcze tego nie obsługuje: model dostaje wskazówkę, żeby
 użył launchera tego komputera.

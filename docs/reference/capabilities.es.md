@@ -1,5 +1,5 @@
 ---
-source_sha: "a9220999f672"
+source_sha: "2fb1baddebe3"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -977,11 +977,16 @@ conexión de Daytona se rechaza porque ejecuta su propia imagen.
 
 **Abrir una aplicación.** Una acción `launch` abre una aplicación por su
 nombre, en lugar de buscar su icono. En un Mac es `open -a`. En Linux es la
-entrada del menú cuyo nombre o nombre de archivo coincide exactamente o, si no,
-la única que lo contiene. La entrada se abre con `exo-open`, que tienen el
-runtime `desktop` y el contenedor de computerd. Un nombre que coincide con varias entradas, o con ninguna, se
-rechaza con los nombres, para que el modelo pueda elegir otra vez. `launch`
-acepta solo un nombre, nunca una ruta ni argumentos. En el contenedor de
+entrada del menú cuyo nombre de archivo, o cuyo nombre en el idioma del
+escritorio o sin traducir, coincide exactamente o, si no, la única que lo
+contiene. Se busca en cada directorio de la ruta de búsqueda del menú
+(`$XDG_DATA_HOME` y `$XDG_DATA_DIRS`, así que también `/usr/local/share` y las
+exportaciones de Flatpak). La entrada se abre con `exo-open`, que tienen el
+runtime `desktop` y el contenedor de computerd. Un nombre que coincide con
+varias entradas, o con ninguna, se rechaza con los nombres, y con los nombres
+de archivo cuando dos entradas comparten nombre, para que el modelo pueda
+elegir otra vez. `launch` acepta solo un nombre, nunca una ruta ni argumentos:
+sin barras ni caracteres de control, y empieza por una letra o un dígito. En el contenedor de
 computerd la aplicación se ejecuta como `desk`, no como la cuenta que guarda el
 token. El ordenador de la propia persona, al que se llega por la app de
 escritorio, todavía no lo admite: al modelo se le indica que use el lanzador de

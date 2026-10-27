@@ -911,11 +911,15 @@ runs its own image.
 
 **Opening an application.** A `launch` action opens an application by its
 name rather than by finding its icon. On a Mac it is `open -a`. On Linux it is
-the menu entry whose name or file name matches, exactly or else as the only one
-containing it, opened with `exo-open`, which the `desktop` runtime and the
-computerd container have. A name that matches several entries, or none, is
-refused with the names, so the model can choose again. A launch takes a name only, never a path
-or arguments. In the computerd container the application runs as `desk`, not
+the menu entry whose file name, or whose name in the desktop's language or
+untranslated, matches, exactly or else as the only one containing it. Every
+directory on the menu's search path is looked in (`$XDG_DATA_HOME` and
+`$XDG_DATA_DIRS`, so `/usr/local/share` and Flatpak's exports too), and the
+entry is opened with `exo-open`, which the `desktop` runtime and the computerd
+container have. A name that matches several entries, or none, is refused with
+the names, and the file names where two entries share a name, so the model can
+choose again. A launch takes a name only, never a path or arguments: no slash,
+no control character, and it starts with a letter or a digit. In the computerd container the application runs as `desk`, not
 as the account that holds the token. The person's own computer, reached through
 the desktop app, does not support it yet: the model is told to use that
 computer's own launcher instead.

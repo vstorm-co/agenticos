@@ -98,12 +98,17 @@ report can link. It changes nothing on the desktop, so it is not side-effecting.
 **Opening an application:** a `launch` action names an application and the
 desktop opens it, because finding an icon in a screenshot and clicking it is the
 slowest and least reliable way there. On Linux the name is matched against the
-desktop entries the menu shows (`_backends.find_app`: a name or file name
-exactly, else the only one containing it) and opened with `exo-open`, the
-launcher the `desktop` runtime and the computerd image have; computerd does the
-same on Linux and runs `open -a` on a Mac. Several matches, or none, is a
-sentence with the names, not a guess. The name is validated to a name - no
-slash, no leading dash - so it can never be a path or an option. computerd's
+desktop entries the menu shows, in every directory of the XDG search path
+(`_backends.find_app`: a file name, or the name in the desktop's locale or
+untranslated, exactly, else the only one containing it) and opened with
+`exo-open`, the launcher the `desktop` runtime and the computerd image have;
+computerd does the same on Linux and runs `open -a` on a Mac. Several matches,
+or none, is a sentence with the names - and the file names, since a system and
+a Flatpak Firefox are both "Firefox" - not a guess. Only other languages'
+translations are not matched: a German "Terminal" would otherwise win over a
+Polish desktop's own names. The name is validated to a name - no slash, no
+leading dash, no control character - so it can never be a path or an option;
+other punctuation is allowed, because real names have it. computerd's
 container opens it through a launcher running as `desk`: computerd itself holds
 the token.
 
