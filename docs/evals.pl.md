@@ -1,5 +1,5 @@
 ---
-source_sha: "0903ccf49c32"
+source_sha: "dec34f708397"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -201,9 +201,11 @@ Nieznane środowisko zwraca 404. Równoległe tworzenie lub zmiana nazwy suity n
 
 **Uczy się wyłącznie na przypadkach treningowych.** Oprócz ocenionych rozmów asystent czyta błędne odpowiedzi treningowe, potwierdzone regresje, uzasadnienia sędziego i notatki przeglądu z dostępnych [datasetów](datasets.md). Dostaje skuteczność treningu według tagów i kryteriów sędziego oraz liczby napraw i regresji. Pytania kontrolne, odpowiedzi i oceny nigdy nie trafiają do jego promptu. Runy sędziego i samego asystenta nadal są pomijane.
 
-Każdy przypadek ma stałe przypisanie do treningu albo kontroli, zachowane między wersjami datasetu. Ustawienia datasetu wybierają udział kontroli tylko dla przyszłych przypadków (domyślnie 50%). Sprawdzenia sugestii i sesje poprawy mierzą wyłącznie przypadki kontrolne i wymagają co najmniej pięciu pytań z możliwością oceny. Kopie pytań treningowych lub materiału źródłowego są wykluczane według znormalizowanej treści i identyfikatora runu, także po ręcznym wpisaniu lub wygenerowaniu. Poniżej minimum sesja zatrzymuje się z `no_data` i podaje liczbę brakujących pytań. Widok runu oznacza obie części i wykluczone kopie. Zwykłe suity i bramki promocji nadal liczą wszystkie przypadki.
+Każdy przypadek ma stałe przypisanie do treningu albo kontroli, zachowane między wersjami datasetu. Ustawienia datasetu wybierają udział kontroli tylko dla przyszłych przypadków (domyślnie 50%). Sprawdzenia sugestii mierzą wyłącznie przypadki kontrolne; sesja poprawy dzieli pytania od nowa dla każdej próby, w tej samej proporcji, i mierzy każdą próbę na jej własnej części kontrolnej. Oba wymagają co najmniej pięciu kontrolnych pytań z możliwością oceny.
 
-Sesja poprawy przypina wersję datasetu i identyfikatory rozmów źródłowych. Kolejne rundy mogą uczyć się na wynikach treningowych tej wersji, ale nowe rozmowy i przypadki nie zmieniają próby kontrolnej.
+Kopie pytań treningowych lub materiału źródłowego są wykluczane według znormalizowanej treści i identyfikatora runu, także po ręcznym wpisaniu lub wygenerowaniu. Poniżej minimum sesja zatrzymuje się z `no_data` albo odrzuca krok, który testowałby za mało pytań, i podaje liczbę brakujących pytań. Widok runu oznacza obie części i wykluczone kopie. Zwykłe suity i bramki promocji nadal liczą wszystkie przypadki.
+
+Sesja poprawy przypina wersję datasetu i identyfikatory rozmów źródłowych. Kolejna próba uczy się na wynikach treningowych własnego podziału, więc pytanie odłożone przez jedną próbę może pomóc napisać następną; nowe rozmowy i przypadki nie zmieniają tego, co sesja mierzy. Próby mierzone na różnych pytaniach porównuje się po tym, co każda zmieniła względem własnej wersji wyjściowej, a nie po odsetku zaliczeń.
 
 Decyzja człowieka i **Wycofaj decyzję** unieważniają zależne porównania runów i przeliczają zapisane wyniki suit w tej samej transakcji. Run, suita, bramka środowiska i dialog promocji pokazują poprawiony werdykt oraz osobę, która go przejrzała. Audyt zapisuje poprzednie i nowe statusy oraz liczby; zmiana werdyktu suity wysyła nowe powiadomienie. Nazwy osób są odczytywane z aktualnego członkostwa organizacji, bez kopiowania do zachowanych wyników.
 

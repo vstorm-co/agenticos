@@ -1,5 +1,5 @@
 ---
-source_sha: "e1ff41f78543"
+source_sha: "b01ff1a6200d"
 ---
 
 # Die Konsole { #the-console }
@@ -31,7 +31,7 @@ an, die Sie öffnen dürfen. Alle starten in der Ansicht **Ich**:
 
 | Ansicht | Beantwortet |
 |---|---|
-| **Ich** | Eine Begrüßung, Ihr Zeitraum und alles, was auf Sie wartet, in zwei Sätzen - Aufrufe, Antworten zur Prüfung, durchgefallene Suites, Vorschläge des Assistenten; Ihre Runs, wie viele fertig wurden, was auf Sie wartet und was es gekostet hat; dann die Aufrufe, die auf Sie warten, Ihre Unterhaltungen, die Agents, die Aufmerksamkeit brauchen, Ihre Agents, was mit Ihnen geteilt wurde, Ihre [Datasets](datasets.md) mit dem, woran ihre Fälle die Antwort messen, die neuesten Eval-Runs und Suites, die Vorschläge des Assistenten nach Agent, Skill und Datei und die Wissenslücken |
+| **Ich** | Eine Begrüßung, Ihr Zeitraum und alles, was auf Sie wartet, in zwei Sätzen - Aufrufe, Antworten zur Prüfung, durchgefallene Suites, Vorschläge des Assistenten; Ihre Runs, wie viele fertig wurden, was auf Sie wartet und was es gekostet hat; dann die Aufrufe, die auf Sie warten, Ihre Unterhaltungen, die Agents, die Aufmerksamkeit brauchen, die Verbesserungen, die auf Sie warten, Ihre Agents, was mit Ihnen geteilt wurde, Ihre [Datasets](datasets.md) mit dem, woran ihre Fälle die Antwort messen, die neuesten Eval-Runs und Suites, die Vorschläge des Assistenten nach Agent, Skill und Datei und die Wissenslücken |
 | **Organisation** | Die anordenbare Seite unten |
 | **Gruppe** | Die Mitglieder einer [Gruppe](departments.md) - ihre Runs, Ausgaben, Modelle, wann sie arbeiten und wer es am meisten nutzt. Die Gruppe wählen Sie neben dem Schalter. Eine Gruppe, deren Mitglieder im Zeitraum nichts ausgeführt haben, sagt das einmal, mit einem Weg zur Gruppe, statt eine Seite leerer Karten zu zeigen |
 | **Deployment** | Nur für einen [Deployment-Admin](permissions.md) — Plattformsummen, Health, aktivste Tenants, Bewertungen |
@@ -45,6 +45,10 @@ Aufmerksamkeit**, das beim Überfahren sagt, warum. Antworten und Runs zählen
 nur für die Version, die der Agent jetzt in seiner Standardumgebung ausliefert:
 Das Veröffentlichen einer Korrektur löscht das Signal, bis die neue Version
 eigene sammelt. Beides erfordert `runs:view`.
+
+Darunter listet **Verbesserungen, die auf Sie warten** die
+[Verbessern](authoring.md#the-improve-wizard)-Sitzungen, die für Ihren nächsten
+Schritt oder Ihre Entscheidung angehalten haben, jede an ihrem Halt geöffnet.
 
 Die Ansicht der Organisation zeigt die Karten, die mit Daten antworten, in
 Gruppen. Der Rest - Integrationen, Kanäle, Routinen, Wissens-Sync, Abteilungen,

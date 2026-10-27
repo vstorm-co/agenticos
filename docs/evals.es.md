@@ -1,5 +1,5 @@
 ---
-source_sha: "0903ccf49c32"
+source_sha: "dec34f708397"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -194,11 +194,11 @@ Un entorno desconocido devuelve 404. Crear o renombrar suites simultáneamente c
 
 **Aprende solo de casos de entrenamiento.** Además de chats valorados, el asistente lee respuestas de entrenamiento fallidas, regresiones confirmadas, razones del juez y notas de Review de [datasets](datasets.md) accesibles. Recibe tasas de acierto de entrenamiento por etiqueta y criterio del juez, y cantidades de fallos corregidos y nuevos. Las preguntas de control, respuestas y puntuaciones nunca entran en su prompt. Los runs del juez y del propio asistente siguen excluidos.
 
-Cada caso tiene una asignación fija a entrenamiento o control, conservada entre versiones del dataset. Los ajustes del dataset eligen la proporción de control solo para casos futuros (50% por defecto). Las comprobaciones de sugerencias y sesiones de mejora miden solo casos de control y requieren al menos cinco preguntas evaluables.
+Cada caso tiene una asignación fija a entrenamiento o control, conservada entre versiones del dataset. Los ajustes del dataset eligen la proporción de control solo para casos futuros (50% por defecto). Las comprobaciones de sugerencias miden solo casos de control; una sesión de mejora reparte de nuevo las preguntas para cada uno de sus intentos, en la misma proporción, y mide cada intento en su propia parte de control. Ambas requieren al menos cinco preguntas de control evaluables.
 
-Se excluyen copias de preguntas de entrenamiento o evidencia mediante el texto normalizado y la identidad del run de origen, incluso si se introducen a mano o se generan. Bajo el mínimo, la sesión se detiene con `no_data` e indica cuántas preguntas añadir. El run identifica ambas partes y las copias excluidas. Las suites normales y las puertas de promoción siguen contando todos los casos.
+Se excluyen copias de preguntas de entrenamiento o evidencia mediante el texto normalizado y la identidad del run de origen, incluso si se introducen a mano o se generan. Bajo el mínimo, la sesión se detiene con `no_data` o rechaza el paso que probaría demasiado pocas, e indica cuántas preguntas añadir. El run identifica ambas partes y las copias excluidas. Las suites normales y las puertas de promoción siguen contando todos los casos.
 
-Una sesión de mejora fija la versión del dataset y las identidades de los chats fuente. Las rondas posteriores pueden aprender de sus resultados de entrenamiento; nuevos chats y casos no cambian la muestra de control.
+Una sesión de mejora fija la versión del dataset y las identidades de los chats fuente. Un intento posterior aprende de los resultados de entrenamiento de su propio reparto, así que una pregunta que un intento apartó puede ayudar a escribir el siguiente; nuevos chats y casos no cambian lo que mide la sesión. Los intentos medidos con preguntas distintas se comparan por lo que cambió cada uno frente a su propia base, no por su tasa de aprobados.
 
 Una decisión humana y **Retirar decisión** invalidan comparaciones dependientes y recalculan resultados guardados de suites en la misma transacción. El run, la suite, la puerta del entorno y el diálogo de promoción muestran el veredicto corregido y quién lo revisó. La auditoría registra estados y cantidades anteriores y nuevos; un cambio de veredicto envía otra notificación. Los nombres se resuelven desde la pertenencia actual a la organización, sin copiarlos a resultados retenidos.
 

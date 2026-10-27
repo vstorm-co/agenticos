@@ -1,5 +1,5 @@
 ---
-source_sha: "0903ccf49c32"
+source_sha: "dec34f708397"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -213,9 +213,11 @@ Eine unbekannte Umgebung liefert 404. Gleichzeitiges Erstellen oder Umbenennen v
 
 **Er lernt nur aus Trainingsfällen.** Neben bewerteten Chats liest der Assistent fehlgeschlagene Trainingsantworten, bestätigte Regressionen, Bewerterbegründungen und Prüfungsnotizen aus zugänglichen [Datasets](datasets.md). Er erhält Trainingsquoten nach Tag und Bewerterkriterium sowie die Anzahl behobener und neuer Fehler. Kontrollfragen, Antworten und Bewertungen gelangen nie in seinen Prompt. Runs des Bewerters und des Assistenten bleiben ausgeschlossen.
 
-Jeder Fall wird fest dem Training oder der Kontrolle zugeordnet, auch über Dataset-Versionen hinweg. Die Dataset-Einstellungen bestimmen den Kontrollanteil nur für künftige Fälle (standardmäßig 50%). Vorschlagsprüfungen und Verbesserungssitzungen messen ausschließlich Kontrollfälle und benötigen mindestens fünf bewertbare Fragen. Kopien von Trainingsfragen oder Quellbelegen werden anhand normalisierter Eingaben und der Quell-Run-ID ausgeschlossen, auch bei manueller Eingabe oder Generierung. Unter dem Minimum stoppt eine Sitzung mit `no_data` und nennt die fehlende Anzahl. Der Run kennzeichnet beide Teile und ausgeschlossene Kopien. Normale Suites und Beförderungsschranken zählen weiterhin alle Fälle.
+Jeder Fall wird fest dem Training oder der Kontrolle zugeordnet, auch über Dataset-Versionen hinweg. Die Dataset-Einstellungen bestimmen den Kontrollanteil nur für künftige Fälle (standardmäßig 50%). Vorschlagsprüfungen messen ausschließlich Kontrollfälle; eine Verbesserungssitzung teilt die Fragen für jeden ihrer Versuche im selben Anteil neu auf und misst jeden Versuch auf seinem eigenen Kontrollteil. Beide benötigen mindestens fünf bewertbare Kontrollfragen.
 
-Eine Verbesserungssitzung fixiert Dataset-Version und Chat-Belegidentitäten. Spätere Runden können aus den Trainingsergebnissen dieser Version lernen; neue Chats und Fälle ändern die Kontrollstichprobe nicht.
+Kopien von Trainingsfragen oder Quellbelegen werden anhand normalisierter Eingaben und der Quell-Run-ID ausgeschlossen, auch bei manueller Eingabe oder Generierung. Unter dem Minimum stoppt eine Sitzung mit `no_data` oder lehnt den Schritt ab, der zu wenige testen würde, und nennt die fehlende Anzahl. Der Run kennzeichnet beide Teile und ausgeschlossene Kopien. Normale Suites und Beförderungsschranken zählen weiterhin alle Fälle.
+
+Eine Verbesserungssitzung fixiert Dataset-Version und Chat-Belegidentitäten. Ein späterer Versuch lernt aus den Trainingsergebnissen seiner eigenen Aufteilung, sodass eine Frage, die ein Versuch zurückgelegt hat, beim Schreiben des nächsten helfen kann; neue Chats und Fälle ändern nicht, was die Sitzung misst. Auf verschiedenen Fragen gemessene Versuche werden danach verglichen, was jeder gegenüber seiner eigenen Ausgangsfassung geändert hat, nicht nach ihren Bestehensquoten.
 
 Eine menschliche Entscheidung und **Entscheidung zurücknehmen** verwerfen abhängige Run-Vergleiche und berechnen gespeicherte Suite-Ergebnisse in derselben Transaktion neu. Run, Suite, Umgebungsschranke und Beförderungsdialog zeigen das korrigierte Urteil und die prüfende Person. Das Audit hält alte und neue Zustände sowie Zählwerte fest; ein geändertes Suite-Urteil erzeugt eine neue Benachrichtigung. Namen werden aus der aktuellen Organisationsmitgliedschaft aufgelöst und nicht in aufbewahrte Ergebnisse kopiert.
 

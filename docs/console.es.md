@@ -1,5 +1,5 @@
 ---
-source_sha: "e1ff41f78543"
+source_sha: "b01ff1a6200d"
 ---
 
 # La consola { #the-console }
@@ -31,7 +31,7 @@ puedes abrir. Todos empiezan en **Me**:
 
 | Vista | Responde a |
 |---|---|
-| **Me** | Un saludo, tu periodo y todo lo que te espera, en dos frases - llamadas, respuestas por revisar, suites que fallan, sugerencias del asistente; tus runs, cuántos terminaron, lo que te espera y lo que costó; después las llamadas que te esperan, tus conversaciones, los agents que necesitan atención, tus agents, lo que han compartido contigo, tus [datasets](datasets.md) con aquello contra lo que prueban sus casos, los eval runs y suites más recientes, las sugerencias del asistente por agent, skill y archivo, y las lagunas de conocimiento |
+| **Me** | Un saludo, tu periodo y todo lo que te espera, en dos frases - llamadas, respuestas por revisar, suites que fallan, sugerencias del asistente; tus runs, cuántos terminaron, lo que te espera y lo que costó; después las llamadas que te esperan, tus conversaciones, los agents que necesitan atención, las mejoras que te esperan, tus agents, lo que han compartido contigo, tus [datasets](datasets.md) con aquello contra lo que prueban sus casos, los eval runs y suites más recientes, las sugerencias del asistente por agent, skill y archivo, y las lagunas de conocimiento |
 | **Organization** | La página que se ordena, descrita abajo |
 | **Group** | Los miembros de un [grupo](departments.md) - sus runs, gasto, modelos, cuándo trabajan y quién lo usa más. El grupo se elige junto al selector. Un grupo cuyos miembros no ejecutaron nada en el periodo lo dice una vez, con un enlace al grupo, en lugar de una página de tarjetas vacías |
 | **Deployment** | Solo para un [administrador del despliegue](permissions.md) — totales de la plataforma, salud, inquilinos más activos, valoraciones |
@@ -44,6 +44,10 @@ treinta días con la insignia **Needs attention**, que al pasar el cursor dice
 por qué. Las respuestas y los runs solo cuentan para la versión que el agent
 sirve ahora en su entorno predeterminado: publicar una corrección borra la señal
 hasta que la nueva versión acumule las suyas. Ambos requieren `runs:view`.
+
+Debajo, **Improvements waiting for you** lista las sesiones de
+[Improve](authoring.md#the-improve-wizard) detenidas a la espera de tu siguiente
+paso o decisión, cada una abierta en su parada.
 
 La vista de la organización muestra las tarjetas que responden con datos,
 agrupadas en bandas. El resto - integraciones, canales, rutinas, sincronización

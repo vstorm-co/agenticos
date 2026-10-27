@@ -1,5 +1,5 @@
 ---
-source_sha: "e2584b648791"
+source_sha: "248c67b73df6"
 title: "Luki w wiedzy"
 description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego albo odpowiedział, że nie wie, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
 ---
@@ -115,14 +115,15 @@ tle w Admin → Background jobs: gdy worker przestanie działać w jego trakcie,
 zadanie kończy się w tym miejscu, zamiast zniknąć bez śladu, a to, co
 sprawdzenie przeczytało, pozostaje przeczytane.
 
-Sesja ulepszania - [Ulepsz](authoring.md) uruchomione w tle - czyta w ten sam
+Sesja ulepszania - [Ulepsz](authoring.md#background-improvement-sessions), krok po kroku - czyta w ten sam
 sposób złe odpowiedzi, które znalazła, tylko te odpowiedzi i niezależnie od ich
 wieku, i przypisuje każdą do grupy według jej werdyktów: brakująca wiedza, gdy w
 bazie wiedzy brakowało treści, nic do poprawienia, gdy agent słusznie odmówił,
 a w pozostałych przypadkach błąd agenta.
 
 Odpowiedzi z brakującą wiedzą wypadają z tego, co czyta asystent tworzenia, a
-ich braki od razu są grupowane w tematy. Sesja nie pisze szkicu żadnego z nich:
+ich braki od razu są grupowane w tematy, zanim sesja zatrzyma się na **Zrozumieniu**,
+żeby człowiek mógł je obejrzeć. Sesja nie pisze szkicu żadnego z nich:
 wymienia tematy, których brakuje w bazie wiedzy, a człowiek pisze szkice tych,
 których potrzebuje, jak [niżej](#drafting-the-missing-content). Nic nie powstaje
 jako szkic, dopóki nie poprosi o to człowiek, w sesji ani poza nią. Runy

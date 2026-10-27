@@ -1,5 +1,5 @@
 ---
-source_sha: "e1ff41f78543"
+source_sha: "b01ff1a6200d"
 ---
 
 # Konsola { #the-console }
@@ -30,7 +30,7 @@ możesz otworzyć. Każdy zaczyna od widoku **Ja**:
 
 | Widok | Odpowiada na |
 |---|---|
-| **Ja** | Powitanie, Twój okres i wszystko, co na Ciebie czeka, w dwóch zdaniach - wywołania, odpowiedzi do przeglądu, oblane suity, sugestie asystenta; Twoje runy, ile się skończyło, co na Ciebie czeka i ile to kosztowało; potem wywołania czekające na Ciebie, Twoje rozmowy, agenci wymagający uwagi, Twoi agenci, co Ci udostępniono, Twoje [datasety](datasets.md) z tym, z czym porównują odpowiedź ich przypadki, ostatnie runy i suity ewaluacji, sugestie asystenta według agenta, skilla i pliku oraz luki w wiedzy |
+| **Ja** | Powitanie, Twój okres i wszystko, co na Ciebie czeka, w dwóch zdaniach - wywołania, odpowiedzi do przeglądu, oblane suity, sugestie asystenta; Twoje runy, ile się skończyło, co na Ciebie czeka i ile to kosztowało; potem wywołania czekające na Ciebie, Twoje rozmowy, agenci wymagający uwagi, poprawki czekające na Ciebie, Twoi agenci, co Ci udostępniono, Twoje [datasety](datasets.md) z tym, z czym porównują odpowiedź ich przypadki, ostatnie runy i suity ewaluacji, sugestie asystenta według agenta, skilla i pliku oraz luki w wiedzy |
 | **Organizacja** | Układalna strona opisana niżej |
 | **Grupa** | Członkowie jednej [grupy](departments.md) - ich runy, wydatki, modele, kiedy pracują i kto korzysta najwięcej. Grupę wybierasz obok przełącznika. Grupa, której członkowie nic nie uruchomili w okresie, mówi to raz, z przejściem do grupy, zamiast strony pustych kart |
 | **Wdrożenie** | Tylko dla [admina deploymentu](permissions.md) — sumy platformy, kondycja, najbardziej obciążeni najemcy, oceny |
@@ -43,6 +43,9 @@ ostatnich trzydziestu dni znaczkiem **Wymaga uwagi**, który po najechaniu mówi
 dlaczego. Odpowiedzi i runy liczą się tylko dla wersji, którą agent serwuje
 teraz w domyślnym środowisku: opublikowanie poprawki czyści sygnał, dopóki nowa
 wersja nie zbierze własnych. Oba wymagają `runs:view`.
+
+Pod nią karta **Poprawki czekające na Ciebie** wymienia sesje [Ulepsz](authoring.md#the-improve-wizard)
+zatrzymane na Twój następny krok albo decyzję, każdą otwierając na jej postoju.
 
 Widok organizacji pokazuje karty, które odpowiadają danymi, pogrupowane w pasy.
 Reszta - integracje, kanały, rutyny, synchronizacja wiedzy, działy, członkowie,

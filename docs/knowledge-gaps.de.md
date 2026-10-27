@@ -1,5 +1,5 @@
 ---
-source_sha: "e2584b648791"
+source_sha: "248c67b73df6"
 title: "Wissenslücken"
 description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden oder ohne Wissen geantwortet hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
 ---
@@ -120,8 +120,8 @@ Admin → Background jobs: Ein Worker, der darunter stehen bleibt, hinterlässt 
 Job dort beendet, nie spurlos verloren, und was die Prüfung gelesen hat, bleibt
 gelesen.
 
-Eine Verbesserungssitzung - im Hintergrund ausgeführtes
-[Verbessern](authoring.md) - liest die schlechten Antworten, die sie gefunden
+Eine Verbesserungssitzung - [Verbessern](authoring.md#background-improvement-sessions),
+Schritt für Schritt - liest die schlechten Antworten, die sie gefunden
 hat, auf dieselbe Weise, nur diese Antworten und unabhängig von ihrem Alter, und
 ordnet jede nach ihren Urteilen ein: fehlendes Wissen, wo einer Wissensbasis
 Inhalt fehlte, nichts zu beheben, wo der Agent zu Recht abgelehnt hat, und sonst
@@ -129,7 +129,8 @@ ein Fehler des Agents.
 
 Die Antworten mit fehlendem Wissen fallen aus dem heraus, was der
 Authoring-Assistent liest, und ihre Fehlschläge werden sofort zu Themen
-gruppiert. Die Sitzung entwirft keines davon: Sie listet die Themen auf, die in
+gruppiert, bevor die Sitzung bei **Verstehen** anhält, damit ein Mensch sie
+ansieht. Die Sitzung entwirft keines davon: Sie listet die Themen auf, die in
 der Wissensbasis fehlen, und ein Mensch entwirft die, die er braucht, wie
 [unten](#drafting-the-missing-content) beschrieben. Nichts wird entworfen, ohne
 dass ein Mensch darum bittet, ob in einer Sitzung oder außerhalb. Die Runs eines

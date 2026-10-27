@@ -1,5 +1,5 @@
 ---
-source_sha: "e2584b648791"
+source_sha: "248c67b73df6"
 title: "Lagunas de conocimiento"
 description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, o respondió sin saber, agrupadas por tema, para saber qué documento falta."
 ---
@@ -121,14 +121,15 @@ segundo plano en Admin → Background jobs: un worker que se detiene durante ell
 deja el job terminado ahí, nunca perdido sin rastro, y lo que la revisión leyó
 queda leído.
 
-Una sesión de mejora - [Mejorar](authoring.md) en segundo plano - lee igual las
+Una sesión de mejora - [Mejorar](authoring.md#background-improvement-sessions), paso a paso - lee igual las
 malas respuestas que encontró, solo esas y sea cual sea su antigüedad, y
 clasifica cada una según sus veredictos: falta conocimiento si a una base de
 conocimiento le faltaba contenido, nada que corregir si el agent se negó con
 razón, y fallo del agent en los demás casos.
 
 Las que les falta conocimiento salen de lo que lee el asistente de autoría, y
-sus fallos se agrupan en temas en el acto. La sesión no redacta ninguno: enumera
+sus fallos se agrupan en temas en el acto, antes de que la sesión se detenga en
+**Understand** para que una persona los vea. La sesión no redacta ninguno: enumera
 los temas que faltan en la base de conocimiento, y una persona redacta los que
 quiera, como se explica [más abajo](#drafting-the-missing-content). Nada se
 redacta si una persona no lo pide, dentro o fuera de una sesión. Los runs de un

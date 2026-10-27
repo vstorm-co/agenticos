@@ -111,15 +111,17 @@ One check of a knowledge base runs at a time, as a background job on Admin ->
 Background jobs: a worker that stops under it leaves the job ended there, never
 lost without a trace, and what it read stays read.
 
-An improvement session - [Improve](authoring.md) run in the background - reads
-the bad answers it found the same way, those answers alone and whatever their age, and sorts each by its
+An improvement session - [Improve](authoring.md#background-improvement-sessions),
+one step at a time - reads the bad answers it found the same way, those answers
+alone and whatever their age, and sorts each by its
 verdicts: missing knowledge where a knowledge base was missing content, no
 problem to fix where the agent rightly refused, and the agent's fault
 otherwise.
 
 The answers missing knowledge leave what the improver reads, and their misses
-are grouped into topics at once. The session drafts none of them: it lists the
-topics missing from the knowledge base, and a person drafts the ones they want,
+are grouped into topics at once, before the session stops at **Understand** for a
+person to look. The session drafts none of them: it lists the topics missing from
+the knowledge base, and a person drafts the ones they want,
 as [below](#drafting-the-missing-content). Nothing is drafted unless a person
 asks, in a session or out of one. An eval's runs are never read, so no held-out
 case is.
