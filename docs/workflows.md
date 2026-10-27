@@ -855,7 +855,9 @@ mailbox's `message_id`, and the thread the message belongs to: `thread_id`, the
 reply can be threaded with them but they prove nothing about who sent it. A message
 read twice starts its run once, and one the organization had no room to run yet is
 read again a minute later. See
-[trigger.gmail](reference/workflow-nodes.md#trigger-gmail).
+[trigger.gmail](reference/workflow-nodes.md#trigger-gmail). To read the `html` body
+as text, links or what a CSS selector picks, bind it to
+[`html.parse`](reference/workflow-nodes.md#html-parse).
 
 An **Outlook** trigger does the same for the organization's Microsoft 365 mailbox,
 connected through the **Outlook** portal. Microsoft Graph is read one folder at a
@@ -866,9 +868,9 @@ otherwise - and, to read a shared mailbox the connected account can open, a
 read it starts from the moment the workflow was published or last switched on, so
 mail already there starts nothing.
 
-Anyone who can publish a workflow can name any
-shared mailbox the organization's Microsoft grant can open, as Outlook agent triggers
-already can. If Outlook says the folder can no longer be read, the workflow is
+Naming a shared mailbox the organization's Microsoft grant can open takes the permission
+to manage connections, as it does for Outlook agent triggers; a workflow already
+listening to one keeps it through later publishes, and changing it needs the permission again. If Outlook says the folder can no longer be read, the workflow is
 switched off and the audit log says why.
 
 The run gets the same fields as a Gmail

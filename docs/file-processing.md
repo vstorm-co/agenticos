@@ -301,6 +301,10 @@ size limit: of the attachments a mailbox lists, only the first 10 per message ar
 considered, and 25 MiB per message. One left out is listed with the reason, and a
 test run fetches nothing.
 
+An HTML file in a workflow, such as a stored page or an attachment, is read by
+[`html.parse`](reference/workflow-nodes.md#html-parse), not by `text.extract`, which
+reads documents and would return the markup as text.
+
 ### ChatFile model
 
 The `ChatFile` database model tracks uploaded files:

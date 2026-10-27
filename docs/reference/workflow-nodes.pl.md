@@ -1,5 +1,5 @@
 ---
-source_sha: "f31594b6f257"
+source_sha: "d4b30e7a0a40"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -145,7 +145,12 @@ Wyjście niesie wątek - `thread_id`, `rfc_message_id`, `in_reply_to`, `referenc
 nadawca, więc wiążą odpowiedź z wątkiem, ale nic nie dowodzą o tym, kto wysłał
 wiadomość.
 
-Run uruchomiony przez skrzynkę zapisuje załączniki wiadomości jako pliki runa.
+Run uruchomiony przez skrzynkę zapisuje załączniki wiadomości jako pliki runa, ale tylko
+gdy workflow je czyta: graf, który nie wiąże ani `attachments` triggera, ani całego jego
+wyjścia, zostawia każdy załącznik jako `not_fetched`. Każdy zapisany plik wlicza się do
+limitu plików organizacji, a do triggera bez **Sender contains** może napisać każdy, więc
+wiąż `attachments` tylko wtedy, gdy krok potrzebuje plików.
+
 Skrzynka podaje najwyżej 20 na wiadomość, a brane jest pod uwagę tylko pierwsze 10 z
 wymienionych, do 25 MiB łącznie, każdy w limicie rozmiaru uploadu czatu, na liście
 dozwolonych typów plików i w limicie miejsca organizacji. Pominięty załącznik
@@ -172,9 +177,11 @@ ponawiany. Oba wyzwalacze poczty przyjmują dane z zewnątrz.
 minutę. Publikacja jest odrzucana, dopóki skrzynka nie jest podłączona.
 `triggered_by` to `outlook`. Microsoft Graph jest czytany folder po folderze, więc
 **Folder** i **Shared mailbox** są miejscem, w którym poller szuka, a zarazem
-filtrem, a pierwszy odczyt folderu zaczyna się od chwili opublikowania lub ostatniego włączenia workflow. Każdy, kto może
-opublikować workflow, może wskazać dowolną skrzynkę współdzieloną, którą otwiera
-grant Microsoft organizacji, tak jak już mogą to robić triggery agentów Outlook.
+filtrem, a pierwszy odczyt folderu zaczyna się od chwili opublikowania lub ostatniego włączenia workflow. Wskazanie skrzynki
+współdzielonej, którą otwiera grant Microsoft organizacji, wymaga uprawnienia do
+zarządzania połączeniami, tak jak w triggerach agentów Outlook; workflow, który już
+nasłuchuje takiej skrzynki, zachowuje ją przy kolejnych publikacjach, a jej zmiana znowu
+wymaga tego uprawnienia.
 **Sender contains** dopasowuje adres nadawcy, jak w Gmailu, i wymaga poczty,
 którą uwierzytelniła domena nadawcy albo która przyszła z wnętrza tenanta. Folder
 lub skrzynka współdzielona, które według Outlooka nie dają się odczytać,
@@ -292,6 +299,70 @@ pusty daje 0. Paleta rysuje krok z ikoną różnic, wśród kroków danych.
 ::: app.workflows.nodes.text_compare._handler.TextCompareConfig
 
 ::: app.workflows.nodes.text_compare._handler.TextCompareOutput
+
+## html.parse { #html-parse }
+
+**Parse HTML** zamienia HTML na jego tekst, linki i elementy wybrane selektorem CSS.
+Służy do HTML-a, który spotyka przepływ: treści maila, body z `http.request`,
+strony zapisanej przez `http.download`. `text.extract` czyta dokumenty, nie
+znaczniki - oddałby tagi jako tekst. Powiąż albo `html` (najwyżej 2 000 000 znaków),
+albo `file` (najwyżej 5 000 000 bajtów, sprawdzane przed odczytem pliku), nie oba
+naraz. Plik jest dekodowany ze znacznika kolejności bajtów, z `<meta charset>` lub z
+samych bajtów, w razie potrzeby stratnie, a jego zadeklarowany typ nie jest
+sprawdzany: PDF czyta się jako zniekształcony tekst i nie jest odrzucany. Znak NUL
+czyta się jako U+FFFD.
+
+Krok ma trzy wyjścia, każde ograniczone:
+
+- `text` to czytelny tekst jako Markdown, obcięty na **Most characters of text**
+  (domyślnie 100 000; `text_truncated` mówi, że go obcięto). Nagłówki, listy i kod
+  zostają; skrypty, style, menu (`nav`), stopki i `<head>` nie. Tak samo czyta
+  stronę konektor webowy kolekcji wiedzy. `title` to `<title>` strony, obcięty do
+  500 znaków, albo `null`, gdy go nie ma (także pusty `<title>`).
+- `links` zawiera każde `a[href]` raz, w kolejności dokumentu, z tekstem jego
+  pierwszej kotwicy (obciętym do 500 znaków). Link jest rozwiązywany względem
+  **Base address**, gdy jest ustawiony, a bez niego zostaje tak, jak napisano. Linki
+  do adresów `javascript:`, `vbscript:` i `data:` są pomijane, żeby kolejny krok,
+  który żąda każdego linku, nigdy nie dostał skryptu; pomijany jest też `href`
+  dłuższy niż 2048 znaków i taki, którego nie da się odczytać jako adresu.
+  Krok zachowuje najwyżej 500 linków i sprawdza pierwsze 5000 kotwic;
+  `links_truncated` mówi, że strona miała więcej.
+- `matches` zawiera elementy wybrane przez **CSS selector**, w kolejności
+  dokumentu, najwyżej **Most matches** (domyślnie 20, do 200); `match_count` mówi,
+  ile wybrał selektor przed obcięciem. Każde dopasowanie ma `text` i zewnętrzny
+  `html` (oba obcięte do 10 000 znaków) oraz pierwszych 50 `attributes`, przy czym
+  atrybut wielowartościowy, np. `class`, jest łączony spacjami, a każda wartość
+  obcięta do 2000 znaków. Bez selektora nie ma dopasowań. Selektor, który nie jest
+  poprawnym CSS-em, jest odrzucany przy publikacji z podaniem pola.
+
+Nic nie jest pobierane i nic się nie uruchamia. Nie jest żądany żaden obraz, arkusz
+stylów, **Base address** ani link, skrypt jest tylko tekstem, a parser pochodzi z
+biblioteki standardowej - to nie parser XML, więc żadna encja spoza strony nie jest
+rozwijana.
+
+Parsowanie działa w procesie potomnym z 20 sekundami czasu zegarowego, limitem CPU i
+limitem pamięci, bo selektor taki jak `p div div` na głęboko zagnieżdżonym znaczniku
+może trwać minuty. Po 20 sekundach proces jest zabijany, a krok kończy się błędem
+`HTML_TOO_COMPLEX`, bez ponawiania. Praca na każdą kotwicę i każde dopasowanie jest
+również ograniczona, więc jedna strona nie spowolni kroku ani nie rozdmie jego
+wyjścia.
+
+| Co się stało | Wynik |
+|---|---|
+| Brak ustawień lub wejścia | `HTML_PARSE_NOT_CONFIGURED` |
+| `html` ponad 2 000 000 znaków albo powiązane naraz `html` i `file` | `INVALID_BINDING`, jeszcze przed uruchomieniem kroku |
+| Plik nie istnieje albo ma ponad 5 000 000 bajtów | `FILE_NOT_FOUND`, `FILE_TOO_LARGE` |
+| Żaden dekoder nie czyta bajtów albo proces czytający pada | `HTML_NOT_READABLE`, szczegół `reason` mówi który przypadek |
+| Strona zajmuje ponad 20 sekund | `HTML_TOO_COMPLEX` |
+
+`INVALID_BINDING` kończy run, zanim krok się uruchomi, więc `error.handle` nie może
+go przekierować; za duży plik to `FILE_TOO_LARGE`, którym krok kończy się błędem i
+który da się przekierować.
+Paleta rysuje krok z ikoną kodu, wśród kroków danych.
+
+::: app.workflows.nodes.html_parse._handler.HtmlParseConfig
+
+::: app.workflows.nodes.html_parse._handler.HtmlParseOutput
 
 ## Transform { #transform }
 
@@ -556,7 +627,8 @@ URL podpięty z publicznego wyzwalacza (webhooka, formularza, e-maila) albo z ar
 Poświadczenie to [HTTP credential](../secrets.md#kinds) z vaulta i jest wysyłane
 tylko do originów, na które pozwala sekret. Odpowiedź jest czytana w granicy
 `max_response_bytes` i oddawana bez `Set-Cookie`, nagłówków uwierzytelniania i
-samego tokena.
+samego tokena. Odpowiedź w HTML wraca jako tekst w `body`; powiąż ją z
+[`html.parse`](#html-parse), by odczytać jej tekst, linki i elementy.
 
 Dane uwierzytelniające idą jako token bearer, uwierzytelnianie Basic, nagłówek o
 podanej nazwie albo, z `query`, parametr URL o podanej nazwie. **Import cURL** w

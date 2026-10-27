@@ -1,5 +1,5 @@
 ---
-source_sha: "f31594b6f257"
+source_sha: "d4b30e7a0a40"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -156,7 +156,13 @@ Die Header-Felder schreibt der Absender; sie ordnen eine Antwort in den Thread e
 und beweisen nichts darüber, wer die Nachricht gesendet hat.
 
 Ein Lauf, den das Postfach gestartet hat, speichert die Anhänge der Nachricht als
-Dateien des Runs. Ein Postfach liefert höchstens 20 pro Nachricht, und nur die
+Dateien des Runs, aber nur, wenn der Workflow sie liest: Ein Graph, der weder die
+`attachments` des Triggers noch seine gesamte Ausgabe bindet, lässt jeden Anhang
+`not_fetched`. Jede gespeicherte Datei zählt zum Dateikontingent der Organisation,
+und an einen Trigger ohne **Sender contains** kann jeder schreiben; binde `attachments`
+daher nur, wenn ein Schritt die Dateien braucht.
+
+Ein Postfach liefert höchstens 20 pro Nachricht, und nur die
 ersten 10 davon werden berücksichtigt, zusammen bis 25 MiB, jeder im Größenlimit für
 Chat-Uploads, in der Liste erlaubter Dateitypen und im Speicherkontingent der
 Organisation. Ein ausgelassener Anhang bleibt mit einem `reason` in `attachments`:
@@ -183,9 +189,11 @@ einmal pro Minute gelesen. Die Veröffentlichung wird abgelehnt, bis ein Postfac
 verbunden ist. `triggered_by` ist `outlook`. Microsoft Graph wird Ordner für Ordner
 gelesen, deshalb sind **Folder** und **Shared mailbox** zugleich der Ort, an dem der
 Poller sucht, und ein Filter; das erste Lesen eines Ordners beginnt mit dem Zeitpunkt
-der Veröffentlichung oder des letzten Einschaltens des Workflows. Wer einen Workflow
-veröffentlichen darf, kann jedes gemeinsame Postfach nennen, das der Microsoft-Grant
-der Organisation öffnen kann, wie es Outlook-Agent-Trigger schon heute können. **Sender contains** prüft die Adresse des
+der Veröffentlichung oder des letzten Einschaltens des Workflows. Ein gemeinsames Postfach, das der
+Microsoft-Grant der Organisation öffnen kann, zu nennen, erfordert die Berechtigung,
+Verbindungen zu verwalten, wie bei Outlook-Agent-Triggern; ein Workflow, der schon eines
+liest, behält es bei späteren Veröffentlichungen, und es zu ändern erfordert die
+Berechtigung erneut. **Sender contains** prüft die Adresse des
 Absenders wie bei Gmail und verlangt Post, die die Absenderdomain authentifiziert hat
 oder die aus dem Tenant stammt. Ein Ordner oder gemeinsames Postfach, das Outlook als
 nicht lesbar meldet, schaltet den Workflow aus, mit `mailbox_folder_unreadable` im
@@ -311,6 +319,73 @@ Palette zeigt den Schritt mit einem Diff-Symbol bei den Datenschritten.
 ::: app.workflows.nodes.text_compare._handler.TextCompareConfig
 
 ::: app.workflows.nodes.text_compare._handler.TextCompareOutput
+
+## html.parse { #html-parse }
+
+**Parse HTML** liest HTML als Text, als Links und als die Elemente, die ein
+CSS-Selektor auswählt. Es ist für das HTML gedacht, dem ein Ablauf begegnet: ein
+Mail-Text, ein `http.request`-Body, eine von `http.download` gespeicherte Seite.
+`text.extract` liest Dokumente, kein Markup - es würde die Tags als Text
+zurückgeben. Binden Sie entweder `html` (höchstens 2.000.000 Zeichen) oder `file`
+(höchstens 5.000.000 Bytes, geprüft, bevor die Datei gelesen wird), nicht beides.
+Eine Datei wird anhand ihrer Byte-Order-Mark, ihres `<meta charset>` oder ihrer
+Bytes dekodiert, nötigenfalls verlustbehaftet, und ihr deklarierter Typ wird nicht
+geprüft: Ein PDF wird als verstümmelter Text gelesen und nicht abgelehnt. Ein
+NUL-Zeichen wird als U+FFFD gelesen.
+
+Der Schritt hat drei Ausgaben, alle begrenzt:
+
+- `text` ist der lesbare Text als Markdown, gekürzt auf **Most characters of text**
+  (standardmäßig 100.000; `text_truncated` sagt, dass gekürzt wurde). Überschriften,
+  Listen und Code bleiben; Skripte, Stile, Menüs (`nav`), Fußzeilen und der `<head>`
+  nicht. Der Web-Konnektor einer Wissenssammlung liest eine Seite genauso. `title`
+  ist der `<title>` der Seite, auf 500 Zeichen gekürzt, oder null, wenn die Seite keinen
+  hat (auch bei einem leeren `<title>`).
+- `links` enthält jedes `a[href]` einmal, in Dokumentreihenfolge, mit dem Text seines
+  ersten Ankers (auf 500 Zeichen gekürzt). Ein Link wird gegen **Base address**
+  aufgelöst, wenn eine gesetzt ist, sonst bleibt er, wie er geschrieben ist. Links
+  auf `javascript:`-, `vbscript:`- und `data:`-Adressen werden weggelassen, damit ein
+  späterer Schritt, der jeden Link abruft, nie ein Skript bekommt; ebenso ein `href`
+  über 2.048 Zeichen und einer, der sich nicht als Adresse lesen lässt. Höchstens 500
+  Links werden behalten und die ersten 5.000 Anker angesehen; `links_truncated` sagt,
+  dass die Seite mehr hatte.
+- `matches` enthält die Elemente, die **CSS selector** auswählt, in
+  Dokumentreihenfolge, höchstens **Most matches** (standardmäßig 20, bis 200);
+  `match_count` sagt, wie viele der Selektor vor dem Kürzen ausgewählt hat. Jeder
+  Treffer hat seinen `text` und sein äußeres `html` (beide auf 10.000 Zeichen
+  gekürzt) und seine ersten 50 `attributes`, wobei ein mehrwertiges wie `class` mit
+  Leerzeichen verbunden und jeder Wert auf 2.000 Zeichen gekürzt wird. Ohne Selektor
+  gibt es keine Treffer. Ein Selektor, der kein gültiges CSS ist, wird beim
+  Veröffentlichen unter Nennung des Felds abgelehnt.
+
+Nichts wird abgerufen und nichts ausgeführt. Kein Bild, kein Stylesheet, keine
+**Base address** und kein Link wird angefragt, ein Skript ist nur Text, und der
+Parser stammt aus der Standardbibliothek, ist kein XML-Parser, sodass keine Entität
+von außerhalb der Seite aufgelöst wird.
+
+Das Parsen läuft in einem Kindprozess mit 20 Sekunden Wanduhrzeit, einem CPU-Limit und
+einem Speicherlimit, weil ein Selektor wie `p div div` über tief verschachteltem
+Markup Minuten brauchen kann. Nach den 20 Sekunden wird der Kindprozess beendet und
+der Schritt scheitert mit `HTML_TOO_COMPLEX`, ohne erneuten Versuch. Auch der Aufwand
+je Anker und je Treffer ist begrenzt, sodass eine einzelne Seite den Schritt weder
+langsam noch seine Ausgabe groß machen kann.
+
+| Was passiert ist | Ergebnis |
+|---|---|
+| Keine Einstellungen oder keine Eingabe | `HTML_PARSE_NOT_CONFIGURED` |
+| `html` über 2.000.000 Zeichen, oder `html` und `file` beide gebunden | `INVALID_BINDING`, bevor der Schritt läuft |
+| Die Datei fehlt oder ist größer als 5.000.000 Bytes | `FILE_NOT_FOUND`, `FILE_TOO_LARGE` |
+| Kein Decoder kann die Bytes lesen, oder der Leseprozess stirbt | `HTML_NOT_READABLE`, das Detail `reason` sagt welches |
+| Die Seite braucht über 20 Sekunden | `HTML_TOO_COMPLEX` |
+
+`INVALID_BINDING` beendet den Run, bevor der Schritt läuft, sodass `error.handle` ihn
+nicht weiterleiten kann; eine zu große Datei ist das `FILE_TOO_LARGE`, mit dem der
+Schritt scheitert und das sich weiterleiten lässt.
+Die Palette zeigt den Schritt mit einem Code-Symbol bei den Datenschritten.
+
+::: app.workflows.nodes.html_parse._handler.HtmlParseConfig
+
+::: app.workflows.nodes.html_parse._handler.HtmlParseOutput
 
 ## Transform { #transform }
 
@@ -588,7 +663,9 @@ Eine URL, die aus einem öffentlichen Trigger (Webhook, Formular, E-Mail) oder a
 Ein Credential ist ein [HTTP credential](../secrets.md#kinds)
 aus dem Vault und wird nur an die Origins gesendet, die das Secret erlaubt. Die
 Antwort wird innerhalb von `max_response_bytes` gelesen und ohne `Set-Cookie`,
-die Authentifizierungs-Header und das Token zurückgegeben.
+die Authentifizierungs-Header und das Token zurückgegeben. Eine HTML-Antwort kommt
+als Text in `body` zurück; binden Sie sie an [`html.parse`](#html-parse), um ihren Text,
+ihre Links und Elemente zu lesen.
 
 Die Zugangsdaten gehen als Bearer-Token, Basic-Authentifizierung, ein Header mit
 einem Namen deiner Wahl oder, mit `query`, ein URL-Parameter mit einem Namen deiner

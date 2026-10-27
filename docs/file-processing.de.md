@@ -1,5 +1,5 @@
 ---
-source_sha: "e7b82f03a0fe"
+source_sha: "42ba4dae462d"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -337,6 +337,10 @@ Dateitypen und das Größenlimit für Chat-Uploads: Von den Anhängen, die ein P
 liefert, werden nur die ersten 10 pro Nachricht berücksichtigt, und 25 MiB pro
 Nachricht. Ein ausgelassener Anhang wird mit dem Grund aufgeführt, und ein Testlauf
 holt nichts ab.
+
+Eine HTML-Datei in einem Workflow, etwa eine gespeicherte Seite oder ein Anhang,
+wird von [`html.parse`](reference/workflow-nodes.md#html-parse) gelesen, nicht von
+`text.extract`, das Dokumente liest und das Markup als Text zurückgeben würde.
 
 ### Das Modell ChatFile { #chatfile-model }
 

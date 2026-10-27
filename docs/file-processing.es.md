@@ -1,5 +1,5 @@
 ---
-source_sha: "e7b82f03a0fe"
+source_sha: "42ba4dae462d"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -324,6 +324,10 @@ sondeo que leyó el buzón. Siguen la lista de tipos de archivo permitidos y el 
 de tamaño de subida del chat: de los adjuntos que lista un buzón solo se consideran
 los 10 primeros por mensaje, y 25 MiB por mensaje. Uno que se deja fuera se lista
 con el motivo, y una ejecución de prueba no descarga nada.
+
+Un archivo HTML en un workflow, como una página guardada o un adjunto, lo lee
+[`html.parse`](reference/workflow-nodes.md#html-parse), no `text.extract`, que lee
+documentos y devolvería el marcado como texto.
 
 ### El modelo ChatFile { #chatfile-model }
 

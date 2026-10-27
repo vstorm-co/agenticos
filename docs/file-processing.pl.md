@@ -1,5 +1,5 @@
 ---
-source_sha: "e7b82f03a0fe"
+source_sha: "42ba4dae462d"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -313,6 +313,10 @@ czytał skrzynkę. Obowiązuje je lista dozwolonych typów plików i limit rozmi
 uploadu czatu: z załączników podanych przez skrzynkę brane jest pod uwagę tylko
 pierwsze 10 na wiadomość, oraz 25 MiB na wiadomość. Pominięty załącznik jest
 wypisany z powodem, a testowy run niczego nie pobiera.
+
+Plik HTML w workflow, na przykład zapisaną stronę albo załącznik, czyta
+[`html.parse`](reference/workflow-nodes.md#html-parse), a nie `text.extract`, który
+czyta dokumenty i oddałby znaczniki jako tekst.
 
 ### Model ChatFile { #chatfile-model }
 

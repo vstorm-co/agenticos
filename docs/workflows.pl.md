@@ -1,5 +1,5 @@
 ---
-source_sha: "e4a6e258e523"
+source_sha: "65fca108838e"
 ---
 
 # Workflows { #workflows }
@@ -883,7 +883,9 @@ Trzy pola nagłówkowe pisze nadawca, więc pozwalają powiązać odpowiedź z w
 nic nie dowodzą o tym, kto wysłał wiadomość. Wiadomość przeczytana dwa razy uruchamia
 run raz, a ta, dla której organizacja nie miała jeszcze miejsca, jest czytana
 ponownie minutę później. Zobacz
-[trigger.gmail](reference/workflow-nodes.md#trigger-gmail).
+[trigger.gmail](reference/workflow-nodes.md#trigger-gmail). Aby odczytać treść `html`
+jako tekst, linki albo to, co wybiera selektor CSS, powiąż ją z
+[`html.parse`](reference/workflow-nodes.md#html-parse).
 
 Wyzwalacz **Outlook** robi to samo dla skrzynki Microsoft 365 organizacji,
 podłączonej przez portal **Outlook**. Microsoft Graph jest czytany folder po
@@ -894,9 +896,10 @@ otworzyć, **Shared mailbox**. Filtry to **Subject contains**, **Sender contains
 się od chwili opublikowania lub ostatniego włączenia workflow, więc poczta, która już tam leży, niczego nie
 uruchamia.
 
-Każdy, kto może opublikować workflow, może wskazać dowolną skrzynkę
-współdzieloną, którą otwiera grant Microsoft organizacji, tak jak już mogą to robić
-triggery agentów Outlook. Jeśli Outlook zgłosi, że folderu nie da się już czytać, workflow jest
+Wskazanie skrzynki współdzielonej, którą otwiera grant Microsoft organizacji, wymaga
+uprawnienia do zarządzania połączeniami, tak jak w triggerach agentów Outlook; workflow, który
+już nasłuchuje takiej skrzynki, zachowuje ją przy kolejnych publikacjach, a jej zmiana
+znowu wymaga tego uprawnienia. Jeśli Outlook zgłosi, że folderu nie da się już czytać, workflow jest
 wyłączany, a dziennik audytu podaje powód. Run dostaje te same pola co run z Gmaila,
 przy czym `labels` zawiera kategorie wiadomości, a `mailbox` skrzynkę współdzieloną,
 z której przyszła. Zobacz

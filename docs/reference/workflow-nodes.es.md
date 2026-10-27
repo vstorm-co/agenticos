@@ -1,5 +1,5 @@
 ---
-source_sha: "f31594b6f257"
+source_sha: "d4b30e7a0a40"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -149,7 +149,13 @@ campos de cabecera los escribe el remitente: enlazan una respuesta con el hilo y
 prueban quién envió el mensaje.
 
 Una ejecución que inició el buzón guarda los adjuntos del mensaje como archivos del
-run. Un buzón lista como máximo 20 por mensaje y solo se consideran los 10 primeros
+run, pero solo cuando el workflow los lee: un grafo que no enlaza ni los `attachments` del
+trigger ni toda su salida deja cada adjunto como `not_fetched`. Cada archivo guardado
+cuenta para la cuota de archivos de la organización, y cualquiera puede escribir a un
+trigger sin **Sender contains**, así que enlaza `attachments` solo cuando un paso
+necesite los archivos.
+
+Un buzón lista como máximo 20 por mensaje y solo se consideran los 10 primeros
 listados, hasta 25 MiB en total, cada uno dentro del límite de tamaño de subida del
 chat, de la lista de tipos de archivo permitidos y de la cuota de almacenamiento de
 la organización. Un adjunto que se deja fuera conserva su sitio en `attachments` con
@@ -175,10 +181,11 @@ conectado de la organización que encaja con todos los filtros puestos, leído u
 por minuto. La publicación se rechaza hasta que haya un buzón conectado.
 `triggered_by` es `outlook`. Microsoft Graph se lee carpeta a carpeta, así que
 **Folder** y **Shared mailbox** son a la vez donde mira el poller y un filtro, y la
-primera lectura de una carpeta empieza en el momento en que se publicó o se encendió por última vez el workflow. Quien
-puede publicar un workflow puede nombrar cualquier buzón compartido que el grant de
-Microsoft de la organización pueda abrir, como ya pueden los triggers de agente de
-Outlook.
+primera lectura de una carpeta empieza en el momento en que se publicó o se encendió por última vez el workflow. Nombrar un
+buzón compartido que el grant de Microsoft de la organización pueda abrir exige el
+permiso para gestionar conexiones, como en los triggers de agente de Outlook; un workflow
+que ya escucha uno lo conserva en publicaciones posteriores, y cambiarlo exige el permiso
+otra vez.
 **Sender contains** compara la dirección del remitente, como en Gmail, y exige correo
 que el dominio del remitente autenticó o que vino de dentro del tenant. Una carpeta o
 un buzón compartido que Outlook dice que no se pueden leer apaga el workflow, con
@@ -301,6 +308,71 @@ paleta dibuja el paso con un icono de diferencias, entre los pasos de datos.
 ::: app.workflows.nodes.text_compare._handler.TextCompareConfig
 
 ::: app.workflows.nodes.text_compare._handler.TextCompareOutput
+
+## html.parse { #html-parse }
+
+**Parse HTML** lee HTML como su texto, sus enlaces y los elementos que elige un
+selector CSS. Sirve para el HTML con el que se topa un flujo: el cuerpo de un
+correo, el cuerpo de un `http.request`, una página que guardó `http.download`.
+`text.extract` lee documentos, no marcado: devolvería las etiquetas como texto.
+Vincula `html` (como máximo 2.000.000 de caracteres) o `file` (como máximo 5.000.000
+de bytes, comprobado antes de leer el archivo), no ambos. Un archivo se decodifica a
+partir de su marca de orden de bytes, su `<meta charset>` o sus bytes, con pérdida
+si hace falta, y su tipo declarado no se comprueba: un PDF se lee como texto
+ilegible y no se rechaza. Un carácter NUL se lee como U+FFFD.
+
+El paso tiene tres salidas, todas acotadas:
+
+- `text` es el texto legible como Markdown, cortado en **Most characters of text**
+  (100.000 por defecto; `text_truncated` indica que se cortó). Se conservan los
+  encabezados, las listas y el código; no los scripts, los estilos, los menús
+  (`nav`), los pies de página ni el `<head>`. El conector web de una colección de
+  conocimiento lee una página igual. `title` es el `<title>` de la página, cortado a
+  500 caracteres, o null si la página no lo tiene (también si está vacío).
+- `links` contiene cada `a[href]` una vez, en el orden del documento, con el texto de
+  su primer ancla (cortado a 500 caracteres). Un enlace se resuelve contra **Base
+  address** cuando hay una, y se deja como está escrito cuando no. Los enlaces a
+  direcciones `javascript:`, `vbscript:` y `data:` se omiten, para que un paso
+  posterior que solicite cada enlace nunca reciba un script; también un `href` de
+  más de 2.048 caracteres y uno que no se puede leer como dirección. Se conservan
+  como máximo 500 enlaces y se miran las primeras 5.000 anclas; `links_truncated`
+  indica que la página tenía más.
+- `matches` contiene los elementos que elige **CSS selector**, en el orden del
+  documento, como máximo **Most matches** (20 por defecto, hasta 200); `match_count`
+  indica cuántos eligió el selector antes del corte. Cada coincidencia tiene su
+  `text` y su `html` exterior (ambos cortados a 10.000 caracteres) y sus primeros 50
+  `attributes`, con uno multivalor como `class` unido por espacios y cada valor
+  cortado a 2.000 caracteres. Sin selector no hay coincidencias. Un selector que no
+  es CSS válido se rechaza al publicar, indicando el campo.
+
+No se descarga nada y no se ejecuta nada. No se solicita ninguna imagen, hoja de
+estilos, **Base address** ni enlace, un script es solo texto, y el analizador es el
+de la biblioteca estándar, que no es un analizador XML, así que no se expande
+ninguna entidad de fuera de la página.
+
+El análisis corre en un proceso hijo con 20 segundos de tiempo real, un límite de CPU
+y un límite de memoria, porque un selector como `p div div` sobre marcado muy anidado
+puede tardar minutos. Pasados los 20 segundos se mata el hijo y el paso falla con
+`HTML_TOO_COMPLEX`, sin reintento. El trabajo por ancla y por coincidencia también
+está acotado, así que una sola página no puede volver lento el paso ni grande su
+salida.
+
+| Qué pasó | Resultado |
+|---|---|
+| Sin ajustes o sin entrada | `HTML_PARSE_NOT_CONFIGURED` |
+| `html` de más de 2.000.000 de caracteres, o `html` y `file` vinculados a la vez | `INVALID_BINDING`, antes de que se ejecute el paso |
+| El archivo no existe o pasa de 5.000.000 de bytes | `FILE_NOT_FOUND`, `FILE_TOO_LARGE` |
+| Ningún decodificador lee los bytes, o el proceso lector muere | `HTML_NOT_READABLE`, el detalle `reason` dice cuál |
+| La página tarda más de 20 segundos | `HTML_TOO_COMPLEX` |
+
+`INVALID_BINDING` termina el run antes de que se ejecute el paso, así que
+`error.handle` no puede encaminarlo; un archivo demasiado grande es el
+`FILE_TOO_LARGE` con el que falla el paso, y ese sí se puede encaminar.
+La paleta dibuja el paso con un icono de código, entre los pasos de datos.
+
+::: app.workflows.nodes.html_parse._handler.HtmlParseConfig
+
+::: app.workflows.nodes.html_parse._handler.HtmlParseOutput
 
 ## Transform { #transform }
 
@@ -571,7 +643,8 @@ Una
 credencial es una [HTTP credential](../secrets.md#kinds) del vault, y solo se
 envía a los orígenes que permite el secreto. La respuesta se lee dentro de
 `max_response_bytes` y se devuelve sin `Set-Cookie`, sin las cabeceras de
-autenticación y sin el token.
+autenticación y sin el token. Una respuesta HTML vuelve como texto en `body`;
+vincúlala a [`html.parse`](#html-parse) para leer su texto, enlaces y elementos.
 
 La credencial va como token bearer, autenticación Basic, una cabecera con el
 nombre que indiques o, con `query`, un parámetro de URL con el nombre que indiques.

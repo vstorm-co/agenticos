@@ -131,6 +131,7 @@ def load_builtins() -> None:
         file_write,
         flow_resume_link,
         flow_wait,
+        html_parse,
         http_download,
         http_request,
         http_upload,

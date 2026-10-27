@@ -137,8 +137,13 @@ The output carries the thread - `thread_id`, `rfc_message_id`, `in_reply_to`,
 sender writes the header fields, so they thread a reply and prove nothing about who
 sent it.
 
-A run the mailbox started stores the message's attachments as files of the run. A
-mailbox lists at most 20 per message and only the first 10 listed are considered, up
+A run the mailbox started stores the message's attachments as files of the run, but only
+when the workflow reads them: a graph that binds neither the trigger's `attachments` nor its
+whole output leaves every attachment `not_fetched`. Each stored file counts against the
+organization's file quota, and anybody can mail a trigger that sets no **Sender contains**,
+so bind `attachments` only when a step needs the files.
+
+A mailbox lists at most 20 per message and only the first 10 listed are considered, up
 to 25 MiB together, each within the chat-upload size limit and file type allowlist
 and the organization's storage quota. An attachment left out keeps its place in
 `attachments` with a `reason`: `too_many`, `too_large`, `type_not_allowed`, `quota`,
@@ -163,9 +168,10 @@ Microsoft 365 mailbox that fits every filter set, read once a minute. Publishing
 refused until a mailbox is connected. `triggered_by` is `outlook`. Microsoft Graph
 is read one folder at a time, so **Folder** and **Shared mailbox** are where the
 poll looks as well as a filter, and the first read of a folder starts at the moment
-the workflow was published or last switched on. Anyone who can publish a workflow can
-name any shared mailbox the organization's Microsoft grant can open, as Outlook agent
-triggers already can. **Sender contains** matches the sender's address, as
+the workflow was published or last switched on. Naming a shared mailbox the organization's
+Microsoft grant can open takes the permission to manage connections, as it does for
+Outlook agent triggers; a workflow already listening to one keeps it through later
+publishes, and changing it needs the permission again. **Sender contains** matches the sender's address, as
 for Gmail, and needs mail the sender's domain authenticated or that came from inside
 the tenant. A folder or shared mailbox Outlook says cannot be read switches the
 workflow off, with `mailbox_folder_unreadable` in the audit log. A stored
@@ -282,6 +288,66 @@ step with a diff icon, under the data steps.
 ::: app.workflows.nodes.text_compare._handler.TextCompareConfig
 
 ::: app.workflows.nodes.text_compare._handler.TextCompareOutput
+
+## html.parse { #html-parse }
+
+**Parse HTML** reads HTML into its text, its links and the elements a CSS selector
+picks. It is for the HTML a flow meets: a mail body, an `http.request` body, a page
+`http.download` stored. `text.extract` reads documents, not markup - it would hand
+the tags back as the text. Bind either `html` (at most 2,000,000 characters) or
+`file` (at most 5,000,000 bytes, checked before the file is read), not both. A file
+is decoded from its byte-order mark, its `<meta charset>` or its bytes, lossily if
+need be, and its declared type is not checked: a PDF reads as garbled text and is
+not refused. A NUL character reads as U+FFFD.
+
+The step has three outputs, each bounded:
+
+- `text` is the readable text as Markdown, cut at **Most characters of text**
+  (100,000 unless set; `text_truncated` says it was cut). Headings, lists and code
+  stay; scripts, styles, menus (`nav`), footers and the `<head>` do not. A knowledge
+  collection's web connector reads a page the same way. `title` is the page's
+  `<title>`, cut at 500 characters, or null when the page has none (an
+  empty `<title>` too).
+- `links` holds every `a[href]` once, in document order, with the text of its first
+  anchor (cut at 500 characters). A link is resolved against **Base address** when
+  one is set, and kept as written when not. Links to `javascript:`, `vbscript:` and
+  `data:` addresses are left out, so a later step that requests every link is never
+  handed a script, and so are an `href` over 2,048 characters and one that cannot be
+  read as an address. At most 500 links are kept and the first 5,000 anchors are
+  looked at; `links_truncated` says the page had more.
+- `matches` holds the elements **CSS selector** picks, in document order, at most
+  **Most matches** (20 unless set, up to 200); `match_count` says how many the
+  selector picked before the cut. Each match has its `text` and outer `html` (both
+  cut at 10,000 characters) and its first 50 `attributes`, a multi-valued one such
+  as `class` joined by spaces and each value cut at 2,000 characters. With no
+  selector there are no matches. A selector that is not valid CSS is refused at
+  publish, naming the field.
+
+Nothing is fetched and nothing runs. No image, stylesheet, **Base address** or link
+is requested, a script is only text, and the parser is the standard library's, not
+an XML parser, so no entity is expanded from outside the page.
+
+The parse runs in a child process with 20 seconds of wall-clock time, a CPU limit and
+a memory limit, because a selector such as `p div div` over deeply nested markup can
+take minutes. When the 20 seconds pass the child is killed and the step fails with
+`HTML_TOO_COMPLEX`, which is not retried. The work for each anchor and each match is
+bounded too, so one page cannot make the step slow or its output large.
+
+| What happened | Result |
+|---|---|
+| No settings or no input | `HTML_PARSE_NOT_CONFIGURED` |
+| `html` over 2,000,000 characters, or both `html` and `file` bound | `INVALID_BINDING`, before the step runs |
+| The file is missing, or over 5,000,000 bytes | `FILE_NOT_FOUND`, `FILE_TOO_LARGE` |
+| No decoder can read the bytes, or the reader process dies | `HTML_NOT_READABLE`, its `reason` detail says which |
+| The page takes over 20 seconds | `HTML_TOO_COMPLEX` |
+
+`INVALID_BINDING` ends the run before the step runs, so `error.handle` cannot route
+it; an oversized file is the `FILE_TOO_LARGE` the step fails with, which it can.
+The palette draws the step with a code icon, under the data steps.
+
+::: app.workflows.nodes.html_parse._handler.HtmlParseConfig
+
+::: app.workflows.nodes.html_parse._handler.HtmlParseOutput
 
 ## Transform { #transform }
 
@@ -547,7 +613,8 @@ A credential is an
 [HTTP credential](../secrets.md#kinds) from the vault, and it is
 sent only to the origins the secret allows. The response is read under
 `max_response_bytes` and handed back without `Set-Cookie`, the authentication
-headers or the token.
+headers or the token. A response that is HTML comes back as text in `body`; bind it
+to [`html.parse`](#html-parse) to read its text, links and elements.
 
 The credential goes as a bearer token, Basic authentication, a header you name
 or, with `query`, a URL parameter you name. **Import cURL** in the editor reads a

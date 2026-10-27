@@ -1,5 +1,5 @@
 ---
-source_sha: "e4a6e258e523"
+source_sha: "65fca108838e"
 ---
 
 # Workflows { #workflows }
@@ -908,7 +908,9 @@ La ejecución recibe `sender`, `to`, `subject`, `text`, `snippet`, `labels` y el
 remitente: sirven para enlazar una respuesta con el hilo, pero no prueban quién envió
 el mensaje. Un mensaje leído dos veces inicia su ejecución una vez, y uno para el que
 la organización aún no tenía sitio se vuelve a leer un minuto después. Ver
-[trigger.gmail](reference/workflow-nodes.md#trigger-gmail).
+[trigger.gmail](reference/workflow-nodes.md#trigger-gmail). Para leer el cuerpo `html`
+como texto, enlaces o lo que elige un selector CSS, vincúlalo a
+[`html.parse`](reference/workflow-nodes.md#html-parse).
 
 Un trigger **Outlook** hace lo mismo con el buzón de Microsoft 365 de la
 organización, conectado a través del portal **Outlook**. Microsoft Graph se lee
@@ -919,9 +921,10 @@ contains**, **Has attachments**, **Importance** y **Category**.
 
 La primera lectura de
 una carpeta empieza en el momento en que se publicó o se encendió por última vez el workflow, así que el
-correo que ya está allí no inicia nada. Quien puede publicar un workflow puede nombrar
-cualquier buzón compartido que el grant de Microsoft de la organización pueda abrir,
-como ya pueden los triggers de agente de Outlook. Si Outlook dice que la carpeta ya no se puede leer, el
+correo que ya está allí no inicia nada. Nombrar un buzón compartido que el grant de Microsoft de la organización pueda abrir
+exige el permiso para gestionar conexiones, como en los triggers de agente de Outlook;
+un workflow que ya escucha uno lo conserva en publicaciones posteriores, y cambiarlo
+exige el permiso otra vez. Si Outlook dice que la carpeta ya no se puede leer, el
 workflow se apaga y el registro de auditoría dice por qué.
 
 La ejecución recibe los

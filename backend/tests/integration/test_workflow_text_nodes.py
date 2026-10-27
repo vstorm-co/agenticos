@@ -1,12 +1,15 @@
 """The text nodes in a real run: values enter at the start, a step scores them."""
 
 import uuid
+from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.db.models.workflow_run import WorkflowRunStatus
+from app.services.file_storage import LocalFileStorage
 from app.workflows.contracts.io import Binding, NodeOutputRef
 from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
 from app.workflows.graph.validate import validate_graph
@@ -73,3 +76,37 @@ async def test_two_texts_from_the_run_input_are_scored(engine: AsyncEngine):
     scored = run.output["structured"]
     assert scored["unit"] == "characters"
     assert scored["score"] == pytest.approx(1 - 5 / 13, abs=1e-6)
+
+
+async def test_html_in_a_file_is_read_for_its_title(engine: AsyncEngine, tmp_path: Path):
+    entry = _node("core.input", {"fields": [{"name": "page", "type": "text"}]})
+    to_file = _node("convert.text_to_file", {"filename": "page.html"})
+    parse = _node("html.parse")
+    output = _node("core.output")
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, to_file, parse, output),
+        edges=(_edge(entry, to_file), _edge(to_file, parse), _edge(parse, output)),
+        bindings=(
+            _bind(to_file, "text", entry, "payload", "page"),
+            _bind(parse, "file", to_file, "file"),
+            _bind(output, "structured", parse),
+        ),
+    )
+    page = "<html><head><title>Spring prices</title></head><body><p>Tulips</p></body></html>"
+    seeded = await seed_run(engine, graph, run_input={"page": page})
+    async with async_sessionmaker(engine)() as db:
+        await validate_graph(db, seeded.ctx, graph)
+
+    local = LocalFileStorage(tmp_path)
+    with (
+        patch("app.workflows.files.get_file_storage", return_value=local),
+        patch("app.services.file_storage.get_file_storage", return_value=local),
+    ):
+        run = await drive(seeded)
+
+    assert run.status == WorkflowRunStatus.SUCCEEDED.value
+    assert run.output is not None
+    parsed = run.output["structured"]
+    assert parsed["title"] == "Spring prices"
+    assert "Tulips" in parsed["text"]

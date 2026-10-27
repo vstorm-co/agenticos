@@ -1,5 +1,5 @@
 ---
-source_sha: "e4a6e258e523"
+source_sha: "65fca108838e"
 ---
 
 # Workflows { #workflows }
@@ -965,7 +965,9 @@ mit ihnen lässt sich eine Antwort in den Thread einordnen, sie beweisen aber ni
 darüber, wer die Nachricht gesendet hat. Eine zweimal gelesene Nachricht startet
 ihren Lauf einmal, und eine, für die die Organisation noch keinen Platz hatte, wird
 eine Minute später erneut gelesen. Siehe
-[trigger.gmail](reference/workflow-nodes.md#trigger-gmail).
+[trigger.gmail](reference/workflow-nodes.md#trigger-gmail). Um den `html`-Text als
+Text, als Links oder als das zu lesen, was ein CSS-Selektor auswählt, binden Sie ihn an
+[`html.parse`](reference/workflow-nodes.md#html-parse).
 
 Ein **Outlook**-Trigger tut dasselbe für das Microsoft-365-Postfach der Organisation,
 verbunden über das **Outlook**-Portal. Microsoft Graph wird Ordner für Ordner
@@ -976,9 +978,10 @@ contains**, **Has attachments**, **Importance** und **Category**. Das erste Lese
 eines Ordners beginnt mit dem Zeitpunkt, zu dem der Workflow veröffentlicht oder zuletzt
 eingeschaltet wurde; Post, die schon dort liegt, startet nichts.
 
-Wer einen Workflow
-veröffentlichen darf, kann jedes gemeinsame Postfach nennen, das der Microsoft-Grant
-der Organisation öffnen kann, wie es Outlook-Agent-Trigger schon heute können. Meldet Outlook, dass der Ordner nicht
+Ein gemeinsames Postfach, das der Microsoft-Grant der Organisation öffnen kann, zu
+nennen, erfordert die Berechtigung, Verbindungen zu verwalten, wie bei Outlook-Agent-Triggern;
+ein Workflow, der schon eines liest, behält es bei späteren Veröffentlichungen, und es zu
+ändern erfordert die Berechtigung erneut. Meldet Outlook, dass der Ordner nicht
 mehr gelesen werden kann, wird der Workflow ausgeschaltet, und das Audit-Log nennt
 den Grund.
 

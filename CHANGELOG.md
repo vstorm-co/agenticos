@@ -44,6 +44,12 @@ Two things are versioned separately from this file and worth knowing about:
   to ignore case, whitespace, punctuation, and quoted mail and signatures.
   Deterministic, no model and no cost; each text is at most 100,000 characters.
 
+- **`html.parse` reads HTML into its text, links and CSS-selector matches.** A data
+  step for a mail body, an `http.request` body or a stored page: the readable text
+  as Markdown, every link once (script and `data:` links left out) and the elements
+  a selector picks, from HTML text or a file. Everything is bounded, the parse is
+  stopped after 20 seconds, and nothing is fetched or executed.
+
 - **`ai.classify` can leave by `unsure` below a confidence.** With a
   `min_confidence`, the model also states how sure it is of the category, from 0
   to 1 (its own report, not a calibrated probability), and the step leaves by an
