@@ -2,7 +2,8 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useUrlState } from "./use-url-state";
+import { takeOwnTraversal } from "@/lib/history-entries";
+import { useUrlOverlay, useUrlState } from "./use-url-state";
 
 /**
  * State mirrored into a query parameter, with the parameter winning on a
@@ -75,5 +76,113 @@ describe("useUrlState", () => {
     rerender(<Probe />);
 
     expect(screen.getByRole("status")).toHaveTextContent("agent-9");
+  });
+});
+
+function Overlay() {
+  const [value, view] = useUrlOverlay("case");
+  return (
+    <div>
+      <output>{value ?? "nothing"}</output>
+      <button type="button" onClick={() => view.open("c1")}>
+        open c1
+      </button>
+      <button type="button" onClick={() => view.open("c2")}>
+        open c2
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          // A dialog reports closing twice: once as it discards, once as it goes.
+          view.close();
+          view.close();
+        }}
+      >
+        close
+      </button>
+      <button type="button" onClick={() => view.replace(null)}>
+        clear
+      </button>
+    </div>
+  );
+}
+
+describe("useUrlOverlay", () => {
+  beforeEach(() => {
+    params.delete("case");
+    takeOwnTraversal();
+    window.history.replaceState({}, "", "/datasets/d1");
+  });
+
+  it("opens an object from its page as a step of its own, and the next one in its place", async () => {
+    render(<Overlay />);
+    const length = window.history.length;
+
+    await userEvent.click(screen.getByRole("button", { name: "open c1" }));
+    expect(screen.getByRole("status")).toHaveTextContent("c1");
+    expect(window.history.length).toBe(length + 1);
+    expect(new URL(window.location.href).searchParams.get("case")).toBe("c1");
+    expect((window.history.state as Record<string, unknown>).__urlOverlay).toBe("case");
+
+    await userEvent.click(screen.getByRole("button", { name: "open c2" }));
+    expect(screen.getByRole("status")).toHaveTextContent("c2");
+    expect(window.history.length).toBe(length + 1);
+    expect(new URL(window.location.href).searchParams.get("case")).toBe("c2");
+  });
+
+  it("closes by going back over the step it opened, once however often it is asked", async () => {
+    const go = vi.spyOn(window.history, "go").mockImplementation(() => {});
+    render(<Overlay />);
+    await userEvent.click(screen.getByRole("button", { name: "open c1" }));
+    await userEvent.click(screen.getByRole("button", { name: "close" }));
+
+    expect(screen.getByRole("status")).toHaveTextContent("nothing");
+    expect(go).toHaveBeenCalledTimes(1);
+    expect(go).toHaveBeenCalledWith(-1);
+    go.mockRestore();
+  });
+
+  it("goes back past the unsaved-changes guard's copy of the step", async () => {
+    const go = vi.spyOn(window.history, "go").mockImplementation(() => {});
+    render(<Overlay />);
+    await userEvent.click(screen.getByRole("button", { name: "open c1" }));
+    window.history.pushState(
+      { ...window.history.state, __unsavedHeld: true },
+      "",
+      window.location.href,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "close" }));
+
+    expect(go).toHaveBeenCalledWith(-2);
+    go.mockRestore();
+  });
+
+  it("drops the parameter in place when a link opened the object", async () => {
+    const go = vi.spyOn(window.history, "go");
+    params.set("case", "c1");
+    window.history.replaceState({}, "", "/datasets/d1?case=c1");
+    render(<Overlay />);
+    const length = window.history.length;
+
+    await userEvent.click(screen.getByRole("button", { name: "close" }));
+
+    expect(screen.getByRole("status")).toHaveTextContent("nothing");
+    expect(go).not.toHaveBeenCalled();
+    expect(window.history.length).toBe(length);
+    expect(new URL(window.location.href).searchParams.get("case")).toBeNull();
+    go.mockRestore();
+  });
+
+  it("does nothing to close when nothing is open, and clears in place on request", async () => {
+    const go = vi.spyOn(window.history, "go");
+    render(<Overlay />);
+    await userEvent.click(screen.getByRole("button", { name: "close" }));
+    expect(go).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("button", { name: "open c1" }));
+    await userEvent.click(screen.getByRole("button", { name: "clear" }));
+    expect(screen.getByRole("status")).toHaveTextContent("nothing");
+    expect(new URL(window.location.href).searchParams.get("case")).toBeNull();
+    go.mockRestore();
   });
 });

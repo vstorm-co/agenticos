@@ -2,6 +2,7 @@ import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 
 import type { Translate } from "@/lib/agent-step-captions";
+import { appHistoryState, HELD_ENTRY } from "@/lib/history-entries";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -29,7 +30,16 @@ export function setUrlParam(key: string, value: string | null): void {
   } else {
     url.searchParams.set(key, value);
   }
-  window.history.replaceState({}, "", url.toString());
+  // A guard's duplicate entry stops being one once its address changes.
+  const { [HELD_ENTRY]: _held, ...kept } = appHistoryState();
+  window.history.replaceState(kept, "", url.toString());
+}
+
+/** `setUrlParam` as a new history entry, carrying `state` - a step Back undoes. */
+export function pushUrlParam(key: string, value: string, state: Record<string, unknown>): void {
+  const url = new URL(window.location.href);
+  url.searchParams.set(key, value);
+  window.history.pushState(state, "", url.toString());
 }
 
 export function getPasswordStrength(pw: string): { score: number; label: string; color: string } {

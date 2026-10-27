@@ -12,6 +12,7 @@ import {
   formatRunDuration,
   getPasswordStrength,
   isAppAdmin,
+  pushUrlParam,
   setUrlParam,
   timeAgo,
   truncate,
@@ -269,5 +270,26 @@ describe("setUrlParam", () => {
     setUrlParam("agent", null);
 
     expect(window.location.search).toBe("");
+  });
+
+  it("keeps what the app marked the entry with, but not a guard's copy of another entry", () => {
+    window.history.replaceState({ __urlOverlay: "run", __unsavedHeld: true }, "", "/runs?run=r1");
+
+    setUrlParam("tab", "approvals");
+
+    expect(window.history.state).toEqual({ __urlOverlay: "run" });
+  });
+});
+
+describe("pushUrlParam", () => {
+  it("writes the parameter as a new entry carrying the given state", () => {
+    window.history.replaceState({}, "", "/datasets/d1?tab=evals");
+    const length = window.history.length;
+
+    pushUrlParam("case", "c1", { __urlOverlay: "case" });
+
+    expect(window.history.length).toBe(length + 1);
+    expect(window.location.search).toBe("?tab=evals&case=c1");
+    expect(window.history.state).toEqual({ __urlOverlay: "case" });
   });
 });
