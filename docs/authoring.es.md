@@ -1,5 +1,5 @@
 ---
-source_sha: "04a681b7328a"
+source_sha: "80fb994a18c7"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -365,6 +365,8 @@ Abra **Improve** en la cabecera del agente o en la barra del asistente de la pes
 Cada **Improve** abre la sesión del agente mientras sigue trabajando o espera una decisión - un candidato comprobado que aceptar, o una sesión detenida o fallida que continuar, reintentar o descartar - y empieza una nueva cuando la sesión se guarda como borrador, se publica, se descarta, se cancela o se aparta; esa sesión queda en el [historial de mejoras](#improvement-history) del agente.
 
 Una sesión vive en `/agents/<agent>/improve/<session>`; la página puede cerrarse y volver a abrirse mientras el trabajo continúa. Cada pantalla pide como mucho una decisión, indica quién decidió qué en ella y deja las opciones avanzadas bajo **Show details**. Cada pantalla empieza con cifras y gráficos pequeños, y cada estado se marca con un icono, no solo con un color; las respuestas completas, las citas y los motivos esperan en tarjetas que se abren. Una línea sobre los pasos da el estado de la sesión y lo que ha gastado de su límite.
+
+Un paso se abre cuando tiene trabajo que mostrar o una decisión que pedir. La página sigue el paso en el que está la sesión y, tras abrir otro, **Go to the current step** vuelve a él.
 
 1. **Inicio.** Tres cifras de los últimos 30 días y luego las preguntas de prueba propias del agente, ya elegidas y estimadas: la estimación, con la duración aproximada de la sesión, aparece sin hacer clic y no gasta nada, así que **Start improving** es la única decisión. Otras preguntas de prueba, el límite de gasto, el agente auxiliar y una prueba de las respuestas actuales están bajo **Show details**. Un agente sin preguntas de prueba recibe **Write test questions for me**: las respuestas valoradas se convierten en preguntas, se escriben más para temas sin ejemplo y la estimación llega cuando están listas. La sugerencia tras la primera publicación abre esta pantalla para fijar una referencia.
 2. **Comprender.** Una frase y una barra cuentan los problemas que corregir en el agente y la información que falta en la base de conocimiento. Los ejemplos cuyas carencias se unieron a un mismo tema de lagunas de conocimiento forman una tarjeta, que muestra la pregunta y se abre a la respuesta, los comentarios y el motivo por el que el clasificador la puso ahí. Las columnas las decide el clasificador. **Ignore this** y **Put it back** se guardan en la sesión mediante `PUT /{run_id}/evidence/{evidence_run_id}` con `decision` igual a `ignored` o `null`. Los intentos posteriores dejan fuera de los cambios del agente los ejemplos ignorados; nada ya propuesto o medido cambia.

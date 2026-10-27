@@ -1,5 +1,5 @@
 ---
-source_sha: "04a681b7328a"
+source_sha: "80fb994a18c7"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -355,6 +355,8 @@ Otwórz **Popraw** w nagłówku agenta albo na pasku asystenta na zakładce Budo
 Każde **Popraw** otwiera sesję agenta, dopóki ta pracuje albo czeka na decyzję - sprawdzonego kandydata do akceptacji albo zatrzymaną lub zakończoną błędem sesję do kontynuacji, ponowienia albo odrzucenia - a nową zaczyna, gdy sesja zostanie zachowana jako wersja robocza, opublikowana, odrzucona, anulowana albo odłożona; taka sesja zostaje w [historii usprawnień](#improvement-history) agenta.
 
 Sesja ma adres `/agents/<agent>/improve/<session>`; stronę można zamknąć i otworzyć ponownie, gdy praca trwa. Każdy ekran prosi o najwyżej jedną decyzję, podaje, kto co na nim zdecydował, a opcje zaawansowane trzyma pod **Pokaż szczegóły**. Każdy ekran zaczyna się od liczb i małych wykresów, a każdy stan oznacza ikoną, nie tylko kolorem; pełne odpowiedzi, cytaty i powody czekają w rozwijanych kartach. Jedna linia nad krokami podaje stan sesji i ile wydała ze swojego limitu.
+
+Krok otwiera się, gdy ma pracę do pokazania albo decyzję do podjęcia. Strona podąża za krokiem, na którym jest sesja, a po otwarciu innego kroku **Przejdź do bieżącego kroku** wraca do niego.
 
 1. **Start.** Trzy liczby z ostatnich 30 dni, potem własne pytania testowe agenta, już wybrane i wycenione: szacunek, razem z przybliżonym czasem trwania sesji, pojawia się bez kliknięcia i niczego nie wydaje, więc **Zacznij poprawianie** to jedyna decyzja. Inne pytania testowe, limit wydatków, agent pomocniczy i test dzisiejszych odpowiedzi są pod **Pokaż szczegóły**. Agent bez pytań testowych dostaje **Napisz dla mnie pytania testowe**: ocenione odpowiedzi stają się pytaniami, kolejne powstają dla tematów bez przykładu, a szacunek pojawia się, gdy są gotowe. Podpowiedź po pierwszej publikacji otwiera ten ekran, by ustalić punkt odniesienia.
 2. **Zrozumienie.** Jedno zdanie i pasek liczą problemy do poprawy w agencie i informacje, których brakuje w bazie wiedzy. Przykłady, których braki trafiły do jednego tematu luk w wiedzy, tworzą jedną kartę, która pokazuje pytanie i rozwija się do odpowiedzi, komentarzy i powodu, dla którego klasyfikator ją tam przydzielił. Kolumny ustala klasyfikator. **Zignoruj** i **Przywróć** są zapisywane w sesji przez `PUT /{run_id}/evidence/{evidence_run_id}` z `decision` równym `ignored` albo `null`. Kolejne próby pomijają w zmianach agenta przykłady zignorowane; nic, co już zaproponowano lub zmierzono, się nie zmienia.

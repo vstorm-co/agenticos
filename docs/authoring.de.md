@@ -1,5 +1,5 @@
 ---
-source_sha: "04a681b7328a"
+source_sha: "80fb994a18c7"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -377,6 +377,8 @@ Nach Abschluss macht `/{run_id}/rounds/{number}/select` eine gemessene Runde zum
 Jedes **Verbessern** öffnet die Sitzung des Agents, solange sie noch arbeitet oder auf eine Entscheidung wartet - einen geprüften Kandidaten zum Annehmen oder eine angehaltene oder fehlgeschlagene Sitzung zum Fortsetzen, Wiederholen oder Verwerfen -, und startet eine neue, sobald die Sitzung als Entwurf behalten, veröffentlicht, verworfen, abgebrochen oder zurückgestellt wurde; sie bleibt dann im [Verbesserungsverlauf](#improvement-history) des Agents.
 
 Eine Sitzung liegt unter `/agents/<agent>/improve/<session>`; die Seite lässt sich schließen und wieder öffnen, während die Arbeit weiterläuft. Jeder Bildschirm verlangt höchstens eine Entscheidung, nennt, wer dort was entschieden hat, und legt erweiterte Optionen unter **Details anzeigen**. Jeder Bildschirm beginnt mit Zahlen und kleinen Diagrammen, jeder Zustand ist mit einem Symbol und nicht nur einer Farbe markiert; vollständige Antworten, Zitate und Gründe warten in aufklappbaren Karten. Eine Zeile über den Schritten nennt den Zustand der Sitzung und was sie von ihrem Limit ausgegeben hat.
+
+Ein Schritt öffnet sich, sobald er Arbeit zu zeigen oder eine Entscheidung zu erfragen hat. Die Seite folgt dem Schritt, auf dem die Sitzung steht; nachdem Sie einen anderen geöffnet haben, führt **Zum aktuellen Schritt** dorthin zurück.
 
 1. **Start.** Drei Zahlen aus den letzten 30 Tagen, dann die eigenen Testfragen des Agents, bereits gewählt und geschätzt: Die Schätzung erscheint samt ungefährer Dauer der Sitzung ohne Klick und gibt nichts aus, daher ist **Verbesserung starten** die einzige Entscheidung. Andere Testfragen, das Ausgabenlimit, der Hilfsagent und ein Test der heutigen Antworten liegen unter **Details anzeigen**. Ein Agent ohne Testfragen bekommt **Testfragen für mich schreiben**: Bewertete Antworten werden zu Fragen, weitere entstehen für Themen ohne Beispiel, und die Schätzung folgt, sobald sie bereit sind. Der Hinweis nach der ersten Veröffentlichung öffnet diesen Bildschirm, um einen Ausgangswert festzulegen.
 2. **Verstehen.** Ein Satz und ein Balken zählen die Probleme, die im Agent zu beheben sind, und die Informationen, die in der Wissensdatenbank fehlen. Beispiele, deren Lücken in ein Wissenslücken-Thema fielen, bilden eine Karte, die die Frage zeigt und sich zur Antwort, zu den Kommentaren und zum Grund aufklappen lässt, aus dem der Klassifikator sie dort einordnete. Die Spalten legt der Klassifikator fest. **Ignorieren** und **Zurückholen** werden in der Sitzung gespeichert, über `PUT /{run_id}/evidence/{evidence_run_id}` mit `decision` gleich `ignored` oder `null`. Spätere Versuche lassen ignorierte Beispiele aus den Änderungen am Agent heraus; bereits Vorgeschlagenes oder Gemessenes ändert sich nicht.
