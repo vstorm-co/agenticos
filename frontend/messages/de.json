@@ -10988,7 +10988,6 @@
       "published": "{version, select, unknown {Versuch {number} wurde veröffentlicht.} other {Versuch {number} wurde als Version {version} veröffentlicht.}}",
       "acceptedDraft": "Versuch {number} wurde als Entwurf übernommen.",
       "failed": "Die Sitzung wurde durch einen Fehler beendet, bevor sie fertig war.",
-      "working": "Die Sitzung läuft noch, dies ist also das bisherige Ergebnis.",
       "noneBetter": "{count, plural, =0 {Kein Versuch wurde gemessen, daher ist offen, ob {agent} besser wurde.} one {Der Versuch hat {agent} nicht verbessert.} other {Keiner der # Versuche hat {agent} verbessert.}}",
       "worse": "Versuch {number} hat es verschlechtert: {broken, plural, one {# Frage funktioniert nicht mehr} other {# Fragen funktionieren nicht mehr}}.",
       "topics": "{count, plural, one {# Thema fehlt} other {# Themen fehlen}} in der Wissensbasis.",

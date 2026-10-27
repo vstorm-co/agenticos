@@ -91,8 +91,6 @@ function resultSituation(
 
 type Translate = ReturnType<typeof useTranslations>;
 
-const active = (session: Improvement) => ["queued", "running"].includes(session.status);
-
 /** The verdicts, the knowledge gaps and why the session stopped, as plain sentences. */
 function headline(t: Translate, session: Improvement, agent: string, topics: number): string[] {
   const rounds = session.iterations.filter(
@@ -115,8 +113,6 @@ function headline(t: Translate, session: Improvement, agent: string, topics: num
     );
   } else if (session.status === "failed") {
     sentences.push(t("resultDecision.failed"));
-  } else if (active(session)) {
-    sentences.push(t("resultDecision.working"));
   } else if (decided && chosen?.verdict === "better") {
     sentences.push(better(chosen));
   } else {
@@ -142,7 +138,7 @@ function headline(t: Translate, session: Improvement, agent: string, topics: num
   const missingHeldOut = Number(session.iterations[0]?.verdict_detail?.missing_holdout ?? 0);
   const limit =
     session.stop_reason === "max_iterations" ||
-    (!active(session) && !decided && session.iteration >= session.max_iterations);
+    (!decided && session.iteration >= session.max_iterations);
   // A verdict's own stop reason repeats the sentences above it.
   const told = ["max_iterations", "no_change", "regression"];
   if (session.status !== "ready" && session.stop_reason && !told.includes(session.stop_reason))
@@ -152,7 +148,7 @@ function headline(t: Translate, session: Improvement, agent: string, topics: num
         : t(`stop.${session.stop_reason}`),
     );
   if (limit) sentences.push(t("resultDecision.limit", { max: session.max_iterations }));
-  else if (session.round_hint && !decided && !active(session))
+  else if (session.round_hint && !decided)
     sentences.push(t(`resultDecision.hint.${session.round_hint}`));
   return sentences;
 }
@@ -184,7 +180,7 @@ function ResultDecision({
   const locale = useLocale();
   const readOnly = useReadOnly();
   const situation = resultSituation(session, { candidate, topics });
-  const noise = active(session) ? null : session.measurement_noise;
+  const noise = session.measurement_noise;
   const noisy = noise?.noisy === true;
   const better = session.iterations.some(
     (round) => round.verdict === "better" && round.number <= session.max_iterations,
@@ -213,7 +209,7 @@ function ResultDecision({
           {noiseSentence(t, locale, noise, agent, { note: true })}
         </p>
       )}
-      {!readOnly && !active(session) && (
+      {!readOnly && (
         <div className="space-y-3">
           <h3 className="text-sm font-medium">{t("resultDecision.options")}</h3>
           {diagnosed && <NoiseActions session={session} />}

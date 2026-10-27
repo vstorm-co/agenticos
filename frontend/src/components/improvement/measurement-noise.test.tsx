@@ -35,6 +35,10 @@ it("lists no unstable questions when the session kept none", () => {
         baseline_spread: 0,
         by_attempt: [],
         noisy: true,
+        within: 3,
+        shared: 10,
+        between: 0,
+        too_few_shared: false,
       }}
     />,
   );

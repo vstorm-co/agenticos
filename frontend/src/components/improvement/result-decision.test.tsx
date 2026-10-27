@@ -183,14 +183,6 @@ it("says no attempt was measured, and offers nothing to someone who only reads",
   expect(screen.queryByText("Attempts")).toBeNull();
 });
 
-it("says a running session's result is only so far, and offers no decision yet", () => {
-  show({ ...EXHAUSTED, status: "running", stage: "proposing", stop_reason: null });
-  expect(
-    screen.getByText("The session is still working, so this is the result so far."),
-  ).toBeInTheDocument();
-  expect(screen.queryByText("What you can do")).toBeNull();
-});
-
 it("names the published attempt and its version once the session is decided", () => {
   show({
     ...EXHAUSTED,
@@ -327,11 +319,8 @@ it("only notes the noise beside a better attempt, without the diagnosis", () => 
   expect(screen.queryByText(/graded differently with nothing changed/)).toBeNull();
 });
 
-it("leaves a quiet test and a working session without any noise wording", () => {
-  const view = show({ ...EXHAUSTED, measurement_noise: { ...NOISE, noisy: false } });
-  expect(screen.queryByText(/can't tell a better version/)).toBeNull();
-  view.unmount();
-  show({ ...EXHAUSTED, status: "running", stop_reason: null, measurement_noise: NOISE });
+it("leaves a quiet test without any noise wording", () => {
+  show({ ...EXHAUSTED, measurement_noise: { ...NOISE, noisy: false } });
   expect(screen.queryByText(/can't tell a better version/)).toBeNull();
 });
 
