@@ -248,7 +248,8 @@ class ImprovementRead(BaseSchema):
     measurement_noise: MeasurementNoise | None = Field(
         default=None,
         description="Whether the test told the versions apart; none while the session works, "
-        "before an attempt is measured, or for a reader without runs:view",
+        "before an attempt is measured, for a reader without runs:view, or in a list of "
+        "sessions - read the session for it",
     )
 
 

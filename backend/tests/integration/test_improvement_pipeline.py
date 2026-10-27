@@ -444,6 +444,37 @@ async def test_an_attempt_is_priced_without_the_questions_its_check_leaves_out(d
     assert estimate.eval_usd < every.eval_usd
 
 
+async def test_estimate_and_start_each_read_the_agent_s_evidence_once(db, monkeypatch):
+    from app.services.authoring_evidence import EvidenceService
+
+    ctx, agent, run = await _setup(db)
+    dataset = await _dataset(db, ctx, cases=5)
+    read = EvidenceService.for_agent
+    reads = 0
+
+    async def counted(self, *args, **kwargs):
+        nonlocal reads
+        reads += 1
+        return await read(self, *args, **kwargs)
+
+    monkeypatch.setattr(EvidenceService, "for_agent", counted)
+    service = ImprovementPipelineService(db)
+    estimate = await service.estimate(
+        ctx, agent.id, ImprovementTarget(dataset_id=dataset.id, max_iterations=1)
+    )
+    assert (reads, estimate.evidence_runs) == (1, 1)
+
+    started = await service.start(
+        ctx,
+        agent.id,
+        ImprovementStart(dataset_id=dataset.id, max_iterations=1, budget_usd=Decimal("5")),
+    )
+
+    assert reads == 2
+    row = await db.get(ImprovementRun, started.id)
+    assert row is not None and row.chat_evidence_run_ids == [run.id]
+
+
 @pytest.mark.security
 async def test_an_editor_who_cannot_read_runs_is_told_why_before_any_estimate_or_start(db):
     from dataclasses import replace

@@ -190,16 +190,15 @@ async def test_recovery_sweeps_queue_active_and_waiting_sessions_without_new_pai
 async def test_a_knowledge_source_reader_without_run_permission_returns_nothing(
     db: AsyncSession,
 ) -> None:
-    ctx, agent, dataset, session = await _started(db)
+    ctx, agent, _, session = await _started(db)
     limited = replace(ctx, key_scopes=frozenset({Perm.AGENTS_VIEW}))
-    assert await ImprovementPipelineService(db)._knowledge_sources(
-        limited, agent, dataset_id=dataset.id
-    ) == ([], [], [])
+    service = ImprovementPipelineService(db)
+    assert await service._knowledge_sources(limited, agent, session.id) == ([], [], [])
     row = await db.get(ImprovementRun, session.id)
     assert row is not None
     row.chat_evidence_run_ids = []
     await db.flush()
-    assert await ImprovementPipelineService(db).knowledge_sources(ctx, row) == ([], [], [])
+    assert await service.knowledge_sources(ctx, row) == ([], [], [])
 
 
 async def test_a_suite_session_pins_check_settings_but_ignores_a_display_name_change(

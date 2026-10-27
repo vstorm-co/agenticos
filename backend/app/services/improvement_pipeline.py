@@ -132,7 +132,7 @@ from app.services.agent_registry import AgentRegistryService
 from app.services.ai_assistance import AiAssistanceService
 from app.services.api_key import job_context
 from app.services.authoring import AuthoringService
-from app.services.authoring_evidence import MAX_EVIDENCE_RUNS
+from app.services.authoring_evidence import MAX_EVIDENCE_RUNS, EvidencePack
 from app.services.background_jobs import enqueue
 from app.services.collection_access import readable_kb, writable_kb
 from app.services.dataset import DatasetService, redact_credentials
@@ -312,27 +312,19 @@ class ImprovementPipelineService:
         """Writable bound bases and bad chat answers from the frozen, unerased evidence only."""
         await self.ensure_current(ctx, run.id, allow_finished=True)
         agent = await self.registry.get(ctx, run.agent_id, perm=Perm.AGENTS_EDIT)
-        return await self._knowledge_sources(ctx, agent, run_id=run.id, dataset_id=run.dataset_id)
+        return await self._knowledge_sources(ctx, agent, run.id)
 
     async def _knowledge_sources(
-        self,
-        ctx: AuthContext,
-        agent: Agent,
-        *,
-        run_id: UUID | None = None,
-        dataset_id: UUID,
-        window_days: int = 30,
+        self, ctx: AuthContext, agent: Agent, evidence: EvidencePack | UUID
     ) -> tuple[list[UUID], list[UUID], list[UUID]]:
+        """`evidence` is a pack already read, or the session whose frozen pack to read."""
         if ctx.scope_for(Perm.RUNS_VIEW) < Scope.ALL:
             return [], [], []
-        pack = (
-            await self.authoring.evidence.for_improvement(ctx, run_id)
-            if run_id
-            else await self.authoring.evidence.for_agent(
-                ctx, agent.id, window_days=window_days, dataset_id=dataset_id
-            )
+        pack = await self.authoring.evidence.forget_erased(
+            await self.authoring.evidence.for_improvement(ctx, evidence)
+            if isinstance(evidence, UUID)
+            else evidence
         )
-        pack = await self.authoring.evidence.forget_erased(pack)
         run_ids = [
             item.run_id
             for item in pack.runs
@@ -480,6 +472,7 @@ class ImprovementPipelineService:
         ctx: AuthContext,
         inputs: Inputs,
         target: ImprovementTarget,
+        pack: EvidencePack,
     ) -> ImprovementEstimate:
         """What a session spends before it first waits for a person, with what one attempt
         costs beside it: every step after that stop is priced when somebody takes it."""
@@ -489,15 +482,9 @@ class ImprovementPipelineService:
             AuthoringStart(
                 window_days=target.window_days, improver_agent_id=target.improver_agent_id
             ),
-            evidence_dataset_id=inputs.request.dataset_id,
+            evidence=pack,
         )
         draft = AgentSpec.model_validate(inputs.agent.draft_spec)
-        pack = await self.authoring.evidence.for_agent(
-            ctx,
-            inputs.agent.id,
-            window_days=target.window_days,
-            dataset_id=inputs.request.dataset_id,
-        )
         # The check leaves out questions from the conversations the helper reads.
         check = await self.evals.estimate(
             ctx,
@@ -513,12 +500,7 @@ class ImprovementPipelineService:
         full_eval = check.total_usd + check.rerun_ceiling_usd
         # Each round may need one repeat of an inconclusive comparison.
         per_round = proposal.estimate_usd + full_eval * (1 + rules.INCONCLUSIVE_RERUNS)
-        ids, messages, sources = await self._knowledge_sources(
-            ctx,
-            inputs.agent,
-            dataset_id=inputs.request.dataset_id,
-            window_days=target.window_days,
-        )
+        ids, messages, sources = await self._knowledge_sources(ctx, inputs.agent, pack)
         total = await KnowledgeGapService(self.db).improvement_estimate(
             ctx, ids, messages, source_run_ids=sources
         )
@@ -552,19 +534,29 @@ class ImprovementPipelineService:
             reason=proposal.reason,
         )
 
+    async def _evidence(
+        self, ctx: AuthContext, inputs: Inputs, target: ImprovementTarget
+    ) -> EvidencePack:
+        """What a new session would read: one pack, priced and frozen from the same read."""
+        return await self.authoring.evidence.for_agent(
+            ctx,
+            inputs.agent.id,
+            window_days=target.window_days,
+            dataset_id=inputs.request.dataset_id,
+        )
+
     async def estimate(
         self, ctx: AuthContext, agent_id: UUID, target: ImprovementTarget
     ) -> ImprovementEstimate:
-        return await self._estimate(ctx, await self._inputs(ctx, agent_id, target), target)
+        inputs = await self._inputs(ctx, agent_id, target)
+        return await self._estimate(ctx, inputs, target, await self._evidence(ctx, inputs, target))
 
     async def start(
         self, ctx: AuthContext, agent_id: UUID, data: ImprovementStart
     ) -> ImprovementRead:
         inputs = await self._inputs(ctx, agent_id, data)
-        estimate = await self._estimate(ctx, inputs, data)
-        pack = await self.authoring.evidence.for_agent(
-            ctx, agent_id, window_days=data.window_days, dataset_id=inputs.request.dataset_id
-        )
+        pack = await self._evidence(ctx, inputs, data)
+        estimate = await self._estimate(ctx, inputs, data, pack)
         existing = await improvement_repo.get_open(
             self.db, organization_id=ctx.organization_id, agent_id=agent_id
         )
@@ -900,13 +892,20 @@ class ImprovementPipelineService:
         )
 
     async def list_for_agent(self, ctx: AuthContext, agent_id: UUID) -> list[ImprovementRead]:
+        """The agent's recent sessions, each without its measurement noise.
+
+        The noise re-reads every attempt's check, which a list of up to twenty
+        sessions cannot afford; reading one session gives it.
+        """
         await self.registry.get(ctx, agent_id)
         rows = await improvement_repo.list_for_agent(
             self.db, organization_id=ctx.organization_id, agent_id=agent_id
         )
-        return [await self._read(ctx, row) for row in rows]
+        return [await self._read(ctx, row, noise=False) for row in rows]
 
-    async def _read(self, ctx: AuthContext, run: ImprovementRun) -> ImprovementRead:
+    async def _read(
+        self, ctx: AuthContext, run: ImprovementRun, *, noise: bool = True
+    ) -> ImprovementRead:
         iterations = await improvement_repo.list_iterations(
             self.db, organization_id=ctx.organization_id, run_id=run.id
         )
@@ -951,7 +950,7 @@ class ImprovementPipelineService:
             result.knowledge_eval_run_ids = await improvement_repo.knowledge_checks(
                 self.db, run.id, organization_id=ctx.organization_id
             )
-            if not Status(run.status).active:
+            if noise and not Status(run.status).active:
                 result.measurement_noise = rules.measurement_noise(
                     await self._checked(ctx, run, iterations)
                 )
@@ -1494,9 +1493,7 @@ class ImprovementPipelineService:
                 check.affordable,
             )
         if stage == Stage.CLASSIFYING:
-            ids, messages, sources = await self._knowledge_sources(
-                ctx, inputs.agent, run_id=run.id, dataset_id=run.dataset_id
-            )
+            ids, messages, sources = await self._knowledge_sources(ctx, inputs.agent, run.id)
             price = await KnowledgeGapService(self.db).improvement_estimate(
                 ctx, ids, messages, source_run_ids=sources
             )

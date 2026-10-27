@@ -279,12 +279,14 @@ class AuthoringService:
         *,
         excluded_message_ids: Sequence[UUID] = (),
         improvement_run_id: UUID | None = None,
-        evidence_dataset_id: UUID | None = None,
+        evidence: EvidencePack | None = None,
     ) -> AuthoringEstimate:
         """What an Improve or Verify on this agent would read and cost.
 
         `excluded_message_ids` is an improvement session's, never a person's:
         the answers it found missing knowledge, which the improver does not read.
+        `evidence` is a pack the caller has already read for this agent, priced
+        as it is.
         """
         self._require_runs_view(ctx)
         agent = await self._editable(ctx, agent_id)
@@ -297,19 +299,19 @@ class AuthoringService:
                 agent.draft_spec
             ):
                 return await self._estimate(ctx, improver, EvidencePack(), "no_draft_change")
-        pack = (
-            await self.evidence.for_agent(
+        if evidence is not None:
+            pack = evidence
+        elif improvement_run_id is None:
+            pack = await self.evidence.for_agent(
                 ctx,
                 agent.id,
                 window_days=body.window_days,
                 excluded_message_ids=excluded_message_ids,
-                dataset_id=evidence_dataset_id,
             )
-            if improvement_run_id is None
-            else await self.evidence.for_improvement(
+        else:
+            pack = await self.evidence.for_improvement(
                 ctx, improvement_run_id, excluded_message_ids=excluded_message_ids
             )
-        )
         return await self._estimate(ctx, improver, pack, None if pack.runs else "no_evidence")
 
     async def estimate_skill(

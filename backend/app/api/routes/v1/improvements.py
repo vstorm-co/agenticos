@@ -107,7 +107,10 @@ async def start_improvement(
 
 @router.get("", response_model=list[ImprovementRead], dependencies=[ASSISTANT])
 async def list_improvements(agent_id: UUID, service: ImprovementSvc, ctx: Auth) -> Any:
-    """Recent sessions, with evidence-free progress visible to readers of the agent."""
+    """Recent sessions, with evidence-free progress visible to readers of the agent.
+
+    A listed session carries no `measurement_noise`; read the session for it.
+    """
     return await service.list_for_agent(ctx, agent_id)
 
 

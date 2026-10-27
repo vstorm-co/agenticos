@@ -280,3 +280,18 @@ async def test_a_working_session_and_a_reader_without_runs_view_get_no_signal(se
     hidden = await pipeline._read(narrowed, _session("stopped"))  # type: ignore[arg-type]
     assert hidden.measurement_noise is None
     compare.assert_not_awaited()
+
+
+async def test_a_listed_session_carries_no_noise_and_opens_no_check(service, monkeypatch):
+    pipeline, compare, _ = service
+    monkeypatch.setattr(pipeline.registry, "get", AsyncMock())
+    monkeypatch.setattr(
+        improvement_pipeline.improvement_repo,
+        "list_for_agent",
+        AsyncMock(return_value=[_session("stopped"), _session("rejected")]),
+    )
+    listed = await pipeline.list_for_agent(OWNER, uuid.uuid4())
+    assert [item.measurement_noise for item in listed] == [None, None]
+    compare.assert_not_awaited()
+    read = await pipeline._read(OWNER, _session("stopped"))  # type: ignore[arg-type]
+    assert read.measurement_noise is not None
