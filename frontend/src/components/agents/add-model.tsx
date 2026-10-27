@@ -276,7 +276,10 @@ export function AddModel({
     refused,
     source,
     isLoading: loadingModels,
-  } = useProviderModels(providerId);
+  } = useProviderModels(
+    providerId,
+    providerId === "openrouter" ? baseUrl.trim().replace(/\/+$/, "") || undefined : undefined,
+  );
   const derivedLabel =
     provider && model.trim() ? `${provider.label} · ${model.trim()}` : t("howAgentsReferModel");
 
@@ -530,9 +533,11 @@ export function AddModel({
           label={t("endpoint")}
           error={failure.fields.base_url}
           description={
-            capabilities?.keyless === true
-              ? t("gatewayLitellmProxyModel")
-              : t("optionalPointModelAt")
+            providerId === "openrouter"
+              ? t("openRouterEndpointHint")
+              : capabilities?.keyless === true
+                ? t("gatewayLitellmProxyModel")
+                : t("optionalPointModelAt")
           }
         >
           <Input

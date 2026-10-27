@@ -144,7 +144,14 @@ function PathTreeRow<N extends PathTreeNode>({
   if (!node.isDir) {
     const isSelected = selectedPath === node.path;
     return (
-      <li role="treeitem" aria-selected={isSelected} className="flex items-center gap-1">
+      <li
+        role="treeitem"
+        aria-selected={isSelected}
+        className={cn(
+          "group/file relative flex items-center rounded-md",
+          isSelected ? "bg-accent" : "hover:bg-accent/60",
+        )}
+      >
         <button
           type="button"
           onClick={() => onSelect(node)}
@@ -153,7 +160,7 @@ function PathTreeRow<N extends PathTreeNode>({
           style={indent}
           className={cn(
             "flex min-w-0 flex-1 items-center gap-2 rounded-md py-1.5 pr-2 text-left",
-            isSelected ? "bg-accent" : "hover:bg-accent/60",
+            "focus-visible:outline-offset-[-2px]",
           )}
         >
           {renderFile(node, isSelected)}

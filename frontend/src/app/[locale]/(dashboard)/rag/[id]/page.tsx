@@ -198,7 +198,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
   if (!kb) return null;
 
   return (
-    <FileDropZone collectionName={kb.name} onFiles={handleFiles}>
+    <FileDropZone collectionName={kb.name} onFiles={handleFiles} className="flex flex-1 flex-col">
       <input
         ref={fileInputRef}
         type="file"
@@ -303,7 +303,11 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
           its panel with `aria-controls`, so a root that closed after the list
           left those references dangling and the visible section with no
           `role="tabpanel"` and no relationship to the tab that chose it. */}
-      <Tabs value={tab} onValueChange={(next) => setTab(next as KBTab)}>
+      <Tabs
+        value={tab}
+        onValueChange={(next) => setTab(next as KBTab)}
+        className="flex flex-1 flex-col"
+      >
         <TabsList data-tour="kb-tabs">
           <TabsTrigger value="documents" data-tour="kb-tab-documents">
             {t("documents")}
@@ -316,7 +320,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="documents">
+        <TabsContent value="documents" className="flex flex-1 flex-col">
           <DocumentsTable
             kbId={id}
             documents={documents}
@@ -332,8 +336,8 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
           />
         </TabsContent>
 
-        <TabsContent value="ingestion">
-          <div className="mb-8" data-tour="kb-ingestion">
+        <TabsContent value="ingestion" className="flex flex-1 flex-col">
+          <div className="flex flex-1 flex-col" data-tour="kb-ingestion">
             <IngestionPanel
               kb={kb}
               onEdit={mayEdit ? () => setIngestionOpen(true) : undefined}
@@ -342,7 +346,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
           </div>
         </TabsContent>
 
-        <TabsContent value="sync">
+        <TabsContent value="sync" className="flex flex-1 flex-col">
           <SyncSourcesSection
             kbId={id}
             syncSources={syncSources}

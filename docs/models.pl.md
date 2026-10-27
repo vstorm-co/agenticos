@@ -1,5 +1,5 @@
 ---
-source_sha: "0a268874d05a"
+source_sha: "3dc2d604540f"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -195,7 +195,7 @@ provider.**
 | OpenAI | `openai` | klucz API albo brak | ✓ |
 | Anthropic | `anthropic` | klucz API | ✓ |
 | Google Gemini | `google` | klucz API | ✓ |
-| OpenRouter | `openrouter` | klucz API | |
+| OpenRouter | `openrouter` | klucz API |  ✓ |
 | Alibaba Cloud | `alibaba` | klucz API | ✓ |
 | Cerebras | `cerebras` | klucz API | |
 | DeepSeek | `deepseek` | klucz API | |
@@ -606,3 +606,7 @@ make platform-bootstrap BOOTSTRAP_API_KEY=sk-...
 ```
 
 robi wszystkie trzy rzeczy dla nowego deploymentu.
+
+Aby użyć regionalnego API OpenRouter, pozostaw dostawcę **OpenRouter** i wpisz `https://eu.openrouter.ai/api/v1` w polu **Endpoint** formularza modelu. Profil zachowuje klucz OpenRouter z sejfu, natywną obsługę modeli i ustawienia pamięci podręcznej. Lista modeli pochodzi z tego endpointu i ma osobną pamięć podręczną; awaria regionalnej listy nie przełącza jej na globalny katalog. W bazach wiedzy ustaw **Endpoint** embeddingów osobno podczas tworzenia kolekcji lub edycji dostawcy embeddingów. Istniejące konfiguracje zachowują globalny endpoint. Routing EU wymaga odpowiedniego planu OpenRouter Business lub Enterprise; [routing regionalny](https://openrouter.ai/docs/guides/get-started/sovereign-ai) i ZDR są osobnymi politykami OpenRouter.
+
+Przed ustawieniem regionalnych endpointów zaktualizuj wszystkie procesy API i workerów. Starsze wersje ignorują nadpisanie endpointu OpenRouter.

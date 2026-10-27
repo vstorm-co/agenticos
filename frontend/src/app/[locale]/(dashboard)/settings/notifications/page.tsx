@@ -246,7 +246,7 @@ export default function NotificationsSettingsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-1 flex-col space-y-6">
       <SectionCard title={t("agentActivity")} description={t("emailsAboutRunsNobody")}>
         <ul className="divide-border divide-y">
           {OPTIONAL_EMAILS.map((email) => (

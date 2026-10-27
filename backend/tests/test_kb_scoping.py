@@ -983,6 +983,7 @@ class TestWhoServesTheEmbeddingModel:
             embedding_dim=1536,
             embedding_provider=provider,
             embedding_secret_id=secret_id,
+            embedding_base_url=None,
         )
 
     @pytest.mark.anyio
@@ -1165,6 +1166,7 @@ class TestWhoServesTheEmbeddingModel:
             embedding_dim=768,
             embedding_provider="ollama",
             embedding_secret_id=secret_id,
+            embedding_base_url=None,
             embedding_endpoint_id=None,
         )
 
@@ -1585,3 +1587,18 @@ class TestWhatIsAKnowledgeBasesOwn:
         row = MagicMock(collection_name=row_collection, organization_id=row_org)
 
         assert in_knowledge_base(row, self._kb(kb_org)) is own
+
+
+@pytest.mark.anyio
+async def test_custom_embedding_endpoint_requires_connection_authority():
+    service = KnowledgeBaseService(MagicMock())
+    with pytest.raises(AuthorizationError):
+        await service._embedding_url(
+            _ctx(role="member"), "openrouter", "https://eu.openrouter.ai/api/v1"
+        )
+    assert (
+        await service._embedding_url(_ctx(), "openrouter", "https://eu.openrouter.ai/api/v1/")
+        == "https://eu.openrouter.ai/api/v1"
+    )
+    with pytest.raises(BadRequestError):
+        await service._embedding_url(_ctx(), "openai", "https://example.com/v1")

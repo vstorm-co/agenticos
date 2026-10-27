@@ -12,6 +12,10 @@ import { workspaceFileAccess, type FileSource } from "@/lib/workspace-files";
 import type { WorkspaceFile, WorkspaceFiles } from "@/lib/sandbox-workspaces-api";
 import { useTranslations } from "next-intl";
 
+/** Match conversation actions: reclaim their space until hover or keyboard focus. */
+const FILE_ACTIONS_CLASS =
+  "flex w-0 shrink-0 items-center justify-end gap-1 overflow-hidden opacity-0 transition-[width,opacity] duration-150 motion-reduce:transition-none group-hover/file:w-14 group-hover/file:opacity-100 group-focus-within/file:w-14 group-focus-within/file:opacity-100 touch:w-14 touch:opacity-100";
+
 interface WorkspaceExplorerProps {
   workspaceId: string;
 }
@@ -247,11 +251,15 @@ export function FileExplorer({
         files !== null && (
           <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
             {toolbar}
-            <Badge variant="outline">
-              {files.backend === "state" ? t("stored") : t("container")}
-            </Badge>
-            <span>{files.owner_label}</span>
-            {files.backend === "state" && files.bytes_total > 0 && (
+            {source.kind !== "project" && (
+              <>
+                <Badge variant="outline">
+                  {files.backend === "state" ? t("stored") : t("container")}
+                </Badge>
+                <span>{files.owner_label}</span>
+              </>
+            )}
+            {source.kind !== "project" && files.backend === "state" && files.bytes_total > 0 && (
               <span>{t("bytesStored", { size: formatBytes(files.bytes_total) })}</span>
             )}
           </div>
@@ -354,9 +362,16 @@ export function FileExplorer({
                  need it opened first, and the name is then all a reader hears
                  rather than the name and a size. */
               renderFileMeta={(node) => (
-                <>
+                <div
+                  className={cn(
+                    FILE_ACTIONS_CLASS,
+                    source.kind !== "project" &&
+                      "touch:w-28 group-focus-within/file:w-28 group-hover/file:w-28",
+                  )}
+                >
                   <span className="text-muted-foreground shrink-0 text-xs">
-                    {node.file?.size == null ? "—" : formatBytes(node.file.size)}
+                    {source.kind !== "project" &&
+                      (node.file?.size == null ? "—" : formatBytes(node.file.size))}
                   </span>
                   <button
                     type="button"
@@ -367,7 +382,7 @@ export function FileExplorer({
                     <Download className="h-3.5 w-3.5" aria-hidden />
                   </button>
                   {onRemove && <RemoveButton path={node.path} onRemove={onRemove} />}
-                </>
+                </div>
               )}
               /* Everything under it, not the files immediately in it: `src`
                  holding only `src/components/widget.tsx` counted zero and then
@@ -407,7 +422,8 @@ export function FileExplorer({
                   {chosen.path}
                 </span>
                 <span className="text-muted-foreground shrink-0 text-xs">
-                  {chosen.size == null ? "—" : formatBytes(chosen.size)}
+                  {source.kind !== "project" &&
+                    (chosen.size == null ? "—" : formatBytes(chosen.size))}
                 </span>
                 {/* Every format with two renderings, which `hasSourceView` is the
                     one answer to - HTML, CSV and JSON all have tags, delimiters or
@@ -484,14 +500,20 @@ function FileList({ source, files, selected, onSelect, onRemove, showFullPath }:
   return (
     <ul className="space-y-0.5">
       {files.map((file) => (
-        <li key={file.path} className="flex items-center gap-1">
+        <li
+          key={file.path}
+          className={cn(
+            "group/file relative flex items-center rounded-md",
+            file.path === selected ? "bg-accent" : "hover:bg-accent/60",
+          )}
+        >
           <button
             type="button"
             onClick={() => onSelect(file.path)}
             aria-current={file.path === selected}
             className={cn(
               "flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left",
-              file.path === selected ? "bg-accent" : "hover:bg-accent/60",
+              "focus-visible:outline-offset-[-2px]",
             )}
             title={file.path}
           >
@@ -503,18 +525,26 @@ function FileList({ source, files, selected, onSelect, onRemove, showFullPath }:
               {showFullPath ? file.path : (file.path.split("/").pop() ?? file.path)}
             </span>
           </button>
-          <span className="text-muted-foreground shrink-0 text-xs">
-            {file.size == null ? "—" : formatBytes(file.size)}
-          </span>
-          <button
-            type="button"
-            aria-label={tc("downloadNamed", { name: file.path })}
-            onClick={() => void workspaceFileAccess(source, file.path).download()}
-            className="text-muted-foreground hover:text-foreground shrink-0 rounded-md p-1"
+          <div
+            className={cn(
+              FILE_ACTIONS_CLASS,
+              source.kind !== "project" &&
+                "touch:w-28 group-focus-within/file:w-28 group-hover/file:w-28",
+            )}
           >
-            <Download className="h-3.5 w-3.5" />
-          </button>
-          {onRemove && <RemoveButton path={file.path} onRemove={onRemove} />}
+            <span className="text-muted-foreground shrink-0 text-xs">
+              {source.kind !== "project" && (file.size == null ? "—" : formatBytes(file.size))}
+            </span>
+            <button
+              type="button"
+              aria-label={tc("downloadNamed", { name: file.path })}
+              onClick={() => void workspaceFileAccess(source, file.path).download()}
+              className="text-muted-foreground hover:text-foreground shrink-0 rounded-md p-1"
+            >
+              <Download className="h-3.5 w-3.5" />
+            </button>
+            {onRemove && <RemoveButton path={file.path} onRemove={onRemove} />}
+          </div>
         </li>
       ))}
     </ul>

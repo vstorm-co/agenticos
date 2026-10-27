@@ -769,14 +769,6 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "routines-create",
     permission: Perm.agentsRun,
   },
-  // Rendered only once the template catalog has answered, so optional.
-  {
-    id: "routines-ideas",
-    page: ROUTES.ROUTINES,
-    target: "routines-ideas",
-    permission: Perm.agentsRun,
-    optional: true,
-  },
 
   // What the platform brought the reader on its own (#2301). "?"-only, like the
   // routines stop: the launch walk does not take a first login here.

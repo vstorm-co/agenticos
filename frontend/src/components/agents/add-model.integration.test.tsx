@@ -49,18 +49,22 @@ const state = {
   permissions: [] as Permission[],
 };
 
+const listingRequests = vi.fn();
 const onCreatedSecret = { handler: undefined as ((id: string) => void) | undefined };
 
 vi.mock("@/hooks", () => ({
   useModelProviders: () => ({ createProfile: state.createProfile, catalog: state.catalog }),
   useSecretPurposes: () => ({ purposes: state.purposes }),
   useSecrets: () => ({ secrets: state.secrets }),
-  useProviderModels: () => ({
-    models: state.models,
-    refused: state.refused,
-    source: state.source,
-    isLoading: state.loadingModels,
-  }),
+  useProviderModels: (...args: [string, string?]) => {
+    listingRequests(...args);
+    return {
+      models: state.models,
+      refused: state.refused,
+      source: state.source,
+      isLoading: state.loadingModels,
+    };
+  },
   usePermissions: () => ({
     can: (permission: Permission) => state.permissions.includes(permission),
   }),
@@ -140,10 +144,10 @@ beforeEach(() => {
   state.purposes = [purpose("openai", "OpenAI"), purpose("openrouter", "OpenRouter")];
   // What each provider's SDK actually reads. `openai` takes an endpoint, is
   // keyless because OpenAI-compatible servers exist, and serves both of its
-  // APIs; `openrouter` does none of that.
+  // APIs; OpenRouter keeps its native API at a configurable endpoint.
   state.catalog = [
     capabilities("openai", "OpenAI", OPENAI_CAPABILITIES),
-    capabilities("openrouter", "OpenRouter"),
+    capabilities("openrouter", "OpenRouter", { supports_base_url: true }),
   ];
   state.secrets = [];
   state.models = [{ id: "gpt-5", name: "GPT-5", context_length: 400_000 }];
@@ -609,8 +613,10 @@ describe("pointing a model somewhere other than the provider's own API", () => {
   it("offers none for a provider that would ignore it", async () => {
     // Storing one would look configured and change nothing about where the
     // request went, which is worse than not offering it at all.
+    state.purposes.push(purpose("groq", "Groq"));
+    state.catalog.push(capabilities("groq", "Groq"));
     mount();
-    await pickProvider("OpenRouter");
+    await pickProvider("Groq");
     expect(screen.queryByLabelText("Endpoint")).toBeNull();
   });
 
@@ -1210,4 +1216,24 @@ describe("the model the agent is already on", () => {
 
     expect(screen.getByRole("button", { name: "Add model" })).toBeInTheDocument();
   });
+});
+
+it("keeps an OpenRouter key and lists models at its selected regional endpoint", async () => {
+  state.secrets = [secret({ purpose: "openrouter", name: "OpenRouter prod" })];
+  state.models = [{ id: "anthropic/claude-test", name: "Claude test" }];
+  mount();
+  await pickProvider("OpenRouter");
+  await userEvent.type(screen.getByLabelText("Endpoint"), "https://eu.openrouter.ai/api/v1");
+  await userEvent.click(screen.getByLabelText("Model"));
+  await userEvent.click(screen.getByRole("option", { name: /Claude test/ }));
+  await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+  expect(listingRequests).toHaveBeenCalledWith("openrouter", "https://eu.openrouter.ai/api/v1");
+  expect(state.createProfile.mutateAsync).toHaveBeenCalledWith(
+    expect.objectContaining({
+      provider: "openrouter",
+      model: "anthropic/claude-test",
+      base_url: "https://eu.openrouter.ai/api/v1",
+      secret_id: "s-1",
+    }),
+  );
 });

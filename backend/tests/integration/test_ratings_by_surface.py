@@ -9,7 +9,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec
@@ -217,10 +217,14 @@ async def test_channel_participants_keep_one_vote_each_and_comments_survive_vote
     )
     counts = await rating_repo.get_rating_counts_for_messages(db, message_ids=[message.id])
     assert counts[message.id] == {"likes": 0, "dislikes": 2}
-    # Linking later leaves the stable channel author intact, while own-scope
-    # reporting can attribute their earlier opinion to them.
+    # Linking transfers the vote to the same author the console uses.
     identities[0].user_id = owner.id
     await db.flush()
+    await rating_repo.adopt_channel_ratings(db, identity_id=identities[0].id, user_id=owner.id)
+    owned = await rating_repo.get_rating_by_message_and_user(db, message.id, owner.id)
+    assert owned is not None
+    assert owned.comment == "Check the dates"
+    assert owned.channel_identity_id is None
     mine = await rating_repo.get_rating_summary_scoped(
         db,
         organization_id=organization.id,
@@ -229,7 +233,7 @@ async def test_channel_participants_keep_one_vote_each_and_comments_survive_vote
         end=_NOW + timedelta(days=1),
     )
     assert mine["total_ratings"] == 1
-    assert [row.id for row in await personal_data.ratings_of(db, owner.id)] == [first.id]
+    assert [row.id for row in await personal_data.ratings_of(db, owner.id)] == [owned.id]
     group = Group(organization_id=organization.id, name="Engineering")
     db.add(group)
     await db.flush()
@@ -251,3 +255,82 @@ async def test_channel_participants_keep_one_vote_each_and_comments_survive_vote
         end=_NOW + timedelta(days=1),
     )
     assert other["total_ratings"] == 0
+
+
+@pytest.mark.parametrize("channel_is_newer", [False, True])
+async def test_linking_unifies_channel_and_console_ratings(
+    db: AsyncSession, channel_is_newer: bool
+) -> None:
+    organization, owner, _ = await _setup(db)
+    conversation = Conversation(organization_id=organization.id)
+    db.add(conversation)
+    await db.flush()
+    message = Message(conversation_id=conversation.id, role="assistant", content="answer")
+    identity = ChannelIdentity(platform="mattermost", platform_user_id=uuid.uuid4().hex)
+    db.add_all([message, identity])
+    await db.flush()
+    channel_vote = await rating_repo.upsert_channel_rating(
+        db,
+        message_id=message.id,
+        channel_identity_id=identity.id,
+        rating=-1,
+        comment="Channel opinion",
+    )
+    web_vote = await rating_repo.create_rating(
+        db, message_id=message.id, user_id=owner.id, rating=1, comment="Web opinion"
+    )
+    channel_vote.updated_at = (
+        _NOW + timedelta(minutes=1) if channel_is_newer else _NOW - timedelta(minutes=1)
+    )
+    web_vote.updated_at = _NOW
+    identity.user_id = owner.id
+    await db.flush()
+    await rating_repo.adopt_channel_ratings(db, identity_id=identity.id, user_id=owner.id)
+    db.expire(web_vote)
+    owned = await rating_repo.get_rating_by_message_and_user(db, message.id, owner.id)
+    assert owned is not None
+    assert owned.rating == (-1 if channel_is_newer else 1)
+    assert owned.comment == ("Channel opinion" if channel_is_newer else "Web opinion")
+    assert await rating_repo.get_user_ratings_for_messages(
+        db, message_ids=[message.id], user_id=owner.id
+    ) == {message.id: owned.rating}
+    changed = await rating_repo.upsert_channel_rating(
+        db, message_id=message.id, channel_identity_id=identity.id, rating=-1
+    )
+    assert changed.id == owned.id
+    assert changed.user_id == owner.id
+    counts = await rating_repo.get_rating_counts_for_messages(db, message_ids=[message.id])
+    assert counts[message.id] == {"likes": 0, "dislikes": 1}
+    await rating_repo.update_rating(db, changed, new_rating=1, comment="Changed in console")
+    assert changed.comment == "Changed in console"
+    await rating_repo.delete_rating(db, changed)
+    assert await rating_repo.get_rating_by_message_and_user(db, message.id, owner.id) is None
+
+
+async def test_channel_vote_refreshes_an_identity_cached_before_account_link(
+    db: AsyncSession,
+) -> None:
+    organization, owner, _ = await _setup(db)
+    conversation = Conversation(organization_id=organization.id)
+    db.add(conversation)
+    await db.flush()
+    message = Message(conversation_id=conversation.id, role="assistant", content="answer")
+    identity = ChannelIdentity(platform="mattermost", platform_user_id=uuid.uuid4().hex)
+    db.add_all([message, identity])
+    await db.flush()
+    await rating_repo.create_rating(db, message_id=message.id, user_id=owner.id, rating=1)
+    await db.execute(
+        update(ChannelIdentity)
+        .where(ChannelIdentity.id == identity.id)
+        .values(user_id=owner.id)
+        .execution_options(synchronize_session=False)
+    )
+    assert identity.user_id is None
+    vote = await rating_repo.upsert_channel_rating(
+        db, message_id=message.id, channel_identity_id=identity.id, rating=-1
+    )
+    assert vote.user_id == owner.id
+    assert vote.channel_identity_id is None
+    assert await rating_repo.get_rating_counts_for_messages(db, message_ids=[message.id]) == {
+        message.id: {"likes": 0, "dislikes": 1}
+    }

@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, and_, case, func, or_, select, type_coerce
+from sqlalchemy import ColumnElement, and_, case, delete, func, or_, select, type_coerce
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -69,16 +69,28 @@ async def upsert_channel_rating(
     """One verified channel participant's vote, atomically inserted or changed.
 
     A later comment preserves the verdict; a repeated vote preserves its comment.
-    An account link is unnecessary and does not change the participant's key.
+    Unlinked participants use their channel identity. Linked participants share
+    the same author key as the console; the identity lock serializes linking
+    with a vote so an anonymous vote cannot land after its transfer.
     """
+    identity = (
+        await db.execute(
+            select(ChannelIdentity)
+            .where(ChannelIdentity.id == channel_identity_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    ).scalar_one()
+    linked = identity.user_id is not None
     statement = pg_insert(MessageRating).values(
         message_id=message_id,
-        channel_identity_id=channel_identity_id,
+        user_id=identity.user_id,
+        channel_identity_id=None if linked else channel_identity_id,
         rating=-1 if rating is None else rating,
         comment=comment,
     )
     statement = statement.on_conflict_do_update(
-        constraint="uq_message_channel_rating",
+        constraint="uq_message_user_rating" if linked else "uq_message_channel_rating",
         set_={
             "rating": MessageRating.rating if rating is None else statement.excluded.rating,
             "comment": MessageRating.comment if comment is None else statement.excluded.comment,
@@ -87,6 +99,52 @@ async def upsert_channel_rating(
     ).returning(MessageRating)
     result = await db.execute(statement.execution_options(populate_existing=True))
     return result.scalar_one()
+
+
+async def adopt_channel_ratings(db: AsyncSession, *, identity_id: UUID, user_id: UUID) -> None:
+    """Transfer earlier channel votes in the account-link transaction.
+
+    Lock the identity in the same order as channel writes. A web vote may already
+    exist; keep whichever opinion was changed most recently rather than counting
+    the person twice. Unlinking later leaves these authenticated votes with their
+    owner, just like votes originally cast in the console.
+    """
+    await db.execute(
+        select(ChannelIdentity.id).where(ChannelIdentity.id == identity_id).with_for_update()
+    )
+    ratings = (
+        (
+            await db.execute(
+                select(MessageRating)
+                .where(MessageRating.channel_identity_id == identity_id)
+                .order_by(MessageRating.message_id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for rating in ratings:
+        statement = pg_insert(MessageRating).values(
+            message_id=rating.message_id,
+            user_id=user_id,
+            rating=rating.rating,
+            comment=rating.comment,
+            created_at=rating.created_at,
+            updated_at=rating.updated_at,
+        )
+        await db.execute(
+            statement.on_conflict_do_update(
+                constraint="uq_message_user_rating",
+                set_={
+                    "rating": statement.excluded.rating,
+                    "comment": statement.excluded.comment,
+                    "updated_at": statement.excluded.updated_at,
+                },
+                where=func.coalesce(MessageRating.updated_at, MessageRating.created_at)
+                <= func.coalesce(statement.excluded.updated_at, statement.excluded.created_at),
+            )
+        )
+    await db.execute(delete(MessageRating).where(MessageRating.channel_identity_id == identity_id))
 
 
 async def update_rating(

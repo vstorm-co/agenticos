@@ -8,7 +8,7 @@ in a MINOR release. Read a minor release's notes before upgrading.
 
 Two things are versioned separately from this file and worth knowing about:
 
-- **`SPEC_VERSION`** — the agent spec format, currently **11**. A published agent
+- **`SPEC_VERSION`** — the agent spec format, currently **13**. A published agent
   and a client's exported YAML both carry it, so it only ever moves forward with a
   migration that keeps old documents loading. See
   [the spec reference](docs/reference/spec.md).
@@ -21,14 +21,36 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Configure custom OpenRouter endpoints for agent models and knowledge-base
+  embeddings, including the regional EU API. Native OpenRouter keys and cache
+  controls are retained. Model suggestions come from the chosen endpoint;
+  regional listing failures never fall back to the global catalog. Apply the
+  database migration for the optional embedding endpoint when upgrading. Upgrade
+  all API and worker processes before configuring regional endpoints; older
+  processes ignore the override.
+- Set Context file mode and availability separately for each agent in the
+  Builder. Shared library editors keep content and descriptions; existing
+  agent versions retain their prior usage until an override is published.
+
 - Let verified Mattermost participants rate answers and leave comments without
-  an AgenticOS account. Votes remain separate from application accounts, and
-  shared buttons stay available after the first vote. **API change:** a rating's
+  an AgenticOS account. Votes from unlinked participants use their channel identity; linking an
+  account merges its votes with web ratings so each person has one vote per
+  answer. Shared buttons stay available after the first vote. **API change:** a rating's
   `user_id` can now be null for a channel participant. Apply the database migration
   when upgrading; downgrading removes channel-authored votes.
 
 ### Changed
 
+- Keep chat model changes collapsed behind the current model summary. File-row
+  actions reveal on hover or keyboard focus without cutting filenames; long
+  project files scroll inside their preview. Inbox finding titles link to
+  their source and actions sit beside each finding.
+- Prevent delayed conversation refreshes and failed read requests from restoring
+  already-read badges.
+- Keep dashboard checklist loading in a stable slot. Resource lists fill the
+  page height; Routines drops the separate ideas panel. Chat keeps its animated
+  Files toggle visible, prefills model settings, enlarges agent portraits and
+  simplifies attachment cards.
 - Refine console headers, neutral action buttons and sidebar glyphs. Skills and
   context galleries use compact, consistently sized cards without nested panels.
   People use photos or initials; organizations keep round, cropped avatars.

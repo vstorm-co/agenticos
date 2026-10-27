@@ -25,7 +25,7 @@ hour is politeness rather than necessity: the lists move on the order of weeks.
 import asyncio
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Literal
 
 import httpx
@@ -332,7 +332,7 @@ def _fallback(curated: list[CatalogModel]) -> tuple[list[CatalogModel], CatalogS
 
 
 async def models_for(
-    provider: str, *, api_key: str | None = None
+    provider: str, *, api_key: str | None = None, base_url: str | None = None
 ) -> tuple[list[CatalogModel], CatalogSource]:
     """What this provider offers, and where the answer came from.
 
@@ -345,17 +345,28 @@ async def models_for(
         provider: The provider id, as `PROVIDERS` spells it.
         api_key: A key for the provider, where its listing needs one. Only
             OpenRouter's is public.
+        base_url: A validated OpenRouter endpoint, authorized by the caller.
+            Its catalog never uses the global curated fallback.
     """
     spec = LISTINGS.get(provider)
     curated = list(curated_models(provider))
+    cache_key = provider
+    if base_url is not None:
+        if provider != "openrouter" or spec is None:
+            raise ValueError("Custom model listing endpoints are supported only for OpenRouter")
+        # Regional catalogs must never inherit the global fallback or cache.
+        endpoint = base_url.rstrip("/")
+        spec = replace(spec, url=f"{endpoint}/models")
+        curated = []
+        cache_key = f"{provider}:{endpoint}"
 
     if spec is None or (spec.auth_header is not None and api_key is None):
         return _fallback(curated)
 
-    # Keyed on the provider alone, not on the key: two keys for one provider see
-    # the same catalog, and keying on the key would put a secret in a cache key.
+    # Public provider and endpoint identify a catalog. Credentials never form
+    # cache keys; a regional catalog cannot inherit the global response.
     async with _lock:
-        entry = _cache.get(provider)
+        entry = _cache.get(cache_key)
         if entry is not None and time.monotonic() - entry.fetched_at < CACHE_TTL_SECONDS:
             return list(entry.models), "live"
 
@@ -376,5 +387,5 @@ async def models_for(
         return _fallback(curated)
 
     async with _lock:
-        _cache[provider] = _Entry(models=tuple(models), fetched_at=time.monotonic())
+        _cache[cache_key] = _Entry(models=tuple(models), fetched_at=time.monotonic())
     return models, "live"

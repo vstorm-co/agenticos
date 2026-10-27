@@ -955,7 +955,8 @@
     "newStarterPlaceholder": "W czym możesz mi pomóc?",
     "addStarter": "Dodaj",
     "platformUngatedBadge": "własne ustawienie, bez zgody",
-    "platformHeldBadge": "czyta wcześniejsze rozmowy, pyta najpierw"
+    "platformHeldBadge": "czyta wcześniejsze rozmowy, pyta najpierw",
+    "openRouterEndpointHint": "Puste pole oznacza globalne API OpenRouter. Możesz podać regionalny URL, np. https://eu.openrouter.ai/api/v1. Routing EU wymaga odpowiedniego planu OpenRouter; ZDR ustawia się osobno w OpenRouter."
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",
@@ -1307,7 +1308,9 @@
       "notAChatModel": "{model} nie jest modelem czatu, więc ta rozmowa nie może na nim działać. Wybierz inny model.",
       "provider": "Provider",
       "runModel": "Uruchom na tym modelu",
-      "thisChat": "Tylko ten czat"
+      "thisChat": "Tylko ten czat",
+      "changeModel": "Zmień model",
+      "profilesUnavailable": "Nie udało się odczytać ustawień modelu. Spróbuj ponownie przed wyborem innego modelu."
     },
     "newChat": "Nowy czat",
     "newConversation": "Nowa konwersacja",
@@ -3355,7 +3358,9 @@
     "whoCanSearchIt": "Kto może ją przeszukiwać",
     "parsingDetails": "Dzielenie na fragmenty, OCR i obrazy",
     "moreOptions": "Więcej opcji",
-    "citedFileGone": "Tego pliku nie ma już w bazie wiedzy - został usunięty albo zastąpiony po tym, jak go zacytowano."
+    "citedFileGone": "Tego pliku nie ma już w bazie wiedzy - został usunięty albo zastąpiony po tym, jak go zacytowano.",
+    "embeddingEndpoint": "Endpoint",
+    "embeddingEndpointHint": "Puste pole oznacza globalne API OpenRouter. Możesz podać regionalny URL, np. https://eu.openrouter.ai/api/v1. Routing EU wymaga odpowiedniego planu OpenRouter; ZDR ustawia się osobno w OpenRouter."
   },
   "knowledgeBases": {
     "active": "Aktywna",
@@ -4293,10 +4298,6 @@
       "knowledge-groups": {
         "title": "Po dziale",
         "body": "Zawęź listę do tego, co dostała jedna grupa. Grupa decyduje, do kogo coś trafia, więc według niej też grupuje się listę."
-      },
-      "routines-ideas": {
-        "title": "Albo zacznij od pomysłu",
-        "body": "Gotowe rutyny - poranny przegląd, tygodniowe podsumowanie, cogodzinna kontrola - każda z porą, o której by działała. Wybierz jedną, a nowy harmonogram otworzy się już wypełniony."
       },
       "sign-in-to-site": {
         "title": "Zaloguj się do strony",
@@ -5504,7 +5505,7 @@
       "signOutFromAll": "Wylogować ze wszystkich urządzeń?",
       "signedOutFromAll": "Wylogowano ze wszystkich urządzeń",
       "slashCommands": "Komendy slash",
-      "squareImagesLookBest": "Kwadratowe obrazy wyglądają najlepiej. Do 2 MB. JPG, PNG, WEBP lub GIF.",
+      "squareImagesLookBest": "Twoje zdjęcie jest przycinane do koła.",
       "transactionalEmailsWhatTriggers": "E-maile transakcyjne, co wywołuje każdy z nich i dlaczego żaden nie jest opcjonalny.",
       "updatePassword": "Zmień hasło",
       "uploadAvatar3": "Wgraj awatar",
@@ -5626,13 +5627,10 @@
     },
     "routines": {
       "title": "Rutyny",
-      "description": "Agenci wykonują zadania według harmonogramu lub po zdarzeniu. Każde zadanie korzysta z wybranego agenta i jego narzędzi.",
-      "ideasTitle": "Pomysły na start",
-      "ideasHint": "Wybierz jeden, a otworzy się jako nowy harmonogram, już wypełniony - wybierz agenta, popraw co chcesz, zapisz.",
+      "description": "Rutyny agentów wykonują zadania. Moje obserwacje sprawdzają podłączone konta i przekazują wyniki do Twojej prywatnej skrzynki.",
       "newWatch": "Nowa obserwacja",
       "agentsTab": "Zadania agentów",
-      "watchesTab": "Moje obserwacje",
-      "watchesDescription": "Odczyt Twoich połączonych kont. Nowe znaleziska trafiają do prywatnego Inbox; obserwacje nie wykonują zadań agentów."
+      "watchesTab": "Moje obserwacje"
     },
     "signIns": {
       "cancel": "Anuluj",
@@ -6538,14 +6536,12 @@
     "modeLink": "linkowany",
     "modeInjectHint": "Wklejany do instrukcji agenta przy każdym runie.",
     "modeLinkHint": "Pomijany w prompcie; agent czyta go na żądanie.",
-    "sizeWithFormat": "{format} · {size}",
     "newContext": "Nowy plik kontekstu",
     "availableEveryAgentOrganization": "Wybierz poniżej, kto może z niego korzystać. Agent czyta go, gdy zostanie do niego dodany.",
     "name": "Nazwa",
     "howItIsReferredTo": "Jak ten plik jest nazywany; później nie można tego zmienić.",
     "mode": "Tryb",
     "format": "Format",
-    "formatHint": "Wskazówka renderowania, na przykład md albo txt.",
     "description": "Opis",
     "whatIsInIt": "Co w nim jest, żeby linkowany plik dało się wybrać bez otwierania",
     "shownWhenLinked": "Pokazywany obok nazwy, gdy plik jest linkowany.",
@@ -6565,7 +6561,10 @@
     "droppedTooLarge": "{count, plural, one {Jeden plik ma ponad {max} - tak duży dokument należy do kolekcji wiedzy} few {# pliki mają ponad {max} - tak duże dokumenty należą do kolekcji wiedzy} many {# plików ma ponad {max} - tak duże dokumenty należą do kolekcji wiedzy} other {# pliku ma ponad {max} - tak duże dokumenty należą do kolekcji wiedzy}}",
     "moreFilesWaiting": "{count, plural, one {Czeka jeszcze 1 plik} few {Czekają jeszcze # pliki} many {Czeka jeszcze # plików} other {Czeka jeszcze # pliku}}",
     "bodyPlaceholder": "# Słowniczek\n\nCo dany termin tu znaczy, a czego nie.\n\n- **SLA** - czas reakcji, który obiecujemy, a nie czas naprawy.\n",
-    "whoCanUseIt": "Kto może z tego korzystać"
+    "whoCanUseIt": "Kto może z tego korzystać",
+    "useForAgent": "Używaj w tym agencie",
+    "usageForAgent": "Sposób użycia pliku {name}",
+    "bindingSettingsHint": "Sposób użycia pliku ustawisz osobno dla każdego agenta w Builderze → Context."
   },
   "memory": {
     "clearAction": "Wyczyść pamięć",
@@ -6725,10 +6724,10 @@
     "runsCouldNotBeRead": "Nie udało się odczytać uruchomień tego wyzwalacza.",
     "unit": "Jednostka",
     "activityTitle": "Rutyny",
-    "activityEmptyTitle": "Nic jeszcze nie dzieje się samo",
+    "activityEmptyTitle": "Nie ma jeszcze rutyn agentów",
     "searchRoutines": "Szukaj rutyn",
     "noRoutineMatches": "Żadna rutyna nie pasuje.",
-    "routineCount": "{count, plural, =0 {Brak rutyn} one {1 rutyna} few {# rutyny} many {# rutyn} other {# rutyny}}",
+    "routineCount": "{count, plural, one {# rutyna} few {# rutyny} many {# rutyn} other {# rutyny}}",
     "activityEmptyDescription": "Gdy agent zostanie ustawiony, by uruchamiał się sam, pojawi się tutaj.",
     "agent": "Agent",
     "chooseAgent": "Wybierz agenta",
@@ -7816,6 +7815,10 @@
       "expose_read_tool": {
         "title": "Pozwól agentowi otwierać podlinkowane pliki",
         "description": "Czy pliki w trybie linku są dostępne przez narzędzie do odczytu. Wyłączone oznacza, że do modelu trafiają tylko wstrzyknięte pliki i nic nie jest czytane na żądanie."
+      },
+      "file_settings": {
+        "title": "Sposób użycia plików",
+        "description": "Tryb i dostępność przypiętych plików kontekstu dla tego agenta. Brak wpisu zachowuje dotychczasowe ustawienia pliku."
       }
     },
     "conversation_search": {
@@ -8563,12 +8566,12 @@
       }
     },
     "signInAgain": "Zaloguj się ponownie",
-    "count": "{count, plural, =0 {Jeszcze nic nie obserwujesz} =1 {1 obserwacja} few {# obserwacje} many {# obserwacji} other {# obserwacji}}",
+    "count": "{count, plural, one {# obserwacja} few {# obserwacje} many {# obserwacji} other {# obserwacji}}",
     "findings": "Co znalazły",
     "offTitle": "Obserwacje są wyłączone",
     "noConnectionsTitle": "Połącz konto, żeby je obserwować",
     "connect": "Otwórz serwery MCP",
-    "emptyTitle": "Jeszcze nic nie obserwujesz",
+    "emptyTitle": "Nie masz jeszcze obserwacji",
     "emptyDescription": "Wybierz jedno ze swoich kont i powiedz, czego szukać. To, co obserwacja znajdzie, trafia do twojego inboksu; pilne rzeczy dostajesz od razu.",
     "rowLooked": "{cadence} · sprawdzono {when}",
     "rowFirst": "{cadence} · pierwsze sprawdzenie w ciągu minuty",

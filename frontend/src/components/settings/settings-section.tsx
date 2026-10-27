@@ -7,11 +7,23 @@ interface SectionCardProps {
   description?: string;
   action?: ReactNode;
   children?: ReactNode;
+  fill?: boolean;
 }
 
-export function SectionCard({ title, description, action, children }: SectionCardProps) {
+export function SectionCard({
+  title,
+  description,
+  action,
+  children,
+  fill = false,
+}: SectionCardProps) {
   return (
-    <section className="border-border bg-card rounded-xl border">
+    <section
+      className={cn(
+        "border-border bg-card rounded-xl border",
+        fill && "flex min-h-0 flex-1 flex-col",
+      )}
+    >
       <header className="border-border flex flex-wrap items-start justify-between gap-3 border-b px-5 py-4">
         <div className="min-w-0 flex-1">
           <h2 className="text-foreground text-sm font-semibold">{title}</h2>

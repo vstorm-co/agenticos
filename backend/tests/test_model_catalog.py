@@ -555,3 +555,30 @@ class TestTheSharedClientAndTheLoopItBelongsTo:
         asyncio.run(model_catalog.close_listing_client())
 
         assert model_catalog._listing_client is None
+
+
+@pytest.mark.anyio
+async def test_openrouter_custom_catalog_is_isolated_and_never_falls_back_to_global():
+    client = _responds({"data": [{"id": "vendor/global"}]})
+    with patch(f"{MODULE}.httpx.AsyncClient", return_value=client):
+        global_models, _ = await models_for("openrouter")
+        client.get.return_value.json.return_value = {"data": [{"id": "vendor/eu"}]}
+        eu_models, source = await models_for(
+            "openrouter", base_url="https://eu.openrouter.ai/api/v1/"
+        )
+        assert [model.id for model in eu_models] == ["vendor/eu"]
+        assert source == "live"
+        assert client.get.call_args.args[0] == "https://eu.openrouter.ai/api/v1/models"
+        assert "Authorization" not in client.get.call_args.kwargs["headers"]
+        cached, _ = await models_for("openrouter")
+        assert cached == global_models
+        client.get.side_effect = RuntimeError("regional unavailable")
+        failed, source = await models_for("openrouter", base_url="https://regional.example/api/v1")
+        assert failed == []
+        assert source == "unlisted"
+
+
+@pytest.mark.anyio
+async def test_custom_catalog_rejects_an_unsupported_provider():
+    with pytest.raises(ValueError, match="only for OpenRouter"):
+        await models_for("openai", base_url="https://custom.example/v1")

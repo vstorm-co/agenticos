@@ -67,6 +67,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
   const [embeddingModel, setEmbeddingModel] = useState<string | null>(null);
   const [embeddingProvider, setEmbeddingProvider] = useState<string | null>(null);
   const [embeddingSecretId, setEmbeddingSecretId] = useState<string | null>(null);
+  const [embeddingBaseUrl, setEmbeddingBaseUrl] = useState("");
   const [embeddingEndpointId, setEmbeddingEndpointId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
@@ -116,6 +117,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
     setEmbeddingProvider(null);
     setEmbeddingSecretId(null);
     setEmbeddingEndpointId(null);
+    setEmbeddingBaseUrl("");
     setDetailsOpen(false);
     setErrors({});
   };
@@ -143,6 +145,8 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
       if (provider) input.embedding_provider = provider;
       if (embeddingSecretId) input.embedding_secret_id = embeddingSecretId;
       if (embeddingEndpointId) input.embedding_endpoint_id = embeddingEndpointId;
+      if (provider === "openrouter" && embeddingBaseUrl.trim())
+        input.embedding_base_url = embeddingBaseUrl.trim();
       const kb = await createKB(input);
       reset();
       onOpenChange(false);
@@ -165,6 +169,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
             "embedding_provider",
             "embedding_secret_id",
             "embedding_endpoint_id",
+            "embedding_base_url",
             ...INGESTION_FORM_FIELDS,
           ],
         },
@@ -233,6 +238,8 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                     provider={provider}
                     secretId={embeddingSecretId}
                     endpointId={embeddingEndpointId}
+                    baseUrl={embeddingBaseUrl}
+                    onBaseUrl={setEmbeddingBaseUrl}
                     onProvider={setEmbeddingProvider}
                     onSecretId={setEmbeddingSecretId}
                     onEndpointId={setEmbeddingEndpointId}
@@ -240,11 +247,13 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                   />
                   {(errors.embedding_provider ??
                     errors.embedding_secret_id ??
-                    errors.embedding_endpoint_id) !== undefined && (
+                    errors.embedding_endpoint_id ??
+                    errors.embedding_base_url) !== undefined && (
                     <p className="text-destructive text-xs">
                       {errors.embedding_provider ??
                         errors.embedding_secret_id ??
-                        errors.embedding_endpoint_id}
+                        errors.embedding_endpoint_id ??
+                        errors.embedding_base_url}
                     </p>
                   )}
                   <div className="space-y-1.5">

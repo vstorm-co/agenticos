@@ -51,17 +51,18 @@ describe("SkillCard", () => {
 
   it("says how many files the skill carries", () => {
     renderCard();
-    expect(screen.getByText("2 files")).toBeInTheDocument();
+    expect(screen.queryByText("2 files")).toBeNull();
   });
 
-  it("uses the singular for one file", () => {
+  it("keeps a single file count in the preview only", () => {
     renderCard({ skill: { ...SKILL, file_count: 1 } });
-    expect(screen.getByText("1 file")).toBeInTheDocument();
+    expect(screen.queryByText("1 file")).toBeNull();
+    expect(screen.getByText("+1 file")).toBeInTheDocument();
   });
 
   it("says in words that a skill has no files, rather than showing a bare zero", () => {
     renderCard({ skill: { ...SKILL, file_count: 0 } });
-    expect(screen.getByText("No files")).toBeInTheDocument();
+    expect(screen.queryByText("No files")).toBeNull();
   });
 
   it("marks a skill that shipped with the deployment", () => {

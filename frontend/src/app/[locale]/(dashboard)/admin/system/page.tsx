@@ -105,7 +105,7 @@ export default function SystemHealthPage() {
   }, [checks]);
 
   return (
-    <div className="space-y-6" aria-busy={loading && !health}>
+    <div className="flex flex-1 flex-col space-y-6" aria-busy={loading && !health}>
       {loading && !health && (
         <span role="status" className="sr-only">
           {ts("loading")}

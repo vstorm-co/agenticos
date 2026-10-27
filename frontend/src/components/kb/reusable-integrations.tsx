@@ -90,11 +90,13 @@ export function ReusableIntegrations({ targets }: ReusableIntegrationsProps) {
   };
 
   return (
-    <section className="space-y-3">
-      <div className="flex flex-wrap items-end justify-between gap-2">
-        <div>
+    <section className="border-border bg-card flex min-h-64 flex-1 flex-col overflow-hidden rounded-xl border">
+      <div className="border-border flex min-h-28 items-start justify-between gap-3 border-b px-5 py-4">
+        <div className="min-w-0 flex-1">
           <h2 className="text-foreground text-sm font-semibold">{t("reusableIntegrations")}</h2>
-          <p className="text-muted-foreground mt-0.5 text-xs">{t("configuredOnceUsedAs")}</p>
+          <p className="text-muted-foreground mt-1 line-clamp-2 text-xs leading-relaxed">
+            {t("configuredOnceUsedAs")}
+          </p>
         </div>
         {connectors.length > 0 && (
           <Button
@@ -114,11 +116,11 @@ export function ReusableIntegrations({ targets }: ReusableIntegrationsProps) {
       ) : isLoading ? (
         <p className="text-muted-foreground text-xs">{t("loadingIntegrations")}</p>
       ) : integrations.length === 0 ? (
-        <p className="text-muted-foreground border-border rounded-xl border border-dashed px-4 py-3 text-xs">
+        <p className="text-muted-foreground flex flex-1 items-center justify-center px-5 py-12 text-center text-sm">
           {t("nothingHereYetAdd")}
         </p>
       ) : (
-        <ul className="border-border bg-card divide-border divide-y overflow-hidden rounded-xl border">
+        <ul className="divide-border flex-1 divide-y">
           {integrations.map((source) => (
             <IntegrationRow
               key={source.id}

@@ -39,7 +39,12 @@ export function ProjectApps({ project }: { project: Project }) {
   if (error) return <ErrorState description={getErrorMessage(error, tErrors)} />;
   if (artifacts.length === 0) {
     return (
-      <EmptyState icon={LayoutTemplate} title={t("noAppsYet")} description={t("noAppsHint")} />
+      <EmptyState
+        className="flex-1"
+        icon={LayoutTemplate}
+        title={t("noAppsYet")}
+        description={t("noAppsHint")}
+      />
     );
   }
   return (

@@ -16,7 +16,7 @@ itself and never delivered the command carrying it.
 import uuid
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy.exc import IntegrityError
@@ -216,8 +216,15 @@ class TestConfirming:
                 "app.services.channel_link.channel_link_request_repo.delete_by_id",
                 new=AsyncMock(return_value=claimed),
             ) as spent,
+            patch(
+                "app.services.channel_link.message_rating_repo.adopt_channel_ratings",
+                new=AsyncMock(),
+            ) as adopted,
         ):
             result = await ChannelLinkService(MagicMock()).confirm("tok", self.user_id)
+            if result is not None:
+                assert resolved is not None
+                adopted.assert_awaited_once_with(ANY, identity_id=resolved.id, user_id=self.user_id)
         self.resolved, self.updated, self.spent = resolved_call, updated, spent
         return result
 

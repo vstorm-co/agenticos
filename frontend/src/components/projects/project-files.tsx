@@ -95,7 +95,7 @@ export function ProjectFiles({ project }: { project: Project }) {
   const empty = files !== null && files.total === 0 && uploads.length === 0;
 
   const explorer = empty ? (
-    <div className="border-border flex min-h-[24rem] flex-1 flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed px-6 py-12 text-center">
+    <div className="border-border flex min-h-0 flex-1 flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed px-6 py-12 text-center">
       <span className="bg-muted text-foreground grid h-14 w-14 place-items-center rounded-xl">
         <Upload className="h-6 w-6" aria-hidden />
       </span>
@@ -108,7 +108,7 @@ export function ProjectFiles({ project }: { project: Project }) {
       {toolbar && <div className="flex justify-center [&>span]:mr-0">{toolbar}</div>}
     </div>
   ) : (
-    <div className="flex min-h-[32rem] flex-1 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <UploadProgressList uploads={uploads} />
       <FileExplorer
         source={source}
@@ -124,7 +124,7 @@ export function ProjectFiles({ project }: { project: Project }) {
   return (
     // Down to the bottom of the screen, as the folder page's reader is: the files
     // are what the tab is for, and a fixed floor left half the screen empty.
-    <div className="flex min-h-[calc(100dvh-17rem)] flex-1 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       {/* A file dropped anywhere on the tab lands in the project, as one dropped
           on a knowledge base lands in it - for whoever may add files. */}
       {project.can_use ? (

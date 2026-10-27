@@ -71,7 +71,10 @@ export function ConnectedApps() {
   ];
 
   return (
-    <section className="border-border bg-card rounded-xl border" data-tour="connected-apps">
+    <section
+      className="border-border bg-card flex min-h-0 flex-1 flex-col rounded-xl border"
+      data-tour="connected-apps"
+    >
       <header className="border-border border-b px-5 py-4">
         <h2 className="text-foreground text-sm font-semibold">{t("connectedTitle")}</h2>
         <p className="text-muted-foreground mt-1 text-xs">{t("connectedWhy")}</p>
@@ -84,7 +87,7 @@ export function ConnectedApps() {
           icon={PlugZap}
           title={t("emptyTitle")}
           description={t("emptyWhy")}
-          className="border-0 bg-transparent py-8"
+          className="flex-1 border-0 bg-transparent py-8"
         />
       ) : (
         <div className="px-5 py-5">

@@ -1,5 +1,5 @@
 ---
-source_sha: "eda91cea1794"
+source_sha: "3459fcd244b0"
 ---
 
 # Die Konsole { #the-console }
@@ -14,12 +14,16 @@ Seite, deren Kopfzeile kein "?" trägt, hat keinen Rundgang abzuspielen. Der Cha
 hat keine Kopfzeile: Seine Tipps stehen in den Chat-Einstellungen, den Reglern
 neben dem Mikrofon.
 
+Ressourcenlisten, darunter Inbox und Routines, füllen auch im leeren Zustand die verbleibende Seitenhöhe. Routines bietet Vorlagen im Erstellungsformular statt in einem eigenen Ideenbereich an. Get started reserviert beim Laden der Checkliste seinen Platz, damit Briefing und die Karten darunter nicht springen.
+
+Im Chat sind Agentenporträts größer und ohne Ringe. Der Files-Schalter bleibt beim Öffnen und Schließen des Bereichs im Eingabefeld; reduzierte Bewegung wird berücksichtigt. Die Chat-Einstellungen zeigen zuerst das aktuelle Modell. Unter **Modell ändern** lassen sich vorausgefüllter Anbieter und Modell bearbeiten; erst die Bestätigung übernimmt die Änderung. Anhangskarten stehen ohne zusätzliches Schattenpanel über dem Eingabefeld.
+
 ## Das Dashboard { #the-dashboard }
 
 Die Startseite ist ein **anordenbares Raster aus Widgets**, und sie ist die
 Antwort auf die Frage "was passiert gerade", ohne fünf Seiten zu öffnen.
 
-Es gibt achtunddreißig Karten. Sie werden nicht alle davon sehen: **eine Karte
+Es gibt fünfundvierzig Karten. Sie werden nicht alle davon sehen: **eine Karte
 hängt an der Berechtigung, die ihre Daten verlangen**, also wird ein Widget, das
 Sie nicht lesen dürfen, nie eingehängt und seine Abfragen werden nie gestellt —
 außer Ihren eigenen Benachrichtigungen weiter unten, die nur verlangen, dass Sie
@@ -763,7 +767,7 @@ dem ein echtes Problem als ein stilles gelesen wird.
 
 ## Zusammenfassung { #recap }
 
-- Das Dashboard besteht aus **achtunddreißig Widgets**, die Sie selbst
+- Das Dashboard besteht aus **fünfundvierzig Widgets**, die Sie selbst
   anordnen, gespeichert pro Person und pro Organisation — alle außer Ihren
   eigenen Benachrichtigungen hängen an der Berechtigung, die ihre Daten
   verlangen.

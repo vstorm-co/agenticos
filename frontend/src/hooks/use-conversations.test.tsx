@@ -157,7 +157,7 @@ describe("the conversation list", () => {
     vi.useRealTimers();
   });
 
-  it("marks a thread read at once, and puts the mark back if the server refuses", async () => {
+  it("marks a thread read and does not invent an unread badge after a later failure", async () => {
     serve({ items: [conversation("c-1", { unread: true })] });
     const result = await hook();
 
@@ -167,7 +167,7 @@ describe("the conversation list", () => {
 
     vi.mocked(apiClient.post).mockRejectedValueOnce(new Error("offline"));
     await act(async () => result.current.markRead("c-1"));
-    await waitFor(() => expect(result.current.conversations[0]?.unread).toBe(true));
+    await waitFor(() => expect(result.current.conversations[0]?.unread).toBe(false));
   });
 
   it("counts what matches rather than what was fetched", async () => {
@@ -1726,4 +1726,73 @@ it("drops an earlier page that arrives after another conversation was selected",
     await request;
   });
   expect(result.current.currentMessages).toEqual([]);
+});
+
+it("does not revive a read badge from a refresh started during the read write", async () => {
+  serve({ items: [conversation("c-1", { unread: true })] });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  client.setQueryData(qk.organizations.list(), [{ id: "fallback", is_personal: true }]);
+  function localWrapper({ children }: { children: ReactNode }) {
+    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  }
+  const { result } = renderHook(() => useConversations({}), { wrapper: localWrapper });
+  await waitFor(() => expect(result.current.conversations).toHaveLength(1));
+  let saved: (() => void) | undefined;
+  vi.mocked(apiClient.post).mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        saved = resolve;
+      }),
+  );
+  let marking: Promise<void> | undefined;
+  act(() => {
+    marking = result.current.markRead("c-1");
+  });
+  await waitFor(() => expect(saved).toBeDefined());
+  let oldList: ((value: unknown) => void) | undefined;
+  vi.mocked(apiClient.get).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        oldList = resolve;
+      }),
+  );
+  let refreshing: Promise<void> | undefined;
+  act(() => {
+    refreshing = client.refetchQueries({ queryKey: qk.conversations.list() });
+  });
+  await waitFor(() => expect(oldList).toBeDefined());
+  await act(async () => {
+    saved?.();
+    await marking;
+  });
+  await act(async () => {
+    oldList?.({ items: [conversation("c-1", { unread: true })], total: 1 });
+    await refreshing;
+  });
+  expect(result.current.conversations[0]?.unread).toBe(false);
+});
+
+it("does not roll back a newer read when an older read fails late", async () => {
+  serve({ items: [conversation("c-1", { unread: true })] });
+  const result = await hook();
+  let fail: ((error: Error) => void) | undefined;
+  vi.mocked(apiClient.post).mockImplementationOnce(
+    () =>
+      new Promise((_resolve, reject) => {
+        fail = reject;
+      }),
+  );
+  let first: Promise<void> | undefined;
+  act(() => {
+    first = result.current.markRead("c-1");
+  });
+  await waitFor(() => expect(fail).toBeDefined());
+  await act(async () => {
+    await result.current.markRead("c-1");
+  });
+  await act(async () => {
+    fail?.(new Error("old request failed"));
+    await first;
+  });
+  expect(result.current.conversations[0]?.unread).toBe(false);
 });

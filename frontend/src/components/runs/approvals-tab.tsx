@@ -8,10 +8,11 @@ import { CheckCircle2 } from "lucide-react";
 
 import { DecidedApproval, PendingApproval } from "@/components/runs/approval-cards";
 import { ExportMenu } from "@/components/runs/export-menu";
-import { ErrorState } from "@/components/states";
-import { ListCard, ListCardEmpty, ListCardFootRow, Pager, Skeleton } from "@/components/ui";
+import { EmptyState, ErrorState } from "@/components/states";
+import { ListCard, ListCardFootRow, Pager, Skeleton } from "@/components/ui";
 import { useApprovalHistory, useApprovals } from "@/hooks";
 import { periodEnd, periodStart, type Period } from "@/lib/dashboard/period";
+import { cn } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 
 /**
@@ -118,7 +119,11 @@ export function ApprovalsTab({
               <Skeleton className="h-24 w-full" />
             </div>
           ) : approvals.length === 0 ? (
-            <ListCardEmpty
+            <EmptyState
+              className={cn(
+                "rounded-none border-0 shadow-none",
+                history.approvals.length > 0 && "min-h-0 py-6",
+              )}
               icon={CheckCircle2}
               title={t("nothingWaiting")}
               description={t("agentsAreRunningWithout")}

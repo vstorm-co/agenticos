@@ -1,5 +1,5 @@
 ---
-source_sha: "eda91cea1794"
+source_sha: "3459fcd244b0"
 ---
 
 # Konsola { #the-console }
@@ -13,12 +13,16 @@ odtwarza on przewodnik po tej stronie, a strona, w której nagłówku nie ma "?"
 nie ma przewodnika do odtworzenia. Czat nie ma nagłówka: jego wskazówki są w
 ustawieniach czatu, pod suwakami obok mikrofonu.
 
+Listy zasobów, w tym Inbox i Routines, wypełniają pozostałą wysokość strony również wtedy, gdy są puste. Szablony Routines pozostają w formularzu tworzenia zamiast osobnego panelu pomysłów. Get started rezerwuje miejsce podczas pobierania checklisty, aby Briefing i karty poniżej nie przeskakiwały.
+
+Czat używa większych portretów agentów bez obwódek. Przełącznik Files pozostaje w polu wiadomości podczas otwierania i zamykania panelu; animacja respektuje ograniczenie ruchu. Ustawienia czatu pokazują najpierw bieżący model. Rozwiń **Zmień model**, aby edytować uzupełnionego dostawcę i model; wybór zaczyna działać po zatwierdzeniu. Karty załączników znajdują się nad polem wiadomości bez dodatkowego panelu z cieniem.
+
 ## Dashboard { #the-dashboard }
 
 Strona startowa to **układalna siatka widgetów** i jest odpowiedzią na pytanie
 "co się dzieje" bez otwierania pięciu stron.
 
-Istnieje trzydzieści osiem kart. Nie zobaczysz wszystkich: **karta jest
+Istnieje czterdzieści pięć kart. Nie zobaczysz wszystkich: **karta jest
 bramkowana uprawnieniem, którego wymagają jej dane**, więc widget, którego nie
 możesz odczytać, nigdy się nie montuje, a jego zapytania nigdy nie wychodzą —
 poza twoimi własnymi powiadomieniami, niżej, które wymagają tylko tego, żebyś
@@ -701,7 +705,7 @@ problem zostaje odczytany jako cisza.
 
 ## Podsumowanie { #recap }
 
-- Dashboard to **trzydzieści osiem widgetów**, które układasz sam, zapisywanych
+- Dashboard to **czterdzieści pięć widgetów**, które układasz sam, zapisywanych
   per osoba i per organizacja — wszystkie poza twoimi własnymi powiadomieniami
   bramkowane uprawnieniem, którego wymagają ich dane.
 - Zapisany układ **może ukrywać i zmieniać kolejność, ale nigdy nie odsłania** —

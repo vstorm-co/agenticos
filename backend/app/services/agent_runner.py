@@ -132,7 +132,7 @@ from app.agents.capabilities.channel_tools import (
     ChannelDirectory,
 )
 from app.agents.capabilities.coding_agent import CODING_AGENT_ID
-from app.agents.capabilities.context import CONTEXT_FILES_RESOURCE
+from app.agents.capabilities.context import CONTEXT_FILES_RESOURCE, context_config
 from app.agents.capabilities.guardrails import (
     GuardrailBlocked,
     GuardrailsConfig,
@@ -3011,7 +3011,9 @@ class AgentRunnerService:
         resources: dict[str, Any] = {
             "kb_collection_names": await self._collection_names(spec, ctx),
             "skills": await self.skills.resolve_for_agent(ctx, spec.skill_ids),
-            CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(ctx, spec.context_ids),
+            CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(
+                ctx, spec.context_ids, config=context_config(spec.capabilities)
+            ),
         }
         # What an earlier turn of this thread wrote down. Read here rather than
         # beside the build below, because one of the three is a resource.
@@ -4142,7 +4144,9 @@ class AgentRunnerService:
         resources: dict[str, Any] = {
             "kb_collection_names": await self._collection_names(spec, ctx),
             "skills": await self.skills.resolve_for_agent(ctx, spec.skill_ids),
-            CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(ctx, spec.context_ids),
+            CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(
+                ctx, spec.context_ids, config=context_config(spec.capabilities)
+            ),
         }
         if any(binding.id == SANDBOX_CAPABILITY_ID for binding in shared):
             resources[WORKSPACE_RESOURCE] = parent_resources.get(WORKSPACE_RESOURCE)

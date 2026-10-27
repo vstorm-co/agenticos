@@ -111,7 +111,7 @@ export function SearchTab({ kbs }: SearchTabProps) {
 
   if (kbs.length === 0) {
     return (
-      <div className="border-border bg-card text-muted-foreground flex flex-col items-center justify-center rounded-xl border py-16 text-center">
+      <div className="border-border bg-card text-muted-foreground flex flex-1 flex-col items-center justify-center rounded-xl border py-16 text-center">
         <Database className="mb-3 h-8 w-8" />
         <p className="text-sm">{t("noBases")}</p>
       </div>
@@ -119,8 +119,8 @@ export function SearchTab({ kbs }: SearchTabProps) {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="border-border bg-card rounded-xl border p-4">
+    <div className="border-border bg-card flex flex-1 flex-col gap-4 rounded-xl border p-4">
+      <div>
         <div className="flex flex-col gap-2 sm:flex-row">
           <Input
             placeholder={t("placeholder")}

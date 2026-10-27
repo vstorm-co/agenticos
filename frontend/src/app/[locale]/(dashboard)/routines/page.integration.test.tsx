@@ -38,14 +38,7 @@ vi.mock("@/components/triggers/trigger-form-dialog", () => ({
       </div>
     ) : null,
 }));
-vi.mock("@/components/triggers/routine-ideas", () => ({
-  RoutineIdeas: ({ onPick }: { onPick: (template: { key: string }) => void }) => (
-    <button type="button" onClick={() => onPick({ key: "daily-briefing" })}>
-      idea
-    </button>
-  ),
-}));
-// The card and the dialog have their own suites; the page only places them.
+
 vi.mock("@/components/watches/watches-card", () => ({
   useCanWatch: () => canWatch,
   WatchesCard: ({ onNew }: { onNew: () => void }) => (
@@ -93,20 +86,10 @@ describe("RoutinesPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("opens New schedule filled in from an idea, and forgets it once closed", async () => {
-    const user = userEvent.setup();
+  it("keeps the routines list without a separate recommendations panel", () => {
     render(<RoutinesPage />);
-
-    await user.click(screen.getByRole("button", { name: "idea" }));
-    expect(
-      screen.getByRole("dialog", { name: "schedule-dialog:schedule:daily-briefing" }),
-    ).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "close" }));
-    await user.click(screen.getByRole("button", { name: "New schedule" }));
-    expect(
-      screen.getByRole("dialog", { name: "schedule-dialog:schedule:blank" }),
-    ).toBeInTheDocument();
+    expect(screen.queryByText("Ideas to start from")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New schedule" })).toBeInTheDocument();
   });
 
   it("opens the portal picker dialog from New event trigger", async () => {
@@ -153,4 +136,14 @@ describe("RoutinesPage", () => {
     render(<RoutinesPage />);
     expect(screen.queryByRole("button", { name: "New watch" })).toBeNull();
   });
+});
+
+it("keeps the same page heading and description across both tabs", async () => {
+  render(<RoutinesPage />);
+  const description = screen.getByText(
+    "Agent routines carry out tasks. My watches check your connected accounts and bring findings to your private Inbox.",
+  );
+  await userEvent.click(screen.getByRole("tab", { name: "My watches" }));
+  expect(screen.getByRole("heading", { level: 1, name: "Routines" })).toBeInTheDocument();
+  expect(description).toBeInTheDocument();
 });

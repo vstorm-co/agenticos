@@ -863,4 +863,7 @@ export interface JsonSchemaProperty {
 export interface AgentUsage {
   id: string;
   name: string;
+  slug?: string;
+  has_avatar?: boolean;
+  avatar_color?: number | null;
 }

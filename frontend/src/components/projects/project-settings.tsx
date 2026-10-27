@@ -108,30 +108,29 @@ export function ProjectSettings({ project }: { project: Project }) {
               disabled={!editable}
             />
           </FormField>
+          {/* One save for both cards: they are one record, written in one request. */}
+          {editable && (
+            <div className="flex justify-end">
+              <Button
+                disabled={!changed || !name.trim() || update.isPending}
+                onClick={() =>
+                  update.mutate({
+                    name: name.trim(),
+                    description: description.trim() || null,
+                    instructions,
+                    // Only when it was changed: a default agent this reader may
+                    // not see reaches them as none, and saving the instructions
+                    // must not clear it.
+                    ...(agentId !== project.default_agent_id && { default_agent_id: agentId }),
+                  })
+                }
+              >
+                {t("save")}
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
-
-      {/* One save for both cards: they are one record, written in one request. */}
-      {editable && (
-        <div className="flex justify-end">
-          <Button
-            disabled={!changed || !name.trim() || update.isPending}
-            onClick={() =>
-              update.mutate({
-                name: name.trim(),
-                description: description.trim() || null,
-                instructions,
-                // Only when it was changed: a default agent this reader may
-                // not see reaches them as none, and saving the instructions
-                // must not clear it.
-                ...(agentId !== project.default_agent_id && { default_agent_id: agentId }),
-              })
-            }
-          >
-            {t("save")}
-          </Button>
-        </div>
-      )}
 
       {editable && (
         <Card>

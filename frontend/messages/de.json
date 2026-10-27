@@ -955,7 +955,8 @@
     "newStarterPlaceholder": "Wobei kannst du mir helfen?",
     "addStarter": "Hinzufügen",
     "platformUngatedBadge": "eigene Einstellung, ohne Freigabe",
-    "platformHeldBadge": "liest frühere Unterhaltungen, fragt vorher"
+    "platformHeldBadge": "liest frühere Unterhaltungen, fragt vorher",
+    "openRouterEndpointHint": "Leer lassen für die globale OpenRouter-API oder eine regionale URL wie https://eu.openrouter.ai/api/v1 eingeben. EU-Routing erfordert einen passenden OpenRouter-Tarif; ZDR wird separat bei OpenRouter konfiguriert."
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -1307,7 +1308,9 @@
       "notAChatModel": "{model} ist kein Chat-Modell, daher kann diese Unterhaltung nicht darauf laufen. Wählen Sie ein anderes Modell.",
       "provider": "Provider",
       "runModel": "Auf diesem Modell ausführen",
-      "thisChat": "Nur dieser Chat"
+      "thisChat": "Nur dieser Chat",
+      "changeModel": "Modell ändern",
+      "profilesUnavailable": "Die Modelleinstellungen konnten nicht geladen werden. Versuche es erneut, bevor du ein anderes Modell auswählst."
     },
     "newChat": "Neuer Chat",
     "newConversation": "Neue Unterhaltung",
@@ -3355,7 +3358,9 @@
     "whoCanSearchIt": "Wer sie durchsuchen kann",
     "parsingDetails": "Chunking, OCR und Bilder",
     "moreOptions": "Weitere Optionen",
-    "citedFileGone": "Diese Datei ist nicht mehr in ihrer Wissensdatenbank - sie wurde nach dem Zitieren gelöscht oder ersetzt."
+    "citedFileGone": "Diese Datei ist nicht mehr in ihrer Wissensdatenbank - sie wurde nach dem Zitieren gelöscht oder ersetzt.",
+    "embeddingEndpoint": "Endpunkt",
+    "embeddingEndpointHint": "Leer lassen für die globale OpenRouter-API oder eine regionale URL wie https://eu.openrouter.ai/api/v1 eingeben. EU-Routing erfordert einen passenden OpenRouter-Tarif; ZDR wird separat bei OpenRouter konfiguriert."
   },
   "knowledgeBases": {
     "active": "Aktiv",
@@ -4405,10 +4410,6 @@
       "knowledge-groups": {
         "title": "Nach Abteilung",
         "body": "Schränken Sie die Liste auf das ein, was eine Gruppe bekommen hat. Eine Gruppe entscheidet, wen etwas erreicht, und gruppiert damit auch die Liste."
-      },
-      "routines-ideas": {
-        "title": "Oder mit einer Idee beginnen",
-        "body": "Fertige Routinen - ein Morgenüberblick, eine Wochenzusammenfassung, eine stündliche Prüfung - jeweils mit der Uhrzeit, zu der sie liefe. Wählen Sie eine, und der neue Zeitplan öffnet sich bereits ausgefüllt."
       },
       "sign-in-to-site": {
         "title": "Bei einer Website anmelden",
@@ -5615,7 +5616,7 @@
       "signOutFromAll": "Von allen Geräten abmelden?",
       "signedOutFromAll": "Von allen Geräten abgemeldet",
       "slashCommands": "Slash-Befehle",
-      "squareImagesLookBest": "Quadratische Bilder wirken am besten. Bis zu 2 MB. JPG, PNG, WEBP oder GIF.",
+      "squareImagesLookBest": "Dein Foto wird kreisförmig zugeschnitten.",
       "transactionalEmailsWhatTriggers": "Die transaktionalen E-Mails, was jede auslöst und warum keine davon optional ist.",
       "updatePassword": "Passwort aktualisieren",
       "uploadAvatar3": "Avatar hochladen",
@@ -5737,13 +5738,10 @@
     },
     "routines": {
       "title": "Routinen",
-      "description": "Agenten erledigen Aufgaben nach Zeitplan oder bei einem Ereignis. Jede Routine nutzt einen gewählten Agenten und dessen Werkzeuge.",
-      "ideasTitle": "Ideen zum Starten",
-      "ideasHint": "Wählen Sie eine, und sie öffnet sich als neuer Zeitplan, schon ausgefüllt - Agent wählen, anpassen, speichern.",
+      "description": "Agentenroutinen führen Aufgaben aus. Meine Beobachtungen prüfen verbundene Konten und liefern Ergebnisse in deinen privaten Posteingang.",
       "newWatch": "Neue Beobachtung",
       "agentsTab": "Agentenaufgaben",
-      "watchesTab": "Meine Beobachtungen",
-      "watchesDescription": "Schreibgeschützte Prüfungen deiner verbundenen Konten. Neue Ergebnisse landen in deinem privaten Posteingang; Beobachtungen führen keine Agentenaufgaben aus."
+      "watchesTab": "Meine Beobachtungen"
     },
     "signIns": {
       "cancel": "Abbrechen",
@@ -6650,14 +6648,12 @@
     "modeLink": "verknüpft",
     "modeInjectHint": "Wird bei jedem Run in die Instruktionen des Agents eingefügt.",
     "modeLinkHint": "Bleibt aus dem Prompt heraus; der Agent liest sie bei Bedarf.",
-    "sizeWithFormat": "{format} · {size}",
     "newContext": "Neue Kontextdatei",
     "availableEveryAgentOrganization": "Wählen Sie unten, wer sie nutzen darf. Ein Agent liest sie, sobald sie ihm hinzugefügt wurde.",
     "name": "Name",
     "howItIsReferredTo": "Wie diese Datei referenziert wird; das lässt sich später nicht mehr ändern.",
     "mode": "Modus",
     "format": "Format",
-    "formatHint": "Ein Hinweis zur Darstellung, zum Beispiel md oder txt.",
     "description": "Beschreibung",
     "whatIsInIt": "Was darin steht, damit eine verknüpfte Datei gewählt werden kann, ohne sie zu öffnen",
     "shownWhenLinked": "Wird neben dem Namen angezeigt, wenn die Datei verknüpft ist.",
@@ -6677,7 +6673,10 @@
     "droppedTooLarge": "{count, plural, =1 {Eine Datei ist größer als {max} – ein so großes Dokument gehört in eine Wissens-Collection} other {# Dateien sind größer als {max} – ein so großes Dokument gehört in eine Wissens-Collection}}",
     "moreFilesWaiting": "{count, plural, =1 {1 weitere Datei wartet} other {# weitere Dateien warten}}",
     "bodyPlaceholder": "# Glossar\n\nWas ein Begriff hier bedeutet und was nicht.\n\n- **SLA** - die Reaktionszeit, die wir zusagen, nicht die Behebungszeit.\n",
-    "whoCanUseIt": "Wer es nutzen darf"
+    "whoCanUseIt": "Wer es nutzen darf",
+    "useForAgent": "In diesem Agenten verwenden",
+    "usageForAgent": "Verwendung von {name}",
+    "bindingSettingsHint": "Die Verwendung dieser Datei wird für jeden Agenten im Builder unter Context eingestellt."
   },
   "memory": {
     "clearAction": "Gedächtnis leeren",
@@ -6835,10 +6834,10 @@
     "runsCouldNotBeRead": "Die Runs dieses Triggers konnten nicht gelesen werden.",
     "unit": "Einheit",
     "activityTitle": "Routinen",
-    "activityEmptyTitle": "Noch läuft nichts von allein",
+    "activityEmptyTitle": "Noch keine Agentenroutinen",
     "searchRoutines": "Routinen suchen",
     "noRoutineMatches": "Keine Routine passt dazu.",
-    "routineCount": "{count, plural, =0 {Keine Routinen} =1 {1 Routine} other {# Routinen}}",
+    "routineCount": "{count, plural, one {# Routine} other {# Routinen}}",
     "activityEmptyDescription": "Sobald ein Agent sich selbst ausführen soll, erscheint er hier.",
     "agent": "Agent",
     "chooseAgent": "Agent wählen",
@@ -7914,6 +7913,10 @@
       "expose_read_tool": {
         "title": "Verlinkte Dateien öffnen lassen",
         "description": "Ob Dateien im Link-Modus über ein Lese-Tool erreichbar sind. Aus bedeutet, dass nur eingefügte Dateien das Modell erreichen und nichts bei Bedarf gelesen wird."
+      },
+      "file_settings": {
+        "title": "Verwendung je Datei",
+        "description": "Modus und Verfügbarkeit angehängter Kontextdateien für diesen Agenten. Ohne Eintrag bleiben die bisherigen Dateivorgaben erhalten."
       }
     },
     "conversation_search": {
@@ -8661,12 +8664,12 @@
       }
     },
     "signInAgain": "Erneut anmelden",
-    "count": "{count, plural, =0 {Noch nichts beobachtet} =1 {1 Beobachtung} other {# Beobachtungen}}",
+    "count": "{count, plural, one {# Beobachtung} other {# Beobachtungen}}",
     "findings": "Was sie gefunden haben",
     "offTitle": "Beobachtungen sind aus",
     "noConnectionsTitle": "Verbinden Sie ein Konto, um es zu beobachten",
     "connect": "MCP-Server öffnen",
-    "emptyTitle": "Noch nichts beobachtet",
+    "emptyTitle": "Noch keine Beobachtungen",
     "emptyDescription": "Wählen Sie eines Ihrer Konten und sagen Sie, wonach gesucht werden soll. Was eine Beobachtung findet, landet in Ihrem Posteingang; Dringendes erreicht Sie sofort.",
     "rowLooked": "{cadence} · geprüft {when}",
     "rowFirst": "{cadence} · erste Prüfung innerhalb einer Minute",

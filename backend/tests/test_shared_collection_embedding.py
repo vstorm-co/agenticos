@@ -18,11 +18,11 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.core.exceptions import BadRequestError
+from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.repositories import collection_teardown_repo, knowledge_base_repo
-from app.schemas.knowledge_base import KnowledgeBaseCreate
+from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseUpdate
 from app.services.knowledge_base import KnowledgeBaseService
 
 pytestmark = pytest.mark.anyio
@@ -191,3 +191,76 @@ class TestAFirstRowOnAFreeName:
 
         assert written["embedding_model"] == "text-embedding-3-small"
         assert written["embedding_dim"] == 1536
+
+
+async def test_a_shared_collection_keeps_its_regional_endpoint(service, monkeypatch):
+    held = _held(
+        embedding_provider="openrouter", embedding_base_url="https://eu.openrouter.ai/api/v1"
+    )
+    _holders(monkeypatch, [held])
+    written = await service.create(
+        KnowledgeBaseCreate(name="Regional", collection_name="shared"), ctx=_ctx()
+    )
+    assert written["embedding_base_url"] == held.embedding_base_url
+
+
+@pytest.mark.parametrize("endpoint", ["https://eu.openrouter.ai/api/v1", None])
+async def test_an_embedding_endpoint_can_be_set_or_explicitly_cleared(
+    service, monkeypatch, endpoint
+):
+    held = _held(
+        embedding_provider="openrouter", embedding_base_url="https://regional.example/api/v1"
+    )
+    monkeypatch.setattr(service, "get_for_write", AsyncMock(return_value=held))
+    _holders(monkeypatch, [held])
+    update = AsyncMock(return_value=held)
+    monkeypatch.setattr(knowledge_base_repo, "update", update)
+    await service.update(held.id, KnowledgeBaseUpdate(embedding_base_url=endpoint), ctx=_ctx())
+    assert update.call_args.kwargs["embedding_base_url"] == endpoint
+    assert update.call_args.kwargs["set_embedding_base_url"] is True
+
+
+async def test_an_endpoint_change_cannot_split_a_shared_collection(service, monkeypatch):
+    held = _held(embedding_provider="openrouter")
+    monkeypatch.setattr(service, "get_for_write", AsyncMock(return_value=held))
+    _holders(monkeypatch, [held, _held(embedding_provider="openrouter")])
+    with pytest.raises(BadRequestError):
+        await service.update(
+            held.id,
+            KnowledgeBaseUpdate(embedding_base_url="https://eu.openrouter.ai/api/v1"),
+            ctx=_ctx(),
+        )
+
+
+async def test_a_resource_grant_does_not_authorize_rerouting_an_existing_embedding_key(
+    service, monkeypatch
+):
+    held = _held(
+        embedding_provider="openrouter", embedding_base_url="https://eu.openrouter.ai/api/v1"
+    )
+    monkeypatch.setattr(service, "get_for_write", AsyncMock(return_value=held))
+    caller = AuthContext(
+        user_id=uuid.uuid4(), organization_id=ORG, role="member", is_app_admin=False
+    )
+    with pytest.raises(AuthorizationError):
+        await service.update(held.id, KnowledgeBaseUpdate(embedding_base_url=None), ctx=caller)
+
+
+@pytest.mark.parametrize("endpoint", ["file:///etc/passwd", "https://user:password@example.com/v1"])
+async def test_invalid_embedding_urls_name_the_embedding_field(service, endpoint):
+    with pytest.raises(BadRequestError) as failure:
+        await service._embedding_url(_ctx(), "openrouter", endpoint)
+    assert failure.value.details["fields"][0]["field"] == "embedding_base_url"
+
+
+async def test_endpoint_update_distinguishes_omission_from_explicit_null():
+    db = MagicMock(flush=AsyncMock(), refresh=AsyncMock())
+    held = _held(
+        embedding_provider="openrouter", embedding_base_url="https://eu.openrouter.ai/api/v1"
+    )
+    await knowledge_base_repo.update(db, db_kb=held)
+    assert held.embedding_base_url == "https://eu.openrouter.ai/api/v1"
+    await knowledge_base_repo.update(
+        db, db_kb=held, embedding_base_url=None, set_embedding_base_url=True
+    )
+    assert held.embedding_base_url is None

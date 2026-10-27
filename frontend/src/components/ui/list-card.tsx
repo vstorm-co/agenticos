@@ -24,6 +24,7 @@ export function ListCard({
   controls,
   namedByPage = false,
   layout = "panel",
+  fill = false,
   className,
   empty = false,
   contentClassName,
@@ -51,6 +52,8 @@ export function ListCard({
   namedByPage?: boolean;
   /** Card grids already provide their own surfaces; tables retain a panel. */
   layout?: "panel" | "grid";
+  /** Fill the remaining page area, including an empty list. */
+  fill?: boolean;
   /**
    * Under `namedByPage`: there is nothing yet, so there is nothing to count or
    * search, and a strip reading "0 skills" above "No skills yet" said it twice.
@@ -69,7 +72,11 @@ export function ListCard({
   if (namedByPage) {
     return (
       <Card
-        className={cn(layout === "grid" && "border-0 bg-transparent shadow-none", className)}
+        className={cn(
+          fill && "flex min-h-0 flex-1 flex-col",
+          layout === "grid" && "border-0 bg-transparent shadow-none",
+          className,
+        )}
         {...rest}
       >
         <CardHeader
@@ -87,9 +94,10 @@ export function ListCard({
           {controls}
         </CardHeader>
         <CardContent
-          className={
-            layout === "grid" ? cn("p-0", contentClassName) : contentPadding(contentClassName)
-          }
+          className={cn(
+            layout === "grid" ? cn("p-0", contentClassName) : contentPadding(contentClassName),
+            fill && "flex min-h-0 flex-1 flex-col",
+          )}
         >
           {children}
         </CardContent>
@@ -98,7 +106,11 @@ export function ListCard({
   }
   return (
     <Card
-      className={cn(layout === "grid" && "border-0 bg-transparent shadow-none", className)}
+      className={cn(
+        fill && "flex min-h-0 flex-1 flex-col",
+        layout === "grid" && "border-0 bg-transparent shadow-none",
+        className,
+      )}
       {...rest}
     >
       {/* A column on a phone: beside a search box and three filters the title
@@ -117,9 +129,10 @@ export function ListCard({
         {controls}
       </CardHeader>
       <CardContent
-        className={
-          layout === "grid" ? cn("p-0", contentClassName) : contentPadding(contentClassName)
-        }
+        className={cn(
+          layout === "grid" ? cn("p-0", contentClassName) : contentPadding(contentClassName),
+          fill && "flex min-h-0 flex-1 flex-col",
+        )}
       >
         {children}
       </CardContent>
@@ -208,7 +221,7 @@ export function ListCardEmpty({
   cta?: { label: ReactNode; onClick: () => void };
 }) {
   return (
-    <div className="px-6 py-16 text-center">
+    <div className="flex min-h-64 flex-1 flex-col items-center justify-center px-6 py-12 text-center">
       <SectionGlyph icon={Icon} className="mx-auto" />
       <p className="text-foreground mt-4 text-sm font-medium">{title}</p>
       {description && (

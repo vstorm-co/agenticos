@@ -32,7 +32,7 @@ import { useTranslations } from "next-intl";
 function WorkspacesCard({ count, children }: { count: number | null; children: ReactNode }) {
   const t = useTranslations("pages.orgs");
   return (
-    <Card>
+    <Card className="flex flex-1 flex-col">
       <CardHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-4">
         <div className="space-y-1">
           <CardTitle className="text-sm">{t("workspaces")}</CardTitle>
@@ -43,7 +43,7 @@ function WorkspacesCard({ count, children }: { count: number | null; children: R
           </CardDescription>
         </div>
       </CardHeader>
-      <CardContent className="p-4">{children}</CardContent>
+      <CardContent className="flex-1 p-4">{children}</CardContent>
     </Card>
   );
 }
@@ -75,7 +75,7 @@ export default function OrgsPage() {
   }, [fetchOrgs, searchParams]);
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-1 flex-col space-y-6">
       <PageHeader
         title={t("organizations")}
         description={t("switchBetweenWorkspacesManage")}

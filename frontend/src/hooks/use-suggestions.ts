@@ -56,7 +56,7 @@ export function usePersonalStarters(): string[] {
  */
 export function useSuggestionHistory() {
   const client = useQueryClient();
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.suggestions.history(),
     queryFn: listSuggestionHistory,
   });
@@ -67,6 +67,8 @@ export function useSuggestionHistory() {
   return {
     history: data ?? ([] as Suggestion[]),
     isLoading,
+    error,
+    refetch,
     restore: restore.mutateAsync,
   };
 }

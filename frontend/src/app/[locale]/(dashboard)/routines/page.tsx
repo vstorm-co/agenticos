@@ -4,12 +4,9 @@ import { useState } from "react";
 import { CalendarClock, Radar, Zap } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import type { TriggerTemplate } from "@/types/trigger-templates";
-
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ScheduledTab } from "@/components/runs/scheduled-tab";
 import { NewEventTriggerDialog } from "@/components/triggers/new-event-trigger-dialog";
-import { RoutineIdeas } from "@/components/triggers/routine-ideas";
 import { TriggerFormDialog } from "@/components/triggers/trigger-form-dialog";
 import { Button, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
 import { useUrlState } from "@/hooks/use-url-state";
@@ -37,7 +34,6 @@ export default function RoutinesPage() {
   const tt = useTranslations("triggers");
   const canCreate = useCanCreateTrigger();
   const [creatingSchedule, setCreatingSchedule] = useState(false);
-  const [idea, setIdea] = useState<TriggerTemplate | null>(null);
   const [creatingEvent, setCreatingEvent] = useState(false);
   const canWatch = useCanWatch();
   const [creatingWatch, setCreatingWatch] = useState(false);
@@ -45,12 +41,12 @@ export default function RoutinesPage() {
   const tab = tabParam === "watches" ? "watches" : "agents";
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-1 flex-col space-y-6">
       {/* The two ways to start a routine are the page's primary actions, so they
           sit where every other page keeps its create button - in the header. */}
       <PageHeader
         title={t("title")}
-        description={t(tab === "watches" ? "watchesDescription" : "description")}
+        description={t("description")}
         actions={
           canCreate || canWatch ? (
             <div className="flex flex-wrap gap-2" data-tour="routines-create">
@@ -78,6 +74,7 @@ export default function RoutinesPage() {
       />
 
       <Tabs
+        className="flex flex-1 flex-col"
         value={tab}
         onValueChange={(next) => setTabParam(next === "watches" ? "watches" : null)}
       >
@@ -91,20 +88,12 @@ export default function RoutinesPage() {
             {t("watchesTab")}
           </TabsTrigger>
         </TabsList>
-        <TabsContent value="agents" className="space-y-6">
-          <div data-tour="routines-list">
+        <TabsContent value="agents" className="flex-1 flex-col data-[state=active]:flex">
+          <div data-tour="routines-list" className="flex flex-1 flex-col">
             <ScheduledTab />
           </div>
-          {canCreate && (
-            <RoutineIdeas
-              onPick={(template) => {
-                setIdea(template);
-                setCreatingSchedule(true);
-              }}
-            />
-          )}
         </TabsContent>
-        <TabsContent value="watches">
+        <TabsContent value="watches" className="flex-1 flex-col data-[state=active]:flex">
           <WatchesCard onNew={() => setCreatingWatch(true)} />
         </TabsContent>
       </Tabs>
@@ -114,11 +103,9 @@ export default function RoutinesPage() {
           agentId={null}
           open
           initialType="schedule"
-          initialTemplate={idea}
           onOpenChange={(next) => {
             if (next) return;
             setCreatingSchedule(false);
-            setIdea(null);
           }}
         />
       )}
