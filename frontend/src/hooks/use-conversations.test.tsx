@@ -1859,3 +1859,32 @@ it("keeps the first list alive when a chat is marked read before it arrives", as
     running_since: "2026-10-27T12:00:00Z",
   });
 });
+
+it("does not send a read marker after the organization changes during query cancellation", async () => {
+  serve({ items: [conversation("c-1", { unread: true })] });
+  const result = await hook();
+  let finishCancellation: (() => void) | undefined;
+  const cancel = vi.spyOn(QueryClient.prototype, "cancelQueries").mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        finishCancellation = resolve;
+      }),
+  );
+  let marked: Promise<void> | undefined;
+  try {
+    act(() => {
+      marked = result.current.markRead("c-1");
+    });
+    await waitFor(() => expect(finishCancellation).toBeDefined());
+    act(() => {
+      useOrgStore.setState({ activeOrgId: "another-organization" });
+    });
+    await act(async () => {
+      finishCancellation?.();
+      await marked;
+    });
+    expect(apiClient.post).not.toHaveBeenCalled();
+  } finally {
+    cancel.mockRestore();
+  }
+});
