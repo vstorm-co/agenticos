@@ -1,5 +1,5 @@
 ---
-source_sha: "cb3e6295d032"
+source_sha: "eb0bc6e7048e"
 ---
 
 # Begriffe { #concepts }
@@ -685,7 +685,9 @@ entsprechender Berechtigung veröffentlicht; jede spätere Änderung braucht
 `org:settings`. Wählen Sie den Bewerter in der
 Dataset-Bewertung, den Generator beim Generieren, Wissenshelfer im Lücken-Tab
 der Wissensbasis und den Assistenten beim Verbessern. Standard ist jeweils der
-Agent der Organisation. Eine Auswahl muss den richtigen Typ haben,
+Agent der Organisation, in der Auswahl mit seinem veröffentlichten Modell
+genannt; gibt es keinen anderen Agent dieses Typs, gibt es nichts zu wählen,
+und die Auswahl nennt nur diesen Agent mit einem Link zu seiner Seite. Eine Auswahl muss den richtigen Typ haben,
 veröffentlicht und für den Benutzer ausführbar sein; eine fehlende Auswahl wird
 nie still durch den Standard ersetzt.
 

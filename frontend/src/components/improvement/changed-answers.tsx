@@ -41,6 +41,7 @@ export function ChangedAnswers({
       key={item.case_id}
       item={item}
       flip={byCase.get(item.case_id)!.flip}
+      confirmed={byCase.get(item.case_id)!.confirmed}
       baselineId={baselineId}
       candidateId={candidateId}
       attributions={attributions}
@@ -67,12 +68,14 @@ export function ChangedAnswers({
 function ChangedRow({
   item,
   flip,
+  confirmed,
   baselineId,
   candidateId,
   attributions,
 }: {
   item: EvalCase;
   flip: CaseFlip["flip"];
+  confirmed: boolean;
   baselineId: string;
   candidateId: string;
   attributions: Record<string, string>;
@@ -84,9 +87,15 @@ function ChangedRow({
     <Details
       summary={
         <span className="flex flex-wrap items-center gap-2">
-          <StateBadge tone={flip === "regression" ? "bad" : "good"}>
-            {t(flip === "regression" ? "newlyBroken" : "newlyFixed")}
-          </StateBadge>
+          {confirmed ? (
+            <StateBadge tone={flip === "regression" ? "bad" : "good"}>
+              {t(flip === "regression" ? "newlyBroken" : "newlyFixed")}
+            </StateBadge>
+          ) : (
+            <StateBadge tone="neutral" className="bg-transparent">
+              {t(flip === "regression" ? "possiblyBroken" : "possiblyFixed")}
+            </StateBadge>
+          )}
           <span className="break-words">{item.input}</span>
         </span>
       }

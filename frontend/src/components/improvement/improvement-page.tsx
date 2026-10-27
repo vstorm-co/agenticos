@@ -21,14 +21,13 @@ import { Perm } from "@/types/permissions";
 import { ContinueSession } from "./continue-session";
 import { StartSession } from "./start-session";
 import { KnowledgeDrafts } from "./knowledge-drafts";
-import { RoundResults, RoundHistory } from "./round-results";
 import { TestQuestions, Today } from "./session-inputs";
 import { Understand } from "./understand";
 import { AttemptHistory } from "./attempt-history";
 import { CheckProgress } from "./check-progress";
 import { StepDecisions } from "./step-decisions";
-import { Details } from "./widgets";
-import { AcceptSummary, GuardNote, KnowledgeDocuments, ResultSummary } from "./outcome";
+import { AcceptSummary, GuardNote, KnowledgeDocuments } from "./outcome";
+import { ResultStep } from "./result-decision";
 import { ReadOnlyNote, ReadOnlyProvider, type ReadOnlyReason } from "./read-only";
 import { SessionDecision } from "./session-decision";
 
@@ -36,6 +35,7 @@ import {
   IMPROVEMENT_STEPS as STEPS,
   currentAttempt,
   currentImprovementStep,
+  hasCandidate,
   improvementSteps,
   isActive,
   isClosed,
@@ -78,6 +78,7 @@ export function ImprovementPage({ agentId, sessionId }: { agentId: string; sessi
           key={`${orgId}:${agentId}:${sessionId}`}
           agentId={agentId}
           sessionId={sessionId}
+          agentName={agent.name}
           canPublish={agent.can_publish === true}
           canEdit={agent.can_edit === true}
         />
@@ -88,11 +89,13 @@ export function ImprovementPage({ agentId, sessionId }: { agentId: string; sessi
 function Session({
   agentId,
   sessionId,
+  agentName,
   canPublish,
   canEdit,
 }: {
   agentId: string;
   sessionId: string;
+  agentName: string;
   canPublish: boolean;
   canEdit: boolean;
 }) {
@@ -173,15 +176,9 @@ function Session({
     JSON.stringify([...included].sort()) !== JSON.stringify([...measuredIds].sort());
   const missingBatch = !selectedBatch;
   const missingHeldOut = Number(session.iterations[0]?.verdict_detail?.missing_holdout ?? 0);
-  const acceptable =
-    chosen?.verdict !== "inconclusive" &&
-    chosen?.verdict_detail?.broken != null &&
-    Number(chosen.verdict_detail.broken) === 0;
   const blockedChanges = selectedBatch?.hunks.some(
     (hunk) => hunk.status === "pending" && measuredIds.includes(hunk.id) && hunk.blocked !== null,
   );
-  // The knowledge draft check joins the shown attempt's Show details, so the result has one.
-  const knowledgeHost = chosen ?? session.iterations.at(-1);
   const knowledgeCheck = (
     <section className="space-y-2">
       <h4 className="text-sm font-medium">{t("knowledgeCheckDetails")}</h4>
@@ -220,7 +217,7 @@ function Session({
           )}
         </nav>
         <ReadOnlyNote />
-        {session.stop_reason && (
+        {session.stop_reason && step !== "result" && (
           <p role={session.status === "failed" ? "alert" : undefined} className="text-sm">
             {session.stop_reason === "no_data" && missingHeldOut > 0
               ? t("tooFewHeldOut", { needed: missingHeldOut })
@@ -314,22 +311,19 @@ function Session({
             <CheckProgress session={session} onShowResult={() => goTo("result")} />
           )}
           {step === "result" && (
-            <section className="space-y-4" data-tour="improvement-results">
-              <ResultSummary session={session} round={chosen} />
-              {session.iterations.map((round) =>
-                round.id === session.best_iteration_id || !session.best_iteration_id ? (
-                  <RoundResults
-                    key={round.id}
-                    session={session}
-                    round={round}
-                    extra={round.id === knowledgeHost?.id ? knowledgeCheck : undefined}
-                  />
-                ) : (
-                  <RoundHistory key={round.id} session={session} round={round} />
-                ),
-              )}
-              {!knowledgeHost && <Details summary={t("showDetails")}>{knowledgeCheck}</Details>}
-            </section>
+            <ResultStep
+              session={session}
+              agent={agentName}
+              candidate={hasCandidate(session)}
+              canAccept={!selectionDirty && !missingBatch}
+              knowledgeCheck={knowledgeCheck}
+              onAccept={() => goTo("accept")}
+              onStarted={() => {
+                followCurrent();
+                setDraftSelection(null);
+                setConfirm(false);
+              }}
+            />
           )}
           {step === "accept" && isClosed(session) && <SessionDecision session={session} />}
           {step === "accept" && !isClosed(session) && (
@@ -449,23 +443,10 @@ function Session({
           </p>
         )}
         {readOnly === null &&
-          (step === "result" ||
-            session.status === "failed" ||
-            session.stop_reason === "budget") && (
+          step !== "result" &&
+          (session.status === "failed" || session.stop_reason === "budget") && (
             <ContinueSession
               session={session}
-              lead={
-                step === "result" &&
-                session.status === "ready" && (
-                  <Button
-                    variant={acceptable ? "default" : "outline"}
-                    disabled={selectionDirty || missingBatch}
-                    onClick={() => goTo("accept")}
-                  >
-                    {t("accept")}
-                  </Button>
-                )
-              }
               onStarted={() => {
                 followCurrent();
                 setDraftSelection(null);

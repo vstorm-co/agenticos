@@ -622,7 +622,9 @@ organization's first model, and publishes when you may publish agents; every
 change after that takes `org:settings`. Pick a
 judge in dataset grading, a generator in Generate cases, knowledge helpers on a
 knowledge base's gaps tab, or an assistant in Improve. Each defaults to the
-organization's seeded agent. A selected helper must have the right kind, be
+organization's seeded agent, named in the picker with its published model; with
+no other agent of the kind there is nothing to pick, so the picker only names
+that agent and links to its page. A selected helper must have the right kind, be
 published and remain runnable by the caller; a missing choice never silently
 adopts the default.
 

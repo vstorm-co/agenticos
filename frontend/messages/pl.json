@@ -4773,7 +4773,7 @@
       },
       "improvement-results": {
         "title": "Wynik",
-        "body": "Werdykt mówi, które pytania są nowo naprawione, a które nowo zepsute, na wszystkich pytaniach i na odłożonych. Każda zmieniona odpowiedź pokazuje stan przed i po wraz ze zdaniem oceniającego."
+        "body": "Najpierw to, do czego doszła sesja, i co możesz z tym zrobić. Potem potwierdzone zmiany i każda próba w jednym wierszu, który rozwija się do zmienionych odpowiedzi przed i po."
       },
       "improvement-automatic-check": {
         "title": "Automatyczne sprawdzenie",
@@ -10692,8 +10692,6 @@
     }
   },
   "improvement": {
-    "resultDetailsUnavailable": "Otwórz pełny test, aby zobaczyć szczegóły wyniku.",
-    "worseResult": "Gorzej: {broken, plural, one {# pytanie przestało} few {# pytania przestały} many {# pytań przestało} other {# pytania przestało}} działać poprawnie.",
     "attributionUnconfirmed": "Zmiana {number}: wynik nie jest potwierdzony.",
     "includeInTest": "Uwzględnij w teście",
     "includeChange": "Uwzględnij zmianę {number} w teście",
@@ -10759,6 +10757,20 @@
     "working": "Praca trwa…",
     "loading": "Ładowanie wyniku…",
     "round": "Próba {number} z {max}",
+    "attempt": {
+      "better": "Lepiej",
+      "regression": "Mieszany",
+      "worse": "Gorzej",
+      "no_change": "Bez zmian",
+      "inconclusive": "Niejednoznaczny",
+      "unmeasured": "Niezmierzona",
+      "none": "Brak zmian",
+      "working": "W toku",
+      "counts": "naprawione: {fixed} · zepsute: {broken}",
+      "heldOut": "Odłożone: {before} → {after}",
+      "best": "Najlepsza próba"
+    },
+    "attemptsTitle": "Próby",
     "heldBack": "Zmiany odłożone na kolejną próbę, nieprzetestowane",
     "selected": "Wybrana próba",
     "selectRound": "Użyj tej próby",
@@ -10782,6 +10794,24 @@
     "publish": "Zaakceptuj i opublikuj",
     "openAgent": "Otwórz agenta",
     "accept": "Zaakceptuj te zmiany",
+    "resultDecision": {
+      "title": "Do czego doszła ta sesja",
+      "options": "Co możesz zrobić",
+      "better": "Próba {number} poprawiła agenta {agent}: {fixed, plural, one {# pytanie naprawione} few {# pytania naprawione} many {# pytań naprawionych} other {# pytania naprawione}}, żadne nie zepsute.",
+      "chosen": "Wybrano próbę {number} do akceptacji.",
+      "failed": "Sesja zatrzymała się na błędzie, zanim się skończyła.",
+      "working": "Sesja wciąż pracuje, więc to wynik na razie.",
+      "noneBetter": "{count, plural, =0 {Żadna próba nie została zmierzona, więc nie wiadomo, czy agent {agent} się poprawił.} one {Próba nie poprawiła agenta {agent}.} few {Żadna z # prób nie poprawiła agenta {agent}.} many {Żadna z # prób nie poprawiła agenta {agent}.} other {Żadna z # prób nie poprawiła agenta {agent}.}}",
+      "worse": "Próba {number} pogorszyła wynik: {broken, plural, one {# pytanie przestało działać} few {# pytania przestały działać} many {# pytań przestało działać} other {# pytania przestały działać}}.",
+      "topics": "W bazie wiedzy {count, plural, one {brakuje # tematu} few {brakuje # tematów} many {brakuje # tematów} other {brakuje # tematu}}.",
+      "limit": "{max, plural, one {To była jedyna próba, na którą pozwala ta sesja.} few {To wykorzystało wszystkie # próby, na które pozwala ta sesja.} many {To wykorzystało wszystkie # prób, na które pozwala ta sesja.} other {To wykorzystało wszystkie # próby, na które pozwala ta sesja.}}",
+      "accept": "Przejrzyj i zaakceptuj zmiany",
+      "reviewTopics": "Przygotuj dokumenty, których potrzebujesz",
+      "tryAgain": "Spróbuj ponownie",
+      "end": "Zakończ bez zmian",
+      "newSession": "Rozpocznij nową sesję",
+      "newSessionHint": "Nowa sesja będzie miała więcej materiału, gdy dodasz pytania testowe tam, gdzie agent {agent} odpowiada źle."
+    },
     "retryStep": "Ponów ten krok w ramach limitu",
     "stopAction": "Zatrzymaj sesję",
     "close": "Zamknij i wróć później",
@@ -10938,6 +10968,9 @@
     "handledChange": "{before} → {after} z {total} pytań obsłużonych poprawnie.",
     "newlyFixed": "Nowo naprawione",
     "newlyBroken": "Nowo zepsute",
+    "possiblyBroken": "Być może zepsute",
+    "possiblyFixed": "Być może naprawione",
+    "notConfirmedMore": "+{count} niepotwierdzone",
     "notConfirmedYet": "Jeszcze niepotwierdzone ({count})",
     "tooFewHeldOut": "Za mało pytań, by zmierzyć zmianę: potrzeba jeszcze {needed, plural, one {# pytania} other {# pytań}} niewykorzystanych do pisania zmian.",
     "technicalDetails": "Szczegóły techniczne",
@@ -11024,6 +11057,7 @@
       "weakQuestions": "Pytania, z którymi sobie nie poradził",
       "comments": "{count, plural, one {# komentarz} few {# komentarze} many {# komentarzy} other {# komentarza}}",
       "toReview": "Dokumenty do przejrzenia",
+      "missingTopics": "Brakujące tematy wiedzy",
       "fixes": "Naprawia",
       "breaks": "Psuje",
       "costPerAnswer": "Koszt odpowiedzi",

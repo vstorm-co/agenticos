@@ -4,7 +4,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { arm, comparison, evalRun, FLIP, SUMMARY } from "@/test-utils/eval-runs";
 import { SESSION } from "@/test-utils/improvement";
 import type { EvalRun, EvalComparison } from "@/types/eval-runs";
-import { RoundResults, RoundHistory } from "./round-results";
+import { AttemptRow, RoundResults } from "./round-results";
 import { ReadOnlyProvider } from "./read-only";
 const state = vi.hoisted(() => ({
   run: null as EvalRun | null,
@@ -115,14 +115,14 @@ it("says why the bars and the counts differ, and shows a cost that moved on the 
   expect(screen.queryByText(/Only a change confirmed/)).not.toBeInTheDocument();
 });
 it("does not request older round details until they are opened", async () => {
-  render(<RoundHistory session={SESSION} round={ROUND} />);
+  render(<AttemptRow session={SESSION} round={ROUND} />);
   expect(state.read).not.toHaveBeenCalled();
   await userEvent.click(screen.getByText("Attempt 1 of 3"));
   await waitFor(() => expect(state.read).toHaveBeenCalledWith("main"));
 });
 it("names a round past the attempt limit for what it is, not as one more attempt", () => {
   render(
-    <RoundHistory
+    <AttemptRow
       session={SESSION}
       round={{ ...ROUND, number: SESSION.max_iterations + 1, verdict: null }}
     />,
@@ -285,44 +285,62 @@ it.each(["no_change", "inconclusive", "regression"] as const)(
     ).not.toBeInTheDocument();
   },
 );
-it("distinguishes a worse result from a mixed result", () => {
-  const view = render(
-    <RoundResults
+it("sums an attempt up in one row and marks the best one", () => {
+  render(
+    <AttemptRow
       session={SESSION}
-      round={{ ...ROUND, verdict: "regression", verdict_detail: { fixed: 0, broken: 2 } }}
+      round={{
+        ...ROUND,
+        verdict_detail: { fixed: 3, broken: 0, baseline_pass_rate: 0.6, candidate_pass_rate: 0.8 },
+      }}
     />,
   );
-  expect(screen.getByText("Worse: breaks 2 questions.")).toHaveClass("bg-destructive/10");
+  const row = screen.getByText("Attempt 1 of 3").closest("summary")!;
+  expect(row).toHaveTextContent("Better");
+  expect(row).toHaveTextContent("3 fixed · 0 broken");
+  expect(row).toHaveTextContent("Kept aside: 60% → 80%");
+  expect(row).toHaveTextContent("$0.03");
+  expect(row).toHaveTextContent("Best attempt");
+  expect(row.closest("details")).not.toHaveAttribute("open");
+});
+it("distinguishes a worse attempt from a mixed one", () => {
+  const view = render(
+    <AttemptRow
+      session={SESSION}
+      round={{ ...ROUND, id: "r2", verdict: "regression", verdict_detail: { fixed: 0, broken: 2 } }}
+    />,
+  );
+  expect(screen.getByText("Worse")).toHaveClass("bg-destructive/10");
+  expect(screen.queryByText("Best attempt")).toBeNull();
   view.rerender(
-    <RoundResults
+    <AttemptRow
       session={SESSION}
       round={{ ...ROUND, verdict: "regression", verdict_detail: { fixed: 1, broken: 2 } }}
     />,
   );
-  expect(screen.getByText(/Mixed:/)).toHaveClass("bg-warning/10");
+  expect(screen.getByText("Mixed")).toHaveClass("bg-warning/10");
 });
-it.each(["running", "stopped"] as const)(
-  "does not claim it is working after a round has %s",
-  (status) => {
-    render(
-      <RoundResults
-        session={{ ...SESSION, status }}
-        round={{ ...ROUND, verdict: null, verdict_detail: null, eval_run_ids: [] }}
-      />,
-    );
-    expect(
-      screen.getByText(status === "running" ? "Still working…" : /did not produce a usable result/),
-    ).toBeInTheDocument();
-  },
-);
-it("does not invent missing legacy counts and keeps an automatic repeat in history", async () => {
+it.each([
+  ["running", "b1", "Working"],
+  ["stopped", "b1", "Not measured"],
+  ["stopped", null, "No changes"],
+] as const)("names an unmeasured attempt of a %s session for what it is", (status, batch, pill) => {
+  render(
+    <AttemptRow
+      session={{ ...SESSION, status }}
+      round={{ ...ROUND, verdict: null, verdict_detail: null, batch_id: batch, eval_run_ids: [] }}
+    />,
+  );
+  expect(screen.getByText(pill)).toBeInTheDocument();
+  expect(screen.queryByText(/fixed ·/)).toBeNull();
+});
+it("keeps an automatic repeat in history", async () => {
   render(
     <RoundResults
       session={SESSION}
       round={{ ...ROUND, verdict_detail: null, eval_run_ids: ["first", "main"] }}
     />,
   );
-  expect(screen.getByText("Open the full check for result details.")).toBeInTheDocument();
   await userEvent.click(screen.getByText("Earlier checks"));
   expect(screen.getByRole("link", { name: "Earlier check 1" })).toHaveAttribute(
     "href",

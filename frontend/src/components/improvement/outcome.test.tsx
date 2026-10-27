@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
-import { comparison, SUMMARY } from "@/test-utils/eval-runs";
+import { comparison, FLIP, SUMMARY } from "@/test-utils/eval-runs";
 import { SESSION } from "@/test-utils/improvement";
 import type { EvalComparison } from "@/types/eval-runs";
 import { AcceptSummary, GuardNote, KnowledgeDocuments, ResultSummary } from "./outcome";
@@ -104,15 +104,27 @@ beforeEach(() => {
   });
 });
 
-it("sums up the result for the agent and for this session's knowledge documents", () => {
+it("counts confirmed changes large, unconfirmed ones beside them, and links the topics", () => {
+  state.compared = comparison({
+    cases: [
+      { ...FLIP, case_id: "c1", flip: "fixed", confirmed: false },
+      { ...FLIP, case_id: "c2", flip: "fixed", confirmed: false },
+      { ...FLIP, case_id: "c3", flip: "regression", confirmed: true },
+    ],
+  });
   const view = render(<ResultSummary session={SESSION} round={ROUND} />);
   const tiles = screen.getByRole("group", {
     name: "In the agent: 3 questions newly fixed, 0 newly broken. In the knowledge base: 2 documents to review.",
   });
-  expect(within(tiles).getByText("Newly fixed").closest("div.flex-col")).toHaveTextContent("3");
-  expect(within(tiles).getByText("Documents to review").closest("div.flex-col")).toHaveTextContent(
-    "2",
+  const fixed = within(tiles).getByText("Newly fixed").closest("div.flex-col")!;
+  expect(fixed).toHaveTextContent("3");
+  expect(fixed).toHaveTextContent("+2 not confirmed");
+  expect(within(tiles).getByText("Newly broken").closest("div.flex-col")).not.toHaveTextContent(
+    "not confirmed",
   );
+  const topics = within(tiles).getByText("Topics missing knowledge").closest("a")!;
+  expect(topics).toHaveTextContent("2");
+  expect(topics).toHaveAttribute("href", "#improvement-documents");
   view.rerender(
     <ResultSummary session={SESSION} round={{ ...ROUND, verdict_detail: { fixed: null } }} />,
   );
@@ -120,6 +132,9 @@ it("sums up the result for the agent and for this session's knowledge documents"
     screen.getByRole("group", { name: /^In the agent: no measured result yet\./ }),
   ).toBeInTheDocument();
   expect(screen.getByText("In the agent: no measured result yet.")).toBeInTheDocument();
+  state.topics = [];
+  view.rerender(<ResultSummary session={SESSION} round={ROUND} />);
+  expect(screen.getByText("Topics missing knowledge").closest("a")).toBeNull();
 });
 
 it("lists only this session's drafts beside the changes and opens one inside the wizard", async () => {

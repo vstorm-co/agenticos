@@ -162,7 +162,7 @@ beforeEach(() => {
 it("blocks finishing when a selected new skill requires missing access", async () => {
   state.hunks = [hunk({ kind: "create_skill", blocked: "create_skill_permission" })];
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
-  await userEvent.click(screen.getByRole("button", { name: "Accept these changes" }));
+  await userEvent.click(screen.getByRole("button", { name: "Review and accept the changes" }));
   await userEvent.click(
     screen.getByLabelText("I have reviewed the selected changes and want to apply them."),
   );
@@ -173,9 +173,9 @@ it("blocks finishing when a selected new skill requires missing access", async (
 });
 it("reopens the result and requires confirmation before publishing", async () => {
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
-  expect(screen.getByText("Better: fixes 3, breaks nothing")).toBeInTheDocument();
+  expect(screen.getByText(/^Attempt 1 made .+ better: 3 questions fixed/)).toBeInTheDocument();
   expect(actions.finish.mutateAsync).not.toHaveBeenCalled();
-  await userEvent.click(screen.getByRole("button", { name: "Accept these changes" }));
+  await userEvent.click(screen.getByRole("button", { name: "Review and accept the changes" }));
   const publish = screen.getByRole("button", { name: "Accept and publish" });
   expect(publish).toBeDisabled();
   await userEvent.click(
@@ -191,7 +191,7 @@ it("reopens the result and requires confirmation before publishing", async () =>
 it("keeps a draft and lets the person decline automatic checks", async () => {
   state.publish = false;
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
-  await userEvent.click(screen.getByRole("button", { name: "Accept these changes" }));
+  await userEvent.click(screen.getByRole("button", { name: "Review and accept the changes" }));
   expect(screen.queryByRole("button", { name: "Accept and publish" })).not.toBeInTheDocument();
   await userEvent.click(
     screen.getByLabelText("I have reviewed the selected changes and want to apply them."),
@@ -212,6 +212,7 @@ it("requires a separate confirmation of the attribution price", async () => {
     already_started: false,
   });
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  await userEvent.click(screen.getByText("Attempt 1 of 3"));
   await userEvent.click(screen.getByRole("button", { name: "Estimate individual checks" }));
   expect(await screen.findByText(/2 checks.*0.02/)).toBeInTheDocument();
   expect(actions.attribute.mutateAsync).not.toHaveBeenCalled();
@@ -286,7 +287,7 @@ it("keeps changed inclusion choices across steps and blocks accepting the old me
   expect(screen.getByText(/The selection changed/)).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Next step" }));
   await userEvent.click(screen.getByRole("button", { name: "Next step" }));
-  expect(screen.getByRole("button", { name: "Accept these changes" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Review and accept the changes" })).toBeDisabled();
   await userEvent.click(screen.getByRole("button", { name: "Previous step" }));
   await userEvent.click(screen.getByRole("button", { name: "Previous step" }));
   expect(screen.getByRole("checkbox", { name: "Include change 2 in the test" })).not.toBeChecked();
@@ -312,7 +313,7 @@ it("lets the person inspect a pinned step directly without claiming it published
   expect(screen.getByText("Pinned questions fixture")).toBeInTheDocument();
   expect(actions.finish.mutateAsync).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole("button", { name: "Result" }));
-  expect(screen.getByText("Better: fixes 3, breaks nothing")).toBeInTheDocument();
+  expect(screen.getByText(/^Attempt 1 made .+ better: 3 questions fixed/)).toBeInTheDocument();
 });
 
 it("reopens the publication link without offering another publish", () => {
@@ -363,7 +364,7 @@ it("says where a guarded environment switches only for a publisher", async () =>
     { id: "e1", name: "Production", tracks_latest: true, guard_suite_ids: ["s1"] },
   ];
   const view = render(<ImprovementPage agentId="a1" sessionId="s1" />);
-  await userEvent.click(screen.getByRole("button", { name: "Accept these changes" }));
+  await userEvent.click(screen.getByRole("button", { name: "Review and accept the changes" }));
   expect(
     screen.getByText(
       "Production switches to version 4 after the automatic check passes, usually within a few minutes.",
@@ -401,6 +402,8 @@ it("opens the result with one sentence for the agent and one for the knowledge b
       name: "In the agent: 3 questions newly fixed, 0 newly broken. In the knowledge base: 1 document to review.",
     }),
   ).toBeInTheDocument();
+  expect(screen.getByText("Attempt 1 of 3").closest("details")).not.toHaveAttribute("open");
+  await userEvent.click(screen.getByText("Attempt 1 of 3"));
   expect(screen.getAllByText("Show details")).toHaveLength(1);
   expect(screen.getByRole("heading", { name: "Test a knowledge draft" })).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Check" }));
@@ -411,7 +414,7 @@ it("shows saved draft completion and the exact next version before publishing", 
   state.session!.next_version = 4;
   state.session!.offer_automatic_check = false;
   const view = render(<ImprovementPage agentId="a1" sessionId="s1" />);
-  await userEvent.click(screen.getByRole("button", { name: "Accept these changes" }));
+  await userEvent.click(screen.getByRole("button", { name: "Review and accept the changes" }));
   expect(screen.getByRole("button", { name: "Publish version 4" })).toBeDisabled();
   expect(screen.queryByLabelText(/Check these questions automatically/)).not.toBeInTheDocument();
   await userEvent.click(
@@ -445,7 +448,7 @@ it("reports unavailable suggestions and allows retrying a failed read", async ()
 it("keeps a failed acceptance visible and shows an empty changes step", async () => {
   actions.finish.mutateAsync.mockRejectedValueOnce(new Error("publish refused"));
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
-  await userEvent.click(screen.getByRole("button", { name: "Accept these changes" }));
+  await userEvent.click(screen.getByRole("button", { name: "Review and accept the changes" }));
   await userEvent.click(
     screen.getByLabelText("I have reviewed the selected changes and want to apply them."),
   );
@@ -458,7 +461,7 @@ it("keeps a failed acceptance visible and shows an empty changes step", async ()
 it("shows loading, refusal and retry states for actual resource reads", async () => {
   state.agentLoading = true;
   const view = render(<ImprovementPage agentId="a1" sessionId="s1" />);
-  expect(screen.queryByText("Better: fixes 3, breaks nothing")).not.toBeInTheDocument();
+  expect(screen.queryByText(/^Attempt 1 made .+ better/)).not.toBeInTheDocument();
   state.agentLoading = false;
   state.agentError = new Error("agent unavailable");
   view.rerender(<ImprovementPage agentId="a1" sessionId="s1" />);
@@ -488,20 +491,19 @@ it("returns to the actual working step after confirming a selected check", async
     await screen.findByRole("button", { name: "Confirm and check selected changes" }),
   );
   expect(actions.checkSelection.mutateAsync).toHaveBeenCalled();
-  expect(screen.getByText("Better: fixes 3, breaks nothing")).toBeInTheDocument();
+  expect(screen.getByText(/^Attempt 1 made .+ better: 3 questions fixed/)).toBeInTheDocument();
 });
 
 it.each([
   ["inconclusive", { fixed: null, broken: null }],
   ["regression", { fixed: 1, broken: 2 }],
   ["no_change", {}],
-] as const)("does not highlight acceptance for %s or missing measurements", (verdict, detail) => {
+] as const)("names a chosen %s attempt as chosen rather than better", (verdict, detail) => {
   state.session!.iterations[0]!.verdict = verdict;
   state.session!.iterations[0]!.verdict_detail = detail;
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
-  expect(screen.getByRole("button", { name: "Accept these changes" })).not.toHaveClass(
-    "bg-primary",
-  );
+  expect(screen.getByText(/^You chose attempt 1 to accept\./)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Review and accept the changes" })).toBeEnabled();
 });
 it("follows a second attempt through Changes and Check, keeping Result shut", async () => {
   const first = state.session!.iterations[0]!;
@@ -568,18 +570,22 @@ it("says how many more questions a session needs, in words rather than the serve
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
   expect(
     screen.getByText(
-      "Too few questions to measure a change: 2 more questions not used to write the changes are needed.",
+      /Too few questions to measure a change: 2 more questions not used to write the changes are needed\./,
     ),
   ).toBeInTheDocument();
   expect(screen.getByText("Technical details")).toBeInTheDocument();
 });
-it("keeps one row of actions on the result: no Next step beside Accept and Improve again", async () => {
+it("keeps one row of actions on the result: no Next step beside Accept and Try again", async () => {
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
   expect(screen.queryByRole("button", { name: "Next step" })).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Accept these changes" })).toHaveClass("bg-primary");
+  expect(screen.getByRole("button", { name: "Review and accept the changes" })).toHaveClass(
+    "bg-primary",
+  );
   await userEvent.click(screen.getByRole("button", { name: "Understand" }));
   expect(screen.queryByRole("button", { name: "Previous step" })).not.toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Accept these changes" })).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Review and accept the changes" }),
+  ).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Next step" }));
   expect(screen.getByRole("button", { name: "Previous step" })).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Close and return later" })).toHaveAttribute(
@@ -595,7 +601,7 @@ it("moves focus to the heading of the step a person opens", async () => {
 it("tells someone who may not publish why, and still lets them keep a draft", async () => {
   state.publish = false;
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
-  await userEvent.click(screen.getByRole("button", { name: "Accept these changes" }));
+  await userEvent.click(screen.getByRole("button", { name: "Review and accept the changes" }));
   expect(screen.getByText(/Publishing needs permission to publish this agent/)).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Keep as draft" })).toBeInTheDocument();
 });

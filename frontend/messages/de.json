@@ -4886,7 +4886,7 @@
       },
       "improvement-results": {
         "title": "Ergebnis",
-        "body": "Das Urteil nennt, welche Fragen neu behoben und welche neu verschlechtert sind, über alle Fragen und über die beiseitegelegten. Jede geänderte Antwort zeigt vorher und nachher mit dem Satz des Bewerters."
+        "body": "Zuerst, was die Sitzung ergeben hat und was Sie damit tun können. Dann die bestätigten Änderungen und jeder Versuch in einer Zeile, die sich zu den geänderten Antworten vorher und nachher öffnet."
       },
       "improvement-automatic-check": {
         "title": "Automatische Prüfung",
@@ -10792,8 +10792,6 @@
     }
   },
   "improvement": {
-    "resultDetailsUnavailable": "Öffnen Sie den vollständigen Test für Ergebnisdetails.",
-    "worseResult": "Schlechter: {broken, plural, one {# Frage wird} other {# Fragen werden}} neu verschlechtert.",
     "attributionUnconfirmed": "Änderung {number}: Das Ergebnis ist nicht bestätigt.",
     "includeInTest": "Im Test berücksichtigen",
     "includeChange": "Änderung {number} im Test berücksichtigen",
@@ -10859,6 +10857,20 @@
     "working": "In Bearbeitung…",
     "loading": "Ergebnis wird geladen…",
     "round": "Versuch {number} von {max}",
+    "attempt": {
+      "better": "Besser",
+      "regression": "Gemischt",
+      "worse": "Schlechter",
+      "no_change": "Keine Änderung",
+      "inconclusive": "Nicht eindeutig",
+      "unmeasured": "Nicht gemessen",
+      "none": "Keine Änderungen",
+      "working": "Läuft",
+      "counts": "{fixed} behoben · {broken} verschlechtert",
+      "heldOut": "Zurückgelegt: {before} → {after}",
+      "best": "Bester Versuch"
+    },
+    "attemptsTitle": "Versuche",
     "heldBack": "Für einen weiteren Versuch zurückgestellte Änderungen, nicht getestet",
     "selected": "Ausgewählter Versuch",
     "selectRound": "Diesen Versuch verwenden",
@@ -10882,6 +10894,24 @@
     "publish": "Annehmen und veröffentlichen",
     "openAgent": "Agent öffnen",
     "accept": "Diese Änderungen annehmen",
+    "resultDecision": {
+      "title": "Was diese Sitzung ergeben hat",
+      "options": "Was Sie tun können",
+      "better": "Versuch {number} hat {agent} verbessert: {fixed, plural, one {# Frage} other {# Fragen}} behoben, keine verschlechtert.",
+      "chosen": "Sie haben Versuch {number} zum Übernehmen gewählt.",
+      "failed": "Die Sitzung wurde durch einen Fehler beendet, bevor sie fertig war.",
+      "working": "Die Sitzung läuft noch, dies ist also das bisherige Ergebnis.",
+      "noneBetter": "{count, plural, =0 {Kein Versuch wurde gemessen, daher ist offen, ob {agent} besser wurde.} one {Der Versuch hat {agent} nicht verbessert.} other {Keiner der # Versuche hat {agent} verbessert.}}",
+      "worse": "Versuch {number} hat es verschlechtert: {broken, plural, one {# Frage funktioniert nicht mehr} other {# Fragen funktionieren nicht mehr}}.",
+      "topics": "{count, plural, one {# Thema fehlt} other {# Themen fehlen}} in der Wissensbasis.",
+      "limit": "{max, plural, one {Das war der einzige Versuch dieser Sitzung.} other {Damit sind alle # Versuche dieser Sitzung aufgebraucht.}}",
+      "accept": "Änderungen prüfen und übernehmen",
+      "reviewTopics": "Die benötigten Dokumente entwerfen",
+      "tryAgain": "Erneut versuchen",
+      "end": "Ohne Änderungen beenden",
+      "newSession": "Neue Sitzung starten",
+      "newSessionHint": "Eine neue Sitzung hat mehr Material, wenn Sie Testfragen dort ergänzen, wo {agent} schlecht antwortet."
+    },
     "retryStep": "Schritt innerhalb des Limits wiederholen",
     "stopAction": "Sitzung stoppen",
     "close": "Schließen und später zurückkehren",
@@ -11038,6 +11068,9 @@
     "handledChange": "{before} → {after} von {total} Fragen gut beantwortet.",
     "newlyFixed": "Neu behoben",
     "newlyBroken": "Neu verschlechtert",
+    "possiblyBroken": "Möglicherweise verschlechtert",
+    "possiblyFixed": "Möglicherweise behoben",
+    "notConfirmedMore": "+{count} nicht bestätigt",
     "notConfirmedYet": "Noch nicht bestätigt ({count})",
     "tooFewHeldOut": "Zu wenige Fragen, um eine Änderung zu messen: Es fehlen {needed, plural, one {# Frage} other {# Fragen}}, die nicht zum Schreiben der Änderungen verwendet werden.",
     "technicalDetails": "Technische Details",
@@ -11124,6 +11157,7 @@
       "weakQuestions": "Fragen, die er nicht gut beantwortet hat",
       "comments": "{count, plural, one {# Kommentar} other {# Kommentare}}",
       "toReview": "Zu prüfende Dokumente",
+      "missingTopics": "Fehlende Wissensthemen",
       "fixes": "Behebt",
       "breaks": "Bricht",
       "costPerAnswer": "Kosten pro Antwort",

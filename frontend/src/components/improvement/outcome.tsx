@@ -26,7 +26,7 @@ function counts(round: ImprovementIteration | undefined) {
  * The drafts this session's own examples led to that a person may add: open, not yet
  * added, and on a topic one of the session's conversations missed.
  */
-function useDrafts(session: Improvement) {
+export function useDrafts(session: Improvement) {
   const gaps = useKnowledgeGaps({ kind: "agent", id: session.agent_id });
   const sources = useImprovementEvidence(session.agent_id, { sessionId: session.id });
   const { topics } = gaps;
@@ -39,7 +39,13 @@ function useDrafts(session: Improvement) {
   };
 }
 
-/** One sentence for the agent and one for the knowledge base, before the details. */
+/** Where the result step lists what its missing-topics counter counts. */
+export const DOCUMENTS_ANCHOR = "improvement-documents";
+
+/**
+ * The attempt's confirmed changes as the headline figures, with the changes asking
+ * again has not confirmed yet beside them, and the topics missing knowledge.
+ */
 export function ResultSummary({
   session,
   round,
@@ -50,6 +56,11 @@ export function ResultSummary({
   const t = useTranslations("improvement");
   const { drafts } = useDrafts(session);
   const measured = counts(round);
+  const runId = round?.eval_run_ids.at(-1);
+  const { comparison } = useEvalComparison(runId ?? "", { enabled: runId !== undefined });
+  const unconfirmed = (flip: "fixed" | "regression") =>
+    comparison?.cases.filter((c) => c.flip === flip && !c.confirmed).length ?? 0;
+  const more = (count: number) => (count > 0 ? t("notConfirmedMore", { count }) : undefined);
   const knowledge = t("resultKnowledge", { count: drafts.length });
   return (
     <Tiles
@@ -60,19 +71,21 @@ export function ResultSummary({
           value: measured?.fixed ?? "–",
           tone: "teal",
           icon: CheckCircle2,
-          caption: measured ? undefined : t("resultAgentUnknown"),
+          caption: measured ? more(unconfirmed("fixed")) : t("resultAgentUnknown"),
         },
         {
           label: t("newlyBroken"),
           value: measured?.broken ?? "–",
           tone: "rose",
           icon: XCircle,
+          caption: measured ? more(unconfirmed("regression")) : undefined,
         },
         {
-          label: t("widgets.toReview"),
+          label: t("widgets.missingTopics"),
           value: drafts.length,
           tone: "violet",
           icon: BookOpen,
+          href: drafts.length > 0 ? `#${DOCUMENTS_ANCHOR}` : undefined,
         },
       ]}
     />

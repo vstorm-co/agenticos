@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SystemAgentChoice } from "./system-agent-choice";
 
 const query = vi.hoisted(() => vi.fn());
-const only = vi.hoisted(() => ({ seeded: false }));
+const only = vi.hoisted(() => ({ seeded: false, model: true }));
 vi.mock("@/hooks/use-agents", () => ({
   useAgentsOfKind: (kind: string) => {
     query(kind);
@@ -16,7 +16,7 @@ vi.mock("@/hooks/use-agents", () => ({
       system_key: "seeded",
       status: "published",
       current_version_id: "v1",
-      published_model: { label: "gpt-4.1-mini" },
+      published_model: only.model ? { label: "gpt-4.1-mini" } : null,
     };
     if (only.seeded) return { agents: [seed], isLoading: false, error: null };
     return {
@@ -50,6 +50,7 @@ vi.mock("@/hooks/use-agents", () => ({
 describe("a system agent selected where it runs", () => {
   beforeEach(() => {
     only.seeded = false;
+    only.model = true;
   });
 
   it("loads only the right kind when expanded and passes the selected identity", async () => {
@@ -104,5 +105,14 @@ describe("a system agent selected where it runs", () => {
     render(<SystemAgentChoice kind="judge" value="gone" onChange={vi.fn()} />);
     await userEvent.click(screen.getByText("Judge"));
     expect(screen.getByRole("combobox", { name: "Run with" })).toBeInTheDocument();
+  });
+
+  it("names a default helper with no published model by its name alone", async () => {
+    only.model = false;
+    render(<SystemAgentChoice kind="improver" value={null} onChange={vi.fn()} />);
+    await userEvent.click(screen.getByText("Authoring assistant"));
+    expect(screen.getByRole("combobox", { name: "Run with" })).toHaveTextContent(
+      /^Default \(default\)$/,
+    );
   });
 });

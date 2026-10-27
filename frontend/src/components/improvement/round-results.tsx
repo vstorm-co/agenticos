@@ -41,43 +41,9 @@ export function RoundResults({
   }
   const selectable = !useReadOnly() && ["ready", "stopped"].includes(session.status);
   const latestCheck = round.eval_run_ids.at(-1);
-  const fixed = round.verdict_detail?.fixed;
-  const broken = round.verdict_detail?.broken;
-  const countsKnown =
-    fixed !== undefined && fixed !== null && broken !== undefined && broken !== null;
-  const worse = round.verdict === "regression" && countsKnown && Number(fixed) === 0;
   const earlier = [...round.eval_run_ids.slice(0, -1), ...(round.previous_eval_run_ids ?? [])];
   return (
-    <section className="space-y-4 rounded-xl border p-4 sm:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h3 className="font-medium">
-          <RoundTitle session={session} round={round} />
-        </h3>
-        <span className="text-muted-foreground text-sm">{usd(round.cost_usd, locale)}</span>
-      </div>
-      <StateBadge
-        className="text-sm"
-        tone={
-          round.verdict === "better"
-            ? "good"
-            : round.verdict === "regression"
-              ? worse
-                ? "bad"
-                : "warn"
-              : "neutral"
-        }
-      >
-        {round.verdict
-          ? countsKnown
-            ? t(worse ? "worseResult" : `verdict.${round.verdict}`, {
-                fixed: Number(fixed),
-                broken: Number(broken),
-              })
-            : t("resultDetailsUnavailable")
-          : t(
-              ["queued", "running"].includes(session.status) ? "working" : "attributionUnavailable",
-            )}
-      </StateBadge>
+    <section className="space-y-4">
       {latestCheck && (
         <MeasuredResult runId={latestCheck} attributions={round.attribution_eval_run_ids} />
       )}
@@ -359,25 +325,77 @@ function AttributionResult({ runId, agentId }: { runId: string; agentId: string 
   );
 }
 
-export function RoundHistory({
+/**
+ * One attempt as a single row - its verdict, what it fixed and broke, the questions
+ * kept aside before and after, and its cost - opening to the attempt's full result.
+ */
+export function AttemptRow({
   session,
   round,
+  extra,
 }: {
   session: Improvement;
   round: ImprovementIteration;
+  extra?: ReactNode;
 }) {
+  const t = useTranslations("improvement");
+  const locale = useLocale();
   const [open, setOpen] = useState(false);
+  const detail = round.verdict_detail;
+  const fixed = detail?.fixed;
+  const broken = detail?.broken;
+  const before = detail?.baseline_pass_rate;
+  const after = detail?.candidate_pass_rate;
+  const percent = (value: unknown) =>
+    new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 0 }).format(
+      Number(value),
+    );
+  const verdict =
+    round.verdict === "regression" && Number(fixed ?? 0) === 0 ? "worse" : round.verdict;
   return (
-    <details
-      className="rounded-xl border p-4"
-      onToggle={(event) => setOpen(event.currentTarget.open)}
-    >
-      <summary className="cursor-pointer text-sm font-medium">
-        <RoundTitle session={session} round={round} />
+    <details className="rounded-xl border" onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 p-3 text-sm sm:px-4">
+        <span className="font-medium">
+          <RoundTitle session={session} round={round} />
+        </span>
+        <StateBadge
+          tone={
+            verdict === "better"
+              ? "good"
+              : verdict === "worse"
+                ? "bad"
+                : verdict === "regression"
+                  ? "warn"
+                  : "neutral"
+          }
+        >
+          {t(
+            `attempt.${
+              verdict ??
+              (["queued", "running"].includes(session.status)
+                ? "working"
+                : round.batch_id
+                  ? "unmeasured"
+                  : "none")
+            }`,
+          )}
+        </StateBadge>
+        {fixed != null && broken != null && (
+          <span>{t("attempt.counts", { fixed: Number(fixed), broken: Number(broken) })}</span>
+        )}
+        {before != null && after != null && (
+          <span className="text-muted-foreground">
+            {t("attempt.heldOut", { before: percent(before), after: percent(after) })}
+          </span>
+        )}
+        {round.id === session.best_iteration_id && (
+          <StateBadge tone="good">{t("attempt.best")}</StateBadge>
+        )}
+        <span className="text-muted-foreground ml-auto">{usd(round.cost_usd, locale)}</span>
       </summary>
       {open && (
-        <div className="mt-4">
-          <RoundResults session={session} round={round} />
+        <div className="border-t p-3 sm:p-4">
+          <RoundResults session={session} round={round} extra={extra} />
         </div>
       )}
     </details>

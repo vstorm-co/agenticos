@@ -25,6 +25,8 @@ export interface Tile {
   caption?: ReactNode;
   tone?: FigureTone;
   icon?: LucideIcon;
+  /** Where the figure is listed in full, on the same page. */
+  href?: string;
 }
 
 const TONE_INK: Record<FigureTone, string> = {
@@ -50,28 +52,38 @@ export function Tiles({ tiles, label }: { tiles: Tile[]; label?: string }) {
         tiles.length >= 4 ? "lg:grid-cols-4" : tiles.length === 3 && "sm:grid-cols-3",
       )}
     >
-      {tiles.map(({ label: name, value, unit, caption, tone, icon: Icon }) => (
-        <div key={name} className="bg-card flex min-w-0 flex-col rounded-xl border p-3 sm:p-4">
-          <div className="flex items-start justify-between gap-2">
-            <p className="text-muted-foreground flex min-w-0 items-start gap-1.5 text-xs leading-snug tracking-wide uppercase">
-              {tone && (
-                <span
-                  aria-hidden
-                  className="mt-1 size-2 shrink-0 rounded-full"
-                  style={{ background: TONE_INK[tone] }}
-                />
-              )}
-              <span className="break-words">{name}</span>
+      {tiles.map(({ label: name, value, unit, caption, tone, icon: Icon, href }) => {
+        const Box = href ? "a" : "div";
+        return (
+          <Box
+            key={name}
+            href={href}
+            className={cn(
+              "bg-card flex min-w-0 flex-col rounded-xl border p-3 sm:p-4",
+              href && "hover:bg-muted/50 focus-visible:ring-ring focus-visible:ring-2",
+            )}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-muted-foreground flex min-w-0 items-start gap-1.5 text-xs leading-snug tracking-wide uppercase">
+                {tone && (
+                  <span
+                    aria-hidden
+                    className="mt-1 size-2 shrink-0 rounded-full"
+                    style={{ background: TONE_INK[tone] }}
+                  />
+                )}
+                <span className="break-words">{name}</span>
+              </p>
+              {Icon && <Icon className="text-muted-foreground size-4 shrink-0" aria-hidden />}
+            </div>
+            <p className="mt-auto flex flex-wrap items-baseline gap-x-2 pt-1">
+              <span className="text-2xl font-semibold tracking-tight">{value}</span>
+              {unit && <span className="text-muted-foreground text-xs">{unit}</span>}
             </p>
-            {Icon && <Icon className="text-muted-foreground size-4 shrink-0" aria-hidden />}
-          </div>
-          <p className="mt-auto flex flex-wrap items-baseline gap-x-2 pt-1">
-            <span className="text-2xl font-semibold tracking-tight">{value}</span>
-            {unit && <span className="text-muted-foreground text-xs">{unit}</span>}
-          </p>
-          {caption && <p className="text-muted-foreground mt-1 text-xs">{caption}</p>}
-        </div>
-      ))}
+            {caption && <p className="text-muted-foreground mt-1 text-xs">{caption}</p>}
+          </Box>
+        );
+      })}
     </div>
   );
 }

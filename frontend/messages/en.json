@@ -5004,7 +5004,7 @@
       },
       "improvement-results": {
         "title": "Result",
-        "body": "The verdict says which questions are newly fixed and newly broken, on every question and on those kept aside. Each changed answer shows before and after, with the grader's sentence."
+        "body": "First what the session came to and what you can do about it. Then the confirmed changes, and each attempt in one row that opens to its changed answers, before and after."
       },
       "improvement-automatic-check": {
         "title": "Automatic check",
@@ -10909,8 +10909,6 @@
     }
   },
   "improvement": {
-    "resultDetailsUnavailable": "Open the full check for result details.",
-    "worseResult": "Worse: breaks {broken, plural, one {# question} other {# questions}}.",
     "attributionUnconfirmed": "Change {number}: the result is not confirmed.",
     "includeInTest": "Include in the test",
     "includeChange": "Include change {number} in the test",
@@ -10976,6 +10974,20 @@
     "working": "Still working…",
     "loading": "Loading the result…",
     "round": "Attempt {number} of {max}",
+    "attempt": {
+      "better": "Better",
+      "regression": "Mixed",
+      "worse": "Worse",
+      "no_change": "No change",
+      "inconclusive": "Inconclusive",
+      "unmeasured": "Not measured",
+      "none": "No changes",
+      "working": "Working",
+      "counts": "{fixed} fixed · {broken} broken",
+      "heldOut": "Kept aside: {before} → {after}",
+      "best": "Best attempt"
+    },
+    "attemptsTitle": "Attempts",
     "heldBack": "Changes held back for another attempt, not tested",
     "selected": "Selected attempt",
     "selectRound": "Use this attempt",
@@ -10999,6 +11011,24 @@
     "publish": "Accept and publish",
     "openAgent": "Open the agent",
     "accept": "Accept these changes",
+    "resultDecision": {
+      "title": "What this session came to",
+      "options": "What you can do",
+      "better": "Attempt {number} made {agent} better: {fixed, plural, one {# question} other {# questions}} fixed and none broke.",
+      "chosen": "You chose attempt {number} to accept.",
+      "failed": "The session stopped on an error before it finished.",
+      "working": "The session is still working, so this is the result so far.",
+      "noneBetter": "{count, plural, =0 {No attempt was measured, so nothing shows whether {agent} got better.} one {The attempt did not make {agent} better.} other {None of the # attempts made {agent} better.}}",
+      "worse": "Attempt {number} made it worse: {broken, plural, one {# question broke} other {# questions broke}}.",
+      "topics": "{count, plural, one {# topic is} other {# topics are}} missing from the knowledge base.",
+      "limit": "{max, plural, one {That was the one attempt this session allows.} other {That used all # attempts this session allows.}}",
+      "accept": "Review and accept the changes",
+      "reviewTopics": "Draft the ones you need",
+      "tryAgain": "Try again",
+      "end": "End without changes",
+      "newSession": "Start a new session",
+      "newSessionHint": "A new session has more to work with once you add test questions where {agent} answers badly."
+    },
     "retryStep": "Retry this step within the spending limit",
     "stopAction": "Stop the session",
     "close": "Close and return later",
@@ -11155,6 +11185,9 @@
     "handledChange": "{before} → {after} of {total} questions handled well.",
     "newlyFixed": "Newly fixed",
     "newlyBroken": "Newly broken",
+    "possiblyBroken": "Possibly broken",
+    "possiblyFixed": "Possibly fixed",
+    "notConfirmedMore": "+{count} not confirmed",
     "notConfirmedYet": "Not confirmed yet ({count})",
     "tooFewHeldOut": "Too few questions to measure a change: {needed, plural, one {# more question} other {# more questions}} not used to write the changes are needed.",
     "technicalDetails": "Technical details",
@@ -11241,6 +11274,7 @@
       "weakQuestions": "Questions it did not handle well",
       "comments": "{count, plural, one {# comment} other {# comments}}",
       "toReview": "Documents to review",
+      "missingTopics": "Topics missing knowledge",
       "fixes": "Fixes",
       "breaks": "Breaks",
       "costPerAnswer": "Cost per answer",

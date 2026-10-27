@@ -211,7 +211,7 @@ it("keeps an unfinished attribution and unavailable answers explicit", () => {
   expect(screen.queryByText("30 days")).not.toBeInTheDocument();
 });
 
-it("marks each row newly fixed or newly broken and keeps unconfirmed ones apart", () => {
+it("marks a confirmed change newly fixed or broken and an unconfirmed one only possibly so", () => {
   const view = render(
     <ChangedAnswers
       runId="r1"
@@ -236,5 +236,18 @@ it("marks each row newly fixed or newly broken and keeps unconfirmed ones apart"
   );
   const group = screen.getByText("Not confirmed yet (1)").closest("details")!;
   expect(group).not.toHaveAttribute("open");
-  expect(group).toHaveTextContent("Newly fixed");
+  expect(group).toHaveTextContent("Possibly fixed");
+  expect(group).not.toHaveTextContent("Newly fixed");
+  view.rerender(
+    <ChangedAnswers
+      runId="r1"
+      agentId="a1"
+      flips={[{ ...FLIPS[0]!, flip: "regression", confirmed: false }]}
+      baselineId="before"
+      candidateId="after"
+      attributions={{}}
+    />,
+  );
+  expect(screen.getByText("Possibly broken")).toBeInTheDocument();
+  expect(screen.queryByText("Newly broken")).not.toBeInTheDocument();
 });

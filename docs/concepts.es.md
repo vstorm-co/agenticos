@@ -1,5 +1,5 @@
 ---
-source_sha: "cb3e6295d032"
+source_sha: "eb0bc6e7048e"
 ---
 
 # Conceptos { #concepts }
@@ -652,7 +652,9 @@ mejora (`POST /agents/system`). Usa las instrucciones, temperatura y presupuesto
 de su tipo sobre el primer modelo de la organización y se publica si tienes
 permiso; cada cambio posterior requiere `org:settings`. Elige el juez al puntuar datasets, el generador al generar casos, los
 ayudantes de conocimiento en la pestaña de lagunas y el asistente al mejorar.
-Cada opción usa por defecto el agente de la organización. La selección debe ser
+Cada opción usa por defecto el agente de la organización, que el selector nombra
+con su modelo publicado; si no hay otro agente de ese tipo no hay nada que
+elegir, y el selector solo lo nombra con un enlace a su página. La selección debe ser
 del tipo correcto, estar publicada y seguir siendo ejecutable por el usuario;
 una selección ausente nunca se sustituye silenciosamente por el valor predeterminado.
 

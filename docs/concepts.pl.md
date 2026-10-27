@@ -1,5 +1,5 @@
 ---
-source_sha: "cb3e6295d032"
+source_sha: "eb0bc6e7048e"
 ---
 
 # Koncepcje { #concepts }
@@ -645,7 +645,10 @@ poprawiania (`POST /agents/system`). Zaczyna od instrukcji, temperatury i budże
 danego rodzaju, na pierwszym modelu organizacji; publikacja wymaga odpowiednich
 uprawnień, a każda późniejsza zmiana - `org:settings`. Sędziego wybierasz w ocenianiu datasetu, generator przy generowaniu
 przypadków, pomocników wiedzy na zakładce luk bazy wiedzy, a asystenta przy
-poprawianiu. Domyślnie działa agent organizacji. Wybrany pomocnik musi mieć
+poprawianiu. Domyślnie działa agent organizacji, nazwany w wyborze razem ze
+swoim opublikowanym modelem; gdy organizacja nie ma innego agenta tego rodzaju,
+nie ma z czego wybierać i wybór tylko go nazywa, z linkiem do jego strony.
+Wybrany pomocnik musi mieć
 odpowiedni rodzaj, być opublikowany i dostępny do uruchomienia przez użytkownika.
 Usunięty wybór nigdy nie jest automatycznie zastępowany domyślnym.
 
