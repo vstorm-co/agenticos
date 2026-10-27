@@ -21,7 +21,7 @@ from app.db.models.eval_run import EvalRun
 from app.db.models.improvement import ImprovementRun
 from app.db.models.notification import Notification
 from app.db.models.organization import OrganizationMember
-from app.repositories import authoring_repo, improvement_repo
+from app.repositories import authoring_repo, dataset_repo, improvement_repo
 from app.schemas.improvement import (
     ContinuationConsent,
     ImprovementContinue,
@@ -415,6 +415,27 @@ async def test_second_start_is_a_conflict_and_estimate_writes_nothing(db):
     assert estimate.per_round_usd == estimate.proposal_usd + 2 * estimate.eval_usd
     assert estimate.estimated_minutes >= 3
     assert await db.scalar(select(func.count()).select_from(ImprovementRun)) == 1
+
+
+async def test_an_attempt_is_priced_without_the_questions_its_check_leaves_out(db):
+    ctx, agent, run = await _setup(db)
+    dataset = await _dataset(db, ctx, cases=5)
+    version = await dataset_repo.get_version(
+        db, dataset.id, dataset.latest_version, organization_id=ctx.organization_id
+    )
+    cases = await dataset_repo.list_cases(
+        db, version.id, organization_id=ctx.organization_id, limit=None
+    )
+    target = ImprovementTarget(dataset_id=dataset.id, max_iterations=1)
+    service = ImprovementPipelineService(db)
+    every = await service.estimate(ctx, agent.id, target)
+    cases[0].source_conversation_id = run.conversation_id
+    await db.flush()
+
+    estimate = await service.estimate(ctx, agent.id, target)
+
+    assert (every.cases, estimate.cases) == (5, 4)
+    assert estimate.eval_usd < every.eval_usd
 
 
 @pytest.mark.security

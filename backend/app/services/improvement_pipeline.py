@@ -469,6 +469,13 @@ class ImprovementPipelineService:
             evidence_dataset_id=inputs.request.dataset_id,
         )
         draft = AgentSpec.model_validate(inputs.agent.draft_spec)
+        pack = await self.authoring.evidence.for_agent(
+            ctx,
+            inputs.agent.id,
+            window_days=target.window_days,
+            dataset_id=inputs.request.dataset_id,
+        )
+        # The check leaves out questions from the conversations the helper reads.
         check = await self.evals.estimate(
             ctx,
             inputs.agent.id,
@@ -476,6 +483,7 @@ class ImprovementPipelineService:
             scoring=inputs.scoring,
             candidate_spec=draft,
             baseline_spec=draft,
+            exclude_conversations=pack.conversation_ids,
             judge_version_id=inputs.judge_version_id,
             judge_pinned=True,
         )
