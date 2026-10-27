@@ -11206,7 +11206,7 @@
     "resultAgent": "Im Agent: {fixed} neu behoben, {broken} neu verschlechtert.",
     "resultAgentUnknown": "Im Agent: noch kein gemessenes Ergebnis.",
     "resultKnowledge": "In der Wissensdatenbank: {count, plural, =0 {fehlt nichts} one {fehlt # Thema} other {fehlen # Themen}}{added, plural, =0 {} one {, # inzwischen hinzugefügt} other {, # inzwischen hinzugefügt}}.",
-    "acceptKnowledge": "In der Wissensdatenbank: {count, plural, =0 {nichts hinzuzufügen} one {# Dokument hinzuzufügen} other {# Dokumente hinzuzufügen}}",
+    "acceptKnowledge": "{missing, plural, =0 {In der Wissensdatenbank: nichts hinzuzufügen} one {# Thema fehlt noch in der Wissensdatenbank} other {# Themen fehlen noch in der Wissensdatenbank}}{missing, plural, =0 {} other {{ready, plural, =0 {: Entwerfen Sie die, die Sie brauchen} other {: # entworfen und bereit zum Hinzufügen}}{stale, plural, =0 {} other {, # mit veraltetem Entwurf}}}}",
     "noKnowledgeDocuments": "In der Wissensdatenbank fehlt nichts.",
     "reviewAndAdd": "Prüfen und hinzufügen",
     "notNow": "Nicht jetzt",

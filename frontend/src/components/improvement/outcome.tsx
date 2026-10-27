@@ -115,13 +115,15 @@ export function KnowledgeDocuments({
   const [failure, setFailure] = useState<string | null>(null);
   const later = session.deferred_topic_ids ?? [];
   const shown = accept ? topics.filter((topic) => !later.includes(topic.id)) : topics;
-  const toAdd = shown.filter(
-    (topic) => topic.has_draft && !topic.drafting && topic.can_edit,
-  ).length;
+  const drafted = shown.filter((topic) => topic.has_draft && !topic.drafting);
+  const stale = drafted.filter((topic) => topic.draft_stale).length;
+  const ready = drafted.filter((topic) => !topic.draft_stale && topic.can_edit).length;
   return (
     <section className="min-w-0 space-y-3" data-tour="improvement-knowledge">
       <h3 className="text-sm font-medium">
-        {accept ? t("acceptKnowledge", { count: toAdd }) : t("cause.missing_knowledge")}
+        {accept
+          ? t("acceptKnowledge", { missing: shown.length, ready, stale })
+          : t("cause.missing_knowledge")}
       </h3>
       {error && <StepError error={error} retry={retry} />}
       {isLoading ? (

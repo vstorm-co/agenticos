@@ -46,6 +46,8 @@ export interface ImprovementEstimate {
   total_usd: string;
   max_iterations: number;
   cases: number;
+  /** How many questions the first attempt is measured on, as its analysis will count them. */
+  held_out?: number | null;
   evidence_runs: number;
   /** About how long the session takes if every round runs. */
   estimated_minutes: number;

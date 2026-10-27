@@ -226,11 +226,15 @@ it("says nothing is missing, and offers to read the drafts again after a failure
 it("keeps a document set aside with Not now off the list, and says when that fails", async () => {
   state.topics = [topic("t1"), topic("t2")];
   const view = render(<KnowledgeDocuments session={SESSION} accept />);
-  expect(screen.getByText("In the knowledge base: 2 documents to add")).toBeInTheDocument();
+  expect(
+    screen.getByText("2 topics are still missing from the knowledge base: 2 drafted, ready to add"),
+  ).toBeInTheDocument();
   await userEvent.click(screen.getAllByRole("button", { name: "Not now" })[0]!);
   expect(state.defer).toHaveBeenCalledWith({ topicId: "t1", later: true });
   view.rerender(<KnowledgeDocuments session={{ ...SESSION, deferred_topic_ids: ["t1"] }} accept />);
-  expect(screen.getByText("In the knowledge base: 1 document to add")).toBeInTheDocument();
+  expect(
+    screen.getByText("1 topic is still missing from the knowledge base: 1 drafted, ready to add"),
+  ).toBeInTheDocument();
   expect(screen.queryByText("Topic t1")).not.toBeInTheDocument();
   state.defer.mockRejectedValueOnce(new Error("Session decided"));
   await userEvent.click(screen.getByRole("button", { name: "Not now" }));
@@ -321,10 +325,24 @@ it("offers a draft, with its cost, for a topic that has none, and says while it 
   expect(screen.queryByRole("button", { name: /Review/ })).not.toBeInTheDocument();
 });
 
-it("counts on Accept only the drafted topics, and offers drafting the rest there too", () => {
+it("counts on Accept every topic still missing, and offers drafting the rest there too", () => {
   state.topics = [topic("t1"), topic("t2", { has_draft: false })];
-  render(<KnowledgeDocuments session={SESSION} accept />);
-  expect(screen.getByText("In the knowledge base: 1 document to add")).toBeInTheDocument();
+  const view = render(<KnowledgeDocuments session={SESSION} accept />);
+  expect(
+    screen.getByText("2 topics are still missing from the knowledge base: 1 drafted, ready to add"),
+  ).toBeInTheDocument();
+  state.topics = [topic("t1", { has_draft: false }), topic("t2", { draft_stale: true })];
+  view.rerender(<KnowledgeDocuments session={SESSION} accept />);
+  expect(
+    screen.getByText(
+      "2 topics are still missing from the knowledge base: draft the ones you want, 1 with an outdated draft",
+    ),
+  ).toBeInTheDocument();
+  state.topics = [];
+  view.rerender(<KnowledgeDocuments session={SESSION} accept />);
+  expect(screen.getByText("In the knowledge base: nothing to add")).toBeInTheDocument();
+  state.topics = [topic("t1"), topic("t2", { has_draft: false })];
+  view.rerender(<KnowledgeDocuments session={SESSION} accept />);
   expect(screen.getByRole("button", { name: "Draft · $0.02" })).toBeInTheDocument();
   expect(screen.getAllByRole("button", { name: "Not now" })).toHaveLength(2);
 });

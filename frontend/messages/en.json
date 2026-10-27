@@ -11323,7 +11323,7 @@
     "resultAgent": "In the agent: {fixed, plural, one {# question newly fixed} other {# questions newly fixed}}, {broken} newly broken.",
     "resultAgentUnknown": "In the agent: no measured result yet.",
     "resultKnowledge": "In the knowledge base: {count, plural, =0 {nothing missing} one {# topic missing} other {# topics missing}}{added, plural, =0 {} one {, # added since} other {, # added since}}.",
-    "acceptKnowledge": "In the knowledge base: {count, plural, =0 {nothing to add} one {# document to add} other {# documents to add}}",
+    "acceptKnowledge": "{missing, plural, =0 {In the knowledge base: nothing to add} one {# topic is still missing from the knowledge base} other {# topics are still missing from the knowledge base}}{missing, plural, =0 {} other {{ready, plural, =0 {: draft the ones you want} other {: # drafted, ready to add}}{stale, plural, =0 {} other {, # with an outdated draft}}}}",
     "noKnowledgeDocuments": "Nothing is missing from the knowledge base.",
     "reviewAndAdd": "Review and add",
     "notNow": "Not now",

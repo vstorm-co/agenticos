@@ -118,21 +118,24 @@ function countedAttempt(session: Improvement) {
 
 /**
  * Where a question set's questions come from, and how many help write the changes
- * against how many are kept aside to check them: about the dataset's share before
- * the session starts, and once it has, the count the newest attempt is measured on.
+ * against how many are kept aside to check them. Before the session starts it is
+ * about the first attempt's count from the estimate (the dataset's share until that
+ * arrives); once it has, the count the newest attempt is measured on.
  */
 export function QuestionSetFigures({
   cases,
   share,
   checked,
+  expected,
 }: {
   cases: DatasetCase[];
   share: string;
   checked?: { attempt: number; heldOut: number };
+  expected?: number;
 }) {
   const t = useTranslations("improvement");
   const sources = sourceCounts(cases);
-  const holdout = checked ? checked.heldOut : drawnHoldout(share, cases.length);
+  const holdout = checked ? checked.heldOut : (expected ?? drawnHoldout(share, cases.length));
   const train = Math.max(0, cases.length - holdout);
   const label = checked
     ? t("widgets.partitionAttempt", { train, holdout, attempt: checked.attempt })
@@ -166,8 +169,11 @@ export function QuestionSetFigures({
   );
 }
 
-/** The question set a new session would test on, before it starts. */
-export function StartQuestionSet({ datasetId }: { datasetId: string }) {
+/**
+ * The question set a new session would test on, before it starts; `heldOut` is how
+ * many the first attempt is measured on, from the session's estimate.
+ */
+export function StartQuestionSet({ datasetId, heldOut }: { datasetId: string; heldOut?: number }) {
   const t = useTranslations("improvement");
   const questions = useDatasetCases(datasetId, { limit: SOURCE_LIMIT });
   const { dataset } = useDataset(datasetId);
@@ -176,7 +182,11 @@ export function StartQuestionSet({ datasetId }: { datasetId: string }) {
     <section className="space-y-3" data-tour="improvement-question-set">
       <h2 className="font-medium">{t("questionCount", { count: questions.total })}</h2>
       {dataset && questions.cases.length === questions.total && (
-        <QuestionSetFigures cases={questions.cases} share={holdoutShare(dataset)} />
+        <QuestionSetFigures
+          cases={questions.cases}
+          share={holdoutShare(dataset)}
+          expected={heldOut}
+        />
       )}
     </section>
   );

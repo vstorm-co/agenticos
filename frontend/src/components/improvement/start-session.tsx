@@ -166,7 +166,7 @@ export function StartSession({ agentId }: { agentId: string }) {
             {refused}
           </p>
         )}
-        {target && <StartQuestionSet datasetId={target} />}
+        {target && <StartQuestionSet datasetId={target} heldOut={quote?.held_out ?? undefined} />}
         {target && !quote && refused === null && <p role="status">{t("estimating")}</p>}
         {quote && (
           <section

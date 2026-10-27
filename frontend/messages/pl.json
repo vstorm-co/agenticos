@@ -11106,7 +11106,7 @@
     "resultAgent": "W agencie: nowo naprawione {fixed}, nowo zepsute {broken}.",
     "resultAgentUnknown": "W agencie: jeszcze brak zmierzonego wyniku.",
     "resultKnowledge": "W bazie wiedzy: {count, plural, =0 {niczego nie brakuje} one {brakuje # tematu} few {brakuje # tematów} many {brakuje # tematów} other {brakuje # tematu}}{added, plural, =0 {} one {, # temat dodano od tego czasu} few {, # tematy dodano od tego czasu} many {, # tematów dodano od tego czasu} other {, # tematu dodano od tego czasu}}.",
-    "acceptKnowledge": "W bazie wiedzy: {count, plural, =0 {nic do dodania} one {# dokument do dodania} few {# dokumenty do dodania} many {# dokumentów do dodania} other {# dokumentu do dodania}}",
+    "acceptKnowledge": "{missing, plural, =0 {W bazie wiedzy: nic do dodania} one {W bazie wiedzy nadal brakuje # tematu} few {W bazie wiedzy nadal brakuje # tematów} many {W bazie wiedzy nadal brakuje # tematów} other {W bazie wiedzy nadal brakuje # tematu}}{missing, plural, =0 {} other {{ready, plural, =0 {: przygotuj szkice tych, których potrzebujesz} other {: szkice gotowe do dodania: #}}{stale, plural, =0 {} other {, nieaktualne szkice: #}}}}",
     "noKnowledgeDocuments": "W bazie wiedzy niczego nie brakuje.",
     "reviewAndAdd": "Przejrzyj i dodaj",
     "notNow": "Nie teraz",
