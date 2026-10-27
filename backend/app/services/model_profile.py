@@ -417,7 +417,10 @@ class ModelProfileService:
             # Saved with no key means meant to run with none (`_check_shape` has
             # just allowed it); saved with one means it needs one, so a later
             # delete of that key reads as "no key" rather than as self-hosted.
-            "runs_without_key": secret_id is None,
+            # An edit that leaves the key alone keeps the intent stored: renaming
+            # a gateway profile whose key was deleted does not make it keyless.
+            "runs_without_key": secret_id is None
+            and ("secret_id" in sent or profile.runs_without_key),
         }
         if changes.label is not None:
             wanted["label"] = changes.label
