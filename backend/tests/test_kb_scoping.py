@@ -12,7 +12,7 @@ from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundErr
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.resource_grant import GrantLevel, Visibility
-from app.repositories.rag_document import CollectionCounts
+from app.repositories.rag_document import CollectionCounts, CollectionScope
 from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseUpdate
 from app.services.ingestion_config import deployment_defaults
 from app.services.knowledge_base import KnowledgeBaseService, _with_counts
@@ -1470,25 +1470,23 @@ class TestCollectionCounts:
         return MagicMock(execute=AsyncMock())
 
     @pytest.mark.anyio
-    async def test_counts_are_asked_for_by_collection_name_not_by_id(self, mock_db):
-        """`rag_documents` is keyed by collection name; the KB id is not in it.
+    async def test_counts_are_asked_for_by_base_not_by_collection_name(self, mock_db):
+        """Bases share a collection name and each holds its own rows (#2486).
 
-        A count keyed on the wrong column comes back empty rather than wrong,
-        which reads on screen as every collection being empty.
+        Asked by name, an app base and an organization's base sharing it each
+        reported the other's documents on the listing.
         """
-        first = _kb("org")
-        first.collection_name = "docs_a1b2c3"
-        second = _kb("org")
-        second.collection_name = "wiki_d4e5f6"
+        first = _readable_kb("shared_a1b2c3")
+        second = _readable_kb("shared_a1b2c3")
 
         with patch(
-            "app.repositories.rag_document_repo.counts_by_collection",
+            "app.repositories.rag_document_repo.counts_by_scope",
             new=AsyncMock(return_value={}),
         ) as mock_counts:
             await KnowledgeBaseService(mock_db).counts_for([first, second])
 
         _, kwargs = mock_counts.call_args
-        assert kwargs.get("collections") == ["docs_a1b2c3", "wiki_d4e5f6"]
+        assert kwargs.get("scopes") == [CollectionScope.of(first), CollectionScope.of(second)]
 
     @pytest.mark.anyio
     async def test_counting_nothing_asks_the_database_nothing(self, mock_db):
@@ -1527,7 +1525,7 @@ class TestCollectionCounts:
 
     @pytest.mark.anyio
     async def test_the_listing_gives_each_row_its_own_counts(self, mock_db):
-        """The join is by collection name, so a count cannot land on a sibling.
+        """The join is by base id, so a count cannot land on a sibling.
 
         Both halves are ordered lists of the same length, which is exactly the
         shape that hides an off-by-one: the filled collection here is second.
@@ -1541,11 +1539,9 @@ class TestCollectionCounts:
                 new=AsyncMock(return_value=[empty, filled]),
             ),
             patch(
-                "app.repositories.rag_document_repo.counts_by_collection",
+                "app.repositories.rag_document_repo.counts_by_scope",
                 new=AsyncMock(
-                    return_value={
-                        "filled_111111": CollectionCounts(documents=3, chunks=90, indexed=3)
-                    }
+                    return_value={filled.id: CollectionCounts(documents=3, chunks=90, indexed=3)}
                 ),
             ),
         ):

@@ -24,13 +24,16 @@ from app.core.secret_kinds import ApiKeySecret
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.organization import Organization
 from app.db.models.rag_document import RAGDocument
+from app.db.models.sync_log import SyncLog
 from app.db.models.sync_source import SyncSource
 from app.db.models.user import User
 from app.repositories import knowledge_base_repo, rag_document_repo
 from app.repositories.rag_document import CollectionScope, IngestionCounts
 from app.services.collection_access import CollectionAccessService
 from app.services.embedding_resolution import EmbeddingKeySource, embeddings_for_collection
+from app.services.knowledge_base import KnowledgeBaseService
 from app.services.organization_secret import OrganizationSecretService
+from app.services.rag_sync import RAGSyncService
 
 pytestmark = pytest.mark.anyio
 
@@ -421,3 +424,125 @@ class TestAnAppCollectionKeepsApartFromASameNamedPersonalBase:
 
         assert mine == IngestionCounts(processing=1, indexed=0, failed=0)
         assert apps == IngestionCounts(processing=0, indexed=2, failed=0)
+
+
+class TestWhatABaseReportsStaysItsOwn:
+    """#2486, the listings around a base: the counts on `GET /kb`, a base's sync
+    sources and the sync history under `/rag/sync/logs`.
+
+    Each was keyed on the collection name and the caller's organization, so with
+    an app base and a private org base sharing a name, every base reported the
+    other's documents and an org member who reads only the app base listed the
+    private base's sources and runs.
+    """
+
+    async def _seed(self, db) -> dict[str, object]:
+        org_a, owner_a = await _org(db, name="Alpha")
+        org_b, member_b = await _org(db, name="Beta")
+        member_a = User(
+            id=uuid.uuid4(),
+            email=f"{uuid.uuid4().hex}@example.com",
+            hashed_password="x",
+            is_active=True,
+        )
+        db.add(member_a)
+        kb_a = _kb(org_a.id, "both")
+        kb_a.owner_user_id = owner_a.id
+        kb_a.visibility = "private"
+        db.add(kb_a)
+        await db.flush()
+        kb_app = _kb(None, "both", scope=KBScope.APP.value)
+        db.add(kb_app)
+        await db.flush()
+        tenants = SyncSource(
+            organization_id=org_a.id,
+            name="Alpha drive",
+            connector_type="gdrive",
+            collection_name="both",
+            config={"folder_id": "alpha-private"},
+        )
+        # Org B holds no base by the name, so its source's sync writes under the
+        # app base.
+        apps = SyncSource(
+            organization_id=org_b.id,
+            name="App drive",
+            connector_type="gdrive",
+            collection_name="both",
+            config={},
+        )
+        db.add_all([tenants, apps])
+        await db.flush()
+        tenant_run = SyncLog(
+            source="gdrive", collection_name="both", mode="full", sync_source_id=tenants.id
+        )
+        app_run = SyncLog(
+            source="gdrive", collection_name="both", mode="full", sync_source_id=apps.id
+        )
+        db.add_all([tenant_run, app_run])
+        await db.flush()
+        await _document(db, "tenant.pdf", organization_id=org_a.id, kb=kb_a)
+        await _document(db, "app-by-a.pdf", organization_id=org_a.id, kb=kb_app)
+        await _document(db, "app-by-b.pdf", organization_id=org_b.id, kb=kb_app)
+        await _document(db, "untagged.pdf", organization_id=None, kb=None)
+        return {
+            "kb_a": kb_a,
+            "kb_app": kb_app,
+            "tenants": tenants,
+            "apps": apps,
+            "tenant_run": tenant_run,
+            "app_run": app_run,
+            "ctx_owner_a": AuthContext(
+                user_id=owner_a.id, organization_id=org_a.id, role=OrgRoleName.OWNER
+            ),
+            "ctx_member_a": AuthContext(
+                user_id=member_a.id, organization_id=org_a.id, role=OrgRoleName.MEMBER
+            ),
+            "ctx_b": AuthContext(
+                user_id=member_b.id, organization_id=org_b.id, role=OrgRoleName.MEMBER
+            ),
+        }
+
+    @pytest.mark.security
+    async def test_each_base_on_the_listing_counts_only_its_own_documents(self, db) -> None:
+        seeded = await self._seed(db)
+
+        listing = await KnowledgeBaseService(db).list_readable(seeded["ctx_owner_a"])
+        counts = {item.id: item.document_count for item in listing.items}
+        other_org = await KnowledgeBaseService(db).list_readable(seeded["ctx_b"])
+
+        assert counts[seeded["kb_a"].id] == 1
+        assert counts[seeded["kb_app"].id] == 3
+        assert [(item.id, item.document_count) for item in other_org.items] == [
+            (seeded["kb_app"].id, 3)
+        ]
+
+    @pytest.mark.security
+    async def test_the_app_bases_sources_leave_out_a_private_same_named_bases(self, db) -> None:
+        seeded = await self._seed(db)
+        access = CollectionAccessService(db)
+
+        member_a = await access.kb_sync_sources(seeded["ctx_member_a"], seeded["kb_app"])
+        owner_a = await access.kb_sync_sources(seeded["ctx_owner_a"], seeded["kb_a"])
+        org_b = await access.kb_sync_sources(seeded["ctx_b"], seeded["kb_app"])
+
+        assert member_a == []
+        assert [source.id for source in owner_a] == [seeded["tenants"].id]
+        assert [source.id for source in org_b] == [seeded["apps"].id]
+
+    @pytest.mark.security
+    async def test_the_sync_history_leaves_out_a_private_same_named_bases_runs(self, db) -> None:
+        seeded = await self._seed(db)
+        access = CollectionAccessService(db)
+        runs = RAGSyncService(db)
+
+        member_a = await runs.list_sync_logs(
+            scope=await access.readable_sync_log_scope(seeded["ctx_member_a"], "both")
+        )
+        owner_a = await runs.list_sync_logs(
+            scope=await access.readable_sync_log_scope(seeded["ctx_owner_a"], None)
+        )
+
+        assert [item.id for item in member_a.items] == [str(seeded["app_run"].id)]
+        assert sorted(item.id for item in owner_a.items) == sorted(
+            [str(seeded["app_run"].id), str(seeded["tenant_run"].id)]
+        )

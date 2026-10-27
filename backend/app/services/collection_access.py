@@ -20,6 +20,7 @@ while `/rag/collections/{name}/info` did not - that let one tenant read
 another's collection while the listing looked perfectly scoped.
 """
 
+from collections.abc import Sequence
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -46,6 +47,7 @@ from app.repositories import (
     sync_source_repo,
 )
 from app.repositories.rag_document import CollectionScope
+from app.repositories.sync_log import SyncLogScope
 from app.services.access import COLLECTION, resolve_access, visible_resource_ids
 
 
@@ -112,6 +114,23 @@ def _same_tenant(target: KnowledgeBase, kb: KnowledgeBase) -> bool:
     if kb.vector_tenant is None:
         return target.id == kb.id
     return target.vector_tenant == kb.vector_tenant
+
+
+def _feeds(source: SyncSource, kb: KnowledgeBase, candidates: Sequence[KnowledgeBase]) -> bool:
+    """Whether a sync source feeds this knowledge base - the one rule for sources.
+
+    A source has an organization and a collection name but no base of its own,
+    so it feeds the base its sync writes under: its organization's base by that
+    name, else an app-scoped one (`knowledge_base_repo.choose_for_collection`,
+    the choice the sync itself makes). `candidates` are the bases claiming the
+    name, oldest first. Bases of one organization share its sources; a base with
+    no tenant (see :func:`_same_tenant`) reaches only the sources that resolve
+    to itself.
+    """
+    if source.collection_name != kb.collection_name:
+        return False
+    target = knowledge_base_repo.choose_for_collection(candidates, source.organization_id)
+    return target is not None and _same_tenant(target, kb)
 
 
 def _no_collection(name: str) -> NotFoundError:
@@ -206,28 +225,44 @@ class CollectionAccessService:
         base claiming it that the caller reads - an organization's, an
         app-scoped and a personal one can share it, and each holds its own rows.
         """
-        if name is None:
-            kbs = await self._readable_kbs(ctx)
-        else:
-            kbs = [
-                kb
-                for kb in await knowledge_base_repo.list_by_collection_name(self.db, name)
-                if await readable_kb(self.db, ctx, kb)
-            ]
-            if not kbs:
-                raise _no_collection(name)
+        kbs = await self._readable_kbs_for(ctx, name)
         return list(dict.fromkeys(CollectionScope.of(kb) for kb in kbs))
 
-    async def readable_names_for(self, ctx: AuthContext, name: str | None) -> list[str]:
-        """What a listing may include: the collection asked for, or all of theirs.
+    async def readable_sync_log_scope(self, ctx: AuthContext, name: str | None) -> SyncLogScope:
+        """The sync runs a listing may include: the collection asked for, or all of theirs.
 
-        The unfiltered case is the one that leaked - `GET /rag/documents` with
-        no `collection_name` used to answer with every document in the
-        deployment - so "no filter" now means "mine", never "everything".
+        A run started by a sync source is listed when that source feeds a base
+        the caller reads (:func:`_feeds`, the rule the per-source routes apply);
+        on the name alone, a member reading only an app-scoped base listed the
+        runs - errors and file counts - of a private base sharing its name
+        (#2486). A run with no source carries nothing but its name, so it is
+        listed by the name. The unfiltered case means "mine", never "everything".
         """
+        kbs = await self._readable_kbs_for(ctx, name)
+        names = list(dict.fromkeys(kb.collection_name for kb in kbs))
+        candidates = await knowledge_base_repo.list_by_collection_names(self.db, names)
+        sources = await sync_source_repo.list_for_collections(self.db, names)
+        return SyncLogScope(
+            collections=names,
+            sync_source_ids=[
+                source.id
+                for source in sources
+                if any(_feeds(source, kb, candidates.get(kb.collection_name, [])) for kb in kbs)
+            ],
+        )
+
+    async def _readable_kbs_for(self, ctx: AuthContext, name: str | None) -> list[KnowledgeBase]:
+        """Every base claiming `name` that this caller reads, or all of theirs; 404 for none."""
         if name is None:
-            return await self.readable_names(ctx)
-        return [(await self.readable(ctx, name)).collection_name]
+            return await self._readable_kbs(ctx)
+        kbs = [
+            kb
+            for kb in await knowledge_base_repo.list_by_collection_name(self.db, name)
+            if await readable_kb(self.db, ctx, kb)
+        ]
+        if not kbs:
+            raise _no_collection(name)
+        return kbs
 
     async def claim(self, ctx: AuthContext, name: str) -> None:
         """Refuse a collection name this caller may not have.
@@ -334,33 +369,37 @@ class CollectionAccessService:
     async def kb_sync_source(self, kb: KnowledgeBase, source_id: str) -> SyncSource:
         """A sync source loaded by id, if it feeds this knowledge base, or 404.
 
-        A source has an organization and a collection name but no base of its
-        own, so it feeds the base its sync writes under: its organization's base
-        by that name, else an app-scoped one (`knowledge_base_repo
-        .get_for_collection`, which the sync itself resolves through). On the
-        name and organization alone, an app-scoped base would reach every
-        organization's source by its name - its run history and settings shown
-        to any member of any organization, since such a base is readable by all.
-        Bases of one organization share its sources; a base with no tenant (see
-        :func:`_same_tenant`) reaches only the sources that resolve to itself.
+        Which base a source feeds is :func:`_feeds`. On the name and organization
+        alone, an app-scoped base would reach every organization's source by its
+        name - its run history and settings shown to any member of any
+        organization, since such a base is readable by all.
         """
         parsed = _as_uuid(source_id)
         source = None if parsed is None else await sync_source_repo.get_by_id(self.db, parsed)
         if source is None:
             raise NotFoundError(message="Sync source not found", details={"source_id": source_id})
-        target = (
-            None
-            if source.collection_name != kb.collection_name
-            else await knowledge_base_repo.get_for_collection(
-                self.db, kb.collection_name, source.organization_id
-            )
-        )
-        if target is None or not _same_tenant(target, kb):
+        candidates = await knowledge_base_repo.list_by_collection_name(self.db, kb.collection_name)
+        if not _feeds(source, kb, candidates):
             raise NotFoundError(
                 message="Sync source not found in this knowledge base",
                 details={"kb_id": kb.id, "source_id": source_id},
             )
         return source
+
+    async def kb_sync_sources(self, ctx: AuthContext, kb: KnowledgeBase) -> list[SyncSource]:
+        """The caller organization's sync sources feeding this knowledge base, newest first.
+
+        For a route that has already authorized the base. By :func:`_feeds`, as
+        :meth:`kb_sync_source` decides one: on the collection name and the
+        caller's organization alone, a member who reads only an app-scoped base
+        listed the sources - configuration, credential id, last error - of a
+        private base of their organization sharing its name (#2486).
+        """
+        sources = await sync_source_repo.get_all(
+            self.db, organization_id=ctx.organization_id, collection_name=kb.collection_name
+        )
+        candidates = await knowledge_base_repo.list_by_collection_name(self.db, kb.collection_name)
+        return [source for source in sources if _feeds(source, kb, candidates)]
 
     async def _holds(self, kb: KnowledgeBase, doc: RAGDocument) -> bool:
         """Whether a document is in this knowledge base's scope.
@@ -389,13 +428,29 @@ class CollectionAccessService:
         return source
 
     async def sync_log(self, ctx: AuthContext, sync_id: str) -> SyncLog:
-        """A sync run whose collection this caller may write.
+        """A sync run in a collection this caller may write.
 
-        A run carries no organization of its own, so the collection it wrote
-        into is what says whose it is.
+        A run carries no organization of its own. One a sync source started is
+        that source's, so it is the caller's when the source feeds a base they
+        write (:func:`_feeds`) - not merely one by the same name (#2486). One with
+        no source has only the collection it wrote into to say whose it is.
         """
         parsed = _as_uuid(sync_id)
         log = None if parsed is None else await sync_log_repo.get_by_id(self.db, parsed)
-        if log is None or await self._first_writable(ctx, log.collection_name) is None:
+        if log is None or not await self._writes_run(ctx, log):
             raise NotFoundError(message="Sync log not found", details={"sync_id": sync_id})
         return log
+
+    async def _writes_run(self, ctx: AuthContext, log: SyncLog) -> bool:
+        candidates = await knowledge_base_repo.list_by_collection_name(self.db, log.collection_name)
+        source = (
+            None
+            if log.sync_source_id is None
+            else await sync_source_repo.get_by_id(self.db, log.sync_source_id)
+        )
+        for kb in candidates:
+            if (source is None or _feeds(source, kb, candidates)) and await writable_kb(
+                self.db, ctx, kb
+            ):
+                return True
+        return False

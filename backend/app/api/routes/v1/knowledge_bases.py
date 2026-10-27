@@ -324,14 +324,16 @@ async def list_kb_sync_sources(
     kb_id: UUID,
     service: KnowledgeBaseSvc,
     sync_source_svc: SyncSourceSvc,
+    access: CollectionAccessSvc,
     ctx: Auth,
 ) -> Any:
-    """List sync sources feeding this KB's collection (org-scoped)."""
+    """List the caller organization's sync sources feeding this KB.
+
+    A source feeds the base its sync writes under, so a base sharing its
+    collection name with another lists only its own sources.
+    """
     kb = await service.get(kb_id, ctx=ctx)
-    return await sync_source_svc.list_sources(
-        organization_id=ctx.organization_id,
-        collection_name=kb.collection_name,
-    )
+    return sync_source_svc.as_list(await access.kb_sync_sources(ctx, kb))
 
 
 @router.get("/{kb_id}/sync-sources/org-integrations", response_model=SyncSourceList)

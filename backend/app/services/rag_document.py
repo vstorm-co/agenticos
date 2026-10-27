@@ -486,7 +486,7 @@ class RAGDocumentService:
         Every ingest path creates a fresh `rag_documents` row, including the
         replacing one - the upload, the CLI and the sync all do - while the
         vector store keeps one document. So the old row outlives the vectors it
-        describes: `counts_by_collection` sums its `chunk_count` into the
+        describes: `counts_by_scope` sums its `chunk_count` into the
         collection's total, its "view parsed content" reads a document that is
         gone, and a directory synced nightly accumulates one dead row per file
         per run.

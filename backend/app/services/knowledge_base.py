@@ -22,7 +22,7 @@ from app.repositories import (
     resource_grant_repo,
 )
 from app.repositories import sync_source as sync_source_repo
-from app.repositories.rag_document import CollectionCounts
+from app.repositories.rag_document import CollectionCounts, CollectionScope
 from app.schemas.knowledge_base import (
     KnowledgeBaseCreate,
     KnowledgeBaseList,
@@ -170,7 +170,7 @@ class KnowledgeBaseService:
         )
         return KnowledgeBaseList(
             items=[
-                _with_counts(kb, counts.get(kb.collection_name)).model_copy(
+                _with_counts(kb, counts.get(kb.id)).model_copy(
                     update={"used_by": used[kb.id], "shared_groups": groups[kb.id]}
                 )
                 for kb in items
@@ -214,16 +214,17 @@ class KnowledgeBaseService:
             shared_with_me=shared_with_me,
         )
 
-    async def counts_for(self, bases: list[KnowledgeBase]) -> dict[str, CollectionCounts]:
-        """What each of these collections holds, keyed by collection name.
+    async def counts_for(self, bases: list[KnowledgeBase]) -> dict[UUID, CollectionCounts]:
+        """What each of these knowledge bases holds, keyed by base id.
 
         Takes the rows the caller already resolved rather than re-deriving them:
         this is the second half of a listing whose first half already answered
         "which of these may they see", and asking that question twice is how the
-        two answers drift.
+        two answers drift. Keyed by base rather than by collection name, because
+        bases share a name and each holds its own rows (#2486).
         """
-        return await rag_document_repo.counts_by_collection(
-            self.db, collections=[kb.collection_name for kb in bases]
+        return await rag_document_repo.counts_by_scope(
+            self.db, scopes=[CollectionScope.of(kb) for kb in bases]
         )
 
     async def create_for_rag_collection(

@@ -30,6 +30,7 @@ from app.db.models.sync_source import SyncSource
 from app.db.vector_tables import MAX_COLLECTION_NAME_LENGTH
 from app.repositories import collection_teardown_repo
 from app.repositories.rag_document import CollectionScope
+from app.repositories.sync_log import SyncLogScope
 from app.services.collection_access import CollectionAccessService, readable_kb, writable_kb
 
 pytestmark = pytest.mark.anyio
@@ -74,6 +75,17 @@ def _kb(
         ingestion_config={},
         embedding_model="text-embedding-3-large",
         embedding_dim=3072,
+    )
+
+
+def _source(*, organization_id: uuid.UUID, collection_name: str = "handbook") -> SyncSource:
+    return SyncSource(
+        id=uuid.uuid4(),
+        organization_id=organization_id,
+        name="Drive",
+        connector_type="gdrive",
+        collection_name=collection_name,
+        config={},
     )
 
 
@@ -166,12 +178,27 @@ def service(rows: Rows, monkeypatch: pytest.MonkeyPatch) -> CollectionAccessServ
 
         return get
 
-    async def get_for_collection(
-        _db: object, collection_name: str, organization_id: uuid.UUID | None
-    ) -> KnowledgeBase | None:
-        candidates = [kb for kb in rows.collections if kb.collection_name == collection_name]
-        own = [kb for kb in candidates if kb.organization_id == organization_id]
-        return next(iter(own), next((kb for kb in candidates if kb.organization_id is None), None))
+    async def list_by_collection_names(
+        _db: object, collection_names: list[str]
+    ) -> dict[str, list[KnowledgeBase]]:
+        by_name: dict[str, list[KnowledgeBase]] = {}
+        for kb in rows.collections:
+            if kb.collection_name in collection_names:
+                by_name.setdefault(kb.collection_name, []).append(kb)
+        return by_name
+
+    async def sources_by(
+        _db: object, *, organization_id: uuid.UUID | None, collection_name: str
+    ) -> list[SyncSource]:
+        return [
+            source
+            for source in rows.sources
+            if source.collection_name == collection_name
+            and (organization_id is None or source.organization_id == organization_id)
+        ]
+
+    async def list_for_collections(_db: object, collection_names: list[str]) -> list[SyncSource]:
+        return [source for source in rows.sources if source.collection_name in collection_names]
 
     async def is_in_collection_scope(
         _db: object, doc_id: uuid.UUID, *, scope: CollectionScope
@@ -187,7 +214,9 @@ def service(rows: Rows, monkeypatch: pytest.MonkeyPatch) -> CollectionAccessServ
         return doc.collection_name == scope.collection_name and owned
 
     monkeypatch.setattr(knowledge_base_repo, "list_by_collection_name", list_by_collection_name)
-    monkeypatch.setattr(knowledge_base_repo, "get_for_collection", get_for_collection)
+    monkeypatch.setattr(knowledge_base_repo, "list_by_collection_names", list_by_collection_names)
+    monkeypatch.setattr(sync_source_repo, "get_all", sources_by)
+    monkeypatch.setattr(sync_source_repo, "list_for_collections", list_for_collections)
     monkeypatch.setattr(knowledge_base_repo, "get_accessible", get_accessible)
     monkeypatch.setattr(rag_document_repo, "is_in_collection_scope", is_in_collection_scope)
     monkeypatch.setattr(rag_document_repo, "get_by_id", by_id("documents"))
@@ -361,16 +390,39 @@ class TestResolvingACollectionName:
 
         assert await service.readable_names(_ctx()) == ["handbook", "notes"]
 
-    async def test_a_listing_filtered_to_one_collection_still_has_to_resolve_it(
+    async def test_a_run_listing_filtered_to_one_collection_still_has_to_resolve_it(
         self, service: CollectionAccessService, rows: Rows
     ) -> None:
-        rows.collections = [_kb("handbook")]
-        rows.accessible = [_kb("handbook"), _kb("notes")]
+        handbook, notes = _kb("handbook"), _kb("notes")
+        rows.collections = [handbook, notes]
+        rows.accessible = [handbook, notes]
 
-        assert await service.readable_names_for(_ctx(), "handbook") == ["handbook"]
-        assert await service.readable_names_for(_ctx(), None) == ["handbook", "notes"]
+        assert await service.readable_sync_log_scope(_ctx(), "handbook") == SyncLogScope(
+            collections=["handbook"], sync_source_ids=[]
+        )
+        assert await service.readable_sync_log_scope(_ctx(), None) == SyncLogScope(
+            collections=["handbook", "notes"], sync_source_ids=[]
+        )
         with pytest.raises(NotFoundError):
-            await service.readable_names_for(_ctx(), "someone_elses")
+            await service.readable_sync_log_scope(_ctx(), "someone_elses")
+
+    @pytest.mark.security
+    async def test_a_run_listing_takes_only_the_sources_feeding_a_base_the_caller_reads(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        """#2486: a member reading only the app base must not list the runs of a
+        private base of their organization sharing its name."""
+        app_kb = _kb("handbook", scope=KBScope.APP, organization_id=None)
+        private = _kb("handbook", owner_user_id=STRANGER)
+        rows.collections = [app_kb, private]
+        ours = _source(organization_id=HOME_ORG)
+        apps = _source(organization_id=OTHER_ORG)
+        rows.sources = [ours, apps]
+        member = _ctx(role=OrgRoleName.MEMBER.value)
+
+        scope = await service.readable_sync_log_scope(member, "handbook")
+
+        assert scope == SyncLogScope(collections=["handbook"], sync_source_ids=[apps.id])
 
     async def test_a_document_listing_carries_each_collection_s_knowledge_base(
         self, service: CollectionAccessService, rows: Rows
@@ -760,6 +812,37 @@ class TestResolvingASyncSourceInAKnowledgeBase:
         assert refusal.value.message == "Sync source not found"
 
 
+class TestListingAKnowledgeBasesSyncSources:
+    """`kb_sync_sources`: the listing applies the rule `kb_sync_source` does."""
+
+    @pytest.mark.security
+    async def test_the_app_base_lists_no_source_of_a_private_same_named_base(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        """#2486: listed on the name and the caller's organization, a member who
+        reads only the app base saw the private base's sources."""
+        app_kb = _kb("handbook", scope=KBScope.APP, organization_id=None)
+        private = _kb("handbook", owner_user_id=STRANGER)
+        ours = _source(organization_id=HOME_ORG)
+        rows.collections = [app_kb, private]
+        rows.sources = [ours, _source(organization_id=OTHER_ORG)]
+
+        assert await service.kb_sync_sources(_ctx(), app_kb) == []
+        assert await service.kb_sync_sources(_ctx(), private) == [ours]
+
+    async def test_a_caller_with_no_organization_still_gets_only_the_bases_own(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        """No organization filters nothing in the query; the rule still does."""
+        mine = _kb("handbook", scope=KBScope.PERSONAL, organization_id=None, owner_user_id=CALLER)
+        theirs = _kb("handbook", organization_id=OTHER_ORG)
+        rows.collections = [mine, theirs]
+        rows.sources = [_source(organization_id=OTHER_ORG)]
+        ctx = AuthContext(user_id=CALLER, organization_id=None, role=None)
+
+        assert await service.kb_sync_sources(ctx, mine) == []
+
+
 class TestResolvingASyncRun:
     def _log(self, collection_name: str) -> SyncLog:
         return SyncLog(
@@ -798,3 +881,33 @@ class TestResolvingASyncRun:
     ) -> None:
         with pytest.raises(NotFoundError):
             await service.sync_log(_ctx(), "not-an-id")
+
+    @pytest.mark.security
+    async def test_a_sources_run_is_the_writer_of_the_base_the_source_feeds(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        """#2486: a writer of one base must not cancel the run of a source feeding a
+        same-named base of another tenant - here the app base's."""
+        mine = _kb("handbook")
+        app_kb = _kb("handbook", scope=KBScope.APP, organization_id=None)
+        rows.collections = [app_kb, mine]
+        ours, apps = _source(organization_id=HOME_ORG), _source(organization_id=OTHER_ORG)
+        rows.sources = [ours, apps]
+        our_run, app_run = self._log("handbook"), self._log("handbook")
+        our_run.sync_source_id, app_run.sync_source_id = ours.id, apps.id
+        rows.logs = [our_run, app_run]
+
+        assert (await service.sync_log(_ctx(), str(our_run.id))).id == our_run.id
+        with pytest.raises(NotFoundError):
+            await service.sync_log(_ctx(), str(app_run.id))
+        assert (await service.sync_log(_ctx(app_admin=True), str(app_run.id))).id == app_run.id
+
+    async def test_a_run_whose_source_is_gone_is_decided_by_its_collection(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        log = self._log("handbook")
+        log.sync_source_id = uuid.uuid4()
+        rows.collections = [_kb("handbook")]
+        rows.logs = [log]
+
+        assert (await service.sync_log(_ctx(), str(log.id))).id == log.id

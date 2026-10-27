@@ -3,11 +3,12 @@
 Contains database operations for RAGDocument entities.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Self, cast
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, and_, exists, func, literal, or_, select, tuple_
+from sqlalchemy import ColumnElement, and_, exists, func, literal, or_, select, tuple_, union_all
 from sqlalchemy import delete as sql_delete
 from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
@@ -596,15 +597,19 @@ async def delete(db: AsyncSession, doc_id: UUID) -> bool:
     return True
 
 
-async def counts_by_collection(
-    db: AsyncSession, *, collections: list[str]
-) -> dict[str, CollectionCounts]:
-    """How much each named collection actually holds, in one query.
+async def counts_by_scope(
+    db: AsyncSession, *, scopes: Sequence[CollectionScope]
+) -> dict[UUID, CollectionCounts]:
+    """How much each knowledge base actually holds, in one statement, keyed by base.
 
-    One `GROUP BY` rather than a call per collection: this feeds a listing, and
-    the per-collection alternative (`GET /rag/collections/{name}/info`) asks the
+    One statement rather than a call per base: this feeds a listing, and the
+    per-collection alternative (`GET /rag/collections/{name}/info`) asks the
     vector store once per row - twenty collections, twenty round trips, to
-    render one page.
+    render one page. Each base is one aggregate over :func:`in_collection_scope`,
+    the rows its document listing shows, joined with `UNION ALL`: grouped by the
+    collection's name, an app base and an organization's base sharing it each
+    reported the other's documents (#2486). A row can fall in two scopes - two
+    bases of one organization sharing a name - and counts in each.
 
     Counted from `rag_documents` rather than from the vectors, and the
     difference is the point. This table is what the upload wrote, so a document
@@ -612,25 +617,26 @@ async def counts_by_collection(
     vector yet. A count taken from the vector store would show a collection
     someone just uploaded to as empty, which is the one moment they are looking.
 
-    Collections with no rows are absent from the result rather than present as
-    zero, so callers read it with a default - a name that was never written to
-    has no row to group.
+    A base holding no rows is absent from the result rather than present as
+    zero, so callers read it with a default.
     """
-    if not collections:
+    if not scopes:
         return {}
-    result = await db.execute(
+    per_base = [
         select(
-            RAGDocument.collection_name,
-            func.count(),
-            func.coalesce(func.sum(RAGDocument.chunk_count), 0),
-            func.count().filter(RAGDocument.status == DocumentStatus.DONE),
+            literal(scope.knowledge_base_id, PG_UUID(as_uuid=True)).label("kb_id"),
+            func.count().label("documents"),
+            func.coalesce(func.sum(RAGDocument.chunk_count), 0).label("chunks"),
+            func.count().filter(RAGDocument.status == DocumentStatus.DONE).label("indexed"),
         )
-        .where(RAGDocument.collection_name.in_(collections))
-        .group_by(RAGDocument.collection_name)
-    )
+        .where(in_collection_scope(scope))
+        .having(func.count() > 0)
+        for scope in dict.fromkeys(scopes)
+    ]
+    result = await db.execute(union_all(*per_base))
     return {
-        name: CollectionCounts(documents=int(documents), chunks=int(chunks), indexed=int(indexed))
-        for name, documents, chunks, indexed in result.all()
+        kb_id: CollectionCounts(documents=int(documents), chunks=int(chunks), indexed=int(indexed))
+        for kb_id, documents, chunks, indexed in result.all()
     }
 
 

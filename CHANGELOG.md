@@ -36,6 +36,14 @@ Two things are versioned separately from this file and worth knowing about:
   of every organization could list and download its owner's documents through
   the app collection. A document now belongs to the knowledge base it is filed
   under, in listings, counts and per-document checks (#2486).
+  `GET /kb` counted documents by collection name, so each base reported the
+  other's `document_count`, `indexed_count` and `chunk_count`; each base now
+  counts its own. `GET /kb/{kb_id}/sync-sources` and `GET /rag/sync/logs`
+  listed a private base's sync sources and runs to a member who reads only the
+  app base of the same name, and `DELETE /rag/sync/{sync_id}` let a writer of
+  one base cancel a run feeding the other. A sync source and its runs now
+  belong to the base its sync writes under. A run with no sync source is still
+  matched by its collection name.
 
 ## [1.25.0] - 2026-10-27
 
