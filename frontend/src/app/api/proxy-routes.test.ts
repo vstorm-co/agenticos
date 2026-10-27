@@ -33,6 +33,7 @@ import * as evalRuns from "./eval-runs/[[...path]]/route";
 import * as evalSuites from "./eval-suites/[[...path]]/route";
 import * as externalAgents from "./external-agents/[[...path]]/route";
 import * as visuals from "./visuals/[[...path]]/route";
+import * as improvements from "./improvements/[[...path]]/route";
 import * as kb from "./kb/[[...path]]/route";
 import * as knowledgeGaps from "./knowledge-gaps/[[...path]]/route";
 import * as localServices from "./local-services/[[...path]]/route";
@@ -133,6 +134,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["authoring", authoring],
   ["external-agents", externalAgents],
   ["visuals", visuals],
+  ["improvements", improvements],
   ["kb", kb],
   ["knowledge-gaps", knowledgeGaps],
   ["local-services", localServices],
