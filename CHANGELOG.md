@@ -86,6 +86,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Include the installed AgenticOS version in deployment, worker and per-agent
+  Logfire traces so production incidents can be matched to their release.
+
 - Invalid metadata in agent-written skills no longer breaks turn completion.
   Proposal writes use a savepoint and preserve the run’s status and spend (#2516).
 

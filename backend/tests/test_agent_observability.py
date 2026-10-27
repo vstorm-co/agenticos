@@ -16,6 +16,7 @@ from pydantic_ai.models.instrumented import InstrumentationSettings, Instrumente
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RunUsage
 
+from app import __version__
 from app.agents.factory import _instrument
 from app.agents.observability import (
     auxiliary_model,
@@ -250,7 +251,9 @@ class TestContentReachesLogfire:
         # A token unique to this test: the module caches instances per
         # (token, service, environment), so a shared one would reuse a prior
         # test's configure() and never call this mock.
-        with patch("app.agents.observability.logfire.configure", return_value=instance):
+        with patch(
+            "app.agents.observability.logfire.configure", return_value=instance
+        ) as configure:
             attached = instrument_agent(
                 MagicMock(),
                 token="pylf_v1_eu_none_case",
@@ -260,6 +263,7 @@ class TestContentReachesLogfire:
             )
 
         assert attached is True
+        assert configure.call_args.kwargs["service_version"] == __version__
         assert instance.instrument_pydantic_ai.call_args.kwargs["include_content"] is False
 
     def test_full_leaves_content_on(self):
