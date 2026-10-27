@@ -11089,7 +11089,6 @@
     },
     "attemptsTitle": "Attempts",
     "heldBack": "Changes held back for another attempt, not tested",
-    "selectRound": "Use this attempt",
     "changeAttribution": "Effect of change {number}",
     "causedBreak": "Newly broken by this change: {question}",
     "causedFix": "Fixed by this change: {question}",
@@ -11128,6 +11127,14 @@
       "end": "End without changes",
       "newSession": "Start a new session",
       "newSessionHint": "A new session has more to work with once you add test questions where {agent} answers badly."
+    },
+    "keep": {
+      "title": "Which attempt to keep",
+      "option": "Keep attempt {number}",
+      "keep": "Keep attempt {number}",
+      "keepAnyway": "Keep attempt {number} anyway",
+      "broke": "Attempt {number} broke {broken, plural, one {# question} other {# questions}}. Accepting it will make {agent} worse on {broken, plural, one {that one} other {those}}.",
+      "notBetter": "Attempt {number} did not make {agent} better. Accepting it changes {agent} with no measured gain."
     },
     "noise": {
       "headlineSpread": "The test can't tell a better version from a worse one: today's version of {agent} scored {low} and {high} on the questions its attempts shared.",

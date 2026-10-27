@@ -10872,7 +10872,6 @@
     },
     "attemptsTitle": "Próby",
     "heldBack": "Zmiany odłożone na kolejną próbę, nieprzetestowane",
-    "selectRound": "Użyj tej próby",
     "changeAttribution": "Wpływ zmiany {number}",
     "causedBreak": "Ta zmiana zepsuła odpowiedź: {question}",
     "causedFix": "Ta zmiana naprawiła odpowiedź: {question}",
@@ -10911,6 +10910,14 @@
       "end": "Zakończ bez zmian",
       "newSession": "Rozpocznij nową sesję",
       "newSessionHint": "Nowa sesja będzie miała więcej materiału, gdy dodasz pytania testowe tam, gdzie agent {agent} odpowiada źle."
+    },
+    "keep": {
+      "title": "Którą próbę zachować",
+      "option": "Zachowaj próbę {number}",
+      "keep": "Zachowaj próbę {number}",
+      "keepAnyway": "Mimo to zachowaj próbę {number}",
+      "broke": "Próba {number} zepsuła {broken, plural, one {# pytanie} few {# pytania} many {# pytań} other {# pytania}}. Po jej zaakceptowaniu agent {agent} będzie na nie odpowiadał gorzej.",
+      "notBetter": "Próba {number} nie poprawiła agenta {agent}. Po jej zaakceptowaniu agent {agent} zmieni się bez zmierzonej poprawy."
     },
     "noise": {
       "headlineSpread": "Test nie odróżnia lepszej wersji od gorszej: dzisiejsza wersja agenta {agent} dostała {low} i {high} na pytaniach wspólnych dla jej prób.",

@@ -30,18 +30,8 @@ export function RoundResults({
   extra?: ReactNode;
 }) {
   const t = useTranslations("improvement");
-  const tErrors = useTranslations("errors");
-  const actions = useImprovement(session.agent_id, session.id);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  async function act(action: () => Promise<void>) {
-    setError(null);
-    try {
-      await action();
-    } catch (e) {
-      setError(getErrorMessage(e, tErrors));
-    }
-  }
   const selectable = !useReadOnly() && ["ready", "stopped"].includes(session.status);
   const latestCheck = round.eval_run_ids.at(-1);
   const earlier = [...round.eval_run_ids.slice(0, -1), ...(round.previous_eval_run_ids ?? [])];
@@ -55,21 +45,6 @@ export function RoundResults({
         />
       )}
       <Details summary={t("showDetails")} onToggle={setDetailsOpen}>
-        {selectable &&
-          round.verdict &&
-          (round.id !== session.best_iteration_id || session.status === "stopped") && (
-            <Button
-              variant="outline"
-              disabled={actions.selectRound.isPending}
-              onClick={() =>
-                void act(async () => {
-                  await actions.selectRound.mutateAsync(round.number);
-                })
-              }
-            >
-              {t("selectRound")}
-            </Button>
-          )}
         {latestCheck && <HowMeasured runId={latestCheck} />}
         {earlier.length > 0 && (
           <section className="space-y-2">
@@ -407,59 +382,11 @@ export function AttemptRow({
   round: ImprovementIteration;
   extra?: ReactNode;
 }) {
-  const t = useTranslations("improvement");
-  const locale = useLocale();
   const [open, setOpen] = useState(false);
-  const detail = round.verdict_detail;
-  const fixed = detail?.fixed;
-  const broken = detail?.broken;
-  const heldOut = detail?.held_out;
-  const verdict =
-    round.verdict === "regression" && Number(fixed ?? 0) === 0 ? "worse" : round.verdict;
   return (
     <details className="rounded-xl border" onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 p-3 text-sm sm:px-4">
-        <span className="font-medium">
-          <RoundTitle session={session} round={round} />
-        </span>
-        <StateBadge
-          tone={
-            verdict === "better"
-              ? "good"
-              : verdict === "worse"
-                ? "bad"
-                : verdict === "regression"
-                  ? "warn"
-                  : "neutral"
-          }
-        >
-          {t(
-            `attempt.${
-              verdict ??
-              (["queued", "running"].includes(session.status)
-                ? "working"
-                : round.batch_id
-                  ? "unmeasured"
-                  : "none")
-            }`,
-          )}
-        </StateBadge>
-        {fixed != null && broken != null && (
-          <span>
-            {t("attempt.delta", {
-              fixed: Number(fixed),
-              broken: Number(broken),
-              heldOut: heldOut == null ? "unknown" : Number(heldOut),
-            })}
-          </span>
-        )}
-        {round.id === session.best_iteration_id &&
-          (round.verdict === "better" ? (
-            <StateBadge tone="good">{t("attempt.best")}</StateBadge>
-          ) : (
-            <StateBadge tone="neutral">{t("attempt.chosen")}</StateBadge>
-          ))}
-        <span className="text-muted-foreground ml-auto">{usd(round.cost_usd, locale)}</span>
+        <AttemptSummary session={session} round={round} />
       </summary>
       {open && (
         <div className="border-t p-3 sm:p-4">
@@ -467,6 +394,69 @@ export function AttemptRow({
         </div>
       )}
     </details>
+  );
+}
+
+/** An attempt in one line: its name, verdict, change against its own baseline, mark and cost. */
+export function AttemptSummary({
+  session,
+  round,
+}: {
+  session: Improvement;
+  round: ImprovementIteration;
+}) {
+  const t = useTranslations("improvement");
+  const locale = useLocale();
+  const detail = round.verdict_detail;
+  const fixed = detail?.fixed;
+  const broken = detail?.broken;
+  const heldOut = detail?.held_out;
+  const verdict =
+    round.verdict === "regression" && Number(fixed ?? 0) === 0 ? "worse" : round.verdict;
+  return (
+    <>
+      <span className="font-medium">
+        <RoundTitle session={session} round={round} />
+      </span>
+      <StateBadge
+        tone={
+          verdict === "better"
+            ? "good"
+            : verdict === "worse"
+              ? "bad"
+              : verdict === "regression"
+                ? "warn"
+                : "neutral"
+        }
+      >
+        {t(
+          `attempt.${
+            verdict ??
+            (["queued", "running"].includes(session.status)
+              ? "working"
+              : round.batch_id
+                ? "unmeasured"
+                : "none")
+          }`,
+        )}
+      </StateBadge>
+      {fixed != null && broken != null && (
+        <span>
+          {t("attempt.delta", {
+            fixed: Number(fixed),
+            broken: Number(broken),
+            heldOut: heldOut == null ? "unknown" : Number(heldOut),
+          })}
+        </span>
+      )}
+      {round.id === session.best_iteration_id &&
+        (round.verdict === "better" ? (
+          <StateBadge tone="good">{t("attempt.best")}</StateBadge>
+        ) : (
+          <StateBadge tone="neutral">{t("attempt.chosen")}</StateBadge>
+        ))}
+      <span className="text-muted-foreground ml-auto">{usd(round.cost_usd, locale)}</span>
+    </>
   );
 }
 

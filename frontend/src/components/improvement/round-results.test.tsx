@@ -19,7 +19,6 @@ const state = vi.hoisted(() => ({
   compare: vi.fn(),
   estimateAttribution: { mutateAsync: vi.fn(), isPending: false },
   attribute: { mutateAsync: vi.fn(), isPending: false },
-  selectRound: { mutateAsync: vi.fn(), isPending: false },
 }));
 vi.mock("@/hooks/use-improvements", () => ({ useImprovement: () => state }));
 vi.mock("@/hooks/use-eval-runs", () => ({
@@ -57,11 +56,7 @@ beforeEach(() => {
   state.childCompared = comparison();
   state.estimateAttribution.mutateAsync.mockResolvedValue(QUOTE);
   state.attribute.mutateAsync.mockResolvedValue(SESSION);
-  state.selectRound.mutateAsync.mockResolvedValue(SESSION);
-  state.estimateAttribution.isPending =
-    state.attribute.isPending =
-    state.selectRound.isPending =
-      false;
+  state.estimateAttribution.isPending = state.attribute.isPending = false;
 });
 it("shows before/after totals, independent results, cost and earlier measurement links", async () => {
   state.compared = comparison({
@@ -129,13 +124,6 @@ it("names a round past the attempt limit for what it is, not as one more attempt
   );
   expect(screen.getByText("Changes held back for another attempt, not tested")).toBeInTheDocument();
   expect(screen.queryByText(/of 3$/)).toBeNull();
-});
-it("lets a stopped session review its best round and reports selection failures", async () => {
-  state.selectRound.mutateAsync.mockRejectedValue(new Error("The base changed"));
-  render(<RoundResults session={{ ...SESSION, status: "stopped" }} round={ROUND} />);
-  await userEvent.click(screen.getByRole("button", { name: "Use this attempt" }));
-  expect(state.selectRound.mutateAsync).toHaveBeenCalledWith(1);
-  expect(await screen.findByRole("alert")).toBeInTheDocument();
 });
 it("offers to test each change, with its price, once the details are opened", async () => {
   render(<RoundResults session={SESSION} round={ROUND} />);
@@ -410,13 +398,12 @@ it("waits for an attribution comparison and does not credit unchanged questions"
   expect(screen.getAllByText(/No changed questions/)).toHaveLength(2);
 });
 
-it("offers neither another attempt nor a paid check once the wizard is only read", () => {
+it("offers no paid check once the wizard is only read", () => {
   render(
     <ReadOnlyProvider value="finished">
       <RoundResults session={{ ...SESSION, status: "stopped" }} round={ROUND} />
     </ReadOnlyProvider>,
   );
-  expect(screen.queryByRole("button", { name: "Use this attempt" })).not.toBeInTheDocument();
   expect(
     screen.queryByRole("button", { name: "Estimate individual checks" }),
   ).not.toBeInTheDocument();

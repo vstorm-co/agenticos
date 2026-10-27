@@ -10972,7 +10972,6 @@
     },
     "attemptsTitle": "Versuche",
     "heldBack": "Für einen weiteren Versuch zurückgestellte Änderungen, nicht getestet",
-    "selectRound": "Diesen Versuch verwenden",
     "changeAttribution": "Wirkung der Änderung {number}",
     "causedBreak": "Durch diese Änderung verschlechtert: {question}",
     "causedFix": "Durch diese Änderung behoben: {question}",
@@ -11011,6 +11010,14 @@
       "end": "Ohne Änderungen beenden",
       "newSession": "Neue Sitzung starten",
       "newSessionHint": "Eine neue Sitzung hat mehr Material, wenn Sie Testfragen dort ergänzen, wo {agent} schlecht antwortet."
+    },
+    "keep": {
+      "title": "Welcher Versuch bleiben soll",
+      "option": "Versuch {number} behalten",
+      "keep": "Versuch {number} behalten",
+      "keepAnyway": "Versuch {number} trotzdem behalten",
+      "broke": "Versuch {number} hat {broken, plural, one {# Frage} other {# Fragen}} verschlechtert. Wird er übernommen, antwortet {agent} darauf schlechter.",
+      "notBetter": "Versuch {number} hat {agent} nicht verbessert. Wird er übernommen, ändert sich {agent} ohne gemessenen Gewinn."
     },
     "noise": {
       "headlineSpread": "Der Test kann eine bessere Version nicht von einer schlechteren unterscheiden: Die heutige Version von {agent} erreichte auf den gemeinsamen Fragen ihrer Versuche {low} und {high}.",

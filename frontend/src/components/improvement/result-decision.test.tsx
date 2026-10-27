@@ -9,6 +9,7 @@ import { ResultStep } from "./result-decision";
 const state = vi.hoisted(() => ({
   topics: [] as { id: string }[],
   discard: vi.fn(),
+  select: vi.fn(),
   judges: [{ id: "judge-1", system_key: "eval_judge" }] as { id: string; system_key: string }[],
 }));
 vi.mock("./outcome", () => ({
@@ -19,6 +20,9 @@ vi.mock("./outcome", () => ({
 }));
 vi.mock("./round-results", () => ({
   AttemptRow: ({ round }: { round: ImprovementIteration }) => <p>Row {round.number}</p>,
+  AttemptSummary: ({ round }: { round: ImprovementIteration }) => (
+    <span>Summary {round.number}</span>
+  ),
 }));
 vi.mock("@/hooks/use-agents", () => ({
   useAgentsOfKind: () => ({
@@ -32,6 +36,7 @@ vi.mock("@/hooks/use-improvements", () => ({
     estimateContinuation: { mutateAsync: vi.fn() },
     continueSession: { mutateAsync: vi.fn(), isPending: false },
     discard: { mutateAsync: state.discard, isPending: false },
+    selectRound: { mutateAsync: state.select, isPending: false },
   }),
 }));
 
@@ -365,4 +370,18 @@ it("names the attempt limit only once it is really reached", () => {
   expect(headline).toHaveTextContent("That used all 3 attempts this session allows.");
   expect(headline).not.toHaveTextContent(/probably won't help/);
   expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+});
+
+it("puts the choice of attempt in the decision card, not inside an attempt's details", async () => {
+  show(EXHAUSTED);
+  const choice = screen.getByRole("group", { name: "Which attempt to keep" });
+  expect(choice).toHaveTextContent("Summary 1Summary 2Summary 3");
+  await userEvent.click(screen.getByRole("radio", { name: "Keep attempt 3" }));
+  await userEvent.click(screen.getByRole("button", { name: "Keep attempt 3 anyway" }));
+  expect(state.select).toHaveBeenCalledWith(3);
+});
+
+it("leaves the choice out when one attempt was measured", () => {
+  show({ ...EXHAUSTED, iterations: [EXHAUSTED.iterations[0]!] });
+  expect(screen.queryByRole("group", { name: "Which attempt to keep" })).not.toBeInTheDocument();
 });

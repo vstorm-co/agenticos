@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
 import type { Improvement } from "@/types/improvement";
+import { AttemptChoice } from "./attempt-choice";
 import { ContinueSession, continuation } from "./continue-session";
 import { NoiseActions, TooFewShared, UnstableQuestions, noiseSentence } from "./measurement-noise";
 import { draftCheckShown } from "./knowledge-drafts";
@@ -209,6 +210,7 @@ function ResultDecision({
           {noiseSentence(t, locale, noise, agent, { note: true })}
         </p>
       )}
+      <AttemptChoice session={session} agent={agent} />
       {!readOnly && (
         <div className="space-y-3">
           <h3 className="text-sm font-medium">{t("resultDecision.options")}</h3>
