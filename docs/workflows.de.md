@@ -1,5 +1,5 @@
 ---
-source_sha: "65fca108838e"
+source_sha: "735b6c801d0d"
 ---
 
 # Workflows { #workflows }
@@ -229,7 +229,9 @@ ausgewählten Schritts, um seine Größe zu ändern. Eine Karte ist 200 bis 560 
 bis zu 400 px hoch und nie niedriger, als ihr Inhalt braucht. Mehr Breite nimmt mehr vom
 Namen und von der Zusammenfassung auf; mehr Höhe lässt den Namen auf bis zu drei Zeilen
 umbrechen und danach die Zusammenfassung auf zwei, und die Ports bleiben am unteren Rand
-der Karte. Die Größe wird mit dem Entwurf gespeichert, daher bleibt sie bei Rückgängig,
+der Karte.
+
+Die Größe wird mit dem Entwurf gespeichert, daher bleibt sie bei Rückgängig,
 Kopieren, Einfügen, Duplizieren, veröffentlichten Versionen und Export erhalten.
 **Größe zurücksetzen** (Reset size) im Kontextmenü des Schritts stellt die Standardgröße wieder her,
 und **Aufräumen** (Tidy up) ordnet die Schritte um ihre Größen herum an. Eine veröffentlichte

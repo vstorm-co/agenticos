@@ -1,5 +1,5 @@
 ---
-source_sha: "65fca108838e"
+source_sha: "735b6c801d0d"
 ---
 
 # Workflows { #workflows }
@@ -216,6 +216,7 @@ seleccionado para cambiar su tamaño. Una tarjeta mide de 200 a 560 px de ancho 
 400 px de alto, y nunca es más baja de lo que necesita su contenido. Más ancho da cabida a
 más del nombre y del resumen; más alto deja que el nombre se divida hasta en tres líneas
 y después el resumen en dos, y los puertos se quedan en la parte inferior de la tarjeta.
+
 El tamaño se guarda con el borrador, así que deshacer, copiar, pegar, duplicar, las
 versiones publicadas y la exportación lo conservan. **Reset size** en el menú
 contextual del paso lo devuelve al tamaño predeterminado, y **Tidy up** coloca los pasos

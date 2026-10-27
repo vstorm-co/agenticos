@@ -1,5 +1,5 @@
 ---
-source_sha: "65fca108838e"
+source_sha: "735b6c801d0d"
 ---
 
 # Workflows { #workflows }
@@ -205,7 +205,9 @@ Przeciągnij prawą krawędź, dolną krawędź lub prawy dolny róg zaznaczoneg
 zmienić jego rozmiar. Karta ma od 200 do 560 px szerokości i do 400 px wysokości, i nigdy
 nie jest niższa, niż wymaga jej zawartość. Większa szerokość mieści więcej nazwy i
 podsumowania; większa wysokość pozwala zawinąć nazwę do trzech wierszy, a potem
-podsumowanie do dwóch, a porty zostają na dole karty. Rozmiar jest zapisywany razem z
+podsumowanie do dwóch, a porty zostają na dole karty.
+
+Rozmiar jest zapisywany razem z
 wersją roboczą, więc cofanie, kopiowanie, wklejanie, duplikowanie, opublikowane wersje i
 eksport go zachowują. **Przywróć rozmiar** (Reset size) w menu kontekstowym kroku przywraca domyślny
 rozmiar, a **Uporządkuj** (Tidy up) rozmieszcza kroki wokół ich rozmiarów. Opublikowana wersja, run
