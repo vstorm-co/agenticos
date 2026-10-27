@@ -867,7 +867,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
                 "state": _topic_state(topic, deferred),
             }
             for topic in topics["items"]
-            if topic["id"] in topic_ids and topic.get("status", "open") == "open"
+            if topic["id"] in topic_ids
         ]
         return result
 
