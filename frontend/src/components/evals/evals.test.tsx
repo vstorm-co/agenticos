@@ -22,7 +22,7 @@ import { EvalStatusBadge } from "./eval-status-badge";
 import { EvalsPanel } from "./evals-panel";
 import { VerdictChip } from "./run-row";
 import { sideName } from "./names";
-import { PassRateChart, passRateLines } from "./pass-rate-chart";
+import { PassRateChart, passRateLines, trendRange } from "./pass-rate-chart";
 import { percent, seconds, usd } from "./format";
 
 const evalRuns = vi.hoisted(() => ({
@@ -30,16 +30,8 @@ const evalRuns = vi.hoisted(() => ({
   asked: [] as unknown[],
 }));
 vi.mock("@/components/charts/pass-rate-lines.impl", () => ({
-  PassRateLinesImpl: ({
-    lines,
-    recent,
-    rangeLabel,
-  }: {
-    lines: PassRateLine[];
-    recent: number | null;
-    rangeLabel: string;
-  }) => (
-    <p>{`${rangeLabel}, last ${recent}: ${lines.map((l) => `${l.key}×${l.points.length}`).join(" ")}`}</p>
+  PassRateLinesImpl: ({ lines }: { lines: PassRateLine[] }) => (
+    <p>{`drawn: ${lines.map((l) => `${l.key}×${l.points.length}`).join(" ")}`}</p>
   ),
 }));
 const oneRun = vi.hoisted(() => ({ run: undefined as unknown }));
@@ -205,9 +197,10 @@ describe("passRateLines", () => {
       [0, true, "var(--color-success)"],
       [2, false, "var(--color-destructive)"],
     ]);
+    // The axis names when a run started; what ran is the tooltip's.
     expect(refunds?.points.map((p) => p.tick)).toEqual([
-      "trend.tick:draft|Oct 14",
-      expect.stringMatching(/^trend\.tick:version:7\|\d{2}:\d{2}/),
+      "Oct 14",
+      expect.stringMatching(/^\d{2}:\d{2}/),
     ]);
     // A first result has no verdict, so nothing to colour it with.
     expect(shipping?.points.map((p) => [p.index, p.color])).toEqual([
@@ -246,29 +239,64 @@ describe("PassRateChart", () => {
     })),
   });
 
-  it("past twelve runs, starts on the newest over a range to drag, and keys its lines and colours", async () => {
+  const drawn = () => screen.findByText(/^drawn:/);
+
+  beforeEach(() => {
+    window.history.replaceState({}, "", "/agents/agent-1?tab=evals");
+  });
+
+  it("past ten runs, shows the newest ten with a switch to every run, and keys its lines and colours", async () => {
     render(
       <PassRateChart
         lines={[line("a", "refunds", 10), { ...line("b", "shipping", 4, 10), dash: "6 4" }]}
       />,
     );
 
-    expect(await screen.findByText("Runs shown, last 12: a×10 b×4")).toBeInTheDocument();
+    expect(await drawn()).toHaveTextContent("drawn: a×6 b×4");
+    const range = screen.getByRole("radiogroup", { name: "Runs shown" });
+    expect(within(range).getByRole("radio", { name: "Last 10" })).toBeChecked();
+    expect(within(range).queryByRole("radio", { name: "Last 30" })).toBeNull();
     expect(screen.getByRole("group", { name: "Pass rate by run" })).toBeInTheDocument();
     expect(screen.getByText("refunds")).toBeInTheDocument();
     const shipping = screen.getByText("shipping").closest("li")!;
     expect(shipping.querySelector("line")).toHaveAttribute("stroke-dasharray", "6 4");
     expect(screen.getByText("Breaks cases")).toBeInTheDocument();
     expect(screen.getByText("Draft")).toBeInTheDocument();
-    expect(screen.getByText(/Drag the handles under the chart/)).toBeInTheDocument();
+    expect(screen.queryByText(/Drag the handles/)).toBeNull();
+
+    const length = window.history.length;
+    await userEvent.click(within(range).getByRole("radio", { name: "All" }));
+    expect(await drawn()).toHaveTextContent("drawn: a×10 b×4");
+    // The range is the address's, written in place: Back leaves the page, not the range.
+    expect(new URL(window.location.href).searchParams.get("runs")).toBe("all");
+    expect(window.history.length).toBe(length);
+
+    await userEvent.click(screen.getByRole("radio", { name: "Last 10" }));
+    expect(new URL(window.location.href).searchParams.get("runs")).toBeNull();
   });
 
-  it("shows every run with no range to drag while they all fit, and names no single line", async () => {
-    render(<PassRateChart lines={[line("a", "refunds", 12)]} />);
-    expect(await screen.findByText("Runs shown, last null: a×12")).toBeInTheDocument();
-    expect(screen.queryByText(/Drag the handles/)).toBeNull();
+  it("offers thirty past thirty runs, under the key its page gives it", async () => {
+    render(<PassRateChart rangeKey="runs-agent1" lines={[line("a", "refunds", 40)]} />);
+    expect(await drawn()).toHaveTextContent("drawn: a×10");
+
+    await userEvent.click(screen.getByRole("radio", { name: "Last 30" }));
+    expect(await drawn()).toHaveTextContent("drawn: a×30");
+    expect(new URL(window.location.href).searchParams.get("runs-agent1")).toBe("30");
+  });
+
+  it("shows every run with no switch while ten or fewer fit, and names no single line", async () => {
+    render(<PassRateChart lines={[line("a", "refunds", 10)]} />);
+    expect(await drawn()).toHaveTextContent("drawn: a×10");
+    expect(screen.queryByRole("radiogroup")).toBeNull();
     expect(screen.getByText(/^Each point is a run/)).toBeInTheDocument();
     expect(screen.queryByText("refunds")).toBeNull();
+  });
+
+  it("reads a range from the address, and the newest ten from anything else", () => {
+    expect(trendRange("30")).toBe(30);
+    expect(trendRange("all")).toBe("all");
+    expect(trendRange(null)).toBe(10);
+    expect(trendRange("12")).toBe(10);
   });
 });
 

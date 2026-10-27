@@ -9118,10 +9118,10 @@
     "trend": {
       "label": "Odsetek zaliczeń według runów",
       "single": "Na razie jeden run. Uruchom kolejny, żeby zobaczyć trend.",
-      "legend": "Każdy punkt to run, najstarszy po lewej; najedź na punkt, żeby zobaczyć, co uruchomiono, z czym porównano i kiedy, a kliknij, żeby otworzyć run. Przeciągnij uchwyty pod wykresem, żeby pokazać więcej lub mniej runów.",
-      "legendAll": "Każdy punkt to run, najstarszy po lewej; najedź na punkt, żeby zobaczyć, co uruchomiono, z czym porównano i kiedy, a kliknij, żeby otworzyć run.",
+      "legend": "Każdy punkt to run, najstarszy po lewej; najedź na punkt, żeby zobaczyć, co uruchomiono, z czym porównano i kiedy, a kliknij, żeby otworzyć run.",
       "range": "Pokazane runy",
-      "tick": "{side} · {when}",
+      "last": "Ostatnie {count}",
+      "all": "Wszystkie",
       "comparedWith": "porównany z {name}",
       "rate": "Odsetek zaliczeń {rate}",
       "verdict": "{verdict, select, better {Naprawia przypadki} worse {Psuje przypadki} mixed {Część przypadków psuje, część naprawia} no_difference {Brak powtarzalnej zmiany} invalid {Nieporównywalne} other {Pierwszy wynik}}",

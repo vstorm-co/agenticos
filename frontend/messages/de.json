@@ -9829,10 +9829,10 @@
     "trend": {
       "label": "Bestehensquote je Run",
       "single": "Bisher ein Run. Starte einen weiteren, um einen Trend zu sehen.",
-      "legend": "Jeder Punkt ist ein Run, der älteste links; zeige auf einen, um zu sehen, was lief, wogegen und wann, und klicke, um den Run zu öffnen. Ziehe die Griffe unter dem Diagramm, um mehr oder weniger Runs zu zeigen.",
-      "legendAll": "Jeder Punkt ist ein Run, der älteste links; zeige auf einen, um zu sehen, was lief, wogegen und wann, und klicke, um den Run zu öffnen.",
+      "legend": "Jeder Punkt ist ein Run, der älteste links; zeige auf einen, um zu sehen, was lief, wogegen und wann, und klicke, um den Run zu öffnen.",
       "range": "Gezeigte Runs",
-      "tick": "{side} · {when}",
+      "last": "Letzte {count}",
+      "all": "Alle",
       "comparedWith": "verglichen mit {name}",
       "rate": "Bestehensquote {rate}",
       "verdict": "{verdict, select, better {Behebt Fälle} worse {Verschlechtert Fälle} mixed {Verschlechtert einige Fälle, behebt andere} no_difference {Keine reproduzierbare Änderung} invalid {Nicht vergleichbar} other {Erstes Ergebnis}}",

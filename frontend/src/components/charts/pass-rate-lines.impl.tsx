@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation";
 import {
-  Brush,
   CartesianGrid,
   Line,
   LineChart,
@@ -19,7 +18,7 @@ export interface PassRatePoint {
   index: number;
   /** 0..1. */
   rate: number;
-  /** What ran and when, as short as the axis has room for: "v7 · 07:55", "Draft · Oct 21". */
+  /** When it ran, as short as the axis has room for: "07:55" today, "Oct 21" before. */
   tick: string;
   /** A draft is drawn hollow: it is not a version anyone is talking to. */
   draft: boolean;
@@ -42,7 +41,7 @@ export interface PassRateLine {
 }
 
 /** One run across every line: its rate under its own line's key, and the point that drew it. */
-interface Row {
+export interface Row {
   index: number;
   tick: string;
   point: PassRatePoint;
@@ -65,6 +64,23 @@ function rows(lines: PassRateLine[]): Row[] {
     .sort((a, b) => a.index - b.index);
 }
 
+/**
+ * The runs the axis names: the first of each label, so a day of runs reads as
+ * one date rather than the same date under every point.
+ */
+export function axisTicks(data: Row[]): { ticks: number[]; label: Map<number, string> } {
+  const ticks: number[] = [];
+  const label = new Map<number, string>();
+  let previous: string | null = null;
+  for (const row of data) {
+    if (row.tick === previous) continue;
+    previous = row.tick;
+    ticks.push(row.index);
+    label.set(row.index, row.tick);
+  }
+  return { ticks, label };
+}
+
 function PointTip({ active, payload }: { active?: boolean; payload?: { payload: Row }[] }) {
   const point = payload?.[0]?.payload.point;
   if (!active || point === undefined) return null;
@@ -82,22 +98,14 @@ function PointTip({ active, payload }: { active?: boolean; payload?: { payload: 
 
 /**
  * Pass rate by run, one line per series, each point in its verdict's colour
- * and opening its run. Given `recent`, over a range a person drags to widen or
- * narrow - the newest `recent` runs to begin with; without it, every run. Split
- * out so pages don't statically import recharts; colours are CSS variables
- * because recharts renders raw SVG, which Tailwind cannot reach.
+ * and opening its run, under the dates the runs started. Split out so pages
+ * don't statically import recharts; colours are CSS variables because recharts
+ * renders raw SVG, which Tailwind cannot reach.
  */
-export function PassRateLinesImpl({
-  lines,
-  recent,
-  rangeLabel,
-}: {
-  lines: PassRateLine[];
-  recent: number | null;
-  rangeLabel: string;
-}) {
+export function PassRateLinesImpl({ lines }: { lines: PassRateLine[] }) {
   const router = useRouter();
   const data = rows(lines);
+  const axis = axisTicks(data);
   const dot = (
     props: { cx?: number; cy?: number; payload?: Row },
     line: PassRateLine,
@@ -126,10 +134,14 @@ export function PassRateLinesImpl({
       <LineChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
         <CartesianGrid stroke="oklch(from var(--color-foreground) l c h / 0.07)" vertical={false} />
         <XAxis
-          dataKey="tick"
+          dataKey="index"
+          type="number"
+          domain={["dataMin", "dataMax"]}
+          ticks={axis.ticks}
+          tickFormatter={(index: number) => axis.label.get(index) ?? ""}
           padding={{ left: 12, right: 12 }}
           interval="preserveStartEnd"
-          minTickGap={8}
+          minTickGap={16}
           fontSize={11}
           tickLine={false}
           axisLine={false}
@@ -163,37 +175,6 @@ export function PassRateLinesImpl({
             activeDot={(props: { cx?: number; cy?: number; payload?: Row }) => dot(props, line, 7)}
           />
         ))}
-        {recent !== null && (
-          <Brush
-            dataKey="tick"
-            height={28}
-            travellerWidth={10}
-            // Recharts draws these labels outside the handles, where the chart's
-            // edge cuts them off; the axis above already names the runs in range.
-            tickFormatter={() => ""}
-            startIndex={Math.max(0, data.length - recent)}
-            endIndex={data.length - 1}
-            stroke="oklch(from var(--color-foreground) l c h / 0.3)"
-            fill="var(--color-card)"
-            ariaLabel={rangeLabel}
-          >
-            {/* Every run in miniature, so the range reads against the whole. */}
-            <LineChart data={data}>
-              {lines.map((line) => (
-                <Line
-                  key={line.key}
-                  dataKey={line.key}
-                  stroke={line.color}
-                  strokeWidth={1}
-                  strokeDasharray={line.dash}
-                  dot={false}
-                  connectNulls
-                  isAnimationActive={false}
-                />
-              ))}
-            </LineChart>
-          </Brush>
-        )}
       </LineChart>
     </ResponsiveContainer>
   );

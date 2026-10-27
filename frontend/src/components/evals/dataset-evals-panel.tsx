@@ -176,6 +176,7 @@ function Groups({
             <div className="mt-3 space-y-3">
               <PassRateChart
                 compact
+                rangeKey={`runs-${group.id.slice(0, 8)}`}
                 lines={passRateLines(group.runs, () => ({ key: group.id, name }), t, locale)}
               />
               <ul className="divide-border divide-y">
