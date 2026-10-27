@@ -319,6 +319,11 @@ class HunkRead(BaseSchema):
     status: str
     old_text: str
     new_text: str
+    edited_text: str | None = Field(
+        default=None,
+        description="A person's edit of an improvement session's proposed text before its "
+        "check; the check measures it and Accept writes it",
+    )
     accepted_text: str | None
     context_before: str
     context_after: str

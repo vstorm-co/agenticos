@@ -375,6 +375,13 @@ class ImprovementSelection(BaseSchema):
         return self
 
 
+class ChangeEdit(BaseSchema):
+    """A person's edit of one proposed change's text while the session waits at Changes;
+    null puts back the text that was proposed."""
+
+    edited_text: str | None = Field(max_length=20000)
+
+
 class SelectionEstimate(BaseSchema):
     suggestions: int
     total_usd: Decimal

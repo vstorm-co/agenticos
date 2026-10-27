@@ -96,6 +96,7 @@ from app.schemas.eval_threshold import EvalSuiteCheck
 from app.schemas.improvement import (
     AttributionConsent,
     AttributionEstimate,
+    ChangeEdit,
     CheckAnswers,
     ContinuationConsent,
     ContinuationEstimate,
@@ -819,7 +820,11 @@ class ImprovementPipelineService:
         rounds = await improvement_repo.list_iterations(
             self.db, organization_id=ctx.organization_id, run_id=run.id
         )
-        chosen = next((item for item in rounds if item.id == run.best_iteration_id), None)
+        if run.status == Status.WAITING and run.stage == Stage.FILTERING:
+            # Waiting at Changes, the attempt's own changes are the ones to choose and edit.
+            chosen = next((item for item in rounds if item.number == run.iteration), None)
+        else:
+            chosen = next((item for item in rounds if item.id == run.best_iteration_id), None)
         if chosen is None or chosen.batch_id is None:
             return []
         return await self.authoring.changes_of(
@@ -1516,6 +1521,47 @@ class ImprovementPipelineService:
         await self._audit(run, "changes_chosen", actor_user_id=ctx.subject_id)
         self._announce(run)
         return await self._read(ctx, run)
+
+    async def edit_change(
+        self, ctx: AuthContext, agent_id: UUID, run_id: UUID, hunk_id: UUID, data: ChangeEdit
+    ) -> HunkRead:
+        """Reword one of the attempt's proposed instructions while the session waits at
+        Changes. The check measures the edit, and Accept writes it."""
+        await self._require_may_continue(ctx, agent_id)
+        run = await self._row(ctx, agent_id, run_id, lock=True)
+        if run.status != Status.WAITING or run.stage != Stage.FILTERING:
+            raise BadRequestError(
+                message="Changes are edited only while the session waits for its check"
+            )
+        inputs = await self._current_inputs(ctx, run)
+        iteration = await improvement_repo.get_iteration(
+            self.db, organization_id=ctx.organization_id, run_id=run.id, number=run.iteration
+        )
+        assert iteration is not None and iteration.batch_id is not None
+        hunk = await authoring_repo.get_hunk(self.db, hunk_id, organization_id=ctx.organization_id)
+        if (
+            hunk is None
+            or hunk.batch_id != iteration.batch_id
+            or hunk.status != HunkStatus.PENDING.value
+        ):
+            raise NotFoundError(message="Change not found", details={"hunk_id": hunk_id})
+        if hunk.kind != HunkKind.INSTRUCTIONS.value:
+            raise refused_field("edited_text", "Only a change to the instructions has text to edit")
+        hunk.edited_text = None if data.edited_text == hunk.new_text else data.edited_text
+        await self.db.flush()
+        projected, _ = await self._candidate(inputs.agent, run, iteration)
+        skills = await self.authoring.projected_skills(
+            ctx, iteration.batch_id, hunk_ids=iteration.included_hunk_ids
+        )
+        await improvement_repo.update_iteration(
+            self.db,
+            iteration=iteration,
+            values={"candidate_spec_hash": spec_hash(projected, skills)},
+        )
+        await self._audit(run, "change_edited", actor_user_id=ctx.subject_id)
+        self._announce(run)
+        [read] = await self.authoring.changes_of(ctx, inputs.agent, iteration.batch_id, [hunk.id])
+        return read
 
     async def discard(
         self, ctx: AuthContext, agent_id: UUID, run_id: UUID, data: ImprovementDiscard

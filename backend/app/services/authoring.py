@@ -863,6 +863,7 @@ class AuthoringService:
             status=hunk.status,
             old_text=hunk.old_text,
             new_text=hunk.new_text,
+            edited_text=hunk.edited_text,
             accepted_text=hunk.accepted_text,
             context_before=hunk.context_before,
             context_after=hunk.context_after,
@@ -1154,7 +1155,7 @@ class AuthoringService:
             if applied is None:
                 raise self._stale()
             return applied[0], {"accepted_override": applied[1]}
-        replacement = hunk.new_text if text is None else text
+        replacement = text if text is not None else hunk.edited_text or hunk.new_text
         written = authoring_hunks.apply(spec, hunk, text=replacement)
         if written is None:
             raise self._stale()

@@ -296,7 +296,8 @@ def undo_field(spec: AgentSpec, hunk: SpecProposalHunk) -> AgentSpec | None:
 def apply(spec: AgentSpec, hunk: SpecProposalHunk, *, text: str | None = None) -> AgentSpec | None:
     """`spec` with one pending hunk applied, or `None` when it is stale.
 
-    `text` replaces an instructions hunk's proposed text - the person's edit of it.
+    `text` replaces an instructions hunk's proposed text - the person's edit of it
+    on accepting; without it, an edit made before the hunk was checked applies.
     """
     if hunk.kind == HunkKind.CREATE_SKILL.value:
         key = skill_projection_id(hunk)
@@ -308,7 +309,8 @@ def apply(spec: AgentSpec, hunk: SpecProposalHunk, *, text: str | None = None) -
     if hunk.kind == HunkKind.TOOL_OVERRIDE.value:
         applied = apply_tool(spec, hunk)
         return None if applied is None else applied[0]
-    instructions = apply_text(spec.instructions, hunk, hunk.new_text if text is None else text)
+    replacement = text if text is not None else hunk.edited_text or hunk.new_text
+    instructions = apply_text(spec.instructions, hunk, replacement)
     return None if instructions is None else spec.model_copy(update={"instructions": instructions})
 
 

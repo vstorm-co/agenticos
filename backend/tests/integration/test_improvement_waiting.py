@@ -6,7 +6,8 @@ following steps run as them.
 """
 
 from decimal import Decimal
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
@@ -267,3 +268,87 @@ async def test_a_waiting_session_is_cancelled_and_its_stops_are_told_to_its_pers
     assert any("has changes to choose from" in summary for summary in summaries)
     cancelled = await ImprovementPipelineService(db).cancel(ctx, agent.id, waiting.id)
     assert cancelled.status == "cancelled"
+
+
+async def test_an_edit_at_changes_is_what_the_check_measures_and_what_accept_writes(db):
+    from app.agents.spec import AgentSpec
+    from app.db.models.agent import Agent
+    from app.schemas.improvement import ChangeEdit
+    from app.services.authoring import AuthoringService
+
+    ctx, agent, waiting = await _at_changes(db)
+    service = ImprovementPipelineService(db)
+    changes = await service.changes(ctx, agent.id, waiting.id)
+    hunks = await authoring_repo.list_hunks(
+        db, organization_id=ctx.organization_id, batch_id=waiting.iterations[0].batch_id
+    )
+    assert {change.id for change in changes} == {hunk.id for hunk in hunks}
+    hunk = next(hunk for hunk in hunks if hunk.kind == "instructions")
+    reworded = f"{hunk.new_text} REWORDED_BY_A_PERSON"
+
+    edited = await service.edit_change(
+        ctx, agent.id, waiting.id, hunk.id, ChangeEdit(edited_text=reworded)
+    )
+    assert edited.edited_text == reworded
+    row = await db.get(ImprovementRun, waiting.id)
+    stored_agent = await db.get(Agent, agent.id)
+    assert row is not None and stored_agent is not None
+    [attempt] = await improvement_repo.list_iterations(
+        db, organization_id=ctx.organization_id, run_id=row.id
+    )
+    measured, _ = await service._candidate(stored_agent, row, attempt)
+    assert "REWORDED_BY_A_PERSON" in measured.instructions
+    assert attempt.candidate_spec_hash != waiting.iterations[0].candidate_spec_hash
+    accepted, written = AuthoringService(db)._accepted(
+        AgentSpec.model_validate(stored_agent.draft_spec), hunk, None
+    )
+    assert "REWORDED_BY_A_PERSON" in accepted.instructions
+    assert written == {"accepted_text": reworded}
+
+    restored = await service.edit_change(
+        ctx, agent.id, waiting.id, hunk.id, ChangeEdit(edited_text=None)
+    )
+    assert restored.edited_text is None
+    assert attempt.candidate_spec_hash == waiting.iterations[0].candidate_spec_hash
+
+
+@pytest.mark.security
+async def test_a_change_is_edited_only_at_the_stop_by_whoever_may_continue_and_only_its_text(db):
+    from app.schemas.improvement import ChangeEdit
+
+    ctx, agent, waiting = await _at_changes(db)
+    service = ImprovementPipelineService(db)
+    hunks = await authoring_repo.list_hunks(
+        db, organization_id=ctx.organization_id, batch_id=waiting.iterations[0].batch_id
+    )
+    hunk = next(hunk for hunk in hunks if hunk.kind == "instructions")
+    reword = ChangeEdit(edited_text="Reworded")
+    with pytest.raises(NotFoundError, match="Change not found"):
+        await service.edit_change(ctx, agent.id, waiting.id, uuid4(), reword)
+    viewer = await _member(db, ctx, OrgRoleName.VIEWER)
+    with pytest.raises(NotFoundError):
+        await service.edit_change(viewer, agent.id, waiting.id, hunk.id, reword)
+    field = SimpleNamespace(
+        id=hunk.id, batch_id=hunk.batch_id, status=hunk.status, kind="spec_field"
+    )
+    with (
+        patch(
+            "app.services.improvement_pipeline.authoring_repo.get_hunk",
+            AsyncMock(return_value=field),
+        ),
+        pytest.raises(BadRequestError) as refused,
+    ):
+        await service.edit_change(ctx, agent.id, waiting.id, hunk.id, reword)
+    assert refused.value.details == {
+        "fields": [
+            {
+                "field": "edited_text",
+                "message": "Only a change to the instructions has text to edit",
+            }
+        ]
+    }
+    await service.continue_run(
+        ctx, agent.id, waiting.id, await _consent(service, ctx, agent, waiting)
+    )
+    with pytest.raises(BadRequestError, match="edited only while"):
+        await service.edit_change(ctx, agent.id, waiting.id, hunk.id, reword)

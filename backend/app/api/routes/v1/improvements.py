@@ -13,6 +13,7 @@ from app.schemas.eval_run import EvalRunRead
 from app.schemas.improvement import (
     AttributionConsent,
     AttributionEstimate,
+    ChangeEdit,
     ContinuationConsent,
     ContinuationEstimate,
     ImprovementAwaiting,
@@ -118,6 +119,20 @@ async def read_improvement_evidence(
 ) -> Any:
     """Current-readable examples from the session's frozen inputs and recorded causes."""
     return await service.evidence(ctx, agent_id, run_id=run_id)
+
+
+@router.put("/{run_id}/changes/{hunk_id}", response_model=HunkRead, dependencies=[ASSISTANT])
+async def edit_improvement_change(
+    agent_id: UUID,
+    run_id: UUID,
+    hunk_id: UUID,
+    data: ChangeEdit,
+    service: ImprovementSvc,
+    ctx: Auth,
+) -> Any:
+    """Reword one of the attempt's proposed instructions while the session waits at Changes;
+    null puts back what was proposed."""
+    return await service.edit_change(ctx, agent_id, run_id, hunk_id, data)
 
 
 @router.put("/{run_id}/selection", response_model=ImprovementRead, dependencies=[ASSISTANT])
