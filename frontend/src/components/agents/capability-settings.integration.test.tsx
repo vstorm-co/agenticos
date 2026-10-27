@@ -894,4 +894,40 @@ describe("CapabilitySettings coding agent sign-in", () => {
     expect(screen.queryByRole("button", { name: "Sign in with ChatGPT" })).toBeNull();
     expect(await screen.findByRole("button", { name: /Claude Code key/ })).toBeInTheDocument();
   });
+
+  /** Adds a key through the inline form and answers with the purpose it was stored under. */
+  async function addInline(config: Record<string, unknown>, name: RegExp): Promise<unknown> {
+    serve([]);
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "sec-new", name: "Key", kind: "api_key" });
+    mount(binding({ id: "coding_agent", config }), { definition: CODER });
+
+    await userEvent.click(await screen.findByRole("button", { name }));
+    await userEvent.type(screen.getByLabelText("Key"), "sk-inline-abcdef");
+    await userEvent.click(screen.getByRole("button", { name: "Save key" }));
+
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+    const body = vi.mocked(apiClient.post).mock.calls[0]?.[1];
+    return (body as { purpose?: unknown } | undefined)?.purpose;
+  }
+
+  /**
+   * Stored as `custom`, a Codex key fitted Claude Code after a harness switch,
+   * and published there only to fail at run time (#2485).
+   */
+  it("stores a key added for Codex as an OpenAI key", async () => {
+    expect(await addInline({ harness: "codex" }, /OpenAI key for Codex/)).toBe("openai");
+  });
+
+  it("stores a key added for Claude Code as custom, since it may be a subscription token", async () => {
+    expect(await addInline({ harness: "claude_code" }, /Claude Code key/)).toBe("custom");
+  });
+
+  it("stores a key added behind a gateway as custom, since nothing names its service", async () => {
+    expect(
+      await addInline(
+        { harness: "claude_code", base_url: "https://openrouter.ai/api" },
+        /Claude Code key/,
+      ),
+    ).toBe("custom");
+  });
 });
