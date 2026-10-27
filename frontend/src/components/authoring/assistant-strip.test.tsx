@@ -12,7 +12,11 @@ import type { AgentSpec } from "@/types/agents";
 import { AssistantStrip } from "./assistant-strip";
 
 const push = vi.fn();
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push }),
+  // The suggestions keep their tab in `?suggestions=`.
+  useSearchParams: () => new URLSearchParams(),
+}));
 const toastError = vi.hoisted(() => vi.fn());
 const toastSuccess = vi.hoisted(() => vi.fn());
 vi.mock("sonner", () => ({ toast: { error: toastError, success: toastSuccess } }));

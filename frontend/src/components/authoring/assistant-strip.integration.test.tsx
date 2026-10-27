@@ -15,7 +15,11 @@ const held = vi.hoisted(() => ({ permissions: new Set<string>() }));
 vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({ can: (permission: Permission) => held.permissions.has(permission) }),
 }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  // The suggestions keep their tab in `?suggestions=`.
+  useSearchParams: () => new URLSearchParams(),
+}));
 vi.mock("@/hooks", () => ({ useDraftBase: () => ({ base: { spec: { name: "Old" } } }) }));
 vi.mock("@/hooks/use-organizations", () => ({
   useAiAssistance: () => ({ orgId: "org-1", enabled: true }),
