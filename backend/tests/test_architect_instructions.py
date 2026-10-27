@@ -109,3 +109,17 @@ def test_every_stop_is_answered_with_the_finding_the_price_and_a_question(
     assert "`waiting_for` and its `price`" in rule
     assert '`ask_user_question`: "Next step" first, then "Show the changes"' in rule
     assert '"End"' in rule
+
+
+def test_how_improving_stands_is_told_from_the_newest_session_and_the_live_version(
+    instructions: str,
+) -> None:
+    """It once filed the newest, outdated session under history and called an older
+    session's v7 the live version, after a v8 was published by hand."""
+    rule = _bullet(instructions, "How improving stands is the newest session")
+    assert "always `get_improvement` on the item marked `newest`" in rule
+    assert "a stale or rejected one included" in rule
+    assert "mention them only when asked" in rule
+    assert "`current_published_version`" in rule
+    assert "never call it live" in rule
+    assert "`why_stale`" in _bullet(instructions, "A closed session is a record")

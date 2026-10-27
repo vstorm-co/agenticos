@@ -157,6 +157,23 @@ def _outcome(session: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
+def _why_stale(
+    session: dict[str, Any], *, started_from: int | None, live: int | None
+) -> str | None:
+    """Why an outdated session can no longer be used, in plain words."""
+    if session["status"] != "stale":
+        return None
+    if session.get("stop_reason") == "expired":
+        return "It waited too long for a person and expired."
+    if session.get("stop_reason") == "superseded":
+        return "A newer attempt or a person's own change replaced it."
+    if started_from is not None and live is not None and started_from != live:
+        return f"The agent's published version changed from v{started_from} to v{live}."
+    return session.get("error") or (
+        "The agent, its test questions or how they are scored changed after it started."
+    )
+
+
 _NEXT_STEPS = {
     "propose": {"after": "Understand", "next_step": "propose changes"},
     "check": {"after": "Changes", "next_step": "test the changes"},
@@ -860,17 +877,56 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             json={"name": name, "description": description, "content": content},
         )
 
+    async def _versions(agent_id: UUID | str) -> tuple[int | None, dict[str, int]]:
+        """The agent's live version number, and each recent version's number by its id."""
+        agent = await api.request("GET", f"/agents/{agent_id}")
+        page = await api.request("GET", f"/agents/{agent_id}/versions", params={"limit": 100})
+        numbers = {version["id"]: version["version"] for version in page["items"]}
+        live = agent.get("current_version_id")
+        if live is None:
+            return None, numbers
+        if live not in numbers:
+            numbers[live] = (await api.request("GET", f"/agents/{agent_id}/versions/{live}"))[
+                "version"
+            ]
+        return numbers[live], numbers
+
+    def _history(
+        session: dict[str, Any], live: int | None, numbers: dict[str, int]
+    ) -> dict[str, Any]:
+        started_from = numbers.get(session.get("base_version_id") or "")
+        return {
+            "started_from_version": started_from,
+            "why_stale": _why_stale(session, started_from=started_from, live=live),
+        }
+
     async def list_improvements(agent_id: UUID) -> dict[str, Any]:
         """An agent's Improve sessions, newest first. Needs access to the agent.
 
+        `current_published_version` is the version live now; a session's
+        `outcome.published_version` is only what it published then. The first
+        item is `newest` - the one to describe when asked how improving stands.
         Each has its status, the step it is on, the attempt it reached, why it
-        stopped and what it spent, and `link` - the Improve wizard, where the
-        person follows it. A `closed` session is a record: its `outcome` says what
-        was decided - the attempt, the version it published, by whom - and nothing
-        on it can be accepted again. Read one with get_improvement.
+        stopped and what it spent, the version it `started_from_version`, and
+        `link` - the Improve wizard, where the person follows it. A `closed`
+        session is a record: its `outcome` says what was decided - the attempt,
+        the version it published, by whom - and nothing on it can be accepted
+        again; a stale one says `why_stale`. Read one with get_improvement.
         """
         sessions = await api.request("GET", f"/agents/{agent_id}/improvements")
-        return {"items": [_session(agent_id, session) for session in sessions]}
+        live, numbers = await _versions(agent_id)
+        ordered = sorted(sessions, key=lambda session: session["created_at"], reverse=True)
+        return {
+            "current_published_version": live,
+            "items": [
+                {
+                    **_session(agent_id, session),
+                    **_history(session, live, numbers),
+                    "newest": index == 0,
+                }
+                for index, session in enumerate(ordered)
+            ],
+        }
 
     async def _next_step_price(agent_id: str, session: dict[str, Any]) -> dict[str, Any]:
         """The next step's quote within the session's limit, or why it cannot be quoted."""
@@ -890,6 +946,9 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
     async def get_improvement(session_id: UUID) -> dict[str, Any]:
         """One Improve session by its id: its attempts and verdicts, and what is missing from knowledge.
 
+        `current_published_version` is the agent's live version; call the
+        session's published version live only when the two are equal, and a
+        stale session says `why_stale`.
         Needs access to its agent, whose `agent_id` the answer carries; the
         knowledge topics and `measurement_noise` also need `runs:view`. When
         `measurement_noise.noisy` is true, the test cannot tell a better version
@@ -916,9 +975,12 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         session = await api.request("GET", f"/improvements/{session_id}")
         agent_id = session["agent_id"]
         chosen = session.get("best_iteration_id")
+        live, numbers = await _versions(agent_id)
         result: dict[str, Any] = {
             "agent_id": agent_id,
+            "current_published_version": live,
             **_session(agent_id, session),
+            **_history(session, live, numbers),
             "attempts": [_attempt(iteration, chosen) for iteration in session["iterations"]],
             "chosen_by": _chosen_by(session),
             "can_discard": session.get("can_discard"),
