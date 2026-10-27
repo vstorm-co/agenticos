@@ -295,3 +295,13 @@ def test_browser_only_target_is_independent_of_folder_grants():
 
     target = LocalTarget(browser=True)
     assert target.folder is None and target.model_service is None and not target.mcp_services
+
+
+def test_browser_only_selection_never_creates_a_filesystem_workspace() -> None:
+    from pydantic_ai.workspaces import WorkspaceUnavailableError
+
+    from app.schemas.local_target import LocalTarget
+    from app.services.device_hub.workspace import DeviceWorkspace
+
+    with pytest.raises(WorkspaceUnavailableError, match="approved folder"):
+        DeviceWorkspace(uuid4(), uuid4(), LocalTarget(browser=True))
