@@ -26,6 +26,7 @@ from app.schemas.improvement import (
     ImprovementContinue,
     ImprovementRead,
     ImprovementSelection,
+    ImprovementTarget,
 )
 from app.services.authoring_worker import AuthoringWorker
 from app.services.improvement_pipeline import ImprovementPipelineService
@@ -84,6 +85,11 @@ async def test_a_session_waits_after_understand_and_proposes_only_when_asked(db)
     assert (waiting.status, waiting.stage, waiting.next_step) == ("waiting", "analyzing", "propose")
     assert waiting.finished_at is None
     service = ImprovementPipelineService(db)
+    # The start shows the split the analysis then records, from one calculation.
+    started_with = await service.estimate(
+        ctx, agent.id, ImprovementTarget(dataset_id=waiting.dataset_id, max_iterations=1)
+    )
+    assert started_with.held_out == waiting.iterations[0].held_out is not None
     await service.advance(waiting.id, ctx.organization_id)
     assert await service.sweep() == 0
     assert await _requests(db, waiting) == 0

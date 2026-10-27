@@ -441,6 +441,7 @@ async def test_an_attempt_is_priced_without_the_questions_its_check_leaves_out(d
     estimate = await service.estimate(ctx, agent.id, target)
 
     assert (every.cases, estimate.cases) == (5, 4)
+    assert (every.held_out, estimate.held_out) == (5, 4)
     assert estimate.eval_usd < every.eval_usd
 
 

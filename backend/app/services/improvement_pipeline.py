@@ -8,7 +8,7 @@ transition without repeating a model call. Only an explicit human finish accepts
 import hashlib
 import json
 import secrets
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -89,6 +89,7 @@ from app.schemas.eval_run import (
     EvalComparisonRead,
     EvalRunRead,
     EvalRunRequest,
+    ImprovementMeasurement,
     KnowledgeCheckRecord,
     ProposalCheckRecord,
 )
@@ -467,6 +468,33 @@ class ImprovementPipelineService:
                 transition = rules.Transition(Status.WAITING, Stage.CLASSIFYING)
             await self._move(run, transition)
 
+    async def _first_measurement(
+        self,
+        ctx: AuthContext,
+        inputs: Inputs,
+        request: EvalRunRequest,
+        pack: EvidencePack,
+        *,
+        chat_run_ids: Sequence[UUID] = (),
+    ) -> ImprovementMeasurement:
+        """How the first attempt's questions split into learning and measured ones, after
+        leaving out the copies of its evidence: the analysis records it, and the start
+        shows it before the session exists."""
+        plan = await self.evals.plan(
+            ctx,
+            inputs.agent.id,
+            request,
+            scoring=inputs.scoring,
+            candidate_spec=AgentSpec.model_validate(inputs.agent.draft_spec),
+            exclude_conversations=pack.conversation_ids,
+        )
+        return await self.evals.improvement_measurement(
+            ctx,
+            plan,
+            evidence_run_ids=list({*chat_run_ids, *(item.run_id for item in pack.runs)}),
+            evidence_conversations=pack.conversation_ids,
+        )
+
     async def _estimate(
         self,
         ctx: AuthContext,
@@ -497,6 +525,7 @@ class ImprovementPipelineService:
             judge_version_id=inputs.judge_version_id,
             judge_pinned=True,
         )
+        measured = await self._first_measurement(ctx, inputs, inputs.request, pack)
         full_eval = check.total_usd + check.rerun_ceiling_usd
         # Each round may need one repeat of an inconclusive comparison.
         per_round = proposal.estimate_usd + full_eval * (1 + rules.INCONCLUSIVE_RERUNS)
@@ -519,6 +548,7 @@ class ImprovementPipelineService:
             eval_usd=full_eval,
             per_round_usd=per_round,
             total_usd=total,
+            held_out=measured.gradable_holdout,
             max_iterations=target.max_iterations,
             cases=check.cases,
             evidence_runs=proposal.runs,
@@ -2239,21 +2269,12 @@ class ImprovementPipelineService:
             await self._move(run, rules.Transition(Status.RUNNING, Stage.ANALYZING))
         elif run.stage == Stage.ANALYZING:
             pack = await self.authoring.evidence.for_improvement(ctx, run.id)
-            plan = await self.evals.plan(
+            measured = await self._first_measurement(
                 ctx,
-                run.agent_id,
+                inputs,
                 self._eval_request(inputs, run),
-                scoring=inputs.scoring,
-                candidate_spec=AgentSpec.model_validate(inputs.agent.draft_spec),
-                exclude_conversations=pack.conversation_ids,
-            )
-            measured = await self.evals.improvement_measurement(
-                ctx,
-                plan,
-                evidence_run_ids=list(
-                    {*(run.chat_evidence_run_ids or []), *(item.run_id for item in pack.runs)}
-                ),
-                evidence_conversations=pack.conversation_ids,
+                pack,
+                chat_run_ids=run.chat_evidence_run_ids or [],
             )
             await improvement_repo.update_iteration(
                 self.db,

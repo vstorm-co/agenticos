@@ -52,6 +52,11 @@ class ImprovementEstimate(BaseSchema):
     )
     max_iterations: int
     cases: int
+    held_out: int | None = Field(
+        default=None,
+        description="How many questions the first attempt is measured on - kept aside, and "
+        "no copy of its evidence - counted as its analysis will count them",
+    )
     evidence_runs: int
     estimated_minutes: int = Field(
         description="About how long the session takes if every round runs; an estimate only"
@@ -148,7 +153,10 @@ class MeasurementNoise(BaseSchema):
     """
 
     noisy: bool
-    held_out: int = Field(description="Distinct held-out questions the attempts measured")
+    held_out: int = Field(
+        description="Distinct held-out questions the attempts measured, across all of them; "
+        "one attempt's own count is its iteration's held_out"
+    )
     within: int = Field(
         default=0, description="Held-out questions graded both ways when asked again in one attempt"
     )
