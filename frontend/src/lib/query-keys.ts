@@ -18,6 +18,8 @@ export const qk = {
     detail: (agentId: string, runId: string) => ["improvements", agentId, runId] as const,
     changes: (agentId: string, runId: string) =>
       ["improvements", agentId, runId, "changes"] as const,
+    attemptChanges: (agentId: string, runId: string, attempt: number) =>
+      ["improvements", agentId, runId, "changes", attempt] as const,
   },
   auth: {
     me: () => ["auth", "me"] as const,

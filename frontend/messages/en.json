@@ -11529,9 +11529,12 @@
       "revert": "Back to the proposed wording",
       "wording": "Wording of change {number}",
       "save": "Save the wording",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "tested": "Tested in attempt {number}",
+      "notTested": "Not tested"
     },
-    "limitHint": "Analysis about {analysis} · each attempt about {perRound} · the limit caps the whole session"
+    "limitHint": "Analysis about {analysis} · each attempt about {perRound} · the limit caps the whole session",
+    "triedChanges": "What each attempt tried"
   },
   "unsaved": {
     "title": "You have unsaved changes",

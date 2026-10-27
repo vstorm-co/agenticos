@@ -26,6 +26,7 @@ import { Understand } from "./understand";
 import { AttemptChanges } from "./attempt-changes";
 import { AttemptHistory } from "./attempt-history";
 import { CheckProgress } from "./check-progress";
+import { TriedChanges } from "./tried-changes";
 import { NextStep } from "./next-step";
 import { StepDecisions } from "./step-decisions";
 import { AcceptSummary, GuardNote, KnowledgeDocuments } from "./outcome";
@@ -61,7 +62,7 @@ export function ImprovementPage({ agentId, sessionId }: { agentId: string; sessi
   // one, needs edit access too, and without it the session is only read.
   if (!can(Perm.runsView) || (!agent.can_edit && sessionId === "new"))
     return (
-      <div className="mx-auto max-w-5xl space-y-6 pb-16">
+      <div className="mx-auto w-full max-w-5xl space-y-6 pb-16">
         <PageHeader
           title={t("title", { name: agent.name })}
           breadcrumbs={[{ label: agent.name, href: `/agents/${agentId}` }, { label: t("heading") }]}
@@ -73,7 +74,7 @@ export function ImprovementPage({ agentId, sessionId }: { agentId: string; sessi
       </div>
     );
   return (
-    <div className="mx-auto max-w-5xl space-y-6 pb-16">
+    <div className="mx-auto w-full max-w-5xl space-y-6 pb-16">
       <PageHeader
         title={t("title", { name: agent.name })}
         breadcrumbs={[{ label: agent.name, href: `/agents/${agentId}` }, { label: t("heading") }]}
@@ -293,6 +294,8 @@ function Session({
                     </>
                   )}
                 </section>
+              ) : session.iterations.some((round) => round.batch_id) ? (
+                <TriedChanges session={session} />
               ) : (
                 <section className="space-y-3 rounded-xl border p-6 text-sm">
                   <p>{t("noChangesFound")}</p>

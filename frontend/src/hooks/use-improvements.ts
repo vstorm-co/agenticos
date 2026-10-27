@@ -83,6 +83,16 @@ export function useImprovementChanges(agentId: string, runId: string) {
   };
 }
 
+/** Every change one attempt proposed, tested or not. */
+export function useAttemptChanges(agentId: string, runId: string, attempt: number) {
+  const query = useQuery({
+    queryKey: qk.improvements.attemptChanges(agentId, runId, attempt),
+    queryFn: () =>
+      apiClient.get<Hunk[]>(`/agents/${agentId}/improvements/${runId}/changes?attempt=${attempt}`),
+  });
+  return { changes: query.data ?? [], isLoading: query.isLoading, error: query.error };
+}
+
 export function useImprovement(agentId: string, runId: string) {
   const queryClient = useQueryClient();
   const base = `/agents/${agentId}/improvements/${runId}`;

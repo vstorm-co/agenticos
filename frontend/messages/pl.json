@@ -11312,9 +11312,12 @@
       "revert": "Wróć do proponowanego sformułowania",
       "wording": "Sformułowanie zmiany {number}",
       "save": "Zapisz sformułowanie",
-      "cancel": "Anuluj"
+      "cancel": "Anuluj",
+      "tested": "Przetestowana w próbie {number}",
+      "notTested": "Nieprzetestowana"
     },
-    "limitHint": "Analiza ok. {analysis} · każda próba ok. {perRound} · limit obejmuje całą sesję"
+    "limitHint": "Analiza ok. {analysis} · każda próba ok. {perRound} · limit obejmuje całą sesję",
+    "triedChanges": "Co zaproponowała każda próba"
   },
   "unsaved": {
     "title": "Masz niezapisane zmiany",

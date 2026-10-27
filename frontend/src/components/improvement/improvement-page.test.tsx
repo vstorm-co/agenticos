@@ -93,6 +93,7 @@ vi.mock("@/hooks/use-improvements", () => ({
     error: null,
     refetch: vi.fn(),
   }),
+  useAttemptChanges: () => ({ changes: state.hunks, isLoading: false, error: null }),
 }));
 vi.mock("@/hooks/use-eval-suites", () => ({ useAgentEvalSuites: () => ({ suites: [] }) }));
 vi.mock("./knowledge-drafts", async (actual) => ({
@@ -529,7 +530,7 @@ it("keeps a failed acceptance visible and shows an empty changes step", async ()
   await userEvent.click(screen.getByRole("button", { name: "Accept and publish" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("publish refused");
   await userEvent.click(screen.getByRole("button", { name: "Changes" }));
-  expect(screen.getByText(/couldn't find a change that fits/)).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "What each attempt tried" })).toBeInTheDocument();
   expect(screen.getByText("Attempt 1: the changes made it better.")).toBeInTheDocument();
 });
 it("shows loading, refusal and retry states for actual resource reads", async () => {
@@ -795,7 +796,7 @@ const LABELS: Record<(typeof STEPS)[number], string> = {
 const WORKING =
   /Reading what went wrong|Writing the changes|writing different changes|Testing in the background|Preparing the test/;
 const FINAL =
-  /Source examples fixture|We couldn't find a change|The test has finished|newly fixed|Open version|Kept as draft/;
+  /Source examples fixture|We couldn't find a change|What each attempt tried|The test has finished|newly fixed|Open version|Kept as draft/;
 
 describe("every step's state matches what its panel shows", () => {
   const round = (number: number, extra: Partial<ImprovementIteration> = {}) => ({

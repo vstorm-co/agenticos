@@ -1,0 +1,79 @@
+"use client";
+
+import { useTranslations } from "next-intl";
+import { ChangePreview } from "@/components/authoring/result-dialog";
+import { useAttemptChanges } from "@/hooks/use-improvements";
+import { getErrorMessage } from "@/lib/api-error";
+import type { Improvement, ImprovementIteration } from "@/types/improvement";
+import { StateBadge } from "./widgets";
+
+/**
+ * What each attempt proposed and what its check came to, read once the session has
+ * moved past Changes: the latest attempt open, the earlier ones folded.
+ */
+export function TriedChanges({ session }: { session: Improvement }) {
+  const t = useTranslations("improvement");
+  const tried = [...session.iterations].sort((a, b) => b.number - a.number);
+  return (
+    <section className="min-w-0 space-y-3">
+      <h2 className="font-medium">{t("triedChanges")}</h2>
+      {tried.map((round, index) => {
+        const heldBack = round.number > session.max_iterations;
+        return (
+          <details key={round.id} open={index === 0} className="rounded-xl border p-4">
+            <summary className="cursor-pointer text-sm font-medium">
+              {heldBack
+                ? t("heldBack")
+                : t("triedAttempt", {
+                    number: round.number,
+                    verdict: round.verdict ?? (round.batch_id ? "unmeasured" : "none"),
+                    dropped: round.dropped.length,
+                  })}
+            </summary>
+            {round.batch_id && !heldBack && <AttemptProposals session={session} round={round} />}
+          </details>
+        );
+      })}
+    </section>
+  );
+}
+
+function AttemptProposals({
+  session,
+  round,
+}: {
+  session: Improvement;
+  round: ImprovementIteration;
+}) {
+  const t = useTranslations("improvement.attemptChanges");
+  const tErrors = useTranslations("errors");
+  const { changes, isLoading, error } = useAttemptChanges(
+    session.agent_id,
+    session.id,
+    round.number,
+  );
+  if (error) return <p role="alert">{getErrorMessage(error, tErrors)}</p>;
+  if (isLoading) return <p role="status">{t("loading")}</p>;
+  if (changes.length === 0) return <p className="text-muted-foreground text-sm">{t("none")}</p>;
+  const tested = round.included_hunk_ids;
+  return (
+    <div className="mt-3 space-y-4">
+      {changes.map((hunk) => (
+        <div key={hunk.id} className="space-y-2">
+          <div className="flex flex-wrap gap-2">
+            <StateBadge tone="neutral">
+              {t(!tested || tested.includes(hunk.id) ? "tested" : "notTested", {
+                number: round.number,
+              })}
+            </StateBadge>
+            {hunk.edited_text && <StateBadge tone="neutral">{t("edited")}</StateBadge>}
+          </div>
+          <ChangePreview
+            hunk={hunk.edited_text ? { ...hunk, new_text: hunk.edited_text } : hunk}
+            conversations={{}}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}

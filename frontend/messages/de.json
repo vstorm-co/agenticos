@@ -11412,9 +11412,12 @@
       "revert": "Zurück zur vorgeschlagenen Formulierung",
       "wording": "Formulierung von Änderung {number}",
       "save": "Formulierung speichern",
-      "cancel": "Abbrechen"
+      "cancel": "Abbrechen",
+      "tested": "In Versuch {number} getestet",
+      "notTested": "Nicht getestet"
     },
-    "limitHint": "Analyse ca. {analysis} · jeder Versuch ca. {perRound} · das Limit gilt für die ganze Sitzung"
+    "limitHint": "Analyse ca. {analysis} · jeder Versuch ca. {perRound} · das Limit gilt für die ganze Sitzung",
+    "triedChanges": "Was jeder Versuch ausprobiert hat"
   },
   "unsaved": {
     "title": "Du hast ungespeicherte Änderungen",

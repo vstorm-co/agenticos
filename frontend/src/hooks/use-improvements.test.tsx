@@ -4,9 +4,11 @@ import type { ReactNode } from "react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { apiClient } from "@/lib/api-client";
 import {
+  useAttemptChanges,
   useImprovement,
   useImprovementChanges,
   useImprovements,
+  useImprovementsAwaiting,
   useImprovementEvidence,
 } from "./use-improvements";
 vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn(), post: vi.fn(), put: vi.fn() } }));
@@ -182,4 +184,32 @@ it("reads the changes a session measured from the session's own address", async 
   await waitFor(() => expect(result.current.changes).toHaveLength(1));
   expect(apiClient.get).toHaveBeenCalledWith("/agents/a1/improvements/s1/changes");
   expect(result.current.error).toBeNull();
+});
+it("reads every change one attempt proposed", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue([{ id: "h1", status: "pending" }]);
+  const { result } = renderHook(() => useAttemptChanges("a1", "s1", 2), { wrapper });
+  expect(result.current.isLoading).toBe(true);
+  await waitFor(() => expect(result.current.changes).toHaveLength(1));
+  expect(apiClient.get).toHaveBeenCalledWith("/agents/a1/improvements/s1/changes?attempt=2");
+  expect(result.current.error).toBeNull();
+});
+
+it("reads the sessions waiting for a person across the organization", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue([{ id: "s1", status: "waiting" }]);
+  const { result } = renderHook(() => useImprovementsAwaiting(), { wrapper });
+  await waitFor(() => expect(result.current.sessions).toHaveLength(1));
+  expect(apiClient.get).toHaveBeenCalledWith("/improvements");
+});
+it("chooses and rewords the changes a check is to measure", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue({ id: "s1", status: "waiting" });
+  vi.mocked(apiClient.put).mockResolvedValue({ id: "s1" });
+  const { result } = renderHook(() => useImprovement("a1", "s1"), { wrapper });
+  await result.current.selectChanges.mutateAsync(["h1"]);
+  expect(apiClient.put).toHaveBeenCalledWith("/agents/a1/improvements/s1/selection", {
+    hunk_ids: ["h1"],
+  });
+  await result.current.editChange.mutateAsync({ hunkId: "h1", text: null });
+  expect(apiClient.put).toHaveBeenCalledWith("/agents/a1/improvements/s1/changes/h1", {
+    edited_text: null,
+  });
 });
