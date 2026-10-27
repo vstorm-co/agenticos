@@ -9,8 +9,8 @@ function tool(id: string, name: string): MessagePart {
   return { id, type: "tool", toolCall } as MessagePart;
 }
 
-describe("which calls open a browse panel", () => {
-  it("is every browse_web and the browser_open that starts the agent driving", () => {
+describe("which calls contribute to a browse summary", () => {
+  it("retains browser actions so their latest page can update the existing card", () => {
     const runs: PartRun[] = [
       {
         kind: "tools",
@@ -25,7 +25,7 @@ describe("which calls open a browse panel", () => {
       },
     ];
 
-    expect(browseCalls(runs).map((call) => call.id)).toEqual(["a", "c"]);
+    expect(browseCalls(runs).map((call) => call.id)).toEqual(["a", "b", "c"]);
   });
 
   it("draws a second browser_open in the window the first one opened", () => {
@@ -43,7 +43,7 @@ describe("which calls open a browse panel", () => {
       },
     ];
 
-    expect(browseCalls(runs).map((call) => call.id)).toEqual(["google"]);
+    expect(browseCalls(runs).map((call) => call.id)).toEqual(["google", "scroll", "bing"]);
   });
 
   it("offers every desktop call, since a resumed run opens a window of its own", () => {

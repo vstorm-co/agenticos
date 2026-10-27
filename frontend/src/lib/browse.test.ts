@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   recordedBrowserPage,
+  turnBrowseVisits,
   applyBrowserFrame,
   browseById,
   isRunning,
@@ -357,4 +358,101 @@ describe("recordedBrowserPage", () => {
   ])("extracts a safe page identity from %j", (call, expected) => {
     expect(recordedBrowserPage(call)).toEqual(expected);
   });
+});
+
+describe("turnBrowseVisits", () => {
+  const call = (id: string, name: string, args: Record<string, unknown> = {}, result?: string) => ({
+    id,
+    name,
+    args,
+    result,
+    status: "completed" as const,
+  });
+  const report = (title: string) => `PAGE: ${title} - https://example.com/page`;
+
+  it("keeps separate tabs even at the same URL and updates the original tab after switching back", () => {
+    const calls = [
+      call("first", "browser_open", {}, report("First")),
+      call("second", "browser_new_tab", {}, `TAB: two\n${report("Second")}`),
+      call("switch", "browser_switch_tab", { tab_id: "main" }, report("First updated")),
+    ];
+    const entries = turnBrowseVisits(calls, []);
+    expect(entries.map((entry) => entry.id)).toEqual(["first", "second"]);
+    expect(entries.map((entry) => entry.call.id)).toEqual(["switch", "second"]);
+  });
+
+  it("uses the selected tab after listing or closing tabs and ignores failed switches and non-browser tools", () => {
+    const calls = [
+      call("first", "browser_open", {}, report("First")),
+      call(
+        "second",
+        "browser_new_tab",
+        { url: "https://example.com/page" },
+        `TAB: two\n${report("Second")}`,
+      ),
+      call("list", "browser_tabs", {}, "* main: First - https://example.com/page"),
+      call("failed", "browser_switch_tab", { tab_id: "missing" }, "That tab is not open"),
+      call("mcp", "mcp_browser_read", {}, report("Unrelated")),
+      call(
+        "close",
+        "browser_close_tab",
+        {},
+        "Closed tab.\n* main: First - https://example.com/page",
+      ),
+      call("read", "browser_read", {}, report("Updated")),
+      call("pending", "browser_click"),
+      call("empty-list", "browser_tabs"),
+    ];
+    const entries = turnBrowseVisits(calls, []);
+    expect(entries).toHaveLength(2);
+    expect(entries[0]?.call.id).toBe("read");
+    expect(entries[1]?.id).toBe("second");
+  });
+
+  it("accepts a read from a switch without an explicit id without duplicating the selected tab", () => {
+    expect(
+      turnBrowseVisits(
+        [
+          call("open", "browser_open", {}, report("First")),
+          call("switch", "browser_switch_tab", {}, report("Updated")),
+        ],
+        [],
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("ignores list and close replies without a selected tab", () => {
+    expect(
+      turnBrowseVisits(
+        [call("list", "browser_tabs", {}, "No tabs"), call("close", "browser_close_tab")],
+        [],
+      ),
+    ).toEqual([]);
+  });
+});
+
+it("does not invent a card when a new tab is refused or has not opened yet", () => {
+  const calls = [
+    {
+      id: "pending",
+      name: "browser_new_tab",
+      args: { url: "https://example.com" },
+      status: "running" as const,
+    },
+    {
+      id: "limit",
+      name: "browser_new_tab",
+      args: { url: "https://example.com" },
+      result: "Eight tabs are open.",
+      status: "completed" as const,
+    },
+    {
+      id: "refused",
+      name: "browser_new_tab",
+      args: { url: "https://example.com" },
+      result: "TAB: refused\nOutside allowed domains",
+      status: "completed" as const,
+    },
+  ];
+  expect(turnBrowseVisits(calls, [])).toEqual([]);
 });

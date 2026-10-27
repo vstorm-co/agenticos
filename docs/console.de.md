@@ -1,5 +1,5 @@
 ---
-source_sha: "1d3893d9eb4b"
+source_sha: "cec82f53ecfb"
 ---
 
 # Die Konsole { #the-console }
@@ -440,7 +440,8 @@ gezeichneten, jede öffnet das Gespräch, in dem sie entstand.
 Auf schmalen Bildschirmen nutzt er das Vollbild. Nach dem Schließen bleibt
 ein kompakter Link im Gespräch, um das Panel erneut zu öffnen. Karten besuchter
 Seiten zeigen das Website-Symbol, die Domain und den Seitentitel, auch nach dem
-erneuten Öffnen des Gesprächs.
+erneuten Öffnen des Gesprächs. Jede Antwort behält eine Karte pro Browser-Tab;
+Klicks, erneutes Lesen und Zurückgehen aktualisieren diese Karte.
 Die Tableiste im Panel wechselt zwischen den Seiten. Nach dem Lauf bleibt das letzte Bild. **Sitzung fortsetzen** bittet den
 Agent, den privaten Sitzungsstand wiederherzustellen, bis zu einer Stunde lang.
 Remote-Seiten schließen nach jedem Lauf. Fortsetzen lädt URLs, Cookies und Local

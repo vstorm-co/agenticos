@@ -1,5 +1,5 @@
 ---
-source_sha: "1d3893d9eb4b"
+source_sha: "cec82f53ecfb"
 ---
 
 # Konsola { #the-console }
@@ -401,7 +401,8 @@ rysunki zrobione dla ciebie, a każdy otwiera rozmowę, w której powstał.
 otwiera się automatycznie w pełnym panelu obok przewijanej rozmowy.
 Na wąskim ekranie zajmuje cały widok. Po zamknięciu panelu zostaje w rozmowie
 mały przycisk do ponownego otwarcia. Karty odwiedzonych stron pokazują ikonę,
-domenę i tytuł, także po ponownym otwarciu rozmowy. Pasek kart w panelu
+domenę i tytuł, także po ponownym otwarciu rozmowy. Każda odpowiedź ma jeden
+kafelek na kartę przeglądarki; kliknięcia, ponowne odczyty i powroty aktualizują ten kafelek. Pasek kart w panelu
 przełącza strony. Po zakończeniu
 zostaje ostatni obraz. **Wznów sesję** prosi agenta o odtworzenie prywatnej sesji,
 dostępnej przez maksymalnie godzinę. Zdalne strony zamykają się po każdym runie;

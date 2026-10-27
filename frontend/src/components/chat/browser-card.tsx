@@ -11,6 +11,7 @@ import { useLiveBrowse } from "@/hooks/use-live-browse";
 import {
   DESKTOP_TOOLS,
   recordedBrowserPage,
+  turnBrowseVisits,
   isRunning,
   latestBrowserTabs,
   withLivePreview,
@@ -39,38 +40,26 @@ export const LiveBrowsesProvider = LiveBrowses.Provider;
 /** Browser transcript links and computer previews associated with this turn. */
 export function TurnBrowses({ calls }: { calls: ToolCall[] }) {
   const { browses: live, onComment } = useContext(LiveBrowses);
-  if (calls.length === 0) return null;
-  const windows = calls.flatMap((call) => {
-    const browse = live.find((entry) => entry.callId === call.id);
-    return browse ? [browse] : [];
-  });
-  // A desktop has one line however many runs used it, and none beside a window
-  // that is showing it: its calls are only candidates for the window a run opened.
-  const shown = calls.some((call) => isDesktop(call) && windows.some((w) => w.callId === call.id));
-  const firstDesktop = shown ? undefined : calls.find(isDesktop);
-  const recorded = calls.filter(
-    (call) =>
-      !live.some((entry) => entry.callId === call.id) &&
-      (!isDesktop(call) || call === firstDesktop),
-  );
+  const visits = turnBrowseVisits(calls, live);
+  if (visits.length === 0) return null;
   return (
-    <div className="flex w-full min-w-0 flex-col gap-2 py-1">
-      {windows.length > 0 && (
-        // One browse is a window at a reading width rather than the whole column,
-        // where it towered over the answer; several share the column's width.
-        <div className={cn("grid gap-3", windows.length > 1 ? "md:grid-cols-2" : "max-w-3xl")}>
-          {windows.map((browse) =>
-            browse.navigable || browse.nativeId ? (
-              <BrowserLink key={browse.callId} browse={browse} />
-            ) : (
-              <InlineBrowser key={browse.callId} browse={browse} onComment={onComment} />
-            ),
-          )}
-        </div>
+    <div
+      className={cn(
+        "grid w-full min-w-0 gap-2 py-1",
+        visits.length > 1 ? "md:grid-cols-2" : "max-w-3xl",
       )}
-      {recorded.map((call) => (
-        <RecordedBrowse key={call.id} call={call} />
-      ))}
+    >
+      {visits.map(({ id, call, browse }) =>
+        browse ? (
+          browse.navigable || browse.nativeId ? (
+            <BrowserLink key={id} browse={browse} />
+          ) : (
+            <InlineBrowser key={id} browse={browse} onComment={onComment} />
+          )
+        ) : (
+          <RecordedBrowse key={id} call={call} />
+        ),
+      )}
     </div>
   );
 }

@@ -250,3 +250,70 @@ export function recordedBrowserPage(call: Pick<ToolCall, "args" | "result">): {
     return { url: null, title: null };
   }
 }
+
+/** Tools sharing a browser session; individual actions never represent a new tab. */
+export const BROWSER_TOOLS: ReadonlySet<string> = new Set([
+  "browse_web",
+  "browser_open",
+  "browser_new_tab",
+  "browser_tabs",
+  "browser_switch_tab",
+  "browser_close_tab",
+  "browser_read",
+  "browser_click",
+  "browser_type",
+  "browser_select",
+  "browser_scroll",
+  "browser_back",
+]);
+
+export interface TurnBrowseVisit {
+  id: string;
+  call: ToolCall;
+  browse: Browse | null;
+}
+
+/** One transcript card per actual tab, retaining its latest successful page read. */
+export function turnBrowseVisits(calls: ToolCall[], browses: Browse[]): TurnBrowseVisit[] {
+  const live = new Map(browses.map((browse) => [browse.callId, browse]));
+  const visits = new Map<string, TurnBrowseVisit>();
+  const desktopLive = calls.some((call) => DESKTOP_TOOLS.has(call.name) && live.has(call.id));
+  let active = "main";
+  for (const call of calls) {
+    const browse = live.get(call.id) ?? null;
+    if (DESKTOP_TOOLS.has(call.name)) {
+      if (browse) visits.set(`desktop:${call.id}`, { id: call.id, call, browse });
+      else if (!desktopLive && !visits.has("desktop"))
+        visits.set("desktop", { id: call.id, call, browse });
+      continue;
+    }
+    if (!BROWSER_TOOLS.has(call.name)) continue;
+    if (call.name === "browser_tabs" || call.name === "browser_close_tab") {
+      const selected =
+        typeof call.result === "string" ? /^\* (\S+):/m.exec(call.result)?.[1] : null;
+      if (selected) active = selected;
+      continue;
+    }
+    const page = recordedBrowserPage(call);
+    if (call.name === "browser_switch_tab") {
+      if (!browse && !page.url) continue;
+      if (typeof call.args.tab_id === "string") active = call.args.tab_id;
+    }
+    if (call.name === "browser_new_tab") {
+      const tab = typeof call.result === "string" ? /^TAB: (\S+)/m.exec(call.result)?.[1] : null;
+      if (!browse && (!tab || !recordedBrowserPage({ args: {}, result: call.result }).url))
+        continue;
+      active = tab ?? call.id;
+    }
+    const liveTab = browse?.tabId ?? browse?.nativeId;
+    if (liveTab) active = liveTab;
+    const key = `tab:${active}`;
+    const previous = visits.get(key);
+    visits.set(key, {
+      id: previous?.id ?? call.id,
+      call: page.url || !previous ? call : previous.call,
+      browse: browse ?? previous?.browse ?? null,
+    });
+  }
+  return Array.from(visits.values());
+}

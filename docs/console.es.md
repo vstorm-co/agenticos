@@ -1,5 +1,5 @@
 ---
-source_sha: "1d3893d9eb4b"
+source_sha: "cec82f53ecfb"
 ---
 
 # La consola { #the-console }
@@ -415,7 +415,8 @@ se abre automáticamente en un panel lateral a toda altura junto al chat.
 En pantallas estrechas ocupa toda la pantalla. Al cerrar el panel queda
 un enlace compacto en la conversación para volver a abrirlo. Las tarjetas de
 páginas visitadas muestran el icono del sitio, el dominio y el título, también
-al volver a abrir la conversación.
+al volver a abrir la conversación. Cada respuesta conserva una tarjeta por pestaña
+del navegador; los clics, las nuevas lecturas y volver atrás actualizan esa tarjeta.
 La barra de pestañas del panel cambia de página. Al terminar queda la última imagen. **Reanudar sesión** pide al
 agente restaurar la sesión privada, disponible durante una hora como máximo. Las páginas
 remotas se cierran tras cada ejecución. Reanudar carga las URL, cookies y local storage,

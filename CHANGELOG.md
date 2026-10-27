@@ -317,6 +317,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Browser transcript cards no longer duplicate after clicks, rereads or returning
+  to a page. Each answer keeps one updated card per actual browser tab, live
+  and after reopening the conversation.
+
 - **Notifications on phones.** Both bell controls open a full-width bottom sheet
   with a visible close button and a scrollable inbox, keeping notifications
   inside the screen when opened from the navigation drawer.

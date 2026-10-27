@@ -94,7 +94,9 @@ describe("TurnBrowses - a browse as a browser under its message", () => {
 
   it("sets several side by side, each its own browser", () => {
     const { container } = render(
-      <BrowserCards browses={[browse(), browse({ callId: "c2", title: "Docs" })]} />,
+      <BrowserCards
+        browses={[browse({ tabId: "one" }), browse({ callId: "c2", tabId: "two", title: "Docs" })]}
+      />,
     );
 
     expect(screen.getByRole("heading", { name: "Pricing" })).toBeInTheDocument();
@@ -264,8 +266,8 @@ it("labels browser links with their host or the browser name when no title is av
   render(
     <BrowserCards
       browses={[
-        browse({ navigable: true, title: null }),
-        browse({ callId: "c2", navigable: true, title: null, url: null }),
+        browse({ navigable: true, tabId: "one", title: null }),
+        browse({ callId: "c2", tabId: "two", navigable: true, title: null, url: null }),
       ]}
     />,
   );
@@ -295,4 +297,49 @@ it("recovers a visited article's identity from its stored result when its argume
     "https://www.onet.pl/news/poland",
   );
   expect(screen.queryByText("Browsed the web")).toBeNull();
+});
+
+it("updates one card as the same tab clicks, reads, scrolls and goes back", () => {
+  const page = (id: string, name: string, title: string, url: string): ToolCall => ({
+    id,
+    name,
+    args: {},
+    status: "completed",
+    result: `PAGE: ${title} - ${url}\nSCROLL: more below`,
+  });
+  render(
+    <BrowserCards
+      browses={[]}
+      calls={[
+        page("open", "browser_open", "Onet", "https://onet.pl/"),
+        page("click", "browser_click", "Article", "https://onet.pl/article"),
+        page("read", "browser_read", "Article", "https://onet.pl/article"),
+        page("scroll", "browser_scroll", "Article", "https://onet.pl/article"),
+        page("back", "browser_back", "Onet", "https://onet.pl/"),
+      ]}
+    />,
+  );
+  expect(screen.getAllByRole("link", { name: /Visit site/ })).toHaveLength(1);
+  expect(screen.getByRole("link", { name: /Visit site/ })).toHaveAttribute(
+    "href",
+    "https://onet.pl/",
+  );
+});
+
+it("does not add a historical card beside a live view when the same tab is read again", () => {
+  render(
+    <BrowserCards
+      browses={[browse({ callId: "open", navigable: true, tabId: "main" })]}
+      calls={[
+        { ...call("open"), name: "browser_open" },
+        {
+          ...call("read"),
+          name: "browser_read",
+          result: "PAGE: Pricing - https://example.test/pricing",
+        },
+      ]}
+    />,
+  );
+  expect(screen.getAllByRole("button", { name: "Pricing" })).toHaveLength(1);
+  expect(screen.queryByRole("link", { name: /Visit site/ })).toBeNull();
 });
