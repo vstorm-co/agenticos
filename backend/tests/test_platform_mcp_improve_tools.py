@@ -75,6 +75,18 @@ def _permissions(*held: str) -> dict[str, Any]:
     return {"permissions": [{"permission": name, "scope": "all"} for name in held]}
 
 
+def _miss(
+    run_id: str, branch: str, topic_id: str | None = None, *, added: bool = False
+) -> dict[str, Any]:
+    """One conversation Understand sorted, as the evidence route lists it."""
+    return {
+        "run_id": run_id,
+        "branch": branch,
+        "topic_id": topic_id,
+        "knowledge_added": {"document": "Shipping"} if added else None,
+    }
+
+
 def _responder(responses: dict[tuple[str, str], Any]) -> AsyncMock:
     async def respond(method: str, path: str, **_: Any) -> Any:
         return responses[(method, path)]
@@ -178,7 +190,11 @@ class TestReadingSessions:
                 ("GET", f"/improvements/{SESSION}"): SESSION_READ,
                 ("GET", "/me/permissions"): _permissions("agents:view", "runs:view"),
                 ("GET", f"/agents/{AGENT}/improvements/{SESSION}/evidence"): {
-                    "items": [{"topic_id": TOPIC}, {"topic_id": OTHER_TOPIC}, {"topic_id": None}]
+                    "items": [
+                        _miss("r1", "missing_knowledge", TOPIC),
+                        _miss("r2", "missing_knowledge", OTHER_TOPIC),
+                        _miss("r3", "agent"),
+                    ]
                 },
                 ("GET", f"/knowledge-gaps/agents/{AGENT}"): {
                     "items": [
@@ -277,7 +293,7 @@ class TestReadingSessions:
                 },
                 ("GET", "/me/permissions"): _permissions("agents:view", "runs:view"),
                 ("GET", f"/agents/{AGENT}/improvements/{SESSION}/evidence"): {
-                    "items": [{"topic_id": TOPIC}]
+                    "items": [_miss("r1", "missing_knowledge", TOPIC)]
                 },
                 ("GET", f"/knowledge-gaps/agents/{AGENT}"): {
                     "items": [
@@ -371,6 +387,76 @@ class TestStepByStep:
 
         assert item["waiting_for"] == {"after": after, "next_step": runs}
         assert item["closed"] is False
+
+    async def test_a_waiting_session_carries_its_next_step_s_price_and_what_understand_found(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        """At a stop the reply needs the finding and the price; neither is a second tool call."""
+        quote = {
+            "mode": "next_step",
+            "number": 1,
+            "total_usd": "0.01",
+            "budget_usd": "0.05",
+            "affordable": True,
+            "candidate_hash": "d" * 64,
+        }
+        api.request = _responder(
+            {
+                ("GET", f"/improvements/{SESSION}"): self.WAITING,
+                ("POST", f"/agents/{AGENT}/improvements/{SESSION}/continue/estimate"): quote,
+                ("GET", "/me/permissions"): _permissions("agents:view", "runs:view"),
+                ("GET", f"/agents/{AGENT}/improvements/{SESSION}/evidence"): {
+                    "items": [
+                        _miss("r1", "agent", TOPIC),
+                        _miss("r2", "agent", TOPIC),
+                        _miss("r3", "unknown"),
+                        _miss("r4", "missing_knowledge", OTHER_TOPIC),
+                        _miss("r5", "missing_knowledge", None, added=True),
+                        _miss("r6", "not_a_problem"),
+                    ]
+                },
+                ("GET", f"/knowledge-gaps/agents/{AGENT}"): {"items": []},
+            }
+        )
+
+        session = await _call(server, "get_improvement", session_id=SESSION)
+
+        assert session["waiting_for"] == {
+            "after": "Understand",
+            "next_step": "propose changes",
+            "price": {
+                "total_usd": "0.01",
+                "budget_usd": "0.05",
+                "affordable": True,
+                "candidate_hash": "d" * 64,
+            },
+        }
+        assert session["found"] == {
+            "in_the_agent": 2,
+            "missing_knowledge": 1,
+            "knowledge_added_since": 1,
+            "not_a_problem": 1,
+        }
+
+    async def test_a_price_that_cannot_be_quoted_says_why_and_still_reads_the_session(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        async def respond(method: str, path: str, **_: Any) -> Any:
+            if path.endswith("/continue/estimate"):
+                raise ToolError("400 BAD_REQUEST: The improvement session stopped")
+            return {
+                ("GET", f"/improvements/{SESSION}"): self.WAITING,
+                ("GET", "/me/permissions"): _permissions("agents:view"),
+            }[(method, path)]
+
+        api.request = AsyncMock(side_effect=respond)
+
+        session = await _call(server, "get_improvement", session_id=SESSION)
+
+        assert session["waiting_for"]["price"] == {
+            "unavailable": "400 BAD_REQUEST: The improvement session stopped"
+        }
+        assert session["status"] == "waiting"
 
     async def test_a_session_not_waiting_waits_for_nothing(
         self, server: FastMCP, api: MagicMock

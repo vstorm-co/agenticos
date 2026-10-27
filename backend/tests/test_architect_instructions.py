@@ -78,7 +78,7 @@ def test_a_session_is_led_step_by_step_and_never_said_to_run_on_its_own(
     """The pipeline stops after Understand, after Changes and at the result."""
     rule = _bullet(instructions, "Step by step")
     assert "`estimate_next_improvement_step`" in rule
-    assert "ask before `run_next_improvement_step`" in rule
+    assert 'only on "Next step"' in rule
     assert "continued from the console" in rule
     assert "longer than two hours they finish it with Next step" in rule
     assert "runs on its own" not in instructions
@@ -97,3 +97,15 @@ def test_the_start_quote_is_the_analysis_not_the_whole_session(instructions: str
     assert "Never call `total_usd` the price of the whole session" in rule
     assert "`per_round_usd`" in rule
     assert "spending limit for the whole session - theirs, or `limit_usd`" in rule
+
+
+def test_every_stop_is_answered_with_the_finding_the_price_and_a_question(
+    instructions: str,
+) -> None:
+    """At a stop it once asked in prose, without the price or what Understand found."""
+    rule = _bullet(instructions, "Step by step")
+    assert "three parts, all of them, every time" in rule
+    assert "with numbers - after Understand from `found`" in rule
+    assert "`waiting_for` and its `price`" in rule
+    assert '`ask_user_question`: "Next step" first, then "Show the changes"' in rule
+    assert '"End"' in rule

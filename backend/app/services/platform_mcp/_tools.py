@@ -19,6 +19,7 @@ from decimal import ROUND_CEILING, Decimal
 from typing import Any, Literal
 from uuid import UUID
 
+from fastmcp.exceptions import ToolError
 from pydantic import JsonValue
 
 from app.agents.spec import CapabilityBindingSpec, McpServerRef
@@ -172,6 +173,25 @@ def _session_limit(estimate: dict[str, Any]) -> str:
         estimate["per_round_usd"]
     )
     return str(max(_CENT, whole.quantize(_CENT, rounding=ROUND_CEILING)))
+
+
+def _found(items: list[dict[str, Any]]) -> dict[str, int]:
+    """What Understand found, counted as the wizard counts it: a topic once, else a conversation."""
+    columns: dict[str, set[str]] = {
+        "in_the_agent": set(),
+        "missing_knowledge": set(),
+        "knowledge_added_since": set(),
+        "not_a_problem": set(),
+    }
+    for item in items:
+        if item["branch"] in {"agent", "unknown"}:
+            column = "in_the_agent"
+        elif item["branch"] == "missing_knowledge":
+            column = "knowledge_added_since" if item.get("knowledge_added") else "missing_knowledge"
+        else:
+            column = "not_a_problem"
+        columns[column].add(item.get("topic_id") or item["run_id"])
+    return {column: len(keys) for column, keys in columns.items()}
 
 
 def _waiting(session: dict[str, Any]) -> dict[str, Any] | None:
@@ -852,6 +872,21 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         sessions = await api.request("GET", f"/agents/{agent_id}/improvements")
         return {"items": [_session(agent_id, session) for session in sessions]}
 
+    async def _next_step_price(agent_id: str, session: dict[str, Any]) -> dict[str, Any]:
+        """The next step's quote within the session's limit, or why it cannot be quoted."""
+        try:
+            quote = await api.request(
+                "POST",
+                f"/agents/{agent_id}/improvements/{session['id']}/continue/estimate",
+                json={"budget_usd": str(session["budget_usd"])},
+            )
+        except ToolError as refused:
+            return {"unavailable": str(refused)}
+        return {
+            field: quote[field]
+            for field in ("total_usd", "budget_usd", "affordable", "candidate_hash")
+        }
+
     async def get_improvement(session_id: UUID) -> dict[str, Any]:
         """One Improve session by its id: its attempts and verdicts, and what is missing from knowledge.
 
@@ -859,8 +894,12 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         knowledge topics and `measurement_noise` also need `runs:view`. When
         `measurement_noise.noisy` is true, the test cannot tell a better version
         from a worse one. A session `waiting_for` the person says which step it
-        stopped after and what the next one runs; estimate_next_improvement_step
-        prices it.
+        stopped after, what the next one runs and its `price` within the
+        session's limit - pass its `total_usd` and `candidate_hash` to
+        run_next_improvement_step, or, when it is not `affordable`, quote a
+        higher limit with estimate_next_improvement_step. `found` counts what
+        Understand found: problems in the agent, knowledge missing, knowledge
+        added since, and what was not a problem.
         Each attempt has its verdict, the questions it fixed and broke (confirmed
         on a rerun) and its `change` - fixed less broken - on `held_out`
         questions of its own; compare attempts by that, not by the pass rates in
@@ -886,12 +925,18 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             "can_restart": session.get("can_restart"),
             "measurement_noise": _noise(session.get("measurement_noise")),
         }
+        if result["waiting_for"] is not None:
+            result["waiting_for"] = {
+                **result["waiting_for"],
+                "price": await _next_step_price(agent_id, session),
+            }
         me = await api.request("GET", "/me/permissions")
         if not any(entry["permission"] == "runs:view" for entry in me.get("permissions", [])):
             return result
         evidence = await api.request(
             "GET", f"/agents/{agent_id}/improvements/{session_id}/evidence"
         )
+        result["found"] = _found(evidence["items"])
         topic_ids = {item["topic_id"] for item in evidence["items"] if item.get("topic_id")}
         deferred = set(session.get("deferred_topic_ids") or [])
         topics = await api.request(
