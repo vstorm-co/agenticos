@@ -120,6 +120,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Invalid metadata in agent-written skills no longer breaks turn completion.
+  Proposal writes use a savepoint and preserve the run’s status and spend (#2516).
+
 - Changing a knowledge base embedding endpoint now requires access to its retained
   vault key, including when resetting the endpoint to the provider default.
 

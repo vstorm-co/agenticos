@@ -4473,17 +4473,23 @@ class AgentRunnerService:
         state = prepared.materialised_skills
         if workspace is None or state is None or prepared.ctx is None or _untouched(workspace):
             return
+        run_id = str(prepared.run.id)
+        agent_id = prepared.agent.id
+        conversation_id = prepared.run.conversation_id
         try:
             changes = await collect_changes(workspace.workspace, state)
             if changes:
-                await self.proposals.record(
-                    prepared.ctx,
-                    changes,
-                    agent_id=prepared.agent.id,
-                    conversation_id=prepared.run.conversation_id,
-                )
+                # Optional proposals must not poison the transaction that still
+                # has to persist the run's terminal status and spend.
+                async with self.db.begin_nested():
+                    await self.proposals.record(
+                        prepared.ctx,
+                        changes,
+                        agent_id=agent_id,
+                        conversation_id=conversation_id,
+                    )
         except Exception:
-            logger.exception("skill_proposal_record_failed", extra={"run_id": str(prepared.run.id)})
+            logger.exception("skill_proposal_record_failed", extra={"run_id": run_id})
 
     async def keep_plan(self, prepared: PreparedRun, *, status: RunStatus) -> None:
         """Store the checklist the turn ended on, so the next turn starts from it.
