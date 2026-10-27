@@ -33,6 +33,13 @@ from app.schemas.improvement import (
 )
 
 router = APIRouter(prefix="/agents/{agent_id}/improvements")
+sessions = APIRouter(prefix="/improvements")
+
+
+@sessions.get("/{run_id}", response_model=ImprovementRead, dependencies=[ASSISTANT])
+async def read_improvement_session(run_id: UUID, service: ImprovementSvc, ctx: Auth) -> Any:
+    """One session by its id alone, with the access its agent's own read needs."""
+    return await service.read_session(ctx, run_id)
 
 
 @router.post("/{run_id}/knowledge/estimate", response_model=KnowledgeCheckEstimate)

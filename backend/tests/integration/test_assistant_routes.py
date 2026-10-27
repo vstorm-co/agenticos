@@ -264,6 +264,34 @@ class TestAcceptingThroughTheTools:
         assert refused.status_code == 409
         assert agent.draft_spec["instructions"] == "Edited by a person meanwhile."
 
+    async def test_a_session_is_read_by_its_id_alone(
+        self, db: AsyncSession, client: Client
+    ) -> None:
+        """The Architect keeps a session id across turns; it needs nothing else to read it."""
+        ctx, agent, ready = await _ready_proposal(db)
+        key = await _run_key(db, ctx)
+
+        async with client() as http:
+            read = await http.get(_url(f"/improvements/{ready.id}"), headers=_bearer(key))
+            unknown = await http.get(_url(f"/improvements/{uuid.uuid4()}"), headers=_bearer(key))
+
+        assert read.status_code == 200
+        assert read.json()["agent_id"] == str(agent.id)
+        assert read.json()["status"] == "ready"
+        assert unknown.status_code == 404
+
+    @pytest.mark.security
+    async def test_another_organization_s_session_is_not_found_by_its_id(
+        self, db: AsyncSession, client: Client
+    ) -> None:
+        _ctx, _agent, ready = await _ready_proposal(db)
+        stranger = await _run_key(db, await _owner(db))
+
+        async with client() as http:
+            answer = await http.get(_url(f"/improvements/{ready.id}"), headers=_bearer(stranger))
+
+        assert answer.status_code == 404
+
     async def test_accepting_as_a_draft_is_audited_as_the_architect_for_the_person(
         self, db: AsyncSession, client: Client
     ) -> None:

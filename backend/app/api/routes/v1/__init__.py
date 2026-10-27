@@ -130,6 +130,7 @@ v1_router.include_router(agent_test_sets.router, tags=["datasets"])
 v1_router.include_router(knowledge_gaps.router, prefix="/knowledge-gaps", tags=["knowledge-gaps"])
 v1_router.include_router(authoring.router, tags=["authoring"])
 v1_router.include_router(improvements.router, tags=["improvements"])
+v1_router.include_router(improvements.sessions, tags=["improvements"])
 # Apps were called artifacts until #2071. The old paths stay as deprecated
 # aliases for the v1 policy's 90 days (docs/api.md), so a script written against
 # them keeps working while it is moved.

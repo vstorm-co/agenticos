@@ -732,6 +732,19 @@ class ImprovementPipelineService:
         await self.registry.get(ctx, agent_id)
         return await self._read(ctx, await self._row(ctx, agent_id, run_id))
 
+    async def read_session(self, ctx: AuthContext, run_id: UUID) -> ImprovementRead:
+        """A session by its id alone, read with the same access to its agent as `read`.
+
+        For a caller that kept the session and not its agent - the Architect, a
+        few turns into a conversation.
+        """
+        run = await improvement_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
+        if run is None:
+            raise NotFoundError(
+                message="Improvement session not found", details={"improvement_run_id": run_id}
+            )
+        return await self.read(ctx, run.agent_id, run_id)
+
     async def changes(self, ctx: AuthContext, agent_id: UUID, run_id: UUID) -> list[HunkRead]:
         """The changes the session's chosen round measured, wherever their batch is now."""
         agent = await self.registry.get(ctx, agent_id)
