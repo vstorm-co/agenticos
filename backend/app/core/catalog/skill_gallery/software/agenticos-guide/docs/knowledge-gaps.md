@@ -117,12 +117,12 @@ verdicts: missing knowledge where a knowledge base was missing content, no
 problem to fix where the agent rightly refused, and the agent's fault
 otherwise.
 
-The answers missing knowledge leave what the improver reads, and
-the session drafts their topics instead, three at most a round, however few
-people asked: a person checks every draft before it is added, and a draft from
-one person's question says so. A draft nobody asked for outside a session still
-waits until two different people asked about the topic. An eval's runs are never read, so
-no held-out case is.
+The answers missing knowledge leave what the improver reads, and their misses
+are grouped into topics at once. The session drafts none of them: it lists the
+topics missing from the knowledge base, and a person drafts the ones they want,
+as [below](#drafting-the-missing-content). Nothing is drafted unless a person
+asks, in a session or out of one. An eval's runs are never read, so no held-out
+case is.
 
 ## Topics { #topics }
 
@@ -202,8 +202,9 @@ cases that failed because the knowledge was missing should now pass.
 
 ## Drafting the missing content { #drafting-the-missing-content }
 
-**Draft the missing content**, in an open topic, asks a model to write the
-passage or FAQ entry the knowledge base is missing. It is one run of the
+**Draft**, in an open topic, asks a model to write the passage or FAQ entry
+the knowledge base is missing. The button shows the most one draft costs. It is
+one run of the
 **Knowledge gap drafter**, a [system agent](concepts.md#system-agents) every
 organization has. The drafter is shown the topic's 20 newest questions: what
 each person asked, what the agent searched for and found, the answer the
@@ -214,9 +215,19 @@ stay. What it found is only ever the knowledge search's own result, never what
 another tool returned for the same words. It is also shown the
 [context files](context.md) the topic's agents read in their published
 versions, those you may read, so the draft follows the rules the agents
-already follow. A drafter set to
+already follow. It is shown what searching the knowledge base for up to three
+of the questions returns as the draft is written, so it sees a document added
+since they were asked, and a drafter set to
 [search the knowledge base](concepts.md#system-agent-spec) searches this one
-too, so a draft does not repeat what a document already says.
+too. Either way a draft does not repeat what a document already says.
+
+A draft is written in the background, as you, with your access as it is when
+it runs. The topic says **Drafting…** until the draft is ready, and an open page
+shows it without reloading; asking again meanwhile starts nothing more. A draft
+that could not be written, because a budget was spent or AI assistance was
+switched off meanwhile, says so, with **Try again**. A draft written from one
+person's questions says so too: check it knowing it rests on what one person
+asked.
 
 The draft fills the topic's editor, with a link to its run. You can copy it as
 Markdown, and it reaches the knowledge base only when somebody adds it. The drafter does not know your company's facts: where an answer needs
@@ -225,8 +236,11 @@ lists each one until it is replaced.
 
 When a context file or a document already
 answers the questions, the drafter says so, and the topic names that source:
-dismiss the topic instead of adding content. Drafting again replaces the
-draft. Whoever may edit the drafter finds **Edit the drafter's instructions** on
+dismiss the topic instead of adding content. **Redraft** replaces the draft.
+Once a document is added to the knowledge base after a draft was written, the
+draft says the knowledge base changed after it: it may repeat or contradict the
+new document, so **Redraft** writes it again against what the knowledge base
+holds now. Whoever may edit the drafter finds **Edit the drafter's instructions** on
 the draft, and the drafter itself under **System agents** on the Agents page.
 
 A draft names its sources: the documents of the knowledge base it builds on,
@@ -259,7 +273,7 @@ without it does not see the tab or the widget, and the API refuses them.
 | Read an agent's gaps | `runs:view` and `agents:view` on the agent; topics of knowledge bases you cannot read are left out |
 | Dismiss, reopen or regroup | `runs:view` and `collections:edit` on the knowledge base, from your role or an edit grant on it |
 | Add a topic to a dataset | `runs:view` and `datasets:edit` on the dataset |
-| Draft the missing content | `runs:view`, `collections:edit` on the knowledge base, and `agents:run` on the Knowledge gap drafter |
+| Draft a topic | `runs:view`, `collections:edit` on the knowledge base, and `agents:run` on the Knowledge gap drafter |
 | Write, save or add a topic's content | `runs:view` and `collections:edit` on the knowledge base, from your role or an edit grant on it |
 | Check answers | `runs:view`, `collections:edit` on the knowledge base, and `agents:run` on the Knowledge gap classifier |
 
