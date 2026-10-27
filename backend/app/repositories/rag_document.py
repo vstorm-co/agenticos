@@ -15,6 +15,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.models.rag_document_claim import RAGDocumentClaim
 from app.db.models.sync_source import SyncSource
@@ -585,16 +586,27 @@ async def ingestion_counts(
 ) -> IngestionCounts:
     """How many of one collection's documents are processing, indexed or failed.
 
-    Scoped like `get_all`: the name is not unique across tenants, so a document
-    counts when it is in this collection *and* stamped with the knowledge base's
-    organization - another tenant's upload into a same-named collection must not
-    hold this one at `indexing`. `None` is a deployment-wide knowledge base and
-    matches on the collection alone.
+    Scoped like the collection's vectors, whose tag is the knowledge base's
+    vector tenant: the name is not unique, so an organization's base and an
+    app-scoped (`None`) one can share it. A row filed under an app-scoped base
+    is the app's whichever organization uploaded it, and so is an untagged row
+    with no base (a deployment-wide sync); every other row is its
+    organization's. Counted on the name alone, another tenant's upload still
+    processing would hold this collection at `indexing` (#2486).
     """
-    scope: ColumnElement[bool] = RAGDocument.collection_name == collection_name
-    if organization_id is not None:
-        scope = and_(scope, RAGDocument.organization_id == organization_id)
-    return await _count_by_status(db, scope)
+    in_app_base = exists().where(
+        KnowledgeBase.id == RAGDocument.knowledge_base_id,
+        KnowledgeBase.scope == KBScope.APP.value,
+    )
+    owner: ColumnElement[bool] = (
+        or_(
+            in_app_base,
+            and_(RAGDocument.knowledge_base_id.is_(None), RAGDocument.organization_id.is_(None)),
+        )
+        if organization_id is None
+        else and_(RAGDocument.organization_id == organization_id, ~in_app_base)
+    )
+    return await _count_by_status(db, and_(RAGDocument.collection_name == collection_name, owner))
 
 
 async def ingestion_counts_for_kb(db: AsyncSession, kb_id: UUID) -> IngestionCounts:

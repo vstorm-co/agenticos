@@ -126,8 +126,9 @@ class RAGDocumentService:
     ) -> RAGCollectionInfo:
         """The vector store's statistics, with where the collection's documents stand.
 
-        `organization_id` is the knowledge base's, which scopes the count the way
-        `get_all` scopes a listing.
+        `organization_id` is the knowledge base's - `None` for an app-scoped one -
+        and scopes the count to that base's rows, the way its vector tenant scopes
+        `total_vectors`.
         """
         counts = await rag_document_repo.ingestion_counts(
             self.db, collection_name=info.name, organization_id=organization_id

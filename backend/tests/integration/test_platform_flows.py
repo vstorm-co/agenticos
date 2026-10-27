@@ -1880,8 +1880,7 @@ class TestWhatACollectionReportsItHolds:
 
         Two organizations can pick the same collection name. The other tenant's
         upload still processing is theirs; counted here it would report this
-        collection as indexing for as long as theirs takes. A deployment-wide
-        base (`None`) counts on the name alone, as the document listing does.
+        collection as indexing for as long as theirs takes.
         """
         ours = await _tenant(db, name="Ours")
         theirs = await _tenant(db, name="Theirs")
@@ -1895,12 +1894,57 @@ class TestWhatACollectionReportsItHolds:
         mine = await rag_document_repo.ingestion_counts(
             db, collection_name="shared_name", organization_id=ours.organization.id
         )
-        deployment_wide = await rag_document_repo.ingestion_counts(
-            db, collection_name="shared_name", organization_id=None
-        )
 
         assert mine == IngestionCounts(processing=0, indexed=1, failed=0)
-        assert deployment_wide == IngestionCounts(processing=1, indexed=1, failed=0)
+
+    @pytest.mark.security
+    async def test_ingestion_counts_keep_an_app_base_and_a_same_named_tenant_base_apart(
+        self, db
+    ) -> None:
+        """An app-scoped base and a tenant base sharing a name count only their own rows.
+
+        An app base has no organization, and its rows carry whichever one
+        uploaded into it - so neither "no organization condition" nor the
+        uploader's organization says whose a row is. The vectors are split by
+        tag (`NULL` for the app base, the organization for the tenant's), and
+        the counts follow the same split, in both directions.
+        """
+        tenant = await _tenant(db, name="Beside")
+        uploader = await _tenant(db, name="Uploader")
+        theirs = await _kb_row(db, tenant=tenant, collection_name="app_and_tenant")
+        app_kb = await _kb_row(
+            db, tenant=tenant, collection_name="app_and_tenant", scope=KBScope.APP
+        )
+        app_kb.organization_id = None
+        # The tenant's own batch, still processing.
+        busy = await _rag_document(
+            db, collection_name="app_and_tenant", filename="tenant.txt", tenant=tenant
+        )
+        busy.knowledge_base_id = theirs.id
+        busy.status = DocumentStatus.PROCESSING
+        # Uploads into the app base, stamped with their uploaders' organizations -
+        # one of them the tenant's own - and a deployment-wide sync's untagged row.
+        for who, status in (
+            (uploader, DocumentStatus.DONE),
+            (tenant, DocumentStatus.ERROR),
+            (None, DocumentStatus.DONE),
+        ):
+            doc = await _rag_document(
+                db, collection_name="app_and_tenant", filename=f"app-{status}.txt", tenant=who
+            )
+            doc.knowledge_base_id = app_kb.id if who is not None else None
+            doc.status = status
+        await db.flush()
+
+        app_wide = await rag_document_repo.ingestion_counts(
+            db, collection_name="app_and_tenant", organization_id=None
+        )
+        tenants = await rag_document_repo.ingestion_counts(
+            db, collection_name="app_and_tenant", organization_id=tenant.organization.id
+        )
+
+        assert app_wide == IngestionCounts(processing=0, indexed=2, failed=1)
+        assert tenants == IngestionCounts(processing=1, indexed=0, failed=0)
 
     async def test_a_knowledge_bases_ingestion_counts_only_its_own_documents(self, db) -> None:
         """What `GET /kb/{kb_id}/ingestion` reads - the rows its page lists.

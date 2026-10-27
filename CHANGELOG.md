@@ -19,6 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- `GET /rag/collections/{name}/info` on an app-scoped collection counts only
+  that collection's documents. A tenant's knowledge base sharing its name no
+  longer adds its documents to the counts or holds `indexing_status` at
+  `indexing`, and the reverse holds for the tenant's own collection (#2486).
+
 ## [1.25.0] - 2026-10-27
 
 ### Changed
