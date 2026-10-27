@@ -182,6 +182,19 @@ beforeEach(() => {
     ],
   };
 });
+it("says an attempt that did not do better finished, and what under a cent cost", () => {
+  Object.assign(state.session!, {
+    status: "stopped",
+    stop_reason: "no_change",
+    spent_usd: "0.0037",
+    budget_usd: "0.850000",
+  });
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  const line = screen.getByRole("region", { name: "Session" });
+  expect(within(line).getByRole("status")).toHaveTextContent("Finished an attempt");
+  expect(line).toHaveTextContent("$0.0037 of $0.85");
+});
+
 it("blocks finishing when a selected new skill requires missing access", async () => {
   state.hunks = [hunk({ kind: "create_skill", blocked: "create_skill_permission" })];
   render(<ImprovementPage agentId="a1" sessionId="s1" />);

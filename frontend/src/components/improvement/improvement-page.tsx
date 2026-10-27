@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Button } from "@/components/ui";
 import { WizardSteps } from "@/components/ui/wizard-steps";
+import { usd } from "@/components/evals/format";
 import { ChangeSelection } from "./change-selection";
 import { useAgent } from "@/hooks/use-agents";
 import { useAgentAuthoring } from "@/hooks/use-authoring";
@@ -33,6 +34,7 @@ import { ReadOnlyNote, ReadOnlyProvider, type ReadOnlyReason } from "./read-only
 import { SessionDecision } from "./session-decision";
 
 import {
+  ATTEMPT_RESULT_REASONS,
   IMPROVEMENT_STEPS as STEPS,
   currentAttempt,
   currentImprovementStep,
@@ -519,8 +521,8 @@ function SessionLine({ session, working }: { session: Improvement; working: bool
   const t = useTranslations("improvement");
   const stop = stopOf(session);
   const locale = useLocale();
-  const cents = (value: string) =>
-    new Intl.NumberFormat(locale, { style: "currency", currency: "USD" }).format(Number(value));
+  const finishedAttempt =
+    session.status === "stopped" && ATTEMPT_RESULT_REASONS.includes(session.stop_reason ?? "");
   const used = Math.min(
     100,
     Math.round((Number(session.spent_usd) / Math.max(Number(session.budget_usd), 1e-9)) * 100),
@@ -540,11 +542,14 @@ function SessionLine({ session, working }: { session: Improvement; working: bool
           ? t("status.running")
           : stop
             ? t(`waitingFor.${stop}`)
-            : t(`status.${session.status}`)}
+            : t(`status.${finishedAttempt ? "attemptFinished" : session.status}`)}
       </span>
       <span aria-hidden>·</span>
       <span>
-        {t("spend", { spent: cents(session.spent_usd), budget: cents(session.budget_usd) })}
+        {t("spend", {
+          spent: usd(session.spent_usd, locale),
+          budget: usd(session.budget_usd, locale),
+        })}
       </span>
       <span
         role="meter"

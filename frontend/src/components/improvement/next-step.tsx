@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { ArrowRight } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { Button, Input, Label } from "@/components/ui";
-import { usd } from "@/components/evals/format";
+import { limitInput, usd } from "@/components/evals/format";
 import { useImprovement } from "@/hooks/use-improvements";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { currentAttempt, stopOf } from "@/lib/improvement-steps";
@@ -35,7 +35,7 @@ export function NextStep({
   const readOnly = useReadOnly();
   const actions = useImprovement(session.agent_id, session.id);
   const stop = stopOf(session);
-  const [budget, setBudget] = useState(session.budget_usd);
+  const [budget, setBudget] = useState(limitInput(session.budget_usd));
   const [asked, setAsked] = useState(session.budget_usd);
   const [quote, setQuote] = useState<{ key: string; value: ContinuationEstimate } | null>(null);
   const [moved, setMoved] = useState(false);
@@ -112,7 +112,7 @@ export function NextStep({
             />
             <Button
               variant="outline"
-              disabled={!(Number(budget) > 0) || budget === asked}
+              disabled={!(Number(budget) > 0) || Number(budget) === Number(asked)}
               onClick={() => setAsked(budget)}
             >
               {t("raise")}

@@ -32,7 +32,12 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.rag_document import RAGDocument
 from app.repositories import dataset_repo, improvement_repo, knowledge_gap_repo
 from app.schemas.api_key import ApiKeyCreate
-from app.schemas.improvement import ImprovementStart, ImprovementTarget
+from app.schemas.improvement import (
+    ContinuationConsent,
+    ImprovementContinue,
+    ImprovementStart,
+    ImprovementTarget,
+)
 from app.services.api_key import ApiKeyService
 from app.services.embedding_resolution import EmbeddingKeySource, ResolvedEmbeddings
 from app.services.improvement_pipeline import ImprovementPipelineService
@@ -212,6 +217,47 @@ async def _classify(db, ctx, agent, read):
         await _next_step(db, ctx, read.id)
         await service.advance(read.id, ctx.organization_id)
     return stored, found
+
+
+async def test_a_failed_proposal_after_the_sort_is_retried_with_the_sort_s_exclusions(db):
+    ctx, agent, _, dataset, _ = await _world(db)
+    with _providers(db, ctx):
+        read = await _start(db, ctx, agent, dataset)
+        stored, _ = await _classify(db, ctx, agent, read)
+        assert stored.stage == "proposing"
+        first = await improvement_repo.get_iteration(
+            db, organization_id=ctx.organization_id, run_id=read.id, number=1
+        )
+        failed = await db.get(AuthoringRequest, first.authoring_request_id)
+        failed.status = "failed"
+        await db.flush()
+        service = ImprovementPipelineService(db)
+        await service.advance(read.id, ctx.organization_id)
+        assert (stored.status, stored.stage) == ("failed", "proposing")
+
+        quote = await service.estimate_continuation(
+            ctx, agent.id, read.id, ImprovementContinue(budget_usd=stored.budget_usd)
+        )
+        assert quote.mode == "retry"
+        retried = await service.continue_run(
+            ctx,
+            agent.id,
+            read.id,
+            ContinuationConsent(
+                confirmed=True,
+                budget_usd=quote.budget_usd,
+                estimate_usd=quote.total_usd,
+                candidate_hash=quote.candidate_hash,
+            ),
+        )
+        assert (retried.status, retried.stage) == ("running", "proposing")
+        await service.advance(read.id, ctx.organization_id)
+        again = await improvement_repo.get_iteration(
+            db, organization_id=ctx.organization_id, run_id=read.id, number=1
+        )
+        request = await db.get(AuthoringRequest, again.authoring_request_id)
+        assert request.id != failed.id
+        assert request.excluded_message_ids == failed.excluded_message_ids
 
 
 async def test_a_session_sorts_and_groups_frozen_sources_drafts_nothing_and_keeps_the_agent(db):

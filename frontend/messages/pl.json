@@ -10961,7 +10961,8 @@
       "accepted": "Zachowano w wersji roboczej",
       "published": "Opublikowano",
       "rejected": "Odrzucono",
-      "waiting": "Czeka na Ciebie"
+      "waiting": "Czeka na Ciebie",
+      "attemptFinished": "Próba zakończona"
     },
     "stop": {
       "no_data": "Dodaj więcej pytań testowych lub ocen przed poprawianiem.",
@@ -11056,9 +11057,9 @@
     "improveAgain": "Popraw ponownie",
     "raiseBudgetContinue": "Zwiększ limit i kontynuuj",
     "resumeWithMyAccess": "Kontynuuj ten krok z moim dostępem",
-    "continuationBody": "Przed dalszymi wydatkami przejrzyj pełny szacunek. Te same źródła, pytania testowe i limit prób pozostają bez zmian. Nic nie zostaje zaakceptowane ani opublikowane.",
+    "continuationBody": "Przed dalszymi wydatkami przejrzyj szacunek. Te same źródła, pytania testowe i limit prób pozostają bez zmian. Nic nie zostaje zaakceptowane ani opublikowane.",
     "estimateContinuation": "Wyceń kontynuację sesji",
-    "continuationQuote": "Próba {number} z {max}: do {cost} za całą pozostałą pracę (szacunek).",
+    "continuationQuote": "{mode, select, next_round {Próba {number} z {max}: do {cost} (szacunek) za napisanie zmian; ich test jest wyceniany w następnym kroku.} retry {Do {cost} (szacunek) za ponowienie tego kroku; następny krok jest wyceniany, gdy go zaczniesz.} other {Do {cost} (szacunek) za dokończenie tego kroku; następny krok jest wyceniany, gdy go zaczniesz.}}",
     "continuationUnaffordable": "Wycena nie mieści się w wybranym limicie lub dostępnym budżecie. Zwiększ limit i wyceń ponownie.",
     "confirmContinuation": "Potwierdź wycenę i kontynuuj",
     "continuationStopped": "Tu nie można rozpocząć kolejnej płatnej próby. Przejrzyj istniejącą próbę, usuń przyczynę zatrzymania albo rozpocznij nową sesję.",

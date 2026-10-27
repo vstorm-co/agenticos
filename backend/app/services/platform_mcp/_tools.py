@@ -19,6 +19,7 @@ from decimal import ROUND_CEILING, Decimal
 from typing import Any, Literal
 from uuid import UUID
 
+from fastmcp.exceptions import ToolError
 from pydantic import JsonValue
 
 from app.agents.spec import CapabilityBindingSpec, McpServerRef
@@ -156,6 +157,23 @@ def _outcome(session: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
+def _why_stale(
+    session: dict[str, Any], *, started_from: int | None, live: int | None
+) -> str | None:
+    """Why an outdated session can no longer be used, in plain words."""
+    if session["status"] != "stale":
+        return None
+    if session.get("stop_reason") == "expired":
+        return "It waited too long for a person and expired."
+    if session.get("stop_reason") == "superseded":
+        return "A newer attempt or a person's own change replaced it."
+    if started_from is not None and live is not None and started_from != live:
+        return f"The agent's published version changed from v{started_from} to v{live}."
+    return session.get("error") or (
+        "The agent, its test questions or how they are scored changed after it started."
+    )
+
+
 _NEXT_STEPS = {
     "propose": {"after": "Understand", "next_step": "propose changes"},
     "check": {"after": "Changes", "next_step": "test the changes"},
@@ -172,6 +190,25 @@ def _session_limit(estimate: dict[str, Any]) -> str:
         estimate["per_round_usd"]
     )
     return str(max(_CENT, whole.quantize(_CENT, rounding=ROUND_CEILING)))
+
+
+def _found(items: list[dict[str, Any]]) -> dict[str, int]:
+    """What Understand found, counted as the wizard counts it: a topic once, else a conversation."""
+    columns: dict[str, set[str]] = {
+        "in_the_agent": set(),
+        "missing_knowledge": set(),
+        "knowledge_added_since": set(),
+        "not_a_problem": set(),
+    }
+    for item in items:
+        if item["branch"] in {"agent", "unknown"}:
+            column = "in_the_agent"
+        elif item["branch"] == "missing_knowledge":
+            column = "knowledge_added_since" if item.get("knowledge_added") else "missing_knowledge"
+        else:
+            column = "not_a_problem"
+        columns[column].add(item.get("topic_id") or item["run_id"])
+    return {column: len(keys) for column, keys in columns.items()}
 
 
 def _waiting(session: dict[str, Any]) -> dict[str, Any] | None:
@@ -840,27 +877,88 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             json={"name": name, "description": description, "content": content},
         )
 
+    async def _versions(agent_id: UUID | str) -> tuple[int | None, dict[str, int]]:
+        """The agent's live version number, and each recent version's number by its id."""
+        agent = await api.request("GET", f"/agents/{agent_id}")
+        page = await api.request("GET", f"/agents/{agent_id}/versions", params={"limit": 100})
+        numbers = {version["id"]: version["version"] for version in page["items"]}
+        live = agent.get("current_version_id")
+        if live is None:
+            return None, numbers
+        if live not in numbers:
+            numbers[live] = (await api.request("GET", f"/agents/{agent_id}/versions/{live}"))[
+                "version"
+            ]
+        return numbers[live], numbers
+
+    def _history(
+        session: dict[str, Any], live: int | None, numbers: dict[str, int]
+    ) -> dict[str, Any]:
+        started_from = numbers.get(session.get("base_version_id") or "")
+        return {
+            "started_from_version": started_from,
+            "why_stale": _why_stale(session, started_from=started_from, live=live),
+        }
+
     async def list_improvements(agent_id: UUID) -> dict[str, Any]:
         """An agent's Improve sessions, newest first. Needs access to the agent.
 
+        `current_published_version` is the version live now; a session's
+        `outcome.published_version` is only what it published then. The first
+        item is `newest` - the one to describe when asked how improving stands.
         Each has its status, the step it is on, the attempt it reached, why it
-        stopped and what it spent, and `link` - the Improve wizard, where the
-        person follows it. A `closed` session is a record: its `outcome` says what
-        was decided - the attempt, the version it published, by whom - and nothing
-        on it can be accepted again. Read one with get_improvement.
+        stopped and what it spent, the version it `started_from_version`, and
+        `link` - the Improve wizard, where the person follows it. A `closed`
+        session is a record: its `outcome` says what was decided - the attempt,
+        the version it published, by whom - and nothing on it can be accepted
+        again; a stale one says `why_stale`. Read one with get_improvement.
         """
         sessions = await api.request("GET", f"/agents/{agent_id}/improvements")
-        return {"items": [_session(agent_id, session) for session in sessions]}
+        live, numbers = await _versions(agent_id)
+        ordered = sorted(sessions, key=lambda session: session["created_at"], reverse=True)
+        return {
+            "current_published_version": live,
+            "items": [
+                {
+                    **_session(agent_id, session),
+                    **_history(session, live, numbers),
+                    "newest": index == 0,
+                }
+                for index, session in enumerate(ordered)
+            ],
+        }
+
+    async def _next_step_price(agent_id: str, session: dict[str, Any]) -> dict[str, Any]:
+        """The next step's quote within the session's limit, or why it cannot be quoted."""
+        try:
+            quote = await api.request(
+                "POST",
+                f"/agents/{agent_id}/improvements/{session['id']}/continue/estimate",
+                json={"budget_usd": str(session["budget_usd"])},
+            )
+        except ToolError as refused:
+            return {"unavailable": str(refused)}
+        return {
+            field: quote[field]
+            for field in ("total_usd", "budget_usd", "affordable", "candidate_hash")
+        }
 
     async def get_improvement(session_id: UUID) -> dict[str, Any]:
         """One Improve session by its id: its attempts and verdicts, and what is missing from knowledge.
 
+        `current_published_version` is the agent's live version; call the
+        session's published version live only when the two are equal, and a
+        stale session says `why_stale`.
         Needs access to its agent, whose `agent_id` the answer carries; the
         knowledge topics and `measurement_noise` also need `runs:view`. When
         `measurement_noise.noisy` is true, the test cannot tell a better version
         from a worse one. A session `waiting_for` the person says which step it
-        stopped after and what the next one runs; estimate_next_improvement_step
-        prices it.
+        stopped after, what the next one runs and its `price` within the
+        session's limit - pass its `total_usd` and `candidate_hash` to
+        run_next_improvement_step, or, when it is not `affordable`, quote a
+        higher limit with estimate_next_improvement_step. `found` counts what
+        Understand found: problems in the agent, knowledge missing, knowledge
+        added since, and what was not a problem.
         Each attempt has its verdict, the questions it fixed and broke (confirmed
         on a rerun) and its `change` - fixed less broken - on `held_out`
         questions of its own; compare attempts by that, not by the pass rates in
@@ -877,21 +975,30 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         session = await api.request("GET", f"/improvements/{session_id}")
         agent_id = session["agent_id"]
         chosen = session.get("best_iteration_id")
+        live, numbers = await _versions(agent_id)
         result: dict[str, Any] = {
             "agent_id": agent_id,
+            "current_published_version": live,
             **_session(agent_id, session),
+            **_history(session, live, numbers),
             "attempts": [_attempt(iteration, chosen) for iteration in session["iterations"]],
             "chosen_by": _chosen_by(session),
             "can_discard": session.get("can_discard"),
             "can_restart": session.get("can_restart"),
             "measurement_noise": _noise(session.get("measurement_noise")),
         }
+        if result["waiting_for"] is not None:
+            result["waiting_for"] = {
+                **result["waiting_for"],
+                "price": await _next_step_price(agent_id, session),
+            }
         me = await api.request("GET", "/me/permissions")
         if not any(entry["permission"] == "runs:view" for entry in me.get("permissions", [])):
             return result
         evidence = await api.request(
             "GET", f"/agents/{agent_id}/improvements/{session_id}/evidence"
         )
+        result["found"] = _found(evidence["items"])
         topic_ids = {item["topic_id"] for item in evidence["items"] if item.get("topic_id")}
         deferred = set(session.get("deferred_topic_ids") or [])
         topics = await api.request(

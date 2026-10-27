@@ -75,9 +75,28 @@ def _permissions(*held: str) -> dict[str, Any]:
     return {"permissions": [{"permission": name, "scope": "all"} for name in held]}
 
 
+def _miss(
+    run_id: str, branch: str, topic_id: str | None = None, *, added: bool = False
+) -> dict[str, Any]:
+    """One conversation Understand sorted, as the evidence route lists it."""
+    return {
+        "run_id": run_id,
+        "branch": branch,
+        "topic_id": topic_id,
+        "knowledge_added": {"document": "Shipping"} if added else None,
+    }
+
+
+UNPUBLISHED: dict[tuple[str, str], Any] = {
+    ("GET", f"/agents/{AGENT}"): {"id": AGENT, "current_version_id": None},
+    ("GET", f"/agents/{AGENT}/versions"): {"items": [], "total": 0},
+}
+"""The agent and its versions, for a test about something else: never published."""
+
+
 def _responder(responses: dict[tuple[str, str], Any]) -> AsyncMock:
     async def respond(method: str, path: str, **_: Any) -> Any:
-        return responses[(method, path)]
+        return {**UNPUBLISHED, **responses}[(method, path)]
 
     return AsyncMock(side_effect=respond)
 
@@ -178,7 +197,11 @@ class TestReadingSessions:
                 ("GET", f"/improvements/{SESSION}"): SESSION_READ,
                 ("GET", "/me/permissions"): _permissions("agents:view", "runs:view"),
                 ("GET", f"/agents/{AGENT}/improvements/{SESSION}/evidence"): {
-                    "items": [{"topic_id": TOPIC}, {"topic_id": OTHER_TOPIC}, {"topic_id": None}]
+                    "items": [
+                        _miss("r1", "missing_knowledge", TOPIC),
+                        _miss("r2", "missing_knowledge", OTHER_TOPIC),
+                        _miss("r3", "agent"),
+                    ]
                 },
                 ("GET", f"/knowledge-gaps/agents/{AGENT}"): {
                     "items": [
@@ -277,7 +300,7 @@ class TestReadingSessions:
                 },
                 ("GET", "/me/permissions"): _permissions("agents:view", "runs:view"),
                 ("GET", f"/agents/{AGENT}/improvements/{SESSION}/evidence"): {
-                    "items": [{"topic_id": TOPIC}]
+                    "items": [_miss("r1", "missing_knowledge", TOPIC)]
                 },
                 ("GET", f"/knowledge-gaps/agents/{AGENT}"): {
                     "items": [
@@ -371,6 +394,77 @@ class TestStepByStep:
 
         assert item["waiting_for"] == {"after": after, "next_step": runs}
         assert item["closed"] is False
+
+    async def test_a_waiting_session_carries_its_next_step_s_price_and_what_understand_found(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        """At a stop the reply needs the finding and the price; neither is a second tool call."""
+        quote = {
+            "mode": "next_step",
+            "number": 1,
+            "total_usd": "0.01",
+            "budget_usd": "0.05",
+            "affordable": True,
+            "candidate_hash": "d" * 64,
+        }
+        api.request = _responder(
+            {
+                ("GET", f"/improvements/{SESSION}"): self.WAITING,
+                ("POST", f"/agents/{AGENT}/improvements/{SESSION}/continue/estimate"): quote,
+                ("GET", "/me/permissions"): _permissions("agents:view", "runs:view"),
+                ("GET", f"/agents/{AGENT}/improvements/{SESSION}/evidence"): {
+                    "items": [
+                        _miss("r1", "agent", TOPIC),
+                        _miss("r2", "agent", TOPIC),
+                        _miss("r3", "unknown"),
+                        _miss("r4", "missing_knowledge", OTHER_TOPIC),
+                        _miss("r5", "missing_knowledge", None, added=True),
+                        _miss("r6", "not_a_problem"),
+                    ]
+                },
+                ("GET", f"/knowledge-gaps/agents/{AGENT}"): {"items": []},
+            }
+        )
+
+        session = await _call(server, "get_improvement", session_id=SESSION)
+
+        assert session["waiting_for"] == {
+            "after": "Understand",
+            "next_step": "propose changes",
+            "price": {
+                "total_usd": "0.01",
+                "budget_usd": "0.05",
+                "affordable": True,
+                "candidate_hash": "d" * 64,
+            },
+        }
+        assert session["found"] == {
+            "in_the_agent": 2,
+            "missing_knowledge": 1,
+            "knowledge_added_since": 1,
+            "not_a_problem": 1,
+        }
+
+    async def test_a_price_that_cannot_be_quoted_says_why_and_still_reads_the_session(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        async def respond(method: str, path: str, **_: Any) -> Any:
+            if path.endswith("/continue/estimate"):
+                raise ToolError("400 BAD_REQUEST: The improvement session stopped")
+            return {
+                **UNPUBLISHED,
+                ("GET", f"/improvements/{SESSION}"): self.WAITING,
+                ("GET", "/me/permissions"): _permissions("agents:view"),
+            }[(method, path)]
+
+        api.request = AsyncMock(side_effect=respond)
+
+        session = await _call(server, "get_improvement", session_id=SESSION)
+
+        assert session["waiting_for"]["price"] == {
+            "unavailable": "400 BAD_REQUEST: The improvement session stopped"
+        }
+        assert session["status"] == "waiting"
 
     async def test_a_session_not_waiting_waits_for_nothing(
         self, server: FastMCP, api: MagicMock
@@ -501,6 +595,129 @@ class TestAClosedSession:
         assert rejected["outcome"]["attempt"] is None
         assert rejected["outcome"]["decided_by"] is None
         assert published["outcome"]["published_version"] == 7
+
+
+V7, V8 = "00000000-0000-4000-8000-0000000000a7", "00000000-0000-4000-8000-0000000000a8"
+
+
+def _published_as(live: str | None) -> dict[tuple[str, str], Any]:
+    return {
+        ("GET", f"/agents/{AGENT}"): {"id": AGENT, "current_version_id": live},
+        ("GET", f"/agents/{AGENT}/versions"): {
+            "items": [{"id": V8, "version": 8}, {"id": V7, "version": 7}],
+            "total": 2,
+        },
+    }
+
+
+class TestTheNewestSessionAndTheLiveVersion:
+    """Asked how improving stands, it once took an older session's v7 for the live version
+    and filed the newest session - outdated by a v8 published by hand - under history."""
+
+    OLDER = {
+        **SESSION_READ,
+        "id": str(uuid.uuid4()),
+        "status": "published",
+        "created_at": "2026-10-26T08:00:00Z",
+        "published_version": 7,
+        "published_version_id": V7,
+    }
+    NEWEST = {
+        **SESSION_READ,
+        "status": "stale",
+        "stop_reason": "stale",
+        "created_at": "2026-10-27T08:00:00Z",
+        "base_version_id": V7,
+    }
+
+    async def test_the_newest_session_comes_first_beside_the_version_live_now(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request = _responder(
+            {
+                **_published_as(V8),
+                ("GET", f"/agents/{AGENT}/improvements"): [self.OLDER, self.NEWEST],
+            }
+        )
+
+        listing = await _call(server, "list_improvements", agent_id=AGENT)
+
+        newest, older = listing["items"]
+        assert listing["current_published_version"] == 8
+        assert (newest["id"], newest["newest"], older["newest"]) == (str(SESSION), True, False)
+        assert newest["started_from_version"] == 7
+        assert newest["why_stale"] == "The agent's published version changed from v7 to v8."
+        assert older["outcome"]["published_version"] == 7
+        assert older["why_stale"] is None
+
+    async def test_one_session_read_says_what_is_live_and_why_it_is_outdated(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request = _responder(
+            {
+                **_published_as(V8),
+                ("GET", f"/improvements/{SESSION}"): self.NEWEST,
+                ("GET", "/me/permissions"): _permissions("agents:view"),
+            }
+        )
+
+        session = await _call(server, "get_improvement", session_id=SESSION)
+
+        assert session["current_published_version"] == 8
+        assert session["why_stale"] == "The agent's published version changed from v7 to v8."
+
+    @pytest.mark.parametrize(
+        ("changes", "why"),
+        [
+            ({"stop_reason": "expired"}, "It waited too long for a person and expired."),
+            (
+                {"stop_reason": "superseded"},
+                "A newer attempt or a person's own change replaced it.",
+            ),
+            (
+                {"base_version_id": V8, "error": "The test questions changed"},
+                "The test questions changed",
+            ),
+            (
+                {"base_version_id": V8},
+                "The agent, its test questions or how they are scored changed after it started.",
+            ),
+        ],
+        ids=["expired", "superseded", "its own error", "something else changed"],
+    )
+    async def test_an_outdated_session_says_why_in_plain_words(
+        self, server: FastMCP, api: MagicMock, changes: dict[str, Any], why: str
+    ) -> None:
+        stale = {**self.NEWEST, "error": None, **changes}
+        api.request = _responder(
+            {**_published_as(V8), ("GET", f"/agents/{AGENT}/improvements"): [stale]}
+        )
+
+        [item] = (await _call(server, "list_improvements", agent_id=AGENT))["items"]
+
+        assert item["why_stale"] == why
+
+    async def test_a_live_version_older_than_the_last_hundred_is_read_by_its_id(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        rolled_back = str(uuid.uuid4())
+        api.request = _responder(
+            {
+                **_published_as(rolled_back),
+                ("GET", f"/agents/{AGENT}/versions/{rolled_back}"): {
+                    "id": rolled_back,
+                    "version": 3,
+                },
+                ("GET", f"/agents/{AGENT}/improvements"): [self.NEWEST],
+            }
+        )
+
+        listing = await _call(server, "list_improvements", agent_id=AGENT)
+
+        assert listing["current_published_version"] == 3
+        assert listing["items"][0]["why_stale"] == (
+            "The agent's published version changed from v7 to v3."
+        )
 
 
 QUOTE = {"total_usd": "0.01", "per_round_usd": "0.03", "max_iterations": 3}
@@ -1022,6 +1239,9 @@ PATHS = [
     ("POST", f"/agents/{AGENT}/improvements/{SESSION}/continue/estimate"),
     ("POST", f"/agents/{AGENT}/improvements/{SESSION}/continue"),
     ("GET", f"/knowledge-gaps/agents/{AGENT}"),
+    ("GET", f"/agents/{AGENT}"),
+    ("GET", f"/agents/{AGENT}/versions"),
+    ("GET", f"/agents/{AGENT}/versions/{SESSION}"),
     ("GET", "/datasets"),
     ("GET", f"/eval-runs/{RUN}"),
     ("GET", f"/eval-runs/{RUN}/comparison"),

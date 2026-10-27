@@ -3,7 +3,7 @@
 import { type ReactNode, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Button, ConfirmDialog, Input, Label, Textarea } from "@/components/ui";
-import { usd } from "@/components/evals/format";
+import { limitInput, usd } from "@/components/evals/format";
 import { useImprovement } from "@/hooks/use-improvements";
 import { getErrorMessage } from "@/lib/api-error";
 import type { ContinuationEstimate, Improvement } from "@/types/improvement";
@@ -73,10 +73,11 @@ export function ContinueSession({
   const actions = useImprovement(session.agent_id, session.id);
   const [open, setOpen] = useState(false);
   const [discarding, setDiscarding] = useState(false);
-  const [budget, setBudget] = useState(session.budget_usd);
+  const [budget, setBudget] = useState(limitInput(session.budget_usd));
   const [note, setNote] = useState("");
   const [quoted, setQuoted] = useState<{ key: string; value: ContinuationEstimate } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [discardError, setDiscardError] = useState<string | null>(null);
   const key = JSON.stringify([
     budget,
     session.status,
@@ -97,12 +98,12 @@ export function ContinueSession({
   const { resume, canContinue, own, primary } = continuation(session);
   // A note steers a new attempt's helper; a resumed or retried step repeats one already written.
   const attempt = !resume && session.status !== "failed";
-  async function act(action: () => Promise<void>) {
-    setError(null);
+  async function act(action: () => Promise<void>, report = setError) {
+    report(null);
     try {
       await action();
     } catch (e) {
-      setError(getErrorMessage(e, tErrors));
+      report(getErrorMessage(e, tErrors));
     }
   }
   if (!waiting) return null;
@@ -134,7 +135,10 @@ export function ContinueSession({
           <Button
             variant={emphasis?.end ?? "ghost"}
             disabled={actions.discard.isPending}
-            onClick={() => setDiscarding(true)}
+            onClick={() => {
+              setDiscardError(null);
+              setDiscarding(true);
+            }}
           >
             {t(emphasis ? "resultDecision.end" : "discard")}
           </Button>
@@ -192,6 +196,7 @@ export function ContinueSession({
             <div className="space-y-3 text-sm">
               <p>
                 {t("continuationQuote", {
+                  mode: quote.mode,
                   number: quote.number,
                   max: session.max_iterations,
                   cost: usd(quote.total_usd, locale),
@@ -232,9 +237,9 @@ export function ContinueSession({
         description={
           <>
             {t("discardBody")}
-            {error && (
+            {discardError && (
               <span role="alert" className="text-destructive mt-2 block">
-                {error}
+                {discardError}
               </span>
             )}
           </>
@@ -246,7 +251,7 @@ export function ContinueSession({
             await actions.discard.mutateAsync();
             setDiscarding(false);
             onStarted();
-          })
+          }, setDiscardError)
         }
       />
     </section>

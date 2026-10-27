@@ -1,6 +1,9 @@
 import type { Improvement } from "@/types/improvement";
 
 export const IMPROVEMENT_STEPS = ["understand", "changes", "check", "result", "accept"] as const;
+
+/** Why an attempt that did not do better ended, where a person decides whether to try again. */
+export const ATTEMPT_RESULT_REASONS = ["no_change", "regression", "inconclusive"];
 export type ImprovementStep = (typeof IMPROVEMENT_STEPS)[number];
 export type ImprovementStepState = "done" | "running" | "needs_you" | "skipped" | "pending";
 
