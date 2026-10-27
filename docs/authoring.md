@@ -393,6 +393,11 @@ many questions it is measured on: counted by its check, before that by the
 analysis or its draw. The start's estimate gives the first attempt's `held_out`
 before the session exists, counted as its analysis will count it.
 
+A session whose **Try again** would be refused says why before anyone presses it,
+in `try_again_blocked`: `nothing_to_learn` when no answer the next attempt would
+read still fails, or `missing_holdout` with how many more questions another
+attempt needs. Nothing is priced to tell.
+
 The helper reads the answers to
 an attempt's other questions, never the ones kept aside. Since attempts are
 measured on different questions, the result compares them by what each changed

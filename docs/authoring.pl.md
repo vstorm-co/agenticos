@@ -1,5 +1,5 @@
 ---
-source_sha: "13f61b60c629"
+source_sha: "e2344fe1861a"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -409,6 +409,11 @@ Pole `held_out` każdej próby mówi, na ilu pytaniach
 jest mierzona: według jej testu, a przed nim według analizy albo losowania. Szacunek na starcie
 podaje `held_out` pierwszej próby, zanim sesja powstanie, liczone tak, jak policzy
 je jej analiza.
+
+Sesja, w której **Try again** zostałoby odrzucone, mówi dlaczego, zanim ktoś je
+naciśnie, w `try_again_blocked`: `nothing_to_learn`, gdy żadna odpowiedź, którą
+przeczytałaby następna próba, już nie zawodzi, albo `missing_holdout` z liczbą
+pytań, których brakuje kolejnej próbie. Nic nie jest przy tym wyceniane.
 
 Pomocnik czyta odpowiedzi na pozostałe pytania
 próby, nigdy na te odłożone. Ponieważ próby mierzy się na różnych pytaniach,

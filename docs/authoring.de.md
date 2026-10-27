@@ -1,5 +1,5 @@
 ---
-source_sha: "13f61b60c629"
+source_sha: "e2344fe1861a"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -433,6 +433,11 @@ auf wie vielen Fragen er gemessen wird: gezählt von seinem Test, davor von der
 Analyse oder seiner Ziehung. Die Schätzung beim Start nennt den `held_out` des
 ersten Versuchs, bevor die Sitzung besteht, so gezählt, wie seine Analyse ihn
 zählen wird.
+
+Eine Sitzung, deren **Try again** abgelehnt würde, sagt den Grund, bevor jemand es
+drückt, in `try_again_blocked`: `nothing_to_learn`, wenn keine Antwort, die der
+nächste Versuch lesen würde, noch fehlschlägt, oder `missing_holdout` mit der
+Zahl der Fragen, die einem weiteren Versuch fehlen. Dafür wird nichts bepreist.
 
 Der Helfer liest die Antworten
 auf die übrigen Fragen eines Versuchs, nie auf die zurückgelegten. Da Versuche

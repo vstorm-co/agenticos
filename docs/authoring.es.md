@@ -1,5 +1,5 @@
 ---
-source_sha: "13f61b60c629"
+source_sha: "e2344fe1861a"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -415,6 +415,11 @@ El `held_out` de cada intento dice con
 cuántas preguntas se mide: contadas por su prueba y, antes, por el análisis o su
 sorteo. La estimación del inicio da el `held_out` del primer intento antes de que
 exista la sesión, contado como lo contará su análisis.
+
+Una sesión cuyo **Try again** se rechazaría dice por qué antes de que nadie lo
+pulse, en `try_again_blocked`: `nothing_to_learn` cuando ninguna respuesta que
+leería el siguiente intento sigue fallando, o `missing_holdout` con cuántas
+preguntas más necesita otro intento. No se estima nada para saberlo.
 
 El asistente lee
 las respuestas a las demás preguntas de un intento, nunca a las apartadas. Como
