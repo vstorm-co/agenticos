@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 
@@ -51,6 +51,20 @@ function SystemAgentSelect({ kind, value, onChange, disabled = false, wizard }: 
   const fallback = agents.find((agent) => agent.system_key != null);
   const alternatives = agents.filter((agent) => agent.system_key == null);
   const picked = value === null ? fallback : agents.find((agent) => agent.id === value);
+  const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  // An open list locks the page's scrolling, so content landing above it (an
+  // estimate) would carry trigger and list off a phone's screen out of reach.
+  useEffect(() => {
+    const element = trigger.current;
+    if (!open || !element) return;
+    const top = element.getBoundingClientRect().top;
+    let frame = requestAnimationFrame(function watch() {
+      if (Math.abs(element.getBoundingClientRect().top - top) > 1) setOpen(false);
+      else frame = requestAnimationFrame(watch);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [open]);
   const hint = (
     <p className="text-muted-foreground text-xs">{wizard ? tw("hint") : t("systemChoice.hint")}</p>
   );
@@ -75,11 +89,13 @@ function SystemAgentSelect({ kind, value, onChange, disabled = false, wizard }: 
     <div className="mt-3 space-y-2">
       <FormField htmlFor={id} label={t("systemChoice.label")}>
         <Select
+          open={open}
+          onOpenChange={setOpen}
           value={value ?? "default"}
           onValueChange={(next) => onChange(next === "default" ? null : next)}
           disabled={disabled || isLoading || error !== null}
         >
-          <SelectTrigger id={id}>
+          <SelectTrigger ref={trigger} id={id}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

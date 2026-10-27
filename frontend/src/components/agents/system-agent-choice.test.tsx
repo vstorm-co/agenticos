@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -114,5 +114,22 @@ describe("a system agent selected where it runs", () => {
     expect(screen.getByRole("combobox", { name: "Run with" })).toHaveTextContent(
       /^Default \(default\)$/,
     );
+  });
+
+  it("closes an open list once content above pushes its trigger away", async () => {
+    render(<SystemAgentChoice kind="improver" value={null} onChange={vi.fn()} />);
+    await userEvent.click(screen.getByText("Authoring assistant"));
+    const trigger = screen.getByRole("combobox", { name: "Run with" });
+    let top = 100;
+    vi.spyOn(trigger, "getBoundingClientRect").mockImplementation(
+      () => ({ top, bottom: top + 36, left: 0, right: 200, width: 200, height: 36 }) as DOMRect,
+    );
+    await userEvent.click(trigger);
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
+    top = 640;
+    await waitFor(() => expect(screen.queryByRole("listbox")).toBeNull());
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
   });
 });

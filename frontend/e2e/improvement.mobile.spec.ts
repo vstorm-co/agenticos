@@ -246,14 +246,20 @@ test("test questions, review and improvement publish keep a guarded environment 
   await page.getByLabel("Test questions", { exact: true }).click();
   await page.getByRole("option", { name: String(dataset.name), exact: true }).click();
   const estimate = page.getByText(/^About \d+ minutes?, up to .+ \(estimate\)/);
-  // The estimate redraws the box above the helper; a list opened before it lands
-  // stays where it was drawn, off a phone's screen.
-  await expect(estimate).toBeVisible();
+  // Opened before the estimate lands, which redraws the box above it: the list
+  // either closes with the shift or stays on screen, never out of reach.
   await page.getByText("Helper that writes the changes", { exact: true }).click();
   const runWith = page.getByRole("combobox", { name: "Run with" });
-  await runWith.scrollIntoViewIfNeeded();
   await runWith.click();
-  await page.getByRole("option", { name: String(helper.name), exact: true }).click();
+  await expect(estimate).toBeVisible();
+  const choice = page.getByRole("option", { name: String(helper.name), exact: true });
+  if (await choice.isVisible()) await expect(choice).toBeInViewport();
+  else {
+    await runWith.scrollIntoViewIfNeeded();
+    await runWith.click();
+  }
+  await choice.click();
+  await expect(runWith).toHaveText(String(helper.name));
   await expect(estimate).toBeVisible();
   const budget = page.getByLabel("Session spending limit (USD)");
   await expect(budget).toBeVisible();
