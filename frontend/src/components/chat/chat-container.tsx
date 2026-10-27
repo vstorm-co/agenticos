@@ -33,6 +33,7 @@ import { FilePreviewDialog } from "./file-preview-dialog";
 import type { Browse } from "@/lib/browse";
 import { LiveBrowsesProvider } from "./browser-card";
 import { ConversationVisualsProvider } from "./visual-panel";
+import { BrowserDock } from "./browser-card";
 import { BrowserPanel } from "./browser-panel";
 import { SourcesPanel } from "./sources-panel";
 import { MessageList } from "./message-list";
@@ -1392,6 +1393,11 @@ function ChatUI({
               compact && "bg-background",
             )}
           >
+            <BrowserDock
+              browses={browses}
+              onComment={commentOnPage}
+              onResume={() => sendMessage(t("browserResumePrompt"))}
+            />
             {personalGaps.length > 0 && (
               <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
                 <ConnectServicesCard gaps={personalGaps} />

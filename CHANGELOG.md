@@ -21,6 +21,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Browser connection cards with icons, independent per-chat desktop browser
+  overrides, a preview anchored above the composer, and tools for up to eight tabs.
+  Remote private sessions retain a final preview and encrypted reload checkpoints
+  for one hour; browser processes close after each run.
+
 - Native desktop browser panels with conversation-scoped private tabs, exclusive
   run leases and local takeover. Chromium remains available for vision and
   language/time-zone emulation.

@@ -1,5 +1,5 @@
 ---
-source_sha: "ffaede8f0604"
+source_sha: "e09a97341751"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -72,7 +72,7 @@ guarda archivos. El navegador web apunta al servicio de navegador del despliegue
 | `conversation_search` | Conversaciones anteriores | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — | tal cual |
 | `web_research` | Búsqueda web | research | `web_search` | `web:read` | para servicios de pago | tal cual |
 | `web_fetch` | Leer páginas web | research | `web_fetch` | `web:fetch` | — | tal cual |
-| `browser_use` | Navegador web | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | mediante el extra `browser` | delegada |
+| `browser_use` | Navegador web | research | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | mediante el extra `browser` | delegada |
 | `computer_use` | Computer use | research | `computer_screenshot`, `computer_act`, `computer_save_screenshot` | `computer:use` | para un daemon | delegada |
 | `code_execution` | Cálculos | analysis | `run_python` | `code:execute` | — | tal cual |
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | para Daytona | delegada |
@@ -715,13 +715,22 @@ por varias páginas. Para una página que solo hay que leer, la
 en manos del propio agent: una acción por llamada, elegida por el modelo del run en su
 propio turno, y cada una responde con la página después de la acción - su dirección, los
 elementos numerados y su texto. Sin una segunda petición por paso, y el agent dice en el
-chat lo que hace entre acciones. Los pasos se dibujan en una única ventana en vivo bajo el
-mensaje del agent, la que abrió el primer `browser_open`, y una persona puede tomar la pestaña
-entre dos pasos cualesquiera. Medido con Claude a través de OpenRouter: un paso de
+chat lo que hace entre acciones. La página seleccionada permanece encima del campo de mensajes; el chat muestra enlaces
+compactos a la vista. Una persona puede tomar el control entre acciones. Medido con Claude a través de OpenRouter: un paso de
 `browse_web` dura 3,5-5 s, casi todo la petición al modelo del propio paso; una tarea de
 dos clics que el agent manejó él mismo tardó 13 s, y con `browse_web` unos 20. Las
 herramientas convienen para una tarea corta o una que alguien quiere ver, `browse_web`
 para una tarea larga entregada entera.
+
+**Varias pestañas y reanudación.** `browser_new_tab(url)` abre una página aparte,
+`browser_tabs` lista identificadores, `browser_switch_tab(tab_id)` selecciona y lee una
+página y `browser_close_tab(tab_id)` la cierra. Hay hasta ocho pestañas por ejecución.
+`browser_open` navega en la pestaña seleccionada. En conversaciones privadas,
+`browser_read` restaura durante una hora un estado cifrado: URL, cookies y local storage.
+Las páginas remotas se cierran al terminar. Reanudar carga páginas y números de elementos
+nuevos; no conserva formularios sin guardar, memoria JavaScript ni historial. Los navegadores
+alojados no reciben estos estados. Las tarjetas con iconos aparecen primero en la
+configuración; los usuarios de escritorio pueden cambiar la conexión por conversación.
 
 **Una acción nombra una fila, nunca un selector.** Cada elemento sobre el que el modelo
 puede actuar es una fila de una tabla construida en el servidor a partir del DOM vivo,

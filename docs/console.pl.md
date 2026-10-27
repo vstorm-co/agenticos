@@ -1,5 +1,5 @@
 ---
-source_sha: "9aa1d28185bc"
+source_sha: "8d758a290cf6"
 ---
 
 # Konsola { #the-console }
@@ -397,15 +397,13 @@ agent już o nim wie; **Napraw** prosi go ponownie. Na telefonie stuknięcie otw
 pełnym ekranie. Karta **Ostatnie wizualizacje** na dashboardzie pokazuje najnowsze
 rysunki zrobione dla ciebie, a każdy otwiera rozmowę, w której powstał.
 
-**Oglądanie przeglądania.** Gdy agent z
-[przeglądarką](reference/capabilities.md#browser-automation) zaczyna na stronie, jego
-przeglądarka rysuje się na żywo pod wiadomością agenta: okno z adresem i stroną taką,
-jak widzi ją agent, jedną linijką nad stroną o tym, co robi teraz, i kursorem, który
-przesuwa się do tego, co klika albo w co pisze. Okno ma stały kształt i rośnie oraz
-maleje razem z rozmową; kilka przeglądań naraz stoi obok siebie, po dwa w rzędzie, gdy
-jest miejsce. Przycisk maksymalizacji otwiera jedno na pełnym ekranie, a przywrócenie
-odkłada je z powrotem pod wiadomość. Pełna lista kroków, każdy z tym, po co był, jest
-pod przyciskiem kroków.
+**Oglądanie przeglądania.** [Przeglądarka](reference/capabilities.md#browser-automation)
+zostaje nad polem wiadomości, gdy rozmowa się przewija. Pasek kart przełącza strony,
+a wpisy w rozmowie otwierają podgląd obok czatu lub na pełnym ekranie. Po zakończeniu
+zostaje ostatni obraz. **Wznów sesję** prosi agenta o odtworzenie prywatnej sesji,
+dostępnej przez maksymalnie godzinę. Zdalne strony zamykają się po każdym runie;
+wznowienie wczytuje adresy, cookies i local storage, ale nie niezapisane formularze
+ani pamięć JavaScript. Agent odczytuje nowe numery elementów.
 
 **Przejmowanie przeglądania.** Gdy przeglądanie trwa, **Przejmij** w pasku przeglądarki
 zatrzymuje agenta po bieżącym kroku i oddaje ci stronę, w tym samym oknie: klikaj, pisz,

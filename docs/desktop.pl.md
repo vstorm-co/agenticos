@@ -1,5 +1,5 @@
 ---
-source_sha: "0070c0a80dfb"
+source_sha: "f70dbf41fb0d"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -265,10 +265,11 @@ ktoś to zmienił - i co do własnego publicznego adresu.
 
 ## Lokalna przeglądarka, modele i MCP { #local-browser-models-and-mcp }
 
-Po sparowaniu aplikacji desktopowej zatwierdź folder w **Pracuj na**. W tym samym
-selektorze możesz wybrać lokalny model, usługi MCP i lokalną przeglądarkę dla danego
-uruchomienia. Wymagany jest agent z przypisanym sandboxem i Twoja własna sparowana
-sesja. Aplikacja telefonu nie wywołuje komend desktopowych.
+Po sparowaniu aplikacji wybierz **Przeglądarka → Lokalna przeglądarka**, aby
+nadpisać ustawienie agenta dla tej rozmowy. Ten wybór jest niezależny od **Pracuj na**:
+nie wymaga folderu ani funkcji Sandbox i zachowuje sandbox agenta w chmurze. Lokalne
+modele i usługi MCP nadal wymagają zatwierdzonego folderu i sandboxa. Aplikacja telefonu
+nie wywołuje komend desktopowych.
 
 Usługi dodaje się w **Ustawienia → Aplikacja desktopowa → Usługi lokalne**. Każde
 uprawnienie potwierdza natywne okno. Model korzysta z endpointu HTTP Ollama lub

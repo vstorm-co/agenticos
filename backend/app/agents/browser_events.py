@@ -92,8 +92,14 @@ class BrowserEvent(BaseModel):
     )
     title: str | None = Field(default=None, description="The page's title, when it has one.")
 
+    tab_id: str | None = None
+    """Stable tab identity across selected views and resumed turns."""
+
     native_id: str | None = None
     """An opaque tab handle usable only by its owning paired desktop app."""
+
+    resumable: bool = False
+    """A private conversation checkpoint can restore this page after the run."""
 
     navigable: bool = False
     """Whether this view is a browser tab rather than a computer screen."""

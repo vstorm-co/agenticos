@@ -213,6 +213,8 @@ class BrowseSession:
     """
 
     page: PageSession
+    tab_id: str | None = None
+    resumable: bool = False
     history: tuple[str, ...] = ()
     memory: str = ""
     steps: int = 0
@@ -347,6 +349,8 @@ async def _drive(
     await emit(
         BrowserEvent(
             kind="browser_opened",
+            tab_id=session.tab_id,
+            resumable=session.resumable,
             navigable=True,
             native_id=page.native_id,
             call_id=call_id,

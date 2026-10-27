@@ -225,6 +225,30 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     captionKey: "openingPage",
     displayNameKey: "openPage",
   },
+  browser_new_tab: {
+    kind: "web",
+    render: "generic",
+    captionKey: "openingPage",
+    displayNameKey: "openPage",
+  },
+  browser_tabs: {
+    kind: "web",
+    render: "generic",
+    captionKey: "readingPage",
+    displayNameKey: "readPage",
+  },
+  browser_switch_tab: {
+    kind: "web",
+    render: "generic",
+    captionKey: "readingPage",
+    displayNameKey: "readPage",
+  },
+  browser_close_tab: {
+    kind: "web",
+    render: "generic",
+    captionKey: "readingPage",
+    displayNameKey: "readPage",
+  },
   browser_read: {
     kind: "web",
     render: "generic",

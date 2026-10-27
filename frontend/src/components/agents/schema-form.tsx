@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronRight, Eye, EyeOff } from "lucide-react";
+import { ChevronRight, Cloud, Eye, EyeOff, Globe, Laptop, Network } from "lucide-react";
 
 import {
   Input,
@@ -312,7 +312,47 @@ function SchemaField({
         />
       )}
 
-      {kind === "enum" && choices !== null && (
+      {kind === "enum" && choices !== null && property["x-widget"] === "browser-connection" && (
+        <div
+          id={id}
+          role="radiogroup"
+          aria-label={label}
+          aria-describedby={description ? `${id}-description` : undefined}
+          className="grid grid-cols-1 gap-2 sm:grid-cols-2"
+          {...invalid}
+        >
+          {choices.map((choice) => {
+            const Icon =
+              choice === "local"
+                ? Laptop
+                : choice === "hosted"
+                  ? Cloud
+                  : choice === "proxy"
+                    ? Network
+                    : Globe;
+            return (
+              <button
+                key={choice}
+                type="button"
+                role="radio"
+                aria-checked={selected === choice}
+                disabled={disabled}
+                onClick={() => onChange(choice)}
+                className={cn(
+                  "flex min-h-14 items-center gap-3 rounded-xl border px-3 py-3 text-left text-sm transition-colors disabled:opacity-50",
+                  selected === choice
+                    ? "border-foreground/40 bg-foreground/5"
+                    : "border-border hover:bg-muted",
+                )}
+              >
+                <Icon aria-hidden className="size-5 shrink-0" />
+                {enumLabel(property, choice, copy)}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {kind === "enum" && choices !== null && property["x-widget"] !== "browser-connection" && (
         <Select
           value={
             typeof value === "string" ? value : typeof fallback === "string" ? fallback : UNSET

@@ -51,7 +51,7 @@ import {
   resolveAwaitingOnResume,
   resumeFailureStatus,
 } from "@/lib/delegations";
-import { applyBrowserFrame, type Browse } from "@/lib/browse";
+import { latestBrowserTabs, applyBrowserFrame, type Browse } from "@/lib/browse";
 import { useBrowserPanelStore } from "@/stores/browser-panel-store";
 import { buildAssistantParts, replyFromWire, type WireReply } from "@/lib/conversation-to-chat";
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
@@ -1339,12 +1339,8 @@ export function useChat(options: UseChatOptions = {}) {
       // late frame from a background delegation of the turn before is dropped by
       // `applyDelegationFrame` rather than opening a nameless panel.
       setDelegations([]);
-      // A browse belongs to the turn that started it, and the panel draws the
-      // newest one - so without this the next turn opens under the last turn's
-      // viewport, and a browse that finished keeps a screenshot alive for as
-      // long as the hook does.
-      setBrowses([]);
-      closeBrowserPanel();
+      // Keep the last browser previews available across follow-up turns.
+      setBrowses(latestBrowserTabs);
       setPersonalGaps([]);
       // Asking something new is the reader deciding not to wait for the turn
       // whose socket went away. Their call to make, and it is the only other
@@ -1445,7 +1441,13 @@ export function useChat(options: UseChatOptions = {}) {
         }
       }
       const local = useWorkOnStore.getState().targetFor(conversationId || null);
-      if (local) payload.local = { ...local };
+      const localBrowser = useWorkOnStore.getState().browserFor(conversationId || null);
+      if (local)
+        payload.local = {
+          ...local,
+          ...(localBrowser || local.browser !== undefined ? { browser: localBrowser } : {}),
+        };
+      else if (localBrowser) payload.local = { browser: true };
       const test = testingRef.current;
       if (test) {
         payload.test = true;
@@ -1475,7 +1477,6 @@ export function useChat(options: UseChatOptions = {}) {
       conversationId,
       // The store action that shuts the browse panel when this turn ends the
       // previous one's browse. Stable, and listed rather than omitted.
-      closeBrowserPanel,
       tenantId,
     ],
   );

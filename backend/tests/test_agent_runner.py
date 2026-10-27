@@ -6155,16 +6155,22 @@ class TestAFailedRunOverTheApi:
 class TestPerRunLocalServices:
     @pytest.mark.anyio
     @pytest.mark.parametrize(
-        "connected, voice_call, model_selected, browser_selected",
+        "connected, voice_call, model_selected, browser_selected, browser_only",
         [
-            (True, False, True, True),
-            (False, False, True, True),
-            (True, True, True, True),
-            (True, False, False, False),
+            (True, False, True, True, False),
+            (False, False, True, True, False),
+            (True, True, True, True, False),
+            (True, False, False, False, False),
+            (True, False, False, True, True),
         ],
     )
     async def test_native_services_use_only_the_resolved_workspace_session(
-        self, connected: bool, voice_call: bool, model_selected: bool, browser_selected: bool
+        self,
+        connected: bool,
+        voice_call: bool,
+        model_selected: bool,
+        browser_selected: bool,
+        browser_only: bool,
     ):
         from app.agents.voice import VoiceOptions
         from app.schemas.local_target import LocalTarget
@@ -6185,9 +6191,9 @@ class TestPerRunLocalServices:
         ctx = _ctx()
         session = uuid.uuid4()
         target = LocalTarget(
-            folder="/approved",
+            folder=None if browser_only else "/approved",
             model_service="model" if model_selected else None,
-            mcp_services=["files", "files"],
+            mcp_services=[] if browser_only else ["files", "files"],
             browser=browser_selected,
         )
         assert ctx.user_id is not None
@@ -6200,7 +6206,7 @@ class TestPerRunLocalServices:
                 row_id=None,
                 local=True,
             )
-            if connected
+            if connected and not browser_only
             else None
         )
         service = AgentRunnerService(_db())
@@ -6248,6 +6254,9 @@ class TestPerRunLocalServices:
                 new=AsyncMock(return_value=run),
             ),
             patch.object(device_hub, "describe_service", describe),
+            patch.object(
+                device_hub, "wait_for", AsyncMock(return_value=MagicMock(session_id=session))
+            ),
             patch.object(device_hub, "local_model_spec", return_value=resolved_model),
             patch.object(device_hub, "local_mcp_toolset") as tools,
             patch("app.services.agent_runner.build_agent") as build,
@@ -6266,14 +6275,17 @@ class TestPerRunLocalServices:
                 await service.prepare(ctx, agent.id, local=target)
         assert [call.args for call in describe.await_args_list] == [
             *([(session, "model", "model")] if model_selected else []),
-            (session, "files", "mcp"),
+            *([] if browser_only else [(session, "files", "mcp")]),
         ]
         assert build.call_args.args[1] is resolved_model
         if browser_selected:
             assert build.call_args.kwargs["resources"]["local_browser_session"] == session
         else:
             assert "local_browser_session" not in build.call_args.kwargs["resources"]
-        assert tools.return_value in build.call_args.kwargs["extra_toolsets"]
+        if browser_only:
+            tools.assert_not_called()
+        else:
+            assert tools.return_value in build.call_args.kwargs["extra_toolsets"]
         if model_selected:
             assert run.model_label == "Local model" and run.secret_id is None
 
@@ -6586,3 +6598,51 @@ class TestCancelParkedRun:
             await service.can_stop_parked(replace(ctx, api_key_id=uuid.uuid4()), uuid.uuid4())
             is False
         )
+
+
+@pytest.mark.anyio
+class TestBrowserOnlyLocalSelection:
+    async def test_resolves_the_callers_paired_device_without_a_workspace(self, monkeypatch):
+        from app.schemas.local_target import LocalTarget
+        from app.services import device_hub
+
+        ctx = _ctx()
+        device_id, session = uuid.uuid4(), uuid.uuid4()
+        wait = AsyncMock(return_value=MagicMock(session_id=session))
+        monkeypatch.setattr(device_hub, "wait_for", wait)
+        assert (
+            await AgentRunnerService._browser_session(
+                ctx, LocalTarget(browser=True, device_id=device_id)
+            )
+            == session
+        )
+        wait.assert_awaited_once_with(ctx.user_id, device_id, timeout=0)
+        wait.return_value = None
+        with pytest.raises(BadRequestError, match="not connected"):
+            await AgentRunnerService._browser_session(ctx, LocalTarget(browser=True))
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("identity", ["anonymous", "key", "publisher"])
+    async def test_refuses_nonpersonal_authority_before_contacting_a_device(
+        self, identity, monkeypatch
+    ):
+        from dataclasses import replace
+
+        from app.schemas.local_target import LocalTarget
+        from app.services import device_hub
+
+        ctx = _ctx()
+        changes = (
+            {"user_id": None}
+            if identity == "anonymous"
+            else {"api_key_id": uuid.uuid4()}
+            if identity == "key"
+            else {"subject_is_publisher_fallback": True}
+        )
+        wait = AsyncMock()
+        monkeypatch.setattr(device_hub, "wait_for", wait)
+        with pytest.raises(BadRequestError, match="Only your own"):
+            await AgentRunnerService._browser_session(
+                replace(ctx, **changes), LocalTarget(browser=True)
+            )
+        wait.assert_not_awaited()

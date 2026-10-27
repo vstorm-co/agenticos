@@ -1,5 +1,5 @@
 ---
-source_sha: "9aa1d28185bc"
+source_sha: "8d758a290cf6"
 ---
 
 # Die Konsole { #the-console }
@@ -435,15 +435,14 @@ fragt erneut. Auf einem Telefon öffnet ein Tippen sie im Vollbild.
 Die Karte **Neueste Visuals** auf dem Dashboard zeigt die zuletzt für Sie
 gezeichneten, jede öffnet das Gespräch, in dem sie entstand.
 
-**Einem Durchlauf zusehen.** Beginnt ein Agent mit dem
-[Webbrowser](reference/capabilities.md#browser-automation) auf einer Seite, erscheint
-sein Browser live unter der Nachricht des Agents: ein Fenster mit der Adresse und der
-Seite, wie der Agent sie sieht, einer Zeile über der Seite dazu, was er gerade tut, und
-seinem Cursor, der zu dem wandert, was er anklickt oder ausfüllt. Das Fenster behält
-seine Form und wächst und schrumpft mit der Unterhaltung; mehrere Durchläufe zugleich
-stehen nebeneinander, zwei pro Reihe, wo Platz ist. Die Maximieren-Schaltfläche öffnet
-einen im Vollbild, Wiederherstellen legt ihn zurück unter die Nachricht. Die vollständige
-Liste der Schritte, jeder mit seinem Zweck, liegt hinter der Schritte-Schaltfläche.
+**Einem Durchlauf zusehen.** Der [Webbrowser](reference/capabilities.md#browser-automation)
+bleibt über dem Eingabefeld, während das Gespräch scrollt. Die Tableiste wechselt
+zwischen Seiten; Einträge im Gespräch öffnen die Vorschau neben dem Chat oder im
+Vollbild. Nach dem Lauf bleibt das letzte Bild. **Sitzung fortsetzen** bittet den
+Agent, den privaten Sitzungsstand wiederherzustellen, bis zu einer Stunde lang.
+Remote-Seiten schließen nach jedem Lauf. Fortsetzen lädt URLs, Cookies und Local
+Storage neu, aber keine ungespeicherten Formulare oder JavaScript-Zustände. Der Agent
+liest die Elementnummern erneut.
 
 **Einen Durchlauf übernehmen.** Während ein Durchlauf läuft, pausiert **Übernehmen** in
 der Symbolleiste des Browsers den Agent nach seinem laufenden Schritt und gibt Ihnen die

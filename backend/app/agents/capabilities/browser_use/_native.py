@@ -53,6 +53,7 @@ class NativePage(CdpPage):
         super().__init__(client, browse_id, policy)
         self.native_id, self.session_id, self.lease = browse_id, session_id, lease
         self._native_commands = client
+        self.close_on_release = False
 
     click = _guard(CdpPage.click)
     type_text = _guard(CdpPage.type_text)

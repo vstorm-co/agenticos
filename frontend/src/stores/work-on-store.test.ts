@@ -3,7 +3,13 @@ import { useWorkOnStore } from "./work-on-store";
 
 const target = { folder: "/approved", mode: "read_only" } as const;
 beforeEach(() =>
-  useWorkOnStore.setState({ byConversation: {}, draft: null, draftProjectKey: null }),
+  useWorkOnStore.setState({
+    byConversation: {},
+    draft: null,
+    draftProjectKey: null,
+    browserByConversation: {},
+    draftBrowser: undefined,
+  }),
 );
 it("moves a new chat's local choice under its server identity", () => {
   const store = useWorkOnStore.getState();
@@ -50,4 +56,21 @@ it("adopts the inherited project folder while preserving other conversations", (
   expect(store.targetFor("created")).toEqual(target);
   expect(store.targetFor("existing")?.folder).toBe("/existing");
   expect(useWorkOnStore.getState().draftProjectKey).toBeNull();
+});
+
+it("adopts a browser-only choice and preserves it when the sandbox returns to Cloud", () => {
+  const store = useWorkOnStore.getState();
+  store.setBrowser(null, true);
+  store.adopt("browser-only");
+  expect(store.targetFor("browser-only")).toBeNull();
+  expect(store.browserFor("browser-only")).toBe(true);
+  store.set("browser-only", target);
+  store.set("browser-only", null);
+  expect(store.browserFor("browser-only")).toBe(true);
+  store.setBrowser("browser-only", false);
+  expect(store.browserFor("browser-only")).toBe(false);
+  expect(store.browserFor("new")).toBe(false);
+  store.setBrowser(null, true);
+  store.resetDraft();
+  expect(store.browserFor(null)).toBe(false);
 });

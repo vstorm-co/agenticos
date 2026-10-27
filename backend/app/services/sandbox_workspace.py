@@ -685,13 +685,13 @@ class SandboxWorkspaceService:
         """
         config = sandbox_config(spec)
         if config is None:
-            if local is not None:
+            if local is not None and local.folder is not None:
                 raise BadRequestError(
                     message="Enable the Sandbox capability on this agent before working on your computer",
                     details={"target": "local"},
                 )
             return None
-        if local is not None:
+        if local is not None and local.folder is not None:
             return await self._open_local(ctx, local, on_wait=on_wait)
         return await self._open_config(
             config,

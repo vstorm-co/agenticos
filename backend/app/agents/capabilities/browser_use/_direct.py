@@ -90,6 +90,8 @@ async def open_view(view: DirectView, session: BrowseSession, goal: str) -> Snap
     await view.emit(
         BrowserEvent(
             kind="browser_opened",
+            tab_id=session.tab_id,
+            resumable=session.resumable,
             navigable=True,
             native_id=session.page.native_id,
             call_id=view.call_id,
@@ -191,6 +193,22 @@ async def close_view(view: DirectView, session: BrowseSession | None) -> None:
         except DomainRefused, EndpointError:
             # A failed/closed page keeps its last confirmed location on teardown.
             logger.debug("Browser location unavailable during teardown", exc_info=True)
+    if view.preview and session is not None:
+        try:
+            image = await session.page.screenshot()
+        except DomainRefused, EndpointError:
+            image = None
+        if image is not None:
+            await view.emit(
+                BrowserEvent(
+                    kind="browser_frame",
+                    call_id=view.call_id,
+                    step=session.steps,
+                    url=url,
+                    title=title,
+                    image=image,
+                )
+            )
     await view.emit(
         BrowserEvent(
             kind="browser_finished",

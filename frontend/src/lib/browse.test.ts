@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { applyBrowserFrame, browseById, isRunning, type Browse } from "./browse";
+import { applyBrowserFrame, browseById, isRunning, withLivePreview, type Browse } from "./browse";
 import type { BrowserFrame } from "@/types";
 
 function frame(overrides: Partial<BrowserFrame> = {}): BrowserFrame {
@@ -290,4 +290,23 @@ it("keeps navigation capability and control errors separate from painted frames"
     step: 0,
   });
   expect(cleared[0]?.controlError).toBeNull();
+});
+
+it("keeps completion authoritative while retaining the cached final picture", () => {
+  const streamed = fold(
+    frame({ kind: "browser_opened" }),
+    frame({ kind: "browser_finished", outcome: "done" }),
+  )[0]!;
+  const live = { ...streamed, image: "cached-final", imageStep: 3, outcome: null };
+  expect(withLivePreview(streamed, live)).toMatchObject({
+    outcome: "done",
+    image: "cached-final",
+    imageStep: 3,
+  });
+  expect(withLivePreview(streamed, null)).toBe(streamed);
+  expect(withLivePreview(streamed, { ...live, callId: "other" })).toBe(streamed);
+  expect(withLivePreview({ ...streamed, outcome: null }, live)).toBe(live);
+  expect(
+    withLivePreview({ ...streamed, image: "streamed", imageStep: 4 }, { ...live, image: null }),
+  ).toMatchObject({ image: "streamed", imageStep: 4 });
 });

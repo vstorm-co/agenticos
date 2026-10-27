@@ -928,3 +928,14 @@ async def test_a_stalled_initial_snapshot_does_not_keep_a_viewer_registered(
     await live_browse.stream(socket, auth_token="token", run_id=RUN, call_id=CALL)
     assert socket.closed is not None and socket.closed[0] == 1013
     assert not await live_browse.has_viewers(RUN, CALL)
+
+
+async def test_conversation_checkpoints_expire_without_a_browser_or_cleanup_job(monkeypatch):
+    monkeypatch.setattr(live_browse, "_redis", None)
+    await live_browse.save_session("scope", "sealed")
+    assert await live_browse.load_session("scope") is None
+    redis = MagicMock(set=AsyncMock(), get=AsyncMock(return_value="sealed"))
+    monkeypatch.setattr(live_browse, "_redis", redis)
+    await live_browse.save_session("scope", "sealed")
+    redis.set.assert_awaited_once_with("browse:session:scope", "sealed", ttl=3600)
+    assert await live_browse.load_session("scope") == "sealed"

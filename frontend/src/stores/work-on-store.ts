@@ -2,6 +2,8 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { useAuthStore } from "./auth-store";
+import { useOrgStore } from "./org-store";
 
 import type { LocalTarget } from "@/lib/desktop/commands";
 
@@ -17,7 +19,14 @@ export type { LocalTarget };
  * server files the conversation. Only paths and modes are kept - what the person
  * granted is the desktop app's to check on every operation, not this store's.
  */
+const browserKey = (conversationId: string) =>
+  `${useAuthStore.getState().user?.id ?? "-"}:${useOrgStore.getState().activeOrgId ?? "-"}:${conversationId}`;
+
 interface WorkOnState {
+  browserByConversation: Record<string, boolean>;
+  draftBrowser: boolean | undefined;
+  browserFor: (conversationId: string | null) => boolean;
+  setBrowser: (conversationId: string | null, local: boolean) => void;
   byConversation: Record<string, LocalTarget>;
   draft: LocalTarget | null;
   draftProjectKey: string | null;
@@ -34,13 +43,33 @@ interface WorkOnState {
 export const useWorkOnStore = create<WorkOnState>()(
   persist(
     (set, get) => ({
+      browserByConversation: {},
+      draftBrowser: undefined,
+      browserFor: (conversationId) =>
+        (conversationId === null
+          ? get().draftBrowser
+          : get().browserByConversation[browserKey(conversationId)]) ??
+        get().targetFor(conversationId)?.browser ??
+        false,
+      setBrowser: (conversationId, local) => {
+        const target = get().targetFor(conversationId);
+        if (target !== null) get().set(conversationId, { ...target, browser: local });
+        if (conversationId === null) set({ draftBrowser: local });
+        else
+          set({
+            browserByConversation: {
+              ...get().browserByConversation,
+              [browserKey(conversationId)]: local,
+            },
+          });
+      },
       byConversation: {},
       draft: null,
       draftProjectKey: null,
       applyProject: (key, target) => {
         if (key !== get().draftProjectKey) set({ draftProjectKey: key, draft: target });
       },
-      resetDraft: () => set({ draft: null, draftProjectKey: null }),
+      resetDraft: () => set({ draft: null, draftProjectKey: null, draftBrowser: undefined }),
       targetFor: (conversationId) =>
         conversationId === null ? get().draft : (get().byConversation[conversationId] ?? null),
       set: (conversationId, target) => {
@@ -52,7 +81,15 @@ export const useWorkOnStore = create<WorkOnState>()(
         set({ byConversation: target === null ? rest : { ...rest, [conversationId]: target } });
       },
       adopt: (conversationId) => {
-        const { draft, byConversation } = get();
+        const { draft, byConversation, draftBrowser, browserByConversation } = get();
+        if (draftBrowser !== undefined)
+          set({
+            draftBrowser: undefined,
+            browserByConversation: {
+              ...browserByConversation,
+              [browserKey(conversationId)]: draftBrowser,
+            },
+          });
         if (draft === null || conversationId in byConversation) return;
         set({
           draft: null,
@@ -61,6 +98,13 @@ export const useWorkOnStore = create<WorkOnState>()(
         });
       },
     }),
-    { name: "work-on", version: 1, partialize: ({ byConversation }) => ({ byConversation }) },
+    {
+      name: "work-on",
+      version: 1,
+      partialize: ({ byConversation, browserByConversation }) => ({
+        byConversation,
+        browserByConversation,
+      }),
+    },
   ),
 );

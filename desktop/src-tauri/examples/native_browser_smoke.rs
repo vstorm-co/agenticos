@@ -280,6 +280,14 @@ async fn verify(app: &tauri::AppHandle, address: &str) -> Result<(), String> {
     if native_browser::handle_menu(app, "reload")? {
         return Err("A hidden native tab captured the console menu".into());
     }
+    native_browser::run(
+        app,
+        "browser.release",
+        &json!({"id":id,"lease":resumed["lease"],"close":true}).as_object().unwrap().clone(),
+    ).await?;
+    if app.get_webview(id).is_some() {
+        return Err("An explicitly closed native tab survived release".into());
+    }
     native_browser::close_all(app).await;
     if app.get_webview(id).is_some() {
         return Err("The native tab survived disconnect cleanup".into());

@@ -1,5 +1,5 @@
 ---
-source_sha: "0070c0a80dfb"
+source_sha: "f70dbf41fb0d"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -285,10 +285,11 @@ seiner eigenen öffentlichen Adresse.
 
 ## Lokaler Browser, Modelle und MCP { #local-browser-models-and-mcp }
 
-Nach dem Koppeln der Desktop-App einen Ordner unter **Work on** freigeben. Dort
-lassen sich für diesen Lauf ein lokales Modell, lokale MCP-Dienste und ein lokaler
-Browser wählen. Erforderlich sind eine Sandbox-Bindung und die eigene gekoppelte
-Sitzung. Die Telefon-App ruft keine Desktop-Befehle auf.
+Nach dem Koppeln lässt sich unter **Browser → Lokaler Browser** die Einstellung
+des Agents für dieses Gespräch überschreiben. Die Wahl ist unabhängig von **Work on**:
+Sie benötigt weder Ordnerfreigabe noch Sandbox-Fähigkeit und behält die Cloud-Sandbox
+des Agents bei. Lokale Modelle und MCP-Dienste benötigen weiterhin einen freigegebenen
+Ordner und eine Sandbox-Bindung. Die Telefon-App ruft keine Desktop-Befehle auf.
 
 Dienste werden unter **Settings → Desktop app → Local services** hinzugefügt.
 Ein nativer Dialog bestätigt jede Freigabe. Modelle verwenden einen Ollama- oder

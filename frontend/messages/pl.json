@@ -1169,6 +1169,10 @@
       "savesOnSend": "Zapisuje się przy wysłaniu",
       "whichModelRunsHere": "Na którym modelu działa ta rozmowa. Wszystko inne w agencie zostaje bez zmian.",
       "workOn": {
+        "browserTitle": "Przeglądarka",
+        "agentBrowser": "Ustawienie agenta",
+        "computerBrowser": "Lokalna przeglądarka",
+        "browserIndependent": "Używaj przeglądarki tego komputera bez zmiany miejsca pracy z plikami i poleceniami.",
         "title": "Pracuj na",
         "cloud": "Chmura",
         "computer": "Ten komputer",
@@ -1194,7 +1198,6 @@
         "agentModel": "Model skonfigurowany dla agenta",
         "accessHint": "Wybierz agenta z włączonym Sandbox. Tryb dostępu do folderu obejmuje narzędzia plików i powłoki. Przeglądarka i MCP korzystają z uprawnień zatwierdzanych osobno.",
         "mcpLimit": "Wybierz maksymalnie 8 lokalnych usług MCP dla czatu.",
-        "localBrowser": "Przeglądaj na tym komputerze (osobny profil)",
         "activeFolder": "Praca w {folder} · {access}. Zmień miejsce pracy"
       }
     },
@@ -2120,7 +2123,9 @@
     },
     "turnLost": "Agent przerwał, zanim odpowiedział - serwer, na którym działał, przestał odpowiadać.",
     "turnLostAskAgain": "Zapytaj ponownie",
-    "browserOpenNative": "Otwórz lokalną przeglądarkę"
+    "browserOpenNative": "Otwórz lokalną przeglądarkę",
+    "browserResume": "Wznów sesję",
+    "browserResumePrompt": "Wznów sesję przeglądarki. Odczytaj aktualną stronę przed kontynuowaniem."
   },
   "common": {
     "archiveNamedConfirm": "Zarchiwizować {name}?",

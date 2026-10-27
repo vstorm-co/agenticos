@@ -1,5 +1,5 @@
 ---
-source_sha: "ffaede8f0604"
+source_sha: "e09a97341751"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -73,7 +73,7 @@ hält er nur Dateien. Der Webbrowser zeigt auf den Browser-Dienst der Installati
 | `conversation_search` | Frühere Gespräche | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — | unverändert |
 | `web_research` | Websuche | research | `web_search` | `web:read` | für kostenpflichtige Dienste | unverändert |
 | `web_fetch` | Webseiten lesen | research | `web_fetch` | `web:fetch` | — | unverändert |
-| `browser_use` | Webbrowser | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | über das Extra `browser` | übergeben |
+| `browser_use` | Webbrowser | research | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | über das Extra `browser` | übergeben |
 | `computer_use` | Computer-Bedienung | research | `computer_screenshot`, `computer_act`, `computer_save_screenshot` | `computer:use` | für einen Daemon | übergeben |
 | `code_execution` | Berechnungen | analysis | `run_python` | `code:execute` | — | unverändert |
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | für Daytona | übergeben |
@@ -745,13 +745,22 @@ muss, ist [Web-Abruf](#web-fetch) schneller und ohne Nebenwirkungen.
 in den Händen des Agents: eine Aktion je Aufruf, gewählt vom Modell des Runs in seinem
 eigenen Zug, und jede antwortet mit der Seite danach - Adresse, nummerierte Elemente und
 Text. Keine zweite Anfrage pro Schritt, und der Agent sagt zwischen den Aktionen im Chat,
-was er tut. Die Schritte erscheinen in einem Live-Fenster unter der Nachricht des Agents, dem, das das
-erste `browser_open` geöffnet hat, und eine Person kann den Tab zwischen zwei beliebigen
-Schritten übernehmen. Gemessen mit Claude über OpenRouter: ein Schritt von `browse_web`
+was er tut. Die ausgewählte Seite bleibt über dem Eingabefeld; kompakte Einträge im Chat öffnen
+die Vorschau. Eine Person kann zwischen den Aktionen übernehmen. Gemessen mit Claude über OpenRouter: ein Schritt von `browse_web`
 dauert 3,5-5 s, fast ganz die eigene Modellanfrage des Schritts; eine Aufgabe mit zwei
 Klicks, die der Agent selbst steuerte, dauerte 13 s, mit `browse_web` etwa 20. Die Tools
 eignen sich für kurze Aufgaben oder solche, die jemand verfolgen will, `browse_web` für
 eine lange Aufgabe, die ganz abgegeben wird.
+
+**Mehrere Tabs und Fortsetzen.** `browser_new_tab(url)` öffnet eine eigene Seite,
+`browser_tabs` listet IDs, `browser_switch_tab(tab_id)` wählt und liest eine Seite,
+`browser_close_tab(tab_id)` schließt sie. Pro Lauf sind bis zu acht Tabs möglich.
+`browser_open` navigiert den gewählten Tab. In privaten Gesprächen stellt `browser_read`
+einen verschlüsselten Sitzungsstand bis zu einer Stunde lang wieder her: URLs, Cookies
+und Local Storage. Remote-Seiten schließen nach dem Lauf. Fortsetzen lädt Seiten und
+neue Elementnummern; ungespeicherte Formulare, JavaScript-Zustand und der Verlauf bleiben
+nicht erhalten. Gehostete Browser erhalten diese Stände nicht. Verbindungskarten mit
+Symbolen stehen zuerst in den Einstellungen; die Desktop-App kann sie pro Chat überschreiben.
 
 **Eine Aktion nennt eine Zeile, nie einen Selektor.** Jedes Element, auf das das Modell
 wirken kann, ist eine Zeile einer Tabelle, die auf dem Server aus dem lebenden DOM

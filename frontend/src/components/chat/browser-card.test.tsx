@@ -1,8 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { LiveBrowsesProvider, TurnBrowses } from "./browser-card";
+import { BrowserDock, LiveBrowsesProvider, TurnBrowses } from "./browser-card";
 import type { ToolCall } from "@/types";
 import type { Browse } from "@/lib/browse";
 import { useAuthStore } from "@/stores";
@@ -115,9 +115,9 @@ describe("TurnBrowses - a browse as a browser under its message", () => {
     expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
   });
 
-  it("keeps a finished browse's last view, without a live socket", () => {
+  it("fetches a finished browse's cached last view", () => {
     render(<BrowserCards browses={[browse({ outcome: "done" })]} />);
-    expect(live.calls.at(-1)).toEqual(["run-1", "c1", false]);
+    expect(live.calls.at(-1)).toEqual(["run-1", "c1", true]);
     expect(screen.getByRole("heading", { name: "Pricing" })).toBeInTheDocument();
   });
 
@@ -189,7 +189,7 @@ describe("TurnBrowses - a browse as a browser under its message", () => {
 it("opens the native tab panel rather than presenting an empty screenshot", async () => {
   const user = userEvent.setup();
   render(<BrowserCards browses={[browse({ nativeId: "native-browser-test", outcome: "done" })]} />);
-  await user.click(screen.getByRole("button", { name: "Open local browser" }));
+  await user.click(screen.getByRole("button", { name: "Pricing" }));
   expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
 });
 
@@ -201,8 +201,80 @@ it("opens a new native browse automatically in the desktop console", () => {
     vibrancy: true,
   };
   try {
-    render(<BrowserCards browses={[browse({ nativeId: "native-browser-test" })]} />);
+    render(
+      <BrowserDock browses={[browse({ nativeId: "native-browser-test" })]} onResume={vi.fn()} />,
+    );
     expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
+  } finally {
+    delete window.__AGENTICOS_SHELL__;
+  }
+});
+
+it("keeps one bottom preview per tab, follows new tabs and offers explicit resume", async () => {
+  const resume = vi.fn();
+  const first = browse({ tabId: "tab-1", navigable: true });
+  const second = browse({
+    callId: "c2",
+    tabId: "tab-2",
+    navigable: true,
+    title: "Docs",
+    resumable: true,
+    outcome: "done",
+  });
+  const { rerender } = render(<BrowserDock browses={[first]} onResume={resume} />);
+  expect(screen.getByRole("tab", { name: "Pricing" })).toHaveAttribute("aria-selected", "true");
+  rerender(<BrowserDock browses={[first, second]} onResume={resume} />);
+  expect(screen.getByRole("tab", { name: "Docs" })).toHaveAttribute("aria-selected", "true");
+  await userEvent.click(screen.getByRole("button", { name: "Resume session" }));
+  expect(resume).toHaveBeenCalledOnce();
+  await userEvent.click(screen.getByRole("tab", { name: "Pricing" }));
+  expect(screen.getByRole("tab", { name: "Pricing" })).toHaveAttribute("aria-selected", "true");
+  rerender(
+    <BrowserDock
+      browses={[
+        first,
+        second,
+        browse({ callId: "c3", tabId: "tab-1", title: "Updated", navigable: true }),
+      ]}
+      onResume={resume}
+    />,
+  );
+  expect(screen.getAllByRole("tab")).toHaveLength(2);
+  expect(screen.queryByRole("tab", { name: "Pricing" })).toBeNull();
+  await userEvent.click(screen.getByRole("button", { name: "Close the browser panel" }));
+  expect(screen.queryByRole("tablist")).toBeNull();
+});
+
+it("switches a docked side panel and supports keyboard tab selection", async () => {
+  const tabs = [
+    browse({ navigable: true }),
+    browse({ callId: "c2", navigable: true, title: "Docs" }),
+  ];
+  useBrowserPanelStore.getState().open("c2");
+  render(<BrowserDock browses={tabs} onResume={vi.fn()} />);
+  await userEvent.click(screen.getByRole("tab", { name: "Pricing" }));
+  expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
+  await userEvent.keyboard("{ArrowRight}");
+  expect(screen.getByRole("tab", { name: "Docs" })).toHaveFocus();
+  expect(useBrowserPanelStore.getState().openCallId).toBe("c2");
+  await userEvent.keyboard("{Home}");
+  expect(screen.getByRole("tab", { name: "Pricing" })).toHaveFocus();
+  await userEvent.keyboard("{End}{ArrowLeft}");
+  expect(screen.getByRole("tab", { name: "Pricing" })).toHaveFocus();
+});
+
+it("does not reopen a native panel when the user hides it during a run", () => {
+  window.__AGENTICOS_SHELL__ = {
+    platform: "macos",
+    window: "main",
+    version: "0.2.0",
+    vibrancy: true,
+  };
+  try {
+    render(<BrowserDock browses={[browse({ nativeId: "native" })]} onResume={vi.fn()} />);
+    expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
+    act(() => useBrowserPanelStore.getState().close());
+    expect(useBrowserPanelStore.getState().openCallId).toBeNull();
   } finally {
     delete window.__AGENTICOS_SHELL__;
   }

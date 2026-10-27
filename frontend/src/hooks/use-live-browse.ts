@@ -53,6 +53,8 @@ export function useLiveBrowse(runId: string, callId: string, enabled = true) {
   const { wsUrl } = usePublicConfig();
   const accessToken = useAuthStore((state) => state.accessToken);
   const principal = useAuthStore((state) => state.user?.id);
+  const scope = `${principal ?? ""}:${runId}:${callId}`;
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
   const [browses, setBrowses] = useState<Browse[]>([]);
   const [task, setTask] = useState("");
   const [canControl, setCanControl] = useState(false);
@@ -68,21 +70,25 @@ export function useLiveBrowse(runId: string, callId: string, enabled = true) {
     return token ? [`access_token.${token}`, "browse"] : undefined;
   }, []);
 
-  const onMessage = useCallback((message: MessageEvent) => {
-    const data = JSON.parse(String(message.data)) as Snapshot | BrowserFrame;
-    if ("type" in data && data.type === "browser_snapshot") {
-      let next: Browse[] = [];
-      for (const frame of data.trace) next = applyBrowserFrame(next, frame);
-      if (data.frame) next = applyBrowserFrame(next, data.frame);
-      setBrowses(next);
-      setTask(data.task);
-      setCanControl(data.can_control);
-      setCanRemember(data.can_remember === true);
-      setStatus("live");
-      return;
-    }
-    setBrowses((current) => applyBrowserFrame(current, data as BrowserFrame));
-  }, []);
+  const onMessage = useCallback(
+    (message: MessageEvent) => {
+      setLoadedFor(scope);
+      const data = JSON.parse(String(message.data)) as Snapshot | BrowserFrame;
+      if ("type" in data && data.type === "browser_snapshot") {
+        let next: Browse[] = [];
+        for (const frame of data.trace) next = applyBrowserFrame(next, frame);
+        if (data.frame) next = applyBrowserFrame(next, data.frame);
+        setBrowses(next);
+        setTask(data.task);
+        setCanControl(data.can_control);
+        setCanRemember(data.can_remember === true);
+        setStatus("live");
+        return;
+      }
+      setBrowses((current) => applyBrowserFrame(current, data as BrowserFrame));
+    },
+    [scope],
+  );
 
   const onClose = useCallback((event: CloseEvent) => {
     const closed = CLOSED[event.code];
@@ -97,15 +103,18 @@ export function useLiveBrowse(runId: string, callId: string, enabled = true) {
     onClose,
   });
 
+  const browse =
+    loadedFor === scope ? (browses.find((entry) => entry.callId === callId) ?? null) : null;
+  const finished = browse?.outcome != null;
+
   useEffect(() => {
-    // Off for a browse with nothing live to reach - a finished one, or one the
-    // chat has not been told the run of yet - so opening its panel costs no socket.
-    if (!accessToken || !enabled) return;
+    // Completed views fetch one cached snapshot, then release their socket.
+    if (!accessToken || !enabled || finished) return;
     connect();
     return () => disconnect();
-  }, [accessToken, enabled, connect, disconnect]);
+  }, [accessToken, enabled, finished, connect, disconnect]);
 
   const send = useCallback((command: BrowserCommand) => sendMessage(command), [sendMessage]);
 
-  return { browse: browses[0] ?? null, task, canControl, canRemember, status, send };
+  return { browse, task, canControl, canRemember, status, send };
 }

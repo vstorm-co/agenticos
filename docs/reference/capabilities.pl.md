@@ -1,5 +1,5 @@
 ---
-source_sha: "ffaede8f0604"
+source_sha: "e09a97341751"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -72,7 +72,7 @@ Przeglądarka jest kierowana do usługi przeglądarki wdrożenia
 | `conversation_search` | Poprzednie rozmowy | wiedza | `search_conversations`, `read_conversation` | `conversations:read` | — | bez zmian |
 | `web_research` | Wyszukiwanie w internecie | badania | `web_search` | `web:read` | dla usług płatnych | bez zmian |
 | `web_fetch` | Czytanie stron | badania | `web_fetch` | `web:fetch` | — | bez zmian |
-| `browser_use` | Przeglądarka | badania | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | przez dodatek `browser` | przekazana |
+| `browser_use` | Przeglądarka | badania | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | przez dodatek `browser` | przekazana |
 | `computer_use` | Obsługa komputera | badania | `computer_screenshot`, `computer_act`, `computer_save_screenshot` | `computer:use` | dla daemona | przekazana |
 | `code_execution` | Obliczenia | analiza | `run_python` | `code:execute` | — | bez zmian |
 | `sandbox` | Sandbox | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | dla Daytony | przekazana |
@@ -703,12 +703,22 @@ ma skutków ubocznych.
 w rękach samego agenta: jedna akcja na wywołanie, wybrana przez model runa w jego
 własnej turze, a każda odpowiada stroną po akcji - adresem, ponumerowanymi elementami
 i tekstem. Bez drugiego zapytania na krok, a agent mówi w czacie, co robi, między
-akcjami. Kroki rysują się w jednym oknie na żywo pod wiadomością agenta, tym, które otworzył
-pierwszy `browser_open`, a człowiek może przejąć kartę między dowolnymi dwoma z nich.
+akcjami. Wybrana strona zostaje nad polem wiadomości, a w rozmowie są zwięzłe odnośniki
+do podglądu. Człowiek może przejąć kartę między akcjami.
 Zmierzone na Claude przez OpenRouter: krok `browse_web` trwa 3,5-5 s, prawie w całości
 osobne zapytanie do modelu; zadanie z dwoma kliknięciami, które agent poprowadził sam,
 zajęło 13 s, a `browse_web` około 20. Narzędzia są lepsze do krótkiego zadania albo
 takiego, które ktoś chce oglądać, `browse_web` do długiego zadania przekazanego w całości.
+
+**Kilka kart i wznowienie.** `browser_new_tab(url)` otwiera osobną stronę,
+`browser_tabs` zwraca identyfikatory, `browser_switch_tab(tab_id)` wybiera i odczytuje
+stronę, a `browser_close_tab(tab_id)` ją zamyka. Run może mieć do ośmiu kart.
+`browser_open` zmienia adres wybranej karty. W prywatnych rozmowach `browser_read`
+odtwarza zaszyfrowany zapis dostępny przez godzinę: adresy, cookies i local storage.
+Zdalne strony zamykają się po runie. Wznowienie wczytuje strony i nowe numery elementów;
+nie zachowuje formularzy bez zapisu, pamięci JavaScript ani historii nawigacji.
+Przeglądarki hostowane nie otrzymują tych zapisów. Karty połączeń z ikonami są pierwszym
+ustawieniem przeglądarki; w aplikacji desktopowej można je nadpisać dla rozmowy.
 
 **Akcja wskazuje wiersz, nigdy selektor.** Każdy element, na którym model może działać,
 jest wierszem tabeli zbudowanej na serwerze z żywego DOM, więc strona nie może

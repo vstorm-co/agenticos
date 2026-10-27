@@ -1,5 +1,5 @@
 ---
-source_sha: "0070c0a80dfb"
+source_sha: "f70dbf41fb0d"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -273,10 +273,12 @@ despliegue tiene que coincidir en el esquema - `DESKTOP_DEEP_LINK_SCHEME`,
 
 ## Navegador, modelos y MCP locales { #local-browser-models-and-mcp }
 
-Después de emparejar la aplicación de escritorio, autoriza una carpeta en
-**Work on**. El mismo selector permite elegir un modelo local, servicios MCP y
-un navegador local para esa ejecución. Se requiere un agente con sandbox y tu
-propia sesión emparejada. La aplicación del teléfono no invoca comandos de escritorio.
+Tras emparejar la aplicación, selecciona **Navegador → Navegador local** para
+sobrescribir la configuración del agente en esta conversación. La elección es
+independiente de **Work on**: no requiere carpeta ni capacidad Sandbox y mantiene
+el sandbox del agente en la nube. Los modelos locales y servicios MCP siguen
+necesitando una carpeta autorizada y un sandbox. La aplicación del teléfono no
+invoca comandos de escritorio.
 
 Añade servicios en **Settings → Desktop app → Local services**. Un diálogo nativo
 confirma cada permiso. Los modelos usan un endpoint HTTP de Ollama o compatible

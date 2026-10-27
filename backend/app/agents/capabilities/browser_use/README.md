@@ -100,11 +100,19 @@ hosted browser over CDP (`_route.py`, #2130).
 
 Direct tools keep one preview stream open across model turns within the run.
 The stream stops before the tab closes or `browse_web` takes over its narration.
-The browser still belongs to the run, not to a persistent conversation session.
+Pages belong to the run and close at its end. Private conversations keep a
+user-sealed checkpoint in Redis for one hour, containing tab URLs, cookies and
+local storage. `browser_read` restores it into new isolated contexts with fresh
+element numbers; DOM state, unsaved forms and navigation history are not restored.
+Hosted browsers do not receive checkpoints. Explicit tools open, list, switch and
+close up to eight tabs. Native tabs retain their existing bounded lifecycle.
 `_preview.py` owns the stream and polls location independently of model calls.
 Only authenticated image-view sockets count as viewers; trace consumers and a
 resumable chat buffer do not. Images stop without a viewer and resume on return.
 Metadata updates preserve the latest JPEG for viewers opening the live view.
+A final image is kept even without a viewer; it does not enter the chat stream.
+The console anchors the selected preview above the composer, with compact
+transcript links and a tab strip; the side panel keeps its own selected view.
 
 While a person holds the tab, input is consumed independently of preview capture.
 They can navigate, move through history and reload within `allowed_domains`.

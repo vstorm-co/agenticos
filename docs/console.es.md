@@ -1,5 +1,5 @@
 ---
-source_sha: "9aa1d28185bc"
+source_sha: "8d758a290cf6"
 ---
 
 # La consola { #the-console }
@@ -410,15 +410,13 @@ vuelve a pedírselo. En un teléfono, un toque lo abre a pantalla completa.
 La tarjeta **Recent visuals** del panel muestra los últimos dibujados para usted, y
 cada uno abre la conversación en la que se dibujó.
 
-**Ver un recorrido.** Cuando un agent con el
-[navegador web](reference/capabilities.md#browser-automation) empieza en una página, su
-navegador se dibuja en directo bajo el mensaje del agent: una ventana con la dirección y
-la página tal como la ve el agent, una línea sobre la página con lo que hace ahora y su
-cursor moviéndose hacia lo que pulsa o rellena. La ventana mantiene su forma y crece y
-encoge con la conversación; varios recorridos a la vez se colocan uno junto a otro, dos
-por fila donde hay sitio. El botón de maximizar abre uno a pantalla completa, y restaurar
-lo devuelve bajo el mensaje. La lista completa de pasos, cada uno con su propósito, está
-detrás del botón de pasos.
+**Ver un recorrido.** El [navegador web](reference/capabilities.md#browser-automation)
+permanece encima del campo de mensajes mientras se desplaza la conversación. La barra
+de pestañas cambia de página; las entradas del chat abren la vista junto al chat o
+a pantalla completa. Al terminar queda la última imagen. **Reanudar sesión** pide al
+agente restaurar la sesión privada, disponible durante una hora como máximo. Las páginas
+remotas se cierran tras cada ejecución. Reanudar carga las URL, cookies y local storage,
+pero no formularios sin guardar ni memoria JavaScript. El agente lee nuevos números de elementos.
 
 **Tomar el control de un recorrido.** Mientras un recorrido está en curso, **Take over**
 en la barra del navegador detiene al agent tras su paso actual y te da la página, en la

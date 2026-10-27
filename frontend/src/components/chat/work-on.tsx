@@ -2,7 +2,7 @@
 
 import { useId } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { ChevronDown, Cloud, FolderOpen, Laptop, X } from "lucide-react";
+import { ChevronDown, Cloud, FolderOpen, Globe, Laptop, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -34,7 +34,75 @@ function folderName(path: string): string {
  */
 export function WorkOn() {
   const shell = useShell();
-  return isDesktopShell(shell) ? <ComputerWorkOn /> : null;
+  return isDesktopShell(shell) ? (
+    <>
+      <BrowserWorkOn />
+      <ComputerWorkOn />
+    </>
+  ) : null;
+}
+
+function BrowserWorkOn() {
+  const t = useTranslations("chat.controls.workOn");
+  const conversationId = useConversationStore((state) => state.currentConversationId);
+  const local = useWorkOnStore((state) => state.browserFor(conversationId));
+  const setBrowser = useWorkOnStore((state) => state.setBrowser);
+  const { data: device } = useDeviceStatus();
+  const { link } = useDeviceLink();
+  const selection = useMutation({
+    mutationFn: async (choice: { conversationId: string | null; linked: boolean }) =>
+      choice.linked || (await link.mutateAsync()).linked,
+    onSuccess: (linked, choice) => {
+      if (linked) setBrowser(choice.conversationId, true);
+    },
+  });
+  return (
+    <div className="border-foreground/10 mt-4 border-t pt-4">
+      <p className="text-muted-foreground mb-3 text-xs">{t("browserTitle")}</p>
+      <div
+        role="radiogroup"
+        aria-label={t("browserTitle")}
+        className="bg-foreground/4 grid grid-cols-2 gap-1 rounded-xl p-1"
+      >
+        <button
+          type="button"
+          role="radio"
+          aria-checked={!local}
+          disabled={selection.isPending}
+          onClick={() => setBrowser(conversationId, false)}
+          className={cn(
+            "flex min-h-10 items-center justify-center gap-2 rounded-lg px-2 text-xs",
+            !local && "bg-background shadow-sm",
+          )}
+        >
+          <Globe className="size-4" aria-hidden />
+          {t("agentBrowser")}
+        </button>
+        <button
+          type="button"
+          role="radio"
+          aria-checked={local}
+          disabled={device === undefined || selection.isPending}
+          onClick={() => selection.mutate({ conversationId, linked: device?.linked === true })}
+          className={cn(
+            "flex min-h-10 items-center justify-center gap-2 rounded-lg px-2 text-xs",
+            local && "bg-background shadow-sm",
+          )}
+        >
+          <Laptop className="size-4" aria-hidden />
+          {t("computerBrowser")}
+        </button>
+      </div>
+      <p className="text-muted-foreground mt-2 text-xs leading-relaxed">
+        {t("browserIndependent")}
+      </p>
+      {local && device?.connected === false && (
+        <p role="status" className="text-muted-foreground mt-2 text-xs">
+          {t("offline")}
+        </p>
+      )}
+    </div>
+  );
 }
 
 function ComputerWorkOn() {
@@ -191,18 +259,6 @@ function ComputerWorkOn() {
                 );
               })}
             </div>
-          )}
-          {target !== null && (
-            <label className="flex min-h-10 items-center gap-2 text-xs">
-              <input
-                type="checkbox"
-                checked={target.browser ?? false}
-                onChange={(event) =>
-                  setTarget(conversationId, { ...target, browser: event.target.checked })
-                }
-              />
-              {t("localBrowser")}
-            </label>
           )}
           {target !== null && (
             <p className="text-muted-foreground text-xs leading-relaxed">{t("accessHint")}</p>

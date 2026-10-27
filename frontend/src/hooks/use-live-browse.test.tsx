@@ -135,3 +135,25 @@ describe("useLiveBrowse", () => {
     expect(socket.sendMessage).toHaveBeenCalledWith({ type: "click", x: 4, y: 2 });
   });
 });
+
+it("fetches a completed snapshot once, releases the socket and retains the final image", () => {
+  const { result, rerender } = renderHook(({ run }) => useLiveBrowse(run, "c1"), {
+    initialProps: { run: "run-1" },
+  });
+  receive({
+    type: "browser_snapshot",
+    task: "done",
+    can_control: true,
+    trace: [
+      frame({ kind: "browser_opened", step: 0 }),
+      frame({ kind: "browser_finished", outcome: "done" }),
+    ],
+    frame: frame({ kind: "browser_frame", image: "data:image/jpeg;base64,FINAL" }),
+  });
+  expect(result.current.browse?.image).toBe("data:image/jpeg;base64,FINAL");
+  expect(result.current.browse?.outcome).toBe("done");
+  expect(socket.disconnect).toHaveBeenCalledTimes(1);
+  rerender({ run: "run-2" });
+  expect(result.current.browse).toBeNull();
+  expect(socket.connect).toHaveBeenCalledTimes(2);
+});

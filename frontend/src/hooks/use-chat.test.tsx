@@ -4885,3 +4885,37 @@ it.each(["account", "organization"])(
     expect(useConversationStore.getState().currentCost).not.toEqual(bill);
   },
 );
+
+it("sends a browser-only override without a folder or sandbox target", () => {
+  const store = useWorkOnStore.getState();
+  store.setBrowser(null, true);
+  try {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("open the local browser"));
+    expect(lastFrame().local).toEqual({ browser: true });
+    expect(store.targetFor(null)).toBeNull();
+  } finally {
+    store.resetDraft();
+  }
+});
+
+it("keeps a finished browser preview through a follow-up turn", () => {
+  const { result } = renderHook(() => useChat(), { wrapper });
+  receive("browser_opened", {
+    kind: "browser_opened",
+    call_id: "c1",
+    step: 0,
+    goal: "first",
+    navigable: true,
+    tab_id: "main",
+  });
+  receive("browser_finished", {
+    kind: "browser_finished",
+    call_id: "c1",
+    step: 1,
+    outcome: "done",
+  });
+  act(() => result.current.sendMessage("continue on that page"));
+  expect(result.current.browses).toHaveLength(1);
+  expect(result.current.browses[0]).toMatchObject({ tabId: "main", outcome: "done" });
+});

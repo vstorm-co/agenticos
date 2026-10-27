@@ -109,6 +109,17 @@ def available() -> bool:
     return _redis is not None
 
 
+async def save_session(scope: str, sealed: str) -> None:
+    """Keep an encrypted conversation snapshot for one hour; no browser stays alive."""
+    if _redis is not None:
+        await _redis.set(f"browse:session:{scope}", sealed, ttl=TTL_SECONDS)
+
+
+async def load_session(scope: str) -> str | None:
+    """Read an encrypted snapshot; authorization and decryption belong to its owner."""
+    return None if _redis is None else await _redis.get(f"browse:session:{scope}")
+
+
 async def claim_slot(key: str, holder: str, *, limit: int, hold: float) -> bool:
     """Take one of `limit` places under `key` for `holder`, for at most `hold` seconds.
 

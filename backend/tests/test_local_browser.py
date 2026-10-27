@@ -271,3 +271,27 @@ async def test_context_replacement_is_retried_through_the_local_error_adapter(
     )
     assert await page._document() == "new-document"
     assert call.await_count == 2
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {"model_service": "model", "browser": True},
+        {"mcp_services": ["files"], "browser": True},
+    ],
+)
+def test_browser_only_target_cannot_grant_local_files_or_services(payload):
+    from pydantic import ValidationError
+
+    from app.schemas.local_target import LocalTarget
+
+    with pytest.raises(ValidationError):
+        LocalTarget.model_validate(payload)
+
+
+def test_browser_only_target_is_independent_of_folder_grants():
+    from app.schemas.local_target import LocalTarget
+
+    target = LocalTarget(browser=True)
+    assert target.folder is None and target.model_service is None and not target.mcp_services

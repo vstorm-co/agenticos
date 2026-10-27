@@ -287,6 +287,8 @@ def page_factory(session_id: UUID, *, native: bool = True) -> PageFactory:
                         cleanup: dict[str, JsonValue] = {"id": browse_id}
                         if lease is not None:
                             cleanup["lease"] = lease
+                        if isinstance(page, NativePage) and page.close_on_release:
+                            cleanup["close"] = True
                         await device_hub.call(
                             session_id,
                             "browser.release" if is_native else "browser.close",

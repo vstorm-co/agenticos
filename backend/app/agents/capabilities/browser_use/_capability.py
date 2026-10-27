@@ -27,7 +27,7 @@ _INSTRUCTIONS = (
     "numbered elements each one returns - best for a short task, and say in one short "
     "sentence what you are about to do before each action so the person can follow. Or "
     "hand a long task to `browse_web` with a starting URL, and it works the page step by "
-    "step until the task is done. Both use the same tab, which stays open for the rest "
+    "step until the task is done. Both use the selected tab, which stays open for the rest "
     "of the turn: if a browse pauses at its step limit, call it again without a "
     "start_url to continue where it stopped. For a page you only need to read, fetch it "
     "instead. A 'blocked' result is an answer about the page, not a failure to retry "
@@ -96,13 +96,22 @@ class WebBrowser(AbstractCapability[AgentDepsT]):
         """Static guidance: which way to drive the browser, and to distrust its output."""
         if self.resume_local:
             return _INSTRUCTIONS + (
-                " On the paired computer, native tabs remain open for this conversation "
+                " Use browser_new_tab to open a separate page, browser_tabs to list ids, "
+                "browser_switch_tab to select and browser_close_tab to release a tab. "
+                "On the paired computer, native tabs remain open for this conversation "
                 "between turns. To continue earlier work, call browser_read first to "
                 "reattach and obtain fresh element numbers. If no tab remains, open the "
                 "requested URL with browser_open. If another run holds the tab, report "
                 "that it is busy and wait rather than repeatedly retrying."
             )
-        return _INSTRUCTIONS
+        return _INSTRUCTIONS + (
+            " Use browser_new_tab(url) to open a separate tab (up to eight); browser_tabs "
+            "lists ids, browser_switch_tab selects and reads one, browser_close_tab closes one. "
+            "In private conversations, browser_read restores the previous remote session "
+            "for up to one hour. Remote tabs close after each turn; resume reloads their "
+            "URLs, cookies and local storage, not unsaved forms or JavaScript memory. "
+            "Read the page again before using element numbers."
+        )
 
     def get_toolset(self) -> AbstractToolset[Any]:
         """The toolset providing `browse_web` (built once, then reused)."""

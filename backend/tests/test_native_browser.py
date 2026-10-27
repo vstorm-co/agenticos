@@ -132,10 +132,12 @@ async def test_a_native_control_wait_checks_again_after_an_empty_poll(
     assert command is not None and command.type == "take_over"
 
 
+@pytest.mark.parametrize("close", [False, True])
 @pytest.mark.parametrize("resume", [False, True])
 async def test_native_factory_releases_its_lease_without_destroying_the_conversation_tab(
     monkeypatch: pytest.MonkeyPatch,
     resume: bool,
+    close: bool,
 ) -> None:
     session = uuid4()
     call = AsyncMock(
@@ -158,10 +160,11 @@ async def test_native_factory_releases_its_lease_without_destroying_the_conversa
         assert isinstance(page, NativePage)
         assert call.call_args.args[2]["scope"] == "a" * 64
         assert call.call_args.args[2]["resume"] is resume
+        page.close_on_release = close
     assert call.call_args.args == (
         session,
         "browser.release",
-        {"id": "native-browser-test", "lease": "lease"},
+        {"id": "native-browser-test", "lease": "lease", **({"close": True} if close else {})},
     )
     assert navigate.await_count == (0 if resume else 1)
 
@@ -482,3 +485,41 @@ async def test_a_heartbeat_cleanup_bug_preserves_the_primary_failure(
                 await failed.wait()
             raise DomainRefused("primary failure")
     assert "heartbeat cleanup bug" in caplog.text
+
+
+async def test_explicit_close_destroys_a_native_tab_and_other_tabs_have_distinct_scopes(
+    monkeypatch,
+):
+    from app.agents.capabilities.browser_use._loop import BrowseSession, LoopPolicy
+    from app.agents.capabilities.browser_use._toolset import build_toolset
+    from app.agents.deps import AgentDeps
+    from tests.test_browser_use import DONE_ARGS, _browsing_model, _Opener, _tool_context
+
+    opener = _Opener()
+    ts = build_toolset(
+        cdp_url="",
+        page_policy=POLICY,
+        loop_policy=LoopPolicy(max_steps=3, preview=False),
+        page_factory=opener,
+        resume_local=True,
+    )
+    ctx = _tool_context(_browsing_model(DONE_ARGS))
+    ctx.deps = AgentDeps(
+        organization_id=uuid4(), user_id="person", agent_id=uuid4(), conversation_id=uuid4()
+    )
+    async with ts:
+        tools = await ts.get_tools(ctx)
+        await ts.call_tool("browser_read", {}, ctx, tools["browser_read"])
+        await ts.call_tool(
+            "browser_new_tab", {"url": "https://example.test/"}, ctx, tools["browser_new_tab"]
+        )
+        assert opener.opened[0]["conversation_scope"] != opener.opened[1]["conversation_scope"]
+        page = native_page()
+        monkeypatch.setattr(
+            page, "location", AsyncMock(return_value=("https://example.test/", "Example"))
+        )
+        ts.session = BrowseSession(page=page)
+        await ts.call_tool(
+            "browser_close_tab", {"tab_id": ts.tab_id}, ctx, tools["browser_close_tab"]
+        )
+        assert page.close_on_release

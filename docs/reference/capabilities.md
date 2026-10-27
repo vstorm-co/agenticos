@@ -65,7 +65,7 @@ browser is pointed at the deployment's browser service
 | `conversation_search` | Past conversations | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — | as-is |
 | `web_research` | Web search | research | `web_search` | `web:read` | for paid services | as-is |
 | `web_fetch` | Read web pages | research | `web_fetch` | `web:fetch` | — | as-is |
-| `browser_use` | Web browser | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | via the `browser` extra | handed off |
+| `browser_use` | Web browser | research | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | via the `browser` extra | handed off |
 | `computer_use` | Computer use | research | `computer_screenshot`, `computer_act`, `computer_save_screenshot` | `computer:use` | for a daemon | handed off |
 | `code_execution` | Calculations | analysis | `run_python` | `code:execute` | — | as-is |
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona | handed off |
@@ -660,12 +660,21 @@ page you only need to read, [web fetch](#web-fetch) is faster and has no side ef
 in the agent's own hands: one action a call, chosen by the run's model in its own turn,
 each answered with the page after it - its address, the numbered elements and its
 text. No second request per step, and the agent says what it is doing in the chat
-between actions. The steps draw in one live window under the agent's message, the one the
-first `browser_open` opened, and a person can take the tab over between any two of
-them. Measured on Claude through OpenRouter, a step of `browse_web` is 3.5-5 s, almost
+between actions. The selected page stays above the composer, with compact transcript links; a person
+can take it over between actions. Measured on Claude through OpenRouter, a step of `browse_web` is 3.5-5 s, almost
 all of it the step's own model request; a two-click task the agent drove itself took
 13 s where `browse_web` took about 20. Prefer the tools for a short task or one a
 person wants to watch, `browse_web` for a long task handed off whole.
+
+**Several tabs and resuming.** `browser_new_tab(url)` opens a separate page,
+`browser_tabs` lists ids, `browser_switch_tab(tab_id)` selects and reads a page,
+and `browser_close_tab(tab_id)` closes one. At most eight tabs are open per run.
+`browser_open` navigates the selected tab. In private conversations, `browser_read`
+restores an encrypted checkpoint for up to one hour: URLs, cookies and local storage.
+Remote pages close after the run. Restoring reloads pages and obtains fresh element
+numbers; unsaved forms, JavaScript memory and navigation history are not retained.
+Hosted browsers do not receive these checkpoints. Connection cards with icons are
+the first browser setting; desktop users can override the connection for a chat.
 
 **An action names a row, never a selector.** Every element the model can act on is a
 row of a table built on the server from the live DOM, so a page cannot offer an

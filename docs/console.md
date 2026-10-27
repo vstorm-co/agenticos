@@ -382,15 +382,13 @@ error, the agent has already been told; **Fix it** asks again. On a phone a tap 
 it full screen. The dashboard's **Recent visuals** card shows the latest ones drawn for
 you, each opening the conversation it was drawn in.
 
-**Watching a browse.** When an agent with the
-[web browser](reference/capabilities.md#browser-automation) starts on a page, its
-browser draws under the agent's message, live: a window with the address and the page
-as the agent sees it, what it is doing now in one line over the page, and its cursor
-moving to whatever it clicks or types into. The window keeps a fixed shape and grows
-and shrinks with the conversation; several browses at once sit side by side, two to a
-row where there is room. The maximise button opens one full screen, and restoring puts
-it back under the message. The full list of steps, each with what it was for, is behind
-the steps button.
+**Watching a browse.** The [web browser](reference/capabilities.md#browser-automation)
+stays above the composer while the transcript scrolls. Its tab strip switches
+between pages; transcript entries open the selected preview beside the chat or
+full screen. After the run, the last image remains. **Resume session** asks the
+agent to restore the private conversation checkpoint, available for up to one hour.
+Remote pages close after each run; resuming reloads URLs, cookies and local storage,
+not unsaved forms or JavaScript memory. The agent reads fresh element numbers.
 
 **Taking a browse over.** While a browse runs, **Take over** in the browser's toolbar
 pauses the agent after its current step and hands you the page, in the same window:

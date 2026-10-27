@@ -1276,3 +1276,32 @@ it("shows schema option help when no localized choices are available", () => {
   );
   expect(screen.getByRole("combobox")).toHaveAccessibleDescription("Use the approved computer");
 });
+
+it("presents browser connections as one icon card choice and writes the selected transport", async () => {
+  const change = vi.fn();
+  render(
+    <SchemaForm
+      schema={{
+        type: "object",
+        properties: {
+          connection: {
+            type: "string",
+            title: "Browser",
+            enum: ["built_in", "proxy", "hosted", "local"],
+            default: "built_in",
+            "x-widget": "browser-connection",
+          },
+        },
+      }}
+      value={{}}
+      idPrefix="browser-choice"
+      onChange={change}
+    />,
+  );
+  const choices = screen.getAllByRole("radio");
+  expect(choices).toHaveLength(4);
+  expect(choices[0]).toHaveAttribute("aria-checked", "true");
+  for (const choice of choices) expect(choice.querySelector("svg")).not.toBeNull();
+  await userEvent.click(choices[3]!);
+  expect(change).toHaveBeenCalledWith(expect.objectContaining({ connection: "local" }));
+});

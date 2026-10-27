@@ -445,7 +445,14 @@ export function browseCalls(runs: PartRun[]): ToolCall[] {
     run.kind === "tools"
       ? run.parts.flatMap((part) => {
           const call = part.toolCall;
-          if (call?.name === "browse_web" || (call && DESKTOP_TOOLS.has(call.name))) return [call];
+          if (
+            call &&
+            (["browse_web", "browser_new_tab", "browser_switch_tab", "browser_read"].includes(
+              call.name,
+            ) ||
+              DESKTOP_TOOLS.has(call.name))
+          )
+            return [call];
           if (call?.name !== "browser_open" || driving) return [];
           driving = true;
           return [call];

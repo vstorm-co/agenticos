@@ -58,7 +58,9 @@ export interface Browse {
    * right.
    */
   imageStep: number;
+  tabId?: string | null;
   nativeId?: string | null;
+  resumable?: boolean;
   navigable?: boolean;
   controlError?: string | null;
   outcome: BrowseOutcome | null;
@@ -88,7 +90,9 @@ function opened(frame: BrowserFrame): Browse {
     steps: [],
     image: null,
     imageStep: -1,
+    tabId: frame.tab_id ?? null,
     nativeId: frame.native_id ?? null,
+    resumable: frame.resumable === true,
     navigable: frame.navigable === true,
     controlError: null,
     outcome: null,
@@ -201,4 +205,27 @@ export function isRunning(browse: Browse): boolean {
 export function browseById(browses: Browse[], callId: string | null): Browse | null {
   if (callId === null) return null;
   return browses.find((browse) => browse.callId === callId) ?? null;
+}
+
+/** Preserve the cached final image while the chat remains authoritative about completion. */
+export function withLivePreview(streamed: Browse, live: Browse | null): Browse {
+  if (!live || live.callId !== streamed.callId) return streamed;
+  if (isRunning(streamed)) return live;
+  return {
+    ...streamed,
+    image: live.image ?? streamed.image,
+    imageStep: live.image ? live.imageStep : streamed.imageStep,
+  };
+}
+
+/** Latest view for each actual tab, bounded independently of the number of actions. */
+export function latestBrowserTabs(browses: Browse[]): Browse[] {
+  const tabs = new Map<string, Browse>();
+  for (const browse of browses) {
+    if (!browse.navigable && !browse.nativeId) continue;
+    const id = browse.tabId ?? browse.callId;
+    tabs.delete(id);
+    tabs.set(id, browse);
+  }
+  return Array.from(tabs.values()).slice(-8);
 }

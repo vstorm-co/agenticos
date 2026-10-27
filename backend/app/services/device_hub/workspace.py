@@ -52,6 +52,9 @@ class DeviceWorkspace:
     """The workspace backend for one folder on one computer."""
 
     def __init__(self, session_id: UUID, user_id: UUID, target: LocalTarget) -> None:
+        if target.folder is None:
+            raise WorkspaceUnavailableError("A local workspace needs an approved folder")
+        self._root = target.folder
         self._session_id = session_id
         self._user_id = user_id
         self._target = target
@@ -63,10 +66,10 @@ class DeviceWorkspace:
 
     @property
     def ref(self) -> WorkspaceRef:
-        return WorkspaceRef(provider=PROVIDER, id=f"{self._session_id}:{self._target.folder}")
+        return WorkspaceRef(provider=PROVIDER, id=f"{self._session_id}:{self._root}")
 
     async def working_dir(self) -> str:
-        return self._target.folder
+        return self._root
 
     async def _call(self, op: str, args: dict[str, Any], *, timeout: float) -> dict[str, Any]:
         """One operation in this folder and mode, with the hub's failures as the workspace's.
@@ -74,7 +77,7 @@ class DeviceWorkspace:
         A computer that is gone when the operation is sent is waited for, and the
         operation sent again once it is back: the run parks rather than fails.
         """
-        payload = {"root": self._target.folder, "mode": self._target.mode, **args}
+        payload = {"root": self._root, "mode": self._target.mode, **args}
         try:
             try:
                 return await _hub.call(self._session_id, op, payload, timeout=timeout)

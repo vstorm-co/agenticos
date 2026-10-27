@@ -1169,6 +1169,10 @@
       "savesOnSend": "Saves on send",
       "whichModelRunsHere": "Which model this conversation runs on. Everything else about the agent stays as it is.",
       "workOn": {
+        "browserTitle": "Browser",
+        "agentBrowser": "Agent setting",
+        "computerBrowser": "Local browser",
+        "browserIndependent": "Use this computer’s browser without changing where files and commands run.",
         "title": "Work on",
         "cloud": "Cloud",
         "computer": "This computer",
@@ -1194,7 +1198,6 @@
         "agentModel": "Agent’s configured model",
         "accessHint": "Use an agent with Sandbox enabled. Folder access mode controls file and shell tools. Browser and MCP use the permissions you approve separately.",
         "mcpLimit": "Choose up to 8 local MCP services per chat.",
-        "localBrowser": "Browse on this computer (separate profile)",
         "activeFolder": "Working in {folder} · {access}. Change work location"
       }
     },
@@ -2120,7 +2123,9 @@
     },
     "turnLost": "The agent stopped before it answered - the server running it went away.",
     "turnLostAskAgain": "Ask again",
-    "browserOpenNative": "Open local browser"
+    "browserOpenNative": "Open local browser",
+    "browserResume": "Resume session",
+    "browserResumePrompt": "Resume the browser session. Read the current page again before continuing."
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",

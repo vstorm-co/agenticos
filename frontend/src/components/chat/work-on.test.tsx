@@ -115,7 +115,7 @@ it("applies local service choices to this conversation only", async () => {
     mode: "read_only",
     model_service: null,
     mcp_services: [],
-    browser: false,
+    browser: true,
   });
   expect(useWorkOnStore.getState().targetFor("other")).toBeNull();
 });
@@ -267,4 +267,19 @@ it("does not show a local selection if the folder picker is cancelled", async ()
   await act(async () => pick.mock.calls.at(-1)?.[1].onSuccess(null));
   expect(screen.getByRole("radio", { name: "Cloud" })).toHaveAttribute("aria-checked", "true");
   expect(useWorkOnStore.getState().targetFor("chat")).toBeNull();
+});
+
+it("selects a local browser while keeping the cloud sandbox and never asks for a folder", async () => {
+  useWorkOnStore.setState({
+    byConversation: {},
+    browserByConversation: {},
+    draftBrowser: undefined,
+  });
+  render(<WorkOn />);
+  await userEvent.click(screen.getByRole("radio", { name: "Local browser" }));
+  expect(useWorkOnStore.getState().browserFor("chat")).toBe(true);
+  expect(useWorkOnStore.getState().targetFor("chat")).toBeNull();
+  expect(pick).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("radio", { name: "Agent setting" }));
+  expect(useWorkOnStore.getState().browserFor("chat")).toBe(false);
 });

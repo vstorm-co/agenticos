@@ -257,10 +257,11 @@ and about its own public address.
 
 ## Local browser, models and MCP
 
-After pairing the desktop app, approve a folder under **Work on**. The same picker
-can use a local model, selected local MCP services, and a local browser for that
-run. These options require an agent with a sandbox binding and your own paired
-session. Phone apps do not invoke desktop commands.
+After pairing the desktop app, select **Browser → Local browser** to override
+the agent's browser for this conversation. This choice is independent of **Work on**:
+it needs no folder grant or Sandbox capability and keeps the agent's cloud sandbox.
+Local models and MCP services still require an approved folder and sandbox binding.
+Phone apps do not invoke desktop commands.
 
 Add services under **Settings → Desktop app → Local services**. A native dialog
 confirms each grant. Models use an Ollama or OpenAI-compatible HTTP endpoint

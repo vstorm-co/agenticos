@@ -1,15 +1,20 @@
 "use client";
 
-import { useEffect } from "react";
+import { createContext, useContext, useEffect, useId, useState } from "react";
 
-import { ArrowUpRight, Globe, Maximize2, Monitor } from "lucide-react";
+import { ArrowUpRight, Globe, Maximize2, Monitor, X } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { createContext, useContext } from "react";
 
 import { useShell } from "@/hooks/use-shell";
 import { isDesktopShell } from "@/lib/desktop/shell";
 import { useLiveBrowse } from "@/hooks/use-live-browse";
-import { DESKTOP_TOOLS, isRunning, type Browse } from "@/lib/browse";
+import {
+  DESKTOP_TOOLS,
+  isRunning,
+  latestBrowserTabs,
+  withLivePreview,
+  type Browse,
+} from "@/lib/browse";
 import { cn } from "@/lib/utils";
 import { useBrowserPanelStore } from "@/stores/browser-panel-store";
 import type { ToolCall } from "@/types";
@@ -29,16 +34,7 @@ function isDesktop(call: ToolCall): boolean {
 /** Hands the chat's live browses to the turns that made them. */
 export const LiveBrowsesProvider = LiveBrowses.Provider;
 
-/**
- * A turn's browses, drawn where the turn made them.
- *
- * Each browse this chat's socket carries is a browser of its own under the
- * message - the page live, at the width of the conversation, with the way to
- * take over - rather than a line that opened a column beside the chat. Several
- * at once sit side by side, two to a row where there is room, so a turn that
- * browses three sites shows three windows rather than one that swaps. A browse
- * from an earlier visit is a record: where it went, and the way there.
- */
+/** Browser transcript links and computer previews associated with this turn. */
 export function TurnBrowses({ calls }: { calls: ToolCall[] }) {
   const { browses: live, onComment } = useContext(LiveBrowses);
   if (calls.length === 0) return null;
@@ -61,9 +57,13 @@ export function TurnBrowses({ calls }: { calls: ToolCall[] }) {
         // One browse is a window at a reading width rather than the whole column,
         // where it towered over the answer; several share the column's width.
         <div className={cn("grid gap-3", windows.length > 1 ? "md:grid-cols-2" : "max-w-3xl")}>
-          {windows.map((browse) => (
-            <InlineBrowser key={browse.callId} browse={browse} onComment={onComment} />
-          ))}
+          {windows.map((browse) =>
+            browse.navigable || browse.nativeId ? (
+              <BrowserLink key={browse.callId} browse={browse} />
+            ) : (
+              <InlineBrowser key={browse.callId} browse={browse} onComment={onComment} />
+            ),
+          )}
         </div>
       )}
       {recorded.map((call) => (
@@ -120,30 +120,32 @@ function RecordedBrowse({ call }: { call: ToolCall }) {
 function InlineBrowser({
   browse: streamed,
   onComment,
+  docked = false,
 }: {
   browse: Browse;
   onComment?: (comment: PageComment) => void;
+  docked?: boolean;
 }) {
   const t = useTranslations("chat");
   const expand = useBrowserPanelStore((state) => state.open);
   const expanded = useBrowserPanelStore((state) => state.openCallId === streamed.callId);
   const running = isRunning(streamed);
-  const shell = useShell();
-  useEffect(() => {
-    if (streamed.nativeId && running && isDesktopShell(shell) && shell.window === "main")
-      expand(streamed.callId);
-  }, [streamed.nativeId, streamed.callId, running, shell, expand]);
   const live = useLiveBrowse(
     streamed.runId ?? "",
     streamed.callId,
-    running && Boolean(streamed.runId) && !expanded,
+    Boolean(streamed.runId) && !expanded,
   );
   // The live view's copy while the browse runs: it knows who holds the browser
   // and whether this person may, which the conversation's stream does not say.
   const mine = running && live.browse?.callId === streamed.callId;
-  const browse = mine && live.browse ? live.browse : streamed;
+  const browse = withLivePreview(streamed, live.browse);
   return (
-    <div className="border-border bg-background aspect-[16/11] w-full min-w-0 overflow-hidden rounded-2xl border shadow-sm">
+    <div
+      className={cn(
+        "border-border bg-background w-full min-w-0 overflow-hidden rounded-2xl border shadow-sm",
+        docked ? "h-[min(32dvh,320px)]" : "aspect-[16/11]",
+      )}
+    >
       {browse.nativeId ? (
         <button
           type="button"
@@ -177,6 +179,134 @@ function InlineBrowser({
           onComment={onComment}
         />
       )}
+    </div>
+  );
+}
+
+/** A compact transcript entry; the working page stays above the composer. */
+function BrowserLink({ browse }: { browse: Browse }) {
+  const open = useBrowserPanelStore((state) => state.open);
+  const t = useTranslations("chat");
+  return (
+    <button
+      type="button"
+      onClick={() => open(browse.callId)}
+      className="text-muted-foreground hover:text-foreground flex min-w-0 items-center gap-2 rounded-lg border px-3 py-2 text-sm"
+    >
+      <Globe className="size-4 shrink-0" aria-hidden />
+      <span className="truncate">{browse.title || hostOf(browse.url) || t("browserHeading")}</span>
+      <Maximize2 className="ml-auto size-3.5 shrink-0" aria-hidden />
+    </button>
+  );
+}
+
+/** Stable preview independent of the transcript's narration and scroll position. */
+export function BrowserDock({
+  browses,
+  onComment,
+  onResume,
+}: {
+  browses: Browse[];
+  onComment?: (comment: PageComment) => void;
+  onResume: () => void;
+}) {
+  const t = useTranslations("chat");
+  const tabs = latestBrowserTabs(browses);
+  const latest = tabs.at(-1)?.callId;
+  const [selection, setSelection] = useState<{ callId: string; latest: string | undefined } | null>(
+    null,
+  );
+  const [hidden, setHidden] = useState<string | null>(null);
+  const openCallId = useBrowserPanelStore((state) => state.openCallId);
+  const open = useBrowserPanelStore((state) => state.open);
+  const shell = useShell();
+  const panelId = useId();
+  const newest = tabs.at(-1);
+  useEffect(() => {
+    if (newest?.nativeId && isRunning(newest) && isDesktopShell(shell) && shell.window === "main")
+      open(newest.callId);
+  }, [newest?.callId, newest?.nativeId, newest?.outcome, shell, open]);
+  const selectTab = (tab: Browse) => {
+    setSelection({ callId: tab.callId, latest });
+    if (openCallId) open(tab.callId);
+  };
+  const active =
+    tabs.find(
+      (tab) =>
+        tab.callId === (selection && selection.latest === latest ? selection.callId : latest),
+    ) ?? tabs.at(-1);
+  if (!active || hidden === latest) return null;
+  return (
+    <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4">
+      <div className="bg-background rounded-2xl border p-1 shadow-sm">
+        <div className="flex items-center gap-1">
+          <div
+            className="flex min-w-0 flex-1 overflow-x-auto"
+            role="tablist"
+            tabIndex={-1}
+            aria-label={t("browserHeading")}
+            onKeyDown={(event) => {
+              if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+              event.preventDefault();
+              const current = tabs.findIndex((tab) => tab.callId === active.callId);
+              const index =
+                event.key === "Home"
+                  ? 0
+                  : event.key === "End"
+                    ? tabs.length - 1
+                    : (current + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+              const tab = tabs[index];
+              if (tab) selectTab(tab);
+              event.currentTarget
+                .querySelectorAll<HTMLButtonElement>('[role="tab"]')
+                [index]?.focus();
+            }}
+          >
+            {tabs.map((tab) => (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab.callId === active.callId}
+                key={tab.callId}
+                onClick={() => selectTab(tab)}
+                tabIndex={tab.callId === active.callId ? 0 : -1}
+                aria-controls={!openCallId ? panelId : undefined}
+                className={cn(
+                  "flex max-w-48 min-w-0 shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-xs",
+                  tab.callId === active.callId && "bg-muted",
+                )}
+              >
+                <Globe className="size-3.5 shrink-0" aria-hidden />
+                <span className="truncate">
+                  {tab.title || hostOf(tab.url) || t("browserHeading")}
+                </span>
+              </button>
+            ))}
+          </div>
+          {active.outcome && active.resumable && !active.nativeId && (
+            <button
+              type="button"
+              onClick={onResume}
+              className="hover:bg-muted rounded-lg px-3 py-2 text-xs"
+            >
+              {t("browserResume")}
+            </button>
+          )}
+          <button
+            type="button"
+            aria-label={t("browserClose")}
+            onClick={() => setHidden(latest ?? null)}
+            className="hover:bg-muted rounded-lg p-2"
+          >
+            <X className="size-3.5" aria-hidden />
+          </button>
+        </div>
+        {!openCallId && (
+          <div id={panelId} role="tabpanel" aria-label={active.title || t("browserHeading")}>
+            <InlineBrowser key={active.callId} browse={active} onComment={onComment} docked />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -551,6 +551,10 @@ class TestPinningTheBrowserToItsAddress:
 BROWSER_TOOLS = (
     "browse_web",
     "browser_open",
+    "browser_new_tab",
+    "browser_tabs",
+    "browser_switch_tab",
+    "browser_close_tab",
     "browser_read",
     "browser_click",
     "browser_type",
@@ -2855,3 +2859,214 @@ async def _routed(
     )
     async with toolset:
         yield toolset
+
+
+class TestSeveralBrowserTabs:
+    async def test_switching_reads_fresh_elements_and_closing_releases_every_page(self):
+        opener = _Opener()
+        frames = _Frames()
+        async with _toolset(opener) as toolset:
+            await _direct(toolset, "browser_open", {"url": "https://x.test/"}, sink=frames)
+            first = toolset.session
+            await _direct(
+                toolset,
+                "browser_new_tab",
+                {"url": "https://y.test/"},
+                sink=frames,
+                call_id="second",
+            )
+            second_id = toolset.tab_id
+            assert second_id != "main" and len(toolset.sessions()) == 2
+            assert "main" in await _direct(toolset, "browser_tabs")
+            assert "PAGE:" in await _direct(
+                toolset, "browser_switch_tab", {"tab_id": "main"}, sink=frames, call_id="again"
+            )
+            assert toolset.session is first and first.last is not None
+            assert await toolset.select("main")
+            assert "not open" in await _direct(toolset, "browser_switch_tab", {"tab_id": "missing"})
+            assert "not open" in await _direct(toolset, "browser_close_tab", {"tab_id": "missing"})
+            assert "Closed" in await _direct(toolset, "browser_close_tab", {"tab_id": second_id})
+            assert opener.closed == 1
+            assert "Closed" in await _direct(toolset, "browser_close_tab", {"tab_id": "main"})
+            assert opener.closed == 2 and not toolset.sessions()
+        assert opener.closed == 2
+        assert [frame.tab_id for frame in frames.of("browser_opened")] == [
+            "main",
+            second_id,
+            "main",
+        ]
+
+    async def test_limit_and_teardown_of_parked_tabs(self):
+        opener = _Opener()
+        async with _toolset(opener) as toolset:
+            for i in range(8):
+                await _direct(
+                    toolset, "browser_new_tab", {"url": f"https://x.test/{i}"}, call_id=f"tab-{i}"
+                )
+            assert "Eight tabs" in await _direct(
+                toolset, "browser_new_tab", {"url": "https://x.test/9"}
+            )
+            assert len(opener.opened) == 8
+        assert opener.closed == 8
+
+    async def test_checkpoint_failure_still_closes_all_tabs(self):
+        opener = _Opener()
+        with pytest.raises(RuntimeError, match="checkpoint"):
+            async with _toolset(opener) as toolset:
+                await _direct(toolset, "browser_new_tab", {"url": "https://x.test/"})
+                toolset.checkpoint = AsyncMock(side_effect=RuntimeError("checkpoint"))
+        assert opener.closed == 1
+
+    async def test_private_conversation_restores_cookies_and_tabs(self, monkeypatch):
+        from app.agents.capabilities.browser_use import _sessions
+
+        owner, org, conversation, agent = uuid4(), uuid4(), uuid4(), uuid4()
+        deps = AgentDeps(
+            user_id=str(owner),
+            organization_id=org,
+            agent_id=agent,
+            conversation_id=conversation,
+            audience=RunAudience(user_id=owner, browses_signed_in=True),
+        )
+        monkeypatch.setattr(browser_sign_in, "load_for", AsyncMock(return_value=[]))
+        saved: dict[str, str] = {}
+
+        async def keep(scope: str, sealed: str) -> None:
+            saved[scope] = sealed
+
+        async def read(scope: str) -> str | None:
+            return saved.get(scope)
+
+        monkeypatch.setattr(live_browse, "save_session", keep)
+        monkeypatch.setattr(live_browse, "load_session", read)
+
+        async def invoke(toolset, name, args=None, call_id="view"):
+            ctx = RunContext(
+                deps=deps, model=_browsing_model(DONE_ARGS), usage=RunUsage(), tool_call_id=call_id
+            )
+            tools = await toolset.get_tools(ctx)
+            return await toolset.call_tool(name, args or {}, ctx, tools[name])
+
+        page = _FakePage()
+        page.sign_in = SignIn(
+            site="example.test",
+            origin="https://example.test",
+            cookies=[{"name": "auth", "value": "secret-cookie"}],
+        )
+        opener = _Opener(page)
+        async with _toolset(opener) as toolset:
+            await invoke(toolset, "browser_open", {"url": "https://example.test"})
+            await invoke(toolset, "browser_new_tab", {"url": "https://example.test/two"}, "second")
+            selected = toolset.tab_id
+        assert opener.closed == 2
+        assert "secret-cookie" not in next(iter(saved.values()))
+        restored = _Opener()
+        async with _toolset(restored) as toolset:
+            assert "PAGE:" in await invoke(toolset, "browser_read")
+            assert len(toolset.sessions()) == 2 and toolset.tab_id == selected
+            assert restored.opened[0]["sign_ins"] == [page.sign_in]
+            assert len(restored.opened) == 2
+            await invoke(toolset, "browser_read")
+            assert len(restored.opened) == 2
+        assert restored.closed == 2
+        scope = next(iter(saved))
+        assert await _sessions.load("other-conversation", owner) is None
+        monkeypatch.setattr(live_browse, "load_session", AsyncMock(return_value=saved[scope]))
+        assert await _sessions.load("other-conversation", owner) is None
+        from app.core.exceptions import BadRequestError
+
+        with pytest.raises(BadRequestError):
+            await _sessions.load(scope, uuid4())
+
+    async def test_missing_checkpoint_is_an_explicit_no_tab(self, monkeypatch):
+        from app.agents.capabilities.browser_use import _sessions
+
+        monkeypatch.setattr(_sessions, "load", AsyncMock(return_value=None))
+        async with _toolset(_Opener()) as toolset:
+            assert await _direct(toolset, "browser_tabs") == NO_TAB
+            assert await _direct(toolset, "browser_read") == NO_TAB
+
+
+async def test_completed_live_view_keeps_one_final_image_even_without_viewers(monkeypatch):
+    from app.agents.capabilities.browser_use._toolset import _live
+
+    monkeypatch.setattr(live_browse, "available", lambda: True)
+    monkeypatch.setattr(live_browse, "open_view", AsyncMock())
+    monkeypatch.setattr(live_browse, "has_viewers", AsyncMock(return_value=False))
+    publish = AsyncMock()
+    monkeypatch.setattr(live_browse, "publish", publish)
+    chat = _Frames()
+    sink, _, _ = await _live(
+        AgentDeps(run_id=uuid4(), organization_id=uuid4(), browser_events=chat), "view", "task"
+    )
+    assert sink is not None
+    image = BrowserEvent(kind="browser_frame", call_id="view", step=1, image="final")
+    assert not await sink(image)
+    publish.assert_not_awaited()
+    finished = BrowserEvent(kind="browser_finished", call_id="view", step=1, outcome="done")
+    await sink(finished)
+    assert [call.args[-1] for call in publish.await_args_list] == [image, finished]
+    assert [frame.kind for frame in chat.frames] == ["browser_finished"]
+
+
+@pytest.mark.parametrize("failure", [DomainRefused("gone"), None])
+async def test_final_paint_refusal_does_not_prevent_completion(failure):
+    page = _FakePage(image=None)
+    if failure:
+        page.screenshot = AsyncMock(side_effect=failure)
+    frames = _Frames()
+    await close_view(DirectView("view", frames, None, None, None, True), BrowseSession(page=page))
+    assert frames.frames[-1].kind == "browser_finished"
+
+
+@pytest.mark.parametrize(
+    "tool, checkpoint",
+    [
+        ("browser_read", "missing"),
+        ("browser_read", "unreachable"),
+        ("browser_tabs", "unreachable"),
+        ("browser_read", "blank"),
+        ("browser_read", "closed"),
+    ],
+)
+async def test_private_checkpoint_failure_modes(tool, checkpoint, monkeypatch):
+    from app.agents.capabilities.browser_use import _sessions
+
+    owner = uuid4()
+    deps = AgentDeps(
+        user_id=str(owner),
+        organization_id=uuid4(),
+        agent_id=uuid4(),
+        conversation_id=uuid4(),
+        audience=RunAudience(user_id=owner, browses_signed_in=True),
+    )
+    state = _sessions.SavedBrowser(
+        scope="scope",
+        tabs=[_sessions.SavedTab(id="main", url="https://example.test/")],
+        active="main",
+    )
+    monkeypatch.setattr(
+        _sessions, "load", AsyncMock(return_value=None if checkpoint == "missing" else state)
+    )
+    save = AsyncMock()
+    monkeypatch.setattr(_sessions, "save", save)
+    monkeypatch.setattr(browser_sign_in, "load_for", AsyncMock(return_value=[]))
+    opener = _Opener(fails=OSError("closed") if checkpoint == "unreachable" else None)
+    async with _toolset(opener) as ts:
+        ctx = RunContext(
+            deps=deps, model=_browsing_model(DONE_ARGS), usage=RunUsage(), tool_call_id="view"
+        )
+        tools = await ts.get_tools(ctx)
+        result = await ts.call_tool(tool, {}, ctx, tools[tool])
+        if checkpoint == "missing":
+            assert result == NO_TAB
+        elif checkpoint == "unreachable":
+            assert result == UNREACHABLE
+        else:
+            assert "PAGE:" in str(result)
+            opener.page.location = AsyncMock(
+                return_value=("about:blank", ""),
+                side_effect=EndpointError("closed") if checkpoint == "closed" else None,
+            )
+    if checkpoint in ("blank", "closed"):
+        assert save.call_args.args[2] == []

@@ -2887,6 +2887,20 @@ class AgentRunnerService:
             )
         return requested
 
+    @staticmethod
+    async def _browser_session(ctx: AuthContext, local: LocalTarget) -> UUID:
+        """Resolve only the initiating person's paired browser, without opening a folder."""
+        from app.services import device_hub
+
+        if ctx.user_id is None or ctx.api_key_id is not None or ctx.subject_is_publisher_fallback:
+            raise BadRequestError(message="Only your own chats can use your computer's browser")
+        device = await device_hub.wait_for(ctx.user_id, local.device_id, timeout=0)
+        if device is None:
+            raise BadRequestError(
+                message="Your computer is not connected: open the AgenticOS app on it"
+            )
+        return device.session_id
+
     async def _assemble(
         self,
         ctx: AuthContext,
@@ -3318,8 +3332,12 @@ class AgentRunnerService:
             on_wait=on_sandbox_wait,
             local=local,
         )
+        if local is not None and local.browser and local.folder is None:
+            resources["local_browser_session"] = await self._browser_session(workspace_ctx, local)
         if local is not None and (
-            local.model_service is not None or local.mcp_services or local.browser
+            local.model_service is not None
+            or local.mcp_services
+            or (local.browser and local.folder is not None)
         ):
             # _open_local has authenticated the actual sender and resolved only
             # their own paired session before any local service is contacted.

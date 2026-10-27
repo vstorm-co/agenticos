@@ -5421,3 +5421,26 @@ def test_an_e2b_sandbox_connection_supplies_its_own_key_and_template(runtime: st
         )
     assert result is factory.return_value
     factory.assert_called_once_with(api_key="tenant-key", template=runtime or "desktop")
+
+
+@pytest.mark.anyio
+async def test_browser_only_selection_keeps_the_agents_sandbox(mock_db_session, monkeypatch):
+    from app.schemas.local_target import LocalTarget
+
+    service = SandboxWorkspaceService(mock_db_session)
+    local = AsyncMock()
+    cloud = AsyncMock(return_value=None)
+    monkeypatch.setattr(service, "_open_local", local)
+    monkeypatch.setattr(service, "_open_config", cloud)
+    target = LocalTarget(browser=True)
+    assert (
+        await service.open(
+            AgentSpec(name="Browser"), ctx=_ctx(), identity=_identity(), local=target
+        )
+        is None
+    )
+    local.assert_not_awaited()
+    cloud.assert_not_awaited()
+    await service.open(_spec(), ctx=_ctx(), identity=_identity(), local=target)
+    cloud.assert_awaited_once()
+    local.assert_not_awaited()

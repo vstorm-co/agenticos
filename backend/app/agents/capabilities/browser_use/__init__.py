@@ -89,6 +89,26 @@ class WebBrowserConfig(BaseModel):
     different numbers and neither should need a release to get them.
     """
 
+    connection: Connection = Field(
+        title="How the browser reaches the web",
+        default="built_in",
+        description=(
+            "Built in uses the deployment's browser and its address. A proxy sends "
+            "the browses through an address of your own - a residential or regional "
+            "one sites block less. A hosted browser runs them in a browser service "
+            "you pay for, reached over CDP. This computer requires a paired desktop "
+            "and local browsing selected for this chat."
+        ),
+        json_schema_extra={
+            "x-widget": "browser-connection",
+            "x-enum-labels": {
+                "built_in": "Built in",
+                "proxy": "Through a proxy",
+                "hosted": "A hosted browser",
+                "local": "This computer (desktop app)",
+            },
+        },
+    )
     cdp_url: str = Field(
         title="DevTools endpoint",
         default="",
@@ -172,25 +192,6 @@ class WebBrowserConfig(BaseModel):
             "uses the agent's model. The agent's own browser tools always use it."
         ),
         json_schema_extra={"x-widget": "model-profile", "x-advanced": True},
-    )
-    connection: Connection = Field(
-        title="How the browser reaches the web",
-        default="built_in",
-        description=(
-            "Built in uses the deployment's browser and its address. A proxy sends "
-            "the browses through an address of your own - a residential or regional "
-            "one sites block less. A hosted browser runs them in a browser service "
-            "you pay for, reached over CDP. This computer requires a paired desktop "
-            "and local browsing selected for this chat."
-        ),
-        json_schema_extra={
-            "x-enum-labels": {
-                "built_in": "Built in",
-                "proxy": "Through a proxy",
-                "hosted": "A hosted browser",
-                "local": "This computer (desktop app)",
-            }
-        },
     )
     proxy_url: str = Field(
         title="Proxy address",
@@ -384,8 +385,28 @@ def validate_cdp_url(config: WebBrowserConfig) -> None:
             side_effecting=False,
         ),
         CapabilityToolInfo(
+            id="browser_new_tab",
+            description="Open a separate browser tab and select it, retaining other pages.",
+            side_effecting=False,
+        ),
+        CapabilityToolInfo(
+            id="browser_tabs",
+            description="List this conversation's open tabs, restoring its checkpoint if needed.",
+            side_effecting=False,
+        ),
+        CapabilityToolInfo(
+            id="browser_switch_tab",
+            description="Select an existing tab and read its current elements.",
+            side_effecting=False,
+        ),
+        CapabilityToolInfo(
+            id="browser_close_tab",
+            description="Close one tab, then select another if any remain.",
+            side_effecting=False,
+        ),
+        CapabilityToolInfo(
             id="browser_read",
-            description="Read the open page again, or resume this conversation's native local tab.",
+            description="Read the open page again, or resume this conversation's browser session.",
             side_effecting=False,
         ),
         CapabilityToolInfo(
@@ -453,7 +474,7 @@ def _build(ctx: CapabilityBuildContext) -> AbstractCapability[object]:
         else None,
         step_model=step_model if isinstance(step_model, Model) else None,
         route=route_for(
-            connection=config.connection,
+            connection="local" if isinstance(local_session, UUID) else config.connection,
             proxy_url=config.proxy_url,
             hosted_url=config.hosted_url,
             hosted_key_param=config.hosted_key_param,

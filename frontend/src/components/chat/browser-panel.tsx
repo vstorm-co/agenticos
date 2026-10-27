@@ -8,7 +8,7 @@ import { isDesktopShell } from "@/lib/desktop/shell";
 import { NativeBrowser } from "./native-browser";
 import { BrowserPanelFrame } from "./browser-panel-frame";
 import { useLiveBrowse } from "@/hooks/use-live-browse";
-import { browseById, isRunning, type Browse } from "@/lib/browse";
+import { browseById, isRunning, withLivePreview, type Browse } from "@/lib/browse";
 import { useBrowserPanelStore } from "@/stores/browser-panel-store";
 import type { PageComment } from "./browser-comment";
 import { BrowserWindow } from "./browser-window";
@@ -47,15 +47,11 @@ function OpenBrowser({
   const t = useTranslations("browse");
   const chat = useTranslations("chat");
   const running = isRunning(streamed);
-  const live = useLiveBrowse(
-    streamed.runId ?? "",
-    streamed.callId,
-    running && Boolean(streamed.runId),
-  );
+  const live = useLiveBrowse(streamed.runId ?? "", streamed.callId, Boolean(streamed.runId));
   // Only its own browse's copy, and never past the end, where the stream has
   // the outcome and the socket has been let go.
   const mine = running && live.browse?.callId === streamed.callId;
-  const browse = mine && live.browse ? live.browse : streamed;
+  const browse = withLivePreview(streamed, live.browse);
   const holding = Boolean(browse.heldBy);
 
   useEffect(() => {
