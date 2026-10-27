@@ -1,5 +1,5 @@
 ---
-source_sha: "eaabf21a65fd"
+source_sha: "6e082228f717"
 ---
 
 # Auf einem Server deployen { #deploy-to-a-server }
@@ -190,6 +190,14 @@ einen Tag verlassen:
     schlechten Tag das holt, was gestern lief, und nicht das, was heute Morgen
     veröffentlicht wurde. `scripts/deploy.sh` pinnt für Sie - auf den `sha-`-Tag des
     Commits, den es deployt - für genau so lange, wie der Deploy läuft.
+
+    Pinnen Sie es aus dem Checkout dieses Releases: `git checkout v0.0.380` neben
+    der Variablen. Das Image des Sandbox-Dienstes ist in der Compose-Datei
+    gepinnt, auf die Version, die das Backend desselben Commits spricht. Ein
+    älteres Backend aus einem neueren Checkout trifft also auf ein neueres
+    `sandboxd` - und `latest` aus einem alten Checkout ist derselbe Versatz in die
+    andere Richtung. `scripts/deploy.sh` checkt den Commit aus, den es deployt,
+    also hält ein Deploy oder Rollback per Skript beides zusammen.
 
 Beide Pakete lassen sich anonym holen. Antwortet ein Pull mit `unauthorized`,
 wurde das Paket auf privat gestellt oder ein veraltetes `docker login ghcr.io`
