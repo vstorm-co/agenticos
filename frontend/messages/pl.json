@@ -10811,10 +10811,9 @@
     "trainQuestion": "Posłużyło do pisania zmian",
     "holdoutQuestion": "Nie posłużyło do pisania zmian",
     "sourceSignals": "Źródła do nauki",
-    "signalWindow": "Oceny i nieudane runy z ostatnich 30 dni oraz nieudane odpowiedzi testowe wśród wybranych przykładów.",
+    "signalWindow": "Oceny i nieudane runy z ostatnich 30 dni.",
     "ratedSignals": "Odpowiedzi ocenione negatywnie",
     "failedSignals": "Nieudane runy",
-    "trainSignals": "Odpowiedzi testowe oznaczone jako nieudane",
     "noLearningExamples": "Na razie nie ma z czego się uczyć: nikt nie ocenił odpowiedzi w ostatnich 30 dniach. Najpierw oceń odpowiedź albo napisz pytania testowe.",
     "evidenceSample": "Wybrano {count} przykładów, maksymalnie {limit}. Pomijamy źródła usunięte lub już niedostępne.",
     "unknownCauses": "Część odpowiedzi nie ma zapisanej przyczyny błędu. Pozostają niesklasyfikowane i są pokazane z przykładami agenta do przeglądu.",
@@ -10850,7 +10849,7 @@
     "baseline": "Sprawdź, jak agent odpowiada dzisiaj",
     "estimate": "Oszacuj ponownie",
     "estimating": "Szacowanie czasu i kosztu…",
-    "sessionQuote": "Około {minutes, plural, one {# minuty} few {# minut} many {# minut} other {# minuty}}, do {cost} (szacunkowo), aby przeczytać, co poszło nie tak, na {count, plural, one {# pytaniu} few {# pytaniach} many {# pytaniach} other {# pytania}}. Każda kolejna próba kosztuje ok. {perRound} i jest wyceniana, zanim ją naciśniesz; limit {limit} obejmuje całą sesję.",
+    "sessionQuote": "Do {cost} (szacunkowo) za posortowanie {answers, plural, one {# odpowiedzi} few {# odpowiedzi} many {# odpowiedzi} other {# odpowiedzi}} z oceną. Każda kolejna próba trwa ok. {minutes, plural, one {# minuty} few {# minut} many {# minut} other {# minuty}} i kosztuje ok. {perRound}; jest wyceniana, zanim ją naciśniesz, a limit {limit} obejmuje całą sesję.",
     "evidence": "Na podstawie {count, plural, one {# odpowiedzi} few {# odpowiedzi} many {# odpowiedzi} other {# odpowiedzi}} z informacją zwrotną.",
     "budget": "Limit wydatków sesji (USD)",
     "start": "Zacznij poprawianie",
@@ -11143,7 +11142,6 @@
     "todayCheckBody": "Zadaj wersji roboczej pytania testowe, by zobaczyć, jak radzi sobie, zanim cokolwiek się zmieni.",
     "todayCheckQuote": "{count, plural, one {# pytanie} few {# pytania} many {# pytań} other {# pytania}}, około {cost} (szacunek).",
     "todayChecking": "Testujemy dzisiejsze odpowiedzi… Możesz zamknąć tę stronę.",
-    "todayHandled": "Dziś agent dobrze obsługuje {passed} z {total} pytań.",
     "publishNeedsPermission": "Publikacja wymaga uprawnienia do publikowania tego agenta; poproś właściciela lub administratora. Możesz zachować zmiany w wersji roboczej.",
     "environmentSwitches": "{environment} przełączy się na wersję {version} od razu.",
     "environmentStays": "{environment} zostaje przy wersji {version}.",
@@ -11264,7 +11262,6 @@
     "todayLoading": "Szukam wcześniejszego testu wersji roboczej…",
     "todayTwice": "Zadaj każde pytanie dwa razy",
     "todayTwiceHint": "Pokazuje, czy odpowiedzi albo ich ocena zmieniają się, gdy nic innego się nie zmienia.",
-    "todayUnstable": "{unstable} {asked, plural, one {z # pytania} other {z # pytań}} oceniono inaczej przy ponownym zadaniu.",
     "todayNoisy": "Ta sesja najpewniej niczego nie pokaże: odpowiedzi albo ocena są niestabilne.",
     "todayNoisyCriteria": "Zamień kryteria oceny na pytania tak/nie",
     "todayNoisyCriteriaHint": "Formułuj każde kryterium jako pytanie tak/nie - takie sędzia ocenia najbardziej spójnie.",
@@ -11287,7 +11284,9 @@
       "goUnpriced": {
         "understand": "Następny krok: napisz zmiany",
         "changes": "Następny krok: przetestuj zaznaczone zmiany"
-      }
+      },
+      "hintSingle": "W razie potrzeby popraw brzmienie. Następny krok jest wyceniany, zanim go naciśniesz.",
+      "saveWordingFirst": "Najpierw zapisz albo odrzuć nowe brzmienie."
     },
     "waitingFor": {
       "understand": "Czeka na Ciebie: zobacz, co poszło nie tak",
@@ -11314,10 +11313,17 @@
       "save": "Zapisz sformułowanie",
       "cancel": "Anuluj",
       "tested": "Przetestowana w próbie {number}",
-      "notTested": "Nieprzetestowana"
+      "notTested": "Nieprzetestowana",
+      "editedReason": "Uzasadnienie opisuje proponowane brzmienie, sprzed Twojej zmiany.",
+      "single": "Ta zmiana zostanie przetestowana."
     },
     "limitHint": "Analiza ok. {analysis} · każda próba ok. {perRound} · limit obejmuje całą sesję",
-    "triedChanges": "Co zaproponowała każda próba"
+    "triedChanges": "Co zaproponowała każda próba",
+    "suiteSet": "{name} (pytania sprawdzenia {suite})",
+    "writeOwnInstead": "Albo napisz nowe pytania testowe dla tego agenta",
+    "todayBreakdown": "Z {total} pytań dziś: {passed} z dobrą odpowiedzią, {failing} ze złą{asked, select, yes {, {unstable} oceniono inaczej przy ponownym pytaniu} other {}}.",
+    "knowledgeDraftCost": "Szkic dokumentu jest rozliczany w bazie wiedzy, poza limitem tej sesji.",
+    "knowledgeLoading": "Wczytywanie tematów…"
   },
   "unsaved": {
     "title": "Masz niezapisane zmiany",

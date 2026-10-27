@@ -291,7 +291,7 @@ test("test questions, review and improvement publish keep a guarded environment 
   await page.getByText("Show details", { exact: true }).click();
   await page.getByLabel("Test questions", { exact: true }).click();
   await page.getByRole("option", { name: String(dataset.name), exact: true }).click();
-  const estimate = page.getByText(/^About \d+ minutes?, up to .+ \(estimate\)/);
+  const estimate = page.getByText(/^Up to .+ \(estimate\) to sort the \d+ answers? with feedback/);
   // Opened before the estimate lands, which redraws the box above it.
   await page.getByText("Helper that writes the changes", { exact: true }).click();
   const runWith = page.getByRole("combobox", { name: "Run with" });

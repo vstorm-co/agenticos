@@ -77,9 +77,10 @@ it("asks the draft each question twice under 40 questions, priced in full", asyn
   expect(screen.getByRole("status")).toHaveTextContent(/Testing today's answers/);
   state.run = finished({ stability: { asked: 12, unstable: 1, noisy: false } });
   view.rerender(<TodayCheck agentId="a1" datasetId="d1" />);
-  expect(screen.getByText("Today the agent handles 9 of 12 questions well.")).toBeInTheDocument();
   expect(
-    screen.getByText("1 of 12 questions was graded differently when asked again."),
+    screen.getByText(
+      "Of 12 questions today: 9 handled well, 3 failing, 1 graded differently when asked again.",
+    ),
   ).toBeInTheDocument();
   expect(screen.queryByRole("alert")).toBeNull();
 });
@@ -114,9 +115,7 @@ it("shows the newest test of the draft on this dataset after a refresh, a stabil
   state.run = finished({ stability: { asked: 10, unstable: 3, noisy: true } });
   render(<TodayCheck agentId="a1" datasetId="d1" />);
   expect(state.estimate).not.toHaveBeenCalled();
-  expect(
-    screen.getByText("3 of 10 questions were graded differently when asked again."),
-  ).toBeInTheDocument();
+  expect(screen.getByRole("status")).toHaveTextContent(/3 graded differently when asked again\./);
   const warning = screen.getByRole("alert");
   expect(warning).toHaveTextContent(
     "This session will most likely show nothing: the answers or the grading are unstable.",
@@ -138,7 +137,7 @@ it("falls back to the newest plain test, and offers testing again", async () => 
   state.run = finished();
   useOrgStore.setState({ activeOrgId: null });
   render(<TodayCheck agentId="a1" datasetId="d1" />);
-  expect(screen.getByText("Today the agent handles 9 of 12 questions well.")).toBeInTheDocument();
+  expect(screen.getByText("Of 12 questions today: 9 handled well, 3 failing.")).toBeInTheDocument();
   expect(screen.queryByText(/graded differently/)).toBeNull();
   await userEvent.click(screen.getByRole("button", { name: "Test again" }));
   expect(await screen.findByRole("button", { name: BUTTON })).toBeInTheDocument();

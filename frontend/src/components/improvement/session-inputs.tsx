@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, ListX, ThumbsDown } from "lucide-react";
+import { AlertTriangle, ThumbsDown } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
 import { useImprovementEvidence } from "@/hooks/use-improvements";
@@ -50,12 +50,6 @@ export function StartSignals({ agentId, datasetId }: { agentId: string; datasetI
                 value: counts?.failed_runs ?? 0,
                 tone: "amber",
                 icon: AlertTriangle,
-              },
-              {
-                label: t("trainSignals"),
-                value: evidence.training_failures,
-                tone: "violet",
-                icon: ListX,
               },
             ]}
           />

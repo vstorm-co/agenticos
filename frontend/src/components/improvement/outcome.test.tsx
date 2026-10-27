@@ -35,6 +35,7 @@ type Environment = {
 const state = vi.hoisted(() => ({
   topics: [] as Topic[],
   topicsError: null as Error | null,
+  topicsLoading: false,
   evidenceTopics: ["t1", "t2", "t3"] as (string | null)[],
   compared: null as EvalComparison | null,
   environments: [] as Environment[],
@@ -48,6 +49,7 @@ vi.mock("@/hooks/use-knowledge-gaps", () => ({
   useKnowledgeGaps: () => ({
     topics: state.topics,
     error: state.topicsError,
+    isLoading: state.topicsLoading,
     refetch: state.refetchTopics,
   }),
   useDraftKnowledgeGap: () => ({ mutate: state.draft, isPending: false }),
@@ -106,6 +108,7 @@ const topic = (id: string, extra = {}): Topic => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  state.topicsLoading = false;
   state.topics = [topic("t1"), topic("t2"), topic("t3", { can_edit: false }), topic("t9")];
   state.topicsError = null;
   state.evidenceTopics = ["t1", "t2", "t3", null];
@@ -170,10 +173,22 @@ it("counts only what is still missing, and says how much was added since", () =>
   expect(within(tile).queryByRole("link")).not.toBeInTheDocument();
 });
 
-it("offers Draft with its cost on an open topic the session found", () => {
+it("offers Draft with its cost on an open topic the session found, outside the session's limit", () => {
   state.topics = [topic("t1", { has_draft: false })];
   render(<KnowledgeDocuments session={SESSION} />);
   expect(screen.getByRole("button", { name: "Draft · $0.02" })).toBeInTheDocument();
+  expect(
+    screen.getByText(
+      "Drafting a document is billed to the knowledge base, outside this session's limit.",
+    ),
+  ).toBeInTheDocument();
+});
+
+it("holds the place of the topics while they are read, rather than saying none are missing", () => {
+  state.topicsLoading = true;
+  render(<KnowledgeDocuments session={SESSION} />);
+  expect(screen.getByRole("status", { name: "Loading the topics…" })).toBeInTheDocument();
+  expect(screen.queryByText("Nothing is missing from the knowledge base.")).not.toBeInTheDocument();
 });
 
 it("lists only this session's topics beside the changes and opens a draft inside the wizard", async () => {

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { BookOpen, CheckCircle2, Coins, ListChecks, XCircle } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { KnowledgeGapDialog } from "@/components/knowledge-gaps/knowledge-gap-dialog";
+import { Skeleton } from "@/components/ui";
 import { useAgentEnvironments } from "@/hooks/use-agent-environments";
 import { useDatasetCases } from "@/hooks/use-datasets";
 import { useEvalComparison } from "@/hooks/use-eval-runs";
@@ -37,6 +38,7 @@ export function useSessionTopics(session: Improvement) {
     topics: gaps.topics.filter((topic) => topic.status === "open" && ours.has(topic.id)),
     added: gaps.topics.filter((topic) => topic.status === "covered" && ours.has(topic.id)),
     error: gaps.error ?? sources.error,
+    isLoading: gaps.isLoading || sources.isLoading,
     retry: () => Promise.all([gaps.refetch(), sources.refetch()]),
   };
 }
@@ -103,7 +105,7 @@ export function KnowledgeDocuments({
 }) {
   const t = useTranslations("improvement");
   const tErrors = useTranslations("errors");
-  const { topics, error, retry } = useSessionTopics(session);
+  const { topics, error, isLoading, retry } = useSessionTopics(session);
   const actions = useImprovement(session.agent_id, session.id);
   const [open, setOpen] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -118,8 +120,15 @@ export function KnowledgeDocuments({
         {accept ? t("acceptKnowledge", { count: toAdd }) : t("cause.missing_knowledge")}
       </h3>
       {error && <StepError error={error} retry={retry} />}
-      {!accept && shown.length === 0 && (
+      {isLoading ? (
+        <div role="status" aria-label={t("knowledgeLoading")} className="space-y-2">
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
+        </div>
+      ) : !accept && shown.length === 0 ? (
         <p className="text-muted-foreground text-sm">{t("noKnowledgeDocuments")}</p>
+      ) : (
+        !accept && <p className="text-muted-foreground text-xs">{t("knowledgeDraftCost")}</p>
       )}
       {shown.map((topic) => (
         <SessionTopic

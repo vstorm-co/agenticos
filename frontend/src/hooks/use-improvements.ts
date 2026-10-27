@@ -70,10 +70,11 @@ export function useImprovements(agentId: string, { enabled = true } = {}) {
 }
 
 /** The changes of a session's current attempt, or of the round it chose once one was measured. */
-export function useImprovementChanges(agentId: string, runId: string) {
+export function useImprovementChanges(agentId: string, runId: string, { enabled = true } = {}) {
   const query = useQuery({
     queryKey: qk.improvements.changes(agentId, runId),
     queryFn: () => apiClient.get<Hunk[]>(`/agents/${agentId}/improvements/${runId}/changes`),
+    enabled,
   });
   return {
     changes: query.data ?? [],

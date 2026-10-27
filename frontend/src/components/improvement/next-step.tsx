@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { ArrowRight } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { Button, Input, Label } from "@/components/ui";
-import { limitInput, usd } from "@/components/evals/format";
+import { limitText, limitValue, usd } from "@/components/evals/format";
 import { useImprovement } from "@/hooks/use-improvements";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { currentAttempt, stopOf } from "@/lib/improvement-steps";
@@ -20,10 +20,13 @@ import { useReadOnly } from "./read-only";
  */
 export function NextStep({
   session,
+  hint,
   blocked,
   onStarted,
 }: {
   session: Improvement;
+  /** What to do before pressing, when the stop's own hint does not fit. */
+  hint?: string;
   /** Why the step cannot start yet, said beside the button. */
   blocked?: string;
   onStarted: () => void;
@@ -35,7 +38,7 @@ export function NextStep({
   const readOnly = useReadOnly();
   const actions = useImprovement(session.agent_id, session.id);
   const stop = stopOf(session);
-  const [budget, setBudget] = useState(limitInput(session.budget_usd));
+  const [budget, setBudget] = useState(() => limitText(session.budget_usd, locale));
   const [asked, setAsked] = useState(session.budget_usd);
   const [quote, setQuote] = useState<{ key: string; value: ContinuationEstimate } | null>(null);
   const [moved, setMoved] = useState(false);
@@ -86,7 +89,7 @@ export function NextStep({
       className="border-primary/30 bg-primary/5 space-y-3 rounded-xl border p-4"
       data-tour="improvement-next-step"
     >
-      <p className="text-sm">{t(`hint.${stop}`)}</p>
+      <p className="text-sm">{hint ?? t(`hint.${stop}`)}</p>
       {!priced && !error && (
         <p role="status" className="text-muted-foreground text-sm">
           {t("pricing")}
@@ -104,16 +107,16 @@ export function NextStep({
           <div className="flex gap-2">
             <Input
               id="next-step-budget"
-              type="number"
-              min="0.000001"
-              step="0.01"
+              inputMode="decimal"
               value={budget}
               onChange={(event) => setBudget(event.target.value)}
             />
             <Button
               variant="outline"
-              disabled={!(Number(budget) > 0) || Number(budget) === Number(asked)}
-              onClick={() => setAsked(budget)}
+              disabled={
+                !(Number(limitValue(budget)) > 0) || Number(limitValue(budget)) === Number(asked)
+              }
+              onClick={() => setAsked(limitValue(budget))}
             >
               {t("raise")}
             </Button>

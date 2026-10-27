@@ -68,6 +68,7 @@ function AttemptProposals({
             </StateBadge>
             {hunk.edited_text && <StateBadge tone="neutral">{t("edited")}</StateBadge>}
           </div>
+          {hunk.edited_text && <p className="text-muted-foreground text-xs">{t("editedReason")}</p>}
           <ChangePreview
             hunk={hunk.edited_text ? { ...hunk, new_text: hunk.edited_text } : hunk}
             conversations={{}}

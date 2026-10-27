@@ -23,7 +23,7 @@ import { EvalsPanel } from "./evals-panel";
 import { VerdictChip } from "./run-row";
 import { sideName } from "./names";
 import { PassRateChart, passRateLines, trendRange } from "./pass-rate-chart";
-import { percent, seconds, usd } from "./format";
+import { limitText, limitValue, percent, seconds, usd } from "./format";
 
 const evalRuns = vi.hoisted(() => ({
   value: {} as Record<string, unknown>,
@@ -74,6 +74,11 @@ describe("format", () => {
     expect(usd("0.013333", "en")).toBe("$0.0133");
     expect(usd("12.5", "en")).toBe("$12.50");
     expect(usd(null, "en")).toBe("—");
+    expect(usd("0.005", "en")).toBe("$0.0050");
+    expect(usd("0", "en")).toBe("$0.00");
+    expect(limitText("0.850000", "en")).toBe("0.85");
+    expect(limitText("0.9101", "pl")).toBe("0,92");
+    expect(limitValue(" 0,92 ")).toBe("0.92");
     expect(percent(0.75, "en")).toBe("75%");
     expect(percent(null, "en")).toBe("—");
     expect(seconds(1500, "en")).toBe("1.5s");

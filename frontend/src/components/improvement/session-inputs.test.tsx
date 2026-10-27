@@ -132,9 +132,10 @@ beforeEach(() => {
     { id: "q2", input: "Shipping?", improvement_partition: "holdout", reference_answer: null },
   ];
 });
-it("shows real signal counts and labels the bounded training sample", () => {
+it("shows real signal counts, and no failing test answers before anything was tested", () => {
   render(<StartSignals agentId="a1" datasetId="d1" />);
-  for (const count of ["5", "2", "3"]) expect(screen.getByText(count)).toBeInTheDocument();
+  for (const count of ["5", "2"]) expect(screen.getByText(count)).toBeInTheDocument();
+  expect(screen.queryByText("Test answers marked as failing")).not.toBeInTheDocument();
   expect(state.evidenceHook).toHaveBeenCalledWith("a1", { datasetId: "d1" });
 });
 it("distinguishes loading, read failures and no learning data", () => {
@@ -153,7 +154,7 @@ it("distinguishes loading, read failures and no learning data", () => {
   state.rated = 0;
   state.sources = { items: [], sample_limit: 20, training_failures: 0 };
   view.rerender(<StartSignals agentId="a1" datasetId="" />);
-  expect(screen.getAllByText("0")).toHaveLength(3);
+  expect(screen.getAllByText("0")).toHaveLength(2);
   expect(screen.getByText(/Nothing to learn from yet/)).toBeInTheDocument();
 });
 it("keeps unknown causes explicit and shows quotes, comments, reasons and source links", async () => {

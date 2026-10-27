@@ -43,7 +43,7 @@ it("estimates and confirms another round separately without publishing", async (
 it("offers the limit in cents, and prices only the step a press starts", async () => {
   render(<ContinueSession session={{ ...SESSION, budget_usd: "0.850000" }} onStarted={vi.fn()} />);
   await userEvent.click(screen.getByRole("button", { name: "Improve again" }));
-  expect(screen.getByLabelText("Session spending limit (USD)")).toHaveValue(0.85);
+  expect(screen.getByLabelText("Session spending limit (USD)")).toHaveValue("0.85");
   state.estimate.mockResolvedValue({ ...QUOTE, total_usd: "0.0034" });
   await userEvent.click(screen.getByRole("button", { name: "Estimate continuing the session" }));
   expect(state.estimate).toHaveBeenCalledWith("0.85");
@@ -68,7 +68,10 @@ it("hands a new attempt's helper the person's note, trimmed, and only that attem
 it("sends no note that is only spaces, and offers none when a failed step is retried", async () => {
   const view = render(<ContinueSession session={SESSION} onStarted={vi.fn()} />);
   await userEvent.click(screen.getByRole("button", { name: "Improve again" }));
-  await userEvent.type(screen.getByRole("textbox"), "   ");
+  await userEvent.type(
+    screen.getByRole("textbox", { name: "Note for the helper (optional)" }),
+    "   ",
+  );
   await userEvent.click(screen.getByRole("button", { name: "Estimate continuing the session" }));
   await userEvent.click(
     await screen.findByRole("button", { name: "Confirm the estimate and continue" }),
@@ -84,19 +87,21 @@ it("sends no note that is only spaces, and offers none when a failed step is ret
   await userEvent.click(
     screen.getByRole("button", { name: "Retry this step within the spending limit" }),
   );
-  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("textbox", { name: "Note for the helper (optional)" }),
+  ).not.toBeInTheDocument();
 });
 it("requires another estimate after changing the spending limit", async () => {
   render(<ContinueSession session={SESSION} onStarted={vi.fn()} />);
   await userEvent.click(screen.getByRole("button", { name: "Improve again" }));
   await userEvent.click(screen.getByRole("button", { name: "Estimate continuing the session" }));
   await screen.findByRole("button", { name: "Confirm the estimate and continue" });
-  await userEvent.clear(screen.getByRole("spinbutton"));
+  await userEvent.clear(screen.getByLabelText("Session spending limit (USD)"));
   expect(screen.getByRole("button", { name: "Estimate continuing the session" })).toBeDisabled();
   expect(
     screen.queryByRole("button", { name: "Confirm the estimate and continue" }),
   ).not.toBeInTheDocument();
-  await userEvent.type(screen.getByRole("spinbutton"), "2");
+  await userEvent.type(screen.getByLabelText("Session spending limit (USD)"), "2");
   await userEvent.click(screen.getByRole("button", { name: "Estimate continuing the session" }));
   expect(state.estimate).toHaveBeenLastCalledWith("2");
 });
@@ -132,7 +137,7 @@ it("offers raising a budget before resuming a stopped check", async () => {
     />,
   );
   await userEvent.click(screen.getByRole("button", { name: "Raise the limit and continue" }));
-  expect(screen.getByRole("spinbutton")).toHaveValue(1);
+  expect(screen.getByLabelText("Session spending limit (USD)")).toHaveValue("1.00");
 });
 it("keeps paid restarts with their original requester", () => {
   render(

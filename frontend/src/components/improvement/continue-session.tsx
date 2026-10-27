@@ -3,7 +3,7 @@
 import { type ReactNode, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Button, ConfirmDialog, Input, Label, Textarea } from "@/components/ui";
-import { limitInput, usd } from "@/components/evals/format";
+import { limitText, limitValue, usd } from "@/components/evals/format";
 import { useImprovement } from "@/hooks/use-improvements";
 import { getErrorMessage } from "@/lib/api-error";
 import type { ContinuationEstimate, Improvement } from "@/types/improvement";
@@ -73,7 +73,7 @@ export function ContinueSession({
   const actions = useImprovement(session.agent_id, session.id);
   const [open, setOpen] = useState(false);
   const [discarding, setDiscarding] = useState(false);
-  const [budget, setBudget] = useState(limitInput(session.budget_usd));
+  const [budget, setBudget] = useState(() => limitText(session.budget_usd, locale));
   const [note, setNote] = useState("");
   const [quoted, setQuoted] = useState<{ key: string; value: ContinuationEstimate } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -169,23 +169,17 @@ export function ContinueSession({
           <Label htmlFor="continuation-budget">{t("budget")}</Label>
           <Input
             id="continuation-budget"
-            type="number"
-            min="0.000001"
-            step="0.01"
+            inputMode="decimal"
             value={budget}
             onChange={(event) => setBudget(event.target.value)}
           />
           <Button
             variant="outline"
             className="h-auto min-h-9 whitespace-normal"
-            disabled={
-              !Number.isFinite(Number(budget)) ||
-              Number(budget) <= 0 ||
-              actions.estimateContinuation.isPending
-            }
+            disabled={!(Number(limitValue(budget)) > 0) || actions.estimateContinuation.isPending}
             onClick={() =>
               void act(async () => {
-                const value = await actions.estimateContinuation.mutateAsync(budget);
+                const value = await actions.estimateContinuation.mutateAsync(limitValue(budget));
                 setQuoted({ key, value });
               })
             }

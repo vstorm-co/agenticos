@@ -193,7 +193,13 @@ function TodayResult({
       ) : (
         <>
           <p role="status" className="text-sm font-medium">
-            {t("todayHandled", { passed: arm.summary.passed, total: arm.summary.cases })}
+            {t("todayBreakdown", {
+              total: arm.summary.cases,
+              passed: arm.summary.passed,
+              failing: arm.summary.cases - arm.summary.passed,
+              asked: run.stability ? "yes" : "no",
+              unstable: run.stability?.unstable ?? 0,
+            })}
           </p>
           {run.stability && <Stability stability={run.stability} datasetId={datasetId} />}
         </>
@@ -211,9 +217,6 @@ function Stability({ stability, datasetId }: { stability: EvalStability; dataset
   const orgId = useOrgStore((state) => state.activeOrgId);
   return (
     <>
-      <p className="text-sm">
-        {t("todayUnstable", { unstable: stability.unstable, asked: stability.asked })}
-      </p>
       {stability.noisy && (
         <div
           role="alert"

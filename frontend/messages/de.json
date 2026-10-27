@@ -10911,10 +10911,9 @@
     "trainQuestion": "Zum Schreiben der Änderungen verwendet",
     "holdoutQuestion": "Nicht zum Schreiben der Änderungen verwendet",
     "sourceSignals": "Quellen zum Lernen",
-    "signalWindow": "Bewertungen und fehlgeschlagene Runs der letzten 30 Tage sowie fehlgeschlagene Testantworten unter den ausgewählten Beispielen.",
+    "signalWindow": "Bewertungen und fehlgeschlagene Runs der letzten 30 Tage.",
     "ratedSignals": "Negativ bewertete Antworten",
     "failedSignals": "Fehlgeschlagene Runs",
-    "trainSignals": "Als fehlgeschlagen markierte Testantworten",
     "noLearningExamples": "Noch nichts zum Lernen: In den letzten 30 Tagen hat niemand eine Antwort bewertet. Bewerten Sie zuerst eine Antwort oder schreiben Sie Testfragen.",
     "evidenceSample": "{count} ausgewählte Beispiele, höchstens {limit}. Gelöschte oder nicht mehr lesbare Quellen werden ausgelassen.",
     "unknownCauses": "Für einige Antworten ist keine Ursache gespeichert. Sie bleiben unklassifiziert und werden mit den Agentenbeispielen zur Prüfung angezeigt.",
@@ -10950,7 +10949,7 @@
     "baseline": "Heutige Antworten des Agenten testen",
     "estimate": "Erneut schätzen",
     "estimating": "Zeit und Kosten werden geschätzt…",
-    "sessionQuote": "Etwa {minutes, plural, one {# Minute} other {# Minuten}}, bis zu {cost} (Schätzung), um zu lesen, was bei {count, plural, one {# Frage} other {# Fragen}} schiefging. Jeder Versuch danach kostet ca. {perRound} und wird bepreist, bevor Sie ihn drücken; das Limit von {limit} gilt für die ganze Sitzung.",
+    "sessionQuote": "Bis zu {cost} (Schätzung), um {answers, plural, one {# Antwort} other {# Antworten}} mit Feedback zu sortieren. Jeder Versuch danach dauert etwa {minutes, plural, one {# Minute} other {# Minuten}} und kostet ca. {perRound}; er wird bepreist, bevor Sie ihn drücken, und das Limit von {limit} gilt für die ganze Sitzung.",
     "evidence": "Auf Grundlage von {count, plural, one {# Antwort} other {# Antworten}} mit Feedback.",
     "budget": "Ausgabenlimit der Sitzung (USD)",
     "start": "Verbesserung starten",
@@ -11243,7 +11242,6 @@
     "todayCheckBody": "Stellen Sie dem Entwurf die Testfragen, um zu sehen, wie er abschneidet, bevor sich etwas ändert.",
     "todayCheckQuote": "{count, plural, one {# Frage} other {# Fragen}}, etwa {cost} (Schätzung).",
     "todayChecking": "Die heutigen Antworten werden getestet… Sie können diese Seite schließen.",
-    "todayHandled": "Heute beantwortet der Agent {passed} von {total} Fragen gut.",
     "publishNeedsPermission": "Zum Veröffentlichen brauchen Sie die Berechtigung, diesen Agent zu veröffentlichen; fragen Sie einen Owner oder Admin. Sie können die Änderungen als Entwurf behalten.",
     "environmentSwitches": "{environment} wechselt sofort zu Version {version}.",
     "environmentStays": "{environment} bleibt bei Version {version}.",
@@ -11364,7 +11362,6 @@
     "todayLoading": "Suche nach einem früheren Test des Entwurfs…",
     "todayTwice": "Jede Frage zweimal stellen",
     "todayTwiceHint": "Zeigt, ob sich die Antworten oder ihre Benotung ändern, wenn sich sonst nichts ändert.",
-    "todayUnstable": "{unstable, plural, one {# von {asked} Fragen wurde beim erneuten Stellen anders benotet.} other {# von {asked} Fragen wurden beim erneuten Stellen anders benotet.}}",
     "todayNoisy": "Diese Sitzung zeigt sehr wahrscheinlich nichts: Die Antworten oder die Benotung sind instabil.",
     "todayNoisyCriteria": "Die Bewertungskriterien zu Ja/Nein-Fragen machen",
     "todayNoisyCriteriaHint": "Formulieren Sie jedes Kriterium als Ja/Nein-Frage - solche benotet der Bewerter am beständigsten.",
@@ -11387,7 +11384,9 @@
       "goUnpriced": {
         "understand": "Nächster Schritt: Änderungen schreiben",
         "changes": "Nächster Schritt: ausgewählte Änderungen testen"
-      }
+      },
+      "hintSingle": "Korrigieren Sie bei Bedarf den Wortlaut. Der nächste Schritt wird bepreist, bevor Sie ihn drücken.",
+      "saveWordingFirst": "Speichern oder verwerfen Sie zuerst den Wortlaut."
     },
     "waitingFor": {
       "understand": "Wartet auf Sie: sehen Sie sich an, was schiefging",
@@ -11414,10 +11413,17 @@
       "save": "Formulierung speichern",
       "cancel": "Abbrechen",
       "tested": "In Versuch {number} getestet",
-      "notTested": "Nicht getestet"
+      "notTested": "Nicht getestet",
+      "editedReason": "Die Begründung beschreibt den vorgeschlagenen Wortlaut, bevor Sie ihn geändert haben.",
+      "single": "Diese Änderung wird getestet."
     },
     "limitHint": "Analyse ca. {analysis} · jeder Versuch ca. {perRound} · das Limit gilt für die ganze Sitzung",
-    "triedChanges": "Was jeder Versuch ausprobiert hat"
+    "triedChanges": "Was jeder Versuch ausprobiert hat",
+    "suiteSet": "{name} (Fragen der Prüfung {suite})",
+    "writeOwnInstead": "Oder neue Testfragen für diesen Agenten schreiben",
+    "todayBreakdown": "Von {total} Fragen heute: {passed} gut beantwortet, {failing} fehlerhaft{asked, select, yes {, {unstable} beim erneuten Fragen anders bewertet} other {}}.",
+    "knowledgeDraftCost": "Ein Dokumententwurf wird über die Wissensdatenbank abgerechnet, außerhalb des Limits dieser Sitzung.",
+    "knowledgeLoading": "Themen werden geladen…"
   },
   "unsaved": {
     "title": "Du hast ungespeicherte Änderungen",

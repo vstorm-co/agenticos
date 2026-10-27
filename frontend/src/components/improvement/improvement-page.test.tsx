@@ -724,8 +724,22 @@ it("shows the changes being checked only to read, and the stop's changes to tick
   expect(screen.queryByRole("button", { name: "Change the wording" })).not.toBeInTheDocument();
   state.session = { ...state.session, status: "waiting", stage: "filtering", next_step: "check" };
   view.rerender(<ImprovementPage agentId="a1" sessionId="s1" />);
-  expect(screen.getByRole("checkbox", { name: "Include change 1 in the test" })).toBeChecked();
-  expect(screen.getByRole("button", { name: "Change the wording" })).toBeInTheDocument();
+  expect(screen.getByText("This change will be tested.")).toBeInTheDocument();
+  expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  expect(
+    screen.getByText("Correct the wording if needed. The next step is priced before you press."),
+  ).toBeInTheDocument();
+  const next = await screen.findByRole("button", {
+    name: "Next step: test the selected changes · about $0.04",
+  });
+  expect(next).toBeEnabled();
+  await userEvent.click(screen.getByRole("button", { name: "Change the wording" }));
+  expect(next).toBeEnabled();
+  await userEvent.type(screen.getByRole("textbox", { name: "Wording of change 1" }), " Briefly.");
+  expect(next).toBeDisabled();
+  expect(screen.getByText("Save or discard the wording first.")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(next).toBeEnabled();
 });
 
 it("keeps an opened step in the address, and drops it on the way back to the current one", async () => {

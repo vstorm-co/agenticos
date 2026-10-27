@@ -75,6 +75,9 @@ it("saves the proposed text as no rewording, and goes back to it", async () => {
   state.changes = [hunk({ id: "h1", edited_text: "Refunds: 30 days." })];
   render(<AttemptChanges session={atStop(["h1"])} editable />);
   expect(screen.getByText("Reworded by you")).toBeInTheDocument();
+  expect(
+    screen.getByText("The reason describes the proposed wording, before you changed it."),
+  ).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Back to the proposed wording" }));
   expect(state.edit).toHaveBeenLastCalledWith({ hunkId: "h1", text: null });
   await userEvent.click(screen.getByRole("button", { name: "Change the wording" }));

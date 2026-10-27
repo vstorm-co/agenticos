@@ -11028,10 +11028,9 @@
     "trainQuestion": "Used to write the changes",
     "holdoutQuestion": "Not used to write the changes",
     "sourceSignals": "Sources to learn from",
-    "signalWindow": "Ratings and failed runs from the last 30 days, and failing test answers among the selected examples.",
+    "signalWindow": "Ratings and failed runs from the last 30 days.",
     "ratedSignals": "Answers rated down",
     "failedSignals": "Runs that failed",
-    "trainSignals": "Test answers marked as failing",
     "noLearningExamples": "Nothing to learn from yet: nobody rated an answer in the last 30 days. Rate an answer or write test questions first.",
     "evidenceSample": "{count} selected examples, up to {limit}. Sources that were erased or are no longer readable are omitted.",
     "unknownCauses": "Some answers have no recorded cause. They remain unclassified and are shown with the agent examples for review.",
@@ -11067,7 +11066,7 @@
     "baseline": "Test how the agent answers today",
     "estimate": "Estimate again",
     "estimating": "Estimating the time and cost…",
-    "sessionQuote": "About {minutes, plural, one {# minute} other {# minutes}}, up to {cost} (estimate) to read what went wrong in {count, plural, one {# question} other {# questions}}. Each attempt after that costs about {perRound} and is priced before you press it; the limit of {limit} caps the whole session.",
+    "sessionQuote": "Up to {cost} (estimate) to sort the {answers, plural, one {# answer} other {# answers}} with feedback. Each attempt after that takes about {minutes, plural, one {# minute} other {# minutes}} and costs about {perRound}, priced before you press it; the limit of {limit} caps the whole session.",
     "evidence": "Based on {count, plural, one {# answer} other {# answers}} with feedback.",
     "budget": "Session spending limit (USD)",
     "start": "Start improving",
@@ -11360,7 +11359,6 @@
     "todayCheckBody": "Ask the draft the test questions, to see how it does before anything changes.",
     "todayCheckQuote": "{count, plural, one {# question} other {# questions}}, about {cost} (estimate).",
     "todayChecking": "Testing today's answers… You can close this page.",
-    "todayHandled": "Today the agent handles {passed} of {total} questions well.",
     "publishNeedsPermission": "Publishing needs permission to publish this agent; ask an owner or an admin. You can keep the changes as a draft.",
     "environmentSwitches": "{environment} switches to version {version} right away.",
     "environmentStays": "{environment} stays on version {version}.",
@@ -11481,7 +11479,6 @@
     "todayLoading": "Looking for an earlier test of the draft…",
     "todayTwice": "Ask each question twice",
     "todayTwiceHint": "Shows whether the answers or their grading change when nothing else does.",
-    "todayUnstable": "{unstable, plural, one {# of {asked} questions was graded differently when asked again.} other {# of {asked} questions were graded differently when asked again.}}",
     "todayNoisy": "This session will most likely show nothing: the answers or the grading are unstable.",
     "todayNoisyCriteria": "Make the grading criteria yes/no questions",
     "todayNoisyCriteriaHint": "Phrase each criterion as a yes/no question - the judge grades those most consistently.",
@@ -11504,7 +11501,9 @@
       "goUnpriced": {
         "understand": "Next step: write the changes",
         "changes": "Next step: test the selected changes"
-      }
+      },
+      "hintSingle": "Correct the wording if needed. The next step is priced before you press.",
+      "saveWordingFirst": "Save or discard the wording first."
     },
     "waitingFor": {
       "understand": "Waiting for you: look at what went wrong",
@@ -11531,10 +11530,17 @@
       "save": "Save the wording",
       "cancel": "Cancel",
       "tested": "Tested in attempt {number}",
-      "notTested": "Not tested"
+      "notTested": "Not tested",
+      "editedReason": "The reason describes the proposed wording, before you changed it.",
+      "single": "This change will be tested."
     },
     "limitHint": "Analysis about {analysis} · each attempt about {perRound} · the limit caps the whole session",
-    "triedChanges": "What each attempt tried"
+    "triedChanges": "What each attempt tried",
+    "suiteSet": "{name} (questions of the {suite} check)",
+    "writeOwnInstead": "Or write new test questions for this agent",
+    "todayBreakdown": "Of {total} questions today: {passed} handled well, {failing} failing{asked, select, yes {, {unstable} graded differently when asked again} other {}}.",
+    "knowledgeDraftCost": "Drafting a document is billed to the knowledge base, outside this session's limit.",
+    "knowledgeLoading": "Loading the topics…"
   },
   "unsaved": {
     "title": "You have unsaved changes",

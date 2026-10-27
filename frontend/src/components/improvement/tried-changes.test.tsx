@@ -65,6 +65,9 @@ it("shows what the latest attempt tested and what its check came to, the earlier
   expect(screen.getAllByText("Tested in attempt 2")).toHaveLength(1);
   expect(screen.getByText("Not tested")).toBeInTheDocument();
   expect(screen.getByText("Reworded by you")).toBeInTheDocument();
+  expect(
+    screen.getByText("The reason describes the proposed wording, before you changed it."),
+  ).toBeInTheDocument();
   expect(latest.closest("details")).toHaveTextContent("Refunds take 30 days.");
   expect(screen.getByText("Tested in attempt 1")).toBeInTheDocument();
 });

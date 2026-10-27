@@ -19,8 +19,9 @@ import { SystemAgentChoice } from "@/components/agents/system-agent-choice";
 import { StartQuestionSet, StartSignals } from "./session-inputs";
 import { TodayCheck } from "./today-check";
 import { WriteQuestions } from "./write-questions";
-import { usd } from "@/components/evals/format";
+import { limitText, limitValue, usd } from "@/components/evals/format";
 import { useDatasets } from "@/hooks/use-datasets";
+import { useAgentEvalSuites } from "@/hooks/use-eval-suites";
 import { useImprovement, useImprovements } from "@/hooks/use-improvements";
 import { getErrorMessage } from "@/lib/api-error";
 import { isActive, openImprovement } from "@/lib/improvement-steps";
@@ -45,6 +46,8 @@ export function StartSession({ agentId }: { agentId: string }) {
   const datasets = useDatasets({ limit: 100 });
   const own = useDatasets({ agent: agentId, sort: "updated", limit: 5 });
   const sessions = useImprovements(agentId);
+  const suites = useAgentEvalSuites(agentId);
+  const [startedId, setStartedId] = useState<string | null>(null);
   const [chosen, setChosen] = useState<string | null>(params.get("dataset"));
   const [written, setWritten] = useState(0);
   const [helper, setHelper] = useState<string | null>(null);
@@ -66,7 +69,8 @@ export function StartSession({ agentId }: { agentId: string }) {
   const key = `${asked}:${written}`;
   const quote = quoted?.key === key ? quoted.value : null;
   const refused = refusal?.key === key ? refusal.message : null;
-  const limit = budget ?? (quote ? sessionLimit(quote) : "");
+  const limit = budget !== null ? limitValue(budget) : quote ? sessionLimit(quote) : "";
+  const choices = datasets.datasets.filter((dataset) => dataset.can_run);
   const estimateSession = sessions.estimate.mutateAsync;
   // An estimate spends nothing, so the price and the time are on screen as soon
   // as there is something to price; only starting asks for a click.
@@ -95,13 +99,34 @@ export function StartSession({ agentId }: { agentId: string }) {
   useEffect(() => {
     if (resume && open) router.replace(`/agents/${agentId}/improve/${open.id}`);
   }, [resume, open, agentId, router]);
-  const loading = own.isLoading && !chosen;
+  const loading = (own.isLoading || (runnable.length === 0 && datasets.isLoading)) && !chosen;
+  const picker = (
+    <div className="space-y-2" data-tour="improvement-test-set">
+      <Label htmlFor="improvement-target">{t("testSet")}</Label>
+      <Select value={target} onValueChange={setChosen}>
+        <SelectTrigger id="improvement-target">
+          <SelectValue placeholder={t("chooseQuestions")} />
+        </SelectTrigger>
+        <SelectContent>
+          {choices.map((dataset) => {
+            const suite = suites.suites.find((item) => item.dataset_id === dataset.id);
+            return (
+              <SelectItem key={dataset.id} value={dataset.id}>
+                {suite ? t("suiteSet", { name: dataset.name, suite: suite.name }) : dataset.name}
+              </SelectItem>
+            );
+          })}
+        </SelectContent>
+      </Select>
+      {datasets.error && <p role="alert">{getErrorMessage(datasets.error, tErrors)}</p>}
+    </div>
+  );
   return (
     <div className="space-y-6" data-tour="improvement-start">
       <p className="text-muted-foreground max-w-2xl text-sm">{t("intro")}</p>
       <StartSignals agentId={agentId} datasetId={target} />
       {sessions.error && <p role="alert">{getErrorMessage(sessions.error, tErrors)}</p>}
-      {open && (
+      {open && open.id !== startedId && (
         <div className="space-y-2 rounded-lg border p-3">
           <Link
             className="block text-sm underline underline-offset-4"
@@ -119,6 +144,18 @@ export function StartSession({ agentId }: { agentId: string }) {
         {baselineFirst && <p className="font-medium">{t("baselineFirst")}</p>}
         {loading ? (
           <p role="status">{t("loading")}</p>
+        ) : !target && choices.length > 0 ? (
+          <>
+            {picker}
+            <details className="rounded-xl border p-3">
+              <summary className="cursor-pointer text-sm font-medium">
+                {t("writeOwnInstead")}
+              </summary>
+              <div className="mt-3">
+                <WriteQuestions agentId={agentId} onReady={questionsReady} />
+              </div>
+            </details>
+          </>
         ) : !target ? (
           <WriteQuestions agentId={agentId} onReady={questionsReady} />
         ) : (
@@ -139,9 +176,9 @@ export function StartSession({ agentId }: { agentId: string }) {
             <p className="flex items-start gap-2">
               <Clock className="text-primary mt-0.5 size-4 shrink-0" aria-hidden />
               {t("sessionQuote", {
-                minutes: quote.estimated_minutes,
                 cost: usd(quote.total_usd, locale),
-                count: quote.cases,
+                answers: quote.evidence_runs,
+                minutes: Math.max(1, Math.round(quote.estimated_minutes / quote.max_iterations)),
                 perRound: usd(quote.per_round_usd, locale),
                 limit: usd(limit, locale),
               })}
@@ -153,7 +190,8 @@ export function StartSession({ agentId }: { agentId: string }) {
                 quote.reason !== null ||
                 !Number.isFinite(Number(limit)) ||
                 Number(limit) <= 0 ||
-                sessions.start.isPending
+                sessions.start.isPending ||
+                startedId !== null
               }
               onClick={() =>
                 void (async () => {
@@ -163,6 +201,7 @@ export function StartSession({ agentId }: { agentId: string }) {
                       ...body,
                       budget_usd: limit,
                     });
+                    setStartedId(started.id);
                     if (useOrgStore.getState().activeOrgId === organizationId)
                       router.push(`/agents/${agentId}/improve/${started.id}`);
                   } catch (failure) {
@@ -195,33 +234,14 @@ export function StartSession({ agentId }: { agentId: string }) {
                 )}
               </div>
             )}
-            <div className="space-y-2" data-tour="improvement-test-set">
-              <Label htmlFor="improvement-target">{t("testSet")}</Label>
-              <Select value={target} onValueChange={setChosen}>
-                <SelectTrigger id="improvement-target">
-                  <SelectValue placeholder={t("chooseQuestions")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {datasets.datasets
-                    .filter((d) => d.can_run)
-                    .map((d) => (
-                      <SelectItem key={d.id} value={d.id}>
-                        {d.name}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-              {datasets.error && <p role="alert">{getErrorMessage(datasets.error, tErrors)}</p>}
-            </div>
+            {target && picker}
             {quote && (
               <div className="space-y-2">
                 <Label htmlFor="improvement-budget">{t("budget")}</Label>
                 <Input
                   id="improvement-budget"
-                  type="number"
-                  min="0.000001"
-                  step="0.01"
-                  value={limit}
+                  inputMode="decimal"
+                  value={budget ?? limitText(sessionLimit(quote), locale)}
                   onChange={(e) => setBudget(e.target.value)}
                 />
                 <p className="text-muted-foreground text-xs">

@@ -11,7 +11,7 @@ import { usd } from "@/components/evals/format";
 import { ChangeSelection } from "./change-selection";
 import { useAgent } from "@/hooks/use-agents";
 import { useAgentAuthoring } from "@/hooks/use-authoring";
-import { useImprovement } from "@/hooks/use-improvements";
+import { useImprovement, useImprovementChanges } from "@/hooks/use-improvements";
 import { useUrlState } from "@/hooks/use-url-state";
 import { usePermissions } from "@/hooks/use-permissions";
 import { getErrorMessage } from "@/lib/api-error";
@@ -137,6 +137,9 @@ function Session({
   const [draftSelection, setDraftSelection] = useState<{ roundId: string; ids: string[] } | null>(
     null,
   );
+  const [wordingOpen, setWordingOpen] = useState(false);
+  const atChanges = actions.session ? stopOf(actions.session) === "changes" : false;
+  const proposed = useImprovementChanges(agentId, sessionId, { enabled: atChanges });
   async function act(action: () => Promise<void>) {
     setError(null);
     try {
@@ -255,7 +258,11 @@ function Session({
                   <h2 className="font-medium">
                     {t("round", { number: session.iteration, max: session.max_iterations })}
                   </h2>
-                  <AttemptChanges session={session} editable={!readOnly} />
+                  <AttemptChanges
+                    session={session}
+                    editable={!readOnly}
+                    onEditing={setWordingOpen}
+                  />
                 </section>
               ) : chosen && selectedBatch?.hunks.length ? (
                 <ChangeSelection
@@ -448,10 +455,19 @@ function Session({
           {step === stopOf(session) && (
             <NextStep
               session={session}
-              blocked={
-                step === "changes" && !attempt?.included_hunk_ids?.length
-                  ? t("selectSomeChanges")
+              hint={
+                step === "changes" && proposed.changes.length === 1
+                  ? t("nextUp.hintSingle")
                   : undefined
+              }
+              blocked={
+                step !== "changes"
+                  ? undefined
+                  : wordingOpen
+                    ? t("nextUp.saveWordingFirst")
+                    : !attempt?.included_hunk_ids?.length
+                      ? t("selectSomeChanges")
+                      : undefined
               }
               onStarted={followCurrent}
             />
