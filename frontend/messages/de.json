@@ -10941,7 +10941,7 @@
     "baseline": "Heutige Antworten des Agenten testen",
     "estimate": "Erneut schätzen",
     "estimating": "Zeit und Kosten werden geschätzt…",
-    "sessionQuote": "Etwa {minutes, plural, one {# Minute} other {# Minuten}}, bis zu {cost} (Schätzung) für bis zu {rounds} Versuche mit {count} Fragen.",
+    "sessionQuote": "Etwa {minutes, plural, one {# Minute} other {# Minuten}}, bis zu {cost} (Schätzung), um zu lesen, was bei {count, plural, one {# Frage} other {# Fragen}} schiefging. Jeder nächste Schritt wird bepreist, bevor Sie ihn drücken, und das Limit unten gilt für die ganze Sitzung.",
     "evidence": "Auf Grundlage von {count, plural, one {# Antwort} other {# Antworten}} mit Feedback.",
     "budget": "Ausgabenlimit der Sitzung (USD)",
     "start": "Verbesserung starten",
@@ -11377,6 +11377,19 @@
       "title": "Die offene Sitzung beenden?",
       "body": "Ein Agent wird in jeweils einer Sitzung verbessert. Die beendete Sitzung bleibt im Verlauf des Agents und ändert nichts am Agent; danach können Sie hier eine neue starten.",
       "confirm": "Beenden"
+    },
+    "attemptChanges": {
+      "loading": "Die Änderungen werden geladen…",
+      "none": "In diesem Versuch wurde keine Änderung geschrieben.",
+      "include": "Änderung {number} in den Test aufnehmen",
+      "includeLabel": "In den Test aufnehmen",
+      "lastOne": "Mindestens eine Änderung wird getestet.",
+      "edited": "Von Ihnen umformuliert",
+      "edit": "Formulierung ändern",
+      "revert": "Zurück zur vorgeschlagenen Formulierung",
+      "wording": "Formulierung von Änderung {number}",
+      "save": "Formulierung speichern",
+      "cancel": "Abbrechen"
     }
   },
   "unsaved": {

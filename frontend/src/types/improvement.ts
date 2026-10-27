@@ -92,6 +92,8 @@ export interface Improvement {
   budget_usd: string;
   spent_usd: string;
   best_iteration_id: string | null;
+  /** What Next step starts at a stop: writing changes, or testing them. */
+  next_step?: "propose" | "check" | null;
   stop_reason: string | null;
   error: string | null;
   created_at: string;

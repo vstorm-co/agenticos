@@ -279,3 +279,10 @@ describe("a session stopped for a person", () => {
     expect(stopOf({ ...SESSION, status: "running", stage: "filtering" })).toBeNull();
   });
 });
+
+it("takes the stop from what Next step would start, before the stage", () => {
+  const waiting = { ...SESSION, status: "waiting" as const };
+  expect(stopOf({ ...waiting, stage: "classifying", next_step: "check" })).toBe("changes");
+  expect(stopOf({ ...waiting, stage: "filtering", next_step: "propose" })).toBe("understand");
+  expect(stopOf({ ...waiting, stage: "filtering", next_step: null })).toBe("changes");
+});

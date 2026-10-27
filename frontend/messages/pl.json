@@ -10841,7 +10841,7 @@
     "baseline": "Sprawdź, jak agent odpowiada dzisiaj",
     "estimate": "Oszacuj ponownie",
     "estimating": "Szacowanie czasu i kosztu…",
-    "sessionQuote": "Około {minutes, plural, one {# minuty} few {# minut} many {# minut} other {# minuty}}, do {cost} (szacunkowo) za maksymalnie {rounds, plural, one {# próbę} few {# próby} many {# prób} other {# próby}} na {count, plural, one {# pytaniu} other {# pytaniach}}.",
+    "sessionQuote": "Około {minutes, plural, one {# minuty} few {# minut} many {# minut} other {# minuty}}, do {cost} (szacunkowo), aby przeczytać, co poszło nie tak, na {count, plural, one {# pytaniu} few {# pytaniach} many {# pytaniach} other {# pytania}}. Każdy następny krok wyceniamy, zanim go naciśniesz, a limit poniżej obejmuje całą sesję.",
     "evidence": "Na podstawie {count, plural, one {# odpowiedzi} few {# odpowiedzi} many {# odpowiedzi} other {# odpowiedzi}} z informacją zwrotną.",
     "budget": "Limit wydatków sesji (USD)",
     "start": "Zacznij poprawianie",
@@ -11277,6 +11277,19 @@
       "title": "Zakończyć otwartą sesję?",
       "body": "Agent może mieć tylko jedną sesję poprawy naraz. Zakończona sesja zostaje w historii agenta i niczego w nim nie zmienia; potem możesz tu zacząć nową.",
       "confirm": "Zakończ"
+    },
+    "attemptChanges": {
+      "loading": "Wczytujemy zmiany…",
+      "none": "W tej próbie nie napisano żadnej zmiany.",
+      "include": "Uwzględnij zmianę {number} w teście",
+      "includeLabel": "Uwzględnij w teście",
+      "lastOne": "Przynajmniej jedna zmiana musi być testowana.",
+      "edited": "Przeredagowane przez Ciebie",
+      "edit": "Zmień sformułowanie",
+      "revert": "Wróć do proponowanego sformułowania",
+      "wording": "Sformułowanie zmiany {number}",
+      "save": "Zapisz sformułowanie",
+      "cancel": "Anuluj"
     }
   },
   "unsaved": {

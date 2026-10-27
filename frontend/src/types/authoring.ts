@@ -171,6 +171,8 @@ export interface Hunk {
   old_text: string;
   new_text: string;
   accepted_text: string | null;
+  /** A person's rewording of the change before it is tested; null keeps the proposed text. */
+  edited_text?: string | null;
   context_before: string;
   context_after: string;
   capability_id: string | null;

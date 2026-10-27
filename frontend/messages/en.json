@@ -11058,7 +11058,7 @@
     "baseline": "Test how the agent answers today",
     "estimate": "Estimate again",
     "estimating": "Estimating the time and cost…",
-    "sessionQuote": "About {minutes, plural, one {# minute} other {# minutes}}, up to {cost} (estimate) for up to {rounds} attempts on {count} questions.",
+    "sessionQuote": "About {minutes, plural, one {# minute} other {# minutes}}, up to {cost} (estimate) to read what went wrong in {count, plural, one {# question} other {# questions}}. Each next step is priced before you press it, and the limit below caps the whole session.",
     "evidence": "Based on {count, plural, one {# answer} other {# answers}} with feedback.",
     "budget": "Session spending limit (USD)",
     "start": "Start improving",
@@ -11494,6 +11494,19 @@
       "title": "End the open session?",
       "body": "An agent improves in one session at a time. Ending this one keeps it in the agent's history and changes nothing in the agent; then you can start a new one here.",
       "confirm": "End it"
+    },
+    "attemptChanges": {
+      "loading": "Loading the changes…",
+      "none": "No change was written in this attempt.",
+      "include": "Include change {number} in the test",
+      "includeLabel": "Include in the test",
+      "lastOne": "At least one change is tested.",
+      "edited": "Reworded by you",
+      "edit": "Change the wording",
+      "revert": "Back to the proposed wording",
+      "wording": "Wording of change {number}",
+      "save": "Save the wording",
+      "cancel": "Cancel"
     }
   },
   "unsaved": {

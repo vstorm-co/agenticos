@@ -9,6 +9,8 @@ import type { Hunk } from "@/types/authoring";
 const actions = vi.hoisted(() => ({
   estimateContinuation: { mutateAsync: vi.fn(), isPending: false },
   continueSession: { mutateAsync: vi.fn(), isPending: false },
+  selectChanges: { mutateAsync: vi.fn(), isPending: false },
+  editChange: { mutateAsync: vi.fn(), isPending: false },
   discard: { mutateAsync: vi.fn(), isPending: false },
   estimateSelection: { mutateAsync: vi.fn(), isPending: false },
   checkSelection: { mutateAsync: vi.fn(), isPending: false },
@@ -689,19 +691,25 @@ it("announces why a step failed, and lists attempts that were never tested", asy
   expect(screen.getByText("Changes held back for another attempt, not tested")).toBeInTheDocument();
 });
 
-it("waits for an attempt's changes that are not the agent's open batch", async () => {
+it("shows the changes being checked only to read, and the stop's changes to tick and edit", async () => {
   const first = state.session!.iterations[0]!;
+  state.hunks = [hunk({ id: "h1" })];
   state.session = {
     ...state.session!,
     status: "running",
     stage: "evaluating",
     best_iteration_id: null,
-    iterations: [{ ...first, batch_id: "b9", verdict: null }],
+    iterations: [{ ...first, included_hunk_ids: ["h1"], verdict: null }],
   };
-  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  const view = render(<ImprovementPage agentId="a1" sessionId="s1" />);
   await userEvent.click(screen.getByRole("button", { name: "Changes" }));
   expect(screen.getByText("Checking these changes — attempt 1 of 3")).toBeInTheDocument();
-  expect(screen.getByText("Waiting for the selected suggestions to load.")).toBeInTheDocument();
+  expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Change the wording" })).not.toBeInTheDocument();
+  state.session = { ...state.session, status: "waiting", stage: "filtering", next_step: "check" };
+  view.rerender(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.getByRole("checkbox", { name: "Include change 1 in the test" })).toBeChecked();
+  expect(screen.getByRole("button", { name: "Change the wording" })).toBeInTheDocument();
 });
 
 it("keeps an opened step in the address, and drops it on the way back to the current one", async () => {

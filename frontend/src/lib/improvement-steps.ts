@@ -23,8 +23,11 @@ export function isActive(session: Pick<Improvement, "status">): boolean {
 /** Where a session stopped for a person, if it did: after Understand or after Changes. */
 export type ImprovementStop = "understand" | "changes";
 
-export function stopOf(session: Pick<Improvement, "status" | "stage">): ImprovementStop | null {
+export function stopOf(
+  session: Pick<Improvement, "status" | "stage" | "next_step">,
+): ImprovementStop | null {
   if (session.status !== "waiting") return null;
+  if (session.next_step) return session.next_step === "check" ? "changes" : "understand";
   return session.stage === "filtering" ? "changes" : "understand";
 }
 

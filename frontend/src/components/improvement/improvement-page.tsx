@@ -7,7 +7,6 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Button } from "@/components/ui";
 import { WizardSteps } from "@/components/ui/wizard-steps";
-import { ChangePreview } from "@/components/authoring/result-dialog";
 import { ChangeSelection } from "./change-selection";
 import { useAgent } from "@/hooks/use-agents";
 import { useAgentAuthoring } from "@/hooks/use-authoring";
@@ -23,6 +22,7 @@ import { StartSession } from "./start-session";
 import { KnowledgeDrafts } from "./knowledge-drafts";
 import { TestQuestions } from "./session-inputs";
 import { Understand } from "./understand";
+import { AttemptChanges } from "./attempt-changes";
 import { AttemptHistory } from "./attempt-history";
 import { CheckProgress } from "./check-progress";
 import { NextStep } from "./next-step";
@@ -173,8 +173,6 @@ function Session({
   const reachable = STEPS.filter((id) => isReachable(views[id]));
   const previous = reachable.filter((id) => STEPS.indexOf(id) < STEPS.indexOf(step)).at(-1);
   const next = reachable.find((id) => STEPS.indexOf(id) > STEPS.indexOf(step));
-  const latestBatch =
-    attempt?.batch_id && authoring?.batch?.id === attempt.batch_id ? authoring.batch : null;
   const chosen = session.iterations.find((r) => r.id === session.best_iteration_id);
   const selectedBatch = authoring?.batch?.id === chosen?.batch_id ? authoring?.batch : null;
   const measuredIds =
@@ -248,7 +246,15 @@ function Session({
             ))}
           {step === "changes" && (
             <section className="grid gap-6 md:grid-cols-[2fr_1fr]" data-tour="improvement-changes">
-              {chosen && selectedBatch?.hunks.length ? (
+              {stopOf(session) === "changes" ? (
+                <section className="min-w-0 space-y-4">
+                  <AttemptHistory session={session} />
+                  <h2 className="font-medium">
+                    {t("round", { number: session.iteration, max: session.max_iterations })}
+                  </h2>
+                  <AttemptChanges session={session} editable={!readOnly} />
+                </section>
+              ) : chosen && selectedBatch?.hunks.length ? (
                 <ChangeSelection
                   session={session}
                   round={chosen}
@@ -281,15 +287,7 @@ function Session({
                           max: session.max_iterations,
                         })}
                       </h2>
-                      {latestBatch ? (
-                        latestBatch.hunks.map((hunk) => (
-                          <ChangePreview key={hunk.id} hunk={hunk} conversations={{}} />
-                        ))
-                      ) : (
-                        <p role="status" className="text-muted-foreground text-sm">
-                          {t("changesPending")}
-                        </p>
-                      )}
+                      <AttemptChanges session={session} editable={false} />
                     </>
                   )}
                 </section>
@@ -446,7 +444,9 @@ function Session({
             <NextStep
               session={session}
               blocked={
-                step === "changes" && included.length === 0 ? t("selectSomeChanges") : undefined
+                step === "changes" && !attempt?.included_hunk_ids?.length
+                  ? t("selectSomeChanges")
+                  : undefined
               }
               onStarted={followCurrent}
             />

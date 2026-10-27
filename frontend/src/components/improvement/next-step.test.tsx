@@ -150,3 +150,11 @@ it("drops a price or a refusal that arrives after the footer is gone", async () 
   await Promise.resolve();
   expect(state.start).not.toHaveBeenCalled();
 });
+
+it("offers nothing to a reader who may not start an improvement on the agent", () => {
+  const { container } = render(
+    <NextStep session={{ ...AT_UNDERSTAND, can_restart: false }} onStarted={vi.fn()} />,
+  );
+  expect(container).toBeEmptyDOMElement();
+  expect(state.estimate).not.toHaveBeenCalled();
+});

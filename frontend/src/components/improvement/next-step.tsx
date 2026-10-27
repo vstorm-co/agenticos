@@ -16,6 +16,7 @@ import { useReadOnly } from "./read-only";
  * starts it. Pricing spends nothing, so the price is on screen before anyone asks;
  * pressing the button is the consent to that price. When the price moved before
  * the press reached the server, the new price is shown and the person presses again.
+ * Only someone who may start an improvement on the agent is offered it.
  */
 export function NextStep({
   session,
@@ -43,7 +44,7 @@ export function NextStep({
   const priced = quote?.key === key ? quote.value : null;
   const estimate = actions.estimateContinuation.mutateAsync;
   useEffect(() => {
-    if (!stop || readOnly) return;
+    if (!stop || readOnly || session.can_restart === false) return;
     let current = true;
     estimate(asked).then(
       (value) => {
@@ -56,8 +57,8 @@ export function NextStep({
     return () => {
       current = false;
     };
-  }, [stop, readOnly, asked, key, estimate, tErrors]);
-  if (!stop || readOnly) return null;
+  }, [stop, readOnly, session.can_restart, asked, key, estimate, tErrors]);
+  if (!stop || readOnly || session.can_restart === false) return null;
   async function start(value: ContinuationEstimate) {
     setError(null);
     try {

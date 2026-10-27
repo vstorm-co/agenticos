@@ -69,7 +69,7 @@ export function useImprovements(agentId: string, { enabled = true } = {}) {
   };
 }
 
-/** The changes a session's chosen round measured, as they were decided since. */
+/** The changes of a session's current attempt, or of the round it chose once one was measured. */
 export function useImprovementChanges(agentId: string, runId: string) {
   const query = useQuery({
     queryKey: qk.improvements.changes(agentId, runId),
@@ -176,6 +176,16 @@ export function useImprovement(agentId: string, runId: string) {
       }),
     onSuccess: refresh,
   });
+  const selectChanges = useMutation({
+    mutationFn: (hunkIds: string[]) =>
+      apiClient.put<Improvement>(`${base}/selection`, { hunk_ids: hunkIds }),
+    onSuccess: refresh,
+  });
+  const editChange = useMutation({
+    mutationFn: ({ hunkId, text }: { hunkId: string; text: string | null }) =>
+      apiClient.put<Hunk>(`${base}/changes/${hunkId}`, { edited_text: text }),
+    onSuccess: refresh,
+  });
   const deferTopic = useMutation({
     mutationFn: ({ topicId, later }: { topicId: string; later: boolean }) =>
       apiClient.put<Improvement>(`${base}/topics/${topicId}/later`, { later }),
@@ -194,6 +204,8 @@ export function useImprovement(agentId: string, runId: string) {
     onSuccess: refresh,
   });
   return {
+    selectChanges,
+    editChange,
     deferTopic,
     estimateContinuation,
     continueSession,
