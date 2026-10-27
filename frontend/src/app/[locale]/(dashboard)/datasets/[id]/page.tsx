@@ -1,7 +1,7 @@
 "use client";
 
 import { use, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -36,6 +36,7 @@ import {
   useDatasetVersions,
 } from "@/hooks/use-datasets";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useUrlOverlay, useUrlState } from "@/hooks/use-url-state";
 import { ResourceUnavailable } from "@/components/states/resource-unavailable";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
@@ -74,15 +75,17 @@ export default function DatasetPage({ params }: PageProps) {
   const tErrors = useTranslations("errors");
   const tUnsaved = useTranslations("unsaved");
   const router = useRouter();
-  const query = useSearchParams();
-  const asked = query.get("tab");
-  const linked = query.get("case");
-  const [version, setVersion] = useState<number | null>(null);
+  const [tabParam, setTabParam] = useUrlState("tab");
+  const tab = tabParam !== null && TABS.includes(tabParam) ? tabParam : "cases";
+  const setTab = (next: string) => setTabParam(next === "cases" ? null : next);
+  const [versionParam, setVersionParam] = useUrlState("version");
+  const version =
+    versionParam !== null && Number.isInteger(Number(versionParam)) ? Number(versionParam) : null;
+  const [linked, caseView] = useUrlOverlay("case");
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState<Editing>(null);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [gradingUnsaved, setGradingUnsaved] = useState(false);
-  const [tab, setTab] = useState(asked !== null && TABS.includes(asked) ? asked : "cases");
   const leave = useUnsavedChangesStore((state) => state.leave);
   const organization = useOrgStore((state) => state.activeOrgId) ?? "default";
   // Read once, when the dataset arrives: a change made since is on screen, not to restore.
@@ -98,10 +101,20 @@ export default function DatasetPage({ params }: PageProps) {
   // A link to one case opens it once it arrives, as reading it from the list would;
   // closing it leaves the page on the list rather than reopening it.
   const [opened, setOpened] = useState<string | null>(null);
-  if (linkedCase.kase !== undefined && opened !== linked) {
+  if (linked !== null && linkedCase.kase !== undefined && opened !== linked) {
     setOpened(linked);
     setEditing({ draft: draftOf(linkedCase.kase), item: linkedCase.kase });
   }
+  // Back from an open case leaves its entry; the case closes with it.
+  if (linked === null && opened !== null) {
+    setOpened(null);
+    if (editing?.item) setEditing(null);
+  }
+  const openCase = (item: DatasetCase) => {
+    setOpened(item.case_id);
+    setEditing({ draft: draftOf(item), item });
+    caseView.open(item.case_id);
+  };
   if (restoring !== null && restoringCase.kase !== undefined) {
     setRestoring(null);
     setEditing({
@@ -237,7 +250,7 @@ export default function DatasetPage({ params }: PageProps) {
                   value={version}
                   onChange={(next) =>
                     leave(() => {
-                      setVersion(next);
+                      setVersionParam(next === null ? null : String(next));
                       setPage(0);
                     })
                   }
@@ -273,7 +286,7 @@ export default function DatasetPage({ params }: PageProps) {
                     <CaseRow
                       key={item.id}
                       item={item}
-                      onOpen={() => setEditing({ draft: draftOf(item), item })}
+                      onOpen={() => openCase(item)}
                       onRemove={editable ? () => cases.remove.mutate(item.case_id) : undefined}
                     />
                   ))}
@@ -342,7 +355,9 @@ export default function DatasetPage({ params }: PageProps) {
           key={editing.item?.id ?? "new"}
           open
           onOpenChange={(open) => {
-            if (!open) setEditing(null);
+            if (open) return;
+            if (editing.item && linked !== null) caseView.close();
+            setEditing(null);
           }}
           initial={editing.draft}
           viewing={editing.item ?? undefined}
@@ -363,7 +378,7 @@ export default function DatasetPage({ params }: PageProps) {
             editing.item === null
               ? {
                   find: cases.findTwin,
-                  open: (twin) => setEditing({ draft: draftOf(twin), item: twin }),
+                  open: openCase,
                 }
               : undefined
           }

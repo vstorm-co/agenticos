@@ -231,6 +231,33 @@ describe("the dataset page", () => {
     expect(state.remove).toHaveBeenCalled();
   });
 
+  it("keeps the tab in the address, so Back to the dataset opens it again", async () => {
+    window.history.replaceState({}, "", "/datasets/d1");
+    await mount();
+    await userEvent.click(screen.getByRole("tab", { name: /Grading/ }));
+    expect(new URL(window.location.href).searchParams.get("tab")).toBe("grading");
+  });
+
+  it("opens a listed case as a step of its own, which Back closes", async () => {
+    window.history.replaceState({}, "", "/datasets/d1");
+    state.total = 1;
+    state.cases = [CASE];
+    const refresh = await mount();
+    const length = window.history.length;
+
+    await userEvent.click(screen.getByRole("button", { name: /How long is the return window/ }));
+    expect(screen.getByRole("dialog", { name: "Case" })).toBeInTheDocument();
+    expect(window.history.length).toBe(length + 1);
+    expect(new URL(window.location.href).searchParams.get("case")).toBe("c1");
+
+    // The router catches up with the address, then Back takes the case out of it.
+    state.linked = "c1";
+    refresh();
+    state.linked = null;
+    refresh();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   it("opens the case a link names, once, and edits it from there", async () => {
     state.linked = "c1";
     state.linkedCase = CASE;
