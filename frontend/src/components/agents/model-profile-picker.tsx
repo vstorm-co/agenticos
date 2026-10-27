@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import { Check, ChevronRight, KeyRound, Trash2 } from "lucide-react";
 
 import { AddModel } from "@/components/agents/add-model";
@@ -8,6 +8,7 @@ import { ProviderIcon } from "@/components/vault/provider-icon";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Badge, Button } from "@/components/ui";
 import { useModelProviders } from "@/hooks";
+import { useChanged } from "@/hooks/use-changed";
 import type { ProfilesStatus } from "@/hooks/use-model-providers";
 import { modelDetail, runsAgents } from "@/lib/model-profiles";
 import { cn } from "@/lib/utils";
@@ -109,6 +110,23 @@ export function ModelProfilePicker({
   const t = useTranslations("agents");
   const tc = useTranslations("common");
   const { deleteProfile, refetchProfiles } = useModelProviders();
+  const [selectionVersion, setSelectionVersion] = useState(0);
+  const currentSelection = useRef(0);
+  if (useChanged(value)) setSelectionVersion((version) => version + 1);
+  // Retire old callbacks in the commit that changes the choice or unmounts the picker.
+  useLayoutEffect(() => {
+    currentSelection.current = selectionVersion;
+    return () => {
+      currentSelection.current += 1;
+    };
+  }, [selectionVersion]);
+  const selectProfile = (profileId: string): void => {
+    const version = currentSelection.current + 1;
+    currentSelection.current = version;
+    setSelectionVersion(version);
+    onChange(profileId);
+  };
+
   const selected = profiles.find((profile) => profile.id === value);
   // The models an agent can run on: one on a text-to-speech or embedding model
   // fails on its first turn (#2487). The one this agent already names stays,
@@ -129,7 +147,7 @@ export function ModelProfilePicker({
         <ProfileRow
           key={profile.id}
           selected={value === profile.id}
-          onSelect={() => onChange(profile.id)}
+          onSelect={() => selectProfile(profile.id)}
           title={profile.label}
           subtitle={modelDetail(profile)}
           provider={profile.provider}
@@ -245,10 +263,12 @@ export function ModelProfilePicker({
           "Choose a provider" above an agent that plainly has one, for as long as the
           list took - green on a warm laptop and red in CI. */}
       <AddModel
-        key={selected?.id ?? "none"}
+        key={`${selected?.id ?? "none"}:${selectionVersion}`}
         selected={selected}
         disabled={disabled}
         onCreated={(profile) => {
+          // A newer choice or an unmounted picker no longer owns this result.
+          if (currentSelection.current !== selectionVersion) return;
           // Selected, not merely added: somebody who came here to choose a
           // model has chosen one, and leaving the agent on the old value would
           // make the work look like it did not take.

@@ -242,30 +242,101 @@ describe("OrgProactivity", () => {
     );
   });
 
-  it("does not apply a late profile creation to another organization", async () => {
+  it.each(["o1", "o2"])(
+    "keeps a newer stored model in organization %s after late creation",
+    async (targetOrg) => {
+      state.held = [Perm.budgetsManage, Perm.connectionsManage];
+      const creation = Promise.withResolvers<ModelProfile>();
+      state.createModel.mockReturnValueOnce(creation.promise);
+      const first = state.profiles[0]!;
+      const { rerender } = render(<OrgProactivity org={org(ON)} />);
+      await userEvent.click(screen.getByRole("combobox", { name: "Model" }));
+      await userEvent.type(screen.getByPlaceholderText("Search models…"), "claude-next");
+      await userEvent.click(screen.getByRole("option", { name: /^Use claude-next/ }));
+      await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+      expect(state.createModel).toHaveBeenCalled();
+
+      state.profiles = [{ ...first, id: "mp-2", label: "Second organization model" }];
+      rerender(
+        <OrgProactivity org={org({ ...ON, id: targetOrg, proactive_model_profile_id: "mp-2" })} />,
+      );
+      await userEvent.type(screen.getByLabelText("Limit per person (USD a month)"), "0");
+      await act(async () => {
+        creation.resolve({ ...first, id: "late-first-organization" });
+        await creation.promise;
+      });
+      await userEvent.click(screen.getAllByRole("button", { name: "Save" })[0]!);
+      expect(state.setProactivity).toHaveBeenCalledWith(
+        targetOrg,
+        expect.objectContaining({ proactive_model_profile_id: "mp-2" }),
+      );
+    },
+  );
+
+  it.each([
+    { choices: ["Second"], expected: "mp-2" },
+    { choices: ["Haiku"], expected: "mp-1" },
+    { choices: ["Second", "Haiku"], expected: "mp-1" },
+  ])(
+    "keeps the newer saved choice $choices when creation finishes",
+    async ({ choices, expected }) => {
+      state.held = [Perm.budgetsManage, Perm.connectionsManage];
+      const first = state.profiles[0]!;
+      state.profiles.push({ ...first, id: "mp-2", label: "Second" });
+      const creation = Promise.withResolvers<ModelProfile>();
+      state.createModel.mockReturnValueOnce(creation.promise);
+      render(<OrgProactivity org={org(ON)} />);
+      await userEvent.click(screen.getByRole("combobox", { name: "Model" }));
+      await userEvent.type(screen.getByPlaceholderText("Search models…"), "claude-next");
+      await userEvent.click(screen.getByRole("option", { name: /^Use claude-next/ }));
+      await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+      await userEvent.click(screen.getByText(/^Use a saved model/));
+      for (const choice of choices)
+        await userEvent.click(screen.getByRole("radio", { name: choice }));
+      await userEvent.type(screen.getByLabelText("Limit per person (USD a month)"), "0");
+      await act(async () => {
+        creation.resolve({ ...first, id: "late-created" });
+        await creation.promise;
+      });
+      await userEvent.click(screen.getAllByRole("button", { name: "Save" })[0]!);
+      expect(state.setProactivity).toHaveBeenCalledWith(
+        "o1",
+        expect.objectContaining({ proactive_model_profile_id: expected }),
+      );
+    },
+  );
+
+  it("keeps a valid creation when saved-profile metadata arrives without a newer choice", async () => {
     state.held = [Perm.budgetsManage, Perm.connectionsManage];
+    const first = state.profiles[0]!;
+    state.profiles = [];
     const creation = Promise.withResolvers<ModelProfile>();
     state.createModel.mockReturnValueOnce(creation.promise);
-    const first = state.profiles[0]!;
     const { rerender } = render(<OrgProactivity org={org(ON)} />);
     await userEvent.click(screen.getByRole("combobox", { name: "Model" }));
     await userEvent.type(screen.getByPlaceholderText("Search models…"), "claude-next");
     await userEvent.click(screen.getByRole("option", { name: /^Use claude-next/ }));
+    await userEvent.click(screen.getByRole("combobox", { name: "Key" }));
+    await userEvent.click(screen.getByRole("option", { name: /1234/ }));
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
-    expect(state.createModel).toHaveBeenCalled();
-
-    state.profiles = [{ ...first, id: "mp-2", label: "Second organization model" }];
-    rerender(<OrgProactivity org={org({ ...ON, id: "o2", proactive_model_profile_id: "mp-2" })} />);
-    await userEvent.type(screen.getByLabelText("Limit per person (USD a month)"), "0");
+    state.profiles = [first];
+    rerender(<OrgProactivity org={org(ON)} />);
     await act(async () => {
-      creation.resolve({ ...first, id: "late-first-organization" });
+      creation.resolve({ ...first, id: "new-profile" });
       await creation.promise;
     });
     await userEvent.click(screen.getAllByRole("button", { name: "Save" })[0]!);
     expect(state.setProactivity).toHaveBeenCalledWith(
-      "o2",
-      expect.objectContaining({ proactive_model_profile_id: "mp-2" }),
+      "o1",
+      expect.objectContaining({ proactive_model_profile_id: "new-profile" }),
     );
+  });
+
+  it("resets local edits when another organization has identical saved settings", async () => {
+    const { rerender } = render(<OrgProactivity org={org()} />);
+    await userEvent.click(screen.getByRole("switch", { name: "Nightly suggestions" }));
+    rerender(<OrgProactivity org={org({ id: "o2" })} />);
+    expect(screen.getByRole("switch", { name: "Nightly suggestions" })).not.toBeChecked();
   });
 
   it("saves the whole schedule: model, limit, days, when and the hour", async () => {
