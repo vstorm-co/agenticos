@@ -118,7 +118,7 @@ describe("RoutinesPage", () => {
     expect(screen.getByRole("dialog", { name: "event-dialog" })).toBeInTheDocument();
   });
 
-  it("hides both create buttons from a caller who may not run an agent", () => {
+  it("hides both create buttons from a caller who may not run an agent", async () => {
     // Runnability, not role: a caller with no runnable agent - none owned, none
     // shared with a run grant - reads `useCanCreateTrigger` false.
     canCreate = false;
@@ -128,14 +128,18 @@ describe("RoutinesPage", () => {
     expect(screen.queryByRole("button", { name: "New event trigger" })).toBeNull();
     // The list still shows - viewing is not gated on running.
     expect(screen.getByTestId("scheduled-tab")).toBeInTheDocument();
-    // A watch is the person's own, so it is offered all the same.
+    expect(screen.queryByRole("button", { name: "New watch" })).toBeNull();
+    await userEvent.click(screen.getByRole("tab", { name: "My watches" }));
     expect(screen.getByRole("button", { name: "New watch" })).toBeInTheDocument();
+    expect(screen.queryByTestId("scheduled-tab")).toBeNull();
   });
 
   it("starts a watch from the header or the card, and offers none where it cannot run", async () => {
     const user = userEvent.setup();
     const { unmount } = render(<RoutinesPage />);
 
+    await user.click(screen.getByRole("tab", { name: "My watches" }));
+    expect(new URL(window.location.href).searchParams.get("tab")).toBe("watches");
     await user.click(screen.getByRole("button", { name: "New watch" }));
     expect(screen.getByRole("dialog", { name: "watch-dialog" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "close watch" }));

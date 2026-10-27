@@ -5626,10 +5626,13 @@
     },
     "routines": {
       "title": "Rutyny",
-      "description": "Wszystko, co Twoi agenci robią sami - według harmonogramu lub w reakcji na zdarzenie.",
+      "description": "Agenci wykonują zadania według harmonogramu lub po zdarzeniu. Każde zadanie korzysta z wybranego agenta i jego narzędzi.",
       "ideasTitle": "Pomysły na start",
       "ideasHint": "Wybierz jeden, a otworzy się jako nowy harmonogram, już wypełniony - wybierz agenta, popraw co chcesz, zapisz.",
-      "newWatch": "Nowa obserwacja"
+      "newWatch": "Nowa obserwacja",
+      "agentsTab": "Zadania agentów",
+      "watchesTab": "Moje obserwacje",
+      "watchesDescription": "Odczyt Twoich połączonych kont. Nowe znaleziska trafiają do prywatnego Inbox; obserwacje nie wykonują zadań agentów."
     },
     "signIns": {
       "cancel": "Anuluj",

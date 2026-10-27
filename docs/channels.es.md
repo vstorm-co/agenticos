@@ -1,5 +1,5 @@
 ---
-source_sha: "513cb1cca129"
+source_sha: "a49998256a61"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1663,11 +1663,18 @@ bot:
   Mattermost; la respuesta queda como comentario de la valoración. Telegram acepta
   los pulgares sin la pregunta.
 
-Una valoración necesita un miembro vinculado, como pulsar en una aprobación; los
-pulgares de una persona sin vincular no cuentan. La tarjeta *Answer quality* del
-dashboard reparte el porcentaje de buenas respuestas por superficie en cuanto hay
-valoraciones en más de una, así que un agent que va bien en la consola y mal en
-Slack lo muestra.
+**Valorar en Mattermost no requiere una cuenta de AgenticOS.** La identidad del
+participante, firmada por el servidor, es la autora del voto. Cada persona puede
+cambiar su voto; los botones siguen disponibles para las demás y la confirmación
+es privada. El comentario negativo pertenece al mismo participante. Slack y
+Telegram conservan el requisito de vinculación; aprobar herramientas también
+requiere pertenecer a la organización. Las valoraciones de canal devuelven
+`user_id: null` en la API, sin atribuirlas al propietario del bot. Actualiza la
+base de datos antes de iniciar esta versión. Revertir la migración elimina las
+valoraciones de canal y conserva las de cuentas.
+
+La tarjeta *Answer quality* incluye estos votos y los separa por superficie,
+para mostrar diferencias entre la consola y Mattermost.
 
 ## Qué comparte cada canal { #what-every-channel-shares }
 

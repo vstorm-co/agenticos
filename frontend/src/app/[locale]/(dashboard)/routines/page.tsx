@@ -11,7 +11,8 @@ import { ScheduledTab } from "@/components/runs/scheduled-tab";
 import { NewEventTriggerDialog } from "@/components/triggers/new-event-trigger-dialog";
 import { RoutineIdeas } from "@/components/triggers/routine-ideas";
 import { TriggerFormDialog } from "@/components/triggers/trigger-form-dialog";
-import { Button } from "@/components/ui";
+import { Button, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
+import { useUrlState } from "@/hooks/use-url-state";
 import { WatchDialog } from "@/components/watches/watch-dialog";
 import { WatchesCard, useCanWatch } from "@/components/watches/watches-card";
 import { useCanCreateTrigger } from "@/hooks";
@@ -40,6 +41,8 @@ export default function RoutinesPage() {
   const [creatingEvent, setCreatingEvent] = useState(false);
   const canWatch = useCanWatch();
   const [creatingWatch, setCreatingWatch] = useState(false);
+  const [tabParam, setTabParam] = useUrlState("tab");
+  const tab = tabParam === "watches" ? "watches" : "agents";
 
   return (
     <div className="space-y-6">
@@ -47,17 +50,17 @@ export default function RoutinesPage() {
           sit where every other page keeps its create button - in the header. */}
       <PageHeader
         title={t("title")}
-        description={t("description")}
+        description={t(tab === "watches" ? "watchesDescription" : "description")}
         actions={
           canCreate || canWatch ? (
             <div className="flex flex-wrap gap-2" data-tour="routines-create">
-              {canWatch && (
+              {tab === "watches" && canWatch && (
                 <Button variant="outline" onClick={() => setCreatingWatch(true)}>
                   <Radar className="h-4 w-4" />
                   {t("newWatch")}
                 </Button>
               )}
-              {canCreate && (
+              {tab === "agents" && canCreate && (
                 <>
                   <Button variant="outline" onClick={() => setCreatingEvent(true)}>
                     <Zap className="h-4 w-4" />
@@ -74,22 +77,37 @@ export default function RoutinesPage() {
         }
       />
 
-      {/* The anchor is the wrapper, not the table: a card whose body is the whole
-          org-wide list spotlights the viewport, which highlights nothing. */}
-      <div data-tour="routines-list">
-        <ScheduledTab />
-      </div>
-
-      <WatchesCard onNew={() => setCreatingWatch(true)} />
-
-      {canCreate && (
-        <RoutineIdeas
-          onPick={(template) => {
-            setIdea(template);
-            setCreatingSchedule(true);
-          }}
-        />
-      )}
+      <Tabs
+        value={tab}
+        onValueChange={(next) => setTabParam(next === "watches" ? "watches" : null)}
+      >
+        <TabsList>
+          <TabsTrigger value="agents" data-tour="routines-agents-tab">
+            <CalendarClock className="h-4 w-4" aria-hidden />
+            {t("agentsTab")}
+          </TabsTrigger>
+          <TabsTrigger value="watches" data-tour="routines-watches-tab">
+            <Radar className="h-4 w-4" aria-hidden />
+            {t("watchesTab")}
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="agents" className="space-y-6">
+          <div data-tour="routines-list">
+            <ScheduledTab />
+          </div>
+          {canCreate && (
+            <RoutineIdeas
+              onPick={(template) => {
+                setIdea(template);
+                setCreatingSchedule(true);
+              }}
+            />
+          )}
+        </TabsContent>
+        <TabsContent value="watches">
+          <WatchesCard onNew={() => setCreatingWatch(true)} />
+        </TabsContent>
+      </Tabs>
 
       {creatingSchedule && (
         <TriggerFormDialog

@@ -5737,10 +5737,13 @@
     },
     "routines": {
       "title": "Routinen",
-      "description": "Alles, was Ihre Agents von allein tun - nach Zeitplan oder auf ein Ereignis.",
+      "description": "Agenten erledigen Aufgaben nach Zeitplan oder bei einem Ereignis. Jede Routine nutzt einen gewählten Agenten und dessen Werkzeuge.",
       "ideasTitle": "Ideen zum Starten",
       "ideasHint": "Wählen Sie eine, und sie öffnet sich als neuer Zeitplan, schon ausgefüllt - Agent wählen, anpassen, speichern.",
-      "newWatch": "Neue Beobachtung"
+      "newWatch": "Neue Beobachtung",
+      "agentsTab": "Agentenaufgaben",
+      "watchesTab": "Meine Beobachtungen",
+      "watchesDescription": "Schreibgeschützte Prüfungen deiner verbundenen Konten. Neue Ergebnisse landen in deinem privaten Posteingang; Beobachtungen führen keine Agentenaufgaben aus."
     },
     "signIns": {
       "cancel": "Abbrechen",

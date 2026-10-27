@@ -1,5 +1,5 @@
 ---
-source_sha: "64d1331aaada"
+source_sha: "19f92e0445c6"
 ---
 
 # Die Konsole { #the-console }
@@ -86,6 +86,19 @@ statt still den Snapshot zu überschreiben, den Sie behalten wollten.
     nichts sichtbar machen. Die Berechtigungsprüfung läuft, nachdem das Layout
     aufgelöst wurde, ganz gleich ob es aus der Voreinstellung oder aus Ihrer
     eigenen gespeicherten Anordnung stammt.
+
+## Routinen und Beobachtungen { #routines-and-watches }
+
+Routines hat zwei Tabs. **Agentenaufgaben** startet einen gewählten Agenten nach
+Zeitplan oder Ereignis mit seinen Werkzeugen; die Läufe erscheinen in Activity.
+**Meine Beobachtungen** liest nur persönliche verbundene Konten und sendet
+Ergebnisse in den privaten Posteingang. Jeder Tab hat eigene Erstellungsaktionen.
+`/routines?tab=watches` öffnet die Beobachtungen.
+
+Discover beginnt auf dem Dashboard mit illustrierten Fähigkeiten. Beim Überfahren
+einer Kurve in *Your period* erscheinen Zeitabschnitt und Wert; Ausgaben werden
+als Geldbetrag formatiert. Projekte zeigen Beschreibungen, Agentenzeilen dieselben
+Avatare wie im Chat.
 
 ## Der Posteingang { #the-inbox }
 

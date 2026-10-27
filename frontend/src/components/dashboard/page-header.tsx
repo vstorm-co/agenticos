@@ -65,16 +65,10 @@ export function PageHeader({
         </nav>
       )}
 
-      {/* Wrapping rather than squeezing. With the actions fixed and the text
-          column shrinking to fit beside them, a page with five buttons broke
-          its own title over two lines and every pill in it over two more. The
-          text column claims 20rem before anything else, and when that and the
-          actions do not fit on one line the actions move under the title - the
-          description's length plays no part, since the basis, not the text,
-          decides the line. The actions sit level with the title rather than
-          with the description's last line: a four-line description used to
-          leave the page's primary button floating halfway down the header. */}
-      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
+      {/* Keep actions beside the title when they fit, and wrap them otherwise.
+          The introduction owns its row so a long toolbar cannot squeeze it.
+          On phones it stays before the actions, in the document's reading order. */}
+      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div className="min-w-0 flex-1 basis-80">
           <div className="flex min-h-9 items-center gap-3">
             <h1 className="text-foreground min-w-0 flex-1 text-xl leading-tight font-semibold tracking-tight text-balance md:text-2xl">
@@ -98,16 +92,17 @@ export function PageHeader({
               {badges}
             </div>
           )}
-          {description && (
-            // Keep the introduction compact; the page content owns the space.
-            <p className="text-muted-foreground mt-1.5 line-clamp-2 max-w-2xl text-sm leading-relaxed text-pretty">
+        </div>
+        {description && (
+          <div className="order-1 basis-full md:order-2">
+            <p className="text-muted-foreground line-clamp-2 max-w-2xl text-sm leading-relaxed text-pretty">
               {description}
             </p>
-          )}
-        </div>
+          </div>
+        )}
         {/* Wrapped on a phone: scrolled sideways, the Builder's last actions
             sat past the screen's edge with nothing saying they were there. */}
-        <div className="flex max-w-full min-w-0 flex-wrap items-center gap-2 md:justify-end">
+        <div className="order-2 flex max-w-full min-w-0 flex-wrap items-center gap-2 md:order-1 md:justify-end">
           {actions}
           <span className="hidden md:inline-flex">
             <RestartTourButton />

@@ -5855,10 +5855,13 @@
     },
     "routines": {
       "title": "Routines",
-      "description": "Everything your agents do on their own - on a schedule, or on an event.",
+      "description": "Agents carry out tasks on a schedule or when an event arrives. Each routine uses a chosen agent and its tools.",
       "ideasTitle": "Ideas to start from",
       "ideasHint": "Pick one and it opens as a new schedule, filled in - choose the agent, adjust anything, save.",
-      "newWatch": "New watch"
+      "newWatch": "New watch",
+      "agentsTab": "Agent routines",
+      "watchesTab": "My watches",
+      "watchesDescription": "Read-only checks of your connected accounts. New findings go to your private Inbox; watches do not carry out agent tasks."
     },
     "signIns": {
       "cancel": "Cancel",

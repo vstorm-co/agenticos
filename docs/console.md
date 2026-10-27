@@ -76,6 +76,17 @@ snapshot you meant to keep.
     filtering runs after the layout is resolved, whether the layout came from
     the default or from your own saved one.
 
+## Routines and watches
+
+Routines has two tabs. **Agent routines** runs a chosen agent on a schedule or
+event, with its configured tools; runs appear in Activity. **My watches** only
+reads your personal connected accounts and sends findings to your private Inbox.
+Each tab has its own creation controls. `/routines?tab=watches` opens watches.
+
+On the dashboard, Discover starts with illustrated capabilities. Hover over a
+*Your period* sparkline to read its bucket and value; spend is formatted as money.
+Projects show descriptions, and agent rows use the same avatars as chat.
+
 ## The inbox { #the-inbox }
 
 **Inbox**, under Chat in the sidebar, is what the platform brought you on its

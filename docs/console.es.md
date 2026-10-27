@@ -1,5 +1,5 @@
 ---
-source_sha: "64d1331aaada"
+source_sha: "19f92e0445c6"
 ---
 
 # La consola { #the-console }
@@ -86,6 +86,19 @@ instantánea que querías conservar.
     Una disposición guardada puede reordenar y ocultar, pero no puede revelar. El
     filtrado por permisos corre después de resolver la disposición, venga esta de
     la de serie o de una que tú guardaste.
+
+## Rutinas y seguimientos { #routines-and-watches }
+
+Routines tiene dos pestañas. **Tareas de agentes** ejecuta un agente elegido por
+horario o evento con sus herramientas; las ejecuciones aparecen en Activity.
+**Mis seguimientos** solo consulta cuentas personales conectadas y envía hallazgos
+a la bandeja privada. Cada pestaña tiene sus acciones de creación.
+`/routines?tab=watches` abre los seguimientos.
+
+Discover comienza con capacidades ilustradas en el dashboard. Al pasar el puntero
+por una curva de *Your period* aparecen el intervalo y el valor; los costes se
+muestran como importes. Los proyectos muestran descripciones y los agentes usan
+los mismos avatares que en el chat.
 
 ## La bandeja { #the-inbox }
 

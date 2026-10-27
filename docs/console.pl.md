@@ -1,5 +1,5 @@
 ---
-source_sha: "64d1331aaada"
+source_sha: "19f92e0445c6"
 ---
 
 # Konsola { #the-console }
@@ -81,6 +81,18 @@ migawkę, którą chciałeś zachować.
     Zapisany układ może zmieniać kolejność i ukrywać, ale nie może odsłaniać.
     Filtrowanie po uprawnieniach dzieje się po rozwiązaniu układu — niezależnie
     od tego, czy układ pochodzi z domyślnego, czy z twojego zapisanego.
+
+## Rutyny i obserwacje { #routines-and-watches }
+
+Routines ma dwie zakładki. **Zadania agentów** uruchamiają wybranego agenta według
+harmonogramu lub zdarzenia, z jego narzędziami; runy widać w Activity.
+**Moje obserwacje** tylko odczytują osobiste połączenia i przekazują znaleziska do
+prywatnego Inbox. Każda zakładka ma własne przyciski tworzenia.
+`/routines?tab=watches` otwiera obserwacje.
+
+Discover na dashboardzie zaczyna się od ilustrowanych możliwości. Najedź na wykres
+w *Your period*, aby zobaczyć przedział i wartość; koszty są kwotami. Projekty
+pokazują opisy, a wiersze agentów używają tych samych avatarów co chat.
 
 ## Inbox { #the-inbox }
 

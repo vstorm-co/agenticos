@@ -7,11 +7,13 @@ from uuid import UUID
 
 from sqlalchemy import ColumnElement, and_, case, func, or_, select, type_coerce
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, RunSurface
+from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.conversation import Conversation, Message
 from app.db.models.group import Group, GroupMember
 from app.db.models.message_rating import MessageRating
@@ -54,6 +56,37 @@ async def create_rating(
     await db.flush()
     await db.refresh(rating_obj)
     return rating_obj
+
+
+async def upsert_channel_rating(
+    db: AsyncSession,
+    *,
+    message_id: UUID,
+    channel_identity_id: UUID,
+    rating: int | None,
+    comment: str | None = None,
+) -> MessageRating:
+    """One verified channel participant's vote, atomically inserted or changed.
+
+    A later comment preserves the verdict; a repeated vote preserves its comment.
+    An account link is unnecessary and does not change the participant's key.
+    """
+    statement = pg_insert(MessageRating).values(
+        message_id=message_id,
+        channel_identity_id=channel_identity_id,
+        rating=-1 if rating is None else rating,
+        comment=comment,
+    )
+    statement = statement.on_conflict_do_update(
+        constraint="uq_message_channel_rating",
+        set_={
+            "rating": MessageRating.rating if rating is None else statement.excluded.rating,
+            "comment": MessageRating.comment if comment is None else statement.excluded.comment,
+            "updated_at": func.now(),
+        },
+    ).returning(MessageRating)
+    result = await db.execute(statement.execution_options(populate_existing=True))
+    return result.scalar_one()
 
 
 async def update_rating(
@@ -289,7 +322,15 @@ async def get_rating_summary_scoped(
         MessageRating.created_at < end,
     ]
     if user_id is not None:
-        conditions.append(or_(Conversation.user_id == user_id, MessageRating.user_id == user_id))
+        conditions.append(
+            or_(
+                Conversation.user_id == user_id,
+                MessageRating.user_id == user_id,
+                MessageRating.channel_identity_id.in_(
+                    select(ChannelIdentity.id).where(ChannelIdentity.user_id == user_id)
+                ),
+            )
+        )
 
     counts_query = (
         select(
@@ -403,7 +444,11 @@ async def ratings_by_group(
             func.sum(case((MessageRating.rating > 0, 1), else_=0)),
             func.sum(case((MessageRating.rating < 0, 1), else_=0)),
         )
-        .join(GroupMember, GroupMember.user_id == MessageRating.user_id)
+        .outerjoin(ChannelIdentity, ChannelIdentity.id == MessageRating.channel_identity_id)
+        .join(
+            GroupMember,
+            GroupMember.user_id == func.coalesce(MessageRating.user_id, ChannelIdentity.user_id),
+        )
         .join(Group, Group.id == GroupMember.group_id)
         .join(Message, Message.id == MessageRating.message_id)
         .join(Conversation, Conversation.id == Message.conversation_id)
@@ -436,7 +481,11 @@ async def group_down_rated(
             Agent.id,
             Agent.name,
         )
-        .join(GroupMember, GroupMember.user_id == MessageRating.user_id)
+        .outerjoin(ChannelIdentity, ChannelIdentity.id == MessageRating.channel_identity_id)
+        .join(
+            GroupMember,
+            GroupMember.user_id == func.coalesce(MessageRating.user_id, ChannelIdentity.user_id),
+        )
         .join(Message, Message.id == MessageRating.message_id)
         .join(Conversation, Conversation.id == Message.conversation_id)
         .outerjoin(AgentRun, AgentRun.id == Message.run_id)

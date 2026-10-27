@@ -89,7 +89,7 @@ describe("InboxPage", () => {
     render(<InboxPage />);
     expect(screen.getByText("Nothing waits here")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Set up a watch" }));
-    expect(state.push).toHaveBeenCalledWith("/routines");
+    expect(state.push).toHaveBeenCalledWith("/routines?tab=watches");
 
     // Nothing urgent is not a reason to set up a watch.
     await userEvent.click(screen.getByRole("radio", { name: "Urgent" }));

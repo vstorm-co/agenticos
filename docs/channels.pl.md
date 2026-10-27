@@ -1,5 +1,5 @@
 ---
-source_sha: "513cb1cca129"
+source_sha: "a49998256a61"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1628,10 +1628,17 @@ ustawieniach bota:
   było nie tak?** w modalu Slacka albo dialogu Mattermost; odpowiedź zostaje jako
   komentarz do oceny. Telegram przyjmuje kciuki bez pytania.
 
-Ocena wymaga powiązanego członka, tak jak naciśnięcie przy akceptacji; kciuki osoby
-niepowiązanej nie są liczone. Karta *Answer quality* na dashboardzie dzieli udział
-dobrych odpowiedzi według powierzchni, gdy ocen jest więcej niż na jednej, więc
-agent, który dobrze radzi sobie w konsoli, a słabo w Slacku, to pokazuje.
+**Ocena w Mattermost nie wymaga konta AgenticOS.** Głos należy do uczestnika,
+którego tożsamość potwierdził podpisem serwer Mattermost. Każdy może zmienić swój
+głos; przyciski pozostają dla pozostałych osób, a potwierdzenie jest prywatne.
+Komentarz do negatywnej oceny należy do tego samego uczestnika. Slack i Telegram
+nadal wymagają powiązanego członka; akceptacja narzędzia także wymaga członkostwa.
+Oceny kanałowe zwracają w API `user_id: null`, zamiast przypisywać głos
+właścicielowi bota. Przed uruchomieniem tej wersji zaktualizuj bazę. Cofnięcie
+migracji usuwa oceny kanałowe i zachowuje oceny kont aplikacji.
+
+Karta *Answer quality* uwzględnia te głosy i rozdziela je według powierzchni,
+więc różnica między konsolą a Mattermost pozostaje widoczna.
 
 ## Co jest wspólne dla każdego kanału { #what-every-channel-shares }
 

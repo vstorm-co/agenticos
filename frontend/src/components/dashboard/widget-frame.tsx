@@ -81,7 +81,7 @@ export function WidgetFrame({
       {/* The rule under the heading is the card's own edge tone, not the page's
           border: on a translucent surface `border-border` is a hard grey line
           drawn across a panel. */}
-      <div className="border-foreground/8 flex items-center justify-between gap-2 border-b px-5 py-3.5">
+      <div className="flex items-center justify-between gap-2 px-5 pt-4 pb-0">
         <div className="flex min-w-0 items-center gap-1.5">
           <h3 className="text-foreground truncate text-sm font-semibold tracking-tight">{title}</h3>
           {hint ? <WidgetHint title={title} text={hint} /> : null}
@@ -101,7 +101,7 @@ export function WidgetFrame({
           otherwise be silently cut off at the border with nothing to say so. */}
       <div
         ref={body}
-        className={cn("flex min-h-0 flex-1 flex-col overflow-y-auto p-5", SCROLL_FADE_Y)}
+        className={cn("flex min-h-0 flex-1 flex-col overflow-y-auto px-5 pt-4 pb-5", SCROLL_FADE_Y)}
       >
         {children}
       </div>

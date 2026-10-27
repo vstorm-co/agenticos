@@ -749,11 +749,22 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // "?"-only, like the workspaces stop: the launch pass is deliberately six steps
   // - welcome, the dashboard, the chat, finish - and a seventh about work nobody
   // has scheduled yet is a page a first login has no reason to visit.
-  { id: "routines-list", page: ROUTES.ROUTINES, target: "routines-list" },
+  {
+    id: "routines-list",
+    page: ROUTES.ROUTINES,
+    target: "routines-list",
+    activate: "routines-agents-tab",
+  },
   // Watches over the reader's own connections (#2301); the card's header is always drawn.
-  { id: "routines-watches", page: ROUTES.ROUTINES, target: "routines-watches" },
+  {
+    id: "routines-watches",
+    page: ROUTES.ROUTINES,
+    target: "routines-watches",
+    activate: "routines-watches-tab",
+  },
   {
     id: "routines-create",
+    activate: "routines-agents-tab",
     page: ROUTES.ROUTINES,
     target: "routines-create",
     permission: Perm.agentsRun,

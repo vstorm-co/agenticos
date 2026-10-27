@@ -111,7 +111,10 @@ function Nothing({ filter }: { filter: Exclude<Filter, "done"> }) {
       description={t("empty.description")}
       cta={
         filter === "all" || filter === "watches"
-          ? { label: t("empty.watches"), onClick: () => router.push(ROUTES.ROUTINES) }
+          ? {
+              label: t("empty.watches"),
+              onClick: () => router.push(`${ROUTES.ROUTINES}?tab=watches`),
+            }
           : undefined
       }
     />

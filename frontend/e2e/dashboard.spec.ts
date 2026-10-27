@@ -14,6 +14,24 @@ test.use({ storageState: AUTH_STATE });
  * them dresses a failed request as "no rows".
  */
 test.describe("Dashboard", () => {
+  test("keeps the greeting summary below its title at wide and narrow widths", async ({ page }) => {
+    await page.goto("/dashboard?view=me");
+    const title = pageHeading(page, DASHBOARD_GREETING);
+    const summary = page.getByText(/Your agents ran/);
+    await expect(title).toBeVisible();
+    await expect(summary).toBeVisible();
+    for (const width of [2560, 1440, 390]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await expect
+        .poll(async () => {
+          const headingBox = await title.boundingBox();
+          const summaryBox = await summary.boundingBox();
+          return headingBox && summaryBox ? summaryBox.y - headingBox.y - headingBox.height : -1;
+        })
+        .toBeGreaterThanOrEqual(0);
+    }
+  });
+
   test("shows the owner their sections, with data where the seed has any", async ({ page }) => {
     // The sections are the organization's view; everybody opens on their own.
     await page.goto("/dashboard?view=org");

@@ -19,12 +19,23 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Let verified Mattermost participants rate answers and leave comments without
+  an AgenticOS account. Votes remain separate from application accounts, and
+  shared buttons stay available after the first vote. **API change:** a rating's
+  `user_id` can now be null for a channel participant. Apply the database migration
+  when upgrading; downgrading removes channel-authored votes.
+
 ### Changed
 
 - Refine console headers, neutral action buttons and sidebar glyphs. Skills and
   context galleries use compact, consistently sized cards without nested panels.
   People use photos or initials; organizations keep round, cropped avatars.
   Local server controls show Ollama and LlamaIndex marks in both themes.
+- Separate agent routines from personal connection watches in two Routines tabs.
+  Lead dashboard discovery with illustrated capabilities, show bucket values on
+  summary chart hover, and simplify project and agent widgets.
 
 ## [1.25.0] - 2026-10-27
 

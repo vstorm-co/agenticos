@@ -9,16 +9,21 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
+from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.conversation import Conversation, Message
+from app.db.models.group import Group, GroupMember
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization import Organization
 from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
 from app.repositories import message_rating as rating_repo
+from app.repositories import personal_data
 
 pytestmark = pytest.mark.anyio
 
@@ -157,3 +162,92 @@ async def test_a_person_s_recent_chats_with_a_bot_are_newest_first_and_titled(db
         ("C1:2.2", "Refund for order 42"),
         ("C1:1.1", None),
     ]
+
+
+async def test_channel_participants_keep_one_vote_each_and_comments_survive_vote_changes(
+    db: AsyncSession,
+) -> None:
+    organization, owner, agent = await _setup(db)
+    conversation = Conversation(organization_id=organization.id)
+    db.add(conversation)
+    await db.flush()
+    run = AgentRun(
+        organization_id=organization.id,
+        agent_id=agent.id,
+        conversation_id=conversation.id,
+        status="completed",
+        surface="mattermost",
+    )
+    db.add(run)
+    await db.flush()
+    message = Message(
+        conversation_id=conversation.id, role="assistant", content="answer", run_id=run.id
+    )
+    identities = [
+        ChannelIdentity(platform="mattermost", platform_user_id=uuid.uuid4().hex) for _ in range(2)
+    ]
+    db.add_all([message, *identities])
+    await db.flush()
+    first = await rating_repo.upsert_channel_rating(
+        db, message_id=message.id, channel_identity_id=identities[0].id, rating=1
+    )
+    await rating_repo.upsert_channel_rating(
+        db, message_id=message.id, channel_identity_id=identities[1].id, rating=-1
+    )
+    await rating_repo.upsert_channel_rating(
+        db,
+        message_id=message.id,
+        channel_identity_id=identities[0].id,
+        rating=None,
+        comment="Check the dates",
+    )
+    changed = await rating_repo.upsert_channel_rating(
+        db, message_id=message.id, channel_identity_id=identities[0].id, rating=-1
+    )
+    assert changed.id == first.id
+    assert changed.user_id is None
+    assert changed.comment == "Check the dates"
+    assert (
+        await db.scalar(
+            select(func.count())
+            .select_from(MessageRating)
+            .where(MessageRating.message_id == message.id)
+        )
+        == 2
+    )
+    counts = await rating_repo.get_rating_counts_for_messages(db, message_ids=[message.id])
+    assert counts[message.id] == {"likes": 0, "dislikes": 2}
+    # Linking later leaves the stable channel author intact, while own-scope
+    # reporting can attribute their earlier opinion to them.
+    identities[0].user_id = owner.id
+    await db.flush()
+    mine = await rating_repo.get_rating_summary_scoped(
+        db,
+        organization_id=organization.id,
+        user_id=owner.id,
+        start=_NOW - timedelta(days=1),
+        end=_NOW + timedelta(days=1),
+    )
+    assert mine["total_ratings"] == 1
+    assert [row.id for row in await personal_data.ratings_of(db, owner.id)] == [first.id]
+    group = Group(organization_id=organization.id, name="Engineering")
+    db.add(group)
+    await db.flush()
+    db.add(GroupMember(group_id=group.id, user_id=owner.id))
+    await db.flush()
+    window = {"start": _NOW - timedelta(days=1), "end": _NOW + timedelta(days=1)}
+    grouped = await rating_repo.ratings_by_group(db, organization_id=organization.id, **window)
+    assert grouped == [(group.id, 0, 1)]
+    down_rated = await rating_repo.group_down_rated(
+        db, organization_id=organization.id, group_id=group.id, limit=10, **window
+    )
+    assert len(down_rated) == 1
+    assert down_rated[0][1:4] == ("Check the dates", run.id, agent.id)
+    stranger, _, _ = await _setup(db)
+    other = await rating_repo.get_rating_summary_scoped(
+        db,
+        organization_id=stranger.id,
+        start=_NOW - timedelta(days=1),
+        end=_NOW + timedelta(days=1),
+    )
+    assert other["total_ratings"] == 0

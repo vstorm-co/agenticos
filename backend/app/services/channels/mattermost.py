@@ -487,10 +487,10 @@ class MattermostAdapter(ChannelAdapter):
         response.raise_for_status()
 
     async def settle_feedback(self, bot_token: str, press: IncomingPress, helpful: bool) -> None:
-        """Take the thumbs off, saying which was pressed - Mattermost's buttons do not."""
-        await self.settle_prompt(
-            bot_token, press, ":+1: Rated helpful" if helpful else ":-1: Rated not helpful"
-        )
+        """Keep shared buttons available; the callback privately confirms the vote.
+
+        Removing them from the post would stop every other participant voting.
+        """
 
     async def settle_prompt(self, bot_token: str, press: IncomingPress, text: str) -> None:
         """Take the buttons off the pressed post, leaving what was asked and chosen."""
