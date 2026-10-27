@@ -46,7 +46,7 @@ from app.agents.capabilities.coding_agent import CODING_AGENT_ID, CodingAgentCon
 from app.agents.capabilities.follow_ups import FollowUpsConfig
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.mcp import PLATFORM_MCP_PREFIX, prefix_collisions
-from app.agents.model_resolver import lacks_key
+from app.agents.model_resolver import PROVIDERS, lacks_key
 from app.agents.spec import (
     SPEC_VERSION,
     AgentSpec,
@@ -138,7 +138,7 @@ from app.services.file_storage import (
     get_file_storage,
 )
 from app.services.model_outputs import model_outputs, not_chat_refusal
-from app.services.model_profile import MAX_FALLBACK_DEPTH
+from app.services.model_profile import MAX_FALLBACK_DEPTH, usable_for_agents
 from app.services.notifications import NotificationService
 from app.services.resource_usage import groups_sharing
 from app.services.sandbox_connection import SandboxConnectionService
@@ -194,6 +194,13 @@ _MAX_DELEGATION_NODES = 200
 
 # How far the clone naming loop counts before it lets the collision be reported.
 _MAX_COPIES = 50
+
+NO_MODEL = "No model selected - pick one under Build > Model before publishing"
+"""Publish's refusal of a spec with no `model_profile_id`.
+
+Marked on the field as well, so the console can take its reader to the Model
+section rather than leave them to find it (#2483).
+"""
 # `AgentSpec.name` is bounded, and a copy of a copy grows. Truncating the base
 # rather than the suffix keeps "(copy 3)" readable - it is the part that says
 # which one this is.
@@ -441,8 +448,13 @@ class _SpecProblems:
     messages: list[str] = field(default_factory=list)
     fields: list[dict[str, str]] = field(default_factory=list)
 
+    @classmethod
+    def at(cls, field_name: str, message: str) -> _SpecProblems:
+        """One problem with an input to mark, said as a line too."""
+        return cls([message], [{"field": field_name, "message": message}])
+
     def add(self, messages: Sequence[str]) -> None:
-        """Problems with nothing to mark - a broken reference, a missing model."""
+        """Problems with nothing to mark - a broken reference."""
         self.messages.extend(messages)
 
     def merge(self, other: _SpecProblems) -> None:
@@ -1217,7 +1229,8 @@ class AgentRegistryService:
         platform has no organization-wide default, because a model an agent did
         not choose is one somebody else's change can swap underneath it - and it
         cannot name a knowledge collection it has never seen. Publishing an agent
-        missing either would produce answers from nowhere, confidently.
+        missing either would produce answers from nowhere, confidently. `create`
+        does start it on the organization's model when there is only one.
 
         The skills it expects are installed first, from the gallery, and skipped
         where the organization already has them. A bundled skill is bound where
@@ -1293,6 +1306,10 @@ class AgentRegistryService:
         exist. A draft cannot run and cannot be reached by an exposure either
         way, so what this decides is who can find it, not what it can do.
 
+        A spec that names no model starts on the organization's only model, when
+        it has exactly one an agent can run on (`_only_model`, #2483), so the
+        first publish does not stop at Model. With none or several it stays empty.
+
         Raises:
             AlreadyExistsError: If the derived slug is taken. Slugs are how agents are
                 mentioned in Slack, so silently disambiguating one would route
@@ -1308,6 +1325,8 @@ class AgentRegistryService:
         elif not spec.instructions.strip():
             spec = _with_starter_instructions(spec)
         spec = _without_unselectable(spec)
+        if spec.model_profile_id is None:
+            spec = spec.model_copy(update={"model_profile_id": await self._only_model(ctx)})
 
         slug = slugify(spec.name)
         if await agent_repo.get_by_slug(self.db, slug, organization_id=ctx.organization_id):
@@ -1355,6 +1374,39 @@ class AgentRegistryService:
                 user_ids=user_ids or [],
             )
         return agent
+
+    async def _only_model(self, ctx: AuthContext) -> UUID | None:
+        """The model a new agent starts on, when the organization has only one (#2483).
+
+        Only one: with two, which of them an agent runs on is a choice about cost
+        and quality that belongs to its author, so the draft stays empty and
+        publish asks for it. One means a profile `usable_for_agents` - a chat
+        model with a key (#2478) - that publish would also accept as it stands,
+        fallback chain included, so the agent publishes without anybody opening
+        Model. Never one on a ChatGPT sign-in: that is one person's subscription,
+        and nobody else's run may spend it. It still counts towards "only one",
+        because it is a model the author could deliberately pick.
+
+        Written into the draft, not resolved at run time: there is still no
+        organization-wide default, and the agent's own history says which model
+        it was published on.
+        """
+        profiles = [
+            profile
+            for profile in await credential_repo.list_profiles(
+                self.db, organization_id=ctx.organization_id
+            )
+            if usable_for_agents(profile)
+        ]
+        if len(profiles) != 1:
+            return None
+        (profile,) = profiles
+        provider = PROVIDERS.get(profile.provider)
+        if provider is not None and provider.secret_kind is SecretKind.OPENAI_CODEX:
+            return None
+        if await self.model_profile_problems(ctx, profile.id):
+            return None
+        return profile.id
 
     async def clone(self, ctx: AuthContext, agent_id: UUID, *, name: str | None = None) -> Agent:
         """Copy an agent's draft into a new agent, in draft.
@@ -1529,9 +1581,11 @@ class AgentRegistryService:
         # A model, named. There is no organization-wide default to fall back
         # on: a model an agent did not choose is one somebody else's change can
         # swap underneath it, and "why did this get more expensive" then has no
-        # answer in the agent's own history.
+        # answer in the agent's own history. A new agent is written onto the
+        # organization's only model when it has one (`_only_model`), which is
+        # still a named model in the spec.
         if spec.model_profile_id is None:
-            problems.add(["No model selected - pick one before publishing"])
+            problems.merge(_SpecProblems.at("model_profile_id", NO_MODEL))
         else:
             problems.add(await self.model_profile_problems(ctx, spec.model_profile_id))
         # And each reviewer's, refused here rather than when a run first reaches
