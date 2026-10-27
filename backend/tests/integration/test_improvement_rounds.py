@@ -199,6 +199,11 @@ async def test_regression_starts_a_blind_second_round_and_best_is_selectable(db)
     assert "ROUND_" not in AgentSpec.model_validate(agent.draft_spec).instructions
     selected = await service.select_round(ctx, agent.id, started.id, 1)
     assert selected.best_iteration_id == ready.iterations[0].id
+    assert [
+        event.actor_user_id
+        for event in selected.timeline
+        if event.action == "improvement.round_selected"
+    ] == [ctx.user_id]
     current = await authoring_repo.get_open_batch(
         db, organization_id=ctx.organization_id, agent_id=agent.id
     )

@@ -2927,7 +2927,7 @@ class ImprovementPipelineService:
             await improvement_repo.update_run(
                 self.db, run=run, values={"best_iteration_id": iteration.id}
             )
-        await self._audit(run, "round_selected")
+        await self._audit(run, "round_selected", actor_user_id=ctx.subject_id)
         await self._move(run, transition, actor_user_id=ctx.subject_id)
         return await self._read(ctx, run)
 
