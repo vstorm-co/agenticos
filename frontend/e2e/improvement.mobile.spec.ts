@@ -273,7 +273,10 @@ test("test questions, review and improvement publish keep a guarded environment 
     )
     .toBe("ready");
   await page.reload();
-  await expect(page.getByText(/Better: fixes \d+, breaks nothing/)).toBeVisible();
+  await expect(
+    page.getByText(/^Attempt \d+ made .+ better: \d+ questions? fixed and none broke\./),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Review and accept the changes" })).toBeEnabled();
   await capture(page, info, "improvement-result");
   await page.getByRole("button", { name: "Changes", exact: true }).click();
   await expect(page.getByText("PONG-IMPROVEMENT-AFTER", { exact: false }).first()).toBeVisible();
