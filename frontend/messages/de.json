@@ -10871,7 +10871,8 @@
       "working": "Läuft",
       "counts": "{fixed} behoben · {broken} verschlechtert",
       "heldOut": "Zurückgelegt: {before} → {after}",
-      "best": "Bester Versuch"
+      "best": "Bester Versuch",
+      "chosen": "Gewählter Versuch"
     },
     "attemptsTitle": "Versuche",
     "heldBack": "Für einen weiteren Versuch zurückgestellte Änderungen, nicht getestet",
@@ -10902,6 +10903,8 @@
       "options": "Was Sie tun können",
       "better": "Versuch {number} hat {agent} verbessert: {fixed, plural, one {# Frage} other {# Fragen}} behoben, keine verschlechtert.",
       "chosen": "Sie haben Versuch {number} zum Übernehmen gewählt.",
+      "published": "{version, select, unknown {Versuch {number} wurde veröffentlicht.} other {Versuch {number} wurde als Version {version} veröffentlicht.}}",
+      "acceptedDraft": "Versuch {number} wurde als Entwurf übernommen.",
       "failed": "Die Sitzung wurde durch einen Fehler beendet, bevor sie fertig war.",
       "working": "Die Sitzung läuft noch, dies ist also das bisherige Ergebnis.",
       "noneBetter": "{count, plural, =0 {Kein Versuch wurde gemessen, daher ist offen, ob {agent} besser wurde.} one {Der Versuch hat {agent} nicht verbessert.} other {Keiner der # Versuche hat {agent} verbessert.}}",

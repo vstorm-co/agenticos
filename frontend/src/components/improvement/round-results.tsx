@@ -388,9 +388,12 @@ export function AttemptRow({
             {t("attempt.heldOut", { before: percent(before), after: percent(after) })}
           </span>
         )}
-        {round.id === session.best_iteration_id && (
-          <StateBadge tone="good">{t("attempt.best")}</StateBadge>
-        )}
+        {round.id === session.best_iteration_id &&
+          (round.verdict === "better" ? (
+            <StateBadge tone="good">{t("attempt.best")}</StateBadge>
+          ) : (
+            <StateBadge tone="neutral">{t("attempt.chosen")}</StateBadge>
+          ))}
         <span className="text-muted-foreground ml-auto">{usd(round.cost_usd, locale)}</span>
       </summary>
       {open && (

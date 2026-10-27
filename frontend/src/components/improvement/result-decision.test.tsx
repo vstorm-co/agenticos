@@ -177,3 +177,32 @@ it("says a running session's result is only so far, and offers no decision yet",
   ).toBeInTheDocument();
   expect(screen.queryByText("What you can do")).toBeNull();
 });
+
+it("names the published attempt and its version once the session is decided", () => {
+  show({
+    ...EXHAUSTED,
+    status: "published",
+    stop_reason: null,
+    best_iteration_id: "r2",
+    published_version: 7,
+  });
+  expect(
+    screen.getByText(
+      "None of the 3 attempts made Refund desk better. Attempt 2 made it worse: 2 questions broke. " +
+        "Attempt 2 was published as version 7.",
+    ),
+  ).toBeInTheDocument();
+});
+
+it("says a better attempt was kept as a draft, and a publish whose version is unknown", () => {
+  const view = show({ ...SESSION, status: "accepted" });
+  expect(
+    screen.getByText(
+      "Attempt 1 made Refund desk better: 3 questions fixed and none broke. " +
+        "Attempt 1 was accepted as a draft.",
+    ),
+  ).toBeInTheDocument();
+  view.unmount();
+  show({ ...SESSION, status: "published", published_version: null });
+  expect(screen.getByText(/Attempt 1 was published\.$/)).toBeInTheDocument();
+});

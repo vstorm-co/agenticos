@@ -10771,7 +10771,8 @@
       "working": "W toku",
       "counts": "naprawione: {fixed} · zepsute: {broken}",
       "heldOut": "Odłożone: {before} → {after}",
-      "best": "Najlepsza próba"
+      "best": "Najlepsza próba",
+      "chosen": "Wybrana próba"
     },
     "attemptsTitle": "Próby",
     "heldBack": "Zmiany odłożone na kolejną próbę, nieprzetestowane",
@@ -10802,6 +10803,8 @@
       "options": "Co możesz zrobić",
       "better": "Próba {number} poprawiła agenta {agent}: {fixed, plural, one {# pytanie naprawione} few {# pytania naprawione} many {# pytań naprawionych} other {# pytania naprawione}}, żadne nie zepsute.",
       "chosen": "Wybrano próbę {number} do akceptacji.",
+      "published": "{version, select, unknown {Próba {number} została opublikowana.} other {Próba {number} została opublikowana jako wersja {version}.}}",
+      "acceptedDraft": "Próba {number} została zaakceptowana jako wersja robocza.",
       "failed": "Sesja zatrzymała się na błędzie, zanim się skończyła.",
       "working": "Sesja wciąż pracuje, więc to wynik na razie.",
       "noneBetter": "{count, plural, =0 {Żadna próba nie została zmierzona, więc nie wiadomo, czy agent {agent} się poprawił.} one {Próba nie poprawiła agenta {agent}.} few {Żadna z # prób nie poprawiła agenta {agent}.} many {Żadna z # prób nie poprawiła agenta {agent}.} other {Żadna z # prób nie poprawiła agenta {agent}.}}",

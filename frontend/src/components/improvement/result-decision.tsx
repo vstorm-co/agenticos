@@ -95,21 +95,26 @@ function headline(t: Translate, session: Improvement, agent: string, topics: num
     (round) => round.verdict !== null && round.number <= session.max_iterations,
   );
   const chosen = session.iterations.find((round) => round.id === session.best_iteration_id);
+  const decided = session.status === "accepted" || session.status === "published";
   const sentences: string[] = [];
+  const better = (round: (typeof rounds)[number]) =>
+    t("resultDecision.better", {
+      number: round.number,
+      agent,
+      fixed: Number(round.verdict_detail?.fixed ?? 0),
+    });
   if (session.status === "ready" && chosen) {
     sentences.push(
       chosen.verdict === "better"
-        ? t("resultDecision.better", {
-            number: chosen.number,
-            agent,
-            fixed: Number(chosen.verdict_detail?.fixed ?? 0),
-          })
+        ? better(chosen)
         : t("resultDecision.chosen", { number: chosen.number }),
     );
   } else if (session.status === "failed") {
     sentences.push(t("resultDecision.failed"));
   } else if (active(session)) {
     sentences.push(t("resultDecision.working"));
+  } else if (decided && chosen?.verdict === "better") {
+    sentences.push(better(chosen));
   } else {
     sentences.push(t("resultDecision.noneBetter", { count: rounds.length, agent }));
     for (const round of rounds.filter((item) => item.verdict === "regression"))
@@ -120,6 +125,15 @@ function headline(t: Translate, session: Improvement, agent: string, topics: num
         }),
       );
   }
+  if (decided && chosen)
+    sentences.push(
+      session.status === "published"
+        ? t("resultDecision.published", {
+            number: chosen.number,
+            version: session.published_version ?? "unknown",
+          })
+        : t("resultDecision.acceptedDraft", { number: chosen.number }),
+    );
   if (topics > 0) sentences.push(t("resultDecision.topics", { count: topics }));
   const missingHeldOut = Number(session.iterations[0]?.verdict_detail?.missing_holdout ?? 0);
   if (session.status !== "ready" && session.stop_reason)

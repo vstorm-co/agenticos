@@ -10988,7 +10988,8 @@
       "working": "Working",
       "counts": "{fixed} fixed · {broken} broken",
       "heldOut": "Kept aside: {before} → {after}",
-      "best": "Best attempt"
+      "best": "Best attempt",
+      "chosen": "Chosen attempt"
     },
     "attemptsTitle": "Attempts",
     "heldBack": "Changes held back for another attempt, not tested",
@@ -11019,6 +11020,8 @@
       "options": "What you can do",
       "better": "Attempt {number} made {agent} better: {fixed, plural, one {# question} other {# questions}} fixed and none broke.",
       "chosen": "You chose attempt {number} to accept.",
+      "published": "{version, select, unknown {Attempt {number} was published.} other {Attempt {number} was published as version {version}.}}",
+      "acceptedDraft": "Attempt {number} was accepted as a draft.",
       "failed": "The session stopped on an error before it finished.",
       "working": "The session is still working, so this is the result so far.",
       "noneBetter": "{count, plural, =0 {No attempt was measured, so nothing shows whether {agent} got better.} one {The attempt did not make {agent} better.} other {None of the # attempts made {agent} better.}}",

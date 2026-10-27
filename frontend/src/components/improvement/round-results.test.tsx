@@ -382,3 +382,13 @@ it("offers neither another attempt nor a paid check once the wizard is only read
     screen.queryByRole("button", { name: "Estimate individual checks" }),
   ).not.toBeInTheDocument();
 });
+it("calls a chosen attempt that was not better chosen, never best", () => {
+  render(
+    <AttemptRow
+      session={SESSION}
+      round={{ ...ROUND, verdict: "regression", verdict_detail: { fixed: 0, broken: 2 } }}
+    />,
+  );
+  expect(screen.getByText("Chosen attempt")).toBeInTheDocument();
+  expect(screen.queryByText("Best attempt")).toBeNull();
+});
