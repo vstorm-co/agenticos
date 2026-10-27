@@ -21,7 +21,7 @@ from collections.abc import Iterable
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
-from typing import Literal, TypedDict
+from typing import TypedDict
 
 from pydantic import JsonValue
 from sqlalchemy import (
@@ -159,11 +159,6 @@ ACTIVE_STATUSES = tuple(status for status in ImprovementStatus if status.active)
 WAITING_STATUSES = tuple(status for status in ImprovementStatus if status.waiting)
 
 
-EvidenceDecision = Literal["ignored"]
-"""A person's call on one chat example: ignored, or none. Which column an example
-belongs in is the classifier's alone."""
-
-
 class DroppedHunk(TypedDict):
     """A hunk the policy left out of a round's candidate, and why."""
 
@@ -241,12 +236,6 @@ class ImprovementRun(Base):
     )
     pinned_scoring: Mapped[dict[str, JsonValue] | None] = mapped_column(
         JSONB(none_as_null=True), nullable=True
-    )
-    # A person's triage of the frozen chat evidence, keyed by run id; later rounds
-    # read it. Sessions from before columns became the classifier's alone may
-    # still hold "agent" or "missing_knowledge", which readers take as no decision.
-    evidence_decisions: Mapped[dict[str, str]] = mapped_column(
-        JSONB, nullable=False, default=dict, server_default="{}"
     )
     # Knowledge documents a person set aside with "Not now"; the topic keeps its draft.
     deferred_topic_ids: Mapped[list[uuid.UUID]] = mapped_column(

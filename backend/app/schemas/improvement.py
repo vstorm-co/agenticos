@@ -9,7 +9,6 @@ from pydantic import Field, model_validator
 
 from app.db.models.improvement import (
     DroppedHunk,
-    EvidenceDecision,
     ImprovementStage,
     ImprovementStatus,
     ImprovementVerdict,
@@ -231,15 +230,6 @@ class ImprovementEvidenceItem(BaseSchema):
         description="The knowledge gap topic its miss joined, when one did; examples sharing one "
         "are one problem",
     )
-    decision: EvidenceDecision | None = Field(
-        default=None, description="What a person decided about it in this session; none until then"
-    )
-
-
-class EvidenceDecisionUpdate(BaseSchema):
-    """Ignore one example, or (null) put it back."""
-
-    decision: EvidenceDecision | None
 
 
 class ImprovementEvidence(BaseSchema):

@@ -78,7 +78,6 @@ from app.schemas.dataset import DatasetCaseUpdate, DatasetUpdate
 from app.schemas.deployment_settings import DeploymentSettingsUpdate
 from app.schemas.eval_suite import EvalSuiteUpdate
 from app.schemas.group import GroupLeadUpdate, GroupUpdate
-from app.schemas.improvement import EvidenceDecisionUpdate
 from app.schemas.knowledge_base import KnowledgeBaseUpdate
 from app.schemas.local_service import LocalServiceUpdate
 from app.schemas.mcp_connection import McpConnectionUpdate, OrgMcpConnectionUpdate
@@ -119,8 +118,6 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     DatasetScoringUpdate: None,
     DatasetUpdate: Dataset,
     EvalSuiteUpdate: EvalSuite,
-    # One key of a session's JSONB decisions; its null takes the decision back.
-    EvidenceDecisionUpdate: None,
     JudgeScorerUpdate: None,
     ConversationUpdate: Conversation,
     DashboardLayoutUpdate: DashboardLayout,
@@ -235,7 +232,6 @@ class TestEveryUpdateSchemaIsAccountedFor:
         assert {schema.__name__ for schema, model in UPDATE_TARGETS.items() if model is None} == {
             "AgentDraftUpdate",
             "DatasetScoringUpdate",
-            "EvidenceDecisionUpdate",
             "JudgeScorerUpdate",
             "NotificationPreferenceUpdate",
             "VisibilityUpdate",

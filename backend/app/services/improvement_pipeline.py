@@ -50,7 +50,6 @@ from app.db.models.authoring import (
 from app.db.models.eval_run import EvalRun
 from app.db.models.improvement import (
     DroppedHunk,
-    EvidenceDecision,
     ImprovementIteration,
     ImprovementRun,
     ImprovementVerdict,
@@ -97,7 +96,6 @@ from app.schemas.improvement import (
     BaselineAnswers,
     ContinuationConsent,
     ContinuationEstimate,
-    EvidenceDecisionUpdate,
     ImprovementContinue,
     ImprovementDiscard,
     ImprovementEstimate,
@@ -145,11 +143,6 @@ from app.worker.jobs import (
 
 ANSWER_TIME_WINDOW = timedelta(days=30)
 """How far back the agent's answers are read to time a session's checks."""
-
-
-def _ignored(run: ImprovementRun) -> list[UUID]:
-    """The chat examples a person ignored in this session; any other stored value is no decision."""
-    return [UUID(key) for key, value in run.evidence_decisions.items() if value == "ignored"]
 
 
 @dataclass(frozen=True)
@@ -335,11 +328,7 @@ class ImprovementPipelineService:
         causes = await KnowledgeGapService(self.db).causes(ctx, ids, messages)
         pack = await self.authoring.evidence.for_improvement(ctx, run.id)
         training = sum(item.evidence_kind == "train_eval" for item in pack.runs)
-        ignored = await knowledge_gap_repo.answers_for_runs(
-            self.db, organization_id=run.organization_id, run_ids=_ignored(run)
-        )
-        overrides = dict.fromkeys(ignored.values(), "ignored")
-        branches = {c.message_id: overrides.get(c.message_id, c.branch) for c in causes.values()}
+        branches = {c.message_id: c.branch for c in causes.values()}
         agent = (
             training
             + len(source_runs)
@@ -349,8 +338,8 @@ class ImprovementPipelineService:
         missing = sum(branch == "missing_knowledge" for branch in branches.values())
         excluded = [
             message_id
-            for message_id, branch in {**branches, **overrides}.items()
-            if branch in {"missing_knowledge", "not_a_problem", "ignored"}
+            for message_id, branch in branches.items()
+            if branch in {"missing_knowledge", "not_a_problem"}
         ]
         return agent, missing, excluded
 
@@ -366,11 +355,7 @@ class ImprovementPipelineService:
         if job is not None and job.status == "succeeded":
             _, _, excluded = await self._knowledge_branches(ctx, run)
             return excluded
-        # Without the classifier's verdicts, a person's own decisions still hold.
-        ignored = await knowledge_gap_repo.answers_for_runs(
-            self.db, organization_id=run.organization_id, run_ids=_ignored(run)
-        )
-        return list(ignored.values())
+        return []
 
     async def _knowledge_step(
         self, ctx: AuthContext, run: ImprovementRun, iteration: ImprovementIteration
@@ -678,9 +663,8 @@ class ImprovementPipelineService:
         agent = await self.registry.get(ctx, agent_id)
         if not ctx.has(Perm.RUNS_VIEW):
             raise AuthorizationError(message="Reading improvement evidence needs runs:view")
-        ignored: set[UUID] = set()
         if run_id is not None:
-            ignored = set(_ignored(await self._row(ctx, agent_id, run_id)))
+            await self._row(ctx, agent_id, run_id)
             pack = await self.authoring.evidence.for_improvement(ctx, run_id)
         else:
             if dataset_id is not None:
@@ -709,9 +693,6 @@ class ImprovementPipelineService:
         items: list[ImprovementEvidenceItem] = []
         for item in pack.runs:
             cause = causes.get(messages[item.run_id]) if item.run_id in messages else None
-            decision: EvidenceDecision | None = (
-                "ignored" if item.evidence_kind == "chat" and item.run_id in ignored else None
-            )
             items.append(
                 ImprovementEvidenceItem(
                     run_id=item.run_id,
@@ -737,7 +718,6 @@ class ImprovementPipelineService:
                     ),
                     reason=redact_credentials(cause.reason)[0] if cause else None,
                     topic_id=topics.get(item.run_id),
-                    decision=decision,
                 )
             )
         return ImprovementEvidence(
@@ -745,48 +725,6 @@ class ImprovementPipelineService:
             sample_limit=MAX_EVIDENCE_RUNS,
             training_failures=sum(item.status == "train_eval_failure" for item in pack.runs),
         )
-
-    async def decide_evidence(
-        self,
-        ctx: AuthContext,
-        agent_id: UUID,
-        run_id: UUID,
-        evidence_run_id: UUID,
-        data: EvidenceDecisionUpdate,
-    ) -> ImprovementEvidence:
-        """Ignore one frozen chat example, or put it back.
-
-        Later rounds read the decision: an ignored example no longer reaches the
-        agent's proposal. Nothing already proposed, measured or drafted changes.
-        """
-        await self.authoring._editable(ctx, agent_id)
-        self.authoring._require_runs_view(ctx)
-        run = await self._row(ctx, agent_id, run_id, lock=True)
-        if evidence_run_id not in (run.chat_evidence_run_ids or []):
-            raise NotFoundError(
-                message="This conversation is not one of the session's examples",
-                details={"run_id": evidence_run_id},
-            )
-        decisions = {
-            key: value
-            for key, value in run.evidence_decisions.items()
-            if key != str(evidence_run_id) and value == "ignored"
-        }
-        if data.decision is not None:
-            decisions[str(evidence_run_id)] = data.decision
-        await improvement_repo.update_run(
-            self.db, run=run, values={"evidence_decisions": decisions}
-        )
-        await self._audit(
-            run,
-            "evidence_decided",
-            actor_user_id=ctx.user_id,
-            decided={
-                "evidence_run_id": str(evidence_run_id),
-                "decision": data.decision or "undone",
-            },
-        )
-        return await self.evidence(ctx, agent_id, run_id=run_id)
 
     async def defer_topic(
         self, ctx: AuthContext, agent_id: UUID, run_id: UUID, topic_id: UUID, data: TopicDeferral

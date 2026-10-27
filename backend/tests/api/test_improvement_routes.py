@@ -41,7 +41,6 @@ _HASH = "a" * 64
         ("GET", _ROOT, "list_for_agent", None, False),
         ("GET", f"{_ROOT}/preview?dataset_id={_DATASET}", "evidence", None, False),
         ("GET", f"{_ONE}/evidence", "evidence", None, False),
-        ("PUT", f"{_ONE}/evidence/{_CASE}", "decide_evidence", {"decision": "ignored"}, False),
         ("PUT", f"{_ONE}/topics/{_TOPIC}/later", "defer_topic", {"later": True}, False),
         ("GET", _ONE, "read", None, False),
         ("GET", f"{_ONE}/changes", "changes", None, False),
@@ -128,18 +127,15 @@ async def test_an_ambiguous_question_source_is_rejected_before_the_service(
     estimate.assert_not_awaited()
 
 
-@pytest.mark.parametrize("decision", ["agent", "missing_knowledge"])
-async def test_moving_an_example_to_a_column_is_refused_before_the_service(
-    client: AsyncClient, mock_db_session: MagicMock, decision: str
+async def test_no_route_takes_a_decision_on_one_example(
+    client: AsyncClient, mock_db_session: MagicMock
 ) -> None:
     ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER)
     app.dependency_overrides[deps.get_auth_context] = lambda: ctx
-    service = ImprovementPipelineService(mock_db_session)
-    app.dependency_overrides[deps.get_improvement_service] = lambda: service
-    with patch.object(service, "decide_evidence", AsyncMock()) as decide:
-        response = await client.put(
-            f"{settings.API_V1_STR}{_ONE}/evidence/{_CASE}", json={"decision": decision}
-        )
-    assert response.status_code == 422
-    assert response.json()["error"]["details"]["fields"][0]["field"] == "decision"
-    decide.assert_not_awaited()
+    app.dependency_overrides[deps.get_improvement_service] = lambda: ImprovementPipelineService(
+        mock_db_session
+    )
+    response = await client.put(
+        f"{settings.API_V1_STR}{_ONE}/evidence/{_CASE}", json={"decision": "ignored"}
+    )
+    assert response.status_code == 404

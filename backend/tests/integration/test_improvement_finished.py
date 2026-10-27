@@ -17,7 +17,6 @@ from app.db.models.improvement import ImprovementRun
 from app.schemas.improvement import (
     AttributionConsent,
     ContinuationConsent,
-    EvidenceDecisionUpdate,
     ImprovementContinue,
     ImprovementDiscard,
     ImprovementFinish,
@@ -43,9 +42,6 @@ def _changes(service: ImprovementPipelineService, ctx, agent_id, run_id):
     hash_ = "a" * 64
     knowledge = KnowledgeCheckTarget(topic_id=uuid4(), round=1, case_ids=[uuid4()])
     return {
-        "decide_evidence": lambda: service.decide_evidence(
-            ctx, agent_id, run_id, uuid4(), EvidenceDecisionUpdate(decision="ignored")
-        ),
         "defer_topic": lambda: service.defer_topic(
             ctx, agent_id, run_id, uuid4(), TopicDeferral(later=True)
         ),

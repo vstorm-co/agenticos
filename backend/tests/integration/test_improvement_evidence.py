@@ -169,48 +169,16 @@ async def test_training_preview_preserves_the_run_reader_boundary(db):
         await ImprovementPipelineService(db).evidence(limited, agent.id, dataset_id=dataset.id)
 
 
-async def test_ignoring_an_example_is_refused_outside_its_open_session(db):
-    from app.core.exceptions import ConcurrentChangeError
-    from app.core.permissions import OrgRoleName
-    from app.db.models.improvement import ImprovementRun
-    from app.schemas.improvement import EvidenceDecisionUpdate
-    from tests.integration.test_eval_suites import _member
+async def test_a_sessions_examples_are_read_only_for_the_agent_it_improves(db):
+    from tests.integration.test_eval_suites import _agent
 
     ctx, agent, _, session = await _started(db)
     service = ImprovementPipelineService(db)
     [item] = (await service.evidence(ctx, agent.id, run_id=session.id)).items
-    ignore = EvidenceDecisionUpdate(decision="ignored")
-    ignored = await service.decide_evidence(ctx, agent.id, session.id, item.run_id, ignore)
-    assert ignored.items[0].decision == "ignored" and ignored.items[0].branch == "unknown"
-    preview = await service.evidence(ctx, agent.id, dataset_id=session.dataset_id)
-    assert preview.items[0].decision is None and preview.items[0].branch == "unknown"
-    with pytest.raises(NotFoundError, match="not one of the session's examples"):
-        await service.decide_evidence(ctx, agent.id, session.id, uuid4(), ignore)
-    viewer = await _member(db, ctx, OrgRoleName.VIEWER)
-    with pytest.raises(NotFoundError):
-        await service.decide_evidence(viewer, agent.id, session.id, item.run_id, ignore)
-    no_runs = replace(ctx, key_scopes=frozenset({Perm.AGENTS_VIEW, Perm.AGENTS_EDIT}))
-    with pytest.raises(AuthorizationError):
-        await service.decide_evidence(no_runs, agent.id, session.id, item.run_id, ignore)
-    stored = await db.get(ImprovementRun, session.id)
-    stored.status = "published"
-    await db.flush()
-    with pytest.raises(ConcurrentChangeError, match="finished"):
-        await service.decide_evidence(ctx, agent.id, session.id, item.run_id, ignore)
-
-
-async def test_a_column_a_person_chose_before_columns_became_the_classifiers_is_no_decision(db):
-    from app.db.models.improvement import ImprovementRun
-
-    ctx, agent, _, session = await _started(db)
-    service = ImprovementPipelineService(db)
-    [item] = (await service.evidence(ctx, agent.id, run_id=session.id)).items
-    stored = await db.get(ImprovementRun, session.id)
-    stored.evidence_decisions = {str(item.run_id): "missing_knowledge"}
-    await db.flush()
-    [read] = (await service.evidence(ctx, agent.id, run_id=session.id)).items
-    assert read.decision is None and read.branch == "unknown"
-    assert await service._knowledge_exclusions(ctx, stored) == []
+    assert item.branch == "unknown"
+    other, _ = await _agent(db, ctx)
+    with pytest.raises(NotFoundError, match="session not found"):
+        await service.evidence(ctx, other.id, run_id=session.id)
 
 
 async def test_a_knowledge_document_set_aside_stays_aside_for_the_session(db):

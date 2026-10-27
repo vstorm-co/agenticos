@@ -226,34 +226,21 @@ async def test_a_knowledge_or_attribution_check_of_a_finished_session_is_announc
     assert len(await _ends(db, ready.id)) == 3
 
 
-async def test_a_persons_ignore_holds_even_when_nothing_was_classified(db):
-    from app.schemas.improvement import EvidenceDecisionUpdate
-
-    ctx, agent, ready = await _ready_proposal(db)
+async def test_a_later_round_reads_every_example_when_nothing_was_classified(db):
+    ctx, _, ready = await _ready_proposal(db)
     service = ImprovementPipelineService(db)
     run = await db.get(ImprovementRun, ready.id)
     [round_one] = await improvement_repo.list_iterations(
         db, organization_id=ctx.organization_id, run_id=run.id
     )
     assert round_one.classify_job_id is None
-    ignored, *kept = run.chat_evidence_run_ids
-    await service.decide_evidence(
-        ctx, agent.id, run.id, ignored, EvidenceDecisionUpdate(decision="ignored")
-    )
-    # A column chosen by hand before sorting became the classifier's alone excludes nothing.
-    run.evidence_decisions = {
-        **run.evidence_decisions,
-        **dict.fromkeys(map(str, kept), "missing_knowledge"),
-    }
-    await db.flush()
 
     excluded = await service._knowledge_exclusions(ctx, run)
     pack = await service.authoring.evidence.for_improvement(
         ctx, run.id, excluded_message_ids=excluded
     )
-    assert len(excluded) == 1
-    assert ignored not in {item.run_id for item in pack.runs}
-    assert set(kept) <= {item.run_id for item in pack.runs}
+    assert excluded == []
+    assert set(run.chat_evidence_run_ids) <= {item.run_id for item in pack.runs}
 
 
 async def test_a_status_write_outside_the_state_table_is_refused_as_a_conflict(db):
@@ -357,48 +344,30 @@ async def test_the_timeline_names_who_decided_what_and_only_to_those_who_see_mem
     from dataclasses import replace
 
     from app.core.permissions import Perm
-    from app.db.models.audit_log import AppAdminAuditLog
-    from app.schemas.improvement import EvidenceDecisionUpdate
+    from app.schemas.improvement import ImprovementDiscard
 
     ctx, agent, ready = await _ready_proposal(db)
     service = ImprovementPipelineService(db)
-    run = await db.get(ImprovementRun, ready.id)
-    example = run.chat_evidence_run_ids[0]
-    await service.decide_evidence(
-        ctx, agent.id, run.id, example, EvidenceDecisionUpdate(decision="ignored")
-    )
-    await service.decide_evidence(
-        ctx, agent.id, run.id, example, EvidenceDecisionUpdate(decision=None)
-    )
-
-    decided = list(
-        await db.scalars(
-            select(AppAdminAuditLog)
-            .where(AppAdminAuditLog.action == "improvement.evidence_decided")
-            .order_by(AppAdminAuditLog.seq)
-        )
-    )
-    assert [(row.details["evidence_run_id"], row.details["decision"]) for row in decided] == [
-        (str(example), "ignored"),
-        (str(example), "undone"),
-    ]
-    timeline = (await service.read(ctx, agent.id, run.id)).timeline
-    by_person = [event for event in timeline if event.action == "improvement.evidence_decided"]
-    assert {(event.actor_user_id, event.actor_name is not None) for event in by_person} == {
-        (ctx.user_id, True)
-    }
+    own_steps = (await service.read(ctx, agent.id, ready.id)).timeline
     assert all(
         event.actor_user_id is None
-        for event in timeline
+        for event in own_steps
         if event.action == "improvement.stage_changed"
     )
 
+    await service.discard(ctx, agent.id, ready.id, ImprovementDiscard(confirmed=True))
+    timeline = (await service.read(ctx, agent.id, ready.id)).timeline
+    by_person = [event for event in timeline if event.action == "improvement.discarded"]
+    assert {(event.actor_user_id, event.actor_name is not None) for event in by_person} == {
+        (ctx.user_id, True)
+    }
+
     outsider = replace(ctx, key_scopes=frozenset({Perm.AGENTS_VIEW}))
-    hidden = (await service.read(outsider, agent.id, run.id)).timeline
+    hidden = (await service.read(outsider, agent.id, ready.id)).timeline
     assert {
         (event.actor_user_id, event.actor_name)
         for event in hidden
-        if event.action == "improvement.evidence_decided"
+        if event.action == "improvement.discarded"
     } == {(ctx.user_id, None)}
 
 
