@@ -597,10 +597,7 @@ it("follows a second attempt through Changes and Check, keeping Result shut", as
   expect(result).toHaveAttribute("aria-disabled", "true");
   await userEvent.click(result);
   expect(screen.queryByText(/Better:/)).not.toBeInTheDocument();
-  await userEvent.click(screen.getByRole("button", { name: "Next step" }));
-  expect(screen.getByText("Testing the changes")).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Next step" })).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Go to the current step" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Check" })).toHaveAttribute("aria-disabled", "true");
   state.hunks = [hunk({ id: "h9" })];
   state.session = {
     ...state.session!,
@@ -618,6 +615,29 @@ it("follows a second attempt through Changes and Check, keeping Result shut", as
   await userEvent.click(screen.getByRole("button", { name: "Go to the current step" }));
   expect(screen.getByText("Attempt 2 of 3 is being checked.")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Go to the current step" })).not.toBeInTheDocument();
+});
+
+it("ends a waiting session from the wizard, and says a later attempt starts afresh", async () => {
+  const first = state.session!.iterations[0]!;
+  state.hunks = [hunk({ id: "h1" })];
+  state.session = {
+    ...state.session!,
+    status: "waiting",
+    stage: "filtering",
+    next_step: "check",
+    iteration: 2,
+    best_iteration_id: null,
+    iterations: [first, { ...first, id: "r2", number: 2, included_hunk_ids: ["h1"] }],
+  };
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(
+    screen.getByText(
+      "Each attempt starts from the current version; changes from earlier attempts aren't carried over.",
+    ),
+  ).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "End the session" }));
+  await userEvent.click(screen.getByRole("button", { name: "End it" }));
+  expect(actions.cancel.mutateAsync).toHaveBeenCalled();
 });
 
 it("opens the start screen for an authorized editor", () => {
@@ -730,7 +750,7 @@ it("shows the changes being checked only to read, and the stop's changes to tick
     screen.getByText("Correct the wording if needed. The next step is priced before you press."),
   ).toBeInTheDocument();
   const next = await screen.findByRole("button", {
-    name: "Next step: test the selected changes · about $0.04",
+    name: "Next step: test the selected changes · up to $0.04",
   });
   expect(next).toBeEnabled();
   await userEvent.click(screen.getByRole("button", { name: "Change the wording" }));

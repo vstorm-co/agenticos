@@ -62,3 +62,29 @@ it("puts each Next step press, and choosing the changes, on the step it stopped 
     expect.stringMatching(/^Ben started testing the chosen changes · /),
   ]);
 });
+
+it("names who asked for another attempt and what they asked, and only this attempt's decisions", () => {
+  const [first] = SESSION.iterations;
+  const second = { ...first!, id: "r2", number: 2, started_at: "2026-10-26T10:00:00Z" };
+  const at = (action: string, when: string) => ({ ...event(action, "Ada"), at: when });
+  const session: Improvement = {
+    ...SESSION,
+    iteration: 2,
+    iterations: [first!, { ...second, note: "Keep it short" }],
+    timeline: [
+      at("improvement.changes_chosen", "2026-10-26T09:40:00Z"),
+      at("improvement.continuation_confirmed", "2026-10-26T10:00:01Z"),
+    ],
+  };
+  const view = render(<StepDecisions session={session} step="changes" />);
+  expect(
+    screen.getByText(/^Ada asked for another attempt: “Keep it short” · /),
+  ).toBeInTheDocument();
+  expect(screen.queryByText(/chose which changes to test/)).toBeNull();
+  view.rerender(
+    <StepDecisions session={{ ...session, iterations: [first!, second] }} step="changes" />,
+  );
+  expect(screen.getByText(/^Ada asked for another attempt · /)).toBeInTheDocument();
+  view.rerender(<StepDecisions session={session} step="check" />);
+  expect(screen.queryByRole("region")).toBeNull();
+});

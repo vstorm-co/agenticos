@@ -39,7 +39,7 @@ it("prices the next step before anyone asks, and pressing it consents to that pr
   expect(screen.getByRole("status")).toHaveTextContent("Pricing the next step…");
   expect(screen.getByRole("button", { name: "Next step: write the changes" })).toBeDisabled();
   const go = await screen.findByRole("button", {
-    name: "Next step: write the changes · about $0.04",
+    name: "Next step: write the changes · up to $0.04",
   });
   expect(state.estimate).toHaveBeenCalledWith(AT_UNDERSTAND.budget_usd);
   expect(state.start).not.toHaveBeenCalled();
@@ -53,7 +53,7 @@ it("names testing the selected changes at the stop after Changes, and waits for 
     <NextStep session={AT_CHANGES} blocked="Select at least one change" onStarted={vi.fn()} />,
   );
   const go = await screen.findByRole("button", {
-    name: "Next step: test the selected changes · about $0.04",
+    name: "Next step: test the selected changes · up to $0.04",
   });
   expect(go).toBeDisabled();
   expect(screen.getByText("Select at least one change")).toBeInTheDocument();
@@ -67,12 +67,12 @@ it("prices the check again once the changes it measures are chosen or reworded",
     iterations: [{ ...SESSION.iterations[0]!, candidate_spec_hash: hash }],
   });
   const view = render(<NextStep session={attempt("a".repeat(64))} onStarted={vi.fn()} />);
-  await screen.findByRole("button", { name: "Next step: test the selected changes · about $0.04" });
+  await screen.findByRole("button", { name: "Next step: test the selected changes · up to $0.04" });
   state.estimate.mockResolvedValue({ ...QUOTE, total_usd: "0.05", candidate_hash: "b".repeat(64) });
   view.rerender(<NextStep session={attempt("b".repeat(64))} onStarted={vi.fn()} />);
   await userEvent.click(
     await screen.findByRole("button", {
-      name: "Next step: test the selected changes · about $0.05",
+      name: "Next step: test the selected changes · up to $0.05",
     }),
   );
   expect(state.estimate).toHaveBeenCalledTimes(2);
@@ -85,14 +85,14 @@ it("re-prices after a changed price and says so before anything is spent", async
   state.start.mockRejectedValueOnce(new ApiError(409, "The price changed"));
   render(<NextStep session={AT_UNDERSTAND} onStarted={vi.fn()} />);
   const first = await screen.findByRole("button", {
-    name: "Next step: write the changes · about $0.04",
+    name: "Next step: write the changes · up to $0.04",
   });
   state.estimate.mockResolvedValue({ ...QUOTE, total_usd: "0.06" });
   await userEvent.click(first);
   expect(await screen.findByRole("alert")).toHaveTextContent(
-    "The price changed to about $0.06. Press again to go on.",
+    "The price changed to up to $0.06. Press again to go on.",
   );
-  const again = screen.getByRole("button", { name: "Next step: write the changes · about $0.06" });
+  const again = screen.getByRole("button", { name: "Next step: write the changes · up to $0.06" });
   state.start.mockResolvedValue(AT_UNDERSTAND);
   await userEvent.click(again);
   expect(state.start).toHaveBeenLastCalledWith({ ...QUOTE, total_usd: "0.06" });
@@ -103,13 +103,13 @@ it("says why the press failed, and why a changed price could not be read", async
   state.start.mockRejectedValueOnce(new Error("AI assistance is off"));
   render(<NextStep session={AT_UNDERSTAND} onStarted={vi.fn()} />);
   await userEvent.click(
-    await screen.findByRole("button", { name: "Next step: write the changes · about $0.04" }),
+    await screen.findByRole("button", { name: "Next step: write the changes · up to $0.04" }),
   );
   expect(await screen.findByRole("alert")).toHaveTextContent("AI assistance is off");
   state.start.mockRejectedValueOnce(new ApiError(409, "The price changed"));
   state.estimate.mockRejectedValueOnce(new Error("Pricing is unavailable"));
   await userEvent.click(
-    screen.getByRole("button", { name: "Next step: write the changes · about $0.04" }),
+    screen.getByRole("button", { name: "Next step: write the changes · up to $0.04" }),
   );
   expect(await screen.findByRole("alert")).toHaveTextContent("Pricing is unavailable");
 });
@@ -119,7 +119,7 @@ it("asks for a higher limit when the next step costs more than is left", async (
   render(<NextStep session={AT_UNDERSTAND} onStarted={vi.fn()} />);
   expect(await screen.findByText(/costs more than this session has left/)).toBeInTheDocument();
   expect(
-    screen.getByRole("button", { name: "Next step: write the changes · about $2.00" }),
+    screen.getByRole("button", { name: "Next step: write the changes · up to $2.00" }),
   ).toBeDisabled();
   const raise = screen.getByRole("button", { name: "Price it again" });
   expect(raise).toBeDisabled();
@@ -129,8 +129,20 @@ it("asks for a higher limit when the next step costs more than is left", async (
   await userEvent.click(raise);
   expect(state.estimate).toHaveBeenLastCalledWith("3");
   expect(
-    await screen.findByRole("button", { name: "Next step: write the changes · about $2.00" }),
+    await screen.findByRole("button", { name: "Next step: write the changes · up to $2.00" }),
   ).toBeEnabled();
+});
+
+it("says a step that cannot be measured is final for this session, rather than asking for questions", async () => {
+  state.estimate.mockRejectedValue(
+    new ApiError(400, "Add 1 more test questions to measure this attempt", {
+      error: { code: "BAD_REQUEST", message: "x", details: { missing_holdout: 1 } },
+    }),
+  );
+  render(<NextStep session={AT_CHANGES} onStarted={vi.fn()} />);
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    /can't be tested: 1 more question kept aside .* end the session, add questions, and start a new one\./,
+  );
 });
 
 it("says why a price could not be read", async () => {

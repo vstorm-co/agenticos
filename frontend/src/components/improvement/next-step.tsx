@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ArrowRight } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { Button, Input, Label } from "@/components/ui";
@@ -48,6 +48,16 @@ export function NextStep({
   const key = JSON.stringify([asked, session.status, session.stage, session.iteration, candidate]);
   const priced = quote?.key === key ? quote.value : null;
   const estimate = actions.estimateContinuation.mutateAsync;
+  // Too few questions kept aside is final for this session: it keeps the questions it began with.
+  const refusal = useCallback(
+    (failure: unknown) => {
+      const missing = failure instanceof ApiError ? failure.details?.missing_holdout : undefined;
+      return typeof missing === "number"
+        ? t("unmeasurable", { count: missing })
+        : getErrorMessage(failure, tErrors);
+    },
+    [t, tErrors],
+  );
   useEffect(() => {
     if (!stop || readOnly || session.can_restart === false) return;
     let current = true;
@@ -56,13 +66,13 @@ export function NextStep({
         if (current) setQuote({ key, value });
       },
       (failure: unknown) => {
-        if (current) setError(getErrorMessage(failure, tErrors));
+        if (current) setError(refusal(failure));
       },
     );
     return () => {
       current = false;
     };
-  }, [stop, readOnly, session.can_restart, asked, key, estimate, tErrors]);
+  }, [stop, readOnly, session.can_restart, asked, key, estimate, refusal]);
   if (!stop || readOnly || session.can_restart === false) return null;
   async function start(value: ContinuationEstimate) {
     setError(null);
@@ -79,7 +89,7 @@ export function NextStep({
         setQuote({ key, value: await estimate(asked) });
         setMoved(true);
       } catch (again) {
-        setError(getErrorMessage(again, tErrors));
+        setError(refusal(again));
       }
     }
   }

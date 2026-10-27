@@ -88,7 +88,8 @@ it.each(["failed", "cancelled", "stale"] as const)(
       check: "skipped",
       understand: "skipped",
       changes: "skipped",
-      accept: "skipped",
+      // A failed step can be retried, so there may yet be something to accept.
+      accept: status === "failed" ? "pending" : "skipped",
     });
   },
 );
@@ -184,12 +185,14 @@ it("has five steps: the question set is chosen at the start, today's answers in 
   ]);
 });
 
-it("skips Accept when there is nothing to accept, and opens it for a waiting candidate", () => {
+it("skips Accept only once no attempt is left, and opens it for a waiting candidate", () => {
   expect(hasCandidate({ ...SESSION, status: "ready" })).toBe(true);
   expect(hasCandidate({ ...SESSION, status: "ready", best_iteration_id: null })).toBe(false);
-  expect(
-    improvementStepStates({ ...SESSION, status: "stopped", best_iteration_id: null }).accept,
-  ).toBe("skipped");
+  const stopped = { ...SESSION, status: "stopped" as const, best_iteration_id: null };
+  expect(improvementStepStates(stopped).accept).toBe("pending");
+  expect(improvementStepStates({ ...stopped, iteration: stopped.max_iterations }).accept).toBe(
+    "skipped",
+  );
   const ready = improvementSteps({ ...SESSION, status: "ready" });
   expect(ready.accept).toEqual({ state: "needs_you", content: "result" });
   expect(isReachable(ready.accept)).toBe(true);
@@ -215,7 +218,7 @@ it("runs Changes and Check again for a later attempt and shows nothing before th
     iterations: [first!, { ...first!, id: "r2", number: 2, batch_id: null, verdict: null }],
   });
   expect(later.changes.state).toBe("running");
-  expect(later.check.state).toBe("running");
+  expect(later.check.state).toBe("pending");
   const checking = improvementSteps({
     ...SESSION,
     status: "running",

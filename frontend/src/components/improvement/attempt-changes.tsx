@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button, Checkbox, Textarea } from "@/components/ui";
 import { ChangePreview } from "@/components/authoring/result-dialog";
-import { useImprovement, useImprovementChanges } from "@/hooks/use-improvements";
+import { useAttemptChanges, useImprovement } from "@/hooks/use-improvements";
 import { getErrorMessage } from "@/lib/api-error";
 import { currentAttempt } from "@/lib/improvement-steps";
 import type { Hunk } from "@/types/authoring";
@@ -29,7 +29,10 @@ export function AttemptChanges({
 }) {
   const t = useTranslations("improvement.attemptChanges");
   const tErrors = useTranslations("errors");
-  const { changes, isLoading, error } = useImprovementChanges(session.agent_id, session.id);
+  const attempt = currentAttempt(session);
+  const proposed = useAttemptChanges(session.agent_id, session.id, session.iteration);
+  const { isLoading, error } = proposed;
+  const changes = proposed.changes.filter((hunk) => !attempt?.dropped_hunk_ids.includes(hunk.id));
   const actions = useImprovement(session.agent_id, session.id);
   const [failure, setFailure] = useState<string | null>(null);
   const [unsaved, setUnsaved] = useState<string[]>([]);
@@ -42,7 +45,7 @@ export function AttemptChanges({
       setUnsaved((ids) => (open ? [...ids, hunkId] : ids.filter((id) => id !== hunkId))),
     [],
   );
-  const included = currentAttempt(session)?.included_hunk_ids ?? [];
+  const included = attempt?.included_hunk_ids ?? [];
   if (error) return <p role="alert">{getErrorMessage(error, tErrors)}</p>;
   if (isLoading) return <p role="status">{t("loading")}</p>;
   if (changes.length === 0) return <p className="text-muted-foreground text-sm">{t("none")}</p>;

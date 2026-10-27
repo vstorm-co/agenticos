@@ -75,7 +75,6 @@ export function improvementSteps(
   const decided = accepted || session.status === "rejected";
   const stage = session.stage ?? "";
   const attempt = currentAttempt(session);
-  const later = session.iteration > 1;
   const noData = session.stop_reason === "no_data";
   const groupingFailed = session.timeline.some(
     (event) => event.action === "improvement.classification_failed",
@@ -110,7 +109,7 @@ export function improvementSteps(
                       ? "done"
                       : "skipped",
     check:
-      active && (CHECKING.includes(stage) || (later && PROPOSING.includes(stage)))
+      active && CHECKING.includes(stage)
         ? "running"
         : open
           ? "pending"
@@ -124,7 +123,14 @@ export function improvementSteps(
         : session.stop_reason === "knowledge_only"
           ? "skipped"
           : "needs_you",
-    accept: accepted ? "done" : hasCandidate(session) ? "needs_you" : open ? "pending" : "skipped",
+    accept: accepted
+      ? "done"
+      : hasCandidate(session)
+        ? "needs_you"
+        : isClosed(session) ||
+            (session.status === "stopped" && session.iteration >= session.max_iterations)
+          ? "skipped"
+          : "pending",
   };
   const view = (state: ImprovementStepState): ImprovementStepView => ({
     state,

@@ -11389,7 +11389,8 @@
       "accepted": "{name} kept the changes as a draft · {at}",
       "published": "{name} published the new version · {at}",
       "nextStepPropose": "{name} asked for the changes to be written · {at}",
-      "nextStepCheck": "{name} started testing the chosen changes · {at}"
+      "nextStepCheck": "{name} started testing the chosen changes · {at}",
+      "askedAgain": "{name} asked for another attempt{noted, select, yes {: “{note}”} other {}} · {at}"
     },
     "widgets": {
       "ofTotal": "{count} of {total}",
@@ -11493,19 +11494,20 @@
         "changes": "Tick the changes to test and correct any wording. The next step is priced before you press."
       },
       "pricing": "Pricing the next step…",
-      "priceMoved": "The price changed to about {cost}. Press again to go on.",
+      "priceMoved": "The price changed to up to {cost}. Press again to go on.",
       "overLimit": "The next step costs more than this session has left. Raise the limit to go on.",
       "raise": "Price it again",
       "go": {
-        "understand": "Next step: write the changes · about {cost}",
-        "changes": "Next step: test the selected changes · about {cost}"
+        "understand": "Next step: write the changes · up to {cost}",
+        "changes": "Next step: test the selected changes · up to {cost}"
       },
       "goUnpriced": {
         "understand": "Next step: write the changes",
         "changes": "Next step: test the selected changes"
       },
       "hintSingle": "Correct the wording if needed. The next step is priced before you press.",
-      "saveWordingFirst": "Save or discard the wording first."
+      "saveWordingFirst": "Save or discard the wording first.",
+      "unmeasurable": "This attempt can't be tested: {count, plural, one {# more question} other {# more questions}} kept aside would be needed once the ones its examples came from are left out. This session keeps the questions it started with, so adding some won't help it: end the session, add questions, and start a new one."
     },
     "waitingFor": {
       "understand": "Waiting for you: look at what went wrong",
@@ -11557,7 +11559,14 @@
       "ratedDown": "{commented, select, yes {A person rated this answer down and said: “{comment}”} other {A person rated this answer down, without a comment.}}",
       "ratedUp": "A person rated this answer up.",
       "runFailed": "The agent did not finish this answer."
-    }
+    },
+    "endSession": {
+      "action": "End the session",
+      "title": "End this session?",
+      "body": "It stays in the agent's history, and nothing in the agent changes. You can start a new session afterwards.",
+      "confirm": "End it"
+    },
+    "freshAttempt": "Each attempt starts from the current version; changes from earlier attempts aren't carried over."
   },
   "unsaved": {
     "title": "You have unsaved changes",

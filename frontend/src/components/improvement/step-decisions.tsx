@@ -1,7 +1,7 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
-import type { ImprovementStep } from "@/lib/improvement-steps";
+import { currentAttempt, type ImprovementStep } from "@/lib/improvement-steps";
 import type { Improvement } from "@/types/improvement";
 
 /** Which step each decision a person can make belongs to, and the message that words it. */
@@ -35,18 +35,50 @@ function placeOf(event: Event): [ImprovementStep, string] | undefined {
   return DECISIONS[event.action];
 }
 
+/** Steps a new attempt runs again, so they show only what was decided in it. */
+const PER_ATTEMPT: readonly ImprovementStep[] = ["changes", "check"];
+/** How long after an attempt began the Try again that began it is recorded. */
+const SAME_REQUEST_MS = 60_000;
+
 /** The people who decided something on this step, newest last, when their names may be shown. */
 export function StepDecisions({ session, step }: { session: Improvement; step: ImprovementStep }) {
   const t = useTranslations("improvement.decided");
   const locale = useLocale();
+  const attempt = currentAttempt(session);
+  const since =
+    attempt && attempt.number > 1 && PER_ATTEMPT.includes(step)
+      ? Date.parse(attempt.started_at)
+      : null;
   const decided = session.timeline.filter(
-    (event) => event.actor_name && placeOf(event)?.[0] === step,
+    (event) =>
+      event.actor_name &&
+      placeOf(event)?.[0] === step &&
+      (since === null || Date.parse(event.at) >= since),
   );
-  if (decided.length === 0) return null;
+  const askedAgain =
+    step === "changes" && since !== null
+      ? session.timeline.findLast(
+          (event) =>
+            event.action === "improvement.continuation_confirmed" &&
+            event.actor_name &&
+            Math.abs(Date.parse(event.at) - since) < SAME_REQUEST_MS,
+        )
+      : undefined;
+  if (decided.length === 0 && !askedAgain) return null;
   return (
     <section className="space-y-1 text-sm" aria-label={t("title")}>
       <h3 className="text-muted-foreground text-xs font-medium">{t("title")}</h3>
       <ul className="text-muted-foreground space-y-1">
+        {askedAgain && (
+          <li>
+            {t("askedAgain", {
+              name: askedAgain.actor_name!,
+              at: new Date(askedAgain.at).toLocaleString(locale),
+              noted: attempt?.note ? "yes" : "no",
+              note: attempt?.note ?? "",
+            })}
+          </li>
+        )}
         {decided.map((event, index) => (
           <li key={`${event.action}:${event.at}:${index}`}>
             {t(placeOf(event)![1], {

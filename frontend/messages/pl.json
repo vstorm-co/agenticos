@@ -11172,7 +11172,8 @@
       "accepted": "{name} zachował(a) zmiany w wersji roboczej · {at}",
       "published": "{name} opublikował(a) nową wersję · {at}",
       "nextStepPropose": "{name} zlecił(a) napisanie zmian · {at}",
-      "nextStepCheck": "{name} uruchomił(a) test wybranych zmian · {at}"
+      "nextStepCheck": "{name} uruchomił(a) test wybranych zmian · {at}",
+      "askedAgain": "{name} poprosił(a) o kolejną próbę{noted, select, yes {: „{note}”} other {}} · {at}"
     },
     "widgets": {
       "ofTotal": "{count} z {total}",
@@ -11276,19 +11277,20 @@
         "changes": "Zaznacz zmiany do przetestowania i popraw sformułowania. Następny krok wyceniamy, zanim naciśniesz."
       },
       "pricing": "Wyceniamy następny krok…",
-      "priceMoved": "Cena zmieniła się na ok. {cost}. Naciśnij jeszcze raz, aby przejść dalej.",
+      "priceMoved": "Cena zmieniła się: teraz do {cost}. Naciśnij jeszcze raz, aby przejść dalej.",
       "overLimit": "Następny krok kosztuje więcej, niż zostało w limicie sesji. Podnieś limit, aby przejść dalej.",
       "raise": "Wyceń ponownie",
       "go": {
-        "understand": "Następny krok: napisz zmiany · ok. {cost}",
-        "changes": "Następny krok: przetestuj zaznaczone zmiany · ok. {cost}"
+        "understand": "Następny krok: napisz zmiany · do {cost}",
+        "changes": "Następny krok: przetestuj zaznaczone zmiany · do {cost}"
       },
       "goUnpriced": {
         "understand": "Następny krok: napisz zmiany",
         "changes": "Następny krok: przetestuj zaznaczone zmiany"
       },
       "hintSingle": "W razie potrzeby popraw brzmienie. Następny krok jest wyceniany, zanim go naciśniesz.",
-      "saveWordingFirst": "Najpierw zapisz albo odrzuć nowe brzmienie."
+      "saveWordingFirst": "Najpierw zapisz albo odrzuć nowe brzmienie.",
+      "unmeasurable": "Tej próby nie da się przetestować: po pominięciu pytań, z których pochodzą jej przykłady, potrzeba jeszcze {count, plural, one {# odłożonego pytania} few {# odłożonych pytań} many {# odłożonych pytań} other {# odłożonego pytania}}. Ta sesja zachowuje pytania, z którymi wystartowała, więc dodanie nowych jej nie pomoże: zakończ sesję, dodaj pytania i zacznij nową."
     },
     "waitingFor": {
       "understand": "Czeka na Ciebie: zobacz, co poszło nie tak",
@@ -11340,7 +11342,14 @@
       "ratedDown": "{commented, select, yes {Ktoś ocenił tę odpowiedź negatywnie i napisał: „{comment}”} other {Ktoś ocenił tę odpowiedź negatywnie, bez komentarza.}}",
       "ratedUp": "Ktoś ocenił tę odpowiedź pozytywnie.",
       "runFailed": "Agent nie dokończył tej odpowiedzi."
-    }
+    },
+    "endSession": {
+      "action": "Zakończ sesję",
+      "title": "Zakończyć tę sesję?",
+      "body": "Zostanie w historii agenta, a w agencie nic się nie zmieni. Potem możesz zacząć nową sesję.",
+      "confirm": "Zakończ"
+    },
+    "freshAttempt": "Każda próba zaczyna od bieżącej wersji; zmiany z wcześniejszych prób nie są przenoszone."
   },
   "unsaved": {
     "title": "Masz niezapisane zmiany",

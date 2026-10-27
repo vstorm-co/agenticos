@@ -11,7 +11,7 @@ import { usd } from "@/components/evals/format";
 import { ChangeSelection } from "./change-selection";
 import { useAgent } from "@/hooks/use-agents";
 import { useAgentAuthoring } from "@/hooks/use-authoring";
-import { useImprovement, useImprovementChanges } from "@/hooks/use-improvements";
+import { useAttemptChanges, useImprovement } from "@/hooks/use-improvements";
 import { useUrlState } from "@/hooks/use-url-state";
 import { usePermissions } from "@/hooks/use-permissions";
 import { getErrorMessage } from "@/lib/api-error";
@@ -27,6 +27,7 @@ import { AttemptChanges } from "./attempt-changes";
 import { AttemptHistory } from "./attempt-history";
 import { CheckProgress } from "./check-progress";
 import { TriedChanges } from "./tried-changes";
+import { EndSession } from "./end-session";
 import { NextStep } from "./next-step";
 import { StepDecisions } from "./step-decisions";
 import { AcceptSummary, GuardNote, KnowledgeDocuments } from "./outcome";
@@ -139,7 +140,9 @@ function Session({
   );
   const [wordingOpen, setWordingOpen] = useState(false);
   const atChanges = actions.session ? stopOf(actions.session) === "changes" : false;
-  const proposed = useImprovementChanges(agentId, sessionId, { enabled: atChanges });
+  const proposed = useAttemptChanges(agentId, sessionId, actions.session?.iteration ?? 1, {
+    enabled: atChanges,
+  });
   async function act(action: () => Promise<void>) {
     setError(null);
     try {
@@ -258,6 +261,9 @@ function Session({
                   <h2 className="font-medium">
                     {t("round", { number: session.iteration, max: session.max_iterations })}
                   </h2>
+                  {session.iteration > 1 && (
+                    <p className="text-muted-foreground text-sm">{t("freshAttempt")}</p>
+                  )}
                   <AttemptChanges
                     session={session}
                     editable={!readOnly}
@@ -456,7 +462,9 @@ function Session({
             <NextStep
               session={session}
               hint={
-                step === "changes" && proposed.changes.length === 1
+                step === "changes" &&
+                proposed.changes.filter((hunk) => !attempt?.dropped_hunk_ids.includes(hunk.id))
+                  .length === 1
                   ? t("nextUp.hintSingle")
                   : undefined
               }
@@ -521,6 +529,10 @@ function Session({
               {t("stopAction")}
             </Button>
           )}
+          {readOnly === null &&
+            ["waiting", "ready", "stopped"].includes(session.status) &&
+            step !== "result" &&
+            session.stop_reason !== "budget" && <EndSession session={session} />}
           <Link className="text-sm underline" href={`/agents/${agentId}`}>
             {t("close")}
           </Link>

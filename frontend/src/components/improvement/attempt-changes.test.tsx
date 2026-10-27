@@ -15,7 +15,7 @@ const state = vi.hoisted(() => ({
   edit: vi.fn(),
 }));
 vi.mock("@/hooks/use-improvements", () => ({
-  useImprovementChanges: () => ({
+  useAttemptChanges: () => ({
     changes: state.changes,
     isLoading: state.isLoading,
     error: state.error,
@@ -100,6 +100,20 @@ it("keeps the wording open and says why when it could not be saved, and can canc
   expect(screen.getByRole("button", { name: "Save the wording" })).toBeDisabled();
   await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
   expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+});
+
+it("leaves out a change that did not fit the current instructions", () => {
+  render(
+    <AttemptChanges
+      session={{
+        ...atStop(["h1"]),
+        iterations: [{ ...atStop(["h1"]).iterations[0]!, dropped_hunk_ids: ["h2"] }],
+      }}
+      editable
+    />,
+  );
+  expect(screen.getByText("This change will be tested.")).toBeInTheDocument();
+  expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
 });
 
 it("only shows the changes while they are checked", () => {

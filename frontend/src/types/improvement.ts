@@ -59,6 +59,8 @@ export interface ImprovementIteration {
   eval_run_ids: string[];
   candidate_spec_hash: string | null;
   included_hunk_ids?: string[] | null;
+  /** What the person who asked for this attempt told its helper. */
+  note?: string | null;
   previous_eval_run_ids?: string[];
   attribution_eval_run_ids: Record<string, string>;
   dropped_hunk_ids: string[];
