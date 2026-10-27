@@ -1,8 +1,8 @@
 "use client";
 
-import { createContext, useContext, useEffect, useId, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 
-import { ArrowUpRight, Globe, Maximize2, Monitor, X } from "lucide-react";
+import { ArrowUpRight, Globe, Maximize2, Monitor, Play, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { useShell } from "@/hooks/use-shell";
@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { useBrowserPanelStore } from "@/stores/browser-panel-store";
 import type { ToolCall } from "@/types";
 import type { PageComment } from "./browser-comment";
+import { BrowserTabs } from "./browser-tabs";
 import { BrowserWindow, hostOf } from "./browser-window";
 
 /** The browses running in this chat, and where a comment on one of their pages goes. */
@@ -143,7 +144,7 @@ function InlineBrowser({
     <div
       className={cn(
         "border-border bg-background w-full min-w-0 overflow-hidden rounded-2xl border shadow-sm",
-        docked ? "h-[min(32dvh,320px)]" : "aspect-[16/11]",
+        docked ? "h-[min(32dvh,320px)] rounded-none border-0 shadow-none" : "aspect-[16/11]",
       )}
     >
       {browse.nativeId ? (
@@ -220,75 +221,30 @@ export function BrowserDock({
   const openCallId = useBrowserPanelStore((state) => state.openCallId);
   const open = useBrowserPanelStore((state) => state.open);
   const shell = useShell();
-  const panelId = useId();
   const newest = tabs.at(-1);
   useEffect(() => {
     if (newest?.nativeId && isRunning(newest) && isDesktopShell(shell) && shell.window === "main")
       open(newest.callId);
   }, [newest?.callId, newest?.nativeId, newest?.outcome, shell, open]);
-  const selectTab = (tab: Browse) => {
-    setSelection({ callId: tab.callId, latest });
-    if (openCallId) open(tab.callId);
-  };
+  const selectTab = (tab: Browse) => setSelection({ callId: tab.callId, latest });
   const active =
     tabs.find(
       (tab) =>
         tab.callId === (selection && selection.latest === latest ? selection.callId : latest),
     ) ?? tabs.at(-1);
-  if (!active || hidden === latest) return null;
+  if (!active || hidden === latest || browses.some((browse) => browse.callId === openCallId))
+    return null;
   return (
     <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4">
-      <div className="bg-background rounded-2xl border p-1 shadow-sm">
-        <div className="flex items-center gap-1">
-          <div
-            className="flex min-w-0 flex-1 overflow-x-auto"
-            role="tablist"
-            tabIndex={-1}
-            aria-label={t("browserHeading")}
-            onKeyDown={(event) => {
-              if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-              event.preventDefault();
-              const current = tabs.findIndex((tab) => tab.callId === active.callId);
-              const index =
-                event.key === "Home"
-                  ? 0
-                  : event.key === "End"
-                    ? tabs.length - 1
-                    : (current + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
-              const tab = tabs[index];
-              if (tab) selectTab(tab);
-              event.currentTarget
-                .querySelectorAll<HTMLButtonElement>('[role="tab"]')
-                [index]?.focus();
-            }}
-          >
-            {tabs.map((tab) => (
-              <button
-                type="button"
-                role="tab"
-                aria-selected={tab.callId === active.callId}
-                key={tab.callId}
-                onClick={() => selectTab(tab)}
-                tabIndex={tab.callId === active.callId ? 0 : -1}
-                aria-controls={!openCallId ? panelId : undefined}
-                className={cn(
-                  "flex max-w-48 min-w-0 shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-xs",
-                  tab.callId === active.callId && "bg-muted",
-                )}
-              >
-                <Globe className="size-3.5 shrink-0" aria-hidden />
-                <span className="truncate">
-                  {tab.title || hostOf(tab.url) || t("browserHeading")}
-                </span>
-              </button>
-            ))}
-          </div>
+      <div className="bg-background overflow-hidden rounded-xl border shadow-sm">
+        <BrowserTabs tabs={tabs} selected={active.callId} onSelect={selectTab}>
           {active.outcome && active.resumable && !active.nativeId && (
             <button
               type="button"
               onClick={onResume}
-              className="hover:bg-muted rounded-lg px-3 py-2 text-xs"
+              className="text-muted-foreground hover:text-foreground hover:bg-muted flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-2 text-xs"
             >
+              <Play className="size-3" aria-hidden />
               {t("browserResume")}
             </button>
           )}
@@ -300,12 +256,10 @@ export function BrowserDock({
           >
             <X className="size-3.5" aria-hidden />
           </button>
+        </BrowserTabs>
+        <div role="tabpanel" aria-label={active.title || t("browserHeading")}>
+          <InlineBrowser key={active.callId} browse={active} onComment={onComment} docked />
         </div>
-        {!openCallId && (
-          <div id={panelId} role="tabpanel" aria-label={active.title || t("browserHeading")}>
-            <InlineBrowser key={active.callId} browse={active} onComment={onComment} docked />
-          </div>
-        )}
       </div>
     </div>
   );

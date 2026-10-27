@@ -1748,7 +1748,7 @@
     "browserCommentMessage": "Auf {url} - die im Bild markierte Stelle: {note}",
     "browserGoal": "Ziel",
     "browserWaitingForFrame": "Warte auf die erste Ansicht der Seite…",
-    "browserNoPreview": "Dieser Agent läuft ohne Live-Vorschau.",
+    "browserNoPreview": "Für diese Seite ist keine gespeicherte Vorschau verfügbar.",
     "browserOutcome": {
       "done": "Abgeschlossen",
       "blocked": "Von der Seite blockiert",

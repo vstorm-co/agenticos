@@ -173,3 +173,15 @@ it("expands and docks the same remote browse without closing it", async () => {
   expect(panel).toHaveAttribute("data-browser-panel", "docked");
   expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
 });
+
+it("switches pages from the side panel tab strip without keeping a duplicate preview", async () => {
+  const tabs = [
+    browse({ navigable: true }),
+    browse({ callId: "c2", navigable: true, title: "Docs" }),
+  ];
+  useBrowserPanelStore.getState().open("c1");
+  render(<BrowserPanel browses={tabs} />);
+  await userEvent.click(screen.getByRole("tab", { name: "Docs" }));
+  expect(useBrowserPanelStore.getState().openCallId).toBe("c2");
+  expect(screen.getByRole("tab", { name: "Docs" })).toHaveAttribute("aria-selected", "true");
+});

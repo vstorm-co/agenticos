@@ -1748,7 +1748,7 @@
     "browserCommentMessage": "Na {url} - miejsce zaznaczone na obrazku: {note}",
     "browserGoal": "Cel",
     "browserWaitingForFrame": "Czekam na pierwszy widok strony…",
-    "browserNoPreview": "Ten agent działa bez podglądu na żywo.",
+    "browserNoPreview": "Brak zapisanego podglądu tej strony.",
     "browserOutcome": {
       "done": "Zakończone",
       "blocked": "Strona zablokowała działanie",

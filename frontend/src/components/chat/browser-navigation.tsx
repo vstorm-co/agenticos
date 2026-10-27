@@ -44,7 +44,7 @@ export function BrowserNavigation({
   const [invalid, setInvalid] = useState(false);
   return (
     <form
-      className="flex min-w-0 flex-1 basis-full items-center gap-1 md:basis-auto"
+      className="flex min-w-0 flex-1 items-center gap-0.5"
       title={!holding ? t("browserNavigationHint") : undefined}
       onSubmit={(event) => {
         event.preventDefault();
@@ -88,7 +88,7 @@ export function BrowserNavigation({
         autoComplete="off"
         spellCheck={false}
         readOnly={!holding}
-        className="bg-muted/80 h-8 min-w-0 flex-1 rounded-lg px-2.5 text-sm"
+        className="bg-muted/70 focus-visible:ring-ring/30 focus-visible:border-border h-8 min-w-0 flex-1 rounded-lg border border-transparent px-2.5 text-base outline-none focus-visible:ring-2 @min-[480px]/browser-window:text-sm"
         value={holding ? (draft ?? url ?? "") : (url ?? "")}
         onChange={(event) => {
           setDraft(event.target.value);

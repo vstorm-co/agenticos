@@ -66,7 +66,7 @@ describe("BrowserWindow - the agent's browser, drawn as a browser", () => {
     expect(screen.getByText(/Waiting for the first view/)).toBeInTheDocument();
 
     rerender(<BrowserWindow browse={browse({ image: null, outcome: "done" })} control={null} />);
-    expect(screen.getByText(/without a live preview/)).toBeInTheDocument();
+    expect(screen.getByText(/No saved preview/)).toBeInTheDocument();
     expect(screen.queryByText("Live")).toBeNull();
   });
 

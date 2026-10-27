@@ -245,22 +245,12 @@ it("keeps one bottom preview per tab, follows new tabs and offers explicit resum
   expect(screen.queryByRole("tablist")).toBeNull();
 });
 
-it("switches a docked side panel and supports keyboard tab selection", async () => {
-  const tabs = [
-    browse({ navigable: true }),
-    browse({ callId: "c2", navigable: true, title: "Docs" }),
-  ];
-  useBrowserPanelStore.getState().open("c2");
-  render(<BrowserDock browses={tabs} onResume={vi.fn()} />);
-  await userEvent.click(screen.getByRole("tab", { name: "Pricing" }));
-  expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
-  await userEvent.keyboard("{ArrowRight}");
-  expect(screen.getByRole("tab", { name: "Docs" })).toHaveFocus();
-  expect(useBrowserPanelStore.getState().openCallId).toBe("c2");
-  await userEvent.keyboard("{Home}");
-  expect(screen.getByRole("tab", { name: "Pricing" })).toHaveFocus();
-  await userEvent.keyboard("{End}{ArrowLeft}");
-  expect(screen.getByRole("tab", { name: "Pricing" })).toHaveFocus();
+it("hides the compact preview while its browser is open beside the chat", () => {
+  useBrowserPanelStore.getState().open("c1");
+  const { container } = render(
+    <BrowserDock browses={[browse({ navigable: true })]} onResume={vi.fn()} />,
+  );
+  expect(container).toBeEmptyDOMElement();
 });
 
 it("does not reopen a native panel when the user hides it during a run", () => {

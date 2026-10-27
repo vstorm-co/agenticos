@@ -8,9 +8,16 @@ import { isDesktopShell } from "@/lib/desktop/shell";
 import { NativeBrowser } from "./native-browser";
 import { BrowserPanelFrame } from "./browser-panel-frame";
 import { useLiveBrowse } from "@/hooks/use-live-browse";
-import { browseById, isRunning, withLivePreview, type Browse } from "@/lib/browse";
+import {
+  browseById,
+  isRunning,
+  latestBrowserTabs,
+  withLivePreview,
+  type Browse,
+} from "@/lib/browse";
 import { useBrowserPanelStore } from "@/stores/browser-panel-store";
 import type { PageComment } from "./browser-comment";
+import { BrowserTabs } from "./browser-tabs";
 import { BrowserWindow } from "./browser-window";
 
 /** One selected browse beside the chat, or full screen when space is limited. */
@@ -30,19 +37,27 @@ export function BrowserPanel({
   // Mounted only with something to show, so a conversation that is not
   // browsing opens no live view and holds no socket for one.
   return streamed === null ? null : (
-    <OpenBrowser key={streamed.callId} streamed={streamed} onComment={onComment} />
+    <OpenBrowser
+      key={streamed.callId}
+      streamed={streamed}
+      tabs={latestBrowserTabs(browses)}
+      onComment={onComment}
+    />
   );
 }
 
 /** A stable selected browse; changing layout keeps its socket and native page mounted. */
 function OpenBrowser({
   streamed,
+  tabs,
   onComment,
 }: {
   streamed: Browse;
+  tabs: Browse[];
   onComment?: (comment: PageComment) => void;
 }) {
   const close = useBrowserPanelStore((state) => state.close);
+  const open = useBrowserPanelStore((state) => state.open);
   const shell = useShell();
   const t = useTranslations("browse");
   const chat = useTranslations("chat");
@@ -66,41 +81,57 @@ function OpenBrowser({
   return (
     <BrowserPanelFrame>
       {({ fullscreen, toggleFullscreen }) => {
-        if (browse.nativeId && isDesktopShell(shell) && shell.window === "main")
+        const content = (() => {
+          if (browse.nativeId && isDesktopShell(shell) && shell.window === "main")
+            return (
+              <NativeBrowser
+                id={browse.nativeId}
+                onClose={close}
+                fullscreen={fullscreen}
+                onToggleFullscreen={toggleFullscreen}
+              />
+            );
+          if (browse.nativeId)
+            return (
+              <div className="flex h-full flex-col items-center justify-center gap-4 p-6">
+                <p>{t("nativeDesktopOnly")}</p>
+                <button type="button" onClick={close}>
+                  {chat("browserClose")}
+                </button>
+              </div>
+            );
           return (
-            <NativeBrowser
-              id={browse.nativeId}
+            <BrowserWindow
+              key={streamed.callId}
+              waitForFit
+              browse={browse}
+              control={
+                mine && live.status === "live"
+                  ? { canControl: live.canControl, canRemember: live.canRemember, send: live.send }
+                  : null
+              }
+              maximized={fullscreen}
+              onMaximize={toggleFullscreen}
+              maximizeLabel={chat(fullscreen ? "browserDock" : "browserMaximize")}
               onClose={close}
-              fullscreen={fullscreen}
-              onToggleFullscreen={toggleFullscreen}
+              newTabHref={
+                streamed.runId ? `/browse/${streamed.runId}/${streamed.callId}` : undefined
+              }
+              onComment={onComment}
             />
           );
-        if (browse.nativeId)
-          return (
-            <div className="flex h-full flex-col items-center justify-center gap-4 p-6">
-              <p>{t("nativeDesktopOnly")}</p>
-              <button type="button" onClick={close}>
-                {chat("browserClose")}
-              </button>
-            </div>
-          );
+        })();
         return (
-          <BrowserWindow
-            key={streamed.callId}
-            waitForFit
-            browse={browse}
-            control={
-              mine && live.status === "live"
-                ? { canControl: live.canControl, canRemember: live.canRemember, send: live.send }
-                : null
-            }
-            maximized={fullscreen}
-            onMaximize={toggleFullscreen}
-            maximizeLabel={chat(fullscreen ? "browserDock" : "browserMaximize")}
-            onClose={close}
-            newTabHref={streamed.runId ? `/browse/${streamed.runId}/${streamed.callId}` : undefined}
-            onComment={onComment}
-          />
+          <>
+            {tabs.length > 0 && (
+              <BrowserTabs
+                tabs={tabs}
+                selected={streamed.callId}
+                onSelect={(tab) => open(tab.callId)}
+              />
+            )}
+            <div className="min-h-0 flex-1">{content}</div>
+          </>
         );
       }}
     </BrowserPanelFrame>
