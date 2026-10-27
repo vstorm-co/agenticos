@@ -235,10 +235,10 @@ it("keeps the knowledge verdict separate even after the draft disappears", () =>
     "/agents/a1/evals/k1",
   );
 });
-it("says there is nothing to test once what the session found missing was added", () => {
+it("says there is nothing more to test once what the session found missing was added", () => {
   state.topics = false;
   state.added = [{ id: "t8" }, { id: "t9" }];
-  render(<KnowledgeDrafts session={SESSION} />);
+  render(<KnowledgeDrafts session={{ ...SESSION, knowledge_eval_run_ids: ["k1"] }} />);
   expect(
     screen.getByText(
       "Nothing to test: the 2 topics this session found missing have since been added to the knowledge base.",

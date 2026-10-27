@@ -13,7 +13,7 @@ const state = vi.hoisted(() => ({
 }));
 vi.mock("./outcome", () => ({
   DOCUMENTS_ANCHOR: "improvement-documents",
-  useSessionTopics: () => ({ topics: state.topics }),
+  useSessionTopics: () => ({ topics: state.topics, added: [] }),
   ResultSummary: () => <p>Counters</p>,
   KnowledgeDocuments: () => <p>Topic list</p>,
 }));
