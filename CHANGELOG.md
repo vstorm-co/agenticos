@@ -26,7 +26,9 @@ Two things are versioned separately from this file and worth knowing about:
   through `exo-open`. An ambiguous or unknown name is answered
   with the installed names. The computerd container opens it as the desktop's
   account, never the one holding the token. The agent is also told to wait after
-  a launch or a shortcut that opens a window before typing into it.
+  a launch or a shortcut that opens a window before typing into it. What a run
+  launched is quit when it ends, unsaved work included, unless it was already
+  running or the agent set `keep_open` because the person asked to keep it.
 
 - Browser connection cards with icons, independent per-chat desktop browser
   overrides, a preview anchored above the composer, and tools for up to eight tabs.

@@ -1,5 +1,5 @@
 ---
-source_sha: "6fca2b3a3519"
+source_sha: "cb3ede8a7aca"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -979,6 +979,16 @@ computerd la aplicación se ejecuta como `desk`, no como la cuenta que guarda el
 token. El ordenador de la propia persona, al que se llega por la app de
 escritorio, todavía no lo admite: al modelo se le indica que use el lanzador de
 ese ordenador.
+
+**Cerrarla otra vez.** Lo que un run abrió se cierra cuando el run termina,
+incluido el trabajo sin guardar. Una aplicación que ya estaba abierta sigue
+abierta, y también una abierta con `keep_open`, que el modelo pone solo cuando
+la persona pidió que la aplicación siguiera abierta. Un run que espera
+aprobación no ha terminado: el run que lo reanuda cierra la aplicación cuando
+termina. En Linux un `launch` se ejecuta en una sesión propia y cerrarla
+termina esa sesión, así que una ventana que abrió una instancia que ya estaba
+en marcha sigue abierta. En un Mac es `quit saving no`. Un escritorio de E2B se
+destruye con el run, así que allí no se cierra nada.
 
 La tool `execute` no hace falta, y dejarla fuera mantiene las acciones del
 escritorio detrás de `computer_act` y de su aprobación: con `execute`, el agent

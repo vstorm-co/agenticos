@@ -21,6 +21,8 @@ def rig(
     desktop = MagicMock(
         capture=AsyncMock(return_value=module.Capture(image=b"frame", width=800, height=600)),
         perform=AsyncMock(),
+        launch=AsyncMock(return_value="4242"),
+        quit=AsyncMock(),
     )
     opening = AsyncMock(return_value=desktop)
     factory = MagicMock(return_value=provider)
@@ -42,6 +44,11 @@ async def test_the_desktop_uses_the_tenants_key_and_releases_its_session(
     action = Wait(seconds=1)
     await computer.perform(action)
     desktop.perform.assert_awaited_once_with(action)
+    # Opened, but nothing for the run to quit: the sandbox is killed with it.
+    assert await computer.launch("Firefox") is None
+    desktop.launch.assert_awaited_once_with("Firefox")
+    await computer.quit("4242")
+    desktop.quit.assert_awaited_once_with("4242")
     await computer.close()
     provider.destroy.assert_awaited_once_with(workspace.ref)
 

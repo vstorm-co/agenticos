@@ -106,6 +106,13 @@ class Launch(_Action):
             "before typing into it."
         ),
     )
+    keep_open: bool = Field(
+        default=False,
+        description=(
+            "Leave it open when the run ends. Only when the user asked for that: otherwise "
+            "it is quit once you finish, and anything unsaved in it is discarded."
+        ),
+    )
 
 
 class Wait(_Action):
@@ -155,7 +162,7 @@ def points_of(action: AnyAction) -> list[tuple[int, int]]:
     return []
 
 
-def to_native(action: AnyAction, screen: Screen) -> AnyAction:
+def to_native[A: AnyAction](action: A, screen: Screen) -> A:
     """The same action, with every point moved into the backend's input space."""
     if isinstance(action, Drag):
         x, y = screen.to_native(action.x, action.y)
@@ -191,6 +198,6 @@ def describe(action: AnyAction) -> tuple[str, str]:
         case Key():
             return "KEY", action.keys
         case Launch():
-            return "LAUNCH", action.app
+            return "LAUNCH", f"{action.app} (kept open)" if action.keep_open else action.app
         case _:
             return "WAIT", f"{action.seconds:g}s"

@@ -1,5 +1,5 @@
 ---
-source_sha: "6fca2b3a3519"
+source_sha: "cb3ede8a7aca"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -962,6 +962,16 @@ argumenty. W kontenerze computerd aplikacja działa jako `desk`, a nie jako
 konto, które trzyma token. Własny komputer użytkownika, osiągany przez
 aplikację desktopową, jeszcze tego nie obsługuje: model dostaje wskazówkę, żeby
 użył launchera tego komputera.
+
+**Zamykanie.** To, co run uruchomił, jest zamykane, gdy run się kończy, razem
+z niezapisaną pracą. Aplikacja, która już działała, zostaje otwarta, podobnie
+jak ta uruchomiona z `keep_open`, który model ustawia tylko wtedy, gdy
+użytkownik poprosił, żeby aplikacja została otwarta. Run, który czeka na
+akceptację, jeszcze się nie skończył: aplikację zamyka run, który go wznawia,
+kiedy sam się kończy. Na Linuksie `launch` działa we własnej sesji, a
+zamknięcie kończy tę sesję, więc okno otwarte przez instancję, która już
+działała, zostaje. Na Macu to `quit saving no`. Desktop E2B jest zabijany razem
+z runem, więc tam nic nie jest zamykane.
 
 Narzędzie `execute` nie jest potrzebne, a jego wyłączenie trzyma akcje na
 pulpicie za `computer_act` i jego akceptacją: z `execute` agent może uruchomić
