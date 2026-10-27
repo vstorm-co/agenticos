@@ -158,6 +158,9 @@ async def test_regression_starts_a_blind_second_round_and_best_is_selectable(db)
     assert [item.verdict for item in ready.iterations] == ["regression", "better"]
     assert ready.best_iteration_id == ready.iterations[1].id
     assert "KEEP_THE_REFUND_WINDOW_NOTE" in "\n".join(second.prompts)
+    assert "Read the note as a list of separate requests. Answer every one" in "\n".join(
+        second.prompts
+    )
     assert "KEEP_THE_REFUND_WINDOW_NOTE" not in "\n".join(first.prompts)
     assert [item.note for item in ready.iterations] == [None, "KEEP_THE_REFUND_WINDOW_NOTE"]
     # The first attempt learns from the stored partition; the second draws its own.

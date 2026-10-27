@@ -209,6 +209,13 @@ def _config_diff(published: AgentSpec, draft: AgentSpec) -> str:
     )
 
 
+_NOTE_RULE = (
+    "Read the note as a list of separate requests. Answer every one: make a change for "
+    "it, or say in a change's rationale which request you left out and why - never drop "
+    "one silently. Weigh each beside what the runs show; the note itself is not evidence."
+)
+
+
 def _improve_prompt(
     name: str,
     spec: AgentSpec,
@@ -220,7 +227,7 @@ def _improve_prompt(
     tools = _tool_lines(spec)
     asked = (
         "\n\n# What the person who asked for this attempt wants you to keep in mind\n"
-        f"<note>\n{note}\n</note>\nWeigh it beside what the runs show; it is not evidence."
+        f"<note>\n{note}\n</note>\n{_NOTE_RULE}"
         if note
         else ""
     )
