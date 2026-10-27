@@ -2964,6 +2964,20 @@
         "contextChanges": "Context file · {count, plural, =1 {1 change} other {# changes}}",
         "newSkills": "{count, plural, =1 {1 new skill proposed} other {# new skills proposed}}",
         "skills": "{count, plural, =1 {1 skill change} other {# skill changes}} to review"
+      },
+      "improvements-waiting": {
+        "title": "Improvements waiting for you",
+        "description": "Improvement sessions stopped for your next step or decision.",
+        "empty": {
+          "title": "Nothing waiting",
+          "description": "An improvement stops here after it reads what went wrong, after it writes changes and when its result is ready."
+        },
+        "open": "Open",
+        "what": {
+          "understand": "Look at what went wrong",
+          "changes": "Review the changes",
+          "result": "Review the result"
+        }
       }
     },
     "edit": {
@@ -4213,7 +4227,7 @@
       },
       "first-improvement": {
         "title": "Improve",
-        "body": "We’ll read what went wrong, propose changes and test them on separate questions. Nothing goes live until you accept and publish it."
+        "body": "We’ll read what went wrong, then stop for you to look. Writing changes and testing them each wait for you to press Next step, and each is priced first. Nothing goes live until you accept and publish it."
       },
       "improvement-session": {
         "title": "Walk through this session",
@@ -4988,7 +5002,7 @@
       },
       "improvement-start": {
         "title": "Improve",
-        "body": "We read what went wrong, propose changes, test them on real questions and show what got better or worse. Nothing goes live until you accept it."
+        "body": "We read what went wrong and stop for you to look. You press Next step to write changes, and again to test them; each step is priced before you press. Nothing goes live until you accept it."
       },
       "improvement-questions": {
         "title": "Test questions",
@@ -5020,7 +5034,7 @@
       },
       "flow-improvement-start": {
         "title": "Improve",
-        "body": "We read what went wrong, propose changes, test them on real questions and show what got better or worse. Nothing goes live until you accept it."
+        "body": "We read what went wrong and stop for you to look. You press Next step to write changes, and again to test them; each step is priced before you press. Nothing goes live until you accept it."
       },
       "flow-improvement-questions": {
         "title": "Test questions",
@@ -5081,6 +5095,46 @@
       "flow-improvement-check": {
         "title": "Check",
         "body": "Today's version and the changed one answer the same questions in one test. Each bar shows how far each has got, and the result opens once the test is done."
+      },
+      "improvement-question-set": {
+        "title": "Test questions",
+        "body": "The questions this session will test on: where they come from, and how many help write the changes against how many are kept aside to check them."
+      },
+      "flow-improvement-question-set": {
+        "title": "Test questions",
+        "body": "The questions this session will test on: where they come from, and how many help write the changes against how many are kept aside to check them."
+      },
+      "improvement-understand": {
+        "title": "Understand",
+        "body": "What went wrong, sorted into what the agent can fix and what the knowledge base is missing. The session stops here for you to look; ignore anything that should not count."
+      },
+      "flow-improvement-understand": {
+        "title": "Understand",
+        "body": "What went wrong, sorted into what the agent can fix and what the knowledge base is missing. The session stops here for you to look; ignore anything that should not count."
+      },
+      "improvement-changes": {
+        "title": "Changes",
+        "body": "The changes the helper wrote. The session stops here: tick the ones to test and correct any wording before they are tested."
+      },
+      "flow-improvement-changes": {
+        "title": "Changes",
+        "body": "The changes the helper wrote. The session stops here: tick the ones to test and correct any wording before they are tested."
+      },
+      "improvement-next-step": {
+        "title": "Next step",
+        "body": "Each stop ends here: what the next step does and what it costs. Nothing is spent until you press it."
+      },
+      "flow-improvement-next-step": {
+        "title": "Next step",
+        "body": "Each stop ends here: what the next step does and what it costs. Nothing is spent until you press it."
+      },
+      "improvement-steps": {
+        "title": "Steps",
+        "body": "Five steps. The session stops after Understand and after Changes for you to look and press Next step; a step opens once it has something to show."
+      },
+      "flow-improvement-steps": {
+        "title": "Steps",
+        "body": "Five steps. The session stops after Understand and after Changes for you to look and press Next step; a step opens once it has something to show."
       }
     },
     "chooseLanguage": "Language",
@@ -7676,7 +7730,11 @@
       "improvement": {
         "ready": "Your improvement of {agent} is ready to review.",
         "stopped": "Your improvement of {agent} stopped.",
-        "failed": "Your improvement of {agent} could not finish."
+        "failed": "Your improvement of {agent} could not finish.",
+        "waiting": {
+          "understand": "The analysis for {agent} is ready: look at what went wrong, then press Next step.",
+          "changes": "The changes for {agent} are ready to review, then press Next step to test them."
+        }
       },
       "test": {
         "completed": "Your test finished.",
@@ -10992,7 +11050,7 @@
     "editQuestions": "Open the question set",
     "title": "Improve {name}",
     "heading": "Improve",
-    "intro": "We’ll read what went wrong, propose changes and test them on separate questions. Nothing goes live until you accept and publish it.",
+    "intro": "We’ll read what went wrong, then stop for you to look. Writing changes and testing them each wait for you to press Next step, and each is priced first. Nothing goes live until you accept and publish it.",
     "testSet": "Test questions",
     "chooseQuestions": "Choose test questions",
     "writeQuestions": "Write test questions for me",
@@ -11032,7 +11090,7 @@
     "retryRead": "Try reading again",
     "stepsLabel": "Improvement steps",
     "spend": "{spent} of {budget}",
-    "changesWorking": "We are preparing changes. You can close this page and return later.",
+    "changesWorking": "Writing the changes. You can close this page — we’ll let you know when they are ready to review.",
     "background": "Testing in the background. You can close this page — we’ll let you know when it is ready.",
     "automatic": "Check these questions automatically on every change",
     "confirmation": "I have reviewed the selected changes and want to apply them.",
@@ -11107,7 +11165,8 @@
       "stale": "The starting point changed",
       "accepted": "Kept as draft",
       "published": "Published",
-      "rejected": "Discarded"
+      "rejected": "Discarded",
+      "waiting": "Waiting for you"
     },
     "stop": {
       "no_data": "Add more test questions or feedback before improving.",
@@ -11403,7 +11462,32 @@
     "todayNoisyCriteria": "Make the grading criteria yes/no questions",
     "todayNoisyCriteriaHint": "Phrase each criterion as a yes/no question - the judge grades those most consistently.",
     "todayNoisyModel": "Choose the grading model",
-    "todayAgain": "Test again"
+    "todayAgain": "Test again",
+    "nextUp": {
+      "label": "Next step",
+      "hint": {
+        "understand": "Look at what went wrong and ignore anything that should not count. The next step is priced before you press.",
+        "changes": "Tick the changes to test and correct any wording. The next step is priced before you press."
+      },
+      "pricing": "Pricing the next step…",
+      "priceMoved": "The price changed to about {cost}. Press again to go on.",
+      "overLimit": "The next step costs more than this session has left. Raise the limit to go on.",
+      "raise": "Price it again",
+      "go": {
+        "understand": "Next step: write the changes · about {cost}",
+        "changes": "Next step: test the selected changes · about {cost}"
+      },
+      "goUnpriced": {
+        "understand": "Next step: write the changes",
+        "changes": "Next step: test the selected changes"
+      }
+    },
+    "waitingFor": {
+      "understand": "Waiting for you: look at what went wrong",
+      "changes": "Waiting for you: review the changes"
+    },
+    "helperNote": "Note for the helper (optional)",
+    "helperNoteHint": "Say what to try differently, for example which answers matter most. Up to 2,000 characters."
   },
   "unsaved": {
     "title": "You have unsaved changes",

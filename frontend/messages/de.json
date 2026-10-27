@@ -2964,6 +2964,20 @@
         "contextChanges": "Kontextdatei · {count, plural, =1 {1 Änderung} other {# Änderungen}}",
         "newSkills": "{count, plural, =1 {1 neuer Skill vorgeschlagen} other {# neue Skills vorgeschlagen}}",
         "skills": "{count, plural, =1 {1 Skill-Änderung} other {# Skill-Änderungen}} zu prüfen"
+      },
+      "improvements-waiting": {
+        "title": "Verbesserungen, die auf Sie warten",
+        "description": "Verbesserungssitzungen, die für Ihren nächsten Schritt oder Ihre Entscheidung angehalten haben.",
+        "empty": {
+          "title": "Nichts wartet",
+          "description": "Eine Verbesserung hält hier an, nachdem sie gelesen hat, was schiefging, nachdem sie Änderungen geschrieben hat und wenn ihr Ergebnis bereit ist."
+        },
+        "open": "Öffnen",
+        "what": {
+          "understand": "Sehen Sie sich an, was schiefging",
+          "changes": "Prüfen Sie die Änderungen",
+          "result": "Prüfen Sie das Ergebnis"
+        }
       }
     },
     "edit": {
@@ -4095,7 +4109,7 @@
       },
       "first-improvement": {
         "title": "Verbessern",
-        "body": "Wir lesen, was schiefging, schlagen Änderungen vor und prüfen sie mit getrennten Fragen. Erst Ihre Annahme und Veröffentlichung machen die Änderungen wirksam."
+        "body": "Wir lesen, was schiefging, und halten dann an, damit Sie es ansehen. Änderungen schreiben und sie testen warten jeweils, bis Sie Nächster Schritt drücken, und jeder Schritt wird vorher bepreist. Nichts geht live, bevor Sie es annehmen und veröffentlichen."
       },
       "improvement-session": {
         "title": "Diese Sitzung durchgehen",
@@ -4870,7 +4884,7 @@
       },
       "improvement-start": {
         "title": "Verbessern",
-        "body": "Wir lesen, was schiefging, schlagen Änderungen vor, testen sie mit echten Fragen und zeigen, was besser oder schlechter wurde. Nichts geht live, bevor Sie es annehmen."
+        "body": "Wir lesen, was schiefging, und halten an, damit Sie es ansehen. Sie drücken Nächster Schritt, um Änderungen zu schreiben, und noch einmal, um sie zu testen; jeder Schritt wird bepreist, bevor Sie drücken. Nichts geht live, bevor Sie es annehmen."
       },
       "improvement-questions": {
         "title": "Testfragen",
@@ -4902,7 +4916,7 @@
       },
       "flow-improvement-start": {
         "title": "Verbessern",
-        "body": "Wir lesen, was schiefging, schlagen Änderungen vor, testen sie mit echten Fragen und zeigen, was besser oder schlechter wurde. Nichts geht live, bevor Sie es annehmen."
+        "body": "Wir lesen, was schiefging, und halten an, damit Sie es ansehen. Sie drücken Nächster Schritt, um Änderungen zu schreiben, und noch einmal, um sie zu testen; jeder Schritt wird bepreist, bevor Sie drücken. Nichts geht live, bevor Sie es annehmen."
       },
       "flow-improvement-questions": {
         "title": "Testfragen",
@@ -4963,6 +4977,46 @@
       "flow-improvement-check": {
         "title": "Prüfung",
         "body": "Die heutige und die geänderte Fassung beantworten dieselben Fragen in einem Test. Jeder Balken zeigt, wie weit jede ist, und das Ergebnis öffnet sich, sobald der Test fertig ist."
+      },
+      "improvement-question-set": {
+        "title": "Testfragen",
+        "body": "Die Fragen, auf denen diese Sitzung testet: woher sie kommen und wie viele beim Schreiben der Änderungen helfen und wie viele zum Prüfen zurückgelegt werden."
+      },
+      "flow-improvement-question-set": {
+        "title": "Testfragen",
+        "body": "Die Fragen, auf denen diese Sitzung testet: woher sie kommen und wie viele beim Schreiben der Änderungen helfen und wie viele zum Prüfen zurückgelegt werden."
+      },
+      "improvement-understand": {
+        "title": "Verstehen",
+        "body": "Was schiefging, aufgeteilt in das, was sich im Agent beheben lässt, und das, was in der Wissensdatenbank fehlt. Die Sitzung hält hier an, damit Sie es ansehen; ignorieren Sie, was nicht zählen soll."
+      },
+      "flow-improvement-understand": {
+        "title": "Verstehen",
+        "body": "Was schiefging, aufgeteilt in das, was sich im Agent beheben lässt, und das, was in der Wissensdatenbank fehlt. Die Sitzung hält hier an, damit Sie es ansehen; ignorieren Sie, was nicht zählen soll."
+      },
+      "improvement-changes": {
+        "title": "Änderungen",
+        "body": "Die Änderungen, die der Helfer geschrieben hat. Die Sitzung hält hier an: Haken Sie die zu testenden an und korrigieren Sie Formulierungen, bevor sie getestet werden."
+      },
+      "flow-improvement-changes": {
+        "title": "Änderungen",
+        "body": "Die Änderungen, die der Helfer geschrieben hat. Die Sitzung hält hier an: Haken Sie die zu testenden an und korrigieren Sie Formulierungen, bevor sie getestet werden."
+      },
+      "improvement-next-step": {
+        "title": "Nächster Schritt",
+        "body": "Hier endet jeder Halt: was der nächste Schritt tut und was er kostet. Nichts wird ausgegeben, bevor Sie ihn drücken."
+      },
+      "flow-improvement-next-step": {
+        "title": "Nächster Schritt",
+        "body": "Hier endet jeder Halt: was der nächste Schritt tut und was er kostet. Nichts wird ausgegeben, bevor Sie ihn drücken."
+      },
+      "improvement-steps": {
+        "title": "Schritte",
+        "body": "Fünf Schritte. Die Sitzung hält nach Verstehen und nach Änderungen an, damit Sie sie ansehen und Nächster Schritt drücken; ein Schritt öffnet sich, sobald er etwas zu zeigen hat."
+      },
+      "flow-improvement-steps": {
+        "title": "Schritte",
+        "body": "Fünf Schritte. Die Sitzung hält nach Verstehen und nach Änderungen an, damit Sie sie ansehen und Nächster Schritt drücken; ein Schritt öffnet sich, sobald er etwas zu zeigen hat."
       }
     },
     "chooseLanguage": "Sprache",
@@ -7559,7 +7613,11 @@
       "improvement": {
         "ready": "Die Verbesserung von {agent} ist bereit zur Prüfung.",
         "stopped": "Die Verbesserung von {agent} wurde angehalten.",
-        "failed": "Die Verbesserung von {agent} konnte nicht abgeschlossen werden."
+        "failed": "Die Verbesserung von {agent} konnte nicht abgeschlossen werden.",
+        "waiting": {
+          "understand": "Die Analyse für {agent} ist fertig: Sehen Sie sich an, was schiefging, und drücken Sie dann Nächster Schritt.",
+          "changes": "Die Änderungen für {agent} sind bereit zur Prüfung; drücken Sie dann Nächster Schritt, um sie zu testen."
+        }
       },
       "test": {
         "completed": "Ihr Test ist abgeschlossen.",
@@ -10875,7 +10933,7 @@
     "editQuestions": "Fragensammlung öffnen",
     "title": "{name} verbessern",
     "heading": "Verbessern",
-    "intro": "Wir lesen, was schiefging, schlagen Änderungen vor und prüfen sie mit getrennten Fragen. Erst Ihre Annahme und Veröffentlichung machen die Änderungen wirksam.",
+    "intro": "Wir lesen, was schiefging, und halten dann an, damit Sie es ansehen. Änderungen schreiben und sie testen warten jeweils, bis Sie Nächster Schritt drücken, und jeder Schritt wird vorher bepreist. Nichts geht live, bevor Sie es annehmen und veröffentlichen.",
     "testSet": "Testfragen",
     "chooseQuestions": "Testfragen auswählen",
     "writeQuestions": "Testfragen für mich schreiben",
@@ -10915,7 +10973,7 @@
     "retryRead": "Erneut laden",
     "stepsLabel": "Verbesserungsschritte",
     "spend": "{spent} von {budget}",
-    "changesWorking": "Wir bereiten Änderungen vor. Sie können diese Seite schließen und später zurückkehren.",
+    "changesWorking": "Die Änderungen werden geschrieben. Sie können diese Seite schließen — wir melden uns, sobald sie zur Prüfung bereit sind.",
     "background": "Die Prüfung läuft im Hintergrund. Sie können diese Seite schließen — wir benachrichtigen Sie, sobald das Ergebnis vorliegt.",
     "automatic": "Diese Fragen bei jeder Änderung automatisch prüfen",
     "confirmation": "Ich habe die ausgewählten Änderungen geprüft und möchte sie anwenden.",
@@ -10990,7 +11048,8 @@
       "stale": "Ausgangspunkt geändert",
       "accepted": "Als Entwurf behalten",
       "published": "Veröffentlicht",
-      "rejected": "Verworfen"
+      "rejected": "Verworfen",
+      "waiting": "Wartet auf Sie"
     },
     "stop": {
       "no_data": "Fügen Sie vor dem Verbessern weitere Testfragen oder Bewertungen hinzu.",
@@ -11286,7 +11345,32 @@
     "todayNoisyCriteria": "Die Bewertungskriterien zu Ja/Nein-Fragen machen",
     "todayNoisyCriteriaHint": "Formulieren Sie jedes Kriterium als Ja/Nein-Frage - solche benotet der Bewerter am beständigsten.",
     "todayNoisyModel": "Das Bewertungsmodell wählen",
-    "todayAgain": "Erneut testen"
+    "todayAgain": "Erneut testen",
+    "nextUp": {
+      "label": "Nächster Schritt",
+      "hint": {
+        "understand": "Sehen Sie sich an, was schiefging, und ignorieren Sie, was nicht zählen soll. Der nächste Schritt wird bepreist, bevor Sie drücken.",
+        "changes": "Haken Sie die zu testenden Änderungen an und korrigieren Sie Formulierungen. Der nächste Schritt wird bepreist, bevor Sie drücken."
+      },
+      "pricing": "Der nächste Schritt wird bepreist…",
+      "priceMoved": "Der Preis hat sich auf ca. {cost} geändert. Drücken Sie erneut, um fortzufahren.",
+      "overLimit": "Der nächste Schritt kostet mehr, als die Sitzung noch übrig hat. Erhöhen Sie das Limit, um fortzufahren.",
+      "raise": "Neu bepreisen",
+      "go": {
+        "understand": "Nächster Schritt: Änderungen schreiben · ca. {cost}",
+        "changes": "Nächster Schritt: ausgewählte Änderungen testen · ca. {cost}"
+      },
+      "goUnpriced": {
+        "understand": "Nächster Schritt: Änderungen schreiben",
+        "changes": "Nächster Schritt: ausgewählte Änderungen testen"
+      }
+    },
+    "waitingFor": {
+      "understand": "Wartet auf Sie: sehen Sie sich an, was schiefging",
+      "changes": "Wartet auf Sie: prüfen Sie die Änderungen"
+    },
+    "helperNote": "Hinweis für den Helfer (optional)",
+    "helperNoteHint": "Schreiben Sie, was anders versucht werden soll, etwa welche Antworten am wichtigsten sind. Bis zu 2.000 Zeichen."
   },
   "unsaved": {
     "title": "Du hast ungespeicherte Änderungen",

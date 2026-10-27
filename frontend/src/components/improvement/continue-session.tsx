@@ -2,13 +2,16 @@
 
 import { type ReactNode, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { Button, ConfirmDialog, Input, Label } from "@/components/ui";
+import { Button, ConfirmDialog, Input, Label, Textarea } from "@/components/ui";
 import { usd } from "@/components/evals/format";
 import { useImprovement } from "@/hooks/use-improvements";
 import { getErrorMessage } from "@/lib/api-error";
 import type { ContinuationEstimate, Improvement } from "@/types/improvement";
 
 type Variant = "default" | "outline" | "ghost";
+
+/** The longest note the server keeps for a new attempt's helper. */
+const NOTE_LIMIT = 2000;
 
 /**
  * Whether another paid attempt may start: a failed or over-budget step resumes,
@@ -77,6 +80,7 @@ export function ContinueSession({
   const [open, setOpen] = useState(false);
   const [discarding, setDiscarding] = useState(false);
   const [budget, setBudget] = useState(session.budget_usd);
+  const [note, setNote] = useState("");
   const [quoted, setQuoted] = useState<{ key: string; value: ContinuationEstimate } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const key = JSON.stringify([
@@ -97,6 +101,8 @@ export function ContinueSession({
   const quote = quoted?.key === key ? quoted.value : null;
   const waiting = ["ready", "stopped", "failed"].includes(session.status);
   const { resume, canContinue, own, primary } = continuation(session);
+  // A note steers a new attempt's helper; a resumed or retried step repeats one already written.
+  const attempt = !resume && session.status !== "failed";
   async function act(action: () => Promise<void>) {
     setError(null);
     try {
@@ -148,6 +154,18 @@ export function ContinueSession({
       {open && canContinue && (
         <div className="max-w-xl space-y-3">
           <p className="text-muted-foreground text-sm">{t("continuationBody")}</p>
+          {attempt && (
+            <div className="space-y-2">
+              <Label htmlFor="continuation-note">{t("helperNote")}</Label>
+              <Textarea
+                id="continuation-note"
+                maxLength={NOTE_LIMIT}
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+              />
+              <p className="text-muted-foreground text-xs">{t("helperNoteHint")}</p>
+            </div>
+          )}
           <Label htmlFor="continuation-budget">{t("budget")}</Label>
           <Input
             id="continuation-budget"
@@ -189,8 +207,12 @@ export function ContinueSession({
                 disabled={!quote.affordable || actions.continueSession.isPending}
                 onClick={() =>
                   void act(async () => {
-                    await actions.continueSession.mutateAsync(quote);
+                    await actions.continueSession.mutateAsync({
+                      ...quote,
+                      ...(attempt && note.trim() ? { note: note.trim() } : {}),
+                    });
                     setQuoted(null);
+                    setNote("");
                     setOpen(false);
                     onStarted();
                   })

@@ -40,6 +40,39 @@ it("estimates and confirms another round separately without publishing", async (
   expect(state.start).toHaveBeenCalledWith(QUOTE);
   expect(started).toHaveBeenCalledOnce();
 });
+it("hands a new attempt's helper the person's note, trimmed, and only that attempt", async () => {
+  render(<ContinueSession session={SESSION} onStarted={vi.fn()} />);
+  await userEvent.click(screen.getByRole("button", { name: "Improve again" }));
+  const note = screen.getByRole("textbox", { name: "Note for the helper (optional)" });
+  expect(note).toHaveAttribute("maxLength", "2000");
+  await userEvent.type(note, "  Keep refunds short  ");
+  await userEvent.click(screen.getByRole("button", { name: "Estimate continuing the session" }));
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Confirm the estimate and continue" }),
+  );
+  expect(state.start).toHaveBeenCalledWith({ ...QUOTE, note: "Keep refunds short" });
+});
+it("sends no note that is only spaces, and offers none when a failed step is retried", async () => {
+  const view = render(<ContinueSession session={SESSION} onStarted={vi.fn()} />);
+  await userEvent.click(screen.getByRole("button", { name: "Improve again" }));
+  await userEvent.type(screen.getByRole("textbox"), "   ");
+  await userEvent.click(screen.getByRole("button", { name: "Estimate continuing the session" }));
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Confirm the estimate and continue" }),
+  );
+  expect(state.start).toHaveBeenCalledWith(QUOTE);
+  view.unmount();
+  render(
+    <ContinueSession
+      session={{ ...SESSION, status: "failed", stage: "proposing" }}
+      onStarted={vi.fn()}
+    />,
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Retry this step within the spending limit" }),
+  );
+  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+});
 it("requires another estimate after changing the spending limit", async () => {
   render(<ContinueSession session={SESSION} onStarted={vi.fn()} />);
   await userEvent.click(screen.getByRole("button", { name: "Improve again" }));

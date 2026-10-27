@@ -117,6 +117,14 @@ vi.mock("@/hooks/use-eval-runs", () => ({
 beforeEach(() => {
   vi.clearAllMocks();
   window.history.replaceState({}, "", "/");
+  actions.estimateContinuation.mutateAsync.mockResolvedValue({
+    mode: "next_step",
+    number: 1,
+    total_usd: "0.04",
+    budget_usd: "1",
+    affordable: true,
+    candidate_hash: "a".repeat(64),
+  });
   state.agentLoading = false;
   state.agentError = null;
   state.sessionLoading = false;
@@ -342,11 +350,11 @@ it("says a waiting session is still reading what went wrong instead of listing n
   expect(screen.queryByText("Source examples fixture")).not.toBeInTheDocument();
 });
 
-it("lets the person inspect a pinned step directly without claiming it published", async () => {
+it("lets the person inspect a done step directly without claiming it published", async () => {
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
-  const questions = screen.getByRole("button", { name: "Test set" });
-  expect(questions).toHaveAccessibleDescription("Done");
-  await userEvent.click(questions);
+  const understand = screen.getByRole("button", { name: "Understand" });
+  expect(understand).toHaveAccessibleDescription("Done");
+  await userEvent.click(understand);
   expect(screen.getByText("Pinned questions fixture")).toBeInTheDocument();
   expect(actions.finish.mutateAsync).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole("button", { name: "Result" }));
@@ -719,6 +727,29 @@ it.each([
   );
 });
 
+it.each([
+  ["classifying", "Waiting for you: look at what went wrong"],
+  ["filtering", "Waiting for you: review the changes"],
+] as const)("says what a session stopped after %s waits for, not that it works", (stage, line) => {
+  state.session = { ...state.session!, status: "waiting", stage };
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(
+    within(screen.getByRole("region", { name: "Session" })).getByRole("status"),
+  ).toHaveTextContent(line);
+});
+
+it("opens Understand from an old link to the test set, rewriting the address", () => {
+  state.session = { ...state.session!, status: "waiting", stage: "classifying" };
+  window.history.replaceState({}, "", "/?step=testSet");
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.getByRole("button", { name: "Understand" }).closest("li")).toHaveAttribute(
+    "aria-current",
+    "step",
+  );
+  expect(new URLSearchParams(window.location.search).get("step")).toBe("understand");
+  expect(screen.queryByRole("button", { name: "Test set" })).not.toBeInTheDocument();
+});
+
 it("opens Check from an old link to Today, rewriting the address", () => {
   state.session = { ...state.session!, status: "running", stage: "evaluating" };
   window.history.replaceState({}, "", "/?step=today");
@@ -733,14 +764,13 @@ it("opens Check from an old link to Today, rewriting the address", () => {
 
 const LABELS: Record<(typeof STEPS)[number], string> = {
   understand: "Understand",
-  testSet: "Test set",
   changes: "Changes",
   check: "Check",
   result: "Result",
   accept: "Accept",
 };
 const WORKING =
-  /Reading what went wrong|preparing changes|writing different changes|Testing in the background|Preparing the test/;
+  /Reading what went wrong|Writing the changes|writing different changes|Testing in the background|Preparing the test/;
 const FINAL =
   /Source examples fixture|We couldn't find a change|The test has finished|newly fixed|Open version|Kept as draft/;
 
@@ -798,6 +828,8 @@ describe("every step's state matches what its panel shows", () => {
       null,
       full,
     ],
+    ["stopped after reading what went wrong", "waiting", "classifying", 1, [], null, null],
+    ["stopped with changes to review", "waiting", "filtering", 1, [fresh], null, null],
     ["a result to accept", "ready", "judging", 1, [round(1, { verdict: "better" })], null, full],
     ["only missing knowledge", "stopped", "drafting", 1, [fresh], "knowledge_only", null],
     ["nothing to learn from", "stopped", "analyzing", 1, [], "no_data", null],

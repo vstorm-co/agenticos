@@ -72,7 +72,8 @@ export type WidgetId =
   | "recent-visuals"
   | "authoring-suggestions"
   | "knowledge-gaps"
-  | "needs-attention";
+  | "needs-attention"
+  | "improvements-waiting";
 /** The closed set of card widths the grid supports (12 columns). */
 export type Span = "s3" | "s4" | "s5" | "s6" | "s7" | "s8" | "s12";
 
@@ -502,6 +503,14 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
   // what `GET /stats/attention` asks: it counts over everybody's runs.
   "needs-attention": {
     id: "needs-attention",
+    gate: holds(Perm.runsView),
+    defaultSpan: "s12",
+    defaultRows: "r2",
+    category: "attention",
+  },
+  // `runs:view`, as `GET /improvements` asks: a session is read from its agent's runs.
+  "improvements-waiting": {
+    id: "improvements-waiting",
     gate: holds(Perm.runsView),
     defaultSpan: "s12",
     defaultRows: "r2",

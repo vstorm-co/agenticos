@@ -24,13 +24,20 @@ const STOP_REASONS = [
 ];
 
 /**
- * A finished improvement, test or question writing in the reader's language, from the
- * outcome the server keeps beside its English summary; anything else, or a status this
- * console does not know yet, keeps that summary.
+ * A finished improvement or one stopped for a person, a test or question writing in the
+ * reader's language, from the outcome the server keeps beside its English summary;
+ * anything else, or a status this console does not know yet, keeps that summary.
  */
 export function notificationSummary(item: Notification, t: Translate, tStop: Translate): string {
   const outcome = item.outcome;
   if (!outcome) return item.summary;
+  if (item.event_type === "improvement_finished" && outcome.status === "waiting") {
+    if (!item.agent?.name) return item.summary;
+    const stage = outcome.stage ?? outcome.reason;
+    return t(`outcome.improvement.waiting.${stage === "filtering" ? "changes" : "understand"}`, {
+      agent: item.agent.name,
+    });
+  }
   if (item.event_type === "improvement_finished" && IMPROVEMENT.includes(outcome.status)) {
     if (!item.agent?.name) return item.summary;
     const head = t(`outcome.improvement.${outcome.status}`, { agent: item.agent.name });

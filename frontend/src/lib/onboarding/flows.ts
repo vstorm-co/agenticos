@@ -949,6 +949,13 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         optional: true,
       },
       {
+        id: "flow-improvement-question-set",
+        page: IMPROVEMENT_START,
+        target: "improvement-question-set",
+        permission: Perm.runsView,
+        optional: true,
+      },
+      {
         id: "flow-improvement-details",
         page: IMPROVEMENT_START,
         target: "improvement-details",
@@ -964,11 +971,41 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
     permission: Perm.runsView,
     steps: [
       {
+        id: "flow-improvement-steps",
+        page: IMPROVEMENT,
+        target: "improvement-steps",
+        permission: Perm.runsView,
+      },
+      {
+        id: "flow-improvement-understand",
+        page: IMPROVEMENT,
+        target: "improvement-evidence",
+        activate: "improvement-step-understand",
+        permission: Perm.runsView,
+        optional: true,
+      },
+      {
         id: "flow-improvement-questions",
         page: IMPROVEMENT,
         target: "improvement-test-questions",
-        activate: "improvement-step-testSet",
+        activate: "improvement-step-understand",
         permission: Perm.runsView,
+        optional: true,
+      },
+      {
+        id: "flow-improvement-changes",
+        page: IMPROVEMENT,
+        target: "improvement-changes",
+        activate: "improvement-step-changes",
+        permission: Perm.runsView,
+        optional: true,
+      },
+      {
+        id: "flow-improvement-next-step",
+        page: IMPROVEMENT,
+        target: "improvement-next-step",
+        permission: Perm.runsView,
+        optional: true,
       },
       {
         id: "flow-improvement-check",

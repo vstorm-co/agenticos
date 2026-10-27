@@ -1,15 +1,17 @@
-import { expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { SESSION } from "@/test-utils/improvement";
 import type { Improvement } from "@/types/improvement";
 import {
   currentAttempt,
   currentImprovementStep,
   hasCandidate,
+  isActive,
   improvementStepStates,
   improvementSteps,
   isClosed,
   isReachable,
   openImprovement,
+  stopOf,
 } from "./improvement-steps";
 
 const unmeasured = SESSION.iterations.map((round) => ({ ...round, verdict: null, batch_id: null }));
@@ -33,7 +35,6 @@ it.each([
 it("keeps the frozen question set readable while a new session waits", () => {
   const session: Improvement = { ...SESSION, status: "queued", stage: null, iterations: [] };
   const states = improvementStepStates(session);
-  expect(states.testSet).toBe("done");
   expect(states.changes).toBe("pending");
 });
 it("shows the current check running even if an earlier round was measured", () => {
@@ -100,7 +101,7 @@ it("marks the question set as needing attention when analysis stopped for lack o
       stop_reason: "no_data",
       iterations: unmeasured,
     }),
-  ).toMatchObject({ understand: "needs_you", testSet: "needs_you" });
+  ).toMatchObject({ understand: "needs_you" });
 });
 it("leaves knowledge-only drafts for a person and skips the unrun agent test", () => {
   expect(
@@ -173,10 +174,9 @@ it("takes Improve back to the newest open session, past any that finished since"
   expect(openImprovement([older, kept, newer])?.id).toBe("newer");
 });
 
-it("has six steps, today's answers asked inside Check rather than a step of their own", () => {
+it("has five steps: the question set is chosen at the start, today's answers in Check", () => {
   expect(Object.keys(improvementSteps(SESSION))).toEqual([
     "understand",
-    "testSet",
     "changes",
     "check",
     "result",
@@ -238,4 +238,44 @@ it("runs Changes and Check again for a later attempt and shows nothing before th
     iterations: [],
   });
   expect(firstCheck.changes.state).toBe("pending");
+});
+
+describe("a session stopped for a person", () => {
+  const waiting = (stage: Improvement["stage"], iteration = 1): Improvement => ({
+    ...SESSION,
+    status: "waiting",
+    stage,
+    iteration,
+    best_iteration_id: null,
+    iterations: SESSION.iterations.map((round) => ({ ...round, verdict: null })),
+  });
+  it.each([
+    ["analyzing", "understand", { understand: "needs_you", changes: "pending" }],
+    ["classifying", "understand", { understand: "needs_you", changes: "pending" }],
+    ["filtering", "changes", { understand: "done", changes: "needs_you" }],
+  ] as const)("waiting after %s stops at %s", (stage, at, expected) => {
+    const session = waiting(stage);
+    expect(stopOf(session)).toBe(at);
+    expect(currentImprovementStep(session)).toBe(at);
+    const views = improvementSteps(session);
+    expect(views).toMatchObject(
+      Object.fromEntries(Object.entries(expected).map(([step, state]) => [step, { state }])),
+    );
+    expect(views[at].content).toBe("result");
+    for (const step of ["check", "result", "accept"] as const)
+      expect(views[step]).toEqual({ state: "pending", content: "none" });
+    expect(Object.values(views).some((view) => view.state === "running")).toBe(false);
+    expect(isActive(session)).toBe(false);
+  });
+  it("stops at the Changes of a later attempt without calling its check running", () => {
+    const views = improvementSteps(waiting("filtering", 2));
+    expect(views.changes.state).toBe("needs_you");
+    expect(views.check.state).toBe("pending");
+  });
+  it("keeps a waiting session open, and finds no stop on one that is not waiting", () => {
+    expect(
+      openImprovement([{ ...waiting("filtering"), created_at: "2026-10-27T10:00:00Z" }])?.status,
+    ).toBe("waiting");
+    expect(stopOf({ ...SESSION, status: "running", stage: "filtering" })).toBeNull();
+  });
 });

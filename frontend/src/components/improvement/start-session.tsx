@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { SystemAgentChoice } from "@/components/agents/system-agent-choice";
-import { StartSignals } from "./session-inputs";
+import { StartQuestionSet, StartSignals } from "./session-inputs";
 import { TodayCheck } from "./today-check";
 import { WriteQuestions } from "./write-questions";
 import { usd } from "@/components/evals/format";
@@ -125,6 +125,7 @@ export function StartSession({ agentId }: { agentId: string }) {
             {refused}
           </p>
         )}
+        {target && <StartQuestionSet datasetId={target} />}
         {target && !quote && refused === null && <p role="status">{t("estimating")}</p>}
         {quote && (
           <section

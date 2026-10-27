@@ -96,6 +96,59 @@ function questionsToWrite(session: Improvement): number {
   return missing > 0 ? Math.max(MORE_QUESTIONS, missing * 2) : 0;
 }
 
+/**
+ * Where a question set's questions come from, and how many help write the changes
+ * against how many are kept aside to check them.
+ */
+export function QuestionSetFigures({ cases }: { cases: DatasetCase[] }) {
+  const t = useTranslations("improvement");
+  const sources = sourceCounts(cases);
+  const train = cases.filter((item) => item.improvement_partition === "train").length;
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      <figure className="space-y-3 rounded-xl border p-4">
+        <figcaption className="text-sm font-medium">{t("widgets.whereFrom")}</figcaption>
+        <Proportion
+          label={t("questionSources", { count: cases.length, ...sources })}
+          parts={[
+            { label: t("widgets.fromRatedDown"), value: sources.down, fill: "var(--series-4)" },
+            { label: t("widgets.fromLiked"), value: sources.liked, fill: "var(--series-2)" },
+            { label: t("widgets.written"), value: sources.written, fill: "var(--series-1)" },
+            { label: t("widgets.byHand"), value: sources.other, fill: "var(--series-5)" },
+          ]}
+        />
+      </figure>
+      <figure className="space-y-3 rounded-xl border p-4">
+        <figcaption className="text-sm font-medium">{t("widgets.howUsed")}</figcaption>
+        <Proportion
+          label={t("widgets.partitionLabel", { train, holdout: cases.length - train })}
+          parts={[
+            { label: t("widgets.helpWrite"), value: train, fill: "var(--series-3)" },
+            {
+              label: t("widgets.keptAside"),
+              value: cases.length - train,
+              fill: "var(--color-chart)",
+            },
+          ]}
+        />
+      </figure>
+    </div>
+  );
+}
+
+/** The question set a new session would test on, before it starts. */
+export function StartQuestionSet({ datasetId }: { datasetId: string }) {
+  const t = useTranslations("improvement");
+  const questions = useDatasetCases(datasetId, { limit: SOURCE_LIMIT });
+  if (questions.isLoading || questions.error || questions.total === 0) return null;
+  return (
+    <section className="space-y-3" data-tour="improvement-question-set">
+      <h2 className="font-medium">{t("questionCount", { count: questions.total })}</h2>
+      {questions.cases.length === questions.total && <QuestionSetFigures cases={questions.cases} />}
+    </section>
+  );
+}
+
 export function TestQuestions({ session }: { session: Improvement }) {
   const t = useTranslations("improvement");
   const [skip, setSkip] = useState(0);
@@ -114,44 +167,10 @@ export function TestQuestions({ session }: { session: Improvement }) {
   if (questions.error) return <StepError error={questions.error} retry={questions.refetch} />;
   if (questions.isLoading) return <p role="status">{t("loading")}</p>;
   const whole = all.cases.length === questions.total && questions.total > 0;
-  const sources = sourceCounts(all.cases);
-  const train = all.cases.filter((item) => item.improvement_partition === "train").length;
   return (
     <section className="space-y-5" data-tour="improvement-test-questions">
       <h2 className="text-lg font-medium">{t("questionCount", { count: questions.total })}</h2>
-      {whole && (
-        <div className="grid gap-4 md:grid-cols-2">
-          <figure className="space-y-3 rounded-xl border p-4">
-            <figcaption className="text-sm font-medium">{t("widgets.whereFrom")}</figcaption>
-            <Proportion
-              label={t("questionSources", { count: questions.total, ...sources })}
-              parts={[
-                { label: t("widgets.fromRatedDown"), value: sources.down, fill: "var(--series-4)" },
-                { label: t("widgets.fromLiked"), value: sources.liked, fill: "var(--series-2)" },
-                { label: t("widgets.written"), value: sources.written, fill: "var(--series-1)" },
-                { label: t("widgets.byHand"), value: sources.other, fill: "var(--series-5)" },
-              ]}
-            />
-          </figure>
-          <figure className="space-y-3 rounded-xl border p-4">
-            <figcaption className="text-sm font-medium">{t("widgets.howUsed")}</figcaption>
-            <Proportion
-              label={t("widgets.partitionLabel", {
-                train,
-                holdout: all.cases.length - train,
-              })}
-              parts={[
-                { label: t("widgets.helpWrite"), value: train, fill: "var(--series-3)" },
-                {
-                  label: t("widgets.keptAside"),
-                  value: all.cases.length - train,
-                  fill: "var(--color-chart)",
-                },
-              ]}
-            />
-          </figure>
-        </div>
-      )}
+      {whole && <QuestionSetFigures cases={all.cases} />}
       <p className="text-muted-foreground text-sm">{t("pinnedQuestions")}</p>
       {more > 0 && (
         <div className="border-warning/35 bg-warning/5 space-y-3 rounded-xl border p-4 text-sm">

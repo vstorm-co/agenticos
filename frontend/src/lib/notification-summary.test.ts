@@ -77,3 +77,34 @@ it("keeps the server's summary for anything it cannot word", () => {
   ])
     expect(notificationSummary(item, t, stop)).toBe("server summary");
 });
+
+it("says which step a session stopped at for a person, from its stage or its reason", () => {
+  const waiting = (outcome: Partial<NonNullable<Notification["outcome"]>>) =>
+    notificationSummary(
+      row("improvement_finished", { status: "waiting", reason: null, ...outcome }),
+      t,
+      stop,
+    );
+  expect(waiting({ stage: "classifying" })).toBe(
+    "outcome.improvement.waiting.understand(Refund desk)",
+  );
+  expect(waiting({ stage: "analyzing" })).toBe(
+    "outcome.improvement.waiting.understand(Refund desk)",
+  );
+  expect(waiting({ stage: "filtering" })).toBe("outcome.improvement.waiting.changes(Refund desk)");
+  expect(waiting({ reason: "filtering" })).toBe("outcome.improvement.waiting.changes(Refund desk)");
+  expect(
+    notificationSummary(
+      row(
+        "improvement_finished",
+        { status: "waiting", reason: null, stage: "filtering" },
+        {
+          ...AGENT,
+          name: "",
+        },
+      ),
+      t,
+      stop,
+    ),
+  ).toBe("server summary");
+});

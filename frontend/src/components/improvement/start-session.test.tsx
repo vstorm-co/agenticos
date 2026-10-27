@@ -56,7 +56,10 @@ vi.mock("./write-questions", () => ({
 vi.mock("./today-check", () => ({
   TodayCheck: ({ datasetId }: { datasetId: string }) => <p>Today on {datasetId}</p>,
 }));
-vi.mock("./session-inputs", () => ({ StartSignals: () => null }));
+vi.mock("./session-inputs", () => ({
+  StartSignals: () => null,
+  StartQuestionSet: ({ datasetId }: { datasetId: string }) => <p>Question set {datasetId}</p>,
+}));
 vi.mock("@/components/agents/system-agent-choice", () => ({
   SystemAgentChoice: ({
     onChange,
@@ -96,6 +99,7 @@ it("prices the agent's own test set at once, so Start improving is the one decis
     await screen.findByText(/About 4 minutes, up to.*0\.12.*\(estimate\)/),
   ).toBeInTheDocument();
   expect(state.estimate).toHaveBeenCalledWith({ dataset_id: "own", max_iterations: 3 });
+  expect(screen.getByText("Question set own")).toBeInTheDocument();
   expect(state.start).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole("button", { name: "Start improving" }));
   expect(state.start).toHaveBeenCalledWith({

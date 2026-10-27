@@ -1,13 +1,6 @@
 import type { Improvement } from "@/types/improvement";
 
-export const IMPROVEMENT_STEPS = [
-  "understand",
-  "testSet",
-  "changes",
-  "check",
-  "result",
-  "accept",
-] as const;
+export const IMPROVEMENT_STEPS = ["understand", "changes", "check", "result", "accept"] as const;
 export type ImprovementStep = (typeof IMPROVEMENT_STEPS)[number];
 export type ImprovementStepState = "done" | "running" | "needs_you" | "skipped" | "pending";
 
@@ -21,9 +14,18 @@ export interface ImprovementStepView {
 
 const PROPOSING: readonly string[] = ["proposing", "filtering", "drafting"];
 const CHECKING: readonly string[] = ["evaluating", "judging"];
+const ANALYZED: readonly string[] = ["analyzing", "classifying"];
 
 export function isActive(session: Pick<Improvement, "status">): boolean {
   return session.status === "queued" || session.status === "running";
+}
+
+/** Where a session stopped for a person, if it did: after Understand or after Changes. */
+export type ImprovementStop = "understand" | "changes";
+
+export function stopOf(session: Pick<Improvement, "status" | "stage">): ImprovementStop | null {
+  if (session.status !== "waiting") return null;
+  return session.stage === "filtering" ? "changes" : "understand";
 }
 
 /** The attempt the session is on now: repeating steps describe it, not an earlier one. */
@@ -41,6 +43,8 @@ export function hasCandidate(session: Improvement): boolean {
 
 export function currentImprovementStep(session: Improvement): ImprovementStep {
   if (session.status === "accepted" || session.status === "published") return "accept";
+  const stop = stopOf(session);
+  if (stop) return stop;
   if (!isActive(session)) return "result";
   if (CHECKING.includes(session.stage ?? "")) return "check";
   if (PROPOSING.includes(session.stage ?? "")) return "changes";
@@ -50,14 +54,17 @@ export function currentImprovementStep(session: Improvement): ImprovementStep {
 /**
  * Each step's state and what its panel shows, from one reading of the session, so
  * the stepper and the panels cannot disagree: a running step's panel says it is
- * working, and a done step's shows what it stored. Changes and Check follow the
- * current attempt, so a new attempt runs them again. Result and Accept open only
- * once the session stops working.
+ * working, and a done step's shows what it stored. A session stops for a person
+ * after Understand and after Changes, and that step then needs them. Changes and
+ * Check follow the current attempt, so a new attempt runs them again. Result and
+ * Accept open only once the session has finished an attempt.
  */
 export function improvementSteps(
   session: Improvement,
 ): Record<ImprovementStep, ImprovementStepView> {
   const active = isActive(session);
+  const stop = stopOf(session);
+  const open = active || stop !== null;
   const accepted = session.status === "accepted" || session.status === "published";
   const decided = accepted || session.status === "rejected";
   const stage = session.stage ?? "";
@@ -69,51 +76,49 @@ export function improvementSteps(
   );
   const states: Record<ImprovementStep, ImprovementStepState> = {
     understand:
-      active && (!session.stage || ["analyzing", "classifying"].includes(stage))
+      active && (!session.stage || ANALYZED.includes(stage))
         ? "running"
-        : noData || (!decided && groupingFailed)
+        : stop === "understand" || noData || (!decided && groupingFailed)
           ? "needs_you"
           : session.stage
             ? "done"
             : "skipped",
-    testSet: noData || session.status === "stale" ? "needs_you" : "done",
-    changes: accepted
-      ? "done"
-      : session.status === "rejected"
-        ? "skipped"
-        : active && PROPOSING.includes(stage)
-          ? "running"
-          : session.stop_reason === "knowledge_only"
-            ? "needs_you"
-            : active
-              ? attempt?.batch_id
-                ? "done"
-                : "pending"
-              : session.iterations.some((round) => round.batch_id !== null)
-                ? "done"
-                : "skipped",
+    changes:
+      stop === "changes"
+        ? "needs_you"
+        : stop === "understand"
+          ? "pending"
+          : accepted
+            ? "done"
+            : session.status === "rejected"
+              ? "skipped"
+              : active && PROPOSING.includes(stage)
+                ? "running"
+                : session.stop_reason === "knowledge_only"
+                  ? "needs_you"
+                  : active
+                    ? attempt?.batch_id
+                      ? "done"
+                      : "pending"
+                    : session.iterations.some((round) => round.batch_id !== null)
+                      ? "done"
+                      : "skipped",
     check:
-      active && (CHECKING.includes(stage) || later)
+      active && (CHECKING.includes(stage) || (later && PROPOSING.includes(stage)))
         ? "running"
-        : active
+        : open
           ? "pending"
           : session.iterations.some((round) => round.verdict !== null)
             ? "done"
             : "skipped",
-    result: active
+    result: open
       ? "pending"
       : decided || session.status === "ready"
         ? "done"
         : session.stop_reason === "knowledge_only"
           ? "skipped"
           : "needs_you",
-    accept: accepted
-      ? "done"
-      : hasCandidate(session)
-        ? "needs_you"
-        : active
-          ? "pending"
-          : "skipped",
+    accept: accepted ? "done" : hasCandidate(session) ? "needs_you" : open ? "pending" : "skipped",
   };
   const view = (state: ImprovementStepState): ImprovementStepView => ({
     state,
@@ -150,7 +155,7 @@ export function isReachable(view: ImprovementStepView): boolean {
  * Still working, or waiting for a person's decision: a candidate to accept, or a
  * stopped or failed session to continue, retry or discard.
  */
-const OPEN: readonly string[] = ["queued", "running", "ready", "stopped", "failed"];
+const OPEN: readonly string[] = ["queued", "running", "waiting", "ready", "stopped", "failed"];
 
 /** Over for good: the API refuses any change, so the session is read as a record. */
 const CLOSED: readonly string[] = ["accepted", "published", "rejected", "cancelled", "stale"];

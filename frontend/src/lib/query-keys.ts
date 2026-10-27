@@ -11,6 +11,7 @@ import type { SharingResourceType } from "@/types/sharing";
 export const qk = {
   improvements: {
     all: () => ["improvements"] as const,
+    awaiting: () => ["improvements", "awaiting"] as const,
     evidence: (agentId: string, sessionId: string | null, datasetId: string | null) =>
       ["improvements", agentId, "evidence", sessionId, datasetId] as const,
     agent: (agentId: string) => ["improvements", agentId] as const,

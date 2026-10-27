@@ -352,7 +352,7 @@ describe("OnboardingTour", () => {
   });
 
   it.each([
-    ["/agents/agent-1/improve/session-1", "Test questions"],
+    ["/agents/agent-1/improve/session-1", "Steps"],
     ["/agents/agent-1/improve/new", "Improve"],
     ["/agents/agent-1/evals/run-1", "The verdict"],
   ])("walks the '?' on %s where it was opened, never to its page id", async (path, title) => {
@@ -509,13 +509,13 @@ describe("OnboardingTour's light", () => {
     const step = document.createElement("li");
     step.setAttribute("aria-current", "step");
     const button = step.appendChild(document.createElement("button"));
-    button.dataset.tour = "improvement-step-testSet";
+    button.dataset.tour = "improvement-step-understand";
     const target = document.createElement("div");
-    target.dataset.tour = "improvement-test-questions";
+    target.dataset.tour = "improvement-evidence";
     serveElements(button, target);
     servePermissions(OWNER);
     nav.pathname = "/agents/agent-1/improve/session-1";
-    useOnboardingStore.setState({ isOpen: true, index: 0, mode: "page" });
+    useOnboardingStore.setState({ isOpen: true, index: 1, mode: "page" });
     render(<OnboardingTour />, { wrapper });
 
     await waitFor(() => expect(light.focus).toHaveBeenCalledWith(target));

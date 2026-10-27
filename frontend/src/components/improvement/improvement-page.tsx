@@ -25,6 +25,7 @@ import { TestQuestions } from "./session-inputs";
 import { Understand } from "./understand";
 import { AttemptHistory } from "./attempt-history";
 import { CheckProgress } from "./check-progress";
+import { NextStep } from "./next-step";
 import { StepDecisions } from "./step-decisions";
 import { AcceptSummary, GuardNote, KnowledgeDocuments } from "./outcome";
 import { ResultStep } from "./result-decision";
@@ -40,8 +41,12 @@ import {
   isActive,
   isClosed,
   isReachable,
+  stopOf,
   type ImprovementStep as Step,
 } from "@/lib/improvement-steps";
+/** Steps the wizard used to have, and the one that holds what they showed. */
+const RETIRED_STEPS: Record<string, Step> = { today: "check", testSet: "understand" };
+
 export function ImprovementPage({ agentId, sessionId }: { agentId: string; sessionId: string }) {
   const t = useTranslations("improvement");
   const tErrors = useTranslations("errors");
@@ -107,10 +112,12 @@ function Session({
   // Without ?step= the screen follows the session; a person who opens another step
   // stays there, and can link to it, until they go back to the current one.
   const [stepParam, setStepParam] = useUrlState("step");
-  // Older links name a step `today`, whose answers Check shows; they open Check.
+  // Older links name steps the wizard no longer has; they open the step that took
+  // over their content.
+  const retired = stepParam ? RETIRED_STEPS[stepParam] : undefined;
   useEffect(() => {
-    if (stepParam === "today") setStepParam("check");
-  }, [stepParam, setStepParam]);
+    if (retired) setStepParam(retired);
+  }, [retired, setStepParam]);
   const [moves, setMoves] = useState(0);
   const content = useRef<HTMLDivElement>(null);
   // A screen read aloud starts at its heading, not at the step button just pressed.
@@ -151,7 +158,7 @@ function Session({
       : "viewOnly";
   const current = currentImprovementStep(session);
   const views = improvementSteps(session);
-  const picked = STEPS.find((id) => id === (stepParam === "today" ? "check" : stepParam));
+  const picked = STEPS.find((id) => id === (retired ?? stepParam));
   const step = picked && isReachable(views[picked]) ? picked : current;
   const active = isActive(session);
   const working = STEPS.some((id) => views[id].state === "running");
@@ -234,9 +241,11 @@ function Session({
             (views.understand.content === "working" ? (
               <WorkingNote>{t("understandWorking")}</WorkingNote>
             ) : (
-              <Understand session={session} />
+              <>
+                <Understand session={session} />
+                <TestQuestions session={session} />
+              </>
             ))}
-          {step === "testSet" && <TestQuestions session={session} />}
           {step === "changes" && (
             <section className="grid gap-6 md:grid-cols-[2fr_1fr]" data-tour="improvement-changes">
               {chosen && selectedBatch?.hunks.length ? (
@@ -433,6 +442,15 @@ function Session({
               </Link>
             </section>
           )}
+          {step === stopOf(session) && (
+            <NextStep
+              session={session}
+              blocked={
+                step === "changes" && included.length === 0 ? t("selectSomeChanges") : undefined
+              }
+              onStarted={followCurrent}
+            />
+          )}
           <StepDecisions session={session} step={step} />
         </div>
         {selectionDirty && readOnly === null && (
@@ -499,6 +517,7 @@ function Session({
 /** The session's state and spend in one line above the steps, on every step alike. */
 function SessionLine({ session, working }: { session: Improvement; working: boolean }) {
   const t = useTranslations("improvement");
+  const stop = stopOf(session);
   const locale = useLocale();
   const cents = (value: string) =>
     new Intl.NumberFormat(locale, { style: "currency", currency: "USD" }).format(Number(value));
@@ -517,7 +536,11 @@ function SessionLine({ session, working }: { session: Improvement; working: bool
         ) : (
           <CircleDot className="size-3.5" aria-hidden />
         )}
-        {working ? t("status.running") : t(`status.${session.status}`)}
+        {working
+          ? t("status.running")
+          : stop
+            ? t(`waitingFor.${stop}`)
+            : t(`status.${session.status}`)}
       </span>
       <span aria-hidden>·</span>
       <span>

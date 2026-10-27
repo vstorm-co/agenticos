@@ -2,6 +2,7 @@
 export type ImprovementStatus =
   | "queued"
   | "running"
+  | "waiting"
   | "ready"
   | "stopped"
   | "failed"
@@ -12,6 +13,17 @@ export type ImprovementStatus =
   | "rejected";
 export type ImprovementStage =
   "analyzing" | "classifying" | "drafting" | "proposing" | "filtering" | "evaluating" | "judging";
+/** A session waiting for a person, as a list of them shows it. */
+export interface ImprovementAwaiting {
+  id: string;
+  agent_id: string;
+  agent_name: string;
+  status: ImprovementStatus;
+  stage: ImprovementStage | null;
+  iteration: number;
+  max_iterations: number;
+  created_at: string;
+}
 export interface ImprovementTarget {
   dataset_id?: string;
   suite_id?: string;
@@ -168,7 +180,7 @@ export interface SelectionEstimate {
 }
 
 export interface ContinuationEstimate {
-  mode: "next_round" | "resume" | "retry";
+  mode: "next_step" | "next_round" | "resume" | "retry";
   number: number;
   total_usd: string;
   budget_usd: string;

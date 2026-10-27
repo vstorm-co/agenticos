@@ -611,13 +611,22 @@ it("tells the Improve start page from a session's own page", () => {
 it("describes the start of an improvement on the page that starts one", () => {
   expect(
     TOUR_STEPS.filter((step) => step.page === IMPROVEMENT_START).map((step) => step.target),
-  ).toEqual(["improvement-start", "improvement-quote", "improvement-details"]);
+  ).toEqual([
+    "improvement-start",
+    "improvement-quote",
+    "improvement-question-set",
+    "improvement-details",
+  ]);
 });
 
 it("describes every stage of an improvement on its own page", () => {
   expect(TOUR_STEPS.filter((step) => step.page === IMPROVEMENT).map((step) => step.target)).toEqual(
     [
+      "improvement-steps",
+      "improvement-evidence",
       "improvement-test-questions",
+      "improvement-changes",
+      "improvement-next-step",
       "improvement-check",
       "improvement-open-check",
       "improvement-results",

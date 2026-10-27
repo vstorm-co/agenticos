@@ -11,6 +11,7 @@ import type {
   KnowledgeCheckEstimate,
   KnowledgeCheckTarget,
   Improvement,
+  ImprovementAwaiting,
   ImprovementEstimate,
   ImprovementEvidence,
   SelectionEstimate,
@@ -22,6 +23,21 @@ import type {
  * only covers a console whose live-updates socket is not connected.
  */
 const IMPROVEMENT_FALLBACK_MS = 30_000;
+
+/** Sessions on any agent the reader may read that wait for a person to go on or decide. */
+export function useImprovementsAwaiting({ enabled = true } = {}) {
+  const query = useQuery({
+    queryKey: qk.improvements.awaiting(),
+    queryFn: () => apiClient.get<ImprovementAwaiting[]>("/improvements"),
+    enabled,
+  });
+  return {
+    sessions: query.data ?? [],
+    isLoading: query.isLoading,
+    error: query.error,
+    refetch: query.refetch,
+  };
+}
 
 export function useImprovements(agentId: string, { enabled = true } = {}) {
   const queryClient = useQueryClient();
@@ -150,12 +166,13 @@ export function useImprovement(agentId: string, runId: string) {
       apiClient.post<ContinuationEstimate>(`${base}/continue/estimate`, { budget_usd: budget }),
   });
   const continueSession = useMutation({
-    mutationFn: (quote: ContinuationEstimate) =>
+    mutationFn: ({ note, ...quote }: ContinuationEstimate & { note?: string }) =>
       apiClient.post<Improvement>(`${base}/continue`, {
         confirmed: true,
         budget_usd: quote.budget_usd,
         estimate_usd: quote.total_usd,
         candidate_hash: quote.candidate_hash,
+        ...(note ? { note } : {}),
       }),
     onSuccess: refresh,
   });

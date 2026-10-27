@@ -2963,6 +2963,20 @@
         "contextChanges": "Plik kontekstu · {count, plural, one {1 zmiana} few {# zmiany} many {# zmian} other {# zmiany}}",
         "newSkills": "{count, plural, one {1 zaproponowany nowy skill} few {# zaproponowane nowe skille} many {# zaproponowanych nowych skilli} other {# zaproponowanego nowego skilla}}",
         "skills": "{count, plural, one {1 zmiana skilla} few {# zmiany skilli} other {# zmian skilli}} do przejrzenia"
+      },
+      "improvements-waiting": {
+        "title": "Poprawki czekające na Ciebie",
+        "description": "Sesje poprawy zatrzymane na Twój następny krok albo decyzję.",
+        "empty": {
+          "title": "Nic nie czeka",
+          "description": "Poprawa zatrzymuje się tu, gdy przeczyta, co poszło nie tak, gdy napisze zmiany i gdy jej wynik jest gotowy."
+        },
+        "open": "Otwórz",
+        "what": {
+          "understand": "Zobacz, co poszło nie tak",
+          "changes": "Przejrzyj zmiany",
+          "result": "Przejrzyj wynik"
+        }
       }
     },
     "edit": {
@@ -3982,7 +3996,7 @@
       },
       "first-improvement": {
         "title": "Popraw",
-        "body": "Przeczytamy, co poszło źle, zaproponujemy zmiany i sprawdzimy je na osobnych pytaniach. Zmiany wejdą w życie po Twojej akceptacji i publikacji."
+        "body": "Przeczytamy, co poszło nie tak, i zatrzymamy się, żebyś to obejrzał. Pisanie zmian i ich test czekają, aż naciśniesz Następny krok, a każdy krok wyceniamy wcześniej. Nic nie trafia na produkcję, dopóki nie zaakceptujesz i nie opublikujesz."
       },
       "improvement-session": {
         "title": "Przejdź przez tę sesję",
@@ -4757,7 +4771,7 @@
       },
       "improvement-start": {
         "title": "Popraw",
-        "body": "Czytamy, co poszło nie tak, proponujemy zmiany, testujemy je na prawdziwych pytaniach i pokazujemy, co się poprawiło, a co pogorszyło. Nic nie trafia do użytku, dopóki tego nie zaakceptujesz."
+        "body": "Czytamy, co poszło nie tak, i zatrzymujemy się, żebyś to obejrzał. Naciskasz Następny krok, aby napisać zmiany, i jeszcze raz, aby je przetestować; każdy krok wyceniamy, zanim naciśniesz. Nic nie trafia na produkcję, dopóki tego nie zaakceptujesz."
       },
       "improvement-questions": {
         "title": "Pytania testowe",
@@ -4789,7 +4803,7 @@
       },
       "flow-improvement-start": {
         "title": "Popraw",
-        "body": "Czytamy, co poszło nie tak, proponujemy zmiany, testujemy je na prawdziwych pytaniach i pokazujemy, co się poprawiło, a co pogorszyło. Nic nie trafia do użytku, dopóki tego nie zaakceptujesz."
+        "body": "Czytamy, co poszło nie tak, i zatrzymujemy się, żebyś to obejrzał. Naciskasz Następny krok, aby napisać zmiany, i jeszcze raz, aby je przetestować; każdy krok wyceniamy, zanim naciśniesz. Nic nie trafia na produkcję, dopóki tego nie zaakceptujesz."
       },
       "flow-improvement-questions": {
         "title": "Pytania testowe",
@@ -4850,6 +4864,46 @@
       "flow-improvement-check": {
         "title": "Sprawdzenie",
         "body": "Obecna wersja i zmieniona odpowiadają na te same pytania w jednym teście. Każdy pasek pokazuje, ile każda już odpowiedziała, a wynik otwiera się po zakończeniu testu."
+      },
+      "improvement-question-set": {
+        "title": "Pytania testowe",
+        "body": "Pytania, na których ta sesja będzie testować: skąd pochodzą i ile pomaga napisać zmiany, a ile jest odłożonych do ich sprawdzenia."
+      },
+      "flow-improvement-question-set": {
+        "title": "Pytania testowe",
+        "body": "Pytania, na których ta sesja będzie testować: skąd pochodzą i ile pomaga napisać zmiany, a ile jest odłożonych do ich sprawdzenia."
+      },
+      "improvement-understand": {
+        "title": "Zrozumienie",
+        "body": "Co poszło nie tak, podzielone na to, co da się poprawić w agencie, i to, czego brakuje w bazie wiedzy. Sesja zatrzymuje się tu, żebyś to obejrzał; zignoruj to, co nie powinno się liczyć."
+      },
+      "flow-improvement-understand": {
+        "title": "Zrozumienie",
+        "body": "Co poszło nie tak, podzielone na to, co da się poprawić w agencie, i to, czego brakuje w bazie wiedzy. Sesja zatrzymuje się tu, żebyś to obejrzał; zignoruj to, co nie powinno się liczyć."
+      },
+      "improvement-changes": {
+        "title": "Zmiany",
+        "body": "Zmiany napisane przez pomocnika. Sesja zatrzymuje się tu: zaznacz te do przetestowania i popraw sformułowania, zanim zostaną przetestowane."
+      },
+      "flow-improvement-changes": {
+        "title": "Zmiany",
+        "body": "Zmiany napisane przez pomocnika. Sesja zatrzymuje się tu: zaznacz te do przetestowania i popraw sformułowania, zanim zostaną przetestowane."
+      },
+      "improvement-next-step": {
+        "title": "Następny krok",
+        "body": "Tu kończy się każdy postój: co robi następny krok i ile kosztuje. Nic nie jest wydawane, dopóki go nie naciśniesz."
+      },
+      "flow-improvement-next-step": {
+        "title": "Następny krok",
+        "body": "Tu kończy się każdy postój: co robi następny krok i ile kosztuje. Nic nie jest wydawane, dopóki go nie naciśniesz."
+      },
+      "improvement-steps": {
+        "title": "Kroki",
+        "body": "Pięć kroków. Sesja zatrzymuje się po Zrozumieniu i po Zmianach, żebyś je obejrzał i nacisnął Następny krok; krok otwiera się, gdy ma coś do pokazania."
+      },
+      "flow-improvement-steps": {
+        "title": "Kroki",
+        "body": "Pięć kroków. Sesja zatrzymuje się po Zrozumieniu i po Zmianach, żebyś je obejrzał i nacisnął Następny krok; krok otwiera się, gdy ma coś do pokazania."
       }
     },
     "chooseLanguage": "Język",
@@ -7449,7 +7503,11 @@
       "improvement": {
         "ready": "Poprawki agenta {agent} są gotowe do przejrzenia.",
         "stopped": "Poprawianie agenta {agent} zostało zatrzymane.",
-        "failed": "Poprawiania agenta {agent} nie udało się dokończyć."
+        "failed": "Poprawiania agenta {agent} nie udało się dokończyć.",
+        "waiting": {
+          "understand": "Analiza dla {agent} jest gotowa: zobacz, co poszło nie tak, i naciśnij Następny krok.",
+          "changes": "Zmiany dla {agent} są gotowe do przejrzenia; potem naciśnij Następny krok, aby je przetestować."
+        }
       },
       "test": {
         "completed": "Twój test się zakończył.",
@@ -10775,7 +10833,7 @@
     "editQuestions": "Otwórz zbiór pytań",
     "title": "Popraw {name}",
     "heading": "Popraw",
-    "intro": "Przeczytamy, co poszło źle, zaproponujemy zmiany i sprawdzimy je na osobnych pytaniach. Zmiany wejdą w życie po Twojej akceptacji i publikacji.",
+    "intro": "Przeczytamy, co poszło nie tak, i zatrzymamy się, żebyś to obejrzał. Pisanie zmian i ich test czekają, aż naciśniesz Następny krok, a każdy krok wyceniamy wcześniej. Nic nie trafia na produkcję, dopóki nie zaakceptujesz i nie opublikujesz.",
     "testSet": "Pytania testowe",
     "chooseQuestions": "Wybierz pytania testowe",
     "writeQuestions": "Napisz dla mnie pytania testowe",
@@ -10815,7 +10873,7 @@
     "retryRead": "Spróbuj odczytać ponownie",
     "stepsLabel": "Kroki poprawiania",
     "spend": "{spent} z {budget}",
-    "changesWorking": "Przygotowujemy zmiany. Możesz zamknąć tę stronę i wrócić później.",
+    "changesWorking": "Piszemy zmiany. Możesz zamknąć tę stronę — damy znać, gdy będą gotowe do przejrzenia.",
     "background": "Sprawdzanie trwa w tle. Możesz zamknąć tę stronę — powiadomimy Cię o wyniku.",
     "automatic": "Sprawdzaj te pytania automatycznie przy każdej zmianie",
     "confirmation": "Przejrzałem wybrane zmiany i chcę je zastosować.",
@@ -10890,7 +10948,8 @@
       "stale": "Punkt wyjścia się zmienił",
       "accepted": "Zachowano w wersji roboczej",
       "published": "Opublikowano",
-      "rejected": "Odrzucono"
+      "rejected": "Odrzucono",
+      "waiting": "Czeka na Ciebie"
     },
     "stop": {
       "no_data": "Dodaj więcej pytań testowych lub ocen przed poprawianiem.",
@@ -11186,7 +11245,32 @@
     "todayNoisyCriteria": "Zamień kryteria oceny na pytania tak/nie",
     "todayNoisyCriteriaHint": "Formułuj każde kryterium jako pytanie tak/nie - takie sędzia ocenia najbardziej spójnie.",
     "todayNoisyModel": "Wybierz model oceniający",
-    "todayAgain": "Testuj ponownie"
+    "todayAgain": "Testuj ponownie",
+    "nextUp": {
+      "label": "Następny krok",
+      "hint": {
+        "understand": "Zobacz, co poszło nie tak, i zignoruj to, co nie powinno się liczyć. Następny krok wyceniamy, zanim naciśniesz.",
+        "changes": "Zaznacz zmiany do przetestowania i popraw sformułowania. Następny krok wyceniamy, zanim naciśniesz."
+      },
+      "pricing": "Wyceniamy następny krok…",
+      "priceMoved": "Cena zmieniła się na ok. {cost}. Naciśnij jeszcze raz, aby przejść dalej.",
+      "overLimit": "Następny krok kosztuje więcej, niż zostało w limicie sesji. Podnieś limit, aby przejść dalej.",
+      "raise": "Wyceń ponownie",
+      "go": {
+        "understand": "Następny krok: napisz zmiany · ok. {cost}",
+        "changes": "Następny krok: przetestuj zaznaczone zmiany · ok. {cost}"
+      },
+      "goUnpriced": {
+        "understand": "Następny krok: napisz zmiany",
+        "changes": "Następny krok: przetestuj zaznaczone zmiany"
+      }
+    },
+    "waitingFor": {
+      "understand": "Czeka na Ciebie: zobacz, co poszło nie tak",
+      "changes": "Czeka na Ciebie: przejrzyj zmiany"
+    },
+    "helperNote": "Notatka dla pomocnika (opcjonalnie)",
+    "helperNoteHint": "Napisz, co spróbować inaczej, na przykład które odpowiedzi są najważniejsze. Do 2000 znaków."
   },
   "unsaved": {
     "title": "Masz niezapisane zmiany",

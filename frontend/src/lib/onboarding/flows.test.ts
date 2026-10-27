@@ -661,6 +661,7 @@ it("walks the start of an improvement through its one decision", () => {
   expect(FLOWS["first-improvement"].steps.map((step) => step.target)).toEqual([
     "improvement-start",
     "improvement-quote",
+    "improvement-question-set",
     "improvement-details",
   ]);
 });
@@ -668,7 +669,11 @@ it("walks the start of an improvement through its one decision", () => {
 it("walks a session from its questions to the guard that holds a publish", () => {
   const steps = FLOWS["improvement-session"].steps;
   expect(steps.map((step) => step.target)).toEqual([
+    "improvement-steps",
+    "improvement-evidence",
     "improvement-test-questions",
+    "improvement-changes",
+    "improvement-next-step",
     "improvement-check",
     "improvement-open-check",
     "improvement-results",
@@ -678,7 +683,7 @@ it("walks a session from its questions to the guard that holds a publish", () =>
   ]);
   expect(steps.every((step) => step.permission === Perm.runsView)).toBe(true);
   expect(steps.filter((step) => !step.optional).map((step) => step.target)).toEqual([
-    "improvement-test-questions",
+    "improvement-steps",
   ]);
   expect(steps.find((step) => step.id === "flow-improvement-review")?.activate).toBe(
     "improvement-step-check",

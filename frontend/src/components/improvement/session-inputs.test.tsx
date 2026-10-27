@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { SESSION } from "@/test-utils/improvement";
 import type { ImprovementEvidence } from "@/types/improvement";
-import { StartSignals, TestQuestions } from "./session-inputs";
+import { StartQuestionSet, StartSignals, TestQuestions } from "./session-inputs";
 import { ReadOnlyProvider } from "./read-only";
 import { Understand } from "./understand";
 const state = vi.hoisted(() => ({
@@ -422,4 +422,25 @@ it("says more questions are needed without offering to write them once only read
   );
   expect(screen.getByText(/Too few questions to measure a change/)).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /Write \d+ more/ })).not.toBeInTheDocument();
+});
+
+it("shows the question set a new session would test on, and nothing until it is read", () => {
+  state.total = 2;
+  const view = render(<StartQuestionSet datasetId="d9" />);
+  expect(state.datasetHook).toHaveBeenCalledWith("d9", { limit: 100 });
+  expect(screen.getByRole("heading", { name: "2 test questions" })).toBeInTheDocument();
+  expect(
+    screen.getByRole("img", { name: /^1 question helps write the changes; 1 is kept aside/ }),
+  ).toBeInTheDocument();
+  state.total = 3;
+  view.rerender(<StartQuestionSet datasetId="d9" />);
+  expect(screen.getByRole("heading", { name: "3 test questions" })).toBeInTheDocument();
+  expect(screen.queryByRole("img")).not.toBeInTheDocument();
+  state.loading = true;
+  view.rerender(<StartQuestionSet datasetId="d9" />);
+  expect(screen.queryByRole("heading")).not.toBeInTheDocument();
+  state.loading = false;
+  state.total = 0;
+  view.rerender(<StartQuestionSet datasetId="d9" />);
+  expect(screen.queryByRole("heading")).not.toBeInTheDocument();
 });
