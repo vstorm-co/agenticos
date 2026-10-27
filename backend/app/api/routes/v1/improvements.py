@@ -6,6 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, status
 
 from app.api.deps import Auth, ImprovementSvc
+from app.api.public_api import ASSISTANT
 from app.schemas.authoring import HunkRead
 from app.schemas.eval_run import EvalRunRead
 from app.schemas.improvement import (
@@ -57,7 +58,7 @@ async def start_knowledge_check(
     return await service.start_knowledge(ctx, agent_id, run_id, data)
 
 
-@router.post("/estimate", response_model=ImprovementEstimate)
+@router.post("/estimate", response_model=ImprovementEstimate, dependencies=[ASSISTANT])
 async def estimate_improvement(
     agent_id: UUID, data: ImprovementTarget, service: ImprovementSvc, ctx: Auth
 ) -> Any:
@@ -65,7 +66,12 @@ async def estimate_improvement(
     return await service.estimate(ctx, agent_id, data)
 
 
-@router.post("", response_model=ImprovementRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=ImprovementRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[ASSISTANT],
+)
 async def start_improvement(
     agent_id: UUID, data: ImprovementStart, service: ImprovementSvc, ctx: Auth
 ) -> Any:
@@ -73,7 +79,7 @@ async def start_improvement(
     return await service.start(ctx, agent_id, data)
 
 
-@router.get("", response_model=list[ImprovementRead])
+@router.get("", response_model=list[ImprovementRead], dependencies=[ASSISTANT])
 async def list_improvements(agent_id: UUID, service: ImprovementSvc, ctx: Auth) -> Any:
     """Recent sessions, with evidence-free progress visible to readers of the agent."""
     return await service.list_for_agent(ctx, agent_id)
@@ -87,7 +93,7 @@ async def preview_improvement_evidence(
     return await service.evidence(ctx, agent_id, dataset_id=dataset_id)
 
 
-@router.get("/{run_id}/evidence", response_model=ImprovementEvidence)
+@router.get("/{run_id}/evidence", response_model=ImprovementEvidence, dependencies=[ASSISTANT])
 async def read_improvement_evidence(
     agent_id: UUID, run_id: UUID, service: ImprovementSvc, ctx: Auth
 ) -> Any:
@@ -119,13 +125,13 @@ async def read_improvement_changes(
     return await service.changes(ctx, agent_id, run_id)
 
 
-@router.get("/{run_id}", response_model=ImprovementRead)
+@router.get("/{run_id}", response_model=ImprovementRead, dependencies=[ASSISTANT])
 async def read_improvement(agent_id: UUID, run_id: UUID, service: ImprovementSvc, ctx: Auth) -> Any:
     """The session's durable timeline, costs, verdicts and stop reason."""
     return await service.read(ctx, agent_id, run_id)
 
 
-@router.post("/{run_id}/cancel", response_model=ImprovementRead)
+@router.post("/{run_id}/cancel", response_model=ImprovementRead, dependencies=[ASSISTANT])
 async def stop_improvement(agent_id: UUID, run_id: UUID, service: ImprovementSvc, ctx: Auth) -> Any:
     """Stop new work and cancel children, as the creator or an organization administrator."""
     return await service.cancel(ctx, agent_id, run_id)
@@ -157,7 +163,9 @@ async def check_selection(
     return await service.check_selection(ctx, agent_id, run_id, number, data)
 
 
-@router.post("/{run_id}/rounds/{number}/select", response_model=ImprovementRead)
+@router.post(
+    "/{run_id}/rounds/{number}/select", response_model=ImprovementRead, dependencies=[ASSISTANT]
+)
 async def select_improvement_round(
     agent_id: UUID, run_id: UUID, number: int, service: ImprovementSvc, ctx: Auth
 ) -> Any:
@@ -194,7 +202,7 @@ async def retry_improvement(
     return await service.retry(ctx, agent_id, run_id)
 
 
-@router.post("/{run_id}/finish", response_model=ImprovementFinished)
+@router.post("/{run_id}/finish", response_model=ImprovementFinished, dependencies=[ASSISTANT])
 async def finish_improvement(
     agent_id: UUID, run_id: UUID, data: ImprovementFinish, service: ImprovementSvc, ctx: Auth
 ) -> Any:
@@ -202,7 +210,9 @@ async def finish_improvement(
     return await service.finish(ctx, agent_id, run_id, data)
 
 
-@router.post("/{run_id}/continue/estimate", response_model=ContinuationEstimate)
+@router.post(
+    "/{run_id}/continue/estimate", response_model=ContinuationEstimate, dependencies=[ASSISTANT]
+)
 async def estimate_continuation(
     agent_id: UUID, run_id: UUID, data: ImprovementContinue, service: ImprovementSvc, ctx: Auth
 ) -> Any:
@@ -210,7 +220,7 @@ async def estimate_continuation(
     return await service.estimate_continuation(ctx, agent_id, run_id, data)
 
 
-@router.post("/{run_id}/continue", response_model=ImprovementRead)
+@router.post("/{run_id}/continue", response_model=ImprovementRead, dependencies=[ASSISTANT])
 async def continue_improvement(
     agent_id: UUID, run_id: UUID, data: ContinuationConsent, service: ImprovementSvc, ctx: Auth
 ) -> Any:
@@ -218,7 +228,7 @@ async def continue_improvement(
     return await service.continue_run(ctx, agent_id, run_id, data)
 
 
-@router.post("/{run_id}/discard", response_model=ImprovementRead)
+@router.post("/{run_id}/discard", response_model=ImprovementRead, dependencies=[ASSISTANT])
 async def discard_improvement(
     agent_id: UUID, run_id: UUID, data: ImprovementDiscard, service: ImprovementSvc, ctx: Auth
 ) -> Any:

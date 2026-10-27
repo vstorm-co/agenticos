@@ -123,6 +123,8 @@ class KeyCaller:
     surface: ChangeSurface = "api_key"
     """Which kind of client holds the key - what a change it makes is attributed to."""
 
+    name: str = ""
+
 
 class ApiKeyService:
     def __init__(self, db: AsyncSession) -> None:
@@ -381,6 +383,7 @@ class ApiKeyService:
             organization=organization,
             api_key_id=key.id,
             prefix=key.prefix,
+            name=key.name,
             surface="mcp" if key.oauth_grant_id else "assistant" if key.internal else "api_key",
             context=AuthContext(
                 user_id=key.user_id,

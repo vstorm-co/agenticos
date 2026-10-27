@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, Query, status
 
 from app.agents.spec import AgentSpec
 from app.api.deps import Auth, EvalRunSvc, require
+from app.api.public_api import ASSISTANT
 from app.core.permissions import Perm
 from app.schemas.eval_run import (
     EvalCaseList,
@@ -96,7 +97,7 @@ async def recent_eval_runs(
     return await service.recent(ctx, skip=skip, limit=limit)
 
 
-@router.get("/eval-runs/{eval_run_id}", response_model=EvalRunRead)
+@router.get("/eval-runs/{eval_run_id}", response_model=EvalRunRead, dependencies=[ASSISTANT])
 async def get_eval_run(eval_run_id: UUID, service: EvalRunSvc, ctx: Auth) -> Any:
     return await service.get(ctx, eval_run_id)
 
@@ -134,7 +135,11 @@ async def list_eval_run_cases(
     )
 
 
-@router.get("/eval-runs/{eval_run_id}/comparison", response_model=EvalComparisonRead)
+@router.get(
+    "/eval-runs/{eval_run_id}/comparison",
+    response_model=EvalComparisonRead,
+    dependencies=[ASSISTANT],
+)
 async def compare_eval_run(
     eval_run_id: UUID,
     service: EvalRunSvc,

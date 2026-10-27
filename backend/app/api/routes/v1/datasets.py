@@ -16,6 +16,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 
 from app.api.deps import Auth, DatasetSvc, ScoringSvc, require
+from app.api.public_api import ASSISTANT
 from app.api.responses import csv_response, jsonl_response
 from app.core.permissions import Perm
 from app.schemas.dataset import (
@@ -63,7 +64,11 @@ async def dataset_source_privacy(message_id: UUID, service: DatasetSvc, ctx: Aut
     return await service.source_privacy(ctx, message_id)
 
 
-@router.get("", response_model=DatasetList, dependencies=[Depends(require(Perm.DATASETS_VIEW))])
+@router.get(
+    "",
+    response_model=DatasetList,
+    dependencies=[Depends(require(Perm.DATASETS_VIEW)), ASSISTANT],
+)
 async def list_datasets(
     service: DatasetSvc,
     ctx: Auth,

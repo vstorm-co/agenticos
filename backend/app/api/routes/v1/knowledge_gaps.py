@@ -12,6 +12,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 
 from app.api.deps import Auth, KnowledgeGapSvc, VectorStoreSvc, require
+from app.api.public_api import ASSISTANT
 from app.core.permissions import Perm
 from app.schemas.knowledge_gap import (
     KnowledgeGapCasesAdded,
@@ -83,7 +84,7 @@ async def classify_collection_answers(
     await service.classify(ctx, knowledge_base_id)
 
 
-@router.get("/agents/{agent_id}", response_model=KnowledgeGapTopicList)
+@router.get("/agents/{agent_id}", response_model=KnowledgeGapTopicList, dependencies=[ASSISTANT])
 async def list_agent_gaps(
     agent_id: UUID,
     service: KnowledgeGapSvc,
@@ -129,6 +130,7 @@ async def add_gap_to_dataset(
     "/{topic_id}/draft",
     response_model=KnowledgeGapTopicDetail,
     status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[ASSISTANT],
 )
 async def draft_gap(topic_id: UUID, service: KnowledgeGapSvc, ctx: Auth) -> Any:
     """Queue a draft of the passage this topic is missing; the topic says while it is written.
@@ -142,7 +144,9 @@ async def draft_gap(topic_id: UUID, service: KnowledgeGapSvc, ctx: Auth) -> Any:
     return await service.request_draft(ctx, topic_id)
 
 
-@router.get("/{topic_id}/draft/estimate", response_model=KnowledgeGapDraftEstimate)
+@router.get(
+    "/{topic_id}/draft/estimate", response_model=KnowledgeGapDraftEstimate, dependencies=[ASSISTANT]
+)
 async def estimate_gap_draft(topic_id: UUID, service: KnowledgeGapSvc, ctx: Auth) -> Any:
     """The most one draft of this topic costs, before anybody asks for it."""
     return await service.draft_estimate(ctx, topic_id)

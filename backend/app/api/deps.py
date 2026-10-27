@@ -402,7 +402,7 @@ from app.api.embed_cors import allow_embed_origin
 from app.core.audit import set_api_key
 from app.core.security import encode_untrusted, verify_token
 from app.db.models.user import User
-from app.api.public_api import is_public_route
+from app.api.public_api import ASSISTANT_SURFACES, is_assistant_route, is_public_route
 from app.services.api_key import ApiKeyService, KeyCaller, is_api_key
 from app.services.assistant import AssistantService
 from app.services.oauth_server import OAuthServerService
@@ -471,11 +471,13 @@ async def _authenticate_api_key(request: Request, token: str, api_keys: ApiKeySe
     request for :func:`get_auth_context`, which every public route depends on.
     """
     route = request.scope.get("route")
-    if not is_public_route(route):
-        raise AuthorizationError(
-            message="API keys are not accepted on this endpoint",
-            details={"path": getattr(route, "path", request.url.path)},
-        )
+    public = is_public_route(route)
+    refusal = AuthorizationError(
+        message="API keys are not accepted on this endpoint",
+        details={"path": getattr(route, "path", request.url.path)},
+    )
+    if not public and not is_assistant_route(route):
+        raise refusal
     refused = await rate_limit.key_attempt_refused(request, token)
     if refused is not None:
         _refuse_if_over(*refused)
@@ -484,8 +486,14 @@ async def _authenticate_api_key(request: Request, token: str, api_keys: ApiKeySe
     except AuthenticationError:
         await rate_limit.count_refused_key(request)
         raise
+    if not public and caller.surface not in ASSISTANT_SURFACES:
+        raise refusal
     request.state.api_key_caller = caller
-    set_api_key(caller.api_key_id, caller.prefix)
+    set_api_key(
+        caller.api_key_id,
+        caller.prefix,
+        assistant=caller.name if caller.surface == "assistant" else None,
+    )
     return caller.user
 
 

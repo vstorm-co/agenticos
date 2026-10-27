@@ -432,27 +432,30 @@ async def test_each_tool_is_one_public_api_call(
 @pytest.mark.parametrize(
     ("method", "path"), sorted({(call[0], call[1]) for _tool, _args, call in CALLS})
 )
-def test_every_call_reaches_a_public_route(method: str, path: str) -> None:
-    """A tool is a call to the public API, so the route has to exist and admit a key.
+def test_every_call_reaches_a_route_its_key_may_call(method: str, path: str) -> None:
+    """A tool is a call to the API, so the route has to exist and admit the tool's key:
+    a public route, or one marked for the platform's own tools.
 
     The table above checks the call a tool makes, not that anything answers it:
     `list_models` once asked for `/model-profiles`, which is mounted under
     `/providers`, and every agent-building conversation hit a 404 (#2301).
     """
+    assert _reachable(method, path), f"no public or assistant route answers {method} {path}"
+
+
+def _reachable(method: str, path: str) -> bool:
     import re
 
-    from app.api.public_api import public_operations
+    from app.api.public_api import assistant_operations, public_operations
     from app.core.config import settings
     from app.main import app
 
     full = f"{settings.API_V1_STR}{path}"
-    public = [
-        template
-        for verb, template in public_operations(app.routes)
-        if verb == method.lower() and re.fullmatch(re.sub(r"\{[^}]+\}", "[^/]+", template), full)
-    ]
-
-    assert public, f"no public route answers {method} {path}"
+    operations = public_operations(app.routes) | assistant_operations(app.routes)
+    return any(
+        verb == method.lower() and re.fullmatch(re.sub(r"\{[^}]+\}", "[^/]+", template), full)
+        for verb, template in operations
+    )
 
 
 class TestListingMyConnections:
