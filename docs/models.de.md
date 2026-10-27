@@ -1,5 +1,5 @@
 ---
-source_sha: "8eebc2ccdc3b"
+source_sha: "3097b2e765d2"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -102,6 +102,34 @@ Bildbeschreibung bei der Konfiguration und im Worker. Alte Konfigurationen laden
 weiterhin; ein inkompatibles Modell muss vor der Nutzung ersetzt werden. Das
 Ausschalten bleibt möglich. Azure-Deployment-Namen werden nicht anhand der
 Basismodell-IDs des Katalogs klassifiziert.
+
+### Das Modell, mit dem ein neuer Agent startet { #the-model-a-new-agent-starts-on }
+
+Es gibt kein organisationsweites Standardmodell. Die Spec eines Agenten nennt sein
+Modell, und die Veröffentlichung lehnt eine Spec ab, die keines nennt.
+
+Ein neuer Agent, der kein Modell nennt, startet mit dem Modell der Organisation,
+wenn die Organisation genau ein Modell hat, auf dem ein Agent laufen kann. Das ist
+ein Chat-Modell mit Schlüssel, das die Veröffentlichung so akzeptiert, wie es ist,
+Fallbacks eingeschlossen. Das gilt für jeden Weg, einen Agenten anzulegen:
+**Neuer Agent** in der Konsole, `POST /agents` ohne `model_profile_id`, eine
+Vorlage, eine Kopie eines Entwurfs ohne Modell und ein beförderter Spezialist. Das
+Modell wird in den Entwurf geschrieben. So lässt sich der Agent veröffentlichen,
+ohne dass jemand **Modell** öffnet, und seine Historie zeigt, mit welchem Modell er
+veröffentlicht wurde. Eine Spec, die ein Modell nennt, behält es.
+
+Der Entwurf bleibt ohne Modell, wenn die Organisation keines oder mehr als eines
+hat. Profile, auf denen kein Agent laufen kann, zählen nicht: ein Profil ohne
+Schlüssel, ein Text-to-Speech-Modell und die anderen Modelle aus
+[Ein Profil, auf dem kein Agent laufen kann](#a-profile-an-agent-cannot-run-on).
+Ein Modell auf einer [ChatGPT-Anmeldung](#running-on-a-chatgpt-subscription) wird
+nie für jemanden gewählt, weil es das Abonnement einer einzelnen Person ist, aber
+es zählt als Modell.
+
+Die Veröffentlichung lehnt den Entwurf dann mit *No model selected - pick one under
+Build > Model before publishing* ab. Die Ablehnung markiert auch das Feld
+(`model_profile_id` in `details.fields`), und die Konsole zeigt daneben **Zum
+Abschnitt Modell**, das den Tab **Bauen** an der Karte **Modell** öffnet.
 
 ### Schlüssel oder Endpunkt eines Profils ändern { #changing-a-profiles-key-or-endpoint }
 

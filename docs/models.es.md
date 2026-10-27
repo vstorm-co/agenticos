@@ -1,5 +1,5 @@
 ---
-source_sha: "8eebc2ccdc3b"
+source_sha: "3097b2e765d2"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -99,6 +99,34 @@ al configurar y en el worker. Las configuraciones antiguas siguen cargándose;
 hay que sustituir un modelo incompatible antes de usarlas. Sigue siendo posible
 desactivar la función. Los nombres de despliegues de Azure no se clasifican a
 partir de los identificadores de modelos base del catálogo.
+
+### El modelo con el que empieza un agent nuevo { #the-model-a-new-agent-starts-on }
+
+No hay un modelo predeterminado para toda la organización. La spec de un agent
+nombra su modelo, y la publicación rechaza una spec que no nombra ninguno.
+
+Un agent nuevo que no nombra un modelo empieza con el modelo de la organización
+cuando la organización tiene exactamente un modelo en el que un agent puede
+ejecutarse. Es un modelo de chat con clave que la publicación acepta tal como
+está, fallbacks incluidos. Se aplica a todas las formas de crear un agent:
+**Nuevo agent** en la consola, `POST /agents` sin `model_profile_id`, una
+plantilla, una copia de un borrador sin modelo y un especialista promovido. El
+modelo se escribe en el borrador, así que el agent se publica sin que nadie abra
+**Model**, y su historial muestra con qué modelo se publicó. Una spec que nombra
+un modelo lo conserva.
+
+El borrador se queda sin modelo cuando la organización no tiene ninguno o tiene más
+de uno. Los perfiles en los que un agent no puede ejecutarse no cuentan: un perfil
+sin clave, un modelo de texto a voz y los demás modelos de
+[Un perfil en el que un agent no puede ejecutarse](#a-profile-an-agent-cannot-run-on).
+Un modelo con un [inicio de sesión de ChatGPT](#running-on-a-chatgpt-subscription)
+nunca se elige por nadie, porque es la suscripción de una persona, pero cuenta
+como modelo.
+
+La publicación rechaza entonces el borrador con *No model selected - pick one under
+Build > Model before publishing*. El rechazo también marca el campo
+(`model_profile_id` en `details.fields`), y la consola muestra al lado **Go to
+Model**, que abre la pestaña **Build** en la tarjeta **Model**.
 
 ### Cambiar la clave o el endpoint de un perfil { #changing-a-profiles-key-or-endpoint }
 

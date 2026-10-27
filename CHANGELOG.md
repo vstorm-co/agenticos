@@ -33,8 +33,21 @@ Two things are versioned separately from this file and worth knowing about:
   edit is audited as `model_profile.updated` with the changed field names only.
   See
   [Changing a profile's key or endpoint](docs/models.md#changing-a-profiles-key-or-endpoint).
+- A new agent starts on the organization's model when the organization has
+  exactly one model an agent can run on: a chat model with a key that publish
+  accepts (#2483). This applies to **New agent**, `POST /agents` without a
+  `model_profile_id`, templates, copies and promoted specialists, and the model
+  is written into the draft, so the agent publishes without opening **Model**.
+  With no model or several, the draft has no model as before. A model on a
+  ChatGPT sign-in is never chosen for somebody. See
+  [The model a new agent starts on](docs/models.md#the-model-a-new-agent-starts-on).
 
 ### Changed
+
+- Publish's refusal of an agent with no model now reads *No model selected -
+  pick one under Build > Model before publishing* and also marks
+  `model_profile_id` in `details.fields` (#2483). The Builder shows **Go to
+  Model** beside it, which opens the Model card on the Build tab.
 
 - Deleting a model profile that agents use is refused with `409 IN_USE`
   (#2478). `details.agents` names each agent the caller can see and marks the

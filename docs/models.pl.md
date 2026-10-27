@@ -1,5 +1,5 @@
 ---
-source_sha: "8eebc2ccdc3b"
+source_sha: "3097b2e765d2"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -92,6 +92,32 @@ działa też przy konfiguracji proaktywności i przy rozwiązywaniu profilu do z
 konfiguracje nadal się wczytują; przed użyciem trzeba zastąpić niezgodny model.
 Wyłączenie funkcji pozostaje możliwe. Nazwy wdrożeń Azure nie są klasyfikowane
 na podstawie identyfikatorów modeli bazowych z katalogu.
+
+### Model, na którym startuje nowy agent { #the-model-a-new-agent-starts-on }
+
+Nie ma domyślnego modelu dla całej organizacji. Spec agenta wskazuje jego model,
+a publikacja odrzuca spec, który żadnego nie wskazuje.
+
+Nowy agent, który nie wskazuje modelu, startuje na modelu organizacji, gdy
+organizacja ma dokładnie jeden model, na którym agent może działać. To model
+czatowy z kluczem, który publikacja przyjmuje w obecnej postaci, razem z
+fallbackami. Dotyczy to każdego sposobu tworzenia agenta: **Nowy agent** w
+konsoli, `POST /agents` bez `model_profile_id`, szablonu, kopii szkicu bez modelu
+oraz wypromowanego specjalisty. Model jest zapisywany w szkicu, więc agent
+publikuje się bez otwierania sekcji **Model**, a jego historia pokazuje, na jakim
+modelu został opublikowany. Spec, który wskazuje model, zachowuje go.
+
+Szkic zostaje bez modelu, gdy organizacja nie ma żadnego modelu albo ma więcej niż
+jeden. Profile, na których agent nie może działać, nie są liczone: profil bez
+klucza, model text-to-speech i pozostałe modele z sekcji
+[Profil, na którym agent nie może działać](#a-profile-an-agent-cannot-run-on).
+Model na [logowaniu ChatGPT](#running-on-a-chatgpt-subscription) nigdy nie jest
+wybierany za kogoś, bo to subskrypcja jednej osoby, ale jest liczony jako model.
+
+Publikacja odrzuca wtedy szkic komunikatem *No model selected - pick one under
+Build > Model before publishing*. Odmowa oznacza też pole (`model_profile_id` w
+`details.fields`), a konsola pokazuje obok niej **Przejdź do sekcji Model**, co
+otwiera kartę **Budowa** na karcie **Model**.
 
 ### Zmiana klucza lub endpointu profilu { #changing-a-profiles-key-or-endpoint }
 

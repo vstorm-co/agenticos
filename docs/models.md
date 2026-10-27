@@ -85,6 +85,32 @@ time. Old configurations still load; replace an incompatible model before using
 them. Switching off remains possible. Azure deployment names are not classified
 from the catalog's base-model IDs.
 
+### The model a new agent starts on
+
+There is no organization-wide default model. An agent's spec names its model,
+and publish refuses a spec that names none.
+
+A new agent that names no model starts on the organization's model when the
+organization has exactly one model an agent can run on. That is a chat model with
+a key, which publish accepts as it stands, fallbacks included. It applies to every
+way of creating an agent: **New agent** in the console, `POST /agents` without a
+`model_profile_id`, a template, a copy of a draft that has no model, and a promoted
+specialist. The model is written into the draft, so the agent publishes without
+anybody opening **Model**, and its history shows which model it was published on.
+A spec that names a model keeps it.
+
+The draft stays without a model when the organization has none, or more than one.
+Profiles that cannot run an agent do not count: a profile with no key, a
+text-to-speech model and the other models in
+[A profile an agent cannot run on](#a-profile-an-agent-cannot-run-on). A model on
+a [ChatGPT sign-in](#running-on-a-chatgpt-subscription) is never chosen for
+somebody, because it is one person's subscription, but it counts as a model.
+
+Publish then refuses the draft with *No model selected - pick one under Build >
+Model before publishing*. The refusal also marks the field (`model_profile_id` in
+`details.fields`), and the console shows **Go to Model** beside it, which opens the
+**Build** tab at the **Model** card.
+
 ### Changing a profile's key or endpoint
 
 Agents name a profile by its id. To move a model to another key, another
