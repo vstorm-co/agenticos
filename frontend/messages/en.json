@@ -11427,7 +11427,8 @@
       "included": "Included in the test",
       "alreadyAdded": "{count, plural, one {# already added} other {# already added}}",
       "partitionAbout": "Each attempt keeps about {holdout, plural, one {# question} other {# questions}} aside to check the result; about {train, plural, one {# helps} other {# help}} write the changes. A question also asked in the conversations it learns from helps write them instead, so fewer may be kept aside.",
-      "partitionAttempt": "Attempt {attempt} kept {holdout, plural, one {# question} other {# questions}} aside to check the result; {train, plural, one {# helped} other {# helped}} write the changes."
+      "partitionAttempt": "Attempt {attempt} kept {holdout, plural, one {# question} other {# questions}} aside to check the result; {train, plural, one {# helped} other {# helped}} write the changes.",
+      "partitionStart": "The first attempt keeps {holdout, plural, one {# question} other {# questions}} aside to check the result; {train, plural, one {# helps} other {# help}} write the changes, counting those also asked in the conversations it learns from."
     },
     "sessionLine": "Session",
     "budgetUsed": "Spending limit used",

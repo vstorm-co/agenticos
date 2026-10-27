@@ -11310,7 +11310,8 @@
       "included": "Im Test enthalten",
       "alreadyAdded": "{count, plural, one {# schon hinzugefügt} other {# schon hinzugefügt}}",
       "partitionAbout": "Jeder Versuch legt etwa {holdout, plural, one {# Frage} other {# Fragen}} zurück, um das Ergebnis zu prüfen; etwa {train, plural, one {# hilft} other {# helfen}}, die Änderungen zu schreiben. Eine Frage, die auch in den Gesprächen vorkommt, aus denen er lernt, hilft stattdessen beim Schreiben, daher können weniger zurückgelegt werden.",
-      "partitionAttempt": "Versuch {attempt} hat {holdout, plural, one {# Frage} other {# Fragen}} zurückgelegt, um das Ergebnis zu prüfen; {train, plural, one {# half} other {# halfen}}, die Änderungen zu schreiben."
+      "partitionAttempt": "Versuch {attempt} hat {holdout, plural, one {# Frage} other {# Fragen}} zurückgelegt, um das Ergebnis zu prüfen; {train, plural, one {# half} other {# halfen}}, die Änderungen zu schreiben.",
+      "partitionStart": "Der erste Versuch legt {holdout, plural, one {# Frage} other {# Fragen}} zurück, um das Ergebnis zu prüfen; {train, plural, one {# hilft} other {# helfen}}, die Änderungen zu schreiben, einschließlich derer, die auch in den Gesprächen gestellt wurden, aus denen er lernt."
     },
     "sessionLine": "Sitzung",
     "budgetUsed": "Genutztes Ausgabenlimit",

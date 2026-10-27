@@ -11210,7 +11210,8 @@
       "included": "Włączone do testu",
       "alreadyAdded": "{count, plural, one {# już dodany} few {# już dodane} many {# już dodanych} other {# już dodanego}}",
       "partitionAbout": "Każda próba odkłada około {holdout, plural, one {# pytanie} few {# pytania} many {# pytań} other {# pytania}} do sprawdzenia wyniku; około {train, plural, one {# pomaga} few {# pomagają} many {# pomaga} other {# pomaga}} napisać zmiany. Pytanie zadane też w rozmowach, z których próba się uczy, pomaga pisać zmiany, więc odłożonych może być mniej.",
-      "partitionAttempt": "Próba {attempt} odłożyła {holdout, plural, one {# pytanie} few {# pytania} many {# pytań} other {# pytania}} do sprawdzenia wyniku; {train, plural, one {# pomogło} few {# pomogły} many {# pomogło} other {# pomogło}} napisać zmiany."
+      "partitionAttempt": "Próba {attempt} odłożyła {holdout, plural, one {# pytanie} few {# pytania} many {# pytań} other {# pytania}} do sprawdzenia wyniku; {train, plural, one {# pomogło} few {# pomogły} many {# pomogło} other {# pomogło}} napisać zmiany.",
+      "partitionStart": "Pierwsza próba odkłada {holdout, plural, one {# pytanie} few {# pytania} many {# pytań} other {# pytania}} do sprawdzenia wyniku; {train, plural, one {# pomaga} few {# pomagają} many {# pomaga} other {# pomaga}} napisać zmiany, wliczając te zadane też w rozmowach, z których się uczy."
     },
     "sessionLine": "Sesja",
     "budgetUsed": "Wykorzystany limit wydatków",

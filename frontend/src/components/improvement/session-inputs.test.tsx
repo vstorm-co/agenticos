@@ -445,7 +445,7 @@ it("shows the question set a new session would test on, and nothing until it is 
   view.rerender(<StartQuestionSet datasetId="d9" heldOut={2} />);
   expect(
     screen.getByRole("img", {
-      name: "Each attempt keeps about 2 questions aside to check the result; about 0 help write the changes.",
+      name: "The first attempt keeps 2 questions aside to check the result; 0 help write the changes, counting those also asked in the conversations it learns from.",
     }),
   ).toBeInTheDocument();
   state.total = 3;

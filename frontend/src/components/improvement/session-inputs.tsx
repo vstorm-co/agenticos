@@ -139,7 +139,9 @@ export function QuestionSetFigures({
   const train = Math.max(0, cases.length - holdout);
   const label = checked
     ? t("widgets.partitionAttempt", { train, holdout, attempt: checked.attempt })
-    : t("widgets.partitionAbout", { train, holdout });
+    : expected !== undefined
+      ? t("widgets.partitionStart", { train, holdout })
+      : t("widgets.partitionAbout", { train, holdout });
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <figure className="space-y-3 rounded-xl border p-4">
