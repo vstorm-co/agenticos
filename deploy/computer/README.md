@@ -30,9 +30,7 @@ each process as its account; do not run it with `--user`, and keep `SETUID` and
 `SETGID` if you drop capabilities. An application a `launch` action opens is
 started by a launcher running as `desk`, which computerd asks over a socket in
 `/run/launcher` that only the two accounts can reach, so the application never
-runs as the account holding the token. It starts each application in a session
-of its own, and quits it by ending that session when the run that launched it
-ends. `SCREEN_SIZE` defaults to `1280x800`. Set
+runs as the account holding the token. `SCREEN_SIZE` defaults to `1280x800`. Set
 `VNC_PASSWORD` and publish port 6080 to watch the whole session in noVNC;
 without it, no VNC server starts, because VNC means full control of the
 desktop.
@@ -47,8 +45,7 @@ The inline script metadata pulls in Quartz. The first time it runs, macOS asks
 for Screen Recording and Accessibility for the app that started it (the
 terminal). Until both are granted, screenshots fail or show only the wallpaper,
 and clicks do nothing. A `launch` action runs `open -a` with the application's
-name, and the end of the run quits it with `quit saving no` unless it was
-running already. The daemon listens on `127.0.0.1` unless `COMPUTERD_HOST`
+name. The daemon listens on `127.0.0.1` unless `COMPUTERD_HOST`
 says otherwise. A deployment running in Docker on the same Mac reaches it at
 `host.docker.internal`.
 

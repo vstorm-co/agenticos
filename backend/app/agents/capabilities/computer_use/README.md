@@ -107,20 +107,6 @@ slash, no leading dash - so it can never be a path or an option. computerd's
 container opens it through a launcher running as `desk`: computerd itself holds
 the token.
 
-**Quitting it at the end:** an application a run launched is quit when the
-run ends, because the desktop is somebody's - the person's Mac, a sandbox the
-next turn uses - and a window left behind is clutter at best and the next
-run's confusion at worst. `Computer.launch` answers with a handle, or `None`
-when the application was already running, which is never the run's to close;
-the session keeps the handles of launches without `keep_open` and
-`close_desktop` quits them, shielded and bounded by `QUIT_SECONDS`. A run
-parked for approval has not ended, and the toolset cannot tell a park from an
-end, so `ComputerUse.after_run`, which pydantic-ai calls first, marks the run
-parked; the handles travel to the resumed run in `Seen.launched`, which quits
-them, opening the desktop again if it never looked. A handle is the session id
-of the launch in the sandbox (`pkill -s`, never 0 or 1) and a name computerd
-gave out, which it alone maps back to a session or a Mac application.
-
 **Limits:** `max_actions_per_call` bounds one batch. `max_actions` bounds a run;
 past it the tool tells the model to stop and report what is left. A `type`
 action carries at most 2000 characters.

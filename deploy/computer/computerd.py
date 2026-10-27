@@ -17,15 +17,10 @@ Two endpoints behind a bearer token:
 and `GET /health`, unauthenticated, for a container's health check.
 
 A `launch` action opens an application by name: `open -a` on macOS, and on Linux
-the desktop entry its menu shows, through `exo-open`. Unless the application was
-running already, the answer's `"launched"` names it, and `{"action": "quit",
-"launched": ...}` closes it again, unsaved work and all - AgenticOS does that when
-the run that launched it ends. Nothing else can be quit: only what this computerd
-launched. On Linux a launch runs in a session of its own and quitting ends that
-session. In the container that runs as `desk`, not as the account holding the
-token, so the entrypoint starts `computerd.py launcher <socket>` as `desk` and
-names the socket in `COMPUTERD_LAUNCHER`; without it, computerd opens and quits
-applications itself.
+the desktop entry its menu shows, through `exo-open`. In the
+container that runs as `desk`, not as the account holding the token, so the
+entrypoint starts `computerd.py launcher <socket>` as `desk` and names the socket
+in `COMPUTERD_LAUNCHER`; without it, computerd opens the application itself.
 
 Standard library only on Linux (it shells out to `scrot` and `xdotool`, so X11
 only: a Wayland session reaches nothing but its XWayland windows that way); on
@@ -56,7 +51,6 @@ import platform
 import re
 import secrets
 import shutil
-import signal
 import socket
 import socketserver
 import struct
@@ -155,16 +149,8 @@ class Driver(ABC):
         """Press a chord such as `ctrl+shift+t`, `enter` or `cmd+space`; `split_chord` parses it."""
 
     @abstractmethod
-    def launch(self, app: str) -> str | None:
-        """Open an installed application by the name its menu or Finder shows.
-
-        Return what `quit` closes it by, or `None` when it was already running and
-        so is not the caller's to close.
-        """
-
-    @abstractmethod
-    def quit(self, launched: str) -> None:
-        """Close what `launch` opened and returned this for, discarding unsaved work."""
+    def launch(self, app: str) -> None:
+        """Open an installed application by the name its menu or Finder shows."""
 
 
 def split_chord(chord: str) -> list[str]:
@@ -204,76 +190,38 @@ def find_app(query: str) -> Path:
     raise Refused(f"No application called '{query}' is installed. These are: {names}.")
 
 
-def open_app(query: str) -> int:
-    """Open the application a `launch` names, as whoever runs this; the session it runs in."""
+def open_app(query: str) -> None:
+    """Open the application a `launch` names, as whoever runs this."""
     if shutil.which("exo-open") is None:
         raise Refused("this desktop has no exo-open to open applications with")
     path = find_app(query)
-    # A session of its own, so `quit_session` finds everything it starts, and no
-    # pipes: the application inherits them, and waiting on one it holds open
-    # would wait until it quit.
-    child = subprocess.Popen(
-        ["exo-open", str(path)],
-        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        start_new_session=True,
-    )
     try:
-        code = child.wait(timeout=20)
+        # A session of its own and no pipes: the application inherits them, and
+        # waiting on one it holds open would wait until it quit.
+        code = subprocess.run(
+            ["exo-open", str(path)],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            start_new_session=True, timeout=20, check=False,
+        ).returncode
     except subprocess.TimeoutExpired as exc:
-        quit_session(child.pid)
         raise Refused(f"{path.name} did not open within 20 seconds") from exc
     if code != 0:
         raise Refused(f"exo-open could not open {path.name} (exit {code})")
-    return child.pid
-
-
-def quit_session(session: int) -> None:
-    """End every process in a session: asked first, killed if it is still there after 3 seconds."""
-
-    def members() -> list[int]:
-        found = []
-        for entry in Path("/proc").iterdir():
-            try:
-                if entry.name.isdigit() and os.getsid(int(entry.name)) == session:
-                    found.append(int(entry.name))
-            except OSError:
-                continue
-        return found
-
-    for sig in (signal.SIGTERM, signal.SIGKILL):
-        for pid in members():
-            try:
-                os.kill(pid, sig)
-            except OSError:
-                continue
-        for _ in range(30):
-            if not members():
-                return
-            time.sleep(0.1)
 
 
 class _Launcher(socketserver.StreamRequestHandler):
-    """Asked by computerd, a line each way: `open <name>` is answered `ok <handle>`,
-    `quit <handle>` with `ok`, and either with why not."""
-
-    started: set[int] = set()
+    """One `launch`, asked by computerd: the name in, `ok` or why not out, a line each."""
 
     def handle(self) -> None:
-        verb, _, arg = self.rfile.readline(256).decode(errors="replace").strip().partition(" ")
+        query = self.rfile.readline(256).decode(errors="replace").strip()
         try:
-            if verb == "open" and APP_NAME.fullmatch(arg):
-                session = open_app(arg)
-                self.started.add(session)
-                reply = f"ok {session}"
-            elif verb == "quit" and arg.isdigit() and int(arg) in self.started:
-                self.started.discard(int(arg))
-                quit_session(int(arg))
-                reply = "ok"
-            else:
-                raise Refused("the launcher opens an application by name and quits only what it opened")
+            if not APP_NAME.fullmatch(query):
+                raise Refused("'app' must be an application's name")
+            open_app(query)
         except Refused as exc:
-            reply = str(exc)[:MAX_ERROR]
-        self.wfile.write(reply.encode() + b"\n")
+            self.wfile.write(str(exc)[:MAX_ERROR].encode() + b"\n")
+            return
+        self.wfile.write(b"ok\n")
 
 
 def serve_launcher(path: str) -> None:
@@ -341,34 +289,23 @@ class X11Driver(Driver):
     def key(self, chord: str) -> None:
         self._xdotool("key", "--", "+".join(self._KEYS.get(part, part) for part in split_chord(chord)))
 
-    def _launcher(self, request: str) -> str:
-        """Ask the launcher; what follows its `ok`."""
-        launcher = os.environ.get("COMPUTERD_LAUNCHER", "")
+    def launch(self, app: str) -> None:
+        launcher = os.environ.get("COMPUTERD_LAUNCHER")
+        if not launcher:
+            open_app(app)
+            return
+        # In the container this account holds the token, so the desktop's own
+        # account opens the application - see `serve_launcher`.
         try:
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
                 conn.settimeout(40)
                 conn.connect(launcher)
-                conn.sendall(request.encode() + b"\n")
+                conn.sendall(app.encode() + b"\n")
                 reply = conn.makefile("rb").readline(4 * MAX_ERROR).decode(errors="replace").strip()
         except OSError as exc:
             raise Refused(f"the desktop's launcher did not answer: {exc}") from exc
-        verb, _, rest = reply.partition(" ")
-        if verb != "ok":
+        if reply != "ok":
             raise Refused(reply or "the desktop's launcher did not answer")
-        return rest
-
-    # In the container this account holds the token, so the desktop's own account
-    # opens and quits applications - see `serve_launcher`.
-    def launch(self, app: str) -> str | None:
-        if os.environ.get("COMPUTERD_LAUNCHER"):
-            return self._launcher(f"open {app}")
-        return str(open_app(app))
-
-    def quit(self, launched: str) -> None:
-        if os.environ.get("COMPUTERD_LAUNCHER"):
-            self._launcher(f"quit {launched}")
-        else:
-            quit_session(int(launched))
 
 
 class MacDriver(Driver):
@@ -496,39 +433,16 @@ class MacDriver(Driver):
             raise Refused(f"'{main}' is not a key this desktop knows")
         self._keystroke(self._KEYCODES[main], flags)
 
-    def _osascript(self, script: str, app: str) -> str:
-        # The name as an argument, never spliced into the script.
-        result = subprocess.run(
-            ["osascript", "-e", "on run argv", "-e", script, "-e", "end run", app],
-            capture_output=True, text=True, timeout=20, check=False,
-        )
-        if result.returncode != 0:
-            raise Refused(result.stderr.strip()[:200] or f"osascript failed on {app}")
-        return result.stdout.strip()
-
-    def launch(self, app: str) -> str | None:
-        running = self._osascript("return application (item 1 of argv) is running", app) == "true"
+    def launch(self, app: str) -> None:
         try:
             result = subprocess.run(["open", "-a", app], capture_output=True, text=True, timeout=20, check=False)
         except subprocess.TimeoutExpired as exc:
             raise Refused(f"{app} did not open within 20 seconds") from exc
         if result.returncode != 0:
             raise Refused(result.stderr.strip()[:200] or f"could not open {app}")
-        return None if running else app
-
-    def quit(self, launched: str) -> None:
-        self._osascript(
-            "if application (item 1 of argv) is running then tell application (item 1 of argv) to quit saving no",
-            launched,
-        )
 
 
-def perform(driver: Driver, action: dict[str, Any], launched: dict[str, str]) -> str | None:
-    """Carry out one action; for a launch that opened something, the name to quit it by.
-
-    `launched` holds what this computerd opened, by the names it gave out, so a
-    caller can quit those and nothing else on the desktop.
-    """
+def perform(driver: Driver, action: dict[str, Any]) -> None:
     kind = action.get("action")
     if kind == "click":
         button = action.get("button", "left")
@@ -558,16 +472,7 @@ def perform(driver: Driver, action: dict[str, Any], launched: dict[str, str]) ->
         app = action.get("app")
         if not isinstance(app, str) or not APP_NAME.fullmatch(app):
             raise Refused("'app' must be an application's name: up to 64 letters, digits, spaces and . + -")
-        handle = driver.launch(app)
-        if handle is not None:
-            name = secrets.token_urlsafe(12)
-            launched[name] = handle
-            return name
-    elif kind == "quit":
-        name = action.get("launched")
-        if not isinstance(name, str) or name not in launched:
-            raise Refused("'launched' must name an application this desktop launched")
-        driver.quit(launched.pop(name))
+        driver.launch(app)
     elif kind == "wait":
         seconds = action.get("seconds", 1.0)
         if not isinstance(seconds, int | float) or not 0 < seconds <= 10:
@@ -575,12 +480,10 @@ def perform(driver: Driver, action: dict[str, Any], launched: dict[str, str]) ->
         time.sleep(seconds)
     else:
         raise Refused(f"unknown action {kind!r}")
-    return None
 
 
 def make_handler(driver: Driver, token: str) -> type[BaseHTTPRequestHandler]:
     lock = threading.Lock()  # one desktop, one pointer: never two requests driving it at once
-    launched: dict[str, str] = {}
     expected = f"Bearer {token}".encode()
 
     class Handler(BaseHTTPRequestHandler):
@@ -646,19 +549,16 @@ def make_handler(driver: Driver, token: str) -> type[BaseHTTPRequestHandler]:
             except (ValueError, KeyError, TypeError):
                 self._json(HTTPStatus.BAD_REQUEST, {"error": "expected {\"actions\": [ ... ]}"})
                 return
-            done, opened = 0, []
+            done = 0
             try:
                 with lock:
                     for action in actions:
-                        name = perform(driver, action, launched)
-                        if name is not None:
-                            opened.append(name)
+                        perform(driver, action)
                         done += 1
             except Refused as exc:
-                error = {"error": str(exc)[:MAX_ERROR], "done": done, "launched": opened}
-                self._json(HTTPStatus.BAD_REQUEST, error)
+                self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)[:MAX_ERROR], "done": done})
                 return
-            self._json(HTTPStatus.OK, {"ok": True, "done": done, "launched": opened})
+            self._json(HTTPStatus.OK, {"ok": True, "done": done})
 
     return Handler
 

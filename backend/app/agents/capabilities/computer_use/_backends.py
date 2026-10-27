@@ -49,9 +49,11 @@ import httpx
 from pydantic_ai.workspaces import SupportsCommands, Workspace, WorkspaceError
 
 from app.agents.capabilities.computer_use._actions import (
+    AnyAction,
     Click,
     Drag,
     Key,
+    Launch,
     Move,
     Scroll,
     TypeText,
@@ -70,11 +72,8 @@ from app.services.device_hub import (
 
 logger = logging.getLogger(__name__)
 
-NativeAction = Click | Move | Drag | Scroll | TypeText | Key | Wait
-"""An action whose points `_actions.to_native` has moved into the backend's own space.
-
-A launch is not one: it is `Computer.launch`, because it leaves something to close.
-"""
+NativeAction = AnyAction
+"""An action whose points `_actions.to_native` has moved into the backend's own space."""
 
 DISPLAY = ":0"
 """The X display a sandbox's desktop runs on."""
@@ -118,27 +117,6 @@ class Computer(Protocol):
 
         Raises:
             ComputerError: The desktop refused it or could not be reached.
-        """
-        ...
-
-    async def launch(self, app: str) -> str | None:
-        """Open an installed application by its name.
-
-        Returns:
-            What `quit` closes it by, or `None` when there is nothing of this
-            run's to close: the application was running already, or the desktop
-            goes when the run lets go of it.
-
-        Raises:
-            ComputerError: No such application, or it did not open.
-        """
-        ...
-
-    async def quit(self, launched: str) -> None:
-        """Close an application `launch` opened, discarding what is unsaved in it.
-
-        Raises:
-            ComputerError: The desktop could not be reached or refused.
         """
         ...
 
@@ -207,7 +185,8 @@ def x11_keys(chord: str) -> str:
 def xdotool(action: NativeAction) -> list[str] | None:
     """The `xdotool` command that carries out an action on an X11 display.
 
-    `None` for a wait, which is a sleep here rather than a process on the desktop.
+    `None` for a wait, which is a sleep here rather than a process on the desktop,
+    and for a launch, which is not `xdotool`'s.
     An argv rather than a shell line, so typed text reaches `xdotool` as one
     argument whatever it holds.
     """
@@ -246,22 +225,10 @@ exit 0
 """
 """Each desktop entry the menu shows, one `path<TAB>name` line each, the user's own first."""
 
-# A session of its own, so the application outlives the command and `_QUIT_APP`
-# finds everything it started by the session's id, which it prints. Nothing else
-# goes to the output: the application inherits it, and a pipe it holds open would
-# hold the command open until the application quit.
-_OPEN_APP = r"""
-exec setsid -w sh -c 'echo $$; exec timeout 20 exo-open "$1" </dev/null >/dev/null 2>&1' launch "$1"
-"""
-
-# Asked to close first, then killed: a launch is quit even when it is stuck on a
-# dialog asking whether to save.
-_QUIT_APP = """
-pkill -TERM -s "$1" || exit 0
-for _ in $(seq 30); do pgrep -s "$1" >/dev/null || exit 0; sleep 0.1; done
-pkill -KILL -s "$1"
-exit 0
-"""
+# A session of its own, so the application outlives the command; no output,
+# because the application inherits it and a pipe it holds open would hold the
+# command open until the application quit.
+_OPEN_APP = 'exec setsid -w timeout 20 exo-open "$1" </dev/null >/dev/null 2>&1'
 
 
 def find_app(query: str, listing: str) -> str:
@@ -388,25 +355,6 @@ class DaemonComputer:
         """Send one action; the daemon answers once it has been carried out."""
         await self._request("POST", "/actions", json={"actions": [action.model_dump()]})
 
-    async def launch(self, app: str) -> str | None:
-        """Open it; the daemon names what it opened, unless the application was running already."""
-        response = await self._request(
-            "POST", "/actions", json={"actions": [{"action": "launch", "app": app}]}
-        )
-        try:
-            body = response.json()
-        except ValueError:
-            return None
-        launched = body.get("launched") if isinstance(body, dict) else None
-        # A daemon from before launches were quit names none, and leaves them open.
-        return launched[0] if isinstance(launched, list) and launched else None
-
-    async def quit(self, launched: str) -> None:
-        """Ask the daemon to quit what it opened; it refuses anything it did not."""
-        await self._request(
-            "POST", "/actions", json={"actions": [{"action": "quit", "launched": launched}]}
-        )
-
     async def close(self) -> None:
         """Close the client this desktop made; one it was handed is its caller's."""
         if self._owned:
@@ -462,14 +410,6 @@ class E2BComputer:
 
     async def perform(self, action: NativeAction) -> None:
         await self._desktop.perform(action)
-
-    async def launch(self, app: str) -> str | None:
-        await self._desktop.launch(app)
-        # Nothing to quit: the whole desktop is killed when the run lets go of it.
-        return None
-
-    async def quit(self, launched: str) -> None:
-        await self._desktop.quit(launched)
 
     async def close(self) -> None:
         """Kill the sandbox: nothing else ends it before its lifetime runs out, on their bill."""
@@ -539,21 +479,15 @@ class LocalComputer:
 
     async def perform(self, action: NativeAction) -> None:
         """Send one action; the app answers once it has been carried out."""
+        if isinstance(action, Launch):
+            raise ComputerError(
+                "This computer cannot open applications by name. Use its own launcher: "
+                "cmd+space and the name on a Mac, the Start menu elsewhere, then wait."
+            )
         if isinstance(action, Wait):
             await anyio.sleep(action.seconds)
             return
         await self._call("screen.act", {"action": action.model_dump()})
-
-    async def launch(self, app: str) -> str | None:
-        """Refused: the desktop app has no way to open an application by name yet."""
-        raise ComputerError(
-            "This computer cannot open applications by name. Use its own launcher: "
-            "cmd+space and the name on a Mac, the Start menu elsewhere, then wait."
-        )
-
-    async def quit(self, launched: str) -> None:
-        """Refused, as `launch` is, so nothing of this computer's is ever named here."""
-        raise ComputerError("This computer has no application this run opened.")
 
     async def close(self) -> None:
         """Tell the app the run is done with the screen, so its outline goes."""
@@ -663,22 +597,13 @@ class SandboxComputer:
     async def close(self) -> None:
         """Nothing is held open: each screenshot is removed once read."""
 
-    async def launch(self, app: str) -> str | None:
-        """Open the desktop entry the name finds; the session it runs in is what `quit` ends."""
-        listing = await self._run(["sh", "-c", _LIST_APPS], "list its applications")
-        entry = find_app(app, listing)
-        said = await self._run(["sh", "-c", _OPEN_APP, "launch", entry], f"open {app}")
-        return said.strip()
-
-    async def quit(self, launched: str) -> None:
-        """End every process in the session a launch started, and nothing else."""
-        # Never 0, which `pkill -s` reads as its own session, nor init's.
-        if not launched.isdigit() or int(launched) <= 1:
-            raise ComputerError(f"'{launched}' is not an application this desktop opened.")
-        await self._run(["sh", "-c", _QUIT_APP, "quit", launched], "quit an application")
-
     async def perform(self, action: NativeAction) -> None:
         """Carry out one action with `xdotool` inside the sandbox."""
+        if isinstance(action, Launch):
+            listing = await self._run(["sh", "-c", _LIST_APPS], "list its applications")
+            entry = find_app(action.app, listing)
+            await self._run(["sh", "-c", _OPEN_APP, "launch", entry], f"open {action.app}")
+            return
         argv = xdotool(action)
         if argv is None:
             assert isinstance(action, Wait)

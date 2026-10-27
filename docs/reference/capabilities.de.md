@@ -1,5 +1,5 @@
 ---
-source_sha: "cb3ede8a7aca"
+source_sha: "6fca2b3a3519"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1021,17 +1021,6 @@ Argumente. Im computerd-Container läuft die Anwendung als `desk`, nicht als das
 Konto, das den Token hält. Der eigene Computer der Person, erreicht über die
 Desktop-App, unterstützt das noch nicht: Das Modell wird angewiesen, stattdessen
 den Starter dieses Computers zu benutzen.
-
-**Wieder schließen.** Was ein Run gestartet hat, wird beendet, wenn der Run
-endet, samt ungespeicherter Arbeit. Eine Anwendung, die schon lief, bleibt
-offen, ebenso eine mit `keep_open` gestartete; das setzt das Modell nur, wenn
-die Person darum gebeten hat, die Anwendung offen zu lassen. Ein Run, der auf
-eine Freigabe wartet, ist nicht zu Ende: Der Run, der ihn fortsetzt, beendet
-die Anwendung, wenn er selbst endet. Unter Linux läuft ein `launch` in einer
-eigenen Session, und Beenden beendet diese Session; ein Fenster, das eine schon
-laufende Instanz geöffnet hat, bleibt also offen. Auf einem Mac ist es
-`quit saving no`. Ein E2B-Desktop wird mit dem Run beendet, dort wird also
-nichts geschlossen.
 
 Das Tool `execute` wird nicht gebraucht, und wer es weglässt, hält die Aktionen
 auf dem Desktop hinter `computer_act` und dessen Freigabe: Mit `execute` kann

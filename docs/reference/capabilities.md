@@ -913,16 +913,6 @@ as the account that holds the token. The person's own computer, reached through
 the desktop app, does not support it yet: the model is told to use that
 computer's own launcher instead.
 
-**Closing it again.** What a run launched is quit when the run ends, unsaved
-work included. An application that was already running is left open, and so is
-one launched with `keep_open`, which the model sets only when the person asked
-for the application to stay open. A run waiting for approval has not ended: the
-run that resumes it quits the application when it ends. On Linux a launch runs
-in a session of its own and quitting ends that session, so a window opened by
-an instance that was already running stays open. On a Mac it is
-`quit saving no`. An E2B desktop is killed with the run, so nothing is quit
-there.
-
 The `execute` tool is not needed, and leaving it off keeps the desktop's actions
 behind `computer_act` and its approval: with `execute`, the agent can run
 `xdotool` from the shell.

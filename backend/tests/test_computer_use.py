@@ -13,19 +13,11 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
-import anyio
 import httpx
 import pytest
 from PIL import Image
 from pydantic import SecretStr, ValidationError
-from pydantic_ai import (
-    Agent,
-    AgentRunResult,
-    BinaryContent,
-    DeferredToolRequests,
-    DeferredToolResults,
-    ModelRetry,
-)
+from pydantic_ai import Agent, BinaryContent, ModelRetry
 from pydantic_ai._run_context import RunContext
 from pydantic_ai.messages import (
     ModelMessage,
@@ -53,7 +45,6 @@ from app.agents.capabilities.computer_use import (
     _daemon_url_form,
     validate_daemon_url,
 )
-from app.agents.capabilities.computer_use import _toolset as toolset_module
 from app.agents.capabilities.computer_use._actions import (
     Click,
     Drag,
@@ -133,11 +124,6 @@ class _Desktop:
         self.performed: list[Any] = []
         self.captures = 0
         self.closed = 0
-        self.running: set[str] = set()
-        """Applications open before the run, which a launch hands no handle for."""
-        self.quit_refused = False
-        self.quit_hangs = False
-        self.quits: list[str] = []
 
     async def capture(self) -> Capture:
         self.captures += 1
@@ -149,19 +135,6 @@ class _Desktop:
         if action.action == self.refuses:
             raise ComputerError("no such window")
         self.performed.append(action)
-
-    async def launch(self, app: str) -> str | None:
-        if app == "Missing":
-            raise ComputerError("No application called 'Missing' is installed.")
-        self.performed.append(Launch(app=app))
-        return None if app in self.running else f"handle-{app}"
-
-    async def quit(self, launched: str) -> None:
-        if self.quit_hangs:
-            await anyio.sleep(60)
-        if self.quit_refused:
-            raise ComputerError("The desktop could not be reached.")
-        self.quits.append(launched)
 
     async def close(self) -> None:
         self.closed += 1
@@ -295,7 +268,6 @@ class TestTheLivePanelsWords:
             (TypeText(text="hello"), ("TYPE", "hello")),
             (Key(keys="ctrl+c"), ("KEY", "ctrl+c")),
             (Launch(app="Firefox"), ("LAUNCH", "Firefox")),
-            (Launch(app="Firefox", keep_open=True), ("LAUNCH", "Firefox (kept open)")),
             (Wait(seconds=1.5), ("WAIT", "1.5s")),
         ],
     )
@@ -347,8 +319,9 @@ class TestX11:
     def test_each_action_becomes_one_command(self, action: Any, command: str):
         assert xdotool(action) == command.split()
 
-    def test_a_wait_is_no_xdotool_command(self):
+    def test_a_wait_or_a_launch_is_no_xdotool_command(self):
         assert xdotool(Wait()) is None
+        assert xdotool(Launch(app="Firefox")) is None
 
     def test_typed_text_is_one_argument_whatever_it_holds(self):
         text = "a'; rm -rf / #"
@@ -454,37 +427,6 @@ class TestTheDaemon:
         await _daemon(handler).perform(Key(keys="enter"))
         assert bodies == [b'{"actions":[{"action":"key","keys":"enter"}]}']
 
-    async def test_a_launch_is_quit_by_the_name_the_daemon_gave_it(self):
-        bodies: list[Any] = []
-
-        def handler(request: httpx.Request) -> httpx.Response:
-            bodies.append(json.loads(request.content))
-            return httpx.Response(200, json={"ok": True, "done": 1, "launched": ["n1"]})
-
-        desktop = _daemon(handler)
-        assert await desktop.launch("TextEdit") == "n1"
-        await desktop.quit("n1")
-
-        assert bodies == [
-            {"actions": [{"action": "launch", "app": "TextEdit"}]},
-            {"actions": [{"action": "quit", "launched": "n1"}]},
-        ]
-
-    @pytest.mark.parametrize(
-        "response",
-        [
-            httpx.Response(200, json={"ok": True, "done": 1, "launched": []}),
-            httpx.Response(200, json={"ok": True, "done": 1}),
-            httpx.Response(200, json=["ok"]),
-            httpx.Response(200, text="ok"),
-        ],
-    )
-    async def test_a_launch_the_daemon_names_nothing_for_is_not_quit(
-        self, response: httpx.Response
-    ):
-        """Already running, or a daemon from before launches were quit."""
-        assert await _daemon(lambda request: response).launch("TextEdit") is None
-
     @pytest.mark.parametrize(
         ("response", "message"),
         [
@@ -543,13 +485,10 @@ class _Box:
         stderr: str = "",
         fails: bool = False,
         attached: bool = True,
-        answers: list[str] | None = None,
     ) -> None:
         self.ran: list[tuple[Any, bool, dict[str, str]]] = []
         self.exit_code = exit_code
         self.stdout = stdout
-        self.answers = answers or []
-        """What each command prints in turn, before falling back on `stdout`."""
         self.stderr = stderr
         self.fails = fails
         self.attached = attached
@@ -569,8 +508,7 @@ class _Box:
         if self.fails:
             raise WorkspaceError("sandbox gone")
         self.ran.append((command, shell, dict(env or {})))
-        stdout = self.answers.pop(0) if self.answers else self.stdout
-        return CommandResult(exit_code=self.exit_code, stdout=stdout, stderr=self.stderr)
+        return CommandResult(exit_code=self.exit_code, stdout=self.stdout, stderr=self.stderr)
 
     async def read_bytes(self, path: str) -> bytes:
         if self.unreadable:
@@ -638,39 +576,22 @@ class TestTheSandboxDesktop:
             ["xdotool", "mousemove", "--sync", "5", "6", "click", "--repeat", "1", "1"]
         ]
 
-    async def test_a_launch_opens_the_desktop_entry_its_name_finds_in_a_session_of_its_own(self):
-        box = _Box(answers=["/usr/share/applications/firefox-esr.desktop\tFirefox ESR\n", "4242\n"])
-        assert await _on(box).launch("firefox") == "4242"
+    async def test_a_launch_opens_the_desktop_entry_its_name_finds(self):
+        box = _Box(stdout="/usr/share/applications/firefox-esr.desktop\tFirefox ESR\n")
+        await _on(box).perform(Launch(app="firefox"))
 
         (listed, _, _), (launched, _, env) = box.ran
         assert listed[:2] == ["sh", "-c"]
         assert launched[:2] == ["sh", "-c"]
-        assert "setsid -w sh -c" in launched[2] and 'exo-open "$1"' in launched[2]
+        assert 'exo-open "$1"' in launched[2]
         # The entry is an argument, never part of the shell line.
         assert launched[3:] == ["launch", "/usr/share/applications/firefox-esr.desktop"]
         assert env == {"DISPLAY": ":0"}
 
-    async def test_a_launch_is_quit_by_the_session_it_started(self):
-        box = _Box()
-        await _on(box).quit("4242")
-
-        [(argv, _, _)] = box.ran
-        assert 'pkill -TERM -s "$1"' in argv[2]
-        assert argv[3:] == ["quit", "4242"]
-
-    @pytest.mark.security
-    @pytest.mark.parametrize("launched", ["0", "1", "-1", "12 13", "$(reboot)", ""])
-    async def test_nothing_but_a_launchs_session_is_quit(self, launched: str):
-        """`pkill -s 0` is pkill's own session, and 1 is init's: neither is a launch's."""
-        box = _Box()
-        with pytest.raises(ComputerError, match="not an application this desktop opened"):
-            await _on(box).quit(launched)
-        assert box.ran == []
-
     async def test_a_launch_of_nothing_installed_opens_nothing(self):
         box = _Box(stdout="/usr/share/applications/firefox-esr.desktop\tFirefox ESR\n")
         with pytest.raises(ComputerError, match="No application called 'gimp'"):
-            await _on(box).launch("gimp")
+            await _on(box).perform(Launch(app="gimp"))
         assert len(box.ran) == 1
 
     async def test_a_refused_command_tells_the_model_what_the_desktop_said(self):
@@ -1107,130 +1028,6 @@ class TestTheTools:
         frames = _Frames()
         await _tools(_Desktop(), ToolPolicy(preview=False))["computer_screenshot"](_ctx(frames))
         assert frames.events == []
-
-
-class TestQuittingWhatARunLaunched:
-    async def _launch_in_a_run(self, desktop: _Desktop, actions: list[Any]) -> ToolReturn | str:
-        toolset = _toolset(desktop)
-        tools = {name: tool.function for name, tool in toolset.tools.items()}
-        async with toolset:
-            ctx = _ctx()
-            await tools["computer_screenshot"](ctx)
-            answer = await tools["computer_act"](ctx, actions)
-            assert desktop.quits == []
-        return answer
-
-    async def test_what_a_run_launched_is_quit_when_it_ends_and_nothing_else(self):
-        desktop = _Desktop()
-        desktop.running = {"Xfce Terminal"}
-        answer = await self._launch_in_a_run(
-            desktop,
-            [
-                Launch(app="Firefox"),
-                Launch(app="Thunar", keep_open=True),
-                Launch(app="Xfce Terminal"),
-            ],
-        )
-
-        assert _said(answer)[0].startswith("Ran 3 of 3 action(s).")
-        assert _seen(answer).launched == ["handle-Firefox"]
-        assert desktop.quits == ["handle-Firefox"]
-        assert desktop.closed == 1
-
-    async def test_a_launch_that_failed_leaves_nothing_to_quit(self):
-        desktop = _Desktop()
-        answer = await self._launch_in_a_run(desktop, [Launch(app="Missing"), Wait(seconds=0.01)])
-
-        assert "Action 1 (launch) failed: No application called 'Missing'" in _said(answer)[0]
-        assert desktop.quits == []
-
-    async def test_a_launch_that_cannot_be_quit_still_lets_the_desktop_go(
-        self, caplog: pytest.LogCaptureFixture
-    ):
-        desktop = _Desktop()
-        desktop.quit_refused = True
-        await self._launch_in_a_run(desktop, [Launch(app="Firefox")])
-
-        assert desktop.closed == 1
-        assert "computer_use_launch_not_quit" in caplog.text
-
-    async def test_quitting_cannot_hold_the_end_of_the_run(
-        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-    ):
-        monkeypatch.setattr(toolset_module, "QUIT_SECONDS", 0.01)
-        desktop = _Desktop()
-        desktop.quit_hangs = True
-        await self._launch_in_a_run(desktop, [Launch(app="Firefox")])
-
-        assert desktop.closed == 1
-        assert "computer_use_quit_timed_out" in caplog.text
-
-    async def test_a_session_no_run_began_has_no_desktop_to_quit_on(self):
-        desktop = _Desktop()
-        toolset = _toolset(desktop)
-        toolset.session.launched = ["handle-Firefox"]
-        await toolset.session.close_desktop()
-        assert (desktop.quits, desktop.closed) == ([], 0)
-
-    async def test_a_run_parked_for_approval_leaves_its_launches_to_the_run_that_resumes_it(self):
-        """Quit at the park, the application would be gone when the approved step ran in it.
-
-        The resumed run never looks at the desktop again here, so it opens it
-        only to quit; the next turn is another run and quits nothing of this one's.
-        """
-        desktop = _Desktop()
-        opened = 0
-        script = [
-            [ToolCallPart("computer_screenshot", {})],
-            [ToolCallPart("computer_act", {"actions": [{"action": "launch", "app": "Firefox"}]})],
-            [ToolCallPart("confirm", {}, tool_call_id="ask")],
-            [TextPart("done")],
-            [TextPart("next turn")],
-        ]
-
-        async def factory(workspace: Workspace) -> Any:
-            nonlocal opened
-            opened += 1
-            return desktop
-
-        def model(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
-            return ModelResponse(parts=script.pop(0))
-
-        agent = Agent(
-            FunctionModel(model),
-            deps_type=AgentDeps,
-            output_type=[str, DeferredToolRequests],
-            capabilities=[ComputerUse(factory=factory)],
-        )
-
-        @agent.tool_plain(requires_approval=True)
-        def confirm() -> str:
-            return "confirmed"
-
-        deps = AgentDeps(run_id=uuid4())
-        parked = await agent.run("open firefox", deps=deps)
-        assert isinstance(parked.output, DeferredToolRequests)
-        assert (desktop.quits, desktop.closed) == ([], 1)
-
-        resumed = await agent.run(
-            deps=deps,
-            message_history=parked.all_messages(),
-            deferred_tool_results=DeferredToolResults(approvals={"ask": True}),
-        )
-        assert resumed.output == "done"
-        assert desktop.quits == ["handle-Firefox"]
-        assert (opened, desktop.closed) == (2, 2)
-
-        await agent.run(
-            "and then", deps=AgentDeps(run_id=uuid4()), message_history=resumed.all_messages()
-        )
-        assert desktop.quits == ["handle-Firefox"]
-
-    async def test_a_run_without_an_id_is_never_taken_for_a_parked_one(self):
-        capability = ComputerUse(factory=lambda workspace: None)  # ty: ignore[invalid-argument-type] - never awaited here
-        result = AgentRunResult(DeferredToolRequests())
-        assert await capability.after_run(_ctx(), result=result) is result
-        assert capability.get_toolset().session.parked == set()
 
 
 class TestAcrossAPark:

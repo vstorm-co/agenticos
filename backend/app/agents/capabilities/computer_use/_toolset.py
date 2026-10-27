@@ -22,7 +22,7 @@ import base64
 import io
 import logging
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import uuid4
@@ -33,15 +33,12 @@ from pydantic import BaseModel, TypeAdapter, ValidationError
 from pydantic_ai import RunContext
 from pydantic_ai.messages import ModelRequest, ToolReturn, ToolReturnPart
 from pydantic_ai.toolsets import FunctionToolset
-from pydantic_ai.workspaces import Workspace
 
 from app.agents.browser_events import BrowserControl, BrowserEvent, BrowserEventSink
 from app.agents.capabilities._failures import steer
 from app.agents.capabilities._generated import admit, store_generated
 from app.agents.capabilities.computer_use._actions import (
     Action,
-    AnyAction,
-    Launch,
     Screen,
     describe,
     points_of,
@@ -53,6 +50,7 @@ from app.agents.capabilities.computer_use._backends import (
     ComputerError,
     ComputerFactory,
     LocalComputer,
+    NativeAction,
     png_size,
 )
 from app.agents.capabilities.computer_use._live import TOLD, held, take_over_waiting
@@ -66,9 +64,6 @@ _BATCH: TypeAdapter[list[Action]] = TypeAdapter(list[Action])
 
 JPEG_QUALITY = 75
 """Legible text at a third of a PNG's size; the model is billed by pixels, not bytes."""
-
-QUIT_SECONDS = 30.0
-"""How long the end of a run may spend quitting what it launched."""
 
 
 class SavedScreenshot(BaseModel):
@@ -105,8 +100,6 @@ class Seen(BaseModel):
     screen: Screen | None
     """The screenshot the model was shown with the answer, or `None` if none was."""
     actions_taken: int
-    launched: list[str] = []
-    """What the run has launched and will quit at its end, as `Computer.launch` named it."""
 
 
 @dataclass(frozen=True)
@@ -148,20 +141,6 @@ class _Session:
     recalled: bool = False
     seen: Screen | None = None
     """The screenshot the history last showed the model, before this run looked."""
-    launched: list[str] = field(default_factory=list)
-    """What this run launched without `keep_open`, to quit when it ends."""
-    workspace: Workspace | None = None
-    """The run's workspace, to open the desktop again to quit what a parked run launched."""
-    run: str | None = None
-    """pydantic-ai's id for the run, which `ComputerUse.after_run` names a parked run by."""
-    parked: set[str] = field(default_factory=set)
-    """The runs that ended parked rather than finished, shared by every run's session."""
-
-    def begin(self, ctx: RunContext[Any]) -> None:
-        """Take what a run starting with this session needs from the run itself."""
-        self.workspace = ctx.workspace
-        self.run = ctx.run_id
-        self.recall(ctx)
 
     def recall(self, ctx: RunContext[Any]) -> None:
         """Read back what a run parked for approval knew, once per run.
@@ -181,16 +160,10 @@ class _Session:
         self.seen = last.screen
         if last.run_id is not None and last.run_id == _run_id(ctx):
             self.actions_taken = last.actions_taken
-            self.launched = list(last.launched)
 
     def mark(self, ctx: RunContext[Any], screen: Screen | None) -> dict[str, Any]:
         """The `metadata` an answer carries for :meth:`recall`."""
-        seen = Seen(
-            run_id=_run_id(ctx),
-            screen=screen,
-            actions_taken=self.actions_taken,
-            launched=self.launched,
-        )
+        seen = Seen(run_id=_run_id(ctx), screen=screen, actions_taken=self.actions_taken)
         return {SEEN: seen.model_dump(mode="json")}
 
     async def desktop(self, ctx: RunContext[Any]) -> Computer:
@@ -204,38 +177,10 @@ class _Session:
             self.sink = None
 
     async def close_desktop(self) -> None:
-        """Quit what the run launched, unless it is only parked, and let go of the desktop.
-
-        A run parked for approval is not done with what it opened: the run that
-        resumes it recalls the launches from the history and quits them when it
-        finishes, opening the desktop to do so if it never looked at it. Safe to
-        call twice.
-        """
+        """Let go of the desktop, if one was opened. Safe to call twice."""
         computer, self.computer = self.computer, None
-        launched, self.launched = self.launched, []
-        if self.run in self.parked:
-            self.parked.discard(self.run)
-        elif launched:
-            # Shielded, like the E2B desktop's cleanup: a cancelled run is the one
-            # most likely to have left something open.
-            with anyio.move_on_after(QUIT_SECONDS, shield=True) as cleanup:
-                computer = await self._quit(computer, launched)
-            if cleanup.cancel_called:
-                logger.warning("computer_use_quit_timed_out")
         if computer is not None:
             await computer.close()
-
-    async def _quit(self, computer: Computer | None, launched: list[str]) -> Computer | None:
-        try:
-            if computer is None:
-                if self.workspace is None:
-                    return None
-                computer = await self.factory(self.workspace)
-            for handle in launched:
-                await computer.quit(handle)
-        except ComputerError:
-            logger.warning("computer_use_launch_not_quit", exc_info=True)
-        return computer
 
     async def close_view(self) -> None:
         """End the live window, if one opened. Safe to call twice."""
@@ -274,9 +219,7 @@ class ComputerToolset(FunctionToolset[Any]):
         shared session would hand a delegation the screenshot, the action count
         and the live window of the one before it - or of one running beside it.
         """
-        toolset = build_toolset(self.session.factory, self._policy, parked=self.session.parked)
-        toolset.session.begin(ctx)
-        return toolset
+        return build_toolset(self.session.factory, self._policy)
 
     async def __aenter__(self) -> ComputerToolset:
         self._entered += 1
@@ -330,11 +273,9 @@ def fit(capture: Capture, max_width: int, max_height: int) -> tuple[bytes, Scree
     return out.getvalue(), screen
 
 
-def build_toolset(
-    factory: ComputerFactory, policy: ToolPolicy, *, parked: set[str] | None = None
-) -> ComputerToolset:
+def build_toolset(factory: ComputerFactory, policy: ToolPolicy) -> ComputerToolset:
     """The computer use tools, sharing one desktop per run."""
-    session = _Session(factory=factory, parked=set() if parked is None else parked)
+    session = _Session(factory=factory)
 
     async def open_live(ctx: RunContext[Any], computer: Computer, call_id: str) -> None:
         """Where the window's frames go: the chat, and the run's live view (#2305).
@@ -479,8 +420,7 @@ def build_toolset(
         then `type`. Use `key` for shortcuts and keys like enter, tab or escape -
         `cmd` on a Mac and `ctrl` elsewhere. Open an application with `launch` and
         its name. A launch, or a shortcut that opens something, returns before the
-        window appears: add a `wait` or end the batch there before typing. What you
-        launch is quit when you finish, so save what should be kept. Never
+        window appears: add a `wait` or end the batch there before typing. Never
         type a password or a secret the user did not give you for this purpose;
         ask them instead.
 
@@ -612,7 +552,7 @@ def build_toolset(
         ).model_dump_json()
 
     async def _perform(
-        desktop: Computer, actions: Sequence[AnyAction], screen: Screen, call_id: str
+        desktop: Computer, actions: Sequence[NativeAction], screen: Screen, call_id: str
     ) -> tuple[int, str | None]:
         done = 0
         for index, action in enumerate(actions, start=1):
@@ -629,12 +569,7 @@ def build_toolset(
                 )
             )
             try:
-                if isinstance(action, Launch):
-                    launched = await desktop.launch(action.app)
-                    if launched is not None and not action.keep_open:
-                        session.launched.append(launched)
-                else:
-                    await desktop.perform(to_native(action, screen))
+                await desktop.perform(to_native(action, screen))
             except ComputerError as exc:
                 return done, f"Action {index} ({action.action}) failed: {exc}"
             done += 1
