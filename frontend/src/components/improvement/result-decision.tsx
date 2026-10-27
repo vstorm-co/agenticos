@@ -7,6 +7,7 @@ import { Button } from "@/components/ui";
 import type { Improvement } from "@/types/improvement";
 import { ContinueSession, continuation } from "./continue-session";
 import { NoiseActions, UnstableQuestions, noiseSentence } from "./measurement-noise";
+import { draftCheckShown } from "./knowledge-drafts";
 import { DOCUMENTS_ANCHOR, KnowledgeDocuments, ResultSummary, useSessionTopics } from "./outcome";
 import { useReadOnly } from "./read-only";
 import { AttemptRow } from "./round-results";
@@ -63,7 +64,9 @@ export function ResultStep({
           ))}
         </section>
       )}
-      {!host && <Details summary={t("showDetails")}>{knowledgeCheck}</Details>}
+      {!host && draftCheckShown(session, topics) && (
+        <Details summary={t("showDetails")}>{knowledgeCheck}</Details>
+      )}
       {topics.length > 0 && (
         <div id={DOCUMENTS_ANCHOR} className="scroll-mt-4">
           <KnowledgeDocuments session={session} />

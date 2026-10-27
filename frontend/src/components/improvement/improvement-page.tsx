@@ -183,12 +183,7 @@ function Session({
   const blockedChanges = selectedBatch?.hunks.some(
     (hunk) => hunk.status === "pending" && measuredIds.includes(hunk.id) && hunk.blocked !== null,
   );
-  const knowledgeCheck = (
-    <section className="space-y-2">
-      <h4 className="text-sm font-medium">{t("knowledgeCheckDetails")}</h4>
-      <KnowledgeDrafts session={session} />
-    </section>
-  );
+  const knowledgeCheck = <KnowledgeDrafts session={session} />;
   return (
     <ReadOnlyProvider value={readOnly}>
       <div className="space-y-6">

@@ -288,7 +288,7 @@ it("requires a fresh quote after switching to actual retrieval", async () => {
   await choose();
   await userEvent.click(screen.getByRole("button", { name: "Estimate checking the draft" }));
   await screen.findByText(/5 independent questions/);
-  await userEvent.click(screen.getByRole("button", { name: "Test whether search finds it" }));
+  await userEvent.click(screen.getByRole("button", { name: /^Through real search/ }));
   expect(
     screen.queryByRole("button", { name: "Confirm and check the draft" }),
   ).not.toBeInTheDocument();
@@ -439,19 +439,24 @@ it("shows the drafts without checking or reviewing them once the wizard is only 
   expect(screen.queryByRole("button", { name: "Review knowledge draft" })).not.toBeInTheDocument();
 });
 
-it("lists the session's topics still to draft, and drafts one for testing at its cost", async () => {
+it("leaves out the whole draft check while the session has no draft to test", () => {
   state.topics = false;
   state.extra = [
     { id: "t2", has_draft: false, can_edit: true, label: "Gift wrapping" },
     { id: "t3", has_draft: true, drafting: true, can_edit: true, label: "Store hours" },
   ];
+  const { container } = render(<KnowledgeDrafts session={SESSION} />);
+  expect(container).toBeEmptyDOMElement();
+});
+
+it("lists the topics still to draft beside a draft that can be tested, at its cost", async () => {
+  state.extra = [{ id: "t2", has_draft: false, can_edit: true, label: "Gift wrapping" }];
   render(<KnowledgeDrafts session={SESSION} />);
-  expect(screen.getByText(/No draft to test yet/)).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Check whether the draft would help" })).toBeVisible();
+  expect(screen.getByText(/as if search always found it/)).toBeInTheDocument();
   expect(screen.getByText("Draft a topic to test it")).toBeInTheDocument();
-  expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Draft · $0.02" }));
   expect(state.draft).toHaveBeenCalledWith("t2");
-  expect(screen.getByRole("status")).toHaveTextContent("Drafting…");
 });
 
 it("lists the topics still to draft without a Draft button once the wizard is only read", () => {

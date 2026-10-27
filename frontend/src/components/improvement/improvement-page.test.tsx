@@ -93,7 +93,10 @@ vi.mock("@/hooks/use-improvements", () => ({
   }),
 }));
 vi.mock("@/hooks/use-eval-suites", () => ({ useAgentEvalSuites: () => ({ suites: [] }) }));
-vi.mock("./knowledge-drafts", () => ({ KnowledgeDrafts: () => null }));
+vi.mock("./knowledge-drafts", async (actual) => ({
+  ...(await actual<typeof import("./knowledge-drafts")>()),
+  KnowledgeDrafts: () => <p>Draft check fixture</p>,
+}));
 vi.mock("@/hooks/use-knowledge-gaps", () => ({
   useKnowledgeGaps: () => ({ topics: state.topics, error: null }),
 }));
@@ -223,10 +226,12 @@ it("requires a separate confirmation of the attribution price", async () => {
   });
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
   await userEvent.click(screen.getByText("Attempt 1 of 3"));
-  await userEvent.click(screen.getByRole("button", { name: "Estimate individual checks" }));
-  expect(await screen.findByText(/2 checks.*0.02/)).toBeInTheDocument();
+  await userEvent.click(screen.getByText("Show details"));
+  expect(
+    await screen.findByText(/^This attempt has 2 changes\..*about \$0\.02/),
+  ).toBeInTheDocument();
   expect(actions.attribute.mutateAsync).not.toHaveBeenCalled();
-  await userEvent.click(screen.getByRole("button", { name: "Confirm and test each change" }));
+  await userEvent.click(screen.getByRole("button", { name: "Test each change" }));
   expect(actions.attribute.mutateAsync).toHaveBeenCalledWith({ number: 1, estimate: "0.02" });
 });
 it("refuses the flow without agent edit and run access", () => {
@@ -421,9 +426,12 @@ it("says the session's state and spend once, in one line above the steps", () =>
 
 it("keeps the knowledge draft check under Show details before any attempt is measured", () => {
   state.session = { ...state.session!, iterations: [], best_iteration_id: null };
-  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  const view = render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.queryByText("Show details")).toBeNull();
+  state.session = { ...state.session, knowledge_eval_run_ids: ["k1"] };
+  view.rerender(<ImprovementPage agentId="a1" sessionId="s1" />);
   expect(screen.getAllByText("Show details")).toHaveLength(1);
-  expect(screen.getByRole("heading", { name: "Test a knowledge draft" })).toBeInTheDocument();
+  expect(screen.getByText("Draft check fixture")).toBeInTheDocument();
 });
 
 it("opens the result with one sentence for the agent and one for the knowledge base", async () => {
@@ -446,7 +454,7 @@ it("opens the result with one sentence for the agent and one for the knowledge b
   expect(screen.getByText("Attempt 1 of 3").closest("details")).not.toHaveAttribute("open");
   await userEvent.click(screen.getByText("Attempt 1 of 3"));
   expect(screen.getAllByText("Show details")).toHaveLength(1);
-  expect(screen.getByRole("heading", { name: "Test a knowledge draft" })).toBeInTheDocument();
+  expect(screen.getByText("Draft check fixture")).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Check" }));
   await userEvent.click(screen.getByRole("button", { name: "See the result" }));
   expect(screen.getByRole("group", { name: /3 questions newly fixed/ })).toBeInTheDocument();

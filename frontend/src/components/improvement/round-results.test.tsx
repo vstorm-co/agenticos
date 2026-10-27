@@ -83,7 +83,7 @@ it("shows before/after totals, independent results, cost and earlier measurement
       name: "Questions not used to write the changes: 1 → 2 of 2 handled well.",
     }),
   ).toHaveTextContent("1 of 2");
-  expect(screen.getByText(/Cost per answer/)).toBeInTheDocument();
+  expect(screen.queryByText(/Cost per answer/)).toBeNull();
   await userEvent.click(screen.getByText("Earlier checks"));
   expect(screen.getByRole("link", { name: "Earlier check 2" })).toHaveAttribute(
     "href",
@@ -105,14 +105,14 @@ it("says why the bars and the counts differ, and shows a cost that moved on the 
   const view = render(<RoundResults session={SESSION} round={ROUND} />);
   expect(
     screen.getByText(
-      /Only a change confirmed by asking again counts as newly fixed \(1\) or newly broken \(0\); 2 changes are not confirmed yet\./,
+      /^The bars count every answer graded as good\. Fixed and broken count only the answers that changed the same way when asked again; 2 changed, but not consistently\./,
     ),
   ).toBeInTheDocument();
   expect(screen.getAllByText(/Cost per answer/)).toHaveLength(1);
   state.compared = comparison({ cases: [], baseline_summary: null });
   view.rerender(<RoundResults session={SESSION} round={ROUND} />);
   expect(screen.queryByText(/Cost per answer/)).not.toBeInTheDocument();
-  expect(screen.queryByText(/Only a change confirmed/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/The bars count/)).not.toBeInTheDocument();
 });
 it("does not request older round details until they are opened", async () => {
   render(<AttemptRow session={SESSION} round={ROUND} />);
@@ -137,25 +137,46 @@ it("lets a stopped session review its best round and reports selection failures"
   expect(state.selectRound.mutateAsync).toHaveBeenCalledWith(1);
   expect(await screen.findByRole("alert")).toBeInTheDocument();
 });
-it("keeps attribution behind a price and a separate confirmation", async () => {
+it("offers to test each change, with its price, once the details are opened", async () => {
   render(<RoundResults session={SESSION} round={ROUND} />);
-  await userEvent.click(screen.getByRole("button", { name: "Estimate individual checks" }));
+  expect(state.estimateAttribution.mutateAsync).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByText("Show details"));
+  expect(state.estimateAttribution.mutateAsync).toHaveBeenCalledWith(1);
+  expect(await screen.findByRole("heading", { name: "Which change helped?" })).toBeVisible();
+  expect(
+    screen.getByText(
+      /^This attempt has 2 changes\. We can test each one separately .* It costs about \$0\.02 from this session's limit\.$/,
+    ),
+  ).toBeInTheDocument();
   expect(state.attribute.mutateAsync).not.toHaveBeenCalled();
-  await userEvent.click(
-    await screen.findByRole("button", { name: "Confirm and test each change" }),
-  );
+  await userEvent.click(screen.getByRole("button", { name: "Test each change" }));
   expect(state.attribute.mutateAsync).toHaveBeenCalledWith({ number: 1, estimate: "0.02" });
 });
-it("disables unaffordable attribution and shows estimate errors", async () => {
-  state.estimateAttribution.mutateAsync.mockResolvedValue({ ...QUOTE, affordable: false });
+it("asks nothing about which change helped when the attempt made only one", async () => {
+  state.estimateAttribution.mutateAsync.mockResolvedValue({ ...QUOTE, changes: 1 });
   render(<RoundResults session={SESSION} round={ROUND} />);
-  await userEvent.click(screen.getByRole("button", { name: "Estimate individual checks" }));
-  expect(
-    await screen.findByRole("button", { name: "Confirm and test each change" }),
-  ).toBeDisabled();
+  await userEvent.click(screen.getByText("Show details"));
+  await waitFor(() => expect(state.estimateAttribution.mutateAsync).toHaveBeenCalled());
+  expect(screen.queryByText("Which change helped?")).toBeNull();
+});
+it("holds back testing each change over the limit, and says when the price cannot be read", async () => {
+  state.estimateAttribution.mutateAsync.mockResolvedValue({ ...QUOTE, affordable: false });
+  const view = render(<RoundResults session={SESSION} round={ROUND} />);
+  await userEvent.click(screen.getByText("Show details"));
+  expect(await screen.findByRole("button", { name: "Test each change" })).toBeDisabled();
+  expect(screen.getByText("That is more than this session has left.")).toBeInTheDocument();
+  view.unmount();
   state.estimateAttribution.mutateAsync.mockRejectedValue(new Error("Unavailable"));
-  await userEvent.click(screen.getByRole("button", { name: "Estimate individual checks" }));
+  render(<RoundResults session={SESSION} round={ROUND} />);
+  await userEvent.click(screen.getByText("Show details"));
   expect(await screen.findByRole("alert")).toBeInTheDocument();
+});
+it("reports a failed start of the per-change checks", async () => {
+  state.attribute.mutateAsync.mockRejectedValue(new Error("The base changed"));
+  render(<RoundResults session={SESSION} round={ROUND} />);
+  await userEvent.click(screen.getByText("Show details"));
+  await userEvent.click(await screen.findByRole("button", { name: "Test each change" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("The base changed");
 });
 it("shows read failures, loading and a missing comparison without fabricating changed questions", () => {
   state.runError = new Error("Forbidden");
@@ -200,7 +221,13 @@ it("keeps the measurement in the one Show details and identifies a human re-eval
   expect(screen.getByText(/after review by Ada/)).toBeInTheDocument();
   expect(screen.getAllByText("Show details")).toHaveLength(1);
   await userEvent.click(screen.getByText("Show details"));
-  expect(screen.getByRole("heading", { name: "Measurement" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "How we measured it" })).toBeInTheDocument();
+  expect(
+    screen.getByText(
+      "Of the 2 test questions, 1 was shown to the helper while it wrote the changes. The other 1 was kept aside, and only they decide the result, so the changes cannot just learn the answers.",
+    ),
+  ).toBeInTheDocument();
+  expect(screen.queryByText("Selected attempt")).toBeNull();
   expect(screen.getByText("Changed questions: case-1")).toBeInTheDocument();
 });
 it.each(["queued", "running", "failed", "completed"] as const)(
@@ -391,4 +418,90 @@ it("calls a chosen attempt that was not better chosen, never best", () => {
   );
   expect(screen.getByText("Chosen attempt")).toBeInTheDocument();
   expect(screen.queryByText("Best attempt")).toBeNull();
+});
+
+const afterBar = (name: RegExp) =>
+  screen.getByRole("img", { name }).querySelectorAll("span.rounded-full span")[1];
+
+it("colours a bar only for a confirmed change, and calls opposite bars within noise", () => {
+  state.run = evalRun({
+    arms: [
+      arm({ id: "base", role: "baseline" }),
+      arm({ id: "candidate", summary: { ...SUMMARY, passed: 1 } }),
+    ],
+  });
+  state.compared = comparison({
+    cases: [],
+    regressions_confirmed: 0,
+    baseline_summary: { ...SUMMARY, cases: 10, passed: 5 },
+    candidate_summary: { ...SUMMARY, cases: 10, passed: 6 },
+  });
+  const view = render(<RoundResults session={SESSION} round={ROUND} />);
+  expect(afterBar(/^3 → 1 of 4/)).toHaveClass("bg-muted-foreground/50");
+  expect(afterBar(/^Questions not used/)).toHaveClass("bg-muted-foreground/50");
+  expect(
+    screen.getByText(
+      "The two bars point in opposite directions, so the difference is within noise.",
+    ),
+  ).toBeInTheDocument();
+  state.compared = comparison({
+    cases: [],
+    regressions_confirmed: 1,
+    baseline_summary: { ...SUMMARY, cases: 10, passed: 6 },
+    candidate_summary: { ...SUMMARY, cases: 10, passed: 5 },
+  });
+  view.rerender(<RoundResults session={SESSION} round={ROUND} />);
+  expect(afterBar(/^Questions not used/)).toHaveClass("bg-destructive");
+  expect(screen.queryByText(/within noise/)).toBeNull();
+  state.compared = comparison({
+    cases: [],
+    regressions_confirmed: 0,
+    fixed_confirmed: 1,
+    baseline_summary: { ...SUMMARY, cases: 10, passed: 5 },
+    candidate_summary: { ...SUMMARY, cases: 10, passed: 6 },
+  });
+  view.rerender(<RoundResults session={SESSION} round={ROUND} />);
+  expect(afterBar(/^Questions not used/)).toHaveClass("bg-success");
+});
+
+it("calls a one-question difference within noise, and a larger one too on a noisy test", () => {
+  state.compared = comparison({
+    cases: [],
+    regressions_confirmed: 0,
+    baseline_summary: { ...SUMMARY, cases: 10, passed: 5 },
+    candidate_summary: { ...SUMMARY, cases: 10, passed: 6 },
+  });
+  const view = render(<RoundResults session={SESSION} round={ROUND} />);
+  expect(screen.getByText("A difference of one question is within noise.")).toBeInTheDocument();
+  state.run = evalRun({
+    arms: [
+      arm({ id: "base", role: "baseline" }),
+      arm({ id: "candidate", summary: { ...SUMMARY, passed: 1 } }),
+    ],
+  });
+  state.compared = comparison({
+    cases: [],
+    regressions_confirmed: 0,
+    baseline_summary: { ...SUMMARY, cases: 10, passed: 7 },
+    candidate_summary: { ...SUMMARY, cases: 10, passed: 5 },
+  });
+  const noisy = {
+    ...SESSION,
+    measurement_noise: {
+      noisy: true,
+      held_out: 10,
+      baseline_low: 0.5,
+      baseline_high: 0.7,
+      baseline_spread: 2,
+      unstable: 6,
+      by_attempt: [],
+      examples: [],
+    },
+  };
+  view.rerender(<RoundResults session={SESSION} round={ROUND} />);
+  expect(screen.queryByText(/within noise|may be noise/)).toBeNull();
+  view.rerender(<RoundResults session={noisy} round={ROUND} />);
+  expect(
+    screen.getByText("This session's test is noisy, so a difference this small may be noise."),
+  ).toBeInTheDocument();
 });

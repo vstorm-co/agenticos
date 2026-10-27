@@ -20,7 +20,24 @@ import type {
 import { useSessionTopics } from "./outcome";
 import { useReadOnly } from "./read-only";
 
-/** A paid draft check is separate from accepting or publishing the agent. */
+/**
+ * Whether the draft check has anything to show: a draft ready to test, or a check
+ * already run, whose result stays readable after its draft is gone.
+ */
+export function draftCheckShown(
+  session: Improvement,
+  topics: { has_draft: boolean; drafting?: boolean }[],
+): boolean {
+  return (
+    topics.some((topic) => topic.has_draft && !topic.drafting) ||
+    (session.knowledge_eval_run_ids ?? []).length > 0
+  );
+}
+
+/**
+ * A paid draft check, separate from accepting or publishing the agent, shown
+ * only when the session has a draft to test.
+ */
 export function KnowledgeDrafts({ session }: { session: Improvement }) {
   const t = useTranslations("improvement");
   const tErrors = useTranslations("errors");
@@ -68,6 +85,7 @@ export function KnowledgeDrafts({ session }: { session: Improvement }) {
       setError(getErrorMessage(e, tErrors));
     }
   }
+  if (!draftCheckShown(session, topics) && !topicsError) return null;
   return (
     <section className="space-y-4 rounded-xl border p-4 sm:p-6">
       <h3 className="font-medium">{t("knowledgeTitle")}</h3>
@@ -86,7 +104,14 @@ export function KnowledgeDrafts({ session }: { session: Improvement }) {
             aria-pressed={value === mode}
             onClick={() => setMode(value)}
           >
-            {t(value === "context" ? "contextMode" : "retrievalMode")}
+            <span className="block">
+              <span className="block font-medium">
+                {t(value === "context" ? "contextMode" : "retrievalMode")}
+              </span>
+              <span className="text-muted-foreground block text-xs font-normal">
+                {t(value === "context" ? "contextModeHint" : "retrievalModeHint")}
+              </span>
+            </span>
           </Button>
         ))}
       </div>

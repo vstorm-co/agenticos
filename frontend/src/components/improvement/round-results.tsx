@@ -1,10 +1,9 @@
 "use client";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
 import { usd } from "@/components/evals/format";
-import { ImprovementMeasurement } from "@/components/evals/improvement-measurement";
 import { ReviewReevaluationNote } from "@/components/evals/review-reevaluation-note";
 import { ChangedAnswers } from "./changed-answers";
 import { BeforeAfter, Details, StateBadge } from "./widgets";
@@ -12,7 +11,12 @@ import { useEvalComparison, useEvalRun } from "@/hooks/use-eval-runs";
 import { useImprovement } from "@/hooks/use-improvements";
 import { getErrorMessage } from "@/lib/api-error";
 import type { EvalComparison } from "@/types/eval-runs";
-import type { AttributionEstimate, Improvement, ImprovementIteration } from "@/types/improvement";
+import type {
+  AttributionEstimate,
+  Improvement,
+  ImprovementIteration,
+  MeasurementNoise,
+} from "@/types/improvement";
 import { useReadOnly } from "./read-only";
 
 export function RoundResults({
@@ -27,9 +31,8 @@ export function RoundResults({
 }) {
   const t = useTranslations("improvement");
   const tErrors = useTranslations("errors");
-  const locale = useLocale();
   const actions = useImprovement(session.agent_id, session.id);
-  const [quote, setQuote] = useState<AttributionEstimate | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   async function act(action: () => Promise<void>) {
     setError(null);
@@ -45,12 +48,13 @@ export function RoundResults({
   return (
     <section className="space-y-4">
       {latestCheck && (
-        <MeasuredResult runId={latestCheck} attributions={round.attribution_eval_run_ids} />
+        <MeasuredResult
+          runId={latestCheck}
+          attributions={round.attribution_eval_run_ids}
+          noise={session.measurement_noise}
+        />
       )}
-      <Details summary={t("showDetails")}>
-        {round.id === session.best_iteration_id && (
-          <p className="text-sm font-medium">{t("selected")}</p>
-        )}
+      <Details summary={t("showDetails")} onToggle={setDetailsOpen}>
         {selectable &&
           round.verdict &&
           (round.id !== session.best_iteration_id || session.status === "stopped") && (
@@ -66,7 +70,7 @@ export function RoundResults({
               {t("selectRound")}
             </Button>
           )}
-        {latestCheck && <MeasurementSection runId={latestCheck} />}
+        {latestCheck && <HowMeasured runId={latestCheck} />}
         {earlier.length > 0 && (
           <section className="space-y-2">
             <h4 className="text-sm font-medium">{t("earlierChecks")}</h4>
@@ -81,47 +85,11 @@ export function RoundResults({
             ))}
           </section>
         )}
-        {selectable &&
+        {detailsOpen &&
+          selectable &&
           round.verdict &&
           Object.keys(round.attribution_eval_run_ids).length === 0 && (
-            <section className="space-y-3">
-              <p className="text-muted-foreground text-sm">{t("attributionBody")}</p>
-              <Button
-                variant="outline"
-                disabled={actions.estimateAttribution.isPending}
-                onClick={() =>
-                  void act(async () =>
-                    setQuote(await actions.estimateAttribution.mutateAsync(round.number)),
-                  )
-                }
-              >
-                {t("estimateAttribution")}
-              </Button>
-              {quote && (
-                <>
-                  <p className="text-sm">
-                    {t("attributionQuote", {
-                      count: quote.changes,
-                      cost: usd(quote.total_usd, locale),
-                    })}
-                  </p>
-                  <Button
-                    disabled={!quote.affordable || actions.attribute.isPending}
-                    onClick={() =>
-                      void act(async () => {
-                        await actions.attribute.mutateAsync({
-                          number: round.number,
-                          estimate: quote.total_usd,
-                        });
-                        setQuote(null);
-                      })
-                    }
-                  >
-                    {t("confirmAttribution")}
-                  </Button>
-                </>
-              )}
-            </section>
+            <WhichChangeHelped session={session} round={round} onError={setError} />
           )}
         {Object.entries(round.attribution_eval_run_ids).map(([hunkId, runId], index) => (
           <section key={hunkId} className="space-y-2">
@@ -143,9 +111,11 @@ export function RoundResults({
 function MeasuredResult({
   runId,
   attributions,
+  noise,
 }: {
   runId: string;
   attributions: Record<string, string>;
+  noise?: MeasurementNoise | null;
 }) {
   const { run, error } = useEvalRun(runId);
   const { comparison, error: comparisonError } = useEvalComparison(runId, {
@@ -175,6 +145,17 @@ function MeasuredResult({
     );
   const baseline = run.arms.find((arm) => arm.role === "baseline");
   const candidate = run.arms.find((arm) => arm.role === "candidate");
+  // Red or green only for a change asking again confirmed; anything else may be noise.
+  const tone = (delta: number): "good" | "bad" | "neutral" =>
+    delta > 0 && comparison?.fixed_confirmed
+      ? "good"
+      : delta < 0 && comparison?.regressions_confirmed
+        ? "bad"
+        : "neutral";
+  const allDelta = baseline && candidate ? candidate.summary.passed - baseline.summary.passed : 0;
+  const heldDelta = comparison?.baseline_summary
+    ? comparison.candidate_summary.passed - comparison.baseline_summary.passed
+    : 0;
   return (
     <div className="space-y-4">
       {run.review && <ReviewReevaluationNote review={run.review} />}
@@ -192,6 +173,7 @@ function MeasuredResult({
             before={baseline.summary.passed}
             after={candidate.summary.passed}
             total={candidate.summary.cases}
+            tone={tone(allDelta)}
           />
         )}
         {comparison?.baseline_summary && (
@@ -205,11 +187,14 @@ function MeasuredResult({
             before={comparison.baseline_summary.passed}
             after={comparison.candidate_summary.passed}
             total={comparison.candidate_summary.cases}
+            tone={tone(heldDelta)}
           />
         )}
       </div>
-      {comparison && <ChangeCounts comparison={comparison} />}
-      {comparison && <AnswerCost comparison={comparison} changed />}
+      {comparison && (
+        <ChangeCounts comparison={comparison} deltas={[allDelta, heldDelta]} noise={noise} />
+      )}
+      {comparison && <AnswerCost comparison={comparison} />}
       {comparison &&
         (comparison.baseline &&
         comparison.cases.some((c) => c.flip === "regression" || c.flip === "fixed") ? (
@@ -232,18 +217,29 @@ function MeasuredResult({
     </div>
   );
 }
-/** The attempt's measurement and, when it did not move, the cost per answer, for Show details. */
-function MeasurementSection({ runId }: { runId: string }) {
-  const t = useTranslations("improvement");
+/** Which questions decided the attempt, as one sentence with their numbers. */
+function HowMeasured({ runId }: { runId: string }) {
+  const t = useTranslations("improvement.howMeasured");
   const { run } = useEvalRun(runId);
-  const { comparison } = useEvalComparison(runId);
   const measurement = run?.status === "completed" ? run.proposal_check?.measurement : undefined;
-  if (!measurement && !comparison) return null;
+  if (!measurement) return null;
+  const train = measurement.train_case_ids.length;
+  const heldOut = measurement.holdout_case_ids.length;
+  const missing = Math.max(0, measurement.minimum_holdout - measurement.gradable_holdout);
   return (
     <section className="space-y-2">
-      <h4 className="text-sm font-medium">{t("measurementDetails")}</h4>
-      {comparison && <AnswerCost comparison={comparison} changed={false} />}
-      {measurement && <ImprovementMeasurement measurement={measurement} wizard />}
+      <h4 className="text-sm font-medium">{t("title")}</h4>
+      <p className="text-sm">{t("body", { total: train + heldOut, train, heldOut })}</p>
+      {measurement.excluded_case_ids.length > 0 && (
+        <p className="text-muted-foreground text-xs">
+          {t("excluded", { count: measurement.excluded_case_ids.length })}
+        </p>
+      )}
+      {missing > 0 && (
+        <p role="status" className="text-warning text-sm">
+          {t("needed", { count: missing })}
+        </p>
+      )}
     </section>
   );
 }
@@ -252,38 +248,111 @@ function perAnswer(summary: { cost_usd: string; cases: number }, locale: string)
   return usd(String(Number(summary.cost_usd) / Math.max(1, summary.cases)), locale);
 }
 
-/**
- * The cost per answer before and after. On the result only when it moved;
- * otherwise in Show details, where `changed` is false.
- */
-function AnswerCost({ comparison, changed }: { comparison: EvalComparison; changed: boolean }) {
+/** The cost per answer before and after, shown only when it moved. */
+function AnswerCost({ comparison }: { comparison: EvalComparison }) {
   const t = useTranslations("improvement");
   const locale = useLocale();
   if (!comparison.baseline_summary) return null;
   const before = perAnswer(comparison.baseline_summary, locale);
   const after = perAnswer(comparison.candidate_summary, locale);
-  if ((before !== after) !== changed) return null;
+  if (before === after) return null;
   return <p className="text-muted-foreground text-sm">{t("answerCost", { before, after })}</p>;
 }
 
 /**
- * Why the bars and the counts above them differ: the bars count every answer handled
- * well, and only a change asking again confirmed counts as newly fixed or broken.
+ * Why the bars and the fixed and broken counts differ, and when a difference
+ * is too small, or the bars too contradictory, to mean anything.
  */
-function ChangeCounts({ comparison }: { comparison: EvalComparison }) {
+function ChangeCounts({
+  comparison,
+  deltas,
+  noise,
+}: {
+  comparison: EvalComparison;
+  deltas: [number, number];
+  noise?: MeasurementNoise | null;
+}) {
   const t = useTranslations("improvement");
   const flips = comparison.cases.filter((c) => c.flip === "fixed" || c.flip === "regression");
-  if (flips.length === 0) return null;
-  const confirmed = (flip: "fixed" | "regression") =>
-    flips.filter((c) => c.confirmed && c.flip === flip).length;
+  const moved = deltas.filter((delta) => delta !== 0);
+  const opposite = moved.some((delta) => delta > 0) && moved.some((delta) => delta < 0);
+  const small = moved.length > 0 && moved.every((delta) => Math.abs(delta) === 1);
+  const unconfirmed = comparison.fixed_confirmed + comparison.regressions_confirmed === 0;
+  const withinNoise =
+    unconfirmed && (opposite || small || (noise?.noisy === true && moved.length > 0));
+  if (flips.length === 0 && !withinNoise) return null;
   return (
     <p className="text-muted-foreground text-sm">
-      {t("numbersExplained", {
-        fixed: confirmed("fixed"),
-        broken: confirmed("regression"),
-        pending: flips.filter((c) => !c.confirmed).length,
-      })}
+      {flips.length > 0 &&
+        t("barsExplained", { pending: flips.filter((c) => !c.confirmed).length })}
+      {flips.length > 0 && withinNoise && " "}
+      {withinNoise && t("withinNoise", { kind: small ? "one" : opposite ? "opposite" : "noisy" })}
     </p>
+  );
+}
+
+/**
+ * Testing each of an attempt's changes on its own, offered with its price, and
+ * only when the attempt has more than one change to tell apart.
+ */
+function WhichChangeHelped({
+  session,
+  round,
+  onError,
+}: {
+  session: Improvement;
+  round: ImprovementIteration;
+  onError: (message: string | null) => void;
+}) {
+  const t = useTranslations("improvement.eachChange");
+  const tErrors = useTranslations("errors");
+  const locale = useLocale();
+  const actions = useImprovement(session.agent_id, session.id);
+  const [quote, setQuote] = useState<AttributionEstimate | null>(null);
+  const { mutateAsync: estimate } = actions.estimateAttribution;
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      try {
+        const value = await estimate(round.number);
+        if (live) setQuote(value);
+      } catch (reason) {
+        if (live) onError(getErrorMessage(reason, tErrors));
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [estimate, round.number, onError, tErrors]);
+  if (!quote || quote.changes < 2) return null;
+  return (
+    <section className="space-y-3">
+      <h4 className="text-sm font-medium">{t("title")}</h4>
+      <p className="text-sm">
+        {t("body", { count: quote.changes, cost: usd(quote.total_usd, locale) })}
+      </p>
+      {!quote.affordable && <p className="text-muted-foreground text-sm">{t("overLimit")}</p>}
+      <Button
+        variant="outline"
+        disabled={!quote.affordable || actions.attribute.isPending}
+        onClick={() =>
+          void (async () => {
+            onError(null);
+            try {
+              await actions.attribute.mutateAsync({
+                number: round.number,
+                estimate: quote.total_usd,
+              });
+              setQuote(null);
+            } catch (reason) {
+              onError(getErrorMessage(reason, tErrors));
+            }
+          })()
+        }
+      >
+        {t("start")}
+      </Button>
+    </section>
   );
 }
 

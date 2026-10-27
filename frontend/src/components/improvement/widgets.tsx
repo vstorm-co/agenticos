@@ -230,16 +230,20 @@ export function BeforeAfter({
   total,
   label,
   title,
+  tone,
 }: {
   before: number;
   after: number;
   total: number;
   label: string;
   title: string;
+  /** How the change reads; by default its direction, and neutral when unchanged. */
+  tone?: "good" | "bad" | "neutral";
 }) {
   const t = useTranslations("improvement");
   const locale = useLocale();
   const delta = after - before;
+  const reads = tone ?? (delta === 0 ? "neutral" : delta > 0 ? "good" : "bad");
   const Arrow = delta === 0 ? Minus : delta > 0 ? ArrowUpRight : ArrowDownRight;
   const share = (value: number) => `${(value / Math.max(1, total)) * 100}%`;
   return (
@@ -249,7 +253,11 @@ export function BeforeAfter({
         <span
           className={cn(
             "inline-flex items-center gap-0.5 text-sm font-semibold tabular-nums",
-            delta === 0 ? "text-muted-foreground" : delta > 0 ? "text-success" : "text-destructive",
+            reads === "neutral"
+              ? "text-muted-foreground"
+              : reads === "good"
+                ? "text-success"
+                : "text-destructive",
           )}
         >
           <Arrow className="size-4" aria-hidden />
@@ -263,7 +271,12 @@ export function BeforeAfter({
             key: "after",
             name: t("after"),
             value: after,
-            fill: delta < 0 ? "bg-destructive" : "bg-success",
+            fill:
+              reads === "neutral"
+                ? "bg-muted-foreground/50"
+                : reads === "bad"
+                  ? "bg-destructive"
+                  : "bg-success",
           },
         ].map((row) => (
           <div key={row.key} className="flex items-center gap-3 text-xs">
