@@ -11392,7 +11392,8 @@
       "wording": "Formulierung von Änderung {number}",
       "save": "Formulierung speichern",
       "cancel": "Abbrechen"
-    }
+    },
+    "limitHint": "Analyse ca. {analysis} · jeder Versuch ca. {perRound} · das Limit gilt für die ganze Sitzung"
   },
   "unsaved": {
     "title": "Du hast ungespeicherte Änderungen",

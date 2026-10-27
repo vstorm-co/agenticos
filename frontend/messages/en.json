@@ -11509,7 +11509,8 @@
       "wording": "Wording of change {number}",
       "save": "Save the wording",
       "cancel": "Cancel"
-    }
+    },
+    "limitHint": "Analysis about {analysis} · each attempt about {perRound} · the limit caps the whole session"
   },
   "unsaved": {
     "title": "You have unsaved changes",
