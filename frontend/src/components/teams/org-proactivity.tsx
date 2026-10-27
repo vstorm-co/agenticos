@@ -82,7 +82,6 @@ export function OrgProactivity({ org }: { org: Organization }) {
   const { switchOrg } = useOrganizations();
   const nightly = can(Perm.budgetsManage);
   const welcome = can(Perm.orgSettings);
-  if (!nightly && !welcome) return null;
   if (tenantId !== org.id) {
     return (
       <SettingsSection title={t("title")} description={t("description")}>
@@ -93,6 +92,7 @@ export function OrgProactivity({ org }: { org: Organization }) {
       </SettingsSection>
     );
   }
+  if (!nightly && !welcome) return null;
   return (
     <SettingsSection title={t("title")} description={t("description")}>
       <div className="divide-foreground/10 space-y-6 divide-y [&>*:not(:first-child)]:pt-6">

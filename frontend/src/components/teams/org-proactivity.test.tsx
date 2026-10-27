@@ -164,6 +164,19 @@ describe("OrgProactivity", () => {
     },
   );
 
+  it("allows switching tenants even when the active tenant grants no settings permissions", async () => {
+    state.tenantId = "other";
+    state.held = [];
+    const { rerender, container } = render(<OrgProactivity org={org(ON)} />);
+    await userEvent.click(screen.getByRole("button", { name: "Switch to Acme" }));
+    expect(state.switchOrg).toHaveBeenCalledWith("o1");
+    rerender(<OrgProactivity org={org(ON)} />);
+    expect(container).toBeEmptyDOMElement();
+    state.held = [Perm.budgetsManage];
+    rerender(<OrgProactivity org={org(ON)} />);
+    expect(screen.getByRole("radio", { name: /Haiku/ })).toBeInTheDocument();
+  });
+
   it("is not shown to somebody who may change neither setting", () => {
     state.held = [];
     const { container } = render(<OrgProactivity org={org()} />);
