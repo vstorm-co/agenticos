@@ -47,6 +47,8 @@ def _project(**overrides: Any) -> MagicMock:
         default_agent_id=None,
         backend="service",
         sandbox_connection_id=None,
+        workspace_generation=None,
+        workspace_move_job_id=None,
         runtime=None,
         created_at=datetime(2026, 10, 17, tzinfo=UTC),
         updated_at=None,

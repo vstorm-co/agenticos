@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "f96d01e1c088"
+source_sha: "1723f797c360"
 ---
 
 # Projekte { #projects }
@@ -103,8 +103,24 @@ behält die beim Erstellen gewählte Verbindung; ohne verfügbare Verbindung wer
 Dateien gespeichert. Eine benannte Verbindung erfordert `connections:view` und
 eine aktive Verbindung deiner Organisation. Die Projekteinstellungen zeigen
 Verbindungsnamen und Laufzeitumgebung. Alle Projektchats nutzen diese Umgebung
-anstelle der Agenten-Sandbox. Bestehende Projekte behalten Verbindung und Dateien;
-eine andere Auswahl migriert keine vorhandenen Projektdateien.
+anstelle der Agenten-Sandbox. Editoren können mit **Sandbox ändern** ein bestehendes Projekt samt Dateien übertragen.
+
+Ein dauerhaft gespeicherter Hintergrundauftrag kopiert Dateien und leere Ordner
+in einen isolierten Arbeitsbereich, prüft Datei-Hashes und Verzeichnisstruktur und
+aktiviert erst danach das Ziel. Aktive Läufe und ausstehende Entscheidungen müssen
+vorher enden. Neue Läufe, Dateiänderungen und Projektbearbeitung pausieren während
+der Übertragung; bestehende Dateien bleiben lesbar. Bei Fehlern bleibt die Quelle
+ausgewählt. Der Fortschritt steht in den Projekteinstellungen. Erst nach geprüfter
+Aktivierung wird die Quelle entfernt; ein dauerhafter Auftrag räumt den Container auf.
+
+Grenzen: 10.000 Einträge, 64 MiB pro Datei, 1 GiB insgesamt; symbolische Links vorher
+entfernen. Installierte Pakete und laufende Prozesse werden nicht kopiert. Beim Wechsel
+zu gespeicherten Dateien gilt zusätzlich das Größenlimit der Plattform.
+
+**Dateien und Codeausführung im Projekt** erklärt Speicherung, gemeinsame Nutzung
+und Ausführung neben der Auswahl. Das Projekt stellt Sandbox-Werkzeuge auch für
+Agenten ohne eigene Sandbox bereit. Container erlauben Codeausführung; gespeicherte
+Dateien haben keine Shell. Bestehende Werkzeugfreigaben gelten weiterhin.
 
 ## Dateien { #files }
 

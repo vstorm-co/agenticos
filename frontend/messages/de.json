@@ -8559,7 +8559,22 @@
       "sharedHint": "Alle Chats dieses Projekts teilen Dateien und Arbeitsumgebung. Sie ersetzt die Sandbox des antwortenden Agenten.",
       "failed": "Sandbox-Verbindungen konnten nicht geladen werden. Automatische Auswahl und Dateispeicherung bleiben verfügbar.",
       "configured": "Konfigurierte Sandbox",
-      "containerHint": "Ein eigener Container auf dieser Verbindung. Das Projekt behält die Verbindung während seiner gesamten Laufzeit."
+      "containerHint": "Ein eigener Container auf dieser Verbindung. Sie bleibt ausgewählt, bis die Projektdateien ausdrücklich übertragen werden.",
+      "howItWorks": "Dateien und Codeausführung im Projekt",
+      "locationTitle": "Wo Dateien liegen",
+      "locationHelp": "Gespeicherte Dateien liegen ohne Shell in der Plattformdatenbank. Eine Sandbox-Verbindung stellt einen Container auf Ihrer Infrastruktur oder eine Cloud-Sandbox bereit. Automatisch wählt beim Erstellen den Organisationsstandard.",
+      "sharingTitle": "Ein gemeinsamer Arbeitsbereich",
+      "sharingHelp": "Dateien bleiben über Gespräche hinweg erhalten und sind für Personen mit Projektzugriff gemeinsam verfügbar. Projektchats verwenden diesen Arbeitsbereich statt der Sandbox-Verbindung des Agenten.",
+      "executionTitle": "Wann ein Agent Code ausführen kann",
+      "executionHelp": "In einem Projekt mit Container erhalten Agenten die Sandbox-Werkzeuge des Projekts und können dort Code ausführen. Bestehende Werkzeugfreigaben gelten weiterhin. Gespeicherte Dateien haben keine Shell: Agenten können Dateien lesen und schreiben, aber keinen Code ausführen.",
+      "change": "Sandbox ändern",
+      "move": "Projektdateien übertragen",
+      "transferHint": "Kopiert Dateien und leere Ordner und prüft die Kopie vor dem Wechsel. Neue Läufe und Dateiänderungen pausieren währenddessen. Bei Fehlern bleibt der bisherige Arbeitsbereich ausgewählt. Bis 10.000 Einträge, 64 MiB pro Datei und 1 GiB insgesamt; symbolische Links vorher entfernen. Installierte Pakete und laufende Prozesse werden nicht übertragen.",
+      "moving": "Dateien nach {name} übertragen",
+      "progress": "{copied} von {total} Dateien kopiert",
+      "paused": "Vorhandene Dateien bleiben lesbar. Neue Läufe und Änderungen sind nach Abschluss wieder möglich.",
+      "moveFailed": "Die Übertragung wurde nicht abgeschlossen. Der bisherige Arbeitsbereich bleibt ausgewählt. Versuchen Sie es erneut.",
+      "moved": "Dateien geprüft und neuer Arbeitsbereich aktiviert."
     }
   },
   "voiceGlow": {

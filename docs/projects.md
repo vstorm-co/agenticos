@@ -95,9 +95,24 @@ connection, automatic selection, or **Stored files only**. Automatic selection p
 the connection chosen at creation; if none is available, it uses stored files.
 Choosing a named connection requires `connections:view` and an active connection
 in your organization. The project's settings show its connection name and runtime;
-all project chats use this workspace in place of the agent's own sandbox. Existing
-projects keep their connection and files; choosing a different one does not migrate
-an existing project's contents.
+all project chats use this workspace in place of the agent's own sandbox. Editors can use **Change sandbox** to move an existing project, including its files.
+
+The transfer is a durable background job. It copies files and empty folders into
+an isolated workspace, verifies file hashes and the directory tree, then activates
+the target. New runs, decisions awaiting continuation, file changes and project
+edits must finish before a transfer starts; new writes and runs wait while it is
+queued or running. Existing files remain readable. A failed transfer keeps the
+source selected. Progress appears in the project's settings. Only a verified
+activation retires the source, with durable cleanup of its remote container.
+
+Transfers support 10,000 entries, 64 MiB per file and 1 GiB total; remove symbolic
+links first. Installed packages and running processes are not copied. Moving to
+stored files also has to fit the platform's stored-workspace size limit.
+
+**How project files and code execution work** explains storage, sharing and the
+execution environment beside the selector. A project supplies Sandbox tools even
+to an agent without its own sandbox. Container-backed projects support execution;
+stored files have no shell. Existing tool approval requirements remain in force.
 
 ## Files
 

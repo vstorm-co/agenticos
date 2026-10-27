@@ -38,6 +38,7 @@ from app.repositories import (
     resource_grant_repo,
     sandbox_connection_repo,
 )
+from app.repositories import background_job as job_repo
 from app.schemas.project import (
     ProjectCreate,
     ProjectFileText,
@@ -53,6 +54,7 @@ from app.services.access import (
     visible_resource_ids,
 )
 from app.services.conversation import ConversationService
+from app.services.project_workspace_guard import require_available, workspace_move_read
 from app.services.resource_usage import groups_sharing, shared_with_group
 from app.services.sandbox_connection import SandboxConnectionService
 from app.services.sandbox_workspace import (
@@ -122,7 +124,12 @@ class ProjectService:
             NotFoundError: If there is no such project or the caller may not see it.
             AuthorizationError: If the caller sees it and may not `perm` it.
         """
-        project = await project_repo.get(self.db, project_id, organization_id=ctx.organization_id)
+        project = await project_repo.get(
+            self.db,
+            project_id,
+            organization_id=ctx.organization_id,
+            for_update=perm is not Perm.PROJECTS_VIEW,
+        )
         missing = NotFoundError(message="Project not found", details={"project_id": project_id})
         if project is None or not await resolve_access(
             self.db, ctx, project, Perm.PROJECTS_VIEW, resource_type=PROJECT
@@ -140,6 +147,8 @@ class ProjectService:
                 ),
                 details={"project_id": project_id},
             )
+        if perm is not Perm.PROJECTS_VIEW:
+            await require_available(self.db, project)
         return project
 
     async def list_projects(
@@ -205,6 +214,14 @@ class ProjectService:
         runnable_agents = await self._answering(
             [agent for agent in agents.values() if agent.id in runnable_agents]
         )
+        moves = await job_repo.for_project_moves(
+            self.db,
+            [
+                project.workspace_move_job_id
+                for project in projects
+                if project.workspace_move_job_id is not None
+            ],
+        )
         connection_names = await sandbox_connection_repo.names_for_ids(
             self.db,
             organization_id=ctx.organization_id,
@@ -224,6 +241,9 @@ class ProjectService:
                     update={
                         "sandbox_connection_name": connection_names.get(
                             project.sandbox_connection_id
+                        ),
+                        "workspace_move": workspace_move_read(
+                            moves.get(project.workspace_move_job_id), project
                         ),
                         "chat_count": count,
                         "last_active_at": last,
@@ -375,7 +395,7 @@ class ProjectService:
         ):
             return None
         project = await project_repo.get(
-            self.db, conversation.project_id, organization_id=ctx.organization_id
+            self.db, conversation.project_id, organization_id=ctx.organization_id, for_update=True
         )
         if project is None:
             return None
@@ -386,6 +406,7 @@ class ProjectService:
                 message="This chat is in a project you can no longer work in",
                 details={"project_id": project.id},
             )
+        await require_available(self.db, project)
         return project
 
     async def check_can_start(self, ctx: AuthContext, project_id: UUID) -> Project:

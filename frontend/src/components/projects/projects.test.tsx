@@ -44,6 +44,7 @@ const projects = {
   query: vi.fn(),
 };
 const project = {
+  moveWorkspace: { isPending: false, mutateAsync: vi.fn() },
   update: { mutate: vi.fn(), isPending: false },
   remove: { mutateAsync: vi.fn(), isPending: false },
 };
@@ -684,4 +685,26 @@ it("can create a files-only project instead of silently choosing a container", a
   expect(projects.create.mutateAsync).toHaveBeenCalledWith(
     expect.objectContaining({ backend: "state", name: "Notes" }),
   );
+});
+
+it("keeps files readable and explains why changes pause during a workspace transfer", () => {
+  wrap(
+    <ProjectFiles
+      project={aProject({
+        workspace_move: {
+          job_id: "j",
+          status: "running",
+          target_name: "Cloud",
+          copied_files: 0,
+          total_files: 1,
+          copied_bytes: 0,
+        },
+      })}
+    />,
+  );
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "New runs and file changes resume when the transfer finishes",
+  );
+  expect(screen.queryByRole("button", { name: "Upload files" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "brief.md" })).toBeInTheDocument();
 });

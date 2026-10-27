@@ -11,7 +11,13 @@ import type { FileText } from "./file-access";
 import { postWithProgress } from "./upload-with-progress";
 import type { WorkspaceFiles } from "./sandbox-workspaces-api";
 import type { Conversation, ProjectChat } from "@/types/conversation";
-import type { Project, ProjectCreate, ProjectList, ProjectUpdate } from "@/types/projects";
+import type {
+  Project,
+  ProjectCreate,
+  ProjectList,
+  ProjectUpdate,
+  ProjectWorkspaceMove,
+} from "@/types/projects";
 
 const ROOT = "/projects";
 
@@ -138,4 +144,15 @@ export function saveProjectFile(
   file: EditableProjectFile,
 ): Promise<EditableProjectFile> {
   return apiClient.put(`${ROOT}/${id}/files/text?${new URLSearchParams({ path })}`, file);
+}
+
+/** Activate a new sandbox only after the worker has copied and verified its files. */
+export async function moveProjectWorkspace(
+  id: string,
+  target: string,
+): Promise<ProjectWorkspaceMove> {
+  return apiClient.post<ProjectWorkspaceMove>(`${ROOT}/${id}/workspace-move`, {
+    backend: target === "state" ? "state" : "service",
+    sandbox_connection_id: target === "state" ? null : target,
+  });
 }

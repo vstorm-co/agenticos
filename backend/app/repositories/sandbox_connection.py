@@ -10,19 +10,20 @@ from app.db.models.sandbox_connection import SandboxConnection
 
 
 async def get(
-    db: AsyncSession, connection_id: UUID, *, organization_id: UUID
+    db: AsyncSession, connection_id: UUID, *, organization_id: UUID, for_update: bool = False
 ) -> SandboxConnection | None:
     """One connection, inside its organization.
 
     The scope is not decoration: without it a connection id from another tenant
     resolves, and what it resolves to is a host somebody else's agents run on.
     """
-    result = await db.execute(
-        select(SandboxConnection).where(
-            SandboxConnection.id == connection_id,
-            SandboxConnection.organization_id == organization_id,
-        )
+    stmt = select(SandboxConnection).where(
+        SandboxConnection.id == connection_id,
+        SandboxConnection.organization_id == organization_id,
     )
+    if for_update:
+        stmt = stmt.execution_options(populate_existing=True).with_for_update()
+    result = await db.execute(stmt)
     return result.scalar_one_or_none()
 
 

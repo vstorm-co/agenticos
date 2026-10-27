@@ -45,7 +45,9 @@ export function ProjectFiles({ project }: { project: Project }) {
     if (chosen.length > 0) upload.mutate({ files: chosen, folder: "" });
   }
 
-  const toolbar = project.can_use ? (
+  const writable =
+    project.can_use && !["queued", "running"].includes(project.workspace_move?.status ?? "");
+  const toolbar = writable ? (
     <span className="mr-auto flex flex-wrap items-center gap-1.5" data-tour="project-files-add">
       <Button size="sm" onClick={() => filesInput.current?.click()} disabled={upload.isPending}>
         <Upload className="h-4 w-4" />
@@ -103,7 +105,7 @@ export function ProjectFiles({ project }: { project: Project }) {
       <div className="max-w-md space-y-1">
         <p className="text-foreground text-base font-semibold">{t("noFilesYet")}</p>
         <p className="text-muted-foreground text-sm">
-          {project.can_use ? t("noFilesHint") : t("noFilesViewer")}
+          {writable ? t("noFilesHint") : t("noFilesViewer")}
         </p>
       </div>
       {toolbar && <div className="flex justify-center [&>span]:mr-0">{toolbar}</div>}
@@ -117,18 +119,16 @@ export function ProjectFiles({ project }: { project: Project }) {
         isLoading={isLoading}
         error={error}
         toolbar={toolbar}
-        onRemove={project.can_use ? setPendingRemove : undefined}
+        onRemove={writable ? setPendingRemove : undefined}
         onMove={
-          project.can_use
+          writable
             ? async (source, destination) => {
                 await move.mutateAsync({ source, destination });
               }
             : undefined
         }
         renderEditor={
-          project.can_use
-            ? (path) => <ProjectFileEditor projectId={project.id} path={path} />
-            : undefined
+          writable ? (path) => <ProjectFileEditor projectId={project.id} path={path} /> : undefined
         }
       />
     </div>
@@ -138,9 +138,17 @@ export function ProjectFiles({ project }: { project: Project }) {
     // Down to the bottom of the screen, as the folder page's reader is: the files
     // are what the tab is for, and a fixed floor left half the screen empty.
     <div className="flex min-h-0 flex-1 flex-col">
+      {project.can_use && !writable && (
+        <p
+          role="status"
+          className="text-muted-foreground bg-muted/50 mb-3 rounded-xl px-4 py-3 text-sm"
+        >
+          {t("sandbox.paused")}
+        </p>
+      )}
       {/* A file dropped anywhere on the tab lands in the project, as one dropped
           on a knowledge base lands in it - for whoever may add files. */}
-      {project.can_use ? (
+      {writable ? (
         <FileDropZone
           collectionName={project.name}
           onFiles={picked}

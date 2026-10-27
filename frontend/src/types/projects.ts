@@ -6,7 +6,17 @@ import type { Visibility } from "./sharing";
  * Its chats, files and instructions are everybody's the project is shared with:
  * `chat_count` counts every chat in it, whoever started it.
  */
+export interface ProjectWorkspaceMove {
+  job_id: string;
+  status: "queued" | "running" | "succeeded" | "dead" | "cancelled";
+  target_name: string;
+  copied_files: number;
+  total_files: number;
+  copied_bytes: number;
+}
+
 export interface Project {
+  workspace_move?: ProjectWorkspaceMove | null;
   id: string;
   name: string;
   description: string | null;

@@ -8676,7 +8676,22 @@
       "sharedHint": "Every chat in this project shares these files and this workspace. It replaces the sandbox configured on the answering agent.",
       "failed": "Could not load sandbox connections. Automatic selection and stored files are still available.",
       "configured": "Configured sandbox",
-      "containerHint": "A dedicated container on this connection. The connection is kept for the project’s lifetime."
+      "containerHint": "A dedicated container on this connection. It stays selected until you explicitly move the project’s files.",
+      "howItWorks": "How project files and code execution work",
+      "locationTitle": "Where files live",
+      "locationHelp": "Stored files stay in the platform database, without a shell. A sandbox connection provides a container on your infrastructure or a cloud sandbox. Automatic selects the organization’s default when the project is created.",
+      "sharingTitle": "One workspace for the whole project",
+      "sharingHelp": "Files persist across conversations and are shared with everyone who can access this project. Chats in this project use its workspace instead of the agent’s own sandbox connection.",
+      "executionTitle": "When an agent can run code",
+      "executionHelp": "In a container-backed project, agents receive the project’s Sandbox tools and can execute code in that environment. Existing tool approval requirements still apply. Stored files have no shell, so agents can read and write files but cannot run code there.",
+      "change": "Change sandbox",
+      "move": "Move project files",
+      "transferHint": "Copies existing files and empty folders, then verifies the copy before switching. New runs and file changes pause during the transfer. On failure, the current workspace remains selected. Up to 10,000 entries, 64 MiB per file and 1 GiB total; symbolic links must be removed first. Installed packages and running processes are not transferred.",
+      "moving": "Moving files to {name}",
+      "progress": "{copied} of {total} files copied",
+      "paused": "You can read existing files. New runs and file changes resume when the transfer finishes.",
+      "moveFailed": "The transfer did not finish. The previous workspace is still selected. You can try again.",
+      "moved": "Files verified and the new workspace activated."
     }
   },
   "voiceGlow": {

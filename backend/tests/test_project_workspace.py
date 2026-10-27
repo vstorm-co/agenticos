@@ -47,6 +47,8 @@ def _project(**overrides: object) -> SimpleNamespace:
         "backend": "state",
         "sandbox_connection_id": None,
         "runtime": None,
+        "workspace_generation": None,
+        "workspace_move_job_id": None,
     }
     return SimpleNamespace(**{**fields, **overrides})
 

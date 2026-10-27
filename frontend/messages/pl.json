@@ -8461,7 +8461,22 @@
       "sharedHint": "Wszystkie czaty projektu współdzielą te pliki i środowisko. Zastępuje ono sandbox ustawiony u odpowiadającego agenta.",
       "failed": "Nie udało się wczytać połączeń sandboxa. Nadal możesz wybrać tryb automatyczny lub przechowywanie plików.",
       "configured": "Skonfigurowany sandbox",
-      "containerHint": "Osobny kontener na tym połączeniu. Projekt zachowuje to połączenie przez cały okres istnienia."
+      "containerHint": "Dedykowany kontener na tym połączeniu. Pozostaje wybrany do jawnego przeniesienia plików projektu.",
+      "howItWorks": "Jak działają pliki i uruchamianie kodu w projekcie",
+      "locationTitle": "Gdzie są pliki",
+      "locationHelp": "Same pliki są przechowywane w bazie platformy, bez powłoki. Połączenie sandboxa zapewnia kontener na Twojej infrastrukturze lub sandbox w chmurze. Wybór automatyczny przypina domyślne połączenie organizacji podczas tworzenia projektu.",
+      "sharingTitle": "Wspólny warsztat projektu",
+      "sharingHelp": "Pliki zostają między rozmowami i są wspólne dla osób z dostępem do projektu. Rozmowy w projekcie korzystają z tego warsztatu zamiast z połączenia sandboxa agenta.",
+      "executionTitle": "Kiedy agent może uruchamiać kod",
+      "executionHelp": "W projekcie z kontenerem agenci dostają narzędzia Sandbox projektu i mogą uruchamiać w nim kod. Dotychczasowe wymagania zatwierdzania narzędzi nadal obowiązują. Tryb samych plików nie ma powłoki: agent może czytać i zapisywać pliki, ale nie uruchomi kodu.",
+      "change": "Zmień sandbox",
+      "move": "Przenieś pliki projektu",
+      "transferHint": "Kopiuje istniejące pliki i puste foldery, sprawdza kopię, a dopiero potem przełącza projekt. Na czas transferu nowe runy i zmiany plików czekają. Po błędzie pozostaje dotychczasowy warsztat. Limit: 10 000 wpisów, 64 MiB na plik, 1 GiB łącznie; najpierw usuń dowiązania symboliczne. Zainstalowane pakiety i działające procesy nie są przenoszone.",
+      "moving": "Przenoszenie plików do {name}",
+      "progress": "Skopiowano {copied} z {total} plików",
+      "paused": "Możesz czytać istniejące pliki. Nowe runy i zmiany plików wrócą po zakończeniu transferu.",
+      "moveFailed": "Transfer nie został zakończony. Dotychczasowy warsztat nadal jest wybrany. Możesz spróbować ponownie.",
+      "moved": "Pliki sprawdzone, nowy warsztat aktywny."
     }
   },
   "voiceGlow": {

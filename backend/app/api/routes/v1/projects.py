@@ -10,7 +10,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile, status
 
-from app.api.deps import Auth, ProjectSvc, require
+from app.api.deps import Auth, ProjectSvc, ProjectTransferSvc, require
 from app.api.public_api import PUBLIC
 from app.api.routes.v1._workspace_bytes import file_response
 from app.core.config import settings
@@ -25,6 +25,8 @@ from app.schemas.project import (
     ProjectPathMove,
     ProjectRead,
     ProjectUpdate,
+    ProjectWorkspaceMoveRead,
+    ProjectWorkspaceMoveRequest,
 )
 from app.schemas.workspace import WorkspaceFileRead, WorkspaceListing
 from app.services.sandbox_workspace import owner_label, stored_ceiling
@@ -204,3 +206,20 @@ async def edit_project_file(
     return await service.edit_file(
         ctx, project_id, path=path, content=data.content, revision=data.revision
     )
+
+
+@router.post(
+    "/{project_id}/workspace-move",
+    response_model=ProjectWorkspaceMoveRead,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def move_project_workspace(
+    project_id: UUID, data: ProjectWorkspaceMoveRequest, service: ProjectTransferSvc, ctx: Auth
+) -> Any:
+    """Queue a verified copy to a different sandbox. Writes and new runs wait until it ends.
+
+    Transfers preserve user files and empty folders, with a limit of 10,000 entries,
+    64 MiB per file and 1 GiB total. Symbolic links must be removed first. The old
+    workspace remains selected on failure; the target is activated only after verification.
+    """
+    return await service.queue(ctx, project_id, data)

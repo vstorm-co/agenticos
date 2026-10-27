@@ -62,7 +62,28 @@ class ProjectUpdate(BaseSchema):
     )
 
 
+class ProjectWorkspaceMoveRequest(BaseSchema):
+    backend: Literal["service", "state"]
+    sandbox_connection_id: UUID | None = None
+
+
+class ProjectWorkspaceMoveRead(BaseSchema):
+    job_id: UUID
+    status: Literal["queued", "running", "succeeded", "dead", "cancelled"]
+    target_name: str
+    copied_files: int = 0
+    total_files: int = 0
+    copied_bytes: int = 0
+
+
+class ProjectWorkspaceProgress(BaseSchema):
+    copied_files: int = 0
+    total_files: int = 0
+    copied_bytes: int = 0
+
+
 class ProjectRead(BaseSchema):
+    workspace_move: ProjectWorkspaceMoveRead | None = None
     sandbox_connection_id: UUID | None = None
     sandbox_connection_name: str | None = None
     id: UUID

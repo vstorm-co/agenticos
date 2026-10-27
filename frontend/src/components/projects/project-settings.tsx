@@ -44,7 +44,8 @@ export function ProjectSettings({ project }: { project: Project }) {
   const [agentId, setAgentId] = useState(project.default_agent_id);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [mode, setMode] = useState<MarkdownMode>(project.can_edit ? "source" : "preview");
-  const editable = project.can_edit;
+  const editable =
+    project.can_edit && !["queued", "running"].includes(project.workspace_move?.status ?? "");
   const changed =
     name !== project.name ||
     description !== (project.description ?? "") ||

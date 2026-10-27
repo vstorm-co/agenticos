@@ -299,3 +299,116 @@ async def test_the_projects_a_member_may_see_by_id(db) -> None:
         shared.id,
         hidden.id,
     }
+
+
+async def test_a_staged_workspace_cannot_replace_the_selected_generation(db) -> None:
+    owner = await _user(db)
+    org = await _org(db, owner=owner)
+    project = await _project(db, org, owner, name="Wiki", visibility="private")
+    generation = uuid.uuid4()
+    source = await workspace_repo.create(
+        db,
+        organization_id=org.id,
+        agent_id=None,
+        project_id=project.id,
+        scope="project",
+        scope_key=f"dp-{project.id.hex}",
+        backend="state",
+    )
+    staged = await workspace_repo.create(
+        db,
+        organization_id=org.id,
+        agent_id=None,
+        project_id=project.id,
+        scope="project",
+        scope_key=f"dp-{generation.hex}",
+        backend="state",
+    )
+    assert (
+        await workspace_repo.get_for_project(db, organization_id=org.id, project_id=project.id)
+    ).id == source.id
+    project.workspace_generation = generation
+    await db.flush()
+    assert (
+        await workspace_repo.get_for_project(db, organization_id=org.id, project_id=project.id)
+    ).id == staged.id
+    assert (
+        await workspace_repo.get_for_project(
+            db, organization_id=uuid.uuid4(), project_id=project.id
+        )
+        is None
+    )
+    assert (
+        await project_repo.get(db, project.id, organization_id=org.id, for_update=True) is project
+    )
+
+
+async def test_project_transfer_checks_include_runs_waiting_for_people(db) -> None:
+    from app.db.models.agent import Agent
+    from app.db.models.agent_run import AgentRun
+
+    owner = await _user(db)
+    org = await _org(db, owner=owner)
+    project = await _project(db, org, owner, name="Wiki", visibility="private")
+    agent = Agent(id=uuid.uuid4(), organization_id=org.id, slug="transfer-test", name="Test")
+    conversation = Conversation(
+        id=uuid.uuid4(), organization_id=org.id, user_id=owner.id, project_id=project.id
+    )
+    db.add_all([agent, conversation])
+    await db.flush()
+    assert not await project_repo.has_active_runs(db, project_id=project.id, organization_id=org.id)
+    run = AgentRun(
+        id=uuid.uuid4(),
+        organization_id=org.id,
+        agent_id=agent.id,
+        conversation_id=conversation.id,
+        status="awaiting_answer",
+    )
+    db.add(run)
+    await db.flush()
+    for status in ("running", "awaiting_answer", "awaiting_approval", "completed"):
+        run.status = status
+        await db.flush()
+        assert await project_repo.has_active_runs(
+            db, project_id=project.id, organization_id=org.id
+        ) == (status != "completed")
+    assert not await project_repo.has_active_runs(
+        db, project_id=project.id, organization_id=uuid.uuid4()
+    )
+
+
+async def test_source_and_target_connections_are_protected_while_copying(db) -> None:
+    from app.repositories import background_job as jobs
+
+    owner = await _user(db)
+    org = await _org(db, owner=owner)
+    project = await _project(db, org, owner, name="Wiki", visibility="private")
+    source, target = uuid.uuid4(), uuid.uuid4()
+    job_id = await jobs.add(
+        db,
+        kind="move-project-workspace",
+        pool="ingest",
+        payload={"source_connection_id": str(source), "target_connection_id": str(target)},
+        max_attempts=3,
+        priority=0,
+        organization_id=org.id,
+    )
+    project.workspace_move_job_id = job_id
+    await db.flush()
+    assert await project_repo.active_moves_for_connection(
+        db, connection_id=source, organization_id=org.id
+    )
+    assert await project_repo.active_moves_for_connection(
+        db, connection_id=target, organization_id=org.id
+    )
+    assert not await project_repo.active_moves_for_connection(
+        db, connection_id=target, organization_id=uuid.uuid4()
+    )
+    assert await jobs.for_project_moves(db, []) == {}
+    assert job_id in await jobs.for_project_moves(db, [job_id])
+    row = await jobs.get(db, job_id)
+    row.status = "dead"
+    await db.flush()
+    assert not await project_repo.active_moves_for_connection(
+        db, connection_id=source, organization_id=org.id
+    )

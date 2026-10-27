@@ -1789,3 +1789,14 @@ def prefers_async(
 
 
 PrefersAsync = Annotated[bool, Depends(prefers_async)]
+
+from app.services.project_workspace_transfer import ProjectWorkspaceTransferService
+
+
+def get_project_transfer_service(db: DBSession) -> ProjectWorkspaceTransferService:
+    return ProjectWorkspaceTransferService(db)
+
+
+ProjectTransferSvc = Annotated[
+    ProjectWorkspaceTransferService, Depends(get_project_transfer_service)
+]

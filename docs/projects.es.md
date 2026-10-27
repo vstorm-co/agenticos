@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "f96d01e1c088"
+source_sha: "1723f797c360"
 ---
 
 # Proyectos { #projects }
@@ -101,8 +101,24 @@ automática conserva la conexión elegida al crear el proyecto; si no hay ningun
 almacena archivos. Elegir una conexión requiere `connections:view` y una conexión
 activa de tu organización. Los ajustes muestran su nombre y entorno de ejecución.
 Todos los chats del proyecto usan este entorno en lugar del sandbox del agente.
-Los proyectos existentes conservan su conexión y archivos; otra selección no migra
-el contenido de un proyecto existente.
+Los editores pueden usar **Cambiar sandbox** para trasladar un proyecto existente con sus archivos.
+
+Un trabajo duradero en segundo plano copia archivos y carpetas vacías a un espacio
+aislado, verifica hashes y el árbol de directorios y activa el destino después.
+Las ejecuciones activas y decisiones pendientes deben terminar antes de empezar.
+Durante el traslado se pausan nuevas ejecuciones, cambios de archivos y edición
+del proyecto; los archivos existentes siguen disponibles para lectura. Un fallo
+mantiene seleccionado el origen. Los ajustes muestran el progreso. Solo una
+activación verificada retira el origen; la limpieza del contenedor remoto es duradera.
+
+Límites: 10 000 entradas, 64 MiB por archivo y 1 GiB total; elimina antes los enlaces
+simbólicos. No se copian paquetes instalados ni procesos en ejecución. El destino de
+archivos almacenados también debe respetar el límite de tamaño de la plataforma.
+
+La explicación junto al selector describe almacenamiento, uso compartido y ejecución.
+El proyecto proporciona herramientas Sandbox incluso a agentes sin sandbox propio.
+Un contenedor permite ejecutar código; el almacenamiento de archivos no tiene shell.
+Los requisitos de aprobación de herramientas existentes siguen vigentes.
 
 ## Archivos { #files }
 

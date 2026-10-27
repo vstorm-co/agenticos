@@ -81,14 +81,15 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                 name={project.name}
                 canManage={project.can_edit}
               />
-              {project.can_use && (
-                <Button asChild>
-                  <Link href={ROUTES.PROJECT_CHAT(project.id)}>
-                    <Plus className="h-4 w-4" />
-                    {t("newChat")}
-                  </Link>
-                </Button>
-              )}
+              {project.can_use &&
+                !["queued", "running"].includes(project.workspace_move?.status ?? "") && (
+                  <Button asChild>
+                    <Link href={ROUTES.PROJECT_CHAT(project.id)}>
+                      <Plus className="h-4 w-4" />
+                      {t("newChat")}
+                    </Link>
+                  </Button>
+                )}
             </>
           ) : (
             <Skeleton className="h-9 w-28" />

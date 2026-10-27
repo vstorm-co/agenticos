@@ -26,6 +26,7 @@ vi.mock("@/lib/projects-api", () => ({
   createProjectFolder: vi.fn(),
   removeProjectPath: vi.fn(),
   moveProjectPath: vi.fn(),
+  moveProjectWorkspace: vi.fn(),
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -180,4 +181,25 @@ describe("uploadPath", () => {
     expect(uploadPath(nested, "")).toBe("brand/a.md");
     expect(uploadPath(new File(["x"], "b.md"), "")).toBe("b.md");
   });
+});
+
+it("queues a sandbox transfer and reports a refused transfer without dropping the project", async () => {
+  const { result } = renderHook(() => useProject("p-1"), { wrapper });
+  await waitFor(() => expect(result.current.project).toEqual(PROJECT));
+  vi.mocked(api.moveProjectWorkspace).mockResolvedValue({
+    job_id: "j",
+    status: "queued",
+    target_name: "Cloud",
+    copied_files: 0,
+    total_files: 0,
+    copied_bytes: 0,
+  });
+  await act(() => result.current.moveWorkspace.mutateAsync("cloud"));
+  expect(api.moveProjectWorkspace).toHaveBeenCalledWith("p-1", "cloud");
+  vi.mocked(api.moveProjectWorkspace).mockRejectedValue(new Error("active run"));
+  await act(async () => {
+    await result.current.moveWorkspace.mutateAsync("cloud").catch(() => undefined);
+  });
+  expect(toast.error).toHaveBeenCalled();
+  expect(result.current.project?.id).toBe("p-1");
 });

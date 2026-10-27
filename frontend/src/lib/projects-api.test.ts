@@ -105,3 +105,16 @@ it("moves project entries and edits a complete revision without losing whitespac
     revision: "a".repeat(64),
   });
 });
+
+it("posts an explicit connection or stored-files destination for a project transfer", async () => {
+  await api.moveProjectWorkspace("p-1", "cloud");
+  expect(apiClient.post).toHaveBeenLastCalledWith("/projects/p-1/workspace-move", {
+    backend: "service",
+    sandbox_connection_id: "cloud",
+  });
+  await api.moveProjectWorkspace("p-1", "state");
+  expect(apiClient.post).toHaveBeenLastCalledWith("/projects/p-1/workspace-move", {
+    backend: "state",
+    sandbox_connection_id: null,
+  });
+});

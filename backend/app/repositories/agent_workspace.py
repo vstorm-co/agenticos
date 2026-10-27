@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import and_, inspect, or_, select, update
+from sqlalchemy import String, and_, cast, func, inspect, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import defer
@@ -13,6 +13,7 @@ from sqlalchemy.orm.attributes import set_committed_value
 
 from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.conversation import Conversation, Message
+from app.db.models.project import Project
 
 
 async def get_by_key(
@@ -147,10 +148,21 @@ async def get_for_project(
     """A project's container, the most recently used where a moved project left two."""
     result = await db.execute(
         select(AgentWorkspace)
+        .join(Project, Project.id == AgentWorkspace.project_id)
         .where(
             AgentWorkspace.organization_id == organization_id,
             AgentWorkspace.project_id == project_id,
             AgentWorkspace.recovery_of_id.is_(None),
+            AgentWorkspace.backend == Project.backend,
+            or_(
+                Project.sandbox_connection_id.is_(None),
+                AgentWorkspace.connection_id == Project.sandbox_connection_id,
+            ),
+            AgentWorkspace.scope_key.endswith(
+                func.replace(
+                    cast(func.coalesce(Project.workspace_generation, Project.id), String), "-", ""
+                )
+            ),
         )
         .order_by(AgentWorkspace.last_used_at.desc().nulls_last())
         .limit(1)

@@ -247,3 +247,23 @@ async def test_project_file_moves_and_text_edits_keep_their_contract(
         "revision": "a" * 64,
     }
     assert invalid.status_code == 422
+
+
+async def test_workspace_transfer_is_accepted_with_a_pollable_job(
+    client: OpenClient, monkeypatch
+) -> None:
+    from app.schemas.project import ProjectWorkspaceMoveRead
+    from app.services.project_workspace_transfer import ProjectWorkspaceTransferService
+
+    job_id = uuid.uuid4()
+    queued = AsyncMock(
+        return_value=ProjectWorkspaceMoveRead(job_id=job_id, status="queued", target_name="Cloud")
+    )
+    monkeypatch.setattr(ProjectWorkspaceTransferService, "queue", queued)
+    async with client() as http:
+        response = await http.post(
+            f"/api/v1/projects/{PROJECT_ID}/workspace-move", json={"backend": "state"}
+        )
+    assert response.status_code == 202
+    assert response.json()["job_id"] == str(job_id)
+    assert queued.call_args.args[2].backend == "state"
