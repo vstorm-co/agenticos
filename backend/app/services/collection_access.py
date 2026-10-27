@@ -45,6 +45,7 @@ from app.repositories import (
     sync_log_repo,
     sync_source_repo,
 )
+from app.repositories.rag_document import CollectionScope
 from app.services.access import COLLECTION, resolve_access, visible_resource_ids
 
 
@@ -99,6 +100,18 @@ def _as_uuid(value: str) -> UUID | None:
         return UUID(value)
     except ValueError:
         return None
+
+
+def _same_tenant(target: KnowledgeBase, kb: KnowledgeBase) -> bool:
+    """Whether a sync writing under `target` writes into `kb`'s share of the name.
+
+    Bases of one organization share its tenant, and with it the rows. Bases with
+    no tenant - an app-scoped one, and a personal one outside any organization -
+    are each someone else's, so only the base itself is the same.
+    """
+    if kb.vector_tenant is None:
+        return target.id == kb.id
+    return target.vector_tenant == kb.vector_tenant
 
 
 def _no_collection(name: str) -> NotFoundError:
@@ -184,16 +197,14 @@ class CollectionAccessService:
 
     async def readable_scopes_for(
         self, ctx: AuthContext, name: str | None
-    ) -> list[tuple[str, UUID | None]]:
-        """The (collection, organization) pairs a document listing may include.
+    ) -> list[CollectionScope]:
+        """The knowledge bases whose documents a listing may include.
 
-        The organization rides with the name because the name is not unique: a
-        document is listed when it is in the scope of a knowledge base this
-        caller reads, by `rag_document_repo.in_collection_scope`. `None` is an
-        app-scoped base, which holds the rows filed under it, not every row by
-        its name. A name is resolved to every base claiming it that the caller
-        reads - an organization's and an app-scoped one can share it, and each
-        holds its own rows.
+        A base rather than a collection name, because the name is not unique: a
+        document is listed when it is in the scope of a base this caller reads,
+        by `rag_document_repo.in_collection_scope`. A name is resolved to every
+        base claiming it that the caller reads - an organization's, an
+        app-scoped and a personal one can share it, and each holds its own rows.
         """
         if name is None:
             kbs = await self._readable_kbs(ctx)
@@ -205,7 +216,7 @@ class CollectionAccessService:
             ]
             if not kbs:
                 raise _no_collection(name)
-        return list(dict.fromkeys((kb.collection_name, kb.vector_tenant) for kb in kbs))
+        return list(dict.fromkeys(CollectionScope.of(kb) for kb in kbs))
 
     async def readable_names_for(self, ctx: AuthContext, name: str | None) -> list[str]:
         """What a listing may include: the collection asked for, or all of theirs.
@@ -330,6 +341,8 @@ class CollectionAccessService:
         name and organization alone, an app-scoped base would reach every
         organization's source by its name - its run history and settings shown
         to any member of any organization, since such a base is readable by all.
+        Bases of one organization share its sources; a base with no tenant (see
+        :func:`_same_tenant`) reaches only the sources that resolve to itself.
         """
         parsed = _as_uuid(source_id)
         source = None if parsed is None else await sync_source_repo.get_by_id(self.db, parsed)
@@ -342,7 +355,7 @@ class CollectionAccessService:
                 self.db, kb.collection_name, source.organization_id
             )
         )
-        if target is None or target.vector_tenant != kb.vector_tenant:
+        if target is None or not _same_tenant(target, kb):
             raise NotFoundError(
                 message="Sync source not found in this knowledge base",
                 details={"kb_id": kb.id, "source_id": source_id},
@@ -352,13 +365,12 @@ class CollectionAccessService:
     async def _holds(self, kb: KnowledgeBase, doc: RAGDocument) -> bool:
         """Whether a document is in this knowledge base's scope.
 
-        Asked of the database rather than of the loaded row, because the answer
-        depends on whether the base the row is filed under is app-scoped: the
-        rule is `rag_document_repo.in_collection_scope`, the one the listing and
-        the ingestion counts use, so the three cannot disagree.
+        Asked of the database, by `rag_document_repo.in_collection_scope` - the
+        rule the listing and the ingestion counts use, so the three cannot
+        disagree.
         """
         return await rag_document_repo.is_in_collection_scope(
-            self.db, doc.id, collection_name=kb.collection_name, organization_id=kb.vector_tenant
+            self.db, doc.id, scope=CollectionScope.of(kb)
         )
 
     async def sync_source(self, ctx: AuthContext, source_id: str) -> SyncSource:

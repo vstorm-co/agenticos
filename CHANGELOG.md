@@ -31,7 +31,11 @@ Two things are versioned separately from this file and worth knowing about:
   `GET /rag/collections/{name}/info`, where they could hold `indexing_status`
   at `indexing`. A document filed under the app base now belongs to the app
   collection, whichever organization uploaded it. The organization's listing
-  and counts leave it out (#2486).
+  and counts leave it out. The same held for a personal knowledge base outside
+  any organization that shares its name with an app collection: every member
+  of every organization could list and download its owner's documents through
+  the app collection. A document now belongs to the knowledge base it is filed
+  under, in listings, counts and per-document checks (#2486).
 
 ## [1.25.0] - 2026-10-27
 

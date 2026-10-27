@@ -235,7 +235,7 @@ async def get_collection_info(
     info = await vector_store.get_collection_info(
         collection.collection_name, ctx.organization_id, tenant=collection.vector_tenant
     )
-    return await rag_doc_svc.collection_info(info, organization_id=collection.vector_tenant)
+    return await rag_doc_svc.collection_info(info, kb=collection)
 
 
 @router.get(

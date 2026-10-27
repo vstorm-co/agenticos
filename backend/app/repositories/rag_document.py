@@ -4,7 +4,7 @@ Contains database operations for RAGDocument entities.
 """
 
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any, Self, cast
 from uuid import UUID
 
 from sqlalchemy import ColumnElement, and_, exists, func, literal, or_, select, tuple_
@@ -49,33 +49,63 @@ class IngestionCounts:
     failed: int
 
 
-def in_collection_scope(collection_name: str, organization_id: UUID | None) -> ColumnElement[bool]:
-    """The documents a knowledge base's collection holds, as a `WHERE` clause.
+@dataclass(frozen=True)
+class CollectionScope:
+    """One knowledge base's share of its collection: the rows it holds.
 
-    `organization_id` is the knowledge base's vector tenant - `None` for an
-    app-scoped one. The name is not unique, so an organization's base and an app-scoped one can
-    share it, and neither the name nor the uploader's organization alone says
-    whose a row is: an app-scoped base takes uploads from members of every
-    organization. A row filed under an app-scoped base is the app's whichever
-    organization uploaded it; every other row is its organization's, and a row
-    stamped with none (a deployment-wide sync, a personal base outside any
-    organization) is the `None` scope's. The same split as the
-    collection's vectors, whose tag is the base's vector tenant.
+    Keyed on the base rather than on the collection's name and organization,
+    because neither says whose a row is. The name is not unique, and an
+    app-scoped base and a personal base outside any organization both have no
+    organization: on (name, organization) alone, the app base - readable by
+    every member of every organization - held the person's documents (#2486).
+    """
+
+    knowledge_base_id: UUID
+    collection_name: str
+    # The base's vector tenant: its organization, `None` for an app-scoped base
+    # or a personal one outside any organization.
+    tenant: UUID | None
+    # Whether rows filed under no base are this base's - see `in_collection_scope`.
+    takes_unfiled: bool
+
+    @classmethod
+    def of(cls, kb: KnowledgeBase) -> Self:
+        """The scope of this knowledge base."""
+        return cls(
+            knowledge_base_id=kb.id,
+            collection_name=kb.collection_name,
+            tenant=kb.vector_tenant,
+            takes_unfiled=kb.scope == KBScope.APP.value or kb.vector_tenant is not None,
+        )
+
+
+def in_collection_scope(scope: CollectionScope) -> ColumnElement[bool]:
+    """The documents a knowledge base holds, as a `WHERE` clause.
+
+    A row filed under the base (`knowledge_base_id`) is the base's, whichever
+    organization uploaded it - an app-scoped base takes uploads from members of
+    every organization. A row filed under any other base is never this one's,
+    even by the same name. A row filed under none - a deployment-wide sync, an
+    upload from before documents recorded their base, a base since deleted - is
+    attributed by the tag its vectors carry: an app-scoped base takes those with
+    no organization, an organization's or personal base in an organization those
+    with its organization. A personal base outside any organization takes none:
+    its own rows are always filed under it, and the unfiled rows with no
+    organization are the app scope's.
 
     The one definition the listing, the ingestion counts and the per-document
-    checks share, so a document cannot be counted in one collection and opened
+    checks share, so a document cannot be counted in one base and opened
     through another (#2486).
     """
-    in_app_base = exists().where(
-        KnowledgeBase.id == RAGDocument.knowledge_base_id,
-        KnowledgeBase.scope == KBScope.APP.value,
-    )
-    owner: ColumnElement[bool] = (
-        or_(in_app_base, RAGDocument.organization_id.is_(None))
-        if organization_id is None
-        else and_(RAGDocument.organization_id == organization_id, ~in_app_base)
-    )
-    return and_(RAGDocument.collection_name == collection_name, owner)
+    owned: ColumnElement[bool] = RAGDocument.knowledge_base_id == scope.knowledge_base_id
+    if scope.takes_unfiled:
+        tag = (
+            RAGDocument.organization_id.is_(None)
+            if scope.tenant is None
+            else RAGDocument.organization_id == scope.tenant
+        )
+        owned = or_(owned, and_(RAGDocument.knowledge_base_id.is_(None), tag))
+    return and_(RAGDocument.collection_name == scope.collection_name, owned)
 
 
 async def get_by_id(db: AsyncSession, doc_id: UUID) -> RAGDocument | None:
@@ -83,16 +113,10 @@ async def get_by_id(db: AsyncSession, doc_id: UUID) -> RAGDocument | None:
     return await db.get(RAGDocument, doc_id)
 
 
-async def is_in_collection_scope(
-    db: AsyncSession, doc_id: UUID, *, collection_name: str, organization_id: UUID | None
-) -> bool:
+async def is_in_collection_scope(db: AsyncSession, doc_id: UUID, *, scope: CollectionScope) -> bool:
     """Whether this document is one the scope holds, by :func:`in_collection_scope`."""
     result = await db.execute(
-        select(
-            exists().where(
-                RAGDocument.id == doc_id, in_collection_scope(collection_name, organization_id)
-            )
-        )
+        select(exists().where(RAGDocument.id == doc_id, in_collection_scope(scope)))
     )
     return bool(result.scalar())
 
@@ -100,7 +124,7 @@ async def is_in_collection_scope(
 async def get_all(
     db: AsyncSession,
     *,
-    scopes: list[tuple[str, UUID | None]],
+    scopes: list[CollectionScope],
     skip: int = 0,
     limit: int = 50,
 ) -> tuple[list[RAGDocument], int]:
@@ -110,15 +134,13 @@ async def get_all(
     selected and serialized every row across the caller's collections, which grows
     without limit with tenant data (#27).
 
-    Each scope is a collection and the organization of the knowledge base that
-    authorized it, `None` for an app-scoped one, because a collection's name is
-    not unique: which rows a scope holds is :func:`in_collection_scope`.
+    Each scope is a knowledge base that authorized the listing, because a
+    collection's name is not unique: which rows it holds is
+    :func:`in_collection_scope`.
     """
     if not scopes:
         return [], 0
-    base = select(RAGDocument).where(
-        or_(*(in_collection_scope(name, organization_id) for name, organization_id in scopes))
-    )
+    base = select(RAGDocument).where(or_(*(in_collection_scope(scope) for scope in scopes)))
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
     rows = (
         (
@@ -612,17 +634,14 @@ async def counts_by_collection(
     }
 
 
-async def ingestion_counts(
-    db: AsyncSession, *, collection_name: str, organization_id: UUID | None
-) -> IngestionCounts:
-    """How many of one collection's documents are processing, indexed or failed.
+async def ingestion_counts(db: AsyncSession, *, scope: CollectionScope) -> IngestionCounts:
+    """How many of the documents a scope holds are processing, indexed or failed.
 
-    Scoped by :func:`in_collection_scope`, as the listing is: `organization_id`
-    is the knowledge base's, `None` for an app-scoped one. Counted on the name
-    alone, another tenant's upload still processing would hold this collection
-    at `indexing` (#2486).
+    Scoped by :func:`in_collection_scope`, as the listing is. Counted on the
+    name alone, another tenant's upload still processing would hold this
+    collection at `indexing` (#2486).
     """
-    return await _count_by_status(db, in_collection_scope(collection_name, organization_id))
+    return await _count_by_status(db, in_collection_scope(scope))
 
 
 async def ingestion_counts_for_kb(db: AsyncSession, kb_id: UUID) -> IngestionCounts:

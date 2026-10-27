@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.repositories import rag_document_repo
 from app.repositories.rag_document import IngestionCounts
 from app.services.rag.models import CollectionInfo
@@ -61,7 +62,12 @@ class TestIndexingStatus:
 
         info = await RAGDocumentService(mock_db_session).collection_info(
             CollectionInfo(name="handbook", total_vectors=111, dim=1536),
-            organization_id=uuid.uuid4(),
+            kb=KnowledgeBase(
+                id=uuid.uuid4(),
+                collection_name="handbook",
+                scope=KBScope.ORG.value,
+                organization_id=uuid.uuid4(),
+            ),
         )
 
         assert info.model_dump() == {

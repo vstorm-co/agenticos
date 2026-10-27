@@ -82,7 +82,7 @@ from app.repositories import (
     rag_document_repo,
 )
 from app.repositories.agent_run import RunFilters
-from app.repositories.rag_document import IngestionCounts
+from app.repositories.rag_document import CollectionScope, IngestionCounts
 from app.schemas.agent_environment import EnvironmentCreate, EnvironmentUpdate
 from app.schemas.api_key import ApiKeyCreate
 from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseUpdate
@@ -1864,11 +1864,7 @@ class TestWhatACollectionReportsItHolds:
                 doc.status = status
         await db.flush()
 
-        counts = await rag_document_repo.ingestion_counts(
-            db,
-            collection_name=collection.collection_name,
-            organization_id=tenant.organization.id,
-        )
+        counts = await rag_document_repo.ingestion_counts(db, scope=CollectionScope.of(collection))
 
         assert counts == IngestionCounts(processing=3, indexed=2, failed=1)
 
@@ -1889,11 +1885,10 @@ class TestWhatACollectionReportsItHolds:
             db, collection_name="shared_name", filename="theirs.txt", tenant=theirs
         )
         busy.status = DocumentStatus.PROCESSING
+        ours_kb = await _kb_row(db, tenant=ours, collection_name="shared_name")
         await db.flush()
 
-        mine = await rag_document_repo.ingestion_counts(
-            db, collection_name="shared_name", organization_id=ours.organization.id
-        )
+        mine = await rag_document_repo.ingestion_counts(db, scope=CollectionScope.of(ours_kb))
 
         assert mine == IngestionCounts(processing=0, indexed=1, failed=0)
 
@@ -1936,12 +1931,8 @@ class TestWhatACollectionReportsItHolds:
             doc.status = status
         await db.flush()
 
-        app_wide = await rag_document_repo.ingestion_counts(
-            db, collection_name="app_and_tenant", organization_id=None
-        )
-        tenants = await rag_document_repo.ingestion_counts(
-            db, collection_name="app_and_tenant", organization_id=tenant.organization.id
-        )
+        app_wide = await rag_document_repo.ingestion_counts(db, scope=CollectionScope.of(app_kb))
+        tenants = await rag_document_repo.ingestion_counts(db, scope=CollectionScope.of(theirs))
 
         assert app_wide == IngestionCounts(processing=0, indexed=2, failed=1)
         assert tenants == IngestionCounts(processing=1, indexed=0, failed=0)

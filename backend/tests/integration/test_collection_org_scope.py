@@ -27,6 +27,7 @@ from app.db.models.rag_document import RAGDocument
 from app.db.models.sync_source import SyncSource
 from app.db.models.user import User
 from app.repositories import knowledge_base_repo, rag_document_repo
+from app.repositories.rag_document import CollectionScope, IngestionCounts
 from app.services.collection_access import CollectionAccessService
 from app.services.embedding_resolution import EmbeddingKeySource, embeddings_for_collection
 from app.services.organization_secret import OrganizationSecretService
@@ -150,11 +151,14 @@ class TestTheDocumentListingStaysInsideTheOrganization:
     async def test_a_shared_name_lists_only_this_organizations_documents(self, db) -> None:
         """Codex on #2062: the legacy listing filtered on the collection's name alone.
 
-        An app-scoped scope (`None`) is no longer the name alone either: with no
-        base on the rows, it holds only the untagged one (#2486).
+        An app-scoped base is no longer the name alone either: of the rows filed
+        under no base, it holds only the untagged one (#2486).
         """
         mine, _ = await _org(db, name="Acme")
         theirs, _ = await _org(db, name="Globex")
+        kb_mine = _kb(mine.id, "handbook")
+        kb_app = _kb(None, "handbook", scope=KBScope.APP.value)
+        db.add_all([kb_mine, kb_app])
         for organization_id, filename in (
             (mine.id, "ours.pdf"),
             (theirs.id, "theirs.pdf"),
@@ -172,8 +176,12 @@ class TestTheDocumentListingStaysInsideTheOrganization:
             )
         await db.flush()
 
-        org_rows, org_total = await rag_document_repo.get_all(db, scopes=[("handbook", mine.id)])
-        app_rows, app_total = await rag_document_repo.get_all(db, scopes=[("handbook", None)])
+        org_rows, org_total = await rag_document_repo.get_all(
+            db, scopes=[CollectionScope.of(kb_mine)]
+        )
+        app_rows, app_total = await rag_document_repo.get_all(
+            db, scopes=[CollectionScope.of(kb_app)]
+        )
 
         assert [row.filename for row in org_rows] == ["ours.pdf"] and org_total == 1
         assert [row.filename for row in app_rows] == ["everyones.pdf"] and app_total == 1
@@ -253,7 +261,9 @@ class TestAnAppCollectionKeepsApartFromASameNamedTenantBase:
     async def test_the_tenants_listing_leaves_out_rows_filed_under_the_app_base(self, db) -> None:
         seeded = await self._seed(db)
 
-        rows, total = await rag_document_repo.get_all(db, scopes=[("both", seeded["org_a"].id)])
+        rows, total = await rag_document_repo.get_all(
+            db, scopes=[CollectionScope.of(seeded["kb_a"])]
+        )
 
         assert [row.filename for row in rows] == ["tenant.pdf"] and total == 1
 
@@ -310,3 +320,104 @@ class TestAnAppCollectionKeepsApartFromASameNamedTenantBase:
 
         assert (await access.kb_sync_source(kb_a, str(tenants.id))).id == tenants.id
         assert (await access.kb_sync_source(kb_app, str(apps.id))).id == apps.id
+
+
+class TestAnAppCollectionKeepsApartFromASameNamedPersonalBase:
+    """#2486: an app-scoped base and a personal base outside any organization.
+
+    Both have no organization, so a scope keyed on the organization alone cannot
+    tell their rows apart: the app base - readable by every member of every
+    organization - listed and served the person's documents, and the personal
+    base counted the app's. A personal base loses its organization when that
+    organization is purged, and its rows are untagged with it.
+    """
+
+    async def _seed(self, db) -> dict[str, object]:
+        org_b, member_b = await _org(db, name="Beta")
+        org_c, owner = await _org(db, name="Gamma")
+        kb_app = _kb(None, "both", scope=KBScope.APP.value)
+        kb_mine = _kb(None, "both", scope=KBScope.PERSONAL.value)
+        kb_mine.owner_user_id = owner.id
+        db.add_all([kb_app, kb_mine])
+        await db.flush()
+        return {
+            "kb_app": kb_app,
+            "kb_mine": kb_mine,
+            "ctx_b": AuthContext(
+                user_id=member_b.id, organization_id=org_b.id, role=OrgRoleName.MEMBER
+            ),
+            "ctx_owner": AuthContext(
+                user_id=owner.id, organization_id=org_c.id, role=OrgRoleName.MEMBER
+            ),
+            "personal": await _document(db, "personal.pdf", organization_id=None, kb=kb_mine),
+            "app": await _document(db, "app.pdf", organization_id=org_b.id, kb=kb_app),
+            # A deployment-wide sync's row: no base, no organization - the app's.
+            "untagged": await _document(db, "untagged.pdf", organization_id=None, kb=None),
+        }
+
+    @pytest.mark.security
+    async def test_another_organization_does_not_list_the_personal_bases_documents(
+        self, db
+    ) -> None:
+        seeded = await self._seed(db)
+        access = CollectionAccessService(db)
+
+        scopes = await access.readable_scopes_for(seeded["ctx_b"], "both")
+        rows, total = await rag_document_repo.get_all(db, scopes=scopes)
+
+        assert sorted(row.filename for row in rows) == ["app.pdf", "untagged.pdf"]
+        assert total == 2
+
+    @pytest.mark.security
+    async def test_a_personal_document_is_not_reachable_through_the_app_base(self, db) -> None:
+        seeded = await self._seed(db)
+        access = CollectionAccessService(db)
+        personal = str(seeded["personal"].id)
+
+        with pytest.raises(NotFoundError):
+            await access.readable_document(seeded["ctx_b"], personal)
+        with pytest.raises(NotFoundError):
+            await access.kb_document(seeded["kb_app"], personal)
+        # Nor is an app row reachable through the personal base.
+        with pytest.raises(NotFoundError):
+            await access.kb_document(seeded["kb_mine"], str(seeded["app"].id))
+        with pytest.raises(NotFoundError):
+            await access.kb_document(seeded["kb_mine"], str(seeded["untagged"].id))
+
+        assert (await access.readable_document(seeded["ctx_owner"], personal)).id == seeded[
+            "personal"
+        ].id
+        assert (await access.kb_document(seeded["kb_mine"], personal)).id == seeded["personal"].id
+
+    @pytest.mark.security
+    async def test_the_personal_listing_holds_its_own_rows_and_not_the_apps(self, db) -> None:
+        seeded = await self._seed(db)
+        access = CollectionAccessService(db)
+
+        mine, mine_total = await rag_document_repo.get_all(
+            db, scopes=[CollectionScope.of(seeded["kb_mine"])]
+        )
+        # The owner reads both bases by the name, and each brings its own rows.
+        both, both_total = await rag_document_repo.get_all(
+            db, scopes=await access.readable_scopes_for(seeded["ctx_owner"], "both")
+        )
+
+        assert [row.filename for row in mine] == ["personal.pdf"] and mine_total == 1
+        assert sorted(row.filename for row in both) == ["app.pdf", "personal.pdf", "untagged.pdf"]
+        assert both_total == 3
+
+    @pytest.mark.security
+    async def test_the_counts_agree_with_each_bases_listing(self, db) -> None:
+        seeded = await self._seed(db)
+        seeded["personal"].status = "processing"
+        await db.flush()
+
+        mine = await rag_document_repo.ingestion_counts(
+            db, scope=CollectionScope.of(seeded["kb_mine"])
+        )
+        apps = await rag_document_repo.ingestion_counts(
+            db, scope=CollectionScope.of(seeded["kb_app"])
+        )
+
+        assert mine == IngestionCounts(processing=1, indexed=0, failed=0)
+        assert apps == IngestionCounts(processing=0, indexed=2, failed=0)
