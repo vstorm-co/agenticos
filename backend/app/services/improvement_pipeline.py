@@ -1895,7 +1895,9 @@ class ImprovementPipelineService:
                 else transition.stop_reason.value,
                 "heartbeat_at": now,
                 "stage_started_at": now,
-                "finished_at": None if transition.status.active else now,
+                "finished_at": None
+                if transition.status.active or transition.status is Status.WAITING
+                else now,
                 "spent_usd": await improvement_repo.spent(
                     self.db, run.id, organization_id=run.organization_id
                 ),

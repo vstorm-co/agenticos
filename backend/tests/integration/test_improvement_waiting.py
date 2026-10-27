@@ -82,6 +82,7 @@ async def _requests(db: AsyncSession, session: ImprovementRead) -> int:
 async def test_a_session_waits_after_understand_and_proposes_only_when_asked(db):
     ctx, agent, waiting = await _at_understand(db)
     assert (waiting.status, waiting.stage, waiting.next_step) == ("waiting", "analyzing", "propose")
+    assert waiting.finished_at is None
     service = ImprovementPipelineService(db)
     await service.advance(waiting.id, ctx.organization_id)
     assert await service.sweep() == 0
@@ -110,6 +111,7 @@ async def test_a_session_waits_after_understand_and_proposes_only_when_asked(db)
 async def test_a_session_waits_after_changes_and_checks_only_what_a_person_chose(db):
     ctx, agent, waiting = await _at_changes(db)
     assert (waiting.status, waiting.stage, waiting.next_step) == ("waiting", "filtering", "check")
+    assert waiting.finished_at is None
     service = ImprovementPipelineService(db)
     await service.advance(waiting.id, ctx.organization_id)
     assert not (await service.read(ctx, agent.id, waiting.id)).iterations[0].eval_run_ids
