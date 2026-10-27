@@ -245,10 +245,16 @@ test("test questions, review and improvement publish keep a guarded environment 
   await page.getByText("Show details", { exact: true }).click();
   await page.getByLabel("Test questions", { exact: true }).click();
   await page.getByRole("option", { name: String(dataset.name), exact: true }).click();
+  const estimate = page.getByText(/^About \d+ minutes?, up to .+ \(estimate\)/);
+  // The estimate redraws the box above the helper; a list opened before it lands
+  // stays where it was drawn, off a phone's screen.
+  await expect(estimate).toBeVisible();
   await page.getByText("Helper that writes the changes", { exact: true }).click();
-  await page.getByRole("combobox", { name: "Run with" }).click();
+  const runWith = page.getByRole("combobox", { name: "Run with" });
+  await runWith.scrollIntoViewIfNeeded();
+  await runWith.click();
   await page.getByRole("option", { name: String(helper.name), exact: true }).click();
-  await expect(page.getByText(/^About \d+ minutes?, up to .+ \(estimate\)/)).toBeVisible();
+  await expect(estimate).toBeVisible();
   const budget = page.getByLabel("Session spending limit (USD)");
   await expect(budget).toBeVisible();
   expect(
