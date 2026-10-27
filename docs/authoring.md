@@ -356,7 +356,9 @@ so a session the Architect started can be taken further in the console.
 The worker
 checks the draft, latest publication, scoring and suite pin before each
 transition: changed inputs make the session stale at once, and lost authority
-stops it. A session left at a stop or at its result for seven days closes as stale,
+stops it.
+
+A session waiting at a stop, stopped or failed is also made stale as soon as its agent or test set changes under it; a ready one, whose draft moves while its candidate is decided in the Builder, closes only after its week. A session left at a stop or at its result for seven days closes as stale,
 with the reason `expired`. An agent has one open session at a time - queued,
 running, waiting, ready, stopped or failed - so starting another answers `409`
 until the open one ends. The creator or an organization administrator can post to

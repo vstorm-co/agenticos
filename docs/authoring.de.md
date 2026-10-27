@@ -1,5 +1,5 @@
 ---
-source_sha: "3c79d5316105"
+source_sha: "a996016a2d29"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -390,7 +390,9 @@ vom Architekten gestartete Sitzung lässt sich daher in der Konsole weiterführe
 
 Der Worker prüft vor jedem Übergang Entwurf, letzte Veröffentlichung, Bewertung
 und Suite-Pin: Geänderte Eingaben machen die Sitzung sofort veraltet, verlorene
-Rechte stoppen sie. Eine Sitzung, die sieben Tage an einem Halt oder bei ihrem
+Rechte stoppen sie.
+
+Eine an einem Halt wartende, angehaltene oder fehlgeschlagene Sitzung wird außerdem sofort veraltet, sobald sich ihr Agent oder ihr Fragensatz ändert; eine fertige, deren Entwurf sich ändert, während im Tab Bauen über ihren Kandidaten entschieden wird, schließt erst nach ihrer Woche. Eine Sitzung, die sieben Tage an einem Halt oder bei ihrem
 Ergebnis liegen bleibt, schließt als veraltet, mit dem Grund `expired`. Ein Agent
 hat jeweils eine offene Sitzung - in der Warteschlange, laufend, wartend, fertig,
 angehalten oder fehlgeschlagen -, daher beantwortet der Start einer weiteren

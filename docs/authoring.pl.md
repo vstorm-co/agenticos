@@ -1,5 +1,5 @@
 ---
-source_sha: "3c79d5316105"
+source_sha: "a996016a2d29"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -370,7 +370,9 @@ poprowadzić dalej w konsoli.
 
 Worker przed każdym przejściem sprawdza wersję
 roboczą, ostatnią publikację, ocenianie i przypięcie zestawu: zmiana danych od
-razu unieważnia sesję, a utrata uprawnień ją zatrzymuje. Sesja pozostawiona na
+razu unieważnia sesję, a utrata uprawnień ją zatrzymuje.
+
+Sesja czekająca na postoju, zatrzymana albo nieudana staje się nieaktualna także od razu, gdy zmieni się pod nią agent albo zestaw pytań; gotowa, której wersja robocza zmienia się, gdy w Budowie zapada decyzja o kandydacie, zamyka się dopiero po tygodniu. Sesja pozostawiona na
 postoju albo na wyniku przez siedem dni zamyka się jako nieaktualna, z powodem
 `expired`. Agent ma naraz jedną otwartą sesję - w kolejce, w toku, czekającą,
 gotową, zatrzymaną albo nieudaną - więc rozpoczęcie kolejnej zwraca `409`,

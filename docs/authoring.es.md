@@ -1,5 +1,5 @@
 ---
-source_sha: "3c79d5316105"
+source_sha: "a996016a2d29"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -376,7 +376,9 @@ empezó el Architect se puede continuar en la consola.
 El worker comprueba antes de
 cada transición el borrador, la última publicación, la puntuación y la versión
 fijada de la suite: un cambio en los datos invalida la sesión al instante y
-perder permisos la detiene. Una sesión que pasa siete días en una parada o en su
+perder permisos la detiene.
+
+Una sesión que espera en una parada, detenida o fallida también queda obsoleta en cuanto cambian su agente o su conjunto de preguntas; una lista, cuyo borrador cambia mientras se decide su candidato en Build, se cierra solo tras su semana. Una sesión que pasa siete días en una parada o en su
 resultado se cierra como obsoleta, con el motivo `expired`. Un agente tiene una
 sesión abierta a la vez - en cola, en curso, en espera, lista, detenida o fallida -,
 así que empezar otra responde `409` hasta que la abierta termine. El creador o un
