@@ -108,3 +108,13 @@ it("says which step a session stopped at for a person, from its stage or its rea
     ),
   ).toBe("server summary");
 });
+
+it("words a session nobody took further, which closed on its own", () => {
+  expect(
+    notificationSummary(
+      row("improvement_finished", { status: "stopped", reason: "expired" }),
+      t,
+      stop,
+    ),
+  ).toBe("outcome.improvement.stopped(Refund desk) stop:expired");
+});

@@ -21,6 +21,7 @@ const STOP_REASONS = [
   "superseded",
   "knowledge_only",
   "draft",
+  "expired",
 ];
 
 /**

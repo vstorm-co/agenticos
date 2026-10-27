@@ -142,10 +142,10 @@ from app.worker.jobs import (
 )
 
 ANSWER_TIME_WINDOW = timedelta(days=30)
-
-_AWAITING_PERSON = ("waiting", "ready")
-"""Statuses a session waits in for a person to take the next step or decide."""
 """How far back the agent's answers are read to time a session's checks."""
+
+_AWAITING_PERSON = (Status.WAITING.value, Status.READY.value)
+"""Statuses a session waits in for a person to take the next step or decide."""
 
 
 @dataclass(frozen=True)
