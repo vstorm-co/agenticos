@@ -28,6 +28,8 @@ function Changes({ session }: { session: Improvement }) {
     session.agent_id,
     session.id,
   );
+  const { evidence } = useImprovementEvidence(session.agent_id, { sessionId: session.id });
+  const sources = Object.fromEntries((evidence?.items ?? []).map((item) => [item.run_id, item]));
   if (isLoading) return <LoadingState variant="skeleton-list" rows={2} />;
   if (error) return <StepError error={error} retry={refetch} />;
   return (
@@ -39,7 +41,7 @@ function Changes({ session }: { session: Improvement }) {
           <Badge variant={hunk.status === "accepted" ? "success" : "secondary"}>
             {t(`changeState.${hunk.status}`)}
           </Badge>
-          <ChangePreview hunk={hunk} conversations={{}} />
+          <ChangePreview hunk={hunk} sources={sources} />
         </article>
       ))}
     </section>

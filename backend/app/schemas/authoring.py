@@ -8,7 +8,7 @@ a change somewhere it was not meant to go.
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
-from typing import Literal
+from typing import Literal, TypedDict
 from uuid import UUID
 
 from pydantic import BaseModel, Field, JsonValue, field_validator, model_validator
@@ -61,6 +61,22 @@ class Rejection(StrEnum):
     INSUFFICIENT_EVIDENCE = "insufficient_evidence"
     SUPERSEDED = "superseded"
     """A request started later had already replaced the suggestions."""
+
+
+type EvidenceSource = Literal["test_question", "conversation"]
+"""What a piece of evidence is: a dataset test question, or a conversation with a person."""
+
+
+class CheckedQuote(TypedDict):
+    """A quote found in the run it names, as a proposal stores it.
+
+    Items stored before `source` and `number` existed hold only `run_id` and `quote`.
+    """
+
+    run_id: str
+    quote: str
+    source: EvidenceSource
+    number: int
 
 
 class EvidenceQuote(BaseModel):
@@ -298,10 +314,16 @@ class AuthoringRequestRead(BaseSchema):
 
 
 class EvidenceItemRead(BaseSchema):
-    """One checked piece of evidence. `quote` is absent for a reader without `runs:view`."""
+    """One checked piece of evidence. `quote` is absent for a reader without `runs:view`.
+
+    `source` and `number` are the label the improver read the run under - "test
+    question 2", "conversation 1" - and are absent on evidence kept before they were.
+    """
 
     run_id: UUID
     quote: str | None = None
+    source: EvidenceSource | None = None
+    number: int | None = None
 
 
 class HunkRead(BaseSchema):

@@ -10,6 +10,24 @@ describe("EvidenceList", () => {
     expect(screen.getByText("No evidence that could be checked.")).toBeInTheDocument();
   });
 
+  it("names each run as a test question or a conversation, by the label it was read under", () => {
+    render(
+      <EvidenceList
+        items={[
+          { run_id: "q", quote: "Delivery is free", source: "test_question", number: 1 },
+          { run_id: "c", quote: "Thirty days", source: "conversation", number: 1 },
+          { run_id: "old", quote: "Kept before labels" },
+        ]}
+        dropped={0}
+      />,
+    );
+    expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
+      "test question 1",
+      "conversation 1",
+      "conversation 3",
+    ]);
+  });
+
   it("links each run, hides a quote the reader may not see, and counts what was left out", () => {
     render(
       <EvidenceList

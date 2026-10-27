@@ -8,6 +8,12 @@ import { TriedChanges } from "./tried-changes";
 
 const state = vi.hoisted(() => ({
   changes: {} as Record<number, Hunk[]>,
+  evidence: [] as {
+    run_id: string;
+    conversation_id: string | null;
+    kind: string;
+    question: string;
+  }[],
   isLoading: false,
   error: null as Error | null,
 }));
@@ -17,6 +23,7 @@ vi.mock("@/hooks/use-improvements", () => ({
     isLoading: state.isLoading,
     error: state.error,
   }),
+  useImprovementEvidence: () => ({ evidence: { items: state.evidence } }),
 }));
 
 const FIRST = SESSION.iterations[0]!;
@@ -54,6 +61,26 @@ beforeEach(() => {
   };
   state.isLoading = false;
   state.error = null;
+  state.evidence = [];
+});
+
+it("names the test question an earlier attempt's change quotes, with what it asked", () => {
+  state.evidence = [
+    { run_id: "q1", conversation_id: null, kind: "train_eval", question: "Is delivery free?" },
+  ];
+  state.changes = {
+    1: [
+      hunk({
+        id: "h0",
+        evidence: [{ run_id: "q1", quote: "Delivery is free", source: "test_question", number: 1 }],
+      }),
+    ],
+    2: [],
+  };
+  render(<TriedChanges session={AFTER_REGRESSION} />);
+  expect(screen.getByText("Delivery is free")).toBeInTheDocument();
+  expect(screen.getByText("Test question 1")).toBeInTheDocument();
+  expect(screen.getByText(/Is delivery free\?/)).toBeInTheDocument();
 });
 
 it("shows what the latest attempt tested and what its check came to, the earlier one folded", () => {

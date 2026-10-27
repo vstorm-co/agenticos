@@ -10539,6 +10539,7 @@
       "none": "No evidence that could be checked.",
       "dropped": "{count, plural, =1 {1 cited item} other {# cited items}} could not be found in the runs and {count, plural, =1 {was} other {were}} left out.",
       "conversation": "conversation {number}",
+      "testQuestion": "test question {number}",
       "aConversation": "a conversation"
     },
     "batch": {
@@ -11371,7 +11372,9 @@
       "skill": "New skill",
       "stale": "No longer fits the current instructions"
     },
-    "basedOnNone": "No conversation is quoted for this change.",
+    "basedOnNone": "No test question or conversation is quoted for this change.",
+    "basedOnSource": "<source>{kind, select, test_question {Test question {number}} other {Conversation {number}}}</source>",
+    "basedOnSourceAsked": "<source>{kind, select, test_question {Test question {number}} other {Conversation {number}}}</source>: {question}",
     "helper": {
       "label": "Helper that writes the changes",
       "hint": "The helper reads the feedback and writes the changes. The default suits most agents."

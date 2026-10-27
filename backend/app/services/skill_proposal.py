@@ -176,7 +176,7 @@ class SkillProposalService:
             read = read.model_copy(update={"reaches": reached, "reaches_hidden": hidden_agents})
         if ctx.has(Perm.RUNS_VIEW):
             return read
-        hidden = [{"run_id": item.get("run_id"), "quote": None} for item in read.evidence]
+        hidden = [{**item, "quote": None} for item in read.evidence]
         return read.model_copy(update={"evidence": hidden})
 
     async def get(self, ctx: AuthContext, proposal_id: UUID) -> SkillProposal:

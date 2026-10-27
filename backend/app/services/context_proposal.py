@@ -133,7 +133,12 @@ class ContextProposalService:
             stale=file.updated_at != proposal.base_updated_at,
             rationale=proposal.rationale,
             evidence=[
-                {"run_id": item.get("run_id"), "quote": item.get("quote") if quotes else None}
+                {
+                    "run_id": item.get("run_id"),
+                    "quote": item.get("quote") if quotes else None,
+                    "source": item.get("source"),
+                    "number": item.get("number"),
+                }
                 for item in proposal.evidence
             ],
             evidence_dropped=proposal.evidence_dropped,

@@ -19,7 +19,13 @@ import { useEvalCases, useEvalRun } from "@/hooks/use-eval-runs";
 import { DIALOG_BODY, DIALOG_BROAD, DIALOG_COLUMN } from "@/lib/dialog-sizes";
 import { expectedEffect } from "@/lib/authoring-text";
 import { ROUTES } from "@/lib/constants";
-import type { AuthoringRequest, Hunk, ProposedSkill, SuggestionBatch } from "@/types/authoring";
+import type {
+  AuthoringRequest,
+  EvidenceSource,
+  Hunk,
+  ProposedSkill,
+  SuggestionBatch,
+} from "@/types/authoring";
 import { ConversationEvidence, EvidenceList, RationaleText } from "./evidence-list";
 import { NewSkillPreview } from "./new-skill-preview";
 import { FieldDiff, fieldLabel } from "./field-change";
@@ -141,12 +147,12 @@ export function AuthoringResultDialog({
 export function ChangePreview({
   hunk,
   quotes = true,
-  conversations,
+  sources,
 }: {
   hunk: Hunk;
   quotes?: boolean;
-  /** In the Improve wizard: each evidence run's conversation, which "Based on" links instead of the run. */
-  conversations?: Record<string, string | null>;
+  /** In the Improve wizard: where each evidence run came from, which "Based on" names instead of the run. */
+  sources?: Record<string, EvidenceSource>;
 }) {
   const t = useTranslations("authoring.result");
   const ts = useTranslations("authoring.suggestion");
@@ -154,7 +160,7 @@ export function ChangePreview({
   const tField = useTranslations("authoring.field");
   const tw = useTranslations("improvement.changeKind");
   const tWidgets = useTranslations("improvement.widgets");
-  const wizard = conversations !== undefined;
+  const wizard = sources !== undefined;
   const kind = wizard
     ? hunk.kind === "create_skill"
       ? tw("skill")
@@ -190,13 +196,18 @@ export function ChangePreview({
         <RationaleText
           text={hunk.rationale}
           evidence={hunk.evidence}
-          conversations={conversations}
+          conversations={
+            sources &&
+            Object.fromEntries(
+              Object.entries(sources).map(([run, source]) => [run, source.conversation_id]),
+            )
+          }
         />
       </div>
       <div>
         <h4 className="mb-1 text-xs font-medium">{t("basedOn")}</h4>
         {wizard ? (
-          <ConversationEvidence items={hunk.evidence} conversations={conversations} />
+          <ConversationEvidence items={hunk.evidence} sources={sources} />
         ) : (
           <EvidenceList
             items={quotes ? hunk.evidence : hunk.evidence.map((item) => ({ ...item, quote: null }))}

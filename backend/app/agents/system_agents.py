@@ -203,7 +203,10 @@ IMPROVER = SystemAgentDef(
         "Every change carries a rationale and the evidence behind it. Quote the evidence "
         "exactly as it appears - a quote that is not in the material you were given is "
         "removed before anyone sees it. Write the rationale for the person deciding: "
-        "point to a conversation by what was said in it, never by a run's identifier. "
+        'refer to each piece of evidence by exactly the label it is given - "test '
+        'question 2" for a question from the dataset, "conversation 1" for a real '
+        "chat - never by a run's identifier. A test question is not a conversation, and "
+        "an item is about only what its question asks. "
         "Prefer changing one sentence to rewriting a "
         "paragraph, and never remove a rule unless the evidence shows it causing harm.\n\n"
         "A change to the configuration - the model, a setting, a capability, a bound "

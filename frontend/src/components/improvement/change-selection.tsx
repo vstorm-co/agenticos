@@ -34,9 +34,7 @@ export function ChangeSelection({
   const locale = useLocale();
   const actions = useImprovement(session.agent_id, session.id);
   const { evidence } = useImprovementEvidence(session.agent_id, { sessionId: session.id });
-  const conversations = Object.fromEntries(
-    (evidence?.items ?? []).map((item) => [item.run_id, item.conversation_id]),
-  );
+  const sources = Object.fromEntries((evidence?.items ?? []).map((item) => [item.run_id, item]));
   const [quoted, setQuoted] = useState<{ key: string; quote: SelectionEstimate } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const key = JSON.stringify({
@@ -93,7 +91,7 @@ export function ChangeSelection({
               {t("includeInTest")}
             </label>
           )}
-          <ChangePreview hunk={hunk} conversations={conversations} />
+          <ChangePreview hunk={hunk} sources={sources} />
           {hunk.expected_effect && (
             <div className="bg-success/5 border-success/30 flex items-start gap-2 rounded-lg border p-3 text-sm">
               <Target className="text-success mt-0.5 size-4 shrink-0" aria-hidden />

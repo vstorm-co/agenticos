@@ -24,6 +24,7 @@ vi.mock("@/hooks/use-improvements", () => ({
     selectChanges: { mutateAsync: state.select, isPending: false },
     editChange: { mutateAsync: state.edit, isPending: false },
   }),
+  useImprovementEvidence: () => ({ evidence: undefined }),
 }));
 
 function atStop(included: string[]): Improvement {

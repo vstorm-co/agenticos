@@ -130,6 +130,16 @@ export interface EvidenceItem {
   run_id: string;
   /** Absent for a reader without `runs:view`. */
   quote: string | null;
+  /** The label the improver read the run under; absent on evidence kept before labels. */
+  source?: "test_question" | "conversation" | null;
+  number?: number | null;
+}
+
+/** Where an evidence run came from, as the Improve wizard's evidence lists it. */
+export interface EvidenceSource {
+  conversation_id: string | null;
+  kind: "chat" | "train_eval";
+  question: string | null;
 }
 
 /** A JSON value a field change reads or writes. */

@@ -75,7 +75,7 @@ pytestmark = pytest.mark.anyio
 
 INSTRUCTIONS = "You answer refund questions.\nBe brief."
 COMMENT = "You said 90 days, it is 30"
-_RUN = re.compile(r"## Run ([0-9a-f-]{36})")
+_RUN = re.compile(r"## \w[\w ]* \d+ \(run ([0-9a-f-]{36})\)")
 
 
 async def _user(db: AsyncSession) -> User:
@@ -375,6 +375,9 @@ class TestImprove:
         instruction, tool = read.batch.hunks
         assert instruction.kind == "instructions" and instruction.applies
         assert [item.quote for item in instruction.evidence] == [COMMENT]
+        assert [(item.source, item.number) for item in instruction.evidence] == [
+            ("conversation", 1)
+        ]
         assert instruction.evidence_dropped == 1
         assert tool.tool_id == "create_chart" and tool.base_description is None
         assert read.batch.expected_effect == "Refund answers say 30 days"
@@ -961,7 +964,9 @@ class TestSkills:
         assert proposal.content == "Refunds take 30 days." and proposal.base_version == 3
         # The second run rewrote the one proposal, and its revision says so.
         assert proposal.revision == 2
-        assert proposal.evidence == [{"run_id": str(run.id), "quote": COMMENT}]
+        assert proposal.evidence == [
+            {"run_id": str(run.id), "quote": COMMENT, "source": "conversation", "number": 1}
+        ]
         listed = await service.for_skill(ctx, skill.id)
         assert len(listed) == 2 and listed[0].status == "completed"
         with pytest.raises(BadRequestError, match="no draft to verify"):

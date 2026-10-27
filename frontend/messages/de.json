@@ -10422,6 +10422,7 @@
       "none": "Keine Belege, die sich prüfen ließen.",
       "dropped": "{count, plural, =1 {1 zitierter Beleg wurde} other {# zitierte Belege wurden}} in den Runs nicht gefunden und weggelassen.",
       "conversation": "Gespräch {number}",
+      "testQuestion": "Testfrage {number}",
       "aConversation": "ein Gespräch"
     },
     "batch": {
@@ -11254,7 +11255,9 @@
       "skill": "Neuer Skill",
       "stale": "Passt nicht mehr zu den aktuellen Anweisungen"
     },
-    "basedOnNone": "Für diese Änderung wird kein Gespräch zitiert.",
+    "basedOnNone": "Für diese Änderung wird weder eine Testfrage noch ein Gespräch zitiert.",
+    "basedOnSource": "<source>{kind, select, test_question {Testfrage {number}} other {Gespräch {number}}}</source>",
+    "basedOnSourceAsked": "<source>{kind, select, test_question {Testfrage {number}} other {Gespräch {number}}}</source>: {question}",
     "helper": {
       "label": "Agent, der die Änderungen schreibt",
       "hint": "Dieser Agent liest die Bewertungen und schreibt die Änderungen. Der Standard passt für die meisten Agents."

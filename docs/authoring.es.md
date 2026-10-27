@@ -1,5 +1,5 @@
 ---
-source_sha: "edb3762a1f8c"
+source_sha: "91b9d1407fa2"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -77,7 +77,7 @@ edición está respaldada sin ninguna cita que se pueda comprobar no se muestra.
 
 Cuando termina una solicitud al asistente - Verificar, o Mejorar por la API - con el Builder abierto, un diálogo muestra la cantidad de respuestas revisadas, cambios propuestos y guardados, y propuestas rechazadas con sus motivos. **Ver resultado** permite abrirlo de nuevo. Un resultado vacío explica que no se pudo aplicar nada, sin efecto esperado. El texto del efecto que contiene identificadores de runs se sustituye por una descripción con la cantidad de respuestas fuente enlazadas.
 
-Cada texto cambiado - instrucciones, la descripción de una herramienta, un archivo de contexto - aparece como diff: líneas eliminadas y añadidas con las palabras cambiadas marcadas, unas pocas líneas sin cambios alrededor de cada cambio y el resto plegado, unificado o lado a lado en una pantalla ancha. Cada cambio conserva su justificación y la evidencia enlazada; los identificadores de runs en una justificación aparecen como conversaciones numeradas.
+Cada texto cambiado - instrucciones, la descripción de una herramienta, un archivo de contexto - aparece como diff: líneas eliminadas y añadidas con las palabras cambiadas marcadas, unas pocas líneas sin cambios alrededor de cada cambio y el resto plegado, unificado o lado a lado en una pantalla ancha. Cada cambio conserva su justificación y la evidencia enlazada; cada elemento de evidencia se nombra por lo que es - una pregunta de prueba del dataset (**Test question 2**) o un chat real (**Conversation 1**) - con la pregunta que se hizo, y se indica al asistente que lo cite exactamente con esa etiqueta. Los identificadores de runs en una justificación aparecen con la misma etiqueta.
 
 Tras completar una comprobación, las personas con `runs:view` pueden comparar respuestas de ambos lados en el diálogo y abrir la comprobación completa. Antes, el diálogo propone ejecutarla. Un agente sin chats valorados ni evidencia de entrenamiento muestra una línea compacta del asistente sobre sus instrucciones.
 

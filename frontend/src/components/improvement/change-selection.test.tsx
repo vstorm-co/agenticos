@@ -18,7 +18,18 @@ vi.mock("@/hooks/use-improvements", () => ({
   useImprovement: () => actions,
   useImprovementEvidence: () => ({
     evidence: actions.evidenceLoaded
-      ? { items: [{ run_id: "r1", conversation_id: "c1" }] }
+      ? {
+          items: [
+            { run_id: "r1", conversation_id: "c1", kind: "chat", question: "Can I return shoes?" },
+            {
+              run_id: "r2",
+              conversation_id: null,
+              kind: "train_eval",
+              question: "Is delivery free?",
+            },
+            { run_id: "r4", conversation_id: null, kind: "train_eval", question: null },
+          ],
+        }
       : undefined,
   }),
 }));
@@ -172,9 +183,37 @@ it("names each change by what it changes and bases it on conversations, not run 
   expect(screen.getByText("Tool description: lookup_order")).toBeInTheDocument();
   expect(screen.getByText("Model")).toBeInTheDocument();
   expect(screen.getByText("No longer fits the current instructions")).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: "conversation 1" })).toHaveAttribute("href", "/chat/c1");
+  expect(screen.getByRole("link", { name: "Conversation 1" })).toHaveAttribute("href", "/chat/c1");
   expect(screen.queryByText(/run r1/)).not.toBeInTheDocument();
-  expect(screen.getAllByText("No conversation is quoted for this change.")).toHaveLength(2);
+  expect(
+    screen.getAllByText("No test question or conversation is quoted for this change."),
+  ).toHaveLength(2);
+});
+it("says where each quote came from: a test question or a conversation, and what was asked", () => {
+  render(
+    <Form
+      hunks={[
+        hunk({
+          id: "h1",
+          evidence: [
+            { run_id: "r1", quote: "Refunds take 90 days", source: "conversation", number: 1 },
+            { run_id: "r2", quote: "Delivery costs 5 euro", source: "test_question", number: 2 },
+            { run_id: "r3", quote: "Kept before labels" },
+            { run_id: "r4", quote: "A test question kept before labels" },
+          ],
+        }),
+      ]}
+    />,
+  );
+  const sources = screen.getAllByRole("listitem").map((item) => item.querySelector("p"));
+  expect(sources.map((source) => source?.textContent)).toEqual([
+    "Conversation 1: Can I return shoes?",
+    "Test question 2: Is delivery free?",
+    "Conversation 3",
+    "Test question 4",
+  ]);
+  expect(screen.getByRole("link", { name: "Conversation 1" })).toHaveAttribute("href", "/chat/c1");
+  expect(screen.queryByRole("link", { name: /Test question/ })).toBeNull();
 });
 it("quotes the evidence before its conversations are known, without a link", () => {
   actions.evidenceLoaded = false;
@@ -184,7 +223,8 @@ it("quotes the evidence before its conversations are known, without a link", () 
     />,
   );
   expect(screen.getByText("Refunds take 90 days")).toBeInTheDocument();
-  expect(screen.queryByRole("link", { name: "conversation 1" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "Conversation 1" })).toBeNull();
+  expect(screen.getByText("Conversation 1")).toBeInTheDocument();
 });
 it("names a new skill, and a tool by its id when it has no name", () => {
   render(

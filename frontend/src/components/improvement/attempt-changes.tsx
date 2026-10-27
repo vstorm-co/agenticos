@@ -4,7 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button, Checkbox, Textarea } from "@/components/ui";
 import { ChangePreview } from "@/components/authoring/result-dialog";
-import { useAttemptChanges, useImprovement } from "@/hooks/use-improvements";
+import {
+  useAttemptChanges,
+  useImprovement,
+  useImprovementEvidence,
+} from "@/hooks/use-improvements";
 import { getErrorMessage } from "@/lib/api-error";
 import { currentAttempt } from "@/lib/improvement-steps";
 import type { Hunk } from "@/types/authoring";
@@ -33,6 +37,8 @@ export function AttemptChanges({
   const proposed = useAttemptChanges(session.agent_id, session.id, session.iteration);
   const { isLoading, error } = proposed;
   const changes = proposed.changes.filter((hunk) => !attempt?.dropped_hunk_ids.includes(hunk.id));
+  const { evidence } = useImprovementEvidence(session.agent_id, { sessionId: session.id });
+  const sources = Object.fromEntries((evidence?.items ?? []).map((item) => [item.run_id, item]));
   const actions = useImprovement(session.agent_id, session.id);
   const [failure, setFailure] = useState<string | null>(null);
   const [unsaved, setUnsaved] = useState<string[]>([]);
@@ -90,7 +96,7 @@ export function AttemptChanges({
             )}
             <ChangePreview
               hunk={hunk.edited_text ? { ...hunk, new_text: hunk.edited_text } : hunk}
-              conversations={{}}
+              sources={sources}
             />
             {hunk.edited_text && (
               <div className="space-y-1">

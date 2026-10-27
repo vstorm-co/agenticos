@@ -21,10 +21,17 @@ from app.repositories import (
     personal_data_repo,
 )
 from app.repositories.authoring import EvidenceRun
-from app.schemas.authoring import MAX_EVIDENCE_ITEMS, MAX_QUOTE_CHARS, EvidenceQuote
+from app.schemas.authoring import (
+    MAX_EVIDENCE_ITEMS,
+    MAX_QUOTE_CHARS,
+    EvidenceQuote,
+    Finding,
+    RunFindings,
+)
 from app.services import authoring_evidence
 from app.services.authoring import AuthoringService
 from app.services.authoring_evidence import EvidencePack, EvidenceService, PackedRun
+from app.services.authoring_worker import _digest_prompt, _evidence_section
 from app.services.eval_run import EvalRunService
 
 pytestmark = pytest.mark.anyio
@@ -82,12 +89,97 @@ class TestPack:
         runs = [_packed() for _ in range(7)]
 
         assert EvidencePack().groups() == []
-        assert EvidencePack(runs=runs).groups() == [runs]
+        pack = EvidencePack(runs=runs)
+        assert pack.groups() == [pack.runs]
         monkeypatch.setattr(authoring_evidence, "PACK_BUDGET_CHARS", 10)
         assert [len(group) for group in EvidencePack(runs=runs).groups()] == [5, 2]
 
     def test_rendering_several_runs_separates_them(self):
-        assert authoring_evidence.render_runs([_packed(), _packed()]).count("## Run") == 2
+        pack = EvidencePack(runs=[_packed(), _packed()])
+
+        assert authoring_evidence.render_runs(pack.runs).count("## Conversation") == 2
+
+    def test_a_test_question_and_a_conversation_are_labelled_by_what_they_are(self):
+        question = _packed(
+            conversation_id=None,
+            evidence_kind="train_eval",
+            status="train_eval_failure",
+            rating=0,
+            comments=[],
+            prompt="Is delivery free?",
+        )
+        chat = _packed(prompt="Can I get a refund?")
+
+        pack = EvidencePack(runs=[question, chat, _packed(evidence_kind="train_eval")])
+        first, conversation, second = (run.render() for run in pack.runs)
+
+        assert first.startswith(f"## Test question 1 (run {question.run_id})")
+        assert "Test question from the dataset: Is delivery free?" in first
+        assert "Asked:" not in first
+        assert conversation.startswith(f"## Conversation 1 (run {chat.run_id})")
+        assert "Asked: Can I get a refund?" in conversation
+        assert second.startswith("## Test question 2 ")
+        assert pack.label_of(chat.run_id) == f"conversation 1 (run {chat.run_id})"
+        unknown = uuid.uuid4()
+        assert pack.label_of(unknown) == f"run {unknown}"
+
+    def test_a_narrowed_pack_keeps_the_numbers_the_prompt_used(self):
+        pack = EvidencePack(runs=[_packed(), _packed(), _packed()])
+
+        narrowed = EvidencePack(runs=[pack.runs[0], pack.runs[2]])
+        added = EvidencePack(runs=[*narrowed.runs, _packed()])
+
+        assert [run.label for run in narrowed.runs] == ["conversation 1", "conversation 3"]
+        assert [run.label for run in added.runs][-1] == "conversation 4"
+
+
+class TestPrompt:
+    """The improver reads each item under its label, and is told to cite it by that label."""
+
+    def _pack(self) -> EvidencePack:
+        return EvidencePack(
+            runs=[
+                _packed(
+                    conversation_id=None,
+                    evidence_kind="train_eval",
+                    status="train_eval_failure",
+                    prompt="Where do I print a return label?",
+                ),
+                _packed(prompt="My refund never arrived"),
+            ]
+        )
+
+    def test_the_evidence_names_test_questions_and_conversations_apart(self):
+        pack = self._pack()
+
+        section = _evidence_section(pack, None)
+
+        assert "refer to an item by exactly its label" in section
+        assert "never call a test question a conversation" in section
+        assert "## Test question 1 (run" in section
+        assert "Test question from the dataset: Where do I print a return label?" in section
+        assert "## Conversation 1 (run" in section
+        assert "Asked: My refund never arrived" in section
+        assert section.index("refer to an item") < section.index("## Test question 1")
+        assert _evidence_section(EvidencePack(), None) == ""
+
+    def test_digested_quotes_carry_the_label_of_their_run(self):
+        pack = self._pack()
+        question = pack.runs[0]
+        digest = RunFindings(
+            findings=[
+                Finding(
+                    observation="Return labels are not explained",
+                    evidence=[EvidenceQuote(run_id=question.run_id, quote="return label")],
+                )
+            ]
+        )
+
+        section = _evidence_section(pack, [digest])
+
+        assert f'- test question 1 (run {question.run_id}): "return label"' in section
+        assert "never call a test question a conversation" in section
+        assert "never call a test question a conversation" in _digest_prompt("x", pack.runs)
 
 
 class TestVerify:
@@ -97,8 +189,30 @@ class TestVerify:
 
         kept, dropped = pack.verify([EvidenceQuote(run_id=run.run_id, quote="90 days to return")])
 
-        assert kept == [{"run_id": str(run.run_id), "quote": "90 days to return"}]
+        assert kept == [
+            {
+                "run_id": str(run.run_id),
+                "quote": "90 days to return",
+                "source": "conversation",
+                "number": 1,
+            }
+        ]
         assert dropped == 0
+
+    def test_a_kept_quote_from_a_test_question_is_labelled_as_one(self):
+        chat, question = _packed(), _packed(evidence_kind="train_eval", prompt="Is delivery free?")
+        pack = EvidencePack(runs=[chat, question])
+
+        kept, _ = pack.verify([EvidenceQuote(run_id=question.run_id, quote="delivery free")])
+
+        assert kept == [
+            {
+                "run_id": str(question.run_id),
+                "quote": "delivery free",
+                "source": "test_question",
+                "number": 1,
+            }
+        ]
 
     def test_a_quote_from_another_run_or_never_said_is_dropped(self):
         run, other = _packed(), _packed(answer="Something else entirely")
@@ -340,7 +454,7 @@ class TestTrainingFeedback:
             ("regex '30'", "fail"),
         ]
         assert "Graded: judge/Follows the policy: 1/5: It quotes 90 days" in run.render()
-        assert "It quotes 90 days" in run.source
+        assert "It quotes 90 days" in run.quotable
 
     async def test_training_answers_of_datasets_the_caller_cannot_read_are_never_queried(
         self, monkeypatch, mock_db_session, evaluated

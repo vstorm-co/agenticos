@@ -26,7 +26,13 @@ from app.core.permissions import AuthContext, Perm
 from app.db.models.conversation import Message
 from app.repositories import agent_repo, authoring_repo, conversation_repo, personal_data_repo
 from app.repositories.authoring import EvidenceRun
-from app.schemas.authoring import MAX_EVIDENCE_ITEMS, MAX_QUOTE_CHARS, EvidenceQuote
+from app.schemas.authoring import (
+    MAX_EVIDENCE_ITEMS,
+    MAX_QUOTE_CHARS,
+    CheckedQuote,
+    EvidenceQuote,
+    EvidenceSource,
+)
 from app.schemas.scoring import ScorerResult
 from app.services.access import DATASET, accessible_ids
 from app.services.eval_comparison import Attempt, Outcome
@@ -71,6 +77,10 @@ class PackedRun:
         people: Whose words it holds - who asked, and who commented - so a
             quote of somebody being erased is not written down.
         grades: How a test answer was graded, one result per check and criterion.
+        evidence_kind: `chat` for a conversation with a real person, `train_eval`
+            for a test question from a dataset answered in a train-part eval.
+        number: Its place among the pack's items of the same kind, from 1; 0
+            until a pack numbers it.
     """
 
     run_id: UUID
@@ -85,6 +95,7 @@ class PackedRun:
     people: frozenset[UUID] = frozenset()
     evidence_kind: Literal["chat", "train_eval"] = "chat"
     grades: tuple[ScorerResult, ...] = ()
+    number: int = 0
 
     @property
     def grade_lines(self) -> list[str]:
@@ -93,13 +104,27 @@ class PackedRun:
             for grade in self.grades
         ]
 
+    @property
+    def source(self) -> EvidenceSource:
+        return "test_question" if self.evidence_kind == "train_eval" else "conversation"
+
+    @property
+    def label(self) -> str:
+        """How the prompt names it, and how a rationale must refer to it."""
+        return f"{self.source.replace('_', ' ')} {self.number}"
+
     def render(self) -> str:
         """The run as the prompt shows it."""
         rated = {-1: "rated down", 1: "rated up", 0: "not rated"}[self.rating]
-        lines = [f"## Run {self.run_id} - {self.status}, {rated}"]
+        heading = self.label[0].upper() + self.label[1:]
+        lines = [f"## {heading} (run {self.run_id}) - {self.status}, {rated}"]
         lines += [f"Reader comment: {comment}" for comment in self.comments]
         lines += [f"Graded: {line}" for line in self.grade_lines]
-        lines.append(f"Asked: {self.prompt}")
+        lines.append(
+            f"Test question from the dataset: {self.prompt}"
+            if self.evidence_kind == "train_eval"
+            else f"Asked: {self.prompt}"
+        )
         lines += [f"Called: {call}" for call in self.calls]
         lines.append(f"Answered: {self.answer}")
         if self.error:
@@ -107,7 +132,7 @@ class PackedRun:
         return "\n".join(lines)
 
     @property
-    def source(self) -> str:
+    def quotable(self) -> str:
         """Everything a quote may come from, whitespace-normalized."""
         return _normal(
             "\n".join(
@@ -129,6 +154,26 @@ class EvidencePack:
 
     runs: list[PackedRun] = field(default_factory=list)
     training_feedback: str = ""
+
+    def __post_init__(self) -> None:
+        # A run keeps the number it was first given, so a pack narrowed after the
+        # model read it still names each run as the prompt did.
+        last = {
+            kind: max((run.number for run in self.runs if run.evidence_kind == kind), default=0)
+            for kind in ("chat", "train_eval")
+        }
+        numbered: list[PackedRun] = []
+        for run in self.runs:
+            if run.number == 0:
+                last[run.evidence_kind] += 1
+                run = replace(run, number=last[run.evidence_kind])
+            numbered.append(run)
+        object.__setattr__(self, "runs", numbered)
+
+    def label_of(self, run_id: UUID) -> str:
+        """How the prompt names a run, or `run <id>` for one the pack does not hold."""
+        run = next((run for run in self.runs if run.run_id == run_id), None)
+        return f"run {run_id}" if run is None else f"{run.label} (run {run_id})"
 
     @property
     def conversation_ids(self) -> list[UUID]:
@@ -162,16 +207,19 @@ class EvidencePack:
             return [self.runs] if self.runs else []
         return [self.runs[i : i + GROUP_SIZE] for i in range(0, len(self.runs), GROUP_SIZE)]
 
-    def verify(self, quotes: Sequence[EvidenceQuote]) -> tuple[list[dict[str, str]], int]:
+    def verify(self, quotes: Sequence[EvidenceQuote]) -> tuple[list[CheckedQuote], int]:
         """The quotes that are, word for word, in the run they name - and how many were not.
+
+        Each kept quote carries the label the prompt gave its run - `source` and
+        `number` - so it reads back under the name the rationale used.
 
         Whitespace is normalized on both sides, so a quote that rewraps a line
         still counts; anything else - another run's id, words the run does not
         contain, a quote past the length limit, an item past the count limit -
         is dropped. A duplicate is dropped too, without counting against the change.
         """
-        sources = {run.run_id: run.source for run in self.runs}
-        kept: list[dict[str, str]] = []
+        runs = {run.run_id: run for run in self.runs}
+        kept: list[CheckedQuote] = []
         seen: set[tuple[UUID, str]] = set()
         dropped = 0
         for item in quotes:
@@ -180,17 +228,24 @@ class EvidencePack:
             if key in seen:
                 continue
             seen.add(key)
-            source = sources.get(item.run_id)
+            run = runs.get(item.run_id)
             if (
-                source is None
+                run is None
                 or not quote
                 or len(quote) > MAX_QUOTE_CHARS
-                or quote not in source
+                or quote not in run.quotable
                 or len(kept) >= MAX_EVIDENCE_ITEMS
             ):
                 dropped += 1
                 continue
-            kept.append({"run_id": str(item.run_id), "quote": quote})
+            kept.append(
+                {
+                    "run_id": str(item.run_id),
+                    "quote": quote,
+                    "source": run.source,
+                    "number": run.number,
+                }
+            )
         return kept, dropped
 
 

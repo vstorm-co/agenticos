@@ -37,3 +37,20 @@ it("links a conversation inside the Improve wizard", () => {
   );
   expect(screen.getByRole("link", { name: "conversation 2" })).toHaveAttribute("href", "/chat/c2");
 });
+
+it("names a run by the label the improver read it under", () => {
+  render(
+    <RationaleText
+      text={`See run ${FIRST} and run ${SECOND}.`}
+      evidence={[
+        { run_id: FIRST, quote: "Delivery is free", source: "test_question", number: 2 },
+        { run_id: SECOND, quote: "No idea", source: "conversation", number: 1 },
+      ]}
+    />,
+  );
+  expect(screen.getByRole("link", { name: "test question 2" })).toHaveAttribute(
+    "href",
+    `/runs?run=${FIRST}`,
+  );
+  expect(screen.getByRole("link", { name: "conversation 1" })).toBeInTheDocument();
+});

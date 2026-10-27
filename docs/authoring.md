@@ -74,7 +74,7 @@ checked, is not shown.
 
 When an assistant request - a Verify, or an Improve through the API - finishes while the Builder is open, a result dialog shows the reviewed answer count, proposed and recorded changes, and rejected proposals with their reasons. You can reopen it with **Review result**. An empty result says that nothing could be applied and shows no expected effect. Expected-effect prose containing raw run identifiers is replaced with a description counting the linked source answers.
 
-Every changed text - instructions, a tool description, a context file - shows as a diff: removed and added lines with the changed words marked, a few unchanged lines around each change and the rest folded, unified or side by side on a wide screen. Each change keeps its rationale and linked evidence; run identifiers in a rationale show as numbered conversations.
+Every changed text - instructions, a tool description, a context file - shows as a diff: removed and added lines with the changed words marked, a few unchanged lines around each change and the rest folded, unified or side by side on a wide screen. Each change keeps its rationale and linked evidence; each piece of evidence is named by what it is - a test question from the dataset (**Test question 2**) or a real chat (**Conversation 1**) - with the question that was asked, and the improver is told to cite it by exactly that label. Run identifiers in a rationale show under the same label.
 
 After a check completes, readers with `runs:view` can compare answers from both arms in the dialog and open the full check. Before a check, it asks you to run one. An agent with no rated chat or training evidence has a compact assistant line above its instructions.
 

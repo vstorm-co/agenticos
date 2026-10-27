@@ -31,11 +31,12 @@ class ContextProposalRead(BaseSchema, TimestampSchema):
     decided_at: datetime | None = None
     stale: bool
     rationale: str = ""
-    evidence: list[dict[str, str | None]] = Field(
+    evidence: list[dict[str, str | int | None]] = Field(
         default_factory=list,
         description=(
             "Run ids and quotes, each checked against the run it names; the quote is "
-            "null for a reader without runs:view"
+            "null for a reader without runs:view. `source` and `number` label the run "
+            "as the assistant read it (`conversation` 2), absent on older evidence"
         ),
     )
     evidence_dropped: int = 0

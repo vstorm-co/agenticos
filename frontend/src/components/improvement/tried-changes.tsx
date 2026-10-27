@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { ChangePreview } from "@/components/authoring/result-dialog";
-import { useAttemptChanges } from "@/hooks/use-improvements";
+import { useAttemptChanges, useImprovementEvidence } from "@/hooks/use-improvements";
 import { getErrorMessage } from "@/lib/api-error";
 import type { Improvement, ImprovementIteration } from "@/types/improvement";
 import { StateBadge } from "./widgets";
@@ -52,6 +52,8 @@ function AttemptProposals({
     session.id,
     round.number,
   );
+  const { evidence } = useImprovementEvidence(session.agent_id, { sessionId: session.id });
+  const sources = Object.fromEntries((evidence?.items ?? []).map((item) => [item.run_id, item]));
   if (error) return <p role="alert">{getErrorMessage(error, tErrors)}</p>;
   if (isLoading) return <p role="status">{t("loading")}</p>;
   if (changes.length === 0) return <p className="text-muted-foreground text-sm">{t("none")}</p>;
@@ -71,7 +73,7 @@ function AttemptProposals({
           {hunk.edited_text && <p className="text-muted-foreground text-xs">{t("editedReason")}</p>}
           <ChangePreview
             hunk={hunk.edited_text ? { ...hunk, new_text: hunk.edited_text } : hunk}
-            conversations={{}}
+            sources={sources}
           />
         </div>
       ))}

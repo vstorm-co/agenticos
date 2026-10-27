@@ -10322,6 +10322,7 @@
       "none": "Brak dowodów, które dałoby się sprawdzić.",
       "dropped": "{count, plural, one {1 przytoczony fragment nie został znaleziony} few {# przytoczone fragmenty nie zostały znalezione} other {# przytoczonych fragmentów nie zostało znalezionych}} w runach i {count, plural, one {został pominięty} few {zostały pominięte} other {zostało pominiętych}}.",
       "conversation": "rozmowa {number}",
+      "testQuestion": "pytanie testowe {number}",
       "aConversation": "jedna z rozmów"
     },
     "batch": {
@@ -11154,7 +11155,9 @@
       "skill": "Nowy skill",
       "stale": "Nie pasuje już do obecnych instrukcji"
     },
-    "basedOnNone": "Dla tej zmiany nie zacytowano rozmowy.",
+    "basedOnNone": "Dla tej zmiany nie zacytowano ani pytania testowego, ani rozmowy.",
+    "basedOnSource": "<source>{kind, select, test_question {Pytanie testowe {number}} other {Rozmowa {number}}}</source>",
+    "basedOnSourceAsked": "<source>{kind, select, test_question {Pytanie testowe {number}} other {Rozmowa {number}}}</source>: {question}",
     "helper": {
       "label": "Agent, który pisze zmiany",
       "hint": "Ten agent czyta oceny i pisze zmiany. Domyślny sprawdza się w większości przypadków."

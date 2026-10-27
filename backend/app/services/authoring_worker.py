@@ -122,19 +122,39 @@ def tool_catalog(spec: AgentSpec) -> list[tuple[str, str, str, str]]:
     return rows
 
 
+_CITING = (
+    'Each item below is labelled by what it is. A "test question N" is a question '
+    "from the dataset, put to the agent in a training eval - nobody asked it in a chat. "
+    'A "conversation N" is a real person\'s chat with the agent. In a rationale, refer '
+    'to an item by exactly its label, such as "test question 2" or "conversation '
+    '1": never call a test question a conversation, never name a run id, and never say '
+    "an item is about anything its question does not ask. Each quote names the run id "
+    "given beside the label."
+)
+
+
 def _evidence_section(pack: EvidencePack, digests: Sequence[RunFindings] | None) -> str:
     if digests is None:
         return "\n\n".join(
-            part for part in [render_runs(pack.runs), pack.training_feedback] if part
+            part
+            for part in [
+                _CITING if pack.runs else "",
+                render_runs(pack.runs),
+                pack.training_feedback,
+            ]
+            if part
         )
     lines: list[str] = []
     for digest in digests:
         for finding in digest.findings:
             lines.append(f"- {finding.observation}")
-            lines += [f'  - run {quote.run_id}: "{quote.quote}"' for quote in finding.evidence]
+            lines += [
+                f'  - {pack.label_of(quote.run_id)}: "{quote.quote}"' for quote in finding.evidence
+            ]
     return "\n\n".join(
         part
         for part in [
+            _CITING,
             "\n".join(lines) or "(The runs showed nothing in particular.)",
             pack.training_feedback,
         ]
@@ -308,7 +328,7 @@ def _digest_prompt(subject: str, runs: Sequence[PackedRun]) -> str:
     return (
         f"Read these runs of {subject} and list what went wrong - and what went well where "
         "it explains a contrast - each with exact quotes.\n\n"
-        f"{render_runs(runs)}"
+        f"{_CITING}\n\n{render_runs(runs)}"
     )
 
 

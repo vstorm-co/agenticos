@@ -885,7 +885,10 @@ class AuthoringService:
             expected_effect=hunk.expected_effect,
             evidence=[
                 EvidenceItemRead(
-                    run_id=UUID(item["run_id"]), quote=item.get("quote") if quotes else None
+                    run_id=UUID(item["run_id"]),
+                    quote=item.get("quote") if quotes else None,
+                    source=item.get("source"),
+                    number=item.get("number"),
                 )
                 for item in hunk.evidence
             ],

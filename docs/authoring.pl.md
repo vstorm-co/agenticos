@@ -1,5 +1,5 @@
 ---
-source_sha: "edb3762a1f8c"
+source_sha: "91b9d1407fa2"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -77,7 +77,7 @@ nie jest pokazywane.
 
 Gdy żądanie asystenta - Sprawdź albo Ulepsz przez API - kończy się przy otwartym Builderze, dialog wyniku pokazuje liczbę przejrzanych odpowiedzi, zaproponowane i zapisane zmiany oraz odrzucone propozycje z powodami. Można otworzyć go ponownie przyciskiem **Zobacz wynik**. Pusty wynik informuje, że niczego nie można zastosować, bez oczekiwanego efektu. Opis efektu zawierający surowe identyfikatory runów jest zastępowany opisem z liczbą podlinkowanych odpowiedzi źródłowych.
 
-Każdy zmieniony tekst - instrukcje, opis narzędzia, plik kontekstowy - jest pokazany jako diff: usunięte i dodane linie z zaznaczonymi zmienionymi słowami, kilka niezmienionych linii wokół każdej zmiany i zwinięta reszta, jednolicie albo obok siebie na szerokim ekranie. Każda zmiana zachowuje uzasadnienie i linki do materiału źródłowego; identyfikatory runów w uzasadnieniu są pokazane jako ponumerowane rozmowy.
+Każdy zmieniony tekst - instrukcje, opis narzędzia, plik kontekstowy - jest pokazany jako diff: usunięte i dodane linie z zaznaczonymi zmienionymi słowami, kilka niezmienionych linii wokół każdej zmiany i zwinięta reszta, jednolicie albo obok siebie na szerokim ekranie. Każda zmiana zachowuje uzasadnienie i linki do materiału źródłowego; każdy element materiału źródłowego jest nazwany tym, czym jest - pytaniem testowym z datasetu (**Pytanie testowe 2**) albo prawdziwą rozmową (**Rozmowa 1**) - razem z zadanym pytaniem, a pomocnik ma polecenie cytować go dokładnie pod tą etykietą. Identyfikatory runów w uzasadnieniu są pokazane pod tą samą etykietą.
 
 Po zakończeniu sprawdzenia osoby z `runs:view` mogą porównać odpowiedzi obu stron w dialogu i otworzyć pełne sprawdzenie. Wcześniej dialog proponuje jego uruchomienie. Agent bez ocenionych rozmów ani materiału treningowego ma nad instrukcjami zwięzły wiersz asystenta.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "edb3762a1f8c"
+source_sha: "91b9d1407fa2"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -79,7 +79,7 @@ Befunds, damit der Leser beurteilen kann, ob sie sie stützen. Ein Befund, die
 
 Endet eine Anfrage an den Assistenten - Prüfen oder Verbessern über die API - bei geöffnetem Builder, zeigt ein Ergebnisdialog die Anzahl geprüfter Antworten, vorgeschlagene und gespeicherte Änderungen sowie abgelehnte Vorschläge mit Gründen. **Ergebnis ansehen** öffnet ihn erneut. Ein leeres Ergebnis erklärt, dass nichts anwendbar war, ohne erwartete Wirkung. Wirkungstext mit rohen Run-Kennungen wird durch eine Beschreibung mit der Anzahl verlinkter Quellantworten ersetzt.
 
-Jeder geänderte Text - Anweisungen, eine Tool-Beschreibung, eine Context-Datei - erscheint als Diff: entfernte und hinzugefügte Zeilen mit markierten geänderten Wörtern, einige unveränderte Zeilen um jede Änderung und der Rest eingeklappt, einheitlich oder auf einem breiten Bildschirm nebeneinander. Jede Änderung behält Begründung und verlinkte Belege; Run-Kennungen in einer Begründung erscheinen als nummerierte Gespräche.
+Jeder geänderte Text - Anweisungen, eine Tool-Beschreibung, eine Context-Datei - erscheint als Diff: entfernte und hinzugefügte Zeilen mit markierten geänderten Wörtern, einige unveränderte Zeilen um jede Änderung und der Rest eingeklappt, einheitlich oder auf einem breiten Bildschirm nebeneinander. Jede Änderung behält Begründung und verlinkte Belege; jeder Beleg ist nach dem benannt, was er ist - eine Testfrage aus dem Dataset (**Testfrage 2**) oder ein echtes Gespräch (**Gespräch 1**) - mit der gestellten Frage, und der Helfer wird angewiesen, ihn genau unter dieser Bezeichnung zu zitieren. Run-Kennungen in einer Begründung erscheinen unter derselben Bezeichnung.
 
 Nach einer abgeschlossenen Prüfung können Leser mit `runs:view` Antworten beider Seiten im Dialog vergleichen und die vollständige Prüfung öffnen. Vorher fordert der Dialog zum Prüfen auf. Ohne bewertete Chats oder Trainingsbelege erscheint der Assistent als kompakte Zeile über den Anweisungen.
 
