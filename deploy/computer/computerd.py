@@ -15,7 +15,8 @@ Three endpoints behind a bearer token:
                        carried out in order; 400 {"error": ...} on the first refusal
     GET  /apps         the applications a `launch` action may name, as JSON
 
-and `GET /health`, unauthenticated, for a container's health check.
+and `GET /health`, unauthenticated, for a container's health check: 503 while
+the container's launcher is not running.
 
 `launch` and `/apps` are the container's only: there the desktop's own account
 runs `computerd.py launcher <socket>`, which lists and opens its menu's
@@ -170,6 +171,9 @@ class _Launcher(socketserver.StreamRequestHandler):
         import desktop_apps
 
         request = self.rfile.readline(256).decode(errors="replace").strip()
+        if not request:
+            # `/health` connecting to see the launcher is up, and nothing more.
+            return
         env = dict(os.environ)
         reply: dict[str, Any]
         try:
@@ -202,6 +206,24 @@ def ask_launcher(request: str) -> dict[str, Any]:
     if "error" in reply:
         raise Refused(reply["error"])
     return reply
+
+
+def launcher_down() -> str | None:
+    """Why the launcher cannot be reached, or `None` if it can or there is none.
+
+    Only a connection: a launch in progress delays the answer to a request,
+    but the socket still accepts one.
+    """
+    launcher = os.environ.get("COMPUTERD_LAUNCHER")
+    if not launcher:
+        return None
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
+            conn.settimeout(1)
+            conn.connect(launcher)
+    except OSError as exc:
+        return f"the desktop's launcher is not running: {exc}"
+    return None
 
 
 def serve_launcher(path: str) -> None:
@@ -461,7 +483,10 @@ def make_handler(driver: Driver, token: str) -> type[BaseHTTPRequestHandler]:
 
         def do_GET(self) -> None:
             if self.path == "/health":
-                self._json(HTTPStatus.OK, {"ok": True, "platform": driver.name})
+                if down := launcher_down():
+                    self._json(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": down})
+                else:
+                    self._json(HTTPStatus.OK, {"ok": True, "platform": driver.name})
                 return
             if self.path not in {"/screenshot", "/apps"}:
                 self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})

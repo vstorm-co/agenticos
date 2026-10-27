@@ -141,15 +141,19 @@ def find(query: str, apps: list[App]) -> App:
     """The application a `launch` names: its id, else its name, exactly, ignoring case.
 
     The id first, because ids are unique and names are not: the ambiguity
-    refusal points at the ids, and one of them may be another entry's name.
+    refusal points at the ids, and one of them may be another entry's name. An
+    id is first matched with its case, which the specification makes
+    significant, so two ids differing only in case can each be launched.
 
     Raises:
         AppError: Nothing has that name or id, or several share the name.
     """
     wanted = query.casefold()
-    found = [app for app in apps if app.id.casefold() == wanted] or [
-        app for app in apps if app.name.casefold() == wanted
-    ]
+    found = (
+        [app for app in apps if app.id == query]
+        or [app for app in apps if app.id.casefold() == wanted]
+        or [app for app in apps if app.name.casefold() == wanted]
+    )
     if len(found) == 1:
         return found[0]
     if found:

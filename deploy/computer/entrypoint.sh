@@ -49,6 +49,15 @@ as_desk dbus-launch --exit-with-session startxfce4 >/tmp/xfce.log 2>&1 &
 # is computerd's to connect to and nobody else's.
 install -d -m 2750 -o desk -g computerd /run/launcher
 as_desk python3 /opt/computerd/computerd.py launcher /run/launcher/socket >/tmp/launcher.log 2>&1 &
+# computerd's `/health` fails while the launcher is down, so a launcher that
+# dies later turns the container unhealthy; one that never starts stops it here.
+for _ in $(seq 50); do
+    [ -S /run/launcher/socket ] && break || sleep 0.1
+done
+if [ ! -S /run/launcher/socket ]; then
+    echo "computerd: the launcher did not start" >&2
+    exit 1
+fi
 
 # A person watching the whole session, not only the frames the agent takes. Off
 # unless VNC_PASSWORD is set: a VNC server is full control of the desktop.

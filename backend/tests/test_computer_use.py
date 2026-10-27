@@ -537,6 +537,17 @@ class TestTheDesktopsApplications:
         system = _desktop_apps.App(id="firefox", name="Firefox", path="/system")
         assert _desktop_apps.find("firefox", [named, system]) == system
 
+    def test_ids_that_differ_only_in_case_are_each_launched_by_their_own(self):
+        """The specification makes an id's case significant; ignoring it would refuse both as ambiguous."""
+        upper = _desktop_apps.App(id="org.example.App", name="Upper", path="/upper")
+        lower = _desktop_apps.App(id="org.example.app", name="Lower", path="/lower")
+        assert _desktop_apps.find("org.example.App", [upper, lower]) == upper
+        assert _desktop_apps.find("org.example.app", [upper, lower]) == lower
+        with pytest.raises(
+            _desktop_apps.AppError, match=r"org\.example\.App, org\.example\.app\.$"
+        ):
+            _desktop_apps.find("ORG.EXAMPLE.APP", [upper, lower])
+
     @pytest.mark.parametrize(
         "query", ["terminal", "Xfce Terminal", "Firefox ESR", "Web Browser", "fire"]
     )
@@ -1000,6 +1011,21 @@ class TestTheTools:
         assert await _tools(_Desktop())["computer_apps"](_ctx()) == "No applications are installed."
         assert await _tools(_Desktop(refuses="apps"))["computer_apps"](_ctx()) == NO_LAUNCH
 
+    @pytest.mark.parametrize(("refuses", "outcome"), [("apps", "failed"), ("type", "done")])
+    async def test_the_live_view_ends_on_what_the_last_listing_said(
+        self, refuses: str, outcome: str
+    ):
+        """A refused listing is the session's failure, and one that worked clears an earlier failure."""
+        frames = _Frames()
+        toolset = _toolset(_Desktop(refuses=refuses))
+        tools = {name: tool.function for name, tool in toolset.tools.items()}
+        ctx = _ctx(frames)
+        await tools["computer_screenshot"](ctx)
+        await tools["computer_act"](ctx, [TypeText(text="x")])
+        await tools["computer_apps"](ctx)
+        await toolset.session.close_view()
+        assert frames.events[-1].outcome == outcome
+
     async def test_a_screenshot_is_shown_to_the_model_and_the_person(self):
         frames = _Frames()
         desktop = _Desktop()
@@ -1329,6 +1355,8 @@ class TestTheTools:
 
         assert "Ran 1 of 3 action(s). Action 2 (type) failed: no such window" in _said(answer)[0]
         assert len(desktop.performed) == 1
+        # The failed one is charged: a launch that timed out has still started its application.
+        assert toolset.session.actions_taken == 2
         assert frames.events[-1].outcome == "failed"
         assert frames.events[-1].detail == "Action 2 (type) failed: no such window"
         assert [e.operation for e in frames.events if e.kind == "browser_step"] == ["CLICK", "TYPE"]

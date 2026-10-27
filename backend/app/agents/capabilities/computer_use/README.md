@@ -130,7 +130,9 @@ its instructions say to call `computer_apps` first and fall back to the
 computer's own launcher if it is refused.
 
 **Limits:** `max_actions_per_call` bounds one batch. `max_actions` bounds a run;
-past it the tool tells the model to stop and report what is left. A `type`
+past it the tool tells the model to stop and report what is left. The action
+that stopped a batch counts too: a launch whose window never came has still
+started the application, and retrying it must not be free. A `type`
 action carries at most 2000 characters.
 
 ## Not yet

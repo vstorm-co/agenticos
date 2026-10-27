@@ -497,7 +497,9 @@ def build_toolset(factory: ComputerFactory, policy: ToolPolicy) -> ComputerTools
                 return str(exc)
             return answer(ctx, TOLD, image, latest)
         done, failure = await _perform(desktop, actions, screen, call_id)
-        session.actions_taken += done
+        # The action that failed counts too: a launch whose window never came
+        # has still started the application, and retrying it must cost one.
+        session.actions_taken += done + (failure is not None)
 
         try:
             image, latest, _ = await look(ctx, desktop)
@@ -522,7 +524,9 @@ def build_toolset(factory: ComputerFactory, policy: ToolPolicy) -> ComputerTools
         try:
             apps = await (await session.desktop(ctx)).apps()
         except ComputerError as exc:
+            session.failure = str(exc)
             return str(exc)
+        session.failure = None
         return (
             "\n".join(f"{app.name} ({app.id})" for app in apps) or "No applications are installed."
         )
