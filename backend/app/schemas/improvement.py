@@ -184,6 +184,21 @@ class MeasurementNoise(BaseSchema):
     examples: list[NoisyQuestion] = Field(default_factory=list)
 
 
+class TryAgainBlocked(BaseSchema):
+    """Why Try again would be refused, said before anyone presses it."""
+
+    reason: Literal["nothing_to_learn", "missing_holdout"] = Field(
+        description="nothing_to_learn: no answer the next attempt would read still fails. "
+        "missing_holdout: another attempt would keep aside too few gradable questions to be "
+        "measured, and the session's questions are fixed"
+    )
+    needed: int | None = Field(
+        default=None,
+        ge=1,
+        description="With missing_holdout, how many more such questions another attempt needs",
+    )
+
+
 class NextStepBlocked(BaseSchema):
     """Why a waiting session's next step cannot be taken."""
 
@@ -208,6 +223,11 @@ class ImprovementRead(BaseSchema):
     next_step_blocked: NextStepBlocked | None = Field(
         default=None,
         description="Why the next step cannot be taken at this stop; null when it can",
+    )
+    try_again_blocked: TryAgainBlocked | None = Field(
+        default=None,
+        description="Why Try again would be refused, for a caller who may continue the "
+        "session; null when it would go on or is not offered",
     )
     published_version_id: UUID | None = None
     published_version: int | None = None

@@ -19,6 +19,7 @@ from app.schemas.improvement import (
     ImprovementContinue,
     ImprovementStart,
     NextStepBlocked,
+    TryAgainBlocked,
 )
 from app.services.agent_runner import AgentRunnerService
 from app.services.authoring_worker import AuthoringWorker
@@ -140,6 +141,7 @@ async def _two_rounds(db):
     first = await _round(db, ctx, agent, started.id, "ROUND_BAD")
     stopped = await service.read(ctx, agent.id, started.id)
     assert (stopped.status, stopped.stop_reason, stopped.iteration) == ("stopped", "regression", 1)
+    assert stopped.try_again_blocked is None
     # The second attempt draws its own five of the eight; which five is fixed here so the
     # questions the better candidate fixes are among them.
     with patch("app.services.improvement_pipeline.drawn_holdout", return_value=measured):
@@ -356,16 +358,17 @@ async def test_try_again_is_refused_before_it_costs_anything_when_too_few_questi
         agent.id,
         ImprovementStart(dataset_id=dataset.id, budget_usd=Decimal(100), max_iterations=3),
     )
+    stored = await db.get(Dataset, dataset.id)
+    assert stored is not None
+    stored.improvement_holdout_share = Decimal("0.5")
+    await db.flush()
     for _ in range(2):
         await service.advance(started.id, ctx.organization_id)
     await _next_step(db, ctx, started.id)
     await _round(db, ctx, agent, started.id, "ROUND_BAD")
     stopped = await service.read(ctx, agent.id, started.id)
     assert stopped.status == "stopped"
-    stored = await db.get(Dataset, dataset.id)
-    assert stored is not None
-    stored.improvement_holdout_share = Decimal("0.5")
-    await db.flush()
+    assert stopped.try_again_blocked == TryAgainBlocked(reason="missing_holdout", needed=2)
 
     # Five questions keep three aside per attempt, short of the five a result needs.
     with pytest.raises(BadRequestError, match="only 3 test questions") as refused:

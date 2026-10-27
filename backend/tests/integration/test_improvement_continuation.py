@@ -357,3 +357,38 @@ async def test_another_attempt_with_nothing_left_to_learn_from_says_so(db):
     ):
         await _consent(service, ctx, agent, ready)
     assert refused.value.details == {"reason": "no_evidence"}
+
+
+async def test_a_session_says_before_try_again_that_it_has_nothing_left_to_learn_from(db):
+    from dataclasses import replace
+
+    from app.core.exceptions import AuthorizationError
+    from app.schemas.improvement import TryAgainBlocked
+    from app.services.authoring_evidence import EvidencePack, EvidenceService
+
+    ctx, agent, ready = await _ready_proposal(db)
+    row = await db.get(ImprovementRun, ready.id)
+    assert row is not None
+    row.max_iterations = 3
+    await db.flush()
+    service = ImprovementPipelineService(db)
+    assert (await service.read(ctx, agent.id, ready.id)).try_again_blocked is None
+
+    empty = AsyncMock(return_value=EvidencePack())
+    with patch.object(EvidenceService, "for_improvement", empty):
+        blocked = await service.read(ctx, agent.id, ready.id)
+        assert blocked.try_again_blocked == TryAgainBlocked(reason="nothing_to_learn")
+        viewer = replace(ctx, key_scopes=frozenset({Perm.AGENTS_VIEW, Perm.RUNS_VIEW}))
+        assert (await service.read(viewer, agent.id, ready.id)).try_again_blocked is None
+        row.max_iterations = 1
+        await db.flush()
+        assert (await service.read(ctx, agent.id, ready.id)).try_again_blocked is None
+        row.max_iterations = 3
+        row.status, row.stop_reason = "stopped", "permission"
+        await db.flush()
+        assert (await service.read(ctx, agent.id, ready.id)).try_again_blocked is None
+    row.status, row.stop_reason = "ready", None
+    await db.flush()
+    unreadable = AsyncMock(side_effect=AuthorizationError(message="No access to the questions"))
+    with patch.object(EvidenceService, "for_improvement", unreadable):
+        assert (await service.read(ctx, agent.id, ready.id)).try_again_blocked is None

@@ -125,6 +125,7 @@ from app.schemas.improvement import (
     SelectionConsent,
     SelectionEstimate,
     TopicDeferral,
+    TryAgainBlocked,
 )
 from app.schemas.scoring import DatasetScoring
 from app.services import authoring_fields, authoring_hunks, change_feed
@@ -951,6 +952,8 @@ class ImprovementPipelineService:
             suites = await EvalSuiteService(self.db).list_for_agent(ctx, run.agent_id)
             result.offer_automatic_check = not suites.items
         result.can_restart = await self._may_continue(ctx, run)
+        if result.can_restart:
+            result.try_again_blocked = await self._try_again_blocked(ctx, run, iterations)
         if run.status == Status.WAITING:
             result.next_step = "check" if run.stage == Stage.FILTERING else "propose"
         result.next_step_blocked = blocked_next_step(
@@ -1208,6 +1211,52 @@ class ImprovementPipelineService:
         self.authoring._require_runs_view(ctx)
         await AiAssistanceService(self.db).require_enabled(organization_id=ctx.organization_id)
 
+    @staticmethod
+    def _resumes(run: ImprovementRun) -> bool:
+        """A stopped session continues the step it stopped in, not with another attempt."""
+        return run.status == Status.STOPPED and (
+            run.stop_reason == StopReason.PERMISSION
+            or (
+                run.stop_reason == StopReason.BUDGET
+                and run.stage
+                in {Stage.CLASSIFYING, Stage.DRAFTING, Stage.PROPOSING, Stage.EVALUATING}
+            )
+        )
+
+    async def _try_again_blocked(
+        self, ctx: AuthContext, run: ImprovementRun, rounds: Sequence[ImprovementIteration]
+    ) -> TryAgainBlocked | None:
+        """Why Try again would be refused, read without pricing anything: the questions a
+        new attempt could be measured on, as the analysis counted them, then the evidence
+        its proposal would read. Null when Try again is not offered or would go on."""
+        current = next((item for item in rounds if item.number == run.iteration), None)
+        if run.status not in {Status.READY, Status.STOPPED} or current is None:
+            return None
+        if self._resumes(run):
+            return None
+        if current.verdict is None or max(item.number for item in rounds) >= run.max_iterations:
+            return None
+        if any(
+            item.number > current.number
+            and item.batch_id is not None
+            and item.authoring_request_id is None
+            and not item.eval_run_ids
+            for item in rounds
+        ):
+            return None
+        first = next((item for item in rounds if item.number == 1), None)
+        held = (first.verdict_detail or {}).get("next_holdout") if first else None
+        if isinstance(held, int) and held < MIN_HOLDOUT_CASES:
+            return TryAgainBlocked(reason="missing_holdout", needed=MIN_HOLDOUT_CASES - held)
+        try:
+            pack = await self.authoring.evidence.for_improvement(
+                ctx, run.id, excluded_message_ids=await self._knowledge_exclusions(ctx, run)
+            )
+        except AuthorizationError, NotFoundError:
+            # Without the session's questions the caller meets the refusal on the click.
+            return None
+        return None if pack.runs else TryAgainBlocked(reason="nothing_to_learn")
+
     async def _may_continue(self, ctx: AuthContext, run: ImprovementRun) -> bool:
         agent = await agent_repo.get(self.db, run.agent_id, organization_id=run.organization_id)
         return (
@@ -1332,14 +1381,7 @@ class ImprovementPipelineService:
         measurable: set[UUID] = set()
         if run.status == Status.WAITING:
             mode = "next_step"
-        elif run.status == Status.STOPPED and (
-            run.stop_reason == StopReason.PERMISSION
-            or (
-                run.stop_reason == StopReason.BUDGET
-                and run.stage
-                in {Stage.CLASSIFYING, Stage.DRAFTING, Stage.PROPOSING, Stage.EVALUATING}
-            )
-        ):
+        elif self._resumes(run):
             mode = "resume"
         elif run.status == Status.FAILED and run.stage in {Stage.PROPOSING, Stage.EVALUATING}:
             mode = "retry"
@@ -2278,6 +2320,8 @@ class ImprovementPipelineService:
                 pack,
                 chat_run_ids=run.chat_evidence_run_ids or [],
             )
+            measurable = await self._measurable(ctx, inputs, run)
+            share, cases = await self._split_cases(run)
             await improvement_repo.update_iteration(
                 self.db,
                 iteration=iteration,
@@ -2287,6 +2331,10 @@ class ImprovementPipelineService:
                         "minimum_holdout": measured.minimum_holdout,
                         "missing_holdout": max(
                             0, measured.minimum_holdout - measured.gradable_holdout
+                        ),
+                        # Read back to say whether Try again could be measured, unpriced.
+                        "next_holdout": min(
+                            holdout_count(len(cases), share), len(measurable & set(cases))
                         ),
                     },
                 },

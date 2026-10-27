@@ -19,6 +19,12 @@ export interface NextStepBlocked {
   /** How many more gradable questions kept aside the check needs. */
   needed: number;
 }
+/** Why Try again would be refused, said before anyone presses it. */
+export interface TryAgainBlocked {
+  reason: "nothing_to_learn" | "missing_holdout";
+  /** With missing_holdout, how many more gradable questions another attempt needs. */
+  needed?: number | null;
+}
 /** A session waiting for a person, as a list of them shows it. */
 export interface ImprovementAwaiting {
   id: string;
@@ -108,6 +114,7 @@ export interface Improvement {
   /** What Next step starts at a stop: writing changes, or testing them. */
   next_step?: "propose" | "check" | null;
   next_step_blocked?: NextStepBlocked | null;
+  try_again_blocked?: TryAgainBlocked | null;
   stop_reason: string | null;
   error: string | null;
   created_at: string;
