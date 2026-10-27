@@ -2,10 +2,11 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
 import type { Improvement } from "@/types/improvement";
 import { ContinueSession, continuation } from "./continue-session";
+import { NoiseActions, UnstableQuestions, noiseSentence } from "./measurement-noise";
 import { DOCUMENTS_ANCHOR, KnowledgeDocuments, ResultSummary, useSessionTopics } from "./outcome";
 import { useReadOnly } from "./read-only";
 import { AttemptRow } from "./round-results";
@@ -171,8 +172,15 @@ function ResultDecision({
   onStarted: () => void;
 }) {
   const t = useTranslations("improvement");
+  const locale = useLocale();
   const readOnly = useReadOnly();
   const situation = resultSituation(session, { candidate, topics });
+  const noise = active(session) ? null : session.measurement_noise;
+  const noisy = noise?.noisy === true;
+  const better = session.iterations.some(
+    (round) => round.verdict === "better" && round.number <= session.max_iterations,
+  );
+  const diagnosed = noisy && !better;
   const topicsButton = (variant: "default" | "outline") => (
     <Button asChild variant={variant}>
       <a href={`#${DOCUMENTS_ANCHOR}`}>{t("resultDecision.reviewTopics")}</a>
@@ -185,11 +193,20 @@ function ResultDecision({
         role={session.status === "failed" && session.stop_reason ? "alert" : undefined}
         className="text-sm"
       >
-        {headline(t, session, agent, topics).join(" ")}
+        {[
+          ...(diagnosed && noise ? [noiseSentence(t, locale, noise, agent)] : []),
+          ...headline(t, session, agent, topics),
+        ].join(" ")}
       </p>
+      {noisy && better && noise && (
+        <p className="text-muted-foreground text-sm">
+          {noiseSentence(t, locale, noise, agent, { note: true })}
+        </p>
+      )}
       {!readOnly && !active(session) && (
         <div className="space-y-3">
           <h3 className="text-sm font-medium">{t("resultDecision.options")}</h3>
+          {diagnosed && <NoiseActions session={session} />}
           <ContinueSession
             session={session}
             emphasis={{
@@ -226,6 +243,7 @@ function ResultDecision({
           )}
         </div>
       )}
+      {diagnosed && noise && <UnstableQuestions noise={noise} />}
     </section>
   );
 }

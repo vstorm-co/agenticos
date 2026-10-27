@@ -92,6 +92,8 @@ export interface Improvement {
   baseline_answers?: CheckAnswers | null;
   /** How far the current attempt's check has asked the changed agent. */
   candidate_answers?: CheckAnswers | null;
+  /** Whether the test told the versions apart; absent while working or without runs:view. */
+  measurement_noise?: MeasurementNoise | null;
   timeline: {
     action: string;
     at: string;
@@ -162,4 +164,23 @@ export interface ContinuationEstimate {
   budget_usd: string;
   affordable: boolean;
   candidate_hash: string;
+}
+
+/** One held-out question's grades in one attempt, the first answer then each re-ask. */
+export interface NoisyAttempt {
+  number: number;
+  baseline: (boolean | null)[];
+  candidate: (boolean | null)[];
+}
+
+/** Whether a session's checks could tell a better version from a worse one. */
+export interface MeasurementNoise {
+  noisy: boolean;
+  held_out: number;
+  baseline_low: number | null;
+  baseline_high: number | null;
+  baseline_spread: number;
+  unstable: number;
+  by_attempt: { number: number; baseline_unstable: number; candidate_unstable: number }[];
+  examples: { case_id: string; input: string; attempts: NoisyAttempt[] }[];
 }

@@ -2,11 +2,15 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { SESSION } from "@/test-utils/improvement";
-import type { Improvement, ImprovementIteration } from "@/types/improvement";
+import type { Improvement, ImprovementIteration, MeasurementNoise } from "@/types/improvement";
 import { ReadOnlyProvider } from "./read-only";
 import { ResultStep } from "./result-decision";
 
-const state = vi.hoisted(() => ({ topics: [] as { id: string }[], discard: vi.fn() }));
+const state = vi.hoisted(() => ({
+  topics: [] as { id: string }[],
+  discard: vi.fn(),
+  judges: [{ id: "judge-1", system_key: "eval_judge" }] as { id: string; system_key: string }[],
+}));
 vi.mock("./outcome", () => ({
   DOCUMENTS_ANCHOR: "improvement-documents",
   useSessionTopics: () => ({ topics: state.topics }),
@@ -15,6 +19,13 @@ vi.mock("./outcome", () => ({
 }));
 vi.mock("./round-results", () => ({
   AttemptRow: ({ round }: { round: ImprovementIteration }) => <p>Row {round.number}</p>,
+}));
+vi.mock("@/hooks/use-agents", () => ({
+  useAgentsOfKind: () => ({
+    agents: state.judges,
+    isLoading: false,
+    error: null,
+  }),
 }));
 vi.mock("@/hooks/use-improvements", () => ({
   useImprovement: () => ({
@@ -65,6 +76,7 @@ const primary = (name: string | RegExp) =>
 beforeEach(() => {
   vi.clearAllMocks();
   state.topics = [];
+  state.judges = [{ id: "judge-1", system_key: "eval_judge" }];
 });
 
 it("leads with the better attempt and sends the person to accept it", async () => {
@@ -205,4 +217,96 @@ it("says a better attempt was kept as a draft, and a publish whose version is un
   view.unmount();
   show({ ...SESSION, status: "published", published_version: null });
   expect(screen.getByText(/Attempt 1 was published\.$/)).toBeInTheDocument();
+});
+
+const NOISE: MeasurementNoise = {
+  noisy: true,
+  held_out: 10,
+  baseline_low: 0.5,
+  baseline_high: 0.7,
+  baseline_spread: 2,
+  unstable: 6,
+  by_attempt: [{ number: 1, baseline_unstable: 3, candidate_unstable: 3 }],
+  examples: [
+    {
+      case_id: "c1",
+      input: "Do you deliver within Poland?",
+      attempts: [
+        { number: 1, baseline: [false, true, false], candidate: [true, null] },
+        { number: 2, baseline: [true], candidate: [true] },
+      ],
+    },
+  ],
+};
+
+it("says plainly when the test cannot tell the versions apart, and how to fix it", async () => {
+  show({ ...EXHAUSTED, measurement_noise: NOISE });
+  expect(
+    screen.getByText(
+      /^The test can't tell a better version from a worse one: today's version of Refund desk scored 50% and 70% on the same questions\. None of the 3 attempts/,
+    ),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole("link", {
+      name: "Make the grading criteria yes-or-no instead of a 1–5 scale",
+    }),
+  ).toHaveAttribute("href", "/datasets/d1?tab=grading");
+  expect(
+    screen.getByRole("link", { name: "Check length and format with a rule instead of the judge" }),
+  ).toHaveAttribute("href", "/datasets/d1?tab=cases");
+  expect(
+    screen.getByRole("link", { name: "Add questions, up to about 30 kept aside" }),
+  ).toHaveAttribute("href", "/datasets/d1?tab=cases");
+  expect(screen.getByRole("link", { name: "Grade with a stronger judge model" })).toHaveAttribute(
+    "href",
+    "/agents/judge-1",
+  );
+  primary("End without changes");
+  const list = screen.getByText("6 questions were graded differently with nothing changed");
+  expect(list.closest("details")).not.toHaveAttribute("open");
+  await userEvent.click(list);
+  expect(screen.getByText("Do you deliver within Poland?")).toBeVisible();
+  expect(screen.getAllByRole("img", { name: "Failed" })).toHaveLength(2);
+  expect(screen.getAllByRole("img", { name: "Not graded" })).toHaveLength(1);
+});
+
+it("names the questions graded both ways when today's score itself held still", () => {
+  show({
+    ...EXHAUSTED,
+    measurement_noise: { ...NOISE, baseline_low: 0.6, baseline_high: 0.6, baseline_spread: 0 },
+  });
+  expect(
+    screen.getByText(
+      /^The test can't tell a better version from a worse one: 6 of the 10 questions got a different grade when asked again/,
+    ),
+  ).toBeInTheDocument();
+});
+
+it("only notes the noise beside a better attempt, without the diagnosis", () => {
+  show({ ...SESSION, measurement_noise: NOISE }, { candidate: true });
+  expect(
+    screen.getByText(/^Attempt 1 made Refund desk better: 3 questions fixed and none broke\.$/),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText(/^The test is noisy: today's version of Refund desk scored 50% and 70%/),
+  ).toBeInTheDocument();
+  expect(screen.queryByText("Make the test reliable before you try again")).toBeNull();
+  expect(screen.queryByText(/graded differently with nothing changed/)).toBeNull();
+});
+
+it("leaves a quiet test and a working session without any noise wording", () => {
+  const view = show({ ...EXHAUSTED, measurement_noise: { ...NOISE, noisy: false } });
+  expect(screen.queryByText(/can't tell a better version/)).toBeNull();
+  view.unmount();
+  show({ ...EXHAUSTED, status: "running", stop_reason: null, measurement_noise: NOISE });
+  expect(screen.queryByText(/can't tell a better version/)).toBeNull();
+});
+
+it("sends a stronger judge to the dataset's grading when the organization has no default judge", () => {
+  state.judges = [];
+  show({ ...EXHAUSTED, measurement_noise: NOISE });
+  expect(screen.getByRole("link", { name: "Grade with a stronger judge model" })).toHaveAttribute(
+    "href",
+    "/datasets/d1?tab=grading",
+  );
 });
