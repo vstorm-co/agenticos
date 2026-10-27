@@ -69,6 +69,7 @@ from app.repositories import (
     agent_run_repo,
     authoring_repo,
     dataset_repo,
+    eval_run_repo,
     improvement_repo,
     knowledge_base_repo,
     knowledge_gap_repo,
@@ -93,6 +94,7 @@ from app.schemas.eval_threshold import EvalSuiteCheck
 from app.schemas.improvement import (
     AttributionConsent,
     AttributionEstimate,
+    BaselineAnswers,
     ContinuationConsent,
     ContinuationEstimate,
     EvidenceDecisionUpdate,
@@ -862,6 +864,16 @@ class ImprovementPipelineService:
             self.db, run.id, organization_id=run.organization_id
         )
         result.iterations = [ImprovementIterationRead.model_validate(item) for item in iterations]
+        first = next((item for item in iterations if item.number == 1), None)
+        counted = (
+            await eval_run_repo.baseline_answers(
+                self.db, first.eval_run_ids[-1], organization_id=run.organization_id
+            )
+            if first is not None and first.eval_run_ids
+            else None
+        )
+        if counted is not None:
+            result.baseline_answers = BaselineAnswers(answered=counted[0], total=counted[1])
         if ctx.has(Perm.RUNS_VIEW):
             result.knowledge_eval_run_ids = await improvement_repo.knowledge_checks(
                 self.db, run.id, organization_id=ctx.organization_id

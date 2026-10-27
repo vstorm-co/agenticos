@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec
@@ -82,6 +82,7 @@ async def _ready_proposal(db):
     await _until_child(db, ctx, read.id)
     first = await ImprovementPipelineService(db).read(ctx, agent.id, read.id)
     assert first.stage == "proposing"
+    assert first.baseline_answers is None
     request_id = first.iterations[0].authoring_request_id
     assert request_id is not None
     for _ in range(2):
@@ -109,6 +110,8 @@ async def _ready_proposal(db):
     await ImprovementPipelineService(db).advance(read.id, ctx.organization_id)
     evaluating = await ImprovementPipelineService(db).read(ctx, agent.id, read.id)
     [eval_id] = evaluating.iterations[0].eval_run_ids
+    assert evaluating.baseline_answers is not None
+    assert evaluating.baseline_answers.answered == 0 < evaluating.baseline_answers.total
     # A worker restart sees the existing child, even before it has been claimed.
     await ImprovementPipelineService(db).advance(read.id, ctx.organization_id)
     assert (await ImprovementPipelineService(db).read(ctx, agent.id, read.id)).iterations[
@@ -130,6 +133,9 @@ async def _ready_proposal(db):
     await ImprovementPipelineService(db).advance(read.id, ctx.organization_id)
     ready = await ImprovementPipelineService(db).read(ctx, agent.id, read.id)
     assert ready.status == "ready", ready
+    assert ready.baseline_answers == evaluating.baseline_answers.model_copy(
+        update={"answered": evaluating.baseline_answers.total}
+    )
     assert AgentSpec.model_validate(agent.draft_spec) == original
     assert agent.current_version_id == version
     batch = await authoring_repo.get_open_batch(
@@ -147,6 +153,40 @@ async def _ready_proposal(db):
     assert (await ImprovementPipelineService(db).read(ctx, agent.id, read.id)).status == "ready"
 
     return ctx, agent, ready
+
+
+async def test_the_before_answers_are_counted_where_a_reused_baseline_gave_them(db):
+    from app.db.models.eval_run import EvalRunArm, EvalRunCase
+    from app.repositories import eval_run_repo
+
+    ctx, _, ready = await _ready_proposal(db)
+    [eval_id] = ready.iterations[0].eval_run_ids
+    arms = {
+        arm.role: arm
+        for arm in await eval_run_repo.list_arms(db, [eval_id], organization_id=ctx.organization_id)
+    }
+    baseline, candidate = arms["baseline"], arms["candidate"]
+    answered = await eval_run_repo.baseline_answers(
+        db, eval_id, organization_id=ctx.organization_id
+    )
+    assert answered is not None and answered[0] == answered[1] > 0
+    await db.execute(delete(EvalRunCase).where(EvalRunCase.arm_id == baseline.id))
+    assert await eval_run_repo.baseline_answers(
+        db, eval_id, organization_id=ctx.organization_id
+    ) == (0, 0)
+    await db.execute(
+        update(EvalRunArm)
+        .where(EvalRunArm.id == baseline.id)
+        .values(reused_from_arm_id=candidate.id)
+        .execution_options(synchronize_session=False)
+    )
+    db.expire_all()
+    reused = await eval_run_repo.baseline_answers(db, eval_id, organization_id=ctx.organization_id)
+    assert reused is not None and reused[1] > 0
+    assert (
+        await eval_run_repo.baseline_answers(db, uuid4(), organization_id=ctx.organization_id)
+        is None
+    )
 
 
 async def test_ready_proposal_survives_repeated_transitions_without_changing_the_agent(db):

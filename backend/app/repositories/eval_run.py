@@ -465,6 +465,44 @@ async def list_arm_cases(
     return list(result.scalars().all())
 
 
+async def baseline_answers(
+    db: AsyncSession, eval_run_id: UUID, *, organization_id: UUID
+) -> tuple[int, int] | None:
+    """How many first answers a run's baseline side has finished, and of how many.
+
+    A reused baseline answered in the run it was reused from, so its own arm is
+    counted. None for a run without a baseline.
+    """
+    arm = (
+        (
+            await db.execute(
+                select(EvalRunArm)
+                .where(
+                    EvalRunArm.eval_run_id == eval_run_id,
+                    EvalRunArm.organization_id == organization_id,
+                    EvalRunArm.role == ArmRole.BASELINE.value,
+                )
+                .order_by(EvalRunArm.position)
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if arm is None:
+        return None
+    finished = (CaseAttemptStatus.DONE.value, CaseAttemptStatus.FAILED.value)
+    answered, total = (
+        await db.execute(
+            select(func.count().filter(EvalRunCase.status.in_(finished)), func.count()).where(
+                EvalRunCase.arm_id == (arm.reused_from_arm_id or arm.id),
+                EvalRunCase.organization_id == organization_id,
+                EvalRunCase.attempt == 0,
+            )
+        )
+    ).one()
+    return int(answered), int(total)
+
+
 async def case_of_score(
     db: AsyncSession, case_score_id: UUID, *, organization_id: UUID
 ) -> EvalRunCase | None:

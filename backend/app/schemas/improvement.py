@@ -89,6 +89,13 @@ class ImprovementEvent(BaseSchema):
     )
 
 
+class BaselineAnswers(BaseSchema):
+    """The agent's answers as it is today, asked in the first attempt's check."""
+
+    answered: int = Field(description="First answers finished, failed ones included")
+    total: int = Field(description="First answers asked")
+
+
 class ImprovementRead(BaseSchema):
     published_version_id: UUID | None = None
     published_version: int | None = None
@@ -123,6 +130,11 @@ class ImprovementRead(BaseSchema):
     deferred_topic_ids: list[UUID] = Field(
         default_factory=list,
         description="Knowledge documents set aside with Not now in this session",
+    )
+    baseline_answers: BaselineAnswers | None = Field(
+        default=None,
+        description="How far the first attempt's check has asked the agent as it is today; "
+        "none before that check starts",
     )
 
 
