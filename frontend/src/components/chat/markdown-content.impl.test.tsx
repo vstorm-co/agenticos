@@ -184,7 +184,7 @@ describe("rendering an answer", () => {
     markdown("Here are your routines: [Routines](/routines?highlight=routines-create)");
 
     const link = screen.getByRole("link", { name: "Routines" });
-    expect(link.querySelector(".lucide-repeat")).not.toBeNull();
+    expect(link.querySelector(".lucide-workflow")).not.toBeNull();
     expect(link).not.toHaveAttribute("target");
   });
 
