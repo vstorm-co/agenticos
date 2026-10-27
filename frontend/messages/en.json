@@ -11084,9 +11084,11 @@
       "working": "Working",
       "delta": "{heldOut, select, unknown {+{fixed} fixed · {broken} broken} other {+{fixed} fixed · {broken} broken of {heldOut} kept aside}}",
       "best": "Best attempt",
-      "chosen": "Chosen attempt"
+      "chosen": "Chosen attempt",
+      "cost": "writing + test: {cost}"
     },
     "attemptsTitle": "Attempts",
+    "sessionTotal": "The whole session, analysis included: {total}",
     "heldBack": "Changes held back for another attempt, not tested",
     "changeAttribution": "Effect of change {number}",
     "causedBreak": "Newly broken by this change: {question}",

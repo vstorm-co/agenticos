@@ -10967,9 +10967,11 @@
       "working": "Läuft",
       "delta": "{heldOut, select, unknown {+{fixed} behoben · {broken} verschlechtert} other {+{fixed} behoben · {broken} verschlechtert von {heldOut} zurückgelegten}}",
       "best": "Bester Versuch",
-      "chosen": "Gewählter Versuch"
+      "chosen": "Gewählter Versuch",
+      "cost": "Schreiben + Test: {cost}"
     },
     "attemptsTitle": "Versuche",
+    "sessionTotal": "Die ganze Sitzung, mit Analyse: {total}",
     "heldBack": "Für einen weiteren Versuch zurückgestellte Änderungen, nicht getestet",
     "changeAttribution": "Wirkung der Änderung {number}",
     "causedBreak": "Durch diese Änderung verschlechtert: {question}",

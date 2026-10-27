@@ -10867,9 +10867,11 @@
       "working": "W toku",
       "delta": "{heldOut, select, unknown {+{fixed} naprawione · {broken} zepsute} other {+{fixed} naprawione · {broken} zepsute z {heldOut} odłożonych}}",
       "best": "Najlepsza próba",
-      "chosen": "Wybrana próba"
+      "chosen": "Wybrana próba",
+      "cost": "pisanie + test: {cost}"
     },
     "attemptsTitle": "Próby",
+    "sessionTotal": "Cała sesja, z analizą: {total}",
     "heldBack": "Zmiany odłożone na kolejną próbę, nieprzetestowane",
     "changeAttribution": "Wpływ zmiany {number}",
     "causedBreak": "Ta zmiana zepsuła odpowiedź: {question}",

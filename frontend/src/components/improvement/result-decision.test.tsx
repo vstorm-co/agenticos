@@ -389,3 +389,8 @@ it("leaves the choice out when one attempt was measured", () => {
   show({ ...EXHAUSTED, iterations: [EXHAUSTED.iterations[0]!] });
   expect(screen.queryByRole("group", { name: "Which attempt to keep" })).not.toBeInTheDocument();
 });
+
+it("gives the whole session's cost above the attempts, so a row's cost is not read as it", () => {
+  show({ ...EXHAUSTED, spent_usd: "0.0912" });
+  expect(screen.getByText("The whole session, analysis included: $0.0912")).toBeInTheDocument();
+});

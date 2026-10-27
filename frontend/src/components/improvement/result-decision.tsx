@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
+import { usd } from "@/components/evals/format";
 import type { Improvement } from "@/types/improvement";
 import { AttemptChoice } from "./attempt-choice";
 import { ContinueSession, continuation } from "./continue-session";
@@ -37,6 +38,7 @@ export function ResultStep({
   onStarted: () => void;
 }) {
   const t = useTranslations("improvement");
+  const locale = useLocale();
   const { topics } = useSessionTopics(session);
   const chosen = session.iterations.find((round) => round.id === session.best_iteration_id);
   const host = chosen ?? session.iterations.at(-1);
@@ -54,7 +56,12 @@ export function ResultStep({
       <ResultSummary session={session} round={chosen} />
       {session.iterations.length > 0 && (
         <section className="space-y-2">
-          <h3 className="text-sm font-medium">{t("attemptsTitle")}</h3>
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+            <h3 className="text-sm font-medium">{t("attemptsTitle")}</h3>
+            <p className="text-muted-foreground text-xs">
+              {t("sessionTotal", { total: usd(session.spent_usd, locale) })}
+            </p>
+          </div>
           {session.iterations.map((round) => (
             <AttemptRow
               key={round.id}

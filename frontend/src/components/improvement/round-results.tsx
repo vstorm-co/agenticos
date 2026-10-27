@@ -455,7 +455,9 @@ export function AttemptSummary({
         ) : (
           personChose(session) && <StateBadge tone="neutral">{t("attempt.chosen")}</StateBadge>
         ))}
-      <span className="text-muted-foreground ml-auto">{usd(round.cost_usd, locale)}</span>
+      <span className="text-muted-foreground ml-auto">
+        {t("attempt.cost", { cost: usd(round.cost_usd, locale) })}
+      </span>
     </>
   );
 }

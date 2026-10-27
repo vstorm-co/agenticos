@@ -536,3 +536,8 @@ it("calls a one-question difference within noise, and a larger one too on a nois
     screen.getByText("This session's test is noisy, so a difference this small may be noise."),
   ).toBeInTheDocument();
 });
+
+it("names what an attempt's cost covers, apart from the session's analysis", () => {
+  render(<AttemptRow session={SESSION} round={{ ...ROUND, cost_usd: "0.0758" }} />);
+  expect(screen.getByText("writing + test: $0.0758")).toBeInTheDocument();
+});
