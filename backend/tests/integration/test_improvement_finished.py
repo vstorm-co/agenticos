@@ -143,6 +143,21 @@ async def test_the_changes_a_session_measured_read_as_they_were_decided(db):
     assert {change.status for change in changes} == {"accepted"}
 
 
+async def test_every_change_an_attempt_proposed_reads_without_a_chosen_round(db):
+    ctx, agent, ready = await _ready_proposal(db)
+    run = await db.get(ImprovementRun, ready.id)
+    assert run is not None
+    run.best_iteration_id = None
+    await db.flush()
+    service = ImprovementPipelineService(db)
+    proposed = ready.iterations[0]
+
+    changes = await service.changes(ctx, agent.id, ready.id, attempt=proposed.number)
+
+    assert changes and {change.id for change in changes} >= set(proposed.included_hunk_ids or [])
+    assert await service.changes(ctx, agent.id, ready.id, attempt=99) == []
+
+
 async def test_a_session_with_no_chosen_round_has_no_changes_to_show(db):
     ctx, agent, ready = await _ready_proposal(db)
     run = await db.get(ImprovementRun, ready.id)

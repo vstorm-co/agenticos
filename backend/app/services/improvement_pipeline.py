@@ -812,14 +812,22 @@ class ImprovementPipelineService:
             )
         return await self.read(ctx, run.agent_id, run_id)
 
-    async def changes(self, ctx: AuthContext, agent_id: UUID, run_id: UUID) -> list[HunkRead]:
-        """The changes the session's chosen round measured, wherever their batch is now."""
+    async def changes(
+        self, ctx: AuthContext, agent_id: UUID, run_id: UUID, *, attempt: int | None = None
+    ) -> list[HunkRead]:
+        """The changes the session's chosen round measured, wherever their batch is now; with
+        `attempt`, every change that attempt proposed, tested or not."""
         agent = await self.registry.get(ctx, agent_id)
         self.authoring._require_runs_view(ctx)
         run = await self._row(ctx, agent_id, run_id)
         rounds = await improvement_repo.list_iterations(
             self.db, organization_id=ctx.organization_id, run_id=run.id
         )
+        if attempt is not None:
+            proposed = next((item for item in rounds if item.number == attempt), None)
+            if proposed is None or proposed.batch_id is None:
+                return []
+            return await self.authoring.changes_of(ctx, agent, proposed.batch_id, None)
         if run.status == Status.WAITING and run.stage == Stage.FILTERING:
             # Waiting at Changes, the attempt's own changes are the ones to choose and edit.
             chosen = next((item for item in rounds if item.number == run.iteration), None)

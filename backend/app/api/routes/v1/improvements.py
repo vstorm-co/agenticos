@@ -1,9 +1,9 @@
 """Start, follow and stop an improvement without accepting or publishing it."""
 
-from typing import Any
+from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 
 from app.api.deps import Auth, ImprovementSvc, require
 from app.api.public_api import ASSISTANT
@@ -159,13 +159,18 @@ async def defer_improvement_topic(
 
 @router.get("/{run_id}/changes", response_model=list[HunkRead])
 async def read_improvement_changes(
-    agent_id: UUID, run_id: UUID, service: ImprovementSvc, ctx: Auth
+    agent_id: UUID,
+    run_id: UUID,
+    service: ImprovementSvc,
+    ctx: Auth,
+    attempt: Annotated[int | None, Query(ge=1)] = None,
 ) -> Any:
-    """The changes the session's chosen round measured, as they were decided.
+    """The changes the session's chosen round measured, as they were decided; with
+    `attempt`, every change that attempt proposed.
 
     Readable by whoever may read the agent and its runs, for the session's history.
     """
-    return await service.changes(ctx, agent_id, run_id)
+    return await service.changes(ctx, agent_id, run_id, attempt=attempt)
 
 
 @router.get("/{run_id}", response_model=ImprovementRead, dependencies=[ASSISTANT])
