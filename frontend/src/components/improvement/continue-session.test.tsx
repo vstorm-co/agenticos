@@ -191,6 +191,16 @@ it("keeps a discard failure visible inside the dialog", async () => {
   expect(await within(screen.getByRole("dialog")).findByRole("alert")).toBeInTheDocument();
 });
 
+it("keeps a failed estimate out of the discard dialog", async () => {
+  state.estimate.mockRejectedValue(new Error("The improvement session stopped"));
+  render(<ContinueSession session={SESSION} onStarted={vi.fn()} />);
+  await userEvent.click(screen.getByRole("button", { name: "Improve again" }));
+  await userEvent.click(screen.getByRole("button", { name: "Estimate continuing the session" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("The improvement session stopped");
+  await userEvent.click(screen.getByRole("button", { name: "Discard" }));
+  expect(within(screen.getByRole("dialog")).queryByRole("alert")).not.toBeInTheDocument();
+});
+
 it("makes improving again the primary action for a mixed result", () => {
   render(
     <ContinueSession
