@@ -19,6 +19,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- Upgrade the backend dependency snapshot, including Pydantic AI 2.61 and
+  harness 0.61, and adapt tool retries, streamed errors and cache reminders to
+  the new message parts (#2476). Existing retry histories and checkpoints still
+  load without a database migration or republishing agents. **Upgrade action:**
+  drain or stop the old API and workers before starting the upgraded processes;
+  do not mix versions. Once a history contains the new retry parts, a code-only
+  rollback to the previous SDK cannot read it. See the
+  [retry-history upgrade boundary](docs/deploy.md#retry-history-upgrade).
+
 ## [1.24.0] - 2026-10-27
 
 ### Added

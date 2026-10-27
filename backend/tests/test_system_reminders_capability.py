@@ -9,7 +9,7 @@ falls back rather than failing the run; and an empty config contributes nothing.
 
 from decimal import Decimal
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, Literal
 from unittest.mock import patch
 
 import pytest
@@ -19,7 +19,8 @@ from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
     ModelResponse,
-    RetryPromptPart,
+    RetryFeedbackPart,
+    RetryInfo,
     SystemPromptPart,
     TextContent,
     TextPart,
@@ -426,8 +427,18 @@ class TestHasUserContent:
     def test_a_tool_return_counts(self):
         assert _has_user_content([ToolReturnPart(tool_name="t", content="r", tool_call_id="c")])
 
-    def test_a_retry_prompt_counts(self):
-        assert _has_user_content([RetryPromptPart(content="try again")])
+    @pytest.mark.parametrize("cause", ["model_retry", "validation_error"])
+    def test_retry_feedback_in_the_user_voice_counts(
+        self, cause: Literal["model_retry", "validation_error"]
+    ) -> None:
+        assert _has_user_content(
+            [RetryFeedbackPart(content="try again", retry=RetryInfo(cause=cause))]
+        )
+
+    def test_no_output_feedback_does_not_count_as_user_content(self) -> None:
+        assert not _has_user_content(
+            [RetryFeedbackPart(content="No output", retry=RetryInfo(cause="no_output"))]
+        )
 
     def test_a_non_empty_string_prompt_counts(self):
         assert _has_user_content([UserPromptPart(content="hello")])

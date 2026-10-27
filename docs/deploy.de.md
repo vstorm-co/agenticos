@@ -1,5 +1,5 @@
 ---
-source_sha: "ef9c14a09a27"
+source_sha: "eaabf21a65fd"
 ---
 
 # Auf einem Server deployen { #deploy-to-a-server }
@@ -395,6 +395,21 @@ oder `0` bei Docker Desktop, wo der eingebundene Socket der VM gehört. Ein expl
     liest das Skript den Token, statt ein Flag entgegenzunehmen.
 
 ## Eine Änderung deployen { #deploying-a-change }
+
+### Die Grenze des Verlaufsformats in 1.25.0 { #retry-history-upgrade }
+
+Version 1.25.0 übernimmt die Tool-Ergebnisse `retried` und separate Nachrichten
+`retry-feedback` aus Pydantic AI 2.61. Vorhandene Verläufe und Run-Checkpoints
+werden ohne Datenbankmigration oder erneutes Veröffentlichen der Agenten gelesen.
+Verläufe mit diesen Teilen benötigen den neuen Leser: Ein älteres Backend kann diese
+Nachrichtenformen nicht wiedergeben.
+
+Aktualisieren Sie alle API- und Worker-Prozesse zusammen. Lassen Sie alte Prozesse
+auslaufen oder stoppen Sie sie, bevor neue Arbeit annehmen. Mischen Sie keine
+älteren und neueren Backend-Replikate an derselben Datenbank. Sobald eines der neuen Retry-Formate gespeichert wurde,
+wird ein reiner Code-Rollback über diese Grenze nicht unterstützt;
+der neue Leser muss bleiben oder ein Datenbank-Snapshot von vor dem Upgrade
+wiederhergestellt werden.
 
 ### Von Hand { #by-hand }
 

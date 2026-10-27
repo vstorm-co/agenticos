@@ -27,14 +27,13 @@ import anyio
 from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.messages import (
+    ERROR_OUTCOMES,
     FunctionToolCallEvent,
     FunctionToolResultEvent,
     PartDeltaEvent,
     PartStartEvent,
-    RetryPromptPart,
     TextPart,
     TextPartDelta,
-    ToolReturnPart,
 )
 
 from app.agents.browser_events import BrowserEvent
@@ -412,7 +411,7 @@ def channel_stream(reply: AnswerSink) -> RunStream:
                             call_id = event.tool_call_id
                             if call_id in followers:
                                 followers.pop(call_id).cancel()
-                            failed = isinstance(event.part, RetryPromptPart)
+                            failed = event.part.outcome in ERROR_OUTCOMES
                             await reply.step(
                                 AnswerStep(
                                     call_id,
@@ -420,7 +419,7 @@ def channel_stream(reply: AnswerSink) -> RunStream:
                                     "error" if failed else "complete",
                                     sources=(
                                         step_sources(event.part.content)
-                                        if isinstance(event.part, ToolReturnPart)
+                                        if event.part.outcome == "success"
                                         else ()
                                     ),
                                 )

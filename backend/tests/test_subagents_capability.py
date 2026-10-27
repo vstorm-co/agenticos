@@ -47,7 +47,6 @@ from pydantic_ai.messages import (
     ModelResponse,
     PartDeltaEvent,
     PartStartEvent,
-    RetryPromptPart,
     TextPart,
     TextPartDelta,
     ThinkingPart,
@@ -1752,7 +1751,7 @@ class TestTaskLifecycle:
         """The sixth surface in the cluster, and the one a scrubber cannot reach (#819).
 
         `_result_text` stores a `ToolReturnPart` whole - deliberately, because a
-        return is the tool's own answer - so #695's `tool_retry_notice` never sees
+        return is the tool's own answer - so #695's `tool_failure_notice` never sees
         it. What `check_task` and `wait_tasks` answer is exactly that part: the
         string asserted here is the one written to the transcript row and streamed
         as `tool_result`, in front of every member who can read the run.
@@ -2717,7 +2716,9 @@ class TestFrames:
     def test_a_tool_that_raised_is_marked_rather_than_dropped(self):
         frame = frame_for(
             FunctionToolResultEvent(
-                part=RetryPromptPart(content="nope", tool_name="search", tool_call_id="c-1")
+                part=ToolReturnPart(
+                    content="nope", tool_name="search", tool_call_id="c-1", outcome="retried"
+                )
             ),
             LABELS,
         )
@@ -2726,11 +2727,15 @@ class TestFrames:
         assert frame.ok is False
 
     def test_a_result_that_names_no_tool_still_reaches_the_panel(self):
-        """`RetryPromptPart.tool_name` is optional, and a dropped result leaves a
+        """An empty upstream tool name must not drop the result and leave a
         row open forever - which reads as a delegate still working on something
         that already failed."""
         frame = frame_for(
-            FunctionToolResultEvent(part=RetryPromptPart(content="nope", tool_call_id="c-1")),
+            FunctionToolResultEvent(
+                part=ToolReturnPart(
+                    content="nope", tool_call_id="c-1", tool_name="", outcome="retried"
+                )
+            ),
             LABELS,
         )
 
