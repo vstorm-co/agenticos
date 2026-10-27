@@ -559,7 +559,7 @@ export default function OrgMembersPage({ params }: PageProps) {
                 onClick={() => avatarInputRef.current?.click()}
                 disabled={!canManage || avatarUploading}
                 className={cn(
-                  "group relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl disabled:cursor-default",
+                  "group relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full disabled:cursor-default",
                   org.avatar_url
                     ? "bg-muted text-foreground"
                     : avatarPalette(org.id, org.avatar_color).bg,

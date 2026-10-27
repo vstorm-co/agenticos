@@ -40,7 +40,8 @@ export const SEEDED_MODEL_ID = "gpt-4.1";
  * ------------------------------------------------------------------ */
 
 /** A skill, so the gallery has a row and the editor has something to open. */
-export const SEEDED_SKILL_NAME = "e2e-refund-policy";
+// Version the name when its contract changes: persistent E2E databases reuse rows.
+export const SEEDED_SKILL_NAME = "e2e-refund-policy-long-description";
 export const SEEDED_SKILL_DESCRIPTION =
   "How refunds and their exceptions are handled. Check the purchase date, the payment method, " +
   "the delivery status and the customer’s previous requests before choosing a policy. " +
