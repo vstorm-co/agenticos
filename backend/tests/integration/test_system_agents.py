@@ -19,6 +19,7 @@ from app.core.exceptions import (
     AiAssistanceDisabledError,
     AlreadyExistsError,
     AuthorizationError,
+    BadRequestError,
     NotFoundError,
     SystemAgentUnavailableError,
 )
@@ -342,6 +343,65 @@ class TestSeeding:
         ]
 
 
+class TestTheGradingModel:
+    async def test_it_is_set_audited_and_cleared_by_whoever_holds_the_settings(self, db) -> None:
+        organization, owner = await _organization(db)
+        grading = await _profile(db, organization, label="Grading", created_at=datetime.now(UTC))
+        service = OrganizationService(db)
+
+        await service.update(
+            organization.id, OrganizationUpdate(grading_model_profile_id=grading.id), owner.id
+        )
+        assert organization.grading_model_profile_id == grading.id
+        await service.update(
+            organization.id, OrganizationUpdate(grading_model_profile_id=grading.id), owner.id
+        )
+        await service.update(organization.id, OrganizationUpdate(name="Renamed"), owner.id)
+        assert organization.grading_model_profile_id == grading.id
+        await service.update(
+            organization.id, OrganizationUpdate(grading_model_profile_id=None), owner.id
+        )
+
+        assert organization.grading_model_profile_id is None
+        audited = await db.scalars(
+            select(AppAdminAuditLog.details).where(
+                AppAdminAuditLog.action == "organization.grading_model"
+            )
+        )
+        assert [entry["model_profile_id"] for entry in audited] == [str(grading.id), None]
+
+    async def test_a_model_of_another_organization_or_one_that_cannot_chat_is_refused(
+        self, db
+    ) -> None:
+        organization, owner = await _organization(db)
+        other, _ = await _organization(db)
+        theirs = await _profile(db, other, label="Theirs", created_at=datetime.now(UTC))
+        speech = await _profile(db, organization, label="Speech", created_at=datetime.now(UTC))
+        speech.model = "tts-1"
+        await db.flush()
+        service = OrganizationService(db)
+
+        for profile, message in ((theirs, "not one of this organization's"), (speech, "")):
+            with pytest.raises(BadRequestError, match=message):
+                await service.update(
+                    organization.id,
+                    OrganizationUpdate(grading_model_profile_id=profile.id),
+                    owner.id,
+                )
+        assert organization.grading_model_profile_id is None
+
+    async def test_a_member_without_the_settings_cannot_set_it(self, db) -> None:
+        organization, _ = await _organization(db)
+        member = await _user(db)
+        await _member(db, organization, member, OrgRoleName.MEMBER)
+        grading = await _profile(db, organization, label="Grading", created_at=datetime.now(UTC))
+
+        with pytest.raises(AuthorizationError):
+            await OrganizationService(db).update(
+                organization.id, OrganizationUpdate(grading_model_profile_id=grading.id), member.id
+            )
+
+
 class TestADatasetsOwnJudge:
     async def test_it_is_a_judge_without_the_key_published_on_the_oldest_model(self, db) -> None:
         organization, owner = await _organization(db)
@@ -366,6 +426,27 @@ class TestADatasetsOwnJudge:
         assert version.spec["model_profile_id"] == str(oldest.id)
         assert version.spec["instructions"] == "Be strict."
         assert version.spec["budget"]["monthly_usd"] == JUDGE.monthly_usd
+
+    async def test_unpicked_it_runs_on_the_organization_s_grading_model(self, db) -> None:
+        organization, owner = await _organization(db)
+        now = datetime.now(UTC)
+        await _profile(db, organization, label="Oldest", created_at=now - timedelta(1))
+        grading = await _profile(db, organization, label="Grading", created_at=now)
+        organization.grading_model_profile_id = grading.id
+        await db.flush()
+        ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
+
+        judge = await SystemAgentService(db).create_judge(
+            ctx,
+            visibility=Visibility.ORG,
+            name="Refunds judge",
+            description="Grades refunds.",
+            instructions="Be strict.",
+        )
+
+        version = await db.get(AgentVersion, judge.current_version_id)
+        assert version is not None
+        assert version.spec["model_profile_id"] == str(grading.id)
 
     async def test_it_runs_on_the_model_picked_for_it(self, db) -> None:
         organization, owner = await _organization(db)

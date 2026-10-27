@@ -620,3 +620,55 @@ async def test_the_listing_finds_an_agents_test_set_by_the_agent(db) -> None:
     found = await DatasetService(db).list_readable(owner, agent_id=agent.id)
 
     assert [item.id for item in found.items] == [made.id]
+
+
+async def _grader_model(db, org: Organization, built) -> uuid.UUID:
+    judge = await agent_repo.get(db, built.judge.agent_id, organization_id=org.id)
+    assert judge is not None
+    version = await agent_repo.get_version(db, judge.current_version_id, organization_id=org.id)
+    assert version is not None
+    return uuid.UUID(version.spec["model_profile_id"])
+
+
+async def test_the_organization_s_grading_model_grades_a_new_test_set(db, monkeypatch) -> None:
+    org, owner, _, agent, (_, other) = await _world(db)
+    chosen = await _profile(db, org, "gpt-4o", "openai")
+    org.grading_model_profile_id = chosen.id
+    await db.flush()
+    _generator(monkeypatch)
+    await _rate(db, org, agent, owner, "Refunds?", rating=1, minutes=1)
+
+    built = await _service(db).bootstrap_for_agent(owner, agent.id)
+
+    assert built.judge.independent
+    assert await _grader_model(db, org, built) == chosen.id != other.id
+
+
+async def test_without_a_grading_model_a_dearer_model_grades_a_new_test_set(
+    db, monkeypatch
+) -> None:
+    org, owner, _, agent, (_, cheaper) = await _world(db)
+    dearer = await _profile(db, org, "claude-opus-4-1", "anthropic")
+    _generator(monkeypatch)
+    await _rate(db, org, agent, owner, "Refunds?", rating=1, minutes=1)
+
+    built = await _service(db).bootstrap_for_agent(owner, agent.id)
+
+    assert await _grader_model(db, org, built) == dearer.id != cheaper.id
+
+
+async def test_an_existing_judge_keeps_its_model_when_a_grading_model_is_chosen(
+    db, monkeypatch
+) -> None:
+    org, owner, _, agent, (_, other) = await _world(db)
+    _generator(monkeypatch)
+    await _rate(db, org, agent, owner, "Refunds?", rating=1, minutes=1)
+    first = await _service(db).bootstrap_for_agent(owner, agent.id)
+    chosen = await _profile(db, org, "gpt-4o", "openai")
+    org.grading_model_profile_id = chosen.id
+    await db.flush()
+
+    again = await _service(db).bootstrap_for_agent(owner, agent.id)
+
+    assert again.judge.agent_id == first.judge.agent_id
+    assert await _grader_model(db, org, again) == other.id

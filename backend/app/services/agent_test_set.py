@@ -55,6 +55,7 @@ from app.services.agent_registry import AgentRegistryService
 from app.services.ai_assistance import AiAssistanceService
 from app.services.case_generation import CaseGenerationService
 from app.services.dataset import DatasetService
+from app.services.grading_model import grading_profile
 from app.services.rag.vectorstore import BaseVectorStore
 from app.services.scoring import STARTING_CRITERION, ScoringService
 from app.services.system_agent_runner import SystemAgentRunner
@@ -375,15 +376,30 @@ class AgentTestSetService:
         if answers_on is None:
             await self._switch_on(ctx, dataset, None)
             return _not_independent("unknown_model")
-        other = next(
-            (
-                profile
-                for profile in await credential_repo.list_profiles(
-                    self.db, organization_id=ctx.organization_id
-                )
-                if not _same_model(profile, answers_on)
+        # A draft not yet valid as a spec still names the model it will run on.
+        drafted = (agent.draft_spec or {}).get("model_profile_id")
+        graded = [
+            answers_on,
+            None
+            if not drafted
+            else await credential_repo.get_profile(
+                self.db, UUID(str(drafted)), organization_id=ctx.organization_id
             ),
-            None,
+        ]
+        chosen = await grading_profile(self.db, organization_id=ctx.organization_id, graded=graded)
+        other = (
+            chosen
+            if chosen is not None and not _same_model(chosen, answers_on)
+            else next(
+                (
+                    profile
+                    for profile in await credential_repo.list_profiles(
+                        self.db, organization_id=ctx.organization_id
+                    )
+                    if not _same_model(profile, answers_on)
+                ),
+                None,
+            )
         )
         if other is None or not ctx.has(Perm.AGENTS_PUBLISH):
             # A judge the caller may not publish stays a draft, and a draft grades nothing.

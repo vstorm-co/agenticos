@@ -78,6 +78,9 @@ class EvalRunPurpose(StrEnum):
     GATE = "gate"
     """A decision rests on it. The baseline runs in the same eval run."""
 
+    STABILITY = "stability"
+    """How steady the answers and their grading are: every case asked again, nothing compared."""
+
 
 class ArmRole(StrEnum):
     CANDIDATE = "candidate"
@@ -235,7 +238,7 @@ class EvalRun(Base):
             "'budget_exceeded')",
             name="ck_eval_run_status",
         ),
-        CheckConstraint("purpose IN ('manual', 'gate')", name="ck_eval_run_purpose"),
+        CheckConstraint("purpose IN ('manual', 'gate', 'stability')", name="ck_eval_run_purpose"),
         CheckConstraint("reruns BETWEEN 0 AND 5", name="ck_eval_run_reruns"),
         Index("ix_eval_runs_agent_created", "organization_id", "agent_id", "created_at"),
         Index("ix_eval_runs_dataset_created", "dataset_id", "created_at"),

@@ -56,6 +56,7 @@ from app.db.models.eval_run import (
     EvalRun,
     EvalRunArm,
     EvalRunCase,
+    EvalRunPurpose,
     EvalRunStatus,
 )
 from app.db.models.intercepted_tool_call import InterceptedToolCall, InterceptionOutcome
@@ -895,6 +896,8 @@ class EvalRunWorker:
     async def _queue_reruns(self, ctx: AuthContext) -> bool:
         """Queue the confirmation reruns of every flipped case. True if any were queued.
 
+        A stability run compares nothing: every first answer is asked again.
+
         A case is rerun on each candidate arm it flipped on, and on this run's
         own baseline arm - one that ran here, or one standing in for an earlier
         run's answers, which is asked the flipped cases again here. A case whose
@@ -917,39 +920,47 @@ class EvalRunWorker:
             # Each rerun with the first attempt it repeats: a reused baseline has
             # none of its own here, so it repeats the candidate's case revision.
             queued: dict[tuple[UUID, UUID], EvalRunCase] = {}
-            for arm in arms:
-                if arm.role != "candidate":
-                    continue
-                baseline = await service.baseline_for(ctx, run, arm)
-                if baseline is None:
-                    continue
-                mine = await service.outcomes(ctx, arm, attempts)
-                theirs = await service.outcomes(
-                    ctx,
-                    baseline.here or baseline.arm,
-                    attempts
-                    if baseline.here is not None or baseline.run.id == run.id
-                    else await eval_run_repo.list_cases(db, baseline.run.id, organization_id=org),
-                )
-                rerun_on = (
-                    None
-                    if drifts(run, arm, baseline)
-                    else baseline.here
-                    if baseline.here is not None
-                    else baseline.arm
-                    if baseline.paired
-                    else None
-                )
-                same, _ = await service.pairing(ctx, run, arm, baseline, attempts)
-                for case_id, (outcome, _, _) in mine.items():
-                    first = firsts.get((arm.id, case_id))
-                    if case_id not in same or first is None:
+            if run.purpose == EvalRunPurpose.STABILITY.value:
+                queued = {(a.arm_id, a.case_id): a for a in firsts.values()}
+            else:
+                for arm in arms:
+                    if arm.role != "candidate":
                         continue
-                    if classify(theirs[case_id][0], outcome) not in (Flip.REGRESSION, Flip.FIXED):
+                    baseline = await service.baseline_for(ctx, run, arm)
+                    if baseline is None:
                         continue
-                    queued[(arm.id, case_id)] = first
-                    if rerun_on is not None:
-                        queued[(rerun_on.id, case_id)] = first
+                    mine = await service.outcomes(ctx, arm, attempts)
+                    theirs = await service.outcomes(
+                        ctx,
+                        baseline.here or baseline.arm,
+                        attempts
+                        if baseline.here is not None or baseline.run.id == run.id
+                        else await eval_run_repo.list_cases(
+                            db, baseline.run.id, organization_id=org
+                        ),
+                    )
+                    rerun_on = (
+                        None
+                        if drifts(run, arm, baseline)
+                        else baseline.here
+                        if baseline.here is not None
+                        else baseline.arm
+                        if baseline.paired
+                        else None
+                    )
+                    same, _ = await service.pairing(ctx, run, arm, baseline, attempts)
+                    for case_id, (outcome, _, _) in mine.items():
+                        first = firsts.get((arm.id, case_id))
+                        if case_id not in same or first is None:
+                            continue
+                        if classify(theirs[case_id][0], outcome) not in (
+                            Flip.REGRESSION,
+                            Flip.FIXED,
+                        ):
+                            continue
+                        queued[(arm.id, case_id)] = first
+                        if rerun_on is not None:
+                            queued[(rerun_on.id, case_id)] = first
             new = [
                 EvalRunCase(
                     eval_run_id=run.id,

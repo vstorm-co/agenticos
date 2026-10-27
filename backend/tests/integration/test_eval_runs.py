@@ -3525,3 +3525,78 @@ async def test_an_attempt_deleted_before_its_answer_is_linked_records_nothing(db
     assert len(model.calls) == 1
     assert await db.scalar(select(func.count()).select_from(EvalRunCase)) == 0
     assert any(record.message == "eval_case_closed_meanwhile" for record in caplog.records)
+
+
+async def _stability(db: AsyncSession, *, cases: int, flaky: set[str]):
+    """A stability run of the draft over `cases` questions; `flaky` pass first, then fail."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=cases)
+    service = EvalRunService(db)
+    started = await service.start(
+        ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, candidate="draft", stability=True)
+    )
+
+    def answer(prompt: str, call: int) -> str:
+        asked_before = any(c["prompt"] == prompt for c in model.calls[:call])
+        return _FAIL if prompt in flaky and asked_before else _PASS
+
+    model = Model(db, answer=answer)
+    await _run_to_end(db, model, started.id, ctx)
+    read = await service.get(ctx, started.id)
+    return read, model
+
+
+async def test_a_stability_run_asks_the_draft_every_question_twice_and_compares_nothing(db) -> None:
+    read, model = await _stability(db, cases=5, flaky=set())
+
+    assert (read.purpose, read.reruns, read.paired) == ("stability", 1, False)
+    assert [arm.role for arm in read.arms] == ["candidate"]
+    assert len(model.calls) == 10
+    assert read.stability is not None
+    assert read.stability.model_dump() == {"asked": 5, "unstable": 0, "noisy": False}
+
+
+@pytest.mark.parametrize(
+    ("cases", "flaky", "noisy"),
+    [
+        (10, {"Question 0"}, False),
+        (10, {"Question 0", "Question 1"}, True),
+        (4, {"Question 0"}, True),
+        (6, {"Question 0"}, False),
+    ],
+    ids=["one-in-ten", "two-questions", "a-fifth", "under-a-fifth"],
+)
+async def test_a_stability_run_is_noise_from_two_questions_or_a_fifth(db, cases, flaky, noisy):
+    read, _ = await _stability(db, cases=cases, flaky=flaky)
+
+    assert read.stability is not None
+    assert (read.stability.asked, read.stability.unstable) == (cases, len(flaky))
+    assert read.stability.noisy is noisy
+
+
+async def test_a_stability_run_takes_no_baseline_and_at_least_one_rerun(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    service = EvalRunService(db)
+
+    for request, field in (
+        (EvalRunRequest(dataset_id=dataset.id, stability=True, paired_baseline=True), "stability"),
+        (EvalRunRequest(dataset_id=dataset.id, stability=True, reruns=0), "reruns"),
+    ):
+        with pytest.raises(BadRequestError) as refused:
+            await service.estimate(ctx, agent.id, request)
+        assert refused.value.details["fields"][0]["field"] == field
+
+
+async def test_a_run_that_is_not_a_stability_run_says_nothing_of_stability(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    service = EvalRunService(db)
+    started = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+
+    read = await service.get(ctx, started.id)
+
+    assert read.stability is None

@@ -107,6 +107,8 @@ class EvalRunRequest(BaseSchema):
         live_reads: With recordings, let a call the recording cannot answer
             run when the isolation allows it to read.
         reruns: How many times a flipped case is rerun to confirm the flip.
+        stability: Compare nothing and ask every case `reruns` more times - one by
+            default - to see how steady the answers and their grading are.
     """
 
     dataset_id: UUID
@@ -121,6 +123,7 @@ class EvalRunRequest(BaseSchema):
     from_recordings: bool = False
     live_reads: bool = False
     reruns: int | None = Field(default=None, ge=0, le=MAX_RERUNS)
+    stability: bool = False
     case_ids: list[UUID] | None = Field(
         default=None,
         min_length=1,
@@ -342,6 +345,19 @@ class EvalRunSuiteRead(BaseSchema):
     trigger: EvalSuiteTrigger
 
 
+class EvalStability(BaseSchema):
+    """How steady a stability run found the answers and their grading."""
+
+    asked: int = Field(description="Cases with a graded first answer and a graded re-ask")
+    unstable: int = Field(description="Of those, the ones graded passing one time, failing another")
+    noisy: bool = Field(
+        description=(
+            "Whether so many are unstable that comparing two versions on these cases "
+            "would most likely show nothing"
+        )
+    )
+
+
 class EvalRunRead(BaseSchema):
     """One eval run, with each arm's results so far."""
 
@@ -389,6 +405,9 @@ class EvalRunRead(BaseSchema):
     judge_model_profile_id: UUID | None = Field(
         default=None,
         description="The model the judge graded this run's answers on; null when none did",
+    )
+    stability: EvalStability | None = Field(
+        default=None, description="A stability run's count of unstable cases; null for any other"
     )
     routing_error: RoutingErrorRead | None = Field(
         default=None,

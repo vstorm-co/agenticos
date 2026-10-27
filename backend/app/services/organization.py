@@ -108,6 +108,7 @@ def _org_read(
         welcome_dm_text=org.welcome_dm_text,
         chat_may_waive_approvals=org.chat_may_waive_approvals,
         ai_assistance_enabled=org.ai_assistance_enabled,
+        grading_model_profile_id=org.grading_model_profile_id,
         speech_to_text_provider=org.speech_to_text_provider,
         speech_to_text_model=org.speech_to_text_model,
         speech_to_text_secret_id=org.speech_to_text_secret_id,
@@ -543,6 +544,9 @@ class OrganizationService:
                 details={"enabled": data.ai_assistance_enabled},
             )
 
+        if "grading_model_profile_id" in data.model_fields_set:
+            org = await self._apply_grading_model(org, data.grading_model_profile_id, requester_id)
+
         if data.model_fields_set & _SPEECH_FIELDS:
             org = await self._apply_speech_settings(org, data)
 
@@ -552,6 +556,36 @@ class OrganizationService:
             name=data.name,
             avatar_url=data.avatar_url,
         )
+
+    async def _apply_grading_model(
+        self, org: Organization, profile_id: UUID | None, requester_id: UUID | None
+    ) -> Organization:
+        """Set the model new judges grade on, one of the organization's chat models."""
+        if profile_id == org.grading_model_profile_id:
+            return org
+        if profile_id is not None:
+            profile = await credential_repo.get_profile(self.db, profile_id, organization_id=org.id)
+            if profile is None:
+                raise refused_field(
+                    "grading_model_profile_id", "That model is not one of this organization's"
+                )
+            outputs = model_outputs(profile.provider, profile.model, base_url=profile.base_url)
+            if not outputs.chat:
+                raise refused_field(
+                    "grading_model_profile_id",
+                    not_chat_refusal(profile.label, profile.model, outputs),
+                )
+        org = await organization_repo.set_grading_model(self.db, org, profile_id=profile_id)
+        await record_audit(
+            self.db,
+            actor_user_id=requester_id,
+            action="organization.grading_model",
+            organization_id=org.id,
+            target_type="organization",
+            target_id=str(org.id),
+            details={"model_profile_id": None if profile_id is None else str(profile_id)},
+        )
+        return org
 
     async def _apply_proactivity(self, org: Organization, data: OrganizationUpdate) -> Organization:
         """Merge the named proactivity fields over the stored ones, check, and write.

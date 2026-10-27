@@ -102,6 +102,7 @@ from app.schemas.eval_run import (
     EvalRunRead,
     EvalRunRequest,
     EvalRunSuiteRead,
+    EvalStability,
     EvalUngradedCaseRead,
     ImprovementMeasurement,
     ProposalCheckRecord,
@@ -132,6 +133,7 @@ from app.services.eval_comparison import (
     summarize,
 )
 from app.services.eval_suite_threshold import judge
+from app.services.improvement_states import NOISY_SPREAD_QUESTIONS, NOISY_UNSTABLE_SHARE
 from app.services.model_profile import ModelProfileService
 from app.services.notifications import NotificationService
 from app.services.scorers import JUDGE_PROMPT_VERSION
@@ -536,6 +538,14 @@ class EvalRunService:
             )
             for profile_id in (request.model_profile_ids or [spec.model_profile_id])
         ]
+        if request.stability:
+            if request.paired_baseline or request.baseline_run_id is not None:
+                raise refused_field(
+                    "stability", "A stability run compares nothing, so it takes no baseline"
+                )
+            if request.reruns == 0:
+                raise refused_field("reruns", "A stability run asks every case at least twice")
+            purpose = EvalRunPurpose.STABILITY
         paired = request.paired_baseline or purpose is EvalRunPurpose.GATE
         if request.baseline_run_id is not None:
             await self._earlier_baseline(ctx, request.baseline_run_id, agent, dataset, paired)
@@ -605,7 +615,7 @@ class EvalRunService:
             )
             arms.append(baseline if cached is None else replace(baseline, cached=cached))
         missing: int | None = None
-        if not paired:
+        if not paired and purpose is not EvalRunPurpose.STABILITY:
             execution = RunExecution(
                 environment_id=request.environment_id,
                 from_recordings=request.from_recordings,
@@ -630,7 +640,11 @@ class EvalRunService:
             )
             if earlier is not None:
                 arms.append(earlier)
-        reruns = settings.EVAL_RERUNS if request.reruns is None else request.reruns
+        reruns = (
+            (1 if purpose is EvalRunPurpose.STABILITY else settings.EVAL_RERUNS)
+            if request.reruns is None
+            else request.reruns
+        )
         if reruns == 0 and any(arm.role is ArmRole.BASELINE for arm in arms):
             needs = (
                 "A run measured against a baseline needs at least one rerun: a change is "
@@ -2014,6 +2028,11 @@ class EvalRunService:
                         if run.routing_error
                         else None
                     ),
+                    stability=(
+                        await self._stability(ctx, arms_by_run[run.id], attempts)
+                        if run.purpose == EvalRunPurpose.STABILITY.value
+                        else None
+                    ),
                     judge_model_profile_id=next(
                         (
                             UUID(str(score.judge["model_profile_id"]))
@@ -2302,6 +2321,32 @@ class EvalRunService:
         source = await eval_run_repo.get(self.db, original.eval_run_id, organization_id=org)
         assert source is not None
         return Baseline(arm=original, run=source, paired=False, here=arm)
+
+    async def _stability(
+        self, ctx: AuthContext, arms: Sequence[EvalRunArm], attempts: Sequence[EvalRunCase]
+    ) -> EvalStability:
+        """How many cases a stability run graded both ways, between first answers and re-asks.
+
+        Only a case with a graded first answer and a graded re-ask counts as asked.
+        The share that makes it noise is the one an improvement session reads its
+        own checks by: as many unstable cases as an attempt usually moves, or a
+        fifth of them.
+        """
+        asked = unstable = 0
+        # A stability run has no baseline arm: every arm answers as the candidate.
+        for arm in arms:
+            for first, reruns, _ in (await self.outcomes(ctx, arm, attempts)).values():
+                grades = {grade for grade in (first, *reruns) if grade is not None}
+                if first is None or not any(grade is not None for grade in reruns):
+                    continue
+                asked += 1
+                unstable += len(grades) > 1
+        return EvalStability(
+            asked=asked,
+            unstable=unstable,
+            noisy=asked > 0
+            and (unstable >= NOISY_SPREAD_QUESTIONS or unstable / asked >= NOISY_UNSTABLE_SHARE),
+        )
 
     async def outcomes(
         self, ctx: AuthContext, arm: EvalRunArm, attempts: Sequence[EvalRunCase]

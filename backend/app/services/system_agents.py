@@ -34,12 +34,13 @@ from app.core.exceptions import (
     SystemAgentUnavailableError,
 )
 from app.core.permissions import AuthContext, OrgRoleName, Perm
-from app.db.models.agent import Agent
+from app.db.models.agent import Agent, AgentKind
 from app.db.models.resource_grant import Visibility
 from app.repositories import agent_repo, credential_repo, member_repo
 from app.schemas.agent import SystemAgentCreate
 from app.services.access import AGENT, resolve_access
 from app.services.agent_registry import AgentRegistryService
+from app.services.grading_model import grading_profile
 
 logger = logging.getLogger(__name__)
 
@@ -249,7 +250,12 @@ class SystemAgentService:
             NotFoundError: `model_profile_id` is not one of the organization's models.
         """
         if model_profile_id is None:
-            oldest = await credential_repo.oldest_profile(
+            grading = (
+                await grading_profile(self.db, organization_id=ctx.organization_id, graded=[])
+                if definition.kind == AgentKind.JUDGE
+                else None
+            )
+            oldest = grading or await credential_repo.oldest_profile(
                 self.db, organization_id=ctx.organization_id
             )
             model_profile_id = None if oldest is None else oldest.id

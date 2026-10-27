@@ -167,6 +167,14 @@ class OrganizationUpdate(BaseSchema):
             "it needs 'org:settings'."
         ),
     )
+    grading_model_profile_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The model new judges grade on, one of this organization's chat models. Send "
+            "null to clear it: a new judge then takes a model that costs more than the "
+            "agent it grades. Existing judges keep their model. Needs 'org:settings'."
+        ),
+    )
     speech_to_text_provider: str | None = Field(
         default=None,
         max_length=32,
@@ -239,6 +247,10 @@ class OrganizationRead(BaseSchema, TimestampSchema):
             "turns it on; off, the services that would start such a run refuse it, "
             "and deterministic checks and a person's verdicts stay available."
         ),
+    )
+    grading_model_profile_id: UUID | None = Field(
+        default=None,
+        description="The model new judges grade on; null picks one per agent by price",
     )
     speech_to_text_provider: str | None = None
     speech_to_text_model: str | None = None

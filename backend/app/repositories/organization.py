@@ -331,6 +331,16 @@ async def set_chat_approval_waiver(
     return org
 
 
+async def set_grading_model(
+    db: AsyncSession, org: Organization, *, profile_id: UUID | None
+) -> Organization:
+    """Name the model new judges grade on, or clear it."""
+    org.grading_model_profile_id = profile_id
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
 async def set_ai_assistance(db: AsyncSession, org: Organization, *, enabled: bool) -> Organization:
     """Switch the model-backed eval and authoring features on or off.
 
