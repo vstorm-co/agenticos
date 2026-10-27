@@ -91,7 +91,7 @@ flowchart LR
 
     | | |
     |---|---|
-    | `AGENTICOS_VERSION` | Which release to run. `latest` when unset; a version such as `0.0.380` to pin one, `edge` for whatever `main` last published |
+    | `AGENTICOS_VERSION` | Which release to run. `latest` when unset; a version such as `0.0.380` to pin one, `edge` for whatever `main` last published. Pin with that release's `docker-compose.yml` beside it (`https://raw.githubusercontent.com/vstorm-co/agenticos/v<version>/docker-compose.yml`): the file pins the `sandboxd` that release's backend speaks |
     | `PUBLIC_API_URL`, `PUBLIC_WS_URL`, `PUBLIC_SITE_URL` | What the *browser* is told to call, when the host is reached by a name other than `localhost`. The backend's `FRONTEND_URL` and `CORS_ORIGINS` are the same fact from its side |
     | `OAUTH_PROVIDERS`, `CHAT_MAX_UPLOAD_SIZE_MB` | The sign-in buttons the console offers, and what the composer refuses before uploading |
     | `SECRET_KEY`, `VAULT_MASTER_KEY` | Optional on a laptop, where the defaults are a constant from the repository and a vault sealed under it. `scripts/quickstart.sh` generates both; by hand, `openssl rand -hex 32` each - and back the vault key up with the database, because a dump restored beside a different key is unreadable |

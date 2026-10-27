@@ -17,7 +17,7 @@ from httpx import ASGITransport, AsyncClient
 
 from app.api import deps
 from app.core.config import settings
-from app.core.exceptions import AuthorizationError
+from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
 from app.schemas.sync_source import SyncSourceRead, SyncSourceUpdate
@@ -65,6 +65,20 @@ class _Fakes:
         )
         self.role = OrgRoleName.OWNER
 
+    async def kb_sync_source(self, kb: MagicMock, source_id: str) -> MagicMock:
+        """`CollectionAccessService.kb_sync_source` for an organization's base.
+
+        The rule itself is `tests/test_collection_access.py`'s; this stands in at the
+        service boundary so the route's own refusals stay what is asserted here.
+        """
+        source = await self.sources.get_source(source_id)
+        if (source.collection_name, source.organization_id) != (
+            kb.collection_name,
+            kb.organization_id,
+        ):
+            raise NotFoundError(message="Sync source not found in this knowledge base")
+        return source
+
 
 @pytest.fixture
 def fakes() -> _Fakes:
@@ -84,6 +98,7 @@ def client(mock_db_session: Any, mock_redis: MagicMock, fakes: _Fakes) -> Iterat
     )
     app.dependency_overrides[deps.get_knowledge_base_service] = lambda: fakes.kb_service
     app.dependency_overrides[deps.get_sync_source_service] = lambda: fakes.sources
+    app.dependency_overrides[deps.get_collection_access_service] = lambda: fakes
 
     @asynccontextmanager
     async def open_client() -> AsyncIterator[AsyncClient]:

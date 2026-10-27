@@ -24,6 +24,7 @@ from app.schemas.model_profile import (
     ModelProfileCreate,
     ModelProfileList,
     ModelProfileRead,
+    ModelProfileUpdate,
     ProviderCatalog,
     ProviderInfo,
     ProviderModelList,
@@ -120,6 +121,26 @@ async def create_model_profile(
     )
 
 
+@router.patch(
+    "/model-profiles/{profile_id}",
+    response_model=ModelProfileRead,
+    dependencies=[Depends(require(Perm.CONNECTIONS_MANAGE))],
+)
+async def update_model_profile(
+    profile_id: UUID, data: ModelProfileUpdate, service: ModelProfileSvc, ctx: Auth
+) -> Any:
+    """Change a model's key, endpoint, API, settings or name in place.
+
+    The profile keeps its id, so every agent on it uses the change from its next
+    run - rotating a key is one call rather than a new model and a republish of
+    each agent. Gated like creating one: `connections:manage`, and a new key - or
+    a new endpoint for the stored key, which is where the key is sent - must be
+    one the caller can see in the vault. Answers with the profile; the key itself
+    is never in a response.
+    """
+    return await service.update_profile(ctx, profile_id, data)
+
+
 @router.delete(
     "/model-profiles/{profile_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -127,6 +148,14 @@ async def create_model_profile(
     dependencies=[Depends(require(Perm.CONNECTIONS_MANAGE))],
 )
 async def delete_model_profile(profile_id: UUID, service: ModelProfileSvc, ctx: Auth) -> None:
+    """Delete a model no agent uses.
+
+    Refused with `409 IN_USE` while an agent's draft, served version or an
+    environment's pinned version names the profile anywhere - its model, a
+    reviewer, a specialist, a capability - archived agents included.
+    `details.agents` lists the ones the caller can see by id, name and whether
+    they are archived, and `details.hidden_agents` counts the rest.
+    """
     await service.delete_profile(ctx, profile_id)
 
 

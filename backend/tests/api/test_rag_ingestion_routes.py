@@ -21,7 +21,7 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.resource_grant import Visibility
 from app.main import app
-from app.repositories.rag_document import IngestionCounts
+from app.repositories.rag_document import CollectionScope, IngestionCounts
 from app.services.rag.models import CollectionInfo
 from app.services.rag_document import RAGDocumentService
 
@@ -114,26 +114,23 @@ async def test_the_info_says_a_collection_with_documents_processing_is_indexing(
 @pytest.mark.usefixtures("documents", "vector_store")
 class TestTheCountIsScopedToTheAuthorizedBase:
     @pytest.mark.parametrize("organization_id", [_ORGANIZATION, None])
-    async def test_the_count_uses_the_resolved_knowledge_bases_organization(
+    async def test_the_count_uses_the_resolved_knowledge_base(
         self, client: AsyncClient, access: MagicMock, organization_id: uuid.UUID | None
     ) -> None:
-        """The base's organization, not anything the caller supplies.
+        """The base the caller was authorized through, not anything the caller supplies.
 
-        A collection name is not unique across tenants, so another tenant's
-        upload into a same-named collection must not hold this one at
-        `indexing`. A deployment-wide base has no organization and counts on
-        the name alone, as the document listing does.
+        A collection name is not unique, so another base's upload into a
+        same-named collection must not hold this one at `indexing`; the count
+        is this base's rows, as the document listing is.
         """
-        access.readable = AsyncMock(return_value=_kb(organization_id))
+        kb = _kb(organization_id)
+        access.readable = AsyncMock(return_value=kb)
         counts = _counts(processing=0, indexed=1, failed=0)
         with patch("app.repositories.rag_document_repo.ingestion_counts", counts):
             resp = await client.get(_INFO)
 
         assert resp.status_code == 200
-        assert counts.await_args.kwargs == {
-            "collection_name": "handbook",
-            "organization_id": organization_id,
-        }
+        assert counts.await_args.kwargs == {"scope": CollectionScope.of(kb)}
 
     async def test_an_unreachable_collection_is_refused_before_anything_is_counted(
         self, client: AsyncClient, access: MagicMock

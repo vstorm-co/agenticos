@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Check, KeyRound, Plus } from "lucide-react";
+import { Check, KeyRound, Plus, Save } from "lucide-react";
 
 import { NO_FAILURE, submitFailure } from "@/lib/api-error";
-import { runsAgents } from "@/lib/model-profiles";
+import { hasKey, runsAgents } from "@/lib/model-profiles";
 import { ModelCombobox } from "@/components/agents/model-combobox";
 import { InlineChatGPTSignIn } from "@/components/vault/chatgpt-sign-in";
 import { InlineSecret } from "@/components/vault/inline-secret";
@@ -34,7 +34,10 @@ import { useTranslations } from "next-intl";
 interface AddModelProps {
   /** Called with the new model once it exists, so the picker can select it. */
   onCreated: (profile: ModelProfile) => void;
-  /** Balance each started creation, including one whose form unmounts while awaiting it. */
+  /**
+   * Balance each started creation - or edit of `selected` - including one whose
+   * form unmounts while awaiting it.
+   */
   onCreationPendingChange?: (pending: boolean) => void;
   /**
    * The model the agent runs on today, which this form *starts on*.
@@ -147,6 +150,9 @@ export function placeholderWords(
   return typeof placeholder === "string" ? placeholder : t(placeholder.key);
 }
 
+/** The key select's value for "no key": Radix refuses an empty string as an item's value. */
+const NO_KEY = "none";
+
 /** The same rule the backend applies, so the button says no before the server does. */
 export function modelIdIsWellFormed(providerId: string, model: string): boolean {
   return providerId !== "openrouter" || model.includes("/");
@@ -197,7 +203,7 @@ export function AddModel({
   // `placeholderWords`. The chat's picker resolves the same keys from its own
   // namespace, so they cannot be relative to either caller's.
   const tRoot = useTranslations();
-  const { createProfile, catalog } = useModelProviders();
+  const { createProfile, updateProfile, catalog } = useModelProviders();
   const { purposes } = useSecretPurposes();
   const { secrets } = useSecrets();
   const { can } = usePermissions();
@@ -268,7 +274,16 @@ export function AddModel({
   // The keys already stored for this provider. A secret's purpose *is* the
   // provider id, which is what makes this a lookup rather than a convention.
   const keys = secrets.filter((secret) => secret.purpose === providerId);
-  const chosenKey = secretId || keys[0]?.id || "";
+  // A self-hosted model in use that runs with no key on purpose. The form offers
+  // "no key" for it and starts there, instead of on the provider's first key: that
+  // key is a suggestion for a new model, and saved onto this one it would be sent
+  // to the endpoint for every agent on it (#2478).
+  const offersNoKey =
+    selected !== undefined &&
+    selected.secret_id === null &&
+    hasKey(selected) &&
+    providerId === selected.provider;
+  const chosenKey = secretId || (offersNoKey ? "" : (keys[0]?.id ?? ""));
   // What the provider publishes, where it publishes anything. Cached hard: a
   // catalog changes when a provider ships a model, not while a form is open.
   const {
@@ -301,10 +316,32 @@ export function AddModel({
     api === (selected.api ?? null) &&
     // The key is part of "changed" too: an organization with two keys for one
     // provider can re-point a model at the other, and a submit that ignored this
-    // would select the old profile and silently drop the key just picked.
-    (secretId === "" || secretId === (selected.secret_id ?? ""));
+    // would select the old profile and silently drop the key just picked. A model
+    // whose key was deleted is changed by the key this form offers it, too -
+    // "In use" above a model nothing can run on would be the wrong answer.
+    (secretId === ""
+      ? hasKey(selected) || chosenKey === ""
+      : secretId === (selected.secret_id ?? ""));
+
+  // The model in use with only its key, endpoint or API changed: that is an
+  // edit of the model, not a second one (#2478). Every agent names a model by
+  // its id, so saving it in place moves all of them at once - and adding a
+  // second profile under the same derived name was refused as a duplicate. A
+  // name typed in, or another provider or model, is a new model as before.
+  const editing =
+    selected !== undefined &&
+    !unchanged &&
+    provider?.id === selected.provider &&
+    model.trim() === selected.model &&
+    label.trim() === "";
 
   const customEndpoint = acceptsEndpoint && baseUrl.trim() !== "";
+  // Whether this model cannot run without an endpoint: a keyless provider with
+  // no key to use. Only then is the field a question with an Ollama address for
+  // an example. `keyless` alone is true of OpenAI too, because OpenAI-compatible
+  // servers exist - so an OpenAI model with a key showed `localhost:11434` in its
+  // empty Endpoint field, which read as an address filled in for it (#2478).
+  const endpointRequired = (capabilities?.keyless ?? false) && chosenKey === "";
   const canSubmit =
     provider !== undefined &&
     model.trim() !== "" &&
@@ -317,6 +354,29 @@ export function AddModel({
   const chooseKey = (id: string) => {
     setSecretId(id);
     setFailure(NO_FAILURE);
+  };
+
+  const update = async () => {
+    /* v8 ignore next -- `editing` is only true with a selection and a provider */
+    if (selected === undefined || provider === undefined) return;
+    setFailure(NO_FAILURE);
+    onCreationPendingChange?.(true);
+    try {
+      await updateProfile.mutateAsync({
+        id: selected.id,
+        // All three, every time: the server compares them with what is stored
+        // and writes only what differs, so what the form shows is what is saved.
+        changes: {
+          secret_id: chosenKey || null,
+          base_url: customEndpoint ? baseUrl.trim() : null,
+          api,
+        },
+      });
+    } catch (error) {
+      setFailure(submitFailure(error, markable(acceptsEndpoint), tErrors));
+    } finally {
+      onCreationPendingChange?.(false);
+    }
   };
 
   const submit = async () => {
@@ -344,7 +404,7 @@ export function AddModel({
         secret_id: chosenKey || null,
         // Only when the provider has one. Sending it otherwise is refused rather
         // than dropped, which is the right refusal but a pointless round trip.
-        base_url: acceptsEndpoint && baseUrl.trim() !== "" ? baseUrl.trim() : null,
+        base_url: customEndpoint ? baseUrl.trim() : null,
         // Sent even when it is the default, so what the select shows is what is
         // stored - and a refusal, were there one, would be about this field.
         api,
@@ -446,7 +506,7 @@ export function AddModel({
           {/* One key needs no question. The vault has exactly one OpenRouter
               key in most organizations, and a select with a single option is a
               decision somebody has to make about nothing. */}
-          {keys.length === 1 && (
+          {keys.length === 1 && !offersNoKey && (
             <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
               <KeyRound className="h-3.5 w-3.5" />
               {t.rich("usingKey", {
@@ -457,14 +517,18 @@ export function AddModel({
             </p>
           )}
 
-          {keys.length > 1 && (
+          {(keys.length > 1 || (offersNoKey && keys.length > 0)) && (
             <>
               <Label htmlFor="add-model-key">{t("key")}</Label>
-              <Select value={chosenKey} onValueChange={chooseKey}>
+              <Select
+                value={chosenKey || NO_KEY}
+                onValueChange={(value) => chooseKey(value === NO_KEY ? "" : value)}
+              >
                 <SelectTrigger id="add-model-key">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  {offersNoKey && <SelectItem value={NO_KEY}>{t("noKeyForEndpoint")}</SelectItem>}
                   {keys.map((secret) => (
                     <SelectItem key={secret.id} value={secret.id} textValue={secret.name}>
                       {/* The provider is the filter this list was built with, so
@@ -529,11 +593,7 @@ export function AddModel({
           htmlFor="add-model-endpoint"
           label={t("endpoint")}
           error={failure.fields.base_url}
-          description={
-            capabilities?.keyless === true
-              ? t("gatewayLitellmProxyModel")
-              : t("optionalPointModelAt")
-          }
+          description={endpointRequired ? t("gatewayLitellmProxyModel") : t("optionalPointModelAt")}
         >
           <Input
             id="add-model-endpoint"
@@ -542,11 +602,7 @@ export function AddModel({
               setBaseUrl(event.target.value);
               setFailure(NO_FAILURE);
             }}
-            placeholder={
-              capabilities?.keyless === true
-                ? "http://localhost:11434/v1"
-                : t("leaveEmptyProviderS")
-            }
+            placeholder={endpointRequired ? "http://localhost:11434/v1" : t("leaveEmptyProviderS")}
             autoComplete="off"
             spellCheck={false}
           />
@@ -610,14 +666,34 @@ export function AddModel({
           was a 403. */}
       {failure.toast !== null && <p className="text-destructive text-xs">{failure.toast}</p>}
 
+      {/* Said before the button rather than after the save: the change reaches
+          every agent on this model, not only the one being built. */}
+      {editing && selected !== undefined && (
+        <p className="text-muted-foreground text-xs">
+          {t("updateModelHint", { label: selected.label })}
+        </p>
+      )}
+
       <div className="flex items-center gap-2 pt-1">
-        {unchanged ? (
+        {unchanged && (
           // A state, not an action: there is nothing to add until a field changes.
           <span className="text-muted-foreground inline-flex h-8 items-center gap-1.5 text-sm">
             <Check className="text-success h-4 w-4" />
             {t("modelInUse")}
           </span>
-        ) : (
+        )}
+        {editing && (
+          <Button
+            type="button"
+            size="sm"
+            disabled={disabled || !canSubmit || updateProfile.isPending}
+            onClick={update}
+          >
+            <Save className="h-4 w-4" />
+            {t("updateModel")}
+          </Button>
+        )}
+        {!unchanged && !editing && (
           <Button
             type="button"
             size="sm"

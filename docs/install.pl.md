@@ -1,5 +1,5 @@
 ---
-source_sha: "d4203a010ad0"
+source_sha: "16e90e7b2f27"
 ---
 
 # Instalacja { #install }
@@ -98,7 +98,7 @@ flowchart LR
 
     | | |
     |---|---|
-    | `AGENTICOS_VERSION` | Które wydanie uruchomić. `latest`, gdy nieustawione; wersja taka jak `0.0.380`, żeby przypiąć jedną, `edge` dla tego, co `main` opublikował ostatnio |
+    | `AGENTICOS_VERSION` | Które wydanie uruchomić. `latest`, gdy nieustawione; wersja taka jak `0.0.380`, żeby przypiąć jedną, `edge` dla tego, co `main` opublikował ostatnio. Przypinaj razem z `docker-compose.yml` tego wydania (`https://raw.githubusercontent.com/vstorm-co/agenticos/v<version>/docker-compose.yml`): ten plik przypina `sandboxd`, którym mówi backend tego wydania |
     | `PUBLIC_API_URL`, `PUBLIC_WS_URL`, `PUBLIC_SITE_URL` | To, co *przeglądarce* każe się wołać, gdy host jest osiągalny pod nazwą inną niż `localhost`. `FRONTEND_URL` i `CORS_ORIGINS` backendu to ten sam fakt z jego strony |
     | `OAUTH_PROVIDERS`, `CHAT_MAX_UPLOAD_SIZE_MB` | Przyciski logowania, które oferuje konsola, oraz to, co composer odrzuca przed wysłaniem |
     | `SECRET_KEY`, `VAULT_MASTER_KEY` | Opcjonalne na laptopie, gdzie wartościami domyślnymi są stała z repozytorium i vault zapieczętowany pod nią. `scripts/quickstart.sh` generuje oba; ręcznie - `openssl rand -hex 32` dla każdego. I zrób kopię klucza vaulta razem z bazą danych, bo zrzut odtworzony obok innego klucza jest nie do odczytania |

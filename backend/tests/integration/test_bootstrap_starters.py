@@ -15,6 +15,7 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
 from app.services.sandbox_connection import SandboxConnectionService
+from tests.integration._keys import provider_key
 
 pytestmark = pytest.mark.anyio
 
@@ -79,6 +80,7 @@ async def test_with_a_model_the_architect_publishes_and_the_starter_runs_on_it(
         label="Model",
         provider="openai",
         model="gpt-4.1",
+        secret_id=await provider_key(db, ctx.organization_id),
     )
     db.add(profile)
     await db.flush()

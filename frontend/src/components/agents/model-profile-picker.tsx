@@ -10,7 +10,7 @@ import { Badge, Button } from "@/components/ui";
 import { useModelProviders } from "@/hooks";
 import { useChanged } from "@/hooks/use-changed";
 import type { ProfilesStatus } from "@/hooks/use-model-providers";
-import { modelDetail, runsAgents } from "@/lib/model-profiles";
+import { hasKey, modelDetail, runsAgents, usableForAgents } from "@/lib/model-profiles";
 import { cn } from "@/lib/utils";
 import type { ModelProfile } from "@/types/providers";
 import { useTranslations } from "next-intl";
@@ -131,12 +131,13 @@ export function ModelProfilePicker({
 
   const selected = profiles.find((profile) => profile.id === value);
   // The models an agent can run on: one on a text-to-speech or embedding model
-  // fails on its first turn (#2487). The one this agent already names stays,
+  // fails on its first turn (#2487), and so does one whose key was deleted
+  // (#2478). The one this agent already names stays,
   // marked, because a choice that vanished would read as no choice at all; and
   // where models are managed the rest stay too, marked and not selectable, since
   // this is the only place in the console that deletes one.
   const offered = profiles.filter(
-    (profile) => runsAgents(profile) || profile.id === value || allowRemove,
+    (profile) => usableForAgents(profile) || profile.id === value || allowRemove,
   );
   // Generated rather than a constant: the Builder and a dialog can both have a
   // picker mounted, and two elements answering to one id makes the second group's
@@ -154,14 +155,12 @@ export function ModelProfilePicker({
           subtitle={modelDetail(profile)}
           provider={profile.provider}
           // A picker that omits this lets somebody publish an agent onto a model
-          // that cannot answer. Read from `secret_id` alone: this used to also
-          // test a `credential_id` the API has not sent since the vault became
-          // the only key store, and `undefined === null` is false - so the badge
-          // rendered for no profile at all, including the ones that really had
-          // no key.
-          noKey={!profile.secret_id}
+          // that cannot answer. The server's `missing_key`, not `secret_id`
+          // alone: a self-hosted model at an endpoint has no key and needs none,
+          // and reading the column marked every Ollama profile "no key" (#2478).
+          noKey={!hasKey(profile)}
           notChat={!runsAgents(profile)}
-          selectable={runsAgents(profile) || profile.id === value}
+          selectable={usableForAgents(profile) || profile.id === value}
           disabled={disabled}
           onRemove={allowRemove ? () => deleteProfile.mutate(profile.id) : undefined}
         />
@@ -191,11 +190,16 @@ export function ModelProfilePicker({
       <span className="min-w-0 flex-1 truncate text-sm font-medium">{selected.label}</span>
       {/* The badge that decides whether the agent can run at all. In a list of a
           dozen saved models the chosen one's badge is a badge among twelve. */}
-      {!selected.secret_id && <Badge variant="destructive">{t("noKey")}</Badge>}
+      {!hasKey(selected) && <Badge variant="destructive">{t("noKey")}</Badge>}
       {!runsAgents(selected) && <Badge variant="destructive">{t("notAChatModel")}</Badge>}
       {!runsAgents(selected) && (
         <p role="alert" className="text-destructive basis-full text-xs">
           {t("notAChatModelHint", { model: selected.model })}
+        </p>
+      )}
+      {runsAgents(selected) && !hasKey(selected) && (
+        <p role="alert" className="text-destructive basis-full text-xs">
+          {t("modelHasNoKeyHint")}
         </p>
       )}
     </div>
@@ -292,7 +296,7 @@ export function ModelProfilePicker({
           <summary className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1.5 text-xs">
             <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
             {t("useSavedModelCount", {
-              count: offered.filter((profile) => runsAgents(profile) || profile.id === value)
+              count: offered.filter((profile) => usableForAgents(profile) || profile.id === value)
                 .length,
             })}
           </summary>

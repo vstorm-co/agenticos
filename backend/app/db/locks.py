@@ -72,23 +72,30 @@ class LockScope(IntEnum):
     ACCOUNT_BOOTSTRAP = 12
     #: One mailbox poll, independent of its separately committed OAuth refresh.
     PORTAL_POLL = 13
+    #: One organization's model profiles against the agent specs that name them
+    #: (#2478). Deleting a profile checks that no draft, served or pinned version
+    #: names it and then deletes it; a draft save, a publish or a promotion
+    #: committing in between would name a profile that is gone. Every such write
+    #: takes this *shared*, so they never wait for each other; the delete takes it
+    #: exclusive, so it waits for those in flight and they wait for it.
+    MODEL_PROFILE_REFERENCES = 14
     #: One case's place in its dataset's review queue: a send reads which score
     #: waits, then queues or replaces it, and two at once must not both read none.
-    REVIEW_PER_CASE = 14
+    REVIEW_PER_CASE = 15
     #: How many eval cases one organization runs at once: two workers counting
     #: together would otherwise both start one past the limit.
-    EVAL_CASES_PER_ORGANIZATION = 15
+    EVAL_CASES_PER_ORGANIZATION = 16
     #: One knowledge base's grouping pass: it reads the misses no topic holds
     #: and then places them, so two passes at once would put a question in two
     #: topics.
-    KNOWLEDGE_GAPS_PER_KNOWLEDGE_BASE = 16
+    KNOWLEDGE_GAPS_PER_KNOWLEDGE_BASE = 17
     #: One knowledge base's check of its answers: two at once would pay twice for
     #: the same answers. Session-scoped, since a check spans many runs.
-    KNOWLEDGE_GAP_CHECKS_PER_KNOWLEDGE_BASE = 17
+    KNOWLEDGE_GAP_CHECKS_PER_KNOWLEDGE_BASE = 18
     #: How many case revisions one organization's datasets store. Each edit
     #: locks its own dataset only, so two edits of two datasets would both read
     #: the count under the ceiling and together go past it.
-    DATASET_REVISIONS_PER_ORGANIZATION = 18
+    DATASET_REVISIONS_PER_ORGANIZATION = 19
 
 
 def _key(subject: UUID) -> int:
@@ -132,6 +139,23 @@ async def try_hold_subject(db: AsyncSession, scope: LockScope, subject: UUID) ->
         )
     )
     return bool(result.scalar_one())
+
+
+async def hold_subject_shared(db: AsyncSession, scope: LockScope, subject: UUID) -> None:
+    """Take the shared side of a subject's lock, until this transaction ends.
+
+    Shared holders never wait for each other; they wait only while a
+    transaction holds the same lock through :func:`hold_subject`, and that one
+    waits for every shared holder in flight. The key is the same two integers,
+    so the two sides meet.
+    """
+    await db.execute(
+        select(
+            func.pg_advisory_xact_lock_shared(
+                cast(scope.value, Integer), cast(_key(subject), Integer)
+            )
+        )
+    )
 
 
 async def try_hold_subject_on_connection(

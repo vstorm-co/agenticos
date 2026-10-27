@@ -1,5 +1,5 @@
 ---
-source_sha: "eb0bc6e7048e"
+source_sha: "7a027572c274"
 ---
 
 # Koncepcje { #concepts }
@@ -744,7 +744,9 @@ speców.
 
 Profil, za którym nie stoi żadne poświadczenie, jest oznaczony `no key`
 wszędzie, gdzie się pojawia, bo to jedyny fakt rozstrzygający, czy agent może się
-w ogóle uruchomić.
+w ogóle uruchomić. Pickery go nie oferują, a publikacja go odrzuca, dopóki znów
+nie ma klucza. Profilu, którego używają agenci, nie można usunąć; zobacz
+[Zmiana klucza lub endpointu profilu](models.md#changing-a-profiles-key-or-endpoint).
 
 Ceny pochodzą z [`genai-prices`](https://github.com/pydantic/genai-prices),
 utrzymywanego przez Pydantic, a nie z tabelki w tym repozytorium — tabelka

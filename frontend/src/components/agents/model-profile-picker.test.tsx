@@ -63,12 +63,15 @@ function profile(overrides: Partial<ModelProfile> = {}): ModelProfile {
     label: "openai default",
     provider: "openai",
     model: "gpt-4.1",
-    secret_id: null,
+    secret_id: "s-1",
     params: {},
     fallback_profile_ids: [],
     ...overrides,
   };
 }
+
+/** A profile whose key was deleted from the vault, as the server lists it. */
+const keyless = profile({ secret_id: null, missing_key: true });
 
 function mount(props: Partial<Parameters<typeof ModelProfilePicker>[0]> = {}) {
   render(
@@ -179,9 +182,12 @@ describe("ModelProfilePicker", () => {
   it("says a model has no key wherever it is shown", () => {
     // The one fact that decides whether the run can answer at all. Hiding it in
     // the chat would mean picking a model and finding out from a failed reply.
-    mount();
+    // Listed here because models are managed here; a picker that only chooses
+    // leaves it out, like a model an agent cannot run on (#2478).
+    mount({ profiles: [keyless], allowRemove: true });
 
     expect(screen.getByText("no key")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "openai default" })).toBeDisabled();
   });
 
   it("names the model, not just the label somebody typed", () => {
@@ -326,7 +332,7 @@ describe("ModelProfilePicker", () => {
     // The line moved out of the add-capable branch: whether the chosen profile
     // has a key is what decides whether anything runs, and in a list of a dozen
     // saved models the chosen one's badge is a badge among twelve.
-    mount({ value: "p1" });
+    mount({ value: "p1", profiles: [keyless] });
 
     const current = screen.getByRole("group", { name: "Current model" });
     expect(within(current).getByText("openai default")).toBeInTheDocument();
@@ -343,18 +349,39 @@ describe("ModelProfilePicker", () => {
   });
 
   it("counts a model keyed from the vault as keyed", () => {
-    // The vault secret is the only key a profile has. This once also tested a
-    // `credential_id` the API had stopped sending, and `undefined === null` is
-    // false - so the badge appeared on nothing, including the profiles that
-    // really had no key. `models.spec.ts` is what caught that; a fixture
-    // supplying the missing field is what hid it here.
     mount({ profiles: [profile({ secret_id: "s-1" })] });
 
     expect(screen.queryByText("no key")).toBeNull();
   });
 
+  it("does not call a self-hosted model keyless", () => {
+    // An Ollama at an endpoint has no `secret_id` and needs none. The server's
+    // `missing_key` says so; reading the column badged every one (#2478).
+    mount({
+      profiles: [
+        profile({ provider: "ollama", secret_id: null, base_url: "http://ollama:11434/v1" }),
+      ],
+    });
+
+    expect(screen.queryByText("no key")).toBeNull();
+    expect(screen.getByRole("radio", { name: "openai default" })).toBeEnabled();
+  });
+
+  it("leaves a model whose key was deleted out of a picker that only chooses", () => {
+    mount({ profiles: [keyless, profile({ id: "p2", label: "Keyed" })] });
+
+    expect(screen.queryByRole("radio", { name: "openai default" })).toBeNull();
+    expect(screen.getByRole("radio", { name: "Keyed" })).toBeEnabled();
+  });
+
+  it("says why the model in use cannot run when its key was deleted", () => {
+    mount({ value: "p1", profiles: [keyless] });
+
+    expect(screen.getByRole("alert")).toHaveTextContent("key was deleted from the vault");
+  });
+
   it("says the model in use has no key, which is what decides whether it runs", () => {
-    mount({ allowAdd: true, value: "p1" });
+    mount({ allowAdd: true, value: "p1", profiles: [keyless] });
 
     const current = screen.getByRole("group", { name: "Current model" });
     expect(within(current).getByText("no key")).toBeInTheDocument();

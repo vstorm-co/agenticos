@@ -1,5 +1,5 @@
 ---
-source_sha: "aaf9f300decf"
+source_sha: "90d9185a9978"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -167,7 +167,12 @@ jest jeszcze otwarty.
 
 **Providerzy modeli.** Nazywani przez [profil modelu](models.md). Wydatek jest
 przypisywany do sekretu, do którego rozwiązał się dany run, i tak właśnie pytanie
-„który klucz kosztuje najwięcej" dostaje odpowiedź.
+„który klucz kosztuje najwięcej" dostaje odpowiedź. Przypisanie klucza do profilu
+pożycza go każdemu, kto na nim działa, więc utworzenie lub edycja profilu - jego
+klucza albo endpointu - wymaga `secrets:view` na tym kluczu. Usunięty klucz
+zostawia swoje profile oznaczone `missing_key`, dopóki nie dostaną innego, także
+profil przed gatewayem. Bez klucza dalej działa tylko profil celowo zapisany bez
+klucza ([Profil bez klucza](models.md#a-profile-without-a-key)).
 
 **Zamiana mowy na tekst.** Klucz API, którego przeznaczeniem jest dostawca,
 wskazany po identyfikatorze obok dostawcy i modelu wszędzie tam, gdzie

@@ -1,5 +1,5 @@
 ---
-source_sha: "0a268874d05a"
+source_sha: "03612a4d4028"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -99,6 +99,74 @@ al configurar y en el worker. Las configuraciones antiguas siguen cargándose;
 hay que sustituir un modelo incompatible antes de usarlas. Sigue siendo posible
 desactivar la función. Los nombres de despliegues de Azure no se clasifican a
 partir de los identificadores de modelos base del catálogo.
+
+### Cambiar la clave o el endpoint de un perfil { #changing-a-profiles-key-or-endpoint }
+
+Los agents nombran un perfil por su id. Para mover un modelo a otra clave, otro
+endpoint u otra API de OpenAI, edita el perfil en su sitio:
+`PATCH /providers/model-profiles/{id}` cambia `secret_id`, `base_url`, `api`,
+`params` o `label` y conserva el id. Cada agent sobre el perfil usa el cambio
+desde su siguiente run. Nadie tiene que volver a publicar nada.
+
+En el panel de modelo del Builder, cambia la clave, el endpoint o la API del
+modelo en uso. El botón pasa a decir **Update model**, y el panel indica que cada
+agent sobre este modelo cambia con él. **Add model** sigue siendo el botón para
+otro provider u otro modelo, y para un modelo al que das un nombre propio. Usa
+**Name it something else** para dar solo a este agent un modelo aparte.
+
+Una edición sigue las mismas reglas que la creación y necesita el mismo permiso
+`connections:manage`. Una clave nueva debe estar en el vault de esta
+organización, ser visible para ti y estar guardada para el provider del perfil.
+Un endpoint nuevo comprueba la clave guardada del mismo modo, porque el endpoint
+es adonde se envía la clave. Un provider que necesita clave no puede perderla. Un
+provider keyless sin clave conserva un endpoint. La etiqueta debe seguir siendo
+única.
+
+Si cambias el endpoint y no envías `api`, una API que solo era la
+predeterminada del endpoint anterior pasa a la predeterminada del nuevo, y una
+API elegida a propósito se mantiene. El registro de auditoría guarda
+`model_profile.updated` con los nombres de los campos cambiados, no sus valores.
+No puedes cambiar el provider ni el id del modelo. Otro modelo es otro perfil.
+
+`connections:manage` es, por tanto, la autoridad para mover a cada agent sobre un
+modelo, incluidos los agents que no puedes editar: un endpoint nuevo recibe sus
+peticiones desde el siguiente run. Concédelo a quienes gestionan los modelos de
+la organización.
+
+### Un perfil sin clave { #a-profile-without-a-key }
+
+Si borras una clave del vault, sus perfiles se quedan con `secret_id` a null.
+`GET /providers/model-profiles` los marca con `missing_key: true`. Un perfil
+guardado sin clave a propósito es otra cosa: un modelo autoalojado o un gateway
+que no autentica nada, en un provider keyless con endpoint, como un Ollama en tu
+red o un servidor compatible con OpenAI. Lo registra como `runs_without_key` y
+sigue ejecutándose. Un perfil de gateway que tenía clave y la perdió se marca con
+`missing_key` como cualquier otro. Entonces:
+
+- Los selectores de modelo del agent y del chat no lo ofrecen. Si un agent ya lo
+  nombra, el Builder lo muestra con la marca **no key** y te pide que le des una
+  clave.
+- La publicación lo rechaza y nombra el modelo. También rechaza un perfil cuyos
+  tres primeros fallbacks incluyen uno sin clave, porque un run lo saltaría. Un run sobre él falla con
+  "no key configured".
+- Para repararlo, abre un agent sobre ese modelo, elige una clave en **Model** y
+  pulsa **Update model**. Cada agent sobre el modelo vuelve a funcionar.
+
+### Borrar un perfil { #deleting-a-profile }
+
+`DELETE /providers/model-profiles/{id}` rechaza un perfil que usan agents. La
+respuesta es `409 IN_USE`, y `details.agents` lista cada agent que puedes ver, con
+id y nombre. `details.hidden_agents` cuenta los agents que no puedes ver. Un
+perfil está en uso cuando el borrador de un agent, su versión servida o una
+versión que fija un entorno nombra el perfil en cualquier lugar: como modelo del
+agent, de un revisor o de un especialista, o en una capability, como el modelo de
+follow-ups o el modelo de los pasos del navegador.
+
+Los agents archivados cuentan,
+porque desarchivarlos restaura la versión que servían. El rechazo los marca con
+`archived`: un agent archivado no puede publicar, así que bórralo, o
+restáuralo y muévelo. Las versiones antiguas que nada sirve no cuentan. Mueve
+primero los demás agents a otro modelo. Para cambiar solo la clave, edita el perfil.
 
 ### Fallbacks { #fallbacks }
 

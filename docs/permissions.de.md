@@ -1,5 +1,5 @@
 ---
-source_sha: "10df9e0c73fa"
+source_sha: "2eca3843f70e"
 ---
 
 # Berechtigungen { #permissions }
@@ -138,6 +138,14 @@ Teilmenge dieser Berechtigungen, nie mehr, als sein Aussteller jetzt hat.
     ihm auch Anlegen, Ändern und Löschen gewährt würde. Nichts hier impliziert
     eine Berechtigung aus einer anderen, also hält eine Rolle, die Connections
     verwaltet, beide.
+
+    `connections:manage` bearbeitet auch Model-Profile, und eine Bearbeitung
+    stellt jeden Agent auf dem Profil um, auch Agents, die der Bearbeitende nicht
+    bearbeiten darf: ein neuer Endpunkt erhält ihre Anfragen ab dem nächsten Run.
+    Der Schlüssel bleibt geschützt. Einem Profil einen Schlüssel zu geben oder
+    den Endpunkt eines Profils mit Schlüssel zu verschieben, braucht
+    `secrets:view` auf diesem Schlüssel
+    ([Modelle](models.md#changing-a-profiles-key-or-endpoint)).
 
 **Ressourcen**-Berechtigungen tragen einen `Scope`, denn sie beantworten die
 zweite Frage, die eine Rolle nicht kann: nicht "darf diese Rolle Agents
