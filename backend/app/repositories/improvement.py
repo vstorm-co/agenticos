@@ -1,5 +1,6 @@
 """Data access for improvement sessions and their rounds."""
 
+from collections.abc import Sequence
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -173,6 +174,22 @@ async def list_deciding(
         statement = statement.where(ImprovementRun.id > after)
     result = await db.execute(statement.order_by(ImprovementRun.id).limit(limit))
     return [(row.id, row.organization_id) for row in result.all()]
+
+
+async def list_for_person(
+    db: AsyncSession, *, organization_id: UUID, statuses: Sequence[str], limit: int = 20
+) -> list[ImprovementRun]:
+    """The organization's sessions in these statuses, newest first."""
+    result = await db.execute(
+        select(ImprovementRun)
+        .where(
+            ImprovementRun.organization_id == organization_id,
+            ImprovementRun.status.in_(statuses),
+        )
+        .order_by(ImprovementRun.created_at.desc(), ImprovementRun.id.desc())
+        .limit(limit)
+    )
+    return list(result.scalars().all())
 
 
 async def update_run(

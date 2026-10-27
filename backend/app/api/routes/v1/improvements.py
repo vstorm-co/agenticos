@@ -3,10 +3,11 @@
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Depends, status
 
-from app.api.deps import Auth, ImprovementSvc
+from app.api.deps import Auth, ImprovementSvc, require
 from app.api.public_api import ASSISTANT
+from app.core.permissions import Perm
 from app.schemas.authoring import HunkRead
 from app.schemas.eval_run import EvalRunRead
 from app.schemas.improvement import (
@@ -14,6 +15,7 @@ from app.schemas.improvement import (
     AttributionEstimate,
     ContinuationConsent,
     ContinuationEstimate,
+    ImprovementAwaiting,
     ImprovementContinue,
     ImprovementDiscard,
     ImprovementEstimate,
@@ -34,6 +36,16 @@ from app.schemas.improvement import (
 
 router = APIRouter(prefix="/agents/{agent_id}/improvements")
 sessions = APIRouter(prefix="/improvements")
+
+
+@sessions.get(
+    "",
+    response_model=list[ImprovementAwaiting],
+    dependencies=[Depends(require(Perm.RUNS_VIEW))],
+)
+async def list_improvements_awaiting(service: ImprovementSvc, ctx: Auth) -> Any:
+    """Sessions waiting for a person - stopped at a step or with a result to review."""
+    return await service.awaiting(ctx)
 
 
 @sessions.get("/{run_id}", response_model=ImprovementRead, dependencies=[ASSISTANT])

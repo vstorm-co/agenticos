@@ -199,6 +199,19 @@ class ImprovementRead(BaseSchema):
     )
 
 
+class ImprovementAwaiting(BaseSchema):
+    """A session waiting for a person, as a list of them shows it."""
+
+    id: UUID
+    agent_id: UUID
+    agent_name: str
+    status: ImprovementStatus
+    stage: ImprovementStage | None
+    iteration: int
+    max_iterations: int
+    created_at: datetime
+
+
 class TopicDeferral(BaseSchema):
     """Set a knowledge document aside for this session, or bring it back."""
 

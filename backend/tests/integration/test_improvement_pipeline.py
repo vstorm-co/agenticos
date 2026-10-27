@@ -158,6 +158,31 @@ async def _ready_proposal(db):
     return ctx, agent, ready
 
 
+async def test_a_session_waiting_for_a_person_is_listed_only_where_its_agent_is_readable(db):
+    from dataclasses import replace
+
+    from app.core.permissions import Perm
+
+    ctx, agent, ready = await _ready_proposal(db)
+    service = ImprovementPipelineService(db)
+    [listed] = await service.awaiting(ctx)
+    assert (listed.id, listed.agent_id, listed.agent_name) == (ready.id, agent.id, agent.name)
+    assert listed.status == "ready" and listed.iteration == 1
+
+    async def unreadable(*_args: object, **_kwargs: object) -> None:
+        raise NotFoundError(message="Agent not found")
+
+    with patch.object(service.registry, "get", unreadable):
+        assert await service.awaiting(ctx) == []
+    no_runs = replace(ctx, key_scopes=frozenset({Perm.AGENTS_VIEW}))
+    with pytest.raises(AuthorizationError, match="runs:view"):
+        await service.awaiting(no_runs)
+    run = await db.get(ImprovementRun, ready.id)
+    run.status = "published"
+    await db.flush()
+    assert await service.awaiting(ctx) == []
+
+
 async def test_the_before_answers_are_counted_where_a_reused_baseline_gave_them(db):
     from app.db.models.eval_run import ArmRole, EvalRunArm, EvalRunCase
     from app.repositories import eval_run_repo

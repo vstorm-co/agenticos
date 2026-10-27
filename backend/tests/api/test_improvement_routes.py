@@ -139,3 +139,28 @@ async def test_no_route_takes_a_decision_on_one_example(
         f"{settings.API_V1_STR}{_ONE}/evidence/{_CASE}", json={"decision": "ignored"}
     )
     assert response.status_code == 404
+
+
+async def test_listing_sessions_that_wait_for_a_person_needs_runs_view(
+    client: AsyncClient, mock_db_session: MagicMock
+) -> None:
+    from app.core.permissions import Perm
+
+    ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER)
+    service = ImprovementPipelineService(mock_db_session)
+    app.dependency_overrides[deps.get_improvement_service] = lambda: service
+    with patch.object(service, "awaiting", AsyncMock(return_value=[])) as awaiting:
+        app.dependency_overrides[deps.get_auth_context] = lambda: ctx
+        response = await client.get(f"{settings.API_V1_STR}/improvements")
+        assert response.status_code == 200, response.text
+        assert response.json() == []
+        awaiting.assert_awaited_once_with(ctx)
+        limited = AuthContext(
+            user_id=uuid4(),
+            organization_id=uuid4(),
+            role=OrgRoleName.OWNER,
+            key_scopes=frozenset({Perm.AGENTS_VIEW}),
+        )
+        app.dependency_overrides[deps.get_auth_context] = lambda: limited
+        refused = await client.get(f"{settings.API_V1_STR}/improvements")
+        assert refused.status_code == 403

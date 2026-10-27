@@ -96,6 +96,7 @@ from app.schemas.improvement import (
     CheckAnswers,
     ContinuationConsent,
     ContinuationEstimate,
+    ImprovementAwaiting,
     ImprovementContinue,
     ImprovementDiscard,
     ImprovementEstimate,
@@ -141,6 +142,9 @@ from app.worker.jobs import (
 )
 
 ANSWER_TIME_WINDOW = timedelta(days=30)
+
+_AWAITING_PERSON = ("waiting", "ready")
+"""Statuses a session waits in for a person to take the next step or decide."""
 """How far back the agent's answers are read to time a session's checks."""
 
 
@@ -762,6 +766,38 @@ class ImprovementPipelineService:
     async def read(self, ctx: AuthContext, agent_id: UUID, run_id: UUID) -> ImprovementRead:
         await self.registry.get(ctx, agent_id)
         return await self._read(ctx, await self._row(ctx, agent_id, run_id))
+
+    async def awaiting(self, ctx: AuthContext) -> list[ImprovementAwaiting]:
+        """Sessions waiting for a person, on the agents this caller may read.
+
+        A session stopped at a step, or with a result ready, waits for whoever may
+        take it on; one on an agent the caller cannot see is left out.
+        """
+        if not ctx.has(Perm.RUNS_VIEW):
+            raise AuthorizationError(message="Reading improvement sessions needs runs:view")
+        rows = await improvement_repo.list_for_person(
+            self.db, organization_id=ctx.organization_id, statuses=_AWAITING_PERSON
+        )
+        names: dict[UUID, str | None] = {}
+        for agent_id in dict.fromkeys(row.agent_id for row in rows):
+            try:
+                names[agent_id] = (await self.registry.get(ctx, agent_id)).name
+            except NotFoundError, AuthorizationError:
+                names[agent_id] = None
+        return [
+            ImprovementAwaiting(
+                id=row.id,
+                agent_id=row.agent_id,
+                agent_name=name,
+                status=row.status,
+                stage=row.stage,
+                iteration=row.iteration,
+                max_iterations=row.max_iterations,
+                created_at=row.created_at,
+            )
+            for row in rows
+            if (name := names[row.agent_id]) is not None
+        ]
 
     async def read_session(self, ctx: AuthContext, run_id: UUID) -> ImprovementRead:
         """A session by its id alone, read with the same access to its agent as `read`.
