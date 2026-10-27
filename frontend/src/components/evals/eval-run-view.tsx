@@ -4,16 +4,18 @@ import { useEffect, useRef, useState } from "react";
 import { ReviewReevaluationNote } from "@/components/evals/review-reevaluation-note";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Lock } from "lucide-react";
+import { Lock } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { BackLink } from "@/components/layout/back-link";
 import { RestartTourButton } from "@/components/onboarding/restart-tour-button";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui";
 import { useAgent } from "@/hooks/use-agents";
 import { useDataset } from "@/hooks/use-datasets";
 import { isLive, useEvalComparison, useEvalRun } from "@/hooks/use-eval-runs";
+import { useUrlState } from "@/hooks/use-url-state";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { useAuthStore } from "@/stores/auth-store";
@@ -46,15 +48,16 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
   const canTestAgain =
     agent?.can_run === true && agent.can_edit === true && dataset?.can_run === true;
   const candidates = run?.arms.filter((arm) => arm.role === "candidate") ?? [];
-  const [arm, setArm] = useState<string | null>(null);
-  const [tag, setTag] = useState<string | null>(null);
-  const [broken, setBroken] = useState(false);
+  const [arm, setArm] = useUrlState("arm");
+  const [tag, setTag] = useUrlState("tag");
+  const [brokenParam, setBrokenParam] = useUrlState("broken");
+  const broken = brokenParam === "1";
   const [testingAgain, setTestingAgain] = useState(false);
   // `?case=` names one case to open - how Activity hands a case back to its run.
   const params = useSearchParams();
   const asked = params.get("case");
   const router = useRouter();
-  const [only, setOnly] = useState<string | null>(asked);
+  const [only, setOnly] = useUrlState("case");
   const cases = useRef<HTMLDivElement>(null);
   const focus = arm ?? candidates[0]?.id ?? null;
   const live = run !== undefined && isLive(run.status);
@@ -110,13 +113,11 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
     <div className="space-y-6">
       {/* No PageHeader here, so the page's help sits beside the way back. */}
       <div className="flex items-center justify-between gap-2">
-        <Link
+        <BackLink
           href={`${ROUTES.AGENTS}/${agentId}?tab=evals`}
+          label={t("back")}
           className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm"
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden />
-          {t("back")}
-        </Link>
+        />
         <RestartTourButton />
       </div>
       {run.review && <ReviewReevaluationNote review={run.review} />}
@@ -138,7 +139,7 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
         onRetryComparison={!live && comparisonError ? () => void refetchComparison() : undefined}
         onShowBroken={() => {
           setOnly(null);
-          setBroken(true);
+          setBrokenParam("1");
           cases.current?.scrollIntoView?.({ behavior: "smooth" });
         }}
       />
@@ -222,7 +223,7 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
           brokenTotal={brokenIds.length}
           opened={only}
           onShowAll={() => {
-            setBroken(false);
+            setBrokenParam(null);
             setOnly(null);
           }}
         />
