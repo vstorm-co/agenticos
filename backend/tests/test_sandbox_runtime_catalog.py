@@ -379,6 +379,16 @@ class TestWhatTheModelIsTold:
         assert "LibreOffice" in briefing
         assert "no C compiler" in briefing
 
+    def test_workbench_explains_the_shell_and_persistent_file_boundary(self) -> None:
+        briefing = runtime_briefing("workbench")
+
+        assert briefing is not None
+        assert "POSIX `/bin/sh`" in briefing
+        assert "mkdir -p sources inbox notes" in briefing
+        assert "`~` is the user home, outside the shared files" in briefing
+        assert "a previous call's `cd` or shell variables do not persist" in briefing
+        assert "verify the expected files before reporting success" in briefing
+
     def test_a_runtime_nothing_named_is_the_one_the_service_defaults_to(self) -> None:
         """The spec deferring to the connection, which defers to the host, is the
         common case rather than an edge one - and this repository generates the

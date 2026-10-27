@@ -41,6 +41,7 @@ const state = {
   purposes: [] as SecretPurpose[],
   catalog: [] as ProviderCapabilities[],
   secrets: [] as Secret[],
+  profiles: [] as { label: string }[],
   models: [] as { id: string; name: string; context_length?: number | null }[],
   refused: [] as string[],
   source: "live" as "live" | "curated" | null,
@@ -58,6 +59,7 @@ vi.mock("@/hooks", () => ({
     createProfile: state.createProfile,
     updateProfile: state.updateProfile,
     catalog: state.catalog,
+    profiles: state.profiles,
   }),
   useSecretPurposes: () => ({ purposes: state.purposes }),
   useSecrets: () => ({ secrets: state.secrets }),
@@ -155,6 +157,7 @@ beforeEach(() => {
     capabilities("openrouter", "OpenRouter", { supports_base_url: true }),
   ];
   state.secrets = [];
+  state.profiles = [];
   state.models = [{ id: "gpt-5", name: "GPT-5", context_length: 400_000 }];
   state.refused = [];
   state.source = "live";
@@ -1380,6 +1383,32 @@ describe("the model the agent is already on", () => {
 
     expect(await screen.findByText("A model endpoint must include a host")).toBeInTheDocument();
   });
+  it.each([
+    [null, "https://eu.openrouter.ai/api/v1", "eu.openrouter.ai/api/v1"],
+    ["https://eu.openrouter.ai/api/v1", "", "Default API"],
+  ])(
+    "saves the same provider and model at a different endpoint as a separate profile",
+    async (oldEndpoint, endpoint, suffix) => {
+      state.profiles = [{ label: "Existing shared model" }];
+      state.secrets = [secret({ id: "s-1", purpose: "openrouter", name: "Router key" })];
+      state.createProfile.mutateAsync.mockResolvedValue({ id: "new-profile" });
+      const { onCreated } = mount({ selected: inUse({ base_url: oldEndpoint }) });
+      const field = screen.getByLabelText("Endpoint");
+      await userEvent.clear(field);
+      if (endpoint) await userEvent.type(field, endpoint);
+      await userEvent.click(screen.getByRole("button", { name: "Add separate model" }));
+      expect(state.createProfile.mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: "openrouter",
+          model: "openai/gpt-5.5",
+          base_url: endpoint || null,
+          label: `OpenRouter · openai/gpt-5.5 · ${suffix}`,
+        }),
+      );
+      expect(state.updateProfile.mutateAsync).not.toHaveBeenCalled();
+      expect(onCreated).toHaveBeenCalledWith(expect.objectContaining({ id: "new-profile" }));
+    },
+  );
 });
 
 describe("the endpoint field's example", () => {

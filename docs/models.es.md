@@ -1,5 +1,5 @@
 ---
-source_sha: "fbe48d8d2eb2"
+source_sha: "170ba004f22c"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -698,3 +698,5 @@ hace las tres cosas para un despliegue nuevo.
 Para usar la API regional de OpenRouter, conserva **OpenRouter** como proveedor e introduce `https://eu.openrouter.ai/api/v1` en **Endpoint** del formulario del modelo. El perfil mantiene su clave OpenRouter del Vault, el tratamiento nativo de modelos y los controles de caché. Las sugerencias se obtienen de ese endpoint y se almacenan en una caché independiente; si falla la lista regional, no se utiliza el catálogo global. En las bases de conocimiento, configura el endpoint de embeddings por separado al crear la colección o editar su proveedor de embeddings. Las configuraciones existentes mantienen el endpoint global. El enrutamiento EU requiere un plan OpenRouter Business o Enterprise adecuado; el [enrutamiento regional](https://openrouter.ai/docs/guides/get-started/sovereign-ai) y ZDR son políticas distintas de OpenRouter.
 
 Actualiza todos los procesos de API y workers antes de configurar endpoints regionales. Las versiones anteriores ignoran el endpoint personalizado de OpenRouter.
+
+Para otro endpoint con el mismo proveedor y modelo, elija **Añadir modelo separado** en el Builder. El nombre automático incluye el endpoint y el perfil existente no cambia. **Actualizar modelo** modifica el perfil compartido. Los catálogos personalizados están limitados a 2 MiB, 2048 modelos y longitudes de campos acotadas, con un máximo de 16 catálogos en caché por proceso. Una respuesta comprimida o demasiado grande permite escribir el ID del modelo sin recurrir a una lista global.

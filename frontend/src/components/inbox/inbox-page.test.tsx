@@ -100,6 +100,8 @@ describe("InboxPage", () => {
     expect(state.shown).toEqual([finding, urgent]);
     await userEvent.click(screen.getByRole("radio", { name: "Suggestions" }));
     expect(state.shown).toEqual([routine]);
+    await userEvent.click(screen.getByRole("radio", { name: "All" }));
+    expect(state.shown).toEqual([finding, urgent, routine]);
   });
 
   it("says nothing waits, and sends the person to set up a watch", async () => {
@@ -188,4 +190,15 @@ it("lets the person retry a failed Done history read", async () => {
   await userEvent.click(screen.getByRole("radio", { name: "Done" }));
   await userEvent.click(screen.getByRole("button", { name: "Retry" }));
   expect(state.refetch).toHaveBeenCalledOnce();
+});
+
+it("keeps Done history in a loading state until its read finishes", () => {
+  state.filter = "done";
+  state.loading = true;
+  const { rerender } = render(<InboxPage />);
+  expect(screen.queryByText("Nothing answered yet")).not.toBeInTheDocument();
+  state.loading = false;
+  state.history = [item("done", { status: "accepted" })];
+  rerender(<InboxPage />);
+  expect(screen.getByText("Title done")).toBeInTheDocument();
 });

@@ -2593,3 +2593,5 @@ flowchart TD
 - What is recorded is **what the person wrote**, not the prompt assembled around it.
 - A **delegation is a panel**, not a pause — and attaching a handler to one changes
   the transport, so it is attached only where a sink exists.
+
+A channel post containing only the bot mention or whitespace is ignored after mention removal, before claiming delivery or starting a run. This avoids sending an empty user message to model APIs that drop it and then reject the preceding assistant answer as prefill. A post containing only attachments still follows the attachment pipeline.

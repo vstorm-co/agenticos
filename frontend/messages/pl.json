@@ -960,7 +960,10 @@
     "addStarter": "Dodaj",
     "platformUngatedBadge": "własne ustawienie, bez zgody",
     "platformHeldBadge": "czyta wcześniejsze rozmowy, pyta najpierw",
-    "openRouterEndpointHint": "Puste pole oznacza globalne API OpenRouter. Możesz podać regionalny URL, np. https://eu.openrouter.ai/api/v1. Routing EU wymaga odpowiedniego planu OpenRouter; ZDR ustawia się osobno w OpenRouter."
+    "openRouterEndpointHint": "Puste pole oznacza globalne API OpenRouter. Możesz podać regionalny URL, np. https://eu.openrouter.ai/api/v1. Routing EU wymaga odpowiedniego planu OpenRouter; ZDR ustawia się osobno w OpenRouter.",
+    "defaultEndpoint": "Domyślne API",
+    "addSeparateModel": "Dodaj osobny model",
+    "separateEndpointHint": "Zapisz ten endpoint jako osobny model, aby zachować obecny profil dla innych agentów. „Zaktualizuj model” zmienia wspólny profil wszędzie, gdzie jest używany."
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",

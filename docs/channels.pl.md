@@ -1,5 +1,5 @@
 ---
-source_sha: "a49998256a61"
+source_sha: "9c24c603b89b"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -2713,3 +2713,5 @@ flowchart TD
 - Zapisywane jest **to, co napisał człowiek**, a nie prompt złożony wokół tego.
 - **Delegacja to panel**, a nie pauza — a podpięcie do niej handlera zmienia
   transport, więc podpinany jest tylko tam, gdzie istnieje odbiornik.
+
+Wiadomość kanałowa zawierająca tylko wzmiankę bota lub białe znaki jest pomijana po usunięciu wzmianki, przed przejęciem dostarczenia i uruchomieniem tury. Dzięki temu do API modelu nie trafia pusta wiadomość użytkownika, której pominięcie powodowałoby odrzucenie poprzedniej odpowiedzi asystenta jako prefill. Wiadomość zawierająca same załączniki nadal przechodzi ścieżką przetwarzania załączników.

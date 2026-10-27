@@ -29,6 +29,10 @@ Two things are versioned separately from this file and worth knowing about:
 - Project file management: rename folders and files, move entries by drag and drop
   or a folder picker, and edit UTF-8 text with revision and unsaved-change checks.
 
+- Create separate model profiles for the same provider and model on different
+  endpoints, with automatic endpoint labels and an explicit choice to update the
+  shared profile instead.
+
 - Configure custom OpenRouter endpoints for agent models and knowledge-base
   embeddings, including the regional EU API. Native OpenRouter keys and cache
   controls are retained. Model suggestions come from the chosen endpoint;
@@ -48,6 +52,10 @@ Two things are versioned separately from this file and worth knowing about:
   when upgrading; downgrading removes channel-authored votes.
 
 ### Changed
+
+- Explain the sandbox’s POSIX shell, shared `/workspace` directory and per-command
+  process lifetime to agents, preventing Bash-only directory creation and writes
+  outside the shared project.
 
 - Refine empty states, metadata badges and mobile settings across the console.
   Knowledge search offers a clear starting point and permission-aware creation;
@@ -75,6 +83,22 @@ Two things are versioned separately from this file and worth knowing about:
 - Unify dashboard list rows, status indicators, shared-resource counts and
   loading states across the widget catalog. Summary columns follow card width
   in custom layouts. Briefing failures now offer Retry instead of appearing empty.
+
+### Fixed
+
+- Invalid metadata in agent-written skills no longer breaks turn completion.
+  Proposal writes use a savepoint and preserve the run’s status and spend (#2516).
+
+- Changing a knowledge base embedding endpoint now requires access to its retained
+  vault key, including when resetting the endpoint to the provider default.
+
+- Marking a chat as read preserves its initial conversation fetch, so the chosen
+  agent and a turn still running remain visible when reopening it.
+
+- Ignore empty channel prompts after removing the bot mention, while preserving
+  attachment-only messages, so Anthropic does not reject an empty turn as prefill.
+- Bound custom model catalog downloads, parsed fields and cached endpoints to
+  prevent an untrusted gateway from exhausting API process memory.
 
 ## [1.26.0] - 2026-10-27
 
@@ -119,15 +143,6 @@ Two things are versioned separately from this file and worth knowing about:
   the vault, the same rule as a capability's secret (#2478).
 
 ### Fixed
-
-- Invalid metadata in agent-written skills no longer breaks turn completion.
-  Proposal writes use a savepoint and preserve the run’s status and spend (#2516).
-
-- Changing a knowledge base embedding endpoint now requires access to its retained
-  vault key, including when resetting the endpoint to the provider default.
-
-- Marking a chat as read preserves its initial conversation fetch, so the chosen
-  agent and a turn still running remain visible when reopening it.
 
 - The Builder's Endpoint field no longer shows the local example
   `http://localhost:11434/v1` for a model that has a key (#2478). OpenAI is

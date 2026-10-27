@@ -960,7 +960,10 @@
     "addStarter": "Add",
     "platformUngatedBadge": "your own setting, never asks",
     "platformHeldBadge": "reads past conversations, asks first",
-    "openRouterEndpointHint": "Leave empty for the global OpenRouter API, or enter a regional URL such as https://eu.openrouter.ai/api/v1. EU routing requires an eligible OpenRouter plan; ZDR is configured separately on OpenRouter."
+    "openRouterEndpointHint": "Leave empty for the global OpenRouter API, or enter a regional URL such as https://eu.openrouter.ai/api/v1. EU routing requires an eligible OpenRouter plan; ZDR is configured separately on OpenRouter.",
+    "defaultEndpoint": "Default API",
+    "addSeparateModel": "Add separate model",
+    "separateEndpointHint": "Save this endpoint as a separate model to keep the current profile for other agents. “Update model” changes the shared profile wherever it is used."
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",

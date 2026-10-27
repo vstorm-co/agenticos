@@ -1,5 +1,5 @@
 ---
-source_sha: "02a95e1f3647"
+source_sha: "ca8f4c0c2629"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -703,3 +703,5 @@ ihre Anzahl landet im Audit-Log.
   setzen. Der Plattenverbrauch wächst nur.
 
 Das Backend `state` zählt Dateien und leere Verzeichnisse zum Speicherlimit, auch beim abschließenden Zusammenführen gleichzeitiger Änderungen. Passen einzeln akzeptierte Dokumente nicht gemeinsam hinein, bleibt das gemeinsame Dokument unverändert und der spätere Stand wird als Wiederherstellungskopie unter **Documents** bestätigt. Der Run speichert einen Fehler mit der Workspace-ID der Kopie; eine Projektänderung meldet einen Konflikt statt Erfolg. Projektkopien erfordern sowohl Anzeige- als auch Nutzungszugriff. Ein Fremdschlüssel löscht die Kopie zusammen mit ihrer Quelle, auch bei gleichzeitiger Datenlöschung. Wird das Limit unter die Größe eines bestehenden Dokuments gesenkt, darf dieses weiterhin schrumpfen.
+
+Die Workbench-Anweisungen erklären Agenten, dass Befehle unter POSIX `/bin/sh` und nicht unter Bash laufen. Zum Beispiel erstellt `mkdir -p sources inbox notes` drei Ordner; `{sources,inbox,notes}` wird von dieser Shell nicht expandiert. Projektdateien gehören nach `/workspace`; das Benutzerverzeichnis (`~`) liegt außerhalb der gemeinsamen Dateien. Jeder Befehl startet einen neuen Prozess: Shellvariablen und Verzeichniswechsel gelten nicht für den nächsten Aufruf. Agenten sollen Fehler prüfen und Dateien vor einer Erfolgsmeldung verifizieren.

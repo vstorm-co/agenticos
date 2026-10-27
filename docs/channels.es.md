@@ -1,5 +1,5 @@
 ---
-source_sha: "a49998256a61"
+source_sha: "9c24c603b89b"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -2734,3 +2734,5 @@ flowchart TD
   alrededor.
 - Una **delegación es un panel**, no una pausa — y engancharle un handler cambia el
   transporte, así que solo se engancha donde existe un sumidero.
+
+Una publicación que solo contiene la mención del bot o espacios se ignora después de eliminar la mención, antes de reclamar la entrega o iniciar una ejecución. Esto evita enviar un mensaje de usuario vacío que la API del modelo omitiría, rechazando después la respuesta anterior del asistente como prefill. Un mensaje con solo adjuntos sigue pasando por el procesamiento de archivos.

@@ -1797,6 +1797,31 @@ it("does not roll back a newer read when an older read fails late", async () => 
   expect(result.current.conversations[0]?.unread).toBe(false);
 });
 
+it("ignores an older successful read after a newer read has completed", async () => {
+  serve({ items: [conversation("c-1", { unread: true })] });
+  const result = await hook();
+  let finish: (() => void) | undefined;
+  vi.mocked(apiClient.post).mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+  );
+  let first: Promise<void> | undefined;
+  act(() => {
+    first = result.current.markRead("c-1");
+  });
+  await waitFor(() => expect(finish).toBeDefined());
+  await act(async () => {
+    await result.current.markRead("c-1");
+  });
+  await act(async () => {
+    finish?.();
+    await first;
+  });
+  expect(result.current.conversations[0]?.unread).toBe(false);
+});
+
 it("keeps the first list alive when a chat is marked read before it arrives", async () => {
   let arrive: (value: unknown) => void = () => {
     throw new Error("List not requested");
