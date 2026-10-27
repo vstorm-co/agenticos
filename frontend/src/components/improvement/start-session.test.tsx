@@ -111,7 +111,7 @@ it("prices the agent's own test set at once, so Start improving is the one decis
   expect(state.datasetQueries).toContainEqual({ agent: "a1", sort: "updated", limit: 5 });
   expect(
     await screen.findByText(
-      /^Up to \$0\.12 \(estimate\) to sort the 5 answers with feedback\. Each attempt after that takes about 1 minute and costs about \$0\.04/,
+      /^Up to \$0\.12 \(estimate\) to sort the 5 answers with feedback\. Each attempt after that takes about 1 minute and costs roughly \$0\.04/,
     ),
   ).toBeInTheDocument();
   expect(state.estimate).toHaveBeenCalledWith({ dataset_id: "own", max_iterations: 3 });
@@ -131,14 +131,14 @@ it("prices only reading what went wrong, and offers a limit for every attempt af
   render(<StartSession agentId="a1" />);
   expect(
     await screen.findByText(
-      /^Up to \$0\.00 \(estimate\) to sort the 5 answers with feedback\. .* costs about \$0\.0333, .* the limit of \$0\.10 caps the whole session\./,
+      /^Up to \$0\.00 \(estimate\) to sort the 5 answers with feedback\. .* costs roughly \$0\.0333, priced again .* the limit of \$0\.10 caps the whole session\./,
     ),
   ).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Start improving" }));
   expect(state.start).toHaveBeenCalledWith(expect.objectContaining({ budget_usd: "0.1" }));
   expect(
     screen.getByText(
-      "Analysis about $0.00 · each attempt about $0.0333 · the limit caps the whole session",
+      "Analysis about $0.00 · each attempt roughly $0.0333, priced again before it starts · the limit caps the whole session",
     ),
   ).toBeInTheDocument();
 });

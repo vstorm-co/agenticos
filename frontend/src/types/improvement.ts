@@ -154,6 +154,13 @@ export interface KnowledgeAdded {
   added_at: string | null;
 }
 
+/** How one check or judge criterion graded a test answer. */
+export interface EvidenceGrade {
+  scorer: "check" | "trajectory" | "judge" | "reference";
+  name: string;
+  status: "pass" | "fail" | "skipped" | "error";
+  reason: string;
+}
 export interface ImprovementEvidenceItem {
   run_id: string;
   conversation_id: string | null;
@@ -163,6 +170,8 @@ export interface ImprovementEvidenceItem {
   question: string | null;
   answer: string | null;
   comments: string[];
+  /** How a test question's answer was graded. */
+  grades?: EvidenceGrade[];
   branch: "agent" | "missing_knowledge" | "not_a_problem" | "unknown";
   reason: string | null;
   /** The knowledge gap topic its miss joined; examples sharing one are one problem. */

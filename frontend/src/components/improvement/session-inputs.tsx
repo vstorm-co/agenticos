@@ -6,11 +6,11 @@ import { AlertTriangle, ThumbsDown } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
 import { useImprovementEvidence } from "@/hooks/use-improvements";
-import { useDatasetCases } from "@/hooks/use-datasets";
+import { useDataset, useDatasetCases } from "@/hooks/use-datasets";
 import { useAgentAttention } from "@/hooks/use-usage-stats";
 import { getErrorMessage } from "@/lib/api-error";
 import type { Improvement } from "@/types/improvement";
-import type { DatasetCase } from "@/types/datasets";
+import type { Dataset, DatasetCase } from "@/types/datasets";
 import { WriteQuestions } from "./write-questions";
 import { StepError } from "./step-error";
 import { Details, Proportion, StateBadge, Tiles } from "./widgets";
@@ -80,6 +80,11 @@ function sourceCounts(cases: DatasetCase[]) {
 
 const MORE_QUESTIONS = 5;
 
+/** The share of questions each attempt keeps aside; a dataset that never set one keeps half. */
+function holdoutShare(dataset: Dataset): string {
+  return dataset.improvement_holdout_share ?? "0.5";
+}
+
 /**
  * How many more questions to write so the session has enough not used to write the
  * changes. The server's own count of what is missing decides it; a new question
@@ -90,14 +95,42 @@ function questionsToWrite(session: Improvement): number {
   return missing > 0 ? Math.max(MORE_QUESTIONS, missing * 2) : 0;
 }
 
+/** Each attempt draws its own share of the questions to keep aside, rounded half up. */
+function drawnHoldout(share: string, total: number): number {
+  return Math.floor(Number(share) * total + 0.5 + 1e-9);
+}
+
+/** The attempt whose check counted the questions it kept aside, the newest first. */
+function checkedAttempt(session: Improvement) {
+  const checked = session.iterations.filter(
+    (item) => typeof item.verdict_detail?.held_out === "number",
+  );
+  const last = checked.at(-1);
+  return last && { attempt: last.number, heldOut: Number(last.verdict_detail!.held_out) };
+}
+
 /**
  * Where a question set's questions come from, and how many help write the changes
- * against how many are kept aside to check them.
+ * against how many are kept aside to check them: about the dataset's share before
+ * an attempt is checked, since each attempt draws its own, and the count it kept
+ * aside once it is.
  */
-export function QuestionSetFigures({ cases }: { cases: DatasetCase[] }) {
+export function QuestionSetFigures({
+  cases,
+  share,
+  checked,
+}: {
+  cases: DatasetCase[];
+  share: string;
+  checked?: { attempt: number; heldOut: number };
+}) {
   const t = useTranslations("improvement");
   const sources = sourceCounts(cases);
-  const train = cases.filter((item) => item.improvement_partition === "train").length;
+  const holdout = checked ? checked.heldOut : drawnHoldout(share, cases.length);
+  const train = Math.max(0, cases.length - holdout);
+  const label = checked
+    ? t("widgets.partitionAttempt", { train, holdout, attempt: checked.attempt })
+    : t("widgets.partitionAbout", { train, holdout });
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <figure className="space-y-3 rounded-xl border p-4">
@@ -115,16 +148,13 @@ export function QuestionSetFigures({ cases }: { cases: DatasetCase[] }) {
       <figure className="space-y-3 rounded-xl border p-4">
         <figcaption className="text-sm font-medium">{t("widgets.howUsed")}</figcaption>
         <Proportion
-          label={t("widgets.partitionLabel", { train, holdout: cases.length - train })}
+          label={label}
           parts={[
             { label: t("widgets.helpWrite"), value: train, fill: "var(--series-3)" },
-            {
-              label: t("widgets.keptAside"),
-              value: cases.length - train,
-              fill: "var(--color-chart)",
-            },
+            { label: t("widgets.keptAside"), value: holdout, fill: "var(--color-chart)" },
           ]}
         />
+        <p className="text-muted-foreground text-xs">{label}</p>
       </figure>
     </div>
   );
@@ -134,11 +164,14 @@ export function QuestionSetFigures({ cases }: { cases: DatasetCase[] }) {
 export function StartQuestionSet({ datasetId }: { datasetId: string }) {
   const t = useTranslations("improvement");
   const questions = useDatasetCases(datasetId, { limit: SOURCE_LIMIT });
+  const { dataset } = useDataset(datasetId);
   if (questions.isLoading || questions.error || questions.total === 0) return null;
   return (
     <section className="space-y-3" data-tour="improvement-question-set">
       <h2 className="font-medium">{t("questionCount", { count: questions.total })}</h2>
-      {questions.cases.length === questions.total && <QuestionSetFigures cases={questions.cases} />}
+      {dataset && questions.cases.length === questions.total && (
+        <QuestionSetFigures cases={questions.cases} share={holdoutShare(dataset)} />
+      )}
     </section>
   );
 }
@@ -158,13 +191,20 @@ export function TestQuestions({ session }: { session: Improvement }) {
     version: session.dataset_version,
     limit: SOURCE_LIMIT,
   });
+  const { dataset } = useDataset(session.dataset_id);
   if (questions.error) return <StepError error={questions.error} retry={questions.refetch} />;
   if (questions.isLoading) return <p role="status">{t("loading")}</p>;
   const whole = all.cases.length === questions.total && questions.total > 0;
   return (
     <section className="space-y-5" data-tour="improvement-test-questions">
       <h2 className="text-lg font-medium">{t("questionCount", { count: questions.total })}</h2>
-      {whole && <QuestionSetFigures cases={all.cases} />}
+      {whole && dataset && (
+        <QuestionSetFigures
+          cases={all.cases}
+          share={holdoutShare(dataset)}
+          checked={checkedAttempt(session)}
+        />
+      )}
       <p className="text-muted-foreground text-sm">{t("pinnedQuestions")}</p>
       {more > 0 && (
         <div className="border-warning/35 bg-warning/5 space-y-3 rounded-xl border p-4 text-sm">

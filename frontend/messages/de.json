@@ -4993,11 +4993,11 @@
       },
       "improvement-understand": {
         "title": "Verstehen",
-        "body": "Was schiefging, aufgeteilt in das, was sich im Agent beheben lässt, und das, was in der Wissensdatenbank fehlt. Die Sitzung hält hier an, damit Sie es ansehen; ignorieren Sie, was nicht zählen soll."
+        "body": "Was schiefging, aufgeteilt in das, was sich im Agent beheben lässt, und das, was in der Wissensdatenbank fehlt. Antworten, an denen der Klassifikator nichts auszusetzen fand, stehen getrennt als kein zu behebendes Problem. Hier ist nichts einzustellen: Die Sitzung hält an, damit Sie es vor dem nächsten Schritt lesen."
       },
       "flow-improvement-understand": {
         "title": "Verstehen",
-        "body": "Was schiefging, aufgeteilt in das, was sich im Agent beheben lässt, und das, was in der Wissensdatenbank fehlt. Die Sitzung hält hier an, damit Sie es ansehen; ignorieren Sie, was nicht zählen soll."
+        "body": "Was schiefging, aufgeteilt in das, was sich im Agent beheben lässt, und das, was in der Wissensdatenbank fehlt. Antworten, an denen der Klassifikator nichts auszusetzen fand, stehen getrennt als kein zu behebendes Problem. Hier ist nichts einzustellen: Die Sitzung hält an, damit Sie es vor dem nächsten Schritt lesen."
       },
       "improvement-changes": {
         "title": "Änderungen",
@@ -10949,7 +10949,7 @@
     "baseline": "Heutige Antworten des Agenten testen",
     "estimate": "Erneut schätzen",
     "estimating": "Zeit und Kosten werden geschätzt…",
-    "sessionQuote": "Bis zu {cost} (Schätzung), um {answers, plural, one {# Antwort} other {# Antworten}} mit Feedback zu sortieren. Jeder Versuch danach dauert etwa {minutes, plural, one {# Minute} other {# Minuten}} und kostet ca. {perRound}; er wird bepreist, bevor Sie ihn drücken, und das Limit von {limit} gilt für die ganze Sitzung.",
+    "sessionQuote": "Bis zu {cost} (Schätzung), um {answers, plural, one {# Antwort} other {# Antworten}} mit Feedback zu sortieren. Jeder Versuch danach dauert etwa {minutes, plural, one {# Minute} other {# Minuten}} und kostet ungefähr {perRound}; er wird erneut bepreist, bevor Sie ihn drücken, und das Limit von {limit} gilt für die ganze Sitzung.",
     "evidence": "Auf Grundlage von {count, plural, one {# Antwort} other {# Antworten}} mit Feedback.",
     "budget": "Ausgabenlimit der Sitzung (USD)",
     "start": "Verbesserung starten",
@@ -11283,7 +11283,6 @@
       "howUsed": "Wie sie verwendet werden",
       "helpWrite": "Helfen, die Änderungen zu schreiben",
       "keptAside": "Zurückgelegt, um das Ergebnis zu prüfen",
-      "partitionLabel": "{train, plural, one {# Frage hilft} other {# Fragen helfen}}, die Änderungen zu schreiben; {holdout, plural, one {# wird} other {# werden}} zurückgelegt, um das Ergebnis zu prüfen.",
       "tooFew": "Zu wenige Fragen",
       "comments": "{count, plural, one {# Kommentar} other {# Kommentare}}",
       "toReview": "Zu prüfende Dokumente",
@@ -11298,7 +11297,9 @@
       "reasons": "Warum, und worauf es beruht",
       "proposed": "Vorgeschlagene Änderungen",
       "included": "Im Test enthalten",
-      "alreadyAdded": "{count, plural, one {# schon hinzugefügt} other {# schon hinzugefügt}}"
+      "alreadyAdded": "{count, plural, one {# schon hinzugefügt} other {# schon hinzugefügt}}",
+      "partitionAbout": "Jeder Versuch legt etwa {holdout, plural, one {# Frage} other {# Fragen}} zurück, um das Ergebnis zu prüfen; etwa {train, plural, one {# hilft} other {# helfen}}, die Änderungen zu schreiben.",
+      "partitionAttempt": "Versuch {attempt} hat {holdout, plural, one {# Frage} other {# Fragen}} zurückgelegt, um das Ergebnis zu prüfen; {train, plural, one {# half} other {# halfen}}, die Änderungen zu schreiben."
     },
     "sessionLine": "Sitzung",
     "budgetUsed": "Genutztes Ausgabenlimit",
@@ -11370,7 +11371,7 @@
     "nextUp": {
       "label": "Nächster Schritt",
       "hint": {
-        "understand": "Sehen Sie sich an, was schiefging, und ignorieren Sie, was nicht zählen soll. Der nächste Schritt wird bepreist, bevor Sie drücken.",
+        "understand": "Lesen Sie, was schiefging. Der nächste Schritt wird bepreist, bevor Sie drücken.",
         "changes": "Haken Sie die zu testenden Änderungen an und korrigieren Sie Formulierungen. Der nächste Schritt wird bepreist, bevor Sie drücken."
       },
       "pricing": "Der nächste Schritt wird bepreist…",
@@ -11417,13 +11418,28 @@
       "editedReason": "Die Begründung beschreibt den vorgeschlagenen Wortlaut, bevor Sie ihn geändert haben.",
       "single": "Diese Änderung wird getestet."
     },
-    "limitHint": "Analyse ca. {analysis} · jeder Versuch ca. {perRound} · das Limit gilt für die ganze Sitzung",
+    "limitHint": "Analyse ca. {analysis} · jeder Versuch ungefähr {perRound}, vor dem Start erneut bepreist · das Limit gilt für die ganze Sitzung",
     "triedChanges": "Was jeder Versuch ausprobiert hat",
     "suiteSet": "{name} (Fragen der Prüfung {suite})",
     "writeOwnInstead": "Oder neue Testfragen für diesen Agenten schreiben",
     "todayBreakdown": "Von {total} Fragen heute: {passed} gut beantwortet, {failing} fehlerhaft{asked, select, yes {, {unstable} beim erneuten Fragen anders bewertet} other {}}.",
     "knowledgeDraftCost": "Ein Dokumententwurf wird über die Wissensdatenbank abgerechnet, außerhalb des Limits dieser Sitzung.",
-    "knowledgeLoading": "Themen werden geladen…"
+    "knowledgeLoading": "Themen werden geladen…",
+    "notAProblemHint": "Automatisch hier einsortiert, nicht von einer Person: positiv bewertete Antworten und solche, an denen der Klassifikator nichts auszusetzen fand.",
+    "bothSources": "Testfrage und Gesprächsbeispiel",
+    "grading": {
+      "heading": "Wie bewertet wurde",
+      "judge": "Der Bewerter gab {score} für „{name}“: {reason}",
+      "judgeSaid": "Der Bewerter zu „{name}“: {reason}",
+      "rule": "Regel „{name}“: {status, select, pass {erfüllt} fail {nicht erfüllt} other {nicht geprüft}}"
+    },
+    "why": {
+      "failed": "Die Testantwort ist durchgefallen bei {grades}.",
+      "grade": "{score, select, none {„{name}“} other {„{name}“ ({score})}}",
+      "ratedDown": "{commented, select, yes {Jemand hat diese Antwort negativ bewertet und geschrieben: „{comment}“} other {Jemand hat diese Antwort negativ bewertet, ohne Kommentar.}}",
+      "ratedUp": "Jemand hat diese Antwort positiv bewertet.",
+      "runFailed": "Der Agent hat diese Antwort nicht beendet."
+    }
   },
   "unsaved": {
     "title": "Du hast ungespeicherte Änderungen",

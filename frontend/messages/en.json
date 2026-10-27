@@ -5111,11 +5111,11 @@
       },
       "improvement-understand": {
         "title": "Understand",
-        "body": "What went wrong, sorted into what the agent can fix and what the knowledge base is missing. The session stops here for you to look; ignore anything that should not count."
+        "body": "What went wrong, sorted into what the agent can fix and what the knowledge base is missing. Answers the classifier found nothing wrong with are listed apart, as not a problem to fix. There is nothing to set here: the session stops so you can read it before the next step."
       },
       "flow-improvement-understand": {
         "title": "Understand",
-        "body": "What went wrong, sorted into what the agent can fix and what the knowledge base is missing. The session stops here for you to look; ignore anything that should not count."
+        "body": "What went wrong, sorted into what the agent can fix and what the knowledge base is missing. Answers the classifier found nothing wrong with are listed apart, as not a problem to fix. There is nothing to set here: the session stops so you can read it before the next step."
       },
       "improvement-changes": {
         "title": "Changes",
@@ -11066,7 +11066,7 @@
     "baseline": "Test how the agent answers today",
     "estimate": "Estimate again",
     "estimating": "Estimating the time and cost…",
-    "sessionQuote": "Up to {cost} (estimate) to sort the {answers, plural, one {# answer} other {# answers}} with feedback. Each attempt after that takes about {minutes, plural, one {# minute} other {# minutes}} and costs about {perRound}, priced before you press it; the limit of {limit} caps the whole session.",
+    "sessionQuote": "Up to {cost} (estimate) to sort the {answers, plural, one {# answer} other {# answers}} with feedback. Each attempt after that takes about {minutes, plural, one {# minute} other {# minutes}} and costs roughly {perRound}, priced again before you press it; the limit of {limit} caps the whole session.",
     "evidence": "Based on {count, plural, one {# answer} other {# answers}} with feedback.",
     "budget": "Session spending limit (USD)",
     "start": "Start improving",
@@ -11400,7 +11400,6 @@
       "howUsed": "How they are used",
       "helpWrite": "Help write the changes",
       "keptAside": "Kept aside to check the result",
-      "partitionLabel": "{train, plural, one {# question helps} other {# questions help}} write the changes; {holdout, plural, one {# is} other {# are}} kept aside to check the result.",
       "tooFew": "Too few questions",
       "comments": "{count, plural, one {# comment} other {# comments}}",
       "toReview": "Documents to review",
@@ -11415,7 +11414,9 @@
       "reasons": "Why, and what it is based on",
       "proposed": "Changes proposed",
       "included": "Included in the test",
-      "alreadyAdded": "{count, plural, one {# already added} other {# already added}}"
+      "alreadyAdded": "{count, plural, one {# already added} other {# already added}}",
+      "partitionAbout": "Each attempt keeps about {holdout, plural, one {# question} other {# questions}} aside to check the result; about {train, plural, one {# helps} other {# help}} write the changes.",
+      "partitionAttempt": "Attempt {attempt} kept {holdout, plural, one {# question} other {# questions}} aside to check the result; {train, plural, one {# helped} other {# helped}} write the changes."
     },
     "sessionLine": "Session",
     "budgetUsed": "Spending limit used",
@@ -11487,7 +11488,7 @@
     "nextUp": {
       "label": "Next step",
       "hint": {
-        "understand": "Look at what went wrong and ignore anything that should not count. The next step is priced before you press.",
+        "understand": "Read what went wrong. The next step is priced before you press.",
         "changes": "Tick the changes to test and correct any wording. The next step is priced before you press."
       },
       "pricing": "Pricing the next step…",
@@ -11534,13 +11535,28 @@
       "editedReason": "The reason describes the proposed wording, before you changed it.",
       "single": "This change will be tested."
     },
-    "limitHint": "Analysis about {analysis} · each attempt about {perRound} · the limit caps the whole session",
+    "limitHint": "Analysis about {analysis} · each attempt roughly {perRound}, priced again before it starts · the limit caps the whole session",
     "triedChanges": "What each attempt tried",
     "suiteSet": "{name} (questions of the {suite} check)",
     "writeOwnInstead": "Or write new test questions for this agent",
     "todayBreakdown": "Of {total} questions today: {passed} handled well, {failing} failing{asked, select, yes {, {unstable} graded differently when asked again} other {}}.",
     "knowledgeDraftCost": "Drafting a document is billed to the knowledge base, outside this session's limit.",
-    "knowledgeLoading": "Loading the topics…"
+    "knowledgeLoading": "Loading the topics…",
+    "notAProblemHint": "Sorted here automatically, not by a person: answers people rated up, and answers the classifier found nothing wrong with.",
+    "bothSources": "Test question and conversation example",
+    "grading": {
+      "heading": "How it was graded",
+      "judge": "The judge gave {score} for “{name}”: {reason}",
+      "judgeSaid": "The judge on “{name}”: {reason}",
+      "rule": "Rule “{name}”: {status, select, pass {met} fail {not met} other {not checked}}"
+    },
+    "why": {
+      "failed": "Its test answer failed {grades}.",
+      "grade": "{score, select, none {“{name}”} other {“{name}” ({score})}}",
+      "ratedDown": "{commented, select, yes {A person rated this answer down and said: “{comment}”} other {A person rated this answer down, without a comment.}}",
+      "ratedUp": "A person rated this answer up.",
+      "runFailed": "The agent did not finish this answer."
+    }
   },
   "unsaved": {
     "title": "You have unsaved changes",

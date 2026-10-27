@@ -24,6 +24,7 @@ const state = vi.hoisted(() => ({
   ],
   questionError: null as Error | null,
   datasetHook: vi.fn(),
+  share: "0.5" as string | undefined,
   evidenceHook: vi.fn(),
   refetch: vi.fn(),
 }));
@@ -51,6 +52,7 @@ vi.mock("./write-questions", () => ({
   ),
 }));
 vi.mock("@/hooks/use-datasets", () => ({
+  useDataset: () => ({ dataset: { id: "d1", improvement_holdout_share: state.share } }),
   useDatasetCases: (...args: unknown[]) => {
     state.datasetHook(...args);
     return {
@@ -120,6 +122,7 @@ beforeEach(() => {
   };
   state.sourceError = state.attentionError = state.questionError = null;
   state.loading = false;
+  state.share = "0.5";
   state.rated = 5;
   state.total = 21;
   state.questions = [
@@ -170,8 +173,12 @@ it("keeps unknown causes explicit and shows quotes, comments, reasons and source
   expect(screen.getByText("No source passage")).toBeInTheDocument();
   expect(screen.getByText(/test answer failed/)).toBeInTheDocument();
   expect(screen.getByRole("img", { name: /^We found \d+ problems?:/ })).toBeInTheDocument();
+  expect(
+    screen.getByText("A person rated this answer down and said: “Wrong policy”"),
+  ).toBeInTheDocument();
   await userEvent.click(screen.getByText(/^Not a problem to fix \(/));
-  expect(screen.getByText(/existing feedback and classification/)).toBeInTheDocument();
+  expect(screen.getByText(/not by a person/)).toBeInTheDocument();
+  expect(screen.getByText("A person rated this answer up.")).toBeInTheDocument();
 });
 it("does not invent examples when sources are gone or unreadable", () => {
   state.sources = { items: [], sample_limit: 20, training_failures: 0 };
@@ -431,7 +438,9 @@ it("shows the question set a new session would test on, and nothing until it is 
   expect(state.datasetHook).toHaveBeenCalledWith("d9", { limit: 100 });
   expect(screen.getByRole("heading", { name: "2 test questions" })).toBeInTheDocument();
   expect(
-    screen.getByRole("img", { name: /^1 question helps write the changes; 1 is kept aside/ }),
+    screen.getByRole("img", {
+      name: "Each attempt keeps about 1 question aside to check the result; about 1 helps write the changes.",
+    }),
   ).toBeInTheDocument();
   state.total = 3;
   view.rerender(<StartQuestionSet datasetId="d9" />);
@@ -444,4 +453,125 @@ it("shows the question set a new session would test on, and nothing until it is 
   state.total = 0;
   view.rerender(<StartQuestionSet datasetId="d9" />);
   expect(screen.queryByRole("heading")).not.toBeInTheDocument();
+});
+
+const GRADED = {
+  run_id: "r6",
+  conversation_id: null,
+  kind: "train_eval" as const,
+  status: "train_eval_failure",
+  rating: 0,
+  question: "  refund?  ",
+  answer: "Sure, 90 days",
+  comments: [],
+  branch: "agent" as const,
+  reason: null,
+  grades: [
+    {
+      scorer: "judge" as const,
+      name: "Follows the policy",
+      status: "fail" as const,
+      reason: "1/5: It promises 90 days",
+    },
+    { scorer: "check" as const, name: "regex '200'", status: "pass" as const, reason: "Matches" },
+    {
+      scorer: "judge" as const,
+      name: "Polite",
+      status: "error" as const,
+      reason: "The judge could not be reached",
+    },
+  ],
+};
+
+it("shows a question asked both as a test and in a conversation as one problem", async () => {
+  state.sources!.items.push(GRADED);
+  render(<Understand session={SESSION} />);
+  expect(
+    screen.getByText(
+      "We found 3 problems: 2 we can fix in the agent, 1 is information missing from the knowledge base.",
+    ),
+  ).toBeInTheDocument();
+  expect(screen.getByText("Test question and conversation example")).toBeInTheDocument();
+  expect(screen.queryByText(/more conversations? about this/)).not.toBeInTheDocument();
+  await userEvent.click(screen.getByText("Refund?"));
+  expect(
+    screen.getByText("The judge gave 1/5 for “Follows the policy”: It promises 90 days"),
+  ).toBeInTheDocument();
+  expect(screen.getByText("Rule “regex '200'”: met")).toBeInTheDocument();
+  expect(
+    screen.getByText("The judge on “Polite”: The judge could not be reached"),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText("Its test answer failed “Follows the policy” (1/5)."),
+  ).toBeInTheDocument();
+  expect(screen.getAllByRole("link", { name: "Open conversation" })[0]).toHaveAttribute(
+    "href",
+    "/chat/c1",
+  );
+});
+
+it("says why from what each example holds, and falls back when it holds nothing", async () => {
+  state.sources!.items = [
+    {
+      ...GRADED,
+      question: "Deadline?",
+      grades: [{ scorer: "check", name: "length", status: "fail", reason: "900 words" }],
+    },
+    {
+      ...state.sources!.items[0]!,
+      run_id: "r9",
+      question: "Crashed?",
+      status: "failed",
+      comments: [],
+      branch: "agent",
+    },
+    {
+      ...state.sources!.items[0]!,
+      run_id: "r10",
+      question: "Quiet?",
+      comments: [],
+      branch: "agent",
+    },
+    {
+      ...state.sources!.items[0]!,
+      run_id: "r11",
+      question: "Unrated?",
+      rating: 0,
+      branch: "agent",
+    },
+    { ...GRADED, run_id: "r12", question: "Noted?", grades: undefined },
+  ];
+  render(<Understand session={SESSION} />);
+  for (const question of ["Deadline?", "Crashed?", "Quiet?", "Unrated?", "Noted?"])
+    await userEvent.click(screen.getByText(question));
+  expect(screen.getByText("Its test answer failed “length”.")).toBeInTheDocument();
+  expect(screen.getByText("Rule “length”: not met")).toBeInTheDocument();
+  expect(screen.getByText("The agent did not finish this answer.")).toBeInTheDocument();
+  expect(
+    screen.getByText("A person rated this answer down, without a comment."),
+  ).toBeInTheDocument();
+  expect(screen.getByText(/existing feedback and classification/)).toBeInTheDocument();
+  expect(screen.getByText(/test answer failed or has a review note/)).toBeInTheDocument();
+});
+
+it("counts what an attempt kept aside once it is checked, and about the share before", () => {
+  state.total = 2;
+  const checked = {
+    ...SESSION,
+    iterations: [
+      { ...SESSION.iterations[0]!, verdict_detail: { held_out: 2 } },
+      { ...SESSION.iterations[0]!, number: 2, verdict_detail: null },
+    ],
+  };
+  const view = render(<TestQuestions session={checked} />);
+  expect(
+    screen.getByRole("img", {
+      name: "Attempt 1 kept 2 questions aside to check the result; 0 helped write the changes.",
+    }),
+  ).toBeInTheDocument();
+  state.share = undefined;
+  view.rerender(<TestQuestions session={SESSION} />);
+  expect(
+    screen.getByRole("img", { name: /^Each attempt keeps about 1 question aside/ }),
+  ).toBeInTheDocument();
 });
