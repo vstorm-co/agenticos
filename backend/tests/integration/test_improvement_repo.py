@@ -112,14 +112,44 @@ class TestOneSessionPerAgent:
         org, user, agent, dataset = await _world(db)
         await _session(db, org, agent, user, dataset)
 
-        with pytest.raises(IntegrityError, match="uq_improvement_runs_active"):
+        with pytest.raises(IntegrityError, match="uq_improvement_runs_open"):
             async with db.begin_nested():
                 await _session(db, org, agent, user, dataset)
 
     @pytest.mark.parametrize(
-        "status", [ImprovementStatus.READY, ImprovementStatus.STOPPED, ImprovementStatus.FAILED]
+        "status",
+        [
+            ImprovementStatus.WAITING,
+            ImprovementStatus.READY,
+            ImprovementStatus.STOPPED,
+            ImprovementStatus.FAILED,
+        ],
     )
-    async def test_a_ready_or_finished_session_does_not_block_a_new_one(
+    async def test_a_session_still_open_blocks_a_new_one(
+        self, db: AsyncSession, status: ImprovementStatus
+    ):
+        org, user, agent, dataset = await _world(db)
+        first = await _session(db, org, agent, user, dataset)
+        await improvement_repo.update_run(db, run=first, values={"status": status.value})
+
+        with pytest.raises(IntegrityError, match="uq_improvement_runs_open"):
+            async with db.begin_nested():
+                await _session(db, org, agent, user, dataset)
+        assert (
+            await improvement_repo.get_open(db, organization_id=org.id, agent_id=agent.id)
+        ).id == first.id
+
+    @pytest.mark.parametrize(
+        "status",
+        [
+            ImprovementStatus.ACCEPTED,
+            ImprovementStatus.PUBLISHED,
+            ImprovementStatus.REJECTED,
+            ImprovementStatus.CANCELLED,
+            ImprovementStatus.STALE,
+        ],
+    )
+    async def test_a_closed_session_does_not_block_a_new_one(
         self, db: AsyncSession, status: ImprovementStatus
     ):
         org, user, agent, dataset = await _world(db)
@@ -414,7 +444,7 @@ class TestOrganizations:
             db,
             run=older,
             values={
-                "status": ImprovementStatus.STOPPED.value,
+                "status": ImprovementStatus.REJECTED.value,
                 "created_at": older.created_at - timedelta(hours=1),
             },
         )
@@ -485,7 +515,7 @@ class TestOrganizations:
         pages: list[uuid.UUID] = []
         after = None
         while True:
-            page = await improvement_repo.list_waiting(db, after=after, limit=1)
+            page = await improvement_repo.list_deciding(db, after=after, limit=1)
             if not page:
                 break
             pages.extend(run_id for run_id, _ in page)

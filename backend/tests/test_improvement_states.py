@@ -12,7 +12,8 @@ from app.db.models.authoring import AuthoringStatus
 from app.db.models.eval_run import EvalRunStatus
 from app.db.models.improvement import (
     ACTIVE_STATUSES,
-    WAITING_STATUSES,
+    DECIDING_STATUSES,
+    OPEN_STATUSES,
     ImprovementStage,
     ImprovementStatus,
     ImprovementVerdict,
@@ -463,11 +464,20 @@ def test_only_a_measured_candidate_waits_for_a_person() -> None:
     }
 
 
-def test_statuses_split_into_active_waiting_and_finished() -> None:
+def test_every_status_is_either_open_or_closed() -> None:
     assert ACTIVE_STATUSES == (ImprovementStatus.QUEUED, ImprovementStatus.RUNNING)
-    assert WAITING_STATUSES == (ImprovementStatus.READY, ImprovementStatus.ACCEPTED)
+    assert DECIDING_STATUSES == (ImprovementStatus.READY, ImprovementStatus.ACCEPTED)
+    assert OPEN_STATUSES == (
+        ImprovementStatus.QUEUED,
+        ImprovementStatus.RUNNING,
+        ImprovementStatus.WAITING,
+        ImprovementStatus.READY,
+        ImprovementStatus.STOPPED,
+        ImprovementStatus.FAILED,
+    )
     for status in ImprovementStatus:
-        assert [status.active, status.waiting, status.terminal].count(True) == 1
+        assert status.open != status.closed
+        assert not status.active or status.open
 
 
 @pytest.mark.parametrize("status", ["queued", "running"])

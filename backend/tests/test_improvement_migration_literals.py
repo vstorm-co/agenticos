@@ -18,7 +18,8 @@ from sqlalchemy import Index
 from app.db.base import Base
 from app.db.models.improvement import (
     ACTIVE_STATUSES,
-    WAITING_STATUSES,
+    OPEN_STATUSES,
+    UNSETTLED_STATUSES,
     ImprovementRun,
     ImprovementStage,
     ImprovementStatus,
@@ -26,7 +27,7 @@ from app.db.models.improvement import (
     StopReason,
 )
 
-_MIGRATION = Path(__file__).parents[1] / "alembic" / "versions" / "0186_knowledge_gap_causes.py"
+_MIGRATION = Path(__file__).parents[1] / "alembic" / "versions" / "0212_improvement_waiting.py"
 
 
 def _migration(path: Path = _MIGRATION) -> ModuleType:
@@ -57,7 +58,8 @@ def _predicate(name: str) -> str:
         ("_STAGES", ImprovementStage),
         ("_VERDICTS", ImprovementVerdict),
         ("_ACTIVE", ACTIVE_STATUSES),
-        ("_OPEN", ACTIVE_STATUSES + WAITING_STATUSES),
+        ("_OPEN", OPEN_STATUSES),
+        ("_UNSETTLED", UNSETTLED_STATUSES),
     ],
 )
 def test_the_migration_lists_every_value_the_model_allows(
@@ -68,20 +70,34 @@ def test_the_migration_lists_every_value_the_model_allows(
 
 @pytest.mark.parametrize(
     ("index", "constant"),
-    [("uq_improvement_runs_active", "_ACTIVE"), ("ix_improvement_runs_open", "_OPEN")],
+    [("uq_improvement_runs_open", "_OPEN"), ("ix_improvement_runs_unsettled", "_UNSETTLED")],
 )
 def test_the_partial_indexes_cover_the_same_statuses(index: str, constant: str) -> None:
     assert _predicate(index) == f"status IN ({getattr(_migration(), constant)})"
 
 
-def test_the_latest_stop_reason_constraint_matches_the_model() -> None:
-    migration = _migration(_MIGRATION.with_name("0197_improvement_rounds.py"))
+@pytest.mark.parametrize(
+    ("name", "pattern", "members"),
+    [
+        ("ck_improvement_run_status", r"status IN \((.+)\)", ImprovementStatus),
+        (
+            "ck_improvement_run_stop_reason",
+            r"stop_reason IS NULL OR stop_reason IN \((.+)\)",
+            StopReason,
+        ),
+    ],
+)
+def test_the_latest_constraints_match_the_model(
+    name: str, pattern: str, members: type[StrEnum]
+) -> None:
+    migration = _migration()
     with patch.object(migration, "op") as operations:
         migration.upgrade()
-    name, table, condition = operations.create_check_constraint.call_args.args
-    assert (name, table) == ("ck_improvement_run_stop_reason", "improvement_runs")
-    matched = re.fullmatch(r"stop_reason IS NULL OR stop_reason IN \((.+)\)", condition)
-    assert matched is not None
-    assert set(re.findall(r"'([^']+)'", matched.group(1))) == {
-        reason.value for reason in StopReason
+    conditions = {
+        call.args[0]: call.args[2]
+        for call in operations.create_check_constraint.call_args_list
+        if call.args[1] == "improvement_runs"
     }
+    matched = re.fullmatch(pattern, conditions[name])
+    assert matched is not None
+    assert set(re.findall(r"'([^']+)'", matched.group(1))) == {member.value for member in members}

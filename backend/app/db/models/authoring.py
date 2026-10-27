@@ -322,6 +322,9 @@ class SpecProposalHunk(Base):
     # What Accept wrote - the proposal, or the person's edit of it - so Undo
     # reverses exactly that, and only while it still stands in the draft.
     accepted_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # A person's edit of an improvement session's proposal before it is checked;
+    # the check measures it and Accept writes it.
+    edited_text: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     capability_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     tool_id: Mapped[str | None] = mapped_column(String(128), nullable=True)

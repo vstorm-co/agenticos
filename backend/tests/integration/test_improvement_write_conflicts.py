@@ -37,7 +37,7 @@ async def test_a_start_collision_only_translates_the_known_active_session_constr
         id=uuid4(), organization_id=ctx.organization_id, agent_id=agent.id, status="queued"
     )
     cause = ConstraintConflict(
-        "another_constraint" if failure == "unrelated" else "uq_improvement_runs_active"
+        "another_constraint" if failure == "unrelated" else "uq_improvement_runs_open"
     )
     original: Exception = cause
     if failure == "wrapped":
@@ -48,7 +48,7 @@ async def test_a_start_collision_only_translates_the_known_active_session_constr
     count = await db.scalar(select(func.count()).select_from(ImprovementRun))
     with (
         patch(
-            "app.services.improvement_pipeline.improvement_repo.get_active",
+            "app.services.improvement_pipeline.improvement_repo.get_open",
             AsyncMock(side_effect=[None, None if failure == "winner_deleted" else winner]),
         ),
         patch(
@@ -85,106 +85,6 @@ async def test_a_failed_eval_retry_keeps_its_checks_and_duplicate_clicks_start_n
     assert retried.status == "running"
     assert len(retried.iterations[0].eval_run_ids) == len(session.iterations[0].eval_run_ids) + 1
     assert repeated.iterations[0].eval_run_ids == retried.iterations[0].eval_run_ids
-
-
-async def test_retry_cannot_reserve_work_while_a_newer_session_is_active(db: AsyncSession) -> None:
-    ctx, agent, dataset, session = await _started(db)
-    row = await db.get(ImprovementRun, session.id)
-    assert row is not None
-    row.status, row.stage = "failed", "proposing"
-    await db.flush()
-    service = ImprovementPipelineService(db)
-    newer = await service.start(
-        ctx,
-        agent.id,
-        ImprovementStart(dataset_id=dataset.id, max_iterations=1, budget_usd=Decimal("5")),
-    )
-    with pytest.raises(ConcurrentChangeError, match="running"):
-        await service.retry(ctx, agent.id, session.id)
-    assert (await service.read(ctx, agent.id, newer.id)).status == "queued"
-
-
-async def _winner(db: AsyncSession, row: ImprovementRun) -> ImprovementRun:
-    """Another session that took the agent after the loser looked and found none."""
-    from app.repositories import improvement_repo
-
-    return await improvement_repo.create_run(
-        db,
-        organization_id=row.organization_id,
-        agent_id=row.agent_id,
-        created_by_user_id=row.created_by_user_id,
-        created_by_api_key_id=None,
-        base_version_id=row.base_version_id,
-        base_draft_hash=row.base_draft_hash,
-        dataset_id=row.dataset_id,
-        dataset_version=row.dataset_version,
-        suite_id=None,
-        suite_hash=None,
-        scoring_hash=row.scoring_hash,
-        window_days=row.window_days,
-        estimate_usd=row.estimate_usd,
-        budget_usd=row.budget_usd,
-        max_iterations=row.max_iterations,
-    )
-
-
-@pytest.mark.parametrize("resume", ["retry", "continue"])
-async def test_a_resume_that_loses_the_race_to_another_session_is_a_conflict(
-    db: AsyncSession, resume: str
-) -> None:
-    from app.schemas.improvement import ContinuationConsent, ImprovementContinue
-
-    ctx, agent, session = await _ready_proposal(db)
-    row = await db.get(ImprovementRun, session.id)
-    assert row is not None
-    service = ImprovementPipelineService(db)
-    if resume == "retry":
-        row.status, row.stage, row.stop_reason = "failed", "proposing", "proposal"
-        await db.flush()
-
-        async def act() -> object:
-            return await service.retry(ctx, agent.id, session.id)
-    else:
-        row.max_iterations = 3
-        await db.flush()
-        quote = await service.estimate_continuation(
-            ctx, agent.id, session.id, ImprovementContinue(budget_usd=Decimal("5"))
-        )
-        consent = ContinuationConsent(
-            confirmed=True,
-            budget_usd=quote.budget_usd,
-            estimate_usd=quote.total_usd,
-            candidate_hash=quote.candidate_hash,
-        )
-
-        async def act() -> object:
-            return await service.continue_run(ctx, agent.id, session.id, consent)
-
-    status = row.status
-    winner = await _winner(db, row)
-    from app.repositories import improvement_repo
-
-    found = improvement_repo.get_active
-    looked: list[bool] = []
-
-    async def looked_too_early(*args: object, **kwargs: object) -> ImprovementRun | None:
-        if not looked:
-            looked.append(True)
-            return None
-        return await found(*args, **kwargs)
-
-    with (
-        patch(
-            "app.services.improvement_pipeline.improvement_repo.get_active",
-            side_effect=looked_too_early,
-        ),
-        pytest.raises(ConcurrentChangeError) as refused,
-    ):
-        await act()
-    assert refused.value.details == {"improvement_run_id": str(winner.id)}
-    assert isinstance(refused.value.__cause__, IntegrityError)
-    await db.refresh(row)
-    assert row.status == status
 
 
 async def test_a_retry_of_an_agent_gone_under_its_lock_is_not_found(db: AsyncSession) -> None:

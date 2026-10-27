@@ -356,8 +356,8 @@ async def test_the_sweep_skips_sessions_removed_after_they_were_listed(
         ),
         patch.object(
             improvement_repo,
-            "list_waiting",
-            new=_vanishing(improvement_repo.list_waiting, lambda row: row[0]),
+            "list_deciding",
+            new=_vanishing(improvement_repo.list_deciding, lambda row: row[0]),
         ),
     ):
         assert await ImprovementPipelineService(db).sweep() == 0

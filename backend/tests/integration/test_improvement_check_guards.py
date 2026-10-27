@@ -8,46 +8,33 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import BadRequestError, ConcurrentChangeError, NotFoundError
-from app.db.models.authoring import AuthoringRequest
 from app.db.models.improvement import ImprovementRun
 from app.repositories import improvement_repo
 from app.schemas.improvement import AttributionConsent, ImprovementStart
 from app.services.improvement_pipeline import ImprovementPipelineService
 from tests.integration.test_authoring import _environment as _environment
-from tests.integration.test_improvement_continuation import _consent as continuation_consent
 from tests.integration.test_improvement_pipeline import _ready_proposal
 from tests.integration.test_improvement_selection import _consent, _hunks
 
 pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("_environment")]
 
 
-@pytest.mark.parametrize("operation", ["continue", "selection"])
-async def test_a_new_session_blocks_paid_work_in_an_older_waiting_session(
-    db: AsyncSession, operation: str
+async def test_a_session_still_open_refuses_a_new_one_and_names_itself(
+    db: AsyncSession,
 ) -> None:
     ctx, agent, ready = await _ready_proposal(db)
-    row = await db.get(ImprovementRun, ready.id)
-    assert row is not None
-    row.max_iterations = 3
-    await db.flush()
     service = ImprovementPipelineService(db)
-    _, continuation = await continuation_consent(service, ctx, agent, ready)
-    selected = await _consent(service, ctx, agent, ready, [(await _hunks(db, ctx, ready))[0].id])
-    newer = await service.start(
-        ctx,
-        agent.id,
-        ImprovementStart(dataset_id=ready.dataset_id, max_iterations=1, budget_usd=Decimal("5")),
-    )
-    before = await db.scalar(select(func.count()).select_from(AuthoringRequest))
-    with pytest.raises(ConcurrentChangeError) as refused:
-        if operation == "continue":
-            await service.continue_run(ctx, agent.id, ready.id, continuation)
-        else:
-            await service.check_selection(ctx, agent.id, ready.id, 1, selected)
-    assert refused.value.details is not None
-    assert refused.value.details["improvement_run_id"] == str(newer.id)
-    assert row.status == "ready"
-    assert await db.scalar(select(func.count()).select_from(AuthoringRequest)) == before
+    before = await db.scalar(select(func.count()).select_from(ImprovementRun))
+    with pytest.raises(ConcurrentChangeError, match="already open") as refused:
+        await service.start(
+            ctx,
+            agent.id,
+            ImprovementStart(
+                dataset_id=ready.dataset_id, max_iterations=1, budget_usd=Decimal("5")
+            ),
+        )
+    assert refused.value.details == {"improvement_run_id": str(ready.id)}
+    assert await db.scalar(select(func.count()).select_from(ImprovementRun)) == before
 
 
 @pytest.mark.parametrize("blocker", ["removed_agent", "another_selection", "active_check"])

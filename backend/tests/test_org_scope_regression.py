@@ -226,7 +226,7 @@ CROSS_TENANT_BY_DESIGN = [
     (eval_suite_repo, "claim_pending"),
     (eval_suite_repo, "claim_finished"),
     (improvement_repo, "list_active"),
-    (improvement_repo, "list_waiting"),
+    (improvement_repo, "list_deciding"),
     (promotion_gate_repo, "guarded_followers"),
 ]
 

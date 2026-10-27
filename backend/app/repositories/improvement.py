@@ -10,14 +10,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.improvement import (
     ACTIVE_STATUSES,
-    WAITING_STATUSES,
+    DECIDING_STATUSES,
+    OPEN_STATUSES,
     ImprovementIteration,
     ImprovementRun,
     ImprovementStatus,
 )
 
 _ACTIVE = tuple(status.value for status in ACTIVE_STATUSES)
-_WAITING = tuple(status.value for status in WAITING_STATUSES)
+_DECIDING = tuple(status.value for status in DECIDING_STATUSES)
+_OPEN = tuple(status.value for status in OPEN_STATUSES)
 
 
 async def create_run(
@@ -41,8 +43,8 @@ async def create_run(
 ) -> ImprovementRun:
     """A queued session.
 
-    A second active session on the agent fails the flush with an
-    `IntegrityError` on `uq_improvement_runs_active`; the caller turns it into
+    A second open session on the agent fails the flush with an
+    `IntegrityError` on `uq_improvement_runs_open`; the caller turns it into
     its refusal.
     """
     run = ImprovementRun(
@@ -104,6 +106,20 @@ async def get_active(
     return result.scalar_one_or_none()
 
 
+async def get_open(
+    db: AsyncSession, *, organization_id: UUID, agent_id: UUID
+) -> ImprovementRun | None:
+    """The agent's session that is not over yet, if it has one."""
+    result = await db.execute(
+        select(ImprovementRun).where(
+            ImprovementRun.organization_id == organization_id,
+            ImprovementRun.agent_id == agent_id,
+            ImprovementRun.status.in_(_OPEN),
+        )
+    )
+    return result.scalar_one_or_none()
+
+
 async def list_for_agent(
     db: AsyncSession, *, organization_id: UUID, agent_id: UUID, limit: int = 20
 ) -> list[ImprovementRun]:
@@ -140,10 +156,10 @@ async def list_active(
     return [(row.id, row.organization_id) for row in result.all()]
 
 
-async def list_waiting(
+async def list_deciding(
     db: AsyncSession, *, after: UUID | None = None, limit: int = 200
 ) -> list[tuple[UUID, UUID]]:
-    """`(run id, organization id)` of sessions waiting for a person, a page at a time by id.
+    """`(run id, organization id)` of sessions whose candidate waits for a decision, a page at a time.
 
     Unscoped, for the deployment's sweep, which settles a waiting session once
     its batch is published or replaced. A waiting session does not change on its
@@ -151,7 +167,7 @@ async def list_waiting(
     on every tick.
     """
     statement = select(ImprovementRun.id, ImprovementRun.organization_id).where(
-        ImprovementRun.status.in_(_WAITING)
+        ImprovementRun.status.in_(_DECIDING)
     )
     if after is not None:
         statement = statement.where(ImprovementRun.id > after)

@@ -50,6 +50,9 @@ class ImprovementStatus(StrEnum):
 
     QUEUED = "queued"
     RUNNING = "running"
+    WAITING = "waiting"
+    """Between two steps until a person takes the next one; `stage` is the step it finished."""
+
     READY = "ready"
     """A checked candidate waits for a person to accept, publish or reject it."""
 
@@ -73,13 +76,21 @@ class ImprovementStatus(StrEnum):
         return self in {ImprovementStatus.QUEUED, ImprovementStatus.RUNNING}
 
     @property
-    def waiting(self) -> bool:
-        """Waiting for a person: to decide on the candidate, or to publish what was accepted."""
+    def deciding(self) -> bool:
+        """A checked candidate waits for a person: to decide on it, or to publish what was accepted."""
         return self in {ImprovementStatus.READY, ImprovementStatus.ACCEPTED}
 
     @property
-    def terminal(self) -> bool:
-        return not self.active and not self.waiting
+    def open(self) -> bool:
+        """Not over yet: one of these per agent, so a new session needs this one ended first."""
+        return self in {
+            ImprovementStatus.QUEUED,
+            ImprovementStatus.RUNNING,
+            ImprovementStatus.WAITING,
+            ImprovementStatus.READY,
+            ImprovementStatus.STOPPED,
+            ImprovementStatus.FAILED,
+        }
 
     @property
     def closed(self) -> bool:
@@ -141,6 +152,9 @@ class StopReason(StrEnum):
     DRAFT = "draft"
     """A session's own drafting step failed; stored on sessions from when a session drafted."""
 
+    EXPIRED = "expired"
+    """Nobody took the next step or decided for seven days."""
+
 
 class ImprovementVerdict(StrEnum):
     """How a round's candidate compared with the base on the pinned dataset."""
@@ -156,7 +170,9 @@ def _values(members: Iterable[StrEnum]) -> str:
 
 
 ACTIVE_STATUSES = tuple(status for status in ImprovementStatus if status.active)
-WAITING_STATUSES = tuple(status for status in ImprovementStatus if status.waiting)
+DECIDING_STATUSES = tuple(status for status in ImprovementStatus if status.deciding)
+OPEN_STATUSES = tuple(status for status in ImprovementStatus if status.open)
+UNSETTLED_STATUSES = tuple(status for status in ImprovementStatus if status.open or status.deciding)
 
 
 class DroppedHunk(TypedDict):
@@ -212,6 +228,12 @@ class ImprovementRun(Base):
     created_by_api_key_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), nullable=True
     )
+    # Whoever took the latest step a person starts; the steps after it run as them,
+    # with the credential they acted with. Unset, the session runs as its creator.
+    actor_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    actor_api_key_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default=ImprovementStatus.QUEUED.value
     )
@@ -294,19 +316,19 @@ class ImprovementRun(Base):
         CheckConstraint(
             "(suite_id IS NULL) = (suite_hash IS NULL)", name="ck_improvement_run_suite_pin"
         ),
-        # One session moving per agent, held where two concurrent starts cannot
+        # One open session per agent, held where two concurrent starts cannot
         # both slip past it.
         Index(
-            "uq_improvement_runs_active",
+            "uq_improvement_runs_open",
             "agent_id",
             unique=True,
-            postgresql_where=text(f"status IN ({_values(ACTIVE_STATUSES)})"),
+            postgresql_where=text(f"status IN ({_values(OPEN_STATUSES)})"),
         ),
         Index("ix_improvement_runs_agent", "organization_id", "agent_id", "created_at"),
         Index(
-            "ix_improvement_runs_open",
+            "ix_improvement_runs_unsettled",
             "status",
-            postgresql_where=text(f"status IN ({_values(ACTIVE_STATUSES + WAITING_STATUSES)})"),
+            postgresql_where=text(f"status IN ({_values(UNSETTLED_STATUSES)})"),
         ),
     )
 
@@ -365,6 +387,18 @@ class ImprovementIteration(Base):
     )
     attribution_eval_run_ids: Mapped[dict[str, str]] = mapped_column(
         JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    # What the person who asked for this attempt told its helper.
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # The attempt's own draw of which questions it learns from and which it is
+    # measured on, frozen when its check starts so a rerun cannot redraw it.
+    # Unset, the dataset's stored partition applies.
+    split_seed: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    train_case_ids: Mapped[list[uuid.UUID] | None] = mapped_column(
+        ARRAY(PG_UUID(as_uuid=True)), nullable=True
+    )
+    holdout_case_ids: Mapped[list[uuid.UUID] | None] = mapped_column(
+        ARRAY(PG_UUID(as_uuid=True)), nullable=True
     )
     verdict: Mapped[str | None] = mapped_column(String(16), nullable=True)
     verdict_detail: Mapped[VerdictDetail | None] = mapped_column(

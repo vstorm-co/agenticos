@@ -530,11 +530,11 @@ class ImprovementPipelineService:
         pack = await self.authoring.evidence.for_agent(
             ctx, agent_id, window_days=data.window_days, dataset_id=inputs.request.dataset_id
         )
-        active = await improvement_repo.get_active(
+        existing = await improvement_repo.get_open(
             self.db, organization_id=ctx.organization_id, agent_id=agent_id
         )
-        if active is not None:
-            raise self._already_running(active)
+        if existing is not None:
+            raise self._already_open(existing)
         if not estimate.affordable or estimate.total_usd > data.budget_usd:
             raise PaymentRequiredError(
                 message="The full improvement estimate exceeds the available budget",
@@ -543,7 +543,7 @@ class ImprovementPipelineService:
                     "budget_usd": str(data.budget_usd),
                 },
             )
-        async with self._sole_active(organization_id=ctx.organization_id, agent_id=agent_id):
+        async with self._sole_open(organization_id=ctx.organization_id, agent_id=agent_id):
             run = await improvement_repo.create_run(
                 self.db,
                 organization_id=ctx.organization_id,
@@ -582,10 +582,10 @@ class ImprovementPipelineService:
         return await self._read(ctx, run)
 
     @asynccontextmanager
-    async def _sole_active(self, *, organization_id: UUID, agent_id: UUID) -> AsyncGenerator[None]:
-        """Make a session active, refusing as a conflict when another took the agent first.
+    async def _sole_open(self, *, organization_id: UUID, agent_id: UUID) -> AsyncGenerator[None]:
+        """Open a session, refusing as a conflict when another took the agent first.
 
-        One active session per agent is a unique index; two requests that both
+        One open session per agent is a unique index; two requests that both
         found none still race to it, and the loser is told who won rather than
         answered with a database error.
         """
@@ -593,22 +593,22 @@ class ImprovementPipelineService:
             async with self.db.begin_nested():
                 yield
         except IntegrityError as exc:
-            if "uq_improvement_runs_active" not in {
+            if "uq_improvement_runs_open" not in {
                 getattr(exc.orig, "constraint_name", None),
                 getattr(getattr(exc.orig, "__cause__", None), "constraint_name", None),
             }:
                 raise
-            active = await improvement_repo.get_active(
+            winner = await improvement_repo.get_open(
                 self.db, organization_id=organization_id, agent_id=agent_id
             )
-            if active is None:
+            if winner is None:
                 raise
-            raise self._already_running(active) from exc
+            raise self._already_open(winner) from exc
 
     @staticmethod
-    def _already_running(run: ImprovementRun) -> ConcurrentChangeError:
+    def _already_open(run: ImprovementRun) -> ConcurrentChangeError:
         return ConcurrentChangeError(
-            message="An improvement is already running for this agent",
+            message="An improvement session is already open for this agent",
             details={"improvement_run_id": str(run.id)},
         )
 
@@ -1072,28 +1072,22 @@ class ImprovementPipelineService:
             return await self._read(ctx, run)
         if run.status != Status.FAILED or run.stage not in {Stage.PROPOSING, Stage.EVALUATING}:
             raise BadRequestError(message="Only a failed proposal or test step can be retried")
-        other = await improvement_repo.get_active(
-            self.db, organization_id=ctx.organization_id, agent_id=agent_id
-        )
-        if other is not None:
-            raise ConcurrentChangeError(message="Another improvement session is running")
         iteration = await improvement_repo.get_iteration(
             self.db, organization_id=ctx.organization_id, run_id=run.id, number=run.iteration
         )
         assert iteration is not None
         # A refusal rolls this transaction back, including this temporary status.
         self._allow(run, Status.RUNNING)
-        async with self._sole_active(organization_id=ctx.organization_id, agent_id=agent_id):
-            await improvement_repo.update_run(
-                self.db,
-                run=run,
-                values={
-                    "status": Status.RUNNING.value,
-                    "error": None,
-                    "stop_reason": None,
-                    "finished_at": None,
-                },
-            )
+        await improvement_repo.update_run(
+            self.db,
+            run=run,
+            values={
+                "status": Status.RUNNING.value,
+                "error": None,
+                "stop_reason": None,
+                "finished_at": None,
+            },
+        )
         await self.ensure_current(ctx, run.id)
         if run.stage == Stage.PROPOSING:
             await improvement_repo.update_iteration(
@@ -1342,11 +1336,6 @@ class ImprovementPipelineService:
             raise PaymentRequiredError(
                 message="The full continuation estimate exceeds the spending limit or available budget"
             )
-        other = await improvement_repo.get_active(
-            self.db, organization_id=ctx.organization_id, agent_id=agent_id
-        )
-        if other is not None:
-            raise self._already_running(other)
         stage = Stage.PROPOSING if quote.mode == "next_round" else Stage(run.stage)
         if quote.mode == "next_round":
             following = await improvement_repo.get_iteration(
@@ -1378,8 +1367,7 @@ class ImprovementPipelineService:
             step_estimate_usd=quote.total_usd,
             quote_hash=quote.candidate_hash,
         )
-        async with self._sole_active(organization_id=ctx.organization_id, agent_id=agent_id):
-            await self._move(run, rules.Transition(Status.RUNNING, stage))
+        await self._move(run, rules.Transition(Status.RUNNING, stage))
         if stage == Stage.EVALUATING:
             await self._evaluate(ctx, plan.inputs, run, iteration, force_new=True)
         return await self._read(ctx, run)
@@ -1511,7 +1499,7 @@ class ImprovementPipelineService:
                     count += 1
             after = rows[-1][0]
         after = None
-        while rows := await improvement_repo.list_waiting(self.db, after=after):
+        while rows := await improvement_repo.list_deciding(self.db, after=after):
             for run_id, org_id in rows:
                 run = await improvement_repo.get_run(self.db, run_id, organization_id=org_id)
                 if run is not None:
@@ -1770,7 +1758,7 @@ class ImprovementPipelineService:
         )
         if run is None:
             return
-        if Status(run.status).waiting:
+        if Status(run.status).deciding:
             await self._settle_decisions(run)
             return
         if not Status(run.status).active:
@@ -2931,7 +2919,10 @@ class ImprovementPipelineService:
                 and current.candidate_spec_hash == data.candidate_hash
             ):
                 return await self._read(ctx, existing)
-            raise self._already_running(existing)
+            raise ConcurrentChangeError(
+                message="This session is already running a step",
+                details={"improvement_run_id": str(existing.id)},
+            )
         plan = await self._selection_plan(ctx, agent_id, run_id, number, data)
         run, iteration, quote = plan.session, plan.iteration, plan.quote
         if quote.candidate_hash != data.candidate_hash or quote.total_usd != data.estimate_usd:
@@ -2942,11 +2933,6 @@ class ImprovementPipelineService:
             raise PaymentRequiredError(
                 message="The complete selected check exceeds the remaining budget"
             )
-        active = await improvement_repo.get_active(
-            self.db, organization_id=ctx.organization_id, agent_id=agent_id
-        )
-        if active is not None:
-            raise self._already_running(active)
         if await improvement_repo.has_active_check(
             self.db, run.id, organization_id=ctx.organization_id
         ):
