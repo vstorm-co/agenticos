@@ -1008,7 +1008,7 @@ would be; a refusal comes back as a tool error naming the missing permission.
 | `invite_member` | `members:manage` and `roles:manage` |
 | `list_my_connections`, `set_my_language`, `set_my_profile` | — (the caller's own) |
 | `list_improvements`, `get_improvement` | read access to the agent; the session's knowledge topics also need `runs:view` |
-| `estimate_improvement`, `start_improvement`, `use_attempt`, `accept_improvement`, `estimate_improve_again`, `improve_again`, `end_improvement` | edit access to the agent and `runs:view`; starting also `datasets:run`, publishing `agents:publish` |
+| `estimate_improvement`, `start_improvement`, `use_attempt`, `accept_improvement`, `estimate_next_improvement_step`, `run_next_improvement_step`, `estimate_improve_again`, `improve_again`, `end_improvement` | edit access to the agent and `runs:view`; starting also `datasets:run`, publishing `agents:publish` |
 | `list_datasets` | `datasets:view` |
 | `get_eval_run` | `runs:view` |
 | `estimate_knowledge_draft`, `draft_knowledge_topic` | `runs:view` and edit access to the topic's knowledge base |

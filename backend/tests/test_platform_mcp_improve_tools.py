@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastmcp import FastMCP
+from fastmcp.exceptions import ToolError
 
 from app.services.platform_mcp import platform_tool_catalog
 from app.services.platform_mcp._tools import improvement_link, platform_tools
@@ -59,6 +60,7 @@ SESSION_READ: dict[str, Any] = {
             "verdict_detail": {
                 "fixed": 3,
                 "broken": 0,
+                "held_out": 6,
                 "baseline_pass_rate": 0.5,
                 "candidate_pass_rate": 0.8,
             },
@@ -131,11 +133,14 @@ class TestReadingSessions:
             "verdict": "better",
             "fixed": 3,
             "broken": 0,
-            "held_out_pass_rate": {"before": 0.5, "after": 0.8},
+            "change": 3,
+            "held_out": 6,
+            "details": {"pass_rate_before": 0.5, "pass_rate_after": 0.8},
             "cost_usd": "0.02",
             "chosen": True,
             "best": True,
         }
+        assert session["attempts"][0]["change"] == 1
         assert not session["attempts"][0]["chosen"]
         assert not session["attempts"][0]["best"]
         assert session["link"] == improvement_link(AGENT, SESSION)
@@ -342,6 +347,93 @@ class TestTheNoise:
         assert session["agent_id"] == str(AGENT)
         assert session["link"] == improvement_link(AGENT, SESSION)
         assert session["measurement_noise"] is None
+
+
+class TestStepByStep:
+    WAITING: dict[str, Any] = {
+        **SESSION_READ,
+        "status": "waiting",
+        "stage": "classifying",
+        "next_step": {"estimate_usd": "0.01"},
+    }
+
+    async def test_a_waiting_session_says_what_it_waits_for_and_the_price(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request = _responder({("GET", f"/agents/{AGENT}/improvements"): [self.WAITING]})
+
+        [item] = (await _call(server, "list_improvements", agent_id=AGENT))["items"]
+
+        assert item["waiting_for"] == {
+            "after": "classifying",
+            "next_step": "propose changes",
+            "estimate_usd": "0.01",
+        }
+        assert item["closed"] is False
+
+    async def test_a_session_not_waiting_waits_for_nothing(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request = _responder({("GET", f"/agents/{AGENT}/improvements"): [SESSION_READ]})
+
+        [item] = (await _call(server, "list_improvements", agent_id=AGENT))["items"]
+
+        assert item["waiting_for"] is None
+
+    @pytest.mark.parametrize(
+        ("budget", "sent"), [(None, "0.05"), ("0.08", "0.08")], ids=["session's", "raised"]
+    )
+    async def test_the_next_step_is_quoted_with_the_session_s_limit_or_a_raised_one(
+        self, server: FastMCP, api: MagicMock, budget: str | None, sent: str
+    ) -> None:
+        quote = {"mode": "next_step", "total_usd": "0.01", "candidate_hash": "d" * 64}
+        api.request = _responder(
+            {
+                ("GET", f"/improvements/{SESSION}"): {**self.WAITING, "stage": "filtering"},
+                ("POST", f"/agents/{AGENT}/improvements/{SESSION}/continue/estimate"): quote,
+            }
+        )
+        arguments: dict[str, Any] = {"session_id": SESSION}
+        if budget is not None:
+            arguments["budget_usd"] = budget
+
+        quoted = await _call(server, "estimate_next_improvement_step", **arguments)
+
+        assert api.request.await_args.kwargs == {"json": {"budget_usd": sent}}
+        assert quoted["next_step"] == "test the changes"
+        assert quoted["candidate_hash"] == "d" * 64
+        assert quoted["link"] == improvement_link(AGENT, SESSION)
+
+    async def test_the_next_step_runs_on_the_quote_it_was_given(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        moved = {**self.WAITING, "status": "running", "stage": "proposing"}
+        api.request = _responder(
+            {
+                ("GET", f"/improvements/{SESSION}"): self.WAITING,
+                ("POST", f"/agents/{AGENT}/improvements/{SESSION}/continue"): moved,
+            }
+        )
+
+        session = await _call(
+            server,
+            "run_next_improvement_step",
+            session_id=SESSION,
+            budget_usd="0.05",
+            estimate_usd="0.01",
+            candidate_hash="d" * 64,
+        )
+
+        assert api.request.await_args.kwargs == {
+            "json": {
+                "confirmed": True,
+                "budget_usd": "0.05",
+                "estimate_usd": "0.01",
+                "candidate_hash": "d" * 64,
+            }
+        }
+        assert (session["status"], session["stage"]) == ("running", "proposing")
+        assert session["waiting_for"] is None
 
 
 class TestAClosedSession:
@@ -652,7 +744,8 @@ class TestActingOnASession:
     async def test_a_session_starts_with_the_estimate_as_its_cap(
         self, server: FastMCP, api: MagicMock
     ) -> None:
-        api.request = AsyncMock(return_value=SESSION_READ)
+        closed = {**SESSION_READ, "status": "published"}
+        api.request = AsyncMock(side_effect=[[closed], SESSION_READ])
 
         started = await _call(
             server, "start_improvement", agent_id=AGENT, budget_usd="0.04", suite_id=DATASET
@@ -667,7 +760,7 @@ class TestActingOnASession:
     async def test_a_session_can_start_on_test_questions(
         self, server: FastMCP, api: MagicMock
     ) -> None:
-        api.request = AsyncMock(return_value=SESSION_READ)
+        api.request = AsyncMock(side_effect=[[], SESSION_READ])
 
         await _call(
             server, "start_improvement", agent_id=AGENT, budget_usd="0.04", dataset_id=DATASET
@@ -691,6 +784,42 @@ class TestActingOnASession:
         )
         assert api.request.await_args.kwargs == {"json": {"budget_usd": "0.05"}}
         assert quoted == quote
+
+    async def test_a_second_open_session_is_refused_with_a_link_to_the_first(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        """One open session per agent: the Architect names it rather than failing on a 409."""
+        waiting = {**SESSION_READ, "status": "waiting", "stage": "filtering"}
+        api.request = AsyncMock(return_value=[waiting])
+        api.refuse = MagicMock(side_effect=ToolError("refused"))
+
+        with pytest.raises(ToolError):
+            await _call(
+                server, "start_improvement", agent_id=AGENT, budget_usd="0.04", dataset_id=DATASET
+            )
+
+        [message] = api.refuse.call_args.args
+        assert improvement_link(AGENT, SESSION) in message
+        assert "end_improvement" in message
+        assert api.request.await_count == 1
+
+    async def test_trying_again_carries_the_person_s_note(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request = AsyncMock(return_value=SESSION_READ)
+
+        await _call(
+            server,
+            "improve_again",
+            agent_id=AGENT,
+            session_id=SESSION,
+            budget_usd="0.05",
+            estimate_usd="0.02",
+            candidate_hash="c" * 64,
+            note="Keep the refund window at 30 days",
+        )
+
+        assert api.request.await_args.kwargs["json"]["note"] == "Keep the refund window at 30 days"
 
     async def test_an_attempt_is_chosen_by_its_number(
         self, server: FastMCP, api: MagicMock
@@ -733,6 +862,8 @@ class TestActingOnASession:
             ("queued", "cancel", {}),
             ("ready", "discard", {"json": {"confirmed": True}}),
             ("stopped", "discard", {"json": {"confirmed": True}}),
+            ("waiting", "discard", {"json": {"confirmed": True}}),
+            ("failed", "discard", {"json": {"confirmed": True}}),
         ],
     )
     async def test_ending_stops_a_running_session_and_discards_a_finished_one(
@@ -819,6 +950,7 @@ READS = {
     "list_datasets",
     "get_eval_run",
     "estimate_knowledge_draft",
+    "estimate_next_improvement_step",
 }
 WRITES = {
     "start_improvement",
@@ -827,6 +959,7 @@ WRITES = {
     "end_improvement",
     "improve_again",
     "draft_knowledge_topic",
+    "run_next_improvement_step",
 }
 
 

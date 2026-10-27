@@ -1,5 +1,5 @@
 ---
-source_sha: "163353c2af20"
+source_sha: "24160f167bda"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -410,14 +410,18 @@ palabras sencillas: qué arregló y qué rompió un intento, si un cambio se con
 al volver a preguntar y cómo cambiaron las preguntas reservadas. Enlaza el
 asistente en lugar de contarlo.
 
-Inicia, reintenta, elige un intento, acepta, publica o termina una sesión solo
-cuando se lo pides. Si le preguntas qué hacer, recomienda un paso y pregunta
-primero. Cada cambio que hace espera tu aprobación en una tarjeta, tras una frase
-sobre qué y por qué; iniciar y reintentar muestran la estimación, que pasa a ser
-el presupuesto de la sesión. Llama a las mismas acciones que el asistente, como
-tú, así que se aplican las mismas comprobaciones: un agente cambiado rechaza la
-aceptación, un entorno protegido espera su comprobación y el registro de
-auditoría te anota a ti, con la credencial del Architect al lado.
+En cada parada dice qué encontró la sesión, qué hace el siguiente paso y cuánto
+cuesta. Inicia una sesión, ejecuta su siguiente paso, reintenta, elige un
+intento, acepta, publica o termina una sesión solo cuando se lo pides; una
+sesión que inició puede continuarse en el asistente, y al revés.
+
+Si le preguntas qué hacer, recomienda un paso y pregunta primero. Cada cambio
+que hace espera tu aprobación en una tarjeta, tras una frase sobre qué y por
+qué; iniciar y reintentar muestran la estimación, que pasa a ser el presupuesto
+de la sesión. Llama a las mismas acciones que el asistente, como tú, así que se
+aplican las mismas comprobaciones: un agente cambiado rechaza la aceptación, un
+entorno protegido espera su comprobación y el registro de auditoría te anota a
+ti, con la credencial del Architect al lado.
 
 ### Proponer un skill nuevo { #proposing-a-new-skill }
 

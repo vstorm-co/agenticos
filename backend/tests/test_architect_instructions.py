@@ -67,5 +67,24 @@ def test_it_offers_only_what_the_session_and_its_topics_allow(instructions: str)
     """It offered to review drafts for topics already added to the knowledge base."""
     rule = _bullet(instructions, "Offer only what the data allows")
     assert "draft_ready" in rule
-    assert "while a session is running" in rule
+    assert "the next step only while a session is waiting" in rule
+    assert "stopping only while a step is running" in rule
     assert "nothing on a closed session" in rule
+
+
+def test_a_session_is_led_step_by_step_and_never_said_to_run_on_its_own(
+    instructions: str,
+) -> None:
+    """The pipeline stops after Understand, after Changes and at the result."""
+    rule = _bullet(instructions, "Step by step")
+    assert "`estimate_next_improvement_step`" in rule
+    assert "ask before `run_next_improvement_step`" in rule
+    assert "continued from the console" in rule
+    assert "runs on its own" not in instructions
+    assert "end it and start a new one" in _bullet(instructions, "Starting")
+
+
+def test_attempts_compare_by_their_change_not_their_pass_rates(instructions: str) -> None:
+    rule = _bullet(instructions, "Explaining a result")
+    assert "compare attempts by their change" in rule
+    assert "never by pass rates" in rule

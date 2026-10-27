@@ -1,5 +1,5 @@
 ---
-source_sha: "163353c2af20"
+source_sha: "24160f167bda"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -399,11 +399,15 @@ pytania testowe, i wyjaśnia wynik prostymi słowami: co próba naprawiła, a co
 zepsuła, czy zmianę potwierdziło ponowne zapytanie i jak zmieniły się pytania
 wstrzymane. Odsyła do kreatora, zamiast go opowiadać.
 
-Sesję uruchamia, ponawia, wybiera próbę, przyjmuje, publikuje albo kończy tylko
-na Twoją prośbę. Zapytany, co robić, poleca jeden krok i najpierw pyta. Każda
-zmiana, którą wprowadza, czeka na Twoją zgodę na karcie, po jednym zdaniu o tym,
-co i dlaczego; uruchomienie i ponowienie pokazują szacunek, który staje się
-budżetem sesji. Woła te same akcje co kreator, jako Ty, więc obowiązują te same
+Na każdym postoju mówi, co sesja znalazła, co zrobi następny krok i ile
+kosztuje. Sesję uruchamia, wykonuje jej następny krok, ponawia, wybiera próbę,
+przyjmuje, publikuje albo kończy tylko na Twoją prośbę; sesję, którą uruchomił,
+można kontynuować w kreatorze, i odwrotnie.
+
+Zapytany, co robić, poleca jeden krok i najpierw pyta. Każda zmiana, którą
+wprowadza, czeka na Twoją zgodę na karcie, po jednym zdaniu o tym, co i
+dlaczego; uruchomienie i ponowienie pokazują szacunek, który staje się budżetem
+sesji. Woła te same akcje co kreator, jako Ty, więc obowiązują te same
 sprawdzenia: zmieniony agent odmawia przyjęcia, chronione środowisko czeka na
 swój check, a dziennik audytu zapisuje Ciebie, z poświadczeniem Architekta obok.
 

@@ -156,28 +156,58 @@ def _outcome(session: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
+_NEXT_STEPS = {
+    "analyzing": "propose changes",
+    "classifying": "propose changes",
+    "filtering": "test the changes",
+}
+"""What pressing Next step runs, by the step a waiting session stopped after."""
+
+
+def _waiting(session: dict[str, Any]) -> dict[str, Any] | None:
+    """What a session paused between steps is waiting for, and what the next step costs."""
+    if session["status"] != "waiting":
+        return None
+    next_step = session.get("next_step") or {}
+    return {
+        "after": session.get("stage"),
+        "next_step": _NEXT_STEPS.get(session.get("stage") or ""),
+        "estimate_usd": next_step.get("estimate_usd"),
+    }
+
+
 def _session(agent_id: UUID | str, session: dict[str, Any]) -> dict[str, Any]:
     """A session as a listing reads it: where it stands, and what may still be done with it."""
     return {
         **{field: session.get(field) for field in _SESSION_FIELDS},
         "closed": session["status"] in _CLOSED,
         "can_accept": session["status"] == "ready",
+        "waiting_for": _waiting(session),
         "outcome": _outcome(session),
         "link": improvement_link(agent_id, session["id"]),
     }
 
 
 def _attempt(iteration: dict[str, Any], chosen: Any) -> dict[str, Any]:
-    """One round of a session, as its verdict reads in plain numbers."""
+    """One round of a session, as its verdict reads in plain numbers.
+
+    Each attempt is measured on held-out questions of its own, against the agent
+    as it is today on those same questions, so attempts compare by their change -
+    fixed less broken - and never by their pass rates, which come from
+    different questions.
+    """
     detail = iteration.get("verdict_detail") or {}
+    fixed, broken = detail.get("fixed"), detail.get("broken")
     return {
         "attempt": iteration["number"],
         "verdict": iteration.get("verdict"),
-        "fixed": detail.get("fixed"),
-        "broken": detail.get("broken"),
-        "held_out_pass_rate": {
-            "before": detail.get("baseline_pass_rate"),
-            "after": detail.get("candidate_pass_rate"),
+        "fixed": fixed,
+        "broken": broken,
+        "change": fixed - broken if fixed is not None and broken is not None else None,
+        "held_out": detail.get("held_out"),
+        "details": {
+            "pass_rate_before": detail.get("baseline_pass_rate"),
+            "pass_rate_after": detail.get("candidate_pass_rate"),
         },
         "cost_usd": iteration.get("cost_usd"),
         "chosen": iteration["id"] == chosen,
@@ -823,10 +853,12 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         Needs access to its agent, whose `agent_id` the answer carries; the
         knowledge topics and `measurement_noise` also need `runs:view`. When
         `measurement_noise.noisy` is true, the test cannot tell a better version
-        from a worse one: the same version scored between `baseline_low` and
-        `baseline_high` on the same questions.
+        from a worse one. A session `waiting_for` the person says which step it
+        stopped after and what the next one runs and costs.
         Each attempt has its verdict, the questions it fixed and broke (confirmed
-        on a rerun), the held-out pass rate before and after, and its cost.
+        on a rerun) and its `change` - fixed less broken - on `held_out`
+        questions of its own; compare attempts by that, not by the pass rates in
+        their `details`, which come from different questions. Each has its cost.
         `chosen` marks the attempt the session keeps - picked by `chosen_by`, or
         by the session itself when that is empty - and `best` only an attempt
         whose verdict is better; a chosen attempt need not be one. Each knowledge
@@ -903,9 +935,18 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
 
         Run estimate_improvement first and pass its `total_usd` as `budget_usd`:
         the session never spends more, and one below the estimate is refused. Say
-        the price before calling. The session runs on its own up to a checked
-        result and changes nothing in the agent until it is accepted.
+        the price before calling. The session stops for the person after
+        Understand, after Changes and at the result, and changes nothing in the
+        agent until it is accepted. An agent has one open session at a time: with
+        one open, this refuses and names it - end it first, when the person asks.
         """
+        sessions = await api.request("GET", f"/agents/{agent_id}/improvements")
+        if open_session := next((s for s in sessions if s["status"] not in _CLOSED), None):
+            return api.refuse(
+                f"This agent already has an open Improve session ({open_session['status']}): "
+                f"{improvement_link(agent_id, open_session['id'])}. Continue it there, or end "
+                "it with end_improvement and start a new one."
+            )
         start: dict[str, Any] = {"max_iterations": max_iterations, "budget_usd": str(budget_usd)}
         if dataset_id is not None:
             start["dataset_id"] = str(dataset_id)
@@ -956,8 +997,11 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         }
 
     async def end_improvement(agent_id: UUID, session_id: UUID) -> dict[str, Any]:
-        """End a session without changing the agent: stop a running one, discard a finished one.
+        """End a session without changing the agent: stop a running one, discard any other open one.
         Needs `agents:edit` and `runs:view`; only whoever started it, or an organization admin.
+
+        A session waiting between steps, a ready one and a stopped or failed one are
+        discarded; the agent stays as it was.
         """
         path = f"/agents/{agent_id}/improvements/{session_id}"
         session = await api.request("GET", path)
@@ -989,14 +1033,71 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         budget_usd: Decimal,
         estimate_usd: Decimal,
         candidate_hash: str,
+        note: str | None = None,
     ) -> dict[str, Any]:
         """Try a session again, only when the person asked for it. Needs `agents:edit` and
-        `runs:view`, and only whoever started the session.
+        `runs:view`.
 
         Pass `estimate_usd` and `candidate_hash` from estimate_improve_again and
         say the price before calling; a session that changed since is refused.
+        `note` is what the person wants done differently, in their words; the
+        next proposal reads it.
         """
+        consent: dict[str, Any] = {
+            "confirmed": True,
+            "budget_usd": str(budget_usd),
+            "estimate_usd": str(estimate_usd),
+            "candidate_hash": candidate_hash,
+        }
+        if note is not None:
+            consent["note"] = note
         session = await api.request(
+            "POST", f"/agents/{agent_id}/improvements/{session_id}/continue", json=consent
+        )
+        return {
+            **{field: session.get(field) for field in _SESSION_FIELDS},
+            "link": improvement_link(agent_id, session_id),
+        }
+
+    async def estimate_next_improvement_step(
+        session_id: UUID, budget_usd: Decimal | None = None
+    ) -> dict[str, Any]:
+        """What the next step of a session waiting for the person would cost. Needs `agents:edit`
+        and `runs:view`.
+
+        After Understand the next step proposes changes; after Changes it tests
+        them. `budget_usd` defaults to the session's; pass a higher one when the
+        estimate does not fit. Pass `total_usd` and `candidate_hash` on to
+        run_next_improvement_step.
+        """
+        session = await api.request("GET", f"/improvements/{session_id}")
+        estimate = await api.request(
+            "POST",
+            f"/agents/{session['agent_id']}/improvements/{session_id}/continue/estimate",
+            json={
+                "budget_usd": str(budget_usd if budget_usd is not None else session["budget_usd"])
+            },
+        )
+        return {
+            **estimate,
+            "next_step": _NEXT_STEPS.get(session.get("stage") or ""),
+            "link": improvement_link(session["agent_id"], session_id),
+        }
+
+    async def run_next_improvement_step(
+        session_id: UUID, budget_usd: Decimal, estimate_usd: Decimal, candidate_hash: str
+    ) -> dict[str, Any]:
+        """Run the next step of a session waiting for the person, only when they asked for it.
+        Needs `agents:edit` and `runs:view`.
+
+        Pass `estimate_usd` and `candidate_hash` from
+        estimate_next_improvement_step, and say the step and its price before
+        calling; a session that changed since is refused. The step runs as the
+        person, and the session stops again at the next step or the result.
+        """
+        session = await api.request("GET", f"/improvements/{session_id}")
+        agent_id = session["agent_id"]
+        moved = await api.request(
             "POST",
             f"/agents/{agent_id}/improvements/{session_id}/continue",
             json={
@@ -1006,10 +1107,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
                 "candidate_hash": candidate_hash,
             },
         )
-        return {
-            **{field: session.get(field) for field in _SESSION_FIELDS},
-            "link": improvement_link(agent_id, session_id),
-        }
+        return _session(agent_id, moved)
 
     async def estimate_knowledge_draft(topic_id: UUID) -> dict[str, Any]:
         """The most drafting a document for one missing-knowledge topic costs. Needs `runs:view`
@@ -1172,6 +1270,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (end_improvement, True),
         (estimate_improve_again, False),
         (improve_again, True),
+        (estimate_next_improvement_step, False),
+        (run_next_improvement_step, True),
         (estimate_knowledge_draft, False),
         (draft_knowledge_topic, True),
         (list_datasets, False),

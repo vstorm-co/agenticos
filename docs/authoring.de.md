@@ -1,5 +1,5 @@
 ---
-source_sha: "163353c2af20"
+source_sha: "24160f167bda"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -422,14 +422,19 @@ Versuch behoben und was er verschlechtert hat, ob eine Änderung durch erneutes
 Fragen bestätigt wurde und wie sich die zurückgehaltenen Fragen verändert haben.
 Er verlinkt den Assistenten, statt ihn nachzuerzählen.
 
-Eine Sitzung startet, wiederholt, wählt einen Versuch, übernimmt, veröffentlicht
-oder beendet er nur, wenn Sie darum bitten. Gefragt, was zu tun ist, empfiehlt er
-einen Schritt und fragt zuerst. Jede Änderung wartet auf Ihre Freigabe auf einer
-Karte, nach einem Satz dazu, was und warum; Starten und Wiederholen zeigen die
-Schätzung, die zum Budget der Sitzung wird. Er ruft als Sie dieselben Aktionen
-wie der Assistent auf, daher gelten dieselben Prüfungen: Ein geänderter Agent
-lehnt die Übernahme ab, eine geschützte Umgebung wartet auf ihren Check, und das
-Audit-Log verzeichnet Sie, mit der Kennung des Architekten daneben.
+An jedem Halt sagt er, was die Sitzung gefunden hat, was der nächste Schritt tut
+und was er kostet. Eine Sitzung startet, führt ihren nächsten Schritt aus,
+wiederholt, wählt einen Versuch, übernimmt, veröffentlicht oder beendet er nur,
+wenn Sie darum bitten; eine Sitzung, die er gestartet hat, lässt sich im
+Assistenten fortsetzen, und umgekehrt.
+
+Gefragt, was zu tun ist, empfiehlt er einen Schritt und fragt zuerst. Jede
+Änderung wartet auf Ihre Freigabe auf einer Karte, nach einem Satz dazu, was und
+warum; Starten und Wiederholen zeigen die Schätzung, die zum Budget der Sitzung
+wird. Er ruft als Sie dieselben Aktionen wie der Assistent auf, daher gelten
+dieselben Prüfungen: Ein geänderter Agent lehnt die Übernahme ab, eine
+geschützte Umgebung wartet auf ihren Check, und das Audit-Log verzeichnet Sie,
+mit der Kennung des Architekten daneben.
 
 ### Einen neuen Skill vorschlagen { #proposing-a-new-skill }
 

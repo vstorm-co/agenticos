@@ -389,13 +389,17 @@ test questions, and explains a result in plain words: what an attempt fixed and
 broke, whether a change was confirmed by asking again, and how the held-out
 questions moved. It links the wizard rather than retelling it.
 
-It starts, tries again, chooses an attempt, accepts, publishes or ends a session
-only when you ask. Asked what to do, it recommends one step and asks first. Every
-change it makes waits for your approval on a card, after one sentence saying what
-and why; starting and trying again show the estimate, which becomes the session's
-budget. It calls the wizard's own actions as you, so the same checks apply: a
-changed agent refuses the acceptance, a guarded environment waits for its check,
-and the audit log records you, with the Architect's credential named beside you.
+At each stop it says what the session found, what the next step does and what it
+costs. It starts a session, runs its next step, tries again, chooses an attempt,
+accepts, publishes or ends a session only when you ask; a session it started can
+be continued in the wizard, and the other way round.
+
+Asked what to do, it recommends one step and asks first. Every change it makes
+waits for your approval on a card, after one sentence saying what and why;
+starting and trying again show the estimate, which becomes the session's budget.
+It calls the wizard's own actions as you, so the same checks apply: a changed
+agent refuses the acceptance, a guarded environment waits for its check, and the
+audit log records you, with the Architect's credential named beside you.
 
 ### Proposing a new skill { #proposing-a-new-skill }
 

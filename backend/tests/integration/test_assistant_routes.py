@@ -348,6 +348,7 @@ async def test_the_architect_s_improve_writes_wait_for_a_card_and_its_reads_do_n
             "end_improvement",
             "improve_again",
             "draft_knowledge_topic",
+            "run_next_improvement_step",
         )
     )
     assert not any(
@@ -360,5 +361,6 @@ async def test_the_architect_s_improve_writes_wait_for_a_card_and_its_reads_do_n
             "list_datasets",
             "get_eval_run",
             "estimate_knowledge_draft",
+            "estimate_next_improvement_step",
         )
     )
