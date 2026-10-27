@@ -14,6 +14,8 @@ import { Perm, type Permission } from "@/types/permissions";
  */
 
 const state = vi.hoisted(() => ({
+  tenantId: "o1" as string | null,
+  switchOrg: vi.fn(),
   held: [] as string[],
   profiles: [] as ModelProfile[],
   createModel: vi.fn(),
@@ -26,6 +28,7 @@ const toastError = vi.hoisted(() => vi.fn());
 vi.mock("@/hooks", () => ({
   usePermissions: () => ({ can: (permission: Permission) => state.held.includes(permission) }),
   useOrganizations: () => ({
+    switchOrg: state.switchOrg,
     setProactivity: state.setProactivity,
     setWelcomeDm: state.setWelcomeDm,
   }),
@@ -79,6 +82,7 @@ vi.mock("@/hooks", () => ({
     ],
   }),
 }));
+vi.mock("@/hooks/use-organizations", () => ({ useTenantId: () => state.tenantId }));
 vi.mock("sonner", () => ({ toast: { success: toastSuccess, error: toastError } }));
 const refusal = vi.hoisted(() => ({
   value: null as null | { fields: Record<string, string>; toast: string | null },
@@ -105,6 +109,10 @@ const ON = {
 };
 
 beforeEach(() => {
+  state.tenantId = "o1";
+  state.switchOrg.mockReset().mockImplementation((id: string) => {
+    state.tenantId = id;
+  });
   state.held = [Perm.budgetsManage, Perm.orgSettings];
   state.profiles = [
     {
@@ -139,6 +147,23 @@ beforeEach(() => {
 });
 
 describe("OrgProactivity", () => {
+  it.each(["another-organization", null])(
+    "requires the target tenant before exposing profiles (%s)",
+    async (tenantId) => {
+      state.tenantId = tenantId;
+      state.held = [Perm.budgetsManage, Perm.connectionsManage];
+      const { rerender } = render(<OrgProactivity org={org(ON)} />);
+      expect(screen.queryByRole("radio", { name: /Haiku/ })).toBeNull();
+      expect(screen.queryByRole("combobox", { name: "Model" })).toBeNull();
+      expect(state.createModel).not.toHaveBeenCalled();
+      await userEvent.click(screen.getByRole("button", { name: "Switch to Acme" }));
+      expect(state.switchOrg).toHaveBeenCalledWith("o1");
+      rerender(<OrgProactivity org={org(ON)} />);
+      expect(screen.getByRole("combobox", { name: "Model" })).toBeVisible();
+      expect(screen.getByRole("radio", { name: /Haiku/ })).toHaveAttribute("aria-checked", "true");
+    },
+  );
+
   it("is not shown to somebody who may change neither setting", () => {
     state.held = [];
     const { container } = render(<OrgProactivity org={org()} />);
@@ -257,6 +282,7 @@ describe("OrgProactivity", () => {
       expect(state.createModel).toHaveBeenCalled();
 
       state.profiles = [{ ...first, id: "mp-2", label: "Second organization model" }];
+      state.tenantId = targetOrg;
       rerender(
         <OrgProactivity org={org({ ...ON, id: targetOrg, proactive_model_profile_id: "mp-2" })} />,
       );
@@ -335,6 +361,7 @@ describe("OrgProactivity", () => {
   it("resets local edits when another organization has identical saved settings", async () => {
     const { rerender } = render(<OrgProactivity org={org()} />);
     await userEvent.click(screen.getByRole("switch", { name: "Nightly suggestions" }));
+    state.tenantId = "o2";
     rerender(<OrgProactivity org={org({ id: "o2" })} />);
     expect(screen.getByRole("switch", { name: "Nightly suggestions" })).not.toBeChecked();
   });

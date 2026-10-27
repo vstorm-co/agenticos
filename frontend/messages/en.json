@@ -6584,6 +6584,8 @@
       "watchesHint": "People choose what to watch in their own connected accounts - pull requests waiting on them, an overdue invoice - and hear what is new. It only reads, and what it finds is private to each person.",
       "watchMinutes": "Most often",
       "watchMinutesHint": "How often one watch may look at most. More often costs more.",
+      "switchOrganizationHint": "Switch to this organization before configuring proactivity so its model profiles and keys are used.",
+      "switchOrganization": "Switch to {name}",
       "runAttribution": "Background checks appear under the published AgenticOS starter agent in Activity. This assignment is fixed by the platform. They use the proactivity model selected below, independently of the agent’s own model."
     }
   },

@@ -22,6 +22,7 @@ import {
 import { FormField } from "@/components/ui/form-field";
 import { useModelProviders, useOrganizations, usePermissions } from "@/hooks";
 import { useChanged } from "@/hooks/use-changed";
+import { useTenantId } from "@/hooks/use-organizations";
 import { submitFailure } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 import { WATCH_INTERVALS, cadenceLabel } from "@/lib/watch-cadence";
@@ -77,9 +78,21 @@ function stored(org: Organization): Proactivity {
 export function OrgProactivity({ org }: { org: Organization }) {
   const t = useTranslations("teams.proactive");
   const { can } = usePermissions();
+  const tenantId = useTenantId();
+  const { switchOrg } = useOrganizations();
   const nightly = can(Perm.budgetsManage);
   const welcome = can(Perm.orgSettings);
   if (!nightly && !welcome) return null;
+  if (tenantId !== org.id) {
+    return (
+      <SettingsSection title={t("title")} description={t("description")}>
+        <p className="text-muted-foreground text-sm">{t("switchOrganizationHint")}</p>
+        <Button onClick={() => switchOrg(org.id)}>
+          {t("switchOrganization", { name: org.name })}
+        </Button>
+      </SettingsSection>
+    );
+  }
   return (
     <SettingsSection title={t("title")} description={t("description")}>
       <div className="divide-foreground/10 space-y-6 divide-y [&>*:not(:first-child)]:pt-6">
