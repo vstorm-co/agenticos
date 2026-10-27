@@ -6,7 +6,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
 import type { Improvement } from "@/types/improvement";
 import { ContinueSession, continuation } from "./continue-session";
-import { NoiseActions, UnstableQuestions, noiseSentence } from "./measurement-noise";
+import { NoiseActions, TooFewShared, UnstableQuestions, noiseSentence } from "./measurement-noise";
 import { draftCheckShown } from "./knowledge-drafts";
 import { DOCUMENTS_ANCHOR, KnowledgeDocuments, ResultSummary, useSessionTopics } from "./outcome";
 import { useReadOnly } from "./read-only";
@@ -140,14 +140,20 @@ function headline(t: Translate, session: Improvement, agent: string, topics: num
     );
   if (topics > 0) sentences.push(t("resultDecision.topics", { count: topics }));
   const missingHeldOut = Number(session.iterations[0]?.verdict_detail?.missing_holdout ?? 0);
-  if (session.status !== "ready" && session.stop_reason)
+  const limit =
+    session.stop_reason === "max_iterations" ||
+    (!active(session) && !decided && session.iteration >= session.max_iterations);
+  // A verdict's own stop reason repeats the sentences above it.
+  const told = ["max_iterations", "no_change", "regression"];
+  if (session.status !== "ready" && session.stop_reason && !told.includes(session.stop_reason))
     sentences.push(
-      session.stop_reason === "max_iterations"
-        ? t("resultDecision.limit", { max: session.max_iterations })
-        : session.stop_reason === "no_data" && missingHeldOut > 0
-          ? t("tooFewHeldOut", { needed: missingHeldOut })
-          : t(`stop.${session.stop_reason}`),
+      session.stop_reason === "no_data" && missingHeldOut > 0
+        ? t("tooFewHeldOut", { needed: missingHeldOut })
+        : t(`stop.${session.stop_reason}`),
     );
+  if (limit) sentences.push(t("resultDecision.limit", { max: session.max_iterations }));
+  else if (session.round_hint && !decided && !active(session))
+    sentences.push(t(`resultDecision.hint.${session.round_hint}`));
   return sentences;
 }
 
@@ -201,6 +207,7 @@ function ResultDecision({
           ...headline(t, session, agent, topics),
         ].join(" ")}
       </p>
+      {noise && <TooFewShared noise={noise} />}
       {noisy && better && noise && (
         <p className="text-muted-foreground text-sm">
           {noiseSentence(t, locale, noise, agent, { note: true })}

@@ -10,7 +10,11 @@ import { Details } from "./widgets";
 
 type Translate = ReturnType<typeof useTranslations>;
 
-/** Why the test cannot tell the versions apart, as one plain sentence. */
+/**
+ * Why the test cannot tell the versions apart, as one plain sentence: today's
+ * version scoring differently on the questions its attempts shared, or answers
+ * graded both ways when asked again.
+ */
 export function noiseSentence(
   t: Translate,
   locale: string,
@@ -21,13 +25,25 @@ export function noiseSentence(
   const percent = (value: number) =>
     new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 0 }).format(value);
   const key = note ? "noise.note" : "noise.headline";
-  return noise.baseline_low !== null && noise.baseline_high !== null && noise.baseline_spread > 0
+  return !noise.too_few_shared &&
+    noise.baseline_low !== null &&
+    noise.baseline_high !== null &&
+    (noise.baseline_spread ?? 0) > 0
     ? t(`${key}Spread`, {
         agent,
         low: percent(noise.baseline_low),
         high: percent(noise.baseline_high),
       })
-    : t(`${key}Unstable`, { unstable: noise.unstable, heldOut: noise.held_out });
+    : t(`${key}Unstable`, { within: noise.within });
+}
+
+/** Said when the attempts kept aside too few of the same questions to compare them. */
+export function TooFewShared({ noise }: { noise: MeasurementNoise }) {
+  const t = useTranslations("improvement.noise");
+  if (!noise.too_few_shared || noise.by_attempt.length < 2) return null;
+  return (
+    <p className="text-muted-foreground text-sm">{t("tooFewShared", { shared: noise.shared })}</p>
+  );
 }
 
 /**

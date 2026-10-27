@@ -194,7 +194,7 @@ it("makes improving again the primary action for a mixed result", () => {
   );
   expect(screen.getByRole("button", { name: "Improve again" })).toHaveClass("bg-primary");
 });
-it("stops after two rounds with no change", () => {
+it("still tries again after two rounds with no change, while attempts are left", () => {
   const first = { ...SESSION.iterations[0]!, verdict: "no_change" as const };
   const second = { ...first, id: "r2", number: 2 };
   render(
@@ -209,9 +209,36 @@ it("stops after two rounds with no change", () => {
       onStarted={vi.fn()}
     />,
   );
+  expect(screen.getByRole("button", { name: "Improve again" })).toBeEnabled();
+});
+it("tries again after an inconclusive check, and stops at the attempt limit", () => {
+  const measured = { ...SESSION.iterations[0]!, verdict: "inconclusive" as const };
+  const view = render(
+    <ContinueSession
+      session={{
+        ...SESSION,
+        status: "stopped",
+        stop_reason: "inconclusive",
+        iterations: [measured],
+      }}
+      onStarted={vi.fn()}
+    />,
+  );
+  expect(screen.getByRole("button", { name: "Improve again" })).toBeEnabled();
+  view.rerender(
+    <ContinueSession
+      session={{
+        ...SESSION,
+        status: "stopped",
+        stop_reason: "no_change",
+        iteration: SESSION.max_iterations,
+      }}
+      onStarted={vi.fn()}
+    />,
+  );
   expect(screen.getByRole("button", { name: "Improve again" })).toBeDisabled();
 });
-it.each(["no_data", "knowledge_only", "repeat_candidate", "inconclusive", "permission", "stale"])(
+it.each(["no_data", "knowledge_only", "repeat_candidate", "permission", "stale"])(
   "does not bypass the %s stop reason",
   (stop_reason) => {
     render(

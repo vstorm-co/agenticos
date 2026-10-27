@@ -10957,8 +10957,7 @@
       "unmeasured": "Nicht gemessen",
       "none": "Keine Änderungen",
       "working": "Läuft",
-      "counts": "{fixed} behoben · {broken} verschlechtert",
-      "heldOut": "Zurückgelegt: {before} → {after}",
+      "delta": "{heldOut, select, unknown {+{fixed} behoben · {broken} verschlechtert} other {+{fixed} behoben · {broken} verschlechtert von {heldOut} zurückgelegten}}",
       "best": "Bester Versuch",
       "chosen": "Gewählter Versuch"
     },
@@ -10994,6 +10993,10 @@
       "worse": "Versuch {number} hat es verschlechtert: {broken, plural, one {# Frage funktioniert nicht mehr} other {# Fragen funktionieren nicht mehr}}.",
       "topics": "{count, plural, one {# Thema fehlt} other {# Themen fehlen}} in der Wissensbasis.",
       "limit": "{max, plural, one {Das war der einzige Versuch dieser Sitzung.} other {Damit sind alle # Versuche dieser Sitzung aufgebraucht.}}",
+      "hint": {
+        "no_change": "Zwei Versuche hintereinander haben nichts geändert, ein weiterer hilft also wahrscheinlich nicht.",
+        "inconclusive": "Zwei Versuche hintereinander ließen sich nicht verlässlich bewerten, was eher auf den Test als auf den Agent hindeutet."
+      },
       "accept": "Änderungen prüfen und übernehmen",
       "reviewTopics": "Die benötigten Dokumente entwerfen",
       "tryAgain": "Erneut versuchen",
@@ -11002,10 +11005,11 @@
       "newSessionHint": "Eine neue Sitzung hat mehr Material, wenn Sie Testfragen dort ergänzen, wo {agent} schlecht antwortet."
     },
     "noise": {
-      "headlineSpread": "Der Test kann eine bessere Version nicht von einer schlechteren unterscheiden: Die heutige Version von {agent} erreichte auf denselben Fragen {low} und {high}.",
-      "headlineUnstable": "Der Test kann eine bessere Version nicht von einer schlechteren unterscheiden: {unstable} von {heldOut} Fragen wurden beim erneuten Stellen anders bewertet, obwohl sich nichts geändert hat.",
-      "noteSpread": "Der Test schwankt: Die heutige Version von {agent} erreichte auf denselben Fragen {low} und {high}, prüfen Sie dieses Ergebnis also, bevor Sie es übernehmen.",
-      "noteUnstable": "Der Test schwankt: {unstable} von {heldOut} Fragen wurden beim erneuten Stellen anders bewertet, prüfen Sie dieses Ergebnis also, bevor Sie es übernehmen.",
+      "headlineSpread": "Der Test kann eine bessere Version nicht von einer schlechteren unterscheiden: Die heutige Version von {agent} erreichte auf den gemeinsamen Fragen ihrer Versuche {low} und {high}.",
+      "headlineUnstable": "Der Test kann eine bessere Version nicht von einer schlechteren unterscheiden: {within, plural, one {# Frage wurde} other {# Fragen wurden}} beim erneuten Stellen anders bewertet, obwohl sich nichts geändert hat.",
+      "noteSpread": "Der Test schwankt: Die heutige Version von {agent} erreichte auf den gemeinsamen Fragen ihrer Versuche {low} und {high}, prüfen Sie dieses Ergebnis also, bevor Sie es übernehmen.",
+      "noteUnstable": "Der Test schwankt: {within, plural, one {# Frage wurde} other {# Fragen wurden}} beim erneuten Stellen anders bewertet, prüfen Sie dieses Ergebnis also, bevor Sie es übernehmen.",
+      "tooFewShared": "{shared, plural, =0 {Die Versuche haben keine gemeinsamen Fragen zurückgelegt,} one {Die Versuche haben nur # gemeinsame Frage zurückgelegt,} other {Die Versuche haben nur # gemeinsame Fragen zurückgelegt,}} zu wenige, um Rauschen zwischen ihnen zu beurteilen.",
       "fixTitle": "Machen Sie den Test verlässlich, bevor Sie es erneut versuchen",
       "yesNo": "Bewertungskriterien als Ja/Nein statt einer Skala von 1–5 formulieren",
       "yesNoHint": "Zum Beispiel: „Nennt die Antwort das Erstattungslimit?“ – ja oder nein.",

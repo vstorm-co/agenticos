@@ -15,7 +15,8 @@ const NOTE_LIMIT = 2000;
 
 /**
  * Whether another paid attempt may start: a failed or over-budget step resumes,
- * a measured session tries again while it has attempts left and has not stalled.
+ * and a measured session tries again, when a person asks, while it has attempts
+ * left. Attempts that keep changing nothing only earn a hint, never a refusal.
  */
 export function continuation(session: Improvement) {
   const resume =
@@ -25,8 +26,6 @@ export function continuation(session: Improvement) {
       ["classifying", "drafting", "proposing", "evaluating"].includes(session.stage ?? ""));
   const measured = session.iterations.filter((r) => r.verdict !== null);
   const last = measured.at(-1);
-  const previous = measured.at(-2);
-  const noProgress = last?.verdict === "no_change" && previous?.verdict === "no_change";
   const used = Math.max(
     0,
     ...session.iterations
@@ -37,13 +36,11 @@ export function continuation(session: Improvement) {
     ["ready", "stopped"].includes(session.status) &&
     measured.length > 0 &&
     used < session.max_iterations &&
-    !noProgress &&
-    last?.verdict !== "inconclusive" &&
+    session.iteration < session.max_iterations &&
     ![
       "no_data",
       "knowledge_only",
       "repeat_candidate",
-      "inconclusive",
       "max_iterations",
       "permission",
       "stale",

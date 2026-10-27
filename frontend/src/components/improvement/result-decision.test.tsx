@@ -141,6 +141,7 @@ it("makes trying again the primary action while attempts are left", () => {
   show({
     ...EXHAUSTED,
     stop_reason: "regression",
+    iteration: 1,
     iterations: [round(1, "regression", 1)],
   });
   expect(screen.getByText(/^The attempt did not make Refund desk better\./)).toBeInTheDocument();
@@ -226,6 +227,10 @@ const NOISE: MeasurementNoise = {
   baseline_high: 0.7,
   baseline_spread: 2,
   unstable: 6,
+  within: 6,
+  shared: 10,
+  between: 2,
+  too_few_shared: false,
   by_attempt: [{ number: 1, baseline_unstable: 3, candidate_unstable: 3 }],
   examples: [
     {
@@ -243,7 +248,7 @@ it("says plainly when the test cannot tell the versions apart, and how to fix it
   show({ ...EXHAUSTED, measurement_noise: NOISE });
   expect(
     screen.getByText(
-      /^The test can't tell a better version from a worse one: today's version of Refund desk scored 50% and 70% on the same questions\. None of the 3 attempts/,
+      /^The test can't tell a better version from a worse one: today's version of Refund desk scored 50% and 70% on the questions its attempts shared\. None of the 3 attempts/,
     ),
   ).toBeInTheDocument();
   expect(
@@ -277,7 +282,35 @@ it("names the questions graded both ways when today's score itself held still", 
   });
   expect(
     screen.getByText(
-      /^The test can't tell a better version from a worse one: 6 of the 10 questions got a different grade when asked again/,
+      /^The test can't tell a better version from a worse one: 6 questions got a different grade when asked again, with nothing changed\./,
+    ),
+  ).toBeInTheDocument();
+});
+
+it("judges noise only within attempts when they shared too few questions, and says so", () => {
+  show({
+    ...EXHAUSTED,
+    measurement_noise: {
+      ...NOISE,
+      within: 3,
+      shared: 2,
+      between: null,
+      too_few_shared: true,
+      baseline_low: null,
+      baseline_high: null,
+      baseline_spread: null,
+      by_attempt: [
+        { number: 1, baseline_unstable: 2, candidate_unstable: 1 },
+        { number: 2, baseline_unstable: 0, candidate_unstable: 1 },
+      ],
+    },
+  });
+  expect(
+    screen.getByText(/^The test can't tell a better version from a worse one: 3 questions got/),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText(
+      "The attempts kept aside only 2 of the same questions, too few to judge noise between them.",
     ),
   ).toBeInTheDocument();
 });
@@ -309,4 +342,38 @@ it("sends a stronger judge to the dataset's grading when the organization has no
     "href",
     "/datasets/d1?tab=grading",
   );
+});
+
+it("hints that another attempt probably won't help, without stopping the session", () => {
+  const twice = {
+    ...EXHAUSTED,
+    stop_reason: "no_change",
+    iteration: 2,
+    iterations: [round(1, "no_change"), round(2, "no_change")],
+    round_hint: "no_change" as const,
+  };
+  const view = show(twice);
+  const headline = screen.getByText(/^None of the 2 attempts made Refund desk better\./);
+  expect(headline).toHaveTextContent(
+    "Two attempts in a row changed nothing, so another one probably won't help.",
+  );
+  expect(headline).not.toHaveTextContent(
+    /No reproducible improvement|attempts this session allows/,
+  );
+  expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+  view.unmount();
+  show({ ...twice, stop_reason: "inconclusive", round_hint: "inconclusive" });
+  expect(
+    screen.getByText(
+      /could not be graded reliably, which points at the test rather than the agent\./,
+    ),
+  ).toBeInTheDocument();
+});
+
+it("names the attempt limit only once it is really reached", () => {
+  show({ ...EXHAUSTED, stop_reason: "no_change", round_hint: "no_change" });
+  const headline = screen.getByText(/^None of the 3 attempts made Refund desk better\./);
+  expect(headline).toHaveTextContent("That used all 3 attempts this session allows.");
+  expect(headline).not.toHaveTextContent(/probably won't help/);
+  expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
 });

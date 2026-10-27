@@ -312,23 +312,35 @@ it.each(["no_change", "inconclusive", "regression"] as const)(
     ).not.toBeInTheDocument();
   },
 );
-it("sums an attempt up in one row and marks the best one", () => {
-  render(
+it("sums an attempt up by its change against its own baseline, and marks the best one", () => {
+  const view = render(
     <AttemptRow
       session={SESSION}
       round={{
         ...ROUND,
-        verdict_detail: { fixed: 3, broken: 0, baseline_pass_rate: 0.6, candidate_pass_rate: 0.8 },
+        verdict_detail: {
+          fixed: 3,
+          broken: 1,
+          held_out: 6,
+          baseline_pass_rate: 0.5,
+          candidate_pass_rate: 0.8,
+        },
       }}
     />,
   );
   const row = screen.getByText("Attempt 1 of 3").closest("summary")!;
   expect(row).toHaveTextContent("Better");
-  expect(row).toHaveTextContent("3 fixed · 0 broken");
-  expect(row).toHaveTextContent("Kept aside: 60% → 80%");
+  expect(row).toHaveTextContent("+3 fixed · 1 broken of 6 kept aside");
+  expect(row).not.toHaveTextContent("50%");
   expect(row).toHaveTextContent("$0.03");
   expect(row).toHaveTextContent("Best attempt");
   expect(row.closest("details")).not.toHaveAttribute("open");
+  view.rerender(
+    <AttemptRow session={SESSION} round={{ ...ROUND, verdict_detail: { fixed: 2, broken: 0 } }} />,
+  );
+  expect(screen.getByText("Attempt 1 of 3").closest("summary")).toHaveTextContent(
+    /\+2 fixed · 0 broken(?! of)/,
+  );
 });
 it("distinguishes a worse attempt from a mixed one", () => {
   const view = render(
@@ -494,6 +506,10 @@ it("calls a one-question difference within noise, and a larger one too on a nois
       baseline_high: 0.7,
       baseline_spread: 2,
       unstable: 6,
+      within: 6,
+      shared: 10,
+      between: 2,
+      too_few_shared: false,
       by_attempt: [],
       examples: [],
     },

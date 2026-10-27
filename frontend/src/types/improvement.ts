@@ -108,6 +108,8 @@ export interface Improvement {
   candidate_answers?: CheckAnswers | null;
   /** Whether the test told the versions apart; absent while working or without runs:view. */
   measurement_noise?: MeasurementNoise | null;
+  /** Why another attempt probably won't help, read from the attempts so far; never a stop. */
+  round_hint?: "no_change" | "inconclusive" | null;
   timeline: {
     action: string;
     at: string;
@@ -201,10 +203,18 @@ export interface NoisyAttempt {
 export interface MeasurementNoise {
   noisy: boolean;
   held_out: number;
+  /** Today's version's scores, on the held-out questions the attempts share only. */
   baseline_low: number | null;
   baseline_high: number | null;
-  baseline_spread: number;
+  baseline_spread: number | null;
   unstable: number;
+  /** Questions graded both ways on re-asking within an attempt. */
+  within: number;
+  /** Held-out questions two attempts or more had in common. */
+  shared: number;
+  /** Shared questions today's version was graded differently on; null when too few are shared. */
+  between: number | null;
+  too_few_shared: boolean;
   by_attempt: { number: number; baseline_unstable: number; candidate_unstable: number }[];
   examples: { case_id: string; input: string; attempts: NoisyAttempt[] }[];
 }

@@ -10857,8 +10857,7 @@
       "unmeasured": "Niezmierzona",
       "none": "Brak zmian",
       "working": "W toku",
-      "counts": "naprawione: {fixed} · zepsute: {broken}",
-      "heldOut": "Odłożone: {before} → {after}",
+      "delta": "{heldOut, select, unknown {+{fixed} naprawione · {broken} zepsute} other {+{fixed} naprawione · {broken} zepsute z {heldOut} odłożonych}}",
       "best": "Najlepsza próba",
       "chosen": "Wybrana próba"
     },
@@ -10894,6 +10893,10 @@
       "worse": "Próba {number} pogorszyła wynik: {broken, plural, one {# pytanie przestało działać} few {# pytania przestały działać} many {# pytań przestało działać} other {# pytania przestały działać}}.",
       "topics": "W bazie wiedzy {count, plural, one {brakuje # tematu} few {brakuje # tematów} many {brakuje # tematów} other {brakuje # tematu}}.",
       "limit": "{max, plural, one {To była jedyna próba, na którą pozwala ta sesja.} few {To wykorzystało wszystkie # próby, na które pozwala ta sesja.} many {To wykorzystało wszystkie # prób, na które pozwala ta sesja.} other {To wykorzystało wszystkie # próby, na które pozwala ta sesja.}}",
+      "hint": {
+        "no_change": "Dwie próby z rzędu niczego nie zmieniły, więc kolejna raczej nie pomoże.",
+        "inconclusive": "Dwóch prób z rzędu nie dało się wiarygodnie ocenić, co wskazuje raczej na test niż na agenta."
+      },
       "accept": "Przejrzyj i zaakceptuj zmiany",
       "reviewTopics": "Przygotuj dokumenty, których potrzebujesz",
       "tryAgain": "Spróbuj ponownie",
@@ -10902,10 +10905,11 @@
       "newSessionHint": "Nowa sesja będzie miała więcej materiału, gdy dodasz pytania testowe tam, gdzie agent {agent} odpowiada źle."
     },
     "noise": {
-      "headlineSpread": "Test nie odróżnia lepszej wersji od gorszej: dzisiejsza wersja agenta {agent} dostała {low} i {high} na tych samych pytaniach.",
-      "headlineUnstable": "Test nie odróżnia lepszej wersji od gorszej: {unstable} z {heldOut} pytań dostało inną ocenę przy ponownym zadaniu, choć nic się nie zmieniło.",
-      "noteSpread": "Test jest niestabilny: dzisiejsza wersja agenta {agent} dostała {low} i {high} na tych samych pytaniach, więc sprawdź ten wynik, zanim go zaakceptujesz.",
-      "noteUnstable": "Test jest niestabilny: {unstable} z {heldOut} pytań dostało inną ocenę przy ponownym zadaniu, więc sprawdź ten wynik, zanim go zaakceptujesz.",
+      "headlineSpread": "Test nie odróżnia lepszej wersji od gorszej: dzisiejsza wersja agenta {agent} dostała {low} i {high} na pytaniach wspólnych dla jej prób.",
+      "headlineUnstable": "Test nie odróżnia lepszej wersji od gorszej: {within, plural, one {# pytanie dostało} few {# pytania dostały} many {# pytań dostało} other {# pytania dostały}} inną ocenę przy ponownym zadaniu, choć nic się nie zmieniło.",
+      "noteSpread": "Test jest niestabilny: dzisiejsza wersja agenta {agent} dostała {low} i {high} na pytaniach wspólnych dla jej prób, więc sprawdź ten wynik, zanim go zaakceptujesz.",
+      "noteUnstable": "Test jest niestabilny: {within, plural, one {# pytanie dostało} few {# pytania dostały} many {# pytań dostało} other {# pytania dostały}} inną ocenę przy ponownym zadaniu, więc sprawdź ten wynik, zanim go zaakceptujesz.",
+      "tooFewShared": "{shared, plural, =0 {Próby nie odłożyły żadnego wspólnego pytania,} one {Próby odłożyły tylko # wspólne pytanie,} few {Próby odłożyły tylko # wspólne pytania,} many {Próby odłożyły tylko # wspólnych pytań,} other {Próby odłożyły tylko # wspólnego pytania,}} za mało, by ocenić szum między nimi.",
       "fixTitle": "Zanim spróbujesz ponownie, popraw wiarygodność testu",
       "yesNo": "Zmień kryteria oceny na tak/nie zamiast skali 1–5",
       "yesNoHint": "Na przykład: „Czy odpowiedź podaje limit zwrotu?” – tak albo nie.",

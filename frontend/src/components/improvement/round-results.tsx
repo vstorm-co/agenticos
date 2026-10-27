@@ -413,12 +413,7 @@ export function AttemptRow({
   const detail = round.verdict_detail;
   const fixed = detail?.fixed;
   const broken = detail?.broken;
-  const before = detail?.baseline_pass_rate;
-  const after = detail?.candidate_pass_rate;
-  const percent = (value: unknown) =>
-    new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 0 }).format(
-      Number(value),
-    );
+  const heldOut = detail?.held_out;
   const verdict =
     round.verdict === "regression" && Number(fixed ?? 0) === 0 ? "worse" : round.verdict;
   return (
@@ -450,11 +445,12 @@ export function AttemptRow({
           )}
         </StateBadge>
         {fixed != null && broken != null && (
-          <span>{t("attempt.counts", { fixed: Number(fixed), broken: Number(broken) })}</span>
-        )}
-        {before != null && after != null && (
-          <span className="text-muted-foreground">
-            {t("attempt.heldOut", { before: percent(before), after: percent(after) })}
+          <span>
+            {t("attempt.delta", {
+              fixed: Number(fixed),
+              broken: Number(broken),
+              heldOut: heldOut == null ? "unknown" : Number(heldOut),
+            })}
           </span>
         )}
         {round.id === session.best_iteration_id &&
