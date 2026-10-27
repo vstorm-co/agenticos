@@ -896,6 +896,37 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             "link": improvement_link(agent_id, session_id),
         }
 
+    async def estimate_knowledge_draft(topic_id: UUID) -> dict[str, Any]:
+        """The most drafting a document for one missing-knowledge topic costs. Needs `runs:view`
+        and edit access to the topic's knowledge base.
+
+        `total_usd` is absent when the drafting model has no price. Say the price
+        before draft_knowledge_topic.
+        """
+        return await api.request("GET", f"/knowledge-gaps/{topic_id}/draft/estimate")
+
+    async def draft_knowledge_topic(topic_id: UUID) -> dict[str, Any]:
+        """Draft a document for a question the knowledge base could not answer, only when asked.
+        Needs `runs:view`, edit access to the topic's knowledge base and AI assistance.
+
+        It is written in the background and kept on the topic for a person to
+        review; nothing is added to the knowledge base. Asking again while one is
+        being written changes nothing, and asking again later redrafts it from the
+        knowledge base as it is then.
+        """
+        topic = await api.request("POST", f"/knowledge-gaps/{topic_id}/draft")
+        return {
+            field: topic.get(field)
+            for field in (
+                "id",
+                "label",
+                "knowledge_base_name",
+                "drafting",
+                "draft_failed",
+                "draft_stale",
+            )
+        }
+
     async def list_datasets(
         agent_id: UUID | None = None, limit: int = 50, skip: int = 0
     ) -> dict[str, Any]:
@@ -1013,6 +1044,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (end_improvement, True),
         (estimate_improve_again, False),
         (improve_again, True),
+        (estimate_knowledge_draft, False),
+        (draft_knowledge_topic, True),
         (list_datasets, False),
         (get_eval_run, False),
         (list_members, False),

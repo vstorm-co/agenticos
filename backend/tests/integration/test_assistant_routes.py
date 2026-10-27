@@ -23,6 +23,7 @@ from app.core.config import settings
 from app.core.permissions import AuthContext, Perm
 from app.db.models.api_key import ApiKey
 from app.db.models.audit_log import AppAdminAuditLog
+from app.db.models.oauth import OAuthClient, OAuthGrant
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.main import app
@@ -138,6 +139,35 @@ class TestWhoMayCall:
 
         assert sessions.status_code == 200
         assert sessions.json() == []
+        assert datasets.status_code == 200
+
+    async def test_an_mcp_client_s_oauth_key_reaches_them(
+        self, db: AsyncSession, client: Client
+    ) -> None:
+        """A person's own grant to Claude Code calls the same tools, so the same routes."""
+        ctx = await _owner(db)
+        db.add(OAuthClient(client_id="claude-code", info={"client_name": "Claude Code"}))
+        await db.flush()
+        grant = OAuthGrant(
+            client_id="claude-code",
+            user_id=ctx.user_id,
+            organization_id=ctx.organization_id,
+            scopes=[Perm.DATASETS_VIEW.value],
+        )
+        db.add(grant)
+        await db.flush()
+        key = await ApiKeyService(db).issue_for_grant(
+            grant_id=grant.id,
+            organization_id=ctx.organization_id,
+            user_id=ctx.user_id,
+            client_name="Claude Code",
+            scopes=[Perm.DATASETS_VIEW.value],
+            expires_at=datetime.now(UTC) + timedelta(hours=1),
+        )
+
+        async with client() as http:
+            datasets = await http.get(_url("/datasets"), headers=_bearer(key))
+
         assert datasets.status_code == 200
 
     @pytest.mark.security
@@ -289,6 +319,7 @@ async def test_the_architect_s_improve_writes_wait_for_a_card_and_its_reads_do_n
             "accept_improvement",
             "end_improvement",
             "improve_again",
+            "draft_knowledge_topic",
         )
     )
     assert not any(
@@ -300,5 +331,6 @@ async def test_the_architect_s_improve_writes_wait_for_a_card_and_its_reads_do_n
             "estimate_improve_again",
             "list_datasets",
             "get_eval_run",
+            "estimate_knowledge_draft",
         )
     )

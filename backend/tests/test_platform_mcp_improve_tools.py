@@ -419,6 +419,39 @@ class TestActingOnASession:
         }
 
 
+class TestDraftingKnowledge:
+    async def test_the_estimate_is_the_topic_s_draft_estimate(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request = AsyncMock(return_value={"total_usd": None})
+
+        estimate = await _call(server, "estimate_knowledge_draft", topic_id=TOPIC)
+
+        assert api.request.await_args.args == ("GET", f"/knowledge-gaps/{TOPIC}/draft/estimate")
+        assert estimate == {"total_usd": None}
+
+    async def test_a_draft_is_asked_for_and_read_back_as_its_state(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request = AsyncMock(
+            return_value={
+                "id": TOPIC,
+                "label": "Do you ship to Germany?",
+                "knowledge_base_name": "Help center",
+                "drafting": True,
+                "draft_failed": False,
+                "draft_stale": False,
+                "questions": [{"question": "a person's words"}],
+            }
+        )
+
+        topic = await _call(server, "draft_knowledge_topic", topic_id=TOPIC)
+
+        assert api.request.await_args.args == ("POST", f"/knowledge-gaps/{TOPIC}/draft")
+        assert topic["drafting"] is True
+        assert "questions" not in topic
+
+
 READS = {
     "list_improvements",
     "get_improvement",
@@ -426,6 +459,7 @@ READS = {
     "estimate_improve_again",
     "list_datasets",
     "get_eval_run",
+    "estimate_knowledge_draft",
 }
 WRITES = {
     "start_improvement",
@@ -433,6 +467,7 @@ WRITES = {
     "accept_improvement",
     "end_improvement",
     "improve_again",
+    "draft_knowledge_topic",
 }
 
 
@@ -466,6 +501,8 @@ PATHS = [
     ("GET", "/datasets"),
     ("GET", f"/eval-runs/{RUN}"),
     ("GET", f"/eval-runs/{RUN}/comparison"),
+    ("GET", f"/knowledge-gaps/{TOPIC}/draft/estimate"),
+    ("POST", f"/knowledge-gaps/{TOPIC}/draft"),
 ]
 
 
