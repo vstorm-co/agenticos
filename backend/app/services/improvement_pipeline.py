@@ -1967,11 +1967,18 @@ class ImprovementPipelineService:
     async def ensure_current(
         self, ctx: AuthContext, run_id: UUID, *, allow_finished: bool = False
     ) -> None:
-        """Recheck a queued paid child's authority and pins just before it starts."""
+        """Recheck a queued paid child's authority and pins just before it starts.
+
+        `allow_finished` also admits a session between steps or after them, a
+        failed one included: retrying its step reads the same sources again.
+        """
         run = await improvement_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
         if run is None or not (
             Status(run.status).active
-            or (allow_finished and run.status in {Status.WAITING, Status.READY, Status.STOPPED})
+            or (
+                allow_finished
+                and run.status in {Status.WAITING, Status.READY, Status.STOPPED, Status.FAILED}
+            )
         ):
             raise BadRequestError(
                 message="The improvement session stopped", details={"reason": "stopped"}
