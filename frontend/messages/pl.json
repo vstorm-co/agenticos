@@ -11047,6 +11047,7 @@
     "paidRestartOwner": "Płatną pracę może wznowić tylko autor sesji, korzystając z pierwotnego konta i poświadczeń. Inni redaktorzy mogą przejrzeć wyniki lub uruchomić własną sesję.",
     "improveAgain": "Popraw ponownie",
     "raiseBudgetContinue": "Zwiększ limit i kontynuuj",
+    "resumeWithMyAccess": "Kontynuuj ten krok z moim dostępem",
     "continuationBody": "Przed dalszymi wydatkami przejrzyj pełny szacunek. Te same źródła, pytania testowe i limit prób pozostają bez zmian. Nic nie zostaje zaakceptowane ani opublikowane.",
     "estimateContinuation": "Wyceń kontynuację sesji",
     "continuationQuote": "Próba {number} z {max}: do {cost} za całą pozostałą pracę (szacunek).",

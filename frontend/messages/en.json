@@ -11264,6 +11264,7 @@
     "paidRestartOwner": "Only the session requester using the original account and credentials can restart paid work. Other editors can review the results or start their own session.",
     "improveAgain": "Improve again",
     "raiseBudgetContinue": "Raise the limit and continue",
+    "resumeWithMyAccess": "Continue this step with my access",
     "continuationBody": "Review the complete estimate before spending more. The same sources, test questions and attempt limit stay in place. Nothing is accepted or published.",
     "estimateContinuation": "Estimate continuing the session",
     "continuationQuote": "Attempt {number} of {max}: up to {cost} for the complete remaining work (estimate).",

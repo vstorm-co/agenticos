@@ -11147,6 +11147,7 @@
     "paidRestartOwner": "Nur der Anfragende kann mit dem ursprünglichen Konto und den ursprünglichen Anmeldedaten kostenpflichtige Arbeit neu starten. Andere Bearbeiter können Ergebnisse prüfen oder eine eigene Sitzung starten.",
     "improveAgain": "Erneut verbessern",
     "raiseBudgetContinue": "Limit erhöhen und fortfahren",
+    "resumeWithMyAccess": "Diesen Schritt mit meinem Zugriff fortsetzen",
     "continuationBody": "Prüfen Sie die vollständige Schätzung, bevor Sie mehr ausgeben. Dieselben Quellen, Testfragen und dasselbe Versuchslimit bleiben bestehen. Nichts wird akzeptiert oder veröffentlicht.",
     "estimateContinuation": "Fortsetzung der Sitzung schätzen",
     "continuationQuote": "Versuch {number} von {max}: bis zu {cost} für die gesamte verbleibende Arbeit (Schätzung).",

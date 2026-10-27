@@ -15,6 +15,7 @@ const NOTE_LIMIT = 2000;
 
 /**
  * Whether another paid attempt may start: a failed or over-budget step resumes,
+ * as does a step stopped for lost access, under whoever presses it,
  * and a measured session tries again, when a person asks, while it has attempts
  * left. Attempts that keep changing nothing only earn a hint, never a refusal.
  */
@@ -23,7 +24,8 @@ export function continuation(session: Improvement) {
     (session.status === "failed" && ["proposing", "evaluating"].includes(session.stage ?? "")) ||
     (session.status === "stopped" &&
       session.stop_reason === "budget" &&
-      ["classifying", "drafting", "proposing", "evaluating"].includes(session.stage ?? ""));
+      ["classifying", "drafting", "proposing", "evaluating"].includes(session.stage ?? "")) ||
+    (session.status === "stopped" && session.stop_reason === "permission");
   const measured = session.iterations.filter((r) => r.verdict !== null);
   const last = measured.at(-1);
   const used = Math.max(
@@ -37,14 +39,9 @@ export function continuation(session: Improvement) {
     measured.length > 0 &&
     used < session.max_iterations &&
     session.iteration < session.max_iterations &&
-    ![
-      "no_data",
-      "knowledge_only",
-      "repeat_candidate",
-      "max_iterations",
-      "permission",
-      "stale",
-    ].includes(session.stop_reason ?? "");
+    !["no_data", "knowledge_only", "repeat_candidate", "max_iterations", "stale"].includes(
+      session.stop_reason ?? "",
+    );
   const own = session.can_restart !== false;
   const canContinue = own && (resume || next);
   const primary = last?.verdict === "regression" || resume;
@@ -123,11 +120,13 @@ export function ContinueSession({
             {t(
               session.status === "failed"
                 ? "retryStep"
-                : resume
-                  ? "raiseBudgetContinue"
-                  : emphasis
-                    ? "resultDecision.tryAgain"
-                    : "improveAgain",
+                : session.stop_reason === "permission"
+                  ? "resumeWithMyAccess"
+                  : resume
+                    ? "raiseBudgetContinue"
+                    : emphasis
+                      ? "resultDecision.tryAgain"
+                      : "improveAgain",
             )}
           </Button>
         )}

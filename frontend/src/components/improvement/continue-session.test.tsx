@@ -238,7 +238,16 @@ it("tries again after an inconclusive check, and stops at the attempt limit", ()
   );
   expect(screen.getByRole("button", { name: "Improve again" })).toBeDisabled();
 });
-it.each(["no_data", "knowledge_only", "repeat_candidate", "permission", "stale"])(
+it("resumes a step stopped for lost access under whoever presses it", () => {
+  render(
+    <ContinueSession
+      session={{ ...SESSION, status: "stopped", stop_reason: "permission", stage: "proposing" }}
+      onStarted={vi.fn()}
+    />,
+  );
+  expect(screen.getByRole("button", { name: "Continue this step with my access" })).toBeEnabled();
+});
+it.each(["no_data", "knowledge_only", "repeat_candidate", "stale"])(
   "does not bypass the %s stop reason",
   (stop_reason) => {
     render(
