@@ -216,9 +216,15 @@ async def test_a_session_waiting_for_a_person_is_listed_only_where_its_agent_is_
     with pytest.raises(AuthorizationError, match="runs:view"):
         await service.awaiting(no_runs)
     run = await db.get(ImprovementRun, ready.id)
+    run.status = "failed"
+    await db.flush()
+    assert await service.awaiting(ctx) == []
+    [still_open] = await service.awaiting(ctx, open_sessions=True)
+    assert (still_open.id, still_open.status) == (ready.id, "failed")
     run.status = "published"
     await db.flush()
     assert await service.awaiting(ctx) == []
+    assert await service.awaiting(ctx, open_sessions=True) == []
 
 
 async def test_the_before_answers_are_counted_where_a_reused_baseline_gave_them(db):

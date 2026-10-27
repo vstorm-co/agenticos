@@ -42,11 +42,17 @@ sessions = APIRouter(prefix="/improvements")
 @sessions.get(
     "",
     response_model=list[ImprovementAwaiting],
-    dependencies=[Depends(require(Perm.RUNS_VIEW))],
+    dependencies=[Depends(require(Perm.RUNS_VIEW)), ASSISTANT],
 )
-async def list_improvements_awaiting(service: ImprovementSvc, ctx: Auth) -> Any:
+async def list_improvements_awaiting(
+    service: ImprovementSvc,
+    ctx: Auth,
+    open_sessions: bool = Query(
+        False, alias="open", description="Every session not yet closed, not only those waiting"
+    ),
+) -> Any:
     """Sessions waiting for a person - stopped at a step or with a result to review."""
-    return await service.awaiting(ctx)
+    return await service.awaiting(ctx, open_sessions=open_sessions)
 
 
 @sessions.get("/{run_id}", response_model=ImprovementRead, dependencies=[ASSISTANT])

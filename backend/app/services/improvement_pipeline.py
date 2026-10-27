@@ -52,6 +52,7 @@ from app.db.models.authoring import (
 )
 from app.db.models.eval_run import ArmRole, EvalRun
 from app.db.models.improvement import (
+    OPEN_STATUSES,
     DroppedHunk,
     ImprovementIteration,
     ImprovementRun,
@@ -785,16 +786,23 @@ class ImprovementPipelineService:
         await self.registry.get(ctx, agent_id)
         return await self._read(ctx, await self._row(ctx, agent_id, run_id))
 
-    async def awaiting(self, ctx: AuthContext) -> list[ImprovementAwaiting]:
+    async def awaiting(
+        self, ctx: AuthContext, *, open_sessions: bool = False
+    ) -> list[ImprovementAwaiting]:
         """Sessions waiting for a person, on the agents this caller may read.
 
         A session stopped at a step, or with a result ready, waits for whoever may
-        take it on; one on an agent the caller cannot see is left out.
+        take it on; one on an agent the caller cannot see is left out. With
+        `open_sessions`, every session not yet closed is listed - running, stopped
+        and failed ones too.
         """
         if not ctx.has(Perm.RUNS_VIEW):
             raise AuthorizationError(message="Reading improvement sessions needs runs:view")
+        statuses = (
+            tuple(status.value for status in OPEN_STATUSES) if open_sessions else _AWAITING_PERSON
+        )
         rows = await improvement_repo.list_for_person(
-            self.db, organization_id=ctx.organization_id, statuses=_AWAITING_PERSON
+            self.db, organization_id=ctx.organization_id, statuses=statuses
         )
         names: dict[UUID, str | None] = {}
         for agent_id in dict.fromkeys(row.agent_id for row in rows):
