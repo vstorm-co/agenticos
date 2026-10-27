@@ -156,7 +156,10 @@ async def test_listing_sessions_that_wait_for_a_person_needs_runs_view(
         response = await client.get(f"{settings.API_V1_STR}/improvements")
         assert response.status_code == 200, response.text
         assert response.json() == []
-        awaiting.assert_awaited_once_with(ctx)
+        awaiting.assert_awaited_once_with(ctx, open_sessions=False)
+        opened = await client.get(f"{settings.API_V1_STR}/improvements", params={"open": "true"})
+        assert opened.status_code == 200, opened.text
+        awaiting.assert_awaited_with(ctx, open_sessions=True)
         limited = AuthContext(
             user_id=uuid4(),
             organization_id=uuid4(),

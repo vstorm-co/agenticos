@@ -441,6 +441,18 @@ async def test_a_session_whose_person_lost_access_is_left_for_them_to_be_told(db
     assert row.status == "waiting"
 
 
+async def test_a_session_that_closed_after_the_sweep_listed_it_is_left_alone(db):
+    ctx, agent, waiting = await _at_understand(db)
+    row = await db.get(ImprovementRun, waiting.id)
+    assert row is not None
+    row.status, row.stage_started_at = "cancelled", _a_week_ago()
+    await db.flush()
+    listed = [[(row.id, row.organization_id), (uuid4(), row.organization_id)], []]
+    with patch.object(improvement_repo, "list_resting", AsyncMock(side_effect=listed)):
+        await ImprovementPipelineService(db).sweep()
+    assert (row.status, row.stop_reason) == ("cancelled", None)
+
+
 async def test_a_ready_session_outlives_its_draft_moving_but_not_a_week(db):
     from app.db.models.agent import Agent
     from tests.integration.test_improvement_pipeline import _ready_proposal

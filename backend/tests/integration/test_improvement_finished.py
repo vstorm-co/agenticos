@@ -13,7 +13,7 @@ import pytest
 
 from app.core.exceptions import AuthorizationError, ConcurrentChangeError, NotFoundError
 from app.core.permissions import OrgRoleName
-from app.db.models.improvement import ImprovementRun
+from app.db.models.improvement import ImprovementIteration, ImprovementRun
 from app.schemas.improvement import (
     AttributionConsent,
     ContinuationConsent,
@@ -171,6 +171,19 @@ async def test_a_session_with_no_kept_attempt_shows_the_attempt_in_hand(db):
     shown = await service.changes(ctx, agent.id, ready.id)
 
     assert shown and {change.id for change in shown} == included
+
+
+async def test_an_attempt_in_hand_that_wrote_nothing_shows_no_changes(db):
+    ctx, agent, ready = await _ready_proposal(db)
+    run = await db.get(ImprovementRun, ready.id)
+    assert run is not None
+    run.best_iteration_id = None
+    in_hand = await db.get(ImprovementIteration, ready.iterations[0].id)
+    assert in_hand is not None and in_hand.number == run.iteration
+    in_hand.batch_id = None
+    await db.flush()
+
+    assert await ImprovementPipelineService(db).changes(ctx, agent.id, ready.id) == []
 
 
 @pytest.mark.security
