@@ -11367,7 +11367,9 @@
       "retried": "{name} retried a step · {at}",
       "discarded": "{name} discarded the suggestions · {at}",
       "accepted": "{name} kept the changes as a draft · {at}",
-      "published": "{name} published the new version · {at}"
+      "published": "{name} published the new version · {at}",
+      "nextStepPropose": "{name} asked for the changes to be written · {at}",
+      "nextStepCheck": "{name} started testing the chosen changes · {at}"
     },
     "widgets": {
       "ofTotal": "{count} of {total}",

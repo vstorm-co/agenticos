@@ -11150,7 +11150,9 @@
       "retried": "{name} ponowił(a) krok · {at}",
       "discarded": "{name} odrzucił(a) sugestie · {at}",
       "accepted": "{name} zachował(a) zmiany w wersji roboczej · {at}",
-      "published": "{name} opublikował(a) nową wersję · {at}"
+      "published": "{name} opublikował(a) nową wersję · {at}",
+      "nextStepPropose": "{name} zlecił(a) napisanie zmian · {at}",
+      "nextStepCheck": "{name} uruchomił(a) test wybranych zmian · {at}"
     },
     "widgets": {
       "ofTotal": "{count} z {total}",

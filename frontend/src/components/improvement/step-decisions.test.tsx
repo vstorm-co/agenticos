@@ -42,3 +42,23 @@ it("says nothing where no named person decided anything", () => {
   render(<StepDecisions session={SESSION_WITH} step="check" />);
   expect(screen.queryByRole("region", { name: "Decided here" })).toBeNull();
 });
+
+it("puts each Next step press, and choosing the changes, on the step it stopped at", () => {
+  const session: Improvement = {
+    ...SESSION,
+    timeline: [
+      { ...event("improvement.next_step_taken", "Ada"), stage: "classifying" },
+      { ...event("improvement.changes_chosen", "Ben"), stage: "filtering" },
+      { ...event("improvement.next_step_taken", "Ben"), stage: "filtering" },
+    ],
+  };
+  const view = render(<StepDecisions session={session} step="understand" />);
+  expect(screen.getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+    expect.stringMatching(/^Ada asked for the changes to be written · /),
+  ]);
+  view.rerender(<StepDecisions session={session} step="changes" />);
+  expect(screen.getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+    expect.stringMatching(/^Ben chose which changes to test · /),
+    expect.stringMatching(/^Ben started testing the chosen changes · /),
+  ]);
+});
