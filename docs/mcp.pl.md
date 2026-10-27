@@ -1,5 +1,5 @@
 ---
-source_sha: "f0839eae67a6"
+source_sha: "1b2d02388f3b"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1042,7 +1042,7 @@ odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` i `roles:manage` |
 | `list_my_connections`, `set_my_language`, `set_my_profile` | — (własne wywołującego) |
-| `list_improvements`, `get_improvement` | dostęp do odczytu agenta; tematy wiedzy sesji wymagają też `runs:view` |
+| `list_improvements`, `get_improvement` | dostęp do odczytu agenta; tematy wiedzy sesji wymagają też `runs:view`, podobnie jak lista wszystkich otwartych sesji bez wskazania agenta |
 | `estimate_improvement`, `start_improvement`, `use_attempt`, `accept_improvement`, `estimate_next_improvement_step`, `run_next_improvement_step`, `estimate_improve_again`, `improve_again`, `end_improvement` | dostęp do edycji agenta i `runs:view`; uruchomienie także `datasets:run`, publikacja `agents:publish` |
 | `list_datasets` | `datasets:view` |
 | `get_eval_run` | `runs:view` |

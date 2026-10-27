@@ -135,3 +135,57 @@ def test_what_can_be_done_now_is_read_from_next_actions_and_offered_as_them(
     assert "never say a session cannot be continued" in rule
     assert "while `next_actions` holds that action" in rule
     assert "`ask_user_question` and its options are exactly `next_actions`" in rule
+
+
+def test_a_session_is_found_without_an_id_never_with_a_made_up_one(instructions: str) -> None:
+    """It called list_improvements with an agent id it had invented."""
+    rule = _bullet(instructions, "Keep what you already found")
+    assert "Never make an id up" in rule
+    assert "`list_improvements` with no agent" in rule
+    assert "`agent_name`" in rule
+
+
+def test_a_failed_call_is_never_reported_as_nothing_found(instructions: str) -> None:
+    """Its made-up id was refused, and it told the person no session was waiting."""
+    rule = _bullet(instructions, "A failed call is not an empty result")
+    assert "never say there is nothing, none or no session" in rule
+    assert "try again" in rule
+    assert 'Say "none" only when a call succeeded and returned no items' in rule
+
+
+def test_a_repeated_question_about_state_gets_a_fresh_call(instructions: str) -> None:
+    """Asked again a stop later, it answered from its own earlier, wrong reply."""
+    rule = _bullet(instructions, "Where things stand changes between turns")
+    assert "gets a fresh `list_improvements` or `get_improvement` call" in rule
+    assert "even when you answered the same question a turn ago" in rule
+    assert "Never answer it from an earlier reply" in rule
+
+
+def test_the_page_is_read_from_its_path_not_its_title(instructions: str) -> None:
+    """Asked "what am I looking at?", it answered with the console's generic page title."""
+    section = instructions.split("# Showing where things are", 1)[1]
+    assert "the path in brackets tells you what they are looking at" in section
+    assert "never repeat it" in section
+    assert "`/agents/<agent id>/improve/<session id>` is that Improve session" in section
+    assert "`get_improvement` with the session id" in section
+
+
+def test_the_wizard_s_words_are_used_never_stored_names_or_error_codes(
+    instructions: str,
+) -> None:
+    """It said a session was at stage "filtering" and quoted "400 BAD_REQUEST"."""
+    rule = _bullet(instructions, "Speak the wizard's words, never the system's")
+    assert "by its `step`" in rule
+    assert "`why_stopped` or `why_stale`" in rule
+    for internal in ("filtering", "BAD_REQUEST", "NOT_FOUND"):
+        assert internal in rule
+    assert "not enough kept-aside questions" in rule
+
+
+def test_a_reply_starts_from_the_summary_and_keeps_its_warning(instructions: str) -> None:
+    """It left out the live version and that the kept attempt broke a question, and listed
+    the options in prose."""
+    rule = _bullet(instructions, "Start from `summary`")
+    assert "keep every fact in it" in rule
+    assert "a warning that the kept attempt makes the agent worse" in rule
+    assert "`ask_user_question`, its options exactly `next_actions`" in rule

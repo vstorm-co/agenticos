@@ -218,6 +218,120 @@ def _waiting(session: dict[str, Any]) -> dict[str, Any] | None:
     return _NEXT_STEPS.get(session.get("next_step") or "")
 
 
+_CHECKING_STAGES = frozenset({"evaluating", "judging"})
+_PROPOSING_STAGES = frozenset({"proposing", "filtering", "drafting"})
+
+_WHY_STOPPED = {
+    "no_data": "There were no rated answers or failed test questions to learn from.",
+    "no_proposal": "The helper found nothing to change.",
+    "budget": "It reached its spending limit.",
+    "inconclusive": "The test could not tell whether the changes helped.",
+    "regression": "The changes made some answers worse.",
+    "no_change": "The changes made no difference on the test.",
+    "max_iterations": "It used all its attempts.",
+    "repeat_candidate": "The attempt proposed the same changes as an earlier one.",
+    "permission": "Whoever ran the step lost access the step needs.",
+    "stale": "The agent, its test questions or how they are scored changed.",
+    "stalled": "A step stopped making progress.",
+    "proposal": "Writing the changes failed.",
+    "eval": "The test failed or was cancelled.",
+    "superseded": "A newer attempt or a person's own change replaced it.",
+    "knowledge_only": "Every problem was missing knowledge, so there was nothing to change "
+    "in the agent.",
+    "expired": "It waited too long for a person.",
+}
+"""Why a session stopped, in the words a person reads; never the stored reason's name."""
+
+
+def _plain(refusal: str) -> str:
+    """A refusal's own sentence, without the status and code a person never reads."""
+    _, _, reason = refusal.partition(": ")
+    return reason or refusal
+
+
+def _step(session: dict[str, Any]) -> str:
+    """The wizard step a session is on, as its stepper names it."""
+    status, stage = session["status"], session.get("stage") or ""
+    if status in {"accepted", "published"}:
+        return "Accept"
+    if status == "waiting":
+        return "Changes" if session.get("next_step") == "check" else "Understand"
+    if status not in {"queued", "running"}:
+        return "Result"
+    if stage in _CHECKING_STAGES:
+        return "Check"
+    if stage in _PROPOSING_STAGES:
+        return "Changes"
+    return "Understand"
+
+
+def _questions(count: int) -> str:
+    return f"{count} question" if count == 1 else f"{count} questions"
+
+
+def _kept_attempt(session: dict[str, Any]) -> dict[str, Any] | None:
+    """The attempt the session keeps, else its latest measured one."""
+    measured = [it for it in session.get("iterations", []) if it.get("verdict")]
+    chosen = session.get("best_iteration_id")
+    return next((it for it in measured if it["id"] == chosen), measured[-1] if measured else None)
+
+
+def _verdict_sentence(attempt: dict[str, Any]) -> str:
+    detail = attempt.get("verdict_detail") or {}
+    fixed, broken = detail.get("fixed") or 0, detail.get("broken") or 0
+    number = attempt["number"]
+    if broken or attempt["verdict"] == "regression":
+        return (
+            f"Warning: attempt {number}, the one kept, makes the agent worse - it breaks "
+            f"{_questions(broken)} the agent answered well before, and fixes {fixed}."
+        )
+    if attempt["verdict"] == "better":
+        return f"Attempt {number}, the one kept, fixes {_questions(fixed)} and breaks none."
+    if attempt["verdict"] == "no_change":
+        return f"Attempt {number}, the one kept, made no measurable difference."
+    return f"The test could not tell whether attempt {number}, the one kept, helped."
+
+
+def _where(session: dict[str, Any], item: dict[str, Any], live: int | None) -> str:
+    status = session["status"]
+    attempt = f"attempt {session['iteration']} of {session['max_iterations']}"
+    published = (item.get("outcome") or {}).get("published_version")
+    if status == "published":
+        since = f", since replaced by v{live}" if live is not None and live != published else ""
+        return f"The newest session is over: it published v{published}{since}."
+    if status == "accepted":
+        return "The newest session is over: its changes were accepted as a draft."
+    if status in {"rejected", "cancelled"}:
+        return "The newest session ended without changing the agent."
+    if status == "stale":
+        return f"The newest session can no longer be used: {item['why_stale']}"
+    if status == "waiting":
+        return f"The newest session waits at the {item['step']} stop for a go-ahead."
+    if status in {"queued", "running"}:
+        return f"The newest session is working on {item['step']}, {attempt}."
+    if status == "ready":
+        return f"The newest session has a result to decide on, after {attempt}."
+    why = item.get("why_stopped") or "A step failed."
+    return f"The newest session stopped after {attempt}: {why}"
+
+
+def _summary(session: dict[str, Any], item: dict[str, Any], live: int | None) -> str:
+    """How improving stands, in a few plain sentences built from the session's own facts."""
+    sentences = [
+        f"v{live} is live." if live is not None else "No version of the agent is published yet.",
+        _where(session, item, live),
+    ]
+    kept = _kept_attempt(session)
+    if kept is not None and not item["closed"]:
+        sentences.append(_verdict_sentence(kept))
+    actions = item["next_actions"]
+    if actions:
+        price = (item.get("waiting_for") or {}).get("price") or {}
+        cost = f" The next step costs about ${price['total_usd']}." if "total_usd" in price else ""
+        sentences.append("What can be done now: " + "; ".join(actions) + "." + cost)
+    return " ".join(sentences)
+
+
 _RESUMABLE_STAGES = frozenset({"classifying", "drafting", "proposing", "evaluating"})
 _LAST_ATTEMPT = frozenset(
     {"no_data", "knowledge_only", "repeat_candidate", "max_iterations", "stale"}
@@ -288,6 +402,8 @@ def _session(agent_id: UUID | str, session: dict[str, Any]) -> dict[str, Any]:
     return {
         **{field: session.get(field) for field in _SESSION_FIELDS},
         "closed": session["status"] in _CLOSED,
+        "step": _step(session),
+        "why_stopped": _WHY_STOPPED.get(session.get("stop_reason") or ""),
         "attempt": session.get("iteration"),
         "max_attempts": session.get("max_iterations"),
         "can_accept": session["status"] == "ready",
@@ -969,23 +1085,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             "why_stale": _why_stale(session, started_from=started_from, live=live),
         }
 
-    async def list_improvements(agent_id: UUID) -> dict[str, Any]:
-        """An agent's Improve sessions, newest first. Needs access to the agent.
-
-        `current_published_version` is the version live now; a session's
-        `outcome.published_version` is only what it published then. The first
-        item is `newest` - the one to describe when asked how improving stands -
-        and carries `live_version` and, while it waits, the next step's `price`.
-        Every session lists its `next_actions`: what the wizard offers on it now,
-        in its words, empty once it is closed; `can_try_again` says whether
-        another attempt may start, at `attempt` of `max_attempts`.
-        Each has its status, the step it is on, the attempt it reached, why it
-        stopped and what it spent, the version it `started_from_version`, and
-        `link` - the Improve wizard, where the person follows it. A `closed`
-        session is a record: its `outcome` says what was decided - the attempt,
-        the version it published, by whom - and nothing on it can be accepted
-        again; a stale one says `why_stale`. Read one with get_improvement.
-        """
+    async def _agent_sessions(agent_id: UUID | str) -> dict[str, Any]:
         sessions = await api.request("GET", f"/agents/{agent_id}/improvements")
         live, numbers = await _versions(agent_id)
         ordered = sorted(sessions, key=lambda session: session["created_at"], reverse=True)
@@ -1001,7 +1101,88 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
                     **newest["waiting_for"],
                     "price": await _next_step_price(agent_id, ordered[0]),
                 }
+            newest["summary"] = _summary(ordered[0], newest, live)
         return {"current_published_version": live, "items": items}
+
+    async def _open_sessions() -> dict[str, Any]:
+        """Every open session on the agents the caller can read, newest first."""
+        listed = await api.request("GET", "/improvements", params={"open": "true"})
+        names = {session["agent_id"]: session["agent_name"] for session in listed}
+        found: list[dict[str, Any]] = []
+        for agent_id, name in names.items():
+            agent = await _agent_sessions(agent_id)
+            found.extend(
+                {
+                    **item,
+                    "agent_id": agent_id,
+                    "agent_name": name,
+                    "live_version": agent["current_published_version"],
+                }
+                for item in agent["items"]
+                if not item["closed"]
+            )
+        found.sort(key=lambda item: item["created_at"], reverse=True)
+        return {"open_sessions": found}
+
+    async def _agent_named(name: str) -> dict[str, Any]:
+        """The one agent called `name`, ignoring case, or a refusal naming the candidates."""
+        agents = (await api.request("GET", "/agents", params={"limit": 100}))["items"]
+        wanted = name.strip().casefold()
+        exact = [agent for agent in agents if agent["name"].casefold() == wanted]
+        matches = exact or [agent for agent in agents if wanted in agent["name"].casefold()]
+        if len(matches) == 1:
+            return matches[0]
+        if matches:
+            return api.refuse(
+                f"Several agents match {name!r}: "
+                + ", ".join(f"{agent['name']} ({agent['id']})" for agent in matches)
+                + ". Ask the person which one, then call again with its agent_id."
+            )
+        return api.refuse(
+            f"No agent is named {name!r}. This is not an empty result: call list_agents, "
+            "find the agent the person means, and call again with its agent_id."
+        )
+
+    async def list_improvements(
+        agent_id: UUID | None = None, agent_name: str | None = None
+    ) -> dict[str, Any]:
+        """Improve sessions, newest first. Needs access to the agent, and `runs:view` without one.
+
+        Without `agent_id` or `agent_name`, it lists every open session on the
+        agents the caller can read, each with its `agent_name` - start there when
+        you have no agent id from a tool result; never make one up. `agent_name`
+        matches an agent's name, ignoring case; several matches are refused with
+        the candidates.
+        The newest session carries `summary`: how improving stands, in plain
+        sentences - start a reply from it and keep every fact in it.
+        Name where a session is by its `step` - Understand, Changes, Check,
+        Result or Accept, as the wizard does - and why it stopped by
+        `why_stopped`; `status`, `stage` and `stop_reason` are internal names a
+        person never reads.
+        For one agent, `current_published_version` is the version live now; a
+        session's `outcome.published_version` is only what it published then. The
+        first item is `newest` - the one to describe when asked how improving
+        stands - and carries `live_version` and, while it waits, the next step's
+        `price`. Every session lists its `next_actions`: what the wizard offers
+        on it now, in its words, empty once it is closed; `can_try_again` says
+        whether another attempt may start, at `attempt` of `max_attempts`.
+        Each has its status, the step it is on, the attempt it reached, why it
+        stopped and what it spent, the version it `started_from_version`, and
+        `link` - the Improve wizard, where the person follows it. A `closed`
+        session is a record: its `outcome` says what was decided - the attempt,
+        the version it published, by whom - and nothing on it can be accepted
+        again; a stale one says `why_stale`. Read one with get_improvement.
+        """
+        if agent_id is not None:
+            return await _agent_sessions(agent_id)
+        if agent_name is None:
+            return await _open_sessions()
+        agent = await _agent_named(agent_name)
+        return {
+            "agent_id": agent["id"],
+            "agent_name": agent["name"],
+            **await _agent_sessions(agent["id"]),
+        }
 
     async def _next_step_price(agent_id: UUID | str, session: dict[str, Any]) -> dict[str, Any]:
         """The next step's quote within the session's limit, or why it cannot be quoted."""
@@ -1012,7 +1193,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
                 json={"budget_usd": str(session["budget_usd"])},
             )
         except ToolError as refused:
-            return {"unavailable": str(refused)}
+            return {"unavailable": _plain(str(refused))}
         return {
             field: quote[field]
             for field in ("total_usd", "budget_usd", "affordable", "candidate_hash")
@@ -1021,6 +1202,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
     async def get_improvement(session_id: UUID) -> dict[str, Any]:
         """One Improve session by its id: its attempts and verdicts, and what is missing from knowledge.
 
+        `summary` says how the session stands in plain sentences - start a reply
+        from it and keep every fact in it, a warning above all.
         `current_published_version` is the agent's live version; call the
         session's published version live only when the two are equal, and a
         stale session says `why_stale`.
@@ -1067,6 +1250,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
                 **result["waiting_for"],
                 "price": await _next_step_price(agent_id, session),
             }
+        result["summary"] = _summary(session, result, live)
         me = await api.request("GET", "/me/permissions")
         if not any(entry["permission"] == "runs:view" for entry in me.get("permissions", [])):
             return result

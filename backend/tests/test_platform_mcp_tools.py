@@ -690,6 +690,24 @@ class TestTheInProcessCall:
         with pytest.raises(ToolError, match="403 AUTHORIZATION_ERROR: Insufficient permissions"):
             await _api(handler).request("POST", "/agents", json={})
 
+    @pytest.mark.parametrize(("status", "code"), [(404, "NOT_FOUND"), (422, "VALIDATION_ERROR")])
+    async def test_a_missing_or_malformed_target_is_never_read_as_nothing_found(
+        self, status: int, code: str
+    ) -> None:
+        """Given an agent id it had made up, the Architect reported "no sessions" as fact."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                status, json={"error": {"code": code, "message": "Agent not found"}}
+            )
+
+        with pytest.raises(ToolError) as refused:
+            await _api(handler).request("GET", "/agents/x/improvements")
+
+        assert str(refused.value).startswith(f"{status} {code}: Agent not found. ")
+        assert "it is not an empty result, so never report it as none" in str(refused.value)
+        assert "list_agents" in str(refused.value)
+
     async def test_an_unexpected_error_body_still_says_something(self) -> None:
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(502, json=["not", "an", "envelope"])

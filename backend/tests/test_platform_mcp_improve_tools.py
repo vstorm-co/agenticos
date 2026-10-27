@@ -475,9 +475,7 @@ class TestStepByStep:
 
         session = await _call(server, "get_improvement", session_id=SESSION)
 
-        assert session["waiting_for"]["price"] == {
-            "unavailable": "400 BAD_REQUEST: The improvement session stopped"
-        }
+        assert session["waiting_for"]["price"] == {"unavailable": "The improvement session stopped"}
         assert session["status"] == "waiting"
 
     async def test_a_session_not_waiting_waits_for_nothing(
@@ -829,6 +827,323 @@ class TestWhatCanBeDoneNow:
         [item] = (await _call(server, "list_improvements", agent_id=AGENT))["items"]
 
         assert item["next_actions"] == actions
+
+
+class TestTheWizardsWords:
+    """It told the person a session was at stage "filtering" and quoted "400 BAD_REQUEST"."""
+
+    @pytest.mark.parametrize(
+        ("changes", "step"),
+        [
+            ({"status": "waiting", "next_step": "propose"}, "Understand"),
+            ({"status": "waiting", "stage": "filtering", "next_step": "check"}, "Changes"),
+            ({"status": "running", "stage": "classifying"}, "Understand"),
+            ({"status": "running", "stage": "proposing"}, "Changes"),
+            ({"status": "queued", "stage": "evaluating"}, "Check"),
+            ({"status": "stopped", "stage": "judging"}, "Result"),
+            ({"status": "ready", "stage": "judging"}, "Result"),
+            ({"status": "published", "stage": "judging"}, "Accept"),
+        ],
+    )
+    async def test_a_session_names_its_step_as_the_wizard_does(
+        self, server: FastMCP, api: MagicMock, changes: dict[str, Any], step: str
+    ) -> None:
+        session = {**SESSION_READ, "stop_reason": None, **changes}
+        api.request = _responder(
+            {
+                ("GET", f"/agents/{AGENT}/improvements"): [session],
+                ("POST", f"/agents/{AGENT}/improvements/{SESSION}/continue/estimate"): {
+                    "total_usd": "0.01",
+                    "budget_usd": "0.05",
+                    "affordable": True,
+                    "candidate_hash": "d" * 64,
+                },
+            }
+        )
+
+        [item] = (await _call(server, "list_improvements", agent_id=AGENT))["items"]
+
+        assert item["step"] == step
+
+    @pytest.mark.parametrize(
+        ("reason", "words"),
+        [
+            ("regression", "The changes made some answers worse."),
+            (
+                "knowledge_only",
+                "Every problem was missing knowledge, so there was nothing to change in the agent.",
+            ),
+            (None, None),
+        ],
+    )
+    async def test_why_a_session_stopped_is_said_in_plain_words(
+        self, server: FastMCP, api: MagicMock, reason: str | None, words: str | None
+    ) -> None:
+        api.request = _responder(
+            {("GET", f"/agents/{AGENT}/improvements"): [{**SESSION_READ, "stop_reason": reason}]}
+        )
+
+        [item] = (await _call(server, "list_improvements", agent_id=AGENT))["items"]
+
+        assert item["why_stopped"] == words
+
+
+class TestTheSummary:
+    """Told how improving stood, it left out the live version and that the attempt kept
+    broke a question - the one fact that matters before accepting."""
+
+    WORSE_KEPT = {
+        **SESSION_READ,
+        "status": "ready",
+        "stop_reason": None,
+        "can_restart": True,
+        "best_iteration_id": SESSION_READ["iterations"][0]["id"],
+    }
+
+    async def test_a_ready_session_keeping_a_worse_attempt_warns_beside_the_live_version(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request = _responder(
+            {**_published_as(V8), ("GET", f"/agents/{AGENT}/improvements"): [self.WORSE_KEPT]}
+        )
+
+        [newest] = (await _call(server, "list_improvements", agent_id=AGENT))["items"]
+
+        assert newest["summary"] == (
+            "v8 is live. The newest session has a result to decide on, after attempt 2 of 3. "
+            "Warning: attempt 1, the one kept, makes the agent worse - it breaks 1 question "
+            "the agent answered well before, and fixes 2. What can be done now: Accept the "
+            "chosen attempt; Try again (attempt 3 of 3); End the session."
+        )
+
+    async def test_one_session_read_carries_the_same_summary(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request = _responder(
+            {
+                **_published_as(V8),
+                ("GET", f"/improvements/{SESSION}"): self.WORSE_KEPT,
+                ("GET", "/me/permissions"): _permissions("agents:view"),
+            }
+        )
+
+        session = await _call(server, "get_improvement", session_id=SESSION)
+
+        assert session["summary"].startswith("v8 is live.")
+        assert "Warning: attempt 1, the one kept, makes the agent worse" in session["summary"]
+
+    @pytest.mark.parametrize(
+        ("changes", "live", "says"),
+        [
+            (
+                {"status": "ready", "stop_reason": None},
+                None,
+                "No version of the agent is published yet.",
+            ),
+            (
+                {"status": "ready", "stop_reason": None},
+                V8,
+                "Attempt 2, the one kept, fixes 3 questions and breaks none.",
+            ),
+            (
+                {"status": "published", "published_version": 7},
+                V8,
+                "The newest session is over: it published v7, since replaced by v8.",
+            ),
+            (
+                {"status": "published", "published_version": 8},
+                V8,
+                "The newest session is over: it published v8.",
+            ),
+            ({"status": "accepted"}, V8, "its changes were accepted as a draft."),
+            ({"status": "rejected"}, V8, "ended without changing the agent."),
+            (
+                {"status": "stale", "stop_reason": "expired"},
+                V8,
+                "can no longer be used: It waited too long for a person and expired.",
+            ),
+            (
+                {"status": "running", "stage": "proposing"},
+                V8,
+                "is working on Changes, attempt 2 of 3.",
+            ),
+            (
+                {"status": "stopped", "stop_reason": "budget", "stage": "evaluating"},
+                V8,
+                "stopped after attempt 2 of 3: It reached its spending limit.",
+            ),
+            (
+                {"status": "failed", "stop_reason": None, "stage": "judging"},
+                V8,
+                "stopped after attempt 2 of 3: A step failed.",
+            ),
+            (
+                {
+                    "status": "ready",
+                    "stop_reason": None,
+                    "iterations": [{**FIRST_ATTEMPT, "verdict": "no_change", "verdict_detail": {}}],
+                    "best_iteration_id": None,
+                },
+                V8,
+                "Attempt 1, the one kept, made no measurable difference.",
+            ),
+            (
+                {
+                    "status": "ready",
+                    "stop_reason": None,
+                    "iterations": [
+                        {**FIRST_ATTEMPT, "verdict": "inconclusive", "verdict_detail": {}}
+                    ],
+                    "best_iteration_id": None,
+                },
+                V8,
+                "The test could not tell whether attempt 1, the one kept, helped.",
+            ),
+            (
+                {
+                    "status": "waiting",
+                    "stop_reason": None,
+                    "next_step": "propose",
+                    "iterations": [],
+                },
+                V8,
+                "waits at the Understand stop for a go-ahead. What can be done now: Next step: "
+                "propose changes; End the session. The next step costs about $0.01.",
+            ),
+        ],
+        ids=[
+            "nothing published",
+            "better kept",
+            "published, since replaced",
+            "published and live",
+            "accepted",
+            "rejected",
+            "outdated",
+            "running",
+            "stopped",
+            "failed",
+            "no change",
+            "inconclusive",
+            "waiting with its price",
+        ],
+    )
+    async def test_the_summary_says_where_the_newest_session_stands(
+        self,
+        server: FastMCP,
+        api: MagicMock,
+        changes: dict[str, Any],
+        live: str | None,
+        says: str,
+    ) -> None:
+        api.request = _responder(
+            {
+                **_published_as(live),
+                ("GET", f"/agents/{AGENT}/improvements"): [{**SESSION_READ, **changes}],
+                ("POST", f"/agents/{AGENT}/improvements/{SESSION}/continue/estimate"): {
+                    "total_usd": "0.01",
+                    "budget_usd": "0.05",
+                    "affordable": True,
+                    "candidate_hash": "d" * 64,
+                },
+            }
+        )
+
+        [newest] = (await _call(server, "list_improvements", agent_id=AGENT))["items"]
+
+        assert says in newest["summary"]
+
+
+class TestFindingSessionsWithoutAnId:
+    """With no agent id to hand, it made one up, the call failed, and it said nothing was
+    waiting - while one session waited after Understand and another had a result."""
+
+    async def test_with_no_agent_it_lists_every_open_session_by_agent_name(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        waiting = {
+            **SESSION_READ,
+            "status": "waiting",
+            "stage": "classifying",
+            "next_step": "propose",
+            "created_at": "2026-10-27T10:00:00Z",
+        }
+        published = {**SESSION_READ, "id": str(uuid.uuid4()), "status": "published"}
+        quote = {
+            "total_usd": "0.01",
+            "budget_usd": "0.05",
+            "affordable": True,
+            "candidate_hash": "d" * 64,
+        }
+        api.request = _responder(
+            {
+                ("GET", "/improvements"): [
+                    {"id": str(SESSION), "agent_id": str(AGENT), "agent_name": "Refund desk"}
+                ],
+                ("GET", f"/agents/{AGENT}/improvements"): [published, waiting],
+                ("POST", f"/agents/{AGENT}/improvements/{SESSION}/continue/estimate"): quote,
+            }
+        )
+
+        listing = await _call(server, "list_improvements")
+
+        [found] = listing["open_sessions"]
+        assert (found["id"], found["agent_name"], found["status"]) == (
+            str(SESSION),
+            "Refund desk",
+            "waiting",
+        )
+        assert found["next_actions"] == ["Next step: propose changes", "End the session"]
+        assert found["waiting_for"]["price"]["total_usd"] == "0.01"
+        assert api.request.await_args_list[0].kwargs == {"params": {"open": "true"}}
+
+    @pytest.mark.parametrize("name", ["refund desk", "  Refund Desk ", "refund"])
+    async def test_an_agent_can_be_named_instead_of_identified(
+        self, server: FastMCP, api: MagicMock, name: str
+    ) -> None:
+        api.request = _responder(
+            {
+                ("GET", "/agents"): {
+                    "items": [
+                        {"id": str(AGENT), "name": "Refund desk"},
+                        {"id": str(uuid.uuid4()), "name": "Sales"},
+                    ]
+                },
+                ("GET", f"/agents/{AGENT}/improvements"): [SESSION_READ],
+            }
+        )
+
+        listing = await _call(server, "list_improvements", agent_name=name)
+
+        assert (listing["agent_id"], listing["agent_name"]) == (str(AGENT), "Refund desk")
+        assert [item["id"] for item in listing["items"]] == [str(SESSION)]
+
+    @pytest.mark.parametrize(
+        ("name", "refusal"),
+        [
+            ("desk", "Several agents match 'desk': Refund desk"),
+            ("Billing", "No agent is named 'Billing'. This is not an empty result"),
+        ],
+        ids=["ambiguous", "unknown"],
+    )
+    async def test_a_name_that_is_not_one_agent_is_refused_not_answered_with_nothing(
+        self, server: FastMCP, api: MagicMock, name: str, refusal: str
+    ) -> None:
+        api.request = _responder(
+            {
+                ("GET", "/agents"): {
+                    "items": [
+                        {"id": str(AGENT), "name": "Refund desk"},
+                        {"id": str(uuid.uuid4()), "name": "Help desk"},
+                    ]
+                }
+            }
+        )
+        api.refuse = MagicMock(side_effect=ToolError("refused"))
+
+        with pytest.raises(ToolError):
+            await _call(server, "list_improvements", agent_name=name)
+
+        assert api.refuse.call_args.args[0].startswith(refusal)
 
 
 QUOTE = {"total_usd": "0.01", "per_round_usd": "0.03", "max_iterations": 3}
@@ -1353,6 +1668,8 @@ PATHS = [
     ("GET", f"/agents/{AGENT}"),
     ("GET", f"/agents/{AGENT}/versions"),
     ("GET", f"/agents/{AGENT}/versions/{SESSION}"),
+    ("GET", "/improvements"),
+    ("GET", "/agents"),
     ("GET", "/datasets"),
     ("GET", f"/eval-runs/{RUN}"),
     ("GET", f"/eval-runs/{RUN}/comparison"),
