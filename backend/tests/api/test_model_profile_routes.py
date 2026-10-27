@@ -16,6 +16,7 @@ from httpx import AsyncClient
 from app.api import deps
 from app.api.routes.v1 import model_providers
 from app.core.config import settings
+from app.core.exceptions import InUseError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
 from app.schemas.model_profile import ModelProfileRead
@@ -113,6 +114,7 @@ def _stored(model: str) -> MagicMock:
         params={},
         fallback_profile_ids=[],
         context_length=None,
+        runs_without_key=False,
         created_at=datetime(2026, 10, 26, tzinfo=UTC),
         updated_at=None,
     )
@@ -164,3 +166,62 @@ async def test_a_providers_models_say_which_an_agent_can_run_on(
         "gpt-4.1": True,
         "gpt-4o-mini-tts": False,
     }
+
+
+async def test_an_edit_reaches_the_service_with_only_what_was_sent(
+    client: AsyncClient, owner: None
+):
+    stored = _stored("gpt-4.1")
+    stored.secret_id = None
+    update = AsyncMock(return_value=stored)
+    app.dependency_overrides[deps.get_model_profile_service] = lambda: MagicMock(
+        update_profile=update
+    )
+    secret_id = uuid.uuid4()
+
+    response = await client.patch(
+        f"{_V1}/providers/model-profiles/{stored.id}", json={"secret_id": str(secret_id)}
+    )
+
+    assert response.status_code == 200
+    _, profile_id, changes = update.await_args.args
+    assert profile_id == stored.id
+    # What was not sent stays unset, so the service leaves it as it is.
+    assert changes.model_fields_set == {"secret_id"}
+    assert changes.secret_id == secret_id
+    body = response.json()
+    assert body["id"] == str(stored.id)
+    # A profile on OpenAI's own API with no key cannot run, and says so (#2478).
+    assert body["missing_key"] is True
+
+
+async def test_an_edit_that_sends_an_unknown_api_is_refused(client: AsyncClient, owner: None):
+    update = AsyncMock()
+    app.dependency_overrides[deps.get_model_profile_service] = lambda: MagicMock(
+        update_profile=update
+    )
+
+    response = await client.patch(
+        f"{_V1}/providers/model-profiles/{uuid.uuid4()}", json={"api": "realtime"}
+    )
+
+    assert response.status_code == 422
+    update.assert_not_awaited()
+
+
+async def test_a_model_in_use_answers_409_naming_its_agents(client: AsyncClient, owner: None):
+    agent_id = uuid.uuid4()
+    refusal = InUseError(
+        message="Model 'X' is used by 1 agent: Helpdesk.",
+        details={"agents": [{"id": agent_id, "name": "Helpdesk"}], "hidden_agents": 0},
+    )
+    app.dependency_overrides[deps.get_model_profile_service] = lambda: MagicMock(
+        delete_profile=AsyncMock(side_effect=refusal)
+    )
+
+    response = await client.delete(f"{_V1}/providers/model-profiles/{uuid.uuid4()}")
+
+    assert response.status_code == 409
+    error = response.json()["error"]
+    assert error["code"] == "IN_USE"
+    assert error["details"]["agents"] == [{"id": str(agent_id), "name": "Helpdesk"}]

@@ -1,3 +1,4 @@
+import { ApiError } from "@/lib/api-error";
 import type { ModelProfile } from "@/types/providers";
 
 /**
@@ -33,6 +34,63 @@ export function modelDetail(
  */
 export function runsAgents(profile: Pick<ModelProfile, "chat_capable">): boolean {
   return profile.chat_capable !== false;
+}
+
+/**
+ * Whether the profile has something to authenticate with (#2478).
+ *
+ * False when its key was deleted from the vault or never set, on a provider that
+ * needs one - the server says so in `missing_key`, by the rule the run resolver
+ * applies. A self-hosted profile with an endpoint and no key is true. Absent is
+ * true, like `chat_capable`: an older server says nothing either way.
+ */
+export function hasKey(profile: Pick<ModelProfile, "missing_key">): boolean {
+  return profile.missing_key !== true;
+}
+
+/**
+ * Whether an agent - or a conversation - can be pointed at this profile now.
+ *
+ * A chat model with a key: the two refusals publish makes about a profile
+ * itself. Pickers offer only these; a profile failing either stays visible where
+ * it is already chosen, or where models are managed, marked and not selectable.
+ */
+export function usableForAgents(
+  profile: Pick<ModelProfile, "chat_capable" | "missing_key">,
+): boolean {
+  return runsAgents(profile) && hasKey(profile);
+}
+
+/** The agents a refused delete named, how many are archived, and how many more the caller cannot see. */
+export interface ModelInUse {
+  names: string[];
+  /** Of `names`: an archived agent cannot publish, so it is deleted or restored first. */
+  archived: number;
+  hidden: number;
+}
+
+/**
+ * Whether a delete was refused because agents still run on the model (#2478).
+ *
+ * The server answers `409 IN_USE` with `details.agents` - the ones the caller
+ * may see, by name - and `details.hidden_agents` for the rest. `null` for any
+ * other failure, which the caller words the ordinary way.
+ */
+export function modelInUse(error: unknown): ModelInUse | null {
+  if (!(error instanceof ApiError) || error.code !== "IN_USE") return null;
+  const agents = (Array.isArray(error.details?.agents) ? error.details.agents : []).filter(
+    (agent: unknown): agent is { name: string; archived?: unknown } =>
+      typeof agent === "object" &&
+      agent !== null &&
+      "name" in agent &&
+      typeof agent.name === "string",
+  );
+  const hidden = error.details?.hidden_agents;
+  return {
+    names: agents.map((agent) => agent.name),
+    archived: agents.filter((agent) => agent.archived === true).length,
+    hidden: typeof hidden === "number" ? hidden : 0,
+  };
 }
 
 /**

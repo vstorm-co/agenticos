@@ -1,5 +1,5 @@
 ---
-source_sha: "aaf9f300decf"
+source_sha: "90d9185a9978"
 ---
 
 # Secrets und der Vault { #secrets-and-the-vault }
@@ -175,7 +175,13 @@ außerdem eine abgeschnittene Einfügung ab, solange das Formular noch offen ist
 
 **Model-Provider.** Benannt von einem [Model-Profil](models.md). Ausgaben werden
 dem Secret zugerechnet, auf das der Run aufgelöst hat, und so bekommt "welcher
-Key kostet am meisten" eine Antwort.
+Key kostet am meisten" eine Antwort. Ein Profil mit einem Key zu versehen, leiht
+den Key allen, die darauf laufen. Ein Profil anzulegen oder zu bearbeiten - seinen
+Key oder seinen Endpunkt - braucht daher `secrets:view` auf diesem Key. Ein
+gelöschter Key hinterlässt seine Profile mit `missing_key`, bis sie einen anderen
+bekommen, auch eines vor einem Gateway. Ohne Key läuft nur ein Profil weiter, das
+absichtlich ohne Key gespeichert wurde
+([Ein Profil ohne Schlüssel](models.md#a-profile-without-a-key)).
 
 **Spracherkennung.** Ein API-Schlüssel, dessen Zweck der Anbieter ist, per ID
 neben Anbieter und Modell benannt, wo immer Spracherkennung eingerichtet wird:

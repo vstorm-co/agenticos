@@ -85,6 +85,71 @@ time. Old configurations still load; replace an incompatible model before using
 them. Switching off remains possible. Azure deployment names are not classified
 from the catalog's base-model IDs.
 
+### Changing a profile's key or endpoint
+
+Agents name a profile by its id. To move a model to another key, another
+endpoint or the other OpenAI API, edit the profile in place:
+`PATCH /providers/model-profiles/{id}` changes `secret_id`, `base_url`, `api`,
+`params` or `label` and keeps the id. Every agent on the profile uses the change
+from its next run. Nobody has to republish anything.
+
+In the Builder's model panel, change the key, the endpoint or the API of the model
+in use. The button then reads **Update model**, and the panel says that every
+agent on this model switches with it. **Add model** is still the button for
+another provider or model, and for a model you give a name of its own. Use
+**Name it something else** to give only this agent a separate model.
+
+An edit has the same rules as creation and needs the same `connections:manage`
+permission. A new key must be in this organization's vault, be visible to you,
+and be stored for the profile's provider. A new endpoint checks the stored key in
+the same way, because the endpoint is where the key is sent. A provider that needs
+a key cannot lose it. A keyless provider with no key keeps an endpoint. A label
+must stay unique.
+
+If you change the endpoint and send no `api`, an API that was
+only the old endpoint's default moves to the new endpoint's default, and an API
+somebody chose stays. The audit log records `model_profile.updated` with the
+names of the changed fields, not their values. You cannot change the provider or
+the model id. Another model is another profile.
+
+`connections:manage` is therefore the authority to move every agent on a model,
+including agents you cannot edit: a new endpoint receives their requests from
+the next run. Grant it to the people who manage the organization's models.
+
+### A profile without a key
+
+If you delete a key from the vault, its profiles stay with `secret_id` set to
+null, and `GET /providers/model-profiles` marks them `missing_key: true`. A
+profile saved with no key on purpose is different: a self-hosted model or a
+gateway that authenticates nothing, on a keyless provider with an endpoint, such
+as an Ollama on your network or an OpenAI-compatible server. It records that as
+`runs_without_key` and keeps running. A gateway profile that had a key and lost
+it is marked `missing_key` like any other. Then:
+
+- Agent and chat model pickers do not offer it. If an agent already names it, the
+  Builder shows it with a **no key** badge and tells you to give it a key.
+- Publish refuses it and names the model. It also refuses a profile whose first
+  three fallbacks include one with no key, because a run would skip it. A run on
+  it fails with "no key configured".
+- To repair it, open an agent on that model and choose a key under **Model**, then
+  press **Update model**. Every agent on the model works again.
+
+### Deleting a profile
+
+`DELETE /providers/model-profiles/{id}` refuses a profile that agents use. The
+answer is `409 IN_USE`, and `details.agents` lists each agent you can see, by id
+and name. `details.hidden_agents` counts the agents you cannot see. A profile is
+in use when an agent's draft, its served version or a version that an environment
+pins names the profile anywhere: as the agent's model, a reviewer's or a
+specialist's, or in a capability, such as the follow-ups model or the browser step
+model.
+
+Archived agents count, because unarchiving restores the version they
+served. The refusal marks them `archived`: an archived agent cannot publish, so
+delete it, or restore it and move it. Old versions that nothing serves do not
+count. Move the other agents to another model first. To change only the key, edit the profile
+instead.
+
 ### Fallbacks
 
 A profile may list fallback profiles, tried in order. Only the first three are

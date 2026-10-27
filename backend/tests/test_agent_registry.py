@@ -1777,6 +1777,83 @@ class TestValidateSpec:
         ]
 
     @pytest.mark.anyio
+    async def test_an_agent_on_a_model_whose_key_was_deleted_cannot_publish(self):
+        """Deleting a key leaves its profiles with `secret_id` NULL; every run on
+        one fails, so publish says which model and what to do (#2478)."""
+        keyless = MagicMock(
+            label="OpenAI · gpt-4.1",
+            provider="openai",
+            model="gpt-4.1",
+            base_url=None,
+            secret_id=None,
+            runs_without_key=False,
+        )
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=keyless),
+            ),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(
+                _ctx(), _spec(model_profile_id=uuid.uuid4())
+            )
+
+        assert refused.value.details["problems"] == [
+            "Model 'OpenAI · gpt-4.1' has no key - its key was deleted or never set. "
+            "Choose a key for it in the model panel"
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_model_that_falls_back_to_one_with_no_key_cannot_publish(self):
+        """A run skips a fallback with no key, so the outage the chain is for would
+        find nothing to fall back on (#2478). A self-hosted fallback saved to run
+        without a key is fine."""
+        lost = MagicMock(
+            id=uuid.uuid4(),
+            label="Backup",
+            provider="anthropic",
+            model="claude-opus-5",
+            base_url=None,
+            secret_id=None,
+            runs_without_key=False,
+        )
+        local = MagicMock(
+            id=uuid.uuid4(),
+            label="Local",
+            provider="ollama",
+            model="llama4",
+            base_url="http://ollama:11434/v1",
+            secret_id=None,
+            runs_without_key=True,
+        )
+        chat = MagicMock(
+            label="Chat",
+            provider="openai",
+            model="gpt-4.1",
+            base_url=None,
+            fallback_profile_ids=[str(local.id), str(lost.id)],
+        )
+
+        with (
+            patch(f"{REGISTRY_PATH}.credential_repo.get_profile", new=AsyncMock(return_value=chat)),
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profiles_by_ids",
+                new=AsyncMock(return_value={lost.id: lost, local.id: local}),
+            ),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(
+                _ctx(), _spec(model_profile_id=uuid.uuid4())
+            )
+
+        assert refused.value.details["problems"] == [
+            "Model 'Chat' falls back to 'Backup', which has no key - give it a key or remove "
+            "it from the fallbacks"
+        ]
+
+    @pytest.mark.anyio
     async def test_a_chat_model_that_falls_back_to_a_speech_model_cannot_publish(self):
         """The run's chain includes the profile's fallbacks, so an outage would
         hand the conversation to a model that cannot hold one (#2487). A

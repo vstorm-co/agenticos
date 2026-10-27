@@ -1,5 +1,5 @@
 ---
-source_sha: "d4203a010ad0"
+source_sha: "16e90e7b2f27"
 ---
 
 # Installation { #install }
@@ -102,7 +102,7 @@ flowchart LR
 
     | | |
     |---|---|
-    | `AGENTICOS_VERSION` | Welches Release laufen soll. `latest`, wenn nicht gesetzt; eine Version wie `0.0.380`, um eine zu pinnen, `edge` für das, was `main` zuletzt veröffentlicht hat |
+    | `AGENTICOS_VERSION` | Welches Release laufen soll. `latest`, wenn nicht gesetzt; eine Version wie `0.0.380`, um eine zu pinnen, `edge` für das, was `main` zuletzt veröffentlicht hat. Gepinnt wird mit der `docker-compose.yml` dieses Releases daneben (`https://raw.githubusercontent.com/vstorm-co/agenticos/v<version>/docker-compose.yml`): die Datei pinnt das `sandboxd`, das das Backend dieses Releases spricht |
     | `PUBLIC_API_URL`, `PUBLIC_WS_URL`, `PUBLIC_SITE_URL` | Was dem *Browser* als aufzurufende Adresse genannt wird, wenn der Host unter einem anderen Namen als `localhost` erreicht wird. `FRONTEND_URL` und `CORS_ORIGINS` des Backends sind derselbe Sachverhalt von seiner Seite aus |
     | `OAUTH_PROVIDERS`, `CHAT_MAX_UPLOAD_SIZE_MB` | Welche Anmelde-Schaltflächen die Konsole anbietet, und was der Composer vor dem Hochladen ablehnt |
     | `SECRET_KEY`, `VAULT_MASTER_KEY` | Auf einem Laptop optional, wo die Standardwerte eine Konstante aus dem Repository sind und ein darunter versiegelter Vault. `scripts/quickstart.sh` erzeugt beide; von Hand je ein `openssl rand -hex 32` - und sichern Sie den Vault-Key zusammen mit der Datenbank, denn ein Dump, der neben einem anderen Key wiederhergestellt wird, ist unlesbar |

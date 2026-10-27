@@ -395,7 +395,7 @@ obtain_compose() {
     STACK_DIR="$(cd "$(dirname "$INSTALL_DIR")" && pwd -P)/$(basename "$INSTALL_DIR")"
   fi
   ok "compose file in $STACK_DIR"
-  note "The images come from ghcr.io/vstorm-co - pin a release with AGENTICOS_VERSION=x.y.z in .env."
+  note "The images come from ghcr.io/vstorm-co - pin a release with AGENTICOS_VERSION=x.y.z in .env and that release's docker-compose.yml."
 }
 
 # Compose names a project after its directory, and nothing else tells two

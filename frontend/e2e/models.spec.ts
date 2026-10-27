@@ -121,14 +121,10 @@ test.describe("Models", () => {
     const current = page.getByRole("group", { name: "Current model" });
     await expect(current).toContainText(label);
     await expectRunsOn(page, { provider: "Ollama", model: "llama3.2" });
-    // The badge that decides whether the agent can run at all. On a self-hosted
-    // profile it is the expected state rather than a warning - but it is also
-    // the refusal half of this surface, and the only place it is asserted: the
-    // platform says up front what it will not be able to do, instead of finding
-    // out at the first run. It used to be checked on the vault page against
-    // bootstrap's own profile, which has a key whenever a deployment is
-    // bootstrapped with one - so it was asserting the seed rather than the badge.
-    await expect(current.getByText("no key")).toBeVisible();
+    // No "no key" badge: a self-hosted model at an endpoint needs no key, and the
+    // server's `missing_key` says so. The badge is for a profile whose key was
+    // deleted, which this one cannot be (#2478).
+    await expect(current.getByText("no key")).toHaveCount(0);
 
     // Saved before the reload rather than waited out: the Builder stores the
     // draft 1.2s after the last edit, and a reload that beats the timer reloads
@@ -141,10 +137,20 @@ test.describe("Models", () => {
     await expect(page.getByRole("group", { name: "Current model" })).toContainText(label);
     await expectNoRenderedSecret(page);
 
-    // Put the agent back on the seeded model before the profile it points at is
-    // deleted, in that order: the reverse leaves a draft naming a profile this
-    // organization no longer has.
+    // While the draft names it, the profile cannot be deleted: the refusal says
+    // which agents use it, and the row stays (#2478). Selecting the model in use
+    // opens the saved-model list and changes nothing.
+    await selectSavedModel(page, label);
+    await savedModels(page)
+      .getByRole("button", { name: `Remove ${label}` })
+      .click();
+    await expect(page.getByText(/is still used by/)).toBeVisible();
+    await expect(savedModels(page).getByRole("radio", { name: label })).toHaveCount(1);
+
+    // Put the agent back on the seeded model, and save that, before the profile
+    // it pointed at is deleted.
     await selectSavedModel(page, SEEDED_MODEL_LABEL);
+    await saveDraft(page);
     await savedModels(page)
       .getByRole("button", { name: `Remove ${label}` })
       .click();

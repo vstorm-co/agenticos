@@ -5,8 +5,8 @@ stable channel identity, with one vote per identity and answer, so linking an
 account later cannot add another vote. Deleting either author cascades its votes.
 Downgrading discards channel-authored votes; user-authored ratings are retained.
 
-Revision ID: 0175_channel_rating_authors
-Revises: 0174_message_client_id
+Revision ID: 0176_channel_rating_authors
+Revises: 0175_profile_runs_without_key
 Create Date: 2026-10-27
 """
 
@@ -16,8 +16,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0175_channel_rating_authors"
-down_revision: str | None = "0174_message_client_id"
+revision: str = "0176_channel_rating_authors"
+down_revision: str | None = "0175_profile_runs_without_key"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

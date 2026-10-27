@@ -153,7 +153,11 @@ the floor also catches a truncated paste while the form is still open.
 
 **Model providers.** Named by a [model profile](models.md). Spend is attributed to
 the secret the run resolved to, which is how "which key is costing the most" gets
-an answer.
+an answer. Keying a profile lends the key to everyone who runs on it, so creating
+or editing one - its key or its endpoint - needs `secrets:view` on that key. A
+deleted key leaves its profiles marked `missing_key` until they get another,
+including one in front of a gateway. Only a profile saved with no key on purpose
+keeps running without one ([A profile without a key](models.md#a-profile-without-a-key)).
 
 **Speech to text.** An API key whose purpose is the provider, named by id next to
 the provider and model wherever speech to text is set up: the organization's

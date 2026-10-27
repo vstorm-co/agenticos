@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { modelDetail, modelShortName, runsAgents } from "./model-profiles";
+import {
+  hasKey,
+  modelDetail,
+  modelInUse,
+  modelShortName,
+  runsAgents,
+  usableForAgents,
+} from "./model-profiles";
+import { ApiError } from "@/lib/api-error";
 
 function profile(overrides: Partial<Parameters<typeof modelDetail>[0]> = {}) {
   return { label: "the cheap one", provider: "openai", model: "gpt-4.1", ...overrides };
@@ -59,5 +67,61 @@ describe("runsAgents", () => {
     expect(runsAgents({ chat_capable: true })).toBe(true);
     // A model nothing classifies is never hidden (#2487).
     expect(runsAgents({})).toBe(true);
+  });
+});
+
+describe("usableForAgents", () => {
+  it("is a chat model with a key", () => {
+    expect(usableForAgents({ chat_capable: true, missing_key: false })).toBe(true);
+    // Absent is the server saying nothing either way, never a refusal.
+    expect(usableForAgents({})).toBe(true);
+  });
+
+  it("is not a model whose key was deleted (#2478)", () => {
+    expect(hasKey({ missing_key: true })).toBe(false);
+    expect(usableForAgents({ chat_capable: true, missing_key: true })).toBe(false);
+  });
+
+  it("is not a speech or embedding model, key or not (#2487)", () => {
+    expect(usableForAgents({ chat_capable: false, missing_key: false })).toBe(false);
+  });
+});
+
+describe("modelInUse", () => {
+  it("reads the agents a refused delete named, and the count it could not", () => {
+    const error = new ApiError(409, "in use", {
+      error: {
+        code: "IN_USE",
+        message: "in use",
+        details: {
+          agents: [
+            { id: "a1", name: "Helpdesk" },
+            { id: "a3", name: "Old helpdesk", archived: true },
+            { id: "a2" },
+            null,
+          ],
+          hidden_agents: 3,
+        },
+      },
+    });
+
+    expect(modelInUse(error)).toEqual({
+      names: ["Helpdesk", "Old helpdesk"],
+      archived: 1,
+      hidden: 3,
+    });
+  });
+
+  it("tolerates a refusal that lists nothing", () => {
+    const error = new ApiError(409, "in use", {
+      error: { code: "IN_USE", message: "in use", details: {} },
+    });
+
+    expect(modelInUse(error)).toEqual({ names: [], archived: 0, hidden: 0 });
+  });
+
+  it("is null for any other failure", () => {
+    expect(modelInUse(new ApiError(404, "gone", { error: { code: "NOT_FOUND" } }))).toBeNull();
+    expect(modelInUse(new Error("network"))).toBeNull();
   });
 });

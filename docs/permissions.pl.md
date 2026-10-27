@@ -1,5 +1,5 @@
 ---
-source_sha: "ce4a8d77ab46"
+source_sha: "2ef13903688f"
 ---
 
 # Uprawnienia { #permissions }
@@ -125,6 +125,12 @@ więcej, niż jego wydający ma teraz.
     Zwinięte w jedno, operator dostałby odczyt tylko wtedy, gdyby przyznano mu
     również tworzenie, edycję i usuwanie. Nic tutaj nie implikuje jednego
     uprawnienia z drugiego, więc rola, która zarządza connections, trzyma oba.
+
+    `connections:manage` edytuje też profile modeli, a edycja przenosi każdego
+    agenta na danym profilu, także agentów, których edytujący nie może edytować:
+    nowy endpoint dostaje ich zapytania od następnego runu. Klucz pozostaje
+    chroniony. Ustawienie klucza profilu albo przeniesienie endpointu profilu,
+    który ma klucz, wymaga `secrets:view` na tym kluczu ([Modele](models.md#changing-a-profiles-key-or-endpoint)).
 
 Uprawnienia **zasobowe** niosą `Scope`, ponieważ odpowiadają na drugie pytanie,
 na które rola nie potrafi: nie „czy ta rola może ruszać agentów?”, lecz *których*

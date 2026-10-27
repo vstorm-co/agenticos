@@ -17,6 +17,7 @@ from app.db.models.user import User
 from app.schemas.agent_environment import EnvironmentUpdate
 from app.services.agent_environment import AgentEnvironmentService
 from app.services.agent_registry import AgentRegistryService
+from tests.integration._keys import provider_key
 
 pytestmark = pytest.mark.anyio
 
@@ -255,6 +256,7 @@ async def test_assistant_installation_does_not_republish_a_version_committed_whi
             label="Available",
             provider="openai",
             model="gpt-4.1",
+            secret_id=await provider_key(db, ctx.organization_id),
         )
     )
     await db.flush()

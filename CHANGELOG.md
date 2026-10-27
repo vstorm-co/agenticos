@@ -62,6 +62,90 @@ Two things are versioned separately from this file and worth knowing about:
   loading states across the widget catalog. Summary columns follow card width
   in custom layouts. Briefing failures now offer Retry instead of appearing empty.
 
+## [1.26.0] - 2026-10-27
+
+### Added
+
+- Change a model's key, endpoint, API, settings or name in place with
+  `PATCH /providers/model-profiles/{id}` (#2478). The profile keeps its id, so
+  every agent on it uses the change from its next run, with no republish. The
+  Builder's model panel saves a key, endpoint or API change on the model in use
+  as this edit, under **Update model**, and says that every agent on the model
+  switches with it. **Add model** stays for another provider or model. The edit
+  is gated on `connections:manage`, which therefore moves every agent on the
+  model. A new key, or a new endpoint for the stored key, must be a key the
+  caller can see in the organization's vault for the profile's provider. The
+  edit is audited as `model_profile.updated` with the changed field names only.
+  See
+  [Changing a profile's key or endpoint](docs/models.md#changing-a-profiles-key-or-endpoint).
+
+### Changed
+
+- Deleting a model profile that agents use is refused with `409 IN_USE`
+  (#2478). `details.agents` names each agent the caller can see and marks the
+  archived ones, and `details.hidden_agents` counts the rest. A profile counts as in use when an
+  agent's draft, served version or an environment's pinned version names it
+  anywhere as a JSON value, including reviewers, specialists and capability
+  settings, and archived agents count too. The check and the delete hold off
+  concurrent draft saves, publishes and promotions in the organization. The Builder
+  shows the refusal with the agent names. **Upgrade action:** a script that
+  deletes profiles must move the agents on them first, or edit the profile
+  instead.
+- A model profile whose key was deleted from the vault is listed with
+  `missing_key: true` (#2478). Agent and chat model pickers no longer offer it,
+  the Builder marks it **no key** and says how to fix it, and publish refuses it
+  by name, and refuses a profile whose first three fallbacks include one. A
+  profile saved with no key on purpose (a self-hosted model, a gateway that
+  authenticates nothing) records that as `runs_without_key` and is not affected;
+  a gateway profile that had a key and lost it now reads as missing one. The
+  migration `0175_profile_runs_without_key` marks every existing keyless profile
+  with an endpoint as running without a key, so nothing that resolves today
+  stops.
+- Creating a model profile now also requires that the caller can see its key in
+  the vault, the same rule as a capability's secret (#2478).
+
+### Fixed
+
+- The Builder's Endpoint field no longer shows the local example
+  `http://localhost:11434/v1` for a model that has a key (#2478). OpenAI is
+  marked `keyless` because OpenAI-compatible servers exist, and the field showed
+  the Ollama example as grey placeholder text, which read as an endpoint filled
+  in after a key was switched. The example now shows only when the endpoint is
+  required. A self-hosted model is no longer badged **no key** either.
+- Document how to pin or roll back a release by hand without pairing its
+  backend with another release's sandbox service (#2484). The `sandboxd` image
+  is pinned in the compose file, so a host that sets `AGENTICOS_VERSION` by hand
+  checks out that release's tag as well; `scripts/deploy.sh` already does. An
+  install without a checkout, from `scripts/quickstart.sh`, downloads that
+  release's `docker-compose.yml` beside the pin.
+- An API key added from the coding agent's card for Codex is stored as an
+  OpenAI key, so the Builder no longer offers it to Claude Code after a harness
+  switch, where it published and then failed at run time (#2485). Keys added for
+  Claude Code, or behind a gateway, are still stored as custom.
+- An app-scoped collection and an organization's knowledge base with the same
+  name keep their documents apart. Through the app collection, members of
+  other organizations could list the organization's documents
+  (`GET /rag/documents`) and download, read or delete them (`/rag/documents/{id}`
+  and `/kb/{kb_id}/documents/{doc_id}`). The organization's sync sources were
+  also reachable through the app base's `/kb/{kb_id}/sync-sources/{source_id}`
+  routes. Those documents also counted toward the app collection in
+  `GET /rag/collections/{name}/info`, where they could hold `indexing_status`
+  at `indexing`. A document filed under the app base now belongs to the app
+  collection, whichever organization uploaded it. The organization's listing
+  and counts leave it out. The same held for a personal knowledge base outside
+  any organization that shares its name with an app collection: every member
+  of every organization could list and download its owner's documents through
+  the app collection. A document now belongs to the knowledge base it is filed
+  under, in listings, counts and per-document checks (#2486).
+  `GET /kb` counted documents by collection name, so each base reported the
+  other's `document_count`, `indexed_count` and `chunk_count`; each base now
+  counts its own. `GET /kb/{kb_id}/sync-sources` and `GET /rag/sync/logs`
+  listed a private base's sync sources and runs to a member who reads only the
+  app base of the same name, and `DELETE /rag/sync/{sync_id}` let a writer of
+  one base cancel a run feeding the other. A sync source and its runs now
+  belong to the base its sync writes under. A run with no sync source is still
+  matched by its collection name.
+
 ## [1.25.0] - 2026-10-27
 
 ### Changed
@@ -17052,7 +17136,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.25.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.26.0...HEAD
+[1.26.0]: https://github.com/vstorm-co/agenticos/compare/v1.25.0...v1.26.0
 [1.25.0]: https://github.com/vstorm-co/agenticos/compare/v1.24.0...v1.25.0
 [1.24.0]: https://github.com/vstorm-co/agenticos/compare/v1.23.0...v1.24.0
 [1.23.0]: https://github.com/vstorm-co/agenticos/compare/v1.22.0...v1.23.0

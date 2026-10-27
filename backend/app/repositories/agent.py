@@ -6,15 +6,17 @@ predicate pieces the access layer resolved rather than re-deriving them here.
 """
 
 from collections.abc import Collection, Sequence
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
-from sqlalchemy import Float, and_, bindparam, false, func, or_, select, text
+from sqlalchemy import Float, and_, bindparam, cast, false, func, literal, or_, select, text
+from sqlalchemy.dialects.postgresql import JSONPATH
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy.sql.elements import ColumnElement
 
+from app.db.locks import LockScope, hold_subject_shared
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.agent_run import AgentRun, RunStatus
@@ -336,6 +338,51 @@ async def published_model_profiles(
     return {version_id: UUID(raw) for version_id, raw in result.all() if raw is not None}
 
 
+async def naming_model_profile(
+    db: AsyncSession, *, organization_id: UUID, profile_id: UUID
+) -> list[Agent]:
+    """Agents whose draft or live spec refers to this model profile anywhere.
+
+    Anywhere, because a profile id appears in more places than the agent's own
+    model: a reviewer, a specialist, the browser step model, the follow-ups
+    model, and whatever field names one next. A JSON path that visits every
+    value at any depth (`$.**`) finds every one of them without a list of
+    paths to keep in step with the spec, and it compares whole string *values*:
+    an id quoted in an agent's instructions is text inside a longer string, not
+    a reference, and does not count.
+
+    "Live" is the version the agent serves and any version an environment pins.
+    An older version nobody serves is history and holds nothing up. An archived
+    agent counts: unarchiving restores the version it served, and that version
+    would name a model that is gone.
+    """
+    variables = func.jsonb_build_object("id", str(profile_id))
+    path = cast(literal("$.** ? (@ == $id)"), JSONPATH)
+
+    def names_it(document: InstrumentedAttribute[dict[str, Any]]) -> ColumnElement[bool]:
+        return func.jsonb_path_exists(document, path, variables)
+
+    pinned = select(AgentEnvironment.version_id).where(AgentEnvironment.agent_id == Agent.id)
+    live_version = (
+        select(AgentVersion.id)
+        .where(
+            AgentVersion.agent_id == Agent.id,
+            or_(AgentVersion.id == Agent.current_version_id, AgentVersion.id.in_(pinned)),
+            names_it(AgentVersion.spec),
+        )
+        .exists()
+    )
+    result = await db.execute(
+        select(Agent)
+        .where(
+            Agent.organization_id == organization_id,
+            or_(names_it(Agent.draft_spec), live_version),
+        )
+        .order_by(Agent.name.asc())
+    )
+    return list(result.scalars().all())
+
+
 async def published_compaction_windows(
     db: AsyncSession, *, version_ids: Sequence[UUID]
 ) -> dict[UUID, int]:
@@ -522,6 +569,7 @@ async def create(
     categories: list[str],
     tags: list[str],
 ) -> Agent:
+    await hold_subject_shared(db, LockScope.MODEL_PROFILE_REFERENCES, organization_id)
     agent = Agent(
         organization_id=organization_id,
         slug=slug,
@@ -540,7 +588,15 @@ async def create(
     return agent
 
 
+#: The columns through which an agent comes to name a model profile.
+_NAMES_PROFILES = frozenset({"draft_spec", "current_version_id"})
+
+
 async def update(db: AsyncSession, *, agent: Agent, update_data: dict) -> Agent:
+    if _NAMES_PROFILES & update_data.keys():
+        # A write that can name a model profile waits for a delete of one in
+        # flight, and holds the next one off until it commits (#2478).
+        await hold_subject_shared(db, LockScope.MODEL_PROFILE_REFERENCES, agent.organization_id)
     for field, value in update_data.items():
         setattr(agent, field, value)
     db.add(agent)
@@ -572,6 +628,7 @@ async def create_version(
     note: str | None,
     published_by_user_id: UUID | None,
 ) -> AgentVersion:
+    await hold_subject_shared(db, LockScope.MODEL_PROFILE_REFERENCES, organization_id)
     row = AgentVersion(
         agent_id=agent_id,
         organization_id=organization_id,

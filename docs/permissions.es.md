@@ -1,5 +1,5 @@
 ---
-source_sha: "ce4a8d77ab46"
+source_sha: "2ef13903688f"
 ---
 
 # Permisos { #permissions }
@@ -129,6 +129,13 @@ de lo que su emisor tiene ahora.
     Fundidos en uno, un operador solo podría obtener la lectura si se le
     concedieran también crear, editar y borrar. Aquí nada implica un permiso a
     partir de otro, así que un rol que gestiona conexiones tiene los dos.
+
+    `connections:manage` también edita perfiles de modelo, y una edición mueve a
+    cada agent sobre el perfil, incluidos los que quien edita no puede editar: un
+    endpoint nuevo recibe sus peticiones desde el siguiente run. La clave sigue
+    protegida. Poner la clave de un perfil, o mover el endpoint de un perfil que
+    tiene clave, requiere `secrets:view` sobre esa clave
+    ([Modelos](models.md#changing-a-profiles-key-or-endpoint)).
 
 Los permisos de **recurso** llevan un `Scope`, porque responden a la segunda
 pregunta que un rol no puede: no "¿puede este rol tocar agents?" sino *qué*

@@ -1,5 +1,5 @@
 ---
-source_sha: "aaf9f300decf"
+source_sha: "90d9185a9978"
 ---
 
 # Secretos y el vault { #secrets-and-the-vault }
@@ -168,7 +168,12 @@ truncado mientras el formulario sigue abierto.
 
 **Providers de modelos.** Los nombra un [perfil de modelo](models.md). El gasto se
 atribuye al secreto al que resolvió el run, y así «qué clave está costando más»
-tiene respuesta.
+tiene respuesta. Asignar una clave a un perfil se la presta a todos los que se
+ejecutan sobre él, así que crear o editar un perfil - su clave o su endpoint -
+requiere `secrets:view` sobre esa clave. Una clave borrada deja sus perfiles
+marcados con `missing_key` hasta que reciban otra, también uno delante de un
+gateway. Solo un perfil guardado sin clave a propósito sigue ejecutándose sin
+ella ([Un perfil sin clave](models.md#a-profile-without-a-key)).
 
 **Voz a texto.** Una clave de API cuyo propósito es el proveedor, nombrada por
 id junto al proveedor y el modelo allí donde se configura la voz a texto: la

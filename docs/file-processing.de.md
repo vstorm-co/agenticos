@@ -1,5 +1,5 @@
 ---
-source_sha: "e084d213e2b5"
+source_sha: "b2690527c166"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -1554,8 +1554,10 @@ bildfähiges Modellprofil. Die Auswahl ist dieselbe, die der Agent-Builder nutzt
 ein Provider, ein Modell und sein Schlüssel lassen sich also festlegen, ohne den
 Dialog zu verlassen — ein Deployment ohne Modellprofile ist keine Sackgasse. Was
 sie nicht anbietet, ist das Löschen eines Profils: das gehört dorthin, wo die
-Modelle einer Organisation verwaltet werden, denn jeder Agent, der darauf zeigt,
-verliert es. Die erzeugten Beschreibungen werden in den Dokumenttext aufgenommen,
+Modelle einer Organisation verwaltet werden, und ein Profil, das Agents nutzen,
+lässt sich gar nicht löschen.
+
+Die erzeugten Beschreibungen werden in den Dokumenttext aufgenommen,
 für eine bessere semantische Suche.
 
 ## Aus einem Kanal { #from-a-channel }

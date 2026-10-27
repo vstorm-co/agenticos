@@ -219,6 +219,24 @@ describe("the chat's two-step model picker", () => {
     expect(mutateAsync).not.toHaveBeenCalled();
   });
 
+  it("will not run the conversation on a saved model whose key was deleted", async () => {
+    // A second profile under the same name is refused, and reusing this one
+    // fails on the first turn - the answer is a key for it (#2478).
+    listedProfiles.mockReturnValue([
+      { ...profile("p1", "openai", "gpt-5"), secret_id: null, missing_key: true },
+    ]);
+    const onChange = vi.fn();
+    renderExpandedPicker(<ChatModelPicker value={null} agentModel={null} onChange={onChange} />);
+
+    await pickProvider("OpenAI");
+    await typeModel("gpt-5");
+    await userEvent.click(screen.getByRole("button", { name: "Run on this model" }));
+
+    expect(screen.getByText(/gpt-5 is saved without a key/)).toBeInTheDocument();
+    expect(onChange).not.toHaveBeenCalled();
+    expect(mutateAsync).not.toHaveBeenCalled();
+  });
+
   it("waits for provider metadata before reusing an unknown native profile", async () => {
     listedProfiles.mockReturnValue([profile("saved", "openrouter", "acme/painter")]);
     loadingModels.mockReturnValue(true);
@@ -631,4 +649,15 @@ it("requires a successful profile read before creating a replacement model", asy
   await userEvent.click(screen.getByRole("button", { name: "Retry" }));
   expect(refetchProfiles).toHaveBeenCalledOnce();
   expect(screen.getByRole("button", { name: "Run on this model" })).toBeDisabled();
+});
+
+it("does not bypass missing-key checks for the prefilled current model", async () => {
+  listedProfiles.mockReturnValue([
+    { ...profile("missing", "openrouter", "vendor/model"), secret_id: null, missing_key: true },
+  ]);
+  const onChange = vi.fn();
+  renderExpandedPicker(<ChatModelPicker value="missing" agentModel={null} onChange={onChange} />);
+  await userEvent.click(screen.getByRole("button", { name: "Run on this model" }));
+  expect(screen.getByText(/vendor\/model is saved without a key/)).toBeInTheDocument();
+  expect(onChange).not.toHaveBeenCalled();
 });

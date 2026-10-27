@@ -118,6 +118,13 @@ subset of the permissions here, never more than its issuer holds now.
     edit and delete as well. Nothing here implies one permission from another, so a
     role that manages connections holds both.
 
+    `connections:manage` also edits model profiles, and an edit moves every agent
+    on the profile, including agents the editor cannot edit: a new endpoint gets
+    their requests from the next run. The key is still protected. Setting a
+    profile's key, or moving the endpoint of a profile that has one, needs
+    `secrets:view` on that key
+    ([Models](models.md#changing-a-profiles-key-or-endpoint)).
+
 **Resource** permissions carry a `Scope`, because they answer the second question
 a role cannot: not "may this role touch agents?" but *which* agents.
 

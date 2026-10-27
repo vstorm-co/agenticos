@@ -46,6 +46,7 @@ from app.agents.capabilities.coding_agent import CODING_AGENT_ID, CodingAgentCon
 from app.agents.capabilities.follow_ups import FollowUpsConfig
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.mcp import PLATFORM_MCP_PREFIX, prefix_collisions
+from app.agents.model_resolver import lacks_key
 from app.agents.spec import (
     SPEC_VERSION,
     AgentSpec,
@@ -1626,7 +1627,9 @@ class AgentRegistryService:
         turn (#2487). Refused only where the catalogs know what the model is - an
         unknown model is allowed. Its fallbacks too: a provider failure hands the
         run to the next one in the chain, and a speech model there turns an outage
-        into a run that fails anyway.
+        into a run that fails anyway. The same for a profile with no key, the model
+        itself (#2478) and its fallbacks: a run skips such a fallback, so the
+        chain it was meant to be is shorter than it reads.
         """
         profile = await credential_repo.get_profile(
             self.db, profile_id, organization_id=ctx.organization_id
@@ -1636,6 +1639,19 @@ class AgentRegistryService:
         outputs = model_outputs(profile.provider, profile.model, base_url=profile.base_url)
         if not outputs.chat:
             return [not_chat_refusal(profile.label, profile.model, outputs)]
+        if lacks_key(
+            profile.provider,
+            secret_id=profile.secret_id,
+            base_url=profile.base_url,
+            runs_without_key=profile.runs_without_key,
+        ):
+            # Its key was deleted from the vault, which leaves the profile in
+            # place with nothing to authenticate with (#2478). Every run on it
+            # would fail; say so here, while the author is looking.
+            return [
+                f"Model '{profile.label}' has no key - its key was deleted or never set. "
+                "Choose a key for it in the model panel"
+            ]
         problems: list[str] = []
         fallback_ids = [UUID(pid) for pid in profile.fallback_profile_ids[:MAX_FALLBACK_DEPTH]]
         fallbacks = await credential_repo.get_profiles_by_ids(
@@ -1650,6 +1666,18 @@ class AgentRegistryService:
                     f"Model '{profile.label}' falls back to '{fallback.label}' "
                     f"({fallback.model}), which is {found.kind}, not a chat model - "
                     "remove it from the fallbacks"
+                )
+            elif lacks_key(
+                fallback.provider,
+                secret_id=fallback.secret_id,
+                base_url=fallback.base_url,
+                runs_without_key=fallback.runs_without_key,
+            ):
+                # A run would skip it, so an outage the chain exists for would
+                # find nothing to fall back on - said here rather than then.
+                problems.append(
+                    f"Model '{profile.label}' falls back to '{fallback.label}', which has "
+                    "no key - give it a key or remove it from the fallbacks"
                 )
         return problems
 

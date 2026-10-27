@@ -27,11 +27,13 @@ from app.agents.model_resolver import (
     ResolvedCredential,
     build_model,
     get_provider,
+    lacks_key,
 )
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
     BadRequestError,
+    InUseError,
     NotFoundError,
 )
 from app.core.permissions import AuthContext, OrgRoleName, Perm
@@ -47,11 +49,13 @@ from app.core.secret_kinds import (
     seal_secret,
 )
 from app.core.vault import VaultScope
+from app.schemas.model_profile import ModelProfileRead, ModelProfileUpdate
 from app.services.model_catalog import CatalogModel
 from app.services.model_profile import (
     MAX_FALLBACK_DEPTH,
     ModelProfileService,
     provider_catalog,
+    usable_for_agents,
     validate_endpoint_url,
 )
 from app.services.openai_codex import VaultCodexCredentials
@@ -165,6 +169,7 @@ def _profile(
     profile.api = api
     profile.params = {}
     profile.fallback_profile_ids = [str(pid) for pid in (fallbacks or [])]
+    profile.runs_without_key = False
     return profile
 
 
@@ -515,26 +520,35 @@ class TestProfileCreation:
     async def test_deleting_a_profile_from_another_organization_is_not_found(self):
         with (
             patch(
-                "app.services.model_profile.credential_repo.delete_profile",
-                new=AsyncMock(return_value=False),
-            ),
-            patch(
-                "app.services.model_profile.organization_repo.stop_proactivity_on", new=AsyncMock()
-            ),
+                "app.services.model_profile.credential_repo.get_profile",
+                new=AsyncMock(return_value=None),
+            ) as get,
+            patch("app.services.model_profile.credential_repo.delete_profile") as delete,
             patch("app.services.model_profile.record_audit", new=AsyncMock()) as audit,
             pytest.raises(NotFoundError) as refused,
         ):
-            await ModelProfileService(_db()).delete_profile(_ctx(), uuid.uuid4())
+            ctx = _ctx()
+            await ModelProfileService(_db()).delete_profile(ctx, uuid.uuid4())
 
+        assert get.await_args.kwargs == {"organization_id": ctx.organization_id, "for_update": True}
+        delete.assert_not_called()
         assert audit.await_count == 0
         assert "Model profile not found" in refused.value.message
 
     @pytest.mark.anyio
     async def test_a_deleted_profile_leaves_a_trail(self):
         ctx = _ctx()
-        profile_id = uuid.uuid4()
+        profile = _profile(ctx)
 
         with (
+            patch(
+                "app.services.model_profile.credential_repo.get_profile",
+                new=AsyncMock(return_value=profile),
+            ),
+            patch(
+                "app.services.model_profile.agent_repo.naming_model_profile",
+                new=AsyncMock(return_value=[]),
+            ) as users,
             patch(
                 "app.services.model_profile.credential_repo.delete_profile",
                 new=AsyncMock(return_value=True),
@@ -545,17 +559,458 @@ class TestProfileCreation:
             ) as stop,
             patch("app.services.model_profile.record_audit", new=AsyncMock()) as audit,
         ):
-            await ModelProfileService(_db()).delete_profile(ctx, profile_id)
+            await ModelProfileService(_db()).delete_profile(ctx, profile.id)
 
+        assert users.await_args.kwargs == {
+            "organization_id": ctx.organization_id,
+            "profile_id": profile.id,
+        }
         assert delete.call_args.kwargs["organization_id"] == ctx.organization_id
         # Proactivity running on it is switched off with it, not left "on" with no
         # model to run on (Codex on #2324).
         assert stop.await_args.kwargs == {
             "organization_id": ctx.organization_id,
-            "model_profile_id": profile_id,
+            "model_profile_id": profile.id,
         }
         assert audit.call_args.kwargs["action"] == "model_profile.deleted"
-        assert audit.call_args.kwargs["target_id"] == str(profile_id)
+        assert audit.call_args.kwargs["target_id"] == str(profile.id)
+
+
+def _agent(ctx, name: str, *, status: str = "published") -> MagicMock:
+    agent = MagicMock()
+    agent.id = uuid.uuid4()
+    agent.organization_id = ctx.organization_id
+    agent.name = name
+    agent.status = status
+    return agent
+
+
+class TestAModelInUseIsNotDeleted:
+    """Deleting the profile agents run on left each of them without a model (#2478)."""
+
+    async def _delete(self, ctx, profile, users, visible):
+        with (
+            patch(
+                "app.services.model_profile.credential_repo.get_profile",
+                new=AsyncMock(return_value=profile),
+            ),
+            patch(
+                "app.services.model_profile.agent_repo.naming_model_profile",
+                new=AsyncMock(return_value=users),
+            ),
+            patch(
+                "app.services.model_profile.accessible_ids",
+                new=AsyncMock(return_value={agent.id for agent in visible}),
+            ),
+            patch("app.services.model_profile.credential_repo.delete_profile") as delete,
+            patch(
+                "app.services.model_profile.organization_repo.stop_proactivity_on",
+                new=AsyncMock(),
+            ) as stop,
+            patch("app.services.model_profile.record_audit", new=AsyncMock()) as audit,
+            pytest.raises(InUseError) as refused,
+        ):
+            await ModelProfileService(_db()).delete_profile(ctx, profile.id)
+        # Nothing is touched on a refusal: not the row, not proactivity, not the log.
+        delete.assert_not_called()
+        stop.assert_not_awaited()
+        audit.assert_not_awaited()
+        return refused.value
+
+    @pytest.mark.anyio
+    async def test_the_refusal_names_every_agent_on_it(self):
+        ctx = _ctx()
+        profile = _profile(ctx)
+        users = [_agent(ctx, "Helpdesk"), _agent(ctx, "Researcher")]
+
+        refusal = await self._delete(ctx, profile, users, visible=users)
+
+        assert refusal.status_code == 409
+        assert refusal.code == "IN_USE"
+        assert "used by 2 agents: Helpdesk, Researcher" in refusal.message
+        assert refusal.details == {
+            "profile_id": str(profile.id),
+            "agents": [{"id": agent.id, "name": agent.name, "archived": False} for agent in users],
+            "hidden_agents": 0,
+        }
+
+    @pytest.mark.anyio
+    async def test_an_agent_the_caller_cannot_see_is_counted_not_named(self):
+        ctx = _ctx()
+        profile = _profile(ctx)
+        seen, private = _agent(ctx, "Helpdesk"), _agent(ctx, "Private payroll")
+
+        refusal = await self._delete(ctx, profile, [seen, private], visible=[seen])
+
+        assert "Private payroll" not in refusal.message
+        assert "used by 2 agents: Helpdesk and 1 you cannot see" in refusal.message
+        assert refusal.details["agents"] == [{"id": seen.id, "name": "Helpdesk", "archived": False}]
+        assert refusal.details["hidden_agents"] == 1
+
+    @pytest.mark.anyio
+    async def test_an_archived_agent_is_marked_with_what_to_do_about_it(self):
+        """An archived agent cannot publish, so "move them" alone is advice it
+        cannot follow where it is (#2478)."""
+        ctx = _ctx()
+        profile = _profile(ctx)
+        live, old = _agent(ctx, "Helpdesk"), _agent(ctx, "Old helpdesk", status="archived")
+
+        refusal = await self._delete(ctx, profile, [live, old], visible=[live, old])
+
+        assert refusal.message.endswith(
+            "1 of them is archived: delete those, or restore and move them."
+        )
+        assert [agent["archived"] for agent in refusal.details["agents"]] == [False, True]
+
+    @pytest.mark.anyio
+    async def test_only_hidden_agents_still_refuse_without_naming_any(self):
+        ctx = _ctx()
+        profile = _profile(ctx)
+
+        refusal = await self._delete(ctx, profile, [_agent(ctx, "Secret")], visible=[])
+
+        assert refusal.message.startswith("Model 'Test profile' is used by 1 agent. Move")
+        assert refusal.details["agents"] == []
+        assert refusal.details["hidden_agents"] == 1
+
+
+_STORED = object()
+
+
+class TestEditingAProfileInPlace:
+    """A key or endpoint change keeps the id every agent names (#2478)."""
+
+    async def _update(self, ctx, profile, changes, *, secret=_STORED, visible=True, taken=None):
+        if secret is _STORED:
+            # The key the profile already has, visible to the caller unless a test
+            # says otherwise - an endpoint change looks it up again.
+            secret = _vault_secret(ctx, purpose=profile.provider)
+            secret.id = profile.secret_id
+        with (
+            patch(
+                "app.services.model_profile.credential_repo.get_profile",
+                new=AsyncMock(return_value=profile),
+            ),
+            patch(
+                "app.services.model_profile.credential_repo.get_profile_by_label",
+                new=AsyncMock(return_value=taken),
+            ),
+            patch(
+                "app.services.model_profile.organization_secret_repo.get",
+                new=AsyncMock(return_value=secret),
+            ),
+            patch(
+                "app.services.model_profile.resolve_access", new=AsyncMock(return_value=visible)
+            ) as access,
+            patch(
+                "app.services.model_profile.credential_repo.update_profile",
+                new=AsyncMock(side_effect=lambda _db, **kwargs: kwargs["profile"]),
+            ) as update,
+            patch("app.services.model_profile.record_audit", new=AsyncMock()) as audit,
+        ):
+            result = await ModelProfileService(_db()).update_profile(
+                ctx, profile.id, ModelProfileUpdate.model_validate(changes)
+            )
+        return result, update, audit, access
+
+    @pytest.mark.anyio
+    async def test_a_new_key_is_written_onto_the_same_profile_and_audited_by_field(self):
+        ctx = _ctx()
+        profile = _profile(ctx, api="responses")
+        secret = _vault_secret(ctx, purpose="openai")
+
+        result, update, audit, access = await self._update(
+            ctx, profile, {"secret_id": str(secret.id)}, secret=secret
+        )
+
+        assert result is profile
+        assert update.await_args.kwargs["update_data"] == {"secret_id": secret.id}
+        assert update.await_args.kwargs["organization_id"] == ctx.organization_id
+        assert access.await_args.args[2] is secret
+        assert audit.await_args.kwargs["action"] == "model_profile.updated"
+        assert audit.await_args.kwargs["target_id"] == str(profile.id)
+        # The names of what changed, never the values: an endpoint can carry
+        # more than a host, and a key id says which secret moved.
+        assert audit.await_args.kwargs["details"] == {"fields": ["secret_id"]}
+
+    @pytest.mark.anyio
+    async def test_a_profile_from_another_organization_is_not_found(self):
+        with (
+            patch(
+                "app.services.model_profile.credential_repo.get_profile",
+                new=AsyncMock(return_value=None),
+            ) as get,
+            patch("app.services.model_profile.credential_repo.update_profile") as update,
+            pytest.raises(NotFoundError),
+        ):
+            ctx = _ctx()
+            await ModelProfileService(_db()).update_profile(
+                ctx, uuid.uuid4(), ModelProfileUpdate(label="Mine now")
+            )
+        assert get.await_args.kwargs == {"organization_id": ctx.organization_id, "for_update": True}
+        update.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_a_key_for_another_provider_is_refused(self):
+        ctx = _ctx()
+        secret = _vault_secret(ctx, purpose="anthropic")
+        with pytest.raises(BadRequestError) as refused:
+            await self._update(ctx, _profile(ctx), {"secret_id": str(secret.id)}, secret=secret)
+        assert "for anthropic, not openai" in refused.value.message
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("exists", [True, False])
+    async def test_a_key_the_caller_cannot_see_reads_like_one_that_does_not_exist(self, exists):
+        ctx = _ctx()
+        secret = _vault_secret(ctx)
+        with pytest.raises(BadRequestError) as refused:
+            await self._update(
+                ctx,
+                _profile(ctx),
+                {"secret_id": str(secret.id)},
+                secret=secret if exists else None,
+                visible=False,
+            )
+        assert refused.value.message == "That key is not in this organization's vault"
+
+    @pytest.mark.anyio
+    async def test_removing_the_key_of_a_model_with_nowhere_else_to_go_is_refused(self):
+        ctx = _ctx()
+        with pytest.raises(BadRequestError) as refused:
+            await self._update(ctx, _profile(ctx), {"secret_id": None})
+        assert refused.value.details["fields"][0]["field"] == "base_url"
+
+    @pytest.mark.anyio
+    async def test_a_keyed_provider_cannot_lose_its_key(self):
+        ctx = _ctx()
+        profile = _profile(ctx, provider="anthropic", model="claude-opus-5")
+        with pytest.raises(BadRequestError) as refused:
+            await self._update(ctx, profile, {"secret_id": None})
+        assert refused.value.details["fields"][0]["field"] == "secret_id"
+
+    @pytest.mark.anyio
+    async def test_a_self_hosted_model_drops_its_key_and_keeps_its_endpoint(self):
+        ctx = _ctx()
+        profile = _profile(
+            ctx, provider="ollama", model="llama4", base_url="http://ollama:11434/v1"
+        )
+
+        _, update, _, access = await self._update(ctx, profile, {"secret_id": None})
+
+        # Saved with no key on purpose, so a later look cannot take it for a
+        # profile whose key was deleted.
+        assert update.await_args.kwargs["update_data"] == {
+            "secret_id": None,
+            "runs_without_key": True,
+        }
+        access.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_an_edit_that_leaves_a_deleted_key_alone_keeps_it_missing(self):
+        ctx = _ctx()
+        # A gateway profile whose key was deleted: `ON DELETE SET NULL` cleared
+        # the key and left the endpoint and `runs_without_key` false.
+        profile = _profile(ctx, base_url="https://gateway.example/v1", api="chat")
+        profile.secret_id = None
+
+        _, update, _, _ = await self._update(ctx, profile, {"label": "Gateway"}, secret=None)
+
+        # A rename says nothing about the key; marking it keyless would offer the
+        # profile again and send every run to the gateway with no key.
+        assert update.await_args.kwargs["update_data"] == {"label": "Gateway"}
+
+    @pytest.mark.anyio
+    async def test_an_endpoint_is_refused_for_a_provider_that_has_none(self):
+        ctx = _ctx()
+        profile = _profile(ctx, provider="groq", model="llama-3.3-70b-versatile")
+        with pytest.raises(BadRequestError) as refused:
+            await self._update(ctx, profile, {"base_url": "https://gateway.example/v1"})
+        assert refused.value.details["fields"][0]["field"] == "base_url"
+
+    @pytest.mark.anyio
+    async def test_an_endpoint_with_credentials_in_it_is_refused_without_echoing_it(self):
+        ctx = _ctx()
+        with pytest.raises(BadRequestError) as refused:
+            await self._update(ctx, _profile(ctx), {"base_url": "https://u:hunter2@gw.example/v1"})
+        assert "hunter2" not in str(refused.value.details)
+        assert "hunter2" not in refused.value.message
+
+    @pytest.mark.anyio
+    async def test_an_api_choice_is_refused_where_there_is_none(self):
+        ctx = _ctx()
+        profile = _profile(ctx, provider="anthropic", model="claude-opus-5")
+        with pytest.raises(BadRequestError) as refused:
+            await self._update(ctx, profile, {"api": "chat"})
+        assert refused.value.details["fields"][0]["field"] == "api"
+
+    @pytest.mark.anyio
+    async def test_a_new_endpoint_rechecks_the_key_and_moves_a_default_api(self):
+        ctx = _ctx()
+        profile = _profile(ctx, api="responses")
+
+        _, update, audit, access = await self._update(
+            ctx, profile, {"base_url": "https://eu.api.openai.com/v1"}
+        )
+
+        # Responses was only the provider's own endpoint's default; an endpoint of
+        # the caller's gets Chat Completions unless it says otherwise.
+        assert update.await_args.kwargs["update_data"] == {
+            "base_url": "https://eu.api.openai.com/v1",
+            "api": "chat",
+        }
+        # The endpoint is where the key goes, so the stored key is looked up again.
+        access.assert_awaited_once()
+        assert audit.await_args.kwargs["details"] == {"fields": ["api", "base_url"]}
+
+    @pytest.mark.anyio
+    async def test_a_new_endpoint_for_a_key_the_caller_cannot_see_is_refused(self):
+        """The endpoint is where the key is sent. Moving a model keyed by a
+        colleague's private key to the caller's own host would hand them that key
+        on the next run, so it is the same refusal as choosing the key."""
+        ctx = _ctx()
+        profile = _profile(ctx)
+
+        with pytest.raises(BadRequestError) as refused:
+            await self._update(
+                ctx, profile, {"base_url": "https://attacker.example/v1"}, visible=False
+            )
+
+        assert refused.value.message == "That key is not in this organization's vault"
+
+    @pytest.mark.anyio
+    async def test_a_label_or_api_change_does_not_look_the_key_up_again(self):
+        ctx = _ctx()
+        profile = _profile(ctx, api="responses")
+
+        _, update, _, access = await self._update(
+            ctx, profile, {"label": "Prod", "api": "chat"}, visible=False
+        )
+
+        assert update.await_args.kwargs["update_data"] == {"label": "Prod", "api": "chat"}
+        access.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_default_api_follows_a_new_endpoint_and_a_chosen_one_stays(self):
+        ctx = _ctx()
+        defaulted = _profile(ctx, base_url="https://gw.example/v1", api="chat")
+        chosen = _profile(ctx, base_url="https://gw.example/v1", api="responses")
+
+        _, moved, _, _ = await self._update(ctx, defaulted, {"base_url": None})
+        _, kept, _, _ = await self._update(ctx, chosen, {"base_url": "https://gw2.example/v1"})
+
+        # Chat Completions was only the gateway's default; OpenAI's own endpoint
+        # gets Responses, as on creation.
+        assert moved.await_args.kwargs["update_data"] == {"base_url": None, "api": "responses"}
+        assert kept.await_args.kwargs["update_data"] == {"base_url": "https://gw2.example/v1"}
+
+    @pytest.mark.anyio
+    async def test_a_null_api_stores_the_default_for_the_new_endpoint(self):
+        ctx = _ctx()
+        profile = _profile(ctx, api="responses")
+
+        _, update, _, _ = await self._update(
+            ctx, profile, {"base_url": "http://vllm:8000/v1", "api": None}
+        )
+
+        assert update.await_args.kwargs["update_data"] == {
+            "base_url": "http://vllm:8000/v1",
+            "api": "chat",
+        }
+
+    @pytest.mark.anyio
+    async def test_clearing_the_endpoint_keeps_an_api_that_is_already_the_native_one(self):
+        ctx = _ctx()
+        profile = _profile(ctx, base_url="https://gw.example/v1", api="responses")
+
+        _, update, _, _ = await self._update(ctx, profile, {"base_url": None})
+
+        assert update.await_args.kwargs["update_data"] == {"base_url": None}
+
+    @pytest.mark.anyio
+    async def test_a_taken_label_is_a_conflict(self):
+        ctx = _ctx()
+        with pytest.raises(AlreadyExistsError) as refused:
+            await self._update(ctx, _profile(ctx), {"label": "Prod"}, taken=MagicMock())
+        assert refused.value.details == {"label": "Prod"}
+
+    @pytest.mark.anyio
+    async def test_a_new_label_and_params_are_written(self):
+        ctx = _ctx()
+        profile = _profile(ctx)
+
+        _, update, audit, _ = await self._update(
+            ctx, profile, {"label": "Prod", "params": {"temperature": 0.2}}
+        )
+
+        assert update.await_args.kwargs["update_data"] == {
+            "label": "Prod",
+            "params": {"temperature": 0.2},
+        }
+        assert audit.await_args.kwargs["details"] == {"fields": ["label", "params"]}
+
+    @pytest.mark.anyio
+    async def test_an_edit_that_changes_nothing_writes_and_records_nothing(self):
+        ctx = _ctx()
+        profile = _profile(ctx)
+
+        result, update, audit, _ = await self._update(
+            ctx,
+            profile,
+            {"label": profile.label, "secret_id": str(profile.secret_id), "base_url": None},
+        )
+
+        assert result is profile
+        update.assert_not_awaited()
+        audit.assert_not_awaited()
+
+
+class TestAProfileWithoutAKey:
+    """A key deleted from the vault leaves its profiles behind with nothing to send (#2478)."""
+
+    @pytest.mark.parametrize(
+        ("provider", "secret_id", "base_url", "on_purpose", "missing"),
+        [
+            ("openai", None, None, False, True),
+            ("anthropic", None, None, False, True),
+            ("ollama", None, "http://ollama:11434/v1", True, False),
+            ("openai", None, "http://vllm:8000/v1", True, False),
+            # A gateway profile that had a key and lost it keeps its endpoint;
+            # only the stored intent tells it from one that never needed one.
+            ("openai", None, "http://gw.example/v1", False, True),
+            ("anthropic", None, "https://gw.example", True, True),
+            ("openai", uuid.uuid4(), None, False, False),
+            ("not-a-provider", None, "http://x", True, True),
+        ],
+    )
+    def test_the_listing_says_which_have_nothing_to_authenticate_with(
+        self, provider, secret_id, base_url, on_purpose, missing
+    ):
+        read = ModelProfileRead(
+            id=uuid.uuid4(),
+            label="x",
+            provider=provider,
+            model="m",
+            secret_id=secret_id,
+            base_url=base_url,
+            runs_without_key=on_purpose,
+            created_at=datetime(2026, 10, 27, tzinfo=UTC),
+        )
+        assert read.missing_key is missing
+        assert (
+            lacks_key(provider, secret_id=secret_id, base_url=base_url, runs_without_key=on_purpose)
+            is missing
+        )
+
+    @pytest.mark.parametrize(
+        ("model", "secret", "usable"),
+        [("gpt-4.1", True, True), ("gpt-4.1", False, False), ("gpt-4o-mini-tts", True, False)],
+    )
+    def test_an_agent_runs_only_on_a_chat_model_with_a_key(self, model, secret, usable):
+        ctx = _ctx()
+        profile = _profile(ctx, model=model)
+        if not secret:
+            profile.secret_id = None
+        assert usable_for_agents(profile) is usable
 
 
 class TestProfileListing:
@@ -1251,6 +1706,7 @@ class TestAnEndpointOfItsOwn:
         ctx = _ctx()
         profile = _profile(ctx, provider="ollama", model="llama3.3")
         profile.secret_id = None
+        profile.runs_without_key = True
         profile.base_url = "http://localhost:11434/v1"
 
         with patch(
@@ -1419,6 +1875,7 @@ class TestTheApiAProfileUses:
         ctx = _ctx()
         profile = _profile(ctx, base_url="http://vllm:8000/v1", api="chat")
         profile.secret_id = None
+        profile.runs_without_key = True
 
         credential = await ModelProfileService(_db()).resolve_credential(
             ctx.organization_id, profile
@@ -1432,6 +1889,7 @@ class TestTheApiAProfileUses:
         ctx = _ctx()
         profile = _profile(ctx, base_url="http://vllm:8000/v1", api="realtime")
         profile.secret_id = None
+        profile.runs_without_key = True
 
         with pytest.raises(ValidationError):
             await ModelProfileService(_db()).resolve_credential(ctx.organization_id, profile)

@@ -18,7 +18,7 @@ import { useOrganizationList } from "@/hooks/use-organizations";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useSkills } from "@/hooks/use-skills";
 import { stripLocale } from "@/lib/active-route";
-import { runsAgents } from "@/lib/model-profiles";
+import { usableForAgents } from "@/lib/model-profiles";
 import {
   FLOWS,
   stepsForFlow,
@@ -154,7 +154,7 @@ function useOrgSnapshot(): {
       model: settled(
         models.isLoading,
         models.isFetching,
-        models.profiles.filter(runsAgents).length,
+        models.profiles.filter(usableForAgents).length,
       ),
       skill: settled(skills.isLoading, skills.isFetching, skills.total),
       kb: settled(kb.isLoading, kb.isFetching, kb.kbs.length),
@@ -181,9 +181,7 @@ function useOrgSnapshot(): {
     // the chat's own picker makes.
     liveState: stateSettled
       ? {
-          hasRunnableModel: models.profiles.some(
-            (profile) => runsAgents(profile) && (profile.secret_id !== null || !!profile.base_url),
-          ),
+          hasRunnableModel: models.profiles.some(usableForAgents),
           hasKnowledgeBase: kb.kbs.length > 0,
           hasSkill: skills.total > 0,
           hasOrgMcp: mcp.connections.length > 0,
