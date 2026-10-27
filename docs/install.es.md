@@ -1,5 +1,5 @@
 ---
-source_sha: "d4203a010ad0"
+source_sha: "16e90e7b2f27"
 ---
 
 # Instalación { #install }
@@ -101,7 +101,7 @@ flowchart LR
 
     | | |
     |---|---|
-    | `AGENTICOS_VERSION` | Qué release ejecutar. `latest` cuando no se define; una versión como `0.0.380` para fijar una, `edge` para lo último que haya publicado `main` |
+    | `AGENTICOS_VERSION` | Qué release ejecutar. `latest` cuando no se define; una versión como `0.0.380` para fijar una, `edge` para lo último que haya publicado `main`. Fíjala junto con el `docker-compose.yml` de esa release (`https://raw.githubusercontent.com/vstorm-co/agenticos/v<version>/docker-compose.yml`): ese archivo fija el `sandboxd` que habla el backend de esa release |
     | `PUBLIC_API_URL`, `PUBLIC_WS_URL`, `PUBLIC_SITE_URL` | Lo que se le dice al *navegador* que llame, cuando al host se llega por un nombre que no es `localhost`. El `FRONTEND_URL` y el `CORS_ORIGINS` del backend son el mismo hecho desde su lado |
     | `OAUTH_PROVIDERS`, `CHAT_MAX_UPLOAD_SIZE_MB` | Los botones de inicio de sesión que ofrece la consola, y lo que el compositor rechaza antes de subirlo |
     | `SECRET_KEY`, `VAULT_MASTER_KEY` | Opcionales en un portátil, donde los valores por defecto son una constante del repositorio y un vault sellado con ella. `scripts/quickstart.sh` genera los dos; a mano, `openssl rand -hex 32` cada uno - y guarda una copia de la clave del vault junto con la base de datos, porque un volcado restaurado junto a otra clave es ilegible |

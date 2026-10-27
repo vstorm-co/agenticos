@@ -1,5 +1,5 @@
 ---
-source_sha: "eaabf21a65fd"
+source_sha: "6e082228f717"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
@@ -186,6 +186,14 @@ fiarse de una etiqueta:
     día descargue lo que funcionaba ayer y no lo que se publicó esta mañana.
     `scripts/deploy.sh` la fija por ti - a la etiqueta `sha-` del commit que
     despliega - exactamente mientras dura el despliegue.
+
+    Fíjala desde el checkout de esa release: `git checkout v0.0.380` junto a la
+    variable. La imagen del servicio de sandbox está fijada en el archivo compose,
+    en la versión que habla el backend del mismo commit, así que un backend más
+    antiguo ejecutado desde un checkout más nuevo se encuentra con un `sandboxd`
+    más nuevo - y `latest` desde un checkout antiguo es el mismo desajuste al
+    revés. `scripts/deploy.sh` hace checkout del commit que despliega, así que un
+    despliegue o una vuelta atrás con el script mantiene los dos juntos.
 
 Los dos paquetes se descargan de forma anónima. Si una descarga responde
 `unauthorized`, el paquete se ha hecho privado o hay un `docker login ghcr.io`

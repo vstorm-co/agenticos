@@ -540,9 +540,10 @@ interface SecretFieldProps {
  * What the key chosen here would be for - "tavily", "mem0" - or null when
  * nothing says.
  *
- * It is the same answer `InlineSecret` stores under `purpose`, read back. Two
- * sources, in this order, because they answer for different shapes of
- * capability. A capability offering several services gates its key on the choice,
+ * Where `purposesOf` has no mapping to read, it is the one service the slot
+ * narrows to, and what `inlinePurposeOf` stores a new key under. Two sources,
+ * in this order, because they answer for different shapes of capability. A
+ * capability offering several services gates its key on the choice,
  * so the conditional field *is* the service and the binding's own configuration
  * has the answer. A capability with one service needs its key unconditionally, so
  * there is no condition to read and the requirement names the service outright.
@@ -659,7 +660,6 @@ function SecretField({
   const { secrets, isLoading, listError } = useSecrets();
   const fieldId = `${binding.id}-secret`;
   const errorId = `${fieldId}-error`;
-  const purpose = purposeOf(binding, requirement);
   const purposes = purposesOf(binding, requirement, schema);
   const signIn = signInFor(binding);
   // This additional refusal belongs to the coding agent alone. Other
@@ -765,10 +765,8 @@ function SecretField({
           kind="api_key"
           // The chosen method *is* the service the key is for - "tavily",
           // "brave". Recording it is what lets the select above offer only the
-          // right keys next time instead of every API key in the vault. Not
-          // `purposesOf`: the coding agent's key may be a Claude subscription
-          // token, which stored as `anthropic` would be lent to model calls.
-          purpose={purpose ?? "custom"}
+          // right keys next time instead of every API key in the vault.
+          purpose={inlinePurposeOf(purposes, signIn)}
           suggestedName={
             signIn === null ? secretNameFor(binding.id) : t("codingAgentKeyName", { signIn })
           }
@@ -840,6 +838,26 @@ const SECRET_HELP: Record<string, string | undefined> = {
 function signInFor(binding: CapabilityBindingSpec): "chatgpt" | "claudeToken" | null {
   if (binding.id !== CODING_AGENT_ID) return null;
   return binding.config.harness === "codex" ? "chatgpt" : "claudeToken";
+}
+
+/**
+ * What a key added through the inline form is stored as.
+ *
+ * The one API-key service this slot narrows to: web search's chosen method,
+ * mem0's own service, or Codex's `openai` - its other purpose is the ChatGPT
+ * sign-in, a kind of its own that this form does not make. Stored as `custom`,
+ * a Codex key was offered to Claude Code after a harness switch and published,
+ * to fail at run time (#2485). Claude Code's key stays `custom`: it may be a
+ * Claude subscription token, which stored as `anthropic` would be lent to model
+ * calls. So does a key behind a gateway, which nothing here can name.
+ */
+function inlinePurposeOf(
+  purposes: string[] | null,
+  signIn: "chatgpt" | "claudeToken" | null,
+): string {
+  if (purposes === null || signIn === "claudeToken") return "custom";
+  const [only, ...others] = purposes.filter((purpose) => purpose !== "openai_codex");
+  return only !== undefined && others.length === 0 ? only : "custom";
 }
 
 /** A name somebody would have typed anyway, so the field starts filled in. */

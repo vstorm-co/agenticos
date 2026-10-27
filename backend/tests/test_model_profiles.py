@@ -794,6 +794,20 @@ class TestEditingAProfileInPlace:
         access.assert_not_awaited()
 
     @pytest.mark.anyio
+    async def test_an_edit_that_leaves_a_deleted_key_alone_keeps_it_missing(self):
+        ctx = _ctx()
+        # A gateway profile whose key was deleted: `ON DELETE SET NULL` cleared
+        # the key and left the endpoint and `runs_without_key` false.
+        profile = _profile(ctx, base_url="https://gateway.example/v1", api="chat")
+        profile.secret_id = None
+
+        _, update, _, _ = await self._update(ctx, profile, {"label": "Gateway"}, secret=None)
+
+        # A rename says nothing about the key; marking it keyless would offer the
+        # profile again and send every run to the gateway with no key.
+        assert update.await_args.kwargs["update_data"] == {"label": "Gateway"}
+
+    @pytest.mark.anyio
     async def test_an_endpoint_is_refused_for_a_provider_that_has_none(self):
         ctx = _ctx()
         profile = _profile(ctx, provider="openrouter", model="openai/gpt-5")

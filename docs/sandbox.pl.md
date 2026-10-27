@@ -1,5 +1,5 @@
 ---
-source_sha: "c1532e388d78"
+source_sha: "02a95e1f3647"
 ---
 
 # Sandbox { #the-sandbox }
@@ -59,6 +59,11 @@ backendu nie przechodzi, gdy pliki compose albo inwentarz licencji podają inną
 Podbijaj lock, pliki compose i inwentarz w jednej zmianie. Nowy pin to tag,
 którego host jeszcze nie ma, więc `make dev` i `scripts/deploy.sh` pobierają go
 przy następnym starcie.
+
+Pin żyje w checkoucie, nie w `AGENTICOS_VERSION`, więc host, który ręcznie
+przypina albo wycofuje backend, robi też checkout tagu tego wydania ([Przypnij wydanie](deploy.md#the-images)).
+Instalacja bez checkoutu, taka jak ta z `scripts/quickstart.sh`, pobiera zamiast
+tego `docker-compose.yml` tego wydania ([Instalacja](install.md)).
 
 Ruchomy tag już raz to zepsuł (#2484). Zapisany w pamięci podręcznej
 `sandboxd:0.2` obsługiwał starsze API niż to, którym mówił klient, i każde
