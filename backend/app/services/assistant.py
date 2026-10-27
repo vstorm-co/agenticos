@@ -186,7 +186,11 @@ class AssistantService:
             ),
             starters=list(template.starters),
         )
-        agent = await self.registry.create(installer, spec, visibility=Visibility.ORG)
+        # No model here: `_publish_when_possible` picks one, and keeps a model it
+        # finds in the draft as somebody's deliberate choice (#2483).
+        agent = await self.registry.create(
+            installer, spec, visibility=Visibility.ORG, choose_model=False
+        )
         return await self.registry.set_avatar(
             installer, agent.id, file_data=AVATAR.read_bytes(), content_type="image/png"
         )

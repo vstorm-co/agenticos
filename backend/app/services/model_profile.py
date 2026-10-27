@@ -129,8 +129,8 @@ def usable_for_agents(profile: ModelProfile) -> bool:
 
     A chat model (#2487) with something to authenticate with (#2478). Publish
     refuses a profile that fails either half, so anything choosing a model on
-    somebody's behalf - the organization assistant's first publish - takes only
-    the ones this answers true for. It cannot see a fallback chain or whether a
+    somebody's behalf - the organization assistant's first publish, a new
+    agent's only model (#2483) - takes only the ones this answers true for. It cannot see a fallback chain or whether a
     ChatGPT sign-in is the caller's; publish checks those.
     """
     if not model_outputs(profile.provider, profile.model, base_url=profile.base_url).chat:

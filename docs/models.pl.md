@@ -1,5 +1,5 @@
 ---
-source_sha: "ee29d9fe1a47"
+source_sha: "83195747d5e2"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -103,11 +103,15 @@ organizacja ma dokładnie jeden model, na którym agent może działać. To mode
 czatowy z kluczem albo model self-hosted zapisany do działania bez klucza, który
 publikacja przyjmuje w obecnej postaci, razem z fallbackami. Dotyczy to każdego sposobu tworzenia agenta: **Nowy agent** w
 konsoli, `POST /agents` bez `model_profile_id`, szablonu, kopii szkicu bez modelu
-oraz wypromowanego specjalisty.
+oraz wypromowanego specjalisty. Architect, asystent organizacji, sam wybiera
+swój model przy publikacji.
 
 Model jest zapisywany w szkicu, więc agent
 publikuje się bez otwierania sekcji **Model**, a jego historia pokazuje, na jakim
 modelu został opublikowany. Spec, który wskazuje model, zachowuje go.
+Szkic liczy się wtedy jako użycie modelu: modelu nie da się usunąć, dopóki agent
+nie przejdzie na inny. Aby go zastąpić, edytuj go w miejscu
+([Zmiana klucza lub endpointu profilu](#changing-a-profiles-key-or-endpoint)).
 
 Szkic zostaje bez modelu, gdy organizacja nie ma żadnego modelu albo ma więcej niż
 jeden. Profile, na których agent nie może działać, nie są liczone: profil bez
@@ -119,7 +123,7 @@ wybierany za kogoś, bo to subskrypcja jednej osoby, ale jest liczony jako model
 Publikacja odrzuca wtedy szkic komunikatem *No model selected - pick one under
 Build > Model before publishing*. Odmowa oznacza też pole (`model_profile_id` w
 `details.fields`), a konsola pokazuje obok niej **Przejdź do sekcji Model**, co
-otwiera kartę **Budowa** na karcie **Model**.
+otwiera zakładkę **Budowa** na karcie **Model**.
 
 ### Zmiana klucza lub endpointu profilu { #changing-a-profiles-key-or-endpoint }
 

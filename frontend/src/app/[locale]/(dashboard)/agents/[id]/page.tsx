@@ -43,6 +43,7 @@ import { InstructionsEditor } from "@/components/agents/instructions-editor";
 import { PromptVariablesPanel } from "@/components/agents/prompt-variables-panel";
 import { StartersPanel } from "@/components/agents/starters-panel";
 import { usableForAgents } from "@/lib/model-profiles";
+import { glideOrJump } from "@/lib/motion";
 import { insertVariable } from "@/lib/variable-completion";
 import { useRemoteDraft } from "@/hooks/use-remote-draft";
 import { AlertsPanel } from "@/components/agents/alerts-panel";
@@ -313,12 +314,12 @@ export default function AgentBuilderPage({ params }: PageProps) {
     modelCard.current = node;
     if (node && revealModel.current) {
       revealModel.current = false;
-      node.scrollIntoView({ behavior: "smooth", block: "start" });
+      node.scrollIntoView({ behavior: glideOrJump(), block: "start" });
     }
   }, []);
   const goToModel = () => {
     if (tab === "build" && modelCard.current) {
-      modelCard.current.scrollIntoView({ behavior: "smooth", block: "start" });
+      modelCard.current.scrollIntoView({ behavior: glideOrJump(), block: "start" });
       return;
     }
     revealModel.current = true;

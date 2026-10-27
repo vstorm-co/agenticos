@@ -91,16 +91,18 @@ There is no organization-wide default model. An agent's spec names its model,
 and publish refuses a spec that names none.
 
 A new agent that names no model starts on the organization's model when the
-organization has exactly one model an agent can run on. That is a chat model with
-a key, or a self-hosted one saved to run without a key, which publish accepts as
-it stands, fallbacks included. It applies to every
-way of creating an agent: **New agent** in the console, `POST /agents` without a
-`model_profile_id`, a template, a copy of a draft that has no model, and a promoted
-specialist.
+organization has exactly one model an agent can run on. That is a chat model with a
+key, or a self-hosted one saved to run without a key, which publish accepts as it
+stands, fallbacks included. It applies to every way of creating an agent: **New
+agent** in the console, `POST /agents` without a `model_profile_id`, a template, a
+copy of a draft that has no model, and a promoted specialist. The Architect, the
+organization's assistant, chooses its own model when it publishes.
 
-The model is written into the draft, so the agent publishes without
-anybody opening **Model**, and its history shows which model it was published on.
-A spec that names a model keeps it.
+The model is written into the draft, so the agent publishes without anybody opening
+**Model**, and its history shows which model it was published on. A spec that names
+a model keeps it. The draft then counts as using the model, so the model cannot be
+deleted until the agent moves to another one. To replace the model, edit it in place
+([Changing a profile's key or endpoint](#changing-a-profiles-key-or-endpoint)).
 
 The draft stays without a model when the organization has none, or more than one.
 Profiles that cannot run an agent do not count: a profile with no key, a

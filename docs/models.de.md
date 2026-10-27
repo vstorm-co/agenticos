@@ -1,5 +1,5 @@
 ---
-source_sha: "ee29d9fe1a47"
+source_sha: "83195747d5e2"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -105,20 +105,26 @@ Basismodell-IDs des Katalogs klassifiziert.
 
 ### Das Modell, mit dem ein neuer Agent startet { #the-model-a-new-agent-starts-on }
 
-Es gibt kein organisationsweites Standardmodell. Die Spec eines Agenten nennt sein
-Modell, und die Veröffentlichung lehnt eine Spec ab, die keines nennt.
+Es gibt kein organisationsweites Standardmodell. Der Spec eines Agents nennt sein
+Modell, und die Veröffentlichung lehnt einen Spec ab, der keines nennt.
 
 Ein neuer Agent, der kein Modell nennt, startet mit dem Modell der Organisation,
 wenn die Organisation genau ein Modell hat, auf dem ein Agent laufen kann. Das ist
 ein Chat-Modell mit Schlüssel oder ein selbst gehostetes Modell, das ohne
 Schlüssel gespeichert wurde, und die Veröffentlichung akzeptiert es so, wie es
-ist, Fallbacks eingeschlossen. Das gilt für jeden Weg, einen Agenten anzulegen:
+ist, Fallbacks eingeschlossen. Das gilt für jeden Weg, einen Agent anzulegen:
 **Neuer Agent** in der Konsole, `POST /agents` ohne `model_profile_id`, eine
 Vorlage, eine Kopie eines Entwurfs ohne Modell und ein beförderter Spezialist.
+Der Architect, der Assistent der Organisation, wählt sein Modell beim
+Veröffentlichen selbst.
 
 Das Modell wird in den Entwurf geschrieben. So lässt sich der Agent veröffentlichen,
 ohne dass jemand **Modell** öffnet, und seine Historie zeigt, mit welchem Modell er
-veröffentlicht wurde. Eine Spec, die ein Modell nennt, behält es.
+veröffentlicht wurde. Ein Spec, der ein Modell nennt, behält es.
+Der Entwurf gilt dann als Nutzer des Modells: Das Modell lässt sich erst
+löschen, wenn der Agent auf ein anderes wechselt. Um es zu ersetzen, ändern Sie
+es an Ort und Stelle
+([Schlüssel oder Endpunkt eines Profils ändern](#changing-a-profiles-key-or-endpoint)).
 
 Der Entwurf bleibt ohne Modell, wenn die Organisation keines oder mehr als eines
 hat. Profile, auf denen kein Agent laufen kann, zählen nicht: ein Profil ohne

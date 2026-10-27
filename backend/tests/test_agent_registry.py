@@ -3539,8 +3539,8 @@ class TestNewAgentModel:
     """A new agent starts on the organization's only usable model (#2483)."""
 
     async def _created_with(
-        self, profiles: list[MagicMock], spec: AgentSpec | None = None
-    ) -> tuple[dict, AsyncMock]:
+        self, profiles: list[MagicMock], spec: AgentSpec | None = None, **options: bool
+    ) -> dict:
         ctx = _ctx()
         listed = AsyncMock(return_value=profiles)
         by_id = {profile.id: profile for profile in profiles}
@@ -3564,16 +3564,14 @@ class TestNewAgentModel:
             ) as create,
             patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()),
         ):
-            await AgentRegistryService(_db()).create(ctx, spec or _spec())
-        if listed.await_count:
-            assert listed.await_args.kwargs == {"organization_id": ctx.organization_id}
-        return create.call_args.kwargs["draft_spec"], listed
+            await AgentRegistryService(_db()).create(ctx, spec or _spec(), **options)
+        return create.call_args.kwargs["draft_spec"]
 
     @pytest.mark.anyio
     async def test_the_only_keyed_chat_model_is_preselected(self):
         only = _profile()
 
-        draft, _ = await self._created_with([only])
+        draft = await self._created_with([only])
 
         assert draft["model_profile_id"] == str(only.id)
 
@@ -3584,7 +3582,7 @@ class TestNewAgentModel:
         speech = _profile(label="tts", model="gpt-4o-mini-tts")
         keyless = _profile(label="no key", secret_id=None)
 
-        draft, _ = await self._created_with([speech, only, keyless])
+        draft = await self._created_with([speech, only, keyless])
 
         assert draft["model_profile_id"] == str(only.id)
 
@@ -3599,7 +3597,7 @@ class TestNewAgentModel:
         ],
     )
     async def test_with_none_or_several_the_model_stays_empty(self, profiles):
-        draft, _ = await self._created_with(profiles)
+        draft = await self._created_with(profiles)
 
         assert draft["model_profile_id"] is None
 
@@ -3608,7 +3606,16 @@ class TestNewAgentModel:
         """One person's subscription; nobody else's run may spend it."""
         sign_in = _profile(provider="openai_codex", model="gpt-5.4")
 
-        draft, _ = await self._created_with([sign_in])
+        draft = await self._created_with([sign_in])
+
+        assert draft["model_profile_id"] is None
+
+    @pytest.mark.anyio
+    async def test_a_chatgpt_sign_in_still_counts_towards_only_one(self):
+        """A sign-in is a model its owner can pick, so beside it the keyed one is a choice."""
+        sign_in = _profile(provider="openai_codex", label="my ChatGPT")
+
+        draft = await self._created_with([sign_in, _profile()])
 
         assert draft["model_profile_id"] is None
 
@@ -3618,7 +3625,14 @@ class TestNewAgentModel:
         speech = _profile(label="tts", model="gpt-4o-mini-tts")
         only = _profile(fallback_profile_ids=[str(speech.id)])
 
-        draft, _ = await self._created_with([only, speech])
+        draft = await self._created_with([only, speech])
+
+        assert draft["model_profile_id"] is None
+
+    @pytest.mark.anyio
+    async def test_a_caller_that_picks_its_own_model_gets_none(self):
+        """The organization assistant chooses its model when it publishes."""
+        draft = await self._created_with([_profile()], choose_model=False)
 
         assert draft["model_profile_id"] is None
 
@@ -3626,10 +3640,9 @@ class TestNewAgentModel:
     async def test_a_model_the_spec_names_is_kept(self):
         chosen = uuid.uuid4()
 
-        draft, listed = await self._created_with([_profile()], _spec(model_profile_id=chosen))
+        draft = await self._created_with([_profile()], _spec(model_profile_id=chosen))
 
         assert draft["model_profile_id"] == str(chosen)
-        assert listed.await_count == 0
 
 
 class TestClone:

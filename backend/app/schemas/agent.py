@@ -964,8 +964,9 @@ class TemplateInstallResult(BaseSchema):
     """What was created, and what the person still has to do.
 
     An installed template is a **draft**: it names no model, because this
-    platform has no organization-wide default on purpose, and it may name no
-    collection. Both are decisions the spec refuses to make on somebody's
+    platform has no organization-wide default on purpose - unless the
+    organization has exactly one model an agent can run on, which the draft
+    starts on (#2483) - and it may name no collection. Both are decisions the spec refuses to make on somebody's
     behalf, so the result carries them back rather than publishing something
     that would answer its first question from nowhere.
     """

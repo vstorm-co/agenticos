@@ -77,6 +77,31 @@ async def _model(
     return profile
 
 
+async def test_its_draft_is_not_held_to_the_only_model_it_was_installed_beside(
+    db: AsyncSession,
+) -> None:
+    """A new agent starts on the organization's only model (#2483), but the
+    assistant picks its own: a model in its draft reads as somebody's choice, and
+    one that broke before its first publish would keep it waiting for good."""
+    organization, owner = await _organization(db)
+    ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
+    first = await _model(db, organization)
+    service = AssistantService(db)
+    # Installed switched off: nothing publishes it yet.
+    await service.update(ctx, AssistantUpdate(enabled=False))
+    first.secret_id = None
+    await db.flush()
+    second = await _model(db, organization)
+
+    await service.update(ctx, AssistantUpdate(enabled=True))
+    ready = await service.state(ctx)
+
+    assert ready.status == "ready"
+    agent = await agent_repo.get(db, ready.agent_id, organization_id=organization.id)
+    assert agent is not None
+    assert AgentSpec.model_validate(agent.draft_spec).model_profile_id == second.id
+
+
 async def test_a_viewer_s_first_look_installs_it_and_a_model_publishes_it(
     db: AsyncSession,
 ) -> None:

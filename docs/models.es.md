@@ -1,5 +1,5 @@
 ---
-source_sha: "ee29d9fe1a47"
+source_sha: "83195747d5e2"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -102,8 +102,8 @@ partir de los identificadores de modelos base del catálogo.
 
 ### El modelo con el que empieza un agent nuevo { #the-model-a-new-agent-starts-on }
 
-No hay un modelo predeterminado para toda la organización. La spec de un agent
-nombra su modelo, y la publicación rechaza una spec que no nombra ninguno.
+No hay un modelo predeterminado para toda la organización. El spec de un agent
+nombra su modelo, y la publicación rechaza un spec que no nombra ninguno.
 
 Un agent nuevo que no nombra un modelo empieza con el modelo de la organización
 cuando la organización tiene exactamente un modelo en el que un agent puede
@@ -112,17 +112,22 @@ ejecutarse sin clave, que la publicación acepta tal como está, fallbacks
 incluidos. Se aplica a todas las formas de crear un agent:
 **New agent** en la consola, `POST /agents` sin `model_profile_id`, una
 plantilla, una copia de un borrador sin modelo y un especialista promovido.
+El Architect, el asistente de la organización, elige su propio modelo al
+publicarse.
 
 El modelo se escribe en el borrador, así que el agent se publica sin que nadie abra
-**Model**, y su historial muestra con qué modelo se publicó. Una spec que nombra
-un modelo lo conserva.
+**Model**, y su historial muestra con qué modelo se publicó. Un spec que nombra
+un modelo lo conserva. El borrador cuenta entonces como uso del modelo: el
+modelo no se puede borrar hasta que el agent pase a otro. Para sustituirlo,
+edítalo en su sitio
+([Cambiar la clave o el endpoint de un perfil](#changing-a-profiles-key-or-endpoint)).
 
 El borrador se queda sin modelo cuando la organización no tiene ninguno o tiene más
 de uno. Los perfiles en los que un agent no puede ejecutarse no cuentan: un perfil
 sin clave, un modelo de texto a voz y los demás modelos de
 [Un perfil en el que un agent no puede ejecutarse](#a-profile-an-agent-cannot-run-on).
 Un modelo con un [inicio de sesión de ChatGPT](#running-on-a-chatgpt-subscription)
-nunca se elige por nadie, porque es la suscripción de una persona, pero cuenta
+nunca se elige en nombre de nadie, porque es la suscripción de una persona, pero cuenta
 como modelo.
 
 La publicación rechaza entonces el borrador con *No model selected - pick one under

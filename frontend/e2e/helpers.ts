@@ -458,9 +458,9 @@ export function savedModels(page: Page): Locator {
  * only when it is still shut: clicking it twice closes it again.
  *
  * Shared rather than private to `models.spec.ts` because a model is what a spec
- * needs before it can publish anything at all: the seeded draft is created with
- * a name and nothing else, so `No model selected` is the first problem publish
- * reports (#519).
+ * needs before it can publish anything at all: a draft created where the
+ * organization has more than one model starts with none, and `No model
+ * selected` is the first problem publish reports (#519, #2483).
  */
 export async function selectSavedModel(page: Page, label: string): Promise<void> {
   const list = savedModels(page);

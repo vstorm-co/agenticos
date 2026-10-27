@@ -186,6 +186,13 @@ DEFAULT_GRANTED_SCOPES = frozenset(
 # binding out of a spec, and an id is part of the spec format.
 DELEGATION_CAPABILITY_ID = "subagents"
 
+NO_MODEL = "No model selected - pick one under Build > Model before publishing"
+"""Publish's refusal of a spec with no `model_profile_id`.
+
+Marked on the field as well, so the console can take its reader to the Model
+section rather than leave them to find it (#2483).
+"""
+
 # How many pinned versions the cycle walk will follow before it stops and says
 # so. The visited set already makes the walk terminate on a graph that loops;
 # this bounds what it *costs*, because the number of pins is not bounded by the
@@ -195,12 +202,6 @@ _MAX_DELEGATION_NODES = 200
 # How far the clone naming loop counts before it lets the collision be reported.
 _MAX_COPIES = 50
 
-NO_MODEL = "No model selected - pick one under Build > Model before publishing"
-"""Publish's refusal of a spec with no `model_profile_id`.
-
-Marked on the field as well, so the console can take its reader to the Model
-section rather than leave them to find it (#2483).
-"""
 # `AgentSpec.name` is bounded, and a copy of a copy grows. Truncating the base
 # rather than the suffix keeps "(copy 3)" readable - it is the part that says
 # which one this is.
@@ -1296,6 +1297,7 @@ class AgentRegistryService:
         group_ids: list[UUID] | None = None,
         user_ids: list[UUID] | None = None,
         from_starter: bool = False,
+        choose_model: bool = True,
     ) -> Agent:
         """Create an agent in draft.
 
@@ -1309,6 +1311,9 @@ class AgentRegistryService:
         A spec that names no model starts on the organization's only model, when
         it has exactly one an agent can run on (`_only_model`, #2483), so the
         first publish does not stop at Model. With none or several it stays empty.
+        `choose_model=False` leaves it empty for a caller that picks the model
+        itself: the organization assistant, which reads a model in its draft as
+        one somebody chose for it.
 
         Raises:
             AlreadyExistsError: If the derived slug is taken. Slugs are how agents are
@@ -1325,7 +1330,7 @@ class AgentRegistryService:
         elif not spec.instructions.strip():
             spec = _with_starter_instructions(spec)
         spec = _without_unselectable(spec)
-        if spec.model_profile_id is None:
+        if choose_model and spec.model_profile_id is None:
             spec = spec.model_copy(update={"model_profile_id": await self._only_model(ctx)})
 
         slug = slugify(spec.name)
