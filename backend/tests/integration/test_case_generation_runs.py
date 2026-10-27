@@ -71,6 +71,7 @@ from app.worker.handlers import settle_ended
 from app.worker.jobs import GenerateCases
 from app.worker.tasks import case_generation_tasks
 from tests.integration import case_generation_world as world
+from tests.integration._keys import provider_key
 
 pytestmark = pytest.mark.anyio
 
@@ -99,6 +100,7 @@ async def _profile(db, org: Organization) -> ModelProfile:
         label=f"p-{uuid.uuid4().hex[:6]}",
         provider="anthropic",
         model="claude-sonnet-4-5",
+        secret_id=await provider_key(db, org.id, purpose="anthropic"),
     )
     db.add(profile)
     await db.flush()

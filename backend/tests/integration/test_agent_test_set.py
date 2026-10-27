@@ -58,6 +58,7 @@ from app.services.rag.models import DocumentChunk
 from app.services.scoring import ScoringService
 from app.services.system_agent_runner import SystemAgentResult, SystemAgentRunner
 from tests.integration import case_generation_world as world
+from tests.integration._keys import provider_key
 
 pytestmark = pytest.mark.anyio
 
@@ -81,6 +82,7 @@ async def _profile(db, org: Organization, model: str, provider: str) -> ModelPro
         label=f"{model}-{uuid.uuid4().hex[:4]}",
         provider=provider,
         model=model,
+        secret_id=await provider_key(db, org.id, purpose=provider),
     )
     db.add(profile)
     await db.flush()

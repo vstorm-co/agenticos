@@ -41,6 +41,7 @@ from app.services.ai_assistance import AiAssistanceService
 from app.services.model_profile import ModelProfileService
 from app.services.organization import OrganizationService
 from app.services.system_agents import SystemAgentService
+from tests.integration._keys import provider_key
 
 pytestmark = pytest.mark.anyio
 
@@ -92,6 +93,7 @@ async def _profile(db, organization: Organization, *, label: str, created_at: da
         provider="openai",
         model="gpt-4.1",
         created_at=created_at,
+        secret_id=await provider_key(db, organization.id),
     )
     db.add(profile)
     await db.flush()

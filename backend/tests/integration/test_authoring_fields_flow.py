@@ -26,6 +26,7 @@ from app.db.models.organization import OrganizationMember
 from app.db.models.resource_grant import GrantLevel, ResourceGrant
 from app.schemas.authoring import AuthoringStart, HunkDecision
 from app.services.authoring import AuthoringService
+from tests.integration._keys import provider_key
 from tests.integration.test_authoring import (
     COMMENT,
     Improver,
@@ -63,6 +64,7 @@ async def _profile(db, ctx, model: str) -> ModelProfile:
         label=model,
         provider="openai",
         model=model,
+        secret_id=await provider_key(db, ctx.organization_id),
     )
     db.add(profile)
     await db.flush()

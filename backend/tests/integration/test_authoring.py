@@ -69,6 +69,7 @@ from app.services.eval_run_worker import EvalRunWorker
 from app.services.eval_suite import EvalSuiteService
 from app.services.model_profile import ModelProfileService
 from app.services.system_agent_runner import SystemAgentRunner
+from tests.integration._keys import provider_key
 
 pytestmark = pytest.mark.anyio
 
@@ -1690,6 +1691,7 @@ async def test_the_improver_does_not_learn_from_unfinished_eval_data(db):
         label="gpt-4o-mini",
         provider="openai",
         model="gpt-4o-mini",
+        secret_id=await provider_key(db, ctx.organization_id),
     )
     db.add(cheaper)
     await db.flush()
