@@ -117,6 +117,7 @@ from app.services.rag.documents import LiteParseParser
 from app.services.rag_document import RAGDocumentService
 from app.services.sharing import SharingService
 from app.services.skills import SkillService
+from tests.integration._keys import provider_key
 
 pytestmark = pytest.mark.anyio
 
@@ -194,6 +195,7 @@ async def _default_model(db, tenant: Tenant) -> ModelProfile:
         label="Default",
         provider="openai",
         model="gpt-4.1",
+        secret_id=await provider_key(db, tenant.organization.id),
     )
     db.add(profile)
     await db.flush()

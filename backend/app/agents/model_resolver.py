@@ -234,6 +234,24 @@ def get_provider(provider: str) -> ProviderSpec:
     return spec
 
 
+def lacks_key(provider: str, *, secret_id: object | None, base_url: str | None) -> bool:
+    """Whether a profile has nothing to authenticate with and cannot run (#2478).
+
+    A profile with no `secret_id` is usable only on a keyless provider that names
+    an endpoint: an Ollama or a LiteLLM proxy on this network. Every other one is
+    a profile whose key was never set or was deleted from the vault, which the
+    foreign key's `ON DELETE SET NULL` makes an ordinary state. `keyless` alone is
+    not enough, because it is true of `openai` too.
+
+    One rule for every reader: the profile listing's `missing_key`, publish, and
+    the resolver that refuses the run.
+    """
+    if secret_id is not None:
+        return False
+    spec = PROVIDERS.get(provider)
+    return spec is None or not spec.keyless or not base_url
+
+
 @dataclass(frozen=True)
 class ResolvedCredential:
     """A decrypted credential ready to build a client with.

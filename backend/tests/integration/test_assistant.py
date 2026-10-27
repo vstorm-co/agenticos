@@ -17,6 +17,7 @@ from app.repositories import agent_repo, organization_assistant_repo
 from app.schemas.assistant import AssistantUpdate
 from app.services.agent_registry import AgentRegistryService
 from app.services.assistant import AssistantService
+from tests.integration._keys import provider_key
 
 pytestmark = pytest.mark.anyio
 
@@ -69,6 +70,7 @@ async def _model(
         label=f"Model {uuid.uuid4().hex[:6]}",
         provider="openai",
         model=model,
+        secret_id=await provider_key(db, organization.id),
     )
     db.add(profile)
     await db.flush()

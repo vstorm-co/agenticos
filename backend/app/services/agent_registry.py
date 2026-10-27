@@ -46,6 +46,7 @@ from app.agents.capabilities.coding_agent import CODING_AGENT_ID, CodingAgentCon
 from app.agents.capabilities.follow_ups import FollowUpsConfig
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.mcp import PLATFORM_MCP_PREFIX, prefix_collisions
+from app.agents.model_resolver import lacks_key
 from app.agents.spec import (
     SPEC_VERSION,
     AgentSpec,
@@ -1636,6 +1637,14 @@ class AgentRegistryService:
         outputs = model_outputs(profile.provider, profile.model, base_url=profile.base_url)
         if not outputs.chat:
             return [not_chat_refusal(profile.label, profile.model, outputs)]
+        if lacks_key(profile.provider, secret_id=profile.secret_id, base_url=profile.base_url):
+            # Its key was deleted from the vault, which leaves the profile in
+            # place with nothing to authenticate with (#2478). Every run on it
+            # would fail; say so here, while the author is looking.
+            return [
+                f"Model '{profile.label}' has no key - its key was deleted or never set. "
+                "Choose a key for it in the model panel"
+            ]
         problems: list[str] = []
         fallback_ids = [UUID(pid) for pid in profile.fallback_profile_ids[:MAX_FALLBACK_DEPTH]]
         fallbacks = await credential_repo.get_profiles_by_ids(

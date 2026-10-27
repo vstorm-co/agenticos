@@ -1777,6 +1777,34 @@ class TestValidateSpec:
         ]
 
     @pytest.mark.anyio
+    async def test_an_agent_on_a_model_whose_key_was_deleted_cannot_publish(self):
+        """Deleting a key leaves its profiles with `secret_id` NULL; every run on
+        one fails, so publish says which model and what to do (#2478)."""
+        keyless = MagicMock(
+            label="OpenAI · gpt-4.1",
+            provider="openai",
+            model="gpt-4.1",
+            base_url=None,
+            secret_id=None,
+        )
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=keyless),
+            ),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(
+                _ctx(), _spec(model_profile_id=uuid.uuid4())
+            )
+
+        assert refused.value.details["problems"] == [
+            "Model 'OpenAI · gpt-4.1' has no key - its key was deleted or never set. "
+            "Choose a key for it in the model panel"
+        ]
+
+    @pytest.mark.anyio
     async def test_a_chat_model_that_falls_back_to_a_speech_model_cannot_publish(self):
         """The run's chain includes the profile's fallbacks, so an outage would
         hand the conversation to a model that cannot hold one (#2487). A

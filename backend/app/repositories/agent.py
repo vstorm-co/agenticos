@@ -9,7 +9,7 @@ from collections.abc import Collection, Sequence
 from typing import Literal
 from uuid import UUID
 
-from sqlalchemy import Float, and_, bindparam, false, func, or_, select, text
+from sqlalchemy import Float, Text, and_, bindparam, cast, false, func, or_, select, text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
@@ -334,6 +334,45 @@ async def published_model_profiles(
     # is frozen into the JSONB has already been through Pydantic. A malformed id
     # cannot be published, and a branch for one would be a branch nothing reaches.
     return {version_id: UUID(raw) for version_id, raw in result.all() if raw is not None}
+
+
+async def naming_model_profile(
+    db: AsyncSession, *, organization_id: UUID, profile_id: UUID
+) -> list[Agent]:
+    """Agents whose draft or live spec refers to this model profile anywhere.
+
+    Anywhere, because a profile id appears in more places than the agent's own
+    model: a reviewer, a specialist, the browser step model, the follow-ups
+    model, and whatever field names one next. Matching the id in the document's
+    text finds every one of them without a list of JSON paths to keep in step with
+    the spec; a UUID is long enough that nothing else in a spec carries it by
+    accident.
+
+    "Live" is the version the agent serves and any version an environment pins.
+    An older version nobody serves is history and holds nothing up. An archived
+    agent refuses runs, so it does not count either.
+    """
+    needle = str(profile_id)
+    pinned = select(AgentEnvironment.version_id).where(AgentEnvironment.agent_id == Agent.id)
+    live_version = (
+        select(AgentVersion.id)
+        .where(
+            AgentVersion.agent_id == Agent.id,
+            or_(AgentVersion.id == Agent.current_version_id, AgentVersion.id.in_(pinned)),
+            cast(AgentVersion.spec, Text).contains(needle),
+        )
+        .exists()
+    )
+    result = await db.execute(
+        select(Agent)
+        .where(
+            Agent.organization_id == organization_id,
+            Agent.status != AgentStatus.ARCHIVED.value,
+            or_(cast(Agent.draft_spec, Text).contains(needle), live_version),
+        )
+        .order_by(Agent.name.asc())
+    )
+    return list(result.scalars().all())
 
 
 async def published_compaction_windows(

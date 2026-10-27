@@ -5,6 +5,7 @@ key is the last thing that should leak across tenants, and a forgotten filter
 must not look like an ordinary call (see tests/test_org_scope_regression.py).
 """
 
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
@@ -88,6 +89,17 @@ async def create_profile(
         context_length=context_length,
     )
     db.add(profile)
+    await db.flush()
+    await db.refresh(profile)
+    return profile
+
+
+async def update_profile(
+    db: AsyncSession, profile: ModelProfile, *, update_data: dict[str, Any]
+) -> ModelProfile:
+    """Write changed columns onto a profile the caller already read in its organization."""
+    for field, value in update_data.items():
+        setattr(profile, field, value)
     await db.flush()
     await db.refresh(profile)
     return profile

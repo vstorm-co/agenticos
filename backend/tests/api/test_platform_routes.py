@@ -380,6 +380,12 @@ CALLS: tuple[Call, ...] = (
             "secret_id": "00000000-0000-0000-0000-000000000001",
         },
     ),
+    Call(
+        "PATCH",
+        "/providers/model-profiles/{profile_id}",
+        Perm.CONNECTIONS_MANAGE,
+        body={"secret_id": "00000000-0000-0000-0000-000000000001"},
+    ),
     Call("DELETE", "/providers/model-profiles/{profile_id}", Perm.CONNECTIONS_MANAGE),
     Call("GET", "/audit", Perm.AUDIT_READ),
     Call(
