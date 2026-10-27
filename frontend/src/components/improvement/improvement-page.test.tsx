@@ -42,6 +42,14 @@ const state = vi.hoisted(() => ({
     guard_suite_ids: string[];
   }[],
 }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), back: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(window.location.search),
+  usePathname: () => "/",
+  useParams: () => ({}),
+  redirect: vi.fn(),
+  permanentRedirect: vi.fn(),
+}));
 vi.mock("@/hooks/use-agents", () => ({
   useAgent: () => ({
     isLoading: state.agentLoading,
@@ -95,6 +103,7 @@ vi.mock("@/hooks/use-eval-runs", () => ({
 }));
 beforeEach(() => {
   vi.clearAllMocks();
+  window.history.replaceState({}, "", "/");
   state.agentLoading = false;
   state.agentError = null;
   state.sessionLoading = false;
@@ -630,6 +639,29 @@ it("waits for an attempt's changes that are not the agent's open batch", async (
   await userEvent.click(screen.getByRole("button", { name: "Changes" }));
   expect(screen.getByText("Checking these changes — attempt 1 of 3")).toBeInTheDocument();
   expect(screen.getByText("Waiting for the selected suggestions to load.")).toBeInTheDocument();
+});
+
+it("keeps an opened step in the address, and drops it on the way back to the current one", async () => {
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  await userEvent.click(screen.getByRole("button", { name: "Changes" }));
+  expect(new URLSearchParams(window.location.search).get("step")).toBe("changes");
+  await userEvent.click(screen.getByRole("button", { name: "Go to the current step" }));
+  expect(new URLSearchParams(window.location.search).has("step")).toBe(false);
+});
+
+it.each([
+  ["changes", "an open step", "Changes"],
+  ["accept", "a step a running session keeps shut", "Check"],
+])("opens ?step=%s from a link, unless it is %s", (step, _, shown) => {
+  if (step === "accept") {
+    state.session = { ...state.session!, status: "running", stage: "evaluating" };
+  }
+  window.history.replaceState({}, "", `/?step=${step}`);
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.getByRole("button", { name: shown }).closest("li")).toHaveAttribute(
+    "aria-current",
+    "step",
+  );
 });
 
 const LABELS: Record<(typeof STEPS)[number], string> = {

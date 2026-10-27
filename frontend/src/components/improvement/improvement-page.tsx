@@ -12,6 +12,7 @@ import { ChangeSelection } from "./change-selection";
 import { useAgent } from "@/hooks/use-agents";
 import { useAgentAuthoring } from "@/hooks/use-authoring";
 import { useImprovement } from "@/hooks/use-improvements";
+import { useUrlState } from "@/hooks/use-url-state";
 import { usePermissions } from "@/hooks/use-permissions";
 import { getErrorMessage } from "@/lib/api-error";
 import { useOrgStore } from "@/stores/org-store";
@@ -100,10 +101,9 @@ function Session({
   const actions = useImprovement(agentId, sessionId);
   const authoringQuery = useAgentAuthoring(agentId);
   const { authoring } = authoringQuery;
-  // Following, the screen moves on as the session does; a person who opens another
-  // step stays there until they go back to the current one.
-  const [follow, setFollow] = useState(true);
-  const [picked, setPicked] = useState<Step>("understand");
+  // Without ?step= the screen follows the session; a person who opens another step
+  // stays there, and can link to it, until they go back to the current one.
+  const [stepParam, setStepParam] = useUrlState("step");
   const [moves, setMoves] = useState(0);
   const content = useRef<HTMLDivElement>(null);
   // A screen read aloud starts at its heading, not at the step button just pressed.
@@ -144,13 +144,13 @@ function Session({
       : "viewOnly";
   const current = currentImprovementStep(session);
   const views = improvementSteps(session);
-  const step = !follow && isReachable(views[picked]) ? picked : current;
+  const picked = STEPS.find((id) => id === stepParam);
+  const step = picked && isReachable(views[picked]) ? picked : current;
   const active = isActive(session);
   const working = STEPS.some((id) => views[id].state === "running");
   const attempt = currentAttempt(session);
   function goTo(target: Step) {
-    setFollow(target === current);
-    setPicked(target);
+    setStepParam(target === current ? null : target);
     setMoves((count) => count + 1);
   }
   function followCurrent() {
