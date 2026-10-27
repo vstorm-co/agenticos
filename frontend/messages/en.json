@@ -4666,6 +4666,10 @@
         "title": "Budget and approvals",
         "body": "Set the organization spending limit and manage approval waivers. Controls depend on your permissions."
       },
+      "org-proactivity-model": {
+        "title": "Choose the proactivity model",
+        "body": "Choose a provider, model and vault key, then add the model profile. Creating a profile stores it immediately; Save applies it to nightly suggestions and MCP watches. These checks use this model independently of the AgenticOS starter shown in Activity."
+      },
       "org-proactivity": {
         "title": "Proactivity",
         "body": "Configure nightly suggestions, connection watches and proactive chat greetings. Choose the model, schedule and per-person budget here."
@@ -6706,7 +6710,6 @@
       "nightlyHint": "A look at each person's week: a routine for a request they keep repeating, their profile, and the first messages their empty chat offers. People can opt out in their own settings.",
       "model": "Model",
       "modelHint": "What the nightly look and the watches run on. A small, inexpensive model is enough.",
-      "modelPlaceholder": "Choose a model",
       "modelRequired": "Choose the model it runs on before turning it on.",
       "label": "Limit per person (USD a month)",
       "days": "Days",
@@ -6730,6 +6733,8 @@
       "watchesHint": "People choose what to watch in their own connected accounts - pull requests waiting on them, an overdue invoice - and hear what is new. It only reads, and what it finds is private to each person.",
       "watchMinutes": "Most often",
       "watchMinutesHint": "How often one watch may look at most. More often costs more.",
+      "switchOrganizationHint": "Switch to this organization before configuring proactivity so its model profiles and keys are used.",
+      "switchOrganization": "Switch to {name}",
       "runAttribution": "Background checks appear under the published AgenticOS starter agent in Activity. This assignment is fixed by the platform. They use the proactivity model selected below, independently of the agent’s own model."
     }
   },

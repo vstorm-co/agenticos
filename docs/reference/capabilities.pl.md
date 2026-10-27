@@ -1,5 +1,5 @@
 ---
-source_sha: "e09a97341751"
+source_sha: "e1ff6a6a50fd"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -2110,7 +2110,7 @@ przy pracy wymagającej utrzymania w głowie kilku kroków naraz.
 
 | Konfiguracja | Domyślnie | Wartości |
 |---|---|---|
-| `effort` | nieustawione | `minimal`, `low`, `medium`, `high`, `xhigh` |
+| `effort` | nieustawione | `minimal`, `low`, `medium`, `high`, `xhigh`, `max` |
 
 Nieustawione oznacza własny domyślny wysiłek providera. Poziom, którego provider
 nie ma, mapuje się na najbliższy, więc spec pozostaje przenośny przy zmianie modelu.

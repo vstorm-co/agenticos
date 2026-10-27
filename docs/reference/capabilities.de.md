@@ -1,5 +1,5 @@
 ---
-source_sha: "e09a97341751"
+source_sha: "e1ff6a6a50fd"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -2267,7 +2267,7 @@ besser bei Arbeit, die mehrere Schritte gleichzeitig im Kopf braucht.
 
 | Konfiguration | Standard | Werte |
 |---|---|---|
-| `effort` | ungesetzt | `minimal`, `low`, `medium`, `high`, `xhigh` |
+| `effort` | ungesetzt | `minimal`, `low`, `medium`, `high`, `xhigh`, `max` |
 
 Ungesetzt bedeutet den eigenen Standardaufwand des Providers. Eine Stufe, die ein
 Provider nicht hat, wird auf die nächstliegende abgebildet, sodass ein Spec über

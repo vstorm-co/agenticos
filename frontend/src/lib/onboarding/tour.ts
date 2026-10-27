@@ -579,6 +579,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "org-tab-proactivity",
     anyPermission: [Perm.budgetsManage, Perm.orgSettings],
   },
+  {
+    id: "org-proactivity-model",
+    page: ORG_MEMBERS,
+    target: "org-proactivity-model",
+    activate: "org-tab-proactivity",
+    permission: Perm.budgetsManage,
+    anyPermission: [Perm.connectionsManage],
+    optional: true,
+  },
   // Activate each settings tab before locating its card. Gated like
   // the card, which is hidden from anybody who may not change settings.
   {

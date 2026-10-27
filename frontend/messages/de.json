@@ -4544,6 +4544,10 @@
         "title": "Budget und Freigaben",
         "body": "Lege das Ausgabenlimit der Organisation fest und verwalte Freigabeausnahmen. Die verfügbaren Optionen hängen von deinen Berechtigungen ab."
       },
+      "org-proactivity-model": {
+        "title": "Proaktivitätsmodell auswählen",
+        "body": "Wähle Anbieter, Modell und Vault-Schlüssel und füge das Modellprofil hinzu. Das Profil wird sofort gespeichert; Save übernimmt es für nächtliche Vorschläge und MCP-Beobachtungen. Diese Prüfungen verwenden dieses Modell unabhängig vom AgenticOS-Startagenten in Activity."
+      },
       "org-proactivity": {
         "title": "Proaktivität",
         "body": "Konfiguriere nächtliche Vorschläge, die Überwachung von Verbindungen und proaktive Chatbegrüßungen. Wähle hier Modell, Zeitplan und Budget pro Person."
@@ -6585,7 +6589,6 @@
       "nightlyHint": "Ein Blick auf die Woche jeder Person: eine Routine für eine Anfrage, die sie wiederholt, ihr Profil und die ersten Nachrichten, die ihr leerer Chat anbietet. Jede Person kann das in ihren eigenen Einstellungen abschalten.",
       "model": "Modell",
       "modelHint": "Worauf der nächtliche Blick und die Beobachtungen laufen. Ein kleines, günstiges Modell reicht.",
-      "modelPlaceholder": "Modell wählen",
       "modelRequired": "Wählen Sie das Modell, bevor Sie es einschalten.",
       "label": "Limit pro Person (USD im Monat)",
       "days": "Tage",
@@ -6609,6 +6612,8 @@
       "watchesHint": "Jede Person wählt, was in ihren eigenen verbundenen Konten beobachtet wird - Pull Requests, die auf sie warten, eine überfällige Rechnung - und erfährt, was neu ist. Es wird nur gelesen, und Funde sind für jede Person privat.",
       "watchMinutes": "Höchstens",
       "watchMinutesHint": "Wie oft eine einzelne Beobachtung höchstens nachsehen darf. Häufiger kostet mehr.",
+      "switchOrganizationHint": "Wechsle vor dem Konfigurieren der Proaktivität zu dieser Organisation, damit ihre Modellprofile und Schlüssel verwendet werden.",
+      "switchOrganization": "Zu {name} wechseln",
       "runAttribution": "Hintergrundprüfungen erscheinen in Activity unter dem veröffentlichten AgenticOS-Startagenten. Diese Zuordnung ist in der Plattform festgelegt. Sie verwenden das unten gewählte Proaktivitätsmodell, unabhängig vom eigenen Modell des Agenten."
     }
   },

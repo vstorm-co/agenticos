@@ -1,5 +1,5 @@
 ---
-source_sha: "ef9c14a09a27"
+source_sha: "eaabf21a65fd"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
@@ -386,6 +386,21 @@ demonio a través de una *conexión* de sandbox que alguien crea en la consola, 
     (#1506). Por eso el script lee el token en vez de aceptar un flag.
 
 ## Desplegar un cambio { #deploying-a-change }
+
+### El límite del formato del historial en 1.25.0 { #retry-history-upgrade }
+
+La versión 1.25.0 adopta los resultados de herramientas `retried` y los mensajes
+independientes `retry-feedback` de Pydantic AI 2.61. Los historiales y checkpoints
+de runs existentes se leen sin migrar la base de datos ni volver a publicar agentes.
+Los historiales con estas partes requieren el lector nuevo: un backend anterior no puede
+reproducir estos formatos de mensajes.
+
+Actualiza juntos todos los procesos de API y workers, drenando o deteniendo los
+anteriores antes de que los nuevos acepten trabajo. No mezcles réplicas de backend
+anteriores y nuevas con la misma base de datos. Después de guardar uno de los nuevos formatos de reintento,
+no se admite volver atrás solo en el código a través de este límite; hay
+que mantener el lector nuevo o restaurar un snapshot de la base de datos anterior
+a la actualización.
 
 ### A mano { #by-hand }
 

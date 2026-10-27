@@ -16,9 +16,9 @@ from pydantic_ai import Agent, InstrumentationSettings
 from pydantic_ai.messages import (
     ModelMessage,
     ModelResponse,
-    RetryPromptPart,
     TextPart,
     ToolCallPart,
+    ToolReturnPart,
 )
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
@@ -70,7 +70,7 @@ async def test_a_trailing_comma_reaches_the_tool_without_a_retry() -> None:
     assert sent == ["ada@example.com"]
     assert len(asked) == 2
     assert not any(
-        isinstance(part, RetryPromptPart)
+        (isinstance(part, ToolReturnPart) and part.outcome == "retried")
         for message in result.all_messages()
         for part in getattr(message, "parts", [])
     )
@@ -106,7 +106,7 @@ async def test_a_missing_field_still_fails_validation_and_retries() -> None:
     # Repaired, but retried anyway: no retry was saved, so none is counted.
     assert tally.count == 0
     assert any(
-        isinstance(part, RetryPromptPart)
+        (isinstance(part, ToolReturnPart) and part.outcome == "retried")
         for message in result.all_messages()
         for part in getattr(message, "parts", [])
     )

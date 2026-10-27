@@ -1,5 +1,5 @@
 ---
-source_sha: "61c600201ea6"
+source_sha: "512a23d1b175"
 ---
 
 # Governance { #governance }
@@ -556,6 +556,13 @@ behalten den vor dem Fehler verfügbaren Austausch. Wie andere Activity-Einträg
 erfordern diese Aufzeichnungen `runs:view` und erzeugen keine Chats. Nicht
 aufgezeichnete ältere Abläufe lassen sich nicht wiederherstellen; übergroße
 Aufzeichnungen werden ausdrücklich als gekürzt gekennzeichnet.
+
+Das Modellfeld verwendet dieselbe Auswahl für Anbieter, Modell und Vault-Schlüssel
+wie der Agent Builder. Mit `connections:manage` kann ein Mitglied dort ein
+Modellprofil erstellen; ohne diese Berechtigung wählt es ein vorhandenes Profil.
+Ein neues Profil wird sofort gespeichert. **Speichern** übernimmt die Auswahl
+für die nächtlichen Vorschläge und Watches der Organisation, die sich dieses
+Modell und das Limit pro Person teilen.
 
 Die Plattform kann ein wenig aus eigener Initiative tun, und tut nichts davon,
 bis eine Organisation es einschaltet: die Karte **Proaktivität** auf ihrer

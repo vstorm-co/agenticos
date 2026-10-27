@@ -4436,6 +4436,10 @@
         "title": "Budżet i zgody",
         "body": "Ustaw limit wydatków organizacji i zarządzaj zwolnieniami z akceptacji. Dostępne opcje zależą od Twoich uprawnień."
       },
+      "org-proactivity-model": {
+        "title": "Wybierz model proaktywności",
+        "body": "Wybierz dostawcę, model i klucz z Vault, a potem dodaj profil modelu. Utworzenie profilu zapisuje go od razu; Save stosuje go do nocnych sugestii i obserwacji MCP. Te zadania korzystają z tego modelu niezależnie od agenta startowego AgenticOS widocznego w Activity."
+      },
       "org-proactivity": {
         "title": "Proaktywność",
         "body": "Skonfiguruj nocne sugestie, obserwowanie połączeń i proaktywne powitania w czacie. Tutaj wybierzesz model, harmonogram i budżet na osobę."
@@ -6477,7 +6481,6 @@
       "nightlyHint": "Przegląd tygodnia każdej osoby: rutyna dla prośby, którą powtarza, jej profil i pierwsze wiadomości, które proponuje jej pusty czat. Każdy może z tego zrezygnować we własnych ustawieniach.",
       "model": "Model",
       "modelHint": "Na czym działa nocny przegląd i obserwacje. Wystarczy mały, tani model.",
-      "modelPlaceholder": "Wybierz model",
       "modelRequired": "Przed włączeniem wybierz model, na którym ma działać.",
       "label": "Limit na osobę (USD miesięcznie)",
       "days": "Dni",
@@ -6501,6 +6504,8 @@
       "watchesHint": "Każdy wybiera, co obserwować na swoich podłączonych kontach - pull requesty czekające na niego, zaległą fakturę - i dostaje informację, co nowego. Tylko czyta, a znaleziska są prywatne dla każdej osoby.",
       "watchMinutes": "Najczęściej",
       "watchMinutesHint": "Jak często pojedyncza obserwacja może najwyżej sprawdzać. Częściej znaczy drożej.",
+      "switchOrganizationHint": "Przełącz się na tę organizację przed konfiguracją proaktywności, aby korzystać z jej profili modeli i kluczy.",
+      "switchOrganization": "Przełącz na {name}",
       "runAttribution": "Sprawdzenia w tle są widoczne w Activity pod opublikowanym agentem startowym AgenticOS. To przypisanie jest stałe w platformie. Korzystają z wybranego poniżej modelu proaktywności, niezależnie od modelu samego agenta."
     }
   },

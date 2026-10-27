@@ -267,17 +267,6 @@ Two things are versioned separately from this file and worth knowing about:
   travel. The Devices list says which sign-ins receive push. In a browser that
   can install the console, a strip offers to (on an iPhone it says how).
 
-- `GET /agents/ceiling`, for a caller with `agents:edit`: the deployment's
-  agents-per-organization limit (`limit`, null for none) and whether a create
-  would hit it (`at_limit`). The organization's count against it (`held`) is
-  given only to a caller whose `agents:view` reaches every agent, since it
-  includes agents others cannot see (#2488).
-
-- `GET /kb/{kb_id}/ingestion` says whether one knowledge base's documents are
-  still indexing, with `processing_count`, `indexed_count` and `failed_count`,
-  counted over the documents its page lists. It is part of the public API
-  (#2486).
-
 ### Changed
 
 - Browser panels open beside wide chats, resize by pointer or keyboard, and
@@ -403,6 +392,46 @@ Two things are versioned separately from this file and worth knowing about:
   recorded as the image's Python representation, bytes and all, in the run's
   history and the chat's tool row. The row says which kind of picture it
   was instead.
+
+## [1.25.0] - 2026-10-27
+
+### Changed
+
+- Upgrade the backend dependency snapshot, including Pydantic AI 2.61 and
+  harness 0.61, and adapt tool retries, streamed errors and cache reminders to
+  the new message parts (#2476). The Thinking capability also exposes the SDK’s
+  new `max` effort level. Existing retry histories and checkpoints still
+  load without a database migration or republishing agents. **Upgrade action:**
+  drain or stop the old API and workers before starting the upgraded processes;
+  do not mix versions. Once a history contains the new retry parts, a code-only
+  rollback to the previous SDK cannot read it. See the
+  [retry-history upgrade boundary](docs/deploy.md#retry-history-upgrade).
+
+## [1.24.0] - 2026-10-27
+
+### Added
+
+- Organization proactivity uses the Agent Builder's provider, model and vault-key
+  picker, including inline model-profile creation for members with
+  `connections:manage`. Budget managers can select existing profiles, and saving
+  the organization applies the choice to nightly suggestions and MCP watches.
+
+## [1.23.0] - 2026-10-27
+
+### Added
+
+- `GET /agents/ceiling`, for a caller with `agents:edit`: the deployment's
+  agents-per-organization limit (`limit`, null for none) and whether a create
+  would hit it (`at_limit`). The organization's count against it (`held`) is
+  given only to a caller whose `agents:view` reaches every agent, since it
+  includes agents others cannot see (#2488).
+
+- `GET /kb/{kb_id}/ingestion` says whether one knowledge base's documents are
+  still indexing, with `processing_count`, `indexed_count` and `failed_count`,
+  counted over the documents its page lists. It is part of the public API
+  (#2486).
+
+### Fixed
 
 - The coding agent's key picker offers only keys for the chosen harness - Anthropic
   for Claude Code, OpenAI keys and ChatGPT sign-ins for Codex - plus `custom` keys
@@ -17354,7 +17383,10 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.22.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.25.0...HEAD
+[1.25.0]: https://github.com/vstorm-co/agenticos/compare/v1.24.0...v1.25.0
+[1.24.0]: https://github.com/vstorm-co/agenticos/compare/v1.23.0...v1.24.0
+[1.23.0]: https://github.com/vstorm-co/agenticos/compare/v1.22.0...v1.23.0
 [1.22.0]: https://github.com/vstorm-co/agenticos/compare/v1.21.0...v1.22.0
 [0.0.32]: https://github.com/vstorm-co/agenticos/compare/v0.0.31...v0.0.32
 [0.0.31]: https://github.com/vstorm-co/agenticos/compare/v0.0.30...v0.0.31

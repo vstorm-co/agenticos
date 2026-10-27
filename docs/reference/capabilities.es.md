@@ -1,5 +1,5 @@
 ---
-source_sha: "e09a97341751"
+source_sha: "e1ff6a6a50fd"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -2164,7 +2164,7 @@ caro, mejor en trabajo que exige tener varios pasos en la cabeza a la vez.
 
 | Configuración | Valor por defecto | Valores |
 |---|---|---|
-| `effort` | sin poner | `minimal`, `low`, `medium`, `high`, `xhigh` |
+| `effort` | sin poner | `minimal`, `low`, `medium`, `high`, `xhigh`, `max` |
 
 Sin poner significa el esfuerzo por defecto del propio provider. Un nivel que un
 provider no tenga se asigna al más cercano que tenga, de modo que un spec sigue

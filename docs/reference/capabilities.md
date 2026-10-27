@@ -2019,7 +2019,7 @@ work that needs several steps held in mind at once.
 
 | Config | Default | Values |
 |---|---|---|
-| `effort` | unset | `minimal`, `low`, `medium`, `high`, `xhigh` |
+| `effort` | unset | `minimal`, `low`, `medium`, `high`, `xhigh`, `max` |
 
 Unset means the provider's own default effort. A level a provider does not have
 maps to its closest one, so a spec stays portable across a model swap.

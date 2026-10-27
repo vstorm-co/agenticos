@@ -63,6 +63,7 @@ const ORG_STEPS = [
   "org-profile",
   "org-governance",
   "org-proactivity",
+  "org-proactivity-model",
   "org-voice",
   "org-assistant",
   "org-members",
@@ -339,7 +340,14 @@ describe("stepsForPage", () => {
       stepsForPage("/orgs/some-id/members", (permission) => permission !== Perm.orgSettings).map(
         (step) => step.id,
       ),
-    ).toEqual(["org-profile", "org-governance", "org-proactivity", "org-members", "org-roles"]);
+    ).toEqual([
+      "org-profile",
+      "org-governance",
+      "org-proactivity",
+      "org-proactivity-model",
+      "org-members",
+      "org-roles",
+    ]);
   });
 
   it.each([Perm.budgetsManage, Perm.approvalsDecide, Perm.orgSettings])(
@@ -352,6 +360,21 @@ describe("stepsForPage", () => {
       expect(ids.includes("org-proactivity")).toBe(grant !== Perm.approvalsDecide);
     },
   );
+
+  it("requires both budget and connection permissions for inline model guidance", () => {
+    for (const missing of [Perm.budgetsManage, Perm.connectionsManage]) {
+      expect(
+        stepsForPage("/orgs/id/members", (permission) => permission !== missing).some(
+          (step) => step.id === "org-proactivity-model",
+        ),
+      ).toBe(false);
+    }
+    const step = stepsForPage("/orgs/id/members", () => true).find(
+      (entry) => entry.id === "org-proactivity-model",
+    );
+    expect(step?.optional).toBe(true);
+    expect(step?.target).toBe("org-proactivity-model");
+  });
 
   it("walks only the roles matrix from a roles route — the last page of the flow", () => {
     expect(stepsForPage("/orgs/some-id/roles", () => true).map((step) => step.id)).toEqual([

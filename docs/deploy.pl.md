@@ -1,5 +1,5 @@
 ---
-source_sha: "ef9c14a09a27"
+source_sha: "eaabf21a65fd"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
@@ -370,6 +370,19 @@ deploymentu.
     token, zamiast przyjmować flagę.
 
 ## Wdrażanie zmiany { #deploying-a-change }
+
+### Granica formatu historii w 1.25.0 { #retry-history-upgrade }
+
+Wersja 1.25.0 przechodzi na wyniki narzędzi `retried` i osobne wiadomości
+`retry-feedback` z Pydantic AI 2.61. Istniejące historie i checkpointy przebiegów
+są odczytywane bez migracji bazy ani ponownej publikacji agentów. Historie zawierające te części
+wymagają nowego czytnika: starszy backend nie odtworzy tych formatów wiadomości.
+
+Aktualizuj wszystkie procesy API i workery razem, kończąc pracę lub zatrzymując
+stare procesy, zanim nowe zaczną przyjmować zadania. Nie łącz starszych i nowszych
+replik backendu z tą samą bazą. Po zapisaniu nowego formatu retry wycofanie samego kodu
+przez tę granicę nie jest obsługiwane; trzeba zachować nowy czytnik albo odtworzyć
+snapshot bazy sprzed aktualizacji.
 
 ### Ręcznie { #by-hand }
 

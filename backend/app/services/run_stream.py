@@ -35,7 +35,7 @@ from pydantic_ai import (
     TextPartDelta,
 )
 from pydantic_ai.messages import (
-    RetryPromptPart,
+    ERROR_OUTCOMES,
     TextPart,
     ThinkingPart,
     ThinkingPartDelta,
@@ -45,7 +45,7 @@ from pydantic_ai.messages import (
 from app.agents.tool_call_ids import fresh_call_id, used_call_ids
 from app.services.agent_chat import display_output
 from app.services.chat_timeline import TurnTimeline
-from app.services.transcript import tool_result_text, tool_retry_notice
+from app.services.transcript import tool_failure_notice, tool_result_text
 
 logger = logging.getLogger(__name__)
 
@@ -212,13 +212,14 @@ class RunFrames:
                 # inside the stream, which reached the user as
                 # "❌ Error: 'FunctionToolResultEvent' object has no attribute
                 # 'result'" on every tool call in web chat.
-                if isinstance(tool_event.part, RetryPromptPart):
+                if tool_event.part.outcome in ERROR_OUTCOMES:
                     logger.warning(
-                        "Tool call %s asked the model to retry: %s",
+                        "Tool call %s returned %s: %s",
                         tool_event.tool_call_id,
+                        tool_event.part.outcome,
                         tool_event.part.content,
                     )
-                    content = tool_retry_notice(tool_event.part)
+                    content = tool_failure_notice(tool_event.part)
                 else:
                     content = tool_result_text(tool_event.part.content)
                 call = pending.get(tool_event.tool_call_id)

@@ -1,5 +1,5 @@
 ---
-source_sha: "61c600201ea6"
+source_sha: "512a23d1b175"
 ---
 
 # Governance { #governance }
@@ -516,6 +516,13 @@ conservan el intercambio disponible antes del error. Como los demás registros
 de Activity, requieren `runs:view` y no crean conversaciones en Chat. No se
 pueden recuperar intercambios antiguos que nunca se registraron; los registros
 demasiado grandes indican explícitamente que se recortaron.
+
+El campo del modelo usa el mismo selector de proveedor, modelo y clave del
+Vault que el Builder de agentes. Con `connections:manage`, una persona puede
+crear un perfil de modelo allí; sin ese permiso, elige un perfil existente.
+El perfil nuevo se guarda inmediatamente. **Guardar** aplica la selección a las
+sugerencias nocturnas y los watches de la organización, que comparten este
+modelo y el límite por persona.
 
 La plataforma puede hacer un poco por iniciativa propia, y no hace nada de eso
 hasta que una organización lo activa: la tarjeta **Proactividad** en su página de
