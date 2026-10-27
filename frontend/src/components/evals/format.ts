@@ -12,6 +12,11 @@ export function usd(value: string | null, locale: string): string {
   }).format(amount);
 }
 
+/** A spending limit as a form field holds it: whole cents, rounded up so it never shrinks. */
+export function limitInput(value: string): string {
+  return (Math.ceil(Number(value) * 100) / 100).toFixed(2);
+}
+
 /** A 0..1 share as a percentage; `null` (nothing decided) reads as a dash. */
 export function percent(rate: number | null, locale: string): string {
   if (rate === null) return "—";

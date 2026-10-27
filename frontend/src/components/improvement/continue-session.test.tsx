@@ -40,6 +40,19 @@ it("estimates and confirms another round separately without publishing", async (
   expect(state.start).toHaveBeenCalledWith(QUOTE);
   expect(started).toHaveBeenCalledOnce();
 });
+it("offers the limit in cents, and prices only the step a press starts", async () => {
+  render(<ContinueSession session={{ ...SESSION, budget_usd: "0.850000" }} onStarted={vi.fn()} />);
+  await userEvent.click(screen.getByRole("button", { name: "Improve again" }));
+  expect(screen.getByLabelText("Session spending limit (USD)")).toHaveValue(0.85);
+  state.estimate.mockResolvedValue({ ...QUOTE, total_usd: "0.0034" });
+  await userEvent.click(screen.getByRole("button", { name: "Estimate continuing the session" }));
+  expect(state.estimate).toHaveBeenCalledWith("0.85");
+  expect(
+    await screen.findByText(
+      "Attempt 2 of 3: up to $0.0034 (estimate) to write the changes; testing them is priced at the next step.",
+    ),
+  ).toBeInTheDocument();
+});
 it("hands a new attempt's helper the person's note, trimmed, and only that attempt", async () => {
   render(<ContinueSession session={SESSION} onStarted={vi.fn()} />);
   await userEvent.click(screen.getByRole("button", { name: "Improve again" }));

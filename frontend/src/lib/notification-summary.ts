@@ -1,11 +1,10 @@
 import type { Translate } from "@/lib/agent-step-captions";
+import { ATTEMPT_RESULT_REASONS } from "@/lib/improvement-steps";
 import type { Notification } from "@/lib/notifications-api";
 
 const IMPROVEMENT = ["ready", "stopped", "failed", "stale"];
 const TEST = ["completed", "failed", "cancelled", "budget_exceeded"];
 const GENERATION = ["ready", "failed"];
-// An attempt that did not do better ends where a person decides whether to try again.
-const RESULT_REASONS = ["no_change", "regression", "inconclusive"];
 const STOP_REASONS = [
   "no_data",
   "no_proposal",
@@ -47,7 +46,7 @@ export function notificationSummary(item: Notification, t: Translate, tStop: Tra
     const status =
       outcome.status === "stale"
         ? "stopped"
-        : outcome.status === "stopped" && RESULT_REASONS.includes(outcome.reason ?? "")
+        : outcome.status === "stopped" && ATTEMPT_RESULT_REASONS.includes(outcome.reason ?? "")
           ? "attemptFinished"
           : outcome.status;
     const head = t(`outcome.improvement.${status}`, { agent: item.agent.name });

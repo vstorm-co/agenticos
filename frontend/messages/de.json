@@ -11053,7 +11053,8 @@
       "accepted": "Als Entwurf behalten",
       "published": "Veröffentlicht",
       "rejected": "Verworfen",
-      "waiting": "Wartet auf Sie"
+      "waiting": "Wartet auf Sie",
+      "attemptFinished": "Versuch abgeschlossen"
     },
     "stop": {
       "no_data": "Fügen Sie vor dem Verbessern weitere Testfragen oder Bewertungen hinzu.",
@@ -11148,9 +11149,9 @@
     "improveAgain": "Erneut verbessern",
     "raiseBudgetContinue": "Limit erhöhen und fortfahren",
     "resumeWithMyAccess": "Diesen Schritt mit meinem Zugriff fortsetzen",
-    "continuationBody": "Prüfen Sie die vollständige Schätzung, bevor Sie mehr ausgeben. Dieselben Quellen, Testfragen und dasselbe Versuchslimit bleiben bestehen. Nichts wird akzeptiert oder veröffentlicht.",
+    "continuationBody": "Prüfen Sie die Schätzung, bevor Sie mehr ausgeben. Dieselben Quellen, Testfragen und dasselbe Versuchslimit bleiben bestehen. Nichts wird akzeptiert oder veröffentlicht.",
     "estimateContinuation": "Fortsetzung der Sitzung schätzen",
-    "continuationQuote": "Versuch {number} von {max}: bis zu {cost} für die gesamte verbleibende Arbeit (Schätzung).",
+    "continuationQuote": "{mode, select, next_round {Versuch {number} von {max}: bis zu {cost} (Schätzung), um die Änderungen zu schreiben; ihr Test wird im nächsten Schritt bepreist.} retry {Bis zu {cost} (Schätzung), um diesen Schritt zu wiederholen; der Schritt danach wird bepreist, wenn Sie ihn starten.} other {Bis zu {cost} (Schätzung), um diesen Schritt abzuschließen; der Schritt danach wird bepreist, wenn Sie ihn starten.}}",
     "continuationUnaffordable": "Diese Schätzung passt nicht zum gewählten Limit oder verfügbaren Budget. Erhöhen Sie das Limit und lassen Sie erneut schätzen.",
     "confirmContinuation": "Schätzung bestätigen und fortfahren",
     "continuationStopped": "Hier kann kein weiterer kostenpflichtiger Versuch starten. Prüfen Sie einen vorhandenen Versuch, beheben Sie den Stoppgrund oder starten Sie eine neue Sitzung.",
