@@ -2,7 +2,8 @@ import type { APIRequestContext, Page, TestInfo } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import { AUTH_STATE, walkPageTour } from "./helpers";
 
-test.use({ storageState: AUTH_STATE });
+// A click that cannot happen fails within a minute, not at the end of the whole journey.
+test.use({ storageState: AUTH_STATE, actionTimeout: 60_000 });
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -115,6 +116,17 @@ async function seedImprovableAgent(page: Page) {
   }
   expect(train).toBeGreaterThanOrEqual(3);
   expect(holdout).toBeGreaterThanOrEqual(5);
+  // A question no change fixes, among those the helper learns from: once the first
+  // attempt fixes the rest, another attempt still has an answer to learn from.
+  let unfixable = false;
+  for (let n = 0; n < 20 && !unfixable; n++) {
+    const question = await write(api, "post", `/datasets/${id(dataset)}/cases`, headers, {
+      input: `Return policy exception ${n + 1}`,
+      checks: [{ type: "equals", value: "An answer no change gives" }],
+    });
+    unfixable = question.improvement_partition === "train";
+  }
+  expect(unfixable).toBeTruthy();
   const initial = await write(api, "post", `/agents/${id(agent)}/eval-runs`, headers, {
     dataset_id: id(dataset),
     reruns: 0,
@@ -380,7 +392,12 @@ test("test questions, review and improvement publish keep a guarded environment 
     .getByLabel("Note for the helper (optional)")
     .fill("E2E-NOTE: keep the reviewed token.");
   await page.getByRole("button", { name: "Estimate continuing the session" }).click();
-  await page.getByRole("button", { name: "Confirm the estimate and continue" }).click();
+  const confirm = page.getByRole("button", { name: "Confirm the estimate and continue" });
+  await expect(
+    confirm,
+    "the estimate for another attempt allows it; an alert beside it says why not",
+  ).toBeEnabled({ timeout: 30_000 });
+  await confirm.click({ timeout: 30_000 });
   await until(api, headers, path, "waiting", "check");
   await page.reload();
   await expect(page.getByText("Waiting for you: review the changes")).toBeVisible();
