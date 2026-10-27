@@ -11579,7 +11579,8 @@
       "confirm": "End it"
     },
     "freshAttempt": "Each attempt starts from the current version; changes from earlier attempts aren't carried over.",
-    "trainSignals": "Test answers failing"
+    "trainSignals": "Test answers failing",
+    "tryAgainNothingToLearn": "The last attempt fixed every question it learns from, so another attempt has nothing to learn from. Accept it or end the session."
   },
   "unsaved": {
     "title": "You have unsaved changes",

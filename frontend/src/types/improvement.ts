@@ -14,6 +14,12 @@ export type ImprovementStatus =
 export type ImprovementStage =
   "analyzing" | "classifying" | "drafting" | "proposing" | "filtering" | "evaluating" | "judging";
 /** Why a waiting session's next step cannot be taken; the session's questions are fixed. */
+/** Why another attempt cannot be asked for: nothing left to learn from, or too few questions to check it. */
+export interface TryAgainBlocked {
+  reason: "nothing_to_learn" | "missing_holdout";
+  /** For missing_holdout: how many more gradable questions kept aside a check needs. */
+  needed?: number | null;
+}
 export interface NextStepBlocked {
   reason: "missing_holdout";
   /** How many more gradable questions kept aside the check needs. */

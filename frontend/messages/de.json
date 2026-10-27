@@ -11462,7 +11462,8 @@
       "confirm": "Beenden"
     },
     "freshAttempt": "Jeder Versuch beginnt bei der aktuellen Version; Änderungen aus früheren Versuchen werden nicht übernommen.",
-    "trainSignals": "Fehlgeschlagene Testantworten"
+    "trainSignals": "Fehlgeschlagene Testantworten",
+    "tryAgainNothingToLearn": "Der letzte Versuch hat jede Frage behoben, aus der er lernt, daher hat ein weiterer Versuch nichts mehr zu lernen. Übernehmen Sie ihn oder beenden Sie die Sitzung."
   },
   "unsaved": {
     "title": "Du hast ungespeicherte Änderungen",

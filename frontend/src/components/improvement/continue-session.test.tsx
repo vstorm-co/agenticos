@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { SESSION } from "@/test-utils/improvement";
 import type { ContinuationEstimate } from "@/types/improvement";
-import { ContinueSession } from "./continue-session";
+import { ContinueSession, continuation } from "./continue-session";
 
 const state = vi.hoisted(() => ({ estimate: vi.fn(), start: vi.fn(), discard: vi.fn() }));
 vi.mock("@/hooks/use-improvements", () => ({
@@ -138,6 +138,19 @@ it("offers raising a budget before resuming a stopped check", async () => {
   );
   await userEvent.click(screen.getByRole("button", { name: "Raise the limit and continue" }));
   expect(screen.getByLabelText("Session spending limit (USD)")).toHaveValue("1.00");
+});
+it.each([
+  [
+    { reason: "nothing_to_learn" as const },
+    /fixed every question it learns from, so another attempt has nothing to learn from/,
+  ],
+  [{ reason: "missing_holdout" as const, needed: 2 }, /2 more questions kept aside/],
+])("says why another attempt is not offered: %o", (blocked, why) => {
+  const session = { ...SESSION, status: "ready" as const, try_again_blocked: blocked };
+  expect(continuation(session).canContinue).toBe(false);
+  render(<ContinueSession session={session} onStarted={vi.fn()} />);
+  expect(screen.getByRole("status")).toHaveTextContent(why);
+  expect(screen.getByRole("button", { name: "Improve again" })).toBeDisabled();
 });
 it("keeps paid restarts with their original requester", () => {
   render(

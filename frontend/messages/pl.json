@@ -11362,7 +11362,8 @@
       "confirm": "Zakończ"
     },
     "freshAttempt": "Każda próba zaczyna od bieżącej wersji; zmiany z wcześniejszych prób nie są przenoszone.",
-    "trainSignals": "Nieudane odpowiedzi testowe"
+    "trainSignals": "Nieudane odpowiedzi testowe",
+    "tryAgainNothingToLearn": "Ostatnia próba naprawiła każde pytanie, z którego się uczy, więc kolejna próba nie ma się z czego uczyć. Zaakceptuj ją albo zakończ sesję."
   },
   "unsaved": {
     "title": "Masz niezapisane zmiany",

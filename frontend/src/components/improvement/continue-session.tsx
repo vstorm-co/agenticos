@@ -17,7 +17,8 @@ const NOTE_LIMIT = 2000;
  * Whether another paid attempt may start: a failed or over-budget step resumes,
  * as does a step stopped for lost access, under whoever presses it,
  * and a measured session tries again, when a person asks, while it has attempts
- * left. Attempts that keep changing nothing only earn a hint, never a refusal.
+ * left, unless the session says another attempt has nothing to learn from or
+ * could not be checked. Attempts that keep changing nothing only earn a hint.
  */
 export function continuation(session: Improvement) {
   const resume =
@@ -41,7 +42,8 @@ export function continuation(session: Improvement) {
     session.iteration < session.max_iterations &&
     !["no_data", "knowledge_only", "repeat_candidate", "max_iterations", "stale"].includes(
       session.stop_reason ?? "",
-    );
+    ) &&
+    !session.try_again_blocked;
   const own = session.can_restart !== false;
   const canContinue = own && (resume || next);
   const primary = last?.verdict === "regression" || resume;
@@ -147,6 +149,12 @@ export function ContinueSession({
       </div>
       {!own ? (
         <p className="text-muted-foreground text-sm">{t("paidRestartOwner")}</p>
+      ) : session.try_again_blocked && !resume ? (
+        <p role="status" className="text-sm">
+          {session.try_again_blocked.reason === "missing_holdout"
+            ? t("nextUp.unmeasurable", { count: session.try_again_blocked.needed ?? 1 })
+            : t("tryAgainNothingToLearn")}
+        </p>
       ) : (
         !canContinue &&
         !emphasis && <p className="text-muted-foreground text-sm">{t("continuationStopped")}</p>
