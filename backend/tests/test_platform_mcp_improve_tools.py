@@ -388,11 +388,25 @@ class TestStepByStep:
         self, server: FastMCP, api: MagicMock, next_step: str, after: str, runs: str
     ) -> None:
         waiting = {**self.WAITING, "next_step": next_step}
-        api.request = _responder({("GET", f"/agents/{AGENT}/improvements"): [waiting]})
+        quote = {"total_usd": "0.01", "budget_usd": "0.05", "affordable": True}
+        api.request = _responder(
+            {
+                ("GET", f"/agents/{AGENT}/improvements"): [waiting],
+                ("POST", f"/agents/{AGENT}/improvements/{SESSION}/continue/estimate"): {
+                    **quote,
+                    "candidate_hash": "d" * 64,
+                },
+            }
+        )
 
         [item] = (await _call(server, "list_improvements", agent_id=AGENT))["items"]
 
-        assert item["waiting_for"] == {"after": after, "next_step": runs}
+        assert item["waiting_for"] == {
+            "after": after,
+            "next_step": runs,
+            "price": {**quote, "candidate_hash": "d" * 64},
+        }
+        assert item["next_actions"] == [f"Next step: {runs}", "End the session"]
         assert item["closed"] is False
 
     async def test_a_waiting_session_carries_its_next_step_s_price_and_what_understand_found(
@@ -718,6 +732,103 @@ class TestTheNewestSessionAndTheLiveVersion:
         assert listing["items"][0]["why_stale"] == (
             "The agent's published version changed from v7 to v3."
         )
+
+
+FIRST_ATTEMPT = {**SESSION_READ["iterations"][0], "number": 1, "verdict": "regression"}
+
+
+class TestWhatCanBeDoneNow:
+    """Asked how improving stood, it said a session stopped after a regression "cannot be
+    accepted or continued", at attempt 1 of 3 with budget left - Try again was on offer."""
+
+    REGRESSED = {
+        **SESSION_READ,
+        "status": "stopped",
+        "stop_reason": "regression",
+        "stage": "judging",
+        "iteration": 1,
+        "max_iterations": 3,
+        "spent_usd": "0.078",
+        "budget_usd": "0.89",
+        "iterations": [FIRST_ATTEMPT],
+        "can_restart": True,
+    }
+
+    async def test_a_regressed_first_attempt_offers_another_beside_the_live_version(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request = _responder(
+            {**_published_as(V8), ("GET", f"/agents/{AGENT}/improvements"): [self.REGRESSED]}
+        )
+
+        [newest] = (await _call(server, "list_improvements", agent_id=AGENT))["items"]
+
+        assert newest["live_version"] == 8
+        assert (newest["attempt"], newest["max_attempts"]) == (1, 3)
+        assert (newest["can_accept"], newest["can_try_again"]) == (False, True)
+        assert newest["next_actions"] == ["Try again (attempt 2 of 3)", "End the session"]
+
+    async def test_an_agent_never_improved_lists_no_sessions_beside_its_live_version(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request = _responder(
+            {**_published_as(V8), ("GET", f"/agents/{AGENT}/improvements"): []}
+        )
+
+        listing = await _call(server, "list_improvements", agent_id=AGENT)
+
+        assert listing == {"current_published_version": 8, "items": []}
+
+    @pytest.mark.parametrize(
+        ("changes", "actions"),
+        [
+            ({"status": "running", "stop_reason": None}, ["Stop the session"]),
+            ({"status": "published", "stop_reason": None}, []),
+            (
+                {"status": "failed", "stage": "proposing", "stop_reason": "proposal"},
+                ["Retry this step", "End the session"],
+            ),
+            (
+                {"stop_reason": "budget", "stage": "evaluating"},
+                ["Continue this step", "Try again (attempt 2 of 3)", "End the session"],
+            ),
+            (
+                {"status": "ready", "stop_reason": None},
+                ["Accept the chosen attempt", "Try again (attempt 2 of 3)", "End the session"],
+            ),
+            ({"stop_reason": "repeat_candidate"}, ["End the session"]),
+            ({"iteration": 3, "max_iterations": 3}, ["End the session"]),
+            ({"iterations": [{**FIRST_ATTEMPT, "verdict": None}]}, ["End the session"]),
+            ({"can_restart": False}, ["End the session"]),
+            ({"can_discard": False}, ["Try again (attempt 2 of 3)"]),
+        ],
+        ids=[
+            "running",
+            "closed",
+            "failed step",
+            "out of budget",
+            "ready",
+            "repeated changes",
+            "no attempts left",
+            "nothing measured",
+            "someone else's to continue",
+            "not theirs to end",
+        ],
+    )
+    async def test_each_session_offers_what_the_wizard_offers_on_it(
+        self,
+        server: FastMCP,
+        api: MagicMock,
+        changes: dict[str, Any],
+        actions: list[str],
+    ) -> None:
+        api.request = _responder(
+            {("GET", f"/agents/{AGENT}/improvements"): [{**self.REGRESSED, **changes}]}
+        )
+
+        [item] = (await _call(server, "list_improvements", agent_id=AGENT))["items"]
+
+        assert item["next_actions"] == actions
 
 
 QUOTE = {"total_usd": "0.01", "per_round_usd": "0.03", "max_iterations": 3}

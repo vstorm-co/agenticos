@@ -218,12 +218,81 @@ def _waiting(session: dict[str, Any]) -> dict[str, Any] | None:
     return _NEXT_STEPS.get(session.get("next_step") or "")
 
 
+_RESUMABLE_STAGES = frozenset({"classifying", "drafting", "proposing", "evaluating"})
+_LAST_ATTEMPT = frozenset(
+    {"no_data", "knowledge_only", "repeat_candidate", "max_iterations", "stale"}
+)
+"""Stop reasons after which no further attempt may start, however much budget is left."""
+
+
+def _resumable(session: dict[str, Any]) -> bool:
+    """A failed step, or one stopped for its budget or lost access, can run again."""
+    status, stage, reason = session["status"], session.get("stage"), session.get("stop_reason")
+    return (
+        (status == "failed" and stage in {"proposing", "evaluating"})
+        or (status == "stopped" and reason == "budget" and stage in _RESUMABLE_STAGES)
+        or (status == "stopped" and reason == "permission")
+    )
+
+
+def _attempts_used(session: dict[str, Any]) -> int:
+    return max(
+        (
+            iteration["number"]
+            for iteration in session.get("iterations", [])
+            if iteration.get("authoring_request_id")
+            or iteration.get("eval_run_ids")
+            or iteration.get("verdict")
+        ),
+        default=0,
+    )
+
+
+def _can_try_again(session: dict[str, Any]) -> bool:
+    """The wizard's rule: a measured session with attempts left, unless its stop rules it out."""
+    return (
+        session.get("can_restart") is not False
+        and session["status"] in {"ready", "stopped"}
+        and any(iteration.get("verdict") for iteration in session.get("iterations", []))
+        and _attempts_used(session) < session["max_iterations"]
+        and session["iteration"] < session["max_iterations"]
+        and session.get("stop_reason") not in _LAST_ATTEMPT
+    )
+
+
+def _next_actions(session: dict[str, Any]) -> list[str]:
+    """What the wizard offers on a session right now, in its own words; none on a closed one."""
+    status = session["status"]
+    if status in _CLOSED:
+        return []
+    if status in {"queued", "running"}:
+        return ["Stop the session"]
+    actions = []
+    waiting = _waiting(session)
+    if waiting is not None:
+        actions.append(f"Next step: {waiting['next_step']}")
+    if session.get("can_restart") is not False and _resumable(session):
+        actions.append("Retry this step" if status == "failed" else "Continue this step")
+    if status == "ready":
+        actions.append("Accept the chosen attempt")
+    if _can_try_again(session):
+        attempt = _attempts_used(session) + 1
+        actions.append(f"Try again (attempt {attempt} of {session['max_iterations']})")
+    if session.get("can_discard") is not False:
+        actions.append("End the session")
+    return actions
+
+
 def _session(agent_id: UUID | str, session: dict[str, Any]) -> dict[str, Any]:
     """A session as a listing reads it: where it stands, and what may still be done with it."""
     return {
         **{field: session.get(field) for field in _SESSION_FIELDS},
         "closed": session["status"] in _CLOSED,
+        "attempt": session.get("iteration"),
+        "max_attempts": session.get("max_iterations"),
         "can_accept": session["status"] == "ready",
+        "can_try_again": _can_try_again(session),
+        "next_actions": _next_actions(session),
         "waiting_for": _waiting(session),
         "outcome": _outcome(session),
         "link": improvement_link(agent_id, session["id"]),
@@ -905,7 +974,11 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
 
         `current_published_version` is the version live now; a session's
         `outcome.published_version` is only what it published then. The first
-        item is `newest` - the one to describe when asked how improving stands.
+        item is `newest` - the one to describe when asked how improving stands -
+        and carries `live_version` and, while it waits, the next step's `price`.
+        Every session lists its `next_actions`: what the wizard offers on it now,
+        in its words, empty once it is closed; `can_try_again` says whether
+        another attempt may start, at `attempt` of `max_attempts`.
         Each has its status, the step it is on, the attempt it reached, why it
         stopped and what it spent, the version it `started_from_version`, and
         `link` - the Improve wizard, where the person follows it. A `closed`
@@ -916,19 +989,21 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         sessions = await api.request("GET", f"/agents/{agent_id}/improvements")
         live, numbers = await _versions(agent_id)
         ordered = sorted(sessions, key=lambda session: session["created_at"], reverse=True)
-        return {
-            "current_published_version": live,
-            "items": [
-                {
-                    **_session(agent_id, session),
-                    **_history(session, live, numbers),
-                    "newest": index == 0,
+        items: list[dict[str, Any]] = [
+            {**_session(agent_id, session), **_history(session, live, numbers), "newest": False}
+            for session in ordered
+        ]
+        if items:
+            newest = items[0]
+            newest.update(newest=True, live_version=live)
+            if newest["waiting_for"] is not None:
+                newest["waiting_for"] = {
+                    **newest["waiting_for"],
+                    "price": await _next_step_price(agent_id, ordered[0]),
                 }
-                for index, session in enumerate(ordered)
-            ],
-        }
+        return {"current_published_version": live, "items": items}
 
-    async def _next_step_price(agent_id: str, session: dict[str, Any]) -> dict[str, Any]:
+    async def _next_step_price(agent_id: UUID | str, session: dict[str, Any]) -> dict[str, Any]:
         """The next step's quote within the session's limit, or why it cannot be quoted."""
         try:
             quote = await api.request(

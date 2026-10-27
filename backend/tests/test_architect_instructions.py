@@ -123,3 +123,15 @@ def test_how_improving_stands_is_told_from_the_newest_session_and_the_live_versi
     assert "`current_published_version`" in rule
     assert "never call it live" in rule
     assert "`why_stale`" in _bullet(instructions, "A closed session is a record")
+
+
+def test_what_can_be_done_now_is_read_from_next_actions_and_offered_as_them(
+    instructions: str,
+) -> None:
+    """It said a session stopped after a regression could not be continued, at attempt 1 of
+    3 with budget left, without naming the live version and without asking with options."""
+    rule = _bullet(instructions, "How improving stands is the newest session")
+    assert "Always name the live version from `live_version`" in rule
+    assert "never say a session cannot be continued" in rule
+    assert "while `next_actions` holds that action" in rule
+    assert "`ask_user_question` and its options are exactly `next_actions`" in rule
