@@ -916,20 +916,28 @@ desktop's menu shows, each by its name in the desktop's language and its id,
 the menu entry's file name. A `launch` action opens one of them by either,
 rather than by finding its icon. The match is exact, ignoring case: a name two
 entries share, such as a system and a Flatpak Firefox, is refused with their
-ids, and an unknown name is refused with a pointer to `computer_apps`. Every
-directory on the menu's search path is read (`$XDG_DATA_HOME` and
-`$XDG_DATA_DIRS`, so `/usr/local/share` and Flatpak's exports too), and the
-entry is opened with `exo-open`. The action returns once a new window appears
-or the focus moves, or after ten seconds, so the next screenshot shows the
-application. A launch takes a name only, never a path or arguments: no slash,
-no control character, and it starts with a letter or a digit.
+ids, and an unknown name is refused with a pointer to `computer_apps`. A launch
+takes a name only, never a path or arguments: no slash, no control character,
+and it starts with a letter or a digit.
+
+Every directory on the menu's search path is read (`$XDG_DATA_HOME` and
+`$XDG_DATA_DIRS`, so `/usr/local/share` and Flatpak's exports too) with its
+subdirectories: `kde/konsole.desktop` has the id `kde-konsole`. An entry the
+menu would not show is left out: hidden, not an application, meant for another
+desktop than XFCE, or naming a `TryExec` program that is not installed. The
+entry is opened with `exo-open`, and the action returns once a new window
+appears or the focus moves. If neither happens within ten seconds the launch
+fails and the rest of its batch does not run, so nothing is typed into the
+window that had the focus before.
 
 Launching works on Linux desktops only: a sandbox's, an E2B desktop and the
 computerd container, where the application runs as `desk`, not as the account
 that holds the token. A computerd on a Mac or on an operator's own Linux
 desktop, and the person's own computer reached through the desktop app, refuse
-`launch` and `computer_apps`: the model is told to use that computer's own
-launcher instead.
+`launch` and `computer_apps`. Through the desktop app the model is told to use
+that computer's own launcher instead; through a daemon, which may be either
+kind, it is told to call `computer_apps` first and use the computer's own
+launcher if that is refused.
 
 The `execute` tool is not needed, and leaving it off keeps the desktop's actions
 behind `computer_act` and its approval: with `execute`, the agent can run

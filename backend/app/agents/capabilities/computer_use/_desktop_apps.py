@@ -12,6 +12,8 @@ sentence on stderr and exit 1.
 
 import json
 import os
+import re
+import shutil
 import subprocess
 import sys
 import time
@@ -26,11 +28,21 @@ waits for computerd's answer.
 """
 
 WINDOW_SECONDS = 10.0
-"""How long `launch` waits for the application's window before returning anyway.
+"""How long `launch` waits for the application's window before saying none came.
 
-Some applications never show one (a tray icon), or bring an existing window to
-the front, and the screenshot after the action shows what happened.
+A window that came to the front counts, for an application already running.
+One that shows none, or is slower, fails the launch so that the rest of its batch
+does not type into whatever window had the focus before.
 """
+
+DESKTOP = "XFCE"
+"""The desktop `OnlyShowIn` and `NotShowIn` are read for when the session does not say.
+
+Every desktop computer use drives is XFCE, and neither a sandbox's command nor
+computerd's launcher runs inside the session that sets `XDG_CURRENT_DESKTOP`.
+"""
+
+_ESCAPES = {"s": " ", "n": "\n", "t": "\t", "r": "\r", "\\": "\\"}
 
 
 class AppError(Exception):
@@ -42,7 +54,7 @@ class App:
     """One entry the menu shows."""
 
     id: str
-    """The desktop entry's file name without `.desktop`: `org.mozilla.firefox`."""
+    """The desktop file id without `.desktop`: `org.mozilla.firefox`, or `vendor-foo` for `vendor/foo.desktop`."""
     name: str
     """What the menu calls it: the name in the desktop's language, else the untranslated one."""
     path: str
@@ -65,7 +77,7 @@ def _locale_keys(locale: str) -> list[str]:
 
 
 def _main_group(text: str) -> dict[str, str]:
-    """The `[Desktop Entry]` group's keys; an action's own `Name` is in another group."""
+    """The `[Desktop Entry]` group's keys, unescaped; an action's own `Name` is in another group."""
     keys: dict[str, str] = {}
     main = False
     for line in text.splitlines():
@@ -74,35 +86,54 @@ def _main_group(text: str) -> dict[str, str]:
         elif main:
             key, sep, value = line.partition("=")
             if sep:
-                keys.setdefault(key.strip(), value.strip())
+                unescaped = re.sub(r"\\(.)", lambda m: _ESCAPES.get(m[1], m[0]), value.strip())
+                keys.setdefault(key.strip(), unescaped)
     return keys
+
+
+def _shown(keys: dict[str, str], desktops: set[str], path: str | None) -> bool:
+    """Whether the menu shows an entry: the desktop entry specification's rules."""
+    if keys.get("Type") != "Application" or not keys.get("Name"):
+        return False
+    if "true" in (keys.get("NoDisplay"), keys.get("Hidden")):
+        return False
+    only = set(filter(None, keys.get("OnlyShowIn", "").split(";")))
+    if only and not only & desktops:
+        return False
+    if desktops & set(keys.get("NotShowIn", "").split(";")):
+        return False
+    try_exec = keys.get("TryExec")
+    return not try_exec or shutil.which(try_exec, path=path) is not None
 
 
 def installed(env: dict[str, str]) -> list[App]:
     """Every application the menu shows, by name.
 
-    The XDG search path, the user's own directory first: an entry there shadows
-    a system one with the same id even when it is hidden, which is how a user
-    hides a system application.
+    The XDG search path, the user's own directory first, each `applications`
+    directory with its subdirectories, whose names prefix the id. An entry
+    earlier on the path shadows a later one with the same id even when it is not
+    shown, which is how a user hides a system application.
     """
     home = env.get("XDG_DATA_HOME") or f"{env.get('HOME', '')}/.local/share"
     system = env.get("XDG_DATA_DIRS") or "/usr/local/share:/usr/share"
     order = _locale_keys(env.get("LC_ALL") or env.get("LC_MESSAGES") or env.get("LANG", ""))
+    desktops = set((env.get("XDG_CURRENT_DESKTOP") or DESKTOP).split(":"))
     apps: dict[str, App | None] = {}
     for directory in [home, *system.split(":")]:
-        for path in sorted(Path(directory, "applications").glob("*.desktop")):
-            if path.stem in apps:
+        root = Path(directory, "applications")
+        for path in sorted(root.rglob("*.desktop")):
+            app_id = str(path.relative_to(root)).removesuffix(".desktop").replace("/", "-")
+            if app_id in apps:
                 continue
             try:
                 keys = _main_group(path.read_text(errors="replace"))
             except OSError:
                 continue
-            default = keys.get("Name", "")
-            if not default or "true" in (keys.get("NoDisplay"), keys.get("Hidden")):
-                apps[path.stem] = None
+            if not _shown(keys, desktops, env.get("PATH")):
+                apps[app_id] = None
                 continue
-            name = next((keys[f"Name[{k}]"] for k in order if keys.get(f"Name[{k}]")), default)
-            apps[path.stem] = App(id=path.stem, name=name, path=str(path))
+            name = next((keys[f"Name[{k}]"] for k in order if keys.get(f"Name[{k}]")), keys["Name"])
+            apps[app_id] = App(id=app_id, name=name, path=str(path))
     return sorted((app for app in apps.values() if app), key=lambda app: app.name.casefold())
 
 
@@ -144,14 +175,15 @@ def _screen() -> tuple[set[str], str]:
 
 
 def launch(app: App) -> None:
-    """Open an application, and return once a new window shows, the focus moves or `WINDOW_SECONDS` pass.
+    """Open an application, and return once a new window shows or the focus moves.
 
     `exo-open` runs the entry as the menu would. It gets a session of its own
     and no pipes: the application inherits both, and a pipe it held open would
     hold this command open until the application quit.
 
     Raises:
-        AppError: `exo-open` failed or did not return.
+        AppError: `exo-open` failed or did not return, or no window came within
+            `WINDOW_SECONDS`.
     """
     windows, focus = _screen()
     try:
@@ -174,6 +206,10 @@ def launch(app: App) -> None:
         if now - windows or active != focus:
             return
         time.sleep(0.2)
+    raise AppError(
+        f"{app.name} was started, but no window of it came up within {WINDOW_SECONDS:g} "
+        "seconds. Take a screenshot to see whether it opened before acting on it."
+    )
 
 
 def main(argv: list[str], env: dict[str, str]) -> int:

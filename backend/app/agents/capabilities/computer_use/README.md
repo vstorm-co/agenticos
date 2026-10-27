@@ -105,13 +105,17 @@ finding an icon in a screenshot and clicking it is the slowest and least
 reliable way there. Listing and opening are the same code everywhere:
 `_desktop_apps.py`, standard library only, which a sandbox runs with
 `python3 -c` and the computerd image copies in beside the daemon. It reads the
-desktop entries on the XDG search path, an earlier directory's shadowing a
-later one with the same id, and names each in the desktop's locale. A launch
+desktop entries on the XDG search path and its subdirectories (whose names
+prefix the id), an earlier directory's shadowing a later one with the same id,
+and names each in the desktop's locale. It leaves out what the menu would not
+show: hidden entries, ones that are not applications, another desktop's
+(`OnlyShowIn` and `NotShowIn`, read for XFCE when `XDG_CURRENT_DESKTOP` is
+unset, as it is outside the session) and ones whose `TryExec` is missing. A launch
 must match an id or a name exactly, ignoring case, so it is never a guess: a
 name two entries share (a system and a Flatpak Firefox) is answered with their
 ids. It opens the entry with `exo-open` and returns once a new window shows or
-the focus moves, or after ten seconds, so the screenshot that follows has the
-application in it. The name is validated to a name - no slash, no leading
+the focus moves. If neither happens within ten seconds the launch fails, so the
+rest of its batch does not type into the window that had the focus before. The name is validated to a name - no slash, no leading
 dash, no control character - so it can never be a path or an option; other
 punctuation is allowed, because real names have it. computerd's container
 lists and opens through a launcher running as `desk`: computerd itself holds
@@ -120,8 +124,10 @@ the token.
 Only Linux desktops launch: a sandbox's, E2B's and computerd's container. A
 computerd without its container's launcher, on a Mac or a person's own Linux
 desktop, and the person's own computer through the desktop app refuse
-`launch` and `computer_apps`, and the model is told to use that computer's own
-launcher instead.
+`launch` and `computer_apps`. The desktop app's instructions name that
+computer's own launcher instead. A daemon cannot be told apart in advance, so
+its instructions say to call `computer_apps` first and fall back to the
+computer's own launcher if it is refused.
 
 **Limits:** `max_actions_per_call` bounds one batch. `max_actions` bounds a run;
 past it the tool tells the model to stop and report what is left. A `type`

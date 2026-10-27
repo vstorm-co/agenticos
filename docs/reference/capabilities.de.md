@@ -1,5 +1,5 @@
 ---
-source_sha: "a236f31803c1"
+source_sha: "0d973027b0e8"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1025,21 +1025,30 @@ ihrer ID, dem Dateinamen des Menüeintrags. Eine `launch`-Aktion öffnet eine
 davon über das eine oder das andere, statt ihr Symbol zu suchen. Der Vergleich
 ist exakt, ohne Rücksicht auf Groß- und Kleinschreibung: Ein Name, den zwei
 Einträge tragen, etwa ein System-Firefox und ein Flatpak-Firefox, wird mit ihren
-IDs abgelehnt, ein unbekannter Name mit dem Hinweis auf `computer_apps`. Gelesen
-wird jedes Verzeichnis des Menü-Suchpfads (`$XDG_DATA_HOME` und
-`$XDG_DATA_DIRS`, also auch `/usr/local/share` und die Exporte von Flatpak), und
-geöffnet wird der Eintrag mit `exo-open`. Die Aktion kehrt zurück, sobald ein
-neues Fenster erscheint oder der Fokus wechselt, spätestens nach zehn Sekunden,
-sodass der nächste Screenshot die Anwendung zeigt. `launch` nimmt nur einen
-Namen, nie einen Pfad oder Argumente: kein Schrägstrich, kein Steuerzeichen, und
-am Anfang steht ein Buchstabe oder eine Ziffer.
+IDs abgelehnt, ein unbekannter Name mit dem Hinweis auf `computer_apps`.
+`launch` nimmt nur einen Namen, nie einen Pfad oder Argumente: kein
+Schrägstrich, kein Steuerzeichen, und am Anfang steht ein Buchstabe oder eine
+Ziffer.
+
+Gelesen wird jedes Verzeichnis des Menü-Suchpfads (`$XDG_DATA_HOME` und
+`$XDG_DATA_DIRS`, also auch `/usr/local/share` und die Exporte von Flatpak)
+samt Unterverzeichnissen: `kde/konsole.desktop` hat die ID `kde-konsole`. Ein
+Eintrag, den das Menü nicht zeigen würde, fehlt: versteckt, keine Anwendung,
+für einen anderen Desktop als XFCE gedacht oder mit einem `TryExec`-Programm,
+das nicht installiert ist. Geöffnet wird der Eintrag mit `exo-open`, und die
+Aktion kehrt zurück, sobald ein neues Fenster erscheint oder der Fokus wechselt.
+Geschieht keins von beiden innerhalb von zehn Sekunden, schlägt der Start fehl
+und der Rest seines Stapels läuft nicht, sodass nichts in das Fenster getippt
+wird, das vorher den Fokus hatte.
 
 Anwendungen starten nur Linux-Desktops: der einer Sandbox, ein E2B-Desktop und
 der computerd-Container, in dem die Anwendung als `desk` läuft, nicht als das
 Konto, das den Token hält. Ein computerd auf einem Mac oder auf dem eigenen
 Linux-Desktop eines Betreibers und der eigene Computer der Person, erreicht über
-die Desktop-App, lehnen `launch` und `computer_apps` ab: Das Modell wird
-angewiesen, stattdessen den Starter dieses Computers zu benutzen.
+die Desktop-App, lehnen `launch` und `computer_apps` ab. Über die Desktop-App
+wird das Modell angewiesen, stattdessen den Starter dieses Computers zu
+benutzen; über einen Daemon, der beides sein kann, zuerst `computer_apps`
+aufzurufen und den Starter des Computers zu benutzen, wenn das abgelehnt wird.
 
 Das Tool `execute` wird nicht gebraucht, und wer es weglässt, hält die Aktionen
 auf dem Desktop hinter `computer_act` und dessen Freigabe: Mit `execute` kann

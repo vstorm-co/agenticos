@@ -1,5 +1,5 @@
 ---
-source_sha: "a236f31803c1"
+source_sha: "0d973027b0e8"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -983,21 +983,28 @@ id, el nombre de archivo de la entrada del menú. Una acción `launch` abre una 
 ellas por cualquiera de los dos, en lugar de buscar su icono. La coincidencia es
 exacta, sin distinguir mayúsculas: un nombre que comparten dos entradas, como un
 Firefox del sistema y uno de Flatpak, se rechaza con sus ids, y un nombre
-desconocido, con la indicación de llamar a `computer_apps`. Se lee cada
-directorio de la ruta de búsqueda del menú (`$XDG_DATA_HOME` y
+desconocido, con la indicación de llamar a `computer_apps`. `launch` acepta
+solo un nombre, nunca una ruta ni argumentos: sin barras ni caracteres de
+control, y empieza por una letra o un dígito.
+
+Se lee cada directorio de la ruta de búsqueda del menú (`$XDG_DATA_HOME` y
 `$XDG_DATA_DIRS`, así que también `/usr/local/share` y las exportaciones de
-Flatpak), y la entrada se abre con `exo-open`. La acción vuelve en cuanto
-aparece una ventana nueva o se mueve el foco, o a los diez segundos, así que la
-siguiente captura muestra la aplicación. `launch` acepta solo un nombre, nunca
-una ruta ni argumentos: sin barras ni caracteres de control, y empieza por una
-letra o un dígito.
+Flatpak) con sus subdirectorios: `kde/konsole.desktop` tiene el id
+`kde-konsole`. Se omite lo que el menú no mostraría: entradas ocultas, que no
+son aplicaciones, de otro escritorio que XFCE o con un `TryExec` no instalado.
+La entrada se abre con `exo-open`, y la acción vuelve en cuanto aparece una
+ventana nueva o se mueve el foco. Si nada de eso ocurre en diez segundos, el
+lanzamiento falla y el resto de su lote no se ejecuta, así que no se escribe
+nada en la ventana que tenía el foco antes.
 
 Solo los escritorios Linux abren aplicaciones: el de un sandbox, un escritorio
 de E2B y el contenedor de computerd, donde la aplicación se ejecuta como `desk`,
 no como la cuenta que guarda el token. Un computerd en un Mac o en el propio
 escritorio Linux de un operador, y el ordenador de la propia persona, al que se
-llega por la app de escritorio, rechazan `launch` y `computer_apps`: al modelo se
-le indica que use el lanzador de ese ordenador.
+llega por la app de escritorio, rechazan `launch` y `computer_apps`. A través de
+la app de escritorio, al modelo se le indica que use el lanzador de ese
+ordenador; a través de un daemon, que puede ser de un tipo o del otro, que llame
+primero a `computer_apps` y use el lanzador del ordenador si se rechaza.
 
 La tool `execute` no hace falta, y dejarla fuera mantiene las acciones del
 escritorio detrás de `computer_act` y de su aprobación: con `execute`, el agent

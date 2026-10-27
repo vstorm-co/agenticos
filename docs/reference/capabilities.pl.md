@@ -1,5 +1,5 @@
 ---
-source_sha: "a236f31803c1"
+source_sha: "0d973027b0e8"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -965,19 +965,28 @@ pliku wpisu menu. Akcja `launch` otwiera jedną z nich po jednym albo drugim,
 zamiast szukać jej ikony. Dopasowanie jest dokładne, bez względu na wielkość
 liter: nazwa, którą mają dwa wpisy, na przykład systemowy Firefox i Firefox z
 Flatpaka, jest odrzucana razem z ich identyfikatorami, a nieznana nazwa ze
-wskazówką, żeby wywołać `computer_apps`. Czytany jest każdy katalog ścieżki menu
-(`$XDG_DATA_HOME` i `$XDG_DATA_DIRS`, więc także `/usr/local/share` i eksporty
-Flatpaka), a wpis otwiera `exo-open`. Akcja wraca, gdy pojawi się nowe okno albo
-przesunie się fokus, a najpóźniej po dziesięciu sekundach, więc następny zrzut
-ekranu pokazuje aplikację. `launch` przyjmuje tylko nazwę, nigdy ścieżkę ani
-argumenty: bez ukośnika i znaków sterujących, a na początku litera albo cyfra.
+wskazówką, żeby wywołać `computer_apps`. `launch` przyjmuje tylko nazwę, nigdy
+ścieżkę ani argumenty: bez ukośnika i znaków sterujących, a na początku litera
+albo cyfra.
+
+Czytany jest każdy katalog ścieżki menu (`$XDG_DATA_HOME` i `$XDG_DATA_DIRS`,
+więc także `/usr/local/share` i eksporty Flatpaka) razem z podkatalogami:
+`kde/konsole.desktop` ma identyfikator `kde-konsole`. Wpis, którego menu by nie
+pokazało, jest pomijany: ukryty, niebędący aplikacją, przeznaczony dla innego
+pulpitu niż XFCE albo wskazujący w `TryExec` program, którego nie ma. Wpis
+otwiera `exo-open`, a akcja wraca, gdy pojawi się nowe okno albo przesunie się
+fokus. Jeśli w ciągu dziesięciu sekund nie stanie się ani jedno, ani drugie,
+uruchomienie się nie udaje i reszta partii akcji nie jest wykonywana, więc nic
+nie zostanie wpisane w okno, które wcześniej miało fokus.
 
 Uruchamianie działa tylko na pulpitach linuksowych: w sandboksie, na pulpicie
 E2B i w kontenerze computerd, gdzie aplikacja działa jako `desk`, a nie jako
 konto, które trzyma token. computerd na Macu albo na własnym pulpicie Linux
 operatora oraz własny komputer użytkownika, osiągany przez aplikację
-desktopową, odrzucają `launch` i `computer_apps`: model dostaje wskazówkę, żeby
-użył launchera tego komputera.
+desktopową, odrzucają `launch` i `computer_apps`. Przez aplikację desktopową
+model dostaje wskazówkę, żeby użył launchera tego komputera; przez demona,
+który może być jednym albo drugim, żeby najpierw wywołał `computer_apps`, a gdy
+zostanie odrzucone, użył launchera komputera.
 
 Narzędzie `execute` nie jest potrzebne, a jego wyłączenie trzyma akcje na
 pulpicie za `computer_act` i jego akceptacją: z `execute` agent może uruchomić

@@ -44,6 +44,13 @@ _BY_LAUNCHER = (
     "name on a Mac, the Start menu elsewhere; `launch` and `computer_apps` do not "
     "work here)"
 )
+# A daemon may be computerd's container, which launches, or computerd run on a
+# Mac or a Linux desktop of the operator's, which refuses; only asking tells.
+_BY_EITHER = (
+    "open an application with the `launch` action and a name `computer_apps` lists "
+    "if `computer_apps` lists any, or else with this computer's own launcher "
+    "(cmd+space and its name on a Mac, the Start menu elsewhere)"
+)
 
 
 @dataclass
@@ -111,8 +118,13 @@ class ComputerUse(AbstractCapability[AgentDepsT]):
         return self._instructions
 
     def _instructions(self, ctx: RunContext[Any]) -> str:
-        on_computer = self._on_persons_computer(ctx.workspace)
-        return _INSTRUCTIONS.format(opening=_BY_LAUNCHER if on_computer else _BY_LAUNCH)
+        if self._on_persons_computer(ctx.workspace):
+            opening = _BY_LAUNCHER
+        elif self.backend == "daemon":
+            opening = _BY_EITHER
+        else:
+            opening = _BY_LAUNCH
+        return _INSTRUCTIONS.format(opening=opening)
 
     def get_toolset(self) -> AbstractToolset[Any]:
         """The toolset providing `computer_screenshot` and `computer_act` (built once, then reused)."""

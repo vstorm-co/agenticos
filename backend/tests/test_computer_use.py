@@ -375,34 +375,44 @@ class TestTheLaunchAction:
             Launch(app=app)
 
 
-def _entry(data_dir: Path, app_id: str, text: str) -> None:
-    (data_dir / "applications").mkdir(parents=True, exist_ok=True)
-    (data_dir / "applications" / f"{app_id}.desktop").write_text(text)
+def _entry(data_dir: Path, name: str, text: str) -> None:
+    path = data_dir / "applications" / f"{name}.desktop"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
 
 
 @pytest.fixture
 def menu(tmp_path: Path) -> dict[str, str]:
     """A Polish desktop's search path: the user's own directory, then two system ones."""
     home, local, system = tmp_path / "home", tmp_path / "local", tmp_path / "system"
-    _entry(home, "firefox-esr", "[Desktop Entry]\nName=My Firefox\n")
-    _entry(home, "xfce4-web-browser", "[Desktop Entry]\nName=Web Browser\nHidden=true\n")
-    _entry(local, "org.mozilla.firefox", "[Desktop Entry]\nName=Firefox\n")
-    _entry(system, "firefox", "[Desktop Entry]\nName=Firefox\nName[pl]=\n")
-    _entry(system, "firefox-esr", "[Desktop Entry]\nName=Firefox ESR\n")
+    _entry(home, "firefox-esr", "[Desktop Entry]\nType=Application\nName=My Firefox\n")
+    _entry(
+        home,
+        "xfce4-web-browser",
+        "[Desktop Entry]\nType=Application\nName=Web Browser\nHidden=true\n",
+    )
+    _entry(local, "org.mozilla.firefox", "[Desktop Entry]\nType=Application\nName=Firefox\n")
+    _entry(system, "firefox", "[Desktop Entry]\nType=Application\nName=Firefox\nName[pl]=\n")
+    _entry(system, "firefox-esr", "[Desktop Entry]\nType=Application\nName=Firefox ESR\n")
     _entry(
         system,
         "xfce4-terminal-emulator",
-        "[Desktop Entry]\nName=Terminal Emulator\nName[de]=Terminal\n"
+        "[Desktop Entry]\nType=Application\nName=Terminal Emulator\nName[de]=Terminal\n"
         "Name[pl_PL]=Emulator terminala\nName[pl]=Terminal\n",
     )
     _entry(
         system,
         "xfce4-terminal",
-        "[Desktop Entry]\nName=Xfce Terminal\nName[pl]=Terminal Xfce\n\n"
+        "[Desktop Entry]\nType=Application\nName=Xfce Terminal\nName[pl]=Terminal Xfce\n\n"
         "[Desktop Action window]\nName=New Window\n",
     )
-    _entry(system, "xfce4-web-browser", "[Desktop Entry]\nName=Web Browser\n")
-    _entry(system, "thunar-settings", "[Desktop Entry]\nName=Settings\nNoDisplay=true\n")
+    _entry(system, "xfce4-web-browser", "[Desktop Entry]\nType=Application\nName=Web Browser\n")
+    _entry(
+        system,
+        "thunar-settings",
+        "[Desktop Entry]\nType=Application\nName=Settings\nNoDisplay=true\n",
+    )
+    _entry(system, "kde/konsole", "[Desktop Entry]\nType=Application\nName=Konsole\n")
     _entry(system, "broken", "")
     (system / "applications" / "unreadable.desktop").mkdir()
     return {"XDG_DATA_HOME": str(home), "XDG_DATA_DIRS": f"{local}:{system}", "LANG": "pl_PL.UTF-8"}
@@ -417,6 +427,7 @@ class TestTheDesktopsApplications:
             ("xfce4-terminal-emulator", "Emulator terminala"),
             ("org.mozilla.firefox", "Firefox"),
             ("firefox", "Firefox"),
+            ("kde-konsole", "Konsole"),
             ("firefox-esr", "My Firefox"),
             ("xfce4-terminal", "Terminal Xfce"),
         ]
@@ -424,8 +435,46 @@ class TestTheDesktopsApplications:
             "system/applications/xfce4-terminal.desktop"
         )
 
+    @pytest.mark.parametrize(
+        ("keys", "desktop", "shown"),
+        [
+            ("Type=Application", None, True),
+            ("Type=Link\nURL=https://example.com", None, False),
+            ("", None, False),
+            ("Type=Application\nOnlyShowIn=XFCE;", None, True),
+            ("Type=Application\nOnlyShowIn=KDE;GNOME;", None, False),
+            ("Type=Application\nOnlyShowIn=GNOME;", "ubuntu:GNOME", True),
+            ("Type=Application\nNotShowIn=XFCE;", None, False),
+            ("Type=Application\nNotShowIn=XFCE;", "GNOME", True),
+            ("Type=Application\nTryExec=present", None, True),
+            ("Type=Application\nTryExec=absent", None, False),
+        ],
+    )
+    def test_an_entry_is_listed_only_where_the_menu_would_show_it(
+        self, tmp_path: Path, keys: str, desktop: str | None, shown: bool
+    ):
+        """A desktop that does not say which it is is taken for XFCE, which every driven one runs."""
+        programs = tmp_path / "bin"
+        programs.mkdir()
+        (programs / "present").touch(mode=0o755)
+        _entry(tmp_path, "app", f"[Desktop Entry]\nName=App\n{keys}\n")
+        env = {"XDG_DATA_HOME": str(tmp_path), "XDG_DATA_DIRS": "/none", "PATH": str(programs)}
+        if desktop:
+            env["XDG_CURRENT_DESKTOP"] = desktop
+        assert [app.id for app in _desktop_apps.installed(env)] == (["app"] if shown else [])
+
+    def test_an_escaped_name_is_listed_and_found_as_it_reads(self, tmp_path: Path):
+        _entry(
+            tmp_path,
+            "editor",
+            "[Desktop Entry]\nType=Application\nName=Text\\sEditor\\\\Pro\\;\n",
+        )
+        [app] = _desktop_apps.installed({"XDG_DATA_HOME": str(tmp_path), "XDG_DATA_DIRS": "/none"})
+        assert app.name == "Text Editor\\Pro\\;"
+        assert _desktop_apps.find("text editor\\pro\\;", [app]) == app
+
     def test_the_users_own_directory_defaults_to_their_home(self, tmp_path: Path):
-        _entry(tmp_path / ".local/share", "mine", "[Desktop Entry]\nName=Mine\n")
+        _entry(tmp_path / ".local/share", "mine", "[Desktop Entry]\nType=Application\nName=Mine\n")
         env = {"HOME": str(tmp_path), "XDG_DATA_DIRS": str(tmp_path / "none")}
         assert [app.id for app in _desktop_apps.installed(env)] == ["mine"]
 
@@ -448,7 +497,7 @@ class TestTheDesktopsApplications:
         names = "".join(
             f"Name[{key}]={key}\n" for key in ("sr_RS@latin", "sr_RS", "sr@latin", "sr")
         )
-        _entry(tmp_path, "term", f"[Desktop Entry]\nName=untranslated\n{names}")
+        _entry(tmp_path, "term", f"[Desktop Entry]\nType=Application\nName=untranslated\n{names}")
         [app] = _desktop_apps.installed(
             {**env, "XDG_DATA_HOME": str(tmp_path), "XDG_DATA_DIRS": "/none"}
         )
@@ -462,6 +511,7 @@ class TestTheDesktopsApplications:
             ("Emulator terminala", "xfce4-terminal-emulator"),
             ("firefox", "firefox"),
             ("org.mozilla.firefox", "org.mozilla.firefox"),
+            ("kde-konsole", "kde-konsole"),
         ],
     )
     def test_an_id_or_a_name_finds_its_application_exactly(
@@ -557,13 +607,19 @@ class TestLaunchingAnApplication:
         assert {kwargs[name] for name in ("stdin", "stdout", "stderr")} == {subprocess.DEVNULL}
         assert (fake.waited, fake.polls) == (1, [appeared])
 
-    def test_an_application_that_shows_no_window_is_left_to_the_screenshot(
+    def test_an_application_that_shows_no_window_fails_the_launch(
         self, screen: Callable[..., _Screen], monkeypatch: pytest.MonkeyPatch
     ):
-        monkeypatch.setattr(_desktop_apps, "WINDOW_SECONDS", 0.0)
+        """Or the rest of the batch types into the window that had the focus before."""
+        monkeypatch.setattr(_desktop_apps.time, "monotonic", iter([0.0, 0.0, 10.5]).__next__)
         fake = screen(("1", "1"))
-        _desktop_apps.launch(_APP)
-        assert (len(fake.opened), fake.waited) == (1, 0)
+        with pytest.raises(
+            _desktop_apps.AppError,
+            match=r"^Firefox ESR was started, but no window of it came up within 10 seconds\. "
+            r"Take a screenshot to see whether it opened before acting on it\.$",
+        ):
+            _desktop_apps.launch(_APP)
+        assert (len(fake.opened), fake.waited) == (1, 1)
 
     def test_a_failed_or_hung_open_is_a_sentence(self, screen: Callable[..., _Screen]):
         screen(("1", "1"), exit_code=2)

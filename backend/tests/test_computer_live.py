@@ -202,18 +202,25 @@ async def test_the_capability_selects_the_chosen_native_or_e2b_desktop(
 
 
 @pytest.mark.parametrize(
-    ("backend", "on_device", "launch"),
+    ("backend", "on_device", "launch", "launcher"),
     [
-        ("auto", True, False),
-        ("local", False, False),
-        ("auto", False, True),
-        ("daemon", True, True),
+        ("auto", True, False, True),
+        ("local", False, False, True),
+        ("auto", False, True, False),
+        ("sandbox", False, True, False),
+        ("daemon", True, True, True),
     ],
 )
 def test_launch_is_recommended_only_where_the_desktop_has_it(
-    backend: Literal["auto", "local", "daemon"], on_device: bool, launch: bool
+    backend: Literal["auto", "local", "sandbox", "daemon"],
+    on_device: bool,
+    launch: bool,
+    launcher: bool,
 ) -> None:
-    """The desktop app refuses `launch`; told so up front, the model skips the refused round trip."""
+    """The desktop app refuses `launch`; told so up front, the model skips the refused round trip.
+
+    A daemon may or may not launch, so the model is told to ask `computer_apps` first.
+    """
     from uuid import uuid4
 
     from pydantic_ai.models.test import TestModel
@@ -234,4 +241,5 @@ def test_launch_is_recommended_only_where_the_desktop_has_it(
     ctx = RunContext(deps=None, model=TestModel(), usage=RunUsage(), workspace=workspace)
     instructions = ComputerUse(backend=backend).get_instructions()(ctx)
     assert ("with the `launch` action" in instructions) is launch
-    assert ("cmd+space" in instructions) is not launch
+    assert ("cmd+space" in instructions) is launcher
+    assert ("do not work here" in instructions) is not launch
