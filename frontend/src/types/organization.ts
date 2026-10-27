@@ -115,6 +115,12 @@ export interface Organization {
    */
   ai_assistance_enabled: boolean;
   /**
+   * The model profile new judges grade on, one of the organization's chat models.
+   * Null picks one per agent: a model that costs more than the agent's it grades.
+   * Judges that already exist keep their model either way.
+   */
+  grading_model_profile_id?: string | null;
+  /**
    * A provider from the speech-to-text catalog: the default agents and channel
    * bots inherit when they transcribe with a provider.
    */

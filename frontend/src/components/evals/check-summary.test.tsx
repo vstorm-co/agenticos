@@ -55,6 +55,24 @@ describe("CheckSummary", () => {
     );
   });
 
+  it("says a length check's bounds in its unit, and where in a JSON answer", () => {
+    expect(said({ type: "length", unit: "words", max: 50 })).toEqual({
+      text: "At most 50 words",
+      title: 'length {"unit":"words","max":50}',
+    });
+    expect(said({ type: "length", min: 1 }).text).toBe("At least 1 character");
+    expect(said({ type: "length", unit: "words", min: 1 }).text).toBe("At least 1 word");
+    expect(said({ type: "length", unit: "characters", max: 280 }).text).toBe(
+      "At most 280 characters",
+    );
+    expect(said({ type: "length", unit: "words", min: 20, max: 60, path: "summary" }).text).toBe(
+      "In summary: Between 20 and 60 words",
+    );
+    expect(said({ type: "length", unit: "characters", min: 2, max: 9 }).text).toBe(
+      "Between 2 and 9 characters",
+    );
+  });
+
   it("shows a check type it does not know as stored", () => {
     render(<CheckSummary check={{ type: "future_rule", value: "x" }} />);
     expect(screen.getByText("future_rule x").tagName).toBe("CODE");

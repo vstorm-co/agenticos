@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { contentOf, draftOf, EMPTY_DRAFT, expectsSomething } from "./case-form";
+import {
+  checkDraft,
+  checksOf,
+  contentOf,
+  draftOf,
+  EMPTY_DRAFT,
+  expectsSomething,
+  lengthFields,
+  sameCheck,
+} from "./case-form";
 
 const CASE = {
   input: "How long is the return window?",
@@ -121,6 +130,69 @@ describe("the case draft", () => {
     );
     expect(expectsSomething({ ...only, checks: [{ type: "contains", value: "", rest: {} }] })).toBe(
       true,
+    );
+  });
+});
+
+describe("a length check", () => {
+  it("reads back what it was made from, and leaves out a blank path", () => {
+    const stored = { type: "length", unit: "words", min: 10, max: 50, path: "data.summary" };
+    expect(checkDraft(stored)).toEqual({
+      type: "length",
+      value: "50",
+      rest: { unit: "words", min: "10", path: "data.summary" },
+    });
+    expect(checksOf([checkDraft(stored)]).checks).toEqual([stored]);
+    expect(checksOf([checkDraft({ type: "length", max: 80 })]).checks).toEqual([
+      { type: "length", unit: "characters", min: null, max: 80 },
+    ]);
+  });
+
+  it("counts characters until told otherwise, as a fresh draft", () => {
+    expect(lengthFields({ type: "length", value: "", rest: {} })).toEqual({
+      unit: "characters",
+      min: "",
+      path: "",
+    });
+  });
+
+  it("needs a bound, whole numbers, and a least not above the most", () => {
+    const draft = (min: string, max: string) => ({
+      type: "length",
+      value: max,
+      rest: { unit: "words", min, path: " " },
+    });
+    expect(checksOf([draft("", " ")]).problems).toEqual(["checkEmpty"]);
+    expect(checksOf([draft("1.5", "")]).problems).toEqual(["notNumber"]);
+    expect(checksOf([draft("", "-3")]).problems).toEqual(["notNumber"]);
+    expect(checksOf([draft("9", "3")]).problems).toEqual(["lengthRange"]);
+    expect(checksOf([draft(" 3 ", "3")]).checks).toEqual([
+      { type: "length", unit: "words", min: 3, max: 3 },
+    ]);
+  });
+});
+
+describe("sameCheck", () => {
+  it("compares what a check checks, not the defaults the server filled in", () => {
+    const pattern = checkDraft({ type: "regex", value: "^Hi" });
+    expect(
+      sameCheck(pattern, checkDraft({ type: "regex", value: "^Hi", case_sensitive: false })),
+    ).toBe(true);
+    expect(sameCheck(pattern, checkDraft({ type: "regex", value: "^Hello" }))).toBe(false);
+    expect(sameCheck(pattern, checkDraft({ type: "contains", value: "^Hi" }))).toBe(false);
+  });
+
+  it("tells length checks apart by their unit, least and path", () => {
+    const most = checkDraft({ type: "length", unit: "words", max: 50 });
+    expect(sameCheck(most, checkDraft({ type: "length", unit: "words", min: null, max: 50 }))).toBe(
+      true,
+    );
+    expect(sameCheck(most, checkDraft({ type: "length", max: 50 }))).toBe(false);
+    expect(sameCheck(most, checkDraft({ type: "length", unit: "words", min: 1, max: 50 }))).toBe(
+      false,
+    );
+    expect(sameCheck(most, checkDraft({ type: "length", unit: "words", max: 50, path: "a" }))).toBe(
+      false,
     );
   });
 });

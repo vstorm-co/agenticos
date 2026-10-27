@@ -364,6 +364,24 @@ describe("useOrganizations", () => {
     await waitFor(() => expect(result.current.orgs[0]?.ai_assistance_enabled).toBe(false));
   });
 
+  it("sets and clears the grading model with only that field, and keeps the answer", async () => {
+    const result = await hook();
+    vi.mocked(apiClient.patch).mockResolvedValue(org({ grading_model_profile_id: "p2" }));
+
+    await result.current.setGradingModel("org-1", "p2");
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/orgs/org-1", {
+      grading_model_profile_id: "p2",
+    });
+    await waitFor(() => expect(result.current.orgs[0]?.grading_model_profile_id).toBe("p2"));
+
+    vi.mocked(apiClient.patch).mockResolvedValue(org({ grading_model_profile_id: null }));
+    await result.current.setGradingModel("org-1", null);
+    expect(apiClient.patch).toHaveBeenLastCalledWith("/orgs/org-1", {
+      grading_model_profile_id: null,
+    });
+  });
+
   it("sends the voice settings in one PATCH and caches the answer", async () => {
     // One request, because the server validates them together: a provider
     // without its model is refused whole.

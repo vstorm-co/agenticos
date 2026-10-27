@@ -26,6 +26,15 @@ function textRule(type: string, value: string): TextRule {
     : { key: "pattern", value };
 }
 
+/** A length check as its bounds: at least, at most, or between, in words or characters. */
+function lengthRule(t: ReturnType<typeof useTranslations>, check: CaseCheck): string {
+  const unit = check.unit === "words" ? "words" : "characters";
+  const { min, max } = check;
+  if (typeof min !== "number") return t("lengthAtMost", { unit, count: Number(max) });
+  if (typeof max !== "number") return t("lengthAtLeast", { unit, count: min });
+  return t("lengthBetween", { unit, min, max });
+}
+
 /** One check of a case in words, with the check as stored behind it on hover. */
 export function CheckSummary({ check }: { check: CaseCheck }) {
   const t = useTranslations("evals.case.expect.check");
@@ -54,6 +63,11 @@ export function CheckSummary({ check }: { check: CaseCheck }) {
     case "json_schema":
       rule = t("jsonSchema");
       break;
+    case "length": {
+      const said = lengthRule(t, check);
+      rule = typeof check.path === "string" ? t("atPath", { path: check.path, rule: said }) : said;
+      break;
+    }
     case "judge":
       rule = t("judge", { criterion: String(check.criterion) });
       break;

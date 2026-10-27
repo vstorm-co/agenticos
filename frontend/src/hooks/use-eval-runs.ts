@@ -345,16 +345,21 @@ export function useDatasetEvalRuns(
  * The agent's runs of its draft, newest first: of the draft as it stands now
  * (`current`), or of another draft since the latest version was published
  * (`earlier`) - the test the draft has moved away from. A check of suggestions
- * since accepted counts as a test of the draft it made.
+ * since accepted counts as a test of the draft it made. The latest alone unless
+ * `limit` asks for more.
  */
 export function useDraftEvalRuns(
   agentId: string | null,
-  { enabled = true, draft = "current" }: { enabled?: boolean; draft?: "current" | "earlier" } = {},
+  {
+    enabled = true,
+    draft = "current",
+    limit = 1,
+  }: { enabled?: boolean; draft?: "current" | "earlier"; limit?: number } = {},
 ) {
   const query = useQuery({
-    queryKey: qk.evalRuns.forDraft(agentId ?? "", draft),
+    queryKey: qk.evalRuns.forDraft(agentId ?? "", draft, limit),
     queryFn: () =>
-      apiClient.get<EvalRunList>(`/agents/${agentId}/eval-runs?draft=${draft}&limit=1`),
+      apiClient.get<EvalRunList>(`/agents/${agentId}/eval-runs?draft=${draft}&limit=${limit}`),
     enabled: enabled && agentId !== null,
   });
   return {

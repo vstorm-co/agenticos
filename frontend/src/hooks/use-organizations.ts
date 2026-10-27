@@ -268,6 +268,19 @@ export function useOrganizations() {
     [writeCache, queryClient],
   );
 
+  // The model new judges grade on; null picks one per agent by price.
+  const setGradingModel = useCallback(
+    async (id: string, profileId: string | null): Promise<Organization> => {
+      const updated = await apiClient.patch<Organization>(`/orgs/${id}`, {
+        grading_model_profile_id: profileId,
+      });
+      writeCache((prev) => prev.map((o) => (o.id === id ? updated : o)));
+      queryClient.setQueryData(qk.organizations.detail(id), updated);
+      return updated;
+    },
+    [writeCache, queryClient],
+  );
+
   // Five fields in one request, because the server validates them together: a
   // provider without its model, or `server` without either, is refused whole.
   const setVoiceSettings = useCallback(
@@ -319,6 +332,7 @@ export function useOrganizations() {
     setWelcomeDm,
     setChatApprovalWaiver,
     setAiAssistance,
+    setGradingModel,
     setVoiceSettings,
     deleteOrg,
     switchOrg,

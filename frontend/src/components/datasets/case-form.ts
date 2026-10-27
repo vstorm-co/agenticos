@@ -38,7 +38,9 @@ export function argText(value: unknown): string {
 /**
  * One check: its type, its main parameter as the editor shows it, and whatever
  * else the stored check carries - a `path`, `case_sensitive` - kept as it was.
- * A check of a type this build does not know keeps everything in `rest`.
+ * A check of a type this build does not know keeps everything in `rest`. A
+ * length check holds its most in `value` and its unit, least and path in `rest`,
+ * each as the editor shows it (see `lengthFields`).
  */
 export interface CheckDraft {
   type: string;
@@ -82,8 +84,27 @@ export const CHECK_KINDS = {
   json_schema: { key: "schema", as: "json" },
   max_cost_usd: { key: "value", as: "number" },
   max_latency_ms: { key: "value", as: "number" },
+  length: { key: "max", as: "length" },
   judge: { key: "criterion", as: "text" },
 } as const;
+
+export type LengthUnit = "characters" | "words";
+
+/** A length check's other fields as the editor writes them: blank is no least and no path. */
+export interface LengthFields {
+  unit: LengthUnit;
+  min: string;
+  path: string;
+}
+
+/** The unit, least and path of a length check's draft; a fresh one counts characters. */
+export function lengthFields(check: CheckDraft): LengthFields {
+  return {
+    unit: check.rest.unit === "words" ? "words" : "characters",
+    min: typeof check.rest.min === "string" ? check.rest.min : "",
+    path: typeof check.rest.path === "string" ? check.rest.path : "",
+  };
+}
 
 export type CheckType = keyof typeof CHECK_KINDS;
 
@@ -110,8 +131,33 @@ export function checkDraft(check: CaseCheck): CheckDraft {
   if (!isKnownCheck(type)) return { type, value: "", rest: given };
   const { key, as } = CHECK_KINDS[type];
   const { [key]: main, ...rest } = given;
+  if (as === "length") {
+    const text = (bound: unknown) => (typeof bound === "number" ? String(bound) : "");
+    const fields: LengthFields = {
+      unit: rest.unit === "words" ? "words" : "characters",
+      min: text(rest.min),
+      path: typeof rest.path === "string" ? rest.path : "",
+    };
+    return { type, value: text(main), rest: { ...fields } };
+  }
   const value = main === undefined ? "" : as === "json" ? JSON.stringify(main) : String(main);
   return { type, value, rest };
+}
+
+/**
+ * Whether two drafts check the same thing: the type and what it checks, and for
+ * a length check its unit, least and path. Whatever else a stored check carries -
+ * a default the server filled in - does not make it another rule.
+ */
+export function sameCheck(a: CheckDraft, b: CheckDraft): boolean {
+  if (a.type !== b.type || a.value.trim() !== b.value.trim()) return false;
+  if (a.type !== "length") return true;
+  const [left, right] = [lengthFields(a), lengthFields(b)];
+  return (
+    left.unit === right.unit &&
+    left.min.trim() === right.min.trim() &&
+    left.path.trim() === right.path.trim()
+  );
 }
 
 export function draftOf(content: DatasetCaseContent): CaseDraft {
@@ -149,7 +195,7 @@ export function expectsSomething(draft: CaseDraft): boolean {
 /** What went wrong reading a draft: the field, and the catalog key saying how. */
 export type DraftProblem = {
   field: CaseField;
-  key: "schemaNotObject" | "notNumber" | "checkEmpty";
+  key: "schemaNotObject" | "notNumber" | "checkEmpty" | "lengthRange";
 };
 
 function asObject(text: string): Record<string, unknown> | null {
@@ -163,9 +209,28 @@ function asObject(text: string): Record<string, unknown> | null {
   }
 }
 
+/** A whole number of characters or words, null when blank, NaN when it is not one. */
+function lengthBound(text: string): number | null {
+  const trimmed = text.trim();
+  if (trimmed === "") return null;
+  return /^\d+$/.test(trimmed) ? Number(trimmed) : Number.NaN;
+}
+
+function lengthOf(check: CheckDraft): CaseCheck | DraftProblem["key"] {
+  const { unit, min: least, path } = lengthFields(check);
+  const min = lengthBound(least);
+  const max = lengthBound(check.value);
+  if (min === null && max === null) return "checkEmpty";
+  if (Number.isNaN(min) || Number.isNaN(max)) return "notNumber";
+  if (min !== null && max !== null && min > max) return "lengthRange";
+  const where = path.trim();
+  return { type: "length", unit, min, max, ...(where === "" ? {} : { path: where }) };
+}
+
 function checkOf(check: CheckDraft): CaseCheck | DraftProblem["key"] {
   if (!isKnownCheck(check.type)) return { type: check.type, ...check.rest };
   const { key, as } = CHECK_KINDS[check.type];
+  if (as === "length") return lengthOf(check);
   const text = check.value.trim();
   if (text === "") return "checkEmpty";
   if (as === "number") {

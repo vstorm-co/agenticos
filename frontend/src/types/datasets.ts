@@ -35,6 +35,16 @@ export interface CaseCheck {
   [parameter: string]: unknown;
 }
 
+/** How long an answer, or the value at `path`, may be: at least one bound, `min` not above `max`. */
+export interface LengthCheck extends CaseCheck {
+  type: "length";
+  /** Characters by default; words are runs of anything but whitespace. */
+  unit?: "characters" | "words";
+  min?: number | null;
+  max?: number | null;
+  path?: string | null;
+}
+
 /** Everything a person writes about one case. */
 export interface DatasetCaseContent {
   input: string;

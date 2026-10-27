@@ -20,12 +20,12 @@ import { useSetScoring } from "@/hooks/use-scoring";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { getErrorMessage } from "@/lib/api-error";
 import { scoringProblem, ungradedCases } from "@/lib/scoring";
-import type { Dataset } from "@/types/datasets";
+import type { CaseCheck, Dataset } from "@/types/datasets";
 import { Perm } from "@/types/permissions";
 import type { DatasetScoring, ReviewSelect } from "@/types/scoring";
 import { AiAssistanceNotice } from "./ai-assistance-notice";
 import { CaseChecksEditor } from "./case-checks-editor";
-import { checkDraft, checksOf, type CheckDraft } from "./case-form";
+import { checkDraft, checksOf, sameCheck, type CheckDraft } from "./case-form";
 import { CreateJudgeDialog } from "./create-judge-dialog";
 import { GradingCard } from "./grading-card";
 import { GradingSaveBar } from "./grading-save-bar";
@@ -99,6 +99,16 @@ export function GradingPanel({
   const unsaved = dirty(PASSES) || dirty(JUDGING) || dirty(REVIEW);
   const ungraded = ungradedCases(draft, dataset.stats, defaults.length);
   const of = (count: number) => t("coverage", { count, total: dataset.case_count });
+  // A rule suggested under a criterion joins the checks every case gets, and turns them on.
+  const rules = {
+    has: (check: CaseCheck) => defaults.some((kept) => sameCheck(kept, checkDraft(check))),
+    onAdd: disabled
+      ? undefined
+      : (check: CaseCheck) => {
+          setDefaults((current) => [...current, checkDraft(check)]);
+          setDraft((current) => ({ ...current, checks: { ...current.checks, enabled: true } }));
+        },
+  };
 
   useEffect(() => onDirtyChange?.(unsaved), [onDirtyChange, unsaved]);
   useUnsavedChanges(`grading:${dataset.id}`, {
@@ -218,6 +228,7 @@ export function GradingPanel({
           disabled={modelBacked}
           onCreate={canEdit && can(Perm.agentsEdit) ? () => setCreating(true) : undefined}
           focusRubric={focusRubric}
+          rules={rules}
         />
       </GradingCard>
 

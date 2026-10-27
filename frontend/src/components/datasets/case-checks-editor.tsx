@@ -21,6 +21,7 @@ import {
   type CheckDraft,
   type CheckType,
 } from "./case-form";
+import { LengthValue } from "./length-value";
 
 /** Placeholders that are what is typed - a pattern, a schema, a number - rather than copy. */
 const TYPED: Partial<Record<CheckType, string>> = {
@@ -39,14 +40,14 @@ interface CaseChecksEditorProps {
 /** The main parameter of one check, written the way its type takes it. */
 function CheckValue({
   check,
-  label,
+  number,
   disabled,
   onChange,
 }: {
   check: CheckDraft;
-  label: string;
+  number: number;
   disabled: boolean;
-  onChange: (value: string) => void;
+  onChange: (patch: Partial<CheckDraft>) => void;
 }) {
   const t = useTranslations("datasets");
   if (!isKnownCheck(check.type)) {
@@ -57,6 +58,10 @@ function CheckValue({
     );
   }
   const { as } = CHECK_KINDS[check.type];
+  if (as === "length") {
+    return <LengthValue check={check} number={number} disabled={disabled} onChange={onChange} />;
+  }
+  const label = t("checkValue", { number });
   const placeholder = TYPED[check.type] ?? t(`checkPlaceholder.${check.type}`);
   if (as === "json" || check.type === "judge") {
     return (
@@ -67,7 +72,7 @@ function CheckValue({
         aria-label={label}
         className={as === "json" ? "font-mono text-xs" : undefined}
         placeholder={placeholder}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={(event) => onChange({ value: event.target.value })}
       />
     );
   }
@@ -78,7 +83,7 @@ function CheckValue({
       inputMode={as === "number" ? "decimal" : undefined}
       aria-label={label}
       placeholder={placeholder}
-      onChange={(event) => onChange(event.target.value)}
+      onChange={(event) => onChange({ value: event.target.value })}
     />
   );
 }
@@ -122,8 +127,8 @@ export function CaseChecksEditor({ checks, onChange, disabled = false }: CaseChe
           <CheckValue
             check={check}
             disabled={disabled}
-            label={t("checkValue", { number: index + 1 })}
-            onChange={(value) => change(index, { value })}
+            number={index + 1}
+            onChange={(patch) => change(index, patch)}
           />
           <Button
             disabled={disabled}

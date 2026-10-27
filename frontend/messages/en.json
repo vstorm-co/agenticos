@@ -7149,7 +7149,12 @@
       "switchOrganizationHint": "Switch to this organization before configuring proactivity so its model profiles and keys are used.",
       "switchOrganization": "Switch to {name}",
       "runAttribution": "Background checks appear under the published AgenticOS starter agent in Activity. This assignment is fixed by the platform. They use the proactivity model selected below, independently of the agent’s own model."
-    }
+    },
+    "gradingModel": "Grading model",
+    "gradingModelAutomatic": "Automatic - a model that costs more than the agent's",
+    "gradingModelHint": "New judges grade on this model. Judges that already exist keep theirs.",
+    "gradingModelSaved": "Grading model saved",
+    "gradingModelFailed": "Could not change the grading model"
   },
   "theme": {
     "darkMode": "Dark mode",
@@ -8195,7 +8200,17 @@
         "didNotComplete": "The run did not complete. Open its check for the reason."
       },
       "foundInKnowledge": "Found in the knowledge base",
-      "knowledgeDocument": "A document"
+      "knowledgeDocument": "A document",
+      "yesNoHint": "Phrase each criterion as a yes/no question - the judge grades those most consistently.",
+      "useYesNo": "Use yes/no grading",
+      "ruleSuggestion": {
+        "offer": "A rule can check this one: <rule></rule>",
+        "added": "A rule every case gets checks this one: <rule></rule>",
+        "add": "Add the rule",
+        "startsWith": "Starts with “{text}”",
+        "bullets": "Has a bulleted list",
+        "json": "Is a JSON object"
+      }
     },
     "title": "Datasets",
     "pageDescription": "The questions your agents are tested on. Every change to a dataset's cases makes a new version, so two eval runs on one version saw the same questions.",
@@ -8411,7 +8426,8 @@
       "json_schema": "Matches a JSON schema",
       "max_cost_usd": "Costs at most (USD)",
       "max_latency_ms": "Answers within (ms)",
-      "judge": "Judge criterion"
+      "judge": "Judge criterion",
+      "length": "Has a length"
     },
     "checkPlaceholder": {
       "contains": "30 days",
@@ -8464,6 +8480,20 @@
       "train": "Train",
       "holdout": "Holdout",
       "shareInvalid": "Enter a percentage from 0 to 100 in steps of 0.1."
+    },
+    "lengthRange": "A length check's least is above its most.",
+    "lengthCheck": {
+      "unit": "Check {number}: what it counts",
+      "units": {
+        "characters": "Characters",
+        "words": "Words"
+      },
+      "min": "Check {number}: at least",
+      "max": "Check {number}: at most",
+      "minPlaceholder": "At least",
+      "maxPlaceholder": "At most",
+      "path": "Check {number}: where in a JSON answer",
+      "pathPlaceholder": "Where in a JSON answer (optional)"
     }
   },
   "knowledgeGaps": {
@@ -9904,7 +9934,10 @@
           "maxCost": "Costs at most {amount}",
           "maxLatency": "Answers within {duration}",
           "jsonSchema": "The answer matches a JSON schema",
-          "judge": "Judged on: {criterion}"
+          "judge": "Judged on: {criterion}",
+          "lengthAtMost": "{unit, select, words {At most {count, plural, one {# word} other {# words}}} other {At most {count, plural, one {# character} other {# characters}}}}",
+          "lengthAtLeast": "{unit, select, words {At least {count, plural, one {# word} other {# words}}} other {At least {count, plural, one {# character} other {# characters}}}}",
+          "lengthBetween": "{unit, select, words {Between {min} and {max} words} other {Between {min} and {max} characters}}"
         }
       },
       "notGraded": "not graded: {reason}",
@@ -11044,7 +11077,8 @@
       "changed": "Changed version",
       "passed": "Passed",
       "failed": "Failed",
-      "notGraded": "Not graded"
+      "notGraded": "Not graded",
+      "checksHint": "Under each criterion a rule can check, <link>the grading tab</link> offers the rule."
     },
     "retryStep": "Retry this step within the spending limit",
     "stopAction": "Stop the session",
@@ -11242,7 +11276,7 @@
       "unknown_model": "The agent's model is unknown, so the grader may share it.",
       "shares_model": "The grader uses the same model as the agent and may favour answers like its own."
     },
-    "todayCheckBody": "Ask today's version the test questions once, to see how it does before anything changes.",
+    "todayCheckBody": "Ask the draft the test questions, to see how it does before anything changes.",
     "todayCheckQuote": "{count, plural, one {# question} other {# questions}}, about {cost} (estimate).",
     "todayChecking": "Testing today's answers… You can close this page.",
     "todayHandled": "Today the agent handles {passed} of {total} questions well.",
@@ -11360,7 +11394,16 @@
     },
     "knowledgeAddedHint": "These answers came before a document covering them was added, so there is nothing left to draft. Ask again to check the agent now finds it.",
     "knowledgeAddedOn": "{dated, select, yes {Added {date}:} other {Added since:}} <link>{name}</link>",
-    "noKnowledgeTopics": "{added, plural, =0 {This session found nothing missing from the knowledge base, so there is no draft to test.} one {Nothing to test: the one topic this session found missing has since been added to the knowledge base.} other {Nothing to test: the # topics this session found missing have since been added to the knowledge base.}}"
+    "noKnowledgeTopics": "{added, plural, =0 {This session found nothing missing from the knowledge base, so there is no draft to test.} one {Nothing to test: the one topic this session found missing has since been added to the knowledge base.} other {Nothing to test: the # topics this session found missing have since been added to the knowledge base.}}",
+    "todayLoading": "Looking for an earlier test of the draft…",
+    "todayTwice": "Ask each question twice",
+    "todayTwiceHint": "Shows whether the answers or their grading change when nothing else does.",
+    "todayUnstable": "{unstable, plural, one {# of {asked} questions was graded differently when asked again.} other {# of {asked} questions were graded differently when asked again.}}",
+    "todayNoisy": "This session will most likely show nothing: the answers or the grading are unstable.",
+    "todayNoisyCriteria": "Make the grading criteria yes/no questions",
+    "todayNoisyCriteriaHint": "Phrase each criterion as a yes/no question - the judge grades those most consistently.",
+    "todayNoisyModel": "Choose the grading model",
+    "todayAgain": "Test again"
   },
   "unsaved": {
     "title": "You have unsaved changes",

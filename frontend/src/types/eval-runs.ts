@@ -12,7 +12,7 @@ import type { CaseScore } from "./scoring";
 
 export type EvalRunStatus =
   "queued" | "running" | "completed" | "cancelled" | "failed" | "budget_exceeded";
-export type EvalRunPurpose = "manual" | "gate";
+export type EvalRunPurpose = "manual" | "gate" | "stability";
 export type ArmRole = "candidate" | "baseline";
 export type ArmSource = "version" | "draft" | "explicit";
 export type AttemptStatus = "pending" | "running" | "done" | "failed" | "skipped";
@@ -45,6 +45,12 @@ export interface EvalRunRequest {
   from_recordings: boolean;
   live_reads: boolean;
   reruns?: number | null;
+  /**
+   * Compare nothing and ask every case `reruns` more times - once by default -
+   * to see how steady the answers and their grading are. Takes the draft, and
+   * neither a paired baseline nor an earlier run.
+   */
+  stability?: boolean;
 }
 
 /**
@@ -218,6 +224,8 @@ export interface EvalRun {
   routed_replacing: number;
   /** The model the judge graded this run on; null when none did. */
   judge_model_profile_id: string | null;
+  /** A stability run's count of cases graded both ways; null for any other run. */
+  stability?: EvalStability | null;
   /** Why the run could not send its scores to review itself; null when it could. */
   routing_error: { code: string; message: string } | null;
   /** This run's scores no scorer reached a verdict on and no person decided. */
@@ -238,6 +246,18 @@ export interface EvalRun {
   started_at: string | null;
   ended_at: string | null;
   arms: EvalRunArm[];
+}
+
+/**
+ * How steady a stability run found the answers and their grading: `asked`
+ * cases had a graded first answer and a graded re-ask, `unstable` of them were
+ * graded passing once and failing once, and `noisy` says so many were that
+ * comparing two versions on these cases would most likely show nothing.
+ */
+export interface EvalStability {
+  asked: number;
+  unstable: number;
+  noisy: boolean;
 }
 
 export interface EvalRunList {

@@ -9,9 +9,12 @@ import { ROUTES } from "@/lib/constants";
 /** The organization page's AI assistance switch, as a hash and a `data-tour` anchor. */
 export const AI_ASSISTANCE_ANCHOR = "org-ai-assistance";
 
-/** Where the switch is: the organization page's Governance tab, scrolled to it. */
-export function aiAssistanceHref(orgId: string): string {
-  return `${ROUTES.ORG_MEMBERS(orgId)}?tab=governance#${AI_ASSISTANCE_ANCHOR}`;
+/** The grading model's setting, in the same section as the switch. */
+export const GRADING_MODEL_ANCHOR = "org-grading-model";
+
+/** Where the switch is - or another anchor in its section: the Governance tab, scrolled to it. */
+export function aiAssistanceHref(orgId: string, anchor: string = AI_ASSISTANCE_ANCHOR): string {
+  return `${ROUTES.ORG_MEMBERS(orgId)}?tab=governance#${anchor}`;
 }
 
 /**
@@ -21,15 +24,18 @@ export function aiAssistanceHref(orgId: string): string {
  */
 export function EnableAiAssistanceLink({
   orgId,
+  anchor = AI_ASSISTANCE_ANCHOR,
   children,
 }: {
   orgId: string;
+  /** Another setting of the section to land on, the grading model's say. */
+  anchor?: string;
   children: ReactNode;
 }) {
   return (
     <Link
-      href={aiAssistanceHref(orgId)}
-      onClick={() => void pointAt(AI_ASSISTANCE_ANCHOR)}
+      href={aiAssistanceHref(orgId, anchor)}
+      onClick={() => void pointAt(anchor)}
       className="font-medium underline"
     >
       {children}

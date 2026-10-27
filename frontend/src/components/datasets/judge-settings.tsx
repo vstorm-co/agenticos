@@ -4,8 +4,9 @@ import { useState } from "react";
 import { TriangleAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { ConfirmDialog, Input } from "@/components/ui";
+import { Button, ConfirmDialog, Input } from "@/components/ui";
 import type { DatasetScoring } from "@/types/scoring";
+import type { RuleChecks } from "./criterion-rule";
 import { JudgePicker } from "./judge-picker";
 import { RubricEditor } from "./rubric-editor";
 import { ScorerRow } from "./scorer-row";
@@ -27,6 +28,8 @@ interface JudgeSettingsProps {
   counterExampleCoverage: string;
   /** Changed to put the cursor in the rubric's first criterion. */
   focusRubric?: number;
+  /** The dataset's rules, which a criterion a rule can check offers to add to. */
+  rules?: RuleChecks;
 }
 
 /**
@@ -51,10 +54,12 @@ export function JudgeSettings({
   focusRubric,
   tagGroups,
   totalCases,
+  rules,
 }: JudgeSettingsProps) {
   const t = useTranslations("datasets.scoring");
   const [switching, setSwitching] = useState<string | null | undefined>(undefined);
   const changed = judge.agent_id !== stored.agent_id;
+  const yesNo = judge.scale_max === 2 && judge.pass_at === 2;
   // Moving away from the judge the scores were graded by is asked once; coming
   // back to it is not, since the scores compare again.
   const pick = (agentId: string | null) =>
@@ -117,7 +122,18 @@ export function JudgeSettings({
             ),
           })}
         </p>
+        {!yesNo && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={disabled}
+            onClick={() => onJudge({ ...judge, scale_max: 2, pass_at: 2 })}
+          >
+            {t("useYesNo")}
+          </Button>
+        )}
         <RubricEditor
+          rules={rules}
           criteria={judge.criteria}
           tagGroups={tagGroups}
           totalCases={totalCases}

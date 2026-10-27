@@ -383,6 +383,12 @@ describe("useDraftEvalRuns", () => {
     await waitFor(() => expect(result.current.runs).toHaveLength(1));
     expect(apiClient.get).toHaveBeenCalledWith("/agents/agent-1/eval-runs?draft=earlier&limit=1");
   });
+  it("reads more than the latest when asked to", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [evalRun()], total: 1 });
+    const { result } = renderHook(() => useDraftEvalRuns("agent-1", { limit: 20 }), { wrapper });
+    await waitFor(() => expect(result.current.runs).toHaveLength(1));
+    expect(apiClient.get).toHaveBeenCalledWith("/agents/agent-1/eval-runs?draft=current&limit=20");
+  });
 });
 
 describe("useRecentEvalRuns", () => {

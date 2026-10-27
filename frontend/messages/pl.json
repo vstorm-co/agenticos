@@ -6918,7 +6918,12 @@
       "switchOrganizationHint": "Przełącz się na tę organizację przed konfiguracją proaktywności, aby korzystać z jej profili modeli i kluczy.",
       "switchOrganization": "Przełącz na {name}",
       "runAttribution": "Sprawdzenia w tle są widoczne w Activity pod opublikowanym agentem startowym AgenticOS. To przypisanie jest stałe w platformie. Korzystają z wybranego poniżej modelu proaktywności, niezależnie od modelu samego agenta."
-    }
+    },
+    "gradingModel": "Model oceniający",
+    "gradingModelAutomatic": "Automatycznie - model droższy niż model agenta",
+    "gradingModelHint": "Nowi sędziowie oceniają na tym modelu. Sędziowie, którzy już istnieją, zachowują swój.",
+    "gradingModelSaved": "Zapisano model oceniający",
+    "gradingModelFailed": "Nie udało się zmienić modelu oceniającego"
   },
   "theme": {
     "darkMode": "Tryb ciemny",
@@ -7968,7 +7973,17 @@
         "didNotComplete": "Run nie zakończył się poprawnie. Otwórz sprawdzenie, aby poznać powód."
       },
       "foundInKnowledge": "Znalezione w bazie wiedzy",
-      "knowledgeDocument": "Dokument"
+      "knowledgeDocument": "Dokument",
+      "yesNoHint": "Formułuj każde kryterium jako pytanie tak/nie - takie sędzia ocenia najbardziej spójnie.",
+      "useYesNo": "Oceniaj tak/nie",
+      "ruleSuggestion": {
+        "offer": "To kryterium może sprawdzać reguła: <rule></rule>",
+        "added": "To kryterium sprawdza już reguła, którą dostaje każdy przypadek: <rule></rule>",
+        "add": "Dodaj regułę",
+        "startsWith": "Zaczyna się od „{text}”",
+        "bullets": "Ma listę punktowaną",
+        "json": "Jest obiektem JSON"
+      }
     },
     "title": "Datasety",
     "pageDescription": "Pytania, na których testujesz agentów. Każda zmiana przypadków w datasecie tworzy nową wersję, więc dwa runy ewaluacji na jednej wersji widziały te same pytania.",
@@ -8184,7 +8199,8 @@
       "json_schema": "Pasuje do schematu JSON",
       "max_cost_usd": "Kosztuje najwyżej (USD)",
       "max_latency_ms": "Odpowiada w (ms)",
-      "judge": "Kryterium sędziego"
+      "judge": "Kryterium sędziego",
+      "length": "Ma długość"
     },
     "checkPlaceholder": {
       "contains": "30 dni",
@@ -8237,6 +8253,20 @@
       "train": "Uczące",
       "holdout": "Kontrolne",
       "shareInvalid": "Wpisz procent od 0 do 100 z dokładnością do 0,1."
+    },
+    "lengthRange": "Najmniejsza długość w sprawdzeniu długości jest większa niż największa.",
+    "lengthCheck": {
+      "unit": "Sprawdzenie {number}: co liczy",
+      "units": {
+        "characters": "Znaki",
+        "words": "Słowa"
+      },
+      "min": "Sprawdzenie {number}: co najmniej",
+      "max": "Sprawdzenie {number}: najwyżej",
+      "minPlaceholder": "Co najmniej",
+      "maxPlaceholder": "Najwyżej",
+      "path": "Sprawdzenie {number}: gdzie w odpowiedzi JSON",
+      "pathPlaceholder": "Gdzie w odpowiedzi JSON (opcjonalnie)"
     }
   },
   "knowledgeGaps": {
@@ -9076,7 +9106,10 @@
           "maxCost": "Kosztuje najwyżej {amount}",
           "maxLatency": "Odpowiada w ciągu {duration}",
           "jsonSchema": "Odpowiedź pasuje do schematu JSON",
-          "judge": "Kryterium sędziego: {criterion}"
+          "judge": "Kryterium sędziego: {criterion}",
+          "lengthAtMost": "{unit, select, words {Najwyżej {count, plural, one {# słowo} few {# słowa} many {# słów} other {# słowa}}} other {Najwyżej {count, plural, one {# znak} few {# znaki} many {# znaków} other {# znaku}}}}",
+          "lengthAtLeast": "{unit, select, words {Co najmniej {count, plural, one {# słowo} few {# słowa} many {# słów} other {# słowa}}} other {Co najmniej {count, plural, one {# znak} few {# znaki} many {# znaków} other {# znaku}}}}",
+          "lengthBetween": "{unit, select, words {Od {min} do {max} słów} other {Od {min} do {max} znaków}}"
         }
       },
       "notGraded": "bez oceny: {reason}",
@@ -10827,7 +10860,8 @@
       "changed": "Zmieniona wersja",
       "passed": "Zaliczone",
       "failed": "Niezaliczone",
-      "notGraded": "Nieocenione"
+      "notGraded": "Nieocenione",
+      "checksHint": "Pod każdym kryterium, które może sprawdzać reguła, <link>zakładka oceny</link> proponuje tę regułę."
     },
     "retryStep": "Ponów ten krok w ramach limitu",
     "stopAction": "Zatrzymaj sesję",
@@ -11025,7 +11059,7 @@
       "unknown_model": "Model agenta jest nieznany, więc oceniający może go współdzielić.",
       "shares_model": "Oceniający używa tego samego modelu co agent i może faworyzować podobne odpowiedzi."
     },
-    "todayCheckBody": "Zadaj dzisiejszej wersji pytania testowe raz, by zobaczyć, jak radzi sobie, zanim cokolwiek się zmieni.",
+    "todayCheckBody": "Zadaj wersji roboczej pytania testowe, by zobaczyć, jak radzi sobie, zanim cokolwiek się zmieni.",
     "todayCheckQuote": "{count, plural, one {# pytanie} few {# pytania} many {# pytań} other {# pytania}}, około {cost} (szacunek).",
     "todayChecking": "Testujemy dzisiejsze odpowiedzi… Możesz zamknąć tę stronę.",
     "todayHandled": "Dziś agent dobrze obsługuje {passed} z {total} pytań.",
@@ -11143,7 +11177,16 @@
     },
     "knowledgeAddedHint": "Te odpowiedzi powstały, zanim dodano dokument, który je obejmuje, więc nie ma już czego szkicować. Zapytaj ponownie, żeby sprawdzić, czy agent go teraz znajduje.",
     "knowledgeAddedOn": "{dated, select, yes {Dodano {date}:} other {Dodano od tego czasu:}} <link>{name}</link>",
-    "noKnowledgeTopics": "{added, plural, =0 {Ta sesja nie znalazła braków w bazie wiedzy, więc nie ma szkicu do przetestowania.} one {Nie ma czego testować: jedyny temat, którego brakowało według tej sesji, został już dodany do bazy wiedzy.} few {Nie ma czego testować: # tematy, których brakowało według tej sesji, zostały już dodane do bazy wiedzy.} many {Nie ma czego testować: # tematów, których brakowało według tej sesji, zostało już dodanych do bazy wiedzy.} other {Nie ma czego testować: # tematu, których brakowało według tej sesji, zostało już dodanych do bazy wiedzy.}}"
+    "noKnowledgeTopics": "{added, plural, =0 {Ta sesja nie znalazła braków w bazie wiedzy, więc nie ma szkicu do przetestowania.} one {Nie ma czego testować: jedyny temat, którego brakowało według tej sesji, został już dodany do bazy wiedzy.} few {Nie ma czego testować: # tematy, których brakowało według tej sesji, zostały już dodane do bazy wiedzy.} many {Nie ma czego testować: # tematów, których brakowało według tej sesji, zostało już dodanych do bazy wiedzy.} other {Nie ma czego testować: # tematu, których brakowało według tej sesji, zostało już dodanych do bazy wiedzy.}}",
+    "todayLoading": "Szukam wcześniejszego testu wersji roboczej…",
+    "todayTwice": "Zadaj każde pytanie dwa razy",
+    "todayTwiceHint": "Pokazuje, czy odpowiedzi albo ich ocena zmieniają się, gdy nic innego się nie zmienia.",
+    "todayUnstable": "{unstable} {asked, plural, one {z # pytania} other {z # pytań}} oceniono inaczej przy ponownym zadaniu.",
+    "todayNoisy": "Ta sesja najpewniej niczego nie pokaże: odpowiedzi albo ocena są niestabilne.",
+    "todayNoisyCriteria": "Zamień kryteria oceny na pytania tak/nie",
+    "todayNoisyCriteriaHint": "Formułuj każde kryterium jako pytanie tak/nie - takie sędzia ocenia najbardziej spójnie.",
+    "todayNoisyModel": "Wybierz model oceniający",
+    "todayAgain": "Testuj ponownie"
   },
   "unsaved": {
     "title": "Masz niezapisane zmiany",

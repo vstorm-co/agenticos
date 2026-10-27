@@ -7032,7 +7032,12 @@
       "switchOrganizationHint": "Wechsle vor dem Konfigurieren der Proaktivität zu dieser Organisation, damit ihre Modellprofile und Schlüssel verwendet werden.",
       "switchOrganization": "Zu {name} wechseln",
       "runAttribution": "Hintergrundprüfungen erscheinen in Activity unter dem veröffentlichten AgenticOS-Startagenten. Diese Zuordnung ist in der Plattform festgelegt. Sie verwenden das unten gewählte Proaktivitätsmodell, unabhängig vom eigenen Modell des Agenten."
-    }
+    },
+    "gradingModel": "Bewertungsmodell",
+    "gradingModelAutomatic": "Automatisch - ein Modell, das mehr kostet als das des Agents",
+    "gradingModelHint": "Neue Bewerter benoten mit diesem Modell. Bestehende Bewerter behalten ihres.",
+    "gradingModelSaved": "Bewertungsmodell gespeichert",
+    "gradingModelFailed": "Das Bewertungsmodell konnte nicht geändert werden"
   },
   "theme": {
     "darkMode": "Dunkler Modus",
@@ -8078,7 +8083,17 @@
         "didNotComplete": "Der Run wurde nicht abgeschlossen. Öffnen Sie die Prüfung für den Grund."
       },
       "foundInKnowledge": "In der Wissensdatenbank gefunden",
-      "knowledgeDocument": "Ein Dokument"
+      "knowledgeDocument": "Ein Dokument",
+      "yesNoHint": "Formulieren Sie jedes Kriterium als Ja/Nein-Frage - solche benotet der Bewerter am beständigsten.",
+      "useYesNo": "Ja/Nein-Benotung verwenden",
+      "ruleSuggestion": {
+        "offer": "Dieses Kriterium kann eine Regel prüfen: <rule></rule>",
+        "added": "Dieses Kriterium prüft schon eine Regel, die jeder Fall bekommt: <rule></rule>",
+        "add": "Regel hinzufügen",
+        "startsWith": "Beginnt mit „{text}“",
+        "bullets": "Hat eine Aufzählung",
+        "json": "Ist ein JSON-Objekt"
+      }
     },
     "title": "Datasets",
     "pageDescription": "Die Fragen, an denen Ihre Agents getestet werden. Jede Änderung an den Fällen eines Datasets erzeugt eine neue Version, sodass zwei Eval-Runs auf einer Version dieselben Fragen gesehen haben.",
@@ -8294,7 +8309,8 @@
       "json_schema": "Passt zu einem JSON-Schema",
       "max_cost_usd": "Kostet höchstens (USD)",
       "max_latency_ms": "Antwortet innerhalb (ms)",
-      "judge": "Bewerter-Kriterium"
+      "judge": "Bewerter-Kriterium",
+      "length": "Hat eine Länge"
     },
     "checkPlaceholder": {
       "contains": "30 Tage",
@@ -8347,6 +8363,20 @@
       "train": "Training",
       "holdout": "Zurückgehalten",
       "shareInvalid": "Geben Sie einen Prozentsatz von 0 bis 100 in Schritten von 0,1 ein."
+    },
+    "lengthRange": "Die Mindestlänge einer Längenprüfung liegt über ihrer Höchstlänge.",
+    "lengthCheck": {
+      "unit": "Prüfung {number}: was sie zählt",
+      "units": {
+        "characters": "Zeichen",
+        "words": "Wörter"
+      },
+      "min": "Prüfung {number}: mindestens",
+      "max": "Prüfung {number}: höchstens",
+      "minPlaceholder": "Mindestens",
+      "maxPlaceholder": "Höchstens",
+      "path": "Prüfung {number}: wo in einer JSON-Antwort",
+      "pathPlaceholder": "Wo in einer JSON-Antwort (optional)"
     }
   },
   "knowledgeGaps": {
@@ -9787,7 +9817,10 @@
           "maxCost": "Kostet höchstens {amount}",
           "maxLatency": "Antwortet innerhalb von {duration}",
           "jsonSchema": "Die Antwort passt zu einem JSON-Schema",
-          "judge": "Bewerter-Kriterium: {criterion}"
+          "judge": "Bewerter-Kriterium: {criterion}",
+          "lengthAtMost": "{unit, select, words {Höchstens {count, plural, one {# Wort} other {# Wörter}}} other {Höchstens {count, plural, one {# Zeichen} other {# Zeichen}}}}",
+          "lengthAtLeast": "{unit, select, words {Mindestens {count, plural, one {# Wort} other {# Wörter}}} other {Mindestens {count, plural, one {# Zeichen} other {# Zeichen}}}}",
+          "lengthBetween": "{unit, select, words {Zwischen {min} und {max} Wörtern} other {Zwischen {min} und {max} Zeichen}}"
         }
       },
       "notGraded": "nicht bewertet: {reason}",
@@ -10927,7 +10960,8 @@
       "changed": "Geänderte Version",
       "passed": "Bestanden",
       "failed": "Nicht bestanden",
-      "notGraded": "Nicht bewertet"
+      "notGraded": "Nicht bewertet",
+      "checksHint": "Unter jedem Kriterium, das eine Regel prüfen kann, bietet <link>der Bewertungs-Tab</link> die Regel an."
     },
     "retryStep": "Schritt innerhalb des Limits wiederholen",
     "stopAction": "Sitzung stoppen",
@@ -11125,7 +11159,7 @@
       "unknown_model": "Das Modell des Agents ist unbekannt, daher teilt der Bewerter es womöglich.",
       "shares_model": "Der Bewerter nutzt dasselbe Modell wie der Agent und bevorzugt womöglich ähnliche Antworten."
     },
-    "todayCheckBody": "Stellen Sie der heutigen Version die Testfragen einmal, um zu sehen, wie sie abschneidet, bevor sich etwas ändert.",
+    "todayCheckBody": "Stellen Sie dem Entwurf die Testfragen, um zu sehen, wie er abschneidet, bevor sich etwas ändert.",
     "todayCheckQuote": "{count, plural, one {# Frage} other {# Fragen}}, etwa {cost} (Schätzung).",
     "todayChecking": "Die heutigen Antworten werden getestet… Sie können diese Seite schließen.",
     "todayHandled": "Heute beantwortet der Agent {passed} von {total} Fragen gut.",
@@ -11243,7 +11277,16 @@
     },
     "knowledgeAddedHint": "Diese Antworten entstanden, bevor ein Dokument dazu hinzugefügt wurde, daher gibt es nichts mehr zu entwerfen. Fragen Sie erneut, um zu prüfen, ob der Agent es jetzt findet.",
     "knowledgeAddedOn": "{dated, select, yes {Hinzugefügt am {date}:} other {Inzwischen hinzugefügt:}} <link>{name}</link>",
-    "noKnowledgeTopics": "{added, plural, =0 {Diese Sitzung hat keine Lücken in der Wissensdatenbank gefunden, daher gibt es keinen Entwurf zum Testen.} one {Nichts zu testen: Das eine Thema, das laut dieser Sitzung fehlte, wurde inzwischen zur Wissensdatenbank hinzugefügt.} other {Nichts zu testen: Die # Themen, die laut dieser Sitzung fehlten, wurden inzwischen zur Wissensdatenbank hinzugefügt.}}"
+    "noKnowledgeTopics": "{added, plural, =0 {Diese Sitzung hat keine Lücken in der Wissensdatenbank gefunden, daher gibt es keinen Entwurf zum Testen.} one {Nichts zu testen: Das eine Thema, das laut dieser Sitzung fehlte, wurde inzwischen zur Wissensdatenbank hinzugefügt.} other {Nichts zu testen: Die # Themen, die laut dieser Sitzung fehlten, wurden inzwischen zur Wissensdatenbank hinzugefügt.}}",
+    "todayLoading": "Suche nach einem früheren Test des Entwurfs…",
+    "todayTwice": "Jede Frage zweimal stellen",
+    "todayTwiceHint": "Zeigt, ob sich die Antworten oder ihre Benotung ändern, wenn sich sonst nichts ändert.",
+    "todayUnstable": "{unstable, plural, one {# von {asked} Fragen wurde beim erneuten Stellen anders benotet.} other {# von {asked} Fragen wurden beim erneuten Stellen anders benotet.}}",
+    "todayNoisy": "Diese Sitzung zeigt sehr wahrscheinlich nichts: Die Antworten oder die Benotung sind instabil.",
+    "todayNoisyCriteria": "Die Bewertungskriterien zu Ja/Nein-Fragen machen",
+    "todayNoisyCriteriaHint": "Formulieren Sie jedes Kriterium als Ja/Nein-Frage - solche benotet der Bewerter am beständigsten.",
+    "todayNoisyModel": "Das Bewertungsmodell wählen",
+    "todayAgain": "Erneut testen"
   },
   "unsaved": {
     "title": "Du hast ungespeicherte Änderungen",

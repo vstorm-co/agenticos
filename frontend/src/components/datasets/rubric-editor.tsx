@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 
 import { Button, IconButton, Input, Switch, Textarea } from "@/components/ui";
 import type { RubricCriterion } from "@/types/scoring";
+import { CriterionRule, type RuleChecks } from "./criterion-rule";
 import { CriterionScope } from "./criterion-scope";
 
 interface RubricEditorProps {
@@ -16,6 +17,8 @@ interface RubricEditorProps {
   disabled?: boolean;
   /** Changed to put the cursor in the first criterion's description, selected. */
   focusKey?: number;
+  /** The dataset's rules, under which a criterion a rule can check offers it. */
+  rules?: RuleChecks;
 }
 
 /** The judge's rubric: named criteria, each graded on the scale and required or not. */
@@ -26,6 +29,7 @@ export function RubricEditor({
   focusKey = 0,
   tagGroups = [],
   totalCases = 0,
+  rules,
 }: RubricEditorProps) {
   const t = useTranslations("datasets.scoring");
   const first = useRef<HTMLTextAreaElement>(null);
@@ -39,6 +43,7 @@ export function RubricEditor({
 
   return (
     <div className="space-y-3">
+      <p className="text-muted-foreground text-xs">{t("yesNoHint")}</p>
       {criteria.map((criterion, index) => (
         <div key={index} className="space-y-2 rounded-md border p-3">
           <div className="flex items-center gap-2">
@@ -83,6 +88,7 @@ export function RubricEditor({
             disabled={disabled}
             rows={2}
           />
+          {rules && <CriterionRule criterion={criterion} rules={rules} />}
         </div>
       ))}
       <Button

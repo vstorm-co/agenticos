@@ -2,7 +2,11 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { AI_ASSISTANCE_ANCHOR, EnableAiAssistanceLink } from "./enable-ai-assistance-link";
+import {
+  AI_ASSISTANCE_ANCHOR,
+  EnableAiAssistanceLink,
+  GRADING_MODEL_ANCHOR,
+} from "./enable-ai-assistance-link";
 
 const pointAt = vi.hoisted(() => vi.fn().mockResolvedValue(true));
 vi.mock("@/lib/assistant-highlight", () => ({ pointAt }));
@@ -15,5 +19,18 @@ describe("EnableAiAssistanceLink", () => {
     expect(link).toHaveAttribute("href", `/orgs/o1/members?tab=governance#${AI_ASSISTANCE_ANCHOR}`);
     await userEvent.click(link);
     expect(pointAt).toHaveBeenCalledWith(AI_ASSISTANCE_ANCHOR);
+  });
+
+  it("lands on another setting of the section when named", async () => {
+    render(
+      <EnableAiAssistanceLink orgId="o1" anchor={GRADING_MODEL_ANCHOR}>
+        Grading model
+      </EnableAiAssistanceLink>,
+    );
+
+    const link = screen.getByRole("link", { name: "Grading model" });
+    expect(link).toHaveAttribute("href", `/orgs/o1/members?tab=governance#${GRADING_MODEL_ANCHOR}`);
+    await userEvent.click(link);
+    expect(pointAt).toHaveBeenCalledWith(GRADING_MODEL_ANCHOR);
   });
 });

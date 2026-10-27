@@ -754,3 +754,101 @@ it("disables every default-check control for a reader", () => {
   expect(screen.getByRole("button", { name: "Remove check 1" })).toBeDisabled();
   expect(screen.getByRole("combobox", { name: "Check 1: type" })).toBeDisabled();
 });
+
+it("grades yes or no in one click, and stops offering it once it does", async () => {
+  panel(JUDGED);
+  expect(screen.getByText(/Phrase each criterion as a yes\/no question/)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Use yes/no grading" }));
+  expect(screen.queryByRole("button", { name: "Use yes/no grading" })).toBeNull();
+  await userEvent.click(saveAll());
+  await waitFor(() => expect(state.save).toHaveBeenCalled());
+  expect(saved().judge).toMatchObject({ scale_max: 2, pass_at: 2 });
+});
+
+it("offers no yes/no switch to a rubric already graded yes or no", () => {
+  panel({ ...JUDGED, judge: { ...JUDGED.judge, scale_max: 2, pass_at: 2 } });
+  expect(screen.queryByRole("button", { name: "Use yes/no grading" })).toBeNull();
+});
+
+it("adds the rule a criterion's words suggest to the checks every case gets, turning them on", async () => {
+  panel({
+    ...JUDGED,
+    checks: { enabled: false, required: false, defaults: [] },
+    judge: {
+      ...JUDGED.judge,
+      criteria: [
+        { name: "brevity", description: "At most 50 words", required: true },
+        { name: "tone", description: "Polite", required: true },
+      ],
+    },
+  });
+  expect(screen.getByText("At most 50 words", { selector: "span[title]" })).toBeInTheDocument();
+  expect(screen.getAllByText(/A rule can check this one/)).toHaveLength(1);
+  await userEvent.click(screen.getByRole("button", { name: "Add the rule" }));
+  expect(screen.getByText(/A rule every case gets/).closest("[role=status]")).toHaveTextContent(
+    "A rule every case gets checks this one: At most 50 words",
+  );
+  expect(screen.queryByRole("button", { name: "Add the rule" })).toBeNull();
+  expect(screen.getByRole("textbox", { name: "Check 1: at most" })).toHaveValue("50");
+  await userEvent.click(saveAll());
+  await waitFor(() => expect(state.save).toHaveBeenCalled());
+  expect(saved().checks).toEqual({
+    enabled: true,
+    required: false,
+    defaults: [{ type: "length", unit: "words", min: null, max: 50 }],
+  });
+});
+
+it("shows a reader the rule a criterion suggests, with nothing to add it with", () => {
+  panel(
+    {
+      ...JUDGED,
+      judge: {
+        ...JUDGED.judge,
+        criteria: [{ name: "format", description: "Answers in bullet points", required: true }],
+      },
+    },
+    { can_edit: false },
+  );
+  expect(screen.getByText(/A rule can check this one/)).toHaveTextContent("Has a bulleted list");
+  expect(screen.queryByRole("button", { name: "Add the rule" })).toBeNull();
+});
+
+it("says an opening and JSON the way a person would", () => {
+  panel({
+    ...JUDGED,
+    judge: {
+      ...JUDGED.judge,
+      criteria: [
+        { name: "greeting", description: 'Starts with "Dear customer"', required: true },
+        { name: "shape", description: "Returns valid JSON", required: true },
+      ],
+    },
+  });
+  expect(screen.getByText("Starts with “Dear customer”")).toBeInTheDocument();
+  expect(screen.getByText("Is a JSON object")).toBeInTheDocument();
+});
+
+it("writes a length check: what it counts, its bounds and where", async () => {
+  panel(JUDGED);
+  await userEvent.click(screen.getByRole("combobox", { name: "Check 1: type" }));
+  await userEvent.click(screen.getByRole("option", { name: "Has a length" }));
+  await userEvent.click(screen.getByRole("combobox", { name: "Check 1: what it counts" }));
+  await userEvent.click(screen.getByRole("option", { name: "Words" }));
+  await userEvent.type(screen.getByRole("textbox", { name: "Check 1: at least" }), "60");
+  await userEvent.type(screen.getByRole("textbox", { name: "Check 1: at most" }), "20");
+  await userEvent.type(
+    screen.getByRole("textbox", { name: "Check 1: where in a JSON answer" }),
+    "summary",
+  );
+  await userEvent.click(saveAll());
+  expect(await screen.findByText("A length check's least is above its most.")).toBeInTheDocument();
+  expect(state.save).not.toHaveBeenCalled();
+  await userEvent.clear(screen.getByRole("textbox", { name: "Check 1: at least" }));
+  await userEvent.type(screen.getByRole("textbox", { name: "Check 1: at least" }), "10");
+  await userEvent.click(saveAll());
+  await waitFor(() => expect(state.save).toHaveBeenCalled());
+  expect(saved().checks.defaults).toEqual([
+    { type: "length", unit: "words", min: 10, max: 20, path: "summary" },
+  ]);
+});

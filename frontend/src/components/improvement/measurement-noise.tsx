@@ -30,15 +30,30 @@ export function noiseSentence(
     : t(`${key}Unstable`, { unstable: noise.unstable, heldOut: noise.held_out });
 }
 
-/** Where the test is made reliable: its grading, its questions and its judge. */
+/**
+ * Where the test is made reliable: its grading, its questions and its judge. The
+ * rules a criterion's words suggest are offered under each criterion on the
+ * dataset's grading tab, which this links to rather than reading the rubric here.
+ */
 export function NoiseActions({ session }: { session: Improvement }) {
   const t = useTranslations("improvement.noise");
   const { agents } = useAgentsOfKind("judge");
   const judge = agents.find((agent) => agent.system_key != null);
   const dataset = ROUTES.DATASET_DETAIL(session.dataset_id);
+  const grading = `${dataset}?tab=grading`;
   const fixes = [
-    { key: "yesNo", href: `${dataset}?tab=grading`, hint: t("yesNoHint") },
-    { key: "checks", href: `${dataset}?tab=cases` },
+    { key: "yesNo", href: grading, hint: t("yesNoHint") },
+    {
+      key: "checks",
+      href: `${dataset}?tab=cases`,
+      hint: t.rich("checksHint", {
+        link: (chunks) => (
+          <Link className="underline underline-offset-4" href={grading}>
+            {chunks}
+          </Link>
+        ),
+      }),
+    },
     { key: "more", href: `${dataset}?tab=cases` },
     { key: "judge", href: judge ? ROUTES.AGENT_DETAIL(judge.id) : `${dataset}?tab=grading` },
   ];
