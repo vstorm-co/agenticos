@@ -120,6 +120,15 @@ async def read_improvement_evidence(
     return await service.evidence(ctx, agent_id, run_id=run_id)
 
 
+@router.put("/{run_id}/selection", response_model=ImprovementRead, dependencies=[ASSISTANT])
+async def choose_improvement_changes(
+    agent_id: UUID, run_id: UUID, data: ImprovementSelection, service: ImprovementSvc, ctx: Auth
+) -> Any:
+    """Choose which of the attempt's changes its check measures, while the session waits at
+    Changes; the next step prices and starts that check."""
+    return await service.choose_changes(ctx, agent_id, run_id, data)
+
+
 @router.put("/{run_id}/topics/{topic_id}/later", response_model=ImprovementRead)
 async def defer_improvement_topic(
     agent_id: UUID,

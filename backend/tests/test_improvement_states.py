@@ -234,12 +234,12 @@ def test_a_proposal_goes_to_the_filter() -> None:
     )
 
 
-def test_a_candidate_the_policy_emptied_is_not_checked() -> None:
+def test_a_filtered_candidate_waits_for_a_person_to_choose_what_to_check() -> None:
     assert after_filtering(kept=0) == Transition(
         ImprovementStatus.STOPPED, ImprovementStage.FILTERING, StopReason.NO_PROPOSAL
     )
     assert after_filtering(kept=1) == Transition(
-        ImprovementStatus.RUNNING, ImprovementStage.EVALUATING
+        ImprovementStatus.WAITING, ImprovementStage.FILTERING
     )
 
 
@@ -427,11 +427,22 @@ def test_a_queued_session_starts_or_ends() -> None:
 def test_a_running_session_moves_on_or_ends_but_never_decides_for_a_person() -> None:
     assert _moves(ImprovementStatus.RUNNING) == {
         ImprovementStatus.RUNNING,
+        ImprovementStatus.WAITING,
         ImprovementStatus.READY,
         ImprovementStatus.STOPPED,
         ImprovementStatus.FAILED,
         ImprovementStatus.STALE,
         ImprovementStatus.CANCELLED,
+    }
+
+
+def test_a_waiting_session_goes_on_only_when_a_person_takes_the_next_step() -> None:
+    assert _moves(ImprovementStatus.WAITING) == {
+        ImprovementStatus.RUNNING,
+        ImprovementStatus.WAITING,
+        ImprovementStatus.STALE,
+        ImprovementStatus.CANCELLED,
+        ImprovementStatus.REJECTED,
     }
 
 
@@ -488,8 +499,8 @@ def test_sorting_waits_for_its_job(status) -> None:
 @pytest.mark.parametrize(
     ("agent_answers", "missing_knowledge", "move"),
     [
-        (2, 1, Transition(ImprovementStatus.RUNNING, ImprovementStage.PROPOSING)),
-        (2, 0, Transition(ImprovementStatus.RUNNING, ImprovementStage.PROPOSING)),
+        (2, 1, Transition(ImprovementStatus.WAITING, ImprovementStage.CLASSIFYING)),
+        (2, 0, Transition(ImprovementStatus.WAITING, ImprovementStage.CLASSIFYING)),
         (
             0,
             3,
@@ -500,7 +511,7 @@ def test_sorting_waits_for_its_job(status) -> None:
     ],
     ids=["both", "only-the-agent", "only-gaps"],
 )
-def test_the_agents_faults_are_proposed_for_and_missing_knowledge_is_never_drafted(
+def test_the_agents_faults_wait_for_a_proposal_and_missing_knowledge_is_never_drafted(
     agent_answers, missing_knowledge, move
 ) -> None:
     assert (

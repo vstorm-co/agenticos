@@ -20,6 +20,7 @@ from app.services.improvement_pipeline import ImprovementPipelineService
 from tests.integration.test_authoring import Improver, _answering, _sessions, _setup
 from tests.integration.test_authoring import _environment as _environment
 from tests.integration.test_eval_suites import Model, _dataset
+from tests.integration.test_improvement_pipeline import _next_step
 
 pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("_environment")]
 
@@ -70,6 +71,8 @@ async def _round(db, ctx, agent, session_id, marker, *, exhaust_budget=False):
     read = await service.read(ctx, agent.id, session_id)
     if read.status == "stopped":
         return model
+    # A person takes the round on to its check from the Changes stop.
+    read = await _next_step(db, ctx, session_id)
     child_id = read.iterations[number - 1].eval_run_ids[-1]
     answers = RoundAnswers(db)
 
@@ -113,9 +116,10 @@ async def _two_rounds(db):
         agent.id,
         ImprovementStart(dataset_id=dataset.id, budget_usd=Decimal(100), max_iterations=3),
     )
-    # queued -> analyzing -> proposing, before the authoring request exists.
+    # queued -> analyzing -> waiting at Understand, before the authoring request exists.
     for _ in range(2):
         await service.advance(started.id, ctx.organization_id)
+    await _next_step(db, ctx, started.id)
     first = await _round(db, ctx, agent, started.id, "ROUND_BAD")
     second_read = await service.read(ctx, agent.id, started.id)
     assert second_read.status == "running" and second_read.iteration == 2
@@ -192,6 +196,7 @@ async def test_the_next_round_cannot_start_when_its_whole_forecast_exceeds_budge
     )
     for _ in range(2):
         await service.advance(started.id, ctx.organization_id)
+    await _next_step(db, ctx, started.id)
     row = await db.get(ImprovementRun, started.id)
     assert row is not None
     await _round(db, ctx, agent, started.id, "ROUND_BAD", exhaust_budget=True)
@@ -226,6 +231,7 @@ async def test_round_loop_stops_without_overwriting_a_persons_batch(db, markers,
     )
     for _ in range(2):
         await service.advance(started.id, ctx.organization_id)
+    await _next_step(db, ctx, started.id)
     for marker in markers:
         await _round(db, ctx, agent, started.id, marker)
     stopped = await service.read(ctx, agent.id, started.id)

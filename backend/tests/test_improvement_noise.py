@@ -211,6 +211,7 @@ def service(monkeypatch):
     )
     monkeypatch.setattr(improvement_pipeline.user_repo, "get_many", AsyncMock(return_value={}))
     pipeline = ImprovementPipelineService(AsyncMock())
+    monkeypatch.setattr(pipeline, "_may_continue", AsyncMock(return_value=True))
     first = SimpleNamespace(
         baseline_summary=SimpleNamespace(passed=5, pass_rate=0.5),
         cases=[_flip(0, True, reruns=[False, True]), *[_flip(i, True) for i in range(1, 10)]],

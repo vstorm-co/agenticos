@@ -167,7 +167,7 @@ async def test_changed_quotes_and_insufficient_limits_start_no_paid_work(db):
     )
 
 
-async def test_a_different_key_cannot_requeue_work_under_the_original_requesters_authority(db):
+async def test_a_different_key_takes_the_session_over_but_not_the_requesters_rechecks(db):
     from tests.integration.test_improvement_selection import _consent as selection_consent
     from tests.integration.test_improvement_selection import _hunks
 
@@ -192,17 +192,15 @@ async def test_a_different_key_cannot_requeue_work_under_the_original_requesters
     )
     keyed = await ApiKeyService(db).context_for_key(key.id, organization_id=ctx.organization_id)
     read = await service.read(keyed, agent.id, ready.id)
-    assert not read.can_restart and read.can_discard
+    assert read.can_restart and read.can_discard
     chosen = await selection_consent(
         service, ctx, agent, ready, [(await _hunks(db, ctx, ready))[0].id]
     )
     with pytest.raises(AuthorizationError, match="original account and credentials"):
         await service.check_selection(keyed, agent.id, ready.id, 1, chosen)
-    with pytest.raises(AuthorizationError):
-        await service.continue_run(keyed, agent.id, ready.id, consent)
-    with pytest.raises(AuthorizationError):
-        await service.retry(keyed, agent.id, ready.id)
-    assert (await service.read(ctx, agent.id, ready.id)).status == "ready"
+    continued = await service.continue_run(keyed, agent.id, ready.id, consent)
+    assert continued.status == "running"
+    assert (row.actor_user_id, row.actor_api_key_id) == (ctx.user_id, key.id)
 
 
 async def test_discard_dismisses_only_this_sessions_pending_candidates_and_is_idempotent(db):

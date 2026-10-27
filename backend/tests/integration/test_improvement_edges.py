@@ -42,6 +42,7 @@ from tests.integration.test_improvement_knowledge import _world as _knowledge_wo
 from tests.integration.test_improvement_knowledge_steps import _job, _providers, _start
 from tests.integration.test_improvement_knowledge_steps import _world as _steps_world
 from tests.integration.test_improvement_pipeline import (
+    _next_step,
     _queued_advances,
     _ready_proposal,
     _started,
@@ -321,6 +322,7 @@ async def test_a_regressed_round_moves_on_to_a_candidate_already_deferred_to_the
     )
     for _ in range(2):
         await service.advance(started.id, ctx.organization_id)
+    await _next_step(db, ctx, started.id)
     row = await db.get(ImprovementRun, started.id)
     assert row is not None
     deferred = await improvement_repo.create_iteration(
@@ -406,7 +408,7 @@ async def test_a_session_without_a_starting_person_stops_without_a_notice(
     check_id = ready.iterations[0].eval_run_ids[-1]
     row = await db.get(ImprovementRun, ready.id)
     assert row is not None
-    row.created_by_user_id = None
+    row.created_by_user_id = row.actor_user_id = None
     await db.flush()
     notices = await db.scalar(
         select(func.count())

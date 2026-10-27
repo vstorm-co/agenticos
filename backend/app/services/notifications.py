@@ -1830,12 +1830,25 @@ _DECIDED_SUMMARY = {
 }
 
 
+# Where a session waits, by the step it finished: reading the examples, sorting
+# them, or proposing changes for a person to choose from.
+_WAITING_SUMMARY = {
+    "analyzing": "Your improvement of {agent} has read its examples. Look them over, then take the next step.",
+    "classifying": "Your improvement of {agent} has sorted its examples. Look them over, then take the next step.",
+    "filtering": "Your improvement of {agent} has changes to choose from. Pick the ones to check, then take the next step.",
+}
+
+
 def _improvement_summary(agent_name: str, status: str, reason: str | None) -> str:
     """The bell's English line for a finished session; it names no internal status."""
     if reason in _CHECK_SUMMARY:
         return _CHECK_SUMMARY[reason].format(agent=agent_name)
     if status in _DECIDED_SUMMARY:
         return _DECIDED_SUMMARY[status].format(agent=agent_name)
+    if status == "waiting":
+        return _WAITING_SUMMARY.get(reason or "", _WAITING_SUMMARY["analyzing"]).format(
+            agent=agent_name
+        )
     if status == "ready":
         return f"Your improvement of {agent_name} is ready to review."
     because = _STOP_SENTENCE.get(reason or "")

@@ -154,10 +154,12 @@ async def test_paid_restarts_recheck_ai_assistance_and_refuse_an_unstarted_round
     assert organization is not None
     organization.ai_assistance_enabled = False
     await db.flush()
-    with pytest.raises(AuthorizationError, match="disabled"):
+    with pytest.raises(AuthorizationError, match="switched off"):
         await service.estimate_continuation(
             ctx, agent.id, session.id, ImprovementContinue(budget_usd=Decimal("5"))
         )
+    with pytest.raises(AuthorizationError, match="disabled"):
+        await service.ensure_current(ctx, session.id, allow_finished=True)
     organization.ai_assistance_enabled = True
     row = await db.get(ImprovementRun, session.id)
     assert row is not None

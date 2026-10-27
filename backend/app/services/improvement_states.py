@@ -6,7 +6,9 @@ writes the answer in the same transaction. Keeping the rules here means every
 stop reason and every verdict can be tested without a database or a model.
 
 A session ends in `ready` at the furthest: nothing here accepts, publishes or
-promotes, and no transition leaves `ready` except by a person's decision.
+promotes, and no transition leaves `ready` except by a person's decision. A
+session also waits for a person after sorting the bad answers and after
+filtering what was proposed, so each paid step after those is one somebody took.
 """
 
 import math
@@ -70,7 +72,18 @@ _ENDS = frozenset(
 )
 _MOVES: dict[ImprovementStatus, frozenset[ImprovementStatus]] = {
     ImprovementStatus.QUEUED: _ENDS | {ImprovementStatus.RUNNING},
-    ImprovementStatus.RUNNING: _ENDS | {ImprovementStatus.RUNNING, ImprovementStatus.READY},
+    ImprovementStatus.RUNNING: _ENDS
+    | {ImprovementStatus.RUNNING, ImprovementStatus.WAITING, ImprovementStatus.READY},
+    # The next step a person took, the same stop seen again, or the session ended.
+    ImprovementStatus.WAITING: frozenset(
+        {
+            ImprovementStatus.RUNNING,
+            ImprovementStatus.WAITING,
+            ImprovementStatus.STALE,
+            ImprovementStatus.CANCELLED,
+            ImprovementStatus.REJECTED,
+        }
+    ),
     # A person's decision, or one they asked for: another round or a recheck
     # (running), another measured round (ready), a review that turned the
     # verdict (stopped), a newer session's candidate (stale), or stopping it.
@@ -210,22 +223,27 @@ def _ended(status: JobStatus | None) -> bool:
     return status not in ("queued", "running")
 
 
+def _wait(stage: ImprovementStage) -> Transition:
+    return Transition(ImprovementStatus.WAITING, stage)
+
+
 def after_classifying(
     status: JobStatus | None, *, agent_answers: int, missing_knowledge: int
 ) -> Transition | None:
-    """Propose for what the agent got wrong, or stop on missing knowledge; `None` while sorting.
+    """Wait for a person to propose for what the agent got wrong, or stop on missing
+    knowledge; `None` while sorting.
 
     Answers missing knowledge are grouped into topics for a person to draft the
     ones they want; a session drafts none. So a session with the agent's own
-    faults goes on to propose for them, and one with only missing knowledge
-    ends there. An answer that was not a problem goes to neither, and one whose
-    cause stayed unknown is the agent's to look at. A sort that failed leaves
-    every answer to the agent.
+    faults waits for a person to take it on to a proposal, and one with only
+    missing knowledge ends there. An answer that was not a problem goes to
+    neither, and one whose cause stayed unknown is the agent's to look at. A sort
+    that failed leaves every answer to the agent.
     """
     if not _ended(status):
         return None
     if agent_answers:
-        return _step(ImprovementStage.PROPOSING)
+        return _wait(ImprovementStage.CLASSIFYING)
     if missing_knowledge:
         return _stop(ImprovementStage.CLASSIFYING, StopReason.KNOWLEDGE_ONLY)
     return _stop(ImprovementStage.CLASSIFYING, StopReason.NO_PROPOSAL)
@@ -243,10 +261,10 @@ def after_proposing(status: AuthoringStatus, *, hunks: int) -> Transition | None
 
 
 def after_filtering(*, kept: int) -> Transition:
-    """Check the candidate, unless the policy left nothing in it."""
+    """Wait for a person to choose what to check, unless the policy left nothing."""
     if kept == 0:
         return _stop(ImprovementStage.FILTERING, StopReason.NO_PROPOSAL)
-    return _step(ImprovementStage.EVALUATING)
+    return _wait(ImprovementStage.FILTERING)
 
 
 def affordable(*, spent: Decimal, step_estimate: Decimal, budget: Decimal) -> bool:

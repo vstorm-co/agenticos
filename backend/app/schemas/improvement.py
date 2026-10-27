@@ -148,6 +148,11 @@ class MeasurementNoise(BaseSchema):
 
 
 class ImprovementRead(BaseSchema):
+    next_step: Literal["propose", "check"] | None = Field(
+        default=None,
+        description="What a person's next step starts while the session waits: a proposal "
+        "after Understand, or the check of the chosen changes after Changes",
+    )
     published_version_id: UUID | None = None
     published_version: int | None = None
     next_version: int | None = None
@@ -223,7 +228,7 @@ class ImprovementContinue(BaseSchema):
 
 
 class ContinuationEstimate(BaseSchema):
-    mode: Literal["next_round", "resume", "retry"]
+    mode: Literal["next_step", "next_round", "resume", "retry"]
     number: int
     total_usd: Decimal
     budget_usd: Decimal

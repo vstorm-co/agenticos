@@ -41,6 +41,7 @@ _HASH = "a" * 64
         ("GET", _ROOT, "list_for_agent", None, False),
         ("GET", f"{_ROOT}/preview?dataset_id={_DATASET}", "evidence", None, False),
         ("GET", f"{_ONE}/evidence", "evidence", None, False),
+        ("PUT", f"{_ONE}/selection", "choose_changes", {"hunk_ids": [str(_HUNK)]}, False),
         ("PUT", f"{_ONE}/topics/{_TOPIC}/later", "defer_topic", {"later": True}, False),
         ("GET", _ONE, "read", None, False),
         ("GET", f"{_ONE}/changes", "changes", None, False),

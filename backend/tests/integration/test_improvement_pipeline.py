@@ -22,7 +22,13 @@ from app.db.models.improvement import ImprovementRun
 from app.db.models.notification import Notification
 from app.db.models.organization import OrganizationMember
 from app.repositories import authoring_repo, improvement_repo
-from app.schemas.improvement import ImprovementStart, ImprovementTarget
+from app.schemas.improvement import (
+    ContinuationConsent,
+    ImprovementContinue,
+    ImprovementRead,
+    ImprovementStart,
+    ImprovementTarget,
+)
 from app.services.agent_registry import UnpublishedCandidate
 from app.services.agent_runner import AgentRunnerService
 from app.services.authoring_worker import AuthoringWorker
@@ -70,9 +76,33 @@ class Answers(Model):
         return answer, run
 
 
+async def _next_step(db: AsyncSession, ctx: AuthContext, run_id: UUID) -> ImprovementRead:
+    """Take a waiting session's next step at its quoted price, as a person does."""
+    service = ImprovementPipelineService(db)
+    run = await db.get(ImprovementRun, run_id)
+    assert run is not None
+    quote = await service.estimate_continuation(
+        ctx, run.agent_id, run_id, ImprovementContinue(budget_usd=run.budget_usd)
+    )
+    return await service.continue_run(
+        ctx,
+        run.agent_id,
+        run_id,
+        ContinuationConsent(
+            confirmed=True,
+            budget_usd=quote.budget_usd,
+            estimate_usd=quote.total_usd,
+            candidate_hash=quote.candidate_hash,
+        ),
+    )
+
+
 async def _until_child(db: AsyncSession, ctx: AuthContext, run_id: UUID) -> None:
-    for _ in range(3):
+    """Advance a fresh session to its proposal: through Understand, where it waits."""
+    for _ in range(2):
         await ImprovementPipelineService(db).advance(run_id, ctx.organization_id)
+    await _next_step(db, ctx, run_id)
+    await ImprovementPipelineService(db).advance(run_id, ctx.organization_id)
 
 
 async def _ready_proposal(db):
@@ -107,7 +137,9 @@ async def _ready_proposal(db):
         is None
     )
     await ImprovementPipelineService(db).advance(read.id, ctx.organization_id)
-    await ImprovementPipelineService(db).advance(read.id, ctx.organization_id)
+    waiting = await ImprovementPipelineService(db).read(ctx, agent.id, read.id)
+    assert (waiting.status, waiting.stage, waiting.next_step) == ("waiting", "filtering", "check")
+    await _next_step(db, ctx, read.id)
     evaluating = await ImprovementPipelineService(db).read(ctx, agent.id, read.id)
     [eval_id] = evaluating.iterations[0].eval_run_ids
     for side in (evaluating.baseline_answers, evaluating.candidate_answers):
@@ -148,10 +180,12 @@ async def _ready_proposal(db):
     assert ready.spent_usd > Decimal("0.02")
     assert ready.best_iteration_id == ready.iterations[0].id
     assert len(ready.timeline) >= 9
-    notice = await db.scalar(
-        select(Notification).where(Notification.event_type == "improvement_finished")
-    )
-    assert notice is not None and "ready" in notice.summary
+    notices = (
+        await db.scalars(
+            select(Notification).where(Notification.event_type == "improvement_finished")
+        )
+    ).all()
+    assert any("ready" in notice.summary for notice in notices)
     await ImprovementPipelineService(db).advance(read.id, ctx.organization_id)
     assert (await ImprovementPipelineService(db).read(ctx, agent.id, read.id)).status == "ready"
 
@@ -456,6 +490,7 @@ async def test_budget_is_checked_again_before_the_paid_proposal(db):
     ctx, agent, _, read = await _started(db)
     for _ in range(2):
         await ImprovementPipelineService(db).advance(read.id, ctx.organization_id)
+    await _next_step(db, ctx, read.id)
     row = await improvement_repo.get_run(db, read.id, organization_id=ctx.organization_id)
     assert row is not None
     row.budget_usd = Decimal("0.000001")
@@ -499,7 +534,7 @@ async def test_stop_cancels_an_authoring_child_without_replacing_a_persons_batch
     )
 
 
-async def test_an_expensive_eval_is_not_started_after_proposing(db):
+async def test_a_check_over_the_budget_is_refused_and_the_session_keeps_waiting(db):
     ctx, agent, _, read = await _started(db)
     await _until_child(db, ctx, read.id)
     before = await ImprovementPipelineService(db).read(ctx, agent.id, read.id)
@@ -509,15 +544,36 @@ async def test_an_expensive_eval_is_not_started_after_proposing(db):
         await AuthoringWorker(request_id, ctx.organization_id, sessions=_sessions(db)).run()
     for _ in range(2):
         await ImprovementPipelineService(db).advance(read.id, ctx.organization_id)
+    service = ImprovementPipelineService(db)
+    tight = ImprovementContinue(budget_usd=Decimal("0.020001"))
+    quote = await service.estimate_continuation(ctx, agent.id, read.id, tight)
+    assert quote.mode == "next_step" and not quote.affordable
+    with pytest.raises(PaymentRequiredError):
+        await service.continue_run(
+            ctx,
+            agent.id,
+            read.id,
+            ContinuationConsent(
+                confirmed=True,
+                budget_usd=tight.budget_usd,
+                estimate_usd=quote.total_usd,
+                candidate_hash=quote.candidate_hash,
+            ),
+        )
+    waiting = await service.read(ctx, agent.id, read.id)
+    assert (waiting.status, waiting.stage) == ("waiting", "filtering")
+    assert not waiting.iterations[0].eval_run_ids
+    assert waiting.spent_usd == Decimal("0.02")
+    # A check the session starts itself - an inconclusive result's repeat - is
+    # held to the budget again before it starts.
     row = await improvement_repo.get_run(db, read.id, organization_id=ctx.organization_id)
     assert row is not None
-    row.budget_usd = Decimal("0.020001")
+    row.status, row.stage, row.budget_usd = "running", "evaluating", Decimal("0.020001")
     await db.flush()
-    await ImprovementPipelineService(db).advance(read.id, ctx.organization_id)
-    stopped = await ImprovementPipelineService(db).read(ctx, agent.id, read.id)
+    await service.advance(read.id, ctx.organization_id)
+    stopped = await service.read(ctx, agent.id, read.id)
     assert (stopped.status, stopped.stop_reason) == ("stopped", "budget")
     assert not stopped.iterations[0].eval_run_ids
-    assert stopped.spent_usd == Decimal("0.02")
 
 
 @pytest.mark.security

@@ -99,7 +99,8 @@ async def test_a_batch_its_own_session_superseded_is_not_a_rejection(db):
     assert (await ImprovementPipelineService(db).read(ctx, agent.id, run.id)).status == "rejected"
 
 
-async def _ends(db, run_id) -> list[tuple[str, str | None]]:
+async def _ends(db, run_id, *, waits: bool = False) -> list[tuple[str, str | None]]:
+    """What the session's requester was told, in order: its ends, or with `waits` its stops."""
     rows = await db.scalars(
         select(Notification)
         .where(Notification.event_type == "improvement_finished")
@@ -108,13 +109,17 @@ async def _ends(db, run_id) -> list[tuple[str, str | None]]:
     return [
         (row.render_context["status"], row.render_context["reason"])
         for row in rows
-        if str(run_id) in row.occurrence_id
+        if str(run_id) in row.occurrence_id and (row.render_context["status"] == "waiting") == waits
     ]
 
 
 async def test_each_end_of_a_session_reaches_its_requester_once(db):
     ctx, agent, ready = await _ready_proposal(db)
     assert await _ends(db, ready.id) == [("ready", None)]
+    assert await _ends(db, ready.id, waits=True) == [
+        ("waiting", "analyzing"),
+        ("waiting", "filtering"),
+    ]
     run, *_ = await _equal_second_round(db, ctx, agent, ready)
 
     await ImprovementPipelineService(db).advance(run.id, ctx.organization_id)

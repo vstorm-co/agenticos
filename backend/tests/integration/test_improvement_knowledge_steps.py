@@ -43,6 +43,7 @@ from app.worker.tasks.knowledge_gap_tasks import classify_knowledge_gaps, draft_
 from tests.integration.test_authoring import Improver, _answering, _published, _sessions, _setup
 from tests.integration.test_authoring import _environment as _environment
 from tests.integration.test_eval_suites import _dataset
+from tests.integration.test_improvement_pipeline import _next_step
 from tests.integration.test_knowledge_gap_signals import _ANSWER, _asked, _decide, _rated_down
 from tests.integration.test_knowledge_gaps import _knowledge_base, _meaning, _member, _searched
 
@@ -206,7 +207,10 @@ async def _classify(db, ctx, agent, read):
     await db.flush()
     service = ImprovementPipelineService(db)
     await service.advance(read.id, ctx.organization_id)
-    await service.advance(read.id, ctx.organization_id)
+    # Only the agent's own faults are taken on to a proposal; missing knowledge stops.
+    if stored.status == "waiting":
+        await _next_step(db, ctx, read.id)
+        await service.advance(read.id, ctx.organization_id)
     return stored, found
 
 
@@ -262,7 +266,7 @@ async def test_a_dead_classifier_leaves_raw_evidence_for_the_agent(db):
         await db.flush()
         service = ImprovementPipelineService(db)
         await service.advance(read.id, ctx.organization_id)
-        assert stored.stage == "proposing"
+        assert (stored.status, stored.stage) == ("waiting", "classifying")
         assert any(
             e.action == "improvement.classification_failed"
             for e in (await service.read(ctx, agent.id, read.id)).timeline
@@ -600,7 +604,7 @@ async def test_a_session_left_drafting_moves_on_without_drafting(db):
         stored.stage = "drafting"
         await db.flush()
         await ImprovementPipelineService(db).advance(read.id, ctx.organization_id)
-    assert stored.stage == "proposing"
+    assert (stored.status, stored.stage) == ("waiting", "classifying")
     assert await _draft_jobs(db) == []
 
 
