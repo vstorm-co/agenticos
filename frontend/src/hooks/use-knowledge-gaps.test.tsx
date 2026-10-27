@@ -1,14 +1,16 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   isIdentifyingContent,
   useAddKnowledgeGapContent,
   useAddKnowledgeGapToDataset,
+  DRAFTING_POLL_MS,
   useDraftKnowledgeGap,
   useKnowledgeGap,
+  useKnowledgeGapDraftEstimate,
   useKnowledgeGaps,
   useClassifyKnowledgeGaps,
   useRegroupKnowledgeGaps,
@@ -171,13 +173,18 @@ describe("useClassifyKnowledgeGaps", () => {
 });
 
 describe("useDraftKnowledgeGap", () => {
-  it("asks for a draft and says when it is ready", async () => {
-    vi.mocked(apiClient.post).mockResolvedValue({ id: "t1", draft: { title: "x" } });
-    const { result } = renderHook(() => useDraftKnowledgeGap(), { wrapper });
+  it("queues a draft and keeps the topic it comes back with, drafting", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const own = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "t1", drafting: true, draft: null });
+    const { result } = renderHook(() => useDraftKnowledgeGap(), { wrapper: own });
     result.current.mutate("t1");
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(apiClient.post).toHaveBeenCalledWith("/knowledge-gaps/t1/draft");
-    expect(toastSuccess).toHaveBeenCalledWith("Draft ready - check it before you add it");
+    expect(client.getQueryData(["knowledge-gaps", "t1"])).toMatchObject({ drafting: true });
+    expect(toastSuccess).not.toHaveBeenCalled();
   });
 
   it("shows the server's refusal, such as AI assistance being off", async () => {
@@ -257,5 +264,51 @@ describe("a topic's content", () => {
     result.current.mutate(content);
     await waitFor(() => expect(toastError).toHaveBeenCalled());
     expect(isIdentifyingContent(new Error("x"))).toBe(false);
+  });
+});
+
+describe("while a draft is being written", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("reads a list again until no topic on it is drafting", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({ items: [{ id: "t1", drafting: true }], total: 1 })
+      .mockResolvedValue({ items: [{ id: "t1", drafting: false }], total: 1 });
+    const { result } = renderHook(() => useKnowledgeGaps({ kind: "organization" }), { wrapper });
+    await waitFor(() => expect(result.current.topics[0]?.drafting).toBe(true));
+    await act(() => vi.advanceTimersByTimeAsync(DRAFTING_POLL_MS));
+    await waitFor(() => expect(result.current.topics[0]?.drafting).toBe(false));
+    await act(() => vi.advanceTimersByTimeAsync(DRAFTING_POLL_MS * 2));
+    expect(apiClient.get).toHaveBeenCalledTimes(2);
+  });
+
+  it("reads a topic again until its draft is written", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({ id: "t1", drafting: true, draft: null })
+      .mockResolvedValue({ id: "t1", drafting: false, draft: { title: "x" } });
+    const { result } = renderHook(() => useKnowledgeGap("t1"), { wrapper });
+    await waitFor(() => expect(result.current.topic?.drafting).toBe(true));
+    await act(() => vi.advanceTimersByTimeAsync(DRAFTING_POLL_MS));
+    await waitFor(() => expect(result.current.topic?.draft).toEqual({ title: "x" }));
+    await act(() => vi.advanceTimersByTimeAsync(DRAFTING_POLL_MS * 2));
+    expect(apiClient.get).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("useKnowledgeGapDraftEstimate", () => {
+  it("asks what one draft of the topic costs", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ total_usd: "0.0123" });
+    const { result } = renderHook(() => useKnowledgeGapDraftEstimate("t1"), { wrapper });
+    await waitFor(() => expect(result.current.estimate?.total_usd).toBe("0.0123"));
+    expect(apiClient.get).toHaveBeenCalledWith("/knowledge-gaps/t1/draft/estimate");
+  });
+
+  it("asks nothing while it is not wanted", () => {
+    renderHook(() => useKnowledgeGapDraftEstimate("t1", { enabled: false }), { wrapper });
+    expect(apiClient.get).not.toHaveBeenCalled();
   });
 });

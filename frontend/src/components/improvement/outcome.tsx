@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { BookOpen, CheckCircle2, Coins, ListChecks, XCircle } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
-import { Button } from "@/components/ui";
 import { KnowledgeGapDialog } from "@/components/knowledge-gaps/knowledge-gap-dialog";
 import { useAgentEnvironments } from "@/hooks/use-agent-environments";
 import { useDatasetCases } from "@/hooks/use-datasets";
@@ -14,7 +13,7 @@ import { getErrorMessage } from "@/lib/api-error";
 import type { Improvement, ImprovementIteration } from "@/types/improvement";
 import { StepError } from "./step-error";
 import { Tiles } from "./widgets";
-import { useReadOnly } from "./read-only";
+import { SessionTopic } from "./session-topic";
 
 function counts(round: ImprovementIteration | undefined) {
   const fixed = round?.verdict_detail?.fixed;
@@ -22,25 +21,23 @@ function counts(round: ImprovementIteration | undefined) {
   return fixed == null || broken == null ? null : { fixed: Number(fixed), broken: Number(broken) };
 }
 
+/** Where the result step lists what its missing-topics counter counts. */
+export const DOCUMENTS_ANCHOR = "improvement-documents";
+
 /**
- * The drafts this session's own examples led to that a person may add: open, not yet
- * added, and on a topic one of the session's conversations missed.
+ * The open topics this session's own examples led to, drafted or not: a draft is
+ * written only when somebody asks for one.
  */
-export function useDrafts(session: Improvement) {
+export function useSessionTopics(session: Improvement) {
   const gaps = useKnowledgeGaps({ kind: "agent", id: session.agent_id });
   const sources = useImprovementEvidence(session.agent_id, { sessionId: session.id });
-  const { topics } = gaps;
-  const { evidence } = sources;
-  const ours = new Set(evidence?.items.map((item) => item.topic_id).filter(Boolean));
+  const ours = new Set(sources.evidence?.items.map((item) => item.topic_id).filter(Boolean));
   return {
-    drafts: topics.filter((topic) => topic.has_draft && topic.can_edit && ours.has(topic.id)),
+    topics: gaps.topics.filter((topic) => topic.status === "open" && ours.has(topic.id)),
     error: gaps.error ?? sources.error,
     retry: () => Promise.all([gaps.refetch(), sources.refetch()]),
   };
 }
-
-/** Where the result step lists what its missing-topics counter counts. */
-export const DOCUMENTS_ANCHOR = "improvement-documents";
 
 /**
  * The attempt's confirmed changes as the headline figures, with the changes asking
@@ -54,14 +51,14 @@ export function ResultSummary({
   round: ImprovementIteration | undefined;
 }) {
   const t = useTranslations("improvement");
-  const { drafts } = useDrafts(session);
+  const { topics } = useSessionTopics(session);
   const measured = counts(round);
   const runId = round?.eval_run_ids.at(-1);
   const { comparison } = useEvalComparison(runId ?? "", { enabled: runId !== undefined });
   const unconfirmed = (flip: "fixed" | "regression") =>
     comparison?.cases.filter((c) => c.flip === flip && !c.confirmed).length ?? 0;
   const more = (count: number) => (count > 0 ? t("notConfirmedMore", { count }) : undefined);
-  const knowledge = t("resultKnowledge", { count: drafts.length });
+  const knowledge = t("resultKnowledge", { count: topics.length });
   return (
     <Tiles
       label={`${measured ? t("resultAgent", measured) : t("resultAgentUnknown")} ${knowledge}`}
@@ -82,17 +79,17 @@ export function ResultSummary({
         },
         {
           label: t("widgets.missingTopics"),
-          value: drafts.length,
+          value: topics.length,
           tone: "violet",
           icon: BookOpen,
-          href: drafts.length > 0 ? `#${DOCUMENTS_ANCHOR}` : undefined,
+          href: topics.length > 0 ? `#${DOCUMENTS_ANCHOR}` : undefined,
         },
       ]}
     />
   );
 }
 
-/** The column of knowledge drafts beside the agent's changes, or the list to add on Accept. */
+/** The topics missing from the knowledge base beside the agent's changes, or those to add on Accept. */
 export function KnowledgeDocuments({
   session,
   accept = false,
@@ -102,52 +99,41 @@ export function KnowledgeDocuments({
 }) {
   const t = useTranslations("improvement");
   const tErrors = useTranslations("errors");
-  const { drafts, error, retry } = useDrafts(session);
+  const { topics, error, retry } = useSessionTopics(session);
   const actions = useImprovement(session.agent_id, session.id);
   const [open, setOpen] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
-  const readOnly = useReadOnly();
   const later = session.deferred_topic_ids ?? [];
-  const shown = accept ? drafts.filter((topic) => !later.includes(topic.id)) : drafts;
+  const shown = accept ? topics.filter((topic) => !later.includes(topic.id)) : topics;
+  const toAdd = shown.filter(
+    (topic) => topic.has_draft && !topic.drafting && topic.can_edit,
+  ).length;
   return (
     <section className="min-w-0 space-y-3" data-tour="improvement-knowledge">
       <h3 className="text-sm font-medium">
-        {accept ? t("acceptKnowledge", { count: shown.length }) : t("cause.missing_knowledge")}
+        {accept ? t("acceptKnowledge", { count: toAdd }) : t("cause.missing_knowledge")}
       </h3>
       {error && <StepError error={error} retry={retry} />}
       {!accept && shown.length === 0 && (
         <p className="text-muted-foreground text-sm">{t("noKnowledgeDocuments")}</p>
       )}
       {shown.map((topic) => (
-        <article key={topic.id} className="space-y-2 rounded-xl border p-4 text-sm">
-          <p className="font-medium break-words">{topic.label}</p>
-          <p className="text-muted-foreground text-xs">{topic.knowledge_base_name}</p>
-          {topic.draft_askers === 1 && (
-            <p className="text-warning text-xs">{t("draftFromOnePerson")}</p>
-          )}
-          {!readOnly && (
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" onClick={() => setOpen(topic.id)}>
-                {t(accept ? "reviewAndAdd" : "reviewKnowledgeDraft")}
-              </Button>
-              {accept && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={actions.deferTopic.isPending}
-                  onClick={() =>
-                    void actions.deferTopic.mutateAsync({ topicId: topic.id, later: true }).then(
-                      () => setFailure(null),
-                      (reason: unknown) => setFailure(getErrorMessage(reason, tErrors)),
-                    )
-                  }
-                >
-                  {t("notNow")}
-                </Button>
-              )}
-            </div>
-          )}
-        </article>
+        <SessionTopic
+          key={topic.id}
+          topic={topic}
+          accept={accept}
+          onReview={() => setOpen(topic.id)}
+          laterPending={actions.deferTopic.isPending}
+          onLater={
+            accept
+              ? () =>
+                  void actions.deferTopic.mutateAsync({ topicId: topic.id, later: true }).then(
+                    () => setFailure(null),
+                    (reason: unknown) => setFailure(getErrorMessage(reason, tErrors)),
+                  )
+              : undefined
+          }
+        />
       ))}
       {failure && (
         <p role="alert" className="text-destructive text-sm">

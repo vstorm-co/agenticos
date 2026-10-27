@@ -1,10 +1,10 @@
 "use client";
 
-import { Database, Sparkles } from "lucide-react";
+import { CircleAlert, Database, Sparkles } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
-import { Badge } from "@/components/ui";
+import { Badge, Spinner } from "@/components/ui";
 import { timeAgo } from "@/lib/utils";
 import type { KnowledgeGapTopic } from "@/types/knowledge-gaps";
 import { KnowledgeGapActions } from "./knowledge-gap-actions";
@@ -38,11 +38,23 @@ export function KnowledgeGapRow({ topic, showKnowledgeBase, onOpen }: KnowledgeG
               {topic.knowledge_base_name}
             </Badge>
           )}
-          {topic.has_draft && (
+          {topic.drafting ? (
             <Badge variant="outline">
-              <Sparkles className="h-3 w-3" aria-hidden />
-              {t("hasDraft")}
+              <Spinner className="h-3 w-3" aria-hidden />
+              {t("drafting")}
             </Badge>
+          ) : topic.draft_failed ? (
+            <Badge variant="outline">
+              <CircleAlert className="text-destructive h-3 w-3" aria-hidden />
+              {t("draftFailedBadge")}
+            </Badge>
+          ) : (
+            topic.has_draft && (
+              <Badge variant="outline">
+                <Sparkles className="h-3 w-3" aria-hidden />
+                {topic.draft_stale ? t("draftStaleBadge") : t("hasDraft")}
+              </Badge>
+            )
           )}
           {topic.agents.map((agent) => (
             <span key={agent.id} className="inline-flex items-center gap-1">

@@ -9,6 +9,8 @@ const state = vi.hoisted(() => ({
   check: vi.fn(),
   refetch: vi.fn().mockResolvedValue({}),
   topics: true,
+  extra: [] as Record<string, unknown>[],
+  draft: vi.fn(),
   runStatus: "completed",
   invalidated: false,
   retrievalInvalid: false,
@@ -28,11 +30,18 @@ vi.mock("@/hooks/use-improvements", () => ({
     checkKnowledge: { mutateAsync: state.check, isPending: false },
   }),
 }));
-vi.mock("@/hooks/use-knowledge-gaps", () => ({
-  useKnowledgeGaps: () => ({
+vi.mock("./outcome", () => ({
+  useSessionTopics: () => ({
     error: state.listError,
-    topics: state.topics ? [{ id: "t1", has_draft: true, can_edit: true, label: "Returns" }] : [],
+    topics: [
+      ...(state.topics ? [{ id: "t1", has_draft: true, can_edit: true, label: "Returns" }] : []),
+      ...state.extra,
+    ],
   }),
+}));
+vi.mock("@/hooks/use-knowledge-gaps", () => ({
+  useDraftKnowledgeGap: () => ({ mutate: state.draft, isPending: false }),
+  useKnowledgeGapDraftEstimate: () => ({ estimate: { total_usd: "0.02" } }),
   useKnowledgeGap: () => ({
     error: state.topicError,
     topic: {
@@ -146,6 +155,7 @@ const QUOTE: KnowledgeCheckEstimate = {
 beforeEach(() => {
   vi.clearAllMocks();
   state.topics = true;
+  state.extra = [];
   state.runStatus = "completed";
   state.invalidated = false;
   state.retrievalInvalid = false;
@@ -412,4 +422,30 @@ it("shows the drafts without checking or reviewing them once the wizard is only 
     screen.queryByRole("button", { name: "Estimate checking the draft" }),
   ).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Review knowledge draft" })).not.toBeInTheDocument();
+});
+
+it("lists the session's topics still to draft, and drafts one for testing at its cost", async () => {
+  state.topics = false;
+  state.extra = [
+    { id: "t2", has_draft: false, can_edit: true, label: "Gift wrapping" },
+    { id: "t3", has_draft: true, drafting: true, can_edit: true, label: "Store hours" },
+  ];
+  render(<KnowledgeDrafts session={SESSION} />);
+  expect(screen.getByText(/No draft to test yet/)).toBeInTheDocument();
+  expect(screen.getByText("Draft a topic to test it")).toBeInTheDocument();
+  expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Draft · $0.02" }));
+  expect(state.draft).toHaveBeenCalledWith("t2");
+  expect(screen.getByRole("status")).toHaveTextContent("Drafting…");
+});
+
+it("lists the topics still to draft without a Draft button once the wizard is only read", () => {
+  state.extra = [{ id: "t2", has_draft: false, can_edit: true, label: "Gift wrapping" }];
+  render(
+    <ReadOnlyProvider value="viewOnly">
+      <KnowledgeDrafts session={SESSION} />
+    </ReadOnlyProvider>,
+  );
+  expect(screen.getByText("Gift wrapping")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /^Draft/ })).not.toBeInTheDocument();
 });

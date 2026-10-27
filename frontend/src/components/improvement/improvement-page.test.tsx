@@ -34,7 +34,14 @@ const state = vi.hoisted(() => ({
   publish: true,
   session: null as Improvement | null,
   hunks: [] as Hunk[],
-  topics: [] as { id: string; label: string; has_draft: boolean; can_edit: boolean }[],
+  topics: [] as {
+    id: string;
+    label: string;
+    examples?: string[];
+    status?: string;
+    has_draft: boolean;
+    can_edit: boolean;
+  }[],
   environments: [] as {
     id: string;
     name: string;
@@ -89,6 +96,9 @@ vi.mock("@/hooks/use-eval-suites", () => ({ useAgentEvalSuites: () => ({ suites:
 vi.mock("./knowledge-drafts", () => ({ KnowledgeDrafts: () => null }));
 vi.mock("@/hooks/use-knowledge-gaps", () => ({
   useKnowledgeGaps: () => ({ topics: state.topics, error: null }),
+}));
+vi.mock("@/components/knowledge-gaps/knowledge-gap-draft-status", () => ({
+  KnowledgeGapDraftStatus: () => null,
 }));
 vi.mock("@/hooks/use-datasets", () => ({
   useDatasetCases: () => ({ cases: [], total: 12, isLoading: false, error: null }),
@@ -420,11 +430,20 @@ it("keeps the knowledge draft check under Show details before any attempt is mea
 });
 
 it("opens the result with one sentence for the agent and one for the knowledge base", async () => {
-  state.topics = [{ id: "t1", label: "Shipping", has_draft: true, can_edit: true }];
+  state.topics = [
+    {
+      id: "t1",
+      label: "Shipping",
+      examples: ["Shipping"],
+      status: "open",
+      has_draft: false,
+      can_edit: true,
+    },
+  ];
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
   expect(
     screen.getByRole("group", {
-      name: "In the agent: 3 questions newly fixed, 0 newly broken. In the knowledge base: 1 document to review.",
+      name: "In the agent: 3 questions newly fixed, 0 newly broken. In the knowledge base: 1 topic missing.",
     }),
   ).toBeInTheDocument();
   expect(screen.getByText("Attempt 1 of 3").closest("details")).not.toHaveAttribute("open");

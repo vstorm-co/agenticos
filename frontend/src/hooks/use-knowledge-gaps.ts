@@ -10,6 +10,7 @@ import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import type {
   KnowledgeGapCasesAdded,
+  KnowledgeGapDraftEstimate,
   KnowledgeGapFlag,
   KnowledgeGapStatus,
   KnowledgeGapTopicDetail,
@@ -28,6 +29,9 @@ export interface KnowledgeGapQuery {
   skip?: number;
   limit?: number;
 }
+
+/** How often a list or topic is read again while a draft of it is being written. */
+export const DRAFTING_POLL_MS = 5000;
 
 function scopePath(scope: KnowledgeGapScope): string {
   if (scope.kind === "collection") return `/knowledge-gaps/collections/${scope.id}`;
@@ -51,6 +55,8 @@ export function useKnowledgeGaps(
       return apiClient.get<KnowledgeGapTopicList>(`${scopePath(scope)}?${params}`);
     },
     placeholderData: (previous) => previous,
+    refetchInterval: (query) =>
+      query.state.data?.items.some((topic) => topic.drafting) ? DRAFTING_POLL_MS : false,
   });
   return {
     topics: data?.items ?? [],
@@ -70,8 +76,20 @@ export function useKnowledgeGap(topicId: string) {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.knowledgeGaps.detail(topicId),
     queryFn: () => apiClient.get<KnowledgeGapTopicDetail>(`/knowledge-gaps/${topicId}`),
+    refetchInterval: (query) => (query.state.data?.drafting ? DRAFTING_POLL_MS : false),
   });
   return { topic: data, isLoading, error, refetch };
+}
+
+/** What one draft of a topic would cost; refused like the draft itself. */
+export function useKnowledgeGapDraftEstimate(topicId: string, { enabled = true } = {}) {
+  const { data, error } = useQuery({
+    queryKey: qk.knowledgeGaps.draftEstimate(topicId),
+    queryFn: () =>
+      apiClient.get<KnowledgeGapDraftEstimate>(`/knowledge-gaps/${topicId}/draft/estimate`),
+    enabled,
+  });
+  return { estimate: data, error };
 }
 
 /** Dismiss a topic as needing no document, or reopen it - a covered one too. */
@@ -150,11 +168,12 @@ export function useClassifyKnowledgeGaps(knowledgeBaseId: string) {
 /**
  * Ask the organization's drafting agent for the passage a topic is missing.
  *
- * A model run, so it can be refused - AI assistance switched off, the drafter's
- * budget spent - and the refusal is the server's, shown as it says it.
+ * The draft is queued and the topic comes back at once, `drafting`; the draft
+ * lands later, announced like a grouping pass. Asking again while one is being
+ * written queues nothing new. A refusal - AI assistance switched off, no access -
+ * is the server's, shown as it says it.
  */
 export function useDraftKnowledgeGap() {
-  const t = useTranslations("knowledgeGaps");
   const tErrors = useTranslations("errors");
   const queryClient = useQueryClient();
   return useMutation({
@@ -163,7 +182,6 @@ export function useDraftKnowledgeGap() {
     onSuccess: async (topic) => {
       queryClient.setQueryData(qk.knowledgeGaps.detail(topic.id), topic);
       await queryClient.invalidateQueries({ queryKey: qk.knowledgeGaps.all() });
-      toast.success(t("draftReady"));
     },
     onError: (failure) => toast.error(getErrorMessage(failure, tErrors)),
   });

@@ -450,6 +450,7 @@ export const qk = {
     list: (scope: string, query: { status: string; skip: number; limit: number }) =>
       ["knowledge-gaps", "list", scope, query] as const,
     detail: (id: string) => ["knowledge-gaps", id] as const,
+    draftEstimate: (id: string) => ["knowledge-gaps", id, "draft-estimate"] as const,
   },
   evalRuns: {
     all: () => ["eval-runs"] as const,

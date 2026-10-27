@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
 import type { Improvement } from "@/types/improvement";
 import { ContinueSession, continuation } from "./continue-session";
-import { DOCUMENTS_ANCHOR, KnowledgeDocuments, ResultSummary, useDrafts } from "./outcome";
+import { DOCUMENTS_ANCHOR, KnowledgeDocuments, ResultSummary, useSessionTopics } from "./outcome";
 import { useReadOnly } from "./read-only";
 import { AttemptRow } from "./round-results";
 import { Details } from "./widgets";
@@ -34,7 +34,7 @@ export function ResultStep({
   onStarted: () => void;
 }) {
   const t = useTranslations("improvement");
-  const { drafts } = useDrafts(session);
+  const { topics } = useSessionTopics(session);
   const chosen = session.iterations.find((round) => round.id === session.best_iteration_id);
   const host = chosen ?? session.iterations.at(-1);
   return (
@@ -43,7 +43,7 @@ export function ResultStep({
         session={session}
         agent={agent}
         candidate={candidate}
-        topics={drafts.length}
+        topics={topics.length}
         canAccept={canAccept}
         onAccept={onAccept}
         onStarted={onStarted}
@@ -63,7 +63,7 @@ export function ResultStep({
         </section>
       )}
       {!host && <Details summary={t("showDetails")}>{knowledgeCheck}</Details>}
-      {drafts.length > 0 && (
+      {topics.length > 0 && (
         <div id={DOCUMENTS_ANCHOR} className="scroll-mt-4">
           <KnowledgeDocuments session={session} />
         </div>

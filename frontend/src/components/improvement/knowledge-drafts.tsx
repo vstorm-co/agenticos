@@ -9,13 +9,15 @@ import { usd } from "@/components/evals/format";
 import { useDatasetCases } from "@/hooks/use-datasets";
 import { useEvalComparison, useEvalRun } from "@/hooks/use-eval-runs";
 import { useImprovement } from "@/hooks/use-improvements";
-import { useKnowledgeGaps, useKnowledgeGap } from "@/hooks/use-knowledge-gaps";
+import { useKnowledgeGap } from "@/hooks/use-knowledge-gaps";
+import { KnowledgeGapDraftStatus } from "@/components/knowledge-gaps/knowledge-gap-draft-status";
 import { getErrorMessage } from "@/lib/api-error";
 import type {
   Improvement,
   KnowledgeCheckEstimate,
   KnowledgeCheckTarget,
 } from "@/types/improvement";
+import { useSessionTopics } from "./outcome";
 import { useReadOnly } from "./read-only";
 
 /** A paid draft check is separate from accepting or publishing the agent. */
@@ -25,7 +27,7 @@ export function KnowledgeDrafts({ session }: { session: Improvement }) {
   const locale = useLocale();
   const actions = useImprovement(session.agent_id, session.id);
   const readOnly = useReadOnly();
-  const { topics, error: topicsError } = useKnowledgeGaps({ kind: "agent", id: session.agent_id });
+  const { topics, error: topicsError } = useSessionTopics(session);
   const [topicId, setTopicId] = useState("");
   const [mode, setMode] = useState<"context" | "retrieval">("context");
   const [selected, setSelected] = useState<string[]>([]);
@@ -54,7 +56,10 @@ export function KnowledgeDrafts({ session }: { session: Improvement }) {
   };
   const key = JSON.stringify(target);
   const current = quoted?.key === key ? quoted : null;
-  const drafts = topics.filter((topic) => topic.has_draft && topic.can_edit);
+  const drafts = topics.filter((topic) => topic.has_draft && topic.can_edit && !topic.drafting);
+  const undrafted = topics.filter(
+    (topic) => !topic.has_draft || topic.drafting || topic.draft_failed || topic.draft_stale,
+  );
   async function act(action: () => Promise<void>) {
     setError(null);
     try {
@@ -214,6 +219,19 @@ export function KnowledgeDrafts({ session }: { session: Improvement }) {
         </>
       ) : (
         <p className="text-muted-foreground text-sm">{t("noKnowledgeDrafts")}</p>
+      )}
+      {undrafted.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium">{t("draftToTest")}</p>
+          <ul className="space-y-2">
+            {undrafted.map((topic) => (
+              <li key={topic.id} className="space-y-1 rounded-lg border p-3 text-sm">
+                <p className="break-words">{topic.label}</p>
+                <KnowledgeGapDraftStatus topic={topic} editable={!readOnly && topic.can_edit} />
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
       {error && (
         <p role="alert" className="text-destructive text-sm">

@@ -10,7 +10,6 @@ import { KnowledgeGapDraftPanel } from "./knowledge-gap-draft";
 const state = vi.hoisted(() => ({
   granted: [] as string[],
   mutate: vi.fn(),
-  isPending: false,
   org: null as { id: string; ai_assistance_enabled: boolean } | null,
 }));
 vi.mock("@/hooks/use-permissions", () => ({
@@ -20,7 +19,8 @@ vi.mock("@/hooks/use-organizations", () => ({
   useOrganizations: () => ({ activeOrg: state.org }),
 }));
 vi.mock("@/hooks/use-knowledge-gaps", () => ({
-  useDraftKnowledgeGap: () => ({ mutate: state.mutate, isPending: state.isPending }),
+  useDraftKnowledgeGap: () => ({ mutate: state.mutate, isPending: false }),
+  useKnowledgeGapDraftEstimate: () => ({ estimate: { total_usd: "0.02" } }),
 }));
 vi.mock("./knowledge-gap-draft-card", () => ({
   KnowledgeGapDraftCard: ({ draft }: { draft: { title: string } }) => (
@@ -73,48 +73,58 @@ describe("KnowledgeGapDraftPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     state.granted = [];
-    state.isPending = false;
     state.org = { id: "o1", ai_assistance_enabled: true };
   });
 
   it("offers no drafting to a caller who may not run agents", () => {
     render(<KnowledgeGapDraftPanel topic={TOPIC} />);
-    expect(screen.queryByRole("button", { name: "Draft the missing content" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Draft/ })).toBeNull();
   });
 
   it("offers no drafting on a topic whose knowledge base the caller may not change", () => {
     state.granted = [Perm.agentsRun];
     render(<KnowledgeGapDraftPanel topic={{ ...DRAFTED, can_edit: false }} />);
-    expect(screen.queryByRole("button", { name: "Draft again" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Redraft/ })).toBeNull();
     expect(screen.getByText("card Parental leave")).toBeInTheDocument();
   });
 
-  it("asks for a draft of a topic that has none", async () => {
+  it("asks for a draft of a topic that has none, at the cost it shows", async () => {
     state.granted = [Perm.agentsRun];
     render(<KnowledgeGapDraftPanel topic={TOPIC} />);
-    await userEvent.click(screen.getByRole("button", { name: "Draft the missing content" }));
+    await userEvent.click(screen.getByRole("button", { name: "Draft · $0.02" }));
     expect(state.mutate).toHaveBeenCalledWith("t1");
   });
 
-  it("says it is drafting while the run is in flight, beside the draft it will replace", () => {
+  it("says it is drafting while the draft is written, beside the draft it will replace", () => {
     state.granted = [Perm.agentsRun];
-    state.isPending = true;
-    render(<KnowledgeGapDraftPanel topic={DRAFTED} />);
-    expect(screen.getByRole("button", { name: "Drafting…" })).toBeDisabled();
+    render(<KnowledgeGapDraftPanel topic={{ ...DRAFTED, drafting: true }} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Drafting…");
+    expect(screen.queryByRole("button", { name: /draft/i })).toBeNull();
     expect(screen.getByText("editor Parental leave")).toBeInTheDocument();
   });
 
-  it("offers to draft again once a draft exists", () => {
+  it("offers a new draft once a draft exists", () => {
     state.granted = [Perm.agentsRun];
     render(<KnowledgeGapDraftPanel topic={DRAFTED} />);
-    expect(screen.getByRole("button", { name: "Draft again" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Redraft · $0.02" })).toBeInTheDocument();
+  });
+
+  it("marks a draft older than the knowledge base, and one that failed", () => {
+    state.granted = [Perm.agentsRun];
+    const { rerender } = render(
+      <KnowledgeGapDraftPanel topic={{ ...DRAFTED, draft_stale: true }} />,
+    );
+    expect(screen.getByText("The knowledge base changed after this draft")).toBeInTheDocument();
+    rerender(<KnowledgeGapDraftPanel topic={{ ...TOPIC, draft_failed: true }} />);
+    expect(screen.getByRole("alert")).toHaveTextContent("The draft could not be written.");
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
   });
 
   it("with AI assistance off, sends somebody who may turn it on to the switch", () => {
     state.granted = [Perm.agentsRun, Perm.orgSettings];
     state.org = { id: "o1", ai_assistance_enabled: false };
     render(<KnowledgeGapDraftPanel topic={DRAFTED} />);
-    expect(screen.queryByRole("button", { name: "Draft again" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Redraft/ })).toBeNull();
     expect(screen.getByText(/AI assistance is off/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Enable AI assistance" })).toHaveAttribute(
       "href",

@@ -100,6 +100,21 @@ describe("KnowledgeGapsPanel", () => {
     expect(screen.getByText("Draft")).toBeInTheDocument();
   });
 
+  it("says on each topic whether its draft is being written, failed or is out of date", () => {
+    answer({
+      topics: [
+        { ...TOPIC, id: "t1", drafting: true },
+        { ...TOPIC, id: "t2", draft_failed: true },
+        { ...TOPIC, id: "t3", has_draft: true, draft_stale: true },
+      ],
+      total: 3,
+    });
+    render(<KnowledgeGapsPanel scope={{ kind: "collection", id: "kb1" }} />);
+    expect(screen.getByText("Drafting…")).toBeInTheDocument();
+    expect(screen.getByText("Draft failed")).toBeInTheDocument();
+    expect(screen.getByText("Draft out of date")).toBeInTheDocument();
+  });
+
   it("says how many questions wait for the next grouping pass", () => {
     answer({ ungrouped: 2 });
     render(<KnowledgeGapsPanel scope={{ kind: "collection", id: "kb1" }} />);

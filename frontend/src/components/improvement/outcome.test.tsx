@@ -1,19 +1,28 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, renderHook, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { comparison, FLIP, SUMMARY } from "@/test-utils/eval-runs";
 import { SESSION } from "@/test-utils/improvement";
 import type { EvalComparison } from "@/types/eval-runs";
-import { AcceptSummary, GuardNote, KnowledgeDocuments, ResultSummary } from "./outcome";
+import {
+  AcceptSummary,
+  GuardNote,
+  KnowledgeDocuments,
+  ResultSummary,
+  useSessionTopics,
+} from "./outcome";
 import { ReadOnlyProvider } from "./read-only";
 
 type Topic = {
   id: string;
+  status: string;
   label: string;
+  examples: string[];
   knowledge_base_name: string;
   has_draft: boolean;
   can_edit: boolean;
   draft_askers?: number | null;
+  drafting?: boolean;
 };
 type Environment = {
   id: string;
@@ -33,6 +42,7 @@ const state = vi.hoisted(() => ({
   defer: vi.fn(),
   refetchTopics: vi.fn(),
   refetchEvidence: vi.fn(),
+  draft: vi.fn(),
 }));
 vi.mock("@/hooks/use-knowledge-gaps", () => ({
   useKnowledgeGaps: () => ({
@@ -40,6 +50,8 @@ vi.mock("@/hooks/use-knowledge-gaps", () => ({
     error: state.topicsError,
     refetch: state.refetchTopics,
   }),
+  useDraftKnowledgeGap: () => ({ mutate: state.draft, isPending: false }),
+  useKnowledgeGapDraftEstimate: () => ({ estimate: { total_usd: "0.02" } }),
 }));
 vi.mock("@/hooks/use-improvements", () => ({
   useImprovement: () => ({ deferTopic: { mutateAsync: state.defer, isPending: false } }),
@@ -81,9 +93,11 @@ vi.mock("@/components/knowledge-gaps/knowledge-gap-dialog", () => ({
 }));
 
 const ROUND = SESSION.iterations[0]!;
-const topic = (id: string, extra = {}) => ({
+const topic = (id: string, extra = {}): Topic => ({
   id,
+  status: "open",
   label: `Topic ${id}`,
+  examples: [`Topic ${id}`, `More about ${id}?`],
   knowledge_base_name: "Policies",
   has_draft: true,
   can_edit: true,
@@ -114,7 +128,7 @@ it("counts confirmed changes large, unconfirmed ones beside them, and links the 
   });
   const view = render(<ResultSummary session={SESSION} round={ROUND} />);
   const tiles = screen.getByRole("group", {
-    name: "In the agent: 3 questions newly fixed, 0 newly broken. In the knowledge base: 2 documents to review.",
+    name: "In the agent: 3 questions newly fixed, 0 newly broken. In the knowledge base: 3 topics missing.",
   });
   const fixed = within(tiles).getByText("Newly fixed").closest("div.flex-col")!;
   expect(fixed).toHaveTextContent("3");
@@ -122,8 +136,9 @@ it("counts confirmed changes large, unconfirmed ones beside them, and links the 
   expect(within(tiles).getByText("Newly broken").closest("div.flex-col")).not.toHaveTextContent(
     "not confirmed",
   );
+  // Every open topic of the session counts, drafted or not, whoever may change it.
   const topics = within(tiles).getByText("Topics missing knowledge").closest("a")!;
-  expect(topics).toHaveTextContent("2");
+  expect(topics).toHaveTextContent("3");
   expect(topics).toHaveAttribute("href", "#improvement-documents");
   view.rerender(
     <ResultSummary session={SESSION} round={{ ...ROUND, verdict_detail: { fixed: null } }} />,
@@ -137,12 +152,17 @@ it("counts confirmed changes large, unconfirmed ones beside them, and links the 
   expect(screen.getByText("Topics missing knowledge").closest("a")).toBeNull();
 });
 
-it("lists only this session's drafts beside the changes and opens one inside the wizard", async () => {
+it("lists only this session's topics beside the changes and opens a draft inside the wizard", async () => {
   render(<KnowledgeDocuments session={{ ...SESSION, deferred_topic_ids: ["t2"] }} />);
   expect(screen.getByText("Missing from the knowledge base")).toBeInTheDocument();
   expect(screen.getByText("Topic t2")).toBeInTheDocument();
-  expect(screen.queryByText("Topic t3")).not.toBeInTheDocument();
+  expect(screen.getByText("Topic t3")).toBeInTheDocument();
   expect(screen.queryByText("Topic t9")).not.toBeInTheDocument();
+  expect(
+    screen.getAllByRole("list", { name: "Other questions on this topic" })[0],
+  ).toHaveTextContent("More about t1?");
+  // t3's knowledge base is not the caller's to change: it is listed, not reviewed.
+  expect(screen.getAllByRole("button", { name: /Review the draft/ })).toHaveLength(2);
   await userEvent.click(screen.getAllByRole("button", { name: /Review the draft/ })[0]!);
   await userEvent.click(screen.getByRole("button", { name: "Close draft t1 in the wizard" }));
   expect(screen.queryByRole("button", { name: /Close draft/ })).not.toBeInTheDocument();
@@ -159,6 +179,7 @@ it("says nothing is missing, and offers to read the drafts again after a failure
 });
 
 it("keeps a document set aside with Not now off the list, and says when that fails", async () => {
+  state.topics = [topic("t1"), topic("t2")];
   const view = render(<KnowledgeDocuments session={SESSION} accept />);
   expect(screen.getByText("In the knowledge base: 2 documents to add")).toBeInTheDocument();
   await userEvent.click(screen.getAllByRole("button", { name: "Not now" })[0]!);
@@ -236,4 +257,53 @@ it("lists the documents without adding or setting them aside once the wizard is 
   expect(screen.getByText("Topic t1")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Not now" })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /Review and add/ })).not.toBeInTheDocument();
+});
+
+it("offers a draft, with its cost, for a topic that has none, and says while it is written", async () => {
+  state.topics = [
+    topic("t1", { has_draft: false }),
+    topic("t2", { has_draft: false, drafting: true }),
+  ];
+  render(<KnowledgeDocuments session={SESSION} />);
+  await userEvent.click(screen.getByRole("button", { name: "Draft · $0.02" }));
+  expect(state.draft).toHaveBeenCalledWith("t1");
+  expect(screen.getByRole("status")).toHaveTextContent("Drafting…");
+  expect(screen.queryByRole("button", { name: /Review/ })).not.toBeInTheDocument();
+});
+
+it("counts on Accept only the drafted topics, and offers drafting the rest there too", () => {
+  state.topics = [topic("t1"), topic("t2", { has_draft: false })];
+  render(<KnowledgeDocuments session={SESSION} accept />);
+  expect(screen.getByText("In the knowledge base: 1 document to add")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Draft · $0.02" })).toBeInTheDocument();
+  expect(screen.getAllByRole("button", { name: "Not now" })).toHaveLength(2);
+});
+
+it("shows where each draft stands but offers no drafting once the wizard is only read", () => {
+  state.topics = [
+    topic("t1", { has_draft: false }),
+    topic("t2", { draft_stale: true }),
+    topic("t3", { has_draft: false, draft_failed: true }),
+  ];
+  render(
+    <ReadOnlyProvider value="viewOnly">
+      <KnowledgeDocuments session={SESSION} />
+    </ReadOnlyProvider>,
+  );
+  expect(screen.getByText("Topic t1")).toBeInTheDocument();
+  expect(screen.getByText("The knowledge base changed after this draft")).toBeInTheDocument();
+  expect(screen.getByRole("alert")).toHaveTextContent("The draft could not be written.");
+  expect(screen.queryByRole("button")).not.toBeInTheDocument();
+});
+
+it("finds the session's open topics, drafted or not, and nobody else's", () => {
+  state.topics = [
+    topic("t1"),
+    topic("t2", { has_draft: false }),
+    topic("t3", { status: "covered" }),
+    topic("t9", { has_draft: false }),
+  ];
+  const { result } = renderHook(() => useSessionTopics(SESSION));
+  expect(result.current.topics.map((item) => item.id)).toEqual(["t1", "t2"]);
+  expect(result.current.error).toBeNull();
 });

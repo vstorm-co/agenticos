@@ -6,10 +6,10 @@ import type { Improvement, ImprovementIteration } from "@/types/improvement";
 import { ReadOnlyProvider } from "./read-only";
 import { ResultStep } from "./result-decision";
 
-const state = vi.hoisted(() => ({ drafts: [] as { id: string }[], discard: vi.fn() }));
+const state = vi.hoisted(() => ({ topics: [] as { id: string }[], discard: vi.fn() }));
 vi.mock("./outcome", () => ({
   DOCUMENTS_ANCHOR: "improvement-documents",
-  useDrafts: () => ({ drafts: state.drafts }),
+  useSessionTopics: () => ({ topics: state.topics }),
   ResultSummary: () => <p>Counters</p>,
   KnowledgeDocuments: () => <p>Topic list</p>,
 }));
@@ -64,7 +64,7 @@ const primary = (name: string | RegExp) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
-  state.drafts = [];
+  state.topics = [];
 });
 
 it("leads with the better attempt and sends the person to accept it", async () => {
@@ -89,7 +89,7 @@ it("names a chosen attempt that was not better, and holds Accept while the selec
 });
 
 it("says no attempt helped and which broke, and leads to the missing topics", () => {
-  state.drafts = [{ id: "t1" }, { id: "t2" }, { id: "t3" }, { id: "t4" }];
+  state.topics = [{ id: "t1" }, { id: "t2" }, { id: "t3" }, { id: "t4" }];
   show(EXHAUSTED);
   expect(
     screen.getByText(
@@ -125,7 +125,7 @@ it("offers to end, or to start over with better test questions, when nothing is 
 });
 
 it("makes trying again the primary action while attempts are left", () => {
-  state.drafts = [{ id: "t1" }];
+  state.topics = [{ id: "t1" }];
   show({
     ...EXHAUSTED,
     stop_reason: "regression",

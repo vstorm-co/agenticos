@@ -46,6 +46,12 @@ export interface KnowledgeGapTopic {
   has_draft: boolean;
   /** How many different people asked the questions the model's draft came from; null for a person's draft. */
   draft_askers?: number | null;
+  /** A draft is queued or being written now. */
+  drafting?: boolean;
+  /** The newest draft request failed, and no newer draft exists. */
+  draft_failed?: boolean;
+  /** An open topic's draft is older than a document added to its knowledge base since. */
+  draft_stale?: boolean;
   /** Whether the caller may dismiss, reopen, draft or add its content: they may change its knowledge base. */
   can_edit: boolean;
 }
@@ -132,6 +138,12 @@ export interface KnowledgeGapTopicDetail extends KnowledgeGapTopic {
   /** The newest hundred. */
   questions: KnowledgeGapQuestion[];
   draft: KnowledgeGapDraft | null;
+}
+
+/** What one draft of a topic costs, before it is asked for. */
+export interface KnowledgeGapDraftEstimate {
+  /** Null when the drafter's model has no known price. */
+  total_usd: string | null;
 }
 
 export interface KnowledgeGapCasesAdded {
