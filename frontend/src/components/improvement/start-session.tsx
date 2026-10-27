@@ -255,7 +255,7 @@ function sessionLimit(quote: ImprovementEstimate): string {
 
 /**
  * An agent has one open session at a time, so a new one starts only once the open
- * one ends: a working session stops, one waiting for a decision is discarded.
+ * one ends: a working or failed session stops, one waiting for a decision is discarded.
  */
 function EndOpen({ session }: { session: Improvement }) {
   const t = useTranslations("improvement.endOpen");
@@ -263,7 +263,8 @@ function EndOpen({ session }: { session: Improvement }) {
   const actions = useImprovement(session.agent_id, session.id);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const ending = isActive(session) ? actions.cancel : actions.discard;
+  const ending =
+    isActive(session) || session.status === "failed" ? actions.cancel : actions.discard;
   return (
     <>
       <Button variant="outline" size="sm" onClick={() => setConfirming(true)}>

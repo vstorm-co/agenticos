@@ -232,6 +232,7 @@ it.each([
   ["ready", "discard"],
   ["waiting", "discard"],
   ["running", "cancel"],
+  ["failed", "cancel"],
 ] as const)(
   "ends an open %s session before a new one, once the person confirms",
   async (status, ending) => {

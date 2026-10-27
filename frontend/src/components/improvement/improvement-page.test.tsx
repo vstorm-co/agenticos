@@ -263,6 +263,8 @@ it("stops running work and explicitly retries a failed step", async () => {
   expect(actions.cancel.mutateAsync).toHaveBeenCalled();
   state.session!.status = "failed";
   view.rerender(<ImprovementPage agentId="a1" sessionId="s1" />);
+  await userEvent.click(screen.getByRole("button", { name: "Stop the session" }));
+  expect(actions.cancel.mutateAsync).toHaveBeenCalledTimes(2);
   await userEvent.click(
     screen.getByRole("button", { name: "Retry this step within the spending limit" }),
   );
