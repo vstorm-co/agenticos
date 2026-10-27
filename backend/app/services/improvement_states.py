@@ -10,6 +10,7 @@ promotes, and no transition leaves `ready` except by a person's decision.
 """
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -24,6 +25,12 @@ from app.db.models.improvement import (
     ImprovementStatus,
     ImprovementVerdict,
     StopReason,
+)
+from app.schemas.improvement import (
+    AttemptNoise,
+    MeasurementNoise,
+    NoisyAttempt,
+    NoisyQuestion,
 )
 
 MIN_GRADABLE_CASES = 5
@@ -439,3 +446,126 @@ def estimated_minutes(
     each = ANSWER_SECONDS if answer_seconds is None else answer_seconds
     per_round = PROPOSAL_SECONDS + math.ceil(answers / max(concurrency, 1)) * each
     return max(1, math.ceil(rounds * per_round / 60))
+
+
+NOISY_SPREAD_QUESTIONS = 2
+"""Held-out questions today's version may move by between attempts before the test is noise.
+
+Every attempt asks the same version the same held-out questions, so any movement
+is the grading, not the agent. A typical attempt fixes one or two questions, and
+a check that wobbles by as many cannot tell that fix from chance.
+"""
+
+NOISY_SPREAD_POINTS = 0.15
+"""The same wobble as a share of the held-out pass rate, for a set small enough
+that two questions is already a large share."""
+
+NOISY_UNSTABLE_SHARE = 0.2
+"""Share of held-out questions graded both ways without the agent changing that
+makes the test noise: a fifth of the set is more than an attempt usually moves."""
+
+NOISE_EXAMPLES = 5
+"""Unstable questions shown as examples; the counts cover the rest."""
+
+
+@dataclass(frozen=True)
+class CheckedCase:
+    """One held-out question's grades in one attempt, the first answer then each re-ask."""
+
+    case_id: UUID
+    input: str
+    baseline: tuple[bool | None, ...]
+    candidate: tuple[bool | None, ...]
+
+
+@dataclass(frozen=True)
+class CheckedAttempt:
+    """One measured attempt's check: today's version's held-out score and every question."""
+
+    number: int
+    baseline_passed: int
+    baseline_rate: float | None
+    cases: tuple[CheckedCase, ...]
+
+
+def _both_ways(grades: Sequence[bool | None]) -> bool:
+    return len({grade for grade in grades if grade is not None}) > 1
+
+
+def measurement_noise(attempts: Sequence[CheckedAttempt]) -> MeasurementNoise | None:
+    """Whether the attempts' checks could tell a better version from a worse one.
+
+    Nothing is asked again: the signal is read from what the checks stored. Today's
+    version is the same in every attempt, so a different held-out score, a question
+    graded differently from one attempt to the next, or re-asks graded both ways
+    within one attempt are all the grading moving rather than the agent.
+    """
+    if not attempts:
+        return None
+    held_out = max(len(attempt.cases) for attempt in attempts)
+    scored = [attempt for attempt in attempts if attempt.baseline_rate is not None]
+    rates = [attempt.baseline_rate for attempt in scored if attempt.baseline_rate is not None]
+    low, high = (min(rates), max(rates)) if rates else (None, None)
+    passed = [attempt.baseline_passed for attempt in scored]
+    spread = max(passed) - min(passed) if passed else 0
+    first_grades: dict[UUID, set[bool]] = {}
+    for attempt in attempts:
+        for case in attempt.cases:
+            if case.baseline and case.baseline[0] is not None:
+                first_grades.setdefault(case.case_id, set()).add(case.baseline[0])
+    unstable = {case_id for case_id, grades in first_grades.items() if len(grades) > 1}
+    by_attempt = []
+    for attempt in attempts:
+        baseline = {case.case_id for case in attempt.cases if _both_ways(case.baseline)}
+        candidate = {case.case_id for case in attempt.cases if _both_ways(case.candidate)}
+        unstable |= baseline | candidate
+        by_attempt.append(
+            AttemptNoise(
+                number=attempt.number,
+                baseline_unstable=len(baseline),
+                candidate_unstable=len(candidate),
+            )
+        )
+    wobble = round(high - low, 6) if low is not None and high is not None else 0.0
+    noisy = (
+        spread >= NOISY_SPREAD_QUESTIONS
+        or wobble >= NOISY_SPREAD_POINTS
+        or (held_out > 0 and len(unstable) / held_out >= NOISY_UNSTABLE_SHARE)
+    )
+    shown: list[UUID] = []
+    for attempt in attempts:
+        for case in attempt.cases:
+            if case.case_id in unstable and case.case_id not in shown:
+                shown.append(case.case_id)
+    examples = [
+        NoisyQuestion(
+            case_id=case_id,
+            input=next(
+                case.input
+                for attempt in attempts
+                for case in attempt.cases
+                if case.case_id == case_id
+            ),
+            attempts=[
+                NoisyAttempt(
+                    number=attempt.number,
+                    baseline=list(case.baseline),
+                    candidate=list(case.candidate),
+                )
+                for attempt in attempts
+                for case in attempt.cases
+                if case.case_id == case_id
+            ],
+        )
+        for case_id in shown[:NOISE_EXAMPLES]
+    ]
+    return MeasurementNoise(
+        noisy=noisy,
+        held_out=held_out,
+        baseline_low=low,
+        baseline_high=high,
+        baseline_spread=spread,
+        unstable=len(unstable),
+        by_attempt=by_attempt,
+        examples=examples,
+    )

@@ -788,6 +788,10 @@ class ImprovementPipelineService:
             result.knowledge_eval_run_ids = await improvement_repo.knowledge_checks(
                 self.db, run.id, organization_id=ctx.organization_id
             )
+            if not Status(run.status).active:
+                result.measurement_noise = rules.measurement_noise(
+                    await self._checked(ctx, run, iterations)
+                )
         actors = {
             event.id: UUID(actor)
             for event in events
@@ -824,6 +828,45 @@ class ImprovementPipelineService:
             self.db, round_.eval_run_ids[-1], role=role, organization_id=run.organization_id
         )
         return None if counted is None else CheckAnswers(**counted._asdict())
+
+    async def _checked(
+        self, ctx: AuthContext, run: ImprovementRun, iterations: list[ImprovementIteration]
+    ) -> list[rules.CheckedAttempt]:
+        """Each measured attempt's latest check, as the held-out grades it stored.
+
+        A check the caller can no longer read - its agent or dataset hidden from
+        them since - is left out rather than failing the whole session read.
+        """
+        attempts = []
+        for iteration in iterations:
+            if (
+                iteration.verdict is None
+                or not iteration.eval_run_ids
+                or iteration.number > run.max_iterations
+            ):
+                continue
+            try:
+                comparison = await self.evals.compare(ctx, iteration.eval_run_ids[-1])
+            except NotFoundError:
+                continue
+            theirs = comparison.baseline_summary
+            attempts.append(
+                rules.CheckedAttempt(
+                    number=iteration.number,
+                    baseline_passed=0 if theirs is None else theirs.passed,
+                    baseline_rate=None if theirs is None else theirs.pass_rate,
+                    cases=tuple(
+                        rules.CheckedCase(
+                            case_id=case.case_id,
+                            input=case.input,
+                            baseline=(case.baseline, *case.baseline_reruns),
+                            candidate=(case.candidate, *case.candidate_reruns),
+                        )
+                        for case in comparison.cases
+                    ),
+                )
+            )
+        return attempts
 
     @staticmethod
     def _name(people: dict[UUID, User], user_id: UUID | None) -> str | None:

@@ -99,6 +99,54 @@ class CheckAnswers(BaseSchema):
     )
 
 
+class NoisyAttempt(BaseSchema):
+    """One attempt's answers to a question, first answer then each re-ask."""
+
+    number: int
+    baseline: list[bool | None]
+    candidate: list[bool | None]
+
+
+class NoisyQuestion(BaseSchema):
+    """A held-out question whose grade changed without the agent changing."""
+
+    case_id: UUID
+    input: str = Field(description="The question the case asks")
+    attempts: list[NoisyAttempt]
+
+
+class AttemptNoise(BaseSchema):
+    number: int
+    baseline_unstable: int = Field(
+        description="Held-out questions today's version answered both well and badly on re-asking"
+    )
+    candidate_unstable: int = Field(description="The same for the attempt's changed version")
+
+
+class MeasurementNoise(BaseSchema):
+    """Whether the session's test can tell a better version from a worse one.
+
+    Read from the attempts' stored checks: the same version scored differently
+    on the same held-out questions, between attempts or on re-asking.
+    """
+
+    noisy: bool
+    held_out: int = Field(description="Held-out questions the attempts compared")
+    baseline_low: float | None = Field(
+        description="Today's version's lowest held-out pass rate across the attempts"
+    )
+    baseline_high: float | None = Field(description="And its highest")
+    baseline_spread: int = Field(
+        description="Held-out questions between today's version's lowest and highest score"
+    )
+    unstable: int = Field(
+        description="Held-out questions graded both ways on re-asking, or graded differently "
+        "for today's version in two attempts"
+    )
+    by_attempt: list[AttemptNoise] = Field(default_factory=list)
+    examples: list[NoisyQuestion] = Field(default_factory=list)
+
+
 class ImprovementRead(BaseSchema):
     published_version_id: UUID | None = None
     published_version: int | None = None
@@ -143,6 +191,11 @@ class ImprovementRead(BaseSchema):
         default=None,
         description="How far the current attempt's check has asked the changed agent; "
         "none before that check starts",
+    )
+    measurement_noise: MeasurementNoise | None = Field(
+        default=None,
+        description="Whether the test told the versions apart; none while the session works, "
+        "before an attempt is measured, or for a reader without runs:view",
     )
 
 
