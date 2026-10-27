@@ -3630,6 +3630,17 @@ class TestNewAgentModel:
         assert draft["model_profile_id"] is None
 
     @pytest.mark.anyio
+    async def test_a_model_publish_would_refuse_does_not_make_a_second(self):
+        """Beside a broken profile, the one publish accepts is still the only model."""
+        speech = _profile(label="tts", model="gpt-4o-mini-tts")
+        broken = _profile(label="broken", fallback_profile_ids=[str(speech.id)])
+        only = _profile()
+
+        draft = await self._created_with([broken, only, speech])
+
+        assert draft["model_profile_id"] == str(only.id)
+
+    @pytest.mark.anyio
     async def test_a_caller_that_picks_its_own_model_gets_none(self):
         """The organization assistant chooses its model when it publishes."""
         draft = await self._created_with([_profile()], choose_model=False)

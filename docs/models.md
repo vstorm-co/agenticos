@@ -108,7 +108,8 @@ enough. To change only the model's key or endpoint, edit it in place
 The draft stays without a model when the organization has none, or more than one.
 Profiles that cannot run an agent do not count: a profile with no key, a
 text-to-speech model and the other models in
-[A profile an agent cannot run on](#a-profile-an-agent-cannot-run-on). A model on
+[A profile an agent cannot run on](#a-profile-an-agent-cannot-run-on), and neither does a profile
+publish would refuse, such as one that falls back to such a model. A model on
 a [ChatGPT sign-in](#running-on-a-chatgpt-subscription) is never chosen for
 somebody, because it is one person's subscription, but it counts as a model.
 

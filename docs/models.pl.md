@@ -1,5 +1,5 @@
 ---
-source_sha: "e87078e468ca"
+source_sha: "12e71a0807d8"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -117,7 +117,8 @@ profilu](#changing-a-profiles-key-or-endpoint)).
 Szkic zostaje bez modelu, gdy organizacja nie ma żadnego modelu albo ma więcej niż
 jeden. Profile, na których agent nie może działać, nie są liczone: profil bez
 klucza, model text-to-speech i pozostałe modele z sekcji [Profil, na którym agent
-nie może działać](#a-profile-an-agent-cannot-run-on). Model na [logowaniu
+nie może działać](#a-profile-an-agent-cannot-run-on), ani profil, który publikacja by
+odrzuciła, na przykład taki z fallbackiem na taki model. Model na [logowaniu
 ChatGPT](#running-on-a-chatgpt-subscription) nigdy nie jest wybierany za kogoś, bo
 to subskrypcja jednej osoby, ale jest liczony jako model.
 

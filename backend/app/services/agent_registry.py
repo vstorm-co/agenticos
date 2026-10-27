@@ -826,6 +826,12 @@ def _parse_spec_yaml(text: str) -> AgentSpec:
         raise refused_field("yaml", str(exc)) from exc
 
 
+def _is_sign_in(profile: ModelProfile) -> bool:
+    """Whether the profile runs on a ChatGPT sign-in, one person's subscription."""
+    provider = PROVIDERS.get(profile.provider)
+    return provider is not None and provider.secret_kind is SecretKind.OPENAI_CODEX
+
+
 class AgentRegistryService:
     """Manage an organization's agents."""
 
@@ -1401,22 +1407,20 @@ class AgentRegistryService:
         # takes it too: a profile deleted in between would be written into the
         # draft as a dangling id (#2478).
         await hold_subject_shared(self.db, LockScope.MODEL_PROFILE_REFERENCES, ctx.organization_id)
-        profiles = [
+        # Counted after publish's own check, so a broken profile beside a good
+        # one does not make two. A sign-in is counted without it: whether it is
+        # the caller's is publish's question, not whether it is a model.
+        candidates = [
             profile
             for profile in await credential_repo.list_profiles(
                 self.db, organization_id=ctx.organization_id
             )
             if usable_for_agents(profile)
+            and (_is_sign_in(profile) or not await self.model_profile_problems(ctx, profile.id))
         ]
-        if len(profiles) != 1:
+        if len(candidates) != 1 or _is_sign_in(candidates[0]):
             return None
-        (profile,) = profiles
-        provider = PROVIDERS.get(profile.provider)
-        if provider is not None and provider.secret_kind is SecretKind.OPENAI_CODEX:
-            return None
-        if await self.model_profile_problems(ctx, profile.id):
-            return None
-        return profile.id
+        return candidates[0].id
 
     async def clone(self, ctx: AuthContext, agent_id: UUID, *, name: str | None = None) -> Agent:
         """Copy an agent's draft into a new agent, in draft.

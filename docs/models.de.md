@@ -1,5 +1,5 @@
 ---
-source_sha: "e87078e468ca"
+source_sha: "12e71a0807d8"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -129,7 +129,9 @@ Stelle ([Schlüssel oder Endpunkt eines Profils
 Der Entwurf bleibt ohne Modell, wenn die Organisation keines oder mehr als eines
 hat. Profile, auf denen kein Agent laufen kann, zählen nicht: ein Profil ohne
 Schlüssel, ein Text-to-Speech-Modell und die anderen Modelle aus [Ein Profil, auf
-dem kein Agent laufen kann](#a-profile-an-agent-cannot-run-on). Ein Modell auf einer
+dem kein Agent laufen kann](#a-profile-an-agent-cannot-run-on), und ebenso wenig ein
+Profil, das die Veröffentlichung ablehnen würde, etwa eines mit einem solchen Modell
+als Fallback. Ein Modell auf einer
 [ChatGPT-Anmeldung](#running-on-a-chatgpt-subscription) wird nie für jemanden
 gewählt, weil es das Abonnement einer einzelnen Person ist, aber es zählt als
 Modell.

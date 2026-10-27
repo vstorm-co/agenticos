@@ -1,5 +1,5 @@
 ---
-source_sha: "e87078e468ca"
+source_sha: "12e71a0807d8"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -124,7 +124,8 @@ la clave o el endpoint de un perfil](#changing-a-profiles-key-or-endpoint)).
 El borrador se queda sin modelo cuando la organización no tiene ninguno o tiene más
 de uno. Los perfiles en los que un agent no puede ejecutarse no cuentan: un perfil
 sin clave, un modelo de texto a voz y los demás modelos de [Un perfil en el que un
-agent no puede ejecutarse](#a-profile-an-agent-cannot-run-on). Un modelo con un
+agent no puede ejecutarse](#a-profile-an-agent-cannot-run-on), ni un perfil que la
+publicación rechazaría, como uno con un fallback a uno de esos modelos. Un modelo con un
 [inicio de sesión de ChatGPT](#running-on-a-chatgpt-subscription) nunca se elige en
 nombre de nadie, porque es la suscripción de una persona, pero cuenta como modelo.
 
