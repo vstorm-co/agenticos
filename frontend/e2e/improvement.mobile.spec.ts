@@ -57,6 +57,11 @@ async function seedImprovableAgent(page: Page) {
   const organizationId = await activeOrganization();
   const headers = { "X-Organization-Id": organizationId ?? "" };
   const api = page.request;
+  // The request context sends the browser's cookies but never refreshes them; an
+  // access token that expired since sign-in is renewed by the page's own load.
+  await expect
+    .poll(async () => (await api.get(`/api/orgs/${organizationId}`, { headers })).status())
+    .toBe(200);
   const stamp = Date.now().toString(36);
   await write(api, "patch", `/orgs/${organizationId}`, headers, { ai_assistance_enabled: true });
   const secret = await write(api, "post", "/secrets", headers, {
@@ -289,8 +294,19 @@ test("test questions, review and improvement publish keep a guarded environment 
 
   await page.goto(`/agents/${id(agent)}/improve/new`);
   await page.getByText("Show details", { exact: true }).click();
-  await page.getByLabel("Test questions", { exact: true }).click();
-  await page.getByRole("option", { name: String(dataset.name), exact: true }).click();
+  const testQuestions = page.getByLabel("Test questions", { exact: true });
+  const questionSet = page.getByRole("option", { name: String(dataset.name), exact: true });
+  // Every spec's question sets are listed, so on a phone the one wanted can sit
+  // below the viewport; typing its name selects it wherever it is.
+  await expect(async () => {
+    if (await questionSet.isVisible()) await page.keyboard.press("Escape");
+    await testQuestions.scrollIntoViewIfNeeded();
+    await testQuestions.click({ timeout: 2_000 });
+    await expect(questionSet).toBeVisible({ timeout: 2_000 });
+    await page.keyboard.type(String(dataset.name));
+    await page.keyboard.press("Enter");
+    await expect(testQuestions).toContainText(String(dataset.name), { timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
   const estimate = page.getByText(/^Up to .+ \(estimate\) to sort the \d+ answers? with feedback/);
   // Opened before the estimate lands, which redraws the box above it.
   await page.getByText("Helper that writes the changes", { exact: true }).click();
