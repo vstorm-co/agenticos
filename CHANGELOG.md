@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.26.0] - 2026-10-27
+
 ### Added
 
 - Change a model's key, endpoint, API, settings or name in place with
@@ -17091,7 +17093,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.25.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.26.0...HEAD
+[1.26.0]: https://github.com/vstorm-co/agenticos/compare/v1.25.0...v1.26.0
 [1.25.0]: https://github.com/vstorm-co/agenticos/compare/v1.24.0...v1.25.0
 [1.24.0]: https://github.com/vstorm-co/agenticos/compare/v1.23.0...v1.24.0
 [1.23.0]: https://github.com/vstorm-co/agenticos/compare/v1.22.0...v1.23.0
