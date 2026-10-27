@@ -96,4 +96,4 @@ def test_the_start_quote_is_the_analysis_not_the_whole_session(instructions: str
     rule = _bullet(instructions, "Starting")
     assert "Never call `total_usd` the price of the whole session" in rule
     assert "`per_round_usd`" in rule
-    assert "spending limit" in rule
+    assert "spending limit for the whole session - theirs, or `limit_usd`" in rule

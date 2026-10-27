@@ -503,9 +503,12 @@ class TestAClosedSession:
         assert published["outcome"]["published_version"] == 7
 
 
+QUOTE = {"total_usd": "0.01", "per_round_usd": "0.03", "max_iterations": 3}
+
+
 class TestEstimatingAndDatasets:
     async def test_an_estimate_names_one_target(self, server: FastMCP, api: MagicMock) -> None:
-        api.request = AsyncMock(return_value={"total_usd": "0.04"})
+        api.request = AsyncMock(return_value=QUOTE)
 
         await _call(server, "estimate_improvement", agent_id=AGENT, dataset_id=DATASET)
 
@@ -517,13 +520,41 @@ class TestEstimatingAndDatasets:
     async def test_an_estimate_can_name_a_suite_instead(
         self, server: FastMCP, api: MagicMock
     ) -> None:
-        api.request = AsyncMock(return_value={"total_usd": "0.04"})
+        api.request = AsyncMock(return_value=QUOTE)
 
         await _call(server, "estimate_improvement", agent_id=AGENT, suite_id=DATASET)
 
         assert api.request.await_args.kwargs == {
             "json": {"max_iterations": 3, "suite_id": str(DATASET)}
         }
+
+    @pytest.mark.parametrize(
+        ("total", "per_round", "rounds", "limit"),
+        [
+            ("0.012", "0.0333", 3, "0.12"),
+            ("0.01", "0.03", 3, "0.10"),
+            ("0", "0.001", 1, "0.01"),
+        ],
+        ids=["rounded up to the cent", "exact", "never below a cent"],
+    )
+    async def test_an_estimate_offers_the_wizard_s_limit_for_the_whole_session(
+        self,
+        server: FastMCP,
+        api: MagicMock,
+        total: str,
+        per_round: str,
+        rounds: int,
+        limit: str,
+    ) -> None:
+        """The start is priced only up to Understand; the limit covers every attempt after it."""
+        api.request = AsyncMock(
+            return_value={"total_usd": total, "per_round_usd": per_round, "max_iterations": rounds}
+        )
+
+        estimate = await _call(server, "estimate_improvement", agent_id=AGENT, dataset_id=DATASET)
+
+        assert estimate["limit_usd"] == limit
+        assert estimate["total_usd"] == total
 
     async def test_every_dataset_is_listed_when_no_agent_is_named(
         self, server: FastMCP, api: MagicMock

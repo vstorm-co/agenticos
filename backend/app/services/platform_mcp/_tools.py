@@ -15,7 +15,7 @@ publish, each held for the person's approval like every write here but
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import ROUND_CEILING, Decimal
 from typing import Any, Literal
 from uuid import UUID
 
@@ -161,6 +161,17 @@ _NEXT_STEPS = {
     "check": {"after": "Changes", "next_step": "test the changes"},
 }
 """Where a waiting session stopped and what pressing Next step runs, by its `next_step`."""
+
+
+_CENT = Decimal("0.01")
+
+
+def _session_limit(estimate: dict[str, Any]) -> str:
+    """The spending limit the wizard offers: the start and every attempt, up to the cent."""
+    whole = Decimal(estimate["total_usd"]) + estimate["max_iterations"] * Decimal(
+        estimate["per_round_usd"]
+    )
+    return str(max(_CENT, whole.quantize(_CENT, rounding=ROUND_CEILING)))
 
 
 def _waiting(session: dict[str, Any]) -> dict[str, Any] | None:
@@ -909,16 +920,20 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
 
         Name exactly one of `dataset_id` (test questions) or `suite_id` (an
         automatic check, which brings its dataset). `total_usd` is what it costs
-        up to its first stop, after Understand, and `per_round_usd` about what
-        one attempt costs - each later step is priced when it is taken. Tell the
-        person both before starting one.
+        up to its first stop, after Understand, `per_round_usd` about what one
+        attempt costs - each later step is priced when it is taken - and
+        `limit_usd` the spending limit for the whole session, covering the start
+        and every attempt. Tell the person all three before starting one.
         """
         target: dict[str, Any] = {"max_iterations": max_iterations}
         if dataset_id is not None:
             target["dataset_id"] = str(dataset_id)
         if suite_id is not None:
             target["suite_id"] = str(suite_id)
-        return await api.request("POST", f"/agents/{agent_id}/improvements/estimate", json=target)
+        estimate = await api.request(
+            "POST", f"/agents/{agent_id}/improvements/estimate", json=target
+        )
+        return {**estimate, "limit_usd": _session_limit(estimate)}
 
     async def start_improvement(
         agent_id: UUID,
@@ -931,9 +946,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         `runs:view` and `datasets:run` on the dataset.
 
         Run estimate_improvement first. `budget_usd` is the spending limit for the
-        whole session, never below its `total_usd`: the person's figure, or
-        `total_usd` plus `per_round_usd` for one attempt. The session never
-        spends more. Say the price and the limit before calling. The session stops for the person after
+        whole session, never below its `total_usd`: the person's figure, or the
+        estimate's `limit_usd`. The session never spends more. Say the price and the limit before calling. The session stops for the person after
         Understand, after Changes and at the result, and changes nothing in the
         agent until it is accepted. An agent has one open session at a time: with
         one open, this refuses and names it - end it first, when the person asks.
