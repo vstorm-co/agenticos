@@ -103,7 +103,9 @@ async function seedImprovableAgent(page: Page) {
   });
   let train = 0,
     holdout = 0;
-  for (let n = 0; n < 40 && (train < 3 || holdout < 5); n++) {
+  // Each attempt keeps half the questions aside and a result needs five, so a
+  // second attempt needs ten questions however they fall.
+  for (let n = 0; n < 40 && (n < 10 || train < 3 || holdout < 5); n++) {
     const question = await write(api, "post", `/datasets/${id(dataset)}/cases`, headers, {
       input: `Return policy question ${n + 1}`,
       checks: [{ type: "equals", value: "PONG-IMPROVEMENT-AFTER" }],
