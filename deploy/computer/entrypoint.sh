@@ -43,9 +43,10 @@ fi
 as_desk dbus-launch --exit-with-session startxfce4 >/tmp/xfce.log 2>&1 &
 
 # What a `launch` action opens is the desktop's, so it is started as `desk` by a
-# launcher computerd asks over a socket, which also lists what `desk`'s menu shows. Started by computerd itself, it would
-# run as the account that holds the token. The directory is setgid `computerd`,
-# so the socket `desk` makes in it is computerd's to connect to and nobody else's.
+# launcher computerd asks over a socket, which also lists what `desk`'s menu
+# shows. Started by computerd itself, it would run as the account that holds the
+# token. The directory is setgid `computerd`, so the socket `desk` makes in it
+# is computerd's to connect to and nobody else's.
 install -d -m 2750 -o desk -g computerd /run/launcher
 as_desk python3 /opt/computerd/computerd.py launcher /run/launcher/socket >/tmp/launcher.log 2>&1 &
 

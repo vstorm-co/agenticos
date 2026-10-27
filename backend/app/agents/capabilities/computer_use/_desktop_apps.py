@@ -21,7 +21,8 @@ from pathlib import Path
 OPEN_SECONDS = 10
 """How long `exo-open` may take to start the application.
 
-With `WINDOW_SECONDS` it stays inside computerd's caller's 30-second read.
+Together with `WINDOW_SECONDS` a launch stays inside the 30 seconds the backend
+waits for computerd's answer.
 """
 
 WINDOW_SECONDS = 10.0
@@ -138,13 +139,12 @@ def _screen() -> tuple[set[str], str]:
             ["xdotool", *args], capture_output=True, text=True, timeout=10, check=False
         ).stdout
 
-    return set(xdotool("search", "--onlyvisible", "--name", "").split()), xdotool(
-        "getactivewindow"
-    ).strip()
+    windows = xdotool("search", "--onlyvisible", "--name", "")
+    return set(windows.split()), xdotool("getactivewindow").strip()
 
 
 def launch(app: App) -> None:
-    """Open an application, and return once a new window shows or the focus moves.
+    """Open an application, and return once a new window shows, the focus moves or `WINDOW_SECONDS` pass.
 
     `exo-open` runs the entry as the menu would. It gets a session of its own
     and no pipes: the application inherits both, and a pipe it held open would

@@ -51,6 +51,9 @@ screenshot the model has already shown. The approved batch runs in a resumed
 run, which is a new one with nothing looked at yet, so `computer_act` measures
 the screen first rather than refuse the batch. The gate stores the batch as JSON
 and runs it from there, so `computer_act` validates its actions again.
+`computer_apps` only reads the menu, so it is not side-effecting either; it is a
+tool rather than an action so that holding `computer_act` never holds a look at
+what is installed.
 
 **A park forgets nothing the run needs.** Every answer carries a `Seen` in its
 `metadata`: the run's id, the screenshot's `Screen` and the actions taken so

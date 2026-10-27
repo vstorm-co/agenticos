@@ -1,7 +1,8 @@
 """Where the desktop is: the agent's own sandbox, or a `computerd` daemon the operator runs.
 
-Both answer the same two questions - what is on the screen, and do this - and
-neither is told how the model's screenshot was scaled; `_actions.to_native` has
+Each answers the same questions - what is on the screen, do this, and which
+applications a `launch` may open - and none is told how the model's screenshot
+was scaled; `_actions.to_native` has
 already moved every point into the backend's own input space by the time an
 action arrives here.
 
@@ -197,7 +198,8 @@ def xdotool(action: NativeAction) -> list[str] | None:
     """The `xdotool` command that carries out an action on an X11 display.
 
     `None` for a wait, which is a sleep here rather than a process on the desktop,
-    and for a launch, which is not `xdotool`'s.
+    and for a launch, which `_desktop_apps` carries out.
+
     An argv rather than a shell line, so typed text reaches `xdotool` as one
     argument whatever it holds.
     """
@@ -236,6 +238,7 @@ NO_LAUNCH = (
     "This desktop cannot open applications by name. Use its own launcher: cmd+space "
     "and the name on a Mac, the Start menu elsewhere."
 )
+"""The refusal of a desktop that cannot launch; computerd without its launcher says the same."""
 
 
 def read_apps(listing: str | bytes) -> list[App]:
@@ -479,7 +482,7 @@ class LocalComputer:
         await self._call("screen.act", {"action": action.model_dump()})
 
     async def apps(self) -> list[App]:
-        """None: the desktop app cannot open applications by name yet."""
+        """Refused: the desktop app cannot open applications by name yet."""
         raise ComputerError(NO_LAUNCH)
 
     async def close(self) -> None:

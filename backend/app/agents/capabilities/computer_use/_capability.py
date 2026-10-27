@@ -41,7 +41,8 @@ _BY_LAUNCH = "open an application with the `launch` action and a name `computer_
 # spend a refused `computer_act` finding out.
 _BY_LAUNCHER = (
     "open an application with this computer's own launcher (cmd+space and its "
-    "name on a Mac, the Start menu elsewhere; there is no `launch` action here)"
+    "name on a Mac, the Start menu elsewhere; `launch` and `computer_apps` do not "
+    "work here)"
 )
 
 
