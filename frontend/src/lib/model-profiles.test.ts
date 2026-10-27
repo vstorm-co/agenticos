@@ -93,11 +93,23 @@ describe("modelInUse", () => {
       error: {
         code: "IN_USE",
         message: "in use",
-        details: { agents: [{ id: "a1", name: "Helpdesk" }, { id: "a2" }, null], hidden_agents: 3 },
+        details: {
+          agents: [
+            { id: "a1", name: "Helpdesk" },
+            { id: "a3", name: "Old helpdesk", archived: true },
+            { id: "a2" },
+            null,
+          ],
+          hidden_agents: 3,
+        },
       },
     });
 
-    expect(modelInUse(error)).toEqual({ names: ["Helpdesk"], hidden: 3 });
+    expect(modelInUse(error)).toEqual({
+      names: ["Helpdesk", "Old helpdesk"],
+      archived: 1,
+      hidden: 3,
+    });
   });
 
   it("tolerates a refusal that lists nothing", () => {
@@ -105,7 +117,7 @@ describe("modelInUse", () => {
       error: { code: "IN_USE", message: "in use", details: {} },
     });
 
-    expect(modelInUse(error)).toEqual({ names: [], hidden: 0 });
+    expect(modelInUse(error)).toEqual({ names: [], archived: 0, hidden: 0 });
   });
 
   it("is null for any other failure", () => {

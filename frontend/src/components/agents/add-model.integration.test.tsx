@@ -1102,6 +1102,17 @@ describe("a provider nobody can type a key for", () => {
 
 describe("the model the agent is already on", () => {
   /** The profile shape this form is handed, and the row the organization has for it. */
+  /** An OpenAI-compatible gateway that authenticates nothing: no key, on purpose. */
+  function selfHosted() {
+    return inUse({
+      provider: "openai",
+      model: "gpt-5",
+      secret_id: null,
+      base_url: "http://gw/v1",
+      api: "chat",
+    });
+  }
+
   function inUse(overrides: Record<string, unknown> = {}) {
     return {
       id: "p-1",
@@ -1275,6 +1286,52 @@ describe("the model the agent is already on", () => {
       id: "p-1",
       changes: { secret_id: null, base_url: "http://gw2/v1", api: "chat" },
     });
+  });
+
+  it("says the self-hosted model has no key rather than naming one it will not send", async () => {
+    state.secrets = [secret({ id: "s-1", purpose: "openai", name: "OpenAI prod" })];
+    mount({ selected: selfHosted() });
+
+    expect(screen.getByLabelText("Key")).toHaveTextContent("No key - the endpoint needs none");
+    expect(screen.queryByText(/Using/)).not.toBeInTheDocument();
+    expect(screen.getByText("In use")).toBeInTheDocument();
+  });
+
+  it("will not take away the endpoint a keyless model needs", async () => {
+    // Without a key OpenAI has nowhere to send the request; the server refuses
+    // it, so the button does before it.
+    state.secrets = [secret({ id: "s-1", purpose: "openai", name: "OpenAI prod" })];
+    mount({ selected: selfHosted() });
+
+    await userEvent.clear(screen.getByLabelText("Endpoint"));
+
+    expect(screen.getByRole("button", { name: "Update model" })).toBeDisabled();
+  });
+
+  it("keys a self-hosted model only with a key somebody picked", async () => {
+    state.secrets = [secret({ id: "s-1", purpose: "openai", name: "OpenAI prod" })];
+    mount({ selected: selfHosted() });
+
+    await userEvent.click(screen.getByLabelText("Key"));
+    await userEvent.click(screen.getByRole("option", { name: /OpenAI prod/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Update model" }));
+
+    expect(state.updateProfile.mutateAsync).toHaveBeenCalledWith({
+      id: "p-1",
+      changes: { secret_id: "s-1", base_url: "http://gw/v1", api: "chat" },
+    });
+  });
+
+  it("goes back to no key once that is picked again", async () => {
+    state.secrets = [secret({ id: "s-1", purpose: "openai", name: "OpenAI prod" })];
+    mount({ selected: selfHosted() });
+
+    await userEvent.click(screen.getByLabelText("Key"));
+    await userEvent.click(screen.getByRole("option", { name: /OpenAI prod/ }));
+    await userEvent.click(screen.getByLabelText("Key"));
+    await userEvent.click(screen.getByRole("option", { name: /No key/ }));
+
+    expect(screen.getByText("In use")).toBeInTheDocument();
   });
 
   it("is a new model again once it is given a name of its own", async () => {

@@ -1,5 +1,5 @@
 ---
-source_sha: "4f55a357816a"
+source_sha: "8eebc2ccdc3b"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -137,7 +137,9 @@ la organización.
 
 Si borras una clave del vault, sus perfiles se quedan con `secret_id` a null.
 `GET /providers/model-profiles` marca ese perfil con `missing_key: true`, salvo
-que sea un provider keyless con endpoint, como un Ollama en tu red. Entonces:
+que sea un provider keyless con endpoint, como un Ollama en tu red u OpenAI
+detrás de un gateway. Ese perfil sigue ejecutándose sin clave contra su endpoint.
+Entonces:
 
 - Los selectores de modelo del agent y del chat no lo ofrecen. Si un agent ya lo
   nombra, el Builder lo muestra con la marca **no key** y te pide que le des una
@@ -158,9 +160,10 @@ agent, de un revisor o de un especialista, o en una capability, como el modelo d
 follow-ups o el modelo de los pasos del navegador.
 
 Los agents archivados cuentan,
-porque desarchivarlos restaura la versión que servían. Las versiones antiguas que
-nada sirve no cuentan. Mueve primero esos agents a otro
-modelo. Para cambiar solo la clave, edita el perfil.
+porque desarchivarlos restaura la versión que servían. El rechazo los marca con
+`archived`: un agent archivado no puede publicar, así que bórralo, o
+restáuralo y muévelo. Las versiones antiguas que nada sirve no cuentan. Mueve
+primero los demás agents a otro modelo. Para cambiar solo la clave, edita el perfil.
 
 ### Fallbacks { #fallbacks }
 

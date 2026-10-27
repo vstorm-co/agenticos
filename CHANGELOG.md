@@ -37,8 +37,8 @@ Two things are versioned separately from this file and worth knowing about:
 ### Changed
 
 - Deleting a model profile that agents use is refused with `409 IN_USE`
-  (#2478). `details.agents` names each agent the caller can see, and
-  `details.hidden_agents` counts the rest. A profile counts as in use when an
+  (#2478). `details.agents` names each agent the caller can see and marks the
+  archived ones, and `details.hidden_agents` counts the rest. A profile counts as in use when an
   agent's draft, served version or an environment's pinned version names it
   anywhere, including reviewers, specialists and capability settings, and
   archived agents count too. The Builder

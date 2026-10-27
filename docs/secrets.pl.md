@@ -1,5 +1,5 @@
 ---
-source_sha: "2068394aec00"
+source_sha: "33f4d742c4ca"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -170,7 +170,9 @@ przypisywany do sekretu, do którego rozwiązał się dany run, i tak właśnie 
 „który klucz kosztuje najwięcej" dostaje odpowiedź. Przypisanie klucza do profilu
 pożycza go każdemu, kto na nim działa, więc utworzenie lub edycja profilu - jego
 klucza albo endpointu - wymaga `secrets:view` na tym kluczu. Usunięty klucz
-zostawia swoje profile oznaczone `missing_key`, dopóki nie dostaną innego.
+zostawia swoje profile oznaczone `missing_key`, dopóki nie dostaną innego, poza
+providerem keyless z endpointem, na przykład OpenAI za gatewayem: taki profil
+dalej działa bez klucza ([Profil bez klucza](models.md#a-profile-without-a-key)).
 
 **Zamiana mowy na tekst.** Klucz API, którego przeznaczeniem jest dostawca,
 wskazany po identyfikatorze obok dostawcy i modelu wszędzie tam, gdzie

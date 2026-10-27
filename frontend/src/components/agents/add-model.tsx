@@ -150,6 +150,9 @@ export function placeholderWords(
   return typeof placeholder === "string" ? placeholder : t(placeholder.key);
 }
 
+/** The key select's value for "no key": Radix refuses an empty string as an item's value. */
+const NO_KEY = "none";
+
 /** The same rule the backend applies, so the button says no before the server does. */
 export function modelIdIsWellFormed(providerId: string, model: string): boolean {
   return providerId !== "openrouter" || model.includes("/");
@@ -271,7 +274,16 @@ export function AddModel({
   // The keys already stored for this provider. A secret's purpose *is* the
   // provider id, which is what makes this a lookup rather than a convention.
   const keys = secrets.filter((secret) => secret.purpose === providerId);
-  const chosenKey = secretId || keys[0]?.id || "";
+  // A self-hosted model in use that runs with no key on purpose. The form offers
+  // "no key" for it and starts there, instead of on the provider's first key: that
+  // key is a suggestion for a new model, and saved onto this one it would be sent
+  // to the endpoint for every agent on it (#2478).
+  const offersNoKey =
+    selected !== undefined &&
+    selected.secret_id === null &&
+    hasKey(selected) &&
+    providerId === selected.provider;
+  const chosenKey = secretId || (offersNoKey ? "" : (keys[0]?.id ?? ""));
   // What the provider publishes, where it publishes anything. Cached hard: a
   // catalog changes when a provider ships a model, not while a form is open.
   const {
@@ -355,13 +367,7 @@ export function AddModel({
         // All three, every time: the server compares them with what is stored
         // and writes only what differs, so what the form shows is what is saved.
         changes: {
-          // A self-hosted model with no key keeps none unless one is picked: the
-          // key this form falls back on is a suggestion for a new model, and on a
-          // shared one it would be sent to the endpoint for every agent on it.
-          secret_id:
-            secretId === "" && selected.secret_id === null && hasKey(selected)
-              ? null
-              : chosenKey || null,
+          secret_id: chosenKey || null,
           base_url: customEndpoint ? baseUrl.trim() : null,
           api,
         },
@@ -500,7 +506,7 @@ export function AddModel({
           {/* One key needs no question. The vault has exactly one OpenRouter
               key in most organizations, and a select with a single option is a
               decision somebody has to make about nothing. */}
-          {keys.length === 1 && (
+          {keys.length === 1 && !offersNoKey && (
             <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
               <KeyRound className="h-3.5 w-3.5" />
               {t.rich("usingKey", {
@@ -511,14 +517,18 @@ export function AddModel({
             </p>
           )}
 
-          {keys.length > 1 && (
+          {(keys.length > 1 || (offersNoKey && keys.length > 0)) && (
             <>
               <Label htmlFor="add-model-key">{t("key")}</Label>
-              <Select value={chosenKey} onValueChange={chooseKey}>
+              <Select
+                value={chosenKey || NO_KEY}
+                onValueChange={(value) => chooseKey(value === NO_KEY ? "" : value)}
+              >
                 <SelectTrigger id="add-model-key">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  {offersNoKey && <SelectItem value={NO_KEY}>{t("noKeyForEndpoint")}</SelectItem>}
                   {keys.map((secret) => (
                     <SelectItem key={secret.id} value={secret.id} textValue={secret.name}>
                       {/* The provider is the filter this list was built with, so

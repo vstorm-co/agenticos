@@ -1,5 +1,5 @@
 ---
-source_sha: "e60656c9fb57"
+source_sha: "2ef13903688f"
 ---
 
 # Berechtigungen { #permissions }
@@ -136,8 +136,9 @@ Teilmenge dieser Berechtigungen, nie mehr, als sein Aussteller jetzt hat.
     `connections:manage` bearbeitet auch Model-Profile, und eine Bearbeitung
     stellt jeden Agent auf dem Profil um, auch Agents, die der Bearbeitende nicht
     bearbeiten darf: ein neuer Endpunkt erhält ihre Anfragen ab dem nächsten Run.
-    Der Schlüssel bleibt geschützt. Schlüssel oder Endpunkt eines Profils zu
-    ändern, braucht `secrets:view` auf seinem Schlüssel
+    Der Schlüssel bleibt geschützt. Einem Profil einen Schlüssel zu geben oder
+    den Endpunkt eines Profils mit Schlüssel zu verschieben, braucht
+    `secrets:view` auf diesem Schlüssel
     ([Modelle](models.md#changing-a-profiles-key-or-endpoint)).
 
 **Ressourcen**-Berechtigungen tragen einen `Scope`, denn sie beantworten die

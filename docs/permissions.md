@@ -120,8 +120,9 @@ subset of the permissions here, never more than its issuer holds now.
 
     `connections:manage` also edits model profiles, and an edit moves every agent
     on the profile, including agents the editor cannot edit: a new endpoint gets
-    their requests from the next run. The key is still protected. Changing a
-    profile's key or endpoint needs `secrets:view` on its key
+    their requests from the next run. The key is still protected. Setting a
+    profile's key, or moving the endpoint of a profile that has one, needs
+    `secrets:view` on that key
     ([Models](models.md#changing-a-profiles-key-or-endpoint)).
 
 **Resource** permissions carry a `Scope`, because they answer the second question

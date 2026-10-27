@@ -1,5 +1,5 @@
 ---
-source_sha: "4f55a357816a"
+source_sha: "8eebc2ccdc3b"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -144,7 +144,8 @@ die Modelle der Organisation verwalten.
 Wenn Sie einen Schlüssel aus dem Vault löschen, bleiben seine Profile mit
 `secret_id` auf null bestehen. `GET /providers/model-profiles` markiert ein
 solches Profil mit `missing_key: true`, außer es ist ein keyless Provider mit
-Endpunkt, etwa ein Ollama in Ihrem Netz. Dann:
+Endpunkt, etwa ein Ollama in Ihrem Netz oder OpenAI hinter einem Gateway. Ein
+solches Profil läuft ohne Schlüssel gegen seinen Endpunkt weiter. Dann:
 
 - Die Modellauswahl für Agents und Chat bietet es nicht an. Verweist ein Agent
   bereits darauf, zeigt der Builder es mit dem Hinweis **kein Schlüssel** und
@@ -167,8 +168,11 @@ oder in einer Capability, etwa als Follow-up-Modell oder als Modell für
 Browser-Schritte.
 
 Archivierte Agents zählen, denn das Wiederherstellen aus dem
-Archiv stellt die Version wieder her, die sie ausgeliefert haben. Alte Versionen,
-die nichts ausliefert, zählen nicht. Verschieben Sie diese Agents zuerst auf ein anderes Modell. Um nur
+Archiv stellt die Version wieder her, die sie ausgeliefert haben. Die Ablehnung
+markiert sie mit `archived`: Ein archivierter Agent kann nicht veröffentlichen,
+also löschen Sie ihn, oder stellen Sie ihn wieder her und verschieben Sie ihn.
+Alte Versionen, die nichts ausliefert, zählen nicht. Verschieben Sie die übrigen
+Agents zuerst auf ein anderes Modell. Um nur
 den Schlüssel zu ändern, bearbeiten Sie stattdessen das Profil.
 
 ### Fallbacks { #fallbacks }

@@ -177,7 +177,12 @@ export function useModelProviders() {
       }
       toast.error(
         inUse.names.length > 0
-          ? t("modelInUse", { label, names: inUse.names.join(", "), hidden: inUse.hidden })
+          ? t("modelInUse", {
+              label,
+              names: inUse.names.join(", "),
+              hidden: inUse.hidden,
+              archived: inUse.archived,
+            })
           : t("modelInUseHidden", { label, count: inUse.hidden }),
       );
     },

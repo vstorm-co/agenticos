@@ -121,7 +121,8 @@ the next run. Grant it to the people who manage the organization's models.
 If you delete a key from the vault, its profiles stay with `secret_id` set to
 null. `GET /providers/model-profiles` marks such a profile `missing_key: true`,
 unless it is a keyless provider with an endpoint, such as an Ollama on your
-network. Then:
+network or OpenAI behind a gateway. Such a profile keeps running with no key,
+against its endpoint. Then:
 
 - Agent and chat model pickers do not offer it. If an agent already names it, the
   Builder shows it with a **no key** badge and tells you to give it a key.
@@ -141,8 +142,9 @@ specialist's, or in a capability, such as the follow-ups model or the browser st
 model.
 
 Archived agents count, because unarchiving restores the version they
-served. Old versions that nothing serves do not count. Move those agents to
-another model first. To change only the key, edit the profile
+served. The refusal marks them `archived`: an archived agent cannot publish, so
+delete it, or restore it and move it. Old versions that nothing serves do not
+count. Move the other agents to another model first. To change only the key, edit the profile
 instead.
 
 ### Fallbacks

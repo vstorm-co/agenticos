@@ -273,7 +273,7 @@ describe("useModelProviders", () => {
     expect(toastSuccess).toHaveBeenCalledWith("Updated OpenAI · gpt-5");
   });
 
-  function inUse(agents: { id: string; name: string }[], hidden: number) {
+  function inUse(agents: { id: string; name: string; archived?: boolean }[], hidden: number) {
     return new ApiError(409, "in use", {
       error: { code: "IN_USE", message: "in use", details: { agents, hidden_agents: hidden } },
     });
@@ -289,7 +289,7 @@ describe("useModelProviders", () => {
       inUse(
         [
           { id: "a1", name: "Helpdesk" },
-          { id: "a2", name: "Researcher" },
+          { id: "a2", name: "Researcher", archived: true },
         ],
         1,
       ),
@@ -301,7 +301,8 @@ describe("useModelProviders", () => {
 
     expect(toast.error).toHaveBeenCalledWith(
       "OpenAI · gpt-5 is still used by Helpdesk, Researcher and one agent you cannot see. " +
-        "Move them to another model first, or change this model's key instead of deleting it.",
+        "Move them to another model first, or change this model's key instead of deleting it. " +
+        "One of them is archived: delete it, or restore it and move it.",
     );
   });
 

@@ -38,6 +38,7 @@ from app.core.secret_kinds import (
     unseal_secret,
 )
 from app.core.vault import VaultScope
+from app.db.models.agent import AgentStatus
 from app.db.models.credential import ModelProfile
 from app.repositories import (
     agent_repo,
@@ -459,6 +460,9 @@ class ModelProfileService:
             named = [agent for agent in users if agent.id in visible]
             hidden = len(users) - len(named)
             names = ", ".join(agent.name for agent in named)
+            # An archived agent cannot publish, so "move it" is not something it
+            # can do where it is: it is deleted, or restored and moved.
+            archived = sum(agent.status == AgentStatus.ARCHIVED.value for agent in named)
             raise InUseError(
                 message=(
                     f"Model '{profile.label}' is used by {len(users)} "
@@ -467,10 +471,23 @@ class ModelProfileService:
                     + (f" and {hidden} you cannot see" if named and hidden else "")
                     + ". Move them to another model first, or change this model's key "
                     "in place instead of deleting it."
+                    + (
+                        f" {archived} of them {'is' if archived == 1 else 'are'} archived: "
+                        "delete those, or restore and move them."
+                        if archived
+                        else ""
+                    )
                 ),
                 details={
                     "profile_id": str(profile_id),
-                    "agents": [{"id": agent.id, "name": agent.name} for agent in named],
+                    "agents": [
+                        {
+                            "id": agent.id,
+                            "name": agent.name,
+                            "archived": agent.status == AgentStatus.ARCHIVED.value,
+                        }
+                        for agent in named
+                    ],
                     "hidden_agents": hidden,
                 },
             )

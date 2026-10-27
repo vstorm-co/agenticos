@@ -1,5 +1,5 @@
 ---
-source_sha: "2068394aec00"
+source_sha: "33f4d742c4ca"
 ---
 
 # Secretos y el vault { #secrets-and-the-vault }
@@ -171,7 +171,9 @@ atribuye al secreto al que resolvió el run, y así «qué clave está costando 
 tiene respuesta. Asignar una clave a un perfil se la presta a todos los que se
 ejecutan sobre él, así que crear o editar un perfil - su clave o su endpoint -
 requiere `secrets:view` sobre esa clave. Una clave borrada deja sus perfiles
-marcados con `missing_key` hasta que reciban otra.
+marcados con `missing_key` hasta que reciban otra, salvo un provider keyless con
+endpoint, como OpenAI detrás de un gateway: ese perfil sigue ejecutándose sin
+clave ([Un perfil sin clave](models.md#a-profile-without-a-key)).
 
 **Voz a texto.** Una clave de API cuyo propósito es el proveedor, nombrada por
 id junto al proveedor y el modelo allí donde se configura la voz a texto: la

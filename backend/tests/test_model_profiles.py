@@ -563,11 +563,12 @@ class TestProfileCreation:
         assert audit.call_args.kwargs["target_id"] == str(profile.id)
 
 
-def _agent(ctx, name: str) -> MagicMock:
+def _agent(ctx, name: str, *, status: str = "published") -> MagicMock:
     agent = MagicMock()
     agent.id = uuid.uuid4()
     agent.organization_id = ctx.organization_id
     agent.name = name
+    agent.status = status
     return agent
 
 
@@ -616,7 +617,7 @@ class TestAModelInUseIsNotDeleted:
         assert "used by 2 agents: Helpdesk, Researcher" in refusal.message
         assert refusal.details == {
             "profile_id": str(profile.id),
-            "agents": [{"id": agent.id, "name": agent.name} for agent in users],
+            "agents": [{"id": agent.id, "name": agent.name, "archived": False} for agent in users],
             "hidden_agents": 0,
         }
 
@@ -630,8 +631,23 @@ class TestAModelInUseIsNotDeleted:
 
         assert "Private payroll" not in refusal.message
         assert "used by 2 agents: Helpdesk and 1 you cannot see" in refusal.message
-        assert refusal.details["agents"] == [{"id": seen.id, "name": "Helpdesk"}]
+        assert refusal.details["agents"] == [{"id": seen.id, "name": "Helpdesk", "archived": False}]
         assert refusal.details["hidden_agents"] == 1
+
+    @pytest.mark.anyio
+    async def test_an_archived_agent_is_marked_with_what_to_do_about_it(self):
+        """An archived agent cannot publish, so "move them" alone is advice it
+        cannot follow where it is (#2478)."""
+        ctx = _ctx()
+        profile = _profile(ctx)
+        live, old = _agent(ctx, "Helpdesk"), _agent(ctx, "Old helpdesk", status="archived")
+
+        refusal = await self._delete(ctx, profile, [live, old], visible=[live, old])
+
+        assert refusal.message.endswith(
+            "1 of them is archived: delete those, or restore and move them."
+        )
+        assert [agent["archived"] for agent in refusal.details["agents"]] == [False, True]
 
     @pytest.mark.anyio
     async def test_only_hidden_agents_still_refuse_without_naming_any(self):
@@ -870,7 +886,7 @@ class TestEditingAProfileInPlace:
         }
 
     @pytest.mark.anyio
-    async def test_clearing_the_endpoint_returns_to_the_providers_own_api(self):
+    async def test_clearing_the_endpoint_keeps_an_api_that_is_already_the_native_one(self):
         ctx = _ctx()
         profile = _profile(ctx, base_url="https://gw.example/v1", api="responses")
 

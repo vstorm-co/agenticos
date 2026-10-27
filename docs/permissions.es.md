@@ -1,5 +1,5 @@
 ---
-source_sha: "e60656c9fb57"
+source_sha: "2ef13903688f"
 ---
 
 # Permisos { #permissions }
@@ -133,8 +133,8 @@ de lo que su emisor tiene ahora.
     `connections:manage` también edita perfiles de modelo, y una edición mueve a
     cada agent sobre el perfil, incluidos los que quien edita no puede editar: un
     endpoint nuevo recibe sus peticiones desde el siguiente run. La clave sigue
-    protegida. Cambiar la clave o el endpoint de un perfil requiere
-    `secrets:view` sobre su clave
+    protegida. Poner la clave de un perfil, o mover el endpoint de un perfil que
+    tiene clave, requiere `secrets:view` sobre esa clave
     ([Modelos](models.md#changing-a-profiles-key-or-endpoint)).
 
 Los permisos de **recurso** llevan un `Scope`, porque responden a la segunda

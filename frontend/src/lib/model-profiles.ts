@@ -61,9 +61,11 @@ export function usableForAgents(
   return runsAgents(profile) && hasKey(profile);
 }
 
-/** The agents a refused delete named, and how many more the caller cannot see. */
+/** The agents a refused delete named, how many are archived, and how many more the caller cannot see. */
 export interface ModelInUse {
   names: string[];
+  /** Of `names`: an archived agent cannot publish, so it is deleted or restored first. */
+  archived: number;
   hidden: number;
 }
 
@@ -76,14 +78,19 @@ export interface ModelInUse {
  */
 export function modelInUse(error: unknown): ModelInUse | null {
   if (!(error instanceof ApiError) || error.code !== "IN_USE") return null;
-  const agents = Array.isArray(error.details?.agents) ? error.details.agents : [];
-  const names = agents
-    .map((agent: unknown) =>
-      typeof agent === "object" && agent !== null && "name" in agent ? agent.name : null,
-    )
-    .filter((name): name is string => typeof name === "string");
+  const agents = (Array.isArray(error.details?.agents) ? error.details.agents : []).filter(
+    (agent: unknown): agent is { name: string; archived?: unknown } =>
+      typeof agent === "object" &&
+      agent !== null &&
+      "name" in agent &&
+      typeof agent.name === "string",
+  );
   const hidden = error.details?.hidden_agents;
-  return { names, hidden: typeof hidden === "number" ? hidden : 0 };
+  return {
+    names: agents.map((agent) => agent.name),
+    archived: agents.filter((agent) => agent.archived === true).length,
+    hidden: typeof hidden === "number" ? hidden : 0,
+  };
 }
 
 /**

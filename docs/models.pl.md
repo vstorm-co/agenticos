@@ -1,5 +1,5 @@
 ---
-source_sha: "4f55a357816a"
+source_sha: "8eebc2ccdc3b"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -130,7 +130,8 @@ organizacji.
 Jeśli usuniesz klucz z vaulta, jego profile zostają z `secret_id` ustawionym na
 null. `GET /providers/model-profiles` oznacza taki profil jako
 `missing_key: true`, chyba że to provider keyless z endpointem, na przykład Ollama
-w twojej sieci. Wtedy:
+w twojej sieci albo OpenAI za gatewayem. Taki profil dalej działa bez klucza,
+na swoim endpoincie. Wtedy:
 
 - Pickery modelu agenta i czatu go nie oferują. Jeśli agent już go wskazuje,
   Builder pokazuje go z oznaczeniem **brak klucza** i prosi o przypisanie klucza.
@@ -150,8 +151,10 @@ recenzenta lub specjalisty albo w capability, na przykład model follow-upów lu
 model kroków przeglądarki.
 
 Zarchiwizowani agenci się liczą, bo przywrócenie z
-archiwum przywraca wersję, którą serwowali. Stare wersje, których nic nie
-serwuje, się nie liczą. Najpierw przenieś tych agentów na inny model. Aby zmienić
+archiwum przywraca wersję, którą serwowali. Odmowa oznacza ich jako `archived`:
+zarchiwizowany agent nie może publikować, więc usuń go albo przywróć i przenieś.
+Stare wersje, których nic nie serwuje, się nie liczą. Pozostałych agentów
+najpierw przenieś na inny model. Aby zmienić
 tylko klucz, edytuj profil.
 
 ### Fallbacki { #fallbacks }

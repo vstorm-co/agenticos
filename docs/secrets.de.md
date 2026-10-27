@@ -1,5 +1,5 @@
 ---
-source_sha: "2068394aec00"
+source_sha: "33f4d742c4ca"
 ---
 
 # Secrets und der Vault { #secrets-and-the-vault }
@@ -179,7 +179,9 @@ Key kostet am meisten" eine Antwort. Ein Profil mit einem Key zu versehen, leiht
 den Key allen, die darauf laufen. Ein Profil anzulegen oder zu bearbeiten - seinen
 Key oder seinen Endpunkt - braucht daher `secrets:view` auf diesem Key. Ein
 gelöschter Key hinterlässt seine Profile mit `missing_key`, bis sie einen anderen
-bekommen.
+bekommen, außer bei einem keyless Provider mit Endpunkt, etwa OpenAI hinter einem
+Gateway: Dieses Profil läuft ohne Key weiter
+([Ein Profil ohne Schlüssel](models.md#a-profile-without-a-key)).
 
 **Spracherkennung.** Ein API-Schlüssel, dessen Zweck der Anbieter ist, per ID
 neben Anbieter und Modell benannt, wo immer Spracherkennung eingerichtet wird:
