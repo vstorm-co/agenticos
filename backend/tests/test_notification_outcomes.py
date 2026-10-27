@@ -103,6 +103,20 @@ def test_an_outcome_is_served_only_for_finished_work_with_a_status():
         _row("eval_run_finished", {"status": "completed", "reason": 3}), strip_context_url=False
     )
     assert test.outcome is not None and test.outcome.reason is None
+    assert test.outcome.next_step_blocked is None
+    blocked = NotificationRead.from_row(
+        _row(
+            "improvement_finished",
+            {
+                "status": "waiting",
+                "reason": "filtering",
+                "next_step_blocked": {"reason": "missing_holdout", "needed": 2},
+            },
+        ),
+        strip_context_url=False,
+    ).outcome
+    assert blocked is not None and blocked.next_step_blocked is not None
+    assert blocked.next_step_blocked.needed == 2
     for event_type, context in [
         ("case_generation_finished", {}),
         ("case_generation_finished", None),

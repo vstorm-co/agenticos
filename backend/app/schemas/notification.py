@@ -9,6 +9,7 @@ from pydantic import Field, ValidationError
 from app.db.models.notification import Notification, NotificationChannel, NotificationEventType
 from app.db.models.notification_delivery import NotificationDelivery
 from app.schemas.base import BaseSchema
+from app.schemas.improvement import NextStepBlocked
 
 
 class NotificationAgent(BaseSchema):
@@ -46,6 +47,9 @@ class NotificationOutcome(BaseSchema):
 
     status: str
     reason: str | None = None
+    next_step_blocked: NextStepBlocked | None = Field(
+        default=None, description="Why an improvement's next step cannot be taken, when it cannot"
+    )
 
 
 _OUTCOME_EVENTS = {
@@ -60,8 +64,14 @@ def _outcome_of(notification: Notification) -> NotificationOutcome | None:
     if notification.event_type not in _OUTCOME_EVENTS or not isinstance(context.get("status"), str):
         return None
     reason = context.get("reason")
+    try:
+        blocked = NextStepBlocked.model_validate(context.get("next_step_blocked"))
+    except ValidationError:
+        blocked = None
     return NotificationOutcome(
-        status=context["status"], reason=reason if isinstance(reason, str) else None
+        status=context["status"],
+        reason=reason if isinstance(reason, str) else None,
+        next_step_blocked=blocked,
     )
 
 
