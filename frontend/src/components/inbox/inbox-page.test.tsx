@@ -181,3 +181,11 @@ it("applies a watch-filter link while the inbox is already open", () => {
   rerender(<InboxPage />);
   expect(state.shown).toEqual([finding]);
 });
+
+it("lets the person retry a failed Done history read", async () => {
+  state.error = new Error("offline");
+  render(<InboxPage />);
+  await userEvent.click(screen.getByRole("radio", { name: "Done" }));
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(state.refetch).toHaveBeenCalledOnce();
+});
