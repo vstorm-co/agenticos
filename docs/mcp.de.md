@@ -1,5 +1,5 @@
 ---
-source_sha: "d062aab13a41"
+source_sha: "e4bced8c03f1"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1091,6 +1091,17 @@ Tool-Fehler zurück, der die fehlende Berechtigung nennt.
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` und `roles:manage` |
 | `list_my_connections`, `set_my_language`, `set_my_profile` | — (die eigenen des Aufrufers) |
+| `list_improvements`, `get_improvement` | Lesezugriff auf den Agenten; die Wissensthemen der Sitzung brauchen außerdem `runs:view` |
+| `estimate_improvement`, `start_improvement`, `use_attempt`, `accept_improvement`, `estimate_improve_again`, `improve_again`, `end_improvement` | Bearbeitungszugriff auf den Agenten und `runs:view`; Starten zusätzlich `datasets:run`, Veröffentlichen `agents:publish` |
+| `list_datasets` | `datasets:view` |
+| `get_eval_run` | `runs:view` |
+
+Die Verbessern- und Eval-Werkzeuge rufen Routen auf, die noch nicht zur
+öffentlichen API gehören: Sie antworten dem Architekten in der App und einem per
+OAuth angemeldeten MCP-Client und lehnen einen API-Schlüssel der Organisation ab
+wie eine Konsolenroute. Es sind die eigenen Aktionen des
+[Verbessern-Assistenten](authoring.md#the-improve-wizard), daher gelten seine
+Prüfungen, und der Architekt nutzt die ändernden nur auf Bitte.
 
 Die Suche mit `list_projects` liefert nur Projekt-IDs und Namen, ohne
 Beschreibungen, Anweisungen und weitere bearbeitbare Bezeichnungen. `get_project` liest ein

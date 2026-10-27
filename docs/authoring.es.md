@@ -403,6 +403,23 @@ Una sesión terminada - guardada como borrador, publicada, descartada, cancelada
 
 La API responde `409` a cualquier cambio en una sesión terminada, salvo repetir la cancelación o el descarte que la terminó. `GET /{run_id}/changes` lee los cambios que midió su ronda elegida. Leer una sesión requiere acceso de lectura al agente y `runs:view`; cambiarla o empezarla requiere además permiso de edición del agente.
 
+#### Preguntar al Architect { #asking-the-architect }
+
+El [Architect](console.md#the-assistant) lee las sesiones, las ejecuciones de
+prueba y las preguntas de prueba de un agente, y explica un resultado con
+palabras sencillas: qué arregló y qué rompió un intento, si un cambio se confirmó
+al volver a preguntar y cómo cambiaron las preguntas reservadas. Enlaza el
+asistente en lugar de contarlo.
+
+Inicia, reintenta, elige un intento, acepta, publica o termina una sesión solo
+cuando se lo pides. Si le preguntas qué hacer, recomienda un paso y pregunta
+primero. Cada cambio que hace espera tu aprobación en una tarjeta, tras una frase
+sobre qué y por qué; iniciar y reintentar muestran la estimación, que pasa a ser
+el presupuesto de la sesión. Llama a las mismas acciones que el asistente, como
+tú, así que se aplican las mismas comprobaciones: un agente cambiado rechaza la
+aceptación, un entorno protegido espera su comprobación y el registro de
+auditoría te anota a ti, con la credencial del Architect al lado.
+
 ### Proponer un skill nuevo { #proposing-a-new-skill }
 
 El asistente puede proponer **Worth creating a skill** cuando un procedimiento reutilizable aparece en al menos tres respuestas distintas de las evidencias. Cada cita debe figurar en la respuesta misma; los comentarios no demuestran por sí solos un procedimiento repetido. La tarjeta muestra nombre, descripción, contenido completo, motivo y citas verificadas. Una evaluación vincula un skill temporal solo al candidato: no crea ningún registro ni versión publicada.

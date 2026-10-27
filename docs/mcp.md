@@ -1007,6 +1007,16 @@ would be; a refusal comes back as a tool error naming the missing permission.
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` and `roles:manage` |
 | `list_my_connections`, `set_my_language`, `set_my_profile` | — (the caller's own) |
+| `list_improvements`, `get_improvement` | read access to the agent; the session's knowledge topics also need `runs:view` |
+| `estimate_improvement`, `start_improvement`, `use_attempt`, `accept_improvement`, `estimate_improve_again`, `improve_again`, `end_improvement` | edit access to the agent and `runs:view`; starting also `datasets:run`, publishing `agents:publish` |
+| `list_datasets` | `datasets:view` |
+| `get_eval_run` | `runs:view` |
+
+The Improve and eval tools call routes that are not yet part of the public API:
+they answer the in-app Architect and an MCP client signed in with OAuth, and
+refuse an organization API key as a console route does. They are the
+[Improve wizard's](authoring.md#the-improve-wizard) own actions, so its checks
+apply, and the Architect uses the ones that change something only when asked.
 
 Project discovery with `list_projects` returns only project ids and names,
 excluding descriptions, instructions and other authored labels. Reading one chosen

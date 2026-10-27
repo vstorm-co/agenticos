@@ -383,6 +383,21 @@ A finished session - kept as a draft, published, discarded, cancelled or set asi
 
 The API answers any change to a finished session with `409`, except repeating the cancel or discard that ended it. `GET /{run_id}/changes` reads the changes its chosen round measured. Reading a session needs read access to the agent and `runs:view`; changing or starting one also needs edit access to the agent.
 
+#### Asking the Architect { #asking-the-architect }
+
+The [Architect](console.md#the-assistant) reads an agent's sessions, test runs and
+test questions, and explains a result in plain words: what an attempt fixed and
+broke, whether a change was confirmed by asking again, and how the held-out
+questions moved. It links the wizard rather than retelling it.
+
+It starts, tries again, chooses an attempt, accepts, publishes or ends a session
+only when you ask. Asked what to do, it recommends one step and asks first. Every
+change it makes waits for your approval on a card, after one sentence saying what
+and why; starting and trying again show the estimate, which becomes the session's
+budget. It calls the wizard's own actions as you, so the same checks apply: a
+changed agent refuses the acceptance, a guarded environment waits for its check,
+and the audit log records you, with the Architect's credential named beside you.
+
 ### Proposing a new skill { #proposing-a-new-skill }
 
 The assistant can propose **Worth creating a skill** when a reusable procedure appears in at least three distinct evidence answers. Each supporting passage must occur in the answer itself; reader comments alone do not establish a repeated procedure. The card shows its name, description, full body, rationale and verified evidence. A check binds a temporary skill to the candidate only: no skill row or published version is created.

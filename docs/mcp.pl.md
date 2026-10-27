@@ -1,5 +1,5 @@
 ---
-source_sha: "d062aab13a41"
+source_sha: "e4bced8c03f1"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1042,6 +1042,16 @@ odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` i `roles:manage` |
 | `list_my_connections`, `set_my_language`, `set_my_profile` | — (własne wywołującego) |
+| `list_improvements`, `get_improvement` | dostęp do odczytu agenta; tematy wiedzy sesji wymagają też `runs:view` |
+| `estimate_improvement`, `start_improvement`, `use_attempt`, `accept_improvement`, `estimate_improve_again`, `improve_again`, `end_improvement` | dostęp do edycji agenta i `runs:view`; uruchomienie także `datasets:run`, publikacja `agents:publish` |
+| `list_datasets` | `datasets:view` |
+| `get_eval_run` | `runs:view` |
+
+Narzędzia Popraw i evali wołają trasy, które nie należą jeszcze do publicznego API:
+odpowiadają Architektowi w aplikacji i klientowi MCP zalogowanemu przez OAuth, a
+kluczowi API organizacji odmawiają tak jak trasa konsoli. To akcje samego
+[kreatora Popraw](authoring.md#the-improve-wizard), więc obowiązują jego
+sprawdzenia, a Architekt używa tych, które coś zmieniają, tylko na prośbę.
 
 Wyszukiwanie przez `list_projects` zwraca tylko ID i nazwy projektów,
 pomijając opisy, instrukcje i pozostałe edytowalne etykiety. Odczyt wybranego projektu

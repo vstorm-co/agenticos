@@ -393,6 +393,21 @@ Zakończona sesja - zachowana jako wersja robocza, opublikowana, odrzucona, anul
 
 API odpowiada `409` na każdą zmianę zakończonej sesji, poza powtórzeniem anulowania albo odrzucenia, które ją zakończyło. `GET /{run_id}/changes` zwraca zmiany zmierzone w wybranej rundzie. Odczyt sesji wymaga dostępu do odczytu agenta i `runs:view`; zmiana albo rozpoczęcie sesji wymaga też prawa edycji agenta.
 
+#### Pytanie Architekta { #asking-the-architect }
+
+[Architekt](console.md#the-assistant) czyta sesje agenta, jego testowe runy i
+pytania testowe, i wyjaśnia wynik prostymi słowami: co próba naprawiła, a co
+zepsuła, czy zmianę potwierdziło ponowne zapytanie i jak zmieniły się pytania
+wstrzymane. Odsyła do kreatora, zamiast go opowiadać.
+
+Sesję uruchamia, ponawia, wybiera próbę, przyjmuje, publikuje albo kończy tylko
+na Twoją prośbę. Zapytany, co robić, poleca jeden krok i najpierw pyta. Każda
+zmiana, którą wprowadza, czeka na Twoją zgodę na karcie, po jednym zdaniu o tym,
+co i dlaczego; uruchomienie i ponowienie pokazują szacunek, który staje się
+budżetem sesji. Woła te same akcje co kreator, jako Ty, więc obowiązują te same
+sprawdzenia: zmieniony agent odmawia przyjęcia, chronione środowisko czeka na
+swój check, a dziennik audytu zapisuje Ciebie, z poświadczeniem Architekta obok.
+
 ### Propozycja nowego skilla { #proposing-a-new-skill }
 
 Asystent może zaproponować **Warto utworzyć skill**, gdy procedura występuje w co najmniej trzech różnych odpowiedziach stanowiących materiał źródłowy. Każdy cytat musi występować w samej odpowiedzi; komentarze czytelników nie dowodzą powtarzającej się procedury. Karta pokazuje nazwę, opis, pełną treść, uzasadnienie i zweryfikowane cytaty. Ewaluacja przypina tymczasowy skill tylko do kandydata: nie tworzy rekordu skilla ani opublikowanej wersji.

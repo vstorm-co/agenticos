@@ -415,6 +415,23 @@ Eine abgeschlossene Sitzung - als Entwurf behalten, veröffentlicht, verworfen, 
 
 Die API beantwortet jede Änderung an einer abgeschlossenen Sitzung mit `409`, außer der Wiederholung des Abbruchs oder Verwerfens, das sie beendet hat. `GET /{run_id}/changes` liest die Änderungen, die ihre gewählte Runde gemessen hat. Eine Sitzung zu lesen braucht Lesezugriff auf den Agent und `runs:view`; sie zu ändern oder zu starten braucht zusätzlich Bearbeitungsrechte für den Agent.
 
+#### Den Architekten fragen { #asking-the-architect }
+
+Der [Architekt](console.md#the-assistant) liest die Sitzungen, Testläufe und
+Testfragen eines Agenten und erklärt ein Ergebnis in einfachen Worten: was ein
+Versuch behoben und was er kaputt gemacht hat, ob eine Änderung durch erneutes
+Fragen bestätigt wurde und wie sich die zurückgehaltenen Fragen verändert haben.
+Er verlinkt den Assistenten, statt ihn nachzuerzählen.
+
+Eine Sitzung startet, wiederholt, wählt einen Versuch, übernimmt, veröffentlicht
+oder beendet er nur, wenn Sie darum bitten. Gefragt, was zu tun ist, empfiehlt er
+einen Schritt und fragt zuerst. Jede Änderung wartet auf Ihre Freigabe auf einer
+Karte, nach einem Satz dazu, was und warum; Starten und Wiederholen zeigen die
+Schätzung, die zum Budget der Sitzung wird. Er ruft als Sie dieselben Aktionen
+wie der Assistent auf, daher gelten dieselben Prüfungen: Ein geänderter Agent
+lehnt die Übernahme ab, eine geschützte Umgebung wartet auf ihren Check, und das
+Audit-Log verzeichnet Sie, mit der Kennung des Architekten daneben.
+
 ### Einen neuen Skill vorschlagen { #proposing-a-new-skill }
 
 Der Assistent kann **Ein Skill wäre sinnvoll** vorschlagen, wenn ein wiederverwendbarer Ablauf in mindestens drei verschiedenen Quellantworten vorkommt. Jede Textstelle muss in der Antwort selbst stehen; Kommentare allein belegen keinen wiederholten Ablauf. Die Karte zeigt Name, Beschreibung, vollständigen Inhalt, Begründung und geprüfte Belege. Eine Evaluation bindet einen temporären Skill nur an den Kandidaten: Sie erstellt weder einen Skill-Datensatz noch eine veröffentlichte Version.
