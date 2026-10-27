@@ -1216,8 +1216,12 @@ class WorkflowExposureService:
     async def receive_github(
         self, exposure_id: UUID, *, body: bytes, headers: Mapping[str, str]
     ) -> WebhookAdmitted | WebhookSkipped:
-        """Admit one GitHub delivery as one run, skip one the trigger does not name,
-        or answer a redelivery with the run it already admitted.
+        """Answer a redelivery with the run it already admitted, else admit one GitHub
+        delivery as one run or skip one the trigger does not name.
+
+        A redelivery is looked up by its signed delivery id before the current
+        filters and run permission apply, so it gets `duplicate: true` even after the
+        trigger was republished or its member lost access.
 
         Called with no auth context: the delivery is authenticated by GitHub's
         `X-Hub-Signature-256` under the exposure's own secret, and the run acts as
@@ -1251,6 +1255,14 @@ class WorkflowExposureService:
                 message="A GitHub delivery names itself in X-GitHub-Delivery",
                 details={"exposure_id": str(exposure_id)},
             )
+        await workflow_exposure_repo.lock_delivery(
+            self.db, exposure_id=exposure.id, delivery_id=delivery_id
+        )
+        seen = await workflow_exposure_repo.get_delivery(
+            self.db, exposure_id=exposure.id, delivery_id=delivery_id
+        )
+        if seen is not None:
+            return WebhookAdmitted(run_id=seen.workflow_run_id, duplicate=True)
         payload = parse_webhook_body(body)
         fire = await self._fire_context(exposure)
         if fire is None:
@@ -1275,15 +1287,6 @@ class WorkflowExposureService:
                 what = f"{what} {named_action}"
             where = f" on {full_name}" if isinstance(full_name, str) else ""
             return WebhookSkipped(skipped=f"{what}{where} is not one this trigger starts on")
-
-        await workflow_exposure_repo.lock_delivery(
-            self.db, exposure_id=exposure.id, delivery_id=delivery_id
-        )
-        seen = await workflow_exposure_repo.get_delivery(
-            self.db, exposure_id=exposure.id, delivery_id=delivery_id
-        )
-        if seen is not None:
-            return WebhookAdmitted(run_id=seen.workflow_run_id, duplicate=True)
         await self._spend_delivery_allowance(exposure)
         delivery = GithubTriggerOutput(
             event=event,

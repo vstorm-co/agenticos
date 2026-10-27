@@ -17,6 +17,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.exceptions import BadRequestError
 from app.db.locks import LockScope, hold_subject
 from app.db.models.workflow_run import NodeRunStatus, WorkflowRunStatus
 from app.repositories import workflow_run as workflow_run_repo
@@ -32,6 +33,7 @@ from app.services.workflow_execution.exceptions import (
 from app.services.workflow_execution.resume_link import resume_token
 from app.services.workflow_exposure import parse_webhook_body
 from app.workflows.contracts.payload import json_byte_size
+from app.workflows.graph.model import jsonb_value_fits
 
 WAIT = "flow.wait"
 
@@ -66,7 +68,8 @@ class WorkflowResumeService:
         Raises:
             WorkflowRunNotFoundError: The token is not this run's, or there is no
                 such run - one answer for both, so a guess learns nothing.
-            BadRequestError: The body is not a JSON object.
+            BadRequestError: The body is not a JSON object, or holds a value
+                PostgreSQL cannot store (a NUL, an unpaired surrogate or a non-finite number).
             WorkflowRunInputTooLargeError: The body is over the run input limit.
             WorkflowInlineStorageLimitError: Storing the Wait payload would exceed
                 the retained-payload allowance; no step is woken.
@@ -79,6 +82,13 @@ class WorkflowResumeService:
                 limit=settings.WORKFLOW_RUN_MAX_INPUT_BYTES, size=len(body)
             )
         payload: dict[str, Any] = parse_webhook_body(body) if body else {}
+        try:
+            jsonb_value_fits(payload)
+        except (ValueError, RecursionError) as exc:
+            raise BadRequestError(
+                message="The body must be JSON PostgreSQL can store: no NUL characters, "
+                "unpaired surrogates or non-finite numbers"
+            ) from exc
         organization_id = await workflow_run_repo.run_organization_id(self.db, run_id)
         if organization_id is not None:
             await hold_subject(self.db, LockScope.WORKFLOW_FILE_BYTES, organization_id)

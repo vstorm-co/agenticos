@@ -1842,6 +1842,66 @@ class TestGithub:
         assert (run.input["repository"], run.input["sender"]) == ("acme/api", "ada")
         assert run.input["payload"]["repository"] == {"full_name": "acme/api"}
 
+    @pytest.mark.security
+    async def test_a_redelivery_gets_its_run_after_the_filters_narrow(self, db, tenant):
+        owner, org, workflow = tenant
+        ctx = _ctx(owner, org)
+        service = WorkflowExposureService(db)
+        graph = _graph("trigger.github", {**GITHUB, "register_with_account": False})
+        published = await _publish(db, ctx, workflow, graph)
+        body, headers = _github_delivery(published.webhook_secret)
+        first = await service.receive_github(published.exposure.id, body=body, headers=headers)
+        (trigger,) = graph.nodes
+        narrowed = graph.model_copy(
+            update={
+                "nodes": (
+                    trigger.model_copy(
+                        update={"config": {**trigger.config, "actions": ["closed"]}}
+                    ),
+                )
+            }
+        )
+
+        republished = await _publish(db, ctx, workflow, narrowed)
+
+        assert republished.exposure.id == published.exposure.id
+
+        again = await service.receive_github(published.exposure.id, body=body, headers=headers)
+        fresh_body, fresh_headers = _github_delivery(published.webhook_secret, delivery="g-2")
+        fresh = await service.receive_github(
+            published.exposure.id, body=fresh_body, headers=fresh_headers
+        )
+
+        assert isinstance(first, WebhookAdmitted) and isinstance(again, WebhookAdmitted)
+        assert (again.duplicate, again.run_id) == (True, first.run_id)
+        assert isinstance(fresh, WebhookSkipped)
+        assert [run.id for run in await _runs(db)] == [first.run_id]
+
+    @pytest.mark.security
+    async def test_a_redelivery_gets_its_run_after_the_member_loses_run_access(self, db, tenant):
+        owner, org, workflow = tenant
+        service = WorkflowExposureService(db)
+        published = await _publish(
+            db,
+            _ctx(owner, org),
+            workflow,
+            _graph("trigger.github", {**GITHUB, "register_with_account": False}),
+        )
+        body, headers = _github_delivery(published.webhook_secret)
+        first = await service.receive_github(published.exposure.id, body=body, headers=headers)
+        await db.execute(delete(OrganizationMember).where(OrganizationMember.user_id == owner.id))
+        fresh_body, fresh_headers = _github_delivery(published.webhook_secret, delivery="g-2")
+
+        again = await service.receive_github(published.exposure.id, body=body, headers=headers)
+        with pytest.raises(AuthorizationError):
+            await service.receive_github(
+                published.exposure.id, body=fresh_body, headers=fresh_headers
+            )
+
+        assert isinstance(first, WebhookAdmitted) and isinstance(again, WebhookAdmitted)
+        assert (again.duplicate, again.run_id) == (True, first.run_id)
+        assert [run.id for run in await _runs(db)] == [first.run_id]
+
     @pytest.mark.parametrize(
         "delivery",
         [
@@ -2036,7 +2096,9 @@ class TestGithub:
         graph = _graph("trigger.github", {**GITHUB, "register_with_account": False})
         published = await _publish_over_http(client, workflow_id, graph)
         body, headers = _github_delivery(published["webhook_secret"])
-        ping, ping_headers = _github_delivery(published["webhook_secret"], event="ping")
+        ping, ping_headers = _github_delivery(
+            published["webhook_secret"], event="ping", delivery="g-ping"
+        )
         url = f"{settings.API_V1_STR}/workflow-github/{published['exposure']['id']}"
 
         admitted = await client.post(url, content=body, headers=headers)

@@ -61,6 +61,11 @@ def _scalar_key(value: object) -> bool:
     return value is None or isinstance(value, (str, int, float, bool))
 
 
+def _join_key(value: object) -> tuple[bool, object]:
+    """Keep `True`/`1` and `False`/`0` apart: Python hashes them as equal, JSON does not."""
+    return (isinstance(value, bool), value)
+
+
 async def handle(config: BaseModel | None, node_input: BaseModel | None) -> NodeResult:
     """Combine the two lists the way the config says."""
     combine = config if isinstance(config, DataCombineConfig) else DataCombineConfig()
@@ -91,9 +96,9 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                     details={"field": combine.key},
                 )
             )
-        by_key = {other.get(combine.key): other for other in right if combine.key in other}
+        by_key = {_join_key(other[combine.key]): other for other in right if combine.key in other}
         items = [
-            {**one, **by_key.get(one[combine.key], {})} if combine.key in one else one
+            {**one, **by_key.get(_join_key(one[combine.key]), {})} if combine.key in one else one
             for one in left
         ]
     return Completed[DataCombineOutput](output=DataCombineOutput(items=items))

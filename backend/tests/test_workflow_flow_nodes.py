@@ -133,6 +133,27 @@ async def test_a_missing_join_key_does_not_match_an_explicit_null():
     assert _output(result)["items"] == [{"name": "missing"}, {"id": None, "matched": True}]
 
 
+@pytest.mark.parametrize(("left", "right"), [(True, 1), (False, 0), (1, True), (0, False)])
+async def test_a_boolean_join_value_never_matches_a_number(left, right):
+    first = [{"id": left, "name": "left"}]
+    result = await combine(
+        DataCombineConfig(mode="by_key", key="id"),
+        DataCombineInput(first=first, second=[{"id": right, "extra": 1}]),
+    )
+    items = _output(result)["items"]
+    assert items == first
+    assert type(items[0]["id"]) is type(left)
+
+
+@pytest.mark.parametrize(("left", "right"), [(1, 1.0), (True, True), (False, False)])
+async def test_equal_join_values_of_the_same_kind_still_merge(left, right):
+    result = await combine(
+        DataCombineConfig(mode="by_key", key="id"),
+        DataCombineInput(first=[{"id": left, "a": 1}], second=[{"id": right, "b": 2}]),
+    )
+    assert _output(result)["items"] == [{"id": right, "a": 1, "b": 2}]
+
+
 @pytest.mark.parametrize("value", [[1, 2], {"id": 1}])
 @pytest.mark.parametrize("side", ["first", "second"])
 async def test_combine_rejects_structured_join_values_without_retry(value, side):

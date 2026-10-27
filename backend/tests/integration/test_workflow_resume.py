@@ -182,6 +182,33 @@ async def test_a_body_that_is_not_one_json_object_or_is_too_large_is_refused(
         await _resume(seeded, b'{"long": "enough to be over"}')
 
 
+@pytest.mark.parametrize(
+    "body",
+    [b'{"x": "\\u0000"}', b'{"x": "\\ud800"}', b'{"x": NaN}'],
+    ids=["nul", "surrogate", "non-finite"],
+)
+async def test_a_body_postgres_cannot_store_is_refused_and_the_step_keeps_waiting(
+    engine: AsyncEngine, body: bytes
+):
+    from app.db.models.workflow_run import WorkflowRun
+
+    seeded, wait = await _parked(engine)
+    async with seeded.factory() as db:
+        run = await db.get(WorkflowRun, seeded.run.id)
+        assert run is not None
+        before = run.inline_result_bytes
+
+    with pytest.raises(BadRequestError, match="PostgreSQL can store"):
+        await _resume(seeded, body)
+
+    assert (await node_statuses(seeded))[wait.id] == NodeRunStatus.WAITING.value
+    async with seeded.factory() as db:
+        run = await db.get(WorkflowRun, seeded.run.id)
+        assert run is not None
+        assert run.inline_result_bytes == before
+    assert await _resume(seeded, b'{"ok": true}') == 1
+
+
 @pytest.mark.security
 @pytest.mark.parametrize("scope", ["run", "organization"])
 async def test_resume_payload_reserves_storage_before_waking_any_step(engine, monkeypatch, scope):
