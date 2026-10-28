@@ -9,9 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.spec import AgentSpec, PlatformMcpServerRef
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
+from app.core.secret_kinds import OpenAICodexSecret, SecretKind, seal_secret
+from app.core.vault import VaultScope
 from app.db.models.agent import Agent
 from app.db.models.credential import ModelProfile
 from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.user import User
 from app.repositories import agent_repo, organization_assistant_repo
 from app.schemas.assistant import AssistantUpdate
@@ -71,6 +74,44 @@ async def _model(
         provider="openai",
         model=model,
         secret_id=await provider_key(db, organization.id),
+    )
+    db.add(profile)
+    await db.flush()
+    return profile
+
+
+async def _sign_in(db: AsyncSession, organization: Organization, owner: User) -> ModelProfile:
+    """A model on the owner's own ChatGPT sign-in: private, and publishable by them."""
+    sealed = seal_secret(
+        OpenAICodexSecret(
+            access_token="codex-access-1234",
+            refresh_token="codex-refresh-1234",
+            account_id="account-1234",
+        ),
+        scope=VaultScope.organization(organization.id),
+    )
+    secret = OrganizationSecret(
+        id=uuid.uuid4(),
+        organization_id=organization.id,
+        name=f"my ChatGPT {uuid.uuid4().hex[:6]}",
+        purpose="openai_codex",
+        visibility="private",
+        owner_user_id=owner.id,
+        created_by_user_id=owner.id,
+        kind=SecretKind.OPENAI_CODEX.value,
+        sealed_secret=sealed.ciphertext,
+        hint=sealed.hint,
+    )
+    db.add(secret)
+    await db.flush()
+    profile = ModelProfile(
+        id=uuid.uuid4(),
+        organization_id=organization.id,
+        # First in the listing, ahead of any `_model`.
+        label="A my ChatGPT",
+        provider="openai_codex",
+        model="gpt-5.4",
+        secret_id=secret.id,
     )
     db.add(profile)
     await db.flush()
@@ -158,6 +199,31 @@ async def test_a_speech_model_is_not_one_it_publishes_on(db: AsyncSession) -> No
     assert ready.status == "ready"
     agent = (await db.execute(select(Agent).where(Agent.id == ready.agent_id))).scalar_one()
     assert AgentSpec.model_validate(agent.draft_spec).model_profile_id == chat.id
+
+
+async def test_a_chatgpt_sign_in_is_not_one_it_publishes_on(db: AsyncSession) -> None:
+    """One person's subscription: every member's run of the assistant would spend
+    it (#2535). Its owner installing the assistant, who could publish on it, does
+    not change that; the first model the organization can share is chosen."""
+    organization, owner = await _organization(db)
+    ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
+    service = AssistantService(db)
+    await _sign_in(db, organization, owner)
+
+    waiting = await service.state(ctx)
+
+    assert waiting.status == "needs_model"
+    agent = (await db.execute(select(Agent).where(Agent.id == waiting.agent_id))).scalar_one()
+    assert AgentSpec.model_validate(agent.draft_spec).model_profile_id is None
+
+    keyed = await _model(db, organization)
+    keyed.label = "B shared"
+    await db.flush()
+    ready = await service.state(ctx)
+
+    assert ready.status == "ready"
+    await db.refresh(agent)
+    assert AgentSpec.model_validate(agent.draft_spec).model_profile_id == keyed.id
 
 
 @pytest.mark.parametrize("has_valid_model", [False, True])

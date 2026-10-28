@@ -132,7 +132,8 @@ def usable_for_agents(profile: ModelProfile) -> bool:
     somebody's behalf - the organization assistant's first publish, a new
     agent's only model (#2483) - takes only the ones this answers true for. It
     cannot see a fallback chain or whether a ChatGPT sign-in is the caller's;
-    publish checks those.
+    publish checks those. Choosing one for somebody else also needs
+    `choosable_for_others`.
     """
     if not model_outputs(profile.provider, profile.model, base_url=profile.base_url).chat:
         return False
@@ -142,6 +143,25 @@ def usable_for_agents(profile: ModelProfile) -> bool:
         base_url=profile.base_url,
         runs_without_key=profile.runs_without_key,
     )
+
+
+def is_sign_in(profile: ModelProfile) -> bool:
+    """Whether the profile runs on a ChatGPT sign-in, one person's subscription."""
+    provider = PROVIDERS.get(profile.provider)
+    return provider is not None and provider.secret_kind is SecretKind.OPENAI_CODEX
+
+
+def choosable_for_others(profile: ModelProfile) -> bool:
+    """Whether the platform may put this profile in an agent nobody chose it for.
+
+    `usable_for_agents`, and not a ChatGPT sign-in: that is one person's
+    subscription, and every run of the agent, whoever starts it, would spend
+    it. The one rule for every model the platform picks rather than an author:
+    a new agent's only model (#2483) and the organization assistant's first
+    publish (#2535). An author may still pick a sign-in deliberately; publish
+    decides whether it is theirs to pick.
+    """
+    return usable_for_agents(profile) and not is_sign_in(profile)
 
 
 async def _checked_endpoint(spec: ProviderSpec, base_url: str) -> str:

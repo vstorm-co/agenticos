@@ -1,5 +1,5 @@
 ---
-source_sha: "12e71a0807d8"
+source_sha: "ec344f81b73c"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -111,8 +111,15 @@ ejecutarse. Es un modelo de chat con clave, o uno autoalojado guardado para
 ejecutarse sin clave, que la publicación acepta tal como está, fallbacks incluidos.
 Se aplica a todas las formas de crear un agent: **New agent** en la consola, `POST
 /agents` sin `model_profile_id`, una plantilla, una copia de un borrador sin modelo
-y un especialista promovido. El Architect, el asistente de la organización, elige su
-propio modelo al publicarse.
+y un especialista promovido.
+
+El Architect, el asistente de la organización, elige su propio modelo al publicarse:
+el primer modelo de chat que la publicación acepta, y nunca un modelo con un [inicio
+de sesión de ChatGPT](#running-on-a-chatgpt-subscription), porque cada ejecución del
+Architect por un miembro lo gastaría. Con solo un inicio de sesión, el Architect
+espera a otro modelo. Un Architect ya publicado con un inicio de sesión conserva ese
+modelo hasta que alguien que puede cambiar la configuración de la organización elige
+otro en **Build > Model** y lo publica.
 
 El modelo se escribe en el borrador, así que el agent se publica sin que nadie abra
 **Model**, y su historial muestra con qué modelo se publicó. Un spec que nombra un

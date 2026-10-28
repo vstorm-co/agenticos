@@ -54,6 +54,8 @@ from app.services.model_catalog import CatalogModel
 from app.services.model_profile import (
     MAX_FALLBACK_DEPTH,
     ModelProfileService,
+    choosable_for_others,
+    is_sign_in,
     provider_catalog,
     usable_for_agents,
     validate_endpoint_url,
@@ -999,6 +1001,25 @@ class TestAProfileWithoutAKey:
         if not secret:
             profile.secret_id = None
         assert usable_for_agents(profile) is usable
+
+    @pytest.mark.parametrize(
+        ("provider", "model", "secret", "sign_in", "choosable"),
+        [
+            pytest.param("openai", "gpt-4.1", True, False, True, id="keyed-chat"),
+            pytest.param("openai_codex", "gpt-5.4", True, True, False, id="chatgpt-sign-in"),
+            pytest.param("openai", "gpt-4.1", False, False, False, id="keyless"),
+            pytest.param("openai", "gpt-4o-mini-tts", True, False, False, id="text-to-speech"),
+        ],
+    )
+    def test_the_platform_never_chooses_a_chatgpt_sign_in_for_somebody(
+        self, provider, model, secret, sign_in, choosable
+    ):
+        """One rule for a new agent's only model and the assistant's first publish (#2535)."""
+        profile = _profile(_ctx(), model=model, provider=provider)
+        if not secret:
+            profile.secret_id = None
+        assert is_sign_in(profile) is sign_in
+        assert choosable_for_others(profile) is choosable
 
 
 class TestProfileListing:

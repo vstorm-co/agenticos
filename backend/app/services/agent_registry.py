@@ -46,7 +46,7 @@ from app.agents.capabilities.coding_agent import CODING_AGENT_ID, CodingAgentCon
 from app.agents.capabilities.follow_ups import FollowUpsConfig
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.mcp import PLATFORM_MCP_PREFIX, prefix_collisions
-from app.agents.model_resolver import PROVIDERS, lacks_key
+from app.agents.model_resolver import lacks_key
 from app.agents.spec import (
     SPEC_VERSION,
     AgentSpec,
@@ -138,7 +138,12 @@ from app.services.file_storage import (
     get_file_storage,
 )
 from app.services.model_outputs import model_outputs, not_chat_refusal
-from app.services.model_profile import MAX_FALLBACK_DEPTH, usable_for_agents
+from app.services.model_profile import (
+    MAX_FALLBACK_DEPTH,
+    choosable_for_others,
+    is_sign_in,
+    usable_for_agents,
+)
 from app.services.notifications import NotificationService
 from app.services.resource_usage import groups_sharing
 from app.services.sandbox_connection import SandboxConnectionService
@@ -826,12 +831,6 @@ def _parse_spec_yaml(text: str) -> AgentSpec:
         raise refused_field("yaml", str(exc)) from exc
 
 
-def _is_sign_in(profile: ModelProfile) -> bool:
-    """Whether the profile runs on a ChatGPT sign-in, one person's subscription."""
-    provider = PROVIDERS.get(profile.provider)
-    return provider is not None and provider.secret_kind is SecretKind.OPENAI_CODEX
-
-
 class AgentRegistryService:
     """Manage an organization's agents."""
 
@@ -1395,8 +1394,8 @@ class AgentRegistryService:
         model with a key, or a self-hosted one saved to run without one (#2478) -
         that publish would also accept as it stands,
         fallback chain included, so the agent publishes without anybody opening
-        Model. Never one on a ChatGPT sign-in: that is one person's subscription,
-        and nobody else's run may spend it. It still counts towards "only one",
+        Model. Never one on a ChatGPT sign-in (`choosable_for_others`): that is
+        one person's subscription, and nobody else's run may spend it. It still counts towards "only one",
         because it is a model the author could deliberately pick.
 
         Written into the draft, not resolved at run time: there is still no
@@ -1416,9 +1415,9 @@ class AgentRegistryService:
                 self.db, organization_id=ctx.organization_id
             )
             if usable_for_agents(profile)
-            and (_is_sign_in(profile) or not await self.model_profile_problems(ctx, profile.id))
+            and (is_sign_in(profile) or not await self.model_profile_problems(ctx, profile.id))
         ]
-        if len(candidates) != 1 or _is_sign_in(candidates[0]):
+        if len(candidates) != 1 or not choosable_for_others(candidates[0]):
             return None
         return candidates[0].id
 

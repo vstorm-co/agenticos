@@ -1,5 +1,5 @@
 ---
-source_sha: "12e71a0807d8"
+source_sha: "ec344f81b73c"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -114,8 +114,17 @@ ein Chat-Modell mit Schlüssel oder ein selbst gehostetes Modell, das ohne Schl�
 gespeichert wurde, und die Veröffentlichung akzeptiert es so, wie es ist, Fallbacks
 eingeschlossen. Das gilt für jeden Weg, einen Agent anzulegen: **Neuer Agent** in
 der Konsole, `POST /agents` ohne `model_profile_id`, eine Vorlage, eine Kopie eines
-Entwurfs ohne Modell und ein beförderter Spezialist. Der Architekt, der Assistent
-der Organisation, wählt sein Modell beim Veröffentlichen selbst.
+Entwurfs ohne Modell und ein beförderter Spezialist.
+
+Der Architekt, der Assistent der Organisation, wählt sein Modell beim
+Veröffentlichen selbst: das erste Chat-Modell, das die Veröffentlichung akzeptiert,
+und nie ein Modell auf einer
+[ChatGPT-Anmeldung](#running-on-a-chatgpt-subscription), weil jeder Lauf des
+Architekten durch ein Mitglied sie verbrauchen würde. Gibt es nur eine Anmeldung,
+wartet der Architekt auf ein anderes Modell. Ein Architekt, der bereits auf einer
+Anmeldung veröffentlicht ist, behält dieses Modell, bis jemand, der die
+Einstellungen der Organisation ändern darf, unter **Build > Model** ein anderes
+wählt und es veröffentlicht.
 
 Das Modell wird in den Entwurf geschrieben. So lässt sich der Agent veröffentlichen,
 ohne dass jemand **Modell** öffnet, und seine Historie zeigt, mit welchem Modell er

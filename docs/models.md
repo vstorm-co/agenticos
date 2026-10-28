@@ -95,8 +95,15 @@ organization has exactly one model an agent can run on. That is a chat model wit
 key, or a self-hosted one saved to run without a key, which publish accepts as it
 stands, fallbacks included. It applies to every way of creating an agent: **New
 agent** in the console, `POST /agents` without a `model_profile_id`, a template, a
-copy of a draft that has no model, and a promoted specialist. The Architect, the
-organization's assistant, chooses its own model when it publishes.
+copy of a draft that has no model, and a promoted specialist.
+
+The Architect, the organization's assistant, chooses its own model when it
+publishes: the first chat model that publish accepts, and never a model on a
+[ChatGPT sign-in](#running-on-a-chatgpt-subscription), because every member's run of
+the Architect would spend it. With only a sign-in, the Architect waits for another
+model. An Architect that was already published on a sign-in keeps that model until
+somebody who may change the organization's settings picks another under **Build >
+Model** and publishes it.
 
 The model is written into the draft, so the agent publishes without anybody opening
 **Model**, and its history shows which model it was published on. A spec that names

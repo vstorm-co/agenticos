@@ -1,5 +1,5 @@
 ---
-source_sha: "12e71a0807d8"
+source_sha: "ec344f81b73c"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -103,8 +103,15 @@ organizacja ma dokładnie jeden model, na którym agent może działać. To mode
 z kluczem albo model self-hosted zapisany do działania bez klucza, który publikacja
 przyjmuje w obecnej postaci, razem z fallbackami. Dotyczy to każdego sposobu
 tworzenia agenta: **Nowy agent** w konsoli, `POST /agents` bez `model_profile_id`,
-szablonu, kopii szkicu bez modelu oraz wypromowanego specjalisty. Architekt,
-asystent organizacji, sam wybiera swój model przy publikacji.
+szablonu, kopii szkicu bez modelu oraz wypromowanego specjalisty.
+
+Architekt, asystent organizacji, sam wybiera swój model przy publikacji: pierwszy
+model czatu, który publikacja przyjmuje, i nigdy model na [logowaniu do
+ChatGPT](#running-on-a-chatgpt-subscription), bo każde uruchomienie Architekta przez
+członka organizacji zużywałoby tę subskrypcję. Gdy jest tylko logowanie, Architekt
+czeka na inny model. Architekt opublikowany już wcześniej na logowaniu zachowuje ten
+model, dopóki ktoś, kto może zmieniać ustawienia organizacji, nie wybierze innego w
+**Build > Model** i go nie opublikuje.
 
 Model jest zapisywany w szkicu, więc agent publikuje się bez otwierania sekcji
 **Model**, a jego historia pokazuje, na jakim modelu został opublikowany. Spec,
