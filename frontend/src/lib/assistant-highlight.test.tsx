@@ -87,7 +87,7 @@ describe("pointAt", () => {
   });
 
   /**
-   * Start pointing, then run two polls inside `act`, which the tab switch needs.
+   * Start pointing, then poll for 200 ms inside `act`, which the tab switch needs.
    * Wrapped in an object: an async function returning the promise would await it.
    */
   async function pointFor(anchor: string, page: string): Promise<{ pointing: Promise<boolean> }> {
@@ -111,6 +111,8 @@ describe("pointAt", () => {
 
     await expect(pointAt("agents-new", "/agents")).resolves.toBe(true);
     expect(button).toHaveClass("assistant-highlight");
+    // And a link an agent copied from the address bar, prefix and all.
+    await expect(pointAt("agents-new", "/pl/agents")).resolves.toBe(true);
 
     vi.advanceTimersByTime(3000);
     expect(button).not.toHaveClass("assistant-highlight");

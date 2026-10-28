@@ -48,9 +48,13 @@ function find(anchor: string): HTMLElement | null {
   return document.querySelector<HTMLElement>(`[data-tour="${CSS.escape(anchor)}"]`);
 }
 
-/** Whether the browser is on `page` yet, whatever locale prefix the router added. */
+/**
+ * Whether the browser is on `page` yet. The locale comes off both sides: the
+ * router may have added one, and a link an agent copied may already carry one.
+ */
 function arrivedAt(page: string): boolean {
-  return stripLocale(window.location.pathname) === new URL(page, window.location.origin).pathname;
+  const pushed = new URL(page, window.location.origin).pathname;
+  return stripLocale(window.location.pathname) === stripLocale(pushed);
 }
 
 /**
@@ -79,7 +83,8 @@ export async function pointAt(anchor: string, page: string): Promise<boolean> {
     if (tab && !revealed && arrivedAt(page)) {
       const trigger = find(tab);
       if (trigger) {
-        // Focus stays where the reader was typing, in the Architect's panel.
+        // A tab switch leaves focus where the reader was typing, in the
+        // Architect's panel. A popover still takes it as it opens.
         activateTab(trigger, { moveFocus: false });
         revealed = true;
       }

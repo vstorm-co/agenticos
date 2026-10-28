@@ -11,9 +11,10 @@
  * `preventScroll` because the caller does the scrolling; a second one here only
  * fights it.
  *
- * `moveFocus: false` leaves focus where it is and relies on the `mousedown`
- * alone, which selects a Radix tab in either mode: for a caller whose reader is
- * typing elsewhere, such as in the Architect's panel.
+ * `moveFocus: false` leaves focus where it is when switching a tab and relies
+ * on the `mousedown` alone, which selects a Radix tab in either mode: for a
+ * caller whose reader is typing elsewhere, such as in the Architect's panel. It
+ * does not apply to a popover, which moves focus into itself as it opens.
  *
  * Shared by the onboarding walkthrough and the Architect's "show me where"
  * (`assistant-highlight.ts`), so the two cannot drift apart again.
