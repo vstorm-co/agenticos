@@ -334,11 +334,14 @@ async def get_for_collection(
     deployment-level operation, a local-directory sync - and keeps the first-match
     behaviour it always had; a name shared across tenants stays ambiguous for it.
 
-    Within one organization the choice among siblings is immaterial by
-    construction: a row joining an occupied collection name adopts that name's
-    embedding configuration and credential, so every row on one vector table
-    answers the same way. `KnowledgeBaseService._shared_embedding` is what holds
-    that true.
+    Within one organization the choice among siblings is immaterial to how the
+    collection embeds: a row joining an occupied collection name adopts that
+    name's embedding configuration and credential, so every row on one vector
+    table answers the same way (`KnowledgeBaseService._shared_embedding` holds
+    that true). It is not immaterial to which rows are read: the chosen base's
+    `vector_scope` decides whose chunks a name-resolved search reads and which
+    base a sync writes into (#2537), so the oldest of the organization's bases
+    wins, as it always has.
     """
     return choose_for_collection(
         await list_by_collection_name(db, collection_name), organization_id

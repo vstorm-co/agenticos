@@ -126,11 +126,13 @@ class BaseVectorStore(ABC):
     async def delete_document(
         self, collection_name: str, document_id: str, scope: VectorScope
     ) -> None:
-        """Remove one document's chunks, only within the knowledge base's scope.
+        """Remove one document's chunks, only within the knowledge base's tenant.
 
-        `scope` confines the delete to the rows that base holds, so a collection
-        name shared across tenants (#1684) or across same-tenant bases (#2537)
-        cannot have one delete another's document.
+        `scope` confines the delete to the rows of its tenant filed under that
+        base, plus the document's own unfiled rows of the tenant - even for a
+        base that reads no unfiled rows, since the document is named by its own
+        id (#2537). So a collection name shared across tenants (#1684) or across
+        same-tenant bases cannot have one delete another's document.
         """
 
     @abstractmethod
@@ -883,9 +885,10 @@ class PgVectorStore(BaseVectorStore):
         restricted rows. The tenant conjunct is mandatory for a `TenantScope`
         (`metadata->>'organization_id' = :scope_org`) or an `AppScope`
         (`... IS NULL`), narrowed to the scope's knowledge base when it names one
-        (#2537), and absent only for the explicit unscoped maintenance marker. `query_filter.organization_id` also scopes which tenant's
-        knowledge base the query embeds through, so a name shared across
-        organizations does not embed on another tenant's key (#913).
+        (#2537), and absent only for the explicit unscoped maintenance marker.
+        `query_filter.organization_id` also scopes which tenant's knowledge base
+        the query embeds through, so a name shared across organizations does not
+        embed on another tenant's key (#913).
         """
         table = self._table(collection_name)
         if not await self._collection_exists(collection_name):

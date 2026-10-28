@@ -612,9 +612,11 @@ async def create_sync_source(
     that can later be cloned into one or more knowledge bases. Naming a
     collection the caller cannot write is refused: a sync writes *into* the
     collection, so pointing one at another tenant's is an injection, not a read.
+    The base checked is the one the sync writes into, not any writable base of
+    that name (`CollectionAccessService.source_target`).
     """
     if data.collection_name is not None:
-        await access.writable(ctx, data.collection_name)
+        await access.source_target(ctx, data.collection_name)
     return await sync_source_svc.create_source(data, ctx=ctx)
 
 
@@ -639,7 +641,7 @@ async def clone_sync_source(
     The clone is independent - its own schedule and sync history.
     """
     source = await access.sync_source(ctx, source_id)
-    await access.writable(ctx, data.collection_name)
+    await access.source_target(ctx, data.collection_name)
     return await sync_source_svc.clone_source(str(source.id), data, ctx=ctx)
 
 
@@ -658,7 +660,7 @@ async def update_sync_source(
     """Update an existing sync source configuration."""
     source = await access.sync_source(ctx, source_id)
     if data.collection_name is not None:
-        await access.writable(ctx, data.collection_name)
+        await access.source_target(ctx, data.collection_name)
     return await sync_source_svc.update_source(str(source.id), data, ctx=ctx)
 
 

@@ -375,6 +375,22 @@ class CollectionAccessService:
             )
         return source
 
+    async def source_target(self, ctx: AuthContext, name: str) -> KnowledgeBase:
+        """The base a sync source naming this collection writes into, if writable, or 404.
+
+        For the routes that point a source at a collection by name. A source
+        records an organization and a name, not a base, so its sync writes into
+        the base :func:`_feeds` resolves - the caller organization's oldest base
+        by the name, else an app-scoped one. Authorizing any writable base of the
+        name instead let a member who owns a newer same-named personal base point
+        a source at the organization's base they cannot edit (#2537).
+        """
+        candidates = await knowledge_base_repo.list_by_collection_name(self.db, name)
+        target = knowledge_base_repo.choose_for_collection(candidates, ctx.organization_id)
+        if target is None or not await writable_kb(self.db, ctx, target):
+            raise _no_collection(name)
+        return target
+
     async def new_source_feeds(self, ctx: AuthContext, kb: KnowledgeBase) -> None:
         """Refuse a sync source on a base its sync would not write into.
 
@@ -393,7 +409,8 @@ class CollectionAccessService:
             raise BadRequestError(
                 message=(
                     "A sync source here would sync into another knowledge base named "
-                    f"'{kb.collection_name}'. Add it to that knowledge base instead."
+                    f"'{kb.collection_name}', so it cannot be added to this one. "
+                    "Use a knowledge base with a name of its own."
                 ),
                 details={"kb_id": str(kb.id), "collection": kb.collection_name},
             )

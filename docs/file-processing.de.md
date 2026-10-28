@@ -1,5 +1,5 @@
 ---
-source_sha: "d52e0c90a257"
+source_sha: "9023abb0ba69"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -617,10 +617,16 @@ außerhalb jeder Organisation hat ebenfalls keine Organisation, gehört aber ein
 einzelnen Person ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 Eine Sync-Quelle hält eine Organisation und einen Collection-Namen fest, keine
-Wissensbasis, also schreibt ihr Sync in die Basis, die diese Auflösung wählt. Eine
-Quelle einer anderen Basis desselben Namens hinzuzufügen, wird mit 400
-abgelehnt, denn ihre Dokumente landeten in der anderen Basis, und die Quelle
-stünde nicht dort, wo sie hinzugefügt wurde.
+Wissensbasis, also schreibt ihr Sync in die Basis, die diese Auflösung wählt - die
+älteste Basis der Organisation mit diesem Namen -, und nur diese Basis listet und
+startet sie. Jede API-Route, die eine Quelle auf eine Collection richtet, prüft
+Schreibrechte auf diese Basis, und eine Quelle einer anderen Basis desselben
+Namens hinzuzufügen, wird mit 400 abgelehnt.
+
+Ist die persönliche Basis eines Mitglieds älter als die gleichnamige Basis der
+Organisation, landen die Syncs der Organisation unter diesem Namen deshalb in der
+persönlichen Basis, und die Basis der Organisation nimmt keine Quelle an: Lege sie
+unter einem eigenen Namen an.
 
 !!! warning "Ein Collection-Name ist ein Embedding-Raum"
 
@@ -928,10 +934,15 @@ Basis außerhalb jeder Organisation haben keinen, und die Basis einer Organisati
 die persönliche Basis eines Mitglieds darin haben dieselbe Organisation. Deshalb hält
 jeder Chunk auch die Wissensbasis fest, für die er indexiert wurde, und Suche,
 Vektorzählung, die Suche beim Ersetzen und das Löschen lesen nur die Chunks der
-eigenen Basis. Ein Chunk, der geschrieben wurde, bevor Chunks ihre Basis festhielten,
-und den das Upgrade nicht zugeordnet hat, passt wie bisher über seinen Tenant - außer
-für eine persönliche Basis außerhalb jeder Organisation, die keinen davon nimmt
-([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+eigenen Basis; das Löschen eines Dokuments entfernt auch seine eigenen Chunks, die
+keine Basis festhalten. Ein Chunk, der geschrieben wurde, bevor Chunks ihre Basis
+festhielten, und den das Upgrade nicht zugeordnet hat, passt wie bisher über seinen
+Tenant - außer für eine persönliche Basis außerhalb jeder Organisation, deren Suche
+und Zählung keinen davon nehmen ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
+Ein Agent durchsucht die Wissensbasen, an die er gebunden ist, in ihrem eigenen
+Scope, statt ihre Namen erneut aufzulösen. Ein Agent, der an zwei Basen desselben
+Namens gebunden ist, durchsucht nur eine davon, also binde eine Basis pro Namen.
 
 **`GET /rag/collections/{name}/filter-values`** antwortet mit den
 `organizational_unit`-Werten, die in der Collection tatsächlich vorkommen, unter

@@ -814,6 +814,37 @@ class TestResolvingASyncSourceInAKnowledgeBase:
         assert refusal.value.message == "Sync source not found"
 
 
+class TestPointingASyncSourceAtACollectionByName:
+    """`source_target`: the base checked is the one the sync writes into (#2537)."""
+
+    async def test_the_base_its_sync_writes_into_is_returned(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        kb = _kb("handbook")
+        rows.collections = [kb]
+
+        assert (await service.source_target(_ctx(), "handbook")).id == kb.id
+
+    @pytest.mark.security
+    async def test_owning_a_newer_same_named_base_does_not_reach_the_target(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        """The member can write their own personal base but not the organization's
+        older base, which is where a source naming the collection syncs into."""
+        theirs = _kb("handbook", owner_user_id=uuid.uuid4())
+        mine = _kb("handbook", scope=KBScope.PERSONAL, owner_user_id=CALLER)
+        rows.collections = [theirs, mine]
+
+        with pytest.raises(NotFoundError):
+            await service.source_target(_ctx(role=OrgRoleName.MEMBER.value), "handbook")
+
+    async def test_a_name_no_base_holds_is_not_found(
+        self, service: CollectionAccessService
+    ) -> None:
+        with pytest.raises(NotFoundError):
+            await service.source_target(_ctx(), "handbook")
+
+
 class TestAddingASyncSourceToAKnowledgeBase:
     """`new_source_feeds`: a source names a collection, not a base, so it may only
     be added to the base its sync writes into (#2537)."""

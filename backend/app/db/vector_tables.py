@@ -94,8 +94,9 @@ VECTOR_DOCDATE_INDEX_SUFFIX = "_docdate_idx"
 
 Hash indexes on the equality dimensions (`organization_id`, `source`,
 `document_type`, `organizational_unit`), a btree on the base key
-(`knowledge_base_id`, #2537) and a partial btree on the safe date expression. All kept no longer than :data:`VECTOR_INDEX_SUFFIX`, for the same
-truncation reason as the lookup-key indexes above.
+(`knowledge_base_id`, #2537) and a partial btree on the safe date expression.
+All kept no longer than :data:`VECTOR_INDEX_SUFFIX`, for the same truncation
+reason as the lookup-key indexes above.
 """
 
 _INDEX_SUFFIXES = (

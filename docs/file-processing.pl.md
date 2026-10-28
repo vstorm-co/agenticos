@@ -1,5 +1,5 @@
 ---
-source_sha: "d52e0c90a257"
+source_sha: "9023abb0ba69"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -586,10 +586,14 @@ jakąkolwiek organizacją też nie ma organizacji, ale należy do jednej osoby
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 Źródło synchronizacji zapisuje organizację i nazwę kolekcji, a nie bazę wiedzy,
-więc jego synchronizacja pisze do bazy, którą wybiera to rozwiązywanie. Dodanie
-źródła do innej bazy o tej samej nazwie jest odrzucane z kodem 400, bo jego
-dokumenty trafiłyby do tamtej bazy, a źródło nie byłoby widoczne tam, gdzie je
-dodano.
+więc jego synchronizacja pisze do bazy, którą wybiera to rozwiązywanie - najstarszej
+bazy organizacji o tej nazwie - i tylko ta baza je wyświetla i uruchamia. Każdy
+route API, który kieruje źródło do kolekcji, sprawdza prawo zapisu do tej bazy, a
+dodanie źródła do innej bazy o tej samej nazwie jest odrzucane z kodem 400.
+
+Gdy osobista baza członka jest starsza niż baza organizacji o tej samej nazwie,
+synchronizacje organizacji o tej nazwie trafiają więc do bazy osobistej, a baza
+organizacji nie przyjmuje źródła: utwórz ją pod własną nazwą.
 
 !!! warning "Jedna nazwa kolekcji to jedna przestrzeń embeddingów"
 
@@ -873,10 +877,15 @@ rozróżnia każdej pary: baza o zasięgu app i baza osobista poza jakąkolwiek 
 nie mają go wcale, a baza organizacji i osobista baza członka w tej organizacji mają
 tę samą organizację. Dlatego każdy chunk zapisuje także bazę wiedzy, dla której został
 zaindeksowany, a wyszukiwanie, licznik wektorów, wyszukiwanie przy zastępowaniu i
-usuwanie czytają wyłącznie chunki danej bazy. Chunk zapisany, zanim chunki zaczęły
+usuwanie czytają wyłącznie chunki danej bazy; usunięcie dokumentu usuwa też jego
+własne chunki, które nie zapisują bazy. Chunk zapisany, zanim chunki zaczęły
 zapisywać swoją bazę, i nieprzypisany przez aktualizację, pasuje jak dotąd po swoim
-tenancie — z wyjątkiem bazy osobistej poza jakąkolwiek organizacją, która nie bierze
-żadnego z nich ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+tenancie — z wyjątkiem bazy osobistej poza jakąkolwiek organizacją, której
+wyszukiwanie i licznik nie biorą żadnego z nich ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
+Agent przeszukuje bazy wiedzy, do których jest przypięty, w ich własnych zakresach,
+a nie przez ponowne rozwiązywanie ich nazw. Agent przypięty do dwóch baz o tej samej
+nazwie przeszukuje tylko jedną z nich, więc przypinaj jedną bazę na nazwę.
 
 **`GET /rag/collections/{name}/filter-values`** odpowiada wartościami
 `organizational_unit` faktycznie obecnymi w kolekcji, w tym samym zakresie. Istnieje,

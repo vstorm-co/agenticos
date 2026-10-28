@@ -1,5 +1,5 @@
 ---
-source_sha: "d52e0c90a257"
+source_sha: "9023abb0ba69"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -593,10 +593,16 @@ organización tampoco tiene organización, pero es de una sola persona
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 Una fuente de sincronización registra una organización y un nombre de colección,
-no una base de conocimiento, así que su sincronización escribe en la base que
-elige esa resolución. Añadir una fuente a otra base del mismo nombre se rechaza
-con 400, porque sus documentos acabarían en la otra base y la fuente no
-aparecería donde se añadió.
+no una base de conocimiento, así que su sincronización escribe en la base que elige
+esa resolución - la base más antigua de la organización con ese nombre - y solo esa
+base la lista y la ejecuta. Cada ruta de la API que dirige una fuente a una
+colección comprueba el permiso de escritura sobre esa base, y añadir una fuente a
+otra base del mismo nombre se rechaza con 400.
+
+Cuando la base personal de un miembro es más antigua que la base de la organización
+del mismo nombre, las sincronizaciones de la organización con ese nombre acaban en
+la base personal, y la base de la organización no admite fuentes: créala con un
+nombre propio.
 
 !!! warning "Un nombre de colección es un espacio de embeddings"
 
@@ -888,9 +894,15 @@ toda organización no tienen ninguno, y la base de una organización y la base p
 de un miembro en ella tienen la misma organización. Por eso cada fragmento registra
 también la base de conocimiento para la que se indexó, y la búsqueda, el recuento de
 vectores, la búsqueda al reemplazar y el borrado leen solo los fragmentos de la propia
+base; borrar un documento también elimina sus propios fragmentos que no registran
 base. Un fragmento escrito antes de que los fragmentos registraran su base, y que la
 actualización no asignó, coincide por su tenant como antes, salvo para una base
-personal fuera de toda organización, que no toma ninguno ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+personal fuera de toda organización, cuya búsqueda y recuento no toman ninguno
+([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
+Un agente busca en las bases de conocimiento a las que está vinculado con su propio
+ámbito, sin volver a resolver sus nombres. Un agente vinculado a dos bases con el
+mismo nombre busca solo en una de ellas, así que vincula una base por nombre.
 
 **`GET /rag/collections/{name}/filter-values`** responde con los valores de
 `organizational_unit` realmente presentes en la colección, bajo ese mismo ámbito.

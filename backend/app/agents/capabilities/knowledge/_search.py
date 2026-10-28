@@ -236,12 +236,11 @@ async def search_knowledge_base(
     try:
         single_scope = scopes_by_name = None
         if one_collection:
-            # Resolved per name rather than built from `organization_id` alone:
-            # this tool holds only a name, never an already-authorized knowledge
-            # base, so the scope has to come from the store's own resolution -
-            # `AppScope` for an app-scoped base every organization reads,
-            # `TenantScope` for an org one - or an app-scoped base's untagged
-            # rows never matched (#1684, FA-039).
+            # Built from the bound base's own scope, or resolved per name when a
+            # caller holds the name alone - never from `organization_id` alone:
+            # `AppScope` for a base with no tenant, `TenantScope` for an org one,
+            # or an app-scoped base's untagged rows never matched (#1684,
+            # FA-039, #2537).
             single_scope = await _scope_of(service, resolved[0], organization_id, kb_vector_scopes)
         else:
             scopes_by_name = {
