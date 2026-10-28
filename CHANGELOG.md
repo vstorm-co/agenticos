@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.28.0] - 2026-10-28
+
 ### Added
 
 - More OpenRouter embedding models for knowledge bases: the three its EU
