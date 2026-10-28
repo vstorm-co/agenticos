@@ -764,6 +764,35 @@ that wrote it. In the run view, each step's own lines sit under it, in the order
 were written. An organization API key with `workflows:view` reads them too, for
 public-origin runs: see [Reading a workflow's log](api.md#reading-a-workflows-log).
 
+### Alerts { #log-alerts }
+
+An alert tells people when the log gets too busy with something. Below the list, the
+**Alerts** card holds a workflow's rules; **Add alert** opens one. A rule has a name
+and counts the lines that match:
+
+- **Outcomes**: the results that count, from those the chosen step's log writes, plus
+  `error`. A line that left by several ports matches each of them.
+- **Step**: one step, or every step that logs.
+- **Message contains**: optional words, matched in any case.
+- **Occurrences** and **Within**: at least that many matching lines (1 to 1000) in 5,
+  15, 30 or 60 minutes, 4 hours or a day.
+
+A rule fires at most once per window: after it fires, it stays quiet for the length of
+its window, then counts again from that moment, and a line is never counted for two
+firings. Only real runs count; a test run's lines never raise an alert. A workflow
+holds up to 25 rules, and a switch on each pauses one.
+
+**Who is told** is the workflow's **owner**, which a new rule starts with, the
+organization's **admins**, or **specific people** you pick; a person who has left the
+organization is skipped. Each of them gets a notification in the bell and an email, as
+their own [notification preferences](governance.md#alerts) allow, and one who can no
+longer view the workflow no longer sees it. The notification says how many lines
+matched, and its link opens the Logs page filtered to the rule's step and outcomes.
+
+Anyone who may view the workflow sees its rules; whoever may edit it, by role or by a
+grant on it, adds, changes, pauses and deletes them. The rules are not part of the
+public API.
+
 ## Starting a workflow from outside the console { #starting-a-workflow-from-outside-the-console }
 
 A workflow starts from one **trigger**, the first node on its canvas. The

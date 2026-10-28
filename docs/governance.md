@@ -1487,6 +1487,12 @@ same setting, so the only way to quieten the first was to go deaf to the second.
 | **Approvals** | a tool call parked | whoever started the run, plus the admins |
 | **Usage** | weekly and monthly, what this agent spent | off |
 
+A workflow's log has alerts of its own, set on the workflow's Logs page rather than in
+a spec; see [Alerts](workflows.md#log-alerts). They fire when a rule's matching lines
+reach its threshold within its window, and go to the workflow's owner unless the rule
+says otherwise. They follow the same bell and email preferences as the rest of this
+section, under **Workflow log alerts**.
+
 An audience is a list of roles, not addresses:
 
 | Audience | Resolves to |

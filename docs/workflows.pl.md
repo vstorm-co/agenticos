@@ -1,5 +1,5 @@
 ---
-source_sha: "e62b598517c1"
+source_sha: "918897481ed6"
 ---
 
 # Workflows { #workflows }
@@ -788,6 +788,35 @@ przebiegu otwiera log przefiltrowany do tego przebiegu. Wiersz otwiera przebieg,
 go zapisał. W widoku przebiegu wiersze każdego kroku są pod nim, w kolejności zapisu.
 Klucz API organizacji z `workflows:view` też je odczytuje, dla runów o publicznym
 pochodzeniu: zob. [Odczyt logu workflow](api.md#reading-a-workflows-log).
+
+### Alerty { #log-alerts }
+
+Alert informuje ludzi, gdy log zbyt często zapisuje coś konkretnego. Pod listą karta
+**Alerts** zawiera reguły workflow; **Add alert** otwiera nową. Reguła ma nazwę i liczy
+pasujące wiersze:
+
+- **Outcomes**: wyniki, które się liczą, spośród tych, które zapisuje log wybranego
+  kroku, plus `error`. Wiersz, który wyszedł kilkoma portami, pasuje do każdego z nich.
+- **Step**: jeden krok albo każdy krok, który loguje.
+- **Message contains**: opcjonalne słowa, dopasowywane bez względu na wielkość liter.
+- **Occurrences** i **Within**: co najmniej tyle pasujących wierszy (od 1 do 1000) w ciągu
+  5, 15, 30 lub 60 minut, 4 godzin albo doby.
+
+Reguła odpala się najwyżej raz na okno: po odpaleniu milczy przez długość swojego okna,
+potem liczy od nowa od tego momentu, a żaden wiersz nie jest liczony do dwóch odpaleń.
+Liczą się tylko prawdziwe przebiegi; wiersze przebiegu testowego nigdy nie wywołują
+alertu. Workflow ma do 25 reguł, a przełącznik przy każdej ją wstrzymuje.
+
+**Who is told** to **właściciel** workflow, od którego zaczyna nowa reguła,
+**administratorzy** organizacji albo **wskazane osoby**; osoba, która opuściła
+organizację, jest pomijana. Każda z nich dostaje powiadomienie w dzwonku i e-mail, zgodnie
+z własnymi [preferencjami powiadomień](governance.md#alerts), a ten, kto nie może już
+zobaczyć workflow, nie widzi powiadomienia. Powiadomienie podaje, ile wierszy pasowało, a
+jego link otwiera stronę Logs przefiltrowaną do kroku i wyników reguły.
+
+Reguły widzi każdy, kto może zobaczyć workflow; dodaje, zmienia, wstrzymuje i usuwa je
+każdy, kto może go edytować, przez rolę albo przez grant na nim. Reguły nie są częścią
+publicznego API.
 
 ## Uruchamianie workflow spoza konsoli { #starting-a-workflow-from-outside-the-console }
 

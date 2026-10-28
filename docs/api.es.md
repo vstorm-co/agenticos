@@ -1,5 +1,5 @@
 ---
-source_sha: "104b848d2e79"
+source_sha: "f403f3a8ab4b"
 ---
 
 # La API HTTP { #the-http-api }
@@ -367,10 +367,12 @@ curl "$BASE/api/v1/workflows/$WORKFLOW_ID/logs/summary?days=30&tz=Europe/Warsaw"
 
 `GET /api/v1/workflows/{id}/logs` lista de la más reciente a la más antigua - por
 `created_at` y luego por `seq`, la posición que ocupó una línea en el log al escribirse.
-Se acota con `node_instance_id` (un paso), `outcome` (un puerto o `error`), `run` (un id
-de run o sus primeros 4 o más caracteres), `q` (texto en el mensaje) y la ventana de
+Se acota con `node_instance_id` (un paso), `outcome` (un puerto o `error`; repítelo para coincidir con cualquiera de varios, y una
+línea que salió por varios puertos coincide con cada uno), `run` (un id de run o sus primeros 4 o más caracteres), `q` (texto en el mensaje) y la ventana de
 tiempo `from` (inclusive) y `to` (exclusivo); `include_test=true` añade las líneas que
-escribieron los runs de prueba. `skip` y `limit` paginan - `limit` como mucho 100 - y
+escribieron los runs de prueba.
+
+`skip` y `limit` paginan - `limit` como mucho 100 - y
 `total` cuenta todas las líneas que coinciden, así que un cliente pagina hasta que `skip`
 lo alcanza.
 
@@ -380,6 +382,13 @@ antigua primero, con la cuenta de cada resultado; un día sin líneas también a
 `tz`, un nombre IANA, fija de quién son los días que se cuentan, UTC por defecto; los
 demás filtros son los del listado. Para llevarlo a una herramienta de paneles, apunta una
 fuente de datos JSON a la ruta, envía la clave como cabecera bearer y lee `by_day`.
+
+```bash
+# Errores y timeouts por día durante un mes: una fuente JSON para un panel de dashboard
+curl "$BASE/api/v1/workflows/$WORKFLOW_ID/logs/summary?days=30&outcome=error&outcome=timeout" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID"
+```
 
 `GET /api/v1/workflow-runs/{id}/logs` lista las líneas de un run, la más antigua primero
 por `seq` (`limit` hasta 500), y `GET /api/v1/workflow-logs` las líneas más recientes de

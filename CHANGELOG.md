@@ -45,7 +45,8 @@ Two things are versioned separately from this file and worth knowing about:
   is `admins` (owners, admins and the deployment's app admins), the workflow's `owner` and
   `chosen` members who still belong, delivered at the bell and by email per each person's
   notification preferences (the new `workflow_log_alert` event) with a link to the Logs
-  page filtered to the rule's step and outcomes. `GET`/`POST /workflows/{id}/log-alerts`
+  page filtered to the rule's step and outcomes. A workflow's Logs page has an Alerts card
+  to add, pause and delete the rules; the list and summary take `outcome` repeated. `GET`/`POST /workflows/{id}/log-alerts`
   and `PATCH`/`DELETE /workflows/{id}/log-alerts/{rule_id}` manage the rules: listed for
   whoever may view the workflow, changed by whoever may edit it, with outcomes and step
   checked against the workflow's logging steps. A per-minute worker job evaluates them.

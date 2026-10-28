@@ -339,7 +339,8 @@ curl "$BASE/api/v1/workflows/$WORKFLOW_ID/logs/summary?days=30&tz=Europe/Warsaw"
 
 `GET /api/v1/workflows/{id}/logs` lists newest first - by `created_at`, then by `seq`,
 the position a line took in the log as it was written. Narrow it with `node_instance_id`
-(one step), `outcome` (a port, or `error`), `run` (a run id, or its first 4 or more
+(one step), `outcome` (a port, or `error`; repeat it to match any of several, and a
+line that left by several ports matches each of them), `run` (a run id, or its first 4 or more
 characters), `q` (text in the message) and the time window `from` (inclusive) and `to`
 (exclusive); `include_test=true` adds the lines test runs wrote. `skip` and `limit` page
 through it - `limit` is at most 100 - and `total` counts every matching line, so a
@@ -351,6 +352,13 @@ with the count each outcome left, and a day with no lines is still present. `tz`
 IANA name, sets whose days are counted and is UTC by default; the other filters are the
 list's. To pull it into a dashboard tool, point a JSON data source at the route with the
 key as a bearer header and read `by_day`.
+
+```bash
+# Errors and timeouts per day for a month: one JSON data source for a dashboard panel
+curl "$BASE/api/v1/workflows/$WORKFLOW_ID/logs/summary?days=30&outcome=error&outcome=timeout" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID"
+```
 
 `GET /api/v1/workflow-runs/{id}/logs` lists one run's lines oldest first by `seq`
 (`limit` up to 500), and `GET /api/v1/workflow-logs` the newest lines across every

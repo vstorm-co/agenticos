@@ -1,5 +1,5 @@
 ---
-source_sha: "e62b598517c1"
+source_sha: "918897481ed6"
 ---
 
 # Workflows { #workflows }
@@ -864,6 +864,37 @@ geschrieben hat. In der Laufansicht stehen die Zeilen jedes Schritts unter ihm, 
 Reihenfolge des Schreibens. Ein Organisations-API-Schlüssel mit `workflows:view` liest
 sie ebenfalls, für Läufe öffentlichen Ursprungs: siehe [Das Log eines Workflows
 lesen](api.md#reading-a-workflows-log).
+
+### Alerts { #log-alerts }
+
+Ein Alert benachrichtigt Menschen, wenn das Log zu oft etwas Bestimmtes schreibt. Unter
+der Liste enthält die Karte **Alerts** die Regeln eines Workflows; **Add alert** öffnet
+eine neue. Eine Regel hat einen Namen und zählt die passenden Zeilen:
+
+- **Outcomes**: die Ergebnisse, die zählen, aus denen, die das Log des gewählten Schritts
+  schreibt, plus `error`. Eine Zeile, die über mehrere Ports ging, passt zu jedem davon.
+- **Step**: ein Schritt oder jeder Schritt, der loggt.
+- **Message contains**: optionale Wörter, ohne Beachtung der Groß- und Kleinschreibung.
+- **Occurrences** und **Within**: mindestens so viele passende Zeilen (1 bis 1000) innerhalb
+  von 5, 15, 30 oder 60 Minuten, 4 Stunden oder einem Tag.
+
+Eine Regel löst höchstens einmal pro Fenster aus: Danach schweigt sie für die Länge ihres
+Fensters, zählt dann ab diesem Zeitpunkt neu, und keine Zeile wird für zwei Auslösungen
+gezählt. Es zählen nur echte Runs; die Zeilen eines Testlaufs lösen nie einen Alert aus.
+Ein Workflow hat bis zu 25 Regeln, und ein Schalter an jeder pausiert sie.
+
+**Who is told** ist der **Eigentümer** des Workflows, womit eine neue Regel beginnt, die
+**Admins** der Organisation oder **bestimmte Personen**, die Sie wählen; wer die
+Organisation verlassen hat, wird übersprungen. Jede von ihnen erhält eine Benachrichtigung
+in der Glocke und eine E-Mail, soweit ihre eigenen
+[Benachrichtigungseinstellungen](governance.md#alerts) es erlauben; wer den Workflow nicht
+mehr ansehen darf, sieht sie nicht mehr. Die Benachrichtigung nennt, wie viele Zeilen
+passten, und ihr Link öffnet die Logs-Seite, gefiltert auf Schritt und Ergebnisse der
+Regel.
+
+Die Regeln sieht, wer den Workflow ansehen darf; wer ihn bearbeiten darf, per Rolle oder
+per Grant darauf, legt sie an, ändert, pausiert und löscht sie. Die Regeln sind nicht Teil
+der öffentlichen API.
 
 ## Einen Workflow von außerhalb der Konsole starten { #starting-a-workflow-from-outside-the-console }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "31ed9f58f157"
+source_sha: "ed87cd5395cb"
 ---
 
 # Governance { #governance }
@@ -1709,6 +1709,13 @@ ersten leiser zu stellen, war, für den zweiten taub zu werden.
 | **Budget** | dieser Agent sein eigenes monatliches Cap erreicht hat | die Admins und der Besitzer des Agents |
 | **Freigaben** | ein Tool-Aufruf geparkt hat | wer den Run gestartet hat, plus die Admins |
 | **Nutzung** | wöchentlich und monatlich, was dieser Agent ausgegeben hat | aus |
+
+Das Log eines Workflows hat eigene Alerts, die auf der Logs-Seite des Workflows gesetzt
+werden statt in einer Spec; siehe [Alerts](workflows.md#log-alerts). Sie lösen aus, wenn
+die passenden Zeilen einer Regel ihren Schwellenwert in ihrem Fenster erreichen, und
+gehen an den Eigentümer des Workflows, sofern die Regel nichts anderes sagt. Es gelten
+dieselben Glocken- und E-Mail-Einstellungen wie im Rest dieses Abschnitts, unter
+**Workflow log alerts**.
 
 Ein Publikum ist eine Liste von Rollen, nicht von Adressen:
 

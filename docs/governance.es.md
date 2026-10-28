@@ -1,5 +1,5 @@
 ---
-source_sha: "31ed9f58f157"
+source_sha: "ed87cd5395cb"
 ---
 
 # Governance { #governance }
@@ -1592,6 +1592,12 @@ sordo al segundo.
 | **Budget** | este agent alcanzó su propio tope mensual | los admins y el dueño del agent |
 | **Approvals** | una llamada a herramienta se aparcó | quien inició el run, más los admins |
 | **Usage** | semanal y mensual, lo que gastó este agent | apagada |
+
+El log de un workflow tiene alertas propias, que se fijan en la página Logs del workflow
+y no en una spec; ver [Alertas](workflows.md#log-alerts). Se disparan cuando las líneas
+coincidentes de una regla alcanzan su umbral dentro de su ventana, y van al propietario
+del workflow salvo que la regla diga otra cosa. Siguen las mismas preferencias de campana
+y correo que el resto de esta sección, en **Workflow log alerts**.
 
 Una audiencia es una lista de roles, no de direcciones:
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "31ed9f58f157"
+source_sha: "ed87cd5395cb"
 ---
 
 # Governance { #governance }
@@ -1598,6 +1598,12 @@ drugiego.
 | **Budget** | ten agent osiągnął swój własny limit miesięczny | administratorzy i właściciel agenta |
 | **Approvals** | wywołanie narzędzia zaparkowało | ten, kto uruchomił run, plus administratorzy |
 | **Usage** | tygodniowo i miesięcznie, ile ten agent wydał | wyłączone |
+
+Log workflow ma własne alerty, ustawiane na jego stronie Logs, a nie w specyfikacji;
+zob. [Alerty](workflows.md#log-alerts). Odpalają się, gdy pasujące wiersze reguły
+osiągną jej próg w jej oknie, i trafiają do właściciela workflow, o ile reguła nie mówi
+inaczej. Podlegają tym samym preferencjom dzwonka i e-maila co reszta tej sekcji, w
+**Workflow log alerts**.
 
 Odbiorcy to lista ról, a nie adresów:
 

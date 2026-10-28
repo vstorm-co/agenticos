@@ -1,5 +1,5 @@
 ---
-source_sha: "104b848d2e79"
+source_sha: "f403f3a8ab4b"
 ---
 
 # API HTTP { #the-http-api }
@@ -346,7 +346,8 @@ curl "$BASE/api/v1/workflows/$WORKFLOW_ID/logs/summary?days=30&tz=Europe/Warsaw"
 
 `GET /api/v1/workflows/{id}/logs` zwraca linie od najnowszej - według `created_at`,
 potem `seq`, czyli miejsca, które linia zajęła w logu przy zapisie. Zawężają je
-`node_instance_id` (jeden krok), `outcome` (port albo `error`), `run` (id runa albo jego
+`node_instance_id` (jeden krok), `outcome` (port albo `error`; powtórz go, by dopasować dowolny z kilku, a wiersz, który
+wyszedł kilkoma portami, pasuje do każdego z nich), `run` (id runa albo jego
 pierwsze 4 lub więcej znaków), `q` (tekst w wiadomości) oraz okno czasu `from` (włącznie)
 i `to` (wyłącznie); `include_test=true` dodaje linie zapisane przez runy testowe. `skip`
 i `limit` przeglądają wynik - `limit` to najwyżej 100 - a `total` liczy wszystkie
@@ -358,6 +359,13 @@ linii każdego wyniku; dzień bez linii też jest obecny. `tz`, nazwa IANA, wska
 dni się liczy, domyślnie UTC; pozostałe filtry są jak w liście. Aby wciągnąć to do
 narzędzia do dashboardów, wskaż trasę jako źródło danych JSON, podaj klucz w nagłówku
 bearer i czytaj `by_day`.
+
+```bash
+# Błędy i timeouty na dzień przez miesiąc: jedno źródło JSON dla panelu dashboardu
+curl "$BASE/api/v1/workflows/$WORKFLOW_ID/logs/summary?days=30&outcome=error&outcome=timeout" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID"
+```
 
 `GET /api/v1/workflow-runs/{id}/logs` zwraca linie jednego runa od najstarszej według
 `seq` (`limit` do 500), a `GET /api/v1/workflow-logs` najnowsze linie ze wszystkich

@@ -1,5 +1,5 @@
 ---
-source_sha: "e62b598517c1"
+source_sha: "918897481ed6"
 ---
 
 # Workflows { #workflows }
@@ -810,6 +810,35 @@ la escribió. En la vista de la ejecución, las líneas de cada paso están deba
 el orden en que se escribieron. Una clave de API de la organización con `workflows:view`
 también las lee, para las ejecuciones de origen público: consulta [Leer el log de un
 workflow](api.md#reading-a-workflows-log).
+
+### Alertas { #log-alerts }
+
+Una alerta avisa a las personas cuando el log registra algo con demasiada frecuencia.
+Debajo de la lista, la tarjeta **Alerts** reúne las reglas de un workflow; **Add alert**
+abre una nueva. Una regla tiene un nombre y cuenta las líneas que coinciden:
+
+- **Outcomes**: los resultados que cuentan, entre los que escribe el log del paso
+  elegido, más `error`. Una línea que salió por varios puertos coincide con cada uno.
+- **Step**: un paso, o cualquier paso que registre.
+- **Message contains**: palabras opcionales, sin distinguir mayúsculas.
+- **Occurrences** y **Within**: al menos esas líneas coincidentes (de 1 a 1000) en 5, 15,
+  30 o 60 minutos, 4 horas o un día.
+
+Una regla se dispara como máximo una vez por ventana: tras dispararse, calla durante la
+duración de su ventana, luego vuelve a contar desde ese momento, y ninguna línea se cuenta
+para dos disparos. Solo cuentan las ejecuciones reales; las líneas de una ejecución de
+prueba nunca provocan una alerta. Un workflow tiene hasta 25 reglas, y un interruptor en
+cada una la pausa.
+
+**Who is told** es el **propietario** del workflow, con el que empieza una regla nueva,
+los **administradores** de la organización o **personas concretas** que elijas; quien ha
+dejado la organización se omite. Cada una recibe una notificación en la campana y un
+correo, según sus propias [preferencias de notificación](governance.md#alerts), y quien ya
+no puede ver el workflow deja de verla. La notificación dice cuántas líneas coincidieron y
+su enlace abre la página Logs filtrada por el paso y los resultados de la regla.
+
+Las reglas las ve quien puede ver el workflow; las crea, cambia, pausa y borra quien puede
+editarlo, por rol o por un grant sobre él. Las reglas no forman parte de la API pública.
 
 ## Iniciar un workflow desde fuera de la consola { #starting-a-workflow-from-outside-the-console }
 

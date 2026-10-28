@@ -1,5 +1,5 @@
 ---
-source_sha: "104b848d2e79"
+source_sha: "f403f3a8ab4b"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -378,7 +378,8 @@ curl "$BASE/api/v1/workflows/$WORKFLOW_ID/logs/summary?days=30&tz=Europe/Warsaw"
 
 `GET /api/v1/workflows/{id}/logs` listet die neuesten zuerst - nach `created_at`, dann
 nach `seq`, der Position, die eine Zeile beim Schreiben im Log erhielt. Einschränken
-lässt sich mit `node_instance_id` (ein Schritt), `outcome` (ein Port oder `error`), `run`
+lässt sich mit `node_instance_id` (ein Schritt), `outcome` (ein Port oder `error`; wiederholt, um einen von mehreren zu treffen, und eine
+Zeile, die über mehrere Ports ging, passt zu jedem davon), `run`
 (eine Run-ID oder ihre ersten 4 oder mehr Zeichen), `q` (Text in der Nachricht) und dem
 Zeitfenster `from` (einschließlich) und `to` (ausschließlich); `include_test=true` nimmt
 die Zeilen von Test-Runs hinzu. `skip` und `limit` blättern - `limit` höchstens 100 -,
@@ -390,6 +391,13 @@ letzten `days` Tage (7, 30 oder 90, heute eingeschlossen) einen Eintrag pro Tag,
 `tz`, ein IANA-Name, bestimmt, wessen Tage gezählt werden, standardmäßig UTC; die übrigen
 Filter sind die der Liste. Um es in ein Dashboard-Werkzeug zu holen, die Route als
 JSON-Datenquelle angeben, den Schlüssel als Bearer-Header mitschicken und `by_day` lesen.
+
+```bash
+# Fehler und Timeouts pro Tag über einen Monat: eine JSON-Datenquelle für ein Dashboard-Panel
+curl "$BASE/api/v1/workflows/$WORKFLOW_ID/logs/summary?days=30&outcome=error&outcome=timeout" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID"
+```
 
 `GET /api/v1/workflow-runs/{id}/logs` listet die Zeilen eines Runs, die älteste zuerst
 nach `seq` (`limit` bis 500), und `GET /api/v1/workflow-logs` die neuesten Zeilen aller
