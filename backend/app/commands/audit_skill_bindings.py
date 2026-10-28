@@ -186,11 +186,9 @@ async def _findings_for(db: AsyncSession, agent: Agent, version: AgentVersion) -
     """Every problematic binding in one running spec.
 
     Only a skill that would actually load is judged, which is exactly what
-    `resolve_for_agent` loads: present, this organization's, and enabled. A
-    skill_id the org-scoped fetch does not return is deleted or another tenant's,
-    and a disabled one is skipped by `resolve_for_agent` too - both hand nothing
-    to a run, so both are dangling references left to that path rather than
-    reported as an exposure that would fail the audit.
+    `resolve_for_agent` loads: present and this organization's. A skill_id the
+    org-scoped fetch does not return is deleted or another tenant's, so it hands
+    nothing to a run and is left to that path rather than reported as an exposure.
     """
     spec = AgentSpec.model_validate(version.spec)
     bindings = _bindings(spec)
@@ -203,7 +201,7 @@ async def _findings_for(db: AsyncSession, agent: Agent, version: AgentVersion) -
     findings: list[Finding] = []
     for binding in bindings:
         skill = skills.get(binding.skill_id)
-        if skill is None or not skill.enabled:
+        if skill is None:
             continue
         status = await _classify(
             db,

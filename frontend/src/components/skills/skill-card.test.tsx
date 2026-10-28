@@ -17,7 +17,6 @@ const SKILL: SkillSummary = {
   name: "refund-policy",
   description: "How refunds and their exceptions are handled.",
   category: null,
-  enabled: true,
   visibility: "org",
   file_count: 2,
   built_in: false,
@@ -36,11 +35,6 @@ describe("SkillCard", () => {
     renderCard();
     expect(screen.getByText("refund-policy")).toBeInTheDocument();
     expect(screen.getByText(SKILL.description)).toBeInTheDocument();
-  });
-
-  it("marks a skill agents are currently skipping", () => {
-    renderCard({ skill: { ...SKILL, enabled: false } });
-    expect(screen.getByText("disabled")).toBeInTheDocument();
   });
 
   it("stays quiet about a skill that is doing its job", () => {

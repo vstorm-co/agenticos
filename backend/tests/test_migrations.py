@@ -626,3 +626,56 @@ class TestChannelRatingAuthors:
             assert check.returncode == 0, check.stderr + check.stdout
         finally:
             engine.dispose()
+
+
+class TestSkillBindingAvailability:
+    def test_removing_the_switch_preserves_skills_and_rolls_back_on_populated_tables(self):
+        before = _alembic("upgrade", "0179_session_push_preferences")
+        assert before.returncode == 0, before.stderr
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        skill_ids = [uuid4(), uuid4()]
+        selected = {"a": skill_ids[0], "b": skill_ids[1]}
+        try:
+            with engine.begin() as connection:
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                for index, skill_id in enumerate(skill_ids):
+                    connection.execute(
+                        text(
+                            "INSERT INTO skills (id, organization_id, name, description, content, "
+                            "enabled, version, visibility) VALUES "
+                            "(:id, :org, :name, 'A procedure', 'Check the order', :enabled, 1, 'org')"
+                        ),
+                        {
+                            "id": skill_id,
+                            "org": uuid4(),
+                            "name": f"procedure-{index}",
+                            "enabled": bool(index),
+                        },
+                    )
+            upgraded = _alembic("upgrade", "0180_remove_skill_enabled")
+            assert upgraded.returncode == 0, upgraded.stderr
+            with engine.connect() as connection:
+                assert (
+                    connection.execute(
+                        text("SELECT count(*) FROM skills WHERE id IN (:a, :b)"), selected
+                    ).scalar_one()
+                    == 2
+                )
+                assert (
+                    connection.execute(
+                        text(
+                            "SELECT count(*) FROM information_schema.columns WHERE table_name = 'skills' AND column_name = 'enabled'"
+                        )
+                    ).scalar_one()
+                    == 0
+                )
+            downgraded = _alembic("downgrade", "0179_session_push_preferences")
+            assert downgraded.returncode == 0, downgraded.stderr
+            with engine.connect() as connection:
+                assert connection.execute(
+                    text("SELECT enabled FROM skills WHERE id IN (:a, :b)"), selected
+                ).scalars().all() == [True, True]
+            upgraded_again = _alembic("upgrade", "0180_remove_skill_enabled")
+            assert upgraded_again.returncode == 0, upgraded_again.stderr
+        finally:
+            engine.dispose()

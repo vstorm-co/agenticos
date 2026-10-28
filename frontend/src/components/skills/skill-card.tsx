@@ -43,7 +43,6 @@ export function SkillCard({ skill, canEdit, onOpen, onDelete }: SkillCardProps) 
               {skill.name}
             </span>
             {skill.built_in && <Badge variant="secondary">built-in</Badge>}
-            {!skill.enabled && <Badge variant="outline">{t("disabled")}</Badge>}
           </span>
           <span className="text-muted-foreground line-clamp-1 min-h-5 text-sm">
             {skill.description}

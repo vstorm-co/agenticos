@@ -1,5 +1,5 @@
 ---
-source_sha: "aaecb17bca0b"
+source_sha: "6ff448f395ce"
 ---
 
 # Skille { #skills }
@@ -212,7 +212,7 @@ nazwa pasuje do dostarczonej biblioteki. Tych czterech się nie wybiera — one 
 prostu przychodzą, raz, przy tworzeniu organizacji.
 
 **I od tej chwili są wasze.** Zaseedowany skill to zwykły wiersz: można go
-edytować, wyłączyć albo usunąć. Nic nie przywraca usuniętego.
+edytować albo usunąć. Nic nie przywraca usuniętego.
 
 To jest zmiana. Lista wcześniej sama się uzupełniała — dokopiowywała każdą
 dołączoną nazwę, której organizacja nie miała, przy każdym otwarciu strony —
@@ -368,8 +368,9 @@ Alternatywa jest gorsza na dwa konkretne sposoby:
   którego rola sięga wyłącznie udostępnionych skilli — chudsze instrukcje niż
   daje budującemu, a różnica nie byłaby widoczna nigdzie.
 
-Skill usunięty albo wyłączony po publikacji jest pomijany z ostrzeżeniem, zamiast
-wywracać run. Agent jest mniej zdolny, nie zepsuty.
+Skille nie mają osobnego przełącznika aktywności: agent może używać przypisanych
+mu skilli. Aby przestał używać skilla, usuń przypisanie i opublikuj agenta. Skill
+usunięty po publikacji jest pomijany z ostrzeżeniem, zamiast przerywać run.
 
 ## Podsumowanie { #recap }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "aaecb17bca0b"
+source_sha: "6ff448f395ce"
 ---
 
 # Skills { #skills }
@@ -224,7 +224,7 @@ Name zur mitgelieferten Bibliothek passt. Diese vier werden nicht gewählt — s
 kommen an, einmal, beim Anlegen.
 
 **Und von da an gehören sie Ihnen.** Ein geseedeter Skill ist eine gewöhnliche
-Zeile: bearbeiten, deaktivieren oder löschen. Nichts holt einen gelöschten
+Zeile: bearbeiten oder löschen. Nichts holt einen gelöschten
 zurück.
 
 Das ist eine Änderung. Die Liste füllte sich früher selbst auf — sie kopierte
@@ -391,9 +391,10 @@ Die Alternative ist auf zwei konkrete Weisen schlechter:
   einem Mitglied — dessen Rolle nur geteilte Skills erreicht — dünnere Anweisungen
   geben als einer bauenden Person, und der Unterschied wäre nirgends sichtbar.
 
-Ein nach dem Veröffentlichen gelöschter oder deaktivierter Skill wird mit einer
-Warnung übersprungen, statt den Run scheitern zu lassen. Der Agent kann weniger,
-er ist nicht kaputt.
+Skills haben keinen eigenen Aktivierungsschalter: Ein Agent kann seine gebundenen
+Skills verwenden. Entfernen Sie die Bindung und veröffentlichen Sie den Agenten,
+um einen Skill nicht mehr zu verwenden. Ein nach der Veröffentlichung gelöschter
+Skill wird mit einer Warnung übersprungen, ohne den Run abzubrechen.
 
 ## Zusammenfassung { #recap }
 

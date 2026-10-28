@@ -320,6 +320,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **Breaking:** Remove the skill-level `enabled` switch and API field. Bound skills are available regardless of their former switch; remove unwanted bindings and publish affected agents before upgrading. Migration `0180_remove_skill_enabled` drops the retired state; downgrade restores all skills as enabled.
+
 - Separate shared project uploads from personal Desktop folders, retain the selected Computer view, and brief agents, Architect and MCP clients on Desktop, Mobile and selected local execution resources.
 
 - Simplify console headers, settings explanations, catalog filters and resource cards with progressive disclosure; add navigation icons and budget portraits, open desktop readiness from the account menu, and refine generated and starter-agent faces.

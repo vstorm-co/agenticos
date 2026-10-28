@@ -89,7 +89,7 @@ const PHONE_SCROLLS = "max-md:overflow-y-auto";
  *
  * What differs from the workbench is only what cannot exist yet: the name is
  * editable here because it is being chosen, there is no Enabled switch because
- * a skill is created enabled, and the files are local File objects held until
+ * the files are local File objects held until
  * the skill exists to attach them to.
  */
 export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps) {

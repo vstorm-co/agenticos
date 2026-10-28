@@ -4,7 +4,6 @@ import Link from "next/link";
 import { BookOpen, Check, Plus } from "lucide-react";
 
 import {
-  Badge,
   Pager,
   PICKER_PAGE_SIZE,
   SearchInput,
@@ -117,7 +116,6 @@ export function SkillGallery({
               <span className="min-w-0 flex-1">
                 <span className="flex flex-wrap items-center gap-2">
                   <span className="font-mono text-sm font-medium">{skill.name}</span>
-                  {!skill.enabled && <Badge variant="outline">{t("disabled")}</Badge>}
                   <GroupsChip groups={skill.shared_groups} />
                 </span>
                 <span className="text-muted-foreground mt-1 block text-sm">

@@ -206,8 +206,7 @@ The skills page shows one list, with a `built-in` badge on anything whose name
 matches the shipped library. Those four are not chosen — they arrive once, at
 creation.
 
-**And they are yours from then on.** A seeded skill is an ordinary row: edit it,
-disable it, or delete it. Nothing puts a deleted one back.
+**And they are yours from then on.** A seeded skill is an ordinary row: edit it or delete it. Nothing puts a deleted one back.
 
 That is a change. The listing used to top itself up — copying in any bundled name
 the organization did not have, every time anyone opened the page — so a deleted
@@ -361,8 +360,9 @@ The alternative is worse in two specific ways:
   role reaches shared skills only — thinner instructions than it gives a builder,
   with the difference visible nowhere.
 
-A skill deleted or disabled after publish is skipped with a warning rather than
-failing the run. The agent is less capable, not broken.
+Skills have no separate enabled switch: an agent can use the skills bound to it.
+Remove a binding and publish the agent to stop using that skill. A skill deleted
+after publish is skipped with a warning rather than failing the run.
 
 ## Recap
 

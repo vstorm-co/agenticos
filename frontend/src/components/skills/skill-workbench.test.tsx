@@ -34,7 +34,6 @@ const SKILL: Skill = {
   description: "How refunds and their exceptions are handled.",
   content: "## Refunds\n\nWithin 30 days, no questions asked.",
   category: null,
-  enabled: true,
   version: 3,
   visibility: "organization",
   owner_user_id: null,
@@ -85,7 +84,7 @@ describe("SkillWorkbench", () => {
     renderWorkbench();
     expect(description()).toHaveValue(SKILL.description);
     expect(await content()).toHaveValue(SKILL.content);
-    expect(screen.getByRole("switch", { name: "Enabled" })).toBeChecked();
+    expect(screen.queryByRole("switch", { name: "Enabled" })).not.toBeInTheDocument();
   });
 
   it("cannot be saved until something is actually different", async () => {
@@ -110,12 +109,11 @@ describe("SkillWorkbench", () => {
     const { onSave } = renderWorkbench();
     await userEvent.clear(description());
     await userEvent.type(description(), "When a customer disputes a charge.");
-    await userEvent.click(screen.getByRole("switch", { name: "Enabled" }));
+    expect(screen.queryByRole("switch", { name: "Enabled" })).not.toBeInTheDocument();
     await userEvent.click(save());
     expect(onSave).toHaveBeenCalledWith({
       description: "When a customer disputes a charge.",
       content: SKILL.content,
-      enabled: false,
       category: null,
     });
   });
@@ -162,7 +160,7 @@ describe("SkillWorkbench", () => {
     expect(await content()).toHaveAttribute("readonly");
     expect(description()).toHaveAttribute("readonly");
     expect(screen.getByLabelText("Category")).toHaveAttribute("readonly");
-    expect(screen.getByRole("switch", { name: "Enabled" })).toBeDisabled();
+    expect(screen.queryByRole("switch", { name: "Enabled" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
   });
 

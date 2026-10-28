@@ -42,9 +42,10 @@ const SKILL = {
   description: "How refunds work.",
   file_count: 2,
   category: null,
-  enabled: true,
+  visibility: "org",
+  excerpt: "",
   built_in: false,
-} as SkillSummary;
+} satisfies SkillSummary;
 
 const RESOURCES: AgentResources = {
   contextFiles: [FILE],

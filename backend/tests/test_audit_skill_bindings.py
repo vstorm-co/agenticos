@@ -42,7 +42,6 @@ def _skill(*, owner_user_id: uuid.UUID | None = None, visibility: str = Visibili
         name="refund-policy",
         owner_user_id=owner_user_id,
         visibility=visibility,
-        enabled=True,
     )
 
 
@@ -223,26 +222,6 @@ class TestFindingsFor:
                 MagicMock(), self._agent(), self._version(spec, publisher=uuid.uuid4())
             )
         assert findings == []
-
-    @pytest.mark.anyio
-    async def test_a_disabled_skill_is_not_an_exposure(self):
-        """`resolve_for_agent` skips a disabled skill, so no run receives it -
-        reporting it would fail the audit over something nothing loads."""
-        skill = _skill(owner_user_id=uuid.uuid4())
-        skill.enabled = False
-        spec = AgentSpec(name="Support", skill_ids=[skill.id])
-        get_level = AsyncMock()
-        with (
-            patch.object(
-                sweep.skill_repo, "get_many", new=AsyncMock(return_value={skill.id: skill})
-            ),
-            patch.object(sweep.resource_grant_repo, "get_level", new=get_level),
-        ):
-            findings = await _findings_for(
-                MagicMock(), self._agent(), self._version(spec, publisher=uuid.uuid4())
-            )
-        assert findings == []
-        get_level.assert_not_awaited()
 
     @pytest.mark.anyio
     async def test_an_exposed_binding_is_reported_with_the_publishers_email(self):
