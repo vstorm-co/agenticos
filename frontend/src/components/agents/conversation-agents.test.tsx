@@ -103,3 +103,23 @@ describe("who answered in a conversation", () => {
     ).not.toContain("-ml-");
   });
 });
+
+it("keeps a multi-agent rail stack within 40px and does not spread on hover", () => {
+  const { container } = render(
+    <ConversationAgents
+      agents={[agent("A"), agent("B"), agent("C"), agent("D")]}
+      showName={false}
+      compact
+      size="md"
+    />,
+  );
+  const faces = container.querySelectorAll<HTMLElement>("[data-agent-avatar]");
+  expect(faces).toHaveLength(3);
+  for (const face of faces) expect(face).toHaveClass("w-6");
+  expect(faces[1]).toHaveClass("-ml-4");
+  expect(faces[2]).toHaveClass("-ml-4");
+  expect(faces[1]).not.toHaveClass("group-hover/stack:ml-0.5");
+  // 3 * 24px - 2 * 16px = 40px; the count overlays instead of widening it.
+  expect(screen.getByText("+1")).toHaveClass("absolute");
+  expect(screen.getByTitle("A → B → C → D")).toBeInTheDocument();
+});

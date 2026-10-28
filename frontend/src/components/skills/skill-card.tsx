@@ -21,7 +21,7 @@ export function SkillCard({ skill, canEdit, onOpen, onDelete }: SkillCardProps) 
   const t = useTranslations("skills");
   const tc = useTranslations("common");
   return (
-    <Card className="peek-card group hover:border-foreground/20 flex h-full flex-col overflow-hidden">
+    <Card className="peek-card group hover:border-foreground/20 flex flex-col overflow-hidden">
       <button
         type="button"
         onClick={onOpen}

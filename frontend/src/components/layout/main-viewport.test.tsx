@@ -11,6 +11,9 @@ it("omits the empty native strip and page padding for chat in every locale", () 
     path = route;
     view.rerender(<MainViewport>Chat</MainViewport>);
     expect(view.container.querySelector(".window-drag-strip")).toBeNull();
+    expect(view.container.querySelector(".chat-window-drag-region")).toHaveAttribute(
+      "data-tauri-drag-region",
+    );
     expect(screen.getByRole("main")).toHaveClass("p-0");
     expect(screen.getByRole("main")).not.toHaveClass("pt-(--page-inset-top)");
   }
@@ -24,6 +27,7 @@ it("restores the ordinary page frame when leaving chat", () => {
     view.rerender(<MainViewport>Page</MainViewport>);
     expect(view.container.querySelector(".window-drag-strip")).toBeInTheDocument();
     expect(screen.getByRole("main")).toHaveClass("pt-(--page-inset-top)");
+    expect(view.container.querySelector(".chat-window-drag-region")).toBeNull();
     expect(screen.getByRole("main")).not.toHaveClass("p-0");
   }
 });

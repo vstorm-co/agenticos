@@ -316,7 +316,7 @@ export default function ContextPage() {
             />
           ) : (
             <>
-              <div className="rise-in grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <div className="rise-in grid grid-cols-1 items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {files.map((entry) => (
                   <ContextCard
                     key={entry.id}

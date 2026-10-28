@@ -9,7 +9,8 @@ import { cn } from "@/lib/utils";
 export function MainViewport({ children }: { children: ReactNode }) {
   const chat = stripLocale(usePathname()) === "/chat";
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+      {chat && <div aria-hidden className="chat-window-drag-region" data-tauri-drag-region />}
       {!chat && <div aria-hidden className="window-drag-strip" data-tauri-drag-region />}
       <main
         id="main"

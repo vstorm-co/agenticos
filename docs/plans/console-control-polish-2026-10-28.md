@@ -250,3 +250,24 @@ Verification: 73 initial settings/frame regressions, 23 focused settings/frame
 regressions, 103 existing gallery/editor/integration tests and 70 creation/binding
 tests passed. Frontend lint includes TypeScript, formatting, translations and
 dependency checks. Computer Use and browser automation were not used.
+
+
+## Independent card details and the compact chat rail
+
+Skills and Context grids align cards at the start rather than stretching every
+card to the tallest one. Removing forced full-height cards lets Details expand
+only its own card while agent usage and Add to an agent remain visible.
+
+Collapsed conversation lists use a compact avatar stack: two or three faces
+are 24px with 16px overlap, so three fit the 40px row. Hover does not widen that
+stack; overflow counts overlay it. The ordinary list keeps its existing treatment.
+
+Chat has a native-only eight-pixel drag hit area at the top of the entire content
+frame. It is absolutely positioned, adds no layout height, and sits above the
+controls' hit areas. The list title also has its own explicit native drag marker.
+Other pages retain their reserved title strip. No browser drag behavior changes.
+
+Verification: 90 focused avatar, conversation-list, card and frame regressions,
+TypeScript and scoped ESLint checks passed. Native dragging was checked against
+the installed Tauri drag-region contract; no automated native interaction was
+performed because Computer Use is disabled for this task.

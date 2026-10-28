@@ -135,6 +135,25 @@
   block-size: 1.75rem;
 }
 
+/* Chat keeps its header flush with the frame. An eight-pixel hit area above
+   its controls provides native dragging across the entire content pane. */
+.chat-window-drag-region {
+  display: none;
+}
+
+:root:is(
+    [data-shell="macos"],
+    [data-shell="windows"],
+    [data-shell="linux"]
+  )[data-shell-window="main"]
+  .chat-window-drag-region {
+  display: block;
+  position: absolute;
+  inset: 0 0 auto;
+  block-size: 0.5rem;
+  z-index: 40;
+}
+
 /* The reserved drag strip already provides 28px above the page. Adding the
    browser's 32px page inset left a second title-bar-sized gap. A 16px inset
    keeps the heading aligned with the sidebar brand below the native controls. */

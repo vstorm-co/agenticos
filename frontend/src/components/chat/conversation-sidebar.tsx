@@ -983,7 +983,9 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
           className="flex h-12 shrink-0 items-center gap-1 border-b pr-2 pl-4"
           data-tauri-drag-region="deep"
         >
-          <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">{ts("title")}</h2>
+          <h2 data-tauri-drag-region className="min-w-0 flex-1 truncate text-sm font-semibold">
+            {ts("title")}
+          </h2>
           {toolbar()}
           <IconButton
             size="icon"
@@ -1155,6 +1157,7 @@ function CollapsedSidebar({
                             agents={conversation.agents}
                             showName={false}
                             size="md"
+                            compact
                             unframed
                           />
                         ) : (

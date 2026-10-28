@@ -34,6 +34,7 @@ export function ConversationAgents({
   showName = true,
   unframed = true,
   className,
+  compact = false,
 }: {
   agents: ConversationAgent[] | undefined;
   size?: "sm" | "md";
@@ -41,6 +42,8 @@ export function ConversationAgents({
   showName?: boolean;
   unframed?: boolean;
   className?: string;
+  /** Fixed-width rail: overlap faces without spreading beyond the row on hover. */
+  compact?: boolean;
 }) {
   const t = useTranslations("agents");
   if (!agents || agents.length === 0) return null;
@@ -50,7 +53,7 @@ export function ConversationAgents({
 
   return (
     <span
-      className={cn("inline-flex min-w-0 items-center gap-1.5", className)}
+      className={cn("relative inline-flex min-w-0 items-center gap-1.5", className)}
       title={agents.map((agent) => agent.name).join(" → ")}
     >
       <span className="group/stack flex shrink-0">
@@ -61,12 +64,12 @@ export function ConversationAgents({
             slug={agent.slug}
             hasAvatar={agent.has_avatar}
             colorSlot={agent.avatar_color}
-            size={size}
+            size={compact && shown.length > 1 ? "sm" : size}
             unframed={unframed}
             className={cn(
               "transition-[margin] duration-200 ease-out motion-reduce:transition-none",
               !unframed && "ring-background ring-2",
-              index > 0 && [shown.length > 2 ? TUCK.more : TUCK.two, SPREAD],
+              index > 0 && (compact ? "-ml-4" : [shown.length > 2 ? TUCK.more : TUCK.two, SPREAD]),
             )}
           />
         ))}
@@ -76,7 +79,17 @@ export function ConversationAgents({
           {agents.length === 1 ? agents[0]!.name : t("agentCount", { count: agents.length })}
         </span>
       )}
-      {!showName && extra > 0 && <span className="text-muted-foreground text-xs">+{extra}</span>}
+      {!showName && extra > 0 && (
+        <span
+          className={cn(
+            "text-muted-foreground text-xs",
+            compact &&
+              "bg-sidebar text-foreground absolute right-0 -bottom-1 rounded px-0.5 text-[9px] leading-3",
+          )}
+        >
+          +{extra}
+        </span>
+      )}
     </span>
   );
 }
