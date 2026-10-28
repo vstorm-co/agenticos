@@ -1,5 +1,5 @@
 ---
-source_sha: "a1bf2f791213"
+source_sha: "bb0a26853f30"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -394,6 +394,12 @@ el secreto, que vuelve a iniciar sesión sin cambiar su id.
       primeros fallbacks de cualquiera de ellos. Pueden hacerlo el dueño del inicio de sesión, los
       owners y admins, y cualquiera con quien se haya compartido. Una versión
       publicada antes sobre él sigue funcionando.
+    - **No se ofrece a un especialista que invente el modelo.** Con
+      [`allow_dynamic`](reference/capabilities.md#delegation) el modelo de un run
+      puede elegir el modelo de un especialista entre los perfiles de la
+      organización. Un perfil sobre un inicio de sesión, o uno cuyos tres
+      primeros fallbacks llegan a uno, solo está en esa lista cuando el spec del
+      agente nombra exactamente ese perfil como uno de los modelos de arriba.
     - **El gasto mostrado no es tu factura.** Un run se tarifa a los precios de
       la API de OpenAI para el mismo modelo, que es lo que un
       [budget](governance.md#budgets) puede razonar. La suscripción en sí la

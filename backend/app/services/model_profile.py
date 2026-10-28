@@ -5,6 +5,7 @@ profile ids; everything below deals in ciphertext.
 """
 
 import logging
+from collections.abc import Mapping
 from dataclasses import replace
 from urllib.parse import urlparse
 from uuid import UUID
@@ -140,6 +141,29 @@ def usable_for_agents(profile: ModelProfile) -> bool:
         secret_id=profile.secret_id,
         base_url=profile.base_url,
         runs_without_key=profile.runs_without_key,
+    )
+
+
+def is_sign_in(profile: ModelProfile) -> bool:
+    """Whether the profile runs on a ChatGPT sign-in, one person's subscription."""
+    provider = PROVIDERS.get(profile.provider)
+    return provider is not None and provider.secret_kind is SecretKind.OPENAI_CODEX
+
+
+def reaches_a_sign_in(profile: ModelProfile, profiles: Mapping[UUID, ModelProfile]) -> bool:
+    """Whether a run on this profile can spend a ChatGPT sign-in (#2545).
+
+    The profile itself, or one of the first `MAX_FALLBACK_DEPTH` fallbacks - all
+    a run tries (`ModelProfileService.resolve`). `profiles` is the organization's
+    own, by id, so an id from elsewhere or one since deleted is not a fallback:
+    the run skips both. Anything choosing a model on somebody's behalf refuses
+    such a profile, because the run of anybody who may see the sign-in - its
+    owner, whoever it is shared with, the organization's owners and admins -
+    spends that one person's subscription.
+    """
+    return is_sign_in(profile) or any(
+        (fallback := profiles.get(UUID(fallback_id))) is not None and is_sign_in(fallback)
+        for fallback_id in profile.fallback_profile_ids[:MAX_FALLBACK_DEPTH]
     )
 
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "a1bf2f791213"
+source_sha: "bb0a26853f30"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -383,6 +383,12 @@ jego id.
       do której należy logowanie, właściciele (owner) i administratorzy (admin)
       organizacji oraz każdy, komu je udostępniono. Wersja opublikowana na nim
       wcześniej działa dalej.
+    - **Nie jest oferowane specjaliście, którego wymyśla model.** Przy
+      [`allow_dynamic`](reference/capabilities.md#delegation) model runu może
+      wybrać model specjalisty spośród profili organizacji. Profil na logowaniu
+      albo taki, którego pierwsze trzy fallbacki do niego docierają, jest na tej
+      liście tylko wtedy, gdy spec agenta nazywa dokładnie ten profil jako jeden
+      z modeli wymienionych wyżej.
     - **Pokazany wydatek to nie twój rachunek.** Run jest wyceniany według
       stawek API OpenAI dla tego samego modelu, bo to na tym może opierać się
       [budżet](governance.md#budgets). Samą subskrypcję OpenAI rozlicza według

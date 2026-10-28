@@ -224,6 +224,7 @@ from app.db.models.agent_exposure import AgentExposure
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunOrder, RunStatus, RunSurface
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Message
+from app.db.models.credential import ModelProfile
 from app.db.models.project import Project
 from app.db.models.run_manifest import RunManifest
 from app.db.models.skill import Skill
@@ -256,6 +257,7 @@ from app.services.agent_registry import (
     DELEGATION_CAPABILITY_ID,
     AgentRegistryService,
     delegation_binding,
+    models_a_run_reaches,
 )
 from app.services.api_key import mint_for_run
 from app.services.approvals import ApprovalService
@@ -279,7 +281,7 @@ from app.services.mcp_connection import (
     connect_personal_toolset,
 )
 from app.services.model_outputs import model_outputs, not_chat_refusal
-from app.services.model_profile import ModelProfileService
+from app.services.model_profile import ModelProfileService, reaches_a_sign_in
 from app.services.notifications import NotificationService
 from app.services.organization import OrganizationService
 from app.services.organization_secret import OrganizationSecretService
@@ -2044,6 +2046,23 @@ class _RunBudget:
     guard: BudgetGuard | None = None
 
 
+@dataclass
+class _ModelCatalog:
+    """The organization's chat models, listed once per run and resolved as needed.
+
+    Which of them a level offers depends on the spec delegating (a ChatGPT
+    sign-in only when that spec names it), so the rows are kept rather than one
+    finished answer, and each profile is resolved the first time a level offers
+    it.
+    """
+
+    rows: list[ModelProfile] | None = None
+    """Every profile in the organization, or `None` until first read."""
+
+    resolved: dict[UUID, ModelRequestSpec | None] = field(default_factory=dict)
+    """Each profile resolved so far, by id - `None` for one that did not resolve."""
+
+
 @dataclass(frozen=True)
 class _Delegation:
     """What every level of one run's delegation tree is resolved against.
@@ -2131,19 +2150,15 @@ class _Delegation:
     Parked instead, the delegate's approval would surface as one on the twin's
     `task` call, which no approval row answers."""
 
-    profiles: dict[str, ModelRequestSpec] = field(default_factory=dict)
-    """The organization's model catalog, resolved at most once and only if asked for.
+    catalog: _ModelCatalog = field(default_factory=_ModelCatalog)
+    """The organization's model catalog, read at most once and only if asked for.
 
-    Every model a specialist a model invented may run on, keyed by the label an
-    author sees - see :meth:`AgentRunnerService._model_catalog`. Empty means
-    *not yet read* rather than "this organization has none", which is a state a
-    run cannot be in: the delegating agent's own profile resolved before any of
-    this, so the catalog always holds at least it.
+    What a specialist a model invented may run on comes out of it per level - see
+    :meth:`AgentRunnerService._model_catalog`, which is the only reader.
 
-    Shared across the tree because it is a fact about the organization, not about
-    a level, and reading it costs a query and a vault unseal per profile. Two
-    nested levels that both allow dynamic specialists would otherwise pay for it
-    twice.
+    Shared across the tree because the rows are a fact about the organization,
+    not about a level, and resolving one costs a vault unseal. Two nested levels
+    that both allow dynamic specialists would otherwise pay for it twice.
     """
 
 
@@ -3654,13 +3669,11 @@ class AgentRunnerService:
             subagents,
             depth_remaining=depth_remaining,
             depth=0,
-            dynamic=await self._dynamic_specialists(
-                delegation, config, trace_content=spec.trace_content
-            ),
+            dynamic=await self._dynamic_specialists(delegation, config, spec=spec),
         )
 
     async def _dynamic_specialists(
-        self, delegation: _Delegation, config: SubagentsConfig, *, trace_content: TraceContent
+        self, delegation: _Delegation, config: SubagentsConfig, *, spec: AgentSpec
     ) -> DynamicSpecialists | None:
         """Whether one agent in the tree may invent specialists, and how it builds one.
 
@@ -3676,21 +3689,23 @@ class AgentRunnerService:
         """
         if not config.allow_dynamic:
             return None
-        profiles = await self._model_catalog(delegation)
+        profiles = await self._model_catalog(delegation, spec)
         return DynamicSpecialists(
-            build=_dynamic_builder(delegation, profiles=profiles, trace_content=trace_content),
+            build=_dynamic_builder(delegation, profiles=profiles, trace_content=spec.trace_content),
             allowed_models=tuple(profiles),
         )
 
-    async def _model_catalog(self, delegation: _Delegation) -> Mapping[str, ModelRequestSpec]:
-        """Every model a dynamic specialist may run on, resolved and keyed by label.
+    async def _model_catalog(
+        self, delegation: _Delegation, spec: AgentSpec
+    ) -> Mapping[str, ModelRequestSpec]:
+        """Every model a dynamic specialist of `spec` may run on, resolved and keyed by label.
 
         Resolved rather than listed, because a specialist has to be *built* from
         inside a tool call, on a session the whole run shares - so the credential
         has to be out of the vault before the run starts, exactly as a pinned
         delegate's is. That is a query and an unseal per profile, which is why it
-        happens only for an agent whose author asked for dynamic specialists and
-        only once per run.
+        happens only for an agent whose author asked for dynamic specialists, and
+        the listing only once per run.
 
         The label is the handle, because it is what the Builder shows an author,
         what an organization's models are unique by, and therefore the only name a
@@ -3702,40 +3717,64 @@ class AgentRunnerService:
         credential in the catalog is unsealed before the run starts, whether or not
         a specialist is ever invented - the price of the model being able to choose
         at all, and the reason this is not resolved for every agent. And it widens
-        what a reviewed agent may run a specialist on to any of the organization's
-        models, not only the one its author chose for itself; the run's own caps
-        still bind, so what varies is the price of a request rather than the ceiling
-        on the run. The whole catalog is the right scope because a model profile has
-        no per-row grants to resolve - it is organization-scoped configuration, and
-        `list_profiles` is scoped to the organization the run is in.
+        what a reviewed agent may run a specialist on to the organization's models,
+        not only the one its author chose for itself; the run's own caps still
+        bind, so what varies is the price of a request rather than the ceiling on
+        the run. A model profile has no per-row grants to resolve - it is
+        organization-scoped configuration, and `list_profiles` is scoped to the
+        organization the run is in.
 
-        A profile that no longer resolves is left out with a warning rather than
-        failing the run - its key deleted (`BadRequestError`), or the row itself
-        gone between this listing and this resolution (`NotFoundError`). The
-        alternative is one misconfigured model in a catalog of ten stopping an agent
-        that names none of it, which is the same reasoning `resolve` already applies
-        to a fallback chain. The delegating agent's own profile is not at risk from
+        Except a ChatGPT sign-in, which is one person's subscription. A run spends
+        one for anybody who may see it in the vault - its owner, whoever it is
+        shared with, the organization's owners and admins - so offered here, a
+        specialist the model invents would spend that person's plan on an agent
+        nobody chose it for. A profile on a sign-in, or one whose fallbacks reach
+        one (`reaches_a_sign_in`, since `resolve` follows them), is offered only
+        when `spec` names that exact profile (`models_a_run_reaches`): its author
+        chose it, and publish held them to being allowed to (#2546).
+
+        A profile that does not resolve is left out with a warning rather than
+        failing the run - its key deleted (`BadRequestError`), the row itself gone
+        between this listing and this resolution (`NotFoundError`), or a sign-in
+        the person running the agent may not spend (`AuthorizationError`: an API
+        key's holder, a widget visitor, a member it is not shared with). The
+        alternative is one model in a catalog of ten stopping an agent that names
+        none of it, which is the same reasoning `resolve` already applies to a
+        fallback chain. The delegating agent's own profile is not at risk from
         this: it resolved before this method was reached, so the catalog holds at
         least it and can never come back empty.
         """
-        if not delegation.profiles:
-            for profile in await self.models.list_profiles(delegation.ctx):
-                # A specialist on a speech or embedding model would fail on its
-                # first turn (#2487).
-                if not model_outputs(
-                    profile.provider, profile.model, base_url=profile.base_url
-                ).chat:
-                    continue
-                try:
-                    delegation.profiles[profile.label] = await self.models.resolve(
-                        delegation.ctx, profile_id=profile.id
-                    )
-                except BadRequestError, NotFoundError:
-                    logger.warning(
-                        "model_profile_not_usable_for_dynamic_specialists",
-                        extra={"profile_id": str(profile.id), "label": profile.label},
-                    )
-        return delegation.profiles
+        catalog = delegation.catalog
+        if catalog.rows is None:
+            catalog.rows = await self.models.list_profiles(delegation.ctx)
+        by_id = {profile.id: profile for profile in catalog.rows}
+        named = models_a_run_reaches(spec)
+        offered: dict[str, ModelRequestSpec] = {}
+        for profile in catalog.rows:
+            # A specialist on a speech or embedding model would fail on its
+            # first turn (#2487).
+            if not model_outputs(profile.provider, profile.model, base_url=profile.base_url).chat:
+                continue
+            if profile.id not in named and reaches_a_sign_in(profile, by_id):
+                continue
+            if profile.id not in catalog.resolved:
+                catalog.resolved[profile.id] = await self._catalog_entry(delegation.ctx, profile)
+            if (resolved := catalog.resolved[profile.id]) is not None:
+                offered[profile.label] = resolved
+        return offered
+
+    async def _catalog_entry(
+        self, ctx: AuthContext, profile: ModelProfile
+    ) -> ModelRequestSpec | None:
+        """One profile of `_model_catalog`, resolved - or `None`, logged, if it does not."""
+        try:
+            return await self.models.resolve(ctx, profile_id=profile.id)
+        except BadRequestError, NotFoundError, AuthorizationError:
+            logger.warning(
+                "model_profile_not_usable_for_dynamic_specialists",
+                extra={"profile_id": str(profile.id), "label": profile.label},
+            )
+            return None
 
     async def _resolve_delegates(
         self,
@@ -4044,9 +4083,7 @@ class AgentRunnerService:
                     # published delegate carries an observability block of its
                     # own, so what a specialist it invents may record is its
                     # author's answer rather than its caller's.
-                    dynamic=await self._dynamic_specialists(
-                        delegation, nested_config, trace_content=pinned.trace_content
-                    ),
+                    dynamic=await self._dynamic_specialists(delegation, nested_config, spec=pinned),
                 )
             else:
                 # The bound. Built without the capability rather than with one

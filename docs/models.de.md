@@ -1,5 +1,5 @@
 ---
-source_sha: "a1bf2f791213"
+source_sha: "bb0a26853f30"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -411,6 +411,12 @@ ohne seine Id zu ändern.
       Capability oder einer der ersten drei Fallbacks eines dieser Modelle. Der Inhaber der
       Anmeldung, Owner und Admins sowie alle, mit denen sie geteilt wurde, dürfen
       es. Eine früher darauf veröffentlichte Version läuft weiter.
+    - **Sie wird keinem Spezialisten angeboten, den das Modell erfindet.** Unter
+      [`allow_dynamic`](reference/capabilities.md#delegation) darf das Modell
+      eines Runs das Modell eines Spezialisten aus den Profilen der Organisation
+      wählen. Ein Profil auf einer Anmeldung, oder eines, dessen erste drei
+      Fallbacks eine erreichen, steht nur dann auf dieser Liste, wenn die Spec
+      des Agenten genau dieses Profil als eines der oben genannten Modelle nennt.
     - **Die angezeigten Ausgaben sind nicht Ihre Rechnung.** Ein Run wird zu den
       OpenAI-API-Preisen für dasselbe Modell bepreist, und damit kann ein
       [Budget](governance.md#budgets) rechnen. Das Abonnement selbst rechnet

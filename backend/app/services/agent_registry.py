@@ -692,6 +692,16 @@ def _model_refs(spec: AgentSpec) -> list[_ModelRef]:
     return refs
 
 
+def models_a_run_reaches(spec: AgentSpec) -> frozenset[UUID]:
+    """The profiles this spec names for a run to reach - those `_model_refs` walks.
+
+    The models publish held the publisher to (#2546), so the ones its author
+    chose. A dynamic specialist may run on a ChatGPT sign-in only when it is one
+    of these (`AgentRunnerService._model_catalog`).
+    """
+    return frozenset(ref.profile_id for ref in _model_refs(spec))
+
+
 def _share_problems(spec: AgentSpec, config: SubagentsConfig) -> list[str]:
     """Everything wrong with what this agent shares with its delegates.
 

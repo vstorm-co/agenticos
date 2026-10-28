@@ -366,6 +366,11 @@ again without changing its id.
       or one of the first three fallbacks of any of them. The sign-in's owner, owners and
       admins, and anybody it was shared with may. A version published on it
       earlier keeps running.
+    - **It is not offered to a specialist the model invents.** Under
+      [`allow_dynamic`](reference/capabilities.md#delegation) a run's model may
+      pick a specialist's model from the organization's profiles. A profile on a
+      sign-in, or one whose first three fallbacks reach one, is on that list only
+      when the agent's spec names that exact profile as one of the models above.
     - **The spend shown is not your bill.** A run is priced at the OpenAI API
       rates for the same model, which is what a [budget](governance.md#budgets)
       can reason about. The subscription itself is billed by OpenAI at a flat rate.

@@ -33,6 +33,21 @@ Two things are versioned separately from this file and worth knowing about:
   anybody it was shared with may. Agents already published on such a sign-in
   keep running, but republishing, rolling back to or promoting that version
   now takes somebody who can see it (#2546).
+- A specialist the model invents under `allow_dynamic` no longer runs on
+  somebody's ChatGPT sign-in the agent never named. Its list of models leaves out
+  a profile on a sign-in, and one whose first three fallbacks reach one, unless
+  the agent's spec names that exact profile. Before, the list offered every chat
+  model in the organization, so a run by the sign-in's owner, an owner or an
+  admin could spend that person's subscription on an agent nobody chose it for
+  (#2546).
+
+### Fixed
+
+- An agent with `allow_dynamic` no longer fails for a caller who may not use some
+  ChatGPT sign-in in the organization - every API-key and widget run, and members
+  it is not shared with. A model the caller may not use is left off the
+  specialist's list of models with a warning, as a model with no key already was
+  (#2546).
 
 ## [1.28.0] - 2026-10-28
 

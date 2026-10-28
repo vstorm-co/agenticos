@@ -1,5 +1,5 @@
 ---
-source_sha: "9141585ed1b2"
+source_sha: "986e4ab82369"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1745,7 +1745,17 @@ tym, co zawraca go z powrotem przez tę platformę.
     ta platforma odrzuca go jeszcze wcześniej, w `DelegatingToolset._refuse_dynamic`.
 
 Model może nazwać wyłącznie taki model, dla którego organizacja ma profil, a odmowa
-podaje listę. Nie może dołączać capability: pozwolenie modelowi na przyznanie
+podaje listę.
+
+Profil na czyimś
+[logowaniu do ChatGPT](../models.md#running-on-a-chatgpt-subscription) albo taki,
+którego fallbacki do niego docierają, jest na liście tylko wtedy, gdy spec agenta
+nazywa dokładnie ten profil - własny model agenta, model recenzenta, wbudowanego
+specjalisty albo włączonej capability - bo logowanie to subskrypcja jednej osoby.
+Profil, którego osoba uruchamiająca agenta nie może użyć, jest pomijany, zamiast
+przerywać run.
+
+Model nie może dołączać capability: pozwolenie modelowi na przyznanie
 własnemu dziecku capability to ta sama porażka nieprzyznanego zakresu w nowym
 kapeluszu. Nie dostaje żadnej wiedzy, żadnych własnych delegatów i nic nie jest
 utrwalane między runami — zachowanie specjalisty oznacza opublikowanie agenta, co
