@@ -38,6 +38,11 @@ pub const GRANTS: &[(&str, &[&str])] = &[
         &[
             "allow-native-browser-view",
             "allow-desktop-state",
+            "allow-desktop-activity",
+            "allow-desktop-retry-screenshot",
+            "allow-desktop-readiness",
+            "allow-desktop-request-permission",
+            "allow-desktop-is-focused",
             "allow-change-server",
             "allow-set-appearance",
             "allow-set-blobby",
@@ -95,6 +100,7 @@ pub const GRANTS: &[(&str, &[&str])] = &[
         quick_ask::WINDOW,
         &[
             "allow-desktop-state",
+            "allow-desktop-activity",
             "allow-resize-quick-ask",
             "allow-hide-quick-ask",
             "allow-take-context-files",
@@ -333,9 +339,25 @@ mod tests {
     }
 
     #[test]
+    fn activity_is_granted_only_to_the_main_chat_and_quick_ask() {
+        for (window, permissions) in GRANTS {
+            assert_eq!(
+                permissions.contains(&"allow-desktop-activity"),
+                *window == WINDOW || *window == crate::quick_ask::WINDOW
+            );
+        }
+    }
+
+    #[test]
     fn no_remote_window_is_granted_a_way_to_run_or_read_anything() {
         for (window, permissions) in GRANTS {
             for permission in *permissions {
+                if *permission == "allow-desktop-retry-screenshot" {
+                    // This opens macOS's interactive region picker. It accepts no
+                    // path or capture parameters and shares nothing until the person selects a region.
+                    assert_eq!(*window, WINDOW);
+                    continue;
+                }
                 for refused in ["shell", "fs:", "opener", "process", "http:", "connect", "screenshot"] {
                     assert!(!permission.contains(refused), "{window} is granted {permission}");
                 }

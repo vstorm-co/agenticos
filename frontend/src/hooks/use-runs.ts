@@ -55,6 +55,7 @@ export function useRuns(
      * after its request committed, so for a moment there is no row for it.
      */
     refetchIntervalMs?: number;
+    refetchInBackground?: boolean;
     startedFrom?: string;
     startedTo?: string;
     orderBy?: "started_at" | "duration" | "cost" | "tokens";
@@ -149,6 +150,7 @@ export function useRuns(
     },
     enabled: options?.enabled ?? true,
     refetchInterval: options?.refetchIntervalMs ?? false,
+    refetchIntervalInBackground: options?.refetchInBackground ?? false,
     // The RUNS figure and the Run history tab are left open while an agent runs
     // and read back on return, so they carry the dashboard's freshness like the
     // spend figure beside them; on the app-wide five-minute cache the list only

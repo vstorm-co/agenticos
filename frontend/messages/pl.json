@@ -8963,14 +8963,25 @@
         "attaching": "Dołączam zaznaczone pliki",
         "attachFailed": "Nie udało się dołączyć zaznaczonych plików, więc pytanie nie zostało wysłane. Zdejmij je, żeby zapytać bez nich."
       },
-      "conversation": "Rozmowa w Quick Ask"
+      "conversation": "Rozmowa w Quick Ask",
+      "repairSetup": "Skonfiguruj agenta lub mikrofon, aby użyć tej funkcji",
+      "needsAnswer": "Agent potrzebuje Twojej odpowiedzi",
+      "title": "Quick Ask",
+      "newConversation": "Nowy czat",
+      "newConversationHint": "Nowa rozmowa (⌘N / Ctrl+N)",
+      "dismiss": "Zamknij Quick Ask",
+      "dismissHint": "Zamknij (Esc)",
+      "sendHint": "Enter wysyła · Shift+Enter dodaje wiersz",
+      "mentionHint": "@ wstawia zasób",
+      "offline": "Offline · wiadomości poczekają"
     },
     "notifications": {
       "approvalTitle": "{agent} chce uruchomić {tool}",
       "anAgent": "Agent",
       "approve": "Zatwierdź",
       "reject": "Odrzuć",
-      "inboxTitle": "AgenticOS"
+      "inboxTitle": "AgenticOS",
+      "questionBody": "Otwórz rozmowę, aby odpowiedzieć agentowi."
     },
     "welcome": {
       "onlyInApp": "To powitanie należy do aplikacji desktopowej AgenticOS.",
@@ -9008,6 +9019,76 @@
         "title": "Wszystko gotowe",
         "body": "Wszystko to znajdziesz w Ustawieniach, kiedy zechcesz coś zmienić."
       }
+    },
+    "readiness": {
+      "title": "Gotowość aplikacji",
+      "description": "Stan tego Maca oraz Twojego konta na tym serwerze. Włącz tylko to, z czego chcesz korzystać.",
+      "desktopOnly": "Otwórz aplikację desktopową, aby sprawdzić jej konfigurację.",
+      "refresh": "Sprawdź ponownie",
+      "requestFailed": "Nie udało się zmienić uprawnienia systemowego. Otwórz Ustawienia systemowe i sprawdź ponownie.",
+      "askAdmin": "Poproś administratora o skonfigurowanie modelu dla organizacji.",
+      "askAgentAdmin": "Poproś administratora o opublikowanie lub udostępnienie agenta, z którego możesz korzystać.",
+      "permissionNote": "Sprawdzenie nie przechwytuje ekranu, dźwięku ani schowka. Uprawnienia są opcjonalne i wymagają kliknięcia. Po zmianie Nagrywania ekranu macOS może wymagać restartu aplikacji.",
+      "retryScreenshot": "Spróbuj ponownie zrobić zrzut",
+      "welcome": "Dokończ łączenie tej aplikacji",
+      "welcomeHint": "Konto już istnieje. Te ustawienia nadal wymagają konfiguracji dla tego połączenia; możesz wrócić do nich później.",
+      "later": "Później",
+      "done": "Kontynuuj",
+      "remaining": "{count, plural, one {Pozostał # element konfiguracji} few {Pozostały # elementy konfiguracji} many {Pozostało # elementów konfiguracji} other {Pozostało # elementu konfiguracji}}",
+      "retry": "Ponów",
+      "enable": "Skonfiguruj",
+      "connect": "Połącz",
+      "configure": "Skonfiguruj",
+      "items": {
+        "account": "Zalogowane konto",
+        "device": "Sparowany komputer",
+        "agent": "Dostępny agent",
+        "model": "Model Architekta AI",
+        "screen_capture": "Nagrywanie ekranu",
+        "accessibility": "Dostępność",
+        "microphone": "Mikrofon",
+        "notifications": "Powiadomienia",
+        "shortcuts": "Quick Ask i skróty"
+      },
+      "state": {
+        "ready": "Gotowe",
+        "missing": "Nieskonfigurowane",
+        "checking": "Sprawdzanie…",
+        "error": "Nie udało się sprawdzić — ponów",
+        "unsupported": "Niewymagane w tej konfiguracji"
+      },
+      "viewAgents": "Zobacz agentów",
+      "finishFailed": "Nie udało się zakończyć konfiguracji połączenia. Spróbuj ponownie."
+    },
+    "notificationSettings": {
+      "title": "Powiadomienia desktopowe",
+      "description": "Ustawienia tego konta i organizacji na tym serwerze. Wyciszenie banerów nie zmienia skrzynki odbiorczej.",
+      "completed": "Zakończone zadania",
+      "failed": "Nieudane zadania",
+      "approvals": "Prośby o zatwierdzenie",
+      "questions": "Agent potrzebuje odpowiedzi",
+      "other": "Pozostałe zdarzenia ze skrzynki",
+      "hide_previews": "Ukrywaj prywatną treść",
+      "privacyHint": "Pokazuj ogólną wiadomość. Zatwierdzanie pozostaje w aplikacji, aby można było najpierw sprawdzić argumenty.",
+      "enable": "Skonfiguruj powiadomienia systemowe",
+      "test": "Wyślij powiadomienie testowe",
+      "testTitle": "Test powiadomień",
+      "testBody": "Jeśli widzisz tę wiadomość, macOS dostarczył powiadomienie.",
+      "failedTest": "Nie udało się wysłać testu. Sprawdź systemowe ustawienia powiadomień.",
+      "unmuteAll": "{count, plural, one {Włącz powiadomienia dla # rozmowy} few {Włącz powiadomienia dla # rozmów} many {Włącz powiadomienia dla # rozmów} other {Włącz powiadomienia dla # rozmowy}}",
+      "mute": "Wycisz powiadomienia tej rozmowy",
+      "unmute": "Włącz powiadomienia tej rozmowy",
+      "privateTitle": "Aktywność AgenticOS",
+      "privateApproval": "Agent potrzebuje zgody. Otwórz aplikację, aby ją sprawdzić.",
+      "privateQuestion": "Agent potrzebuje Twojej odpowiedzi.",
+      "privateFailed": "Zadanie zakończyło się błędem. Szczegóły znajdziesz w aplikacji.",
+      "privateUpdate": "Pojawiła się aktualizacja dotycząca Twojej pracy."
+    },
+    "activity": {
+      "running": "{agent} · pracuje",
+      "question": "{agent} · potrzebuje odpowiedzi",
+      "approval": "{agent} · wymaga zgody",
+      "agent": "Agent"
     }
   },
   "mobile": {

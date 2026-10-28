@@ -73,6 +73,43 @@ tray menu, or by launching with `--server <address>`.
 sidebar. It opens the connection form directly; a collapsed sidebar shows its
 server icon. You can change the address without using blobby.
 
+## Connection setup and app readiness
+
+Connecting to a server opens **App readiness**, including for an existing account.
+It checks sign-in, the computer connection, an available published agent, the
+assistant model, shortcuts and macOS permissions. Permissions are requested only
+when you choose **Enable**. You can continue with optional items unfinished and
+return from **Settings → Desktop app** or the native **Activity & Access** menu.
+The console remembers a dismissed review per account, organization and server;
+an explicit new connection offers a fresh review. Status errors remain visible
+and can be retried. Returning from System Settings refreshes the permission checks.
+
+Screenshot and screen-control failures point to Screen Recording or Accessibility;
+microphone failures in Quick Ask link to the same readiness screen. After granting
+Screen Recording, the screenshot repair offers the interactive region picker again.
+macOS may require restarting the app before a changed grant takes effect.
+
+**Settings → Desktop app → Notifications** controls completed runs, failures,
+approvals, questions and other updates. Previews are hidden by default; private
+approval notifications open the app to review the request rather than offering a
+blind approval. Chat settings can mute notifications for that conversation.
+A notification is suppressed while its conversation is focused in the console
+or Quick Ask. OS notification permissions and Focus settings still control delivery.
+
+**Activity & Access** lists active work and requests needing attention. Open an
+entry to continue in the console; **Stop** is available when this app holds the
+conversation's originating connection. Other server runs remain accessible through
+**Open**. The menu also revokes individual folder or whole-computer grants and
+returns screen control to you.
+
+The header offers **New chat** (`⌘N` or `Ctrl+N`), **Continue in the console** and
+**Close**. New chat clears the previous conversation selection and draft context;
+the composer stays below the transcript with a visible send button.
+
+Quick Ask supports `@mention` with the same available resources as the chat composer.
+Use arrow keys and Enter or Tab to select; Escape dismisses the suggestions first.
+Deleting a mention removes its resource binding from the next message.
+
 ## An application, not a tab
 
 On macOS the console's sidebar holds the traffic lights and drags the window, the

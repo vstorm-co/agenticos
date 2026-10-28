@@ -20,6 +20,8 @@ use base64::Engine;
 use enigo::{Axis, Button, Coordinate, Direction, Enigo, Key, Keyboard, Mouse, Settings};
 use serde::Deserialize;
 use serde_json::{Map, Value};
+#[cfg(target_os = "macos")]
+use tauri::Emitter;
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
@@ -36,7 +38,7 @@ const OVERLAY: &str = "screen-overlay";
 #[derive(Default)]
 pub struct ScreenState(Mutex<Option<Instant>>);
 
-fn allowed(app: &AppHandle) -> bool {
+pub(crate) fn allowed(app: &AppHandle) -> bool {
     let state = app.state::<ScreenState>();
     let guard = state.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     guard.is_some_and(|until| Instant::now() < until)
@@ -68,7 +70,7 @@ async fn ask(app: &AppHandle) -> bool {
 }
 
 /// Take the screen back: refuse what follows, drop the outline and the shortcut.
-fn stop(app: &AppHandle) {
+pub(crate) fn stop(app: &AppHandle) {
     set_allowed(app, None);
     release(app);
 }
@@ -123,6 +125,21 @@ pub async fn run(
     if op == "screen.release" {
         release(app);
         return Ok(Map::new());
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let status = crate::onboarding_permissions::onboarding_permissions();
+        let missing = if op == "screen.capture" && !status.screen_capture {
+            Some("screen_capture")
+        } else if op == "screen.act" && !status.accessibility {
+            Some("accessibility")
+        } else {
+            None
+        };
+        if let Some(permission) = missing {
+            let _ = app.emit("desktop:repair-needed", permission);
+            return Err((format!("macOS permission is missing.{PERMISSIONS}"), "denied"));
+        }
     }
     if !allowed(app) {
         if !ask(app).await {

@@ -3,6 +3,8 @@
 import type { Mentionable } from "@/types/mention";
 import type { ApprovalMode } from "@/components/chat/chat-controls";
 
+import { useDesktopLiveTurn } from "./use-desktop-live-turn";
+import { useDesktopRunControl } from "./use-desktop-run-control";
 import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { qk } from "@/lib/query-keys";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -2568,6 +2570,21 @@ export function useChat(options: UseChatOptions = {}) {
     interruptedForRef.current = null;
     setInterruptedFor(null);
   }, [finishedTurns, activeConversationId]);
+
+  const desktopTurnState = pendingQuestions?.length
+    ? "question"
+    : pendingApproval
+      ? "approval"
+      : isProcessing
+        ? "running"
+        : null;
+  useDesktopLiveTurn(activeConversationId, desktopTurnState, () => followingRef.current === null);
+  useDesktopRunControl(
+    activeConversationId,
+    desktopTurnState !== null,
+    () => followingRef.current !== null,
+    stopGeneration,
+  );
 
   // The live turn's cost, and only while it still belongs to the conversation on
   // screen. A value from the thread somebody just left is not a value about this one.

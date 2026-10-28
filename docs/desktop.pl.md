@@ -1,5 +1,5 @@
 ---
-source_sha: "1b76fb694391"
+source_sha: "b2aa4d6283ee"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -77,6 +77,43 @@ Linuksie. Plik, który przestał się parsować, jest odkładany jako
 **Zmień serwer…** jest też stałym przyciskiem nad kontem w pasku bocznym konsoli.
 Otwiera bezpośrednio formularz połączenia; zwinięty pasek pokazuje jego ikonę
 serwera. Możesz zmienić adres bez używania blobby.
+
+## Konfiguracja połączenia i gotowość aplikacji { #connection-setup-and-app-readiness }
+
+Połączenie z serwerem otwiera panel gotowości aplikacji także dla istniejącego konta.
+Sprawdza on logowanie, połączenie komputera, dostępnego opublikowanego agenta,
+model asystenta, skróty i uprawnienia macOS. Dopiero przycisk **Włącz** prosi o
+uprawnienie. Można kontynuować bez opcjonalnych elementów i wrócić przez
+**Ustawienia → Aplikacja desktopowa** lub natywne menu **Activity & Access**.
+Konsola pamięta odłożony przegląd osobno dla konta, organizacji i serwera;
+ponowne jawne połączenie proponuje nowy przegląd. Błędy sprawdzania są widoczne
+i można ponowić próbę. Powrót z ustawień systemowych odświeża stan uprawnień.
+
+Błędy zrzutów i sterowania ekranem wskazują nagrywanie ekranu lub dostępność;
+błędy mikrofonu w Quick Ask prowadzą do tego samego panelu. Po nadaniu uprawnienia
+do nagrywania naprawa zrzutu pozwala ponownie uruchomić interaktywny wybór obszaru.
+macOS może wymagać restartu aplikacji, zanim nowe uprawnienie zacznie działać.
+
+**Ustawienia → Aplikacja desktopowa → Powiadomienia** kontrolują zakończenia,
+błędy, zatwierdzenia, pytania i pozostałe aktualizacje. Podgląd treści jest domyślnie
+ukryty; prywatne powiadomienie o zatwierdzeniu otwiera żądanie w aplikacji zamiast
+pozwalać na akceptację bez przeczytania. Ustawienia czatu pozwalają wyciszyć rozmowę.
+Powiadomienie nie pojawia się, gdy dana rozmowa jest aktywna w konsoli lub Quick Ask.
+Dostarczanie nadal zależy od uprawnień systemowych i trybu skupienia macOS.
+
+**Activity & Access** pokazuje trwającą pracę i oczekujące żądania. Otwórz wpis,
+aby przejść do konsoli; **Stop** jest dostępne, gdy aplikacja utrzymuje źródłowe
+połączenie rozmowy. Inne zadania serwera można otworzyć przyciskiem **Open**.
+Menu pozwala też cofnąć pojedyncze zgody na folder lub cały komputer i odzyskać
+sterowanie ekranem.
+
+Nagłówek udostępnia **Nowy czat** (`⌘N` lub `Ctrl+N`), przejście do konsoli
+i zamknięcie. Nowy czat zeruje wybór rozmowy i kontekst szkicu; edytor pozostaje
+pod wątkiem i ma widoczny przycisk wysyłania.
+
+Quick Ask obsługuje `@mention` dla tych samych zasobów co edytor czatu.
+Strzałki i Enter lub Tab wybierają zasób, a Escape najpierw zamyka podpowiedzi.
+Usunięcie wzmianki usuwa powiązanie zasobu z następnej wiadomości.
 
 ## Aplikacja, nie karta { #an-application-not-a-tab }
 

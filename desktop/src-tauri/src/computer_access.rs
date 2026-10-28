@@ -56,6 +56,16 @@ fn save(path: &Path, grants: &[Consent]) -> Result<(), String> {
     std::fs::rename(pending, path).map_err(|e| e.to_string())
 }
 
+pub fn active(app: &AppHandle) -> Result<Vec<Consent>, String> {
+    let server = crate::settings::current(app)
+        .server_url
+        .map(|url| url.origin().ascii_serialization());
+    Ok(load(&store(app)?)?
+        .into_iter()
+        .filter(|grant| Some(&grant.origin) == server.as_ref())
+        .collect())
+}
+
 fn origin(app: &AppHandle) -> Result<String, String> {
     settings::current(app)
         .server_url

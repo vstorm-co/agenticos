@@ -1,5 +1,5 @@
 ---
-source_sha: "1b76fb694391"
+source_sha: "b2aa4d6283ee"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -78,6 +78,45 @@ de la bandeja o arrancando con `--server <address>`.
 lateral de la consola. Abre directamente el formulario de conexión; la barra
 lateral contraída muestra su icono de servidor. Puedes cambiar la dirección sin
 usar blobby.
+
+## Configuración de conexión y estado de la aplicación { #connection-setup-and-app-readiness }
+
+Al conectar con un servidor se abre el estado de la aplicación, también para cuentas
+existentes. Comprueba el inicio de sesión, la conexión del ordenador, un agente
+publicado disponible, el modelo del asistente, los atajos y los permisos de macOS.
+Solo **Activar** solicita un permiso. Puedes continuar con pasos opcionales pendientes
+y volver desde **Ajustes → Aplicación de escritorio** o **Activity & Access**.
+La consola recuerda la revisión aplazada por cuenta, organización y servidor;
+una nueva conexión explícita propone otra revisión. Los errores de comprobación
+siguen visibles y permiten reintentar. Volver de los ajustes del sistema actualiza
+el estado de los permisos.
+
+Los fallos de captura y control de pantalla indican Grabación de pantalla o
+Accesibilidad; los errores de micrófono en Quick Ask enlazan al mismo panel.
+Tras conceder Grabación de pantalla, la reparación permite abrir de nuevo el selector
+interactivo de región. macOS puede exigir reiniciar la aplicación.
+
+**Ajustes → Aplicación de escritorio → Notificaciones** controla ejecuciones terminadas,
+errores, aprobaciones, preguntas y otras novedades. Las vistas previas se ocultan
+por defecto; una aprobación privada abre la solicitud en la aplicación en lugar de
+permitir aprobarla sin leerla. Los ajustes del chat permiten silenciar una conversación.
+La notificación se suprime mientras esa conversación tiene el foco en la consola
+o Quick Ask. Los permisos del sistema y el modo de concentración de macOS siguen
+controlando la entrega.
+
+**Activity & Access** muestra el trabajo activo y las solicitudes pendientes.
+Abre una entrada para continuar en la consola; **Stop** está disponible cuando
+esta aplicación mantiene la conexión original de la conversación. Otras ejecuciones
+del servidor siguen accesibles mediante **Open**. El menú también revoca permisos
+individuales de carpetas o del ordenador completo y devuelve el control de la pantalla.
+
+La cabecera ofrece **Nuevo chat** (`⌘N` o `Ctrl+N`), continuar en la consola
+y cerrar. Un nuevo chat borra la selección de conversación y el contexto del borrador;
+el editor permanece bajo el historial con un botón de envío visible.
+
+Quick Ask admite `@mention` con los mismos recursos que el editor del chat.
+Las flechas y Enter o Tab seleccionan; Escape cierra primero las sugerencias.
+Eliminar una mención quita su vínculo al recurso del siguiente mensaje.
 
 ## Una aplicación, no una pestaña { #an-application-not-a-tab }
 

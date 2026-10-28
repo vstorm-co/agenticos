@@ -22,6 +22,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Desktop connection readiness for new and existing accounts, with explicit macOS
+  permission requests, contextual repair links and a persistent status panel.
+  Notification preferences include hidden previews, per-conversation mute and
+  suppression for the focused conversation. A native Activity & Access menu opens
+  active work, stops app-owned conversations and revokes local access grants.
+- Quick Ask resource mentions with keyboard selection and removal tracking, a
+  visible new-chat action that resets the conversation, and a bottom composer
+  with send, dismiss and console controls.
+
 - **Computer** in the Builder’s workspace settings selects a paired desktop without
   embedding personal paths or permissions in the spec. Project creation offers a
   personal **Computer** folder alongside shared workspace choices.

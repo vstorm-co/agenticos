@@ -1,5 +1,6 @@
 "use client";
 
+import { ConversationNotificationToggle } from "@/components/desktop/notification-settings";
 import { useId } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { ChevronDown, Cloud, FolderOpen, Globe, Laptop, X } from "lucide-react";
@@ -40,8 +41,14 @@ export function WorkOn() {
     <>
       <BrowserWorkOn />
       <ComputerWorkOn />
+      <ConversationNotifications />
     </>
   ) : null;
+}
+
+function ConversationNotifications() {
+  const id = useConversationStore((s) => s.currentConversationId);
+  return <ConversationNotificationToggle conversationId={id} />;
 }
 
 function BrowserWorkOn() {

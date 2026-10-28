@@ -19,13 +19,18 @@ const env = vi.hoisted(() => ({
   inbox: [] as unknown[],
   listeners: new Map<string, (payload: unknown) => void>(),
   push: vi.fn(),
-  notify: vi.fn(async () => {}),
+  notify: vi.fn(async (_notice: unknown) => {}),
   setBadge: vi.fn(async () => {}),
   report: vi.fn(),
   list: vi.fn(),
   recordApp: vi.fn(async (_shell: unknown) => {}),
   takeShared: vi.fn(async (): Promise<unknown> => null),
   warning: vi.fn(),
+}));
+vi.mock("./desktop-setup-gate", () => ({ DesktopSetupGate: () => null }));
+vi.mock("./desktop-activity-bridge", () => ({ DesktopActivityBridge: () => null }));
+vi.mock("@/hooks/use-desktop-notifier", () => ({
+  useDesktopNotifier: () => ({ scope: "account", send: (notice: unknown) => env.notify(notice) }),
 }));
 vi.mock("@/lib/mobile/shared", () => ({ takeShared: env.takeShared }));
 vi.mock("sonner", () => ({ toast: { warning: env.warning } }));

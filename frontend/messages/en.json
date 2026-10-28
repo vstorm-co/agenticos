@@ -9178,14 +9178,25 @@
         "attaching": "Attaching the selected files",
         "attachFailed": "The selected files could not be attached, so nothing was asked. Take them off to ask without them."
       },
-      "conversation": "Quick Ask conversation"
+      "conversation": "Quick Ask conversation",
+      "repairSetup": "Set up the agent or microphone to use this feature",
+      "needsAnswer": "Agent needs your answer",
+      "title": "Quick Ask",
+      "newConversation": "New chat",
+      "newConversationHint": "New conversation (⌘N / Ctrl+N)",
+      "dismiss": "Close Quick Ask",
+      "dismissHint": "Close (Esc)",
+      "sendHint": "Enter to send · Shift+Enter for a new line",
+      "mentionHint": "@ to mention a resource",
+      "offline": "Offline · messages will wait"
     },
     "notifications": {
       "approvalTitle": "{agent} wants to run {tool}",
       "anAgent": "An agent",
       "approve": "Approve",
       "reject": "Reject",
-      "inboxTitle": "AgenticOS"
+      "inboxTitle": "AgenticOS",
+      "questionBody": "Open the conversation to answer the agent."
     },
     "welcome": {
       "onlyInApp": "This welcome belongs to the AgenticOS desktop app.",
@@ -9223,6 +9234,76 @@
         "title": "You're all set",
         "body": "Everything here is in Settings when you want to change it."
       }
+    },
+    "readiness": {
+      "title": "App readiness",
+      "description": "What is ready on this Mac and for your account on this server. Enable only what you want to use.",
+      "desktopOnly": "Open the desktop app to check its setup.",
+      "refresh": "Check again",
+      "requestFailed": "Could not change the system permission. Open System Settings and check again.",
+      "askAdmin": "Ask an administrator to configure a model for this organization.",
+      "askAgentAdmin": "Ask an administrator to publish or share an agent you can use.",
+      "permissionNote": "These checks capture no screen, audio or clipboard. Permissions are optional and requested only when you click. macOS may require restarting the app after a Screen Recording change.",
+      "retryScreenshot": "Try the screenshot again",
+      "welcome": "Finish connecting this desktop",
+      "welcomeHint": "Your account already exists. These are the settings still missing for this connection; you can finish them later.",
+      "later": "Later",
+      "done": "Continue",
+      "remaining": "{count, plural, one {# setup item remaining} other {# setup items remaining}}",
+      "retry": "Retry",
+      "enable": "Set up",
+      "connect": "Connect",
+      "configure": "Configure",
+      "items": {
+        "account": "Signed-in account",
+        "device": "Paired computer",
+        "agent": "An agent you can use",
+        "model": "AI Architect model",
+        "screen_capture": "Screen Recording",
+        "accessibility": "Accessibility",
+        "microphone": "Microphone",
+        "notifications": "Notifications",
+        "shortcuts": "Quick Ask and shortcuts"
+      },
+      "state": {
+        "ready": "Ready",
+        "missing": "Not set up",
+        "checking": "Checking…",
+        "error": "Could not check — retry",
+        "unsupported": "Not required for this setup"
+      },
+      "viewAgents": "View agents",
+      "finishFailed": "Could not finish this connection. Please retry."
+    },
+    "notificationSettings": {
+      "title": "Desktop notifications",
+      "description": "Preferences for this account and organization on this server. Muting desktop banners does not change your inbox.",
+      "completed": "Tasks completed",
+      "failed": "Tasks failed",
+      "approvals": "Approval requests",
+      "questions": "Agent needs an answer",
+      "other": "Other inbox updates",
+      "hide_previews": "Hide private content",
+      "privacyHint": "Show a generic message. Approval actions stay inside the app so you can review the arguments first.",
+      "enable": "Set up system notifications",
+      "test": "Send a test notification",
+      "testTitle": "Test notification",
+      "testBody": "If you can see this message, macOS delivered the notification.",
+      "failedTest": "Could not send the test. Check the system notification settings.",
+      "unmuteAll": "{count, plural, one {Unmute # conversation} other {Unmute # conversations}}",
+      "mute": "Mute notifications for this conversation",
+      "unmute": "Unmute this conversation",
+      "privateTitle": "AgenticOS activity",
+      "privateApproval": "An agent needs approval. Open the app to review it.",
+      "privateQuestion": "An agent needs your answer.",
+      "privateFailed": "A task failed. Open the app for details.",
+      "privateUpdate": "There is an update about your work."
+    },
+    "activity": {
+      "running": "{agent} · working",
+      "question": "{agent} · needs an answer",
+      "approval": "{agent} · approval needed",
+      "agent": "Agent"
     }
   },
   "mobile": {

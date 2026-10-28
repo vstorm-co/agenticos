@@ -1,3 +1,4 @@
+import { DesktopAccessBridge } from "@/components/desktop/desktop-access-bridge";
 import type { Metadata } from "next";
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages, getTranslations } from "next-intl/server";
@@ -62,6 +63,7 @@ export default async function LocaleLayout({
           {t("skipToContent")}
         </a>
         {children}
+        <DesktopAccessBridge />
         <CookieBanner />
       </NextIntlClientProvider>
     </Providers>

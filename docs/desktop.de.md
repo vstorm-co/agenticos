@@ -1,5 +1,5 @@
 ---
-source_sha: "1b76fb694391"
+source_sha: "b2aa4d6283ee"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -81,6 +81,45 @@ geändert.
 Seitenleiste der Konsole. Sie öffnet direkt das Verbindungsformular; die
 eingeklappte Seitenleiste zeigt das Serversymbol. Sie können die Adresse ohne
 blobby ändern.
+
+## Verbindungseinrichtung und App-Bereitschaft { #connection-setup-and-app-readiness }
+
+Nach der Verbindung mit einem Server öffnet sich die App-Bereitschaft auch für
+bestehende Konten. Sie prüft Anmeldung, Computerverbindung, verfügbare veröffentlichte
+Agenten, Assistentenmodell, Tastenkürzel und macOS-Berechtigungen. Erst **Aktivieren**
+fordert eine Berechtigung an. Optionale Schritte können offen bleiben; der Bereich
+ist später unter **Einstellungen → Desktop-App** oder **Activity & Access** erreichbar.
+Die Konsole merkt sich eine zurückgestellte Prüfung pro Konto, Organisation und
+Server. Eine erneute ausdrückliche Verbindung bietet eine neue Prüfung an.
+Prüffehler bleiben sichtbar und lassen sich erneut prüfen. Nach der Rückkehr aus
+den Systemeinstellungen werden die Berechtigungen aktualisiert.
+
+Fehler bei Screenshots und Bildschirmsteuerung verweisen auf Bildschirmaufnahme
+oder Bedienungshilfen; Mikrofonfehler in Quick Ask führen zum selben Bereich.
+Nach Freigabe der Bildschirmaufnahme kann die Reparatur die interaktive
+Bereichsauswahl erneut öffnen. macOS kann einen Neustart der App verlangen.
+
+**Einstellungen → Desktop-App → Benachrichtigungen** steuert Abschlüsse, Fehler,
+Freigaben, Fragen und weitere Meldungen. Vorschauen sind standardmäßig ausgeblendet;
+private Freigabemeldungen öffnen die Anfrage in der App statt einer blinden
+Bestätigung. In den Chat-Einstellungen lassen sich einzelne Unterhaltungen stummschalten.
+Während die entsprechende Unterhaltung in der Konsole oder Quick Ask fokussiert ist,
+wird die Meldung unterdrückt. Systemberechtigungen und der macOS-Fokus bestimmen
+weiterhin die Zustellung.
+
+**Activity & Access** zeigt laufende Arbeit und wartende Anfragen. Ein Eintrag öffnet
+die Konsole; **Stop** ist verfügbar, wenn diese App die ursprüngliche Verbindung
+der Unterhaltung hält. Andere Serverläufe bleiben über **Open** erreichbar.
+Das Menü widerruft auch einzelne Ordner- oder Computerfreigaben und gibt die
+Bildschirmsteuerung zurück.
+
+Die Kopfzeile bietet **Neuer Chat** (`⌘N` oder `Strg+N`), den Wechsel zur Konsole
+und Schließen. Ein neuer Chat setzt Gesprächsauswahl und Entwurfskontext zurück;
+der Editor bleibt unter dem Verlauf und hat eine sichtbare Senden-Schaltfläche.
+
+Quick Ask unterstützt `@mention` mit denselben Ressourcen wie der Chat-Editor.
+Pfeiltasten und Enter oder Tab wählen aus; Escape schließt zuerst die Vorschläge.
+Das Löschen einer Erwähnung entfernt ihre Ressourcenbindung aus der nächsten Nachricht.
 
 ## Eine Anwendung, kein Tab { #an-application-not-a-tab }
 

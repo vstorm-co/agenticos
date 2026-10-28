@@ -13,6 +13,7 @@
 //! those that draws anything draws a page of the console, in a window of the
 //! shell's; `console.rs` is what those pages may ask of the shell, and from where.
 
+mod activity;
 mod appearance;
 mod blobby;
 mod computer_access;
@@ -30,6 +31,7 @@ mod notify;
 mod onboarding_permissions;
 mod pinned;
 mod quick_ask;
+mod readiness;
 mod screen;
 mod settings;
 mod shortcuts;
@@ -77,8 +79,8 @@ const BACK: &str = "back";
 const FORWARD: &str = "forward";
 const DOCUMENTATION: &str = "documentation";
 const DOCUMENTATION_URL: &str = "https://vstorm-co.github.io/agenticos/desktop/";
-/// The console's welcome for a new desktop install: blobby, shortcuts, notifications.
-const WELCOME: &str = "desktop/welcome";
+/// Review this server connection and any missing account or macOS setup.
+const CONNECTION_SETUP: &str = "desktop/readiness?connection=1";
 const LOCAL_START: &str = "local-start";
 const LOCAL_STOP: &str = "local-stop";
 const LOCAL_UPDATE: &str = "local-update";
@@ -352,6 +354,11 @@ fn attach_script(png: &[u8]) -> String {
 /// attaches what was captured. Nothing is held for that hook until the chat's
 /// address is known and answering, and it is dropped again if the console could
 /// not be pointed there - a capture that went nowhere must not turn up later.
+#[tauri::command]
+fn desktop_retry_screenshot(app: AppHandle) {
+    screenshot_to_chat(&app);
+}
+
 fn screenshot_to_chat(app: &AppHandle) {
     let app = app.clone();
     tauri::async_runtime::spawn_blocking(move || {
@@ -359,7 +366,13 @@ fn screenshot_to_chat(app: &AppHandle) {
             Ok(Some(png)) => png,
             Ok(None) => return,
             Err(e) => {
-                complain(&app, &e);
+                if e == SCREEN_RECORDING_REFUSED {
+                    if let Err(error) = open_in_console_at(&app, "/desktop/readiness?repair=screen_capture") {
+                        complain(&app, &error);
+                    }
+                } else {
+                    complain(&app, &e);
+                }
                 return;
             }
         };
@@ -435,20 +448,17 @@ async fn connect(app: AppHandle, window: WebviewWindow, url: String) -> Result<(
 }
 
 /// Point the shell at a console that answers, remember where it lives, and
-/// open it: on the welcome the first time, on the console after that.
+/// review this connection, including for an existing account.
 fn arrive(app: &AppHandle, window: &WebviewWindow, server: Url, deployment: Deployment) -> Result<(), String> {
     managed::check(app, &server)?;
     let (settings, ()) = settings::update(app, |settings| {
         settings.server_url = Some(server.clone());
+        settings.connection_revision = uuid::Uuid::new_v4().to_string();
         settings.deployment = Some(deployment);
     })?;
     // Granted before the page loads: the welcome asks the shell for its state as it mounts.
     console::grant(app, &server)?;
-    let landing = if settings.onboarded {
-        home(&server)
-    } else {
-        server.join(WELCOME).map_err(|e| e.to_string())?
-    };
+    let landing = server.join(CONNECTION_SETUP).map_err(|e| e.to_string())?;
     window.navigate(landing).map_err(|e| e.to_string())?;
     retarget_companions(app, &server)?;
     start_companions(app, &server, &settings);
@@ -894,6 +904,7 @@ impl ShellMenu {
     fn tray(&self, app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         let separator = || PredefinedMenuItem::separator(app);
         let blobby = self.blobby.submenu(app)?;
+        let activity = activity::menu(app)?;
         let agents = settings::current(app)
             .pinned_agents
             .iter()
@@ -918,6 +929,7 @@ impl ShellMenu {
             &self.screenshot,
             &first,
             &blobby,
+            &activity,
             &local,
             &second,
             &self.settings,
@@ -1032,6 +1044,7 @@ impl ShellMenu {
                 &view,
                 &go,
                 &self.blobby.submenu(app)?,
+                &activity::menu(app)?,
                 &window,
                 &help,
             ],
@@ -1125,6 +1138,12 @@ fn install_menu(app: &AppHandle, settings: &Settings) -> tauri::Result<TrayIcon>
 
     app.on_menu_event(|app, event| {
         let id = event.id().as_ref();
+        if id.starts_with("activity:") {
+            if let Err(error) = activity::handle(app, id) {
+                complain(app, &error);
+            }
+            return;
+        }
         let outcome = match id {
             "check-updates" => {
                 let app = app.clone();
@@ -1263,6 +1282,11 @@ pub fn run() {
             console::resize_blobby,
             console::blobby_menu,
             console::set_window_preferences,
+            desktop_retry_screenshot,
+            readiness::desktop_readiness,
+            readiness::desktop_request_permission,
+            readiness::desktop_is_focused,
+            activity::desktop_activity,
             console::notify,
             console::set_badge,
             console::open_in_console,
@@ -1300,6 +1324,7 @@ pub fn run() {
         .manage(console::Granted::default())
         .manage(screen::ScreenState::default())
         .manage(notify::Delivered::default())
+        .manage(activity::Activity::default())
         .manage(shortcuts::Bindings::default())
         .manage(context::CapturedFiles::default())
         .manage(dropped::Dropped::default())

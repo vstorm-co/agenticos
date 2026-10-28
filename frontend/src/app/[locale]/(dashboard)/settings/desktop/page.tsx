@@ -2,6 +2,8 @@
 
 import { useTranslations } from "next-intl";
 
+import { ReadinessPanel } from "@/components/desktop/readiness-panel";
+import { DesktopNotificationSettings } from "@/components/desktop/notification-settings";
 import { DeviceSettings } from "@/components/desktop/device-settings";
 import { PinnedSettings } from "@/components/desktop/pinned-settings";
 import { WindowSettings } from "@/components/desktop/window-settings";
@@ -14,6 +16,8 @@ export default function DesktopAppPage() {
   return (
     <div className="space-y-6">
       <SectionHeading title={t("heading")} description={t("headingHint")} />
+      <ReadinessPanel />
+      <DesktopNotificationSettings />
       <DeviceSettings />
       <WindowSettings />
       <PinnedSettings />

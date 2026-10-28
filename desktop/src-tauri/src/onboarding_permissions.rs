@@ -12,8 +12,8 @@ pub enum Permission {
 #[derive(Serialize)]
 pub struct Status {
     supported: bool,
-    screen_capture: bool,
-    accessibility: bool,
+    pub(crate) screen_capture: bool,
+    pub(crate) accessibility: bool,
 }
 
 #[cfg(target_os = "macos")]

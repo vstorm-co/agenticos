@@ -644,6 +644,8 @@ export const qk = {
       ["admin", "background-jobs", "list", filters] as const,
   },
   desktop: {
+    focus: () => ["desktop", "focus"] as const,
+    readiness: () => ["desktop", "readiness"] as const,
     // What the desktop app holds for this person - blobby, the shortcuts, the
     // window - read over IPC rather than HTTP, but the same kind of answer: a
     // page reads it, a change writes it back and invalidates it.

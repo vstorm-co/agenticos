@@ -2,12 +2,15 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { useConversationStore } from "@/stores";
 import { useAgentSelectionStore } from "@/stores/agent-selection-store";
 
 import { QuickAsk } from "./quick-ask";
+import type { Mentionable } from "@/types/mention";
 import type { ToolCall, PendingApproval, Decision, QueuedMessage } from "@/types";
 
 const env = vi.hoisted(() => ({
+  mentionables: [] as Mentionable[],
   auth: { isAuthenticated: true, isLoading: false },
   chat: {
     messages: [] as {
@@ -25,6 +28,7 @@ const env = vi.hoisted(() => ({
     queuedMessages: [] as QueuedMessage[],
     cancelQueued: vi.fn(),
     retryQueued: vi.fn(),
+    clearQueued: vi.fn(),
     isProcessing: false,
     sendMessage: vi.fn(),
     clearMessages: vi.fn(),
@@ -56,7 +60,13 @@ const env = vi.hoisted(() => ({
   })),
   resize: null as null | ((entries: { contentRect: { height: number } }[]) => void),
 }));
+vi.mock("@/hooks/use-organizations", () => ({ useTenantId: () => "org" }));
+vi.mock("@/hooks/use-mentionables", () => ({
+  useMentionables: () => ({ items: env.mentionables, isLoading: false, isError: false }),
+}));
+vi.mock("@/components/agents/agent-avatar", () => ({ AgentAvatar: () => <span /> }));
 vi.mock("@/hooks/use-knowledge-bases", () => ({ useKnowledgeBaseFor: () => () => undefined }));
+vi.mock("@/lib/desktop/readiness", () => ({ publishDesktopActivity: vi.fn(async () => {}) }));
 vi.mock("@/hooks/use-auth", () => ({ useAuth: () => env.auth }));
 vi.mock("@/hooks/use-chat", () => ({
   useChat: (options: { onConversationCreated: (id: string) => void }) => {
@@ -133,6 +143,7 @@ const question = () => screen.getByRole("textbox", { name: "Ask anything" });
 beforeEach(() => {
   vi.stubGlobal("ResizeObserver", CapturingResizeObserver);
   env.auth = { isAuthenticated: true, isLoading: false };
+  env.mentionables = [];
   env.chat.messages = [];
   env.chat.isProcessing = false;
   env.chat.isConnected = true;
@@ -462,4 +473,63 @@ it("follows new messages until the reader scrolls up", () => {
   env.chat.messages = [...env.chat.messages, { role: "user", content: "More text arrives" }];
   view.rerender(<QuickAsk />);
   expect(transcript.scrollTop).toBe(400);
+});
+
+it("picks @mentions with the keyboard and sends their identity to the agent", async () => {
+  const item: Mentionable = { kind: "mcp", id: "drive", name: "Google Drive" };
+  env.mentionables = [item];
+  render(<QuickAsk />);
+  await userEvent.type(question(), "Find in @Goo");
+  expect(screen.getByRole("listbox")).toBeVisible();
+  await userEvent.keyboard("{Enter}");
+  expect(question()).toHaveValue("Find in @Google Drive ");
+  expect(env.chat.sendMessage).not.toHaveBeenCalled();
+  await userEvent.type(question(), "the document{Enter}");
+  expect(env.chat.sendMessage).toHaveBeenCalledWith(
+    "Find in @Google Drive the document",
+    undefined,
+    undefined,
+    [item],
+  );
+});
+
+it("Escape closes mentions before hiding the panel, and removing a token removes its identity", async () => {
+  env.mentionables = [{ kind: "collection", id: "kb", name: "Contracts" }];
+  render(<QuickAsk />);
+  await userEvent.type(question(), "@Con");
+  await userEvent.keyboard("{Escape}");
+  expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  expect(env.commands.hideQuickAsk).not.toHaveBeenCalled();
+  await userEvent.clear(question());
+  await userEvent.type(question(), "@Con{Tab}");
+  await userEvent.clear(question());
+  await userEvent.type(question(), "A plain question{Enter}");
+  expect(env.chat.sendMessage).toHaveBeenCalledWith("A plain question");
+});
+
+it("starts a separate conversation from the visible action and returns focus to the composer", async () => {
+  env.chat.messages = [{ role: "user", content: "Previous thread" }];
+  useConversationStore.getState().setCurrentConversationId("old-thread");
+  render(<QuickAsk />);
+  act(() => env.created?.("old-thread"));
+  await userEvent.type(question(), "discard this draft");
+  await userEvent.click(screen.getByRole("button", { name: "New chat" }));
+  expect(useConversationStore.getState().currentConversationId).toBeNull();
+  expect(env.chat.clearMessages).toHaveBeenCalledOnce();
+  expect(env.chat.clearQueued).toHaveBeenCalledOnce();
+  expect(question()).toHaveValue("");
+  expect(question()).toHaveFocus();
+  expect(screen.getByRole("button", { name: /Continue in the console/ })).toBeDisabled();
+  await userEvent.type(question(), "A different topic");
+  await userEvent.click(screen.getByRole("button", { name: "Send message" }));
+  expect(env.chat.sendMessage).toHaveBeenCalledWith("A different topic");
+});
+
+it("offers a visible dismiss action and leaves an existing conversation intact", async () => {
+  render(<QuickAsk />);
+  await userEvent.type(question(), "keep this draft");
+  await userEvent.click(screen.getByRole("button", { name: "Close Quick Ask" }));
+  expect(env.commands.hideQuickAsk).toHaveBeenCalledOnce();
+  expect(env.chat.clearMessages).not.toHaveBeenCalled();
+  expect(question()).toHaveValue("keep this draft");
 });

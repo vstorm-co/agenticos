@@ -52,6 +52,7 @@ import { ComposerHints } from "./composer-hints";
 import { MentionPalette } from "./mention-palette";
 import { useMentionables } from "@/hooks/use-mentionables";
 import {
+  MAX_MENTIONS,
   insertMention,
   matching,
   mentionAt,
@@ -100,9 +101,6 @@ export interface ComposerDictation {
  * Below it nothing changes: the text lands in the textarea as it always has.
  */
 const PASTE_AS_FILE_CHARS = 2000;
-
-/** What one message may point at; the server refuses a frame with more (`agent_chat.MAX_MENTIONS`). */
-const MAX_MENTIONS = 10;
 
 /** A file queued for upload, shown as a card before the server has answered. */
 interface PendingUpload {

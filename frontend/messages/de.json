@@ -8929,7 +8929,90 @@
       }
     },
     "quickAsk": {
-      "conversation": "Quick-Ask-Gespräch"
+      "conversation": "Quick-Ask-Gespräch",
+      "repairSetup": "Richten Sie Agent oder Mikrofon für diese Funktion ein",
+      "needsAnswer": "Der Agent benötigt Ihre Antwort",
+      "title": "Quick Ask",
+      "newConversation": "Neuer Chat",
+      "newConversationHint": "Neue Unterhaltung (⌘N / Strg+N)",
+      "dismiss": "Quick Ask schließen",
+      "dismissHint": "Schließen (Esc)",
+      "sendHint": "Enter sendet · Shift+Enter für neue Zeile",
+      "mentionHint": "@ erwähnt eine Ressource",
+      "offline": "Offline · Nachrichten warten"
+    },
+    "readiness": {
+      "title": "App-Bereitschaft",
+      "description": "Der Zustand dieses Macs und Ihres Kontos auf diesem Server. Aktivieren Sie nur benötigte Funktionen.",
+      "desktopOnly": "Öffnen Sie die Desktop-App, um ihre Einrichtung zu prüfen.",
+      "refresh": "Erneut prüfen",
+      "requestFailed": "Die Systemberechtigung konnte nicht geändert werden. Öffnen Sie die Systemeinstellungen und prüfen Sie erneut.",
+      "askAdmin": "Bitten Sie einen Administrator, ein Modell für die Organisation einzurichten.",
+      "askAgentAdmin": "Bitten Sie einen Administrator, einen nutzbaren Agent zu veröffentlichen oder freizugeben.",
+      "permissionNote": "Die Prüfung erfasst weder Bildschirm noch Audio oder Zwischenablage. Berechtigungen sind optional und erfordern einen Klick. Nach Änderungen an der Bildschirmaufnahme kann macOS einen App-Neustart verlangen.",
+      "retryScreenshot": "Screenshot erneut versuchen",
+      "welcome": "Desktop-Verbindung fertig einrichten",
+      "welcomeHint": "Ihr Konto besteht bereits. Diese Einstellungen fehlen noch für diese Verbindung; Sie können später fortfahren.",
+      "later": "Später",
+      "done": "Weiter",
+      "remaining": "{count, plural, one {# Einrichtungspunkt offen} other {# Einrichtungspunkte offen}}",
+      "retry": "Wiederholen",
+      "enable": "Einrichten",
+      "connect": "Verbinden",
+      "configure": "Konfigurieren",
+      "items": {
+        "account": "Angemeldetes Konto",
+        "device": "Gekoppelter Computer",
+        "agent": "Nutzbarer Agent",
+        "model": "Modell des AI Architect",
+        "screen_capture": "Bildschirmaufnahme",
+        "accessibility": "Bedienungshilfen",
+        "microphone": "Mikrofon",
+        "notifications": "Mitteilungen",
+        "shortcuts": "Quick Ask und Tastenkürzel"
+      },
+      "state": {
+        "ready": "Bereit",
+        "missing": "Nicht eingerichtet",
+        "checking": "Wird geprüft…",
+        "error": "Prüfung fehlgeschlagen — erneut versuchen",
+        "unsupported": "Hier nicht erforderlich"
+      },
+      "viewAgents": "Agents ansehen",
+      "finishFailed": "Die Verbindungseinrichtung konnte nicht abgeschlossen werden. Versuchen Sie es erneut."
+    },
+    "notificationSettings": {
+      "title": "Desktop-Mitteilungen",
+      "description": "Einstellungen für dieses Konto und diese Organisation auf diesem Server. Stumme Desktop-Banner ändern den Posteingang nicht.",
+      "completed": "Abgeschlossene Aufgaben",
+      "failed": "Fehlgeschlagene Aufgaben",
+      "approvals": "Freigabeanfragen",
+      "questions": "Agent benötigt eine Antwort",
+      "other": "Andere Posteingangsereignisse",
+      "hide_previews": "Private Inhalte ausblenden",
+      "privacyHint": "Eine allgemeine Nachricht anzeigen. Freigaben erfolgen in der App, damit Sie zuerst die Argumente prüfen können.",
+      "enable": "Systemmitteilungen einrichten",
+      "test": "Testmitteilung senden",
+      "testTitle": "Testbenachrichtigung",
+      "testBody": "Wenn du diese Nachricht siehst, hat macOS die Benachrichtigung zugestellt.",
+      "failedTest": "Der Test konnte nicht gesendet werden. Prüfen Sie die Systemmitteilungen.",
+      "unmuteAll": "{count, plural, one {# Gespräch wieder aktivieren} other {# Gespräche wieder aktivieren}}",
+      "mute": "Mitteilungen für dieses Gespräch stummschalten",
+      "unmute": "Mitteilungen für dieses Gespräch aktivieren",
+      "privateTitle": "AgenticOS-Aktivität",
+      "privateApproval": "Ein Agent benötigt eine Freigabe. Öffnen Sie die App zur Prüfung.",
+      "privateQuestion": "Ein Agent benötigt Ihre Antwort.",
+      "privateFailed": "Eine Aufgabe ist fehlgeschlagen. Details finden Sie in der App.",
+      "privateUpdate": "Es gibt Neuigkeiten zu Ihrer Arbeit."
+    },
+    "activity": {
+      "running": "{agent} · arbeitet",
+      "question": "{agent} · benötigt eine Antwort",
+      "approval": "{agent} · Freigabe erforderlich",
+      "agent": "Agent"
+    },
+    "notifications": {
+      "questionBody": "Öffnen Sie das Gespräch, um dem Agent zu antworten."
     }
   },
   "agentPin": {

@@ -31,6 +31,9 @@ pub struct Settings {
     /// Whether the console's welcome - blobby, shortcuts, notifications - has been through.
     #[serde(default)]
     pub onboarded: bool,
+    /// Changes only when the person explicitly connects to a deployment.
+    #[serde(default)]
+    pub connection_revision: String,
     /// The agents in the tray's and the Dock's "New Chat With", in order.
     #[serde(default)]
     pub pinned_agents: Vec<PinnedAgent>,

@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
 import {
   ArrowUpRight,
+  ArrowUp,
+  Plus,
+  X,
   Clipboard,
-  CornerDownLeft,
   Files,
   Loader2,
   Mic,
@@ -14,6 +16,20 @@ import {
   Square,
 } from "lucide-react";
 
+import { useConversationStore } from "@/stores";
+import { useAuthStore } from "@/stores";
+import { useTenantId } from "@/hooks/use-organizations";
+import { MentionPalette } from "@/components/chat/mention-palette";
+import { useMentionables } from "@/hooks/use-mentionables";
+import {
+  insertMention,
+  matching,
+  MAX_MENTIONS,
+  mentionAt,
+  stillMentioned,
+  type MentionQuery,
+} from "@/lib/mentions";
+import type { Mentionable } from "@/types/mention";
 import { AgentPicker } from "@/components/chat/agent-picker";
 import { FilePreviewDialog } from "@/components/chat/file-preview-dialog";
 import { SourcesPanel } from "@/components/chat/sources-panel";
@@ -31,6 +47,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useChanged } from "@/hooks/use-changed";
 import { useChat } from "@/hooks/use-chat";
 import { useShellEvent } from "@/hooks/use-desktop";
+import { publishDesktopActivity } from "@/lib/desktop/readiness";
 import { hideQuickAsk, openInConsole, resizeQuickAsk, showConsole } from "@/lib/desktop/commands";
 import {
   openAccessibilitySettings,
@@ -69,6 +86,8 @@ function run(what: string, command: () => Promise<void>) {
  */
 export function QuickAsk() {
   const t = useTranslations("desktop.quickAsk");
+  const account = useAuthStore((s) => s.user?.id);
+  const tenant = useTenantId();
   const tInput = useTranslations("chat.input");
   const { isAuthenticated, isLoading } = useAuth();
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -97,6 +116,7 @@ export function QuickAsk() {
     queuedMessages,
     cancelQueued,
     retryQueued,
+    clearQueued,
   } = useChat({
     conversationId,
     onConversationCreated: setConversationId,
@@ -108,7 +128,75 @@ export function QuickAsk() {
     if (node && !scrolledUp.current) node.scrollTop = node.scrollHeight;
   }, [messages, pendingApproval, pendingQuestions, pendingConnection, queuedMessages]);
 
+  useEffect(() => {
+    const entries =
+      !signedOut && conversationId && (isProcessing || pendingQuestions?.length || pendingApproval)
+        ? [
+            {
+              id: conversationId,
+              title: pendingQuestions?.length ? t("needsAnswer") : t("thinking"),
+              question: !!pendingQuestions?.length,
+              path: `/chat?id=${conversationId}`,
+              stop_conversation: conversationId,
+            },
+          ]
+        : [];
+    void publishDesktopActivity(entries, signedOut ? null : conversationId, {
+      user: account,
+      organization: tenant,
+    }).catch((e: unknown) => reportShellFailure("publishing Quick Ask activity", e));
+  }, [
+    conversationId,
+    isProcessing,
+    pendingQuestions,
+    pendingApproval,
+    signedOut,
+    account,
+    tenant,
+    t,
+  ]);
+  useEffect(
+    () => () => {
+      void publishDesktopActivity([], null).catch((e: unknown) =>
+        reportShellFailure("clearing Quick Ask activity", e),
+      );
+    },
+    [],
+  );
   const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
+  const mentionMenuId = useId();
+  const [picked, setPicked] = useState<Mentionable[]>([]);
+  const [mentionQuery, setMentionQuery] = useState<MentionQuery | null>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const offered = useMentionables(signedOut ? null : selectedAgentId);
+  const matches =
+    mentionQuery && selectedAgentId ? matching(offered.items, mentionQuery.query) : [];
+  const mentions = stillMentioned(question, picked);
+  const mentionOpen = !signedOut && mentionQuery !== null && selectedAgentId !== null;
+  const caretAfterPick = useRef<number | null>(null);
+  if (useChanged(selectedAgentId ?? "")) {
+    if (picked.length) setPicked([]);
+    if (mentionQuery) setMentionQuery(null);
+  }
+  if (useChanged(`${mentionQuery?.query ?? ""}|${matches.length}`)) setMentionIndex(0);
+  useLayoutEffect(() => {
+    if (caretAfterPick.current !== null) {
+      input.current?.focus();
+      input.current?.setSelectionRange(caretAfterPick.current, caretAfterPick.current);
+      caretAfterPick.current = null;
+    }
+  }, [question]);
+  const pickMention = (item: Mentionable) => {
+    if (!mentionQuery) return;
+    const known = mentions.some((one) => one.id === item.id && one.kind === item.kind);
+    if (mentions.length >= MAX_MENTIONS && !known) return;
+    const next = insertMention(question, mentionQuery, item);
+    setQuestion(next.text);
+    setPicked(known ? mentions : [...mentions, item]);
+    caretAfterPick.current = next.caret;
+    setMentionQuery(null);
+  };
+
   const dictation = useAgentDictation(signedOut ? null : selectedAgentId);
   const phase = dictation.state.phase;
   const stopDictation = dictation.actions.stop;
@@ -180,6 +268,16 @@ export function QuickAsk() {
     : t("context.anApp");
 
   const ask = async (text: string) => {
+    if (
+      signedOut ||
+      !selectedAgentId ||
+      isProcessing ||
+      attaching ||
+      phase === "requesting" ||
+      phase === "recording" ||
+      phase === "transcribing"
+    )
+      return;
     const passages: ContextPassage[] = [];
     if (context?.selection && include.selection) {
       passages.push({ heading: t("context.selectedIn", { source }), text: context.selection });
@@ -202,17 +300,25 @@ export function QuickAsk() {
       }
     }
     const content = withContext(text, passages);
+    const named = stillMentioned(text, picked);
     scrolledUp.current = false;
-    if (attached.length > 0) {
+    if (named.length)
+      sendMessage(
+        content,
+        attached.length ? attached.map((file) => file.id) : undefined,
+        attached.length ? attached : undefined,
+        named,
+      );
+    else if (attached.length)
       sendMessage(
         content,
         attached.map((file) => file.id),
         attached,
       );
-    } else {
-      sendMessage(content);
-    }
+    else sendMessage(content);
     setQuestion("");
+    setPicked([]);
+    setMentionQuery(null);
     setContext(null);
   };
 
@@ -236,14 +342,50 @@ export function QuickAsk() {
     run("could not put quick ask away", hideQuickAsk);
   };
 
+  const resetConversation = useConversationStore((s) => s.reset);
   const startOver = () => {
+    if (attaching || phase === "requesting" || phase === "recording" || phase === "transcribing")
+      return;
+    if (isProcessing && !conversationId) return;
+    clearQueued();
+    resetConversation();
+    setContext(null);
+    setAttachFailed(false);
+    setNoDictation(false);
+    stopDictation();
+    setPicked([]);
+    setMentionQuery(null);
     clearMessages();
     scrolledUp.current = false;
     setConversationId(null);
     setQuestion("");
+    input.current?.focus();
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.nativeEvent.isComposing) return;
+    if (mentionOpen) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMentionQuery(null);
+        return;
+      }
+      if (matches.length && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+        event.preventDefault();
+        setMentionIndex(
+          (index) =>
+            (index + (event.key === "ArrowDown" ? 1 : -1) + matches.length) % matches.length,
+        );
+        return;
+      }
+      if (matches.length && (event.key === "Enter" || event.key === "Tab")) {
+        event.preventDefault();
+        const item = matches[mentionIndex];
+        if (item) pickMention(item);
+        return;
+      }
+    }
+
     const command = event.metaKey || event.ctrlKey;
     if (event.key === "Escape") {
       event.preventDefault();
@@ -265,77 +407,58 @@ export function QuickAsk() {
   const listening = phase === "requesting" || phase === "recording";
 
   return (
-    <div
-      ref={panel}
-      className="quick-ask-panel relative flex max-h-[560px] flex-col"
-      data-tauri-drag-region="deep"
-    >
-      <div className="flex items-start gap-2 px-3 py-3">
-        {signedOut ? null : <AgentPicker />}
-        <textarea
-          ref={input}
-          rows={1}
-          value={question}
-          disabled={signedOut}
-          onChange={(event) => {
-            setQuestion(event.target.value);
-            setNoDictation(false);
-          }}
-          onKeyDown={onKeyDown}
-          placeholder={signedOut ? t("signedOut") : t("placeholder")}
-          aria-label={t("placeholder")}
-          className="text-foreground placeholder:text-muted-foreground field-sizing-content max-h-32 min-h-9 flex-1 resize-none bg-transparent py-1.5 text-base outline-none"
-        />
-        {listening ? (
-          <Mic className="text-destructive mt-2 size-4 animate-pulse" aria-label={t("listening")} />
-        ) : null}
-        {isProcessing ? (
+    <div ref={panel} className="quick-ask-panel relative flex max-h-[560px] flex-col">
+      <header className="flex shrink-0 items-center gap-2 px-3 py-2" data-tauri-drag-region="deep">
+        <span className="text-muted-foreground mr-1 text-xs font-medium">{t("title")}</span>
+        {!signedOut && <AgentPicker />}
+        <div className="flex-1" />
+        {!signedOut && (
           <button
             type="button"
-            onClick={stopGeneration}
-            disabled={isStopping}
-            aria-label={tInput("stopGenerating")}
-            className="text-muted-foreground hover:bg-muted hover:text-foreground mt-1 rounded-md p-2 disabled:opacity-50"
+            onClick={startOver}
+            disabled={
+              attaching ||
+              listening ||
+              phase === "transcribing" ||
+              (isProcessing && !conversationId)
+            }
+            // i18n-exempt: WAI-ARIA machine-readable key combinations
+            aria-keyshortcuts="Meta+N Control+N"
+            title={t("newConversationHint")}
+            className="text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-ring flex shrink-0 items-center gap-1 rounded-md px-2 py-1.5 text-xs outline-none focus-visible:ring-2 disabled:opacity-50"
           >
-            <Square className="size-4" aria-hidden />
+            <Plus className="size-3.5" aria-hidden />
+            {t("newConversation")}
           </button>
-        ) : null}
-      </div>
-      {context && !signedOut ? (
-        <ContextChips
-          context={context}
-          include={include}
-          onToggle={toggle}
-          onAllow={() => run("could not open the privacy settings", openAccessibilitySettings)}
-        />
-      ) : null}
-      {attaching || attachFailed ? (
-        <p role="status" className="border-border text-muted-foreground border-t px-4 py-2 text-xs">
-          {attaching ? t("context.attaching") : t("context.attachFailed")}
-        </p>
-      ) : null}
-      {listening || phase === "transcribing" || noDictation ? (
-        <p role="status" className="border-border text-muted-foreground border-t px-4 py-2 text-xs">
-          {noDictation ? t("noDictation") : listening ? t("listening") : t("transcribing")}
-        </p>
-      ) : null}
-      {signedOut ? (
-        <div className="border-border border-t px-4 py-3">
+        )}
+        {asked && !signedOut && (
           <button
             type="button"
-            onClick={() => run("could not bring the console forward", showConsole)}
-            className="text-brand text-sm hover:underline"
+            disabled={!conversationId}
+            onClick={openConversation}
+            aria-label={t("continueInConsole")}
+            title={t("continueInConsole")}
+            className="text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-ring rounded-md p-2 outline-none focus-visible:ring-2 disabled:opacity-50"
           >
-            {t("openConsole")}
+            <ArrowUpRight className="size-4" aria-hidden />
           </button>
-        </div>
-      ) : null}
+        )}
+        <button
+          type="button"
+          onClick={() => run("could not put quick ask away", hideQuickAsk)}
+          aria-label={t("dismiss")}
+          title={t("dismissHint")}
+          className="text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-ring rounded-md p-2 outline-none focus-visible:ring-2"
+        >
+          <X className="size-4" aria-hidden />
+        </button>
+      </header>
       <div
         ref={scroller}
         hidden={(!asked && !(queuedMessages?.length > 0)) || signedOut}
         role="region"
         aria-label={t("conversation")}
-        className="border-border min-h-0 flex-1 overflow-y-auto overscroll-contain border-t px-3 py-2 text-sm"
+        className="border-border min-h-0 flex-1 overflow-y-auto overscroll-contain border-t px-4 py-3 text-sm"
       >
         <LiveBrowsesProvider value={{ browses }}>
           <ConversationVisualsProvider
@@ -389,25 +512,134 @@ export function QuickAsk() {
         )}
       </div>
 
-      {asked && !signedOut ? (
-        <>
-          <div className="border-border text-muted-foreground flex items-center justify-between gap-3 border-t px-4 py-2 text-xs">
-            <span>
-              {t.rich("close", { kbd: (chunks) => <kbd className="font-mono">{chunks}</kbd> })}
-            </span>
-            <button
-              type="button"
-              disabled={!conversationId}
-              onClick={openConversation}
-              className="hover:text-foreground flex items-center gap-1 disabled:opacity-50"
-            >
-              <CornerDownLeft className="size-3" aria-hidden />
-              {t("continueInConsole")}
-              <ArrowUpRight className="size-3" aria-hidden />
-            </button>
-          </div>
-        </>
+      <div className="focus-within:ring-ring/30 border-border bg-background/70 mx-3 mb-2 flex shrink-0 items-end gap-2 rounded-xl border px-3 py-2 focus-within:ring-2">
+        <textarea
+          ref={input}
+          rows={1}
+          value={question}
+          disabled={signedOut}
+          onChange={(event) => {
+            setQuestion(event.target.value);
+            setMentionQuery(mentionAt(event.target.value, event.target.selectionStart));
+            setNoDictation(false);
+          }}
+          onClick={(event) =>
+            setMentionQuery(
+              mentionAt(event.currentTarget.value, event.currentTarget.selectionStart),
+            )
+          }
+          aria-autocomplete="list"
+          aria-controls={mentionOpen ? mentionMenuId : undefined}
+          aria-activedescendant={
+            mentionOpen && matches.length ? `${mentionMenuId}-${mentionIndex}` : undefined
+          }
+          onKeyDown={onKeyDown}
+          placeholder={signedOut ? t("signedOut") : t("placeholder")}
+          aria-label={t("placeholder")}
+          className="text-foreground placeholder:text-muted-foreground field-sizing-content max-h-28 min-h-12 flex-1 resize-none bg-transparent py-1.5 text-base outline-none"
+        />
+        {listening ? (
+          <Mic className="text-destructive mt-2 size-4 animate-pulse" aria-label={t("listening")} />
+        ) : null}
+        {isProcessing ? (
+          <button
+            type="button"
+            onClick={stopGeneration}
+            disabled={isStopping}
+            aria-label={tInput("stopGenerating")}
+            className="text-muted-foreground hover:bg-muted hover:text-foreground mb-1 rounded-md p-2 disabled:opacity-50"
+          >
+            <Square className="size-4" aria-hidden />
+          </button>
+        ) : (
+          <button
+            type="button"
+            aria-label={tInput("send")}
+            disabled={
+              signedOut ||
+              !selectedAgentId ||
+              !question.trim() ||
+              attaching ||
+              listening ||
+              phase === "transcribing"
+            }
+            onClick={() => {
+              const text = question.trim();
+              if (text && !attaching) void ask(text);
+            }}
+            className="bg-foreground text-background focus-visible:ring-ring mb-1 shrink-0 rounded-lg p-2 outline-none focus-visible:ring-2 disabled:opacity-30"
+          >
+            <ArrowUp className="size-4" aria-hidden />
+          </button>
+        )}
+      </div>
+      {!signedOut &&
+        (!selectedAgentId || dictation.state.reason === "mic_denied" || noDictation) && (
+          <button
+            type="button"
+            className="text-muted-foreground border-t px-4 py-2 text-left text-xs hover:underline"
+            onClick={() =>
+              run("opening feature setup", () =>
+                openInConsole(
+                  `/desktop/readiness?repair=${dictation.state.reason === "mic_denied" ? "microphone" : "agent"}`,
+                ),
+              )
+            }
+          >
+            {t("repairSetup")}
+          </button>
+        )}
+      {mentionOpen && (
+        <div className="mx-3 mb-3">
+          <MentionPalette
+            id={mentionMenuId}
+            placement="inline"
+            items={matches}
+            selectedIndex={mentionIndex}
+            onSelectIndex={setMentionIndex}
+            onPick={pickMention}
+            isLoading={offered.isLoading}
+            failed={offered.isError}
+            full={mentions.length >= MAX_MENTIONS ? MAX_MENTIONS : undefined}
+          />
+        </div>
+      )}
+      {context && !signedOut ? (
+        <ContextChips
+          context={context}
+          include={include}
+          onToggle={toggle}
+          onAllow={() => run("could not open the privacy settings", openAccessibilitySettings)}
+        />
       ) : null}
+      {attaching || attachFailed ? (
+        <p role="status" className="border-border text-muted-foreground border-t px-4 py-2 text-xs">
+          {attaching ? t("context.attaching") : t("context.attachFailed")}
+        </p>
+      ) : null}
+      {listening || phase === "transcribing" || noDictation ? (
+        <p role="status" className="border-border text-muted-foreground border-t px-4 py-2 text-xs">
+          {noDictation ? t("noDictation") : listening ? t("listening") : t("transcribing")}
+        </p>
+      ) : null}
+      {signedOut ? (
+        <div className="border-border border-t px-4 py-3">
+          <button
+            type="button"
+            onClick={() => run("could not bring the console forward", showConsole)}
+            className="text-brand text-sm hover:underline"
+          >
+            {t("openConsole")}
+          </button>
+        </div>
+      ) : null}
+
+      {!signedOut && (
+        <div className="text-muted-foreground flex shrink-0 items-center justify-between gap-3 px-4 pb-3 text-[11px]">
+          <span>{t("sendHint")}</span>
+          <span>{!isConnected ? t("offline") : t("mentionHint")}</span>
+        </div>
+      )}
       <FilePreviewDialog />
       <SourcesPanel contained />
       <BrowserPanel browses={browses} />

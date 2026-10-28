@@ -1,4 +1,9 @@
 "use client";
+import { desktopScope } from "@/stores/desktop-preferences-store";
+import { isConsolePath } from "@/lib/desktop/paths";
+import { useDesktopNotifier } from "@/hooks/use-desktop-notifier";
+import { DesktopSetupGate } from "./desktop-setup-gate";
+import { DesktopActivityBridge } from "./desktop-activity-bridge";
 
 import { useDesktopSmoothScroll } from "@/hooks/use-desktop-smooth-scroll";
 
@@ -13,7 +18,7 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { useApprovals } from "@/hooks/use-runs";
 import { useOpenShared } from "@/hooks/use-open-shared";
 import { useShell } from "@/hooks/use-shell";
-import { notify, parseApprovalDecision, setBadge } from "@/lib/desktop/commands";
+import { parseApprovalDecision, setBadge } from "@/lib/desktop/commands";
 import {
   argumentsPreview,
   newApprovals,
@@ -63,6 +68,8 @@ function Bridge({ shell }: { shell: ShellInfo }) {
   const t = useTranslations("desktop.notifications");
   const router = useRouter();
   const { can } = usePermissions();
+  const delivery = useDesktopNotifier();
+  const sendNotice = delivery.send;
   const canDecide = can(Perm.approvalsDecide);
   const { pendingApprovals } = useAssistantSignals();
   const unread = useUnreadNotificationCount();
@@ -95,42 +102,84 @@ function Bridge({ shell }: { shell: ShellInfo }) {
     );
   }, [pendingApprovals, unread.count]);
 
+  const seenSince = useRef<string | null | undefined>(undefined);
   const seenApprovals = useRef<Set<string> | null>(null);
+  const deliveryScope = useRef(delivery.scope);
+  useEffect(() => {
+    if (deliveryScope.current !== delivery.scope) {
+      deliveryScope.current = delivery.scope;
+      seenApprovals.current = null;
+      seenSince.current = undefined;
+    }
+  }, [delivery.scope]);
   useEffect(() => {
     if (!canDecide) return;
     const fresh = seenApprovals.current ? newApprovals(seenApprovals.current, approvals) : [];
     seenApprovals.current = new Set(approvals.map((approval) => approval.id));
     for (const approval of fresh) {
-      notify({
-        kind: "approval",
-        title: t("approvalTitle", {
-          agent: approval.agent_name ?? t("anAgent"),
-          tool: approval.tool_id,
-        }),
-        body: argumentsPreview(approval.tool_args),
-        path: APPROVALS_PATH,
-        approval_id: approval.id,
-        approve_label: t("approve"),
-        reject_label: t("reject"),
-      }).catch((error: unknown) => reportShellFailure("could not notify an approval", error));
+      sendNotice(
+        {
+          kind: "approval",
+          title: t("approvalTitle", {
+            agent: approval.agent_name ?? t("anAgent"),
+            tool: approval.tool_id,
+          }),
+          body: argumentsPreview(approval.tool_args),
+          path: APPROVALS_PATH,
+          approval_id: approval.id,
+          approve_label: t("approve"),
+          reject_label: t("reject"),
+        },
+        "approval_requested",
+        approval.run_id,
+      ).catch((error: unknown) => reportShellFailure("could not notify an approval", error));
     }
-  }, [approvals, canDecide, t]);
+  }, [approvals, canDecide, t, sendNotice]);
 
-  const seenSince = useRef<string | null | undefined>(undefined);
   useEffect(() => {
     if (!inbox) return;
     const rows = inbox.items;
     const fresh = seenSince.current === undefined ? [] : newNotifications(seenSince.current, rows);
     seenSince.current = newestOf(seenSince.current ?? null, rows);
     for (const row of fresh) {
-      notify({
-        kind: "inbox",
-        title: row.agent?.name ?? t("inboxTitle"),
-        body: row.summary,
-        path: notificationPath(row),
-      }).catch((error: unknown) => reportShellFailure("could not notify", error));
+      sendNotice(
+        {
+          kind: "inbox",
+          title: row.agent?.name ?? t("inboxTitle"),
+          body: row.summary,
+          path: notificationPath(row),
+        },
+        row.event_type,
+      ).catch((error: unknown) => reportShellFailure("could not notify", error));
     }
-  }, [inbox, t]);
+  }, [inbox, t, sendNotice]);
+
+  useShellEvent("desktop:question", (value) => {
+    if (
+      !value ||
+      typeof value !== "object" ||
+      !("account" in value) ||
+      !("organization" in value) ||
+      !("title" in value) ||
+      !("path" in value)
+    )
+      return;
+    if (
+      typeof value.account !== "string" ||
+      typeof value.organization !== "string" ||
+      typeof value.title !== "string" ||
+      typeof value.path !== "string" ||
+      !isConsolePath(value.path) ||
+      delivery.scope !== desktopScope(value.account, value.organization)
+    )
+      return;
+    void delivery
+      .send(
+        { kind: "inbox", title: value.title, body: t("questionBody"), path: value.path },
+        "background_task_paused",
+      )
+      .catch((error: unknown) => reportShellFailure("notifying a live question", error));
+  });
 
   // The voice call shortcut: the shell has brought the chat forward; it
   // starts the call once the agent's readiness is known, as the phone's does.
@@ -155,5 +204,10 @@ function Bridge({ shell }: { shell: ShellInfo }) {
     }
   });
 
-  return null;
+  return (
+    <>
+      <DesktopSetupGate />
+      <DesktopActivityBridge />
+    </>
+  );
 }
