@@ -1088,7 +1088,7 @@ class TestExplicitFileDelivery:
         workspace = document_workspace()
         await workspace.write_bytes("/big.txt", b"x" * (MAX_OUTBOUND_BYTES + 1))
         outbound = []
-        assert "size limit" in await queue_channel_file(workspace, outbound, "big.txt")
+        assert "too large" in await queue_channel_file(workspace, outbound, "big.txt")
         assert outbound == []
         outbound = [MagicMock()] * MAX_OUTBOUND_FILES
         assert "at most" in await queue_channel_file(workspace, outbound, "big.txt")
@@ -1149,3 +1149,33 @@ async def test_unlinked_thread_files_are_detected_without_download_and_remain_re
     assert "direct message" in notices[0] and "without a slash" in notices[0]
     service.assert_not_called()
     adapter.download_attachment.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "path", [".env", "sub/.env", "credentials.txt", "deploy/id_rsa.pem", "x/.ssh/config"]
+)
+async def test_sending_a_protected_file_is_refused_before_reading_bytes(path):
+    from app.services.channels.attachments import queue_channel_file
+
+    workspace = document_workspace()
+    await workspace.write_bytes("/" + path, b"protected")
+    with patch.object(workspace, "read_bytes", AsyncMock()) as read:
+        pending = []
+        answer = await queue_channel_file(workspace, pending, path)
+    assert "permissions protect" in answer
+    read.assert_not_awaited()
+    assert pending == []
+
+
+async def test_file_size_is_checked_before_download_and_after_a_changed_file():
+    from app.services.channels.attachments import queue_channel_file
+
+    workspace = document_workspace()
+    await workspace.write_bytes("/large.txt", b"x" * (MAX_OUTBOUND_BYTES + 1))
+    with patch.object(workspace, "read_bytes", AsyncMock()) as read:
+        assert "too large" in await queue_channel_file(workspace, [], "large.txt")
+        read.assert_not_awaited()
+    with patch.object(workspace, "stat", AsyncMock(return_value=MagicMock(size=None))):
+        assert "could not be verified" in await queue_channel_file(workspace, [], "large.txt")
+    with patch.object(workspace, "stat", AsyncMock(return_value=MagicMock(size=1))):
+        assert "size limit" in await queue_channel_file(workspace, [], "large.txt")

@@ -756,6 +756,25 @@ class TeamsAdapter(ChannelAdapter):
         if chat_id is None or not user_id:
             return None
         recipient = (raw_payload.get("recipient") or {}).get("id")
+        channel_data = raw_payload.get("channelData") or {}
+        room_ids = {
+            str(value)
+            for value in (
+                (channel_data.get("team") or {}).get("id"),
+                (channel_data.get("channel") or {}).get("id"),
+                (raw_payload.get("conversation") or {}).get("id"),
+            )
+            if value
+        }
+        room_mentions = []
+        for entity in raw_payload.get("entities") or []:
+            if entity.get("type") != "mention":
+                continue
+            mentioned = entity.get("mentioned") or {}
+            conversation = mentioned.get("conversation") or {}
+            target = conversation.get("id") or mentioned.get("id")
+            if target in room_ids and entity.get("text"):
+                room_mentions.append(str(entity["text"]))
         bot_mentions = [
             str(entity.get("text") or "")
             for entity in raw_payload.get("entities") or []
@@ -783,6 +802,7 @@ class TeamsAdapter(ChannelAdapter):
             # Teams sends a bot a channel or group message only when it is
             # mentioned, unless the app was granted every message in the team.
             addressed=None if personal else bool(bot_mentions),
+            broadcast_mention=bool(room_mentions),
             attachments=attachments,
         )
 

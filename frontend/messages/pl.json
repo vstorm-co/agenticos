@@ -156,9 +156,9 @@
     "capabilityToolsTab": "Narzędzia",
     "capabilityUsesNoSecret": "Ta capability nie używa żadnego sekretu, więc ten wybrany dla niej zostałby zapisany i nigdy nieodczytany. Publikowanie to odrzuca.",
     "channelCanOverrideScope": "Każdy kanał, na którym opublikowano tego agenta, może to nadpisać.",
-    "channelLookupsHint": "Przyznawaj narzędzia kanału osobno. Wysyłka dotyczy tylko pliku zamówionego przez użytkownika; pliki workspace nie są dołączane automatycznie.",
+    "channelLookupsHint": "Nazwa, temat i ograniczona lista widocznych osób są dodawane automatycznie. Te przełączniki przyznają dodatkowe akcje; wysyłka pliku wymaga prośby użytkownika.",
     "channelLookupsOn": "Co agent może robić na {platform}",
-    "channelPromptHint": "Dodawane do instrukcji agenta tylko tutaj. Nowy kanał otwiera się z tym, co renderuje dany klient i jak zapisuje się tam link - zmień to, dopisz do tego lub wyczyść.",
+    "channelPromptHint": "Przy każdym runie runtime dodaje platformę, stan połączenia konta nadawcy i aktualne dane kanału. Ten tekst dodaje instrukcje powiązania; nowe powiązania zawierają wskazówki formatowania i prowadzenia rozmowy.",
     "channelPromptOn": "Dodatkowe instrukcje na {bot}",
     "channelPromptPlaceholder": "Co ten agent powinien wiedzieć o odpowiadaniu tutaj.",
     "channelPromptVariables": "Wstaw:",
@@ -4798,6 +4798,10 @@
       "theAgentWillRunAsYou": "Bot musi wiedzieć, kim jesteś, zanim Ci odpowie."
     },
     "channels": {
+      "respondToBroadcasts": "Reaguj na wzmianki grupowe",
+      "respondToBroadcastsHint": "Wyłączone: reaguj na bezpośrednie wywołania bota. Włączone: także na @all, @here i obsługiwane wzmianki grupowe. Wiadomości prywatne nie wymagają wzmianki.",
+      "broadcastsTeamsHint": "Po włączeniu pobierz zaktualizowany pakiet aplikacji Teams i zainstaluj go ponownie lub uaktualnij w danym zespole albo czacie. Właściciel musi wyrazić zgodę na odbieranie wiadomości rozmowy.",
+      "broadcastsTelegramHint": "Telegram używa tekstowych aliasów @all, @here, @channel i @everyone. Nie powiadamiają one całej grupy. Bot musi otrzymywać wiadomości grupy; sprawdź tryb prywatności w BotFather.",
       "addChannel": "Dodaj kanał",
       "addChannelDescription": "Zarejestruj bota Slack, Telegram lub Mattermost dla organizacji. Każde poświadczenie jest tu szyfrowane w spoczynku i nigdy nie jest odczytywane z powrotem.",
       "addOneBecomesBindable": "Zarejestruj go, a agentów będzie można na nim udostępnić z zakładki Dostępność.",

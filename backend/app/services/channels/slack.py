@@ -41,6 +41,8 @@ from app.services.channels.base import (
     OutgoingMessage,
     PromptMessage,
     StepDisplay,
+    broadcast_mentioned,
+    mentionable_text,
     split_thread,
     supervise_stream,
     thread_key,
@@ -739,6 +741,9 @@ class SlackAdapter(ChannelAdapter):
             return None
 
         addressed = self._addressed(raw_payload, event)
+        broadcast = broadcast_mentioned(self.platform, text)
+        if broadcast and addressed is None:
+            addressed = False
         # After `_addressed`, which is what the token is for. The model is the
         # addressee, so being told its own id is noise: `<@U09MQFTBHTV> try again`
         # is a question about a Slack id as far as it can tell, and an answer
@@ -777,6 +782,7 @@ class SlackAdapter(ChannelAdapter):
             message_id=message_ts,
             attachments=attachments,
             addressed=addressed,
+            broadcast_mention=broadcast,
             # Beside the event under the Events API, on it over the socket.
             platform_team_id=raw_payload.get("team_id") or event.get("team"),
         )
@@ -854,7 +860,7 @@ class SlackAdapter(ChannelAdapter):
         own = self._own_user_id(raw_payload)
         if own is None:
             return None
-        return f"<@{own}>" in (event.get("text") or "")
+        return f"<@{own}>" in mentionable_text(event.get("text") or "")
 
     @staticmethod
     def _attachments(event: dict[str, Any]) -> list[IncomingAttachment]:

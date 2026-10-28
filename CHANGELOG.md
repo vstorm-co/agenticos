@@ -21,6 +21,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Automatic channel context and conversation guidance across Mattermost, Slack,
+  Teams and Telegram: channel details, a bounded member snapshot, deployment
+  identity and precise organization versus personal MCP connection instructions.
+  `{channel_members}` is the roster placeholder; `{member_list}` stays an alias.
+- An opt-in group mention switch per bot. Existing bots default to direct
+  invocations; Teams packages request conversation-message consent only when
+  enabled. Telegram text aliases require message delivery and its bot identity
+  is resolved before deciding whether a group message addresses it.
 - Explicit `send_channel_file` actions on channel bot bindings. Grant the tool
   per binding to let users request a workspace file; creating or editing a file
   no longer posts it automatically. Existing bindings require enabling the new
@@ -41,6 +49,10 @@ Two things are versioned separately from this file and worth knowing about:
   native slash-command conflicts. Earlier thread files that require linking are
   reported and retried after connection, rather than treated as absent forever.
 - Chromium network failures no longer appear as domain allowlist refusals.
+  Production browsing also receives the configured browser locale and time zone.
+- Approved channel file actions restore the original bot, channel and workspace
+  on resume, with current credentials and without borrowing the approver's account.
+  Exports apply workspace secret rules and check file size before reading bytes.
 
 ## [1.28.1] - 2026-10-28
 

@@ -213,13 +213,14 @@ def parse_mention(text: str) -> Mention | None:
     addressing an agent, which makes this a property of the parser rather than a
     refusal further down.
     """
-    match = _MENTION.match(text)
-    if match is None:
-        return None
-    slug, prompt = match.group(1), match.group(2).strip()
-    if not prompt or slug in ROOM_HANDLES:
-        return None
-    return Mention(slug=slug, prompt=prompt)
+    while match := _MENTION.match(text):
+        slug, prompt = match.group(1), match.group(2).strip()
+        if not prompt:
+            return None
+        if slug not in ROOM_HANDLES:
+            return Mention(slug=slug, prompt=prompt)
+        text = prompt
+    return None
 
 
 class UnaddressedMessage(Exception):

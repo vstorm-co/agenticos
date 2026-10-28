@@ -129,6 +129,7 @@ from app.agents.capabilities.budget import (
 from app.agents.capabilities.channel_tools import (
     CHANNEL_DIRECTORY_RESOURCE,
     CHANNEL_TOOLS_CAPABILITY_ID,
+    ChannelDestination,
     ChannelDirectory,
 )
 from app.agents.capabilities.coding_agent import CODING_AGENT_ID
@@ -266,8 +267,14 @@ from app.services.channels.attachments import (
     files_written,
     workspace_snapshot,
 )
-from app.services.channels.base import OutgoingAttachment
-from app.services.channels.formatting import LINK_ACCOUNT_INSTRUCTION
+from app.services.channels.base import OutgoingAttachment, channel_key
+from app.services.channels.directory import restore_directory
+from app.services.channels.formatting import (
+    CHANNEL_BEHAVIOR,
+    LINK_ACCOUNT_INSTRUCTION,
+    runtime_context,
+)
+from app.services.channels.prompt_variables import CHANNEL_CONTEXT
 from app.services.channels.prompt_variables import resolve as resolve_prompt_variables
 from app.services.context import ContextService
 from app.services.conversation import ConversationService
@@ -742,6 +749,8 @@ class PausedRunState(BaseModel):
     tool_call_ids: dict[str, str] = Field(
         description="Approval id -> the tool call it parked, so a decision can be replayed"
     )
+    channel_destination: ChannelDestination | None = None
+
     questions: list[str] = Field(
         default_factory=list,
         description=(
@@ -1296,6 +1305,7 @@ class PreparedRun:
     every file already in the workspace read as the turn's own output.
     """
 
+    channel_destination: ChannelDestination | None = None
     automatic_outbound: bool = True
     outbound: list[OutgoingAttachment] = field(default_factory=list)
     """Files the turn produced, read in `finish` before the workspace closes.
@@ -1599,6 +1609,8 @@ async def _with_exposure_prompt(
     `model_copy` leaves the stored spec alone.
     """
     added = "" if exposure is None else (exposure.prompt or "").strip()
+    if directory is not None and CHANNEL_CONTEXT not in added:
+        added = f"{CHANNEL_CONTEXT}\n\n{added}".strip()
     if not added:
         return spec
     # `{channel_name}`, `{member_list}` - filled in from the platform, per run,
@@ -3143,6 +3155,16 @@ class AgentRunnerService:
             user_id=personal_mcp_user_id,
             request_connection=request_connection,
         )
+        context = runtime_context(
+            surface.value,
+            console_url=settings.FRONTEND_URL,
+            linked_sender=personal_mcp_user_id is not None,
+        )
+        if context:
+            guidance = "" if CHANNEL_BEHAVIOR in spec.instructions else "\n\n" + CHANNEL_BEHAVIOR
+            spec = spec.model_copy(
+                update={"instructions": f"{spec.instructions}\n\n{context}{guidance}"}
+            )
         spec = _with_personal_service_gaps(spec, briefed, surface, sender_present=sender_present)
         spec = _with_account_notes(spec, resolved.accounts)
 
@@ -3523,6 +3545,9 @@ class AgentRunnerService:
             mcp_origins=resolved.origins,
             workspace_at_start=started_with,
             automatic_outbound=surface not in _CHANNEL_SURFACES and channel_directory is None,
+            channel_destination=None
+            if channel_directory is None
+            else channel_directory.destination,
             # Only personal gaps reach the chat's connect card - a prefix collision
             # is the agent author's to fix by renaming a connection, not something
             # the person talking connects an account for (#1442). Nor does one the
@@ -4752,6 +4777,7 @@ class AgentRunnerService:
                 ],
                 "plan": plan,
                 "generated_files": sorted(prepared.built.deps.generated_files),
+                "channel_destination": prepared.channel_destination,
             }
         )
 
@@ -5157,9 +5183,8 @@ class AgentRunnerService:
         # approval without channel tools and formatted for the wrong platform
         # (#513 was S14 - "an approval is answered in the thread that asked for
         # it"). The exposure id is stamped on the row, so it can be reloaded and
-        # the same two helpers run. The directory stays `None`: an
-        # approve-then-resume has no live channel handle, and
-        # `_with_channel_tools` still restores the binding for wherever one is.
+        # the same helpers run. The destination was captured server-side when
+        # parked; restore its directory without storing a bot credential.
         exposure = (
             await agent_exposure_repo.get(
                 self.db, run.exposure_id, organization_id=ctx.organization_id
@@ -5167,7 +5192,14 @@ class AgentRunnerService:
             if run.exposure_id is not None
             else None
         )
-        spec = await _with_exposure_prompt(spec, exposure)
+        directory = await restore_directory(
+            self.db,
+            organization_id=ctx.organization_id,
+            surface=run.surface,
+            exposure=exposure,
+            destination=state.channel_destination,
+        )
+        spec = await _with_exposure_prompt(spec, exposure, directory)
         spec = _with_channel_tools(spec, exposure)
         prepared = await self._assemble(
             ctx,
@@ -5200,10 +5232,13 @@ class AgentRunnerService:
             # resume would otherwise lend the publisher's MCP to a guest (#1469).
             restored_publisher_fallback=state.admitted_as.subject_is_publisher_fallback,
             extra_toolsets=None,
-            # A resumed run reuses its row, and the binding is reloaded above to
-            # re-enrich the spec, so there is nothing left for `_assemble` to
-            # stamp from the exposure here.
-            exposure=None,
+            exposure=exposure,
+            channel_directory=directory,
+            channel_key=(
+                None
+                if state.channel_destination is None
+                else channel_key(state.channel_destination.platform_chat_id)
+            ),
             decided=decided,
             resuming=plan.delegations,
             already_spent=plan.spent,

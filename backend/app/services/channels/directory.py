@@ -8,14 +8,28 @@ here, from the row the message arrived on, before the agent is built.
 
 from dataclasses import dataclass
 from typing import Literal
+from uuid import UUID
+
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.channel_tools import (
+    ChannelDestination,
     ChannelDetails,
     ChannelMember,
     ChannelPost,
     ChannelSummary,
 )
-from app.services.channels.base import ChannelAdapter, OutgoingAttachment, OutgoingMessage
+from app.core.exceptions import BadRequestError
+from app.db.models.agent_exposure import AgentExposure
+from app.repositories import channel_bot_repo
+from app.services.channel_bot import unseal_bot_token
+from app.services.channels import get_adapter
+from app.services.channels.base import (
+    ChannelAdapter,
+    OutgoingAttachment,
+    OutgoingMessage,
+    split_thread,
+)
 
 TOOL_METHODS: dict[str, str] = {
     "send_channel_file": "send_message",
@@ -97,6 +111,7 @@ class BoundChannelDirectory:
     bot_token: str
     channel_id: str
     api_base_url: str | None = None
+    bot_id: UUID | None = None
     private_chat: bool = False
     thread_id: str | None = None
     """The thread this run is answering in, where the platform has threads.
@@ -105,6 +120,16 @@ class BoundChannelDirectory:
     `history`: a model that could name the thread could name another one, and the
     conversation an agent may read is the one it was spoken to in.
     """
+
+    @property
+    def destination(self) -> ChannelDestination | None:
+        if self.bot_id is None:
+            return None
+        return ChannelDestination(
+            bot_id=self.bot_id,
+            platform_chat_id=self.channel_id + (":" + self.thread_id if self.thread_id else ""),
+            private_chat=self.private_chat,
+        )
 
     async def send_file(self, *, filename: str, content: bytes, mime_type: str) -> str:
         teams_file = self.adapter.platform == "teams" and not mime_type.startswith("image/")
@@ -153,3 +178,33 @@ class BoundChannelDirectory:
             limit=limit,
             thread_id=self.thread_id if scope == "thread" else None,
         )
+
+
+async def restore_directory(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    surface: str,
+    exposure: AgentExposure | None,
+    destination: ChannelDestination | None,
+) -> BoundChannelDirectory | None:
+    """Restore only the original bot and conversation, with its current sealed credential."""
+    if destination is None:
+        return None
+    if exposure is None or not exposure.is_active or exposure.channel_bot_id != destination.bot_id:
+        raise BadRequestError(message="The original channel binding is no longer available")
+    bot = await channel_bot_repo.get_for_org(
+        db, destination.bot_id, organization_id=organization_id
+    )
+    if bot is None or not bot.is_active or bot.platform != surface:
+        raise BadRequestError(message="The original channel bot is no longer available")
+    channel_id, thread_id = split_thread(destination.platform_chat_id)
+    return BoundChannelDirectory(
+        adapter=get_adapter(surface),
+        bot_token=unseal_bot_token(bot),
+        bot_id=bot.id,
+        channel_id=channel_id,
+        thread_id=thread_id or None,
+        private_chat=destination.private_chat,
+        api_base_url=bot.api_base_url,
+    )

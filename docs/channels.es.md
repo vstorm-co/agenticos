@@ -1,5 +1,5 @@
 ---
-source_sha: "55bd448ecec8"
+source_sha: "ee582654eb22"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -2047,29 +2047,15 @@ para mostrar diferencias entre la consola y Mattermost.
   proceso está consultando el token de este bot». Ese proceso está fuera del
   despliegue, normalmente otro despliegue o un script con el mismo token, y solo
   su dueño puede pararlo.
-- **Las instrucciones de una vinculación pueden nombrar lo que solo sabe la
-  plataforma.** `{channel_name}`, `{channel_purpose}`, `{channel_topic}`,
-  `{member_count}`, `{member_list}` - rellenados cuando arranca un run, con las
-  mismas llamadas que usan las consultas de canal, así que Telegram ofrece los cinco
-  aunque ofrezca dos de las cuatro herramientas. El Builder lista bajo la caja los
-  que esta plataforma puede responder e inserta uno en el cursor, cada uno con
-  la descripción real de la herramienta - la misma que lee el modelo antes de
-  decidir si la llama, no la paráfrasis abreviada del catálogo, sin el marcado
-  que el propio modelo usa para distinguir el resumen de la forma de la
-  respuesta.
+- **El contexto del canal se añade automáticamente en cada run.** Los runs de Mattermost, Slack, Teams y Telegram reciben nombre, propósito, tema, visibilidad, número comunicado de miembros y una lista visible limitada, también con prompts existentes o vacíos. `{channel_members}` nombra la lista; `{member_list}` sigue como alias. Los demás marcadores son `{channel_name}`, `{channel_purpose}`, `{channel_topic}`, `{channel_visibility}` y `{member_count}`.
 
-    Se resuelven por run y nunca se cachean: la pertenencia a un canal cambia, y una
-    lista caducada en un prompt es peor que ninguna porque el agent la afirma como
-    un hecho. Solo se pide lo que la prosa pide, así que una vinculación que no
-    nombra ningún marcador no cuesta nada. Un marcador que la plataforma no pudo
-    responder se convierte en `(unavailable)` en vez de costarle a alguien su
-    respuesta.
+    Cada fuente se consulta una vez por run, sin caché entre turnos: hasta 50 miembros visibles y 2000 caracteres por valor. Telegram devuelve administradores, no todos los miembros. Cada fuente tiene cinco segundos; los valores no disponibles siguen desconocidos. Se aplanan y se marcan como datos de la plataforma, nunca instrucciones. El texto editable añade indicaciones junto al contexto de ejecución.
 
-    Un prompt que rellenó alguno de ellos gana una frase que dice que los valores
-    sustituidos son información y no órdenes, y a cada valor se le aplanan los
-    saltos de línea y las llaves. El `purpose` de un canal lo puede editar
-    cualquiera que pueda editar el canal, y se está pegando dentro de las
-    instrucciones de un agent.
+- **Elija si las menciones de grupo inician un run.** Al crear o editar un bot, *Responder a menciones de grupo* está desactivado por defecto. Las invocaciones directas siguen funcionando. Al activarlo admite también `@all`, `@here` y `@channel` de Mattermost, menciones nativas de Slack y menciones estructuradas de canales o equipos de Teams. Se mantienen las comprobaciones de identidad, acceso y límites. El código citado y las menciones a otras personas no cuentan.
+
+    Teams necesita instalar o actualizar el paquete de la aplicación en el equipo o chat de destino, con consentimiento del propietario para `ChannelMessage.Read.Group` y `ChatMessage.Read.Chat`. El paquete los solicita solo con el interruptor activado. Telegram usa los alias de texto `@all`, `@here`, `@channel` y `@everyone`; no notifican al grupo. El bot debe recibir mensajes del grupo; compruebe el modo de privacidad en BotFather. Las menciones, los comandos y las respuestas se verifican contra la identidad real del bot de Telegram.
+
+- **El agent conoce dónde responde y qué cuenta está disponible.** Las indicaciones de ejecución identifican el comunicador y la consola del despliegue, explican el workspace gestionado y distinguen conexiones MCP de la organización y servicios personales. Estos necesitan la identidad vinculada del remitente y su propia conexión autorizada al servicio. Para vincular se envía `link`, sin barra, en un mensaje directo; el enlace privado no pertenece a un canal. El agent comunica resultados reales y un siguiente paso concreto si falta autorización o capacidad.
 - **Un mensaje reentregado se responde una vez.** Todas las plataformas entregan al
   menos una vez: las rutas de webhook responden 200 antes de hacer ningún trabajo,
   así que un handler lento nunca dispara un reintento, pero un 200 perdido por el
@@ -2672,10 +2658,7 @@ Tres cosas que merece la pena saber antes de concederlas:
   en una transcripción de run que alguien lee semanas después. Una anulación de
   `tool_approval` en la vinculación es la forma de hacer que pregunte.
 
-Esto deliberadamente *no* es lo mismo que meter la lista de miembros y el propósito
-del canal en cada system prompt. Eso es otra funcionalidad con otro modo de fallo — un
-`purpose` escrito por cualquiera que pueda editar el canal, pegado dentro de las
-instrucciones, es una inyección de prompt con un botón de editar público.
+El contexto automático incluye nombre, propósito y una lista visible limitada, marcados como datos y no instrucciones. Las herramientas concedidas por vinculación permiten consultas adicionales y envío explícito de ficheros; retirar una herramienta no elimina el contexto automático.
 
 ## Elegir { #choosing }
 

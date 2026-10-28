@@ -408,6 +408,12 @@ class ChannelMessageRouter:
             logger.debug("Bot %s not found or inactive - ignoring", incoming.bot_id)
             return
 
+        if incoming.platform == "telegram" and incoming.chat_type != "private":
+            incoming.addressed = await get_adapter(incoming.platform).resolve_addressing(
+                unseal_bot_token(bot), incoming
+            )
+        self._apply_broadcast_policy(incoming, bot)
+
         if self._is_overheard(incoming):
             # Decided before anything is created or refused, not after. A bot in a
             # channel hears every post, so a refusal - a whitelist that does not
@@ -997,6 +1003,7 @@ class ChannelMessageRouter:
         return BoundChannelDirectory(
             adapter=adapter,
             bot_token=unseal_bot_token(bot),
+            bot_id=bot.id,
             channel_id=channel_id,
             api_base_url=getattr(bot, "api_base_url", None),
             # The conversation this run is in, which on a threaded platform is not
@@ -1378,6 +1385,13 @@ class ChannelMessageRouter:
         if policy.get("mode") == "jwt_linked":
             return False
         return not bool(policy.get("require_link", False))
+
+    @staticmethod
+    def _apply_broadcast_policy(incoming: IncomingMessage, bot: ChannelBot) -> None:
+        if incoming.broadcast_mention and incoming.addressed is not True:
+            incoming.addressed = (
+                ChannelMessageRouter._parse_policy(bot).get("respond_to_broadcasts") is True
+            )
 
     @staticmethod
     def _is_overheard(incoming: IncomingMessage) -> bool:

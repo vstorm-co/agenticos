@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+import hashlib
 import hmac
 import logging
 from collections.abc import AsyncGenerator, Awaitable, Callable
@@ -42,6 +43,7 @@ from app.services.channels.base import (
     IncomingPress,
     OutgoingMessage,
     PromptMessage,
+    broadcast_mentioned,
     feedback_value,
     split_thread,
     supervise_stream,
@@ -150,6 +152,39 @@ class TelegramAdapter(ChannelAdapter):
 
     def __init__(self) -> None:
         self._polling_tasks: dict[str, asyncio.Task[None]] = {}
+        self._own_accounts: dict[str, tuple[str, int, str]] = {}
+
+    async def resolve_addressing(self, bot_token: str, incoming: IncomingMessage) -> bool | None:
+        if incoming.chat_type == "private":
+            return True
+        fingerprint = hashlib.sha256(bot_token.encode()).hexdigest()
+        own = self._own_accounts.get(incoming.bot_id)
+        if own is None or own[0] != fingerprint:
+            async with self._bot(bot_token) as bot:
+                account = await bot.get_me()
+            own = (fingerprint, account.id, (account.username or "").casefold())
+            self._own_accounts[incoming.bot_id] = own
+        message = incoming.raw.get("message") or incoming.raw.get("edited_message") or {}
+        if ((message.get("reply_to_message") or {}).get("from") or {}).get("id") == own[1]:
+            return True
+        encoded = incoming.text.encode("utf-16-le")
+        for entity in message.get("entities") or message.get("caption_entities") or []:
+            kind = entity.get("type")
+            if kind == "text_mention" and (entity.get("user") or {}).get("id") == own[1]:
+                return True
+            if kind not in ("mention", "bot_command"):
+                continue
+            offset, length = entity.get("offset", 0), entity.get("length", 0)
+            token = (
+                encoded[offset * 2 : (offset + length) * 2]
+                .decode("utf-16-le", errors="replace")
+                .casefold()
+            )
+            if kind == "mention" and token == "@" + own[2]:
+                return True
+            if kind == "bot_command" and ("@" not in token or token.rsplit("@", 1)[1] == own[2]):
+                return True
+        return False
 
     @staticmethod
     @contextlib.asynccontextmanager
@@ -563,6 +598,7 @@ class TelegramAdapter(ChannelAdapter):
             platform_username=username,
             platform_display_name=display_name,
             message_id=message_id,
+            broadcast_mention=broadcast_mentioned(self.platform, text),
             attachments=attachments,
         )
 

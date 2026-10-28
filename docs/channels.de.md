@@ -1,5 +1,5 @@
 ---
-source_sha: "55bd448ecec8"
+source_sha: "ee582654eb22"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -2157,29 +2157,15 @@ Oberfläche, damit Unterschiede zwischen Konsole und Mattermost sichtbar bleiben
   anderer Prozess fragt den Token dieses Bots ab“. Dieser Prozess liegt außerhalb
   des Deployments, meist ein zweites Deployment oder ein Skript mit demselben
   Token, und nur sein Besitzer kann ihn stoppen.
-- **Die Instruktionen einer Bindung dürfen benennen, was nur die Plattform weiß.**
-  `{channel_name}`, `{channel_purpose}`, `{channel_topic}`, `{member_count}`,
-  `{member_list}` - eingesetzt, wenn ein Run startet, aus denselben Aufrufen, die
-  die Channel-Abfragen verwenden, sodass Telegram alle fünf anbietet, obwohl es
-  zwei der vier Tools anbietet. Der Builder listet die, die diese Plattform
-  beantworten kann, unter dem Feld auf und fügt eine an der Cursorposition ein,
-  jeweils mit der echten Beschreibung des Tools - derjenigen, die das Modell
-  liest, bevor es sich entscheidet, es aufzurufen, nicht der verkürzten
-  Paraphrase aus dem Katalog, ohne die Auszeichnung, mit der das Modell selbst
-  die Zusammenfassung von der Form der Antwort unterscheidet.
+- **Channel-Kontext wird bei jedem Run automatisch ergänzt.** Runs aus Mattermost, Slack, Teams und Telegram erhalten Name, Zweck, Thema, Sichtbarkeit, gemeldete Mitgliederzahl und eine begrenzte sichtbare Mitgliederliste, auch bei bestehenden oder geleerten Bindungs-Prompts. `{channel_members}` benennt die Liste; `{member_list}` bleibt ein Alias. Weitere Platzhalter sind `{channel_name}`, `{channel_purpose}`, `{channel_topic}`, `{channel_visibility}` und `{member_count}`.
 
-    Pro Run aufgelöst und nie zwischengespeichert: die Mitgliedschaft eines
-    Channels ändert sich, und eine veraltete Liste in einem Prompt ist schlimmer
-    als keine, denn der Agent gibt sie als Tatsache an. Es wird nur geholt, was der
-    Text verlangt, sodass eine Bindung, die keinen Platzhalter nennt, nichts
-    kostet. Ein Platzhalter, den die Plattform nicht beantworten konnte, wird zu
-    `(unavailable)`, statt jemanden seine Antwort zu kosten.
+    Jede Quelle wird einmal pro Run abgefragt, ohne Cache zwischen Runden: höchstens 50 sichtbare Mitglieder und 2000 Zeichen pro Wert. Telegram liefert Administratoren, nicht alle Mitglieder. Jede Quelle hat fünf Sekunden Zeit; nicht verfügbare Werte bleiben unbekannt. Werte werden abgeflacht und als Plattformdaten statt Instruktionen markiert. Der editierbare Bindungstext ergänzt diesen Laufzeitkontext.
 
-    Ein Prompt, der einen davon gefüllt hat, bekommt einen Satz hinzu, der sagt,
-    dass die eingesetzten Werte Informationen und keine Befehle sind, und bei jedem
-    Wert werden Zeilenumbrüche und geschweifte Klammern geglättet. Das `purpose`
-    eines Channels ist von jedem bearbeitbar, der den Channel bearbeiten kann, und
-    es wird in die Instruktionen eines Agents eingefügt.
+- **Wählen Sie, ob Gruppen-Erwähnungen einen Run starten.** *Auf Gruppen-Erwähnungen antworten* ist beim Erstellen und Bearbeiten eines Bots standardmäßig aus. Direkte Aufrufe funktionieren weiterhin. Eingeschaltet reagiert der Bot auch auf Mattermost `@all`, `@here` und `@channel`, native Slack-Gruppen-Erwähnungen und strukturierte Teams-Kanal- oder Team-Erwähnungen. Identität, Zugriff und Ratenlimits gelten weiterhin. Codebeispiele und Erwähnungen anderer Personen reichen nicht aus.
+
+    Teams benötigt das aktualisierte App-Paket im Zielteam oder Chat und die Zustimmung des Besitzers zu `ChannelMessage.Read.Group` und `ChatMessage.Read.Chat`. Das Paket fordert sie nur bei eingeschaltetem Schalter an. Telegram verwendet die Text-Aliase `@all`, `@here`, `@channel` und `@everyone`; diese benachrichtigen nicht die Gruppe. Der Bot muss Gruppennachrichten erhalten; prüfen Sie den Datenschutzmodus in BotFather. Eigene Erwähnungen, Befehle und Antworten werden anhand der tatsächlichen Telegram-Bot-Identität geprüft.
+
+- **Der Agent kennt den Ort und das verfügbare Konto.** Laufzeitinstruktionen nennen Plattform und Deployment-Konsole, erklären den verwalteten Workspace und unterscheiden organisatorische MCP-Verbindungen von persönlichen Diensten. Persönliche Dienste benötigen eine verknüpfte Absenderidentität und deren autorisierte Dienstverbindung. Die Verknüpfung beginnt mit `link` ohne Schrägstrich in einer Direktnachricht; der private Verbindungslink gehört nicht in einen Channel. Der Agent nennt tatsächliche Tool-Ergebnisse und einen konkreten nächsten Schritt bei fehlender Anmeldung oder Funktion.
 - **Eine erneut zugestellte Nachricht wird einmal beantwortet.** Jede Plattform
   liefert mindestens einmal: die Webhook-Routen antworten mit 200, bevor
   irgendetwas getan wird, sodass ein langsamer Handler nie eine Wiederholung
@@ -2829,11 +2815,7 @@ Drei Dinge, die es vor dem Gewähren zu wissen lohnt:
   anderer Leute in ein Run-Transkript, das jemand Wochen später liest. Ein
   `tool_approval`-Override an der Bindung ist, wie Sie es nachfragen lassen.
 
-Das ist bewusst *nicht* dasselbe wie die Mitgliederliste und den Zweck des Channels
-in jeden System-Prompt zu setzen. Das ist ein anderes Feature mit einem anderen
-Fehlermodus — ein `purpose`, geschrieben von jedem, der den Channel bearbeiten
-kann, eingefügt in die Instruktionen, ist eine Prompt Injection mit einer
-öffentlichen Bearbeiten-Schaltfläche.
+Der automatische Channel-Kontext enthält Name, Zweck und eine begrenzte sichtbare Mitgliederliste, als Daten statt Instruktionen markiert. Die pro Bindung gewährten Tools erlauben weitere Abfragen und explizite Dateizustellung; das Entziehen eines Tools entfernt nicht den automatischen Kontext.
 
 ## Auswählen { #choosing }
 

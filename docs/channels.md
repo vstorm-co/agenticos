@@ -1943,26 +1943,15 @@ surface, so a difference between the console and Mattermost remains visible.
   marks the bot down on the channels page: "another process is polling this
   bot's token". That process is outside the deployment, usually a second
   deployment or a script with the same token, and only its owner can stop it.
-- **A binding's instructions may name what only the platform knows.**
-  `{channel_name}`, `{channel_purpose}`, `{channel_topic}`, `{member_count}`,
-  `{member_list}` - filled in when a run starts, from the same calls the channel
-  lookups use, so Telegram offers all five even though it offers two of the four
-  tools. The Builder lists the ones this platform can answer under the box and
-  inserts one at the cursor, each with the tool's real description - what the
-  model reads before deciding to call it, not the catalog's shortened
-  paraphrase, minus the markup the model itself uses to tell the summary from
-  the answer's shape.
+- **Channel context is supplied automatically on every run.** Mattermost, Slack, Teams and Telegram runs receive the channel's name, purpose, topic, visibility, reported member count and a bounded visible roster, including on existing or cleared binding prompts. `{channel_members}` is the readable name for the roster; `{member_list}` remains an alias. The other placeholders are `{channel_name}`, `{channel_purpose}`, `{channel_topic}`, `{channel_visibility}` and `{member_count}`.
 
-    Resolved per run and never cached: a channel's membership changes, and a
-    stale list in a prompt is worse than none because the agent states it as
-    fact. Only what the prose asks for is fetched, so a binding that names no
-    placeholder costs nothing. A placeholder the platform could not answer
-    becomes `(unavailable)` rather than costing somebody their reply.
+    Context is resolved once per source per run, not cached between turns: at most 50 visible members and 2000 characters per value. Telegram returns administrators, not the whole membership. Each source has a five-second timeout; unavailable values stay unknown. Values are flattened and marked as platform data, never instructions. The binding's editable text adds guidance alongside this runtime context.
 
-    A prompt that filled any of them gains a sentence saying the substituted
-    values are information rather than orders, and every value has its line
-    breaks and braces flattened. A channel's `purpose` is editable by whoever
-    can edit the channel, and it is being pasted into an agent's instructions.
+- **Choose whether group mentions start a run.** In the bot's create or edit dialog, *Respond to group mentions* is off by default. Direct invocations continue to work. Enabling it also admits Mattermost `@all`, `@here` and `@channel`, Slack's native room mentions, and structured Teams channel/team mentions. Sender identity, access checks and rate limits still apply. Quoted code and unrelated users' mentions do not count.
+
+    Teams requires the updated app package to be installed or upgraded in the target team or chat, with owner consent to `ChannelMessage.Read.Group` and `ChatMessage.Read.Chat`. Those grants are requested only when this switch is on. Telegram uses explicit text aliases `@all`, `@here`, `@channel` and `@everyone`; these do not notify the group. Telegram must deliver group messages to the bot, so check BotFather privacy mode. Own mentions, commands and replies are resolved against the bot's actual Telegram identity.
+
+- **The agent is told where it is answering and whose account is available.** Runtime guidance identifies the communicator and deployment console, explains that tools use a managed workspace, and distinguishes organization MCP connections from personal services. Personal services require both a linked sender identity and that person's authorized connection. Linking uses plain `link` in a direct message; the private connection URL never belongs in a channel. The agent reports actual tool results and gives one concrete next step when authentication or a capability is missing.
 - **A redelivered message is answered once.** Every platform delivers
   at-least-once: the webhook routes answer 200 before any work so a slow handler
   never triggers a retry, but a 200 lost on the wire — a proxy drops it, the pod
@@ -2533,10 +2522,7 @@ Three things worth knowing before granting them:
   somebody reads weeks later. A `tool_approval` override on the binding is how
   you make it ask.
 
-This is deliberately *not* the same thing as putting the channel's member list
-and purpose into every system prompt. That is a different feature with a
-different failure mode — a `purpose` written by whoever can edit the channel,
-pasted into the instructions, is a prompt injection with a public edit button.
+Automatic channel context includes the name, purpose and a bounded visible roster, marked as data rather than instructions. These per-binding tools grant additional lookups and explicit file delivery; clearing a tool grant does not remove the automatic context.
 
 ## Choosing
 

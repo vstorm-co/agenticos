@@ -405,6 +405,9 @@ services:
   # Interactive browsing uses a separate browser with proxy-only public egress.
   browser:
     logging: *logging
+    environment:
+      - TZ=${BROWSER_TZ:-UTC}
+      - BROWSER_LANG=${BROWSER_LANG:-en-US}
     image: ghcr.io/vstorm-co/agenticos-browser:${AGENTICOS_VERSION:-latest}
     profiles: [browser]
     healthcheck:

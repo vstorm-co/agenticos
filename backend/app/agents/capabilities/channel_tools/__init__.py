@@ -11,6 +11,7 @@ from app.agents.capabilities.channel_tools._capability import ChannelTools
 from app.agents.capabilities.channel_tools._directory import (
     CHANNEL_DIRECTORY_RESOURCE,
     CHANNEL_TOOLS_CAPABILITY_ID,
+    ChannelDestination,
     ChannelDetails,
     ChannelDirectory,
     ChannelDirectoryUnsupported,
@@ -22,6 +23,7 @@ from app.agents.capabilities.channel_tools._directory import (
 __all__ = [
     "CHANNEL_DIRECTORY_RESOURCE",
     "CHANNEL_TOOLS_CAPABILITY_ID",
+    "ChannelDestination",
     "ChannelDetails",
     "ChannelDirectory",
     "ChannelDirectoryUnsupported",

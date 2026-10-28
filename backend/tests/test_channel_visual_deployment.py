@@ -107,6 +107,8 @@ def test_interactive_browser_has_only_proxy_egress_and_is_separate_from_renderer
     assert compose["networks"]["browser"]["internal"] is True
     assert set(services["browser-egress"]["networks"]) == {"browser", "browser-egress"}
     assert not services["browser"].get("ports")
+    assert "TZ=${BROWSER_TZ:-UTC}" in services["browser"]["environment"]
+    assert "BROWSER_LANG=${BROWSER_LANG:-en-US}" in services["browser"]["environment"]
     assert services["visual-render"]["networks"] == ["visuals"]
     for runner in ("app", "worker"):
         assert "browser" in services[runner]["networks"]

@@ -1,5 +1,5 @@
 ---
-source_sha: "55bd448ecec8"
+source_sha: "ee582654eb22"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -2012,28 +2012,15 @@ więc różnica między konsolą a Mattermost pozostaje widoczna.
   i oznacza bota na stronie kanałów jako niedziałającego: „inny proces odpytuje
   token tego bota”. Ten proces jest poza wdrożeniem, zwykle to drugie wdrożenie
   albo skrypt z tym samym tokenem, i zatrzymać go może tylko jego właściciel.
-- **Instrukcje powiązania mogą wołać to, co wie tylko platforma.**
-  `{channel_name}`, `{channel_purpose}`, `{channel_topic}`, `{member_count}`,
-  `{member_list}` — wypełniane przy starcie runa, z tych samych wywołań, których
-  używają odpytania o kanał, więc Telegram oferuje wszystkie pięć, choć oferuje
-  dwa z czterech narzędzi. Builder wylicza pod polem te, na które ta platforma
-  potrafi odpowiedzieć, i wstawia wybrane w miejscu kursora, każde z prawdziwym
-  opisem narzędzia — tym samym, który czyta model, zanim zdecyduje się je
-  wywołać, a nie skróconą parafrazą z katalogu, bez znaczników, których model
-  sam używa, by odróżnić streszczenie od kształtu odpowiedzi.
+- **Kontekst kanału jest dodawany automatycznie przy każdym runie.** Runy z Mattermosta, Slacka, Teams i Telegrama otrzymują nazwę, cel, temat, widoczność, zgłaszaną liczbę członków i ograniczoną listę widocznych osób, także dla istniejących lub wyczyszczonych promptów powiązania. `{channel_members}` to czytelna nazwa listy; `{member_list}` pozostaje aliasem. Pozostałe zmienne to `{channel_name}`, `{channel_purpose}`, `{channel_topic}`, `{channel_visibility}` i `{member_count}`.
 
-    Rozwiązywane przy każdym runie i nigdy nie cache'owane: członkostwo kanału
-    się zmienia, a nieaktualna lista w prompcie jest gorsza niż żadna, bo agent
-    podaje ją jako fakt. Pobierane jest tylko to, o co prosi proza, więc
-    powiązanie, które nie woła żadnego placeholdera, nie kosztuje nic.
-    Placeholder, na który platforma nie potrafiła odpowiedzieć, staje się
-    `(unavailable)`, zamiast kosztować kogoś jego odpowiedź.
+    Każde źródło jest odpytywane raz na run, bez cache między turami: do 50 widocznych osób i 2000 znaków na wartość. Telegram zwraca administratorów, a nie wszystkich członków. Każde źródło ma limit pięciu sekund; niedostępne wartości pozostają nieznane. Wartości są spłaszczane i oznaczane jako dane platformy, nigdy instrukcje. Edytowalny tekst powiązania dodaje wskazówki obok tego kontekstu.
 
-    Prompt, który którykolwiek z nich wypełnił, zyskuje zdanie mówiące, że
-    podstawione wartości są informacją, a nie poleceniami, a każda wartość ma
-    spłaszczone łamania linii i nawiasy klamrowe. `purpose` kanału może
-    edytować każdy, kto może edytować kanał, a jest on wklejany do instrukcji
-    agenta.
+- **Wybierz, czy wzmianki grupowe uruchamiają run.** W tworzeniu i edycji bota przełącznik *Reaguj na wzmianki grupowe* jest domyślnie wyłączony. Bezpośrednie wywołania nadal działają. Po włączeniu reaguje też na `@all`, `@here` i `@channel` w Mattermoście, natywne wzmianki grupowe Slacka oraz strukturalne wzmianki o kanale lub zespole Teams. Nadal obowiązują tożsamość nadawcy, reguły dostępu i limity. Wzmianki w kodzie i o innych osobach nie wystarczają.
+
+    Teams wymaga instalacji lub aktualizacji nowego pakietu aplikacji w danym zespole albo czacie i zgody właściciela na `ChannelMessage.Read.Group` oraz `ChatMessage.Read.Chat`. Pakiet prosi o nie tylko po włączeniu przełącznika. Telegram używa tekstowych aliasów `@all`, `@here`, `@channel` i `@everyone`; nie powiadamiają one grupy. Bot musi otrzymywać wiadomości grupy, więc sprawdź tryb prywatności w BotFather. Wzmianki, komendy i odpowiedzi są porównywane z rzeczywistą tożsamością bota Telegrama.
+
+- **Agent wie, gdzie odpowiada i czyje konto jest dostępne.** Wskazówki runtime podają komunikator i konsolę wdrożenia, wyjaśniają zarządzany workspace oraz odróżniają organizacyjne połączenia MCP od usług osobistych. Te ostatnie wymagają zarówno powiązanej tożsamości nadawcy, jak i jego autoryzowanego połączenia z usługą. Łączenie zaczyna się od samego `link` w wiadomości prywatnej; prywatny URL połączenia nie trafia na kanał. Agent relacjonuje rzeczywiste wyniki narzędzi i wskazuje jeden konkretny następny krok, jeśli brakuje autoryzacji lub możliwości.
 - **Ponownie dostarczona wiadomość dostaje odpowiedź raz.** Każda platforma
   dostarcza co najmniej raz: route'y webhooków odpowiadają 200 przed jakąkolwiek
   pracą, żeby wolny handler nigdy nie wyzwolił ponowienia, ale 200 zgubione po
@@ -2650,10 +2637,7 @@ Trzy rzeczy warte wiedzy przed ich przyznaniem:
   czyta tygodnie później. Nadpisanie `tool_approval` na powiązaniu to sposób, by
   kazać mu pytać.
 
-To celowo *nie* jest to samo co wkładanie listy członków kanału i jego celu
-w każdy system prompt. To inna funkcja z innym trybem awarii — `purpose` napisany
-przez kogokolwiek, kto może edytować kanał, wklejony do instrukcji, jest prompt
-injection z publicznym przyciskiem edycji.
+Automatyczny kontekst kanału zawiera nazwę, cel i ograniczoną listę widocznych osób, oznaczone jako dane zamiast instrukcji. Narzędzia przyznawane per powiązanie umożliwiają dodatkowe odczyty i jawną wysyłkę plików; cofnięcie narzędzia nie usuwa automatycznego kontekstu.
 
 ## Wybór { #choosing }
 

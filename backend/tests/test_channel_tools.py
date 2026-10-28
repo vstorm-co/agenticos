@@ -971,3 +971,108 @@ async def test_teams_file_delivery_is_honest_about_personal_chat_consent(private
     else:
         assert "refused" in result and "personal chat" in result
         adapter.send_message.assert_not_awaited()
+
+
+async def test_a_parked_destination_restores_only_its_original_bot_and_thread():
+    import uuid
+
+    from app.agents.capabilities.channel_tools import ChannelDestination
+    from app.services.channels.directory import restore_directory
+
+    organization = uuid.uuid4()
+    bot_id = uuid.uuid4()
+    destination = ChannelDestination(bot_id=bot_id, platform_chat_id="C1:T1", private_chat=True)
+    bot = MagicMock(
+        id=bot_id, is_active=True, platform="mattermost", api_base_url="https://chat.test"
+    )
+    exposure = MagicMock(channel_bot_id=bot_id, is_active=True)
+    with (
+        patch(
+            "app.services.channels.directory.channel_bot_repo.get_for_org",
+            AsyncMock(return_value=bot),
+        ) as get_bot,
+        patch("app.services.channels.directory.unseal_bot_token", return_value="current-token"),
+        patch("app.services.channels.directory.get_adapter", return_value=MagicMock()),
+    ):
+        restored = await restore_directory(
+            MagicMock(),
+            organization_id=organization,
+            surface="mattermost",
+            exposure=exposure,
+            destination=destination,
+        )
+    assert restored is not None and restored.destination == destination
+    assert restored.bot_token == "current-token"
+    assert restored.channel_id == "C1" and restored.thread_id == "T1"
+    assert get_bot.await_args.kwargs["organization_id"] == organization
+    assert get_bot.await_args.args[1] == bot_id
+    assert "token" not in destination.model_dump_json()
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "no_binding",
+        "inactive_binding",
+        "moved_bot",
+        "deleted_bot",
+        "inactive_bot",
+        "different_platform",
+    ],
+)
+async def test_resume_refuses_a_destination_that_no_longer_matches_its_binding(case):
+    import uuid
+
+    from app.agents.capabilities.channel_tools import ChannelDestination
+    from app.core.exceptions import BadRequestError
+    from app.services.channels.directory import restore_directory
+
+    bot_id = uuid.uuid4()
+    destination = ChannelDestination(bot_id=bot_id, platform_chat_id="C1:T1", private_chat=False)
+    exposure = MagicMock(channel_bot_id=bot_id, is_active=True)
+    bot = MagicMock(id=bot_id, is_active=True, platform="mattermost")
+    if case == "no_binding":
+        exposure = None
+    if case == "inactive_binding":
+        exposure.is_active = False
+    if case == "moved_bot":
+        exposure.channel_bot_id = uuid.uuid4()
+    if case == "deleted_bot":
+        bot = None
+    if case == "inactive_bot":
+        bot.is_active = False
+    if case == "different_platform":
+        bot.platform = "slack"
+    with (
+        patch(
+            "app.services.channels.directory.channel_bot_repo.get_for_org",
+            AsyncMock(return_value=bot),
+        ),
+        pytest.raises(BadRequestError),
+    ):
+        await restore_directory(
+            MagicMock(),
+            organization_id=uuid.uuid4(),
+            surface="mattermost",
+            exposure=exposure,
+            destination=destination,
+        )
+
+
+async def test_directories_without_a_persistable_bot_and_old_parks_have_no_destination():
+    import uuid
+
+    from app.services.channels.directory import restore_directory
+
+    directory = BoundChannelDirectory(adapter=MagicMock(), bot_token="tok", channel_id="C1")
+    assert directory.destination is None
+    assert (
+        await restore_directory(
+            MagicMock(),
+            organization_id=uuid.uuid4(),
+            surface="mattermost",
+            exposure=None,
+            destination=None,
+        )
+        is None
+    )

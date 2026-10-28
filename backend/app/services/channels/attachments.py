@@ -31,9 +31,11 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from pydantic_ai.workspaces import SupportsCommands, Workspace
+from pydantic_ai_backends.permissions import PermissionChecker
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.channel_tools import ChannelDirectory
+from app.agents.capabilities.sandbox._permissions import workspace_ruleset
 from app.agents.capabilities.tool_output_limits import OVERFLOW_PREFIX
 from app.db.models.chat_file import ChatFile
 from app.services.channels.base import (
@@ -341,6 +343,9 @@ async def queue_channel_file(
     if relative.startswith("/") or ".." in relative.split("/"):
         return "File delivery refused: choose a file inside the workspace."
     normalized = posixpath.normpath(relative)
+    checker = PermissionChecker(workspace_ruleset())
+    if checker.check_sync("read", "/" + normalized) != "allow":
+        return "File delivery refused: workspace permissions protect this file."
     if normalized in (".", "") or normalized.startswith(_NOT_THE_AGENTS):
         return "File delivery refused: this path is reserved for internal or uploaded files."
     if len(outbound) >= MAX_OUTBOUND_FILES:
@@ -353,6 +358,9 @@ async def queue_channel_file(
         actual = candidates.get(normalized)
         if actual is None:
             return "File delivery refused: that file is not in the workspace."
+        size = (await workspace.stat(actual)).size
+        if size is None or size > MAX_OUTBOUND_BYTES:
+            return "File delivery refused: the file is too large or its size could not be verified."
         data = await workspace.read_bytes(actual)
     except Exception:
         logger.warning("requested_channel_file_unreadable", exc_info=True)

@@ -866,8 +866,17 @@ class TestPrepare:
         channel lookups gone (#513, S14)."""
         ctx = _ctx()
         service = AgentRunnerService(_db())
+        from app.agents.capabilities.channel_tools import ChannelDestination
+
+        destination = ChannelDestination(
+            bot_id=uuid.uuid4(), platform_chat_id="C1:T1", private_chat=False
+        )
+        directory = MagicMock(destination=destination)
+        directory.details = AsyncMock(side_effect=RuntimeError("metadata unavailable"))
+        directory.members = AsyncMock(side_effect=RuntimeError("metadata unavailable"))
         exposure_id = uuid.uuid4()
         run = _parked_run(exposure_id=exposure_id, surface=RunSurface.MATTERMOST.value)
+        run.paused_state["channel_destination"] = destination.model_dump(mode="json")
         agent = MagicMock(id=run.agent_id, current_version_id=run.agent_version_id)
         spec = AgentSpec(name="Support")
         exposure = MagicMock(
@@ -875,6 +884,13 @@ class TestPrepare:
         )
 
         with (
+            patch(
+                "app.services.agent_runner.restore_directory", AsyncMock(return_value=directory)
+            ) as restore,
+            patch(
+                "app.services.agent_runner.channel_file_sender",
+                return_value=AsyncMock(return_value="sent"),
+            ) as sender,
             patch(
                 "app.services.agent_runner.agent_run_repo.claim_parked_run",
                 new=AsyncMock(return_value=run),
@@ -904,6 +920,10 @@ class TestPrepare:
             build.return_value.ledger = SpendLedger()
             await service.resume(ctx, run.id)
 
+        assert restore.await_args.kwargs["destination"] == destination
+        assert build.call_args.kwargs["resources"]["channel_directory"] is directory
+        assert sender.call_args.args[1] is directory
+        assert await build.return_value.deps.send_channel_file("main.py") == "sent"
         assert get_exposure.await_args.args[1] == exposure_id
         assert get_exposure.await_args.kwargs["organization_id"] == ctx.organization_id
         built_spec = build.call_args.args[0]
@@ -6433,3 +6453,20 @@ async def test_channel_creation_does_not_automatically_attach_workspace_files():
         await AgentRunnerService._collect_outbound(prepared)
     written.assert_not_awaited()
     assert prepared.outbound == []
+
+
+def test_parked_channel_state_keeps_destination_without_credentials():
+    from app.agents.capabilities.channel_tools import ChannelDestination
+
+    prepared = _prepared()
+    destination = ChannelDestination(
+        bot_id=uuid.uuid4(), platform_chat_id="C1:T1", private_chat=True
+    )
+    prepared.channel_destination = destination
+    parked = AgentRunnerService._parked_tree(
+        prepared, PausedRunState(messages=[], tool_call_ids={}), []
+    )
+    payload = parked.model_dump(mode="json")
+    assert payload["channel_destination"]["platform_chat_id"] == "C1:T1"
+    assert PausedRunState.model_validate(payload).channel_destination == destination
+    assert PausedRunState(messages=[], tool_call_ids={}).channel_destination is None
