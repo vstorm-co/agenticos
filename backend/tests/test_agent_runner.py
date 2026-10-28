@@ -1978,7 +1978,9 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
     """
 
     @staticmethod
-    async def _prepare(workspace: OpenWorkspace, earlier: object | None):
+    async def _prepare(
+        workspace: OpenWorkspace, earlier: object | None, ctx: AuthContext | None = None
+    ):
         service = AgentRunnerService(_db())
         agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
         restored: list[str] = []
@@ -2019,7 +2021,7 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
             patch("app.services.agent_runner.build_agent") as build,
             patch.object(service.workspaces, "open", new=AsyncMock(return_value=workspace)),
         ):
-            ctx = _ctx()
+            ctx = ctx or _ctx()
             conversation_id = uuid.uuid4()
             prepared = await service.prepare(ctx, agent.id, conversation_id=conversation_id)
             prepared_only = list(restored)
@@ -2027,11 +2029,13 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
             # sandbox's set-up waits for it.
             await workspace.workspace.exists("anything")
 
-        assert find.await_args.kwargs == {
-            "conversation_id": conversation_id,
-            "organization_id": ctx.organization_id,
-            "user_id": ctx.user_id,
-        }
+        if find.await_count:
+            assert find.await_args.kwargs == {
+                "conversation_id": conversation_id,
+                "organization_id": ctx.organization_id,
+                "user_id": ctx.user_id,
+                "agent_id": agent.id,
+            }
         return prepared, build.call_args.args[0].instructions, prepared_only, restored
 
     @pytest.mark.anyio
@@ -2046,7 +2050,7 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
         )
 
         assert while_preparing == []
-        assert "attached earlier in this conversation" in instructions
+        assert "stopped before it finished" in instructions
         assert restored == ["restored"]
         assert prepared.workspace_at_start is not None
         assert any(path.endswith("0000-report.csv") for path in prepared.workspace_at_start)
@@ -2066,7 +2070,7 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
         )
 
         assert while_preparing == ["restored"]
-        assert "attached earlier in this conversation" in instructions
+        assert "stopped before it finished" in instructions
         assert prepared.workspace_at_start is not None
         assert any(path.endswith("0000-report.csv") for path in prepared.workspace_at_start)
 
@@ -2075,7 +2079,27 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
         _, instructions, _, restored = await self._prepare(_sandbox(StateBackend()), earlier=None)
 
         assert restored == []
-        assert "attached earlier in this conversation" not in instructions
+        assert "stopped before it finished" not in instructions
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        "ctx",
+        [
+            replace(_ctx(), api_key_id=uuid.uuid4()),
+            replace(_ctx(), subject_is_publisher_fallback=True),
+        ],
+        ids=["api-key", "publisher-for-a-visitor"],
+    )
+    async def test_a_caller_who_did_not_attach_the_files_puts_nothing_back(self, ctx: AuthContext):
+        """A key's holder, or a publisher standing in for a visitor, is not the
+        person whose attachments these are - the workspace identity refuses both
+        subjects for the same reason (#2027)."""
+        _, instructions, _, restored = await self._prepare(
+            _sandbox(StateBackend()), earlier=MagicMock(), ctx=ctx
+        )
+
+        assert restored == []
+        assert "stopped before it finished" not in instructions
 
 
 class TestSkillChangesARunProposed:

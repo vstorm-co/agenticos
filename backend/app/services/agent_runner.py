@@ -1754,12 +1754,12 @@ def _untouched(workspace: OpenWorkspace) -> bool:
 
 
 _EARLIER_ATTACHMENTS_BRIEFING = (
-    f"Files attached earlier in this conversation are kept under `{UPLOAD_DIR}/`. One "
-    "that an earlier message says could not be written or processed is written there "
-    "again the first time you use the workspace this turn, so list it before saying a "
-    "file is missing."
+    "An earlier turn of this conversation stopped before it finished, and a file "
+    f"attached to it is written back to `{UPLOAD_DIR}/` before your first use of the "
+    "workspace this turn - even where an earlier message says it could not be written "
+    f"or processed. List `{UPLOAD_DIR}/` before saying a file is missing."
 )
-"""What a run is told when its thread has attachments a failed turn may have lost (#2481).
+"""What a run is told when an interrupted turn of its thread left attachments behind (#2481).
 
 The earlier message's own note is history and cannot be rewritten, and it says
 there is no file to open; this is what tells the model to look again."""
@@ -3350,16 +3350,26 @@ class AgentRunnerService:
             # the sandbox. The briefing cannot wait for the writes, so it is given
             # whenever there are skills, worded so it does not claim they landed.
             #
-            # And the thread's earlier attachments, put back where the turn they
-            # came with could not write them (#2481) - on the same first use, or
-            # here for a `state` workspace, and before the snapshot either way so
-            # a file put back is not read as this turn's output.
-            if conversation_id is not None and ctx.user_id is not None:
+            # And the files of this agent's turns that stopped before writing them,
+            # put back (#2481) - on the same first use, or here for a `state`
+            # workspace, and before the snapshot either way so a file put back is
+            # not read as this turn's output. Only on a fresh run by a person:
+            # a resume's `ctx` is its approver's, and a publisher standing in for
+            # a visitor or a key's holder is not whoever attached the file - the
+            # same subjects the workspace identity above refuses.
+            if (
+                existing_run is None
+                and conversation_id is not None
+                and ctx.user_id is not None
+                and ctx.api_key_id is None
+                and not subject_is_publisher_fallback
+            ):
                 earlier = await find_earlier_attachments(
                     self.db,
                     conversation_id=conversation_id,
                     organization_id=ctx.organization_id,
                     user_id=ctx.user_id,
+                    agent_id=agent.id,
                 )
             if earlier is not None:
                 spec = _with_earlier_attachments_briefing(spec)

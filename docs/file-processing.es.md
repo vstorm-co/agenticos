@@ -1,5 +1,5 @@
 ---
-source_sha: "6a0ade369ec9"
+source_sha: "586980bd59b8"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -138,14 +138,19 @@ que todavía sabe que el archivo existe. Una imagen se nombra en ese historial e
 lugar de enviarse de nuevo; un agent que necesita volver a mirarla la pide, o la
 abre desde `uploads/` si tiene workspace.
 
-**Un archivo que su propio turno no pudo guardar se repone después.** Un archivo
-queda ligado al mensaje con el que llegó antes de que empiece el run, así que no se
-puede adjuntar de nuevo. Si ese turno falló antes de que el archivo llegara al
-workspace — el sandbox no se abrió o rechazó la escritura —, un turno posterior de
-la misma conversación lo vuelve a escribir en `uploads/`, con su texto extraído, la
-primera vez que usa el workspace. Solo se reponen los adjuntos de la propia persona
-en los mensajes de esa conversación, como mucho los 50 más recientes, y al run se le
-indica que liste `uploads/` antes de decir que falta un archivo.
+**El archivo de un turno interrumpido lo repone el siguiente.** Un archivo queda
+ligado al mensaje con el que llegó antes de que empiece el run, así que no se puede
+adjuntar de nuevo. Si el run que respondía a ese mensaje terminó sin completarse
+— con un fallo, cancelado, detenido por un presupuesto, un guardrail o el guardián
+de bucles —, el siguiente turno del mismo agente en esa conversación vuelve a
+escribir el archivo en `uploads/` (con su texto extraído, donde el workspace no
+puede leer el original) antes de usar el workspace por primera vez: enseguida en un
+workspace almacenado, en el primer uso en un sandbox. Solo se reponen los archivos
+de la propia persona, solo de los turnos de ese agente desde el último que completó,
+como mucho los 50 más recientes, y al run se le indica que liste `uploads/` antes de
+decir que falta un archivo. Un archivo eliminado después de un turno completado
+sigue eliminado, y un prompt cuyo run nunca se abrió no pertenece a ningún agente,
+así que sus archivos no se reponen.
 
 **El texto extraído lo acompaña solo cuando nada puede leer el original.** Antes
 se escribía un `.txt` del parseo junto a cada PDF, `.docx` y hoja de cálculo,

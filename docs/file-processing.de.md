@@ -1,5 +1,5 @@
 ---
-source_sha: "6a0ade369ec9"
+source_sha: "586980bd59b8"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -142,15 +142,20 @@ diesem Verlauf nur genannt, nicht erneut gesendet; ein Agent, der es noch einmal
 ansehen muss, bittet darum oder öffnet es aus `uploads/`, wenn er einen Workspace
 hat.
 
-**Eine Datei, die ihr eigener Zug nicht ablegen konnte, kommt später zurück.**
-Eine Datei wird vor dem Start des Runs an die Nachricht gebunden, mit der sie kam,
-und kann deshalb nicht erneut angehängt werden. Ist dieser Zug gescheitert, bevor
-die Datei den Workspace erreichte — die Sandbox öffnete sich nicht oder lehnte den
-Schreibvorgang ab —, schreibt ein späterer Zug derselben Unterhaltung sie beim
-ersten Zugriff auf den Workspace zurück nach `uploads/`, mit ihrem extrahierten
-Text. Zurückgelegt werden nur die eigenen Anhänge der Person an Nachrichten dieser
-Unterhaltung, höchstens die 50 neuesten, und der Run wird angewiesen, `uploads/`
-aufzulisten, bevor er sagt, dass eine Datei fehlt.
+**Eine Datei aus einem abgebrochenen Zug legt der nächste Zug zurück.** Eine Datei
+wird vor dem Start des Runs an die Nachricht gebunden, mit der sie kam, und kann
+deshalb nicht erneut angehängt werden. Endete der Run zu dieser Nachricht, ohne
+abzuschließen — mit einem Fehler, abgebrochen, gestoppt durch ein Budget, eine
+Guardrail oder den Schleifenwächter —, schreibt der nächste Zug desselben Agenten in
+dieser Unterhaltung die Datei zurück nach `uploads/` (mit ihrem extrahierten Text,
+wo der Workspace das Original nicht lesen kann), bevor er den Workspace zum ersten
+Mal nutzt: sofort bei einem gespeicherten Workspace, beim ersten Zugriff bei einer
+Sandbox. Zurückgelegt werden nur die eigenen Dateien der Person, nur aus Zügen
+dieses Agenten seit seinem letzten abgeschlossenen, höchstens die 50 neuesten, und
+der Run wird angewiesen, `uploads/` aufzulisten, bevor er sagt, dass eine Datei
+fehlt. Eine nach einem abgeschlossenen Zug entfernte Datei bleibt entfernt, und ein
+Prompt, dessen Run nie geöffnet wurde, gehört keinem Agenten, also kommen seine
+Dateien nicht zurück.
 
 **Der extrahierte Text kommt nur dort mit, wo nichts das Original lesen kann.**
 Eine `.txt` des Parsens wurde früher neben jedes PDF, jede `.docx` und jede

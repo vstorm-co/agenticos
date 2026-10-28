@@ -1,25 +1,29 @@
-"""A later turn puts back an attachment its own turn could not write (#2481).
+"""A later turn puts back an attachment its own turn stopped before writing (#2481).
 
 The file is linked to the message it arrived with before the run starts, so a
 turn that failed before the file reached the workspace left a file nobody would
-ever write and nobody could attach again. The next turn now asks the thread for
-the caller's attachments and writes back the ones its workspace lacks.
+ever write and nobody could attach again. The next turn of the same agent now
+asks for the person's files on its interrupted turns and writes back the ones
+its workspace lacks.
 
 Against a real database because what may be written is decided by a WHERE
-clause: the thread, its organization and the file's owner. A file from another
-conversation, another person or another organization must never land in this
-person's workspace.
+clause: the thread, its organization, the agent, the run's ending and the
+file's owner. A file of another conversation, person, organization or agent
+must never land in this run's workspace, and a file a finished turn left
+behind is not put back.
 """
 
 import uuid
 from contextlib import asynccontextmanager
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
 
 from app.core.exceptions import BadRequestError
+from app.db.models.agent import Agent
+from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Conversation, Message
 from app.db.models.organization import Organization
@@ -38,6 +42,7 @@ from tests.workspaces import ShellFailing, document_workspace
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 CSV = b"month,total\njan,10\n"
+_START = datetime(2026, 10, 26, 9, 0, tzinfo=UTC)
 
 
 async def _member(db) -> User:
@@ -65,6 +70,19 @@ async def _organization(db) -> Organization:
     return organization
 
 
+async def _agent(db, organization: Organization) -> Agent:
+    agent = Agent(
+        id=uuid.uuid4(),
+        organization_id=organization.id,
+        slug=f"clerk-{uuid.uuid4().hex[:8]}",
+        name="Clerk",
+        draft_spec={},
+    )
+    db.add(agent)
+    await db.flush()
+    return agent
+
+
 async def _conversation(db, owner: User, organization: Organization) -> Conversation:
     conversation = Conversation(
         id=uuid.uuid4(), user_id=owner.id, organization_id=organization.id, title="Numbers"
@@ -74,20 +92,43 @@ async def _conversation(db, owner: User, organization: Organization) -> Conversa
     return conversation
 
 
-async def _turn(db, conversation: Conversation, author: User) -> Message:
-    message = Message(
-        id=uuid.uuid4(),
-        conversation_id=conversation.id,
-        role="user",
-        content="here",
-        author_user_id=author.id,
-    )
-    db.add(message)
-    await db.flush()
-    return message
+class _Thread:
+    """One conversation, its runs stamped a minute apart so their order is not `now()`'s."""
+
+    def __init__(self, db, conversation: Conversation) -> None:
+        self.db = db
+        self.conversation = conversation
+        self.turns = 0
+
+    async def turn(self, author: User, agent: Agent, status: RunStatus) -> Message:
+        """A prompt and the run that answered it, linked the way the chat links them."""
+        self.turns += 1
+        run = AgentRun(
+            id=uuid.uuid4(),
+            organization_id=self.conversation.organization_id,
+            agent_id=agent.id,
+            user_id=author.id,
+            conversation_id=self.conversation.id,
+            status=status.value,
+            created_at=_START + timedelta(minutes=self.turns),
+        )
+        self.db.add(run)
+        await self.db.flush()
+        message = Message(
+            id=uuid.uuid4(),
+            conversation_id=self.conversation.id,
+            role="user",
+            content="here",
+            author_user_id=author.id,
+            run_id=run.id,
+        )
+        self.db.add(message)
+        await self.db.flush()
+        return message
 
 
-async def _upload(db, owner: User, *, filename: str = "report.csv") -> ChatFile:
+async def _attached(db, owner: User, message: Message, *, filename: str = "report.csv") -> ChatFile:
+    """An upload linked to a turn, the way `persist_user_turn` links one before the run."""
     chat_file = ChatFile(
         id=uuid.uuid4(),
         user_id=owner.id,
@@ -100,16 +141,27 @@ async def _upload(db, owner: User, *, filename: str = "report.csv") -> ChatFile:
     )
     db.add(chat_file)
     await db.flush()
-    return chat_file
-
-
-async def _attached(db, owner: User, message: Message, *, filename: str = "report.csv") -> ChatFile:
-    """An upload linked to a turn, the way `persist_user_turn` links one before the run."""
-    chat_file = await _upload(db, owner, filename=filename)
     await ConversationService(db).link_files_to_message(
         message.id, [str(chat_file.id)], user_id=owner.id
     )
     return chat_file
+
+
+async def _left(db, thread: _Thread, person: User, agent: Agent, **overrides) -> list[str]:
+    """The filenames both reads answer, checked to agree with each other."""
+    scope = {
+        "conversation_id": thread.conversation.id,
+        "organization_id": thread.conversation.organization_id,
+        "user_id": person.id,
+        "agent_id": agent.id,
+        **overrides,
+    }
+    found = await chat_file_repo.left_by_interrupted_turns(db, limit=50, **scope)
+    rows = await chat_file_repo.get_many_left_by_interrupted_turns(
+        db, [file_id for file_id, _ in found], **scope
+    )
+    assert sorted(row.id for row in rows) == sorted(file_id for file_id, _ in found)
+    return [filename for _, filename in found]
 
 
 @pytest.fixture
@@ -132,18 +184,24 @@ def storage(monkeypatch):
     )
 
 
+@pytest.fixture
+async def world(db):
+    person = await _member(db)
+    organization = await _organization(db)
+    agent = await _agent(db, organization)
+    thread = _Thread(db, await _conversation(db, person, organization))
+    return SimpleNamespace(person=person, organization=organization, agent=agent, thread=thread)
+
+
 class TestTheTurnAfterAFailedOne:
     async def test_the_file_is_in_the_workspace_without_a_new_upload(
-        self, db, same_session, storage
+        self, db, world, same_session, storage
     ) -> None:
         """The issue's sequence, end to end below the socket."""
-        person = await _member(db)
-        organization = await _organization(db)
-        thread = await _conversation(db, person, organization)
-        first = await _turn(db, thread, person)
-        report = await _attached(db, person, first)
+        first = await world.thread.turn(world.person, world.agent, RunStatus.FAILED)
+        report = await _attached(db, world.person, first)
 
-        # The first turn's workspace would not take the write.
+        # The first turn's workspace would not take the write, and the run failed.
         prompt = await AttachmentRouter(ShellFailing(document_workspace())).build_prompt(
             "summarise", [report]
         )
@@ -151,14 +209,19 @@ class TestTheTurnAfterAFailedOne:
 
         # Attaching it again is refused, as designed: one file, one message (#706).
         with pytest.raises(BadRequestError) as refused:
-            await ConversationService(db).list_attached_files([str(report.id)], user_id=person.id)
+            await ConversationService(db).list_attached_files(
+                [str(report.id)], user_id=world.person.id
+            )
         assert refused.value.details["already_attached"] == [str(report.id)]
 
-        # The second turn, on a workspace that works.
-        await _turn(db, thread, person)
+        # The second turn of the same agent, on a workspace that works.
         workspace = document_workspace()
         earlier = await find_earlier_attachments(
-            db, conversation_id=thread.id, organization_id=organization.id, user_id=person.id
+            db,
+            conversation_id=world.thread.conversation.id,
+            organization_id=world.organization.id,
+            user_id=world.person.id,
+            agent_id=world.agent.id,
         )
         assert earlier is not None
         await restore_earlier_attachments(workspace, earlier, can_parse=False)
@@ -167,88 +230,86 @@ class TestTheTurnAfterAFailedOne:
 
 
 class TestWhatATurnMayPutBack:
-    async def test_only_the_callers_files_on_this_threads_turns(self, db) -> None:
-        person = await _member(db)
+    async def test_only_interrupted_turns_since_the_agents_last_completed_one(
+        self, db, world
+    ) -> None:
+        """A finished turn had its chance to put a lost file back, so a file somebody
+        deleted after it stays deleted; a parked or running turn has not stopped."""
+        before = await world.thread.turn(world.person, world.agent, RunStatus.FAILED)
+        await _attached(db, world.person, before, filename="before.csv")
+        done = await world.thread.turn(world.person, world.agent, RunStatus.COMPLETED)
+        await _attached(db, world.person, done, filename="completed.csv")
+        for status in (
+            RunStatus.FAILED,
+            RunStatus.CANCELLED,
+            RunStatus.BUDGET_EXCEEDED,
+            RunStatus.GUARDRAIL_BLOCKED,
+            RunStatus.LOOP_STOPPED,
+            RunStatus.AWAITING_APPROVAL,
+            RunStatus.AWAITING_ANSWER,
+            RunStatus.RUNNING,
+        ):
+            message = await world.thread.turn(world.person, world.agent, status)
+            await _attached(db, world.person, message, filename=f"{status.value}.csv")
+
+        assert sorted(await _left(db, world.thread, world.person, world.agent)) == [
+            "budget_exceeded.csv",
+            "cancelled.csv",
+            "failed.csv",
+            "guardrail_blocked.csv",
+            "loop_stopped.csv",
+        ]
+
+    async def test_another_agents_turn_is_not_this_agents_to_put_back(self, db, world) -> None:
+        """Its workspace may be one everybody who runs this agent shares."""
+        other = await _agent(db, world.organization)
+        message = await world.thread.turn(world.person, other, RunStatus.FAILED)
+        await _attached(db, world.person, message)
+
+        assert await _left(db, world.thread, world.person, world.agent) == []
+        assert await _left(db, world.thread, world.person, other) == ["report.csv"]
+
+    async def test_another_members_file_on_a_shared_thread_stays_theirs(self, db, world) -> None:
         colleague = await _member(db)
-        organization = await _organization(db)
-        thread = await _conversation(db, person, organization)
-        turn = await _turn(db, thread, person)
-        mine = await _attached(db, person, turn)
-        # A colleague's file on the same shared thread went to their workspace.
-        await _attached(db, colleague, await _turn(db, thread, colleague), filename="theirs.csv")
-        # My own file on another thread, and an upload not yet on any turn.
-        elsewhere = await _conversation(db, person, organization)
-        await _attached(db, person, await _turn(db, elsewhere, person), filename="other.csv")
-        await _upload(db, person, filename="pending.csv")
+        message = await world.thread.turn(colleague, world.agent, RunStatus.FAILED)
+        await _attached(db, colleague, message)
 
-        found = await chat_file_repo.attached_in_conversation(
-            db,
-            conversation_id=thread.id,
-            organization_id=organization.id,
-            user_id=person.id,
-            limit=50,
-        )
+        assert await _left(db, world.thread, world.person, world.agent) == []
 
-        assert found == [(mine.id, "report.csv")]
-
-    async def test_a_thread_named_under_another_organization_answers_nothing(self, db) -> None:
-        person = await _member(db)
-        organization = await _organization(db)
+    async def test_another_conversation_or_organization_answers_nothing(self, db, world) -> None:
+        message = await world.thread.turn(world.person, world.agent, RunStatus.FAILED)
+        await _attached(db, world.person, message)
+        elsewhere = await _conversation(db, world.person, world.organization)
         other = await _organization(db)
-        thread = await _conversation(db, person, organization)
-        await _attached(db, person, await _turn(db, thread, person))
 
-        found = await chat_file_repo.attached_in_conversation(
-            db, conversation_id=thread.id, organization_id=other.id, user_id=person.id, limit=50
+        mine = await _left(db, world.thread, world.person, world.agent)
+        in_another_thread = await _left(
+            db, world.thread, world.person, world.agent, conversation_id=elsewhere.id
         )
-        rows = await chat_file_repo.get_many_in_conversation(
-            db,
-            [file_id for file_id, _ in found],
-            conversation_id=thread.id,
-            organization_id=other.id,
-            user_id=person.id,
+        in_another_org = await _left(
+            db, world.thread, world.person, world.agent, organization_id=other.id
         )
 
-        assert found == []
-        assert rows == []
+        assert mine == ["report.csv"]
+        assert in_another_thread == []
+        assert in_another_org == []
 
-    async def test_the_newest_are_kept_when_there_are_more_than_the_bound(self, db) -> None:
-        person = await _member(db)
-        organization = await _organization(db)
-        thread = await _conversation(db, person, organization)
-        turn = await _turn(db, thread, person)
-        old = await _attached(db, person, turn, filename="old.csv")
-        newest = await _attached(db, person, turn, filename="new.csv")
+    async def test_the_newest_are_kept_when_there_are_more_than_the_bound(self, db, world) -> None:
+        old = await world.thread.turn(world.person, world.agent, RunStatus.FAILED)
+        await _attached(db, world.person, old, filename="old.csv")
+        new = await world.thread.turn(world.person, world.agent, RunStatus.FAILED)
+        newest = await _attached(db, world.person, new, filename="new.csv")
         # One transaction stamps both rows with the same `now()`.
-        old.created_at = newest.created_at - timedelta(minutes=5)
+        newest.created_at = datetime.now(UTC) + timedelta(minutes=5)
         await db.flush()
 
-        found = await chat_file_repo.attached_in_conversation(
+        found = await chat_file_repo.left_by_interrupted_turns(
             db,
-            conversation_id=thread.id,
-            organization_id=organization.id,
-            user_id=person.id,
+            conversation_id=world.thread.conversation.id,
+            organization_id=world.organization.id,
+            user_id=world.person.id,
+            agent_id=world.agent.id,
             limit=1,
         )
 
         assert found == [(newest.id, "new.csv")]
-
-    async def test_an_id_from_elsewhere_is_not_read_by_id(self, db) -> None:
-        """The second read repeats the scope rather than trusting the ids it is
-        handed - a file of another person, thread or organization stays out."""
-        person = await _member(db)
-        stranger = await _member(db)
-        organization = await _organization(db)
-        thread = await _conversation(db, person, organization)
-        theirs_thread = await _conversation(db, stranger, await _organization(db))
-        theirs = await _attached(db, stranger, await _turn(db, theirs_thread, stranger))
-
-        rows = await chat_file_repo.get_many_in_conversation(
-            db,
-            [theirs.id],
-            conversation_id=thread.id,
-            organization_id=organization.id,
-            user_id=person.id,
-        )
-
-        assert rows == []

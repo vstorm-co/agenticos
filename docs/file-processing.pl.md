@@ -1,5 +1,5 @@
 ---
-source_sha: "6a0ade369ec9"
+source_sha: "586980bd59b8"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -135,14 +135,18 @@ wciąż wie o pliku. Obraz jest w tej historii tylko nazwany, nie wysyłany pono
 agent, który musi znów na niego spojrzeć, prosi o niego albo otwiera go z
 `uploads/`, jeśli ma workspace.
 
-**Plik, którego jego własna tura nie zapisała, wraca później.** Plik jest
-przypięty do wiadomości, z którą przyszedł, zanim run się zacznie, więc nie da się
-go załączyć ponownie. Jeśli ta tura zawiodła, zanim plik trafił do workspace'u —
-sandbox się nie otworzył albo odmówił zapisu — kolejna tura w tej samej rozmowie
-zapisuje go z powrotem w `uploads/`, razem z wyciągniętym tekstem, przy pierwszym
-użyciu workspace'u. Wracają tylko własne załączniki tej osoby z wiadomości tej
-rozmowy, najwyżej 50 najnowszych, a run dostaje polecenie, by wylistować
-`uploads/`, zanim powie, że pliku brakuje.
+**Plik z tury, która się przerwała, wraca w następnej.** Plik jest przypięty do
+wiadomości, z którą przyszedł, zanim run się zacznie, więc nie da się go załączyć
+ponownie. Jeśli run odpowiadający na tę wiadomość skończył się bez ukończenia —
+błędem, anulowaniem, zatrzymaniem przez budżet, guardrail albo strażnika pętli —
+następna tura tego samego agenta w tej rozmowie zapisuje plik z powrotem w
+`uploads/` (z wyciągniętym tekstem tam, gdzie workspace nie umie przeczytać
+oryginału), zanim pierwszy raz użyje workspace'u: od razu dla workspace'u
+zapisanego, przy pierwszym użyciu dla sandboxa. Wracają tylko pliki tej osoby, tylko
+z tur tego agenta od jego ostatniej ukończonej, najwyżej 50 najnowszych, a run
+dostaje polecenie, by wylistować `uploads/`, zanim powie, że pliku brakuje. Plik
+usunięty po ukończonej turze zostaje usunięty, a prompt, którego run nigdy się nie
+otworzył, nie należy do żadnego agenta, więc jego pliki nie wracają.
 
 **Wyciągnięty tekst idzie w parze z plikiem tylko tam, gdzie nic nie umie
 przeczytać oryginału.** Kiedyś `.txt` z parsowania zapisywany był obok każdego

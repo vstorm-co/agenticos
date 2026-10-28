@@ -3,12 +3,23 @@
 from collections.abc import Iterable
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import Select, func, or_, select
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.chat_file import ChatFile
-from app.db.models.conversation import Conversation, Message
+from app.db.models.conversation import Message
+
+_INTERRUPTED = [
+    RunStatus.FAILED.value,
+    RunStatus.CANCELLED.value,
+    RunStatus.BUDGET_EXCEEDED.value,
+    RunStatus.GUARDRAIL_BLOCKED.value,
+    RunStatus.LOOP_STOPPED.value,
+]
+"""The endings of a turn that may have stopped before its files reached the
+workspace - every one but completing, parking and still running."""
 
 
 async def get_by_id(db: AsyncSession, file_id: UUID) -> ChatFile | None:
@@ -76,61 +87,112 @@ async def latest_named_in_conversation(
     return result.scalar_one_or_none()
 
 
-async def attached_in_conversation(
-    db: AsyncSession, *, conversation_id: UUID, organization_id: UUID, user_id: UUID, limit: int
+async def left_by_interrupted_turns(
+    db: AsyncSession,
+    *,
+    conversation_id: UUID,
+    organization_id: UUID,
+    user_id: UUID,
+    agent_id: UUID,
+    limit: int,
 ) -> list[tuple[UUID, str]]:
-    """The id and filename of `user_id`'s files attached to this thread's turns, newest first.
+    """The id and filename of `user_id`'s files on this agent's turns that did not
+    finish here, since its last turn that did - newest first (#2481).
 
-    Three scopes, each one a predicate: the file hangs on a message of this
-    conversation, the conversation is this organization's, and the file is the
-    caller's own. The last is narrower than `get_in_conversation`, deliberately:
-    this answers what a run may write into the caller's workspace, and a shared
-    thread's other members attached their files to theirs (#2481).
+    Every predicate is a boundary. The file hangs on a prompt message of this
+    conversation, that message's run is this organization's and this agent's,
+    and the file is the caller's own: so a person's attachment is never written
+    into another agent's workspace - one shared by everyone who runs it - nor
+    into another member's run on a shared thread.
+
+    The run's status is what says the file may never have reached the workspace.
+    A completed turn routed its files, and one the workspace refused was named
+    to the model as unstored; a missing file there was removed, and is left
+    removed. And only the turns after this agent's last completed one: a turn
+    that finished has had its chance to put a lost file back, so a file somebody
+    deleted after that stays deleted.
 
     Two columns rather than rows: a row carries the file's parsed text, up to a
     million characters, and the caller needs the text only for a file its
     workspace turns out to be missing.
     """
-    result = await db.execute(
-        select(ChatFile.id, ChatFile.filename)
-        .join(Message, Message.id == ChatFile.message_id)
-        .join(Conversation, Conversation.id == Message.conversation_id)
+    last_completed = (
+        select(func.max(AgentRun.created_at))
         .where(
-            Message.conversation_id == conversation_id,
-            Conversation.organization_id == organization_id,
-            ChatFile.user_id == user_id,
+            AgentRun.conversation_id == conversation_id,
+            AgentRun.agent_id == agent_id,
+            AgentRun.status == RunStatus.COMPLETED.value,
         )
+        .scalar_subquery()
+    )
+    result = await db.execute(
+        _left_by_interrupted_turns(
+            select(ChatFile.id, ChatFile.filename),
+            conversation_id=conversation_id,
+            organization_id=organization_id,
+            user_id=user_id,
+            agent_id=agent_id,
+        )
+        .where(or_(last_completed.is_(None), AgentRun.created_at > last_completed))
         .order_by(ChatFile.created_at.desc())
         .limit(limit)
     )
     return [(file_id, filename) for file_id, filename in result.all()]
 
 
-async def get_many_in_conversation(
+async def get_many_left_by_interrupted_turns(
     db: AsyncSession,
     file_ids: Iterable[UUID],
     *,
     conversation_id: UUID,
     organization_id: UUID,
     user_id: UUID,
+    agent_id: UUID,
 ) -> list[ChatFile]:
-    """These files, as whole rows, under exactly `attached_in_conversation`'s scope."""
+    """These files, as whole rows, under `left_by_interrupted_turns`'s boundaries.
+
+    Asked again rather than read by id: the ids were found in another session,
+    and the boundaries are what makes writing a file into this run's workspace
+    allowed at all.
+    """
     ids = list(file_ids)
     if not ids:
         return []
     result = await db.execute(
-        select(ChatFile)
-        .join(Message, Message.id == ChatFile.message_id)
-        .join(Conversation, Conversation.id == Message.conversation_id)
-        .where(
-            ChatFile.id.in_(ids),
-            Message.conversation_id == conversation_id,
-            Conversation.organization_id == organization_id,
-            ChatFile.user_id == user_id,
+        _left_by_interrupted_turns(
+            select(ChatFile),
+            conversation_id=conversation_id,
+            organization_id=organization_id,
+            user_id=user_id,
+            agent_id=agent_id,
         )
-        .order_by(ChatFile.created_at)
+        .where(ChatFile.id.in_(ids))
+        .order_by(ChatFile.created_at.desc())
     )
     return list(result.scalars().all())
+
+
+def _left_by_interrupted_turns[*Ts](
+    statement: Select[*Ts],
+    *,
+    conversation_id: UUID,
+    organization_id: UUID,
+    user_id: UUID,
+    agent_id: UUID,
+) -> Select[*Ts]:
+    """The boundaries both reads share - see `left_by_interrupted_turns`."""
+    return (
+        statement.join(Message, Message.id == ChatFile.message_id)
+        .join(AgentRun, AgentRun.id == Message.run_id)
+        .where(
+            Message.conversation_id == conversation_id,
+            AgentRun.conversation_id == conversation_id,
+            AgentRun.organization_id == organization_id,
+            AgentRun.agent_id == agent_id,
+            AgentRun.status.in_(_INTERRUPTED),
+            ChatFile.user_id == user_id,
+        )
+    )
 
 
 async def link_to_message(

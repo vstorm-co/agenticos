@@ -21,10 +21,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- A file attached to a chat turn that failed before the file reached the
-  workspace is now written back to `uploads/` by the next turn in the same
-  conversation, instead of staying missing until a new conversation and upload.
-  Only the person's own attachments on that conversation are restored.
+- A file attached to a chat turn that stopped before completing (failed,
+  cancelled or stopped by a limit) is now written back to `uploads/` by the same
+  agent's next turn in that conversation, instead of staying missing until a new
+  conversation and upload. Only the person's own files from that agent's turns
+  since its last completed one are restored.
 
 ## [1.27.0] - 2026-10-27
 

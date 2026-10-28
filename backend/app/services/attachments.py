@@ -568,16 +568,15 @@ class AttachmentRouter:
     async def restore(self, files: list[ChatFile]) -> None:
         """Write each of `files`, which the caller found missing, with its text beside it.
 
-        For a later turn, after the one a file arrived with could not put it there:
-        that turn failed before routing it, or its workspace would not take the
-        write. Nothing else ever writes an attachment, and the file cannot be
+        For a later turn, after the one a file arrived with stopped before putting
+        it there. Nothing else ever writes an attachment, and the file cannot be
         attached again - it is linked to the message it came with (#2481).
 
-        The same two writes as `_into_workspace`. Never raises: a file the store
-        cannot load is passed over, and a workspace that refuses one is not asked
-        to take the rest, since what refuses a write here is a full or unreachable
-        workspace and either refuses the next one too. The turn goes on either
-        way, as it would have without this.
+        The same two writes as `_into_workspace`. Never raises, because it runs as
+        set-up ahead of an operation it must not fail: a file the store cannot load
+        or the workspace will not take is logged and passed over, and the next one
+        is still tried - a document with no room for a large file may well have
+        room for a small one. The turn goes on as it would have without this.
         """
         workspace = self._workspace
         if workspace is None:
@@ -586,17 +585,13 @@ class AttachmentRouter:
             path = workspace_path(chat_file)
             try:
                 data = await get_file_storage().load(chat_file.storage_path)
-            except Exception:
-                logger.warning(
-                    "attachment_not_restored", extra={"file_id": str(chat_file.id)}, exc_info=True
-                )
-                continue
-            try:
                 await workspace.write_bytes(path, data)
+                await self._write_extracted_text(workspace, chat_file, path)
             except Exception as refused:
-                logger.info("attachment_not_written", extra={"path": path, "reason": str(refused)})
-                return
-            await self._write_extracted_text(workspace, chat_file, path)
+                logger.info(
+                    "attachment_not_restored",
+                    extra={"file_id": str(chat_file.id), "reason": refused.__class__.__name__},
+                )
 
     async def _sibling_present(
         self, workspace: Workspace, chat_file: ChatFile, path: str
@@ -723,33 +718,43 @@ async def load_turn_attachments(
 
 
 EARLIER_ATTACHMENTS_RESTORED = 50
-"""How many of a thread's attachments a turn checks its workspace for, newest first.
+"""How many files a turn checks its workspace for, newest first: one `exists` each.
 
-A bound on a question asked on every turn that uses the workspace: one `exists`
-per file. Past it the oldest are not put back, which is the limit of a fix for a
-turn that failed - a thread with fifty later attachments has moved on from it."""
+The files are only those of the agent's turns that stopped since its last
+completed one, so this bounds a thread that kept failing, not an ordinary one."""
 
 
 @dataclass(frozen=True)
 class EarlierAttachments:
-    """The files a person attached on this thread's turns, where its next run can find them."""
+    """The person's files on this agent's interrupted turns, where its next run can find them."""
 
     conversation_id: UUID
     organization_id: UUID
     user_id: UUID
+    agent_id: UUID
     paths: dict[UUID, str]
     """Each file's workspace path, by its id."""
 
 
 async def find_earlier_attachments(
-    db: AsyncSession, *, conversation_id: UUID, organization_id: UUID, user_id: UUID
+    db: AsyncSession,
+    *,
+    conversation_id: UUID,
+    organization_id: UUID,
+    user_id: UUID,
+    agent_id: UUID,
 ) -> EarlierAttachments | None:
-    """This person's attachments on this thread, or `None` when there are none (#2481)."""
-    found = await chat_file_repo.attached_in_conversation(
+    """The person's files a turn of this agent may have stopped before writing (#2481).
+
+    `None` when there are none, which is every thread whose turns finished -
+    see `chat_file_repo.left_by_interrupted_turns` for which files qualify and why.
+    """
+    found = await chat_file_repo.left_by_interrupted_turns(
         db,
         conversation_id=conversation_id,
         organization_id=organization_id,
         user_id=user_id,
+        agent_id=agent_id,
         limit=EARLIER_ATTACHMENTS_RESTORED,
     )
     if not found:
@@ -758,6 +763,7 @@ async def find_earlier_attachments(
         conversation_id=conversation_id,
         organization_id=organization_id,
         user_id=user_id,
+        agent_id=agent_id,
         paths={file_id: upload_path(file_id, filename) for file_id, filename in found},
     )
 
@@ -765,32 +771,33 @@ async def find_earlier_attachments(
 async def restore_earlier_attachments(
     workspace: Workspace, earlier: EarlierAttachments, *, can_parse: bool
 ) -> None:
-    """Put back what the workspace is missing of a thread's attachments (#2481).
+    """Put back what the workspace is missing of `earlier` (#2481).
 
     The paths are asked about first and the rows read only for a missing file,
-    because the rows carry each file's parsed text and on almost every turn
-    nothing is missing. Read in a session of its own: this runs on a sandbox's
-    first use, in the middle of a run whose own session is not to be shared
-    with a tool call. Never raises - see `AttachmentRouter.restore`.
+    because the rows carry each file's parsed text. Read in a session of its
+    own: this runs on a sandbox's first use, in the middle of a run whose own
+    session is not to be shared with a tool call. Never raises - it is set-up
+    ahead of the operation that triggered it; see `AttachmentRouter.restore`.
     """
     missing: list[UUID] = []
     try:
         for file_id, path in earlier.paths.items():
             if not await workspace.exists(path):
                 missing.append(file_id)
-    except Exception:
-        logger.info("attachments_not_checked", exc_info=True)
+    except Exception as unreachable:
+        logger.info("attachments_not_checked", extra={"reason": unreachable.__class__.__name__})
         return
     if not missing:
         return
     try:
         async with get_db_context() as db:
-            files = await chat_file_repo.get_many_in_conversation(
+            files = await chat_file_repo.get_many_left_by_interrupted_turns(
                 db,
                 missing,
                 conversation_id=earlier.conversation_id,
                 organization_id=earlier.organization_id,
                 user_id=earlier.user_id,
+                agent_id=earlier.agent_id,
             )
     except Exception:
         logger.warning("attachments_not_restored", exc_info=True)

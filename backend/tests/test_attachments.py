@@ -935,6 +935,7 @@ class TestALaterTurnPutsBackWhatAFailedTurnLost:
             conversation_id=uuid4(),
             organization_id=uuid4(),
             user_id=uuid4(),
+            agent_id=uuid4(),
             paths={f.id: workspace_path(f) for f in files},
         )
 
@@ -949,7 +950,9 @@ class TestALaterTurnPutsBackWhatAFailedTurnLost:
 
         read = AsyncMock(side_effect=lambda db, ids, **_: [f for f in files if f.id in ids])
         monkeypatch.setattr(attachments_module, "get_db_context", session)
-        monkeypatch.setattr(attachments_module.chat_file_repo, "get_many_in_conversation", read)
+        monkeypatch.setattr(
+            attachments_module.chat_file_repo, "get_many_left_by_interrupted_turns", read
+        )
         return read
 
     async def test_a_file_the_workspace_lacks_is_written_with_its_text(self, storage, monkeypatch):
@@ -969,6 +972,7 @@ class TestALaterTurnPutsBackWhatAFailedTurnLost:
             "conversation_id": earlier.conversation_id,
             "organization_id": earlier.organization_id,
             "user_id": earlier.user_id,
+            "agent_id": earlier.agent_id,
         }
 
     async def test_a_file_already_there_is_not_read_or_written_again(self, storage, monkeypatch):
@@ -1020,20 +1024,52 @@ class TestALaterTurnPutsBackWhatAFailedTurnLost:
         assert not document.exists(workspace_path(gone))
         assert document.exists(workspace_path(kept))
 
-    async def test_a_workspace_that_refuses_one_is_not_asked_for_the_rest(
-        self, storage, monkeypatch
-    ):
-        first, second = _file(), _file(filename="second.csv")
-        self._rows(monkeypatch, first, second)
-        workspace = ShellFailing(document_workspace())
-        writes = AsyncMock(side_effect=workspace.write_bytes)
-        monkeypatch.setattr(workspace, "write_bytes", writes)
+    async def test_a_file_the_workspace_refuses_does_not_stop_the_rest(self, storage, monkeypatch):
+        """A document with no room for a large file may still have room for a small one."""
+        large, small = _file(filename="large.csv"), _file(filename="small.csv")
+        self._rows(monkeypatch, large, small)
+        document = _document()
+        workspace = document_workspace(document)
+        write = workspace.write_bytes
+
+        async def refusing_the_large_one(path: str, data: bytes) -> None:
+            if path == workspace_path(large):
+                raise OSError("no room")
+            await write(path, data)
+
+        monkeypatch.setattr(workspace, "write_bytes", refusing_the_large_one)
 
         await attachments_module.restore_earlier_attachments(
-            workspace, self._earlier(first, second), can_parse=False
+            workspace, self._earlier(large, small), can_parse=False
         )
 
-        assert writes.await_count == 1
+        assert not document.exists(workspace_path(large))
+        assert document.exists(workspace_path(small))
+
+    async def test_a_sibling_the_sandbox_cannot_take_does_not_escape(self, storage, monkeypatch):
+        """The extracted text's write fails the way an unreachable sandbox fails, which
+        is not one of the errors that write expects - and set-up must never fail the
+        operation waiting behind it."""
+        from app.core.exceptions import ExternalServiceError
+
+        chat_file = _file(filename="report.pdf", file_type="pdf", parsed_content="page one")
+        self._rows(monkeypatch, chat_file)
+        document = _document()
+        workspace = document_workspace(document)
+        write = workspace.write_bytes
+
+        async def unreachable_for_text(path: str, data: bytes) -> None:
+            if path.endswith(".txt"):
+                raise ExternalServiceError(message="The sandbox service is unreachable.")
+            await write(path, data)
+
+        monkeypatch.setattr(workspace, "write_bytes", unreachable_for_text)
+
+        await attachments_module.restore_earlier_attachments(
+            workspace, self._earlier(chat_file), can_parse=False
+        )
+
+        assert document.exists(workspace_path(chat_file))
 
     async def test_a_workspace_that_cannot_be_asked_puts_nothing_back(self, storage, monkeypatch):
         """The run goes on: this is set-up, and it never fails the operation behind it."""
@@ -1076,10 +1112,15 @@ class TestALaterTurnPutsBackWhatAFailedTurnLost:
         conversation, organization, caller = uuid4(), uuid4(), uuid4()
         file_id = uuid4()
         found = AsyncMock(return_value=[(file_id, "raport.csv")])
-        monkeypatch.setattr(attachments_module.chat_file_repo, "attached_in_conversation", found)
+        monkeypatch.setattr(attachments_module.chat_file_repo, "left_by_interrupted_turns", found)
 
+        agent = uuid4()
         earlier = await attachments_module.find_earlier_attachments(
-            object(), conversation_id=conversation, organization_id=organization, user_id=caller
+            object(),
+            conversation_id=conversation,
+            organization_id=organization,
+            user_id=caller,
+            agent_id=agent,
         )
 
         assert earlier is not None
@@ -1088,19 +1129,24 @@ class TestALaterTurnPutsBackWhatAFailedTurnLost:
             "conversation_id": conversation,
             "organization_id": organization,
             "user_id": caller,
+            "agent_id": agent,
             "limit": attachments_module.EARLIER_ATTACHMENTS_RESTORED,
         }
 
     async def test_a_thread_with_no_attachments_has_nothing_to_put_back(self, monkeypatch):
         monkeypatch.setattr(
             attachments_module.chat_file_repo,
-            "attached_in_conversation",
+            "left_by_interrupted_turns",
             AsyncMock(return_value=[]),
         )
 
         assert (
             await attachments_module.find_earlier_attachments(
-                object(), conversation_id=uuid4(), organization_id=uuid4(), user_id=uuid4()
+                object(),
+                conversation_id=uuid4(),
+                organization_id=uuid4(),
+                user_id=uuid4(),
+                agent_id=uuid4(),
             )
             is None
         )
