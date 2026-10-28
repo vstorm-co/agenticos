@@ -138,6 +138,10 @@ export const qk = {
       ] as const,
     // A workflow's log: a filtered page of its lines, and one run's own lines.
     logs: (query: LogQuery) => ["workflows", query.workflowId, "logs", query] as const,
+    // The alert rules on a workflow's log, under the workflow.
+    logAlerts: (id: string) => ["workflows", id, "log-alerts"] as const,
+    // The dashboard card: the newest lines across every workflow the caller may view.
+    recentLogs: (limit: number) => ["workflows", "recent-logs", limit] as const,
     runLogs: (runId: string) => ["workflows", "run", runId, "logs"] as const,
     run: (runId: string) => ["workflows", "run", runId] as const,
     runNodes: (runId: string) => ["workflows", "run", runId, "nodes"] as const,

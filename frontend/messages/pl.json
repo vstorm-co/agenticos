@@ -2862,6 +2862,8 @@
     "settings": {
       "prefWorkflowNotification": "Powiadomienia z workflow",
       "prefWorkflowNotificationTrigger": "Workflow, który widzisz, wysyła Ci wiadomość z jednego ze swoich kroków.",
+      "prefWorkflowLogAlert": "Alerty z dziennika workflow",
+      "prefWorkflowLogAlertTrigger": "Dziennik workflow, który widzisz, przekracza próg alertu.",
       "prefArtifactOwnerChanged": "Zmiana właściciela strony",
       "prefArtifactOwnerChangedTrigger": "Strona zmienia właściciela - przekazuje ją innemu członkowi jej właściciel lub administrator.",
       "prefArtifactShareRequested": "Prośby dotyczące stron",
@@ -3530,6 +3532,57 @@
       "logsFailed": "Nie udało się odczytać logu",
       "logsFailedDetail": "Sprawdź połączenie i spróbuj ponownie.",
       "logsRetry": "Spróbuj ponownie",
+      "alertsTitle": "Alerty",
+      "alertsCount": "{count, plural, =0 {Brak alertów} one {# alert} few {# alerty} many {# alertów} other {# alertu}}",
+      "alertsFailed": "Nie udało się wczytać alertów",
+      "alertsFailedDetail": "Reguły alertów nie zostały wczytane. Nic nie przepadło; spróbuj ponownie.",
+      "alertsEmpty": "Brak alertów",
+      "alertsEmptyDetail": "Dodaj alert, który powiadomi osoby, gdy coś zdarza się w dzienniku tego workflow zbyt często, na przykład pięć błędów w piętnaście minut.",
+      "alertsEmptyViewer": "Nikt nie ustawił alertu na dzienniku tego workflow.",
+      "alertNew": "Dodaj alert",
+      "alertEdit": "Edytuj alert",
+      "alertName": "Nazwa",
+      "alertNamePlaceholder": "Za dużo błędów",
+      "alertStep": "Krok",
+      "alertOutcomes": "Wyniki",
+      "alertOutcomesHint": "Które wyniki się liczą. Są tylko te, które zapisuje dziennik kroku.",
+      "alertText": "Wiadomość zawiera",
+      "alertTextHint": "Opcjonalne. Liczy tylko wiadomości z dziennika z tymi słowami, bez względu na wielkość liter.",
+      "alertThreshold": "Wystąpienia",
+      "alertThresholdRange": "Liczba całkowita od 1 do {max}",
+      "alertWindow": "W ciągu",
+      "alertWindows": {
+        "5": "5 minut",
+        "15": "15 minut",
+        "30": "30 minut",
+        "60": "1 godziny",
+        "240": "4 godzin",
+        "1440": "24 godzin"
+      },
+      "alertAudience": "Kogo powiadomić",
+      "alertAudienceAdmins": "Administratorów",
+      "alertAudienceOwner": "Właściciela workflow",
+      "alertAudienceChosen": "Wybrane osoby",
+      "alertPeopleChosen": "{count, plural, =0 {Wybierz osoby} one {# osoba} few {# osoby} many {# osób} other {# osoby}}",
+      "alertEnabled": "Alert jest włączony",
+      "alertCancel": "Anuluj",
+      "alertSave": "Zapisz",
+      "alertSaved": "Zapisano alert",
+      "alertDeleted": "Usunięto alert",
+      "alertNeedsName": "Nadaj alertowi nazwę",
+      "alertNeedsOutcome": "Wybierz co najmniej jeden wynik",
+      "alertNeedsAudience": "Wybierz, kogo powiadomić",
+      "alertNeedsPeople": "Wybrano „Wybrane osoby”, ale nikogo nie wskazano",
+      "alertCondition": "{count, plural, one {Co najmniej # wystąpienie} few {Co najmniej # wystąpienia} many {Co najmniej # wystąpień} other {Co najmniej # wystąpienia}} z wynikiem {outcomes}{hasStep, select, yes { w kroku {step}} other {}}{hasText, select, yes { i tekstem „{text}”} other {}} w ciągu {window}",
+      "alertTells": "Powiadamia: {who}",
+      "alertNeverFired": "Jeszcze nie zadziałał",
+      "alertLastFired": "{count, plural, one {Ostatnio zadziałał {when}, przy # wystąpieniu} few {Ostatnio zadziałał {when}, przy # wystąpieniach} many {Ostatnio zadziałał {when}, przy # wystąpieniach} other {Ostatnio zadziałał {when}, przy # wystąpieniach}}",
+      "alertToggle": "Alert {name} jest włączony",
+      "alertEditNamed": "Edytuj alert {name}",
+      "alertDeleteNamed": "Usuń alert {name}",
+      "alertDeleteTitle": "Usunąć ten alert?",
+      "alertDeleteDetail": "{name} przestaje powiadamiać o dzienniku tego workflow. Dotychczasowe powiadomienia zostają.",
+      "alertDelete": "Usuń alert",
       "runRetry": "Ponów od nieudanego kroku",
       "runRetried": "Ponowienie uruchomione",
       "runRetryOf": "Ponawia",
@@ -3657,7 +3710,12 @@
         "approvalsDecideCaption": "95% w ciągu {p95}",
         "approvalsRequests": "Prośby",
         "approvalsMedianEdit": "Mediana zmiany"
-      }
+      },
+      "alertThresholdHint": "Ile razy to musi się zdarzyć",
+      "alertNameHint": "Tak alert wygląda na liście i w powiadomieniu",
+      "alertStepHint": "Obserwuj jeden krok albo każdy, który zapisuje dziennik",
+      "alertWindowHint": "W jakim czasie",
+      "alertAudienceHint": "Kto dostaje dzwonek i e-mail"
     }
   },
   "rag": {
@@ -4407,6 +4465,16 @@
         "notMeasured": "Zmiany nie zmierzono",
         "rowRequests": "{requests, plural, one {# prośba} few {# prośby} many {# próśb} other {# prośby}}",
         "row": "{requests, plural, one {# prośba} few {# prośby} many {# próśb} other {# prośby}}, {rate} zatwierdzonych bez zmian"
+      },
+      "workflow-logs": {
+        "title": "Logi workflow",
+        "description": "Najnowsze wiersze, które twoje workflow zapisały w swoich logach, i ile ich doszło w ciągu ostatnich 24 godzin - tylko prawdziwe runy.",
+        "empty": {
+          "title": "Brak wierszy w logach",
+          "description": "Krok workflow z Quick Log zapisuje tu przy każdym uruchomieniu."
+        },
+        "lastDay": "Wiersze z ostatnich 24 godzin",
+        "errors": "Błędy"
       },
       "suggestions": {
         "title": "Briefing",
@@ -5913,6 +5981,10 @@
       "workflow-logs": {
         "title": "Jego log",
         "body": "Wiersze, które kroki tego workflow zapisały szybkim logiem, od najnowszych. Zawęź je według kroku, wyniku lub czasu, przeszukaj wiadomość i dodaj uruchomienia testowe. Wiersz otwiera uruchomienie, które go zapisało."
+      },
+      "workflow-log-alerts": {
+        "title": "Jego alerty",
+        "body": "Reguły, które powiadamiają osoby, gdy ten dziennik przekroczy próg: ile pasujących wierszy, w jakim czasie i kto się o tym dowie. Kto może edytować workflow, dodaje je, zmienia i usuwa."
       },
       "org-public-live-data": {
         "title": "Dane na żywo na stronach publicznych",
@@ -9352,8 +9424,9 @@
     "liveDataRefused": "Nie masz dostępu do danych na żywo tej strony.",
     "liveDataBusy": "Serwer jest teraz zajęty. Spróbuj ponownie za chwilę.",
     "liveSourcesUnavailable": "{total, plural, =1 {1 z 1 źródła jest dla Ciebie niedostępne.} one {Niedostępne dla Ciebie: {count} z # źródła.} few {Niedostępne dla Ciebie: {count} z # źródeł.} many {Niedostępne dla Ciebie: {count} z # źródeł.} other {Niedostępne dla Ciebie: {count} z # źródeł.}}",
-    "liveSourceCause": "<b>{name}</b>: {reason, select, awaiting_consent {zobaczysz je, gdy właściciel strony potwierdzi jej dane} creator_gone {właściciel strony nie jest już członkiem} creator_lost_access {właściciel strony nie ma już dostępu do tabeli, której używa} source_changed {od publikacji zmieniło się: {changed} - opublikuj stronę ponownie} not_current {dane na żywo pokazuje tylko bieżąca wersja} timeout {ładowanie trwało zbyt długo} other {nie udało się go załadować}}",
+    "liveSourceCause": "<b>{name}</b>: {reason, select, awaiting_consent {zobaczysz je, gdy właściciel strony potwierdzi jej dane} creator_gone {właściciel strony nie jest już członkiem} creator_lost_access {właściciel strony nie ma już dostępu do tabeli lub workflow, których używa} source_changed {od publikacji zmieniło się: {changed} - opublikuj stronę ponownie} not_current {dane na żywo pokazuje tylko bieżąca wersja} public_link {log workflow nigdy nie jest pokazywany przez publiczny link} timeout {ładowanie trwało zbyt długo} other {nie udało się go załadować}}",
     "openTable": "Otwórz tabelę",
+    "openWorkflow": "Otwórz workflow",
     "liveOnlyCurrent": "Dane na żywo są dostępne tylko w bieżącej wersji.",
     "openCurrent": "Otwórz bieżącą",
     "filterByAgent": "Filtruj według agenta",
@@ -9431,14 +9504,27 @@
       "grownAutomaticallyVia": "v{version}, opublikowana przez {name}, została udostępniona automatycznie i pokazuje więcej danych: {added}",
       "confirmTitle": "Potwierdź dane, które udostępnia v{version}",
       "confirmTitleUnnumbered": "Potwierdź dane, które udostępnia ta wersja",
-      "confirmWhy": "Każdy, kto może otworzyć tę stronę, zobaczy te rekordy, nawet bez dostępu do tabel. Potwierdź tylko to, co wszyscy mogą zobaczyć.",
+      "confirmWhy": "{kind, select, log {Każdy, kto może otworzyć tę stronę, zobaczy te wiersze logu, nawet bez dostępu do workflow. Potwierdź tylko to, co wszyscy mogą zobaczyć.} both {Każdy, kto może otworzyć tę stronę, zobaczy te rekordy i wiersze logu, nawet bez dostępu do tabel lub workflow. Potwierdź tylko to, co wszyscy mogą zobaczyć.} other {Każdy, kto może otworzyć tę stronę, zobaczy te rekordy, nawet bez dostępu do tabel. Potwierdź tylko to, co wszyscy mogą zobaczyć.}}",
       "disclosureFailed": "Nie udało się wczytać, co udostępnia ta wersja.",
       "bindingTable": "{name} - z tabeli {table}",
+      "bindingLog": "{name} - log workflow {workflow}",
       "noFilters": "Wszystkie rekordy.",
       "filters": "Tylko rekordy, w których {conditions}.",
       "sortAndLimit": "Kolejność: {sort}. Najwyżej {limit, plural, one {1 rekord} few {# rekordy} many {# rekordów} other {# rekordu}}.",
       "field": "{field}: {reads}",
       "tablesRead": "Tabele: {tables}",
+      "log": {
+        "step": "z kroku {step}",
+        "outcomes": "z wynikiem {outcomes}",
+        "run": "z uruchomienia {run}",
+        "filters": "Tylko wiersze {conditions}.",
+        "allLines": "Wszystkie wiersze.",
+        "testsIncluded": "Uruchomienia testowe są uwzględnione.",
+        "testsLeftOut": "Uruchomienia testowe są pominięte.",
+        "lines": "Udostępnia {count, plural, =1 {najnowszy wiersz} few {# najnowsze wiersze} many {# najnowszych wierszy} other {# najnowszego wiersza}}, od najnowszego.",
+        "perDay": "Udostępnia liczbę wierszy na dzień z {days} dni, w strefie {tz}.",
+        "summary": "{workflow}: {keeps} {serves}"
+      },
       "parts": {
         "filterOp": "{column} {op, select, eq {jest równe} ne {nie jest równe} lt {jest mniejsze niż} lte {wynosi najwyżej} gt {jest większe niż} gte {wynosi co najmniej} contains {zawiera} starts_with {zaczyna się od} in {jest jedną z wartości} other {jest}} {value}",
         "isEmpty": "{column} jest puste",
@@ -9538,7 +9624,8 @@
       "effect": "{effect, select, widens {Pokazuje więcej} narrows {Pokazuje mniej} other {Bez zmian}}",
       "binding": "{change, select, added {{name} - nowe} removed {{name} - usunięte} other {{name}}}",
       "removedReads": "Nie używa już tabeli {table}.",
-      "change": "{aspect, select, table {Tabela: {before} -> {after}} field {{change, select, added {Dodano pole: {after}} removed {Usunięto pole: {before}} other {Zmieniono pole: {before} -> {after}}}} filter {{change, select, added {Dodano warunek: {after}} removed {Usunięto warunek: {before}} other {Zmieniono warunek: {before} -> {after}}}} sort {Kolejność: {before} -> {after}} limit {Limit: {before} -> {after}} linked {{change, select, added {Teraz używa też powiązanych tabel: {after}} other {Nie używa już powiązanych tabel: {before}}}} other {{change, select, added {Teraz używa też, w filtrze lub sortowaniu: {after}} other {Nie używa już: {before}}}}}"
+      "removedLog": "Nie czyta już logu workflow {workflow}.",
+      "change": "{aspect, select, table {Tabela: {before} -> {after}} field {{change, select, added {Dodano pole: {after}} removed {Usunięto pole: {before}} other {Zmieniono pole: {before} -> {after}}}} filter {{change, select, added {Dodano warunek: {after}} removed {Usunięto warunek: {before}} other {Zmieniono warunek: {before} -> {after}}}} sort {Kolejność: {before} -> {after}} limit {Limit: {before} -> {after}} linked {{change, select, added {Teraz używa też powiązanych tabel: {after}} other {Nie używa już powiązanych tabel: {before}}}} log {Log: {before} -> {after}} kind {Czyta: {before} -> {after}} other {{change, select, added {Teraz używa też, w filtrze lub sortowaniu: {after}} other {Nie używa już: {before}}}}}"
     },
     "publicData": {
       "title": "Dane na żywo pod tym publicznym linkiem",

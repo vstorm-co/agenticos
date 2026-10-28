@@ -47,6 +47,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Literal
+from urllib.parse import urlencode
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -62,6 +63,8 @@ from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.notification import NotificationEventType
 from app.db.models.rag_document import RAGDocument
+from app.db.models.workflow import Workflow
+from app.db.models.workflow_log_alert import WorkflowLogAlertRule
 from app.repositories import agent as agent_repo
 from app.repositories import agent_run as agent_run_repo
 from app.repositories import group as group_repo
@@ -1341,6 +1344,59 @@ class NotificationService:
                 render_context=render_context,
                 organization_id=artifact.organization_id,
             )
+
+    async def workflow_log_alert(
+        self,
+        rule: WorkflowLogAlertRule,
+        workflow: Workflow,
+        *,
+        firing_id: UUID,
+        count: int,
+    ) -> None:
+        """A workflow's log crossed a rule's threshold: told to the rule's audience.
+
+        Names the workflow, the rule and how many lines matched, never the lines - the
+        Logs page the link opens shows them, to whoever may still view the workflow.
+        The audience resolves as an agent alert's does (`admins`, `owner`, `chosen`):
+        the owner and the chosen members only while they still belong.
+        """
+        recipients = await self._audience_ids(
+            AlertSpec(
+                to=[AlertAudience(audience) for audience in rule.audience],
+                user_ids=list(rule.user_ids),
+            ),
+            organization_id=workflow.organization_id,
+            owner_user_id=workflow.owner_user_id,
+            initiator_user_id=None,
+        )
+        if not recipients:
+            return
+        query: list[tuple[str, str]] = []
+        if rule.node_instance_id is not None:
+            query.append(("step", str(rule.node_instance_id)))
+        query.extend(("outcome", outcome) for outcome in rule.outcomes)
+        path = self._link(
+            f"/workflows/{workflow.id}/logs?{urlencode(query)}", workflow.organization_id
+        )
+        minutes = rule.window_minutes
+        window = f"{minutes // 60} hours" if minutes >= 120 else f"{minutes} minutes"
+        await self._center.write(
+            recipients=sorted(recipients),
+            event_type=NotificationEventType.WORKFLOW_LOG_ALERT,
+            occurrence_id=str(firing_id),
+            summary=(
+                f"{rule.name}: {count} {'occurrence' if count == 1 else 'occurrences'} in the log "
+                f"of {workflow.name} in the last {window}."
+            ),
+            context_url=path,
+            render_context={
+                "workflow_id": str(workflow.id),
+                "rule_id": str(rule.id),
+                "app_name": settings.PROJECT_NAME,
+                "page_url": absolute_context_url(path),
+            },
+            organization_id=workflow.organization_id,
+        )
 
     def _link(self, path: str, organization_id: UUID) -> str:
         """A console path that says which organization it is about.

@@ -62,6 +62,8 @@ class NotificationEventType(enum.StrEnum):
     CAPABILITY_REQUESTED = "capability_requested"
     SUGGESTION = "suggestion"
     FINDING = "finding"
+    # A workflow's log crossed an alert rule's threshold in its window.
+    WORKFLOW_LOG_ALERT = "workflow_log_alert"
 
 
 class NotificationChannel(enum.StrEnum):
@@ -157,7 +159,7 @@ class Notification(Base, TimestampMixin):
             "'budget_warning', 'mcp_server_down', 'mcp_server_recovered', "
             "'background_task_paused', 'workflow_notification', "
             "'artifact_owner_changed', 'artifact_share_requested', "
-            "'capability_requested', 'suggestion', 'finding')",
+            "'capability_requested', 'suggestion', 'finding', 'workflow_log_alert')",
             name="ck_notifications_event_type",
         ),
         # The dedup guarantee (Decision 2): a retried trigger for the same fact,

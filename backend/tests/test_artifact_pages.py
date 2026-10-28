@@ -591,7 +591,11 @@ class TestRestoringBindings:
 
         append, reresolve, members = await self._restore(owner, artifact, moved_on)
 
-        assert reresolve.await_args.kwargs == {"person": owner, "owner": owner}
+        assert reresolve.await_args.kwargs == {
+            "person": owner,
+            "owner": owner,
+            "workflow_ids": frozenset(),
+        }
         members.assert_not_awaited()
         assert append.await_args.kwargs["bindings"] == [moved_on.model_dump(mode="json")]
 
@@ -606,7 +610,11 @@ class TestRestoringBindings:
             admin, artifact, _stored_binding(), owner=owner_now
         )
 
-        assert reresolve.await_args.kwargs == {"person": admin, "owner": owner_now}
+        assert reresolve.await_args.kwargs == {
+            "person": admin,
+            "owner": owner_now,
+            "workflow_ids": frozenset(),
+        }
         assert members.await_args.kwargs["user_id"] == artifact.owner_user_id
 
     @pytest.mark.security

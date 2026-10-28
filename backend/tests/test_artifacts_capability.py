@@ -58,6 +58,9 @@ from app.schemas.artifact import (
     BindingData,
     BindingDisclosure,
     BindingRequest,
+    WorkflowLogData,
+    WorkflowLogDisclosure,
+    WorkflowLogRequest,
 )
 from app.services.artifact import (
     ARTIFACT_LIBRARY,
@@ -242,6 +245,7 @@ class TestPublishing:
         assert parsed is not None
         assert parsed.bindings == echo
         assert json.loads(result)["bindings"]["tickets"] == {
+            "kind": "table",
             "table": "Support tickets",
             "filters": ['Status is "Open"'],
             "sort": "when created, descending",
@@ -251,6 +255,31 @@ class TestPublishing:
                 "band": "Pay band: formula over Salary, Level",
             },
         }
+
+    async def test_a_workflow_log_binding_is_sent_and_echoed_in_words(self) -> None:
+        requested = {
+            "errors": WorkflowLogRequest(kind="workflow_log", workflow="Order intake", lines=20)
+        }
+        echo: dict[str, BindingDisclosure | WorkflowLogDisclosure | str] = {
+            "errors": WorkflowLogDisclosure(
+                workflow="Order intake",
+                filters=["test runs left out"],
+                reads="the newest 20 lines, newest first",
+            )
+        }
+        tool = build_artifacts_toolset(table_grants={}).tools["publish_artifact"].function
+        with patch(PUBLISH, new=AsyncMock(return_value=_published(bindings=echo))) as publish:
+            result = await tool(
+                _ctx(_deps(run_person=uuid.uuid4())),
+                name="r",
+                content="<p>x</p>",
+                bindings=requested,
+            )
+
+        assert publish.await_args.kwargs["bindings"] == requested
+        parsed = parse_published_artifact(result)
+        assert parsed is not None and parsed.bindings == echo
+        assert json.loads(result)["bindings"]["errors"]["kind"] == "workflow_log"
 
     @pytest.mark.parametrize(
         ("script", "kit", "warned"),
@@ -1115,6 +1144,24 @@ class TestPreviewing:
         assert "- hidden: unavailable (creator_lost_access)" in report
         assert "- moved: unavailable (source_changed: Status)" in report
         assert "- gone: unavailable\n" in report
+
+    async def test_a_workflow_log_binding_says_its_lines_or_its_days(self) -> None:
+        bindings = {
+            "lines": WorkflowLogData(status="ok", truncated=False, count=1, records=[{"id": "x"}]),
+            "line": WorkflowLogData(status="ok", truncated=False, count=2, records=[]),
+            "days": WorkflowLogData(
+                status="ok", truncated=False, count=7, days=[], total=12, window_days=7, tz="UTC"
+            ),
+            "gone": WorkflowLogData(
+                status="unavailable", reason="creator_lost_access", truncated=False, count=0
+            ),
+        }
+        result, _, _ = await _previewed(_preview(bindings=bindings), _drawn())
+        report = result.return_value
+        assert "- lines: 1 line\n" in report
+        assert "- line: 2 lines\n" in report
+        assert "- days: 12 log lines over 7 days\n" in report
+        assert "- gone: unavailable (creator_lost_access)" in report
 
     async def test_data_that_was_not_read_says_why(self) -> None:
         preview = _preview(bindings={}, data_note="This conversation is a group chat.")

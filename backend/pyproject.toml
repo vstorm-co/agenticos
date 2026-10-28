@@ -916,6 +916,7 @@ include = [
     "app/services/artifact.py",
     "app/services/artifact_actions.py",
     "app/services/artifact_bindings.py",
+    "app/services/artifact_log_bindings.py",
     "app/services/artifact_consent.py",
     "app/services/artifact_diff.py",
     "app/services/artifact_lint.py",
@@ -1117,6 +1118,12 @@ include = [
     "app/db/models/workflow_log_entry.py",
     "app/repositories/workflow_log_entry.py",
     "app/schemas/workflow_log_entry.py",
+    # Alert rules on that log, and the worker's count of each over its window.
+    "app/db/models/workflow_log_alert.py",
+    "app/repositories/workflow_log_alert.py",
+    "app/schemas/workflow_log_alert.py",
+    "app/services/workflow_log_alerts.py",
+    "app/api/routes/v1/workflow_log_alerts.py",
     # A table's triggers (#1785): the workflows a record added to it starts,
     # and every refusal between the two - before activation, a filter miss, a
     # cycle, a revoked principal - is a run that must not start.
@@ -1547,6 +1554,7 @@ include = [
     "app/services/artifact.py",
     "app/services/artifact_actions.py",
     "app/services/artifact_bindings.py",
+    "app/services/artifact_log_bindings.py",
     "app/services/artifact_consent.py",
     "app/services/artifact_diff.py",
     "app/services/artifact_lint.py",
@@ -1748,6 +1756,12 @@ include = [
     "app/db/models/workflow_log_entry.py",
     "app/repositories/workflow_log_entry.py",
     "app/schemas/workflow_log_entry.py",
+    # Alert rules on that log, and the worker's count of each over its window.
+    "app/db/models/workflow_log_alert.py",
+    "app/repositories/workflow_log_alert.py",
+    "app/schemas/workflow_log_alert.py",
+    "app/services/workflow_log_alerts.py",
+    "app/api/routes/v1/workflow_log_alerts.py",
     # A table's triggers (#1785): the workflows a record added to it starts,
     # and every refusal between the two - before activation, a filter miss, a
     # cycle, a revoked principal - is a run that must not start.

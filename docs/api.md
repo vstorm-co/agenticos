@@ -311,6 +311,53 @@ iterations included, each with its `scope_path`, status, tries, cost and the typ
 error it last failed with, and `GET /api/v1/workflow-runs/{id}/graph` returns the
 graph the run executes: its version's, or a test run's draft snapshot.
 
+### Reading a workflow's log { #reading-a-workflows-log }
+
+The lines a workflow's [Quick Logs](workflows.md#the-logs-page) wrote can be read from
+outside the console - by a script, a spreadsheet, or a dashboard tool such as Grafana or
+Metabase - with an organization API key holding `workflows:view`.
+
+A key reads the lines of public-origin runs, including runs started by keys: those
+started by any organization key, those started from outside (a webhook, form, channel
+message, Gmail, Outlook or GitHub event) and any run in a chain one of those started.
+Lines of runs a member, a schedule, a table record, a chat, an agent or an app started
+are not included, so a scheduled workflow's log reads empty through a key and its counts
+differ from the console's. A workflow of another organization, or one the key's member
+may not view, answers `404`; a key without `workflows:view` is refused.
+
+```bash
+# The newest lines, 100 at a time (the most a page holds); test runs are left out
+curl "$BASE/api/v1/workflows/$WORKFLOW_ID/logs?outcome=error&from=2026-10-01T00:00:00Z&limit=100" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID"
+
+# How many lines each day left, by outcome, over the last 30 days in Warsaw's days
+curl "$BASE/api/v1/workflows/$WORKFLOW_ID/logs/summary?days=30&tz=Europe/Warsaw" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID"
+```
+
+`GET /api/v1/workflows/{id}/logs` lists newest first - by `created_at`, then by `seq`,
+the position a line took in the log as it was written. Narrow it with `node_instance_id`
+(one step), `outcome` (a port, or `error`), `run` (a run id, or its first 4 or more
+characters), `q` (text in the message) and the time window `from` (inclusive) and `to`
+(exclusive); `include_test=true` adds the lines test runs wrote. `skip` and `limit` page
+through it - `limit` is at most 100 - and `total` counts every matching line, so a
+client pages until `skip` reaches it.
+
+`GET /api/v1/workflows/{id}/logs/summary` is the data a chart wants: for the last
+`days` days (7, 30 or 90, today included) it answers one entry per day, oldest first,
+with the count each outcome left, and a day with no lines is still present. `tz`, an
+IANA name, sets whose days are counted and is UTC by default; the other filters are the
+list's. To pull it into a dashboard tool, point a JSON data source at the route with the
+key as a bearer header and read `by_day`.
+
+`GET /api/v1/workflow-runs/{id}/logs` lists one run's lines oldest first by `seq`
+(`limit` up to 500), and `GET /api/v1/workflow-logs` the newest lines across every
+workflow the key may view, each with its workflow's name, plus how many lines each
+outcome left in the last 24 hours. The alert rules on a log are not part of the public
+API.
+
 ### Exporting and importing a workflow { #exporting-and-importing-a-workflow }
 
 `GET /api/v1/workflows/{id}/export` (`workflows:view`) returns the draft as a

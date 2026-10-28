@@ -1,5 +1,6 @@
 """How two versions' page queries are compared, and what each difference is marked (#1974)."""
 
+from typing import Any
 from uuid import NAMESPACE_OID, UUID, uuid5
 
 from app.schemas.artifact import (
@@ -10,9 +11,11 @@ from app.schemas.artifact import (
     DisclosedField,
     DisclosedFilter,
     DisclosedSort,
+    WorkflowLogBinding,
+    WorkflowLogParts,
 )
 from app.schemas.virtual_table import RecordFilter, RecordSort
-from app.services.artifact_diff import BindingView, diff_bindings
+from app.services.artifact_diff import BindingView, LogView, diff_bindings
 
 
 def _id(name: str, *, as_of: str = "") -> UUID:
@@ -251,3 +254,50 @@ class TestWhatEachChangeDoes:
     def test_a_binding_that_only_narrows_is_marked_so(self) -> None:
         review = _one(_parts(limit=20), _parts(limit=10))
         assert review.effect == "narrows"
+
+
+def _log(**changes: Any) -> LogView:
+    """A workflow-log binding with its words; `changes` replace what the base one reads."""
+    binding = WorkflowLogBinding(name="orders", workflow_id=_id("Intake"), lines=10, **changes)
+    parts = WorkflowLogParts(
+        workflow="Intake", outcomes=[], include_test=False, mode="lines", lines=10
+    )
+    return LogView(binding, parts)
+
+
+class TestWorkflowLogBindings:
+    """A log has no columns to compare, so any difference widens."""
+
+    def test_the_same_log_reads_the_same(self) -> None:
+        reviews, unchanged = diff_bindings({"orders": _log()}, {"orders": _log()})
+
+        assert (reviews, unchanged) == ([], ["orders"])
+
+    def test_any_change_to_it_widens_and_carries_both_wordings(self) -> None:
+        reviews, unchanged = diff_bindings({"orders": _log()}, {"orders": _log(include_test=True)})
+
+        [review] = reviews
+        assert (review.change, review.effect, unchanged) == ("changed", "widens", [])
+        [change] = review.changes
+        assert (change.aspect, change.change, change.effect) == ("log", "changed", "widens")
+        assert isinstance(change.before, WorkflowLogParts)
+        assert isinstance(change.after, WorkflowLogParts)
+
+    def test_a_log_added_or_removed_is_worded_whole(self) -> None:
+        added, _ = diff_bindings({}, {"orders": _log()})
+        removed, _ = diff_bindings({"orders": _log()}, {})
+
+        assert [(r.change, r.effect) for r in added] == [("added", "widens")]
+        assert [(r.change, r.effect) for r in removed] == [("removed", "narrows")]
+        assert isinstance(added[0].parts, WorkflowLogParts)
+
+    def test_a_binding_that_changes_kind_widens_either_way(self) -> None:
+        [to_log] = diff_bindings({"orders": _view()}, {"orders": _log()})[0]
+        [to_table] = diff_bindings({"orders": _log()}, {"orders": _view()})[0]
+
+        [change] = to_log.changes
+        assert (change.aspect, change.effect, change.before) == ("kind", "widens", "Orders")
+        assert isinstance(change.after, WorkflowLogParts)
+        [back] = to_table.changes
+        assert isinstance(back.before, WorkflowLogParts) and back.after == "Orders"
+        assert to_log.effect == to_table.effect == "widens"

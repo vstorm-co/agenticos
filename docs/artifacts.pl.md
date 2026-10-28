@@ -1,5 +1,5 @@
 ---
-source_sha: "ae0585c30a8a"
+source_sha: "fa09f74b62c2"
 ---
 
 # Aplikacje { #artifacts }
@@ -150,6 +150,76 @@ wywołanie co `agenticos.onData`. Strona z bindingami, której skrypt nigdy nie 
 o dane, nadal się publikuje, z
 [ostrzeżeniem](#the-page-contract-and-the-publish-warnings).
 
+### Log workflow jako dane na żywo { #a-workflows-log }
+
+Binding może też czytać log [workflow](workflows.md) - wiersze, które zapisały Quick Logi
+jego kroków - żeby zbudować dashboard na stronie, która pozostaje aktualna. Nadaj bindingowi
+`"kind": "workflow_log"` (binding bez `kind` czyta tabelę, jak każdy opublikowany
+dotąd). To drugi rodzaj zapytania strony i obowiązują go te same reguły: jest rozwiązywany
+przy publikacji, zamrażany, czytany z dostępem [właściciela](#who-owns-a-page) strony
+i dopiero po [zgodzie](#consent-the-owner-decides-who-reads-the-data).
+
+| W bindingu | Znaczenie |
+|---|---|
+| `workflow` | Id workflow albo jego dokładna nazwa. Musi to być workflow związany w capability Workflows agenta, jak przy [akcji](#actions), a osoba, w imieniu której działa run, musi móc go zobaczyć - tak samo właściciel strony, gdy publikacja zmienia binding |
+| `step` | Opcjonalnie: tylko wiersze tego kroku, po id kroku, jego etykiecie albo - dla kroku bez etykiety - nazwie jego rodzaju, np. `Send email`, gdy jest jednoznaczna. Krok musi być w wersji aktywnej albo w wersji roboczej. Krok bez Quick Log jest dozwolony, a wynik publikacji zaznacza, że nie odczyta żadnych wierszy |
+| `outcomes` | Opcjonalnie: tylko wiersze z jednym z tych wyników - portem albo `error`. Pasuje którykolwiek, a wiersz z kilkoma portami, zapisany jako `a, b`, liczy się do każdego |
+| `run` | Opcjonalnie: id runa albo jego pierwsze 4 lub więcej znaków |
+| `include_test` | Także wiersze z uruchomień testowych. Domyślnie wyłączone |
+| `lines` | Podaj najnowsze N wierszy, od najnowszego. Do 500 w jednym bindingu; własny endpoint logu stronicuje po 100 |
+| `per_day` z `days` i `tz` | Podaj zamiast tego liczbę wierszy na dzień i wynik: `days` to 7, 30 albo 90, licząc dzisiejszy, a `tz` nazwa IANA, według której liczone są dni (domyślnie UTC) |
+
+Podaj `lines` albo `per_day`, nie oba. To filtry i limity `GET /workflows/{id}/logs`
+i `GET /workflows/{id}/logs/summary`, obsługiwane tym samym kodem. Workflow i krok są
+rozwiązywane do id przy publikacji i zapisywane z filtrami: późniejsza zmiana nazwy workflow
+albo kroku niczego na stronie nie zmienia. Nieznane workflow, takie, którego agent nie wiąże albo którego osoba nie może
+zobaczyć (komunikat brzmi tak samo, więc odmowa nigdy nie potwierdza, że istnieje), nieznany
+krok, filtr, który nie jest spełniony, albo limit ponad 500 odrzuca publikację, a komunikat
+mówi, o co chodzi.
+
+Strona dostaje go tym samym wywołaniem `agenticos.onData`. Z `lines` binding przychodzi jako
+`status`, `records` (każdy `{id, created_at, step, outcome, status, message, run_id}`),
+`count`, `truncated` i `limit`, ucinany limitami rekordów i bajtów strony jak tabela.
+Z `per_day` przychodzi jako `status`, `days` (każdy dzień okna, od najstarszego, każdy
+`{day, counts: {outcome: n}}`), `total`, `window_days` i `tz`, bez limitu rekordów.
+
+```js
+agenticos.onData((data) => {
+  const week = data.errors_per_day;
+  if (week.status !== "ok") return;
+  AO.chart("#errors", {
+    type: "bar",
+    data: {
+      labels: week.days.map((d) => d.day),
+      datasets: [{ label: "Errors", data: week.days.map((d) => d.counts.error ?? 0) }],
+    },
+  });
+});
+```
+
+opublikowany z `bindings: {"errors_per_day": {"kind": "workflow_log", "workflow": "Order intake", "outcomes": ["error"], "per_day": true, "days": 30, "tz": "Europe/Warsaw"}}`.
+
+Wynik publikacji i zgoda właściciela mówią to słowami: które workflow, jakie filtry i czy
+podaje najnowsze N wierszy, czy liczby na dzień z D dni.
+
+Każda zmiana bindingu logu -
+workflow, kroku, wyników, runa, wierszy testowych, `lines` albo `per_day`, limitu, dni albo
+strefy czasowej - zmienia zapytania strony, więc wymaga ponownej zgody właściciela,
+a [przegląd zmiany danych](#consent-the-owner-decides-who-reads-the-data) oznacza ją jako
+pokazującą więcej.
+
+Log nie ma kolumn, więc nie może się rozjechać; zamiast tego binding jest
+`unavailable`, gdy właściciel nie może już zobaczyć workflow (`creator_lost_access`) albo
+kroku już w nim nie ma (`source_changed`, z nazwą `step`). Dwa limity różnią się od limitów
+tabeli: strona czytająca log **nie może mieć publicznego linku** - publikacja bindingu logu
+jest odrzucana, gdy link jest włączony, linku nie można włączyć ani przypiąć do wersji,
+która czyta log, a takiej wersji nie można przywrócić, gdy link jest włączony. Binding logu
+nigdy nie jest serwowany na stronie publicznej.
+
+Role, które czytają każdą tabelę, czytają też log strony bez zgody tylko wtedy, gdy
+widzą każde workflow, co spełnia każda wbudowana rola czytająca każdą tabelę; rola, która
+tego nie spełnia, czeka na zgodę właściciela jak edytor.
+
 ### Kto co widzi { #who-sees-what }
 
 To, którą wersję oglądający dostaje i czy jej dane są dla niego czytane, zależy od
@@ -176,9 +246,10 @@ jest niedostępnych.
 | Powód | Co się stało |
 |---|---|
 | `creator_gone` | Właściciel strony nie jest już aktywnym członkiem |
-| `creator_lost_access` | Właściciel nie może już czytać tabeli, do której sięga zapytanie |
-| `source_changed` | Znaczenie kolumny się zmieniło (jej typ, formuła, cel linku albo lookupu, agregat, zarchiwizowana albo przywrócona opcja), albo zarchiwizowano kolumnę lub tabelę, albo powiązana tabela etykietuje teraz swoje rekordy inną kolumną. Podawana jest bieżąca etykieta kolumny |
+| `creator_lost_access` | Właściciel nie może już czytać tabeli, do której sięga zapytanie, ani zobaczyć workflow, którego log czyta |
+| `source_changed` | Kroku bindingu logu nie ma już w workflow (podawany jest `step`), albo znaczenie kolumny się zmieniło (jej typ, formuła, cel linku albo lookupu, agregat, zarchiwizowana albo przywrócona opcja), albo zarchiwizowano kolumnę lub tabelę, albo powiązana tabela etykietuje teraz swoje rekordy inną kolumną. Podawana jest bieżąca etykieta kolumny |
 | `awaiting_consent` | Właściciel nie potwierdził udostępnienia danych tej wersji albo zostało wycofane |
+| `public_link` | Binding logu workflow został zażądany na stronie publicznej, która nigdy go nie serwuje |
 
 Jeden binding, który staje się `unavailable`, nie psuje pozostałych. Strona nigdy nie
 jest blokowana przez zmianę tabeli: nic nie powstrzymuje zmiany kolumny, a binding

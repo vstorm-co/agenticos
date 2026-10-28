@@ -53,6 +53,7 @@ class TestContentGate:
             NotificationEventType.ANNOUNCEMENT: ContentGate.ANNOUNCEMENT_AUDIENCE,
             NotificationEventType.ARTIFACT_OWNER_CHANGED: ContentGate.ARTIFACTS_VIEW,
             NotificationEventType.ARTIFACT_SHARE_REQUESTED: ContentGate.ARTIFACTS_VIEW,
+            NotificationEventType.WORKFLOW_LOG_ALERT: ContentGate.WORKFLOWS_VIEW,
         }
         for event_type, gate in expected.items():
             assert content_gate_for(event_type) is gate

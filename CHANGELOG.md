@@ -21,6 +21,44 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **A published page can show a workflow's log live.** `publish_artifact` takes a
+  second kind of binding, `"kind": "workflow_log"`: a workflow (id or exact name), an
+  optional step, outcomes, run and `include_test`, and either `lines` (the newest N, at
+  most 500) or `per_day` (7, 30 or 90 days in an IANA time zone) - the filters and limits
+  of `GET /workflows/{id}/logs` and `/logs/summary`. It is resolved at publish and frozen,
+  read with the page owner's access to the workflow after the owner's consent, worded in
+  the publish result, the consent dialog and the data change review (any change to it is a
+  widening), and `unavailable` when the owner can no longer view the workflow or the step
+  is gone. A page that reads a log cannot have a public link. Bindings published before
+  this are tables and need no change.
+- **Read a workflow's log with an organization API key.** `GET /workflows/{id}/logs`,
+  `GET /workflows/{id}/logs/summary`, `GET /workflow-runs/{id}/logs` and
+  `GET /workflow-logs` are part of the public API, in `/public/openapi.json`, for building
+  a dashboard in Grafana, Metabase or a script. A key needs `workflows:view` and reads the
+  lines of public-origin runs, as the runs list does: runs started by keys or from outside
+  (webhook, form, channel, mail, GitHub), not those a member, schedule, table record, chat
+  or agent started. The alert rule routes stay session-only.
+- **Alert people when a workflow's log crosses a threshold.** A rule on a workflow counts
+  the real-run lines its Quick Logs wrote that match chosen outcomes, optionally one step
+  and some message text, and tells its audience when at least N appear within 5, 15, 30 or
+  60 minutes, 4 or 24 hours - at most once per window, never for a test run. The audience
+  is `admins` (owners, admins and the deployment's app admins), the workflow's `owner` and
+  `chosen` members who still belong, delivered at the bell and by email per each person's
+  notification preferences (the new `workflow_log_alert` event) with a link to the Logs
+  page filtered to the rule's step and outcomes. `GET`/`POST /workflows/{id}/log-alerts`
+  and `PATCH`/`DELETE /workflows/{id}/log-alerts/{rule_id}` manage the rules: listed for
+  whoever may view the workflow, changed by whoever may edit it, with outcomes and step
+  checked against the workflow's logging steps. A per-minute worker job evaluates them.
+- **A Workflow logs dashboard card.** It sits in the add-a-widget catalog, for whoever may
+  view workflows, and shows the newest lines the Quick Logs of the workflows they may view
+  wrote (real runs only) with how many lines the last 24 hours added and how many were
+  errors. A line links to its run and the workflow's name to its Logs page.
+  `GET /workflow-logs` serves it, gated on `workflows:view`; a key may call it too.
+- **A workflow's log counted per day.** `GET /workflows/{id}/logs/summary` answers how many
+  lines the log gained each day over the last 7, 30 or 90 days, split by outcome, with days
+  counted in a given time zone, for building a dashboard on the log. It is gated like the
+  list, and a key may call it (`days` of 7, 30 or 90; `tz`, an IANA name, UTC by default;
+  step, outcome, run, search and test runs as in the list).
 - **A mail action added below its trigger starts bound to it.** Adding Gmail **Create draft**
   or **Send message** under a Gmail trigger binds `thread_id`, `in_reply_to` (from
   `rfc_message_id`) and, for a send, `to` (from `sender`); Outlook's reply drafts bind
@@ -55,8 +93,8 @@ Two things are versioned separately from this file and worth knowing about:
   at publish. Nothing is written for a skipped or switched-off step or one a retry
   reuses. `GET /api/v1/workflows/{id}/logs` lists a workflow's lines (filters,
   paging; test runs only with `include_test`) and
-  `GET /api/v1/workflow-runs/{id}/logs` a run's. Both routes are for signed-in
-  members only: API keys are refused. The Logs page also filters by run: paste a run
+  `GET /api/v1/workflow-runs/{id}/logs` a run's. Both routes are
+  part of the public API. The Logs page also filters by run: paste a run
   id or type its first characters into **Run** (the route's `run`: 4 or more
   characters of the id, anything else a 422), fill it from **Show only this run** on
   a line, or open it from **See in Logs** on a run's page. Lines go with their run when retention removes it.

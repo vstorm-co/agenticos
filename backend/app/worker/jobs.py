@@ -383,6 +383,7 @@ WORKFLOW_RECONCILE = _sweep("workflow-reconcile", timeout=timedelta(minutes=5))
 WORKFLOW_SCHEDULES_CHECK = _sweep("workflow-schedules-check", timeout=timedelta(minutes=5))
 WORKFLOW_TABLE_TRIGGERS = _sweep("workflow-table-triggers", timeout=timedelta(minutes=5))
 WORKFLOW_RUN_RETENTION = _sweep("workflow-run-retention", timeout=timedelta(hours=2))
+WORKFLOW_LOG_ALERTS = _sweep("workflow-log-alerts", timeout=timedelta(minutes=5))
 SWEEP_GENERATED_MEDIA = _sweep("sweep-generated-media")
 PROACTIVE_SWEEP = _sweep("proactive-sweep")
 WATCH_SWEEP = _sweep("watch-sweep")
@@ -428,6 +429,7 @@ TASKS: dict[str, TaskKind] = {
         WORKFLOW_SCHEDULES_CHECK,
         WORKFLOW_TABLE_TRIGGERS,
         WORKFLOW_RUN_RETENTION,
+        WORKFLOW_LOG_ALERTS,
         SWEEP_GENERATED_MEDIA,
         PROACTIVE_SWEEP,
         WATCH_SWEEP,

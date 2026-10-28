@@ -13,6 +13,7 @@ import type {
   ArtifactDetail as ArtifactDetailData,
   ArtifactShareRequest,
   ArtifactVersion,
+  AnyBindingData,
   BindingData,
 } from "@/types/artifact";
 
@@ -212,7 +213,7 @@ function bound(overrides: Partial<BindingData> = {}): BindingData {
 const MISSING = bound({ status: "unavailable", count: 0 });
 
 /** A data query that answered, as the frame reads it. */
-function dataQuery(bindings: Record<string, BindingData>) {
+function dataQuery(bindings: Record<string, AnyBindingData>) {
   const data: ArtifactData = { bindings, current: true, read_at: "2026-10-20T10:04:00Z" };
   return { ...NO_DATA, data, dataUpdatedAt: 1 };
 }
@@ -972,28 +973,66 @@ describe("a live page in the viewer", () => {
         stock: bound({ status: "unavailable", count: 0, reason: "timeout" }),
         orders: MISSING,
         returns: bound({ status: "unavailable", count: 0, reason: "creator_lost_access" }),
+        public: {
+          kind: "workflow_log",
+          status: "unavailable",
+          reason: "public_link",
+          truncated: false,
+          limit: null,
+          count: 0,
+          records: [],
+          days: null,
+          total: null,
+          window_days: null,
+          tz: null,
+        },
+        errors: {
+          kind: "workflow_log",
+          status: "unavailable",
+          reason: "source_changed",
+          changed: "step",
+          truncated: false,
+          limit: null,
+          count: 0,
+          records: [],
+          days: null,
+          total: null,
+          window_days: null,
+          tz: null,
+        },
       }),
     );
     open(
       livePage({
         can_edit: true,
-        bindings: [{ name: "escalations", table_id: "t1", fields: ["subject"] }],
+        bindings: [
+          { name: "escalations", table_id: "t1", fields: ["subject"] },
+          { name: "errors", kind: "workflow_log", workflow_id: "w1", mode: "lines" },
+          { name: "public", kind: "workflow_log", workflow_id: "w1", mode: "lines" },
+        ],
       }),
     );
     const line = screen.getByRole("status");
-    expect(line).toHaveTextContent("4 of 5 sources unavailable to you.");
+    expect(line).toHaveTextContent("6 of 7 sources unavailable to you.");
     expect(line).toHaveTextContent(
       "escalations: Priority changed since it was published - publish the page again",
     );
     expect(line).toHaveTextContent("stock: it took too long to load");
     expect(line).toHaveTextContent("orders: it could not be loaded");
     expect(line).toHaveTextContent(
-      "returns: the page's owner no longer has access to a table it uses",
+      "returns: the page's owner no longer has access to a table or workflow it uses",
     );
+    expect(line).toHaveTextContent(
+      "errors: step changed since it was published - publish the page again",
+    );
+    expect(line).toHaveTextContent("public: a workflow's log is never shown on a public link");
     // Only a binding the page's detail names can be opened from here.
     const links = within(line).getAllByRole("link", { name: "Open the table" });
     expect(links).toHaveLength(1);
     expect(links[0]).toHaveAttribute("href", "/tables/t1");
+    const workflows = within(line).getAllByRole("link", { name: "Open the workflow" });
+    expect(workflows).toHaveLength(2);
+    expect(workflows[0]).toHaveAttribute("href", "/workflows/w1");
   });
 
   it("says live data is only on the current version, and opens it", async () => {

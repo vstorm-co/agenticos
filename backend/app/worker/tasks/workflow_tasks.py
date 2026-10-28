@@ -209,6 +209,30 @@ async def consume_table_triggers() -> int:
     return len(admitted)
 
 
+async def check_workflow_log_alerts() -> int:
+    """Heartbeat: judge every enabled log alert rule not holding off from its last alert, each
+    in a transaction of its own.
+
+    A rule that cannot be judged - a notification write failed, say - is logged and left for the next tick; it never stops
+    the rules after it, and its own rows roll back with it.
+    """
+    from app.services.workflow_log_alerts import WorkflowLogAlertService
+
+    async with get_worker_db_context() as db:
+        rule_ids = await WorkflowLogAlertService(db).due_rule_ids(now=datetime.now(UTC))
+    fired = 0
+    for rule_id in rule_ids:
+        try:
+            async with get_worker_db_context() as db:
+                if await WorkflowLogAlertService(db).evaluate(rule_id, now=datetime.now(UTC)):
+                    fired += 1
+        except Exception:
+            logger.exception("workflow_log_alert_failed", extra={"rule_id": str(rule_id)})
+    if fired:
+        logger.info("workflow_log_alerts: fired %d rule(s)", fired)
+    return fired
+
+
 # Runs removed per transaction, and transactions per sweep: a workflow whose
 # retention was just shortened clears over a few days rather than in one hold.
 RETENTION_BATCH = 200

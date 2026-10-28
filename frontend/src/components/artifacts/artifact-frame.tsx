@@ -16,7 +16,13 @@ import {
 } from "@/hooks/use-artifact-actions";
 import { useArtifactData, useArtifactReasons, useArtifactView } from "@/hooks/use-artifacts";
 import { cn } from "@/lib/utils";
-import type { ArtifactActionView, ArtifactData, BindingData } from "@/types/artifact";
+import type {
+  AnyBindingData,
+  ArtifactActionView,
+  ArtifactData,
+  BindingData,
+  WorkflowLogData,
+} from "@/types/artifact";
 
 /**
  * What the frame lets the page do. Never `allow-same-origin`, never popups.
@@ -84,7 +90,8 @@ export function readyFrom(
 }
 
 /** A binding as the page receives it. */
-type PageBinding = Omit<BindingData, "reason" | "changed">;
+type PageBinding =
+  Omit<BindingData, "reason" | "changed"> | Omit<WorkflowLogData, "reason" | "changed">;
 
 /**
  * The bindings without `reason` and `changed`, which say why a source is
@@ -95,7 +102,7 @@ type PageBinding = Omit<BindingData, "reason" | "changed">;
  * stays a key of the answer and never becomes its prototype, whatever publish
  * let through.
  */
-function forPage(bindings: Record<string, BindingData>): Record<string, PageBinding> {
+function forPage(bindings: Record<string, AnyBindingData>): Record<string, PageBinding> {
   return Object.fromEntries(
     Object.entries(bindings).map(([name, { reason: _reason, changed: _changed, ...binding }]) => [
       name,
@@ -138,7 +145,7 @@ function freshHandshake(nonce: string): Handshake {
 export function useDataBridge(
   frame: React.RefObject<HTMLIFrameElement | null>,
   nonce: string,
-  payload: Record<string, BindingData> | undefined,
+  payload: Record<string, AnyBindingData> | undefined,
   dataUpdatedAt: number,
 ): { subscribes: boolean; onLoad: () => void } {
   const handshake = useRef<Handshake>(freshHandshake(nonce));
@@ -149,7 +156,7 @@ export function useDataBridge(
       if (handshake.current.nonce !== nonce) handshake.current = freshHandshake(nonce);
       return handshake.current;
     };
-    const post = (state: Handshake, bindings: Record<string, BindingData>) => {
+    const post = (state: Handshake, bindings: Record<string, AnyBindingData>) => {
       frame.current?.contentWindow?.postMessage(
         { type: DATA, n: nonce, bindings: forPage(bindings) },
         "*",
@@ -298,7 +305,7 @@ const NO_ACTIONS: ArtifactActionView[] = [];
  * What a page gets when its data cannot be read: no bindings, which it fills
  * in as unavailable at once rather than waiting out its own deadline.
  */
-const NO_DATA: Record<string, BindingData> = {};
+const NO_DATA: Record<string, AnyBindingData> = {};
 
 /** The address a framed page asked to open, read by a person before it opens. */
 export function LinkRequestDialog({

@@ -84,6 +84,8 @@ export default defineConfig({
         "src/components/dashboard/widgets/tables-widget.tsx",
         // The approval outcomes card.
         "src/components/dashboard/widgets/approval-outcomes.tsx",
+        // The workflow logs card.
+        "src/components/dashboard/widgets/workflow-logs.tsx",
         // The colour pass (2026-10-13): a person's four figures, and the cards
         // that gained faces and readable names.
         "src/components/dashboard/widgets/my-summary.tsx",

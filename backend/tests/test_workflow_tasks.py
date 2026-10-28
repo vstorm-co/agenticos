@@ -241,6 +241,50 @@ class TestWorkflowTableTriggers:
             assert await workflow_tasks.consume_table_triggers() == 0
 
 
+class TestWorkflowLogAlerts:
+    SERVICE = "app.services.workflow_log_alerts.WorkflowLogAlertService"
+
+    async def test_it_judges_each_enabled_rule_and_counts_the_ones_that_fired(self):
+        rules = [uuid.uuid4(), uuid.uuid4(), uuid.uuid4()]
+        service = MagicMock(
+            due_rule_ids=AsyncMock(return_value=rules),
+            evaluate=AsyncMock(side_effect=[True, False, True]),
+        )
+        with (
+            patch(f"{TASKS_PATH}.get_worker_db_context", return_value=_AsyncDBContext(MagicMock())),
+            patch(self.SERVICE, return_value=service),
+        ):
+            assert await workflow_tasks.check_workflow_log_alerts() == 2
+
+        assert [call.args[0] for call in service.evaluate.await_args_list] == rules
+
+    async def test_with_no_rule_enabled_nothing_is_judged(self):
+        service = MagicMock(due_rule_ids=AsyncMock(return_value=[]), evaluate=AsyncMock())
+        with (
+            patch(f"{TASKS_PATH}.get_worker_db_context", return_value=_AsyncDBContext(MagicMock())),
+            patch(self.SERVICE, return_value=service),
+        ):
+            assert await workflow_tasks.check_workflow_log_alerts() == 0
+
+        service.evaluate.assert_not_awaited()
+
+    async def test_a_rule_that_cannot_be_judged_is_logged_and_the_rest_still_are(self, caplog):
+        rules = [uuid.uuid4(), uuid.uuid4()]
+        service = MagicMock(
+            due_rule_ids=AsyncMock(return_value=rules),
+            evaluate=AsyncMock(side_effect=[RuntimeError("draft no longer validates"), True]),
+        )
+        with (
+            patch(f"{TASKS_PATH}.get_worker_db_context", return_value=_AsyncDBContext(MagicMock())),
+            patch(self.SERVICE, return_value=service),
+            caplog.at_level("ERROR"),
+        ):
+            assert await workflow_tasks.check_workflow_log_alerts() == 1
+
+        assert [record.message for record in caplog.records] == ["workflow_log_alert_failed"]
+        assert caplog.records[0].rule_id == str(rules[0])
+
+
 class TestWorkflowRunRetention:
     async def test_it_removes_batches_until_none_is_left_then_unlinks_their_files(self):
         first = uuid.uuid4()

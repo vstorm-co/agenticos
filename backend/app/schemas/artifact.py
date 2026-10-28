@@ -1,10 +1,20 @@
 """Schemas for published artifacts."""
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
+from pydantic import (
+    AfterValidator,
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Discriminator,
+    Field,
+    StringConstraints,
+    Tag,
+    TypeAdapter,
+)
 
 from app.schemas.base import BaseSchema
 from app.schemas.virtual_table import (
@@ -17,6 +27,7 @@ from app.schemas.virtual_table import (
     RecordSort,
     SortDirection,
 )
+from app.schemas.workflow_log_entry import LOG_SUMMARY_DAYS
 
 ArtifactMediaTypeLiteral = Literal["text/html", "text/markdown"]
 ConsentStateLiteral = Literal["not_needed", "pending", "consented", "declined", "withdrawn"]
@@ -58,6 +69,7 @@ class BindingRequest(BaseSchema):
 
     model_config = ConfigDict(extra="forbid")
 
+    kind: Literal["table"] = Field(default="table", description="Reads records of a table")
     view: UUID | str | None = Field(
         default=None, description="A saved view's id from `list_views`, or its exact name"
     )
@@ -70,6 +82,83 @@ class BindingRequest(BaseSchema):
     filters: list[BindingFilter] = Field(default_factory=list, max_length=MAX_FILTERS)
     sort: BindingSort | None = None
     limit: int | None = Field(default=None, ge=1)
+
+
+LOG_LINES_MAX = 500
+"""The most lines one binding serves."""
+
+
+def _log_days(value: int) -> int:
+    if value not in LOG_SUMMARY_DAYS:
+        raise ValueError(f"One of {', '.join(map(str, LOG_SUMMARY_DAYS))}")
+    return value
+
+
+LogDays = Annotated[
+    int, AfterValidator(_log_days), Field(json_schema_extra={"enum": list(LOG_SUMMARY_DAYS)})
+]
+"""A window the log's counts can cover, in days: one of `LOG_SUMMARY_DAYS`."""
+
+
+class WorkflowLogRequest(BaseSchema):
+    """A page query over a workflow's log as the model asks for it, before resolution.
+
+    Read with the same filters and limits as `GET /workflows/{id}/logs` and `.../logs/summary`:
+    either the newest `lines`, or the lines counted `per_day`, never both. The workflow and
+    the step are resolved to ids at publish and frozen with the filters.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["workflow_log"]
+    workflow: UUID | str = Field(
+        description="A workflow's id, or its exact name, that the page's owner may view"
+    )
+    step: UUID | str | None = Field(
+        default=None,
+        description="Only this step's lines: a step's id, or its label in the workflow's graph",
+    )
+    outcomes: list[Annotated[str, StringConstraints(max_length=256)]] = Field(
+        default_factory=list,
+        max_length=20,
+        description="Only lines that left by one of these - a port, or `error`; empty for all",
+    )
+    run: str | None = Field(
+        default=None,
+        description="Only this run's lines: a run id, or the 4 or more characters it starts with",
+    )
+    include_test: bool = Field(default=False, description="Lines written by test runs as well")
+    lines: int | None = Field(
+        default=None,
+        ge=1,
+        description="Serve the newest N lines, newest first. At most `LOG_LINES_MAX` (500)",
+    )
+    per_day: bool = Field(
+        default=False,
+        description="Serve the count of lines per day and outcome instead of lines",
+    )
+    days: LogDays | None = Field(
+        default=None, description="With `per_day`: how many days back, today included"
+    )
+    tz: str | None = Field(
+        default=None,
+        max_length=64,
+        description="With `per_day`: the IANA time zone whose days are counted; UTC when unset",
+    )
+
+
+def _request_kind(value: Any) -> str:
+    """A binding with no `kind` reads a table: what every stored one and older call says."""
+    if isinstance(value, dict):
+        return str(value.get("kind", "table"))
+    return str(getattr(value, "kind", "table"))
+
+
+AnyBindingRequest = Annotated[
+    Annotated[BindingRequest, Tag("table")] | Annotated[WorkflowLogRequest, Tag("workflow_log")],
+    Discriminator(_request_kind),
+]
+"""A page query as the model sends it: a table, or a workflow's log."""
 
 
 class BindingReach(BaseSchema):
@@ -102,6 +191,9 @@ class ArtifactBinding(BaseSchema):
     who opens the page.
     """
 
+    # Never written: a stored table binding has no `kind`, so a version published before
+    # there was a second kind keeps its bytes, its fingerprint and its owner's consent.
+    kind: Literal["table"] = Field(default="table", exclude=True)
     name: str
     table_id: UUID
     filters: list[RecordFilter] = Field(default_factory=list)
@@ -109,6 +201,43 @@ class ArtifactBinding(BaseSchema):
     limit: int
     fields: dict[str, UUID]
     reach: BindingReach
+
+
+class WorkflowLogBinding(BaseSchema):
+    """A page query over a workflow's log as a version stores it: ids, frozen at publish.
+
+    Read with the page owner's access to the workflow on every load, the same lines for
+    everyone who opens the page. It has no columns, so it has no drift: it is served while
+    the owner may view the workflow and the step still exists.
+    """
+
+    kind: Literal["workflow_log"] = "workflow_log"
+    name: str
+    workflow_id: UUID
+    node_instance_id: UUID | None = None
+    outcomes: list[str] = Field(default_factory=list)
+    run: str | None = None
+    include_test: bool = False
+    lines: int | None = Field(default=None, description="The newest N lines; null with `per_day`")
+    days: LogDays | None = Field(
+        default=None, description="Per-day counts over this many days; null with `lines`"
+    )
+    tz: str | None = None
+
+
+AnyBinding = Annotated[
+    Annotated[ArtifactBinding, Tag("table")] | Annotated[WorkflowLogBinding, Tag("workflow_log")],
+    Discriminator(_request_kind),
+]
+"""A binding as a version stores it."""
+
+StoredBinding = ArtifactBinding | WorkflowLogBinding
+_STORED = TypeAdapter(AnyBinding)
+
+
+def stored_binding(raw: object) -> StoredBinding:
+    """A version's stored binding, validated: one with no `kind` is a table's."""
+    return _STORED.validate_python(raw)
 
 
 class ActionRequest(BaseSchema):
@@ -186,9 +315,19 @@ class ActionDisclosure(BaseSchema):
 class ArtifactBindingRead(BaseSchema):
     """A binding as an API client sees it: its table and its field names, no column ids."""
 
+    kind: Literal["table"] = "table"
     name: str
     table_id: UUID
     fields: list[str]
+
+
+class WorkflowLogBindingRead(BaseSchema):
+    """A workflow-log binding as an API client sees it: its workflow and what it serves."""
+
+    kind: Literal["workflow_log"] = "workflow_log"
+    name: str
+    workflow_id: UUID
+    mode: Literal["lines", "per_day"]
 
 
 class DisclosedDerivation(BaseSchema):
@@ -251,6 +390,7 @@ class BindingParts(BaseSchema):
     The same facts as :class:`BindingDisclosure`, which is built from them.
     """
 
+    kind: Literal["table"] = "table"
     table: str
     filters: list[DisclosedFilter]
     sort: DisclosedSort
@@ -264,6 +404,7 @@ class BindingParts(BaseSchema):
 class BindingDisclosure(BaseSchema):
     """A page query in words: what everyone who opens the page reads through it."""
 
+    kind: Literal["table"] = "table"
     table: str = Field(description="The table's name")
     filters: list[str] = Field(description="Each condition a record meets, all of them together")
     sort: str = Field(description="The order the records come in")
@@ -274,6 +415,30 @@ class BindingDisclosure(BaseSchema):
             "column what it is worked out from, as `Pay band: formula over Salary, Level`"
         )
     )
+
+
+class WorkflowLogParts(BaseSchema):
+    """A workflow-log query as structured parts, for the console to put into words of its own."""
+
+    kind: Literal["workflow_log"] = "workflow_log"
+    workflow: str = Field(description="The workflow's name as its owner reads it now")
+    step: str | None = Field(default=None, description="The step's label; null for every step")
+    outcomes: list[str] = Field(description="The outcomes a line left by; empty for any")
+    run: str | None = None
+    include_test: bool
+    mode: Literal["lines", "per_day"]
+    lines: int | None = Field(default=None, description="With `lines`: the newest N served")
+    days: int | None = Field(default=None, description="With `per_day`: the days counted")
+    tz: str | None = Field(default=None, description="With `per_day`: the time zone of the days")
+
+
+class WorkflowLogDisclosure(BaseSchema):
+    """A workflow-log query in words: what everyone who opens the page reads through it."""
+
+    kind: Literal["workflow_log"] = "workflow_log"
+    workflow: str = Field(description="The workflow's name")
+    filters: list[str] = Field(description="Each condition a line meets, all of them together")
+    reads: str = Field(description="What is served: the newest N lines, or counts per day")
 
 
 class BoundField(BaseSchema):
@@ -292,6 +457,7 @@ class BoundField(BaseSchema):
 class BindingData(BaseSchema):
     """One binding's records for a page load, its page query read with the owner's access."""
 
+    kind: Literal["table"] = "table"
     status: Literal["ok", "unavailable"]
     reason: str | None = Field(
         default=None,
@@ -320,10 +486,47 @@ class BindingData(BaseSchema):
     )
 
 
+class LogDay(BaseSchema):
+    """One day of a workflow-log binding's per-day counts."""
+
+    day: str = Field(description="The day, `YYYY-MM-DD`, in the binding's time zone")
+    counts: dict[str, int] = Field(description="Lines that day by outcome; absent when none")
+
+
+class WorkflowLogData(BaseSchema):
+    """One workflow-log binding for a page load: its lines, or its counts per day."""
+
+    kind: Literal["workflow_log"] = "workflow_log"
+    status: Literal["ok", "unavailable"]
+    reason: str | None = Field(
+        default=None,
+        description="Why it is unavailable, told as a table binding's reason is",
+    )
+    changed: str | None = None
+    truncated: bool = Field(description="Whether a limit left lines out")
+    limit: Literal["records", "bytes"] | None = None
+    count: int = Field(description="With lines: how many are served; with `days`: the days")
+    # Any: a line's values are strings, numbers and null, kept as the log holds them.
+    records: list[dict[str, Any]] | None = Field(
+        default=None,
+        description="With `lines`: `{id, created_at, step, outcome, status, message, run_id}`",
+    )
+    days: list[LogDay] | None = Field(
+        default=None, description="With `per_day`: every day of the window, oldest first"
+    )
+    total: int | None = Field(default=None, description="With `per_day`: lines counted")
+    window_days: int | None = None
+    tz: str | None = None
+
+
+AnyBindingData = BindingData | WorkflowLogData
+"""One binding's data for a page load, by its kind."""
+
+
 class ArtifactData(BaseSchema):
     """A page version's live data: every binding's page query, read with the owner's access."""
 
-    bindings: dict[str, BindingData]
+    bindings: dict[str, AnyBindingData]
     current: bool = Field(
         description=(
             "Whether the version asked about is still the app's current one. "
@@ -567,7 +770,7 @@ class ArtifactDetail(ArtifactRead):
         default=None,
         description="Where the page's public data consent stands. Only for a caller who may edit it",
     )
-    bindings: list[ArtifactBindingRead] = Field(
+    bindings: list[ArtifactBindingRead | WorkflowLogBindingRead] = Field(
         default_factory=list,
         description=(
             "The current version's bindings: each one's table and field names. Only for a "
@@ -683,10 +886,10 @@ class ArtifactDisclosure(BaseSchema):
 
     version: int
     fingerprint: str | None = None
-    bindings: dict[str, BindingDisclosure] = Field(
+    bindings: dict[str, BindingDisclosure | WorkflowLogDisclosure] = Field(
         description="Each binding's page query in words, as its owner reads the tables now"
     )
-    parts: dict[str, BindingParts] = Field(
+    parts: dict[str, BindingParts | WorkflowLogParts] = Field(
         description="The same queries as structured parts, for the console to word itself"
     )
     tables: list[str] = Field(description="Every table the queries read, linked ones included")

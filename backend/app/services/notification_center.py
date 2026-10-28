@@ -27,8 +27,9 @@ from app.repositories import artifact as artifact_repo
 from app.repositories import knowledge_base as knowledge_base_repo
 from app.repositories import member as member_repo
 from app.repositories import notification as notification_repo
+from app.repositories import workflow as workflow_repo
 from app.services import rate_limit
-from app.services.access import ARTIFACT, resolve_access
+from app.services.access import ARTIFACT, WORKFLOW, resolve_access
 from app.services.collection_access import readable_kb
 from app.services.notification_catalog import ContentGate, content_gate_for, is_mandatory
 
@@ -379,6 +380,7 @@ class _GateCache:
     kb_access_by_id: dict[uuid.UUID, bool]
     announcement_visible_by_id: dict[uuid.UUID, bool]
     artifact_visible_by_id: dict[uuid.UUID, bool]
+    workflow_visible_by_id: dict[uuid.UUID, bool]
 
 
 class NotificationCenterService:
@@ -1093,8 +1095,14 @@ class NotificationCenterService:
         collection_ids: set[uuid.UUID] = set()
         announcement_ids: set[uuid.UUID] = set()
         artifact_ids: set[uuid.UUID] = set()
+        workflow_ids: set[uuid.UUID] = set()
         for notification in notifications:
             gate = content_gate_for(NotificationEventType(notification.event_type))
+            if gate is ContentGate.WORKFLOWS_VIEW:
+                with contextlib.suppress(ValueError):
+                    workflow_ids.add(
+                        uuid.UUID(str((notification.render_context or {}).get("workflow_id")))
+                    )
             if gate is ContentGate.ARTIFACTS_VIEW:
                 with contextlib.suppress(ValueError):
                     artifact_ids.add(
@@ -1132,11 +1140,20 @@ class NotificationCenterService:
                 self.db, sorted(artifact_ids), organization_id=ctx.organization_id
             )
         }
+        workflow_visible_by_id = {
+            workflow.id: await resolve_access(
+                self.db, ctx, workflow, Perm.WORKFLOWS_VIEW, resource_type=WORKFLOW
+            )
+            for workflow in await workflow_repo.get_by_ids(
+                self.db, sorted(workflow_ids), organization_id=ctx.organization_id
+            )
+        }
         return _GateCache(
             kb_by_id=kb_by_id,
             kb_access_by_id=kb_access_by_id,
             announcement_visible_by_id=announcement_visible_by_id,
             artifact_visible_by_id=artifact_visible_by_id,
+            workflow_visible_by_id=workflow_visible_by_id,
         )
 
     async def gate_for(
@@ -1188,6 +1205,8 @@ class NotificationCenterService:
             return _Gate(visible=self._announcement_visible(notification, cache))
         if gate is ContentGate.ARTIFACTS_VIEW:
             return _Gate(visible=self._artifact_visible(ctx, notification, cache))
+        if gate is ContentGate.WORKFLOWS_VIEW:
+            return _Gate(visible=self._workflow_visible(ctx, notification, cache))
         raise AssertionError(f"unhandled content gate: {gate}")  # pragma: no cover
 
     def _collections_visible(
@@ -1268,6 +1287,20 @@ class NotificationCenterService:
         except ValueError:
             return False
         return cache.artifact_visible_by_id.get(artifact_id, False)
+
+    @staticmethod
+    def _workflow_visible(ctx: AuthContext, notification: Notification, cache: _GateCache) -> bool:
+        """`render_context["workflow_id"]` is this event's own contract: the workflow it is
+        about, rechecked against the reader's standing now - one they may no longer view,
+        or that is gone, hides the row. An app admin was sent it as one of the `admins`
+        audience and holds no membership to check, so it stays visible to them."""
+        if ctx.is_app_admin:
+            return True
+        try:
+            workflow_id = uuid.UUID(str((notification.render_context or {}).get("workflow_id")))
+        except ValueError:
+            return False
+        return cache.workflow_visible_by_id.get(workflow_id, False)
 
     def _announcement_visible(self, notification: Notification, cache: _GateCache) -> bool:
         if notification.announcement_id is None:

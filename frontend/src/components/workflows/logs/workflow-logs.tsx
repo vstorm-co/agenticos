@@ -26,6 +26,7 @@ import {
 } from "@/components/ui";
 import {
   useNodeCatalog,
+  useUrlList,
   useUrlState,
   useWorkflow,
   useWorkflowLogs,
@@ -34,12 +35,16 @@ import {
 import { fieldProblems } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { formatDateTimeSeconds } from "@/lib/utils";
+import { LogAlerts } from "./log-alerts";
 import { outcomeLabels } from "./outcome-labels";
 import { LOG_PAGE } from "@/lib/workflows/logs-api";
 import { effectiveDefinition, ERROR_PORT } from "@/lib/workflows/ports";
 import { nodeDisplayName, type NodeInstance, type WorkflowLogEntry } from "@/lib/workflows/types";
 
-const ALL = "all";
+// Not port ids: a port may be called anything, and the NUL character is not a name.
+const ALL = "\u0000all";
+/** The outcome filter's value while the address names several outcomes. */
+const MANY = "\u0000many";
 const HOUR_MS = 3_600_000;
 /** How far back each "written within" choice reaches. */
 const SINCE_MS: Record<string, number> = {
@@ -62,7 +67,8 @@ export function WorkflowLogs({ workflowId }: { workflowId: string }) {
   const { workflow } = useWorkflow(workflowId);
   const { nodes: catalog } = useNodeCatalog();
   const [step, setStep] = useUrlState("step");
-  const [outcome, setOutcome] = useUrlState("outcome");
+  // Repeated when a link carries several: an alert's counts every one of its outcomes.
+  const [outcomes, setOutcomes] = useUrlList("outcome");
   const [since, setSince] = useUrlState("since");
   const [test, setTest] = useUrlState("test");
   const [run, setRun] = useUrlState("run");
@@ -88,7 +94,7 @@ export function WorkflowLogs({ workflowId }: { workflowId: string }) {
   const { entries, total, isLoading, error, refetch } = useWorkflowLogs({
     workflowId,
     nodeInstanceId: step ?? undefined,
-    outcome: outcome ?? undefined,
+    outcomes: outcomes.length === 0 ? undefined : outcomes,
     from: reach === undefined ? undefined : new Date(anchor - reach).toISOString(),
     q: searched === "" ? undefined : searched,
     run: searchedRun === "" ? undefined : searchedRun,
@@ -100,7 +106,7 @@ export function WorkflowLogs({ workflowId }: { workflowId: string }) {
   // draft's and the live version's both, so a step still live but gone from the
   // draft is offered while its lines are still being written.
   const { version } = useWorkflowVersion(workflowId, workflow?.current_version_id ?? null);
-  const { steps, outcomes, labels } = useMemo(() => {
+  const { steps, ports, stepPorts, labels } = useMemo(() => {
     const instances = new Map<string, NodeInstance>();
     for (const graph of [workflow?.draft_graph, version?.graph]) {
       for (const node of graph?.nodes ?? []) {
@@ -108,16 +114,24 @@ export function WorkflowLogs({ workflowId }: { workflowId: string }) {
       }
     }
     const ports = new Set<string>([ERROR_PORT]);
+    // Per step, the ways its quick log writes a line: `error` always, and the ports
+    // it logs - every output port unless the log names some.
+    const stepPorts = new Map<string, string[]>();
     const labelOf = new Map<string, string>();
     const named = [...instances.values()].map((node) => {
       const definition = catalog.find(
         (entry) => entry.id === node.definition_id && entry.version === node.definition_version,
       );
+      const own = [ERROR_PORT];
       if (definition !== undefined) {
+        const logged = node.quick_log?.outputs;
         for (const port of effectiveDefinition(node, definition).ports) {
-          if (port.kind === "output") ports.add(port.id);
+          if (port.kind !== "output") continue;
+          ports.add(port.id);
+          if (logged == null || logged.includes(port.id)) own.push(port.id);
         }
       }
+      stepPorts.set(node.id, own);
       for (const [id, label] of outcomeLabels(node, definition)) {
         if (!labelOf.has(id)) labelOf.set(id, label);
       }
@@ -129,7 +143,7 @@ export function WorkflowLogs({ workflowId }: { workflowId: string }) {
       );
       return [node.id, name] as [string, string];
     });
-    return { steps: named, outcomes: [...ports], labels: labelOf };
+    return { steps: named, ports: [...ports], stepPorts, labels: labelOf };
   }, [workflow, version, catalog]);
   // A value the address carries stays an option when no graph has it any more, so
   // the select never reads blank: named by a line that step wrote, else as it is.
@@ -140,9 +154,15 @@ export function WorkflowLogs({ workflowId }: { workflowId: string }) {
           ...steps,
           [step, entries.find((entry) => entry.node_instance_id === step)?.step_label ?? step],
         ];
+  // Values the address carries stay options when no graph has them. Several at once
+  // (an alert's link) read as one option naming them all, until another is chosen.
+  const single = outcomes.length === 1 ? (outcomes[0] as string) : null;
   const outcomeOptions: [string, string][] = (
-    outcome === null || outcomes.includes(outcome) ? outcomes : [...outcomes, outcome]
+    single === null || ports.includes(single) ? ports : [...ports, single]
   ).map((port) => [port, labels.get(port) ?? port]);
+  if (outcomes.length > 1) {
+    outcomeOptions.push([MANY, outcomes.map((port) => labels.get(port) ?? port).join(", ")]);
+  }
 
   // A run the server refused ("3f2" is too short to mean one): its own words on the
   // field, in place of the list, which would only read as empty.
@@ -207,104 +227,117 @@ export function WorkflowLogs({ workflowId }: { workflowId: string }) {
 
   const filtered =
     step !== null ||
-    outcome !== null ||
+    outcomes.length > 0 ||
     run !== null ||
     reach !== undefined ||
     test === "1" ||
     searched !== "";
   return (
-    <ListCard
-      title={t("logsTitle")}
-      // Nothing to count while the read is failing: a number there would be a claim.
-      counted={isLoading ? null : error !== null ? "" : t("logsCount", { count: total })}
-      data-tour="workflow-logs"
-      controls={
-        <div className="flex flex-wrap items-center gap-2">
-          <SearchInput
-            value={typed}
-            onChange={(next) => {
-              setTyped(next);
-              setPage(null);
-            }}
-            placeholder={t("logSearch")}
-            className="sm:w-56"
-            maxLength={200}
-          />
-          <RunFilter value={run ?? ""} onChange={setRunFilter} problem={runProblem} />
-          <Filter
-            label={t("logFilterStep")}
-            any={t("logFilterAnyStep")}
-            value={step ?? ALL}
-            onChange={narrow(setStep)}
-            options={stepOptions}
-          />
-          <Filter
-            label={t("logFilterOutcome")}
-            any={t("logFilterAnyOutcome")}
-            value={outcome ?? ALL}
-            onChange={narrow(setOutcome)}
-            options={outcomeOptions}
-          />
-          <Filter
-            label={t("logFilterSince")}
-            any={t("logFilterAnySince")}
-            value={reach === undefined ? ALL : (since as string)}
-            onChange={(value) => {
-              setAnchor(Date.now());
-              narrow(setSince)(value);
-            }}
-            options={Object.keys(SINCE_MS).map((value) => [value, t(`runSince.${value}`)])}
-          />
-          <div className="flex items-center gap-2">
-            <Switch
-              id="log-include-test"
-              checked={test === "1"}
-              onCheckedChange={(on) => {
-                setTest(on ? "1" : null);
+    <div className="space-y-4">
+      <ListCard
+        title={t("logsTitle")}
+        // Nothing to count while the read is failing: a number there would be a claim.
+        counted={isLoading ? null : error !== null ? "" : t("logsCount", { count: total })}
+        data-tour="workflow-logs"
+        controls={
+          <div className="flex flex-wrap items-center gap-2">
+            <SearchInput
+              value={typed}
+              onChange={(next) => {
+                setTyped(next);
                 setPage(null);
               }}
+              placeholder={t("logSearch")}
+              className="sm:w-56"
+              maxLength={200}
             />
-            <Label htmlFor="log-include-test" className="text-xs">
-              {t("logIncludeTest")}
-            </Label>
+            <RunFilter value={run ?? ""} onChange={setRunFilter} problem={runProblem} />
+            <Filter
+              label={t("logFilterStep")}
+              any={t("logFilterAnyStep")}
+              value={step ?? ALL}
+              onChange={narrow(setStep)}
+              options={stepOptions}
+            />
+            <Filter
+              label={t("logFilterOutcome")}
+              any={t("logFilterAnyOutcome")}
+              value={outcomes.length === 0 ? ALL : (single ?? MANY)}
+              onChange={(value) => {
+                // Choosing the several again leaves them as they are.
+                if (value !== MANY) setOutcomes(value === ALL ? [] : [value]);
+                setPage(null);
+              }}
+              options={outcomeOptions}
+            />
+            <Filter
+              label={t("logFilterSince")}
+              any={t("logFilterAnySince")}
+              value={reach === undefined ? ALL : (since as string)}
+              onChange={(value) => {
+                setAnchor(Date.now());
+                narrow(setSince)(value);
+              }}
+              options={Object.keys(SINCE_MS).map((value) => [value, t(`runSince.${value}`)])}
+            />
+            <div className="flex items-center gap-2">
+              <Switch
+                id="log-include-test"
+                checked={test === "1"}
+                onCheckedChange={(on) => {
+                  setTest(on ? "1" : null);
+                  setPage(null);
+                }}
+              />
+              <Label htmlFor="log-include-test" className="text-xs">
+                {t("logIncludeTest")}
+              </Label>
+            </div>
           </div>
-        </div>
-      }
-    >
-      {runProblem !== undefined ? null : error !== null ? (
-        <ErrorState
-          title={t("logsFailed")}
-          description={t("logsFailedDetail")}
-          cta={{ label: t("logsRetry"), onClick: () => void refetch() }}
-        />
-      ) : (
-        <>
-          <DataTable
-            columns={columns}
-            rows={entries}
-            getRowKey={(entry) => entry.id}
-            loading={isLoading}
-            onRowClick={(entry) =>
-              router.push(ROUTES.WORKFLOW_RUN_DETAIL(entry.workflow_id, entry.run_id))
-            }
-            empty={
-              filtered ? (
-                <EmptyState title={t("logsNoMatch")} description={t("logsNoMatchDetail")} />
-              ) : (
-                <EmptyState title={t("logsEmpty")} description={t("logsEmptyDetail")} />
-              )
-            }
+        }
+      >
+        {runProblem !== undefined ? null : error !== null ? (
+          <ErrorState
+            title={t("logsFailed")}
+            description={t("logsFailedDetail")}
+            cta={{ label: t("logsRetry"), onClick: () => void refetch() }}
           />
-          <PaginationBar
-            page={page}
-            pageSize={LOG_PAGE}
-            total={total}
-            isLoading={isLoading}
-            onPage={(next) => setPage(next === 0 ? null : String(next))}
-          />
-        </>
-      )}
-    </ListCard>
+        ) : (
+          <>
+            <DataTable
+              columns={columns}
+              rows={entries}
+              getRowKey={(entry) => entry.id}
+              loading={isLoading}
+              onRowClick={(entry) =>
+                router.push(ROUTES.WORKFLOW_RUN_DETAIL(entry.workflow_id, entry.run_id))
+              }
+              empty={
+                filtered ? (
+                  <EmptyState title={t("logsNoMatch")} description={t("logsNoMatchDetail")} />
+                ) : (
+                  <EmptyState title={t("logsEmpty")} description={t("logsEmptyDetail")} />
+                )
+              }
+            />
+            <PaginationBar
+              page={page}
+              pageSize={LOG_PAGE}
+              total={total}
+              isLoading={isLoading}
+              onPage={(next) => setPage(next === 0 ? null : String(next))}
+            />
+          </>
+        )}
+      </ListCard>
+      <LogAlerts
+        workflowId={workflowId}
+        canEdit={workflow?.can_edit === true}
+        steps={steps}
+        stepPorts={stepPorts}
+        labels={labels}
+      />
+    </div>
   );
 }
 

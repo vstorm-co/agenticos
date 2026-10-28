@@ -1,5 +1,5 @@
 ---
-source_sha: "2d73006bce11"
+source_sha: "104b848d2e79"
 ---
 
 # API HTTP { #the-http-api }
@@ -317,6 +317,53 @@ robić każdą z tych rzeczy, opisuje strona [Uprawnienia](permissions.md#workfl
 typowanym błędem, którym ostatnio się zakończył, a `GET
 /api/v1/workflow-runs/{id}/graph` zwraca graf, który run wykonuje: graf jego wersji
 albo snapshot draftu runa testowego.
+
+### Odczyt logu workflow { #reading-a-workflows-log }
+
+Linie, które zapisały [Quick Logi](workflows.md#the-logs-page) workflow, można czytać
+spoza konsoli - skryptem, arkuszem albo narzędziem do dashboardów, takim jak Grafana czy
+Metabase - kluczem API organizacji z uprawnieniem `workflows:view`.
+
+Klucz czyta linie runów o publicznym pochodzeniu, w tym runów uruchomionych przez
+klucze: uruchomionych przez dowolny klucz organizacji, z zewnątrz (webhook, formularz,
+wiadomość z kanału, Gmail, Outlook, GitHub) i każdy run w łańcuchu, który taki run
+zaczął. Linii runów uruchomionych przez członka, harmonogram, rekord tabeli, czat,
+agenta lub aplikację nie ma, więc log workflow z harmonogramem jest przez klucz pusty, a
+jego liczby różnią się od konsoli. Workflow innej organizacji albo taki, którego członek
+klucza nie może oglądać, odpowiada `404`; klucz bez `workflows:view` jest odrzucany.
+
+```bash
+# Najnowsze linie, po 100 (tyle mieści strona); runy testowe są pominięte
+curl "$BASE/api/v1/workflows/$WORKFLOW_ID/logs?outcome=error&from=2026-10-01T00:00:00Z&limit=100" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID"
+
+# Ile linii zostawił każdy dzień, według wyniku, z ostatnich 30 dni warszawskich
+curl "$BASE/api/v1/workflows/$WORKFLOW_ID/logs/summary?days=30&tz=Europe/Warsaw" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID"
+```
+
+`GET /api/v1/workflows/{id}/logs` zwraca linie od najnowszej - według `created_at`,
+potem `seq`, czyli miejsca, które linia zajęła w logu przy zapisie. Zawężają je
+`node_instance_id` (jeden krok), `outcome` (port albo `error`), `run` (id runa albo jego
+pierwsze 4 lub więcej znaków), `q` (tekst w wiadomości) oraz okno czasu `from` (włącznie)
+i `to` (wyłącznie); `include_test=true` dodaje linie zapisane przez runy testowe. `skip`
+i `limit` przeglądają wynik - `limit` to najwyżej 100 - a `total` liczy wszystkie
+pasujące linie, więc klient pobiera strony, aż `skip` go osiągnie.
+
+`GET /api/v1/workflows/{id}/logs/summary` to dane dla wykresu: za ostatnie `days` dni
+(7, 30 lub 90, z dzisiejszym) zwraca po jednym wpisie na dzień, od najstarszego, z liczbą
+linii każdego wyniku; dzień bez linii też jest obecny. `tz`, nazwa IANA, wskazuje, których
+dni się liczy, domyślnie UTC; pozostałe filtry są jak w liście. Aby wciągnąć to do
+narzędzia do dashboardów, wskaż trasę jako źródło danych JSON, podaj klucz w nagłówku
+bearer i czytaj `by_day`.
+
+`GET /api/v1/workflow-runs/{id}/logs` zwraca linie jednego runa od najstarszej według
+`seq` (`limit` do 500), a `GET /api/v1/workflow-logs` najnowsze linie ze wszystkich
+workflow, które klucz może oglądać, każdą z nazwą jej workflow, oraz ile linii zostawił
+każdy wynik w ostatnich 24 godzinach. Reguły alertów na logu nie należą do publicznego
+API.
 
 ### Eksport i import workflow { #exporting-and-importing-a-workflow }
 

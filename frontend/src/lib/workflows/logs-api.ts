@@ -1,6 +1,7 @@
 /**
  * API client for a workflow's log - the lines its steps' quick logs wrote:
- * `GET /workflows/{id}/logs` and `GET /workflow-runs/{id}/logs`.
+ * `GET /workflows/{id}/logs`, `GET /workflows/{id}/logs/summary` and
+ * `GET /workflow-runs/{id}/logs`.
  *
  * Thin wrappers over `apiClient`; `use-workflow-logs.ts` calls these.
  */
@@ -13,16 +14,17 @@ export const LOG_PAGE = 50;
 
 /** One page of a workflow's log, newest first, filtered on the server. */
 export async function listWorkflowLogs(query: LogQuery): Promise<WorkflowLogList> {
-  const params: Record<string, string> = {
-    skip: String(query.page * LOG_PAGE),
-    limit: String(LOG_PAGE),
-  };
-  if (query.nodeInstanceId !== undefined) params["node_instance_id"] = query.nodeInstanceId;
-  if (query.outcome !== undefined) params["outcome"] = query.outcome;
-  if (query.from !== undefined) params["from"] = query.from;
-  if (query.q !== undefined && query.q !== "") params["q"] = query.q;
-  if (query.run !== undefined && query.run !== "") params["run"] = query.run;
-  if (query.includeTest) params["include_test"] = "true";
+  const params: [string, string][] = [
+    ["skip", String(query.page * LOG_PAGE)],
+    ["limit", String(LOG_PAGE)],
+  ];
+  if (query.nodeInstanceId !== undefined) params.push(["node_instance_id", query.nodeInstanceId]);
+  // Repeated, as the route reads a list: a line counts when it left by any of them.
+  for (const outcome of query.outcomes ?? []) params.push(["outcome", outcome]);
+  if (query.from !== undefined) params.push(["from", query.from]);
+  if (query.q !== undefined && query.q !== "") params.push(["q", query.q]);
+  if (query.run !== undefined && query.run !== "") params.push(["run", query.run]);
+  if (query.includeTest) params.push(["include_test", "true"]);
   return apiClient.get<WorkflowLogList>(`/workflows/${query.workflowId}/logs`, { params });
 }
 

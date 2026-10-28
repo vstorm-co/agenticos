@@ -1,5 +1,5 @@
 ---
-source_sha: "2d73006bce11"
+source_sha: "104b848d2e79"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -346,6 +346,56 @@ hat, Schleifeniterationen eingeschlossen, jeden mit seinem `scope_path`, Status,
 seinen Versuchen, Kosten und dem typisierten Fehler, mit dem er zuletzt
 fehlschlug, und `GET /api/v1/workflow-runs/{id}/graph` liefert den Graphen, den der
 Run ausführt: den seiner Version oder den Draft-Snapshot eines Test-Runs.
+
+### Das Log eines Workflows lesen { #reading-a-workflows-log }
+
+Die Zeilen, die die [Quick Logs](workflows.md#the-logs-page) eines Workflows geschrieben
+haben, lassen sich von außerhalb der Konsole lesen - mit einem Skript, einer
+Tabellenkalkulation oder einem Dashboard-Werkzeug wie Grafana oder Metabase - mit einem
+Organisations-API-Schlüssel, der `workflows:view` besitzt.
+
+Ein Schlüssel liest die Zeilen der Runs öffentlichen Ursprungs, auch der von Schlüsseln
+gestarteten: gestartet von einem beliebigen Organisationsschlüssel, von außen (Webhook,
+Formular, Kanalnachricht, Gmail, Outlook, GitHub) und jeder Run in einer Kette, die ein
+solcher begonnen hat. Zeilen von Runs, die ein Mitglied, ein Zeitplan, ein
+Tabelleneintrag, ein Chat, ein Agent oder eine App gestartet hat, fehlen, daher ist das
+Log eines Zeitplan-Workflows über einen Schlüssel leer und seine Zahlen weichen von der
+Konsole ab. Ein Workflow einer anderen Organisation oder einer, den das Mitglied des
+Schlüssels nicht ansehen darf, antwortet mit `404`; ein Schlüssel ohne `workflows:view`
+wird abgewiesen.
+
+```bash
+# Die neuesten Zeilen, je 100 (so viel passt auf eine Seite); Test-Runs bleiben außen vor
+curl "$BASE/api/v1/workflows/$WORKFLOW_ID/logs?outcome=error&from=2026-10-01T00:00:00Z&limit=100" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID"
+
+# Wie viele Zeilen jeder Tag je Ergebnis hinterließ, über die letzten 30 Tage in Warschauer Tagen
+curl "$BASE/api/v1/workflows/$WORKFLOW_ID/logs/summary?days=30&tz=Europe/Warsaw" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID"
+```
+
+`GET /api/v1/workflows/{id}/logs` listet die neuesten zuerst - nach `created_at`, dann
+nach `seq`, der Position, die eine Zeile beim Schreiben im Log erhielt. Einschränken
+lässt sich mit `node_instance_id` (ein Schritt), `outcome` (ein Port oder `error`), `run`
+(eine Run-ID oder ihre ersten 4 oder mehr Zeichen), `q` (Text in der Nachricht) und dem
+Zeitfenster `from` (einschließlich) und `to` (ausschließlich); `include_test=true` nimmt
+die Zeilen von Test-Runs hinzu. `skip` und `limit` blättern - `limit` höchstens 100 -,
+und `total` zählt alle passenden Zeilen, ein Client blättert also, bis `skip` ihn erreicht.
+
+`GET /api/v1/workflows/{id}/logs/summary` liefert, was ein Diagramm braucht: für die
+letzten `days` Tage (7, 30 oder 90, heute eingeschlossen) einen Eintrag pro Tag, der
+älteste zuerst, mit der Anzahl je Ergebnis; ein Tag ohne Zeilen ist trotzdem vorhanden.
+`tz`, ein IANA-Name, bestimmt, wessen Tage gezählt werden, standardmäßig UTC; die übrigen
+Filter sind die der Liste. Um es in ein Dashboard-Werkzeug zu holen, die Route als
+JSON-Datenquelle angeben, den Schlüssel als Bearer-Header mitschicken und `by_day` lesen.
+
+`GET /api/v1/workflow-runs/{id}/logs` listet die Zeilen eines Runs, die älteste zuerst
+nach `seq` (`limit` bis 500), und `GET /api/v1/workflow-logs` die neuesten Zeilen aller
+Workflows, die der Schlüssel ansehen darf, jede mit dem Namen ihres Workflows, dazu wie
+viele Zeilen jedes Ergebnis in den letzten 24 Stunden hinterließ. Die Alarmregeln auf
+einem Log gehören nicht zur öffentlichen API.
 
 ### Einen Workflow exportieren und importieren { #exporting-and-importing-a-workflow }
 

@@ -68,6 +68,7 @@ export type WidgetId =
   | "tables"
   | "workflows"
   | "approval-outcomes"
+  | "workflow-logs"
   | "suggestions";
 
 /** The closed set of card widths the grid supports (12 columns). */
@@ -298,6 +299,16 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     gate: holds(Perm.workflowsView),
     defaultSpan: "s6",
     defaultRows: "r3",
+    category: "attention",
+    seeAll: ROUTES.WORKFLOWS,
+  },
+  // Catalog only: a log is only as busy as the Quick Logs its workflows set. Four
+  // rows: the two figures and the newest six lines, two lines each.
+  "workflow-logs": {
+    id: "workflow-logs",
+    gate: holds(Perm.workflowsView),
+    defaultSpan: "s6",
+    defaultRows: "r4",
     category: "attention",
     seeAll: ROUTES.WORKFLOWS,
   },

@@ -1,5 +1,5 @@
 ---
-source_sha: "cf95c915daaa"
+source_sha: "e62b598517c1"
 ---
 
 # Workflows { #workflows }
@@ -807,8 +807,9 @@ ejecución, pega su id en **Run** o escribe los primeros caracteres (al menos cu
 **Show only this run** en una línea rellena el campo, y **See in Logs** en la página de
 una ejecución abre los logs filtrados por esa ejecución. Una línea abre la ejecución que
 la escribió. En la vista de la ejecución, las líneas de cada paso están debajo de él, en
-el orden en que se escribieron. Ambas son solo para miembros con sesión iniciada: una
-clave de API no las lee.
+el orden en que se escribieron. Una clave de API de la organización con `workflows:view`
+también las lee, para las ejecuciones de origen público: consulta [Leer el log de un
+workflow](api.md#reading-a-workflows-log).
 
 ## Iniciar un workflow desde fuera de la consola { #starting-a-workflow-from-outside-the-console }
 

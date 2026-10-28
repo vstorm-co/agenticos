@@ -754,15 +754,15 @@ test run starts from where that run was. Over the API, `POST
 ### The Logs page { #the-logs-page }
 
 **Logs**, under **More** in the editor's header, lists what the workflow's quick logs
-wrote across its runs, newest first: when, the step, its outcome and the message.
-Narrow the lines by **Step**, **Outcome** and **Written** (the last hour, day, week
-or 30 days), search the message, and turn on **Include test runs**, which are left
-out until you do. To see one run's lines, paste its id into **Run**, or type the
-first few characters of it (at least four); **Show only this run** on a line fills
-it in, and **See in Logs** on a run's page opens the log filtered to that run.
-A line opens the run that wrote it. In the run view, each step's
-own lines sit under it, in the order they were written. Both are for signed-in
-members only: an API key does not read them.
+wrote across its runs, newest first: when, the step, its outcome and the message. Narrow
+the lines by **Step**, **Outcome** and **Written** (the last hour, day, week or 30
+days), search the message, and turn on **Include test runs**, which are left out until
+you do. To see one run's lines, paste its id into **Run**, or type the first few
+characters of it (at least four); **Show only this run** on a line fills it in, and
+**See in Logs** on a run's page opens the log filtered to that run. A line opens the run
+that wrote it. In the run view, each step's own lines sit under it, in the order they
+were written. An organization API key with `workflows:view` reads them too, for
+public-origin runs: see [Reading a workflow's log](api.md#reading-a-workflows-log).
 
 ## Starting a workflow from outside the console { #starting-a-workflow-from-outside-the-console }
 

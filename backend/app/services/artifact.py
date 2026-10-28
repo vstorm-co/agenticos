@@ -93,6 +93,8 @@ from app.repositories import (
 from app.schemas.artifact import (
     ActionDisclosure,
     ActionRequest,
+    AnyBindingData,
+    AnyBindingRequest,
     ArtifactAction,
     ArtifactActionRun,
     ArtifactActionRunCreate,
@@ -116,10 +118,14 @@ from app.schemas.artifact import (
     ArtifactVersionList,
     ArtifactVersionRead,
     ArtifactView,
-    BindingData,
     BindingDisclosure,
-    BindingRequest,
     PublicArtifactRead,
+    StoredBinding,
+    WorkflowLogBinding,
+    WorkflowLogBindingRead,
+    WorkflowLogDisclosure,
+    WorkflowLogParts,
+    stored_binding,
 )
 from app.services import artifact_actions, rate_limit
 from app.services.access import (
@@ -143,6 +149,7 @@ from app.services.artifact_bindings import (
     reresolve,
     shape_for,
     unavailable,
+    unavailable_log,
 )
 from app.services.artifact_consent import (
     AUTO_CONSENT_TEXTS,
@@ -161,6 +168,16 @@ from app.services.artifact_consent import (
     served_many,
     shown_state,
     visible_versions,
+)
+from app.services.artifact_log_bindings import (
+    Gone,
+    LogRead,
+    availability,
+    disclose_log,
+    parts_of,
+    public_link_problem,
+    read_log,
+    workflow_of,
 )
 from app.services.artifact_ownership import (
     change_owner,
@@ -399,7 +416,7 @@ def platform_script(
     nonce: str | None = None,
     live: bool = False,
     names: Sequence[str] = (),
-    initial: Mapping[str, BindingData] | None = None,
+    initial: Mapping[str, AnyBindingData] | None = None,
     actions: bool = False,
 ) -> str:
     """What a served page gets before its own markup: the link bridge, then the data bridge.
@@ -710,7 +727,9 @@ class PublishedArtifact:
     was added."""
     visibility: str
     public: bool
-    bindings: dict[str, BindingDisclosure | str] = field(default_factory=dict)
+    bindings: dict[str, BindingDisclosure | WorkflowLogDisclosure | str] = field(
+        default_factory=dict
+    )
     """Each binding's page query in words, for one this publication resolved, or
     :data:`~app.services.artifact_bindings.KEPT` for one carried from the previous version."""
     actions: list[ActionDisclosure] | str = field(default_factory=list)
@@ -722,6 +741,8 @@ class PublishedArtifact:
     """The version everyone else who opens the page is served; `None` when none yet."""
     owner_name: str | None = None
     """Who owns the page's data, for a version that waits for them."""
+    notes: list[str] = field(default_factory=list)
+    """What the model should know about its bindings that did not refuse them."""
 
 
 @dataclass(frozen=True)
@@ -836,7 +857,7 @@ async def publish(
     media_type: ArtifactMediaType,
     data: bytes,
     expected_version: int | None = None,
-    bindings: Mapping[str, BindingRequest] | None = None,
+    bindings: Mapping[str, AnyBindingRequest] | None = None,
     run_person: UUID | None = None,
     impersonated: bool = False,
     table_grants: Mapping[UUID, frozenset[str]] | None = None,
@@ -877,7 +898,7 @@ async def publish_with(
     media_type: ArtifactMediaType,
     data: bytes,
     expected_version: int | None = None,
-    bindings: Mapping[str, BindingRequest] | None = None,
+    bindings: Mapping[str, AnyBindingRequest] | None = None,
     run_person: UUID | None = None,
     impersonated: bool = False,
     table_grants: Mapping[UUID, frozenset[str]] | None = None,
@@ -1010,12 +1031,16 @@ async def publish_with(
         person=person,
         owner=await _owner(db, artifact, person) if person is not None and bindings else None,
         grants=table_grants or {},
+        workflow_ids=workflow_ids,
     )
     problems = list(dict.fromkeys(c.problem for c in checks if c.problem is not None))
     if problems:
         raise BadRequestError(message=" ".join(problems), details={"name": name})
     # Every check without a problem carries its binding.
     effective = [c.binding for c in checks if c.binding is not None]
+    logged = [b.name for b in effective if isinstance(b, WorkflowLogBinding)]
+    if logged and artifact.public_key is not None:
+        raise BadRequestError(message=public_link_problem(logged), details={"name": name})
     kept_actions = latest.actions if latest is not None else []
     canonical_actions = (
         artifact_actions.stored(checked_actions.actions) if actions is not None else kept_actions
@@ -1039,7 +1064,8 @@ async def publish_with(
         if actions is not None
         else (artifact_actions.KEPT if kept_actions else [])
     )
-    echo: dict[str, BindingDisclosure | str] = {
+    notes = [c.note for c in checks if c.note is not None]
+    echo: dict[str, BindingDisclosure | WorkflowLogDisclosure | str] = {
         c.name: c.disclosure if c.disclosure is not None else KEPT for c in checks
     }
 
@@ -1056,6 +1082,7 @@ async def publish_with(
             unchanged=True,
             bindings=echo,
             actions=echoed_actions,
+            notes=notes,
         )
 
     path = _storage_path(artifact, sha256, media_type)
@@ -1105,6 +1132,7 @@ async def publish_with(
         unchanged=False,
         bindings=echo,
         actions=echoed_actions,
+        notes=notes,
     )
 
 
@@ -1142,11 +1170,21 @@ async def _checked_actions(
     return checked
 
 
-def _binding_reads(version: ArtifactVersion | None) -> list[ArtifactBindingRead]:
+def _binding_reads(
+    version: ArtifactVersion | None,
+) -> list[ArtifactBindingRead | WorkflowLogBindingRead]:
     """A version's bindings as a client reads them: field names, never column ids."""
     return [
-        ArtifactBindingRead(
-            name=binding.name, table_id=binding.table_id, fields=list(binding.fields)
+        (
+            WorkflowLogBindingRead(
+                name=binding.name,
+                workflow_id=binding.workflow_id,
+                mode="lines" if binding.lines is not None else "per_day",
+            )
+            if isinstance(binding, WorkflowLogBinding)
+            else ArtifactBindingRead(
+                name=binding.name, table_id=binding.table_id, fields=list(binding.fields)
+            )
         )
         for binding in _bindings_of(version)
     ]
@@ -1181,8 +1219,31 @@ def _archived_page(name: str) -> str:
     )
 
 
-def _bindings_of(version: ArtifactVersion | None) -> list[ArtifactBinding]:
-    return [] if version is None else [ArtifactBinding.model_validate(b) for b in version.bindings]
+def _logs(version: ArtifactVersion) -> dict[str, WorkflowLogBinding]:
+    return {b.name: b for b in _bindings_of(version) if isinstance(b, WorkflowLogBinding)}
+
+
+def _nothing(bindings: Sequence[StoredBinding]) -> dict[str, AnyBindingData]:
+    """Every binding served nothing and no reason, as a page nobody may read data of gets."""
+    return {
+        binding.name: (
+            unavailable_log(binding, None)
+            if isinstance(binding, WorkflowLogBinding)
+            else unavailable(None)
+        )
+        for binding in sorted(bindings, key=lambda item: item.name)
+    }
+
+
+def _source(binding: StoredBinding) -> dict[str, str]:
+    """What a binding reads, for a log line: its table's id, or its workflow's."""
+    if isinstance(binding, WorkflowLogBinding):
+        return {"workflow_id": str(binding.workflow_id)}
+    return {"table_id": str(binding.table_id)}
+
+
+def _bindings_of(version: ArtifactVersion | None) -> list[StoredBinding]:
+    return [] if version is None else [stored_binding(b) for b in version.bindings]
 
 
 async def _append_version(
@@ -1454,7 +1515,7 @@ class ArtifactPreview:
     """How many lines the platform script adds before the page's own: a line number
     the browser reports in the page is this many past the line the agent wrote."""
     binding_names: list[str]
-    bindings: dict[str, BindingData] | None
+    bindings: dict[str, AnyBindingData] | None
     """Each binding as the run's person would be served it, `{}` when no data could be
     read for them, `None` for a page with no bindings - one that never asks."""
     data_note: str | None
@@ -1540,7 +1601,7 @@ async def _preview_data(
     reader_user_id: UUID,
     room: bool,
     has_person: bool,
-) -> tuple[dict[str, BindingData] | None, str | None]:
+) -> tuple[dict[str, AnyBindingData] | None, str | None]:
     """The bindings a preview posts the page, and why they are empty when they are.
 
     Read only for a run with a person behind it (`has_person`): the reader of a run
@@ -2028,8 +2089,9 @@ async def _published(
     *,
     created: bool,
     unchanged: bool,
-    bindings: dict[str, BindingDisclosure | str],
+    bindings: dict[str, BindingDisclosure | WorkflowLogDisclosure | str],
     actions: list[ActionDisclosure] | str,
+    notes: list[str],
 ) -> PublishedArtifact:
     consent = ConsentState.NOT_NEEDED
     audience: ArtifactVersion | None = version
@@ -2055,6 +2117,7 @@ async def _published(
         consent=consent,
         audience_version=audience.number if audience is not None else None,
         owner_name=owner,
+        notes=notes,
     )
 
 
@@ -2152,7 +2215,7 @@ def render(
     title: str,
     nonce: str,
     live: bool,
-    initial: Mapping[str, BindingData] | None = None,
+    initial: Mapping[str, AnyBindingData] | None = None,
     actions: bool = False,
 ) -> bytes:
     """The document a frame shows: HTML as written, Markdown rendered into a page.
@@ -2808,16 +2871,36 @@ class ArtifactService:
         return frozenset(workflow_ids_of(AgentSpec.model_validate(version.spec)))
 
     async def _reresolved(
-        self, ctx: AuthContext, artifact: Artifact, stored: list[ArtifactBinding]
-    ) -> list[ArtifactBinding]:
+        self, ctx: AuthContext, artifact: Artifact, stored: list[StoredBinding]
+    ) -> list[StoredBinding]:
         """A restored version's page queries, each with its reach read again as `ctx`."""
         if not stored:
             return []
+        logged = [b.name for b in stored if isinstance(b, WorkflowLogBinding)]
+        if logged and artifact.public_key is not None:
+            raise BadRequestError(
+                message=f"{public_link_problem(logged)} So this version can't be restored.",
+                details={"artifact_id": artifact.id},
+            )
+        allowed: frozenset[UUID] = frozenset()
+        if logged:
+            bound = await self._allowed_workflows(artifact)
+            if bound is None:
+                raise AuthorizationError(
+                    message=(
+                        "This version reads a workflow's log, but the page's agent is gone, "
+                        "so it can't be restored."
+                    ),
+                    details={"artifact_id": artifact.id},
+                )
+            allowed = bound
         owner = await _owner(self.db, artifact, ctx)
-        resolved: list[ArtifactBinding] = []
+        resolved: list[StoredBinding] = []
         refused: list[Refused] = []
         for binding in stored:
-            outcome = await reresolve(self.db, binding, person=ctx, owner=owner)
+            outcome = await reresolve(
+                self.db, binding, person=ctx, owner=owner, workflow_ids=allowed
+            )
             if isinstance(outcome, Refused):
                 refused.append(outcome)
             else:
@@ -2839,6 +2922,21 @@ class ArtifactService:
         """
         artifact = await self.get(ctx, artifact_id, perm=Perm.ARTIFACTS_EDIT)
         rotated = artifact.public_key is not None
+        # Every version the link could show: the newest the audience is served, and any later.
+        served = await artifact_repo.latest_served(self.db, artifact.id)
+        logged = sorted(
+            {
+                b.name
+                for version in await artifact_repo.list_versions(self.db, artifact.id)
+                if served is None or version.number >= served.number
+                for b in _bindings_of(version)
+                if isinstance(b, WorkflowLogBinding)
+            }
+        )
+        if logged:
+            raise BadRequestError(
+                message=public_link_problem(logged), details={"artifact_id": str(artifact.id)}
+            )
         artifact = await artifact_repo.update(
             self.db,
             artifact=artifact,
@@ -2929,6 +3027,9 @@ class ArtifactService:
                 "pinned_version_id",
                 "The owner hasn't confirmed that version's data, so the link can't show it.",
             )
+        logged = [b.name for b in _bindings_of(version) if isinstance(b, WorkflowLogBinding)]
+        if logged:
+            raise refused_field("pinned_version_id", public_link_problem(logged))
         # A kept row whose bytes are gone would pin the link to a page that 404s.
         if not await get_file_storage().exists(version.storage_path):
             raise refused_field("pinned_version_id", "That version's content is gone from storage.")
@@ -3074,17 +3175,25 @@ class ArtifactService:
         version = await self.kept(artifact, version_id)
         bindings = _bindings_of(version)
         problem, sources = await self.tables_for_words(ctx, artifact, bindings)
+        log_parts = await self.log_words(ctx, artifact, bindings)
         people, groups = await self._grantees(artifact)
         shown = {
             binding.name: binding
             for binding in bindings
-            if all(table_id in sources for table_id in binding.reach.tables)
+            if isinstance(binding, ArtifactBinding)
+            and all(table_id in sources for table_id in binding.reach.tables)
         }
         return ArtifactDisclosure(
             version=version.number,
             fingerprint=version.query_fingerprint,
-            bindings={name: disclose(binding, sources) for name, binding in shown.items()},
-            parts={name: describe(binding, sources) for name, binding in shown.items()},
+            bindings={
+                **{name: disclose(binding, sources) for name, binding in shown.items()},
+                **{name: disclose_log(parts) for name, parts in log_parts.items()},
+            },
+            parts={
+                **{name: describe(binding, sources) for name, binding in shown.items()},
+                **log_parts,
+            },
             tables=sorted({source.name for source in sources.values()}),
             visibility=artifact.visibility,
             people=people,
@@ -3093,8 +3202,33 @@ class ArtifactService:
             problem=problem,
         )
 
+    async def log_words(
+        self, ctx: AuthContext, artifact: Artifact, bindings: Sequence[StoredBinding]
+    ) -> dict[str, WorkflowLogParts]:
+        """The workflow-log bindings as structured parts, each workflow named as the page's
+        owner may view it - or, for what the owner no longer may, as `ctx` does. One neither
+        may view is left out: its name is not for them."""
+        owner = (
+            await member_context(
+                self.db, organization_id=artifact.organization_id, user_id=artifact.owner_user_id
+            )
+            if artifact.owner_user_id is not None
+            else None
+        )
+        parts: dict[str, WorkflowLogParts] = {}
+        for binding in bindings:
+            if not isinstance(binding, WorkflowLogBinding):
+                continue
+            workflow = None
+            for reader in (owner, ctx):
+                if reader is not None and workflow is None:
+                    workflow = await workflow_of(self.db, reader, binding)
+            if workflow is not None:
+                parts[binding.name] = await parts_of(self.db, binding, workflow)
+        return parts
+
     async def tables_for_words(
-        self, ctx: AuthContext, artifact: Artifact, bindings: Sequence[ArtifactBinding]
+        self, ctx: AuthContext, artifact: Artifact, bindings: Sequence[StoredBinding]
     ) -> tuple[str | None, dict[UUID, TableSource]]:
         """The tables `bindings` reach, as the page's owner reads them - and, for what the
         owner no longer can, as `ctx` does - to put a page query into words.
@@ -3385,7 +3519,7 @@ class ArtifactService:
         return version
 
     async def _owner_reads(
-        self, reader: AuthContext | None, bindings: Sequence[ArtifactBinding]
+        self, reader: AuthContext | None, bindings: Sequence[StoredBinding]
     ) -> tuple[str | None, dict[UUID, TableSource]]:
         """Every table the page queries reach, as `reader` reads them, and what they can't.
 
@@ -3397,19 +3531,31 @@ class ArtifactService:
         service = VirtualTableService(self.db)
         sources: dict[UUID, TableSource] = {}
         lacking: list[UUID] = []
-        for table_id in sorted({table for b in bindings for table in b.reach.tables}):
+        tables = [b for b in bindings if isinstance(b, ArtifactBinding)]
+        for table_id in sorted({table for b in tables for table in b.reach.tables}):
             try:
                 sources[table_id] = await service.table_source(reader, table_id)
             except NotFoundError:
                 lacking.append(table_id)
-        if not lacking:
-            return None, sources
-        return (
-            f"The page's owner can't access {len(lacking)} of the tables it uses, so its data "
-            "can't be shared. Get the owner access to those tables, or publish the page without "
-            "them.",
-            sources,
-        )
+        unviewable = [
+            b
+            for b in bindings
+            if isinstance(b, WorkflowLogBinding) and await workflow_of(self.db, reader, b) is None
+        ]
+        problems: list[str] = []
+        if lacking:
+            problems.append(
+                f"The page's owner can't access {len(lacking)} of the tables it uses, so its data "
+                "can't be shared. Get the owner access to those tables, or publish the page "
+                "without them."
+            )
+        if unviewable:
+            problems.append(
+                f"The page's owner can't view {len(unviewable)} of the workflows whose log it "
+                "reads, so its data can't be shared. Get the owner access to those workflows, "
+                "or publish the page without them."
+            )
+        return (" ".join(problems) or None), sources
 
     async def view(
         self,
@@ -3620,7 +3766,7 @@ class ArtifactService:
         isolate_failures: bool = False,
         shared: PublicReads | None = None,
         rows: bool = True,
-    ) -> dict[str, BindingData]:
+    ) -> dict[str, AnyBindingData]:
         """Every binding of `version` read as the page's owner, shaped for one viewer.
 
         The one read the data route and a page served with its data share. With
@@ -3641,7 +3787,7 @@ class ArtifactService:
             if bindings and artifact.owner_user_id is not None
             else None
         )
-        reads: dict[str, BindingRows | Unavailable] = {}
+        reads: dict[str, BindingRows | LogRead | Unavailable] = {}
         for binding in bindings:
             if not current:
                 reads[binding.name] = Unavailable("not_current")
@@ -3651,7 +3797,13 @@ class ArtifactService:
                 reads[binding.name] = Unavailable("awaiting_consent")
             else:
                 try:
-                    if not rows:
+                    if isinstance(binding, WorkflowLogBinding):
+                        reads[binding.name] = (
+                            Unavailable("public_link")
+                            if shared is not None
+                            else await self._read_log(owner, binding, deadline, rows=rows)
+                        )
+                    elif not rows:
                         reads[binding.name] = await self._read_reasons(owner, binding, deadline)
                     elif shared is None:
                         reads[binding.name] = await self._read_binding(owner, binding, deadline)
@@ -3667,7 +3819,7 @@ class ArtifactService:
                         "artifact_data_binding_failed",
                         extra={
                             "binding": binding.name,
-                            "table_id": str(binding.table_id),
+                            **_source(binding),
                             "error_type": type(failed).__name__,
                             "sqlstate": getattr(failed.orig, "sqlstate", None),
                         },
@@ -3679,7 +3831,12 @@ class ArtifactService:
                             details={"binding": binding.name},
                         ) from None
                     reads[binding.name] = self._unavailable(binding, Unavailable("failed"))
-        return page_data(reads, max_bytes=settings.ARTIFACT_DATA_MAX_BYTES, can_edit=can_edit)
+        return page_data(
+            reads,
+            max_bytes=settings.ARTIFACT_DATA_MAX_BYTES,
+            can_edit=can_edit,
+            logs=_logs(version),
+        )
 
     async def _read_shared(
         self,
@@ -3803,15 +3960,60 @@ class ArtifactService:
             return self._unavailable(binding, Unavailable("timeout"))
         return BindingRows(fields=binding.fields, rows=rows)
 
+    async def _read_log(
+        self,
+        owner: AuthContext,
+        binding: WorkflowLogBinding,
+        deadline: ReadDeadline,
+        *,
+        rows: bool,
+    ) -> LogRead | Unavailable:
+        """A workflow-log binding read as the page's `owner`, or why it reads nothing.
+
+        The owner's access to the workflow and the step are checked first, on every read.
+        Without `rows` nothing is loaded, only whether it could be.
+        """
+        if deadline.remaining_ms() <= 0:
+            return self._unavailable(binding, Unavailable("timeout"))
+        try:
+            async with self.db.begin_nested():
+                prior = await virtual_table_repo.statement_timeout(self.db)
+                await deadline.arm(self.db)
+                found = await availability(self.db, owner, binding)
+                result: LogRead | Unavailable
+                if isinstance(found, Gone):
+                    result = Unavailable(found.reason, found.changed)
+                elif rows:
+                    result = await read_log(self.db, owner, binding)
+                else:
+                    result = LogRead(
+                        "lines" if binding.lines is not None else "per_day",
+                        [],
+                        [],
+                        0,
+                        [],
+                        0,
+                        None,
+                        None,
+                    )
+                await virtual_table_repo.restore_statement_timeout(self.db, setting=prior)
+        except DeadlineReached:
+            return self._unavailable(binding, Unavailable("timeout"))
+        except DBAPIError as failed:
+            if getattr(failed.orig, "sqlstate", None) != _STATEMENT_TIMEOUT:
+                raise
+            return self._unavailable(binding, Unavailable("timeout"))
+        return self._unavailable(binding, result) if isinstance(result, Unavailable) else result
+
     @staticmethod
-    def _unavailable(binding: ArtifactBinding, unavailable: Unavailable) -> Unavailable:
+    def _unavailable(binding: StoredBinding, unavailable: Unavailable) -> Unavailable:
         # Never the exception: a database error carries its bound parameters, which
         # are the query's filter values.
         logger.info(
             "artifact_data_binding_unavailable",
             extra={
                 "binding": binding.name,
-                "table_id": str(binding.table_id),
+                **_source(binding),
                 "reason": unavailable.reason,
             },
         )
@@ -4018,7 +4220,7 @@ class ArtifactService:
 
     async def _public_injection(
         self, claims: dict[str, Any], artifact: Artifact, version: ArtifactVersion
-    ) -> dict[str, BindingData] | None:
+    ) -> dict[str, AnyBindingData] | None:
         """What a page served to a stranger carries as its data, or `None` for a page with none.
 
         Only an address minted for it (`inj`) is asked, and every gate is checked afresh
@@ -4037,7 +4239,7 @@ class ArtifactService:
         """
         if claims.get("inj") is not True or not version.bindings:
             return None
-        nothing = {binding.name: unavailable(None) for binding in _bindings_of(version)}
+        nothing = _nothing(_bindings_of(version))
         minted = claims.get("pw")
         current_digest = password_digest(artifact.public_password_hash)
         expires = artifact.public_expires_at
@@ -4068,7 +4270,7 @@ class ArtifactService:
 
     async def _injection(
         self, claims: dict[str, Any], artifact: Artifact, version: ArtifactVersion
-    ) -> dict[str, BindingData]:
+    ) -> dict[str, AnyBindingData]:
         """What a page served to a member carries as its data: each binding, as they read it now.
 
         The token names the viewer, and nothing it says is trusted past that: the member
@@ -4090,7 +4292,7 @@ class ArtifactService:
             if user_id is not None and organization_id == artifact.organization_id
             else None
         )
-        nothing = {name: unavailable(None) for name in names}
+        nothing = _nothing(_bindings_of(version))
         if reader is None:
             return nothing
         try:
@@ -4106,12 +4308,14 @@ class ArtifactService:
                 {name: Unavailable("not_current") for name in names},
                 max_bytes=settings.ARTIFACT_DATA_MAX_BYTES,
                 can_edit=can_edit,
+                logs=_logs(version),
             )
         caller = f"org:{reader.organization_id}:user:{reader.subject_id}"
         busy = page_data(
             {name: Unavailable("busy") for name in names},
             max_bytes=settings.ARTIFACT_DATA_MAX_BYTES,
             can_edit=can_edit,
+            logs=_logs(version),
         )
         decision = await rate_limit.consume_with_local_floor(
             surface="artifact_data", caller=caller, limit=rate_limit.artifact_data_limit()

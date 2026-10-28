@@ -104,6 +104,7 @@ def production() -> Handlers:
             Handler(
                 jobs.WORKFLOW_TABLE_TRIGGERS, _each_tick(workflow_tasks.consume_table_triggers)
             ),
+            Handler(jobs.WORKFLOW_LOG_ALERTS, _each_tick(workflow_tasks.check_workflow_log_alerts)),
             Handler(
                 jobs.WORKFLOW_RUN_RETENTION,
                 _each_tick(workflow_tasks.sweep_workflow_run_retention),

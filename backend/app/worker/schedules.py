@@ -90,6 +90,9 @@ SCHEDULES: tuple[Schedule, ...] = (
     Schedule("workflow-reconcile", jobs.WORKFLOW_RECONCILE, timedelta(seconds=30)),
     Schedule("workflow-schedules-check", jobs.WORKFLOW_SCHEDULES_CHECK, _MINUTE),
     Schedule("workflow-table-triggers", jobs.WORKFLOW_TABLE_TRIGGERS, timedelta(seconds=10)),
+    # Count each alert rule's matching log lines over its window (the shortest is five
+    # minutes), so an alert is at most a minute late.
+    Schedule("workflow-log-alerts", jobs.WORKFLOW_LOG_ALERTS, _MINUTE),
     # A run whose process died stops beating; a chat says "Working" over it
     # until this ends it, so it is looked for every minute (#2301).
     Schedule("reap-stale-runs", jobs.REAP_STALE_RUNS, _MINUTE),

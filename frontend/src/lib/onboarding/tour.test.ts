@@ -121,7 +121,15 @@ describe("a workflow's log page", () => {
     expect(pageKey(ROUTES.WORKFLOW_LOGS("wf-1"))).toBe(WORKFLOW_LOGS_DETAIL);
     expect(stepsForPage(ROUTES.WORKFLOW_LOGS("wf-1"), () => true).map((s) => s.id)).toEqual([
       "workflow-logs",
+      "workflow-log-alerts",
     ]);
+    expect(stepsForPage(ROUTES.WORKFLOW_LOGS("wf-1"), () => false).map((s) => s.id)).toEqual([
+      "workflow-logs",
+    ]);
+    const alerts = stepsForPage(ROUTES.WORKFLOW_LOGS("wf-1"), () => true).find(
+      (s) => s.id === "workflow-log-alerts",
+    );
+    expect(alerts).toEqual(expect.objectContaining({ optional: true }));
   });
 });
 

@@ -940,6 +940,16 @@ def get_workflow_eval_service(db: DBSession) -> WorkflowEvalService:
 
 WorkflowEvalSvc = Annotated[WorkflowEvalService, Depends(get_workflow_eval_service)]
 
+from app.services.workflow_log_alerts import WorkflowLogAlertService
+
+
+def get_workflow_log_alert_service(db: DBSession) -> WorkflowLogAlertService:
+    """Create WorkflowLogAlertService instance with database session."""
+    return WorkflowLogAlertService(db)
+
+
+WorkflowLogAlertSvc = Annotated[WorkflowLogAlertService, Depends(get_workflow_log_alert_service)]
+
 from app.services.workflow_portable import WorkflowPortableService
 
 

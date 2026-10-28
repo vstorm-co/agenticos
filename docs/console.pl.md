@@ -1,5 +1,5 @@
 ---
-source_sha: "e1e3582d471d"
+source_sha: "cdf08df75a5a"
 ---
 
 # Konsola { #the-console }
@@ -50,6 +50,13 @@ oglądać workflow. Pokazuje, jak ludzie rozstrzygali [kroki zatwierdzenia](work
 o które pytały workflow w danym okresie. Pokazuje odsetek zatwierdzonych bez zmian,
 poprawki i medianę ich zmiany, czas do decyzji oraz pięć workflow z największą liczbą
 próśb. Jest pusta, gdy w okresie ustawionym na dashboardzie nie padła żadna prośba.
+
+Karta **Logi workflow (Workflow logs)** też czeka w katalogu, dla każdego, kto może
+oglądać workflow. Pokazuje najnowsze wpisy, które [Quick Logi](workflows.md#the-logs-page)
+workflow, które możesz oglądać, zapisały w prawdziwych runach, oraz ile wpisów doszło
+w ciągu ostatnich 24 godzin, w tym błędów. Wpis prowadzi do swojego runu, a nazwa
+workflow do jego strony Logs. Jest pusta, dopóki nie uruchomi się krok z Quick Logiem,
+i nie zważa na okres ustawiony na dashboardzie.
 
 Dashboard otwiera się kartą **Get started**, dopóki nie zrobisz wszystkich jej
 kroków: opowiedzieć agentom o sobie, zacząć rozmowę, podłączyć usługę własnym

@@ -21,7 +21,7 @@ The requester is told nothing by the platform when a request is decided: the pag
 or not, is the answer. Nobody is notified of a decision in this piece.
 """
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -49,7 +49,14 @@ from app.repositories import (
     group_repo,
     member_repo,
 )
-from app.schemas.artifact import ArtifactBinding, ArtifactConsentCreate, ArtifactVersionRead
+from app.schemas.artifact import (
+    ArtifactBinding,
+    ArtifactConsentCreate,
+    ArtifactVersionRead,
+    StoredBinding,
+    WorkflowLogBinding,
+    stored_binding,
+)
 from app.schemas.artifact_share_request import (
     ArtifactAccessRequestCreate,
     ArtifactAccessRequested,
@@ -67,7 +74,7 @@ from app.services.artifact_consent import (
     may_confirm,
     owner_membership_id,
 )
-from app.services.artifact_diff import diff_bindings, view_of
+from app.services.artifact_diff import AnyView, LogView, diff_bindings, view_of
 from app.services.artifact_requests import (
     decide,
     file_access_request,
@@ -77,10 +84,11 @@ from app.services.artifact_requests import (
     widens,
 )
 from app.services.sharing import Deferred, ShareChange, SharingService
+from app.services.virtual_tables.tables import TableSource
 
 
-def _bindings(version: ArtifactVersion | None) -> list[ArtifactBinding]:
-    return [] if version is None else [ArtifactBinding.model_validate(b) for b in version.bindings]
+def _bindings(version: ArtifactVersion | None) -> list[StoredBinding]:
+    return [] if version is None else [stored_binding(b) for b in version.bindings]
 
 
 class ArtifactRequestService:
@@ -342,16 +350,8 @@ class ArtifactRequestService:
             ctx, artifact, [*now_bindings, *was_bindings]
         )
         reviews, unchanged = diff_bindings(
-            {
-                b.name: view_of(b, sources)
-                for b in was_bindings
-                if all(table in sources for table in b.reach.tables)
-            },
-            {
-                b.name: view_of(b, sources)
-                for b in now_bindings
-                if all(table in sources for table in b.reach.tables)
-            },
+            await self._views(ctx, artifact, was_bindings, sources),
+            await self._views(ctx, artifact, now_bindings, sources),
         )
         return ArtifactVersionReview(
             version=ArtifactVersionRead.model_validate(version),
@@ -366,6 +366,28 @@ class ArtifactRequestService:
             widens=any(review.effect == "widens" for review in reviews),
             problem=problem,
         )
+
+    async def _views(
+        self,
+        ctx: AuthContext,
+        artifact: Artifact,
+        bindings: Sequence[StoredBinding],
+        sources: Mapping[UUID, TableSource],
+    ) -> dict[str, AnyView]:
+        """The bindings that can be put into words, by name: a query whose tables, or a log
+        whose workflow, nobody who may confirm the page can read is left out."""
+        logs = await self._pages.log_words(ctx, artifact, bindings)
+        views: dict[str, AnyView] = {
+            b.name: view_of(b, sources)
+            for b in bindings
+            if isinstance(b, ArtifactBinding) and all(table in sources for table in b.reach.tables)
+        }
+        views |= {
+            b.name: LogView(b, logs[b.name])
+            for b in bindings
+            if isinstance(b, WorkflowLogBinding) and b.name in logs
+        }
+        return views
 
     async def _pending(
         self, ctx: AuthContext, artifact_id: UUID, request_id: UUID

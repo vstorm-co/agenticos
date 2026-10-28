@@ -77,11 +77,23 @@ export interface ArtifactPublicLink {
 }
 
 /** A page's named query of a table, as an API client sees it: field names only. */
-export interface ArtifactBindingInfo {
+export interface TableBindingInfo {
+  /** Absent from older responses, which are a table query. */
+  kind?: "table";
   name: string;
   table_id: string;
   fields: string[];
 }
+
+/** A page's named query of a workflow's log, as an API client sees it. */
+export interface LogBindingInfo {
+  kind: "workflow_log";
+  name: string;
+  workflow_id: string;
+  mode: "lines" | "per_day";
+}
+
+export type ArtifactBindingInfo = TableBindingInfo | LogBindingInfo;
 
 /**
  * Where the latest version's data stands, for a caller served the latest version -
@@ -177,6 +189,8 @@ export interface ArtifactPublicDataDisclosure {
 
 /** A page query in the server's English words - what an agent is told. */
 export interface BindingDisclosure {
+  /** Absent from older responses, which are a table query. */
+  kind?: "table";
   table: string;
   filters: string[];
   sort: string;
@@ -207,6 +221,8 @@ export interface DisclosedDerivation {
 
 /** A page query as structured parts, for the console to put into its own words. */
 export interface BindingParts {
+  /** Absent from older responses, which are a table query. */
+  kind?: "table";
   table: string;
   /** `value` shows a choice by its label; for `is_null`, true means the cell is empty. */
   filters: { column: string; op: DisclosedOp; value: DisclosedValue | DisclosedValue[] }[];
@@ -227,13 +243,43 @@ export interface BindingParts {
   linked: string[];
 }
 
+/** A workflow-log query as structured parts, for the console to put into its own words. */
+export interface WorkflowLogParts {
+  kind: "workflow_log";
+  /** The workflow's name as its owner reads it now. */
+  workflow: string;
+  /** The step's label; null for every step. */
+  step: string | null;
+  /** The outcomes a line left by; empty for any. */
+  outcomes: string[];
+  run: string | null;
+  include_test: boolean;
+  mode: "lines" | "per_day";
+  /** With `lines`: the newest N served. */
+  lines: number | null;
+  /** With `per_day`: the days counted, and the time zone they are counted in. */
+  days: number | null;
+  tz: string | null;
+}
+
+/** A workflow-log query in the server's English words. */
+export interface WorkflowLogDisclosure {
+  kind: "workflow_log";
+  workflow: string;
+  filters: string[];
+  reads: string;
+}
+
+/** Either kind of page query as parts. */
+export type AnyBindingParts = BindingParts | WorkflowLogParts;
+
 /** What confirming a version shares, and with whom - shown before it is confirmed. */
 export interface ArtifactDisclosure {
   version: number;
   fingerprint: string | null;
-  bindings: Record<string, BindingDisclosure>;
+  bindings: Record<string, BindingDisclosure | WorkflowLogDisclosure>;
   /** The same queries as parts, which the console words in the reader's language. */
-  parts: Record<string, BindingParts>;
+  parts: Record<string, AnyBindingParts>;
   tables: string[];
   visibility: Visibility;
   /** The addresses of the people the page is shared with. */
@@ -361,6 +407,8 @@ export interface BoundField {
 
 /** One binding's records for a page load, its query read with the page owner's access. */
 export interface BindingData {
+  /** Absent from older responses, which are a table query. */
+  kind?: "table";
   status: "ok" | "unavailable";
   /** Why it is unavailable; only sent to a viewer who may edit the page. */
   reason: string | null;
@@ -375,9 +423,31 @@ export interface BindingData {
   records: Record<string, unknown>[];
 }
 
+/** One workflow-log binding for a page load: its lines, or its counts per day. */
+export interface WorkflowLogData {
+  kind: "workflow_log";
+  status: "ok" | "unavailable";
+  /** Why it is unavailable; only sent to a viewer who may edit the page. */
+  reason: string | null;
+  changed?: string | null;
+  truncated: boolean;
+  limit: "records" | "bytes" | null;
+  /** With lines: how many are served; with `days`: the days. */
+  count: number;
+  /** With `lines`: `{id, created_at, step, outcome, status, message, run_id}`. */
+  records: Record<string, unknown>[] | null;
+  /** With `per_day`: every day of the window, oldest first. */
+  days: { day: string; counts: Record<string, number> }[] | null;
+  total: number | null;
+  window_days: number | null;
+  tz: string | null;
+}
+
+export type AnyBindingData = BindingData | WorkflowLogData;
+
 /** A page version's live data: every binding's query, read as the page's owner. */
 export interface ArtifactData {
-  bindings: Record<string, BindingData>;
+  bindings: Record<string, AnyBindingData>;
   /**
    * The version asked about is still the current one. False once a newer one
    * was published: every binding is then unavailable, and the console moves to
@@ -460,13 +530,15 @@ export interface SharingDeferred {
 
 export type ChangeEffect = "widens" | "narrows" | "neutral";
 
-export type ChangeAspect = "table" | "field" | "filter" | "sort" | "limit" | "linked" | "reach";
+export type ChangeAspect =
+  "table" | "field" | "filter" | "sort" | "limit" | "linked" | "reach" | "log" | "kind";
 
 /** What a change names: a field, a condition, an order, a table or column label, or a limit. */
 export type ChangeValue =
   | BindingParts["fields"][number]
   | BindingParts["filters"][number]
   | BindingParts["sort"]
+  | WorkflowLogParts
   | string
   | number;
 
@@ -483,7 +555,7 @@ export interface BindingReview {
   change: "added" | "removed" | "changed";
   effect: ChangeEffect;
   /** An added binding's whole page query, or a removed one's last. */
-  parts: BindingParts | null;
+  parts: AnyBindingParts | null;
   changes: BindingChange[];
 }
 

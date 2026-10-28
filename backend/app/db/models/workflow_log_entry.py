@@ -10,7 +10,18 @@ a snapshot, so an entry still reads right after the step is renamed or removed.
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, Text, false, func
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Identity,
+    Index,
+    String,
+    Text,
+    false,
+    func,
+)
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -61,6 +72,9 @@ class WorkflowLogEntry(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+    seq: Mapped[int] = mapped_column(BigInteger, Identity(always=True), nullable=False)
+    """The order lines were written in: the database numbers them as they are inserted, so
+    it holds where `created_at` cannot (a clock that steps back, two lines in one instant)."""
 
     __table_args__ = (
         Index(
@@ -70,6 +84,7 @@ class WorkflowLogEntry(Base):
             created_at.desc(),
         ),
         Index("ix_workflow_log_entries_run", "run_id"),
+        Index("ix_workflow_log_entries_run_seq", "run_id", "seq"),
     )
 
     def __repr__(self) -> str:

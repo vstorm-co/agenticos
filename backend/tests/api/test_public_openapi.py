@@ -163,3 +163,21 @@ async def test_workflow_runs_are_public_but_authoring_stays_session_only(
     assert "get" in paths[f"{prefix}/{{run_id}}"]
     assert "get" in paths[f"{prefix}/{{run_id}}/events"]
     assert f"{settings.API_V1_STR}/workflows/{{workflow_id}}/draft" not in paths
+
+
+async def test_a_workflows_log_is_readable_with_a_key_and_documented(
+    document: dict[str, Any],
+) -> None:
+    paths = document["paths"]
+    prefix = settings.API_V1_STR
+    listing = paths[f"{prefix}/workflows/{{workflow_id}}/logs"]["get"]
+    summary = paths[f"{prefix}/workflows/{{workflow_id}}/logs/summary"]["get"]
+    assert "get" in paths[f"{prefix}/workflow-runs/{{run_id}}/logs"]
+    assert "get" in paths[f"{prefix}/workflow-logs"]
+    assert "newest first" in listing["description"]
+    assert {"from", "to", "q", "include_test", "run", "skip", "limit"} <= {
+        parameter["name"] for parameter in listing["parameters"]
+    }
+    assert "IANA time zone" in summary["description"]
+    assert "tz" in {parameter["name"] for parameter in summary["parameters"]}
+    assert f"{prefix}/workflows/{{workflow_id}}/log-alerts" not in paths

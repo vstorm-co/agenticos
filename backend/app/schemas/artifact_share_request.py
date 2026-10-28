@@ -19,6 +19,7 @@ from app.schemas.artifact import (
     DisclosedField,
     DisclosedFilter,
     DisclosedSort,
+    WorkflowLogParts,
 )
 from app.schemas.base import BaseSchema
 from app.schemas.resource_grant import VisibilityLiteral
@@ -93,13 +94,13 @@ class ArtifactAccessRequested(BaseSchema):
     note: str | None = None
 
 
-ChangeValue = DisclosedField | DisclosedFilter | DisclosedSort | str | int
+ChangeValue = DisclosedField | DisclosedFilter | DisclosedSort | WorkflowLogParts | str | int
 
 
 class BindingChange(BaseSchema):
     """One difference between a binding's page query in two versions."""
 
-    aspect: Literal["table", "field", "filter", "sort", "limit", "linked", "reach"]
+    aspect: Literal["table", "field", "filter", "sort", "limit", "linked", "reach", "log", "kind"]
     change: Literal["added", "removed", "changed"]
     effect: Effect = Field(
         description=(
@@ -118,7 +119,7 @@ class BindingReview(BaseSchema):
     name: str
     change: Literal["added", "removed", "changed"]
     effect: Effect
-    parts: BindingParts | None = Field(
+    parts: BindingParts | WorkflowLogParts | None = Field(
         default=None,
         description="An added binding's whole page query, or a removed one's last",
     )

@@ -9,10 +9,11 @@ anything about the run itself is touched.
 import json
 import logging
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -42,7 +43,15 @@ from app.repositories import workflow_file as workflow_file_repo
 from app.repositories import workflow_log_entry as workflow_log_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.workflow import StoredWorkflowSettings
-from app.schemas.workflow_log_entry import WorkflowLogEntryList, WorkflowLogEntryRead
+from app.schemas.workflow_log_entry import (
+    LogFilters,
+    WorkflowLogDay,
+    WorkflowLogEntryList,
+    WorkflowLogEntryRead,
+    WorkflowLogSummary,
+    WorkflowRecentLogEntry,
+    WorkflowRecentLogs,
+)
 from app.schemas.workflow_run import (
     WorkflowEventList,
     WorkflowEventRead,
@@ -827,11 +836,12 @@ class WorkflowExecutionService:
         ctx: AuthContext,
         workflow_id: UUID,
         *,
-        filters: workflow_log_repo.LogFilters,
+        filters: LogFilters,
         skip: int = 0,
         limit: int = 50,
     ) -> WorkflowLogEntryList:
-        """A workflow's log, newest first, for a caller who may view the workflow.
+        """A workflow's log, newest first, for a caller who may view the workflow. An
+        organization key reads only the lines of runs it may see: the runs list's rule.
 
         Raises:
             NotFoundError: No such workflow, or this caller may not see it - the
@@ -843,11 +853,92 @@ class WorkflowExecutionService:
             organization_id=ctx.organization_id,
             workflow_id=workflow_id,
             filters=filters,
+            public_only=ctx.api_key_id is not None,
             skip=skip,
             limit=limit,
         )
         return WorkflowLogEntryList(
             items=[WorkflowLogEntryRead.model_validate(row) for row in rows], total=total
+        )
+
+    async def workflow_log_summary(
+        self,
+        ctx: AuthContext,
+        workflow_id: UUID,
+        *,
+        filters: LogFilters,
+        days: int,
+        tz: str = "UTC",
+    ) -> WorkflowLogSummary:
+        """A workflow's log counted per day of time zone `tz` (an IANA name) and outcome over
+        the last `days` days, today included, for a caller who may view the workflow.
+        `filters` narrows it as it narrows the listing; its time window is left to `days`.
+
+        Raises:
+            NotFoundError: No such workflow, or this caller may not see it.
+        """
+        await self._authorize(ctx, workflow_id, Perm.WORKFLOWS_VIEW)
+        zone = ZoneInfo(tz)
+        today = datetime.now(zone).date()
+        first_day = today - timedelta(days=days - 1)
+        rows = await workflow_log_repo.count_by_day(
+            self.db,
+            organization_id=ctx.organization_id,
+            workflow_id=workflow_id,
+            filters=filters,
+            since=datetime.combine(first_day, time.min, tzinfo=zone),
+            # Local midnight ending today: a row dated ahead of the clock is outside the window.
+            until=datetime.combine(today + timedelta(days=1), time.min, tzinfo=zone),
+            tz=tz,
+            public_only=ctx.api_key_id is not None,
+        )
+        by_day = {
+            first_day + timedelta(days=offset): WorkflowLogDay(
+                day=first_day + timedelta(days=offset)
+            )
+            for offset in range(days)
+        }
+        for row in rows:
+            by_day[row.day].counts[row.outcome] = row.lines
+        return WorkflowLogSummary(
+            days=days, total=sum(row.lines for row in rows), by_day=list(by_day.values())
+        )
+
+    async def recent_logs(
+        self, ctx: AuthContext, *, skip: int = 0, limit: int = 20
+    ) -> WorkflowRecentLogs:
+        """The newest real-run lines across every workflow this caller may view - exactly
+        what `GET /workflows` lists - and how many lines each outcome left in the last 24
+        hours. An organization key reads only the lines of public-origin runs."""
+        shared = await visible_resource_ids(
+            self.db, ctx, resource_type=WORKFLOW, perm=Perm.WORKFLOWS_VIEW
+        )
+        visible_to_user_id = ctx.subject_id if shared is not None else None
+        rows = await workflow_log_repo.list_recent(
+            self.db,
+            organization_id=ctx.organization_id,
+            visible_to_user_id=visible_to_user_id,
+            shared_workflow_ids=shared,
+            public_only=ctx.api_key_id is not None,
+            skip=skip,
+            limit=limit,
+        )
+        counts = await workflow_log_repo.count_recent_by_outcome(
+            self.db,
+            organization_id=ctx.organization_id,
+            visible_to_user_id=visible_to_user_id,
+            shared_workflow_ids=shared,
+            since=datetime.now(UTC) - timedelta(hours=24),
+            public_only=ctx.api_key_id is not None,
+        )
+        return WorkflowRecentLogs(
+            items=[
+                WorkflowRecentLogEntry(
+                    **WorkflowLogEntryRead.model_validate(entry).model_dump(), workflow_name=name
+                )
+                for entry, name in rows
+            ],
+            counts=counts,
         )
 
     async def run_logs(

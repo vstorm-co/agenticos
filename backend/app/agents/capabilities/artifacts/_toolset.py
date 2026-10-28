@@ -47,9 +47,11 @@ from app.db.models.resource_grant import Visibility
 from app.schemas.artifact import (
     ActionDisclosure,
     ActionRequest,
-    BindingData,
+    AnyBindingData,
+    AnyBindingRequest,
     BindingDisclosure,
-    BindingRequest,
+    WorkflowLogData,
+    WorkflowLogDisclosure,
 )
 from app.services.artifact_lint import lint_page
 
@@ -200,7 +202,7 @@ class PublishedArtifactResult(BaseModel):
     unchanged: bool
     visibility: str
     public: bool
-    bindings: dict[str, BindingDisclosure | Literal["kept"]] = Field(
+    bindings: dict[str, BindingDisclosure | WorkflowLogDisclosure | Literal["kept"]] = Field(
         default_factory=dict,
         description="Each binding's page query in words, or `kept` when carried unchanged",
     )
@@ -319,7 +321,7 @@ def build_artifacts_toolset(
         content: str | None = None,
         edits: list[ArtifactEdit] | None = None,
         format: Literal["html", "markdown"] | None = None,  # noqa: A002 - the model's word for it
-        bindings: dict[str, BindingRequest] | None = None,
+        bindings: dict[str, AnyBindingRequest] | None = None,
         actions: list[ActionRequest] | None = None,
     ) -> str:
         """Publish a finished page - a report, a small dashboard, a summary - under a stable link.
@@ -393,7 +395,19 @@ def build_artifacts_toolset(
                 all must hold, added to the view's; a choice by its label), `sort`
                 (`{by, direction}`) and `limit` (at most and by default 1,000), which
                 replace the view's. E.g. `{"tickets": {"view": "Open tickets", "fields":
-                {"status": "Status"}, "limit": 50}}`. Binding names are lower-case letters,
+                {"status": "Status"}, "limit": 50}}`. A query with `"kind": "workflow_log"`
+                reads a workflow's log instead (`workflow`: id or exact name, from
+                `list_workflows` - one bound to this agent - that the page's owner must be
+                able to view): optional `step` (a step's id or label), `outcomes` (a list; any of them matches),
+                `run`, `include_test` (default false), and either `lines` (the newest N,
+                at most 500, newest first) or `per_day` with `days` (7, 30 or 90) and
+                `tz` (an IANA name, UTC by default). E.g. `{"errors": {"kind":
+                "workflow_log", "workflow": "Order intake", "outcomes": ["error"],
+                "per_day": true, "days": 30, "tz": "Europe/Warsaw"}}`. Its data is
+                `{status, records}` for `lines` (each `{id, created_at, step, outcome,
+                status, message, run_id}`), or `{status, days: [{day, counts: {outcome:
+                n}}], total, window_days, tz}` for `per_day`. A page that reads a log
+                cannot have a public link. Binding names are lower-case letters,
                 digits and `_`; a field may be named as its column is labelled (`Status`,
                 `Created At`). Omit to keep the page's current bindings - the usual case
                 when changing a page's look. `{}` removes them.
@@ -537,6 +551,7 @@ def build_artifacts_toolset(
             return steer(ctx, fixable.message)
         if media_type == ArtifactMediaType.HTML:
             warnings = lint_page(data, bound=published.bindings) + warnings
+        warnings = [*published.notes, *warnings]
         return PublishedArtifactResult(
             artifact_id=published.artifact_id,
             version_id=published.version_id,
@@ -858,13 +873,16 @@ def _drawn_outcome(drawn: Rendered, *, screenshot: bool) -> str:
     return "Screenshot: attached."
 
 
-def _binding_line(name: str, binding: BindingData) -> str:
+def _binding_line(name: str, binding: AnyBindingData) -> str:
     if binding.status != "ok":
         cause = binding.reason
         if cause is not None and binding.changed is not None:
             cause += f": {binding.changed}"
         return f"- {name}: unavailable" + (f" ({cause})" if cause else "")
-    line = f"- {name}: {binding.count} record{'' if binding.count == 1 else 's'}"
+    if isinstance(binding, WorkflowLogData) and binding.days is not None:
+        return f"- {name}: {binding.total or 0} log lines over {binding.window_days} days"
+    unit = "line" if isinstance(binding, WorkflowLogData) else "record"
+    line = f"- {name}: {binding.count} {unit}{'' if binding.count == 1 else 's'}"
     if binding.truncated:
         line += f", cut at the {binding.limit} limit"
     return line

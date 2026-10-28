@@ -630,11 +630,24 @@ export interface WorkflowLogList {
   total: number;
 }
 
+/** A line of the log with its workflow's name. Mirrors `WorkflowRecentLogEntry`. */
+export interface WorkflowRecentLogEntry extends WorkflowLogEntry {
+  workflow_name: string;
+}
+
+/** The newest real-run lines across the workflows the caller may view. Mirrors `WorkflowRecentLogs`. */
+export interface WorkflowRecentLogs {
+  items: WorkflowRecentLogEntry[];
+  /** Lines the last 24 hours wrote, by outcome; an outcome with none is absent. */
+  counts: Record<string, number>;
+}
+
 /** What a workflow's Logs page is narrowed to, and which page of it. */
 export interface LogQuery {
   workflowId: Uuid;
   nodeInstanceId?: Uuid;
-  outcome?: string;
+  /** Only lines that left by any of these ports, or `error`. */
+  outcomes?: string[];
   /** Only lines written at or after this instant, ISO 8601. */
   from?: string;
   /** Text in the message. */
@@ -1006,3 +1019,56 @@ export interface EvalCaseList {
   items: EvalCase[];
   latest: EvalRun | null;
 }
+
+/** Who a log alert reaches; an agent alert's audience, less the run's initiator. */
+export type LogAlertAudience = "admins" | "owner" | "chosen";
+
+/** The minutes back a rule counts lines over; the only ones the API accepts. */
+export const LOG_ALERT_WINDOWS = [5, 15, 30, 60, 240, 1440] as const;
+export type LogAlertWindow = (typeof LOG_ALERT_WINDOWS)[number];
+
+export const LOG_ALERT_THRESHOLD_MAX = 1000;
+export const LOG_ALERT_NAME_MAX = 100;
+export const LOG_ALERT_TEXT_MAX = 200;
+
+/** One time a rule fired. Mirrors `WorkflowLogAlertFiringRead`. */
+export interface LogAlertFiring {
+  id: Uuid;
+  fired_at: string;
+  count: number;
+  window_start: string;
+}
+
+/** A rule on a workflow's log. Mirrors `WorkflowLogAlertRead`. */
+export interface LogAlertRule {
+  id: Uuid;
+  workflow_id: Uuid;
+  name: string;
+  outcomes: string[];
+  node_instance_id: Uuid | null;
+  message_contains: string | null;
+  threshold: number;
+  window_minutes: number;
+  audience: LogAlertAudience[];
+  user_ids: Uuid[];
+  enabled: boolean;
+  last_firing: LogAlertFiring | null;
+  created_at: string;
+  updated_at: string | null;
+}
+
+/** What a rule is created with. Mirrors `WorkflowLogAlertCreate`. */
+export interface LogAlertInput {
+  name: string;
+  outcomes: string[];
+  node_instance_id: Uuid | null;
+  message_contains: string | null;
+  threshold: number;
+  window_minutes: LogAlertWindow;
+  audience: LogAlertAudience[];
+  user_ids: Uuid[];
+  enabled: boolean;
+}
+
+/** Fields of a rule to change; the step and the text take `null` to clear. */
+export type LogAlertPatch = Partial<LogAlertInput>;

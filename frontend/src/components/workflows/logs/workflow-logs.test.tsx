@@ -10,7 +10,17 @@ import { WorkflowLogs } from "./workflow-logs";
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 
-const url = vi.hoisted(() => ({ values: {} as Record<string, string | null>, set: vi.fn() }));
+const url = vi.hoisted(() => ({
+  values: {} as Record<string, string | string[] | null>,
+  set: vi.fn(),
+}));
+const alerts = vi.hoisted(() => ({ props: vi.fn() }));
+vi.mock("./log-alerts", () => ({
+  LogAlerts: (props: Record<string, unknown>) => {
+    alerts.props(props);
+    return null;
+  },
+}));
 const logs = vi.hoisted(() => ({
   entries: [] as WorkflowLogEntry[],
   total: 0,
@@ -45,6 +55,14 @@ vi.mock("@/hooks", () => ({
     url.values[key] ?? null,
     (value: string | null) => url.set(key, value),
   ],
+  useUrlList: (key: string) => {
+    const value = url.values[key] ?? [];
+    return [
+      Array.isArray(value) ? value : [value],
+      (values: string[]) =>
+        url.set(key, values.length === 0 ? null : values.length === 1 ? values[0] : values),
+    ];
+  },
   useWorkflowLogs: (query: LogQuery) => {
     logs.query(query);
     return {
@@ -100,6 +118,7 @@ beforeEach(() => {
   logs.error = null;
   logs.refetch.mockReset();
   logs.query.mockReset();
+  alerts.props.mockReset();
 });
 
 describe("WorkflowLogs", () => {
@@ -123,7 +142,7 @@ describe("WorkflowLogs", () => {
     expect(logs.query).toHaveBeenLastCalledWith({
       workflowId: "wf",
       nodeInstanceId: undefined,
-      outcome: undefined,
+      outcomes: undefined,
       from: undefined,
       q: undefined,
       includeTest: false,
@@ -138,7 +157,7 @@ describe("WorkflowLogs", () => {
     expect(logs.query).toHaveBeenLastCalledWith(
       expect.objectContaining({
         nodeInstanceId: "n1",
-        outcome: "error",
+        outcomes: ["error"],
         includeTest: true,
         page: 2,
       }),
@@ -148,6 +167,65 @@ describe("WorkflowLogs", () => {
     await userEvent.click(await screen.findByRole("option", { name: "Done" }));
     expect(url.set).toHaveBeenCalledWith("outcome", "out");
     expect(url.set).toHaveBeenCalledWith("page", null);
+  });
+
+  it("reads an alert link's repeated outcomes and step into the filters", async () => {
+    url.values = { step: "n1", outcome: ["out", "error"] };
+    render(<WorkflowLogs workflowId="wf" />);
+
+    expect(logs.query).toHaveBeenLastCalledWith(
+      expect.objectContaining({ nodeInstanceId: "n1", outcomes: ["out", "error"] }),
+    );
+    // The several read as one option naming them, and no empty state claims no filter.
+    expect(screen.getByRole("combobox", { name: "Outcome" })).toHaveTextContent("Done, error");
+    expect(screen.getByRole("combobox", { name: "Step" })).toHaveTextContent("Fetch lead");
+    expect(screen.getByText("No lines match")).toBeTruthy();
+
+    // Choosing the several again changes nothing; choosing one replaces them.
+    await userEvent.click(screen.getByRole("combobox", { name: "Outcome" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Done, error" }));
+    expect(url.set).not.toHaveBeenCalledWith("outcome", expect.anything());
+    await userEvent.click(screen.getByRole("combobox", { name: "Outcome" }));
+    await userEvent.click(await screen.findByRole("option", { name: "error" }));
+    expect(url.set).toHaveBeenCalledWith("outcome", "error");
+  });
+
+  it("hands the alerts section the steps, what each writes, and whether the page is editable", () => {
+    graphs.workflow = {
+      can_edit: true,
+      current_version_id: null,
+      draft_graph: {
+        nodes: [
+          { ...logging("n1", "Fetch lead"), quick_log: { message: "x", outputs: ["out"] } },
+          { ...logging("n3", "Both"), quick_log: { message: "x", outputs: null } },
+        ],
+      },
+    };
+    graphs.catalog = [
+      {
+        ...HTTP,
+        ports: [...HTTP.ports, { id: "no", label: "no", kind: "output", schema: null }],
+      },
+    ];
+    render(<WorkflowLogs workflowId="wf" />);
+    const props = alerts.props.mock.lastCall?.[0] as {
+      workflowId: string;
+      canEdit: boolean;
+      steps: [string, string][];
+      stepPorts: Map<string, string[]>;
+    };
+    expect(props.workflowId).toBe("wf");
+    expect(props.canEdit).toBe(true);
+    expect(props.steps.map(([id]) => id)).toEqual(["n1", "n3"]);
+    expect(props.stepPorts.get("n1")).toEqual(["error", "out"]);
+    expect(props.stepPorts.get("n3")).toEqual(["error", "out", "no"]);
+    // The alert dialog derives its no-step choices from the steps; the filter keeps its own.
+    expect(props).not.toHaveProperty("ports");
+  });
+
+  it("is read-only for the alerts until the workflow says the caller may edit it", () => {
+    render(<WorkflowLogs workflowId="wf" />);
+    expect(alerts.props.mock.lastCall?.[0]).toEqual(expect.objectContaining({ canEdit: false }));
   });
 
   it("offers only the steps that log, and the outcomes they leave by", async () => {

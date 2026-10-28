@@ -285,6 +285,15 @@ Drawing something else - stats, a chart, cards - from the records:
   work, read as `record["Created At"]`. Both at most 64 characters; at most 5
   bindings and 50 fields per binding.
 
+A workflow's log is the second thing a page can read live: a binding with
+`"kind": "workflow_log"`, the `workflow` (id or exact name, one bound to this agent), and either `lines`
+(the newest N, at most 500) or `per_day` with `days` (7, 30 or 90) and `tz`;
+optionally `step`, `outcomes`, `run` and `include_test`. Lines arrive as
+`records` (`{id, created_at, step, outcome, status, message, run_id}`), per-day
+counts as `days` (`[{day, counts: {outcome: n}}]`) with `total`, `window_days`
+and `tz`; draw a count per day with `AO.chart`. A page that reads a log cannot
+have a public link.
+
 Data you need once still goes inline.
 
 **Binding data is a decision for the page's owner.** Everyone who can open the page

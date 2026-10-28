@@ -9,9 +9,11 @@ versus delegate to the service (the `permissions-rbac` skill).
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
+from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi import Response
@@ -588,14 +590,15 @@ class TestRunLogsRoute:
                 response = await http.get(_url(f"/{run.id}/logs"))
         assert response.status_code == 404
 
-    async def test_an_organization_key_may_not_call_it(self, owner_client: OpenClient):
+    async def test_an_organization_key_may_call_it(self, owner_client: OpenClient):
         from app.api.public_api import is_public_route
         from app.api.routes.v1.workflow_runs import logs_router, router
 
         by_path = {route.path: route for route in (*router.routes, *logs_router.routes)}
         assert is_public_route(by_path["/{run_id}/nodes"])
-        assert not is_public_route(by_path["/{run_id}/logs"])
-        assert not is_public_route(by_path["/{workflow_id}/logs"])
+        assert is_public_route(by_path["/{run_id}/logs"])
+        assert is_public_route(by_path["/{workflow_id}/logs"])
+        assert is_public_route(by_path["/{workflow_id}/logs/summary"])
 
 
 class TestWorkflowLogsRoute:
@@ -617,18 +620,41 @@ class TestWorkflowLogsRoute:
                 response = await http.get(
                     self._url(
                         workflow.id,
-                        f"?node_instance_id={step}&outcome=error&q=mail&include_test=true"
+                        f"?node_instance_id={step}&outcome=error&outcome=out&q=mail&include_test=true"
                         "&from=2026-10-01T00:00:00Z&to=2026-10-02T00:00:00Z&skip=3&limit=10",
                     )
                 )
         assert response.status_code == 200
         assert response.json()["items"][0]["is_test"] is True
         filters = listed.await_args.kwargs["filters"]
-        assert (filters.node_instance_id, filters.outcome, filters.query) == (step, "error", "mail")
+        assert (filters.node_instance_id, filters.outcome, filters.query) == (
+            step,
+            ["error", "out"],
+            "mail",
+        )
         assert filters.include_test is True
         assert filters.created_from == datetime(2026, 10, 1, tzinfo=UTC)
         assert filters.created_to == datetime(2026, 10, 2, tzinfo=UTC)
         assert (listed.await_args.kwargs["skip"], listed.await_args.kwargs["limit"]) == (3, 10)
+
+    async def test_an_outcome_over_its_length_or_too_many_are_refused(
+        self, owner_client: OpenClient
+    ):
+        workflow = _workflow()
+        listed = AsyncMock(return_value=([], 0))
+        with (
+            patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(f"{FACADE_PATH}.workflow_log_repo.list_for_workflow", new=listed),
+        ):
+            async with owner_client() as http:
+                at_cap = await http.get(self._url(workflow.id, f"?outcome={'x' * 256}"))
+                too_long = await http.get(self._url(workflow.id, f"?outcome={'x' * 257}"))
+                many = await http.get(
+                    self._url(workflow.id, "?" + "&".join(f"outcome=p{n}" for n in range(21)))
+                )
+        assert (at_cap.status_code, too_long.status_code, many.status_code) == (200, 422, 422)
+        assert listed.await_count == 1
 
     async def test_a_run_id_or_its_start_is_passed_on_and_anything_else_is_refused(
         self, owner_client: OpenClient
@@ -705,3 +731,196 @@ class TestWorkflowLogsRoute:
         async with owner_client() as http:
             response = await http.get(self._url(uuid.uuid4(), "?limit=101"))
         assert response.status_code == 422
+
+
+class TestWorkflowLogSummaryRoute:
+    def _url(self, workflow_id: uuid.UUID, query: str = "") -> str:
+        return f"{settings.API_V1_STR}/workflows/{workflow_id}/logs/summary{query}"
+
+    def _patched(self, workflow, counted, access: bool = True):
+        return (
+            patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=access)),
+            patch(f"{FACADE_PATH}.workflow_log_repo.count_by_day", new=counted),
+        )
+
+    async def test_every_day_of_the_window_is_counted_and_the_filters_passed_on(
+        self, owner_client: OpenClient
+    ):
+        workflow = _workflow()
+        step = uuid.uuid4()
+        today = datetime.now(UTC).date()
+        counted = AsyncMock(
+            return_value=[
+                SimpleNamespace(day=today, outcome="out", lines=3),
+                SimpleNamespace(day=today, outcome="error", lines=1),
+                SimpleNamespace(day=today - timedelta(days=6), outcome="out", lines=2),
+            ]
+        )
+        first, second, third = self._patched(workflow, counted)
+        with first, second, third:
+            async with owner_client() as http:
+                response = await http.get(
+                    self._url(
+                        workflow.id,
+                        f"?days=7&node_instance_id={step}&outcome=out&outcome=error&q=mail&include_test=true",
+                    )
+                )
+        assert response.status_code == 200
+        body = response.json()
+        assert (body["days"], body["total"]) == (7, 6)
+        assert [day["day"] for day in body["by_day"]] == [
+            str(today - timedelta(days=offset)) for offset in range(6, -1, -1)
+        ]
+        assert body["by_day"][0]["counts"] == {"out": 2}
+        assert body["by_day"][1]["counts"] == {}
+        assert body["by_day"][-1]["counts"] == {"out": 3, "error": 1}
+        kwargs = counted.await_args.kwargs
+        assert (kwargs["filters"].node_instance_id, kwargs["filters"].outcome) == (
+            step,
+            ["out", "error"],
+        )
+        assert (kwargs["filters"].query, kwargs["filters"].include_test) == ("mail", True)
+        assert kwargs["since"] == datetime.combine(
+            today - timedelta(days=6), datetime.min.time(), tzinfo=UTC
+        )
+        assert kwargs["until"] == datetime.combine(
+            today + timedelta(days=1), datetime.min.time(), tzinfo=UTC
+        )
+        assert kwargs["tz"] == "UTC"
+
+    async def test_days_are_those_of_the_time_zone_asked_for(self, owner_client: OpenClient):
+        workflow = _workflow()
+        zone = ZoneInfo("Pacific/Kiritimati")
+        today = datetime.now(zone).date()
+        counted = AsyncMock(return_value=[SimpleNamespace(day=today, outcome="out", lines=1)])
+        first, second, third = self._patched(workflow, counted)
+        with first, second, third:
+            async with owner_client() as http:
+                response = await http.get(self._url(workflow.id, "?days=7&tz=Pacific/Kiritimati"))
+        assert response.status_code == 200
+        body = response.json()
+        assert body["by_day"][-1] == {"day": str(today), "counts": {"out": 1}}
+        kwargs = counted.await_args.kwargs
+        assert kwargs["tz"] == "Pacific/Kiritimati"
+        assert kwargs["since"] == datetime.combine(
+            today - timedelta(days=6), datetime.min.time(), tzinfo=zone
+        )
+        assert kwargs["until"] == datetime.combine(
+            today + timedelta(days=1), datetime.min.time(), tzinfo=zone
+        )
+
+    async def test_the_window_defaults_to_thirty_days_and_test_runs_are_left_out(
+        self, owner_client: OpenClient
+    ):
+        workflow = _workflow()
+        counted = AsyncMock(return_value=[])
+        first, second, third = self._patched(workflow, counted)
+        with first, second, third:
+            async with owner_client() as http:
+                response = await http.get(self._url(workflow.id, f"?run={uuid.uuid4()}"))
+        body = response.json()
+        assert (body["days"], body["total"], len(body["by_day"])) == (30, 0, 30)
+        assert counted.await_args.kwargs["filters"].include_test is False
+        assert counted.await_args.kwargs["filters"].run is not None
+
+    async def test_days_outside_the_set_and_a_bad_run_are_refused_naming_the_field(
+        self, owner_client: OpenClient
+    ):
+        counted = AsyncMock(return_value=[])
+        first, second, third = self._patched(_workflow(), counted)
+        with first, second, third:
+            async with owner_client() as http:
+                refused = [
+                    (field, await http.get(self._url(uuid.uuid4(), query)))
+                    for field, query in (
+                        ("days", "?days=8"),
+                        ("days", "?days=0"),
+                        ("days", "?days=365"),
+                        ("run", "?run=3f2"),
+                        ("tz", "?tz=Mars/Olympus"),
+                        ("tz", "?tz=%2E%2E%2Fetc"),
+                    )
+                ]
+        for field, response in refused:
+            assert response.status_code == 422
+            assert response.json()["error"]["details"]["fields"][0]["field"] == field
+        counted.assert_not_awaited()
+
+    async def test_a_workflow_the_caller_cannot_view_answers_404(self, owner_client: OpenClient):
+        workflow = _workflow()
+        counted = AsyncMock(return_value=[])
+        first, second, third = self._patched(workflow, counted, access=False)
+        with first, second, third:
+            async with owner_client() as http:
+                response = await http.get(self._url(workflow.id))
+        assert response.status_code == 404
+        counted.assert_not_awaited()
+
+
+class TestRecentLogsRoute:
+    def _url(self, query: str = "") -> str:
+        return f"{settings.API_V1_STR}/workflow-logs{query}"
+
+    async def test_the_newest_lines_come_with_their_workflow_and_the_last_days_counts(
+        self, owner_client: OpenClient
+    ):
+        row = _log_row()
+        listed = AsyncMock(return_value=[(row, "Inbox triage")])
+        counted = AsyncMock(return_value={"out": 4, "error": 1})
+        with (
+            patch(f"{FACADE_PATH}.visible_resource_ids", new=AsyncMock(return_value=None)),
+            patch(f"{FACADE_PATH}.workflow_log_repo.list_recent", new=listed),
+            patch(f"{FACADE_PATH}.workflow_log_repo.count_recent_by_outcome", new=counted),
+        ):
+            async with owner_client() as http:
+                response = await http.get(self._url("?skip=2&limit=5"))
+        assert response.status_code == 200
+        body = response.json()
+        assert "total" not in body
+        assert body["counts"] == {"out": 4, "error": 1}
+        assert body["items"][0]["workflow_name"] == "Inbox triage"
+        assert body["items"][0]["run_id"] == str(row.run_id)
+        assert listed.await_args.kwargs["skip"] == 2
+        assert listed.await_args.kwargs["limit"] == 5
+        # A role that reaches every workflow is not narrowed.
+        assert listed.await_args.kwargs["visible_to_user_id"] is None
+        window = datetime.now(UTC) - counted.await_args.kwargs["since"]
+        assert timedelta(hours=23, minutes=59) < window < timedelta(hours=24, minutes=1)
+
+    @pytest.mark.security
+    async def test_a_member_is_narrowed_to_the_workflows_they_may_see(
+        self, owner_client: OpenClient
+    ):
+        shared = [uuid.uuid4()]
+        listed = AsyncMock(return_value=[])
+        counted = AsyncMock(return_value={})
+        with (
+            patch(f"{FACADE_PATH}.visible_resource_ids", new=AsyncMock(return_value=shared)),
+            patch(f"{FACADE_PATH}.workflow_log_repo.list_recent", new=listed),
+            patch(f"{FACADE_PATH}.workflow_log_repo.count_recent_by_outcome", new=counted),
+        ):
+            async with owner_client() as http:
+                response = await http.get(self._url())
+        assert response.status_code == 200
+        for call in (listed, counted):
+            assert call.await_args.kwargs["visible_to_user_id"] is not None
+            assert call.await_args.kwargs["shared_workflow_ids"] == shared
+
+    async def test_a_limit_over_the_page_ceiling_is_refused(self, owner_client: OpenClient):
+        async with owner_client() as http:
+            response = await http.get(self._url("?limit=101"))
+        assert response.status_code == 422
+
+    @pytest.mark.security
+    async def test_a_role_without_workflows_view_is_refused(self):
+        for open_client in _client_for("no-such-role"):
+            async with open_client() as http:
+                response = await http.get(self._url())
+            assert response.status_code == 403
+
+    async def test_the_route_is_public(self):
+        from app.api.public_api import is_public_route
+        from app.api.routes.v1.workflow_runs import org_logs_router
+
+        assert is_public_route(org_logs_router.routes[0])

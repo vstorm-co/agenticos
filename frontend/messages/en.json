@@ -2830,6 +2830,16 @@
         "rowRequests": "{requests, plural, one {# request} other {# requests}}",
         "row": "{requests, plural, one {# request} other {# requests}}, {rate} approved as proposed"
       },
+      "workflow-logs": {
+        "title": "Workflow logs",
+        "description": "The newest lines your workflows wrote to their logs, and how many the last 24 hours added - real runs only.",
+        "empty": {
+          "title": "No log lines yet",
+          "description": "A workflow step with a Quick Log writes here each time it runs."
+        },
+        "lastDay": "Lines, last 24 hours",
+        "errors": "Errors"
+      },
       "suggestions": {
         "title": "Briefing",
         "description": "What your watches found and the nightly look proposed - what cannot wait first.",
@@ -4759,6 +4769,10 @@
         "title": "Its log",
         "body": "The lines this workflow's steps wrote with a quick log, newest first. Narrow them by step, outcome or time, search the message, and add test runs. A line opens the run that wrote it."
       },
+      "workflow-log-alerts": {
+        "title": "Its alerts",
+        "body": "Rules that tell people when this log crosses a threshold: how many matching lines, in how long, and who hears. Anyone who can edit the workflow adds, changes or deletes them."
+      },
       "org-public-live-data": {
         "title": "Live data on public pages",
         "body": "Whether public links and embeds may show table data to people without an account. It's off by default, and each page's owner still has to confirm their page."
@@ -5179,6 +5193,57 @@
       "logsFailed": "The log could not be read",
       "logsFailedDetail": "Check your connection and try again.",
       "logsRetry": "Try again",
+      "alertsTitle": "Alerts",
+      "alertsCount": "{count, plural, =0 {No alerts} one {# alert} other {# alerts}}",
+      "alertsFailed": "Could not load the alerts",
+      "alertsFailedDetail": "The alert rules did not load. Nothing is lost; try again.",
+      "alertsEmpty": "No alerts yet",
+      "alertsEmptyDetail": "Add an alert to tell people when something happens too often in this workflow's log, such as five failures in fifteen minutes.",
+      "alertsEmptyViewer": "Nobody has set up an alert on this workflow's log.",
+      "alertNew": "Add alert",
+      "alertEdit": "Edit alert",
+      "alertName": "Name",
+      "alertNamePlaceholder": "Too many failures",
+      "alertStep": "Step",
+      "alertOutcomes": "Outcomes",
+      "alertOutcomesHint": "Which results count. Only ones the step's log writes are listed.",
+      "alertText": "Message contains",
+      "alertTextHint": "Optional. Only count log messages with these words, in any case.",
+      "alertThreshold": "Occurrences",
+      "alertThresholdRange": "A whole number from 1 to {max}",
+      "alertWindow": "Within",
+      "alertWindows": {
+        "5": "5 minutes",
+        "15": "15 minutes",
+        "30": "30 minutes",
+        "60": "1 hour",
+        "240": "4 hours",
+        "1440": "24 hours"
+      },
+      "alertAudience": "Who is told",
+      "alertAudienceAdmins": "Admins",
+      "alertAudienceOwner": "Workflow owner",
+      "alertAudienceChosen": "Specific people",
+      "alertPeopleChosen": "{count, plural, =0 {Choose people} one {# person} other {# people}}",
+      "alertEnabled": "Alert is on",
+      "alertCancel": "Cancel",
+      "alertSave": "Save",
+      "alertSaved": "Alert saved",
+      "alertDeleted": "Alert deleted",
+      "alertNeedsName": "Give the alert a name",
+      "alertNeedsOutcome": "Choose at least one outcome",
+      "alertNeedsAudience": "Choose who is told",
+      "alertNeedsPeople": "Specific people is chosen and nobody is named",
+      "alertCondition": "{count, plural, one {At least # occurrence} other {At least # occurrences}} with outcome {outcomes}{hasStep, select, yes { in {step}} other {}}{hasText, select, yes { containing “{text}”} other {}} within {window}",
+      "alertTells": "Notifies: {who}",
+      "alertNeverFired": "Has not fired yet",
+      "alertLastFired": "{count, plural, one {Last fired {when}, on # occurrence} other {Last fired {when}, on # occurrences}}",
+      "alertToggle": "Alert {name} is on",
+      "alertEditNamed": "Edit alert {name}",
+      "alertDeleteNamed": "Delete alert {name}",
+      "alertDeleteTitle": "Delete this alert?",
+      "alertDeleteDetail": "{name} stops telling people about this workflow's log. Past notifications stay.",
+      "alertDelete": "Delete alert",
       "runRetry": "Retry from failed step",
       "runRetried": "Retry started",
       "runRetryOf": "Retries",
@@ -5306,7 +5371,12 @@
         "approvalsDecideCaption": "95% within {p95}",
         "approvalsRequests": "Requests",
         "approvalsMedianEdit": "Median change"
-      }
+      },
+      "alertThresholdHint": "How many times it has to happen",
+      "alertNameHint": "What you will see in the list and in the notification",
+      "alertStepHint": "Watch one step, or every step that logs",
+      "alertWindowHint": "Within how long",
+      "alertAudienceHint": "Who gets the bell and the email"
     },
     "retention": {
       "title": "Data retention",
@@ -6383,6 +6453,8 @@
       "prefAnnouncementTrigger": "An app admin sends a message to a chosen audience across the deployment.",
       "prefWorkflowNotification": "Workflow notifications",
       "prefWorkflowNotificationTrigger": "A workflow you can see sends you a message from one of its steps.",
+      "prefWorkflowLogAlert": "Workflow log alerts",
+      "prefWorkflowLogAlertTrigger": "A workflow you can see crosses an alert threshold on its log.",
       "prefArtifactOwnerChanged": "Page ownership changes",
       "prefArtifactOwnerChangedTrigger": "A page you own, or used to own, is handed to another member.",
       "prefIngestionCompleted": "Document ingested",
@@ -8815,8 +8887,9 @@
     "liveDataRefused": "This page's live data is not available to you.",
     "liveDataBusy": "Busy, try again in a moment.",
     "liveSourcesUnavailable": "{total, plural, =1 {1 of 1 source unavailable to you.} other {{count} of # sources unavailable to you.}}",
-    "liveSourceCause": "<b>{name}</b>: {reason, select, awaiting_consent {shown once the page's owner confirms its data} creator_gone {the page's owner is no longer a member} creator_lost_access {the page's owner no longer has access to a table it uses} source_changed {{changed} changed since it was published - publish the page again} not_current {only the current version shows live data} timeout {it took too long to load} other {it could not be loaded}}",
+    "liveSourceCause": "<b>{name}</b>: {reason, select, awaiting_consent {shown once the page's owner confirms its data} creator_gone {the page's owner is no longer a member} creator_lost_access {the page's owner no longer has access to a table or workflow it uses} source_changed {{changed} changed since it was published - publish the page again} not_current {only the current version shows live data} public_link {a workflow's log is never shown on a public link} timeout {it took too long to load} other {it could not be loaded}}",
     "openTable": "Open the table",
+    "openWorkflow": "Open the workflow",
     "liveOnlyCurrent": "Live data only on the current version.",
     "openCurrent": "Open current",
     "filterByAgent": "Filter by agent",
@@ -8894,14 +8967,27 @@
       "grownAutomaticallyVia": "v{version}, published by {name}, was shared automatically and shows more data: {added}",
       "confirmTitle": "Confirm the data v{version} shares",
       "confirmTitleUnnumbered": "Confirm the data this version shares",
-      "confirmWhy": "Everyone who can open this page will see these records, even without access to the tables. Confirm only what they may all see.",
+      "confirmWhy": "{kind, select, log {Everyone who can open this page will see these log lines, even without access to the workflow. Confirm only what they may all see.} both {Everyone who can open this page will see these records and log lines, even without access to the tables or workflows. Confirm only what they may all see.} other {Everyone who can open this page will see these records, even without access to the tables. Confirm only what they may all see.}}",
       "disclosureFailed": "Couldn't load what this version shares.",
       "bindingTable": "{name} - from {table}",
+      "bindingLog": "{name} - log of {workflow}",
       "noFilters": "All records.",
       "filters": "Only records where {conditions}.",
       "sortAndLimit": "Order: {sort}. At most {limit, plural, =1 {1 record} other {# records}}.",
       "field": "{field}: {reads}",
       "tablesRead": "Tables: {tables}",
+      "log": {
+        "step": "from the step {step}",
+        "outcomes": "left by {outcomes}",
+        "run": "from the run {run}",
+        "filters": "Only lines {conditions}.",
+        "allLines": "All lines.",
+        "testsIncluded": "Test runs are included.",
+        "testsLeftOut": "Test runs are left out.",
+        "lines": "Serves the newest {count, plural, =1 {1 line} other {# lines}}, newest first.",
+        "perDay": "Serves the number of lines per day over {days} days, in {tz}.",
+        "summary": "{workflow}: {keeps} {serves}"
+      },
       "parts": {
         "filterOp": "{column} {op, select, eq {is} ne {is not} lt {is less than} lte {is at most} gt {is more than} gte {is at least} contains {contains} starts_with {starts with} in {is one of} other {is}} {value}",
         "isEmpty": "{column} is empty",
@@ -9001,7 +9087,8 @@
       "effect": "{effect, select, widens {Shows more} narrows {Shows less} other {No change}}",
       "binding": "{change, select, added {{name} - new} removed {{name} - removed} other {{name}}}",
       "removedReads": "It no longer uses {table}.",
-      "change": "{aspect, select, table {Table: {before} -> {after}} field {{change, select, added {Field added: {after}} removed {Field removed: {before}} other {Field changed: {before} -> {after}}}} filter {{change, select, added {Condition added: {after}} removed {Condition dropped: {before}} other {Condition changed: {before} -> {after}}}} sort {Order: {before} -> {after}} limit {Limit: {before} -> {after}} linked {{change, select, added {Now also uses linked tables: {after}} other {No longer uses linked tables: {before}}}} other {{change, select, added {Now also uses, in a filter or sort: {after}} other {No longer uses: {before}}}}}"
+      "removedLog": "It no longer reads the log of {workflow}.",
+      "change": "{aspect, select, table {Table: {before} -> {after}} field {{change, select, added {Field added: {after}} removed {Field removed: {before}} other {Field changed: {before} -> {after}}}} filter {{change, select, added {Condition added: {after}} removed {Condition dropped: {before}} other {Condition changed: {before} -> {after}}}} sort {Order: {before} -> {after}} limit {Limit: {before} -> {after}} linked {{change, select, added {Now also uses linked tables: {after}} other {No longer uses linked tables: {before}}}} log {Log: {before} -> {after}} kind {Reads: {before} -> {after}} other {{change, select, added {Now also uses, in a filter or sort: {after}} other {No longer uses: {before}}}}}"
     },
     "publicData": {
       "title": "Live data on this public link",

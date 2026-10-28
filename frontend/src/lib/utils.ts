@@ -32,6 +32,16 @@ export function setUrlParam(key: string, value: string | null): void {
   window.history.replaceState({}, "", url.toString());
 }
 
+/** Rewrite every occurrence of a repeated query parameter; none removes it. */
+export function setUrlParams(key: string, values: string[]): void {
+  /* v8 ignore next -- an SSR guard, and the test environment is jsdom */
+  if (typeof window === "undefined") return;
+  const url = new URL(window.location.href);
+  url.searchParams.delete(key);
+  for (const value of values) url.searchParams.append(key, value);
+  window.history.replaceState({}, "", url.toString());
+}
+
 export function getPasswordStrength(pw: string): { score: number; label: string; color: string } {
   if (!pw) return { score: 0, label: "", color: "" };
   let score = 0;

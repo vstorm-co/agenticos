@@ -2830,6 +2830,16 @@
         "rowRequests": "{requests, plural, one {# Anfrage} other {# Anfragen}}",
         "row": "{requests, plural, one {# Anfrage} other {# Anfragen}}, {rate} wie vorgeschlagen freigegeben"
       },
+      "workflow-logs": {
+        "title": "Workflow-Protokolle",
+        "description": "Die neuesten Zeilen, die Ihre Workflows in ihre Protokolle geschrieben haben, und wie viele die letzten 24 Stunden brachten - nur echte Runs.",
+        "empty": {
+          "title": "Noch keine Protokollzeilen",
+          "description": "Ein Workflow-Schritt mit Quick Log schreibt hier bei jedem Lauf."
+        },
+        "lastDay": "Zeilen, letzte 24 Stunden",
+        "errors": "Fehler"
+      },
       "suggestions": {
         "title": "Briefing",
         "description": "Funde Ihrer Beobachtungen und Vorschläge des nächtlichen Blicks - zuerst, was nicht warten kann.",
@@ -4641,6 +4651,10 @@
         "title": "Sein Log",
         "body": "Die Zeilen, die die Schritte dieses Workflows mit einem schnellen Log geschrieben haben, die neuesten zuerst. Grenzen Sie nach Schritt, Ergebnis oder Zeit ein, durchsuchen Sie die Nachricht und beziehen Sie Test-Runs ein. Eine Zeile öffnet den Run, der sie geschrieben hat."
       },
+      "workflow-log-alerts": {
+        "title": "Seine Warnungen",
+        "body": "Regeln, die Personen informieren, wenn dieses Protokoll einen Schwellenwert überschreitet: wie viele passende Zeilen, in welcher Zeit und wer davon erfährt. Wer den Workflow bearbeiten darf, fügt sie hinzu, ändert oder löscht sie."
+      },
       "org-public-live-data": {
         "title": "Live-Daten auf öffentlichen Seiten",
         "body": "Ob öffentliche Links und Einbettungen Tabellendaten Personen ohne Konto zeigen dürfen. Standardmäßig aus, und der Eigentümer jeder Seite muss seine Seite weiterhin bestätigen."
@@ -5774,6 +5788,8 @@
       "prefAnnouncementTrigger": "Ein App-Admin sendet eine Nachricht an einen gewählten Empfängerkreis im ganzen Deployment.",
       "prefWorkflowNotification": "Workflow-Benachrichtigungen",
       "prefWorkflowNotificationTrigger": "Ein Workflow, den Sie sehen können, sendet Ihnen aus einem seiner Schritte eine Nachricht.",
+      "prefWorkflowLogAlert": "Warnungen aus dem Workflow-Protokoll",
+      "prefWorkflowLogAlertTrigger": "Das Protokoll eines Workflows, den Sie sehen können, überschreitet einen Warnschwellenwert.",
       "prefArtifactOwnerChanged": "Eigentümerwechsel einer Seite",
       "prefArtifactOwnerChangedTrigger": "Eine Seite, die Ihnen gehört oder gehörte, wird an ein anderes Mitglied übergeben.",
       "prefIngestionCompleted": "Dokument eingelesen",
@@ -6561,6 +6577,57 @@
       "logsFailed": "Das Log konnte nicht gelesen werden",
       "logsFailedDetail": "Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
       "logsRetry": "Erneut versuchen",
+      "alertsTitle": "Warnungen",
+      "alertsCount": "{count, plural, =0 {Keine Warnungen} one {# Warnung} other {# Warnungen}}",
+      "alertsFailed": "Die Warnungen konnten nicht geladen werden",
+      "alertsFailedDetail": "Die Warnregeln wurden nicht geladen. Es geht nichts verloren; versuchen Sie es erneut.",
+      "alertsEmpty": "Noch keine Warnungen",
+      "alertsEmptyDetail": "Fügen Sie eine Warnung hinzu, die Personen informiert, wenn im Protokoll dieses Workflows etwas zu oft passiert, etwa fünf Fehler in fünfzehn Minuten.",
+      "alertsEmptyViewer": "Für das Protokoll dieses Workflows hat niemand eine Warnung eingerichtet.",
+      "alertNew": "Warnung hinzufügen",
+      "alertEdit": "Warnung bearbeiten",
+      "alertName": "Name",
+      "alertNamePlaceholder": "Zu viele Fehler",
+      "alertStep": "Schritt",
+      "alertOutcomes": "Ergebnisse",
+      "alertOutcomesHint": "Welche Ergebnisse zählen. Angeboten werden nur die, die das Protokoll des Schritts schreibt.",
+      "alertText": "Nachricht enthält",
+      "alertTextHint": "Optional. Zählt nur Protokollnachrichten mit diesen Wörtern, unabhängig von der Schreibweise.",
+      "alertThreshold": "Vorkommen",
+      "alertThresholdRange": "Eine ganze Zahl von 1 bis {max}",
+      "alertWindow": "Innerhalb von",
+      "alertWindows": {
+        "5": "5 Minuten",
+        "15": "15 Minuten",
+        "30": "30 Minuten",
+        "60": "1 Stunde",
+        "240": "4 Stunden",
+        "1440": "24 Stunden"
+      },
+      "alertAudience": "Wer informiert wird",
+      "alertAudienceAdmins": "Admins",
+      "alertAudienceOwner": "Workflow-Eigentümer",
+      "alertAudienceChosen": "Bestimmte Personen",
+      "alertPeopleChosen": "{count, plural, =0 {Personen wählen} one {# Person} other {# Personen}}",
+      "alertEnabled": "Warnung ist aktiv",
+      "alertCancel": "Abbrechen",
+      "alertSave": "Speichern",
+      "alertSaved": "Warnung gespeichert",
+      "alertDeleted": "Warnung gelöscht",
+      "alertNeedsName": "Geben Sie der Warnung einen Namen",
+      "alertNeedsOutcome": "Wählen Sie mindestens ein Ergebnis",
+      "alertNeedsAudience": "Wählen Sie, wer informiert wird",
+      "alertNeedsPeople": "„Bestimmte Personen“ ist gewählt, aber niemand benannt",
+      "alertCondition": "{count, plural, one {Mindestens # Vorkommen} other {Mindestens # Vorkommen}} mit Ergebnis {outcomes}{hasStep, select, yes { in {step}} other {}}{hasText, select, yes { mit „{text}“} other {}} innerhalb von {window}",
+      "alertTells": "Benachrichtigt: {who}",
+      "alertNeverFired": "Noch nicht ausgelöst",
+      "alertLastFired": "{count, plural, one {Zuletzt ausgelöst {when}, bei # Vorkommen} other {Zuletzt ausgelöst {when}, bei # Vorkommen}}",
+      "alertToggle": "Warnung {name} ist aktiv",
+      "alertEditNamed": "Warnung {name} bearbeiten",
+      "alertDeleteNamed": "Warnung {name} löschen",
+      "alertDeleteTitle": "Diese Warnung löschen?",
+      "alertDeleteDetail": "{name} informiert nicht mehr über das Protokoll dieses Workflows. Bisherige Benachrichtigungen bleiben.",
+      "alertDelete": "Warnung löschen",
       "runRetry": "Ab dem fehlgeschlagenen Schritt wiederholen",
       "runRetried": "Wiederholung gestartet",
       "runRetryOf": "Wiederholt",
@@ -6688,7 +6755,12 @@
         "approvalsDecideCaption": "95 % innerhalb von {p95}",
         "approvalsRequests": "Anfragen",
         "approvalsMedianEdit": "Änderung (Median)"
-      }
+      },
+      "alertThresholdHint": "Wie oft es passieren muss",
+      "alertNameHint": "Das sehen Sie in der Liste und in der Benachrichtigung",
+      "alertStepHint": "Einen Schritt beobachten oder jeden Schritt, der protokolliert",
+      "alertWindowHint": "Innerhalb welcher Zeit",
+      "alertAudienceHint": "Wer die Glocke und die E-Mail bekommt"
     }
   },
   "profile": {
@@ -8698,8 +8770,9 @@
     "liveDataRefused": "Die Live-Daten dieser Seite sind für Sie nicht verfügbar.",
     "liveDataBusy": "Gerade ausgelastet. Versuchen Sie es gleich noch einmal.",
     "liveSourcesUnavailable": "{total, plural, =1 {1 von 1 Quelle ist für Sie nicht verfügbar.} other {{count} von # Quellen sind für Sie nicht verfügbar.}}",
-    "liveSourceCause": "<b>{name}</b>: {reason, select, awaiting_consent {Sie sehen sie, sobald der Eigentümer der Seite ihre Daten bestätigt} creator_gone {der Eigentümer der Seite ist kein Mitglied mehr} creator_lost_access {der Eigentümer der Seite hat keinen Zugriff mehr auf eine Tabelle, die sie nutzt} source_changed {{changed} hat sich seit der Veröffentlichung geändert - veröffentlichen Sie die Seite erneut} not_current {nur die aktuelle Version zeigt Live-Daten} timeout {das Laden hat zu lange gedauert} other {sie konnte nicht geladen werden}}",
+    "liveSourceCause": "<b>{name}</b>: {reason, select, awaiting_consent {Sie sehen sie, sobald der Eigentümer der Seite ihre Daten bestätigt} creator_gone {der Eigentümer der Seite ist kein Mitglied mehr} creator_lost_access {der Eigentümer der Seite hat keinen Zugriff mehr auf eine Tabelle oder einen Workflow, die sie nutzt} source_changed {{changed} hat sich seit der Veröffentlichung geändert - veröffentlichen Sie die Seite erneut} not_current {nur die aktuelle Version zeigt Live-Daten} public_link {der Log eines Workflows wird nie über einen öffentlichen Link gezeigt} timeout {das Laden hat zu lange gedauert} other {sie konnte nicht geladen werden}}",
     "openTable": "Tabelle öffnen",
+    "openWorkflow": "Workflow öffnen",
     "liveOnlyCurrent": "Live-Daten gibt es nur in der aktuellen Version.",
     "openCurrent": "Aktuelle Version öffnen",
     "filterByAgent": "Nach Agent filtern",
@@ -8777,14 +8850,27 @@
       "grownAutomaticallyVia": "v{version}, veröffentlicht von {name}, wurde automatisch freigegeben und zeigt mehr Daten: {added}",
       "confirmTitle": "Die Daten bestätigen, die v{version} teilt",
       "confirmTitleUnnumbered": "Die Daten bestätigen, die diese Version teilt",
-      "confirmWhy": "Alle, die diese Seite öffnen können, sehen diese Datensätze, auch ohne Zugriff auf die Tabellen. Bestätigen Sie nur, was alle sehen dürfen.",
+      "confirmWhy": "{kind, select, log {Alle, die diese Seite öffnen können, sehen diese Log-Zeilen, auch ohne Zugriff auf den Workflow. Bestätigen Sie nur, was alle sehen dürfen.} both {Alle, die diese Seite öffnen können, sehen diese Datensätze und Log-Zeilen, auch ohne Zugriff auf die Tabellen oder Workflows. Bestätigen Sie nur, was alle sehen dürfen.} other {Alle, die diese Seite öffnen können, sehen diese Datensätze, auch ohne Zugriff auf die Tabellen. Bestätigen Sie nur, was alle sehen dürfen.}}",
       "disclosureFailed": "Was diese Version teilt, konnte nicht geladen werden.",
       "bindingTable": "{name} - aus {table}",
+      "bindingLog": "{name} - Log von {workflow}",
       "noFilters": "Alle Datensätze.",
       "filters": "Nur Datensätze, bei denen {conditions}.",
       "sortAndLimit": "Reihenfolge: {sort}. Höchstens {limit, plural, =1 {1 Datensatz} other {# Datensätze}}.",
       "field": "{field}: {reads}",
       "tablesRead": "Tabellen: {tables}",
+      "log": {
+        "step": "aus dem Schritt {step}",
+        "outcomes": "mit Ausgang {outcomes}",
+        "run": "aus dem Lauf {run}",
+        "filters": "Nur Zeilen {conditions}.",
+        "allLines": "Alle Zeilen.",
+        "testsIncluded": "Testläufe sind eingeschlossen.",
+        "testsLeftOut": "Testläufe sind ausgeschlossen.",
+        "lines": "Liefert die neuesten {count, plural, =1 {1 Zeile} other {# Zeilen}}, die neueste zuerst.",
+        "perDay": "Liefert die Zahl der Zeilen pro Tag über {days} Tage, in {tz}.",
+        "summary": "{workflow}: {keeps} {serves}"
+      },
       "parts": {
         "filterOp": "{column} {op, select, eq {ist} ne {ist nicht} lt {ist kleiner als} lte {ist höchstens} gt {ist größer als} gte {ist mindestens} contains {enthält} starts_with {beginnt mit} in {ist einer von} other {ist}} {value}",
         "isEmpty": "{column} ist leer",
@@ -8884,7 +8970,8 @@
       "effect": "{effect, select, widens {Zeigt mehr} narrows {Zeigt weniger} other {Keine Änderung}}",
       "binding": "{change, select, added {{name} - neu} removed {{name} - entfernt} other {{name}}}",
       "removedReads": "Sie nutzt {table} nicht mehr.",
-      "change": "{aspect, select, table {Tabelle: {before} -> {after}} field {{change, select, added {Feld hinzugefügt: {after}} removed {Feld entfernt: {before}} other {Feld geändert: {before} -> {after}}}} filter {{change, select, added {Bedingung hinzugefügt: {after}} removed {Bedingung entfernt: {before}} other {Bedingung geändert: {before} -> {after}}}} sort {Reihenfolge: {before} -> {after}} limit {Limit: {before} -> {after}} linked {{change, select, added {Nutzt jetzt auch verknüpfte Tabellen: {after}} other {Nutzt keine verknüpften Tabellen mehr: {before}}}} other {{change, select, added {Nutzt jetzt auch, in einem Filter oder der Sortierung: {after}} other {Nutzt nicht mehr: {before}}}}}"
+      "removedLog": "Sie liest das Log von {workflow} nicht mehr.",
+      "change": "{aspect, select, table {Tabelle: {before} -> {after}} field {{change, select, added {Feld hinzugefügt: {after}} removed {Feld entfernt: {before}} other {Feld geändert: {before} -> {after}}}} filter {{change, select, added {Bedingung hinzugefügt: {after}} removed {Bedingung entfernt: {before}} other {Bedingung geändert: {before} -> {after}}}} sort {Reihenfolge: {before} -> {after}} limit {Limit: {before} -> {after}} linked {{change, select, added {Nutzt jetzt auch verknüpfte Tabellen: {after}} other {Nutzt keine verknüpften Tabellen mehr: {before}}}} log {Log: {before} -> {after}} kind {Liest: {before} -> {after}} other {{change, select, added {Nutzt jetzt auch, in einem Filter oder der Sortierung: {after}} other {Nutzt nicht mehr: {before}}}}}"
     },
     "publicData": {
       "title": "Live-Daten auf diesem öffentlichen Link",

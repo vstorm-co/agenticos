@@ -10,10 +10,11 @@ nothing still settling the step and the run as ever, and the lines going with th
 import uuid
 from collections import Counter
 from collections.abc import Iterator
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
 from itertools import pairwise
 from typing import Any
 from unittest.mock import AsyncMock, patch
+from zoneinfo import ZoneInfo
 
 import pytest
 from pydantic import BaseModel
@@ -21,11 +22,16 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.core.exceptions import NotFoundError
+from app.core.permissions import AuthContext
+from app.db.models.organization import OrganizationMember
+from app.db.models.resource_grant import ResourceGrant, Visibility
+from app.db.models.user import User
 from app.db.models.workflow import Workflow
 from app.db.models.workflow_log_entry import WorkflowLogEntry
 from app.db.models.workflow_run import WorkflowRun, WorkflowRunMode, WorkflowRunStatus
 from app.repositories import workflow_log_entry as workflow_log_repo
 from app.repositories import workflow_run as workflow_run_repo
+from app.schemas.workflow_log_entry import LogFilters
 from app.services.workflow_execution import WorkflowExecutionService
 from app.services.workflow_execution.exceptions import WorkflowRunNotFoundError
 from app.workflows._registry import REGISTRY, register
@@ -435,12 +441,12 @@ class TestReading:
         async with seeded.factory() as db:
             service = WorkflowExecutionService(db)
             hidden = await service.workflow_logs(
-                seeded.ctx, seeded.run.workflow_id, filters=workflow_log_repo.LogFilters()
+                seeded.ctx, seeded.run.workflow_id, filters=LogFilters()
             )
             shown = await service.workflow_logs(
                 seeded.ctx,
                 seeded.run.workflow_id,
-                filters=workflow_log_repo.LogFilters(include_test=True),
+                filters=LogFilters(include_test=True),
             )
         assert hidden.total == 0 and hidden.items == []
         assert [item.step_label for item in shown.items] == ["Chat", "Mail"]
@@ -459,15 +465,16 @@ class TestReading:
                 page = await WorkflowExecutionService(db).workflow_logs(
                     seeded.ctx,
                     seeded.run.workflow_id,
-                    filters=workflow_log_repo.LogFilters(**base, **filters),
+                    filters=LogFilters(**base, **filters),
                     skip=skip,
                     limit=limit,
                 )
             return [item.step_label for item in page.items]
 
         assert await listed(node_instance_id=mail.id) == ["Mail"]
-        assert await listed(outcome="out") == ["Chat", "Mail"]
-        assert await listed(outcome="error") == []
+        assert await listed(outcome=["out"]) == ["Chat", "Mail"]
+        assert await listed(outcome=["error"]) == []
+        assert await listed(outcome=["error", "out"]) == ["Chat", "Mail"]
         assert await listed(query="MAILED") == ["Mail"]
         assert await listed(query="100%") == []
         assert await listed(created_from=now + timedelta(days=1)) == []
@@ -487,7 +494,7 @@ class TestReading:
                 page = await WorkflowExecutionService(db).workflow_logs(
                     seeded.ctx,
                     seeded.run.workflow_id,
-                    filters=workflow_log_repo.LogFilters(include_test=True, run=run, **filters),
+                    filters=LogFilters(include_test=True, run=run, **filters),
                 )
             return [item.step_label for item in page.items]
 
@@ -501,7 +508,7 @@ class TestReading:
         assert await listed("%%%%") == []
         assert await listed("____") == []
         assert await listed(run_id[:8], node_instance_id=mail.id) == ["Mail"]
-        assert await listed(run_id[:8], outcome="error") == []
+        assert await listed(run_id[:8], outcome=["error"]) == []
         assert await listed(run_id[:8], query="chatted") == ["Chat"]
 
     @pytest.mark.security
@@ -515,7 +522,7 @@ class TestReading:
                     db,
                     organization_id=seeded.org.id,
                     workflow_id=uuid.uuid4(),
-                    filters=workflow_log_repo.LogFilters(include_test=True, run=run),
+                    filters=LogFilters(include_test=True, run=run),
                 )
             assert (rows, total) == ([], 0)
 
@@ -552,7 +559,7 @@ class TestReading:
                 await service.workflow_logs(
                     outside.ctx,
                     seeded.run.workflow_id,
-                    filters=workflow_log_repo.LogFilters(include_test=True),
+                    filters=LogFilters(include_test=True),
                 )
             with pytest.raises(WorkflowRunNotFoundError):
                 await service.run_logs(outside.ctx, seeded.run.id)
@@ -561,7 +568,7 @@ class TestReading:
                 db,
                 organization_id=other_org.id,
                 workflow_id=seeded.run.workflow_id,
-                filters=workflow_log_repo.LogFilters(include_test=True),
+                filters=LogFilters(include_test=True),
             )
         assert (rows, total) == ([], 0)
 
@@ -578,13 +585,365 @@ class TestReading:
             service = WorkflowExecutionService(db)
             with no_access, pytest.raises(NotFoundError) as logs:
                 await service.workflow_logs(
-                    seeded.ctx, seeded.run.workflow_id, filters=workflow_log_repo.LogFilters()
+                    seeded.ctx, seeded.run.workflow_id, filters=LogFilters()
                 )
             with no_access, pytest.raises(NotFoundError) as runs:
                 await service.list(seeded.ctx, workflow_id=seeded.run.workflow_id)
             with no_access, pytest.raises(WorkflowRunNotFoundError):
                 await service.run_logs(seeded.ctx, seeded.run.id)
         assert logs.value.message == runs.value.message
+
+
+class TestWriteOrder:
+    async def _write(self, seeded: SeededRun, clock: list[datetime], messages: list[str]) -> None:
+        """Write one line per message in one transaction, the clock reading `clock` in turn."""
+        step = seeded.graph.nodes[0]
+        ticks = iter(clock)
+
+        class _Clock:
+            @staticmethod
+            def now(_tz: object) -> datetime:
+                return next(ticks)
+
+        async with seeded.factory() as db:
+            with patch("app.repositories.workflow_log_entry.datetime", _Clock):
+                for message in messages:
+                    await workflow_log_repo.create(
+                        db,
+                        organization_id=seeded.org.id,
+                        workflow_id=seeded.run.workflow_id,
+                        run_id=seeded.run.id,
+                        node_instance_id=step.id,
+                        step_label="Mail",
+                        outcome="out",
+                        status="succeeded",
+                        message=message,
+                        is_test=False,
+                        is_pinned=False,
+                    )
+            await db.commit()
+
+    async def test_a_line_that_left_by_several_ports_matches_each_and_its_own_listing(
+        self, engine: AsyncEngine, kinds: dict[str, str]
+    ):
+        seeded = await seed_run(engine, _chain(_step(kinds["ok"], label="Mail")))
+        async with seeded.factory() as db:
+            await workflow_log_repo.create(
+                db,
+                organization_id=seeded.org.id,
+                workflow_id=seeded.run.workflow_id,
+                run_id=seeded.run.id,
+                node_instance_id=seeded.graph.nodes[0].id,
+                step_label="Mail",
+                outcome="a, b",
+                status="succeeded",
+                message="two ways out",
+                is_test=False,
+                is_pinned=False,
+            )
+            await db.commit()
+
+        async def total(*outcomes: str) -> int:
+            async with seeded.factory() as db:
+                _, count = await workflow_log_repo.list_for_workflow(
+                    db,
+                    organization_id=seeded.org.id,
+                    workflow_id=seeded.run.workflow_id,
+                    filters=LogFilters(outcome=list(outcomes)),
+                )
+            return count
+
+        assert [await total("a"), await total("b"), await total("c", "b")] == [1, 1, 1]
+        # A client echoing the line's own outcome finds it, as does a part of one.
+        assert [await total("a, b"), await total("c, a"), await total("c")] == [1, 1, 0]
+
+    async def test_a_runs_lines_list_in_write_order_when_the_clock_steps_back(
+        self, engine: AsyncEngine, kinds: dict[str, str]
+    ):
+        seeded = await seed_run(engine, _chain(_step(kinds["ok"], label="Mail")))
+        now = datetime.now(UTC)
+        await self._write(
+            seeded, [now, now - timedelta(seconds=5), now], ["first", "second", "third"]
+        )
+        async with seeded.factory() as db:
+            run_lines, _ = await workflow_log_repo.list_for_run(
+                db, organization_id=seeded.org.id, run_id=seeded.run.id
+            )
+        assert [row.message for row in run_lines] == ["first", "second", "third"]
+
+    async def test_lines_written_in_one_instant_list_newest_first_by_write_order(
+        self, engine: AsyncEngine, kinds: dict[str, str]
+    ):
+        seeded = await seed_run(engine, _chain(_step(kinds["ok"], label="Mail")))
+        instant = datetime.now(UTC)
+        await self._write(seeded, [instant] * 3, ["first", "second", "third"])
+        async with seeded.factory() as db:
+            rows, _ = await workflow_log_repo.list_for_workflow(
+                db,
+                organization_id=seeded.org.id,
+                workflow_id=seeded.run.workflow_id,
+                filters=LogFilters(include_test=True),
+            )
+        assert [row.message for row in rows] == ["third", "second", "first"]
+
+
+class TestSummary:
+    async def _logged(self, engine: AsyncEngine, kinds: dict[str, str]) -> SeededRun:
+        mail = _step(kinds["ok"], label="Mail", quick_log=QuickLog(message="mailed"))
+        bad = _step(kinds["boom"], label="Bad", quick_log=QuickLog(message="broke"))
+        seeded = await seed_run(engine, _chain(mail, bad))
+        await drive(seeded)
+        return seeded
+
+    async def _summary(self, seeded: SeededRun, days: int = 7, tz: str = "UTC", **filters: Any):
+        async with seeded.factory() as db:
+            return await WorkflowExecutionService(db).workflow_log_summary(
+                seeded.ctx,
+                seeded.run.workflow_id,
+                filters=LogFilters(**filters),
+                days=days,
+                tz=tz,
+            )
+
+    async def test_a_line_belongs_to_the_day_of_the_zone_asked_for(
+        self, engine: AsyncEngine, kinds: dict[str, str]
+    ):
+        seeded = await self._logged(engine, kinds)
+        warsaw = ZoneInfo("Europe/Warsaw")
+        yesterday = datetime.now(warsaw).date() - timedelta(days=1)
+        # Half past midnight in Warsaw is still the day before in UTC, winter or summer.
+        written = datetime.combine(yesterday, time(0, 30), tzinfo=warsaw)
+        assert written.astimezone(UTC).date() != yesterday
+        async with seeded.factory() as db:
+            await db.execute(update(WorkflowLogEntry).values(created_at=written))
+            await db.commit()
+        local = await self._summary(seeded, tz="Europe/Warsaw", include_test=True)
+        utc = await self._summary(seeded, include_test=True)
+        assert {d.day: d.counts for d in local.by_day if d.counts} == {
+            yesterday: {"out": 1, "error": 1}
+        }
+        assert {d.day for d in utc.by_day if d.counts} == {written.astimezone(UTC).date()}
+
+    async def test_a_line_dated_ahead_of_the_clock_is_left_out(
+        self, engine: AsyncEngine, kinds: dict[str, str]
+    ):
+        seeded = await self._logged(engine, kinds)
+        async with seeded.factory() as db:
+            await db.execute(
+                update(WorkflowLogEntry).values(created_at=datetime.now(UTC) + timedelta(days=3))
+            )
+            await db.commit()
+        summary = await self._summary(seeded, include_test=True)
+        assert summary.total == 0 and len(summary.by_day) == 7
+
+    async def test_lines_are_counted_per_day_and_outcome_in_the_window(
+        self, engine: AsyncEngine, kinds: dict[str, str]
+    ):
+        seeded = await self._logged(engine, kinds)
+        old = datetime.now(UTC) - timedelta(days=3, hours=1)
+        async with seeded.factory() as db:
+            await db.execute(
+                update(WorkflowLogEntry)
+                .where(WorkflowLogEntry.outcome == "error")
+                .values(created_at=old)
+            )
+            await db.commit()
+        today = datetime.now(UTC).date()
+        summary = await self._summary(seeded, include_test=True)
+        by_day = {day.day: day.counts for day in summary.by_day}
+        assert len(summary.by_day) == 7 and summary.total == 2
+        assert by_day[today] == {"out": 1}
+        assert by_day[old.date()] == {"error": 1}
+        assert sum(len(counts) for counts in by_day.values()) == 2
+        # A narrower window leaves out what is older than it.
+        async with seeded.factory() as db:
+            await db.execute(
+                update(WorkflowLogEntry).values(created_at=datetime.now(UTC) - timedelta(days=40))
+            )
+            await db.commit()
+        assert (await self._summary(seeded, include_test=True)).total == 0
+        assert (await self._summary(seeded, days=90, include_test=True)).total == 2
+
+    async def test_the_filters_narrow_the_counts_and_test_runs_only_when_asked(
+        self, engine: AsyncEngine, kinds: dict[str, str]
+    ):
+        seeded = await self._logged(engine, kinds)
+        mail = next(n for n in seeded.graph.nodes if n.label == "Mail")
+        run_id = str(seeded.run.id)
+
+        async def total(**filters: Any) -> int:
+            return (await self._summary(seeded, **filters)).total
+
+        assert await total() == 0
+        assert await total(include_test=True) == 2
+        assert await total(include_test=True, node_instance_id=mail.id) == 1
+        assert await total(include_test=True, outcome=["error"]) == 1
+        assert await total(include_test=True, query="BROKE") == 1
+        assert await total(include_test=True, run=run_id[:8]) == 2
+        assert await total(include_test=True, run="ffffffff-ffff") == 0
+
+    @pytest.mark.security
+    async def test_another_organization_cannot_count_the_log_or_see_its_lines(
+        self, engine: AsyncEngine, kinds: dict[str, str]
+    ):
+        seeded = await self._logged(engine, kinds)
+        async with seeded.factory() as db:
+            outsider, other_org = await seed_member(db)
+            await db.commit()
+        outside = SeededRun(
+            run=seeded.run,
+            graph=seeded.graph,
+            principal=outsider,
+            org=other_org,
+            factory=seeded.factory,
+        )
+        async with seeded.factory() as db:
+            with pytest.raises(NotFoundError):
+                await WorkflowExecutionService(db).workflow_log_summary(
+                    outside.ctx,
+                    seeded.run.workflow_id,
+                    filters=LogFilters(include_test=True),
+                    days=7,
+                )
+            rows = await workflow_log_repo.count_by_day(
+                db,
+                organization_id=other_org.id,
+                workflow_id=seeded.run.workflow_id,
+                filters=LogFilters(include_test=True),
+                since=datetime.now(UTC) - timedelta(days=7),
+                until=datetime.now(UTC) + timedelta(days=1),
+                tz="UTC",
+            )
+        assert rows == []
+
+
+class TestRecentAcrossWorkflows:
+    async def _logged(self, engine: AsyncEngine, kinds: dict[str, str]) -> SeededRun:
+        mail = _step(kinds["ok"], label="Mail", quick_log=QuickLog(message="mailed"))
+        bad = _step(kinds["boom"], label="Bad", quick_log=QuickLog(message="broke"))
+        seeded = await seed_run(engine, _chain(mail, bad))
+        await drive(seeded)
+        return seeded
+
+    async def _recent(self, seeded: SeededRun, ctx=None, **page: int):
+        async with seeded.factory() as db:
+            return await WorkflowExecutionService(db).recent_logs(ctx or seeded.ctx, **page)
+
+    async def _as_real(self, seeded: SeededRun) -> None:
+        """The harness seeds test runs; make their lines a real run's."""
+        async with seeded.factory() as db:
+            await db.execute(
+                update(WorkflowLogEntry)
+                .where(WorkflowLogEntry.run_id == seeded.run.id)
+                .values(is_test=False)
+            )
+            await db.commit()
+
+    async def _colleague(self, seeded: SeededRun) -> AuthContext:
+        """A second `member` of the same organization, who owns none of its workflows."""
+        async with seeded.factory() as db:
+            user = User(
+                id=uuid.uuid4(),
+                email=f"{uuid.uuid4().hex}@example.com",
+                hashed_password="x",
+                is_active=True,
+            )
+            db.add(user)
+            await db.flush()
+            db.add(
+                OrganizationMember(
+                    id=uuid.uuid4(), organization_id=seeded.org.id, user_id=user.id, role="member"
+                )
+            )
+            await db.commit()
+        return AuthContext(user_id=user.id, organization_id=seeded.org.id, role="member")
+
+    async def test_the_newest_real_lines_come_with_the_workflow_name_and_counts_by_outcome(
+        self, engine: AsyncEngine, kinds: dict[str, str]
+    ):
+        seeded = await self._logged(engine, kinds)
+        assert (await self._recent(seeded)).items == []  # test runs are left out
+        await self._as_real(seeded)
+        recent = await self._recent(seeded)
+        assert [item.step_label for item in recent.items] == ["Bad", "Mail"]
+        assert {item.workflow_name for item in recent.items} == {"Graph"}
+        assert recent.counts == {"out": 1, "error": 1}
+
+    async def test_it_is_paged_and_the_counts_cover_only_the_last_24_hours(
+        self, engine: AsyncEngine, kinds: dict[str, str]
+    ):
+        seeded = await self._logged(engine, kinds)
+        await self._as_real(seeded)
+        async with seeded.factory() as db:
+            await db.execute(
+                update(WorkflowLogEntry)
+                .where(WorkflowLogEntry.step_label == "Mail")
+                .values(created_at=datetime.now(UTC) - timedelta(hours=25))
+            )
+            await db.commit()
+        page = await self._recent(seeded, skip=1, limit=1)
+        assert [item.step_label for item in page.items] == ["Mail"]
+        assert page.counts == {"error": 1}
+
+    @pytest.mark.security
+    async def test_a_member_sees_only_the_workflows_they_may_view(
+        self, engine: AsyncEngine, kinds: dict[str, str]
+    ):
+        seeded = await self._logged(engine, kinds)
+        await self._as_real(seeded)
+        colleague = await self._colleague(seeded)
+        hidden = await self._recent(seeded, colleague)
+        assert hidden.items == [] and hidden.counts == {}
+        async with seeded.factory() as db:
+            await db.execute(
+                update(Workflow)
+                .where(Workflow.id == seeded.run.workflow_id)
+                .values(visibility=Visibility.ORG.value)
+            )
+            await db.commit()
+        shown = await self._recent(seeded, colleague)
+        assert len(shown.items) == 2 and shown.counts == {"out": 1, "error": 1}
+
+    @pytest.mark.security
+    async def test_a_workflow_shared_by_a_grant_shows_its_lines_and_counts(
+        self, engine: AsyncEngine, kinds: dict[str, str]
+    ):
+        seeded = await self._logged(engine, kinds)
+        await self._as_real(seeded)
+        colleague = await self._colleague(seeded)
+        assert (await self._recent(seeded, colleague)).items == []
+        async with seeded.factory() as db:
+            db.add(
+                ResourceGrant(
+                    organization_id=seeded.org.id,
+                    subject_user_id=colleague.user_id,
+                    resource_type="workflow",
+                    resource_id=seeded.run.workflow_id,
+                    level="read",
+                )
+            )
+            await db.commit()
+        shared = await self._recent(seeded, colleague)
+        assert [item.step_label for item in shared.items] == ["Bad", "Mail"]
+        assert shared.counts == {"out": 1, "error": 1}
+
+    @pytest.mark.security
+    async def test_another_organization_sees_none_of_it(
+        self, engine: AsyncEngine, kinds: dict[str, str]
+    ):
+        seeded = await self._logged(engine, kinds)
+        await self._as_real(seeded)
+        async with seeded.factory() as db:
+            await db.execute(
+                update(Workflow)
+                .where(Workflow.id == seeded.run.workflow_id)
+                .values(visibility=Visibility.ORG.value)
+            )
+            outsider, other_org = await seed_member(db)
+            await db.commit()
+        ctx = AuthContext(user_id=outsider.id, organization_id=other_org.id, role="owner")
+        recent = await self._recent(seeded, ctx)
+        assert recent.items == [] and recent.counts == {}
 
 
 def _logged_loop(built: _Loop, **steps: QuickLog) -> WorkflowGraph:

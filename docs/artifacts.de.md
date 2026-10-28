@@ -1,5 +1,5 @@
 ---
-source_sha: "ae0585c30a8a"
+source_sha: "fa09f74b62c2"
 ---
 
 # Apps { #artifacts }
@@ -169,6 +169,82 @@ gebundene Seite, deren Skript nie nach seinen Daten fragt, wird trotzdem
 veröffentlicht, mit einer
 [Warnung](#the-page-contract-and-the-publish-warnings).
 
+### Der Workflow-Log als Live-Daten { #a-workflows-log }
+
+Ein Binding kann auch den Log eines [Workflows](workflows.md) lesen - die Zeilen, die die
+Quick Logs seiner Schritte geschrieben haben -, um ein Dashboard auf einer Seite zu bauen,
+die aktuell bleibt. Gib dem Binding `"kind": "workflow_log"` (ein Binding ohne `kind` liest
+eine Tabelle, wie jedes bisher veröffentlichte). Es ist eine zweite Art von Seitenabfrage
+und folgt denselben Regeln: Es wird beim Veröffentlichen aufgelöst, eingefroren, mit dem
+Zugriff des [Besitzers](#who-owns-a-page) der Seite gelesen und erst nach seiner
+[Zustimmung](#consent-the-owner-decides-who-reads-the-data).
+
+| Im Binding | Bedeutung |
+|---|---|
+| `workflow` | Die ID oder der exakte Name des Workflows. Es muss einer sein, den die Workflows-Capability des Agents bindet, wie bei einer [Aktion](#actions), und die Person hinter dem Run muss ihn sehen können - der Besitzer der Seite ebenso, wenn die Veröffentlichung das Binding ändert |
+| `step` | Optional: nur die Zeilen dieses Schritts, per ID, Label oder - bei einem Schritt ohne Label - dem Namen seiner Art, etwa `Send email`, wenn er eindeutig ist. Er muss in der Live-Version oder im Entwurf sein. Ein Schritt ohne Quick Log ist erlaubt, und das Ergebnis der Veröffentlichung vermerkt, dass er keine Zeilen liest |
+| `outcomes` | Optional: nur Zeilen mit einem dieser Ausgänge - einem Port oder `error`. Jeder trifft zu, und eine Zeile mit mehreren Ports, gespeichert als `a, b`, zählt für jeden |
+| `run` | Optional: eine Run-ID oder ihre ersten 4 oder mehr Zeichen |
+| `include_test` | Auch Zeilen von Testläufen. Standardmäßig aus |
+| `lines` | Die neuesten N Zeilen liefern, die neueste zuerst. Bis zu 500 in einem Binding; die eigene Route des Logs blättert zu je 100 |
+| `per_day` mit `days` und `tz` | Stattdessen die Zahl der Zeilen pro Tag und Ausgang liefern: `days` ist 7, 30 oder 90, heute eingeschlossen, und `tz` ein IANA-Name, dessen Tage gezählt werden (standardmäßig UTC) |
+
+Gib `lines` oder `per_day` an, nicht beides. Es sind die Filter und Limits von
+`GET /workflows/{id}/logs` und `GET /workflows/{id}/logs/summary`, vom selben Code
+bedient. Der Workflow und der Schritt werden beim Veröffentlichen zu IDs aufgelöst und mit
+den Filtern gespeichert: Wird der Workflow oder der Schritt später umbenannt, ändert das
+nichts an der Seite. Ein unbekannter Workflow, einer, den der Agent nicht bindet oder die Person nicht sehen kann (gleich
+formuliert, damit eine Ablehnung nie bestätigt, dass er existiert), ein unbekannter Schritt,
+ein Filter, der nicht stimmt, oder ein Limit über 500 lehnt das Veröffentlichen ab, und die
+Meldung sagt, was.
+
+Die Seite erhält es über denselben Aufruf `agenticos.onData`. Mit `lines` kommt ein Binding
+als `status`, `records` (jeweils `{id, created_at, step, outcome, status, message, run_id}`),
+`count`, `truncated` und `limit`, nach den Datensatz- und Byte-Limits der Seite gekürzt wie
+das einer Tabelle. Mit `per_day` kommt es als `status`, `days` (jeder Tag des Fensters,
+der älteste zuerst, je `{day, counts: {outcome: n}}`), `total`, `window_days` und `tz`, ohne
+Datensatz-Limit.
+
+```js
+agenticos.onData((data) => {
+  const week = data.errors_per_day;
+  if (week.status !== "ok") return;
+  AO.chart("#errors", {
+    type: "bar",
+    data: {
+      labels: week.days.map((d) => d.day),
+      datasets: [{ label: "Errors", data: week.days.map((d) => d.counts.error ?? 0) }],
+    },
+  });
+});
+```
+
+veröffentlicht mit `bindings: {"errors_per_day": {"kind": "workflow_log", "workflow": "Order intake", "outcomes": ["error"], "per_day": true, "days": 30, "tz": "Europe/Warsaw"}}`.
+
+Das Ergebnis der Veröffentlichung und die Zustimmung des Besitzers sagen es in Worten:
+welcher Workflow, welche Filter und ob die neuesten N Zeilen oder Zählungen pro Tag über D
+Tage geliefert werden.
+
+Jede Änderung an einem Log-Binding - Workflow, Schritt, Ausgänge,
+Run, Testzeilen, `lines` oder `per_day`, Limit, Tage oder Zeitzone - ändert die Abfragen der
+Seite, braucht also erneut die Zustimmung des Besitzers, und eine
+[Prüfung der Datenänderung](#consent-the-owner-decides-who-reads-the-data) markiert sie als
+zeigt mehr.
+
+Ein Log hat keine Spalten, kann also nicht abdriften; stattdessen ist das Binding
+`unavailable`, wenn der Besitzer den Workflow nicht mehr sehen kann (`creator_lost_access`)
+oder der Schritt nicht mehr darin ist (`source_changed`, mit dem Namen `step`). Zwei Grenzen
+unterscheiden sich von denen einer Tabelle: Eine Seite, die einen Log liest, **kann keinen
+öffentlichen Link haben** - das Veröffentlichen eines Log-Bindings wird abgelehnt, solange
+der Link an ist, der Link lässt sich nicht einschalten oder an eine Version anheften, die
+einen Log liest, und eine solche Version lässt sich nicht wiederherstellen, solange der Link
+an ist. Ein Log-Binding wird auf einer öffentlichen Seite nie ausgeliefert.
+
+Die Rollen, die jede Tabelle lesen, lesen den Log einer Seite nur dann ohne Zustimmung,
+wenn sie auch jeden Workflow sehen, was jede eingebaute Rolle erfüllt, die jede Tabelle
+liest; eine Rolle, die das nicht erfüllt, wartet wie ein Editor auf die Zustimmung des
+Besitzers.
+
 ### Wer was sieht { #who-sees-what }
 
 Welche Version ein Betrachter ausgeliefert bekommt und ob seine Daten für ihn
@@ -196,9 +272,10 @@ die Seite bearbeiten darf; ein Leser sieht, wie viele Quellen nicht verfügbar s
 | Grund | Was passiert ist |
 |---|---|
 | `creator_gone` | Der Besitzer der Seite ist kein aktives Mitglied mehr |
-| `creator_lost_access` | Der Besitzer kann eine Tabelle, die die Abfrage erreicht, nicht mehr lesen |
-| `source_changed` | Die Bedeutung einer Spalte hat sich geändert (ihr Typ, eine Formel, ein Link- oder Lookup-Ziel, ein Aggregat, eine archivierte oder wiederhergestellte Option), eine Spalte oder Tabelle wurde archiviert, oder eine verknüpfte Tabelle beschriftet ihre Datensätze jetzt nach einer anderen Spalte. Das aktuelle Label der Spalte wird genannt |
+| `creator_lost_access` | Der Besitzer kann eine Tabelle, die die Abfrage erreicht, nicht mehr lesen oder den Workflow, dessen Log sie liest, nicht mehr sehen |
+| `source_changed` | Der Schritt eines Log-Bindings ist nicht mehr im Workflow (`step` wird genannt), oder die Bedeutung einer Spalte hat sich geändert (ihr Typ, eine Formel, ein Link- oder Lookup-Ziel, ein Aggregat, eine archivierte oder wiederhergestellte Option), eine Spalte oder Tabelle wurde archiviert, oder eine verknüpfte Tabelle beschriftet ihre Datensätze jetzt nach einer anderen Spalte. Das aktuelle Label der Spalte wird genannt |
 | `awaiting_consent` | Der Besitzer hat das Teilen der Daten dieser Version nicht bestätigt, oder die Einwilligung wurde zurückgezogen |
+| `public_link` | Ein Log-Binding wurde auf einer öffentlichen Seite angefordert, die nie eines ausliefert |
 
 Fällt ein Binding aus, arbeiten die anderen weiter. Die Seite wird nie durch eine
 Tabellenänderung blockiert: Nichts hindert eine Spalte daran, geändert zu werden,

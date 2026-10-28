@@ -504,6 +504,50 @@ class TestWhatAnAutomaticConsentAdded:
             added = await consent.grown(MagicMock(), _ctx(), artifact, now)
         assert sorted(added) == ["+Amount", "+People"]
 
+    async def test_a_workflow_log_is_named_when_new_or_changed_and_not_when_kept(self) -> None:
+        from types import SimpleNamespace
+
+        artifact = _artifact()
+        workflow = uuid.uuid4()
+
+        def log(lines: int, name: str = "log") -> dict[str, Any]:
+            return {
+                "kind": "workflow_log",
+                "name": name,
+                "workflow_id": str(workflow),
+                "lines": lines,
+            }
+
+        before = _version(
+            artifact, number=1, state=ConsentState.CONSENTED, bindings=[log(5), log(5, "kept")]
+        )
+        now = _version(
+            artifact,
+            number=2,
+            state=ConsentState.CONSENTED,
+            bindings=[log(6), log(5, "kept"), log(5, "fresh")],
+        )
+        named = SimpleNamespace(name="Order intake")
+
+        with (
+            patch(f"{PATH}.artifact_repo.served_before", new=AsyncMock(return_value=before)),
+            patch(f"{PATH}.workflow_of", new=AsyncMock(return_value=named)),
+        ):
+            added = await consent.grown(MagicMock(), _ctx(), artifact, now)
+        # `log` changed and `fresh` is new; `kept` is the same query as before.
+        assert added == ["+Order intake log", "+Order intake log"]
+
+    async def test_a_workflow_nobody_may_view_is_left_out_of_the_notice(self) -> None:
+        artifact = _artifact()
+        log = {"kind": "workflow_log", "name": "log", "workflow_id": str(uuid.uuid4()), "lines": 5}
+        now = _version(artifact, number=1, state=ConsentState.CONSENTED, bindings=[log])
+
+        with (
+            patch(f"{PATH}.artifact_repo.served_before", new=AsyncMock(return_value=None)),
+            patch(f"{PATH}.workflow_of", new=AsyncMock(return_value=None)),
+        ):
+            assert await consent.grown(MagicMock(), _ctx(), artifact, now) == []
+
     async def test_a_first_version_adds_everything_and_unreadable_tables_are_left_out(
         self,
     ) -> None:

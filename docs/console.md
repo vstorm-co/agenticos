@@ -46,6 +46,12 @@ workflows asked them. It shows the share approved as proposed, the edits and the
 median change, the time to decide and the five workflows with the most requests. It is
 empty when no request falls in the dashboard's period.
 
+**Workflow logs** waits in the catalog too, for whoever may view workflows. It shows the
+newest lines the [Quick Logs](workflows.md#the-logs-page) of the workflows you may view wrote, real
+runs only, and how many lines the last 24 hours added, errors among them. A line links to
+its run and its workflow's name to that workflow's Logs page. It is empty until a step
+with a Quick Log has run, and it ignores the dashboard's period.
+
 The dashboard opens with **Get started** until each of its steps is done: tell
 agents about yourself, start a conversation, connect a service with your own
 account, set up a routine and build an agent - that one is a question to the

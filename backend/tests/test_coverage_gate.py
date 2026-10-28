@@ -110,6 +110,11 @@ PLATFORM_MODULES = (
     "app/services/memory/_native.py",
     "app/services/memory/facade.py",
     "app/api/routes/v1/memory.py",
+    "app/db/models/workflow_log_alert.py",
+    "app/repositories/workflow_log_alert.py",
+    "app/schemas/workflow_log_alert.py",
+    "app/services/workflow_log_alerts.py",
+    "app/api/routes/v1/workflow_log_alerts.py",
 )
 
 

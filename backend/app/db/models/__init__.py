@@ -125,6 +125,7 @@ from app.db.models.workflow_exposure import (
 from app.db.models.workflow_approval import WorkflowApproval, WorkflowApprovalStatus
 from app.db.models.workflow_eval import WorkflowEvalRun, WorkflowStepEval
 from app.db.models.workflow_file import WorkflowFile
+from app.db.models.workflow_log_alert import WorkflowLogAlertFiring, WorkflowLogAlertRule
 from app.db.models.workflow_log_entry import WorkflowLogEntry
 from app.db.models.virtual_table_trigger import (
     AdmissionReason,
@@ -275,6 +276,8 @@ __all__ = [
     "WorkflowStepEval",
     "WorkflowApprovalStatus",
     "WorkflowFile",
+    "WorkflowLogAlertFiring",
+    "WorkflowLogAlertRule",
     "WorkflowLogEntry",
     "AdmissionReason",
     "AdmissionStatus",

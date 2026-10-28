@@ -31,7 +31,7 @@ agents package.
 import hashlib
 import json
 import re
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
 from uuid import UUID
@@ -42,6 +42,7 @@ from app.core.config import settings
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext
 from app.schemas.artifact import (
+    AnyBindingRequest,
     ArtifactBinding,
     BindingData,
     BindingDisclosure,
@@ -53,6 +54,10 @@ from app.schemas.artifact import (
     DisclosedField,
     DisclosedFilter,
     DisclosedSort,
+    WorkflowLogBinding,
+    WorkflowLogData,
+    WorkflowLogDisclosure,
+    WorkflowLogRequest,
 )
 from app.schemas.virtual_table import (
     MAX_FILTERS,
@@ -62,6 +67,8 @@ from app.schemas.virtual_table import (
     RecordRead,
     RecordSort,
 )
+from app.services import artifact_log_bindings as log_bindings
+from app.services.artifact_log_bindings import LogRead
 from app.services.virtual_tables import (
     BoundRows,
     ReadDeadline,
@@ -83,6 +90,7 @@ Reason = Literal[
     "creator_lost_access",
     "source_changed",
     "not_current",
+    "public_link",
     "timeout",
     "busy",
     "failed",
@@ -92,7 +100,7 @@ Reason = Literal[
 `creator_gone`: the page's owner is no longer an active member. `creator_lost_access`:
 they can no longer read a table the query reaches. `source_changed`: a column or table
 the query reaches changed since it was published. `awaiting_consent`: the page's owner
-has not consented to this viewer reading the data, or withdrew it. `busy`: the viewer's
+has not consented to this viewer reading the data, or withdrew it. `public_link`: a workflow's log is never served on a public link. `busy`: the viewer's
 data loads were over their limit when the page was served with its data. `failed`: the
 read failed in the database, which a page served with its data survives."""
 
@@ -143,15 +151,17 @@ class BindingCheck:
     """One binding's outcome at publish: what it resolves to, and the problem, if any."""
 
     name: str
-    binding: ArtifactBinding | None
+    binding: ArtifactBinding | WorkflowLogBinding | None
     """The resolved query; `None` when it could not be resolved."""
     problem: str | None
     """Text for the model, safe for whoever the run acts for to read; `None` when fine."""
     changed: bool
     """Whether it differs from the stored binding of that name, reach included. A
     binding carried forward, or resolving to exactly the stored one, is not changed."""
-    disclosure: BindingDisclosure | None = None
+    disclosure: BindingDisclosure | WorkflowLogDisclosure | None = None
     """The query in words, for one the run's person resolved; `None` for one carried."""
+    note: str | None = None
+    """Something the model should know that does not refuse the binding."""
 
 
 @dataclass(frozen=True)
@@ -188,11 +198,12 @@ class _Query:
 async def check_bindings(
     db: AsyncSession,
     *,
-    requested: Mapping[str, BindingRequest] | None,
-    previous: Sequence[ArtifactBinding],
+    requested: Mapping[str, AnyBindingRequest] | None,
+    previous: Sequence[ArtifactBinding | WorkflowLogBinding],
     person: AuthContext | None,
     owner: AuthContext | None,
     grants: Mapping[UUID, frozenset[str]],
+    workflow_ids: Collection[UUID] = (),
 ) -> list[BindingCheck]:
     """Check a page version's bindings, one outcome per binding, in the order given.
 
@@ -205,7 +216,8 @@ async def check_bindings(
     new, or reaching other columns or revisions - must also be readable by `owner`,
     the page's owner as the member they are now: `None` when nobody active owns it.
     When `owner` is `person`, that is the same check. A run with no person binds
-    nothing.
+    nothing. A workflow-log binding names a workflow of `workflow_ids` - what the agent's
+    Workflows capability binds - which `person` (and the owner, for a change) may view.
     """
     if requested is None:
         return [BindingCheck(prior.name, prior, None, False) for prior in previous]
@@ -220,6 +232,11 @@ async def check_bindings(
     views = TableViewService(db)
     checks: list[BindingCheck] = []
     for name, request in requested.items():
+        if isinstance(request, WorkflowLogRequest):
+            checks.append(
+                await _check_log(db, name, request, stored.get(name), person, owner, workflow_ids)
+            )
+            continue
         resolved = await _resolve(service, views, person, name, request, grants)
         if isinstance(resolved, str):
             checks.append(BindingCheck(name, None, resolved, True))
@@ -235,13 +252,44 @@ async def check_bindings(
     return checks
 
 
+async def _check_log(
+    db: AsyncSession,
+    name: str,
+    request: WorkflowLogRequest,
+    prior: ArtifactBinding | WorkflowLogBinding | None,
+    person: AuthContext,
+    owner: AuthContext | None,
+    allowed: Collection[UUID],
+) -> BindingCheck:
+    """One requested log binding: resolved as `person`, and for the page's owner when it
+    differs from the stored one."""
+    problem = _name_problem(name)
+    resolved = (
+        None
+        if problem is not None
+        else await log_bindings.resolve_log(db, name, request, person, allowed)
+    )
+    if problem is not None or isinstance(resolved, str):
+        return BindingCheck(name, None, problem or str(resolved), True)
+    assert resolved is not None  # no problem was found
+    binding, workflow, note = resolved
+    changed = binding != prior
+    if changed:
+        problem = await log_bindings.owner_problem(db, owner, person, name, workflow)
+        if problem is not None:
+            return BindingCheck(name, None, problem, True)
+    parts = await log_bindings.parts_of(db, binding, workflow)
+    return BindingCheck(name, binding, None, changed, log_bindings.disclose_log(parts), note=note)
+
+
 async def reresolve(
     db: AsyncSession,
-    binding: ArtifactBinding,
+    binding: ArtifactBinding | WorkflowLogBinding,
     *,
     person: AuthContext,
     owner: AuthContext | None,
-) -> ArtifactBinding | Refused:
+    workflow_ids: Collection[UUID] = (),
+) -> ArtifactBinding | WorkflowLogBinding | Refused:
     """A stored query with its reach taken again from the tables now, for a restore.
 
     The query - table, filters, sort, limit and fields - is kept; what it reaches and
@@ -255,6 +303,11 @@ async def reresolve(
     Returns:
         The binding with its new reach, or why it cannot stand.
     """
+    if isinstance(binding, WorkflowLogBinding):
+        refusal = await log_bindings.reresolve_log(
+            db, binding, person=person, owner=owner, allowed=workflow_ids
+        )
+        return binding if refusal is None else Refused(refusal, forbidden=True)
     service = VirtualTableService(db)
     try:
         source = await service.table_source(person, binding.table_id)
@@ -276,6 +329,14 @@ async def reresolve(
     return binding.model_copy(update={"reach": found})
 
 
+def _name_problem(name: str) -> str | None:
+    if not _NAME.fullmatch(name):
+        return f"Binding name {name[:64]!r} must match {_PATTERN}."
+    if name in _RESERVED_NAMES:
+        return f"Binding name {name} is reserved; choose another."
+    return None
+
+
 async def _resolve(
     service: VirtualTableService,
     views: TableViewService,
@@ -285,10 +346,9 @@ async def _resolve(
     grants: Mapping[UUID, frozenset[str]],
 ) -> tuple[ArtifactBinding, dict[UUID, TableSource]] | str:
     """A requested binding as its query, resolved as `person`, and the tables it reaches."""
-    if not _NAME.fullmatch(name):
-        return f"Binding name {name[:64]!r} must match {_PATTERN}."
-    if name in _RESERVED_NAMES:
-        return f"Binding name {name} is reserved; choose another."
+    problem = _name_problem(name)
+    if problem is not None:
+        return problem
     start = await _start(service, views, person, name, request, grants)
     if isinstance(start, str):
         return start
@@ -725,7 +785,7 @@ def disclose(binding: ArtifactBinding, sources: Mapping[UUID, TableSource]) -> B
     )
 
 
-def fingerprint(bindings: Sequence[ArtifactBinding]) -> str | None:
+def fingerprint(bindings: Sequence[ArtifactBinding | WorkflowLogBinding]) -> str | None:
     """One digest of a version's page queries, their reach included; `None` with none.
 
     The same queries give the same digest, whatever order the page declared them in.
@@ -999,9 +1059,58 @@ _TOLD_TO_ALL = {"awaiting_consent", "not_current"}
 """The reasons that say nothing about the tables, so every viewer is told them."""
 
 
+def unavailable_log(
+    binding: WorkflowLogBinding, reason: str | None, changed: str | None = None
+) -> WorkflowLogData:
+    """A log binding served nothing: no lines, or no days, by what it asks for."""
+    lines = binding.lines is not None
+    return WorkflowLogData(
+        status="unavailable",
+        reason=reason,
+        changed=changed,
+        truncated=False,
+        count=0,
+        records=[] if lines else None,
+        days=None if lines else [],
+    )
+
+
+def _log_data(read: LogRead, share: int) -> WorkflowLogData:
+    """A log read as the page receives it: its lines cut to `share` bytes, or its days whole."""
+    if read.mode == "per_day":
+        return WorkflowLogData(
+            status="ok",
+            truncated=False,
+            count=len(read.days),
+            days=read.days,
+            total=read.total,
+            window_days=read.window_days,
+            tz=read.tz,
+        )
+    kept, used = 0, 0
+    for size in read.sizes:
+        if used + size > share:
+            break
+        kept, used = kept + 1, used + size
+    limit: Literal["records", "bytes"] | None = (
+        "bytes" if kept < len(read.records) else ("records" if read.matching > kept else None)
+    )
+    return WorkflowLogData(
+        status="ok",
+        truncated=limit is not None,
+        limit=limit,
+        count=kept,
+        records=read.records[:kept],
+    )
+
+
 def page_data(
-    reads: Mapping[str, BindingRows | Unavailable], *, max_bytes: int, can_edit: bool
-) -> dict[str, BindingData]:
+    reads: Mapping[str, BindingRows | LogRead | Unavailable],
+    *,
+    max_bytes: int,
+    can_edit: bool,
+    logs: Mapping[str, WorkflowLogBinding] | None = None,
+) -> dict[str, BindingData | WorkflowLogData]:
     """Every binding's payload for one page load, the page within `max_bytes` of shaped data.
 
     A binding over its fair share keeps the longest prefix of its records that fits,
@@ -1011,14 +1120,27 @@ def page_data(
     every viewer why the page is empty, or that the console moves to a newer version.
     """
     shares = fair_shares(
-        {name: read.rows.bytes for name, read in reads.items() if isinstance(read, BindingRows)},
+        {
+            name: read.rows.bytes if isinstance(read, BindingRows) else read.bytes
+            for name, read in reads.items()
+            if not isinstance(read, Unavailable)
+        },
         max_bytes,
     )
-    served: dict[str, BindingData] = {}
+    served: dict[str, BindingData | WorkflowLogData] = {}
     for name, read in reads.items():
         if isinstance(read, Unavailable):
             told = can_edit or read.reason in _TOLD_TO_ALL
-            served[name] = unavailable(read.reason, read.changed) if told else unavailable(None)
+            reason, changed = (read.reason, read.changed) if told else (None, None)
+            log = (logs or {}).get(name)
+            served[name] = (
+                unavailable(reason, changed)
+                if log is None
+                else unavailable_log(log, reason, changed)
+            )
+            continue
+        if isinstance(read, LogRead):
+            served[name] = _log_data(read, shares[name])
             continue
         rows = read.rows
         kept, used = 0, 0

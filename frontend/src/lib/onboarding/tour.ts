@@ -460,6 +460,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: "workflow-run-history", page: WORKFLOW_RUNS_DETAIL, target: "workflow-run-history" },
   // One workflow's log, `/workflows/<id>/logs`: the lines its steps' quick logs wrote.
   { id: "workflow-logs", page: WORKFLOW_LOGS_DETAIL, target: "workflow-logs" },
+  // The alert rules under it: drawn for anyone who may view the workflow, anchored on
+  // the card's header, and optional while the page is still loading its workflow.
+  {
+    id: "workflow-log-alerts",
+    page: WORKFLOW_LOGS_DETAIL,
+    target: "workflow-log-alerts",
+    permission: Perm.workflowsView,
+    optional: true,
+  },
 
   // Published artifacts - pages agents wrote. Nothing to create here (a run
   // publishes one), so a single describing stop on the list, view-gated.

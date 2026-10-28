@@ -441,6 +441,7 @@ def test_workflow_migrations_preserve_main_notification_types(table: str) -> Non
             "workflow_notification",
             "artifact_owner_changed",
             "artifact_share_requested",
+            "workflow_log_alert",
         ):
             assert f"'{event}'" in definition
     finally:

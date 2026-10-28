@@ -1,5 +1,5 @@
 ---
-source_sha: "e1e3582d471d"
+source_sha: "cdf08df75a5a"
 ---
 
 # La consola { #the-console }
@@ -53,6 +53,13 @@ que los workflows plantearon en el periodo. Muestra la proporción aprobada como
 propuso, las ediciones y su mediana de cambio, el tiempo hasta decidir y los cinco
 workflows con más solicitudes. Está vacía cuando ninguna solicitud cae en el periodo
 del dashboard.
+
+La tarjeta **Workflow logs** también espera en el catálogo, para quien pueda ver
+workflows. Muestra las líneas más recientes que los [Quick Logs](workflows.md#the-logs-page) de los
+workflows que puedes ver escribieron en runs reales, y cuántas líneas añadieron las
+últimas 24 horas, con los errores entre ellas. Una línea enlaza con su run y el nombre
+del workflow con su página Logs. Está vacía hasta que se ejecuta un paso con Quick Log, y
+no atiende al periodo del dashboard.
 
 El dashboard se abre con **Get started** hasta completar cada paso: contarles a
 los agents sobre ti, empezar una conversación, conectar un servicio con tu

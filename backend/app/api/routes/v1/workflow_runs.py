@@ -13,10 +13,11 @@ which a Resume link step hands on, is its own credential.
 """
 
 from datetime import datetime
-from typing import Any
+from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, status
+from pydantic import StringConstraints
 
 from app.api.deps import (
     Auth,
@@ -25,14 +26,21 @@ from app.api.deps import (
     limit_workflow_run,
     require,
 )
-from app.api.public_api import INTERNAL, PUBLIC
+from app.api.public_api import PUBLIC
 from app.api.routes.v1._stored_bytes import stored_file_response
 from app.core.exceptions import NotFoundError, ValidationError
 from app.core.field_errors import field_details
 from app.core.permissions import Perm
 from app.db.models.workflow_run import WorkflowRunMode, WorkflowRunStatus, WorkflowRunTrigger
-from app.repositories.workflow_log_entry import LogFilters, is_run_filter
-from app.schemas.workflow_log_entry import WorkflowLogEntryList
+from app.schemas.workflow_log_entry import (
+    LOG_SUMMARY_DAYS,
+    LogFilters,
+    WorkflowLogEntryList,
+    WorkflowLogSummary,
+    WorkflowRecentLogs,
+    is_run_filter,
+    is_time_zone,
+)
 from app.schemas.workflow_run import (
     WorkflowEventList,
     WorkflowFileList,
@@ -48,7 +56,19 @@ from app.services.workflow_execution.resume import read_workflow_body, require_r
 
 router = APIRouter(dependencies=[PUBLIC])
 resume_router = APIRouter()
-logs_router = APIRouter()
+OutcomeFilter = Annotated[
+    list[Annotated[str, StringConstraints(max_length=256)]] | None,
+    Query(
+        max_length=20,
+        description="Only lines that left by this outcome - a port, or `error`. Repeat it to "
+        "match any of several. A value listing ports joined by a comma and a space, as a line "
+        "that left by several shows them, counts as those ports.",
+    ),
+]
+"""The listing's and the summary's outcome filter: any of the ports given."""
+
+logs_router = APIRouter(dependencies=[PUBLIC])
+org_logs_router = APIRouter(dependencies=[PUBLIC])
 
 
 @router.post(
@@ -155,7 +175,7 @@ async def list_workflow_run_nodes(
     return await service.node_runs(ctx, run_id, skip=skip, limit=limit)
 
 
-@router.get("/{run_id}/logs", response_model=WorkflowLogEntryList, openapi_extra=INTERNAL)
+@router.get("/{run_id}/logs", response_model=WorkflowLogEntryList)
 async def list_workflow_run_logs(
     run_id: UUID,
     service: WorkflowExecutionSvc,
@@ -163,7 +183,10 @@ async def list_workflow_run_logs(
     skip: int = Query(0, ge=0),
     limit: int = Query(200, ge=1, le=500),
 ) -> Any:
-    """The lines this run's steps wrote with a Quick Log, in the order they were written."""
+    """The lines this run's steps wrote with a Quick Log, oldest first: in the order of their
+    `seq`, the position each took in the log as it was written. Page with `skip` and `limit`
+    (at most 500). Needs the `workflows:view` scope on a key, which reads only the runs the
+    key reads only public-origin runs, including runs started by keys; any other run answers 404."""
     return await service.run_logs(ctx, run_id, skip=skip, limit=limit)
 
 
@@ -227,11 +250,7 @@ async def list_workflow_logs(
     service: WorkflowExecutionSvc,
     ctx: Auth,
     node_instance_id: UUID | None = Query(default=None, description="Only this step's lines"),
-    outcome: str | None = Query(
-        default=None,
-        max_length=256,
-        description="Only lines with this outcome - a port, or `error`",
-    ),
+    outcome: OutcomeFilter = None,
     from_: datetime | None = Query(default=None, alias="from", description="Written at or after"),
     to: datetime | None = Query(default=None, description="Written before"),
     q: str | None = Query(default=None, max_length=200, description="Text in the message"),
@@ -243,9 +262,13 @@ async def list_workflow_logs(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
-    """A workflow's log, newest first: the lines its steps' Quick Logs wrote, narrowed by
-    step, outcome, run, time window and text. Test runs are left out unless asked for.
-    Gated like the workflow's runs: a workflow this caller cannot view answers 404."""
+    """A workflow's log, newest first (`created_at`, then `seq`): the lines its steps' Quick
+    Logs wrote, narrowed by step, outcome, run, time window and text. Test runs are left out
+    unless `include_test` asks for them. Page with `skip` and `limit` (at most 100); `total`
+    counts every matching line. `from` and `to` are ISO 8601 timestamps, `from` inclusive and
+    `to` exclusive. Gated like the workflow's runs: a key needs the `workflows:view` scope
+    and reads only the lines of public-origin runs, including runs started by keys; a workflow the caller cannot view, or one of
+    another organization, answers 404."""
     if run is not None and not is_run_filter(run):
         message = "A run id, or its first 4 or more characters"
         raise ValidationError(message=message, details=field_details("run", message))
@@ -259,3 +282,67 @@ async def list_workflow_logs(
         run=run,
     )
     return await service.workflow_logs(ctx, workflow_id, filters=filters, skip=skip, limit=limit)
+
+
+@logs_router.get("/{workflow_id}/logs/summary", response_model=WorkflowLogSummary)
+async def get_workflow_log_summary(
+    workflow_id: UUID,
+    service: WorkflowExecutionSvc,
+    ctx: Auth,
+    days: int = Query(30, description="How many days back, today included: 7, 30 or 90"),
+    tz: str = Query(
+        default="UTC",
+        max_length=64,
+        description="The IANA time zone whose days are counted, such as `Europe/Warsaw`",
+    ),
+    node_instance_id: UUID | None = Query(default=None, description="Only this step's lines"),
+    outcome: OutcomeFilter = None,
+    q: str | None = Query(default=None, max_length=200, description="Text in the message"),
+    include_test: bool = Query(default=False, description="Lines written by test runs as well"),
+    run: str | None = Query(
+        default=None,
+        description="Only this run's lines: a run id, or the 4 or more characters it starts with",
+    ),
+) -> Any:
+    """A workflow's log counted per day and outcome, for a dashboard: the last `days` days
+    (7, 30 or 90), today included. Days are those of the IANA time zone `tz` (UTC by default),
+    and every day of the window is present, oldest first, with no entry for an outcome that
+    left no line that day. It takes the listing's filters, `outcome` repeated included, all but
+    its time window, which `days` sets. Test runs are left out unless `include_test` asks for them. Gated like the
+    listing."""
+    if days not in LOG_SUMMARY_DAYS:
+        message = "One of 7, 30 or 90"
+        raise ValidationError(message=message, details=field_details("days", message))
+    if not is_time_zone(tz):
+        message = "An IANA time zone name, such as Europe/Warsaw"
+        raise ValidationError(message=message, details=field_details("tz", message))
+    if run is not None and not is_run_filter(run):
+        message = "A run id, or its first 4 or more characters"
+        raise ValidationError(message=message, details=field_details("run", message))
+    filters = LogFilters(
+        node_instance_id=node_instance_id,
+        outcome=outcome,
+        query=q,
+        include_test=include_test,
+        run=run,
+    )
+    return await service.workflow_log_summary(ctx, workflow_id, filters=filters, days=days, tz=tz)
+
+
+@org_logs_router.get(
+    "",
+    response_model=WorkflowRecentLogs,
+    dependencies=[Depends(require(Perm.WORKFLOWS_VIEW))],
+)
+async def list_recent_workflow_logs(
+    service: WorkflowExecutionSvc,
+    ctx: Auth,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+) -> Any:
+    """The newest lines across every workflow this caller may view, newest first, each with its
+    workflow's name, plus how many lines each outcome left in the last 24 hours. Test runs are
+    never included. Page with `skip` and `limit` (at most 100); there is no total. A key needs
+    the `workflows:view` scope and reads only the lines of public-origin runs, including runs
+    started by keys."""
+    return await service.recent_logs(ctx, skip=skip, limit=limit)

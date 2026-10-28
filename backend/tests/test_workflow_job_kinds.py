@@ -1,4 +1,4 @@
-"""The workflow engine's six job kinds, their handlers and their schedules.
+"""The workflow engine's seven job kinds, their handlers and their schedules.
 
 The engine's position lives in `dispatch_outbox`; these kinds only wake workers for
 it. This pins the declarations the engine's timing guarantees lean on: the node job
@@ -19,6 +19,7 @@ WORKFLOW_KINDS = {
     "workflow-schedules-check",
     "workflow-table-triggers",
     "workflow-run-retention",
+    "workflow-log-alerts",
 }
 
 
@@ -59,6 +60,7 @@ def test_the_schedules_fire_at_the_intervals_the_engine_promises():
         "workflow-schedules-check": timedelta(minutes=1),
         "workflow-table-triggers": timedelta(seconds=10),
         "workflow-run-retention": timedelta(days=1),
+        "workflow-log-alerts": timedelta(minutes=1),
     }
     # One at a time, so a slow sweep is never run twice beside itself.
     assert {schedule.overlap for schedule in every.values()} == {Overlap.SKIP}

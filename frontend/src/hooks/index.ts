@@ -21,7 +21,7 @@ export { useActiveOrganizationRecovery } from "./use-active-organization";
 export { useMembers } from "./use-members";
 export { useMounted } from "./use-mounted";
 export { useReducedMotion } from "./use-reduced-motion";
-export { useUrlState } from "./use-url-state";
+export { useUrlList, useUrlState } from "./use-url-state";
 export { useInvitations } from "./use-invitations";
 export { useKnowledgeBaseFor, useKnowledgeBases, useKBDetail } from "./use-knowledge-bases";
 export { useSlashCommands, isBuiltinEnabled, BUILTIN_COMMAND_LIST } from "./use-slash-commands";
@@ -160,6 +160,8 @@ export { useCausingRun, useRunHistory, useWorkflowRun, useWorkflowRuns } from ".
 export { useWorkflowApprovalHistory, useWorkflowApprovals } from "./use-workflow-approvals";
 export { useWorkflowExposure } from "./use-workflow-exposure";
 export { useWorkflowLogs } from "./use-workflow-logs";
+export { useWorkflowLogAlerts } from "./use-workflow-log-alerts";
+export { useRecentWorkflowLogs } from "./use-recent-workflow-logs";
 export { useWorkflowStats } from "./use-workflow-stats";
 export { useWorkflowApprovalsSummary, useWorkflowsSummary } from "./use-workflows-summary";
 export { useStepEvals } from "./use-step-evals";

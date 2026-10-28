@@ -40,8 +40,9 @@ from app.core.permissions import ROLE_PERMS, AuthContext, Perm, Scope
 from app.db.models.artifact import Artifact, ArtifactVersion, ConsentState
 from app.db.models.resource_grant import GrantLevel
 from app.repositories import artifact_repo, member_repo, resource_grant_repo
-from app.schemas.artifact import ArtifactBinding
+from app.schemas.artifact import ArtifactBinding, StoredBinding, WorkflowLogBinding, stored_binding
 from app.services.access import ARTIFACT, accessible_ids
+from app.services.artifact_log_bindings import workflow_of
 from app.services.virtual_tables import VirtualTableService
 
 PAGE_ROLES: tuple[str, ...] = tuple(
@@ -142,6 +143,16 @@ def reads_every_table(ctx: AuthContext) -> bool:
     return ctx.user_id is not None and ctx.scope_for(Perm.TABLES_VIEW) is Scope.ALL
 
 
+def reads_every_workflow(ctx: AuthContext) -> bool:
+    """Whether `ctx`'s role views every workflow, so a page's log hides nothing from it."""
+    return ctx.user_id is not None and ctx.scope_for(Perm.WORKFLOWS_VIEW) is Scope.ALL
+
+
+def reads_a_log(version: ArtifactVersion) -> bool:
+    """Whether `version` has a binding that reads a workflow's log."""
+    return any(binding.get("kind") == "workflow_log" for binding in version.bindings)
+
+
 def as_themselves(ctx: AuthContext) -> bool:
     """Whether a person is acting in their own name: signed in, and nobody impersonating them.
 
@@ -215,12 +226,19 @@ async def served(
     """The version `ctx` is served, by the rules in this module's docstring.
 
     `ctx` is `None` for the page's audience at large - a public link, a group chat -
-    and `can_edit` is whether `ctx` may edit the page, which the caller has decided.
+    and `can_edit` is whether `ctx` may edit the page, which the caller has decided. The
+    roles that read every table read a page's data without consent, but a page that reads a
+    workflow's log needs them to view every workflow as well.
     """
     owner = ctx is not None and ctx.user_id is not None and ctx.user_id == artifact.owner_user_id
-    sees_everything = owner or (ctx is not None and reads_every_table(ctx))
+    reads_all = ctx is not None and reads_every_table(ctx)
+    latest = await artifact_repo.latest_version(db, artifact.id) if reads_all or owner else None
+    if ctx is not None and reads_all and latest is not None and reads_a_log(latest):
+        # A role that reads every table reads a workflow's log only if it views every workflow.
+        reads_all = reads_every_workflow(ctx)
+    sees_everything = owner or reads_all
     if ctx is not None and (sees_everything or can_edit):
-        latest = await artifact_repo.latest_version(db, artifact.id)
+        latest = latest or await artifact_repo.latest_version(db, artifact.id)
         data = latest is not None and (sees_everything or await _data_holds(db, artifact, latest))
         return Served(version=latest, data=data, latest=True)
     version = await artifact_repo.latest_served(db, artifact.id)
@@ -351,13 +369,13 @@ async def consent_for(
     return made(ConsentState.PENDING)
 
 
-def _bindings(version: ArtifactVersion) -> list[ArtifactBinding]:
-    return [ArtifactBinding.model_validate(binding) for binding in version.bindings]
+def _bindings(version: ArtifactVersion) -> list[StoredBinding]:
+    return [stored_binding(binding) for binding in version.bindings]
 
 
 def _reached(version: ArtifactVersion) -> dict[UUID, set[UUID]]:
     reached: dict[UUID, set[UUID]] = {}
-    for binding in _bindings(version):
+    for binding in (b for b in _bindings(version) if isinstance(b, ArtifactBinding)):
         for table_id, revisions in binding.reach.tables.items():
             reached.setdefault(table_id, set()).update(revisions)
     return reached
@@ -367,9 +385,10 @@ async def grown(
     db: AsyncSession, ctx: AuthContext, artifact: Artifact, version: ArtifactVersion
 ) -> list[str]:
     """What `version` reaches that the version the audience was served before it did not:
-    `+Deals` for a table, `+Salary` for a column of a table it already read.
+    `+Deals` for a table, `+Salary` for a column of a table it already read, `+Orders log` for
+    a workflow's log that is new or reads differently.
 
-    Read as `ctx`; a table `ctx` cannot read is left out.
+    Read as `ctx`; a table or workflow `ctx` cannot read is left out.
     """
     before = await artifact_repo.served_before(db, artifact.id, version.number)
     was = _reached(before) if before is not None else {}
@@ -385,4 +404,11 @@ async def grown(
             continue
         labels = {column.id: column.label for column in source.columns}
         added += [f"+{labels[column]}" for column in columns - was[table_id] if column in labels]
+    was_logs = [b for b in _bindings(before) if isinstance(b, WorkflowLogBinding)] if before else []
+    for binding in (b for b in _bindings(version) if isinstance(b, WorkflowLogBinding)):
+        if binding in was_logs:
+            continue
+        workflow = await workflow_of(db, ctx, binding)
+        if workflow is not None:
+            added.append(f"+{workflow.name} log")
     return added

@@ -52,6 +52,7 @@ from app.api.routes.v1 import (
     workflow_approvals,
     workflow_evals,
     workflow_exposures,
+    workflow_log_alerts,
     workflow_run_socket,
     workflow_runs,
     workflows,
@@ -131,12 +132,18 @@ v1_router.include_router(workflows.router, prefix="/workflows", tags=["workflows
 v1_router.include_router(workflow_runs.router, prefix="/workflow-runs", tags=["workflow-runs"])
 v1_router.include_router(workflow_runs.logs_router, prefix="/workflows", tags=["workflows:logs"])
 v1_router.include_router(
+    workflow_runs.org_logs_router, prefix="/workflow-logs", tags=["workflows:logs"]
+)
+v1_router.include_router(
     workflow_runs.resume_router, prefix="/workflow-resume", tags=["workflow-runs"]
 )
 v1_router.include_router(
     workflow_approvals.router, prefix="/workflow-approvals", tags=["workflow-approvals"]
 )
 v1_router.include_router(workflow_evals.router, prefix="/workflows", tags=["workflows:evals"])
+v1_router.include_router(
+    workflow_log_alerts.router, prefix="/workflows", tags=["workflows:log-alerts"]
+)
 v1_router.include_router(
     workflow_exposures.router, prefix="/workflows", tags=["workflows:exposures"]
 )

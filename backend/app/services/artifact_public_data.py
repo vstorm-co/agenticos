@@ -54,6 +54,8 @@ from app.schemas.artifact import (
     ArtifactPublicDataDisclosure,
     ArtifactPublicDataRead,
     PublicDataNotHolding,
+    StoredBinding,
+    stored_binding,
 )
 from app.services import rate_limit
 from app.services.artifact_bindings import BindingRows
@@ -281,9 +283,10 @@ class PublicReads:
         return self._admitted
 
 
-def _reach(bindings: Sequence[ArtifactBinding]) -> dict[UUID, set[UUID]]:
+def _reach(bindings: Sequence[StoredBinding]) -> dict[UUID, set[UUID]]:
     reach: dict[UUID, set[UUID]] = {}
-    for binding in bindings:
+    # A workflow's log is never on a public link, so only a table's binding reaches.
+    for binding in (b for b in bindings if isinstance(b, ArtifactBinding)):
         for table_id, columns in binding.reach.tables.items():
             reach.setdefault(table_id, set()).update(columns)
     return reach
@@ -428,7 +431,7 @@ class ArtifactPublicDataService:
             )
         if public_data_holds(artifact, version, membership, org):
             return await self.pages.detail(ctx, artifact)
-        bindings = [ArtifactBinding.model_validate(binding) for binding in version.bindings]
+        bindings = [stored_binding(binding) for binding in version.bindings]
         _, sources = await self.pages.tables_for_words(ctx, artifact, bindings)
         names = {table_id: source.name for table_id, source in sources.items()}
         columns = sorted(

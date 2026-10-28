@@ -36,6 +36,7 @@ class ContentGate(enum.Enum):
     COLLECTIONS_VIEW = "collections_view"
     ANNOUNCEMENT_AUDIENCE = "announcement_audience"
     ARTIFACTS_VIEW = "artifacts_view"
+    WORKFLOWS_VIEW = "workflows_view"
 
 
 # Decision 1's "Content gated on" column, read by event type. A row with no
@@ -59,6 +60,9 @@ CONTENT_GATE: dict[NotificationEventType, ContentGate] = {
     # may open the page is shown the row.
     NotificationEventType.ARTIFACT_SHARE_REQUESTED: ContentGate.ARTIFACTS_VIEW,
     NotificationEventType.ARTIFACT_VERSION_PUBLISHED: ContentGate.ARTIFACTS_VIEW,
+    # Names a workflow and how many of its log lines matched, never the lines: only
+    # someone who may still view the workflow is shown the row.
+    NotificationEventType.WORKFLOW_LOG_ALERT: ContentGate.WORKFLOWS_VIEW,
 }
 
 # `security_event`, `configuration_changed` and `background_task_paused` bypass

@@ -127,6 +127,10 @@ describe("the notifications settings page", () => {
       screen.getByRole("switch", { name: "Workflow notifications - Email" }),
     ).toBeInTheDocument();
     expect(
+      screen.getByRole("switch", { name: "Workflow log alerts - In-app" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "Workflow log alerts - Email" })).toBeInTheDocument();
+    expect(
       screen.getByRole("switch", { name: "Page ownership changes - In-app" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "Page requests - In-app" })).toBeInTheDocument();
@@ -138,7 +142,7 @@ describe("the notifications settings page", () => {
     expect(
       screen.getByRole("switch", { name: "Findings from your watches - In-app" }),
     ).toBeInTheDocument();
-    expect(screen.getAllByRole("switch")).toHaveLength(39);
+    expect(screen.getAllByRole("switch")).toHaveLength(41);
   });
 
   it("renders the stored preference, not a hardcoded on", () => {

@@ -198,6 +198,12 @@ const PREFERENCE_EVENTS: readonly PreferenceEvent[] = [
     channels: ["in_app", "email"],
   },
   {
+    eventType: "workflow_log_alert",
+    words: "prefWorkflowLogAlert",
+    icon: Bell,
+    channels: ["in_app", "email"],
+  },
+  {
     eventType: "artifact_owner_changed",
     words: "prefArtifactOwnerChanged",
     icon: UserRoundCog,

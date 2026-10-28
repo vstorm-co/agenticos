@@ -1,5 +1,5 @@
 ---
-source_sha: "ae0585c30a8a"
+source_sha: "fa09f74b62c2"
 ---
 
 # Aplicaciones { #artifacts }
@@ -152,6 +152,79 @@ su propio mensaje. En la versión 3, `AO.onData` es la misma llamada que
 `agenticos.onData`. Una página vinculada cuyo script nunca pide sus datos se
 publica igualmente, con un [aviso](#the-page-contract-and-the-publish-warnings).
 
+### El log de un workflow como datos en vivo { #a-workflows-log }
+
+Un binding también puede leer el log de un [workflow](workflows.md) - las líneas que
+escribieron los Quick Logs de sus pasos - para montar un dashboard en una página que se
+mantiene al día. Dale al binding `"kind": "workflow_log"` (un binding sin `kind` lee una
+tabla, como todos los publicados hasta ahora). Es un segundo tipo de page query y sigue
+las mismas reglas: se resuelve al publicar, se congela, se lee con el acceso del
+[propietario](#who-owns-a-page) de la página y solo tras su
+[consentimiento](#consent-the-owner-decides-who-reads-the-data).
+
+| En el binding | Significado |
+|---|---|
+| `workflow` | El id del workflow o su nombre exacto. Debe ser uno que la capability Workflows del agent vincule, como en una [acción](#actions), y la persona detrás del run debe poder verlo - y también el propietario de la página cuando la publicación cambia el binding |
+| `step` | Opcional: solo las líneas de este paso, por su id, su etiqueta o - para un paso sin etiqueta - el nombre de su tipo, como `Send email`, si no es ambiguo. Debe estar en la versión activa o en el borrador. Un paso sin Quick Log se admite, y el resultado de la publicación avisa de que no leerá líneas |
+| `outcomes` | Opcional: solo líneas con uno de estos resultados - un puerto, o `error`. Vale cualquiera, y una línea que salió por varios puertos, guardada como `a, b`, cuenta para cada uno |
+| `run` | Opcional: un id de run o sus primeros 4 o más caracteres |
+| `include_test` | También las líneas de ejecuciones de prueba. Desactivado por defecto |
+| `lines` | Servir las N líneas más recientes, la más reciente primero. Hasta 500 en un binding; la propia ruta del log pagina de 100 en 100 |
+| `per_day` con `days` y `tz` | Servir en su lugar el número de líneas por día y resultado: `days` es 7, 30 o 90, contando hoy, y `tz` un nombre IANA cuyos días se cuentan (UTC por defecto) |
+
+Da `lines` o `per_day`, no ambos. Son los filtros y límites de `GET /workflows/{id}/logs` y
+`GET /workflows/{id}/logs/summary`, servidos por el mismo código. El workflow y el paso se
+resuelven a ids al publicar y se guardan con los filtros: renombrar después el workflow o
+el paso no cambia nada en la página. Un workflow desconocido, uno que el agent no vincula o que la persona no puede
+ver (dicho igual, para que un rechazo nunca confirme que existe), un paso desconocido, un
+filtro que no se cumple o un límite superior a 500 rechaza la publicación, y el mensaje dice
+cuál.
+
+La página lo recibe con la misma llamada `agenticos.onData`. Con `lines`, un binding llega
+como `status`, `records` (cada uno `{id, created_at, step, outcome, status, message, run_id}`), `count`, `truncated` y `limit`, recortado por los límites de registros y bytes de
+la página como el de una tabla. Con `per_day` llega como `status`, `days` (cada día de la
+ventana, el más antiguo primero, cada uno `{day, counts: {outcome: n}}`), `total`,
+`window_days` y `tz`, sin límite de registros.
+
+```js
+agenticos.onData((data) => {
+  const week = data.errors_per_day;
+  if (week.status !== "ok") return;
+  AO.chart("#errors", {
+    type: "bar",
+    data: {
+      labels: week.days.map((d) => d.day),
+      datasets: [{ label: "Errors", data: week.days.map((d) => d.counts.error ?? 0) }],
+    },
+  });
+});
+```
+
+publicado con `bindings: {"errors_per_day": {"kind": "workflow_log", "workflow": "Order intake", "outcomes": ["error"], "per_day": true, "days": 30, "tz": "Europe/Warsaw"}}`.
+
+El resultado de la publicación y el consentimiento del propietario lo dicen con palabras:
+qué workflow, qué filtros y si sirve las N líneas más recientes o recuentos por día a lo largo
+de D días.
+
+Cualquier cambio en un binding de log - el workflow, el paso, los resultados, el
+run, las líneas de prueba, `lines` o `per_day`, el límite, los días o la zona horaria -
+cambia las queries de la página, así que necesita de nuevo el consentimiento del propietario,
+y una [revisión del cambio de datos](#consent-the-owner-decides-who-reads-the-data) lo marca
+como que muestra más.
+
+Un log no tiene columnas, así que no puede desviarse; en su lugar el
+binding queda `unavailable` cuando el propietario ya no puede ver el workflow
+(`creator_lost_access`) o el paso ya no está en él (`source_changed`, con el nombre `step`).
+Dos límites difieren de los de una tabla: una página que lee un log **no puede tener enlace
+público** - se rechaza publicar un binding de log mientras el enlace está activo, el enlace
+no se puede activar ni fijar a una versión que lea un log, y esa versión no se puede
+restaurar mientras el enlace esté activo. Un binding de log nunca se sirve en una página
+pública.
+
+Los roles que leen todas las tablas leen también el log de una página sin consentimiento
+solo si ven todos los workflows, lo que cumple todo rol integrado que lee todas las tablas;
+uno que no lo cumpla espera el consentimiento del propietario como un editor.
+
 ### Quién ve qué { #who-sees-what }
 
 Qué versión se sirve a un lector, y si se leen sus datos para él, depende de quién es.
@@ -177,9 +250,10 @@ están disponibles.
 | Motivo | Qué ocurrió |
 |---|---|
 | `creator_gone` | El propietario de la página ya no es un miembro activo |
-| `creator_lost_access` | El propietario ya no puede leer una tabla que alcanza la query |
-| `source_changed` | Cambió el significado de una columna (su tipo, una fórmula, el destino de un enlace o lookup, un agregado, una opción archivada o restaurada), se archivó una columna o tabla, o una tabla vinculada ahora etiqueta sus registros por otra columna. Se nombra la etiqueta actual de la columna |
+| `creator_lost_access` | El propietario ya no puede leer una tabla que alcanza la query, ni ver el workflow cuyo log lee |
+| `source_changed` | El paso de un binding de log ya no está en el workflow (se nombra `step`), o cambió el significado de una columna (su tipo, una fórmula, el destino de un enlace o lookup, un agregado, una opción archivada o restaurada), se archivó una columna o tabla, o una tabla vinculada ahora etiqueta sus registros por otra columna. Se nombra la etiqueta actual de la columna |
 | `awaiting_consent` | El propietario no ha confirmado compartir los datos de esta versión, o se retiró |
+| `public_link` | Se pidió un binding de log de workflow en una página pública, que nunca lo sirve |
 
 Que un binding pase a `unavailable` deja funcionando a los demás. A la página nunca se le
 bloquea un cambio de tabla: nada impide cambiar una columna, y el binding deja de servir hasta

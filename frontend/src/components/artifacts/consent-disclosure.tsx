@@ -2,7 +2,13 @@
 
 import { useTranslations } from "next-intl";
 
-import type { ArtifactDisclosure, BindingParts, DisclosedDerivation } from "@/types/artifact";
+import type {
+  AnyBindingParts,
+  ArtifactDisclosure,
+  BindingParts,
+  DisclosedDerivation,
+  WorkflowLogParts,
+} from "@/types/artifact";
 
 type Translate = ReturnType<typeof useTranslations>;
 
@@ -77,14 +83,64 @@ export function fieldInWords(
   });
 }
 
+/** What a log query keeps, one condition each: the step, the outcomes, the run. */
+function logConditions(t: Translate, query: WorkflowLogParts): string[] {
+  return [
+    ...(query.step === null ? [] : [t("log.step", { step: query.step })]),
+    ...(query.outcomes.length === 0
+      ? []
+      : [t("log.outcomes", { outcomes: query.outcomes.join(", ") })]),
+    ...(query.run === null ? [] : [t("log.run", { run: query.run })]),
+  ];
+}
+
+/** What a log query keeps as a sentence, and whether it reads test runs. */
+export function logKeeps(t: Translate, query: WorkflowLogParts): string {
+  const conditions = logConditions(t, query);
+  const lines =
+    conditions.length === 0
+      ? t("log.allLines")
+      : t("log.filters", { conditions: conditions.join("; ") });
+  return `${lines} ${t(query.include_test ? "log.testsIncluded" : "log.testsLeftOut")}`;
+}
+
+/** What a log query serves: the newest lines, or counts per day. */
+export function logServes(t: Translate, query: WorkflowLogParts): string {
+  return query.mode === "lines"
+    ? t("log.lines", { count: query.lines ?? 0 })
+    : t("log.perDay", { days: query.days ?? 0, tz: query.tz ?? "UTC" });
+}
+
+/** A log query on one line, for a change that says what it was and what it is. */
+export function logInWords(t: Translate, query: WorkflowLogParts): string {
+  return t("log.summary", {
+    workflow: query.workflow,
+    keeps: logKeeps(t, query),
+    serves: logServes(t, query),
+  });
+}
+
+/** One workflow-log query in words: its workflow, what it keeps and what it serves. */
+function LogQueryInWords({ name, query }: { name: string; query: WorkflowLogParts }) {
+  const t = useTranslations("artifacts.consent");
+  return (
+    <li className="space-y-1 rounded-md border p-3">
+      <p className="font-medium">{t("bindingLog", { name, workflow: query.workflow })}</p>
+      <p className="text-muted-foreground">{logKeeps(t, query)}</p>
+      <p className="text-muted-foreground">{logServes(t, query)}</p>
+    </li>
+  );
+}
+
 /**
  * One page query in words: its table, what it filters on, its order, its limit,
  * its fields and the tables it reaches through links - from the server's parts,
  * worded in the reader's language.
  */
-export function QueryInWords({ name, query }: { name: string; query: BindingParts }) {
+export function QueryInWords({ name, query }: { name: string; query: AnyBindingParts }) {
   const t = useTranslations("artifacts.consent");
   const types = useTranslations("tables.schema.types");
+  if (query.kind === "workflow_log") return <LogQueryInWords name={name} query={query} />;
   return (
     <li className="space-y-1 rounded-md border p-3">
       <p className="font-medium">{t("bindingTable", { name, table: query.table })}</p>
@@ -149,7 +205,9 @@ export function ConsentQueries({ disclosure }: { disclosure: ArtifactDisclosure 
           <QueryInWords key={name} name={name} query={query} />
         ))}
       </ul>
-      <p>{t("tablesRead", { tables: disclosure.tables.join(", ") })}</p>
+      {disclosure.tables.length > 0 && (
+        <p>{t("tablesRead", { tables: disclosure.tables.join(", ") })}</p>
+      )}
     </>
   );
 }

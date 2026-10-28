@@ -11,6 +11,7 @@ import type {
   ArtifactShareRequest,
   ArtifactVersionReview,
   BindingParts,
+  WorkflowLogParts,
 } from "@/types/artifact";
 
 /**
@@ -344,6 +345,19 @@ const QUERY: BindingParts = {
   linked: ["Accounts"],
 };
 
+const LOG: WorkflowLogParts = {
+  kind: "workflow_log",
+  workflow: "Order intake",
+  step: null,
+  outcomes: ["error"],
+  run: null,
+  include_test: false,
+  mode: "lines",
+  lines: 10,
+  days: null,
+  tz: null,
+};
+
 function review(overrides: Partial<ArtifactVersionReview> = {}): ArtifactVersionReview {
   return {
     version: {
@@ -393,6 +407,63 @@ function renderReview(props: Partial<React.ComponentProps<typeof DataChangeRevie
 }
 
 describe("DataChangeReview", () => {
+  it("words a workflow's log that was added, removed or changed", () => {
+    reviewing(
+      review({
+        widens: true,
+        bindings: [
+          { name: "errors", change: "added", effect: "widens", parts: LOG, changes: [] },
+          {
+            name: "gone",
+            change: "removed",
+            effect: "narrows",
+            parts: { ...LOG, workflow: "Payroll" },
+            changes: [],
+          },
+          {
+            name: "week",
+            change: "changed",
+            effect: "widens",
+            parts: null,
+            changes: [
+              {
+                aspect: "log",
+                change: "changed",
+                effect: "widens",
+                before: LOG,
+                after: { ...LOG, mode: "per_day", lines: null, days: 7, tz: "UTC" },
+              },
+            ],
+          },
+          {
+            name: "was_table",
+            change: "changed",
+            effect: "widens",
+            parts: null,
+            changes: [
+              { aspect: "kind", change: "changed", effect: "widens", before: "Orders", after: LOG },
+            ],
+          },
+        ],
+      }),
+    );
+    renderReview();
+
+    expect(screen.getByText("errors - log of Order intake")).toBeInTheDocument();
+    expect(screen.getByText("Serves the newest 10 lines, newest first.")).toBeInTheDocument();
+    expect(screen.getByText("It no longer reads the log of Payroll.")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Log: Order intake: Only lines left by error. Test runs are left out. Serves the newest 10 lines, newest first. -> Order intake: Only lines left by error. Test runs are left out. Serves the number of lines per day over 7 days, in UTC.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Reads: Orders -> Order intake: Only lines left by error. Test runs are left out. Serves the newest 10 lines, newest first.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("marks each source by what it does to what others see", () => {
     reviewing(
       review({

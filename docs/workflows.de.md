@@ -1,5 +1,5 @@
 ---
-source_sha: "cf95c915daaa"
+source_sha: "e62b598517c1"
 ---
 
 # Workflows { #workflows }
@@ -861,8 +861,9 @@ in **Run** ein oder tippen die ersten Zeichen davon (mindestens vier); **Show on
 run** an einer Zeile füllt das Feld aus, und **See in Logs** auf der Seite eines Laufs
 öffnet die auf diesen Lauf gefilterten Logs. Eine Zeile öffnet den Lauf, der sie
 geschrieben hat. In der Laufansicht stehen die Zeilen jedes Schritts unter ihm, in der
-Reihenfolge des Schreibens. Beides ist nur für angemeldete Mitglieder: Ein API-Schlüssel
-liest sie nicht.
+Reihenfolge des Schreibens. Ein Organisations-API-Schlüssel mit `workflows:view` liest
+sie ebenfalls, für Läufe öffentlichen Ursprungs: siehe [Das Log eines Workflows
+lesen](api.md#reading-a-workflows-log).
 
 ## Einen Workflow von außerhalb der Konsole starten { #starting-a-workflow-from-outside-the-console }
 

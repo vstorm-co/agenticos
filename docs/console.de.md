@@ -1,5 +1,5 @@
 ---
-source_sha: "e1e3582d471d"
+source_sha: "cdf08df75a5a"
 ---
 
 # Die Konsole { #the-console }
@@ -52,6 +52,14 @@ entschieden haben, nach denen die Workflows im Zeitraum fragten. Sie zeigt den A
 der wie vorgeschlagen Freigegebenen, die Bearbeitungen und ihre mediane Änderung, die
 Zeit bis zur Entscheidung und die fünf Workflows mit den meisten Anfragen. Sie bleibt
 leer, wenn im Zeitraum des Dashboards keine Anfrage gestellt wurde.
+
+Die Karte **Workflow-Protokolle (Workflow logs)** wartet ebenfalls im Katalog, für alle,
+die Workflows ansehen dürfen. Sie zeigt die neuesten Zeilen, die die
+[Quick Logs](workflows.md#the-logs-page) der Workflows, die Sie ansehen dürfen, in echten Runs
+geschrieben haben, und wie viele Zeilen die letzten 24 Stunden brachten, darunter
+Fehler. Eine Zeile verlinkt ihren Run, der Workflow-Name die Logs-Seite des Workflows.
+Sie bleibt leer, bis ein Schritt mit Quick Log gelaufen ist, und ignoriert den Zeitraum
+des Dashboards.
 
 Das Dashboard öffnet mit **Erste Schritte**, bis jeder Schritt erledigt ist:
 Agents etwas über sich erzählen, ein Gespräch beginnen, einen Dienst mit dem

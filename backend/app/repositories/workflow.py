@@ -6,6 +6,7 @@ Mirrors `app.repositories.agent`: `Workflow` rows are read and written plainly,
 fact rather than a convention every caller has to remember.
 """
 
+from collections.abc import Sequence
 from uuid import UUID
 
 from sqlalchemy import ColumnElement, false, func, or_, select
@@ -25,6 +26,20 @@ async def get(db: AsyncSession, workflow_id: UUID, *, organization_id: UUID) -> 
     return result.scalar_one_or_none()
 
 
+async def get_by_ids(
+    db: AsyncSession, workflow_ids: Sequence[UUID], *, organization_id: UUID
+) -> list[Workflow]:
+    """The workflows among `workflow_ids` that belong to the organization."""
+    if not workflow_ids:
+        return []
+    result = await db.execute(
+        select(Workflow).where(
+            Workflow.id.in_(workflow_ids), Workflow.organization_id == organization_id
+        )
+    )
+    return list(result.scalars())
+
+
 async def get_for_update(
     db: AsyncSession, workflow_id: UUID, *, organization_id: UUID
 ) -> Workflow | None:
@@ -35,6 +50,14 @@ async def get_for_update(
         .with_for_update()
     )
     return result.scalar_one_or_none()
+
+
+async def list_by_name(db: AsyncSession, name: str, *, organization_id: UUID) -> list[Workflow]:
+    """The organization's workflows with exactly this name."""
+    result = await db.execute(
+        select(Workflow).where(Workflow.name == name, Workflow.organization_id == organization_id)
+    )
+    return list(result.scalars())
 
 
 async def get_by_slug(db: AsyncSession, slug: str, *, organization_id: UUID) -> Workflow | None:

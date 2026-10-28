@@ -16,7 +16,10 @@ describe("logs-api", () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
     await listWorkflowLogs({ workflowId: "wf", includeTest: false, page: 0 });
     expect(apiClient.get).toHaveBeenCalledWith("/workflows/wf/logs", {
-      params: { skip: "0", limit: "50" },
+      params: [
+        ["skip", "0"],
+        ["limit", "50"],
+      ],
     });
   });
 
@@ -25,22 +28,24 @@ describe("logs-api", () => {
     await listWorkflowLogs({
       workflowId: "wf",
       nodeInstanceId: "n1",
-      outcome: "error",
+      outcomes: ["error", "out"],
       from: "2026-10-01T00:00:00.000Z",
       q: "timeout",
       includeTest: true,
       page: 2,
     });
     expect(apiClient.get).toHaveBeenCalledWith("/workflows/wf/logs", {
-      params: {
-        skip: "100",
-        limit: "50",
-        node_instance_id: "n1",
-        outcome: "error",
-        from: "2026-10-01T00:00:00.000Z",
-        q: "timeout",
-        include_test: "true",
-      },
+      // Pairs, so an outcome list repeats the key as the route reads it.
+      params: [
+        ["skip", "100"],
+        ["limit", "50"],
+        ["node_instance_id", "n1"],
+        ["outcome", "error"],
+        ["outcome", "out"],
+        ["from", "2026-10-01T00:00:00.000Z"],
+        ["q", "timeout"],
+        ["include_test", "true"],
+      ],
     });
   });
 
@@ -49,10 +54,17 @@ describe("logs-api", () => {
     await listWorkflowLogs({ workflowId: "wf", run: "3f2a-9", includeTest: false, page: 0 });
     await listWorkflowLogs({ workflowId: "wf", run: "", includeTest: false, page: 0 });
     expect(vi.mocked(apiClient.get).mock.calls[0]?.[1]).toEqual({
-      params: { skip: "0", limit: "50", run: "3f2a-9" },
+      params: [
+        ["skip", "0"],
+        ["limit", "50"],
+        ["run", "3f2a-9"],
+      ],
     });
     expect(vi.mocked(apiClient.get).mock.calls[1]?.[1]).toEqual({
-      params: { skip: "0", limit: "50" },
+      params: [
+        ["skip", "0"],
+        ["limit", "50"],
+      ],
     });
   });
 
@@ -60,7 +72,10 @@ describe("logs-api", () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
     await listWorkflowLogs({ workflowId: "wf", q: "", includeTest: false, page: 0 });
     expect(vi.mocked(apiClient.get).mock.calls[0]?.[1]).toEqual({
-      params: { skip: "0", limit: "50" },
+      params: [
+        ["skip", "0"],
+        ["limit", "50"],
+      ],
     });
   });
 

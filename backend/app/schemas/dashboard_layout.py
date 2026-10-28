@@ -117,6 +117,7 @@ WIDGET_IDS: frozenset[str] = frozenset(
         "version-compare",
         "approvals",
         "approval-outcomes",
+        "workflow-logs",
         "recent-failures",
         "budget-headroom",
         "department-spend",

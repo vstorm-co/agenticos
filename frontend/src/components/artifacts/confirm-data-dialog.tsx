@@ -21,6 +21,7 @@ import { useArtifactDisclosure } from "@/hooks/use-artifacts";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
+import type { ArtifactDisclosure } from "@/types/artifact";
 
 interface ConfirmDataDialogProps {
   artifactId: string;
@@ -31,6 +32,13 @@ interface ConfirmDataDialogProps {
   /** Sends the fingerprint the person was shown; rejects with the server's refusal. */
   onConfirm: (fingerprint: string) => Promise<unknown>;
   loading: boolean;
+}
+
+/** What the version reads: tables, a workflow's log, or both. Tables until it is known. */
+function readsKind(parts: ArtifactDisclosure["parts"] | undefined): "tables" | "log" | "both" {
+  const kinds = new Set(Object.values(parts ?? {}).map((part) => part.kind));
+  if (!kinds.has("workflow_log")) return "tables";
+  return kinds.size === 1 ? "log" : "both";
 }
 
 /**
@@ -92,7 +100,9 @@ export function ConfirmDataDialog({
               ? t("confirmTitleUnnumbered")
               : t("confirmTitle", { version: shown.version })}
           </DialogTitle>
-          <DialogDescription>{t("confirmWhy")}</DialogDescription>
+          <DialogDescription>
+            {t("confirmWhy", { kind: readsKind(shown?.parts) })}
+          </DialogDescription>
         </DialogHeader>
         {disclosure.isLoading ? (
           <LoadingState variant="skeleton-panel" rows={4} />

@@ -48,7 +48,7 @@ import httpx
 from app.agents.capabilities.browser_use._endpoint import version_url, websocket_url
 from app.core.config import settings
 from app.core.exceptions import ConfigurationError, ExternalServiceError
-from app.schemas.artifact import BindingData
+from app.schemas.artifact import AnyBindingData
 from app.services.artifact import (
     ARTIFACT_LIBRARY,
     content_address,
@@ -129,7 +129,7 @@ class RenderRequest:
 
     document: bytes
     nonce: str
-    bindings: dict[str, BindingData] | None
+    bindings: dict[str, AnyBindingData] | None
     """Posted to the page when it asks, `reason` left out as the console leaves it
     out. `{}` draws every binding unavailable; `None` never answers."""
     injected_lines: int = 0
@@ -610,7 +610,9 @@ def _inline_json(value: object) -> str:
     return text
 
 
-def shell_document(*, page_url: str, nonce: str, bindings: dict[str, BindingData] | None) -> bytes:
+def shell_document(
+    *, page_url: str, nonce: str, bindings: dict[str, AnyBindingData] | None
+) -> bytes:
     """The host the page is framed in: the console's frame and its half of the data bridge.
 
     The same `sandbox` as the console's frame, and the same answer to `ready`: the

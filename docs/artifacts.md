@@ -141,6 +141,77 @@ each get their own message. `AO.onData` in version 3 is
 the same call as `agenticos.onData`. A bound page whose script never asks for
 its data still publishes, with a [warning](#the-page-contract-and-the-publish-warnings).
 
+### A workflow's log as live data { #a-workflows-log }
+
+A binding can also read the log of a [workflow](workflows.md) - the lines its steps'
+Quick Logs wrote - to build a dashboard on a page that stays current. Give the binding
+`"kind": "workflow_log"` (a binding with no `kind` reads a table, as every binding
+published before this did). It is a second kind of page query and follows the same
+rules: it is resolved when the page is published, frozen, read with the access of the
+page's [owner](#who-owns-a-page) and only after
+[consent](#consent-the-owner-decides-who-reads-the-data).
+
+| In the binding | Meaning |
+|---|---|
+| `workflow` | The workflow's id or exact name. It must be one the agent's Workflows capability binds, as for an [action](#actions), and the person behind the run must be able to view it - and so must the page's owner when the publish changes the binding |
+| `step` | Optional: only this step's lines, by the step's id, its label, or - for a step with no label - its kind's name, such as `Send email`, when that is unambiguous. It must be in the live version or the draft. A step with no Quick Log is allowed, and the publish result notes that it will read no lines |
+| `outcomes` | Optional: only lines that left by one of these - a port, or `error`. Any of them matches, and a line that left by several ports, stored as `a, b`, counts as each |
+| `run` | Optional: a run id, or the 4 or more characters it starts with |
+| `include_test` | Lines written by test runs as well. Off by default |
+| `lines` | Serve the newest N lines, newest first. Up to 500 in one binding; the log's own route pages 100 at a time |
+| `per_day` with `days` and `tz` | Serve the count of lines per day and outcome instead: `days` is 7, 30 or 90, today included, and `tz` an IANA name (UTC by default) whose days are counted |
+
+Give `lines` or `per_day`, not both. These are the filters and limits of
+`GET /workflows/{id}/logs` and `GET /workflows/{id}/logs/summary`, served by the same
+code. The workflow and the step are resolved to ids when the page is published and stored
+with the filters: renaming the workflow or the step later changes nothing on the page.
+An unknown workflow, one the agent does not bind or the person cannot view (all said the
+same way, so a refusal never confirms it exists), an unknown step, a filter that does not hold or a limit over 500
+refuses the publish, and the message says which.
+
+The page receives it through the same `agenticos.onData` call. With `lines`, a binding
+arrives as `status`, `records` (each `{id, created_at, step, outcome, status, message, run_id}`), `count`, `truncated` and `limit`, cut by the page's record and byte limits like
+a table's. With `per_day` it arrives as `status`, `days` (every day of the window, oldest
+first, each `{day, counts: {outcome: n}}`), `total`, `window_days` and `tz`, with no
+record limit.
+
+```js
+agenticos.onData((data) => {
+  const week = data.errors_per_day;
+  if (week.status !== "ok") return;
+  AO.chart("#errors", {
+    type: "bar",
+    data: {
+      labels: week.days.map((d) => d.day),
+      datasets: [{ label: "Errors", data: week.days.map((d) => d.counts.error ?? 0) }],
+    },
+  });
+});
+```
+
+published with `bindings: {"errors_per_day": {"kind": "workflow_log", "workflow": "Order intake", "outcomes": ["error"], "per_day": true, "days": 30, "tz": "Europe/Warsaw"}}`.
+
+The publish result and the owner's consent say it in words: which workflow, which
+filters, and whether it serves the newest N lines or counts per day over D days.
+
+Any
+change to a log binding - the workflow, the step, the outcomes, the run, test lines, lines
+or per-day, the limit, the days or the time zone - changes the page's queries, so it needs
+the owner's consent again, and a [data change review](#consent-the-owner-decides-who-reads-the-data)
+marks it as showing more.
+
+A log has no columns, so it cannot drift; instead the binding is
+`unavailable` when the owner can no longer view the workflow (`creator_lost_access`) or the
+step is no longer in it (`source_changed`, naming `step`). Two limits are different from a
+table's: a page that reads a log **cannot have a public link**: publishing a log binding is
+refused while the link is on, the link cannot be turned on or pinned to a version that
+reads a log, and such a version cannot be restored while the link is on. A log binding is
+never served on a public page.
+
+The roles that read every table also read a page's log without consent only when they
+view every workflow, which every built-in role that reads every table does; one that does
+not waits for the owner's consent like an editor.
+
 ### Who sees what
 
 Which version a viewer is served, and whether its data is read for them, depends
@@ -167,9 +238,10 @@ sees how many sources are unavailable.
 | Reason | What happened |
 |---|---|
 | `creator_gone` | The page's owner is no longer an active member |
-| `creator_lost_access` | The owner can no longer read a table the query reaches |
-| `source_changed` | A column's meaning changed (its type, a formula, a link or lookup target, an aggregate, an archived or restored option), or a column or table was archived, or a linked table now labels its records by another column. The column's current label is named |
+| `creator_lost_access` | The owner can no longer read a table the query reaches, or view the workflow whose log it reads |
+| `source_changed` | A workflow-log binding's step is no longer in the workflow (`step` is named), or a column's meaning changed (its type, a formula, a link or lookup target, an aggregate, an archived or restored option), or a column or table was archived, or a linked table now labels its records by another column. The column's current label is named |
 | `awaiting_consent` | The owner has not confirmed sharing this version's data, or it was withdrawn |
+| `public_link` | A workflow-log binding was asked for on a public page, which never serves one |
 
 One binding going `unavailable` leaves the others working. The page is never
 blocked from a table change: nothing stops a column from being changed, and the

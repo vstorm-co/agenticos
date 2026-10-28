@@ -343,6 +343,99 @@ describe("ConfirmDataDialog", () => {
     }
   });
 
+  it("words a workflow's log by its workflow, what it keeps and what it serves", () => {
+    disclosureMock.mockReturnValue({
+      data: {
+        ...DISCLOSURE,
+        bindings: {
+          errors: {
+            kind: "workflow_log",
+            workflow: "Order intake",
+            filters: ["test runs left out"],
+            reads: "the newest 20 lines, newest first",
+          },
+        },
+        parts: {
+          errors: {
+            kind: "workflow_log",
+            workflow: "Order intake",
+            step: "Mail",
+            outcomes: ["error", "retry"],
+            run: "abcd",
+            include_test: false,
+            mode: "lines",
+            lines: 20,
+            days: null,
+            tz: null,
+          },
+          weekly: {
+            kind: "workflow_log",
+            workflow: "Order intake",
+            step: null,
+            outcomes: [],
+            run: null,
+            include_test: true,
+            mode: "per_day",
+            lines: null,
+            days: 30,
+            tz: "Europe/Warsaw",
+          },
+        },
+        tables: [],
+      },
+      isLoading: false,
+      refetch,
+    });
+    dialog();
+
+    const body = screen.getByRole("dialog");
+    for (const words of [
+      "errors - log of Order intake",
+      "Only lines from the step Mail; left by error, retry; from the run abcd. Test runs are left out.",
+      "Serves the newest 20 lines, newest first.",
+      "weekly - log of Order intake",
+      "All lines. Test runs are included.",
+      "Serves the number of lines per day over 30 days, in Europe/Warsaw.",
+      "Roles that see every page: Owner, Admin, Builder, Operator",
+    ]) {
+      expect(body).toHaveTextContent(words);
+    }
+    expect(body).not.toHaveTextContent("Tables:");
+    expect(body).toHaveTextContent(
+      "Everyone who can open this page will see these log lines, even without access to the workflow.",
+    );
+  });
+
+  it("says a page of tables and a log shows records and log lines", () => {
+    disclosureMock.mockReturnValue({
+      data: {
+        ...DISCLOSURE,
+        parts: {
+          ...DISCLOSURE.parts,
+          errors: {
+            kind: "workflow_log",
+            workflow: "Order intake",
+            step: null,
+            outcomes: [],
+            run: null,
+            include_test: false,
+            mode: "lines",
+            lines: 1,
+            days: null,
+            tz: null,
+          },
+        },
+      },
+      isLoading: false,
+      refetch,
+    });
+    dialog();
+
+    expect(screen.getByRole("dialog")).toHaveTextContent(
+      "will see these records and log lines, even without access to the tables or workflows",
+    );
+  });
+
   it("words an order by a worked-out column and a read the table no longer shows", () => {
     const base = DISCLOSURE.parts.all;
     disclosureMock.mockReturnValue({

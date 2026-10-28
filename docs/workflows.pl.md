@@ -1,5 +1,5 @@
 ---
-source_sha: "cf95c915daaa"
+source_sha: "e62b598517c1"
 ---
 
 # Workflows { #workflows }
@@ -455,14 +455,14 @@ niezależnie od zaznaczonych wyjść, bo log służy właśnie temu, by cichy b�
 nie przeszedł niezauważony. Błąd skierowany portem `error` podlega filtrowi **Outputs**
 jak każdy inny wynik.
 
-Linia nie jest zapisywana dla kroku pominiętego, wyłączonego lub nigdy nierozpoczętego,
+Wiersz nie jest zapisywany dla kroku pominiętego, wyłączonego lub nigdy nierozpoczętego,
 ani dla takiego, który [ponowienie od nieudanego kroku](#running-a-workflow) ponownie
 wykorzystało zamiast uruchomić. Log nigdy nie zmienia przebiegu: wiadomość, której nie
 da się zapisać, jest pomijana, a przebieg toczy się dalej tak, jak by się toczył. Przebieg
-testowy też zapisuje linie, oznaczone jako testowe, a linia z kroku, który przekazał
-przypięte dane testowe, jest oznaczona jako przypięta.
+testowy też zapisuje wiersze, oznaczone jako testowe, a wiersz z kroku, który przekazał
+przypięte dane testowe, jest oznaczony jako przypięty.
 
-Linie są przechowywane razem z przebiegiem i usuwane razem z nim, gdy retencja historii
+Wiersze są przechowywane razem z przebiegiem i usuwane razem z nim, gdy retencja historii
 usuwa przebieg (zob. [Ustawienia workflow](#workflow-settings)). Czytasz je na
 [stronie Logs](#the-logs-page) albo, osobno dla każdego kroku, w widoku przebiegu.
 
@@ -763,7 +763,7 @@ albo 30 dni) zawężają przebiegi, a lista odpowiada po
 jednej stronie naraz; każdy filtr trafia do adresu, więc przefiltrowaną listę można
 podlinkować. **Runs** na liście workflow pokazuje przebiegi wszystkich workflow
 razem. Na stronie przebiegu kliknięcie kroku pokazuje jego **Input** i **Output** z
-tego przebiegu. Linie, które zapisał [szybki log](#quick-log) kroku, widać pod krokiem.
+tego przebiegu. Wiersze, które zapisał [szybki log](#quick-log) kroku, widać pod krokiem.
 
 **Retry from failed step** uruchamia nowy przebieg tej samej wersji
 z tym samym wejściem, w którym każdy krok, który się udał, przekazuje to, co
@@ -779,14 +779,15 @@ testowy zaczyna od miejsca, w którym tamten był. Przez API ponawia `POST
 
 **Logs**, w menu **More** w nagłówku edytora, wyświetla to, co szybkie logi workflow
 zapisały w jego przebiegach, od najnowszych: kiedy, krok, jego wynik i wiadomość. Zawęż
-linie po **Step**, **Outcome** i **Written** (ostatnia godzina, doba, tydzień albo 30
+wiersze po **Step**, **Outcome** i **Written** (ostatnia godzina, doba, tydzień albo 30
 dni), przeszukaj wiadomości i włącz **Include test runs** - dopóki tego nie zrobisz,
-przebiegi testowe są pominięte. Aby zobaczyć linie jednego przebiegu, wklej jego
+przebiegi testowe są pominięte. Aby zobaczyć wiersze jednego przebiegu, wklej jego
 identyfikator w polu **Run** albo wpisz kilka pierwszych znaków (co najmniej cztery);
-**Show only this run** przy linii wypełnia to pole, a **See in Logs** na stronie
-przebiegu otwiera log przefiltrowany do tego przebiegu. Linia otwiera przebieg, który ją
-zapisał. W widoku przebiegu linie każdego kroku są pod nim, w kolejności zapisu. Oba
-widoki są tylko dla zalogowanych członków: klucz API ich nie odczytuje.
+**Show only this run** przy wierszu wypełnia to pole, a **See in Logs** na stronie
+przebiegu otwiera log przefiltrowany do tego przebiegu. Wiersz otwiera przebieg, który
+go zapisał. W widoku przebiegu wiersze każdego kroku są pod nim, w kolejności zapisu.
+Klucz API organizacji z `workflows:view` też je odczytuje, dla runów o publicznym
+pochodzeniu: zob. [Odczyt logu workflow](api.md#reading-a-workflows-log).
 
 ## Uruchamianie workflow spoza konsoli { #starting-a-workflow-from-outside-the-console }
 

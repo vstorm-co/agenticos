@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useDataBridge } from "@/components/artifacts/artifact-frame";
 import { useArtifactView } from "@/hooks/use-artifacts";
 import { cn } from "@/lib/utils";
-import type { BindingData } from "@/types/artifact";
+import type { AnyBindingData } from "@/types/artifact";
 
 /**
  * Script, and nothing else: no dialogs, no forms, no popups, no same origin.
@@ -56,7 +56,7 @@ function useSeen(ref: React.RefObject<HTMLElement | null>): boolean {
  * one read per card - and a page waiting on data it will never get would
  * otherwise sit out its own deadline first.
  */
-const NO_DATA: Record<string, BindingData> = {};
+const NO_DATA: Record<string, AnyBindingData> = {};
 
 /** How far a `VIEWPORT_WIDTH` page must shrink to fit the element's width. */
 function useFitScale(ref: React.RefObject<HTMLElement | null>): number {

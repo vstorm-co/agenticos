@@ -19,6 +19,11 @@ that is another one is a change, and the names are only what is shown.
 
 A binding the audience's version did not have is added whole and widens; one it no longer
 has narrows.
+
+A workflow-log binding has no columns to compare, so any difference between two of them -
+its workflow, step, outcomes, run, test lines, lines or per-day, the limit, the days or the
+time zone - widens, and so does a binding that changes from one kind to the other: what a
+new filter matches cannot be told from the words, and the owner decides again.
 """
 
 from collections.abc import Mapping
@@ -29,6 +34,8 @@ from app.schemas.artifact import (
     ArtifactBinding,
     BindingParts,
     DisclosedFilter,
+    WorkflowLogBinding,
+    WorkflowLogParts,
 )
 from app.schemas.artifact_share_request import BindingChange, BindingReview, Effect
 from app.services.artifact_bindings import describe
@@ -42,6 +49,16 @@ class BindingView(NamedTuple):
     parts: BindingParts
     tables: Mapping[UUID, str]
     columns: Mapping[UUID, str]
+
+
+class LogView(NamedTuple):
+    """A workflow-log binding as stored, with its words."""
+
+    binding: WorkflowLogBinding
+    parts: WorkflowLogParts
+
+
+AnyView = BindingView | LogView
 
 
 def view_of(binding: ArtifactBinding, sources: Mapping[UUID, TableSource]) -> BindingView:
@@ -59,7 +76,7 @@ def view_of(binding: ArtifactBinding, sources: Mapping[UUID, TableSource]) -> Bi
 
 
 def diff_bindings(
-    before: Mapping[str, BindingView], after: Mapping[str, BindingView]
+    before: Mapping[str, AnyView], after: Mapping[str, AnyView]
 ) -> tuple[list[BindingReview], list[str]]:
     """The bindings that differ between two versions, and the names of those that do not."""
     reviews: list[BindingReview] = []
@@ -76,7 +93,11 @@ def diff_bindings(
             )
         else:
             assert old is not None and new is not None  # the name came from one of them
-            changes = _changes(old, new)
+            changes = (
+                _changes(old, new)
+                if isinstance(old, BindingView) and isinstance(new, BindingView)
+                else _log_changes(old, new)
+            )
             if changes:
                 reviews.append(
                     BindingReview(
@@ -93,6 +114,27 @@ def _overall(changes: list[BindingChange]) -> Effect:
     if "widens" in effects:
         return "widens"
     return "narrows" if "narrows" in effects else "neutral"
+
+
+def _log_changes(old: AnyView, new: AnyView) -> list[BindingChange]:
+    """Any difference involving a workflow-log binding: one change, widening."""
+    if isinstance(old, LogView) and isinstance(new, LogView):
+        if old.binding == new.binding:
+            return []
+        return [
+            BindingChange(
+                aspect="log", change="changed", effect="widens", before=old.parts, after=new.parts
+            )
+        ]
+    return [
+        BindingChange(
+            aspect="kind",
+            change="changed",
+            effect="widens",
+            before=old.parts if isinstance(old, LogView) else old.parts.table,
+            after=new.parts if isinstance(new, LogView) else new.parts.table,
+        )
+    ]
 
 
 def _changes(old: BindingView, new: BindingView) -> list[BindingChange]:

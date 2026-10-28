@@ -8,7 +8,9 @@ import type { LogQuery, WorkflowLogEntry } from "@/lib/workflows/types";
 
 import { useWorkflowLogs } from "./use-workflow-logs";
 
-vi.mock("@/lib/workflows/logs-api", () => ({ listWorkflowLogs: vi.fn() }));
+vi.mock("@/lib/workflows/logs-api", () => ({
+  listWorkflowLogs: vi.fn(),
+}));
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });

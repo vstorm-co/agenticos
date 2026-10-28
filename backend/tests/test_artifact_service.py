@@ -398,6 +398,7 @@ class TestRead:
         assert read.consent.may_confirm is True
         [shown] = read.bindings
         assert shown.model_dump() == {
+            "kind": "table",
             "name": "tickets",
             "table_id": table_id,
             "fields": ["status", "title"],
@@ -527,6 +528,8 @@ class TestPublicLink:
             patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)),
             patch(f"{PATH}.artifact_repo.update", new=_update),
             patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=None)),
+            patch(f"{PATH}.artifact_repo.latest_served", new=AsyncMock(return_value=None)),
+            patch(f"{PATH}.artifact_repo.list_versions", new=AsyncMock(return_value=[])),
             patch(f"{PATH}.artifact_repo.lock", new=AsyncMock(return_value=None)),
             patch(f"{PATH}.record_audit", new=audit),
         ):

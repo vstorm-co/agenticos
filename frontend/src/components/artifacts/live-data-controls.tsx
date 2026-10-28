@@ -264,7 +264,13 @@ export function LiveDataNotice({ artifact, status }: LiveDataNoticeProps) {
               </span>
               {bound !== undefined && (
                 <Button asChild size="sm" variant="outline" className="h-6 px-2">
-                  <Link href={ROUTES.TABLE_DETAIL(bound.table_id)}>{t("openTable")}</Link>
+                  {bound.kind === "workflow_log" ? (
+                    <Link href={ROUTES.WORKFLOW_DETAIL(bound.workflow_id)}>
+                      {t("openWorkflow")}
+                    </Link>
+                  ) : (
+                    <Link href={ROUTES.TABLE_DETAIL(bound.table_id)}>{t("openTable")}</Link>
+                  )}
                 </Button>
               )}
             </span>

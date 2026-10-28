@@ -9,6 +9,7 @@ import {
   QueryInWords,
   condition,
   fieldInWords,
+  logInWords,
   order,
 } from "@/components/artifacts/consent-disclosure";
 import { ErrorState, LoadingState } from "@/components/states";
@@ -23,6 +24,7 @@ import type {
   BindingReview,
   ChangeEffect,
   ChangeValue,
+  WorkflowLogParts,
 } from "@/types/artifact";
 
 type Translate = ReturnType<typeof useTranslations>;
@@ -44,6 +46,12 @@ function valueInWords(
       return condition(t, value as Filter);
     case "sort":
       return order(t, value as BindingParts["sort"]);
+    case "log":
+    case "kind":
+      // A log query as parts; a binding that was a table before names that table.
+      return typeof value === "object" && "kind" in value && value.kind === "workflow_log"
+        ? logInWords(t, value as WorkflowLogParts)
+        : String(value);
     default:
       return String(value);
   }
@@ -98,7 +106,9 @@ function BindingBlock({ binding }: { binding: BindingReview }) {
       )}
       {binding.change === "removed" && binding.parts !== null && (
         <p className="text-muted-foreground">
-          {tReview("removedReads", { table: binding.parts.table })}
+          {binding.parts.kind === "workflow_log"
+            ? tReview("removedLog", { workflow: binding.parts.workflow })
+            : tReview("removedReads", { table: binding.parts.table })}
         </p>
       )}
       {binding.changes.length > 0 && (
