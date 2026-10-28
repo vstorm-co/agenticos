@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.28.1] - 2026-10-28
+
 ### Fixed
 
 - Channel visuals no longer disappear silently when their PNG cannot be rendered.
