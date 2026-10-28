@@ -1,5 +1,5 @@
 ---
-source_sha: "addb0d005a90"
+source_sha: "d92a03013d02"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -128,6 +128,12 @@ agent no puede ejecutarse](#a-profile-an-agent-cannot-run-on), ni un perfil que 
 publicación rechazaría, como uno con un fallback a uno de esos modelos. Un modelo con un
 [inicio de sesión de ChatGPT](#running-on-a-chatgpt-subscription) nunca se elige en
 nombre de nadie, porque es la suscripción de una persona, pero cuenta como modelo.
+
+Tampoco se elige un modelo cuyos fallbacks incluyen un inicio de sesión entre los
+tres primeros, los que prueba un run: cuando el modelo falla, el run de cualquiera
+que pueda ver el inicio de sesión pasaría a esa suscripción. El Architect tampoco
+elige un modelo así ni un inicio de sesión. Un autor todavía puede elegirlo a
+propósito y publicarlo.
 
 La publicación rechaza entonces el borrador con *No model selected - pick one under
 Build > Model before publishing*. El rechazo también marca el campo

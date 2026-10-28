@@ -113,6 +113,12 @@ publish would refuse, such as one that falls back to such a model. A model on
 a [ChatGPT sign-in](#running-on-a-chatgpt-subscription) is never chosen for
 somebody, because it is one person's subscription, but it counts as a model.
 
+Nor is a new agent started on a model whose fallbacks include a sign-in among
+the first three, the ones a run tries: when the model fails, the run of anybody
+who may see the sign-in would fall back onto that subscription. The Architect does not choose
+such a model, or a sign-in, either. An author may still pick one deliberately
+and publish it.
+
 Publish then refuses the draft with *No model selected - pick one under Build >
 Model before publishing*. The refusal also marks the field (`model_profile_id` in
 `details.fields`), and the console shows **Go to Model** beside it, which opens the

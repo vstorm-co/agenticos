@@ -38,7 +38,7 @@ from app.repositories.agent_run import RunFilters
 from app.schemas.assistant import AssistantRead, AssistantSignals, AssistantUpdate
 from app.services import agent_templates
 from app.services.agent_registry import AgentRegistryService, slugify
-from app.services.model_profile import usable_for_agents
+from app.services.model_profile import reaches_a_sign_in, usable_for_agents
 from app.services.sandbox_connection import SandboxConnectionService
 
 logger = logging.getLogger(__name__)
@@ -200,14 +200,19 @@ class AssistantService:
 
         A text-to-speech or embedding profile is not one (#2487), and neither is a
         profile whose key was deleted (#2478): publish refuses both, so the
-        assistant waits for a model it can run on.
+        assistant waits for a model it can run on. Nor is a profile a run on
+        which can reach a ChatGPT sign-in, as the model or a fallback (#2545):
+        the assistant serves the whole organization, and one person's
+        subscription is not the organization's to hand out.
         """
+        organization_profiles = await credential_repo.list_profiles(
+            self.db, organization_id=organization_id
+        )
+        by_id = {profile.id: profile for profile in organization_profiles}
         profiles = [
             profile
-            for profile in await credential_repo.list_profiles(
-                self.db, organization_id=organization_id
-            )
-            if usable_for_agents(profile)
+            for profile in organization_profiles
+            if usable_for_agents(profile) and not reaches_a_sign_in(profile, by_id)
         ]
         if not profiles:
             return agent

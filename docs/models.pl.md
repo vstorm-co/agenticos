@@ -1,5 +1,5 @@
 ---
-source_sha: "addb0d005a90"
+source_sha: "d92a03013d02"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -121,6 +121,12 @@ nie może działać](#a-profile-an-agent-cannot-run-on), ani profil, który publ
 odrzuciła, na przykład taki z fallbackiem na taki model. Model na [logowaniu
 ChatGPT](#running-on-a-chatgpt-subscription) nigdy nie jest wybierany za kogoś, bo
 to subskrypcja jednej osoby, ale jest liczony jako model.
+
+Nie jest też wybierany model, którego fallbacki zawierają logowanie wśród
+pierwszych trzech, czyli tych, których próbuje run: gdy model zawiedzie, run
+każdego, kto widzi to logowanie, przeszedłby na tę subskrypcję. Architekt też
+nie wybiera takiego modelu ani logowania. Autor nadal może świadomie wybrać taki
+model i go opublikować.
 
 Publikacja odrzuca wtedy szkic komunikatem *No model selected - pick one under
 Build > Model before publishing*. Odmowa oznacza też pole (`model_profile_id` w

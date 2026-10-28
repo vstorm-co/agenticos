@@ -27,7 +27,7 @@ from app.main import app
 from app.schemas.api_key import ApiKeyCreate
 from app.services.agent_registry import NO_MODEL, AgentRegistryService
 from app.services.api_key import ApiKeyService
-from tests.integration._keys import provider_key
+from tests.integration._keys import chatgpt_sign_in, provider_key
 
 pytestmark = pytest.mark.anyio
 
@@ -136,6 +136,31 @@ async def test_with_none_or_several_the_draft_has_no_model(
     organization, ctx = await _organization(db)
     for fields in shape:
         await _profile(db, organization, **fields)
+
+    assert await _created_model(db, ctx) is None
+
+
+@pytest.mark.security
+async def test_a_model_that_falls_back_to_a_chatgpt_sign_in_is_never_chosen(
+    db: AsyncSession,
+) -> None:
+    """An outage would hand the new agent's runs to one person's subscription (#2545).
+
+    The sign-in is a model of its own too, so this organization has two either way;
+    the case pins the outcome the issue asks for, whichever half decides it."""
+    organization, ctx = await _organization(db)
+    sign_in = ModelProfile(
+        organization_id=organization.id,
+        label="my ChatGPT",
+        provider="openai_codex",
+        model="gpt-5.4",
+        secret_id=await chatgpt_sign_in(db, organization.id, owner_id=ctx.user_id),
+    )
+    db.add(sign_in)
+    await db.flush()
+    keyed = await _profile(db, organization)
+    keyed.fallback_profile_ids = [str(sign_in.id)]
+    await db.flush()
 
     assert await _created_model(db, ctx) is None
 

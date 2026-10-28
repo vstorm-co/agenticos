@@ -131,7 +131,9 @@ Two things are versioned separately from this file and worth knowing about:
   templates, copies and promoted specialists. The model is written into the
   draft, so the agent publishes without opening **Model**, and the draft counts
   as using the model. With no model or several, the draft has no model as
-  before. A model on a ChatGPT sign-in is never chosen for somebody. See
+  before. A model on a ChatGPT sign-in is never chosen for somebody, and
+  neither is a model that falls back to one; the Architect no longer chooses
+  either for its first publish (#2545). See
   [The model a new agent starts on](docs/models.md#the-model-a-new-agent-starts-on).
 
 ### Changed

@@ -1,5 +1,5 @@
 ---
-source_sha: "addb0d005a90"
+source_sha: "d92a03013d02"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -135,6 +135,12 @@ als Fallback. Ein Modell auf einer
 [ChatGPT-Anmeldung](#running-on-a-chatgpt-subscription) wird nie für jemanden
 gewählt, weil es das Abonnement einer einzelnen Person ist, aber es zählt als
 Modell.
+
+Ebenso wenig ein Modell, unter dessen ersten drei Fallbacks, die ein Run
+versucht, eine Anmeldung ist: Fällt das Modell aus, wiche der Run jedes
+Menschen, der die Anmeldung sehen darf, auf dieses Abonnement aus. Auch der
+Architekt wählt weder ein solches Modell noch eine Anmeldung. Ein Autor kann ein
+solches Modell weiterhin bewusst wählen und veröffentlichen.
 
 Die Veröffentlichung lehnt den Entwurf dann mit *No model selected - pick one under
 Build > Model before publishing* ab. Die Ablehnung markiert auch das Feld
