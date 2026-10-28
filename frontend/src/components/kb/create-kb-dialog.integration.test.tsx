@@ -137,7 +137,13 @@ const LOCAL_SERVICES = [
   },
 ];
 
-const state = { permissions: [] as Permission[], secrets: SECRETS };
+const state = {
+  permissions: [] as Permission[],
+  secrets: SECRETS,
+  // What `GET /rag/embedding-models/openrouter?base_url=` answers, per test.
+  endpointModels: undefined as
+    { provider: string; models: { model: string; dim: number }[]; source: string } | undefined,
+};
 
 /**
  * Answer every request the dialog makes.
@@ -150,6 +156,10 @@ function serve(embeddingModels: typeof EMBEDDING_MODELS | "refused" = EMBEDDING_
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     if (path === "/secrets") return state.secrets;
     if (path === "/local-services") return { items: LOCAL_SERVICES, total: LOCAL_SERVICES.length };
+    if (path.startsWith("/rag/embedding-models/openrouter?base_url=")) {
+      if (state.endpointModels === undefined) throw new Error("not asked in this test");
+      return state.endpointModels;
+    }
     if (path === "/rag/embedding-models") {
       if (embeddingModels === "refused") throw new Error("502 Bad Gateway");
       return embeddingModels;
@@ -207,6 +217,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.permissions = [Perm.connectionsManage, Perm.secretsEdit];
   state.secrets = SECRETS;
+  state.endpointModels = undefined;
   serve();
 });
 
@@ -601,5 +612,119 @@ describe("the image-description prompt", () => {
       "maxlength",
       String(INGESTION_LIMITS.prompt.maxLength),
     );
+  });
+});
+
+/**
+ * A regional endpoint serves a subset of the catalog. OpenRouter's EU one has
+ * none of OpenAI's models, so a collection created on the catalog's first model
+ * failed every upload with "No endpoints found supporting your data region".
+ */
+describe("a custom OpenRouter endpoint", () => {
+  const EU = "https://eu.openrouter.ai/api/v1";
+
+  it("offers only the models the endpoint serves, and posts one of them", async () => {
+    state.endpointModels = {
+      provider: "openrouter",
+      models: [{ model: "mistralai/mistral-embed-2312", dim: 1024 }],
+      source: "live",
+    };
+    show();
+    await embeddingsShown();
+    await userEvent.type(screen.getByLabelText("Endpoint"), EU);
+
+    expect(
+      await screen.findByText("Only the models this endpoint serves are listed."),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText("Model"));
+    expect(
+      await screen.findByRole("option", { name: /mistralai\/mistral-embed-2312/ }),
+    ).toBeVisible();
+    expect(screen.queryByRole("option", { name: /text-embedding-3-large/ })).toBeNull();
+    await userEvent.keyboard("{Escape}");
+
+    await userEvent.click(screen.getByLabelText("Key"));
+    await userEvent.click(await screen.findByRole("option", { name: /OpenRouter prod/ }));
+    await userEvent.type(screen.getByLabelText("Name"), "Regional");
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+    const body = vi.mocked(apiClient.post).mock.calls.at(-1)?.[1] as Record<string, unknown>;
+    expect(body.embedding_model).toBe("mistralai/mistral-embed-2312");
+    expect(body.embedding_base_url).toBe(EU);
+    expect(vi.mocked(apiClient.get)).toHaveBeenCalledWith(
+      `/rag/embedding-models/openrouter?base_url=${encodeURIComponent(EU)}`,
+    );
+  });
+
+  it("says when the endpoint serves none of the models on offer", async () => {
+    state.endpointModels = { provider: "openrouter", models: [], source: "live" };
+    show();
+    await embeddingsShown();
+    await userEvent.type(screen.getByLabelText("Endpoint"), EU);
+
+    expect(
+      await screen.findByText(/This endpoint serves none of the embedding models/),
+    ).toBeInTheDocument();
+  });
+
+  it("says the list is unconfirmed when the endpoint could not be asked", async () => {
+    state.endpointModels = {
+      provider: "openrouter",
+      models: EMBEDDING_MODELS.providers[0]!.models,
+      source: "curated",
+    };
+    show();
+    await embeddingsShown();
+    await userEvent.type(screen.getByLabelText("Endpoint"), EU);
+
+    expect(
+      await screen.findByText(/This endpoint could not be asked which models it serves/),
+    ).toBeInTheDocument();
+  });
+
+  it("does not ask an endpoint for a caller who may not set one", async () => {
+    state.permissions = [Perm.secretsEdit];
+    show();
+    await embeddingsShown();
+
+    expect(screen.queryByLabelText("Endpoint")).toBeNull();
+    expect(
+      vi
+        .mocked(apiClient.get)
+        .mock.calls.some(([path]) => String(path).startsWith("/rag/embedding-models/")),
+    ).toBe(false);
+  });
+
+  it("puts a refusal about the model under the model picker", async () => {
+    vi.mocked(apiClient.post).mockRejectedValueOnce(
+      new ApiError(400, "This endpoint does not serve the embedding model", {
+        error: {
+          code: "BAD_REQUEST",
+          message: "This endpoint does not serve the embedding model",
+          details: {
+            fields: [
+              {
+                field: "embedding_model",
+                message:
+                  "This endpoint does not serve the embedding model 'text-embedding-3-large'.",
+              },
+            ],
+          },
+        },
+      }),
+    );
+    show();
+    await embeddingsShown();
+    await userEvent.click(screen.getByLabelText("Key"));
+    await userEvent.click(await screen.findByRole("option", { name: /OpenRouter prod/ }));
+    await userEvent.type(screen.getByLabelText("Name"), "Regional");
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    expect(
+      await screen.findByText(
+        "This endpoint does not serve the embedding model 'text-embedding-3-large'.",
+      ),
+    ).toBeInTheDocument();
   });
 });
