@@ -1,5 +1,5 @@
 ---
-source_sha: "40da287be741"
+source_sha: "d6bead12fc91"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -121,15 +121,16 @@ Veröffentlichen selbst: das erste Chat-Modell, das die Veröffentlichung akzept
 und nie ein Modell auf einer
 [ChatGPT-Anmeldung](#running-on-a-chatgpt-subscription). Der Architekt dient der
 ganzen Organisation, und eine Anmeldung ist das Abonnement einer Person: Läufe von
-Mitgliedern, die sie nicht sehen dürfen, werden abgelehnt, und Läufe der Eigentümer
-und Administratoren der Organisation verbrauchen es. Gibt es nur eine Anmeldung,
-wartet der Architekt auf ein anderes Modell.
+Mitgliedern, die sie im Vault nicht sehen dürfen, werden abgelehnt, und Läufe derer,
+die es dürfen, etwa der Eigentümer und Administratoren der Organisation, verbrauchen
+es. Gibt es nur eine Anmeldung, wartet der Architekt auf ein anderes Modell.
 
 Eine Anmeldung, die jemand im Entwurf des Architekten wählt, bleibt dort, wird aber
-erst veröffentlicht, wenn diese Person selbst **Veröffentlichen** (Publish) drückt.
-Ein Architekt, der bereits auf einer Anmeldung veröffentlicht ist, behält dieses
-Modell, bis jemand, der die Einstellungen der Organisation ändern darf, unter
-**Bauen > Modell** (Build > Model) ein anderes wählt und es veröffentlicht.
+erst veröffentlicht, wenn jemand, der die Einstellungen der Organisation ändern
+darf, es im Builder veröffentlicht. Ein Architekt, der bereits auf einer Anmeldung
+veröffentlicht ist, behält dieses Modell, bis jemand, der die Einstellungen der
+Organisation ändern darf, unter **Bauen > Modell** (Build > Model) ein anderes wählt
+und es veröffentlicht.
 
 Das Modell wird in den Entwurf geschrieben. So lässt sich der Agent veröffentlichen,
 ohne dass jemand **Modell** öffnet, und seine Historie zeigt, mit welchem Modell er

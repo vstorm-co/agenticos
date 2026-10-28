@@ -272,6 +272,36 @@ async def test_an_explicit_architect_draft_model_is_preserved(
     assert AgentSpec.model_validate(agent.draft_spec).model_profile_id == chosen.id
 
 
+async def test_a_sign_in_picked_while_it_looked_is_not_published_from_a_stale_read(
+    db: AsyncSession,
+) -> None:
+    """The draft is read again under the lock: a sign-in saved after the caller
+    read an empty draft is not published on the shared model it found (#2535)."""
+    organization, owner = await _organization(db)
+    ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
+    service = AssistantService(db)
+    installed = await service.update(ctx, AssistantUpdate(enabled=False))
+    agent = (await db.execute(select(Agent).where(Agent.id == installed.agent_id))).scalar_one()
+    stale = Agent(
+        id=agent.id,
+        organization_id=organization.id,
+        name=agent.name,
+        slug=agent.slug,
+        draft_spec=dict(agent.draft_spec),
+    )
+    await _model(db, organization)
+    sign_in = await _sign_in(db, organization, owner)
+    spec = AgentSpec.model_validate(agent.draft_spec).model_copy(
+        update={"model_profile_id": sign_in.id}
+    )
+    await AgentRegistryService(db).save_draft(ctx, agent.id, spec)
+
+    result = await service._publish_when_possible(organization.id, stale)
+
+    assert result.current_version_id is None
+    assert AgentSpec.model_validate(result.draft_spec).model_profile_id == sign_in.id
+
+
 async def test_a_drafted_model_publish_would_refuse_is_kept_unpublished(
     db: AsyncSession,
 ) -> None:

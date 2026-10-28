@@ -207,8 +207,8 @@ class AssistantService:
 
         A model already in the draft is somebody's deliberate choice and is kept,
         but published here only on the same terms: this runs for whoever opens
-        the console next, so a sign-in in the draft waits for somebody to press
-        Publish in the Builder themselves.
+        the console next, so a sign-in in the draft waits for somebody who may
+        change the organization's settings to publish it in the Builder.
         """
         choosable = {
             profile.id: profile
@@ -221,24 +221,29 @@ class AssistantService:
         if not choosable or (drafted is not None and drafted not in choosable):
             return agent
         installer = await self._installer(organization_id)
-        agent = await self.registry.get(installer, agent.id, perm=Perm.AGENTS_EDIT, for_update=True)
-        if agent.current_version_id is not None:
-            return agent
-        spec = AgentSpec.model_validate(agent.draft_spec)
-        if spec.model_profile_id is None:
+        selected = drafted
+        if selected is None:
+            # Before the lock: this runs on every console open until the
+            # assistant publishes, and a scan that finds nothing must not hold it.
             for profile in choosable.values():
                 if (
                     not profile.fallback_profile_ids
                     or not await self.registry.model_profile_problems(installer, profile.id)
                 ):
+                    selected = profile.id
                     break
             else:
                 return agent
-            spec = spec.model_copy(update={"model_profile_id": profile.id})
+        agent = await self.registry.get(installer, agent.id, perm=Perm.AGENTS_EDIT, for_update=True)
+        spec = AgentSpec.model_validate(agent.draft_spec)
+        # A draft changed since it was read - a sign-in picked meanwhile, say -
+        # is decided on the next look, from what it holds then.
+        if agent.current_version_id is not None or spec.model_profile_id != drafted:
+            return agent
+        if drafted is None:
+            spec = spec.model_copy(update={"model_profile_id": selected})
             agent = await self.registry.save_draft(installer, agent.id, spec)
-        elif spec.model_profile_id not in choosable or await self.registry.model_profile_problems(
-            installer, spec.model_profile_id
-        ):
+        elif await self.registry.model_profile_problems(installer, drafted):
             # A deliberately selected model is the author's to replace.
             return agent
         await self.registry.publish(installer, agent.id, note="Installed")

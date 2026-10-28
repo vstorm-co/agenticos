@@ -1394,8 +1394,8 @@ class AgentRegistryService:
         model with a key, or a self-hosted one saved to run without one (#2478) -
         that publish would also accept as it stands, fallback chain included, so
         the agent publishes without anybody opening Model. Never one on a ChatGPT
-        sign-in (`choosable_for_others`): that is one person's subscription, and
-        nobody else's run may spend it. It still counts towards "only one",
+        sign-in (`choosable_for_others`): that is one person's subscription, not
+        the organization's to hand out. It still counts towards "only one",
         because it is a model the author could deliberately pick.
 
         Written into the draft, not resolved at run time: there is still no
@@ -1407,8 +1407,8 @@ class AgentRegistryService:
         # draft as a dangling id (#2478).
         await hold_subject_shared(self.db, LockScope.MODEL_PROFILE_REFERENCES, ctx.organization_id)
         # Counted after publish's own check, so a broken profile beside a good
-        # one does not make two. A sign-in is counted without it: whether it is
-        # the caller's to spend is decided when it runs, not whether it is a model.
+        # one does not make two. A sign-in is counted without it: it is a model
+        # the author could pick, and whose it is to spend is decided at run time.
         candidates = [
             profile
             for profile in await credential_repo.list_profiles(

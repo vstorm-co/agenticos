@@ -154,9 +154,9 @@ def choosable_for_others(profile: ModelProfile) -> bool:
     """Whether the platform may put this profile in an agent nobody chose it for.
 
     `usable_for_agents`, and not a ChatGPT sign-in: that is one person's
-    subscription. A run on it by anybody who may not see the sign-in is refused
-    (`_may_spend`), and a run by anybody who may - its owner, and the
-    organization's owners and admins - spends it. The one rule for every model
+    subscription. A run on it spends it when the person who started the run may
+    see the sign-in in the vault - its owner, anybody it is shared with, and the
+    organization's owners and admins - and is refused otherwise (`_may_spend`). The one rule for every model
     the platform picks rather than an author: a new agent's only model (#2483)
     and the organization assistant's publish (#2535). An author may still pick
     a sign-in deliberately and publish it themselves.

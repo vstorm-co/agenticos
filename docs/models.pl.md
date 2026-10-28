@@ -1,5 +1,5 @@
 ---
-source_sha: "40da287be741"
+source_sha: "d6bead12fc91"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -108,15 +108,16 @@ szablonu, kopii szkicu bez modelu oraz wypromowanego specjalisty.
 Architekt, asystent organizacji, sam wybiera swój model przy publikacji: pierwszy
 model czatu, który publikacja przyjmuje, i nigdy model na [logowaniu do
 ChatGPT](#running-on-a-chatgpt-subscription). Architekt służy całej organizacji, a
-logowanie to subskrypcja jednej osoby: uruchomienia członków, którzy go nie widzą,
-są odrzucane, a uruchomienia właścicieli i administratorów organizacji zużywają tę
-subskrypcję. Gdy jest tylko logowanie, Architekt czeka na inny model.
+logowanie to subskrypcja jednej osoby: uruchomienia członków, którzy nie widzą go w
+vault, są odrzucane, a uruchomienia tych, którzy je widzą, na przykład właścicieli i
+administratorów organizacji, zużywają tę subskrypcję. Gdy jest tylko logowanie,
+Architekt czeka na inny model.
 
 Logowanie wybrane przez kogoś w szkicu Architekta zostaje w nim, ale jest
-publikowane dopiero wtedy, gdy ta osoba sama naciśnie **Opublikuj** (Publish).
-Architekt opublikowany już wcześniej na logowaniu zachowuje ten model, dopóki ktoś,
-kto może zmieniać ustawienia organizacji, nie wybierze innego w **Budowa > Model**
-(Build > Model) i go nie opublikuje.
+publikowane dopiero wtedy, gdy opublikuje je w Builderze ktoś, kto może zmieniać
+ustawienia organizacji. Architekt opublikowany już wcześniej na logowaniu zachowuje
+ten model, dopóki ktoś, kto może zmieniać ustawienia organizacji, nie wybierze
+innego w **Budowa > Model** (Build > Model) i go nie opublikuje.
 
 Model jest zapisywany w szkicu, więc agent publikuje się bez otwierania sekcji
 **Model**, a jego historia pokazuje, na jakim modelu został opublikowany. Spec,
