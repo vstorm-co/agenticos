@@ -153,6 +153,13 @@ EMBEDDING_DIMENSIONS: dict[str, int] = {
     "voyage-3-lite": 512,
     "voyage-code-3": 1024,
     "gemini-embedding-exp-03-07": 3072,
+    # Namespaced, as OpenRouter lists them. The first three are the embedding
+    # models its EU endpoint serves; each answers at its default width, since no
+    # request here asks for another.
+    "mistralai/mistral-embed-2312": 1024,
+    "mistralai/codestral-embed-2505": 1536,
+    "google/gemini-embedding-2": 3072,
+    "google/gemini-embedding-001": 3072,
     "all-MiniLM-L6-v2": 384,
     "all-mpnet-base-v2": 768,
     "bge-small-en-v1.5": 384,

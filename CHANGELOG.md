@@ -474,6 +474,31 @@ Two things are versioned separately from this file and worth knowing about:
   recorded as the image's Python representation, bytes and all, in the run's
   history and the chat's tool row. The row says which kind of picture it
   was instead.
+
+## [1.28.0] - 2026-10-28
+
+### Added
+
+- More OpenRouter embedding models for knowledge bases: the three its EU
+  endpoint serves (`mistralai/mistral-embed-2312`,
+  `mistralai/codestral-embed-2505`, `google/gemini-embedding-2`) and
+  `google/gemini-embedding-001`. The Mistral models are not in the bundled price
+  snapshot, so their spend is recorded as partially priced.
+
+### Fixed
+
+- A knowledge base on a custom OpenRouter endpoint is offered only the
+  embedding models that endpoint serves. The EU endpoint serves none of
+  OpenAI's, so a collection created on the default model failed every upload
+  with "No endpoints found supporting your data region". Creating a collection
+  on a model its endpoint does not serve, or moving one to such an endpoint, is
+  now refused, and the editor says so before saving.
+- An upload that fails because the embedding endpoint does not serve the model
+  says so, instead of pointing at the collection's key.
+- Model pickers sort versions as numbers and keep a variant such as
+  OpenRouter's `:batch` beside its model. Plain string order put
+  `openai/gpt-5:batch` below every `gpt-5.6` model.
+
 ## [1.27.0] - 2026-10-27
 
 ### Added
