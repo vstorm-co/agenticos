@@ -228,6 +228,18 @@ export interface EmbeddingModels {
   providers: EmbeddingProvider[];
 }
 
+/**
+ * The models one custom endpoint serves, from `GET /rag/embedding-models/{provider}`.
+ *
+ * `live` is the endpoint's own listing narrowed to this build's catalog, and may
+ * be empty; `curated` is the whole catalog, because the endpoint could not be asked.
+ */
+export interface EndpointEmbeddingModels {
+  provider: string;
+  models: EmbeddingProvider["models"];
+  source: "live" | "curated";
+}
+
 /** A single document tracked in a KB's underlying vector collection. */
 export interface KBDocument {
   id: string;

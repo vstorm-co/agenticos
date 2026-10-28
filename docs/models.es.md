@@ -1,5 +1,5 @@
 ---
-source_sha: "170ba004f22c"
+source_sha: "64867ca52c0e"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -696,6 +696,8 @@ make platform-bootstrap BOOTSTRAP_API_KEY=sk-...
 hace las tres cosas para un despliegue nuevo.
 
 Para usar la API regional de OpenRouter, conserva **OpenRouter** como proveedor e introduce `https://eu.openrouter.ai/api/v1` en **Endpoint** del formulario del modelo. El perfil mantiene su clave OpenRouter del Vault, el tratamiento nativo de modelos y los controles de caché. Las sugerencias se obtienen de ese endpoint y se almacenan en una caché independiente; si falla la lista regional, no se utiliza el catálogo global. En las bases de conocimiento, configura el endpoint de embeddings por separado al crear la colección o editar su proveedor de embeddings. Las configuraciones existentes mantienen el endpoint global. El enrutamiento EU requiere un plan OpenRouter Business o Enterprise adecuado; el [enrutamiento regional](https://openrouter.ai/docs/guides/get-started/sovereign-ai) y ZDR son políticas distintas de OpenRouter.
+
+Un endpoint regional sirve menos modelos de embeddings que el global: `eu.openrouter.ai` sirve `mistralai/mistral-embed-2312`, `mistralai/codestral-embed-2505` y `google/gemini-embedding-2`, y ninguno de OpenAI. El formulario de creación ofrece solo los modelos que lista el endpoint, y se rechaza una colección cuyo modelo el endpoint no sirve, tanto al crearla como al moverla a él. Los dos modelos de Mistral no están en la instantánea de precios incluida, así que su gasto se registra como valorado en parte.
 
 Actualiza todos los procesos de API y workers antes de configurar endpoints regionales. Las versiones anteriores ignoran el endpoint personalizado de OpenRouter.
 

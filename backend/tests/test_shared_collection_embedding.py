@@ -24,6 +24,7 @@ from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.repositories import collection_teardown_repo, knowledge_base_repo
 from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseUpdate
 from app.services.knowledge_base import KnowledgeBaseService
+from app.services.rag import embedding_providers
 
 pytestmark = pytest.mark.anyio
 
@@ -67,6 +68,8 @@ def service(monkeypatch: pytest.MonkeyPatch) -> KnowledgeBaseService:
     monkeypatch.setattr(collection_teardown_repo, "is_reserved", AsyncMock(return_value=False))
     monkeypatch.setattr(knowledge_base_repo, "create", AsyncMock(side_effect=_created))
     monkeypatch.setattr("app.services.collection_access.hold_name", AsyncMock())
+    # No endpoint is asked what it serves here; the tests that care read this mock.
+    monkeypatch.setattr(embedding_providers, "require_served_at", AsyncMock())
     return KnowledgeBaseService(MagicMock())
 
 
@@ -306,3 +309,83 @@ async def test_renaming_a_kb_does_not_require_reauthorizing_its_retained_embeddi
     await service.update(held.id, KnowledgeBaseUpdate(name="New name"), ctx=_ctx())
     assert update.await_args.kwargs["name"] == "New name"
     access.assert_not_awaited()
+
+
+async def test_a_new_collection_on_an_endpoint_is_checked_for_its_model(service, monkeypatch):
+    """The endpoint decides which models a collection on it can index with; one
+    it does not serve fails every upload, so the create is where it is refused."""
+    _holders(monkeypatch, [])
+    _embedding_key_access(monkeypatch, visible=True)
+    await service.create(
+        KnowledgeBaseCreate(
+            name="Regional",
+            embedding_model="mistralai/mistral-embed-2312",
+            embedding_provider="openrouter",
+            embedding_secret_id=SECRET,
+            embedding_base_url="https://eu.openrouter.ai/api/v1/",
+        ),
+        ctx=_ctx(),
+    )
+    checked = embedding_providers.require_served_at
+    assert isinstance(checked, AsyncMock)
+    entry, url = checked.await_args.args
+    assert entry.provider == "openrouter"
+    assert url == "https://eu.openrouter.ai/api/v1"
+    assert checked.await_args.kwargs == {
+        "model": "mistralai/mistral-embed-2312",
+        "field": "embedding_model",
+    }
+
+
+async def test_a_new_collection_on_the_providers_own_address_asks_no_endpoint(service, monkeypatch):
+    _holders(monkeypatch, [])
+    _embedding_key_access(monkeypatch, visible=True)
+    await service.create(
+        KnowledgeBaseCreate(
+            name="Global",
+            embedding_model="text-embedding-3-small",
+            embedding_provider="openrouter",
+            embedding_secret_id=SECRET,
+        ),
+        ctx=_ctx(),
+    )
+    checked = embedding_providers.require_served_at
+    assert isinstance(checked, AsyncMock)
+    checked.assert_not_awaited()
+
+
+async def test_moving_a_collection_checks_the_new_endpoint_serves_its_model(service, monkeypatch):
+    """The model is frozen with the vectors, so the endpoint is what is refused."""
+    held = _held(embedding_provider="openrouter")
+    monkeypatch.setattr(service, "get_for_write", AsyncMock(return_value=held))
+    _holders(monkeypatch, [held])
+    monkeypatch.setattr(knowledge_base_repo, "update", AsyncMock(return_value=held))
+    _embedding_key_access(monkeypatch, visible=True)
+    await service.update(
+        held.id,
+        KnowledgeBaseUpdate(embedding_base_url="https://eu.openrouter.ai/api/v1"),
+        ctx=_ctx(),
+    )
+    checked = embedding_providers.require_served_at
+    assert isinstance(checked, AsyncMock)
+    assert checked.await_args.args[1] == "https://eu.openrouter.ai/api/v1"
+    assert checked.await_args.kwargs == {
+        "model": "text-embedding-3-large",
+        "field": "embedding_base_url",
+    }
+
+
+async def test_moving_a_collection_back_to_the_providers_address_asks_no_endpoint(
+    service, monkeypatch
+):
+    held = _held(
+        embedding_provider="openrouter", embedding_base_url="https://eu.openrouter.ai/api/v1"
+    )
+    monkeypatch.setattr(service, "get_for_write", AsyncMock(return_value=held))
+    _holders(monkeypatch, [held])
+    monkeypatch.setattr(knowledge_base_repo, "update", AsyncMock(return_value=held))
+    _embedding_key_access(monkeypatch, visible=True)
+    await service.update(held.id, KnowledgeBaseUpdate(embedding_base_url=None), ctx=_ctx())
+    checked = embedding_providers.require_served_at
+    assert isinstance(checked, AsyncMock)
+    checked.assert_not_awaited()
