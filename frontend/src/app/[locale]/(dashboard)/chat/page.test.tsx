@@ -10,9 +10,9 @@ vi.mock("@/components/chat/phone-chat-bar", () => ({ PhoneChatBar: () => null })
 vi.mock("@/hooks", () => ({ useMcpOAuthOutcome: () => undefined }));
 vi.mock("@/hooks/use-chat-with", () => ({ useChatWith: () => undefined }));
 
-it("cancels the current page inset rather than pulling the desktop header above its scrollport", () => {
+it("uses the full-bleed content layout without compensating margins", () => {
   const { container } = render(<ChatPage />);
   const page = container.firstElementChild;
-  expect(page).toHaveClass("-mt-(--page-inset-top)");
-  expect(page).not.toHaveClass("-mt-4", "sm:-mt-8");
+  expect(page).toHaveClass("flex", "min-h-0", "flex-1");
+  expect(page).not.toHaveClass("-mt-(--page-inset-top)", "-mx-3", "sm:-mx-6");
 });

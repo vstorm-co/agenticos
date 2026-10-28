@@ -169,6 +169,9 @@ so page actions and panel close buttons stay clickable. The web Architect launch
 stays tucked into the desktop console's right edge and slides out on hover,
 leaving the corner free for card actions and native Blobby.
 
+Chat fills the content area from the top, without the reserved drag row or page
+padding. Drag the window from the chat-list header; its buttons remain clickable.
+
 **Appearance** in the account menu offers both the light/dark mode and Standard,
 Glass, Graphite, Midnight and Paper, with previews. The trigger names the current
 style. These are the same choices as **Settings → Profile → Appearance**; changing

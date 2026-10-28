@@ -1,5 +1,5 @@
 ---
-source_sha: "d7931ad64582"
+source_sha: "0a7a3017b48c"
 ---
 
 # La consola { #the-console }
@@ -37,6 +37,10 @@ Las pestañas de organización, agentes y proyectos tienen iconos. Las filas de
 presupuesto muestran retratos de agentes.
 
 Los retratos generados usan formas seleccionadas de Blobatar 2.7 y tonos más claros; las caras inactivas se animan al pasar el cursor y los agentes trabajando mantienen su animación. Las imágenes subidas se conservan. Los nuevos agentes iniciales usan la misma familia visual; las imágenes almacenadas existentes no se sustituyen automáticamente.
+
+Los ajustes del chat muestran Browser y Work on antes de Permissions. Las
+notificaciones de la conversación y las conexiones de cuentas quedan debajo de los
+permisos.
 
 ## El dashboard { #the-dashboard }
 

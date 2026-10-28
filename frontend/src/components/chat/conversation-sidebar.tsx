@@ -979,7 +979,10 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
           className,
         )}
       >
-        <div className="flex h-12 shrink-0 items-center gap-1 border-b pr-2 pl-4">
+        <div
+          className="flex h-12 shrink-0 items-center gap-1 border-b pr-2 pl-4"
+          data-tauri-drag-region="deep"
+        >
           <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">{ts("title")}</h2>
           {toolbar()}
           <IconButton
@@ -1059,7 +1062,10 @@ function CollapsedSidebar({
   return (
     <div className={cn("bg-sidebar hidden w-12 shrink-0 flex-col border-r md:flex", className)}>
       {/* The same 48px header the list has, with its chevron where the list's is. */}
-      <div className="flex h-12 shrink-0 items-center justify-center border-b">
+      <div
+        className="flex h-12 shrink-0 items-center justify-center border-b"
+        data-tauri-drag-region="deep"
+      >
         <IconButton
           size="icon"
           onClick={onExpand}

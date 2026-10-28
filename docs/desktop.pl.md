@@ -1,5 +1,5 @@
 ---
-source_sha: "13435e904b2e"
+source_sha: "37479ce8c330"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -172,6 +172,10 @@ Nad treścią jest osobny wiersz do przeciągania okna, poza obszarem przewijani
 więc akcje stron i przyciski zamykania paneli pozostają klikalne. Webowy przycisk
 Architect jest schowany przy prawej krawędzi konsoli desktopowej i wysuwa się po
 najechaniu, zostawiając róg wolny dla akcji kart i natywnego Blobby.
+
+Czat wypełnia obszar treści od samej góry, bez osobnego paska przeciągania i
+marginesu strony. Okno można przeciągać za nagłówek listy czatów; jego przyciski
+pozostają klikalne.
 
 **Wygląd** w menu konta pozwala wybrać tryb jasny/ciemny oraz Standard, Glass,
 Graphite, Midnight i Paper z podglądami. Wiersz menu pokazuje aktualny styl. To te

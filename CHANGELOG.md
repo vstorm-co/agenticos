@@ -375,6 +375,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Chat fills the desktop content area without the empty top strip; its list
+  header can drag the window. Browser and workspace choices appear before
+  Permissions, with conversation notifications kept below them.
+
 - Skills and Context show agent usage and portraits directly on their cards.
   Stronger foreground text, form labels and action contrast keep the console
   readable, including over glass surfaces. Native and browser chat layouts share

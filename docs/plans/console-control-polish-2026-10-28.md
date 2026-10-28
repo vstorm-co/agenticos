@@ -199,3 +199,24 @@ translation checks passed. Tailwind compilation
 confirms that the positive padding and negative margin use the same property, with
 native drag-strip height included in the test panel. No browser automation or
 Computer Use was performed. The running app receives these frontend changes live.
+
+
+## Edge-to-edge chat and settings order
+
+The remaining empty native strip did not belong over the chat list. The chat route
+now marks its layout on PageTransition; the parent scrollport removes its own
+padding and the sibling drag strip instead of asking a child to cancel padding
+with negative margins. The expanded and collapsed chat headers provide the native
+deep drag region, which Tauri 2.12.5 explicitly excludes clickable descendants
+from. Other pages keep their existing native drag strip and content inset.
+
+Browser and computer/workspace choices now precede tool permissions in chat
+settings. Conversation notifications remain below permissions, on both desktop and
+mobile, through a separate rendering boundary. Existing permissions and stored
+choices are unchanged. Focused tests cover route scoping, header actions, settings
+order, local choices and native notification routing.
+
+Browser and Work on explanatory copy now opens from the existing ContextHelp
+control beside each heading. Connection state, access-mode descriptions and active
+computer consent remain visible. The additional 42-test environment/settings batch
+and TypeScript/ESLint checks pass.

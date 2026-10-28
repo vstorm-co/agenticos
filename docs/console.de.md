@@ -1,5 +1,5 @@
 ---
-source_sha: "d7931ad64582"
+source_sha: "0a7a3017b48c"
 ---
 
 # Die Konsole { #the-console }
@@ -37,6 +37,10 @@ Organisations-, Agenten- und Projektregister haben passende Symbole. Budgetzeile
 zeigen Agentenporträts.
 
 Generierte Porträts verwenden ausgewählte Blobatar-2.7-Formen und hellere Farbtöne; ruhende Gesichter bewegen sich beim Darüberfahren, arbeitende Agenten behalten ihre Denkanimation. Hochgeladene Bilder bleiben erhalten. Neue Starteragentenbilder gehören zur gleichen Familie; vorhandene gespeicherte Bilder werden nicht automatisch ersetzt.
+
+Die Chat-Einstellungen zeigen Browser und Work on vor Permissions.
+Gesprächsbenachrichtigungen und Kontoverbindungen bleiben unter den
+Freigabeeinstellungen.
 
 ## Das Dashboard { #the-dashboard }
 

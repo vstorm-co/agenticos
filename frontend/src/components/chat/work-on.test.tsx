@@ -326,3 +326,17 @@ it("keeps whole-computer access visible when revocation fails", async () => {
   ).toBeInTheDocument();
   expect(useWorkOnStore.getState().targetFor("chat")?.computer_grant).toBe("saved");
 });
+
+it("keeps browser and workspace explanations behind their header information buttons", async () => {
+  render(<WorkOn />);
+  const browserHint = /Available in desktop chat even when the agent has no browser capability/;
+  const workspaceHint = /Local tools are available here without enabling Sandbox/;
+  expect(screen.queryByText(browserHint)).not.toBeInTheDocument();
+  expect(screen.queryByText(workspaceHint)).not.toBeInTheDocument();
+  const help = screen.getAllByRole("button", { name: "More information" });
+  await userEvent.click(help[0]!);
+  expect(screen.getByText(browserHint)).toBeVisible();
+  await userEvent.keyboard("{Escape}");
+  await userEvent.click(help[1]!);
+  expect(screen.getByText(workspaceHint)).toBeVisible();
+});

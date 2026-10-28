@@ -20,6 +20,7 @@ import { reportShellFailure } from "@/lib/desktop/shell";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { ContextHelp } from "@/components/ui/context-help";
 import { useConversationStore } from "@/stores";
 import { useWorkOnStore, type LocalTarget } from "@/stores/work-on-store";
 
@@ -42,21 +43,18 @@ export function WorkOn() {
     <>
       <BrowserWorkOn />
       <ComputerWorkOn />
-      <ConversationNotifications />
     </>
-  ) : isMobileShell(shell) ? (
-    <MobileConversationNotification />
   ) : null;
 }
 
-function MobileConversationNotification() {
-  const id = useConversationStore((s) => s.currentConversationId);
-  return <MobileConversationNotifications conversationId={id} />;
-}
-
-function ConversationNotifications() {
-  const id = useConversationStore((s) => s.currentConversationId);
-  return <ConversationNotificationToggle conversationId={id} />;
+export function ConversationNotifications() {
+  const shell = useShell();
+  const id = useConversationStore((state) => state.currentConversationId);
+  return isDesktopShell(shell) ? (
+    <ConversationNotificationToggle conversationId={id} />
+  ) : isMobileShell(shell) ? (
+    <MobileConversationNotifications conversationId={id} />
+  ) : null;
 }
 
 function BrowserWorkOn() {
@@ -75,7 +73,10 @@ function BrowserWorkOn() {
   });
   return (
     <div className="border-foreground/10 mt-4 border-t pt-4">
-      <p className="text-muted-foreground mb-3 text-xs">{t("browserTitle")}</p>
+      <div className="mb-2 flex items-center gap-1">
+        <p className="text-foreground/85 text-[13px] font-medium">{t("browserTitle")}</p>
+        <ContextHelp>{t("browserIndependent")}</ContextHelp>
+      </div>
       <div
         role="radiogroup"
         aria-label={t("browserTitle")}
@@ -110,9 +111,6 @@ function BrowserWorkOn() {
           {t("computerBrowser")}
         </button>
       </div>
-      <p className="text-muted-foreground mt-2 text-xs leading-relaxed">
-        {t("browserIndependent")}
-      </p>
       {local && device?.connected === false && (
         <p role="status" className="text-muted-foreground mt-2 text-xs">
           {t("offline")}
@@ -209,7 +207,10 @@ function ComputerWorkOn() {
 
   return (
     <div className="border-foreground/10 mt-4 border-t pt-4">
-      <p className="text-muted-foreground mb-3 text-xs leading-relaxed">{t("title")}</p>
+      <div className="mb-2 flex items-center gap-1">
+        <p className="text-foreground/85 text-[13px] font-medium">{t("title")}</p>
+        <ContextHelp>{t("accessHint")}</ContextHelp>
+      </div>
       <div
         role="radiogroup"
         aria-label={t("title")}
@@ -327,9 +328,6 @@ function ComputerWorkOn() {
                 );
               })}
             </div>
-          )}
-          {target !== null && (
-            <p className="text-muted-foreground text-xs leading-relaxed">{t("accessHint")}</p>
           )}
           {target !== null && services.length > 0 && (
             <div className="space-y-2 py-2">

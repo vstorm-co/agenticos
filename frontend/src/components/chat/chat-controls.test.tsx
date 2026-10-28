@@ -20,7 +20,16 @@ const state = vi.hoisted(() => ({
 vi.mock("@/hooks/use-shell", () => ({
   useShell: () => (state.desktop ? { platform: "macos" } : null),
 }));
-vi.mock("./work-on", () => ({ WorkOn: () => null }));
+vi.mock("./work-on", () => ({
+  WorkOn: () =>
+    state.desktop ? (
+      <section aria-label="Work environment">
+        <p>Browser</p>
+        <p>Sandbox</p>
+      </section>
+    ) : null,
+  ConversationNotifications: () => (state.desktop ? <p>Conversation notifications</p> : null),
+}));
 vi.mock("next/navigation", () => ({ usePathname: () => state.pathname }));
 vi.mock("@/stores/onboarding-store", () => ({
   useOnboardingStore: (pick: (store: unknown) => unknown) => pick({ openPage: state.openPage }),
@@ -297,4 +306,19 @@ it("names the active folder and access beside the composer and opens its control
   expect(badge).toHaveAttribute("title", expect.stringContaining("/approved/Launch"));
   await userEvent.click(badge);
   expect(screen.getByRole("button", { name: /pick a model/ })).toBeVisible();
+});
+
+it("puts browser and sandbox choices before permissions, with notifications afterwards", async () => {
+  state.desktop = true;
+  open();
+  await userEvent.click(trigger());
+  const environment = screen.getByRole("region", { name: "Work environment" });
+  const permissions = screen.getByRole("radiogroup");
+  const notifications = screen.getByText("Conversation notifications");
+  expect(
+    environment.compareDocumentPosition(permissions) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).not.toBe(0);
+  expect(
+    permissions.compareDocumentPosition(notifications) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).not.toBe(0);
 });

@@ -1,5 +1,5 @@
 ---
-source_sha: "13435e904b2e"
+source_sha: "37479ce8c330"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -180,6 +180,10 @@ Encima del contenido hay una fila reservada para arrastrar la ventana, fuera del
 área desplazable. Las acciones de página y los botones de cierre siguen siendo
 pulsables. El botón web de Architect queda en el borde derecho de la consola y
 se despliega al pasar el puntero, dejando la esquina para las acciones y Blobby.
+
+El chat ocupa el área de contenido desde arriba, sin fila de arrastre ni margen de
+página. La cabecera de la lista de chats permite arrastrar la ventana; sus botones
+siguen funcionando.
 
 **Apariencia** en el menú de cuenta ofrece el modo claro/oscuro y Standard, Glass,
 Graphite, Midnight y Paper con vistas previas. La fila indica el estilo actual.

@@ -31,6 +31,9 @@ Organization, agent builder and project tabs carry matching icons. Budget headro
 
 Generated portraits use a constrained set of Blobatar 2.7 silhouettes and brighter tones; idle faces animate on hover, while working agents keep their thinking animation. Uploaded pictures are preserved. New starter-agent pictures use the same portrait family; existing stored uploads are not automatically replaced.
 
+Chat settings show Browser and Work on before Permissions. Conversation notifications
+and account connections remain below the permissions controls.
+
 ## The dashboard
 
 The landing page is an **arrangeable grid of widgets**, and it is the answer to

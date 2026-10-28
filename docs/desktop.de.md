@@ -1,5 +1,5 @@
 ---
-source_sha: "13435e904b2e"
+source_sha: "37479ce8c330"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -181,6 +181,10 @@ die Plakette an oder aus.
 Scrollbereichs. Seitenaktionen und Schließen-Schaltflächen bleiben dadurch
 anklickbar. Der Web-Architect bleibt am rechten Rand der Desktop-Konsole und
 fährt beim Darüberfahren aus; die Ecke bleibt für Kartenaktionen und Blobby frei.
+
+Der Chat füllt den Inhaltsbereich ab der Oberkante, ohne eigene Ziehleiste oder
+Seitenabstand. Das Fenster lässt sich am Kopf der Chatliste ziehen; die Schaltflächen
+bleiben anklickbar.
 
 **Erscheinungsbild** im Kontomenü bietet den Hell-/Dunkelmodus sowie Standard,
 Glass, Graphite, Midnight und Paper mit Vorschauen. Der Menüeintrag nennt den

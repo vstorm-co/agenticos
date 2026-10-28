@@ -9,7 +9,7 @@ import { useShell } from "@/hooks/use-shell";
 import { isDesktopShell } from "@/lib/desktop/shell";
 import { useWorkOnStore } from "@/stores/work-on-store";
 import { ChatModelPicker } from "./chat-model-picker";
-import { WorkOn } from "./work-on";
+import { WorkOn, ConversationNotifications } from "./work-on";
 import { YourConnections } from "./your-connections";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
 import { useModelProviders, useOrganizationList, usePermissions } from "@/hooks";
@@ -194,6 +194,8 @@ export function ChatControls({
             </button>
           )}
 
+          <WorkOn />
+
           <div className="border-foreground/10 mt-4 border-t pt-4" data-tour="chat-approval-mode">
             <p className="text-muted-foreground mb-3 text-xs leading-relaxed">
               {t("howMuchToBeAsked")}
@@ -238,7 +240,7 @@ export function ChatControls({
               </p>
             )}
           </div>
-          <WorkOn />
+          <ConversationNotifications />
           <YourConnections />
           {/* Chat has no PageHeader, so its tips are replayed from here - beside
               the other controls, rather than under the composer (#2301). Closed

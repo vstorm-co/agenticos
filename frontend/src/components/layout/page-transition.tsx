@@ -51,6 +51,7 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
     <div
       key={pathname}
       data-direction={direction}
+      data-page-layout={/\/chat(?:\/|$)/.test(pathname) ? "chat" : undefined}
       className={cn(
         "page-enter flex flex-1 flex-col",
         OWN_SCROLL_PANE.test(pathname) && "min-h-0",

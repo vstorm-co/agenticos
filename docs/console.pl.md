@@ -1,5 +1,5 @@
 ---
-source_sha: "d7931ad64582"
+source_sha: "0a7a3017b48c"
 ---
 
 # Konsola { #the-console }
@@ -35,6 +35,9 @@ Zakładki organizacji, kreatora agentów i projektów mają odpowiednie ikony. W
 budżetu pokazują avatary agentów.
 
 Generowane portrety korzystają z ograniczonego zestawu kształtów Blobatar 2.7 i jaśniejszych odcieni; animują się po najechaniu, a pracujący agenci zachowują animację myślenia. Wgrane zdjęcia pozostają bez zmian. Nowe zdjęcia agentów startowych należą do tej samej rodziny; istniejące zapisane obrazy nie są automatycznie zastępowane.
+
+Ustawienia czatu pokazują Browser i Work on przed Permissions. Powiadomienia rozmowy
+i połączenia kont pozostają pod kontrolkami uprawnień.
 
 ## Dashboard { #the-dashboard }
 
