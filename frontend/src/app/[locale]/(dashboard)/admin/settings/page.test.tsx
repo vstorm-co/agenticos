@@ -4,6 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DeploymentSettings } from "@/hooks/use-deployment-settings";
 import DeploymentSettingsPage from "./page";
 
+// APNs has its own query-backed form and tests; this suite covers deployment settings.
+vi.mock("@/components/admin/apns-key-card", () => ({ ApnsKeyCard: () => null }));
+
 const save = vi.fn();
 let settings: DeploymentSettings | null = null;
 let error: Error | null = null;
