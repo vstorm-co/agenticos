@@ -1,4 +1,13 @@
-import type { TraitOverrides } from "blobatar";
+import { traits, type TraitOverrides } from "blobatar";
+import { avatarHue } from "./avatar-color";
+
+/** Continuous, seeded hues; only the muddy mustard/olive band is excluded automatically. */
+export function portraitHue(seed: string, colorSlot?: number | null): number {
+  const chosen = avatarHue(colorSlot);
+  if (chosen !== undefined) return chosen;
+  const hue = traits(seed).num("portrait.color", 0, 300);
+  return hue < 55 ? hue : hue + 60;
+}
 
 /**
  * Blobatar 2.7 trait positions, not SVG dimensions. Keep its seeded variation
@@ -7,7 +16,7 @@ import type { TraitOverrides } from "blobatar";
  */
 export const AVATAR_TRAITS: TraitOverrides = {
   shape: [0.1, 0.34, 0.54],
-  tone: [0.1, 0.45, 0.85],
+  tone: [0.1, 0.85],
   "body.r": 0.75,
   "body.ratio": 0.5,
   "body.rot": 0.55,

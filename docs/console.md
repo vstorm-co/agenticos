@@ -17,7 +17,7 @@ Page introductions and settings explanations are available from the information 
 
 In Agents, Skills, Context and run history, **Filters** reveals secondary controls on every screen size and shows how many filters are active.
 
-Agent cards keep status and access visible while moving handles, tags, channels and edit dates into **Details**. Skills and Context cards show the name and summary first; **Details** reveals the preview, audience, usage and actions.
+Agent cards keep status and access visible while moving handles, tags, channels and edit dates into **Details**. Skills and Context cards keep the document preview and **Add to an agent** visible, with a short summary below the preview. **Details** reveals sharing, usage and secondary actions.
 
 Organization, agent builder and project tabs carry matching icons. Budget headroom rows include agent portraits.
 

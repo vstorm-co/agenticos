@@ -1,5 +1,5 @@
 ---
-source_sha: "0072006e4426"
+source_sha: "69d730821642"
 ---
 
 # Konsola { #the-console }
@@ -21,7 +21,7 @@ Wprowadzenia do stron i objaśnienia ustawień są dostępne pod ikoną informac
 
 W Agentach, Skills, Context i historii uruchomień przycisk **Filtry** rozwija dodatkowe opcje niezależnie od rozmiaru ekranu i pokazuje liczbę aktywnych filtrów.
 
-Karty agentów pozostawiają status i dostęp na wierzchu, a uchwyt, etykiety, kanały i datę edycji przenoszą do **Szczegółów**. Karty Skills i Context najpierw pokazują nazwę i opis; **Szczegóły** rozwijają podgląd, odbiorców, użycie i akcje. Zakładki organizacji, kreatora agentów i projektów mają odpowiednie ikony. Wiersze budżetu pokazują avatary agentów.
+Karty agentów pozostawiają status i dostęp na wierzchu, a uchwyt, etykiety, kanały i datę edycji przenoszą do **Szczegółów**. Karty Skills i Context zachowują podgląd dokumentu i widoczne **Dodaj do agenta**, z krótkim opisem pod podglądem. **Szczegóły** rozwijają odbiorców, użycie i drugorzędne akcje. Zakładki organizacji, kreatora agentów i projektów mają odpowiednie ikony. Wiersze budżetu pokazują avatary agentów.
 
 Generowane portrety korzystają z ograniczonego zestawu kształtów Blobatar 2.7 i jaśniejszych odcieni; animują się po najechaniu, a pracujący agenci zachowują animację myślenia. Wgrane zdjęcia pozostają bez zmian. Nowe zdjęcia agentów startowych należą do tej samej rodziny; istniejące zapisane obrazy nie są automatycznie zastępowane.
 

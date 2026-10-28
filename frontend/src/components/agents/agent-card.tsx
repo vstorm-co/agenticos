@@ -118,7 +118,6 @@ export function AgentCard({
           className={cn(
             "border-border bg-card relative flex h-full flex-col rounded-xl border p-4 transition-colors",
             "hover:border-foreground/25",
-            archived && "opacity-70",
             busy && "pointer-events-none opacity-50",
           )}
         >
@@ -140,7 +139,12 @@ export function AgentCard({
             <div className="contents sm:block sm:min-w-0 sm:flex-1">
               <div className="flex min-w-0 flex-col items-start gap-1.5 sm:flex-row sm:justify-between sm:gap-2">
                 <div className="w-full min-w-0 sm:w-auto">
-                  <h3 className="text-foreground line-clamp-2 font-medium break-words sm:truncate">
+                  <h3
+                    className={cn(
+                      "text-foreground line-clamp-2 font-medium break-words sm:truncate",
+                      archived && "text-muted-foreground",
+                    )}
+                  >
                     {agent.name}
                   </h3>
                 </div>

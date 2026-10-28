@@ -1612,6 +1612,35 @@ async def _with_exposure_prompt(
     return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{added}"})
 
 
+def _with_execution_environment(spec: AgentSpec, local: LocalTarget | None) -> AgentSpec:
+    """Describe the selected environment after its device and service grants resolve."""
+    from app.services.agent_templates import APP_ENVIRONMENT_GUIDANCE
+
+    briefing = APP_ENVIRONMENT_GUIDANCE
+    if local is not None:
+        selected = ["This run explicitly uses the initiating person's paired Desktop."]
+        if local.folder is not None:
+            selected.append(
+                f"Sandbox tools use their approved local folder in {local.mode} mode. "
+                "These files are personal, not the project's shared server files. "
+                "Do not describe local edits as uploaded or shared."
+            )
+        if local.browser:
+            selected.append("Browser tools use the approved local browser, not a cloud browser.")
+        if local.model_service is not None:
+            selected.append(
+                "Inference uses the selected local model service; do not claim it runs in the cloud."
+            )
+        if local.mcp_services:
+            selected.append(
+                "The selected approved local MCP services are available through this run's tools."
+            )
+        briefing += "\n\n### Selected for this run\n" + "\n".join(selected)
+    if briefing in spec.instructions:
+        return spec
+    return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{briefing}"})
+
+
 def _with_local_capabilities(spec: AgentSpec, local: LocalTarget | None) -> AgentSpec:
     """Opt-in tools for this run, retaining the author's limits and approval gates."""
     if local is None:
@@ -1654,10 +1683,12 @@ def _in_project(spec: AgentSpec, project: Project) -> AgentSpec:
     )
     briefing = (
         f"## Project: {project.name}\n\n"
-        "This conversation is part of a project. Your workspace is the project's: its "
-        "files are shared with every chat in the project and every agent that answers "
+        "This conversation is part of a project. By default, its shared server workspace "
+        "contains files shared with every chat in the project and every agent that answers "
         "in it, whoever asked - so keep work there, and look there first for what the "
-        "person refers to.\n\n"
+        "person refers to. An explicitly selected local environment overrides the working "
+        "folder for this run; local files remain personal and are not synchronized to "
+        "this shared workspace.\n\n"
         "Several people may write in this chat. Each person's message starts with their "
         'name ("Anna: ..."): that is who is speaking, not part of what they said. Address '
         "people by name, keep track of who asked for what, and when you answer one "
@@ -2241,7 +2272,7 @@ def _delegate_builder(
 
     def build() -> PydanticAgent[Any, Any]:
         built = build_agent(
-            delegation.render_variables(spec),
+            _with_execution_environment(delegation.render_variables(spec), None),
             model,
             organization_id=delegation.ctx.organization_id,
             agent_id=agent_id,
@@ -3394,6 +3425,7 @@ class AgentRunnerService:
 
         # What a call's realtime model is told: the briefings below describe a
         # workspace and skill files only its text twin can reach.
+        spec = _with_execution_environment(spec, local)
         spoken_spec = spec
         materialised: MaterialisedSkills | None = None
         started_with: set[str] | None = None

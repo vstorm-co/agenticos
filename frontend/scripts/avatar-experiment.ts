@@ -5,7 +5,7 @@ import { dirname, resolve } from "node:path";
 import { blobatar, type BlobatarOptions } from "blobatar";
 import sharp from "sharp";
 import { portraitSvg, portraits } from "./gen-agent-portraits";
-import { AVATAR_TRAITS } from "../src/lib/avatar-policy";
+import { AVATAR_TRAITS, portraitHue } from "../src/lib/avatar-policy";
 
 const destination = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -41,7 +41,12 @@ for (const [column, variant] of variants.entries()) {
       const left = x + 20 + theme * 224;
       chunks.push(`<rect x="${left}" y="${y + 25}" width="216" height="88" rx="10" fill="${bg}"/>`);
       for (const [index, size] of [24, 36, 56].entries()) {
-        const drawing = blobatar(seed, { ...variant.options, size, background: false });
+        const drawing = blobatar(seed, {
+          ...variant.options,
+          ...(column === 2 ? { hue: portraitHue(seed) } : {}),
+          size,
+          background: false,
+        });
         chunks.push(
           drawing.replace(
             "<svg ",

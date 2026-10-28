@@ -740,8 +740,11 @@ describe("native project folders", () => {
     expect(screen.queryByText("Local root: /approved")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "This computer" }));
     expect(screen.getByText("Local root: /approved")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Folder settings" }));
     await userEvent.click(screen.getByRole("button", { name: "Disconnect folder" }));
     expect(nativeProject.bind).toHaveBeenLastCalledWith("p-1", null);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Folder settings" }));
     await userEvent.click(screen.getByRole("button", { name: "Approve folder" }));
     expect(nativeProject.bind).toHaveBeenLastCalledWith("p-1", nativeProject.target);
     expect(screen.getByText("Local root: /approved")).toBeInTheDocument();
@@ -799,4 +802,45 @@ it("keeps files readable and explains why changes pause during a workspace trans
   );
   expect(screen.queryByRole("button", { name: "Upload files" })).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "brief.md" })).toBeInTheDocument();
+});
+
+it("keeps shared files clear of native setup until Computer is selected", async () => {
+  nativeProject.enabled = true;
+  nativeProject.target = null;
+  wrap(<ProjectFiles project={aProject()} />);
+  expect(screen.getByRole("button", { name: "Shared project files" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  expect(screen.queryByRole("button", { name: "Approve folder" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Upload files" })).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "This computer" }));
+  expect(screen.getByRole("button", { name: "Approve folder" })).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Upload files" })).not.toBeInTheDocument();
+  expect(screen.getByText(/To share a file, choose Shared project files/)).toBeVisible();
+  expect(files.upload.mutate).not.toHaveBeenCalled();
+});
+
+it("restores a Computer choice that arrives after local preference hydration", () => {
+  nativeProject.enabled = true;
+  nativeProject.target = null;
+  const client = new QueryClient();
+  const node = () => (
+    <QueryClientProvider client={client}>
+      <ProjectFiles project={aProject()} />
+    </QueryClientProvider>
+  );
+  const view = render(node());
+  expect(screen.getByRole("button", { name: "Shared project files" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  nativeProject.target = { folder: "/approved", mode: "read_only" };
+  view.rerender(node());
+  expect(screen.getByRole("button", { name: "This computer" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  expect(screen.getByText("Local root: /approved")).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Approve folder" })).not.toBeInTheDocument();
 });

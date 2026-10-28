@@ -27,9 +27,6 @@ import { Perm } from "@/types/permissions";
 import type { Project } from "@/types/projects";
 import type { LocalTarget } from "@/lib/desktop/commands";
 import { ProjectFolderChoice } from "./project-folder-choice";
-import { useProjectFolder } from "@/hooks/use-project-folder";
-import { useShell } from "@/hooks/use-shell";
-import { isDesktopShell } from "@/lib/desktop/shell";
 
 export function ProjectSandboxChoice({
   value,
@@ -137,26 +134,19 @@ export function ProjectSandboxChoice({
 export function ProjectSandboxSummary({ project }: { project: Project }) {
   const t = useTranslations("projects.sandbox");
   const { moveWorkspace } = useProject(project.id);
-  const local = useProjectFolder(project.id);
-  const shell = useShell();
-  const native = isDesktopShell(shell) && local.available;
   const [changing, setChanging] = useState(false);
   const [target, setTarget] = useState(
-    native && local.target
-      ? "computer"
-      : project.backend === "state"
-        ? "state"
-        : (project.sandbox_connection_id ?? ""),
+    project.backend === "state" ? "state" : (project.sandbox_connection_id ?? ""),
   );
   const [confirm, setConfirm] = useState(false);
   const transfer = project.workspace_move;
   const moving = transfer?.status === "queued" || transfer?.status === "running";
   const stored = project.backend === "state";
-  const Icon = native && local.target ? Laptop : stored ? Folder : Server;
+  const Icon = stored ? Folder : Server;
   return (
     <Card data-tour="project-workspace">
       <CardHeader>
-        <CardTitle>{t("label")}</CardTitle>
+        <CardTitle>{t("sharedWorkspace")}</CardTitle>
         <CardDescription>{t("sharedHint")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -166,18 +156,10 @@ export function ProjectSandboxSummary({ project }: { project: Project }) {
           </span>
           <div className="min-w-0 space-y-1">
             <p className="truncate text-sm font-medium">
-              {native && local.target
-                ? t("computer")
-                : stored
-                  ? t("stored")
-                  : (project.sandbox_connection_name ?? t("configured"))}
+              {stored ? t("stored") : (project.sandbox_connection_name ?? t("configured"))}
             </p>
             <p className="text-muted-foreground text-xs leading-relaxed">
-              {native && local.target
-                ? t("computerHint")
-                : stored
-                  ? t("storedHint")
-                  : t("containerHint")}
+              {stored ? t("storedHint") : t("containerHint")}
             </p>
             {!stored && project.runtime && (
               <p className="text-muted-foreground font-mono text-xs">{project.runtime}</p>
@@ -210,7 +192,6 @@ export function ProjectSandboxSummary({ project }: { project: Project }) {
             size="sm"
             onClick={() => {
               setChanging(!changing);
-              if (!changing && native && local.target) setTarget("computer");
             }}
             aria-expanded={changing}
           >
@@ -221,15 +202,7 @@ export function ProjectSandboxSummary({ project }: { project: Project }) {
           <div className="space-y-3 border-t pt-4">
             <ProjectSandboxChoice
               value={target}
-              onChange={(next) => {
-                setTarget(next);
-                if (next !== "computer" && local.target) local.bind(project.id, null);
-              }}
-              computer={
-                native
-                  ? { target: local.target, onChange: (folder) => local.bind(project.id, folder) }
-                  : undefined
-              }
+              onChange={setTarget}
               enabled
               allowAutomatic={false}
             />

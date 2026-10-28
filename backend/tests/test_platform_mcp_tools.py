@@ -992,3 +992,14 @@ async def test_project_discovery_preserves_empty_pages(server: FastMCP, api: Mag
         "items": [],
         "total": 0,
     }
+
+
+async def test_create_project_configures_only_the_shared_workspace(api: MagicMock) -> None:
+    tool = next(tool for tool in platform_tools(api) if tool.name == "create_project")
+    await tool.function(name="Local coding", backend="service", sandbox_connection_id=KB)
+    payload = api.request.call_args.kwargs["json"]
+    assert payload["backend"] == "service"
+    assert payload["sandbox_connection_id"] == str(KB)
+    assert "local" not in payload and "folder" not in payload
+    assert tool.writes
+    assert "cannot select a native folder" in tool.function.__doc__

@@ -19,7 +19,7 @@ starter-agent portraits. This is a rendering experiment, not a full UI capture.
 2. **Silhouette limits:** use supported `traits.shape` array overrides to select
    round, organic and boxy silhouettes. Improves shape consistency but leaves dark
    tones and large rotations; the supplier-invoice sample remains hard to read.
-3. **Balanced portraits, selected:** the same three shapes, pastel/mid/bright
+3. **Balanced portraits, selected:** the same three shapes, pastel/bright
    tones, restrained organic radii, balanced body proportions, modest boxy tilt
    and near-upright eyes. Hue and remaining geometry still follow the stable seed;
    explicit color slots retain their hue. No hand-written replacement renderer.
@@ -47,8 +47,8 @@ The implementation changes shared headers and settings sections, rather than a
 single page: explanatory copy moves into keyboard-accessible contextual help.
 Live dashboard summaries and destructive-action warnings remain inline. The
 shared list filter disclosure now works on desktop as well as phones. Agent cards keep status and access visible, moving secondary metadata into Details. Skills and
-Context show identity and a short summary first, with previews, sharing, usage and
-actions behind Details. Organization, builder and project navigation gains icons.
+Context retain document previews, a short summary and visible Add to an agent;
+sharing, usage and secondary actions stay behind Details. Organization, builder and project navigation gains icons.
 The account menu opens the existing desktop readiness dialog directly; the
 floating setup counter is removed. Budget rows use the common agent avatar.
 
@@ -57,3 +57,18 @@ focus, setup reopening and avatar identity. Numeric layout checks sample 500
 seeds. This work does not claim that every individual screen has been visually
 reviewed; full application screenshots and native interaction checks were not run
 because the user explicitly excluded Computer Use.
+
+## Revision after visual feedback
+
+The selected policy now keeps pastel and bright tones, excludes the automatic
+mustard/olive hue band, and samples a continuous range rather than a short list
+of fixed colors. `portrait.color` is an independent seeded trait: a face stays
+stable across screens while neighboring gallery cards can differ substantially.
+Archived cards keep portraits at full opacity so dimming cannot muddy their colors.
+Explicit color slots retain their chosen hue. Tests sample 500 seeds for hue
+spread, distinct rendered fills and eye contrast, alongside the real gallery
+handles that exposed a cluster of similar blues and greens.
+
+Skills and Context retain the document preview and visible Add to an agent
+control. Only sharing, usage and secondary actions are behind Details; the
+preview is no longer part of the disclosure.

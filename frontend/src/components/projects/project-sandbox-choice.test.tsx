@@ -141,9 +141,7 @@ it("shows which shared sandbox a project actually uses and its runtime", () => {
   );
   expect(screen.getByText("Local sandbox")).toBeInTheDocument();
   expect(screen.getByText("python")).toBeInTheDocument();
-  expect(
-    screen.getByText(/replaces the sandbox configured on the answering agent/),
-  ).toBeInTheDocument();
+  expect(screen.getByText(/Your personal Computer selection is separate/)).toBeInTheDocument();
   rerender(
     <ProjectSandboxSummary
       project={{ ...project, backend: "service", sandbox_connection_name: null, runtime: null }}
@@ -255,7 +253,7 @@ it("acknowledges a verified activation and refuses moving to the already selecte
   expect(screen.getByRole("button", { name: "Move project files" })).toBeDisabled();
 });
 
-it("offers Computer for an existing desktop project without moving shared files", async () => {
+it("keeps the shared workspace separate from personal Computer connections", async () => {
   computer.enabled = true;
   render(
     <QueryClientProvider client={new QueryClient()}>
@@ -271,10 +269,10 @@ it("offers Computer for an existing desktop project without moving shared files"
       />
     </QueryClientProvider>,
   );
+  expect(screen.getByText("Shared project workspace")).toBeVisible();
   await userEvent.click(screen.getByRole("button", { name: "Change sandbox" }));
   await userEvent.click(screen.getByRole("combobox", { name: "Project sandbox" }));
-  await userEvent.click(screen.getByRole("option", { name: "Computer · your files" }));
-  await userEvent.click(screen.getByRole("button", { name: "Approve folder" }));
-  expect(computer.bind).toHaveBeenCalledWith("p1", { folder: "/approved", mode: "read_only" });
+  expect(screen.queryByRole("option", { name: "Computer · your files" })).not.toBeInTheDocument();
+  expect(computer.bind).not.toHaveBeenCalled();
   expect(moveWorkspace.mutateAsync).not.toHaveBeenCalled();
 });

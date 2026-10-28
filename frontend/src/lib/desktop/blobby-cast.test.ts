@@ -1,4 +1,4 @@
-import { AVATAR_TRAITS } from "@/lib/avatar-policy";
+import { AVATAR_TRAITS, portraitHue } from "@/lib/avatar-policy";
 import { describe, expect, it } from "vitest";
 
 import { avatarHue } from "@/lib/avatar-color";
@@ -36,7 +36,7 @@ describe("faceOf", () => {
   it("draws a face of your own from its name", () => {
     expect(faceOf({ kind: "custom", seed: "kacper", color_slot: null })).toEqual({
       seed: "kacper",
-      hue: undefined,
+      hue: portraitHue("kacper"),
       traits: AVATAR_TRAITS,
     });
   });

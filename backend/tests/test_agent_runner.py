@@ -296,7 +296,12 @@ class TestPrepare:
         assert opened["conversation_id"] == conversation_id
         assert opened["surface"] == RunSurface.SLACK.value
         assert opened["model_label"] == "gpt-4.1"
-        assert (prepared.run, prepared.agent, prepared.spec) == (run, agent, spec)
+        assert (prepared.run, prepared.agent) == (run, agent)
+        assert prepared.spec.model_dump(exclude={"instructions"}) == spec.model_dump(
+            exclude={"instructions"}
+        )
+        assert spec.instructions == ""
+        assert "## AgenticOS apps and execution environments" in prepared.spec.instructions
         # Streaming surfaces run their own loop and need the deps the agent was
         # built with; re-deriving them there is how the two drift apart.
         assert prepared.deps is built.deps
@@ -6278,6 +6283,12 @@ class TestPerRunLocalServices:
             *([] if browser_only else [(session, "files", "mcp")]),
         ]
         assert build.call_args.args[1] is resolved_model
+        assert "### Selected for this run" in build.call_args.args[0].instructions
+        assert (
+            "personal, not the project's shared server files"
+            in build.call_args.args[0].instructions
+            or browser_only
+        )
         if browser_selected:
             assert build.call_args.kwargs["resources"]["local_browser_session"] == session
         else:

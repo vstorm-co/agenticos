@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "20fad851d8d5"
+source_sha: "33ca3c1657e3"
 ---
 
 # Projekte { #projects }
@@ -58,7 +58,6 @@ bestehenden Installationen mit Plattform-Werkzeugen. Andere Agenten und externe
 MCP-Clients behalten ihren eigenen Ablauf. Ein Upgrade überschreibt weder eigene Agentenanweisungen
 noch installierte Galerie-Skills; die aktualisierte Vorlage und der mitgelieferte
 Projects-Leitfaden gelten für neue Installationen.
-
 
 ## Einen Chat im Projekt beginnen { #starting-a-chat-in-a-project }
 
@@ -153,21 +152,11 @@ Name, Beschreibung und Standard-Agent des Projekts.
 
 ## Lokale Ordner in der Desktop-App { #local-folders-in-the-desktop-app }
 
-Beim Erstellen eines Desktop-Projekts wählen Sie **Projekt-Sandbox → Computer · Ihre Dateien**
-und erlauben dann einen Ordner. Erst nach dieser nativen Auswahl kann das Projekt
-erstellt werden. Der gemeinsame Workspace bleibt für andere Mitglieder verfügbar;
-diese Auswahl ist persönlich.
+Der Tab **Dateien** trennt **Gemeinsame Projektdateien** und **Dieser Computer**. Ein beim Erstellen genehmigter Ordner öffnet sich auf dieser Installation automatisch; ohne Verbindung erscheinen zuerst gemeinsame Dateien. Wähle Dieser Computer, um einen Ordner zu verbinden. **Ordnereinstellungen** ändert oder trennt ihn; Pfad und Zugriffsmodus bleiben ohne wiederholtes Einrichtungsformular sichtbar.
 
-Wählen Sie unter **Neues Projekt** oder im Tab **Dateien** eines Projekts
-**Ordner verbinden**. Der native Dialog bestätigt den Zugriff, anfangs nur lesend.
-Die Verbindung gehört Ihrem Konto und Ihrer Organisation auf diesem Computer,
-nicht dem geteilten Projekt. Sie lädt keine Kopie hoch und gewährt dem Team
-keinen Festplattenzugriff. Das Trennen lässt Berechtigungen anderer Chats bestehen.
+Gemeinsame Projektdateien sind hochgeladene Kopien für Personen mit Projektzugriff. Zum Teilen einer lokalen Datei wähle diese Quelle und lade eine Kopie hoch. Die Orte synchronisieren sich nicht: Lokale Änderungen aktualisieren keine hochgeladene Kopie, und Projektfreigaben gewähren keinen Festplattenzugriff. Die **Gemeinsame Projektumgebung** unter Anweisungen ändert nur den Serverspeicher; sie verbindet oder trennt keinen persönlichen Ordner.
 
-**Dieser Computer** zeigt lokale Dateien, **Gemeinsame Projektdateien** den
-Servercontainer. Die lokale Vorschau zeigt bis zu 500 Einträge und überspringt
-generierte Ordner wie `.git` und `node_modules`. Aktualisieren lädt die Liste neu;
-ein verweigerter Lesezugriff bleibt ein Fehler, statt unbemerkt Cloud-Dateien zu öffnen.
+Der native Dialog bestätigt den Zugriff, anfangs nur lesend. Die Verbindung gehört dem aktuellen Konto und der Organisation auf diesem Computer. Das Trennen erhält Berechtigungen anderer Chats. Die Vorschau zeigt bis zu 500 Einträge, überspringt generierte Ordner wie `.git` und `node_modules` und zeigt Lesefehler ohne stillen Wechsel zu Cloud-Dateien.
 
 Neue Desktop-Chats im Projekt übernehmen den Ordner und den genehmigten
 Zugriffsmodus. Projektanweisungen gelten weiter; Sandbox-Werkzeuge arbeiten lokal
@@ -186,11 +175,11 @@ Ein Projekt ist privat für seinen Ersteller, bis er es teilt - mit demselben
 [Abteilungen](departments.md) oder die ganze Organisation, jeweils auf einer
 Stufe.
 
-| Grant-Stufe | Berechtigung | Was sie erlaubt |
-|---|---|---|
-| `read` | `projects:view` | Das Projekt, seine Dateien und Anweisungen sehen |
-| `use` | `projects:use` | Darin chatten; Dateien hinzufügen, bearbeiten, umbenennen, verschieben und löschen |
-| `edit` | `projects:edit` | Anweisungen und Standard-Agent ändern, teilen, löschen |
+| Grant-Stufe | Berechtigung    | Was sie erlaubt                                                                    |
+| ----------- | --------------- | ---------------------------------------------------------------------------------- |
+| `read`      | `projects:view` | Das Projekt, seine Dateien und Anweisungen sehen                                   |
+| `use`       | `projects:use`  | Darin chatten; Dateien hinzufügen, bearbeiten, umbenennen, verschieben und löschen |
+| `edit`      | `projects:edit` | Anweisungen und Standard-Agent ändern, teilen, löschen                             |
 
 Rollen halten diese in den üblichen Bereichen: Owner und Admin erreichen jedes
 Projekt, ein Builder arbeitet in den mit ihm geteilten und bearbeitet sie, ein

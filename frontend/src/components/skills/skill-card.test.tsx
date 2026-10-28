@@ -130,14 +130,16 @@ describe("SkillCard", () => {
   });
   it("offers to give the skill to an agent, even to a reader who cannot edit it", () => {
     renderCard({ canEdit: false });
-    expect(screen.getByText("add-to-agent skill skill-1")).toBeInTheDocument();
+    expect(screen.getByText("add-to-agent skill skill-1")).toBeVisible();
   });
 });
 
-it("keeps the excerpt behind Details without making the whole card an expand control", async () => {
+it("keeps the preview visible while metadata and actions stay behind Details", async () => {
   const { onOpen } = renderCard();
   const excerpt = screen.getByText("Refunds");
-  const details = excerpt.closest("details");
+  expect(excerpt).toBeVisible();
+  expect(excerpt.closest("details")).toBeNull();
+  const details = screen.getByText("Everyone").closest("details");
   expect(details).not.toHaveAttribute("open");
   await userEvent.click(screen.getByText("Details"));
   expect(details).toHaveAttribute("open");

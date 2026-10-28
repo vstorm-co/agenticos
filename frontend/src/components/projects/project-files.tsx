@@ -1,7 +1,15 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { FolderPlus, FolderUp, MoreHorizontal, Upload } from "lucide-react";
+import {
+  FolderPlus,
+  FolderUp,
+  MoreHorizontal,
+  Upload,
+  Laptop,
+  Users,
+  Settings2,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { ProjectFileEditor } from "./project-file-editor";
@@ -49,39 +57,77 @@ export function ProjectFiles({ project }: { project: Project }) {
 function DesktopProjectFiles({ project }: { project: Project }) {
   const t = useTranslations("projects.localFolder");
   const local = useProjectFolder(project.id);
-  const [view, setView] = useState<"local" | "shared">("local");
+  const [choice, setView] = useState<"local" | "shared" | null>(null);
+  const view = choice ?? (local.target ? "local" : "shared");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const tw = useTranslations("chat.controls.workOn");
   return (
-    <div className="flex min-w-0 flex-1 flex-col gap-4">
-      <ProjectFolderChoice
-        value={local.target}
-        onChange={(target) => {
-          local.bind(project.id, target);
-          setView(target ? "local" : "shared");
-        }}
-      />
-      {local.target && (
-        <div className="flex flex-wrap gap-2" role="group" aria-label={t("fileLocation")}>
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div
+          className="flex gap-1"
+          data-tour="project-file-location"
+          role="group"
+          aria-label={t("fileLocation")}
+        >
           <Button
-            variant={view === "local" ? "secondary" : "ghost"}
-            aria-pressed={view === "local"}
-            onClick={() => setView("local")}
-          >
-            {t("localFiles")}
-          </Button>
-          <Button
+            size="sm"
             variant={view === "shared" ? "secondary" : "ghost"}
             aria-pressed={view === "shared"}
             onClick={() => setView("shared")}
           >
+            <Users className="size-4" aria-hidden />
             {t("sharedFiles")}
           </Button>
+          <Button
+            size="sm"
+            variant={view === "local" ? "secondary" : "ghost"}
+            aria-pressed={view === "local"}
+            onClick={() => setView("local")}
+          >
+            <Laptop className="size-4" aria-hidden />
+            {t("localFiles")}
+          </Button>
         </div>
-      )}
-      {local.target && view === "local" ? (
-        <ProjectFolderExplorer root={local.target.folder} />
-      ) : (
+        {view === "local" && local.target && (
+          <Button size="sm" variant="ghost" onClick={() => setSettingsOpen(true)}>
+            <Settings2 className="size-4" aria-hidden />
+            {t("manage")}
+          </Button>
+        )}
+      </div>
+      <p className="text-muted-foreground text-xs leading-relaxed">
+        {view === "shared" ? t("sharedHint") : t("privateHint")}
+      </p>
+      {view === "shared" ? (
         <SharedProjectFiles project={project} />
+      ) : local.target ? (
+        <>
+          <div className="text-muted-foreground flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+            <span className="min-w-0 truncate font-mono" title={local.target.folder}>
+              {local.target.folder}
+            </span>
+            <span>{tw(`mode.${local.target.mode}`)}</span>
+          </div>
+          <ProjectFolderExplorer root={local.target.folder} />
+        </>
+      ) : (
+        <ProjectFolderChoice value={null} onChange={(target) => local.bind(project.id, target)} />
       )}
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{t("manage")}</DialogTitle>
+          </DialogHeader>
+          <ProjectFolderChoice
+            value={local.target}
+            onChange={(target) => {
+              local.bind(project.id, target);
+              setSettingsOpen(false);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

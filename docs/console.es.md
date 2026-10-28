@@ -1,5 +1,5 @@
 ---
-source_sha: "0072006e4426"
+source_sha: "69d730821642"
 ---
 
 # La consola { #the-console }
@@ -22,7 +22,7 @@ Las introducciones de páginas y explicaciones de ajustes están en el icono de 
 
 En Agentes, Skills, Context y el historial, **Filtros** despliega opciones adicionales en cualquier tamaño de pantalla e indica cuántos filtros están activos.
 
-Las tarjetas de agentes mantienen visibles estado y acceso; identificador, etiquetas, canales y fecha de edición están en **Detalles**. Las tarjetas de Skills y Context muestran primero nombre y descripción; **Detalles** abre vista previa, audiencia, uso y acciones. Las pestañas de organización, agentes y proyectos tienen iconos. Las filas de presupuesto muestran retratos de agentes.
+Las tarjetas de agentes mantienen visibles estado y acceso; identificador, etiquetas, canales y fecha de edición están en **Detalles**. Las tarjetas de Skills y Context mantienen visibles la vista previa y **Añadir a un agente**, con una descripción breve debajo. **Detalles** muestra audiencia, uso y acciones secundarias. Las pestañas de organización, agentes y proyectos tienen iconos. Las filas de presupuesto muestran retratos de agentes.
 
 Los retratos generados usan formas seleccionadas de Blobatar 2.7 y tonos más claros; las caras inactivas se animan al pasar el cursor y los agentes trabajando mantienen su animación. Las imágenes subidas se conservan. Los nuevos agentes iniciales usan la misma familia visual; las imágenes almacenadas existentes no se sustituyen automáticamente.
 

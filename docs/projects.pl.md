@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "20fad851d8d5"
+source_sha: "33ca3c1657e3"
 ---
 
 # Projekty { #projects }
@@ -55,7 +55,6 @@ i zewnętrzni klienci MCP zachowują własny sposób pracy.
 Aktualizacja nie nadpisuje własnych instrukcji agentów ani zainstalowanych
 skillów z galerii; nowy szablon i dołączony przewodnik Projects dotyczą nowych
 instalacji.
-
 
 ## Czat w projekcie { #starting-a-chat-in-a-project }
 
@@ -142,20 +141,11 @@ instrukcje agenta w Agent Builderze, nad nazwą, opisem i domyślnym agentem pro
 
 ## Lokalne foldery w aplikacji desktopowej { #local-folders-in-the-desktop-app }
 
-Tworząc projekt w desktopie, wybierz **Sandbox projektu → Komputer · Twoje pliki**,
-a potem zatwierdź folder. Utworzenie projektu wymaga tego natywnego wyboru.
-Wspólny obszar projektu pozostaje dostępny dla innych członków; ten wybór jest osobisty.
+Karta **Pliki** rozdziela **Wspólne pliki projektu** i **Ten komputer**. Folder zatwierdzony przy tworzeniu projektu otwiera się automatycznie na tej instalacji; bez powiązania najpierw widać wspólne pliki. Wybierz Ten komputer, aby podłączyć folder. **Ustawienia folderu** pozwalają go zmienić lub odłączyć; ścieżka i tryb dostępu są widoczne bez powtarzania formularza konfiguracji.
 
-W formularzu **Nowy projekt** lub na karcie **Pliki** istniejącego projektu wybierz
-**Podłącz folder**. Natywne okno potwierdza dostęp; początkowo tylko do odczytu.
-Powiązanie należy do Twojego konta i organizacji na tym komputerze, a nie do
-współdzielonego projektu. Nie przesyła kopii ani nie daje zespołowi dostępu do
-dysku. Odłączenie folderu od projektu pozostawia uprawnienia używane przez inne czaty.
+Wspólne pliki projektu to wgrane kopie dostępne dla osób z dostępem do projektu. Aby udostępnić lokalny plik, wybierz to źródło i wgraj kopię. Te miejsca nie synchronizują się: edycja lokalna nie aktualizuje wgranej kopii, a udostępnienie projektu nie daje dostępu do dysku. **Wspólne środowisko projektu** na karcie Instrukcje zmienia wyłącznie miejsce na serwerze; nie podłącza ani nie odłącza osobistego folderu.
 
-**Ten komputer** pokazuje lokalne pliki, a **Wspólne pliki projektu** kontener
-serwera. Lokalny podgląd obejmuje maksymalnie 500 elementów i pomija foldery
-generowane, np. `.git` i `node_modules`. Odświeżenie ponownie wczytuje listę;
-odmowa odczytu pozostaje błędem i nie otwiera po cichu plików w chmurze.
+Natywne okno potwierdza dostęp, początkowo tylko do odczytu. Powiązanie należy do bieżącego konta i organizacji na tym komputerze. Odłączenie pozostawia uprawnienia innych czatów. Podgląd obejmuje do 500 elementów, pomija generowane foldery, np. `.git` i `node_modules`, i pokazuje błędy odczytu bez cichego przełączania do chmury.
 
 Nowe czaty projektu na desktopie dziedziczą folder i zatwierdzony tryb dostępu.
 Instrukcje projektu nadal obowiązują, a narzędzia sandboxa pracują lokalnie zamiast
@@ -173,11 +163,11 @@ Projekt jest prywatny dla swojego twórcy, dopóki go nie udostępni - tym samym
 oknem **Udostępnij**, którego używa agent czy skill: osobom,
 [działom](departments.md) albo całej organizacji, każdemu na jakimś poziomie.
 
-| Poziom grantu | Uprawnienie | Na co pozwala |
-|---|---|---|
-| `read` | `projects:view` | Widzieć projekt, jego pliki i instrukcje |
-| `use` | `projects:use` | Czatować w nim; dodawać, edytować, przenosić i usuwać pliki |
-| `edit` | `projects:edit` | Zmieniać instrukcje i domyślnego agenta, udostępniać, usuwać |
+| Poziom grantu | Uprawnienie     | Na co pozwala                                                |
+| ------------- | --------------- | ------------------------------------------------------------ |
+| `read`        | `projects:view` | Widzieć projekt, jego pliki i instrukcje                     |
+| `use`         | `projects:use`  | Czatować w nim; dodawać, edytować, przenosić i usuwać pliki  |
+| `edit`        | `projects:edit` | Zmieniać instrukcje i domyślnego agenta, udostępniać, usuwać |
 
 Role mają te uprawnienia w zwykłych zakresach: Owner i Admin sięgają każdego
 projektu, Builder pracuje w udostępnionych mu projektach i je edytuje, Member

@@ -5,8 +5,7 @@ import { thinking } from "blobatar/expression";
 
 import "blobatar/motion.css";
 
-import { AVATAR_TRAITS } from "@/lib/avatar-policy";
-import { avatarHue } from "@/lib/avatar-color";
+import { AVATAR_TRAITS, portraitHue } from "@/lib/avatar-policy";
 import { cn } from "@/lib/utils";
 
 export interface AvatarFaceProps {
@@ -52,7 +51,7 @@ export function AvatarFace({
   return (
     <Blobatar
       name={seed}
-      hue={avatarHue(colorSlot)}
+      hue={portraitHue(seed, colorSlot)}
       background={background ? "circle" : false}
       traits={AVATAR_TRAITS}
       animate={isThinking ? "always" : "hover"}

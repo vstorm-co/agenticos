@@ -4473,6 +4473,10 @@
       "org-proactivity": {
         "title": "Proaktywność",
         "body": "Skonfiguruj nocne sugestie, obserwowanie połączeń i proaktywne powitania w czacie. Tutaj wybierzesz model, harmonogram i budżet na osobę."
+      },
+      "project-file-location": {
+        "title": "Twój komputer czy wspólne pliki",
+        "body": "Ten komputer pokazuje zatwierdzony lokalny folder. Wspólne pliki projektu to wgrane kopie dla osób z dostępem do projektu. Te miejsca nie synchronizują się automatycznie."
       }
     },
     "chooseLanguage": "Język",
@@ -8672,7 +8676,10 @@
       "localFiles": "Ten komputer",
       "sharedFiles": "Wspólne pliki projektu",
       "refresh": "Odśwież pliki",
-      "previewHint": "Podgląd maksymalnie 500 lokalnych elementów. Foldery generowane, np. node_modules i .git, są pomijane. Pliki pozostają na tym komputerze."
+      "previewHint": "Podgląd maksymalnie 500 lokalnych elementów. Foldery generowane, np. node_modules i .git, są pomijane. Pliki pozostają na tym komputerze.",
+      "manage": "Ustawienia folderu",
+      "sharedHint": "Wgrane kopie są dostępne dla osób z dostępem do projektu. Lokalne foldery nie są tutaj synchronizowane.",
+      "privateHint": "Te pliki pozostają na Twoim komputerze. Inne osoby nie mają dostępu do tego folderu. Aby udostępnić plik, wybierz Wspólne pliki projektu i wgraj kopię. Odpowiedzi i wyniki narzędzi we wspólnych czatach projektu mogą jednak ujawniać treść plików ich uczestnikom."
     },
     "noFilesMobileHint": "Prześlij pliki, aby udostępnić je w projekcie. Każdy czat w projekcie może z nich korzystać.",
     "fileManager": {
@@ -8705,7 +8712,7 @@
       "automaticNamed": "Automatycznie · {name}",
       "stored": "Tylko przechowywanie plików",
       "storedHint": "Platforma przechowuje pliki. Agenci mogą je czytać i zapisywać, ale nie wykonują tu kodu.",
-      "sharedHint": "Wszystkie czaty projektu współdzielą te pliki i środowisko. Zastępuje ono sandbox ustawiony u odpowiadającego agenta.",
+      "sharedHint": "To wspólne środowisko na serwerze. Inne osoby oraz czaty w przeglądarce i telefonie używają tych plików. Twój wybór Komputer pozostaje osobny.",
       "failed": "Nie udało się wczytać połączeń sandboxa. Nadal możesz wybrać tryb automatyczny lub przechowywanie plików.",
       "configured": "Skonfigurowany sandbox",
       "containerHint": "Dedykowany kontener na tym połączeniu. Pozostaje wybrany do jawnego przeniesienia plików projektu.",
@@ -8725,7 +8732,8 @@
       "moveFailed": "Transfer nie został zakończony. Dotychczasowy warsztat nadal jest wybrany. Możesz spróbować ponownie.",
       "moved": "Pliki sprawdzone, nowy warsztat aktywny.",
       "computer": "Komputer · Twoje pliki",
-      "computerHint": "Używaj folderu na tym komputerze w swoich czatach. To wybór osobisty; inni członkowie projektu nadal korzystają ze wspólnego obszaru roboczego."
+      "computerHint": "Używaj folderu na tym komputerze w swoich czatach. To wybór osobisty; inni członkowie projektu nadal korzystają ze wspólnego obszaru roboczego.",
+      "sharedWorkspace": "Wspólne środowisko projektu"
     }
   },
   "voiceGlow": {

@@ -4581,6 +4581,10 @@
       "org-proactivity": {
         "title": "Proaktivität",
         "body": "Konfiguriere nächtliche Vorschläge, die Überwachung von Verbindungen und proaktive Chatbegrüßungen. Wähle hier Modell, Zeitplan und Budget pro Person."
+      },
+      "project-file-location": {
+        "title": "Dein Computer oder gemeinsame Dateien",
+        "body": "Computer zeigt deinen freigegebenen lokalen Ordner. Gemeinsame Projektdateien enthält hochgeladene Kopien für Personen mit Projektzugriff. Die beiden Orte werden nicht automatisch synchronisiert."
       }
     },
     "chooseLanguage": "Sprache",
@@ -8766,7 +8770,10 @@
       "localFiles": "Dieser Computer",
       "sharedFiles": "Gemeinsame Projektdateien",
       "refresh": "Dateien aktualisieren",
-      "previewHint": "Vorschau von bis zu 500 lokalen Einträgen. Generierte Ordner wie node_modules und .git werden übersprungen. Die Dateien bleiben auf diesem Computer."
+      "previewHint": "Vorschau von bis zu 500 lokalen Einträgen. Generierte Ordner wie node_modules und .git werden übersprungen. Die Dateien bleiben auf diesem Computer.",
+      "manage": "Ordnereinstellungen",
+      "sharedHint": "Hochgeladene Kopien sind für alle mit Projektzugriff verfügbar. Lokale Ordner werden hier nicht synchronisiert.",
+      "privateHint": "Diese Dateien bleiben auf deinem Computer. Andere Mitglieder haben keinen Zugriff auf diesen Ordner. Zum Teilen wähle Gemeinsame Projektdateien und lade eine Kopie hoch. Antworten und Werkzeugergebnisse in gemeinsamen Projektchats können den Mitgliedern dieses Chats dennoch Dateiinhalte zeigen."
     },
     "noFilesMobileHint": "Lade Dateien hoch, um sie im Projekt zu teilen. Jeder Projektchat kann sie verwenden.",
     "fileManager": {
@@ -8799,7 +8806,7 @@
       "automaticNamed": "Automatisch · {name}",
       "stored": "Nur Dateien speichern",
       "storedHint": "Die Plattform speichert die Dateien. Agenten können sie lesen und schreiben, hier aber keinen Code ausführen.",
-      "sharedHint": "Alle Chats dieses Projekts teilen Dateien und Arbeitsumgebung. Sie ersetzt die Sandbox des antwortenden Agenten.",
+      "sharedHint": "Dies ist die gemeinsame Serverumgebung. Andere Mitglieder sowie Web- und Mobile-Chats nutzen diese Dateien. Deine persönliche Computerauswahl bleibt davon getrennt.",
       "failed": "Sandbox-Verbindungen konnten nicht geladen werden. Automatische Auswahl und Dateispeicherung bleiben verfügbar.",
       "configured": "Konfigurierte Sandbox",
       "containerHint": "Ein eigener Container auf dieser Verbindung. Sie bleibt ausgewählt, bis die Projektdateien ausdrücklich übertragen werden.",
@@ -8819,7 +8826,8 @@
       "moveFailed": "Die Übertragung wurde nicht abgeschlossen. Der bisherige Arbeitsbereich bleibt ausgewählt. Versuchen Sie es erneut.",
       "moved": "Dateien geprüft und neuer Arbeitsbereich aktiviert.",
       "computer": "Computer · Ihre Dateien",
-      "computerHint": "Einen Ordner auf diesem Computer für Ihre Chats verwenden. Das ist Ihre persönliche Wahl; andere Projektmitglieder nutzen weiter den gemeinsamen Workspace."
+      "computerHint": "Einen Ordner auf diesem Computer für Ihre Chats verwenden. Das ist Ihre persönliche Wahl; andere Projektmitglieder nutzen weiter den gemeinsamen Workspace.",
+      "sharedWorkspace": "Gemeinsame Projektumgebung"
     }
   },
   "voiceGlow": {

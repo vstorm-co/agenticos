@@ -124,6 +124,6 @@ describe("ContextCard", () => {
   });
   it("offers to give the file to an agent", () => {
     renderCard();
-    expect(screen.getByText("add-to-agent context c1")).toBeInTheDocument();
+    expect(screen.getByText("add-to-agent context c1")).toBeVisible();
   });
 });

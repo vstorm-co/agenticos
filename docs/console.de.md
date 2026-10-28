@@ -1,5 +1,5 @@
 ---
-source_sha: "0072006e4426"
+source_sha: "69d730821642"
 ---
 
 # Die Konsole { #the-console }
@@ -22,7 +22,7 @@ Seiteneinführungen und Erläuterungen zu Einstellungen sind über das Informati
 
 Bei Agenten, Skills, Context und im Ausführungsverlauf öffnet **Filter** zusätzliche Optionen auf jeder Bildschirmgröße und zeigt die Anzahl aktiver Filter.
 
-Agentenkarten zeigen Status und Zugriff direkt; Handle, Tags, Kanäle und Änderungsdatum stehen unter **Details**. Skills- und Context-Karten zeigen zunächst Name und Beschreibung; **Details** öffnet Vorschau, Zielgruppe, Nutzung und Aktionen. Organisations-, Agenten- und Projektregister haben passende Symbole. Budgetzeilen zeigen Agentenporträts.
+Agentenkarten zeigen Status und Zugriff direkt; Handle, Tags, Kanäle und Änderungsdatum stehen unter **Details**. Skills- und Context-Karten zeigen Dokumentvorschau und **Zu einem Agenten hinzufügen** direkt, mit einer kurzen Beschreibung unter der Vorschau. **Details** öffnet Freigaben, Nutzung und weitere Aktionen. Organisations-, Agenten- und Projektregister haben passende Symbole. Budgetzeilen zeigen Agentenporträts.
 
 Generierte Porträts verwenden ausgewählte Blobatar-2.7-Formen und hellere Farbtöne; ruhende Gesichter bewegen sich beim Darüberfahren, arbeitende Agenten behalten ihre Denkanimation. Hochgeladene Bilder bleiben erhalten. Neue Starteragentenbilder gehören zur gleichen Familie; vorhandene gespeicherte Bilder werden nicht automatisch ersetzt.
 

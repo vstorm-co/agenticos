@@ -54,7 +54,6 @@ keep their own workflow. Upgrading does not overwrite customized agent instructi
 previously installed gallery skills; the updated template and bundled Projects
 guide apply to new installations.
 
-
 ## Starting a chat in a project
 
 Two ways in:
@@ -141,21 +140,11 @@ Builder does an agent's, above the project's name, description and default agent
 
 ## Local folders in the desktop app
 
-When creating a desktop project, choose **Project sandbox → Computer · your files**,
-then approve a folder. The project can only be created after this native selection.
-Its shared workspace remains available to other members; this choice is personal.
+The **Files** tab separates **Shared project files** from **This computer**. A folder approved during project creation opens automatically on this installation; otherwise Shared project files opens first. Select This computer to connect a folder. Once connected, **Folder settings** changes or disconnects it; its path and access mode stay visible without repeating the setup form.
 
-In **New project**, or on an existing project's **Files** tab, choose **Connect a
-folder**. The native picker confirms access; read-only is the initial choice.
-The folder connection belongs to your account and organization on this computer,
-not to the shared project. It does not upload a copy or grant teammates access
-to your disk. Disconnecting the project leaves native grants used by other chats
-intact.
+Shared project files contains uploaded copies available to people with project access. To share a local file, select that source and upload a copy. These locations do not synchronize: editing a local file does not update an uploaded copy, and sharing project membership does not grant disk access. The **Shared project workspace** controls under Instructions change only server storage; they do not connect or disconnect a personal folder.
 
-Use **This computer** to browse local files and **Shared project files** for the
-server container. Local preview lists up to 500 entries and skips generated
-folders such as `.git` and `node_modules`. Refresh reloads the listing; a refused
-read stays an error rather than silently opening cloud files.
+The native picker confirms the folder grant, initially read-only. This connection belongs to the current account and organization on this computer. Disconnecting it leaves native grants used by other chats intact. Local preview lists up to 500 entries, skips generated folders such as `.git` and `node_modules`, and shows read failures without silently switching to cloud files.
 
 New desktop chats in the project inherit this folder and its approved access
 mode. Project instructions still apply, while sandbox tools work locally rather
@@ -173,11 +162,11 @@ A project is private to whoever created it until they share it, with the same
 **Share** dialog an agent or a skill uses: people, [departments](departments.md)
 or the whole organization, each at a level.
 
-| Grant level | Permission | What it allows |
-|---|---|---|
-| `read` | `projects:view` | See the project, its files and its instructions |
-| `use` | `projects:use` | Chat in it; add, edit, rename, move and remove files |
-| `edit` | `projects:edit` | Change its instructions and default agent, share it, delete it |
+| Grant level | Permission      | What it allows                                                 |
+| ----------- | --------------- | -------------------------------------------------------------- |
+| `read`      | `projects:view` | See the project, its files and its instructions                |
+| `use`       | `projects:use`  | Chat in it; add, edit, rename, move and remove files           |
+| `edit`      | `projects:edit` | Change its instructions and default agent, share it, delete it |
 
 Roles hold these at the usual scopes: an Owner or Admin reaches every project, a
 Builder works in and edits the ones shared with them, a Member edits their own

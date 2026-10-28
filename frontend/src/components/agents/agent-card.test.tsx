@@ -265,3 +265,11 @@ it("keeps secondary metadata behind Details while access and actions stay availa
   expect(screen.getByText("Slack")).toBeVisible();
   expect(screen.getByText("Sales")).toBeVisible();
 });
+
+it("marks archived agents without washing out their portrait", () => {
+  mount({ status: "archived" });
+  expect(screen.getByRole("link", { name: "Open Support" }).parentElement).not.toHaveClass(
+    "opacity-70",
+  );
+  expect(screen.getByText("archived")).toBeVisible();
+});

@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "20fad851d8d5"
+source_sha: "33ca3c1657e3"
 ---
 
 # Proyectos { #projects }
@@ -57,7 +57,6 @@ instalaciones existentes con herramientas de la plataforma. Otros agentes y
 clientes MCP externos mantienen su propio flujo. Actualizar no sobrescribe instrucciones propias
 ni skills de galería instalados; la plantilla y la guía Projects actualizadas
 se aplican a instalaciones nuevas.
-
 
 ## Empezar un chat en un proyecto { #starting-a-chat-in-a-project }
 
@@ -145,27 +144,18 @@ Un proyecto se abre en **Archivos**. Los archivos también se pueden soltar en
 cualquier parte de la pestaña, y cada uno muestra su progreso mientras sube; un
 proyecto vacío es un solo lugar donde soltar los primeros. **Chats** es una tabla
 de los chats del proyecto, y **Apps** las apps que publicó un run en uno de ellos
+
 - las que el lector puede abrir. Las **Instrucciones** se editan en Markdown, con
-Fuente y Vista previa, como las de un agent en el Agent Builder, encima del
-nombre, la descripción y el agent por defecto del proyecto.
+  Fuente y Vista previa, como las de un agent en el Agent Builder, encima del
+  nombre, la descripción y el agent por defecto del proyecto.
 
 ## Carpetas locales en la aplicación de escritorio { #local-folders-in-the-desktop-app }
 
-Al crear un proyecto de escritorio, elige **Project sandbox → Computer · your files**
-y autoriza una carpeta. El proyecto solo se puede crear después de esta selección
-nativa. El espacio compartido sigue disponible para otros miembros; esta elección
-es personal.
+La pestaña **Archivos** separa **Archivos compartidos del proyecto** de **Este equipo**. Una carpeta autorizada al crear el proyecto se abre automáticamente en esa instalación; sin conexión se muestran primero los archivos compartidos. Elige Este equipo para conectar una carpeta. Los ajustes de carpeta permiten cambiarla o desconectarla; ruta y modo de acceso siguen visibles sin repetir el formulario.
 
-En **Nuevo proyecto** o en la pestaña **Archivos** de un proyecto, elige
-**Conectar una carpeta**. El selector nativo confirma el acceso; inicialmente es
-solo de lectura. La conexión pertenece a tu cuenta y organización en este equipo,
-no al proyecto compartido. No sube copias ni concede acceso al disco a tus
-compañeros. Desconectarla conserva los permisos que utilizan otros chats.
+Los archivos compartidos son copias subidas para personas con acceso al proyecto. Para compartir un archivo local, elige esa fuente y sube una copia. Los lugares no se sincronizan: editar localmente no actualiza la copia subida, y compartir el proyecto no concede acceso al disco. El espacio de trabajo compartido en Instrucciones solo cambia el almacenamiento del servidor; no conecta ni desconecta carpetas personales.
 
-**Este equipo** muestra archivos locales y **Archivos compartidos del proyecto**
-el contenedor del servidor. La vista local muestra hasta 500 entradas y omite
-carpetas generadas como `.git` y `node_modules`. Actualizar vuelve a cargar la
-lista; una lectura denegada sigue siendo un error y no abre archivos de la nube.
+El selector nativo confirma el acceso, inicialmente de solo lectura. La conexión pertenece a la cuenta y organización actuales en este equipo. Desconectarla conserva permisos de otros chats. La vista muestra hasta 500 entradas, omite carpetas generadas como `.git` y `node_modules` y presenta errores de lectura sin cambiar silenciosamente a la nube.
 
 Los nuevos chats del proyecto en escritorio heredan la carpeta y el acceso
 aprobado. Las instrucciones del proyecto siguen vigentes; las herramientas del
@@ -184,11 +174,11 @@ Un proyecto es privado para quien lo creó hasta que lo comparte, con el mismo
 diálogo **Compartir** que usa un agent o un skill: personas,
 [departamentos](departments.md) o toda la organización, cada uno con un nivel.
 
-| Nivel de permiso | Permiso | Lo que permite |
-|---|---|---|
-| `read` | `projects:view` | Ver el proyecto, sus archivos y sus instrucciones |
-| `use` | `projects:use` | Chatear; añadir, editar, renombrar, mover y eliminar archivos |
-| `edit` | `projects:edit` | Cambiar sus instrucciones y su agent predeterminado, compartirlo, borrarlo |
+| Nivel de permiso | Permiso         | Lo que permite                                                             |
+| ---------------- | --------------- | -------------------------------------------------------------------------- |
+| `read`           | `projects:view` | Ver el proyecto, sus archivos y sus instrucciones                          |
+| `use`            | `projects:use`  | Chatear; añadir, editar, renombrar, mover y eliminar archivos              |
+| `edit`           | `projects:edit` | Cambiar sus instrucciones y su agent predeterminado, compartirlo, borrarlo |
 
 Los roles los tienen en los ámbitos habituales: Owner y Admin llegan a cada
 proyecto, un Builder trabaja en los que se le comparten y los edita, un Member

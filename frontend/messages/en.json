@@ -4703,6 +4703,10 @@
       "org-proactivity": {
         "title": "Proactivity",
         "body": "Configure nightly suggestions, connection watches and proactive chat greetings. Choose the model, schedule and per-person budget here."
+      },
+      "project-file-location": {
+        "title": "Your computer or shared files",
+        "body": "Computer shows your approved local folder. Shared project files contains uploaded copies for people with project access. The two locations do not synchronize automatically."
       }
     },
     "chooseLanguage": "Language",
@@ -8887,7 +8891,10 @@
       "localFiles": "This computer",
       "sharedFiles": "Shared project files",
       "refresh": "Refresh files",
-      "previewHint": "Preview up to 500 local entries. Generated folders such as node_modules and .git are skipped. Files stay on this computer."
+      "previewHint": "Preview up to 500 local entries. Generated folders such as node_modules and .git are skipped. Files stay on this computer.",
+      "manage": "Folder settings",
+      "sharedHint": "Uploaded copies are available to everyone with access to this project. Local folders are not synchronized here.",
+      "privateHint": "These files stay on your computer. Other members cannot access this folder. To share a file, choose Shared project files and upload a copy. Replies and tool results in shared project chats can still reveal file contents to that chat’s members."
     },
     "noFilesMobileHint": "Upload files to share them with the project. Every project chat can use them.",
     "fileManager": {
@@ -8920,7 +8927,7 @@
       "automaticNamed": "Automatic · {name}",
       "stored": "Stored files only",
       "storedHint": "Files are stored by the platform. Agents can read and write them, but cannot execute code here.",
-      "sharedHint": "Every chat in this project shares these files and this workspace. It replaces the sandbox configured on the answering agent.",
+      "sharedHint": "This is the shared server workspace. Other members and web/mobile chats use these files. Your personal Computer selection is separate.",
       "failed": "Could not load sandbox connections. Automatic selection and stored files are still available.",
       "configured": "Configured sandbox",
       "containerHint": "A dedicated container on this connection. It stays selected until you explicitly move the project’s files.",
@@ -8940,7 +8947,8 @@
       "moveFailed": "The transfer did not finish. The previous workspace is still selected. You can try again.",
       "moved": "Files verified and the new workspace activated.",
       "computer": "Computer · your files",
-      "computerHint": "Use a folder on this computer for your chats. This is your personal choice; other project members keep using the shared project workspace."
+      "computerHint": "Use a folder on this computer for your chats. This is your personal choice; other project members keep using the shared project workspace.",
+      "sharedWorkspace": "Shared project workspace"
     }
   },
   "voiceGlow": {
