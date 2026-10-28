@@ -276,7 +276,6 @@ fn screen_capture_allowed() -> bool {
     false
 }
 
-#[cfg(target_os = "macos")]
 const SCREEN_RECORDING_REFUSED: &str = "Allow screen recording, then restart me.";
 #[cfg(target_os = "macos")]
 const SCREEN_RECORDING_PANE: &str = "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture";
