@@ -1,17 +1,21 @@
 """The same workspace tools operate on only the resolved paired device."""
 
 import base64
+from pathlib import Path
 from unittest.mock import AsyncMock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from pydantic_ai.workspaces import (
+    Workspace,
     WorkspaceReadOnlyError,
     WorkspaceTimeoutError,
     WorkspaceUnavailableError,
+    WrapperWorkspace,
 )
 
-from app.schemas.local_target import LocalTarget
+from app.schemas.local_target import LocalMode, LocalTarget
+from app.services.channels.attachments import files_written, workspace_snapshot
 from app.services.device_hub import workspace as module
 from app.services.device_hub.exceptions import (
     DeviceCallFailed,
@@ -105,3 +109,51 @@ async def test_native_refusals_remain_workspace_errors(
     )
     with pytest.raises(WorkspaceTimeoutError, match="late"):
         await workspace.exists("a")
+
+
+@pytest.mark.parametrize("mode", ["read_only", "workspace_write", "full_access"])
+async def test_automatic_snapshots_never_ask_to_run_a_command_on_the_persons_computer(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, mode: LocalMode
+) -> None:
+    session, user = uuid4(), uuid4()
+    (tmp_path / ".existing").write_text("private", encoding="utf-8")
+    (tmp_path / "reports").mkdir()
+    operations: list[str] = []
+
+    async def rpc(
+        device: UUID, op: str, args: dict[str, object], *, timeout: float
+    ) -> dict[str, object]:
+        assert device == session
+        assert args["root"] == str(tmp_path)
+        assert args["mode"] == mode
+        assert timeout > 0
+        operations.append(op)
+        path = args["path"]
+        assert isinstance(path, str)
+        target = Path(path)
+        if op == "fs.list":
+            return {
+                "entries": [
+                    {
+                        "name": entry.name,
+                        "path": str(entry),
+                        "is_dir": entry.is_dir(),
+                        "size": entry.stat().st_size,
+                    }
+                    for entry in target.iterdir()
+                ]
+            }
+        assert op == "fs.read", "An automatic snapshot must not execute a shell command"
+        return {"data": base64.b64encode(target.read_bytes()).decode()}
+
+    monkeypatch.setattr(module._hub, "call", rpc)
+    device = module.DeviceWorkspace(session, user, LocalTarget(folder=str(tmp_path), mode=mode))
+    workspace = WrapperWorkspace(Workspace(device))
+    before = await workspace_snapshot(workspace)
+    assert before == {str(tmp_path / ".existing")}
+    (tmp_path / "reports" / "answer.txt").write_text("done", encoding="utf-8")
+    delivered = await files_written(workspace, before)
+    assert [(file.filename, file.content) for file in delivered.attachments] == [
+        ("answer.txt", b"done")
+    ]
+    assert set(operations) == {"fs.list", "fs.read"}

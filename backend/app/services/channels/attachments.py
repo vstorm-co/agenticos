@@ -40,6 +40,7 @@ from app.services.channels.base import (
     IncomingAttachment,
     OutgoingAttachment,
 )
+from app.services.device_hub import DeviceWorkspace
 from app.services.file_upload import FileUploadService
 from app.services.skill_workspace import RESERVED_SKILL_PREFIXES
 
@@ -408,7 +409,11 @@ async def _workspace_paths(workspace: Workspace) -> set[str]:
     Raises:
         RuntimeError: The `find` failed - the callers turn that into "no snapshot".
     """
-    if isinstance(workspace.backend, SupportsCommands):
+    # The person's computer prompts for every full-access shell command. A
+    # platform-owned snapshot must use its file API, never ask to run `find`.
+    if isinstance(workspace.backend, SupportsCommands) and not isinstance(
+        workspace.backend, DeviceWorkspace
+    ):
         result = await workspace.run(["find", ".", "-type", "f"])
         if result.exit_code != 0:
             raise RuntimeError(f"listing the workspace exited {result.exit_code}")
