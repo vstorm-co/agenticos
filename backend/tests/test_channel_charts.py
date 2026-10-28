@@ -280,9 +280,11 @@ class TestTheReplyAChannelTurnBuilds:
             )
         assert answered.image_png == rendered
         if rendered is None:
-            assert len(answered.refused) == 1
-            assert "could not be attached" in answered.refused[0]
+            assert len(answered.delivery_notices) == 1
+            assert "could not be attached" in answered.delivery_notices[0]
+            assert answered.refused == []
         else:
+            assert answered.delivery_notices == []
             assert answered.refused == []
 
     @pytest.mark.anyio
@@ -407,7 +409,7 @@ class TestTheTurnsPicture:
                 calls,
                 organization_id=uuid.uuid4(),
                 conversation_id=None,
-                refused=refused,
+                notices=refused,
             )
         assert (png is not None) is fallback
         assert len(refused) == 1
@@ -484,3 +486,34 @@ class TestTheTurnsPicture:
             )
             is None
         )
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("text", ["The diagram is ready.", ""])
+async def test_a_delivery_notice_reaches_the_reply_without_a_file_limit_explanation(
+    text: str,
+) -> None:
+    from app.services.channels.mentions import AnsweredTurn
+    from app.services.channels.router import ChannelMessageRouter
+
+    notice = "The visual could not be attached to this reply."
+    answered = AnsweredTurn(text=text, delivery_notices=[notice])
+
+    async def run() -> AnsweredTurn:
+        return answered
+
+    router = ChannelMessageRouter()
+    with patch.object(router, "_deliver", new=AsyncMock()) as deliver:
+        await router._run_turn(
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
+            run=run(),
+            handle=lambda: None,
+            files=[],
+            file_refusals=[],
+        )
+    reply = deliver.await_args.args[2]
+    assert notice in reply
+    assert "stayed in the workspace" not in reply
+    assert "too large" not in reply

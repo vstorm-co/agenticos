@@ -407,6 +407,12 @@ services:
     logging: *logging
     image: ghcr.io/vstorm-co/agenticos-browser:${AGENTICOS_VERSION:-latest}
     profiles: [visuals]
+    healthcheck:
+      test: ["CMD", "bash", "-ec", "exec 3<>/dev/tcp/127.0.0.1/9222; printf 'GET /json/version HTTP/1.0\r\nHost: localhost\r\n\r\n' >&3; timeout 5 cat <&3 | grep -q webSocketDebuggerUrl"]
+      interval: 10s
+      timeout: 6s
+      retries: 3
+      start_period: 30s
     shm_size: 512mb
     networks:
       - visuals

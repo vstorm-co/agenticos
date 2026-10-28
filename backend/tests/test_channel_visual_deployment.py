@@ -65,3 +65,36 @@ def test_published_backend_images_include_the_visual_rendering_client() -> None:
     assert len(builds) == 1
     assert "matrix.image == 'backend'" in builds[0]["build-args"]
     assert "EXTRAS=--extra browser" in builds[0]["build-args"]
+
+
+@pytest.mark.parametrize("enabled", [True, False])
+def test_deploy_waits_for_the_renderer_manifest_only_when_enabled(enabled: bool) -> None:
+    source = (ROOT / "scripts/deploy.sh").read_text()
+    start = source.index("IMAGES=(agenticos-backend agenticos-frontend)")
+    end = source.index('for image in "${IMAGES[@]}"', start)
+    script = source[start:end] + '\nprintf "%s\\n" "${IMAGES[@]}"'
+    result = subprocess.run(
+        [shutil.which("bash") or "/bin/bash", "-c", script],
+        env={"VISUAL_RENDERER": "true" if enabled else "false"},
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=5,
+    )
+    expected = ["agenticos-backend", "agenticos-frontend"]
+    if enabled:
+        expected.append("agenticos-browser")
+    assert result.stdout.splitlines() == expected
+
+
+def test_deploy_checks_cdp_readiness_before_reporting_success() -> None:
+    compose = yaml.safe_load((ROOT / "docker-compose-prod.yml").read_text())
+    health = compose["services"]["visual-render"]["healthcheck"]
+    assert "/json/version" in health["test"][-1]
+    assert "webSocketDebuggerUrl" in health["test"][-1]
+    assert health["start_period"] == "30s"
+    script = (ROOT / "scripts/deploy.sh").read_text()
+    readiness = script[script.index('say "Waiting for health"') :]
+    assert 'if "$VISUAL_RENDERER"; then' in readiness
+    assert 'wait_healthy visual-render "${BACKEND[@]}" "${PROFILES[@]}"' in readiness
+    assert readiness.index("wait_healthy visual-render") < readiness.index('say "Deployed')

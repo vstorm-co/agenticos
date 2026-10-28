@@ -128,13 +128,13 @@ async def drawn_picture(
     *,
     organization_id: UUID,
     conversation_id: UUID | None,
-    refused: list[str] | None = None,
+    notices: list[str] | None = None,
 ) -> bytes | None:
     """The last picture this turn made: a chart, or a visual the deployment's browser drew.
 
     A reply carries one image, so it is the *last* of either kind. A visual with
     no browser to draw it with gives none, and records a delivery notice in
-    `refused` so the channel does not silently confirm a missing picture.
+    `notices` so the channel does not silently confirm a missing picture.
     """
     for call in reversed(called):
         if call.result is None:
@@ -151,14 +151,14 @@ async def drawn_picture(
             )
             if picture is not None:
                 return picture
-            if refused is not None:
-                refused.append(
+            if notices is not None:
+                notices.append(
                     "The visual could not be attached to this reply. It is saved in the "
                     "conversation in AgenticOS. Ask the deployment operator to check the "
                     "visual renderer."
                 )
                 # One failed render already covered all this turn's visuals.
-                refused = None
+                notices = None
     return None
 
 
@@ -242,6 +242,9 @@ class AnsweredTurn:
     attachments: list[OutgoingAttachment] = field(default_factory=list)
     refused: list[str] = field(default_factory=list)
     """Produced files the reply names instead of carrying."""
+
+    delivery_notices: list[str] = field(default_factory=list)
+    """Delivery failures, already phrased for the reader rather than as file paths."""
 
     awaiting_approval_run_id: UUID | None = None
     """The run parked on a decision, when that is how the turn ended.
@@ -401,6 +404,7 @@ class ChannelAgentRouter:
 
         produced: list[OutgoingAttachment] = []
         refused: list[str] = []
+        notices: list[str] = []
         called: list[RecordedToolCall] = []
         answer, run = await self.runner.execute(
             ctx,
@@ -447,11 +451,12 @@ class ChannelAgentRouter:
             ),
             attachments=produced,
             refused=refused,
+            delivery_notices=notices,
             image_png=await drawn_picture(
                 called,
                 organization_id=run.organization_id,
                 conversation_id=run.conversation_id,
-                refused=refused,
+                notices=notices,
             ),
             awaiting_approval_run_id=(
                 run.id if run.status == RunStatus.AWAITING_APPROVAL else None
@@ -524,6 +529,7 @@ class ChannelAgentRouter:
         )
         produced: list[OutgoingAttachment] = []
         refused: list[str] = []
+        notices: list[str] = []
         called: list[RecordedToolCall] = []
         answer, run = await self.runner.execute(
             ctx,
@@ -564,11 +570,12 @@ class ChannelAgentRouter:
             ),
             attachments=produced,
             refused=refused,
+            delivery_notices=notices,
             image_png=await drawn_picture(
                 called,
                 organization_id=run.organization_id,
                 conversation_id=run.conversation_id,
-                refused=refused,
+                notices=notices,
             ),
             awaiting_approval_run_id=(
                 run.id if run.status == RunStatus.AWAITING_APPROVAL else None

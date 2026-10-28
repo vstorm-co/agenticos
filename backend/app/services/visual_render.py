@@ -23,7 +23,7 @@ from app.core.config import settings
 from app.core.exceptions import ExternalServiceError, NotFoundError
 from app.repositories.conversation import ToolCallArgs
 from app.services import artifact as artifacts
-from app.services import tile_proxy
+from app.services import rate_limit, tile_proxy
 from app.services import visual as visuals
 from app.services.visual import VISUAL_RUNTIME, VISUAL_TOOLS, VisualKind, visual_document
 
@@ -34,6 +34,26 @@ RENDER_TIMEOUT = 20.0
 
 MAX_HEIGHT = 2400
 """The tallest picture taken, in CSS pixels; a longer page is cut there."""
+
+MAX_REQUESTS = 256
+MAX_PENDING_REQUESTS = 32
+"""Per picture: bound both total requests and tasks holding response bytes."""
+
+
+@dataclass
+class RenderRequestBudget:
+    """Admission before creating a request task; overflow stops the whole render."""
+
+    admitted: int = 0
+    exceeded: bool = False
+
+    def admit(self, pending: int) -> bool:
+        if self.exceeded or self.admitted >= MAX_REQUESTS or pending >= MAX_PENDING_REQUESTS:
+            self.exceeded = True
+            return False
+        self.admitted += 1
+        return True
+
 
 _LEAD = re.compile(r"\A(?:﻿)?(?:\s+|<!--(?:[^-]|-(?!->))*-->)*(?:<!doctype\b[^>]*>)?", re.I)
 
@@ -99,6 +119,13 @@ async def answer(url: str, document: bytes) -> Answer:
         # picture of a map has its streets.
         found = _TILE.fullmatch(url[len(tiles_prefix) :].split("?", 1)[0])
         if found is not None:
+            allowance = await rate_limit.consume(
+                surface="map_tiles",
+                caller="visual-renderer",
+                limit=rate_limit.Limit(attempts=settings.RATE_LIMIT_MAP_TILES_PER_MINUTE),
+            )
+            if not allowance.allowed:
+                return Answer(body=None)
             try:
                 data, media_type = await tile_proxy.tile(*map(int, found.groups()))
             except NotFoundError, ExternalServiceError:
@@ -235,6 +262,7 @@ async def _photograph(  # pragma: no cover - needs a live browser
     client = CDPClient(socket)
     await client.start()
     pending: set[asyncio.Task[Any]] = set()
+    budget = RenderRequestBudget()
     context_id: str | None = None
     target: str | None = None
     try:
@@ -274,7 +302,7 @@ async def _photograph(  # pragma: no cover - needs a live browser
             )
 
         def paused(event: dict[str, Any], session_id: str | None) -> None:
-            if session_id == session:
+            if session_id == session and budget.admit(len(pending)):
                 task = asyncio.ensure_future(respond(event["requestId"], event["request"]["url"]))
                 pending.add(task)
                 task.add_done_callback(pending.discard)
@@ -305,6 +333,8 @@ async def _photograph(  # pragma: no cover - needs a live browser
         )
         await client.send.Page.navigate(params={"url": page_url()}, session_id=session)
         while True:
+            if budget.exceeded:
+                raise RenderUnavailableError("The drawing exceeded its request limit.")
             flag = await client.send.Runtime.evaluate(
                 params={"expression": "window.__agenticosRendered === true", "returnByValue": True},
                 session_id=session,
@@ -335,8 +365,12 @@ async def _photograph(  # pragma: no cover - needs a live browser
         )
         return base64.b64decode(shot["data"])
     finally:
-        for task in pending:
+        remaining = tuple(pending)
+        for task in remaining:
             task.cancel()
+        for outcome in await asyncio.gather(*remaining, return_exceptions=True):
+            if isinstance(outcome, Exception):
+                logger.warning("visual_render_request_failed", exc_info=outcome)
         if target is not None:
             try:
                 await client.send.Target.closeTarget(params={"targetId": target})
