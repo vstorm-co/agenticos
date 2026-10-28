@@ -630,6 +630,8 @@ class TestChannelRatingAuthors:
 
 class TestSkillBindingAvailability:
     def test_removing_the_switch_preserves_skills_and_rolls_back_on_populated_tables(self):
+        reset = _alembic("downgrade", "base")
+        assert reset.returncode == 0, reset.stderr
         before = _alembic("upgrade", "0179_session_push_preferences")
         assert before.returncode == 0, before.stderr
         engine = create_engine(_url(MIGRATION_DATABASE))
