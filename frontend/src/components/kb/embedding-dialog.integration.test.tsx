@@ -286,3 +286,44 @@ it("says before saving that an endpoint does not serve the collection's model", 
   ).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
 });
+
+it("holds Save until the endpoint has said whether it serves the model", async () => {
+  // The warning above arrives after a debounce and a request; a Save pressed in
+  // between would post the address the dialog is about to warn about.
+  mayManage = true;
+  let answer: (value: unknown) => void = () => {};
+  vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+    if (path === "/rag/embedding-models") return MODELS;
+    if (path.startsWith("/rag/embedding-models/openrouter?base_url="))
+      return new Promise((resolve) => {
+        answer = resolve;
+      });
+    if (path === "/me/permissions")
+      return {
+        organization_id: "org-1",
+        role: "builder",
+        is_app_admin: false,
+        permissions: [{ permission: "connections:manage", scope: "all" }],
+      };
+    return { items: [], total: 0 };
+  });
+  show({ ...KB, embedding_secret_id: "openrouter-key" });
+  await userEvent.type(await screen.findByLabelText("Endpoint"), "https://eu.openrouter.ai/api/v1");
+
+  expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+  await waitFor(() =>
+    expect(
+      vi
+        .mocked(apiClient.get)
+        .mock.calls.some(([path]) => String(path).startsWith("/rag/embedding-models/openrouter")),
+    ).toBe(true),
+  );
+  expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+
+  answer({
+    provider: "openrouter",
+    models: [{ model: "text-embedding-3-small", dim: 1536 }],
+    source: "live",
+  });
+  await waitFor(() => expect(screen.getByRole("button", { name: "Save" })).toBeEnabled());
+});

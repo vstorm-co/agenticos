@@ -381,7 +381,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
             </Button>
             <Button
               type="submit"
-              disabled={!canSubmit || isSubmitting}
+              disabled={!canSubmit || isSubmitting || checkingEndpoint}
               data-tour="kb-dialog-create"
             >
               {isSubmitting ? t("creating") : t("create")}

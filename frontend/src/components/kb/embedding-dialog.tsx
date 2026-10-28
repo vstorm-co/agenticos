@@ -84,7 +84,7 @@ export function EmbeddingDialog({
   );
   // The model cannot follow a move, so an endpoint that lists its models and
   // leaves this one out is refused on save - said here, before it is.
-  const { served } = useEndpointEmbeddingModels(provider, baseUrl);
+  const { served, checking } = useEndpointEmbeddingModels(provider, baseUrl);
   const endpointLacksModel =
     served?.source === "live" && !served.models.some((entry) => entry.model === kb.embedding_model);
   const moved =
@@ -187,7 +187,11 @@ export function EmbeddingDialog({
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             {t("cancel")}
           </Button>
-          <Button type="button" onClick={save} disabled={!moved || isSaving || endpointLacksModel}>
+          <Button
+            type="button"
+            onClick={save}
+            disabled={!moved || isSaving || checking || endpointLacksModel}
+          >
             {isSaving ? t("saving") : t("save")}
           </Button>
         </DialogFooter>

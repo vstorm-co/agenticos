@@ -59,6 +59,14 @@ this one and the id has to be typed, which is true (#923).
 """
 
 
+class MalformedCatalog(ValueError):
+    """A provider answered with something that is not a model catalog.
+
+    A ValueError like the other malformed answers - bad JSON, oversized fields -
+    so a caller can tell a provider's bad response from a defect here by type.
+    """
+
+
 @dataclass(frozen=True, slots=True)
 class CatalogModel:
     """One model, as a picker needs it."""
@@ -222,9 +230,12 @@ def cached_listing(provider: str) -> tuple[CatalogModel, ...]:
 
 def _read_listing(payload: Any, spec: ListingSpec, *, bounded: bool = False) -> list[CatalogModel]:
     """Turn one provider's response into models, skipping rows it cannot read."""
-    rows = payload if spec.array_path == "" else payload.get(spec.array_path)
+    if spec.array_path == "":
+        rows = payload
+    else:
+        rows = payload.get(spec.array_path) if isinstance(payload, dict) else None
     if not isinstance(rows, list):
-        raise TypeError(f"Expected a list at {spec.array_path or '<root>'}")
+        raise MalformedCatalog(f"Expected a list at {spec.array_path or '<root>'}")
 
     if bounded and len(rows) > MAX_CATALOG_MODELS:
         raise ValueError("The model catalog has too many entries")
@@ -445,7 +456,7 @@ async def embedding_models_at(base_url: str) -> tuple[CatalogModel, ...] | None:
 
     An empty tuple is an answer - the endpoint serves no embedding model - and
     None is the absence of one, which the caller must not read as "serves
-    nothing".
+    nothing". Only a failed request or a malformed response is None.
 
     Args:
         base_url: A validated OpenRouter endpoint, authorized by the caller.
@@ -454,7 +465,11 @@ async def embedding_models_at(base_url: str) -> tuple[CatalogModel, ...] | None:
     spec = replace(LISTINGS["openrouter"], url=f"{endpoint}/models?output_modalities=embeddings")
     try:
         models = await _listed(f"openrouter:embeddings:{endpoint}", spec, None, custom=True)
-    except Exception:
+    except httpx.HTTPError, ValueError:
+        # Unreachable, refused, or answered with something that is not a
+        # catalog - the endpoint's problem, and an unanswered question. Anything
+        # else is a defect here and propagates: read as "unconfirmed" it would
+        # let the validation this answer feeds wave every model through.
         logger.warning("Could not list the embedding models of a custom OpenRouter endpoint")
         return None
     return tuple(models)

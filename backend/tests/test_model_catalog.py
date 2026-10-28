@@ -777,3 +777,30 @@ class TestTheOrderAPickerShows:
             "openai/gpt-5:batch",
             "openai/gpt-5.1",
         ]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "body",
+    [{"data": {"not": "a list"}}, [{"id": "a/b"}], "not json at all"],
+    ids=["no-list", "bare-array", "not-json"],
+)
+async def test_an_endpoint_answering_something_that_is_not_a_catalog_is_no_answer(body):
+    def respond(request: httpx.Request) -> httpx.Response:
+        if isinstance(body, str):
+            return httpx.Response(200, content=body.encode())
+        return httpx.Response(200, json=body)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        with patch(f"{MODULE}._client", return_value=client):
+            assert await model_catalog.embedding_models_at("https://x.example/v1") is None
+
+
+@pytest.mark.anyio
+async def test_a_defect_while_listing_embedding_models_is_not_read_as_unconfirmed():
+    """Swallowed, it would let `require_served_at` wave every model through."""
+    with (
+        patch(f"{MODULE}._fetch", AsyncMock(side_effect=AttributeError("a bug"))),
+        pytest.raises(AttributeError),
+    ):
+        await model_catalog.embedding_models_at("https://x.example/v1")

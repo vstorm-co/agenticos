@@ -49,12 +49,16 @@ export function useEmbeddingProviders() {
  * debounced so typing an address is not a request per keystroke.
  *
  * `served` is undefined while there is nothing to ask or no answer yet; the
- * caller then offers the provider's catalog, which is what the global address serves.
+ * caller then offers the provider's catalog, which is what the global address
+ * serves. `checking` is true from the first keystroke until the answer for the
+ * address now in the field arrives, and a form saving an endpoint waits on it.
  */
 export function useEndpointEmbeddingModels(provider: string, baseUrl: string) {
   const { can } = usePermissions();
-  const url = useDebounced(baseUrl.trim().replace(/\/+$/, ""));
-  const asks = provider === "openrouter" && url !== "" && can(Perm.connectionsManage);
+  const typed = baseUrl.trim().replace(/\/+$/, "");
+  const url = useDebounced(typed);
+  const mayAsk = provider === "openrouter" && can(Perm.connectionsManage);
+  const asks = mayAsk && url !== "";
   const { data, isFetching } = useQuery({
     queryKey: ["rag", "embedding-models", provider, url],
     queryFn: () =>
@@ -66,7 +70,10 @@ export function useEndpointEmbeddingModels(provider: string, baseUrl: string) {
     // A half-typed address is refused, and the next keystroke asks again.
     retry: false,
   });
-  return { served: asks ? data : undefined, checking: asks && isFetching };
+  // Still settling counts as checking, so a form cannot save the address it is
+  // about to warn about: the debounce has not caught up, or the answer is in flight.
+  const checking = mayAsk && typed !== "" && (typed !== url || isFetching);
+  return { served: asks && typed === url ? data : undefined, checking };
 }
 
 /**
