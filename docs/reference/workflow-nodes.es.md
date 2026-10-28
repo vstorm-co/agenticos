@@ -1,5 +1,5 @@
 ---
-source_sha: "d4b30e7a0a40"
+source_sha: "fbb39eddaab3"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -424,8 +424,10 @@ ejecuta los dos primeros tal cual.
 puerto `true` o `false`. Cada nodo de la rama no tomada queda registrado como
 `skipped`. `logic.merge` vuelve a unir las dos ramas. Se ejecuta cuando la rama
 tomada llega a él y pasa la salida de esa rama como `value`. Publicar comprueba
-que las entradas de un merge salen de un mismo `logic.if` por puertos distintos,
-de modo que siempre se ejecuta exactamente una de ellas.
+que las entradas de un merge salen de un mismo paso por puertos distintos y que
+ese paso toma exactamente un puerto en cada run - un If / else, un Switch, una
+decisión, `ai.classify`, una comprobación de tabla o una aprobación -, de modo que
+siempre se ejecuta exactamente una de ellas.
 
 Las expresiones pueden seleccionar, filtrar y comparar, y llamar a un conjunto
 fijo de funciones puras: `abs`, `avg`, `ceil`, `contains`, `ends_with`,
@@ -511,6 +513,10 @@ Sin mínimo no se pide un número al modelo, el prompt no cambia, `confidence` e
 null y siempre gana la categoría. Una respuesta sin número nunca sale por
 `unsure`, y mientras exista el puerto, `unsure` no puede ser el nombre de una
 categoría.
+
+El paso sale por exactamente un puerto, así que un `logic.merge` puede volver a
+unir sus ramas: llevar `unsure` y una categoría por el mismo camino, o dos
+categorías a un mismo paso de registro.
 
 ::: app.workflows.nodes.ai_classify._handler.AiClassifyConfig
 

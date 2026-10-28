@@ -323,12 +323,14 @@ def test_the_question_is_the_one_fields_description():
         ("decide.yes_no", True),
         ("decide.choose", True),
         ("decide.score", True),
+        ("ai.classify", True),
         ("control.foreach", False),
     ],
 )
 def test_a_merge_may_rejoin_a_decision_steps_branches(definition_id, exclusive):
-    """A decision takes exactly one of its ports per run, as `logic.if` does, so its
-    branches are exclusive and a merge after them publishes; a loop's are not."""
+    """A decision or a classification takes exactly one of its ports per run, as
+    `logic.if` does, so its branches are exclusive and a merge after them
+    publishes; a loop's are not."""
     from app.workflows import _registry
     from app.workflows.graph.model import NodeInstance, NodePosition
     from app.workflows.graph.validate import _branches_exclusively

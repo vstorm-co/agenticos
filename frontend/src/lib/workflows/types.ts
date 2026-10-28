@@ -59,6 +59,8 @@ export interface NodeDefinition {
   scopes: string[];
   /** Whether the node exists only inside a `control.foreach` body (`loop.item`, `loop.yield`). */
   loop_body_only?: boolean;
+  /** Whether the node leaves by exactly one output port per run, so a merge may rejoin its branches. */
+  exclusive_branches?: boolean;
 }
 
 /** Every registered node type — the palette's backing list. Mirrors `NodeCatalog`. */

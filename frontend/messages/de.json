@@ -6637,6 +6637,7 @@
         "stepTime": "Mittlere Dauer",
         "stepCost": "Kosten",
         "stepGone": "Ein Schritt, den der Workflow nicht mehr hat",
+        "showRemoved": "Entfernte Schritte zeigen",
         "approvalsHeading": "Freigaben",
         "approvalsHint": "Wie über die Anfragen der Freigabeschritte dieses Workflows entschieden wurde, im selben Zeitraum.",
         "approvalsUnchanged": "Wie vorgeschlagen freigegeben",

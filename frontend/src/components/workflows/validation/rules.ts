@@ -36,22 +36,6 @@ import { isTrigger } from "@/lib/workflows/triggers";
 import { definitionFor, forwardEdges, kahn, nodeIds, type DefinitionMap } from "./topology";
 import type { RawProblem } from "./types";
 
-/**
- * The steps that leave by exactly one output port on every run, so a merge may
- * rejoin their branches - `validate.py`'s `EXCLUSIVE_BRANCHING`, less
- * `error.handle`, whose branches the client does not mirror.
- */
-const EXCLUSIVE_BRANCHING: ReadonlySet<string> = new Set([
-  "logic.if",
-  "logic.switch",
-  "decide.yes_no",
-  "decide.choose",
-  "decide.score",
-  "table.exists",
-  "table.record.exists",
-  "human.approval",
-]);
-
 function node(nodeId: string, code: RawProblem["code"], params?: RawProblem["params"]): RawProblem {
   return { nodeId, edgeId: null, field: null, code, params };
 }
@@ -282,7 +266,9 @@ export function rule5ExclusiveMerge(
       continue;
     }
     const commonDefinition = definitionFor(definitions, common);
-    if (commonDefinition === null || !EXCLUSIVE_BRANCHING.has(commonDefinition.id)) {
+    // The catalog's `exclusive_branches`, as `validate.py` reads it; a node that
+    // routes its errors is exclusive too, but the client does not mirror that.
+    if (commonDefinition === null || commonDefinition.exclusive_branches !== true) {
       problems.push(node(n.id, "merge-not-from-if"));
       continue;
     }

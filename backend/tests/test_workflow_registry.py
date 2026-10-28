@@ -127,3 +127,15 @@ class TestSelfLoading:
             "print(len(all_node_definitions()) > 0)"
         )
         assert output == "True"
+
+
+def test_a_node_claiming_exclusive_branches_chooses_its_port():
+    """`exclusive_branches` lets a merge rejoin the node's branches, which holds only
+    when `routes` picks one port; a definition without `routes` leaves by every
+    output port, so claiming it there would let publish accept a merge that waits
+    on two branches at once."""
+    exclusive = [d for d in all_node_definitions() if d.exclusive_branches]
+
+    assert exclusive
+    assert [d.id for d in exclusive if d.routes is None] == []
+    assert "control.foreach" not in {d.id for d in exclusive}

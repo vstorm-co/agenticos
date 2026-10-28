@@ -33,6 +33,7 @@ register(
         retry_guarantee="idempotent",
         handler=handle,
         routes=routes,
+        exclusive_branches=True,
         ports_for=ports_for,
         resource_check=check_resources,
     )

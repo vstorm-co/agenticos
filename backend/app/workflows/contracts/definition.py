@@ -122,3 +122,8 @@ class NodeDefinition:
     loop_body_only: bool = False
     """Whether the node exists only inside a `control.foreach` body - `loop.item`
     and `loop.yield`, which mean nothing outside an iteration."""
+    exclusive_branches: bool = False
+    """Whether `routes` always answers with exactly one output port, so a
+    `logic.merge` may rejoin the node's branches - `logic.if`, a decision, a
+    classification. `control.foreach` routes too, but leaves by `body` and
+    `done` in one run, so it is not exclusive."""

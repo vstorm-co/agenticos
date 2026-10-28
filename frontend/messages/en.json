@@ -5255,6 +5255,7 @@
         "stepTime": "Average time",
         "stepCost": "Cost",
         "stepGone": "A step no longer in the workflow",
+        "showRemoved": "Show removed steps",
         "approvalsHeading": "Approvals",
         "approvalsHint": "How people decided what this workflow's approval steps asked, over the same days.",
         "approvalsUnchanged": "Approved as proposed",

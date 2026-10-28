@@ -86,6 +86,12 @@ export type WorkflowFlowEdge = Edge<WorkflowEdgeData>;
 
 const NO_IDS: ReadonlySet<string> = new Set();
 
+/** A node's size as xyflow measured it on the canvas. */
+export interface MeasuredSize {
+  width: number;
+  height: number;
+}
+
 /**
  * Project the graph's nodes into `@xyflow/react` nodes. `type` is the node's
  * `kind` bucket, so the matching component in `nodeTypes` renders it; the
@@ -95,18 +101,26 @@ const NO_IDS: ReadonlySet<string> = new Set();
  * every edit, and a controlled `<ReactFlow>` takes `selected` from the node it is
  * handed - so a node without the flag reads as deselected, and typing in the
  * property panel (which edits the graph) would close the panel it is typing in.
+ *
+ * `measuredOf` is the size xyflow last measured for a node, carried onto the
+ * rebuilt one for the same reason: a node handed over without `measured` loses
+ * its handle bounds, xyflow draws no wire into it until it measures again, and
+ * every wire into a rebuilt node remounts - its label hidden for a frame, so on
+ * a resize, which rebuilds the nodes on every move, all the labels blink.
  */
 export function toFlowNodes(
   graph: WorkflowGraph,
   definitions: Map<string, NodeDefinition | null>,
   readOnly: boolean,
   selectedIds: ReadonlySet<string> = NO_IDS,
+  measuredOf: (nodeId: string) => MeasuredSize | undefined = () => undefined,
 ): WorkflowFlowNode[] {
   const bodySizes = new Map(
     graph.scopes.map((scope) => [scope.scope_node_id, scope.body_node_ids.length] as const),
   );
   return graph.nodes.map((instance) => {
     const definition = definitions.get(instance.id) ?? null;
+    const measured = measuredOf(instance.id);
     return {
       id: instance.id,
       type: definition?.kind ?? "action",
@@ -118,6 +132,7 @@ export function toFlowNodes(
       // A step somebody resized: the size is the node's, so the card fills it.
       ...(instance.layout.width != null ? { width: instance.layout.width } : {}),
       ...(instance.layout.height != null ? { height: instance.layout.height } : {}),
+      ...(measured !== undefined ? { measured } : {}),
       selected: selectedIds.has(instance.id),
       data: { instance, definition, readOnly, bodySize: bodySizes.get(instance.id) ?? 0 },
     };

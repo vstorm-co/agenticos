@@ -399,8 +399,10 @@ runs the first two as written.
 down the `true` or the `false` port. Every node on the untaken branch is
 recorded as `skipped`. `logic.merge` rejoins the two branches. It runs once the
 taken branch reaches it and passes that branch's output on as `value`.
-Publishing checks that a merge's inputs leave one `logic.if` through different
-ports, so exactly one of them ever runs.
+Publishing checks that a merge's inputs leave one step through different ports,
+and that the step takes exactly one port per run - an If / else, a Switch, a
+decision, `ai.classify`, a table check or an approval - so exactly one of them
+ever runs.
 
 Expressions can select, filter and compare, and call a fixed set of pure
 functions: `abs`, `avg`, `ceil`, `contains`, `ends_with`, `floor`, `join`,
@@ -482,6 +484,9 @@ carrying the same output, so the `category` is still there for the workflow to u
 Without a minimum the model is not asked for a number, the prompt is unchanged,
 `confidence` is null and the category always wins. An answer with no number never
 leaves by `unsure`, and while the port exists `unsure` cannot be a category name.
+
+The step leaves by exactly one port, so a `logic.merge` can rejoin its branches:
+send `unsure` and a category down one path, or two categories to one log step.
 
 ::: app.workflows.nodes.ai_classify._handler.AiClassifyConfig
 

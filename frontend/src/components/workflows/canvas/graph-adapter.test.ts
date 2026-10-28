@@ -124,6 +124,20 @@ describe("graph-adapter", () => {
     expect(flow[2]).not.toHaveProperty("height");
   });
 
+  it("keeps the size xyflow measured for a node it rebuilds, and none for one it never measured", () => {
+    // Without `measured` xyflow drops the node's handle bounds and remounts every wire into it.
+    const graph = graphOf([instance("a", "act", 1), instance("b", "act", 1)]);
+    const flow = toFlowNodes(
+      graph,
+      definitionsByNode(graph, buildCatalogMap([ACTION])),
+      false,
+      undefined,
+      (nodeId) => (nodeId === "a" ? { width: 260, height: 120 } : undefined),
+    );
+    expect(flow[0]).toMatchObject({ measured: { width: 260, height: 120 } });
+    expect(flow[1]).not.toHaveProperty("measured");
+  });
+
   it("classifies an edge as error, branch or data", () => {
     expect(edgeVariant(ERROR_PORT_ID, ACTION)).toEqual({ variant: "error", label: null });
     expect(edgeVariant("then", CONTROL)).toEqual({ variant: "branch", label: "Then" });

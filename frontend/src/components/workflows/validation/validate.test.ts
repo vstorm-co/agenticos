@@ -103,6 +103,7 @@ const LETTER_SINK = makeDefinition({
 const IF = makeDefinition({
   id: "logic.if",
   kind: "control",
+  exclusive_branches: true,
   ports: [
     port("in", "input", null),
     port("then", "output", null),
@@ -112,10 +113,22 @@ const IF = makeDefinition({
 const YES_NO = makeDefinition({
   id: "decide.yes_no",
   kind: "control",
+  exclusive_branches: true,
   ports: [
     port("in", "input", null),
     port("yes", "output", null),
     port("no", "output", null),
+    port("unsure", "output", null),
+  ],
+});
+const CLASSIFY = makeDefinition({
+  id: "ai.classify",
+  kind: "control",
+  exclusive_branches: true,
+  ports: [
+    port("in", "input", null),
+    port("needs_reply", "output", null),
+    port("other", "output", null),
     port("unsure", "output", null),
   ],
 });
@@ -167,6 +180,7 @@ const CATALOG = makeCatalog([
   WEBHOOK,
   SCHEDULE,
   YES_NO,
+  CLASSIFY,
   DEBUG_ECHO,
   CONSUMER,
   CONSUMER_NOREQ,
@@ -251,6 +265,27 @@ describe("drift parity — happy graphs the backend publishes", () => {
         edge("e3", "ask", "no", "no", "in"),
         edge("e4", "yes", "out", "m", "in"),
         edge("e5", "no", "out", "m", "in"),
+      ],
+    });
+    expect(run(g)).toEqual([]);
+  });
+
+  it("a merge from a classify step's category and its unsure port", () => {
+    const g = graph({
+      entry: "entry",
+      nodes: [
+        echo("entry"),
+        node("sort", "ai.classify"),
+        echo("reply"),
+        echo("unsure"),
+        node("m", "logic.merge"),
+      ],
+      edges: [
+        edge("e1", "entry", "out", "sort", "in"),
+        edge("e2", "sort", "needs_reply", "reply", "in"),
+        edge("e3", "sort", "unsure", "unsure", "in"),
+        edge("e4", "reply", "out", "m", "in"),
+        edge("e5", "unsure", "out", "m", "in"),
       ],
     });
     expect(run(g)).toEqual([]);

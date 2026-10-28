@@ -3610,6 +3610,7 @@
         "stepTime": "Średni czas",
         "stepCost": "Koszt",
         "stepGone": "Krok, którego nie ma już w workflow",
+        "showRemoved": "Pokaż usunięte kroki",
         "approvalsHeading": "Zatwierdzenia",
         "approvalsHint": "Jak ludzie rozstrzygali to, o co pytały kroki zatwierdzania tego workflow, w tym samym okresie.",
         "approvalsUnchanged": "Zatwierdzone bez zmian",

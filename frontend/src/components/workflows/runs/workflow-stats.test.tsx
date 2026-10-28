@@ -58,7 +58,7 @@ function approvalStep(overrides: Partial<WorkflowApprovalStep> = {}): WorkflowAp
     ...none,
     node_instance_id: "a1",
     label: "Review the reply",
-    definition_id: null,
+    definition_id: "human.approval",
     ...overrides,
   };
 }
@@ -179,15 +179,22 @@ describe("WorkflowStats", () => {
     expect(screen.getByText("$0.5000 this month, test runs included")).toBeVisible();
   });
 
-  it("lists the steps costliest first, naming one by its type or as gone", () => {
+  it("lists the steps costliest first, naming one by its type, and a removed one when asked", async () => {
     render(<WorkflowStats workflowId="wf" />);
+    const names = () =>
+      screen
+        .getAllByRole("row")
+        .slice(1)
+        .map((row) => within(row).getAllByRole("cell")[0]!.textContent);
+    expect(names()).toEqual(["Run an agent", "Classify"]);
 
+    const toggle = screen.getByRole("button", { name: "Show removed steps" });
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(toggle);
+
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    expect(names()).toEqual(["Run an agent", "Classify", "A step no longer in the workflow"]);
     const rows = screen.getAllByRole("row").slice(1);
-    expect(rows.map((row) => within(row).getAllByRole("cell")[0]!.textContent)).toEqual([
-      "Run an agent",
-      "Classify",
-      "A step no longer in the workflow",
-    ]);
     expect(within(rows[0]!).getAllByRole("cell")[2]).toHaveClass("text-destructive");
     expect(within(rows[0]!).getAllByRole("cell")[3]).toHaveTextContent("-");
     expect(within(rows[2]!).getAllByRole("cell")[4]).toHaveTextContent("$0.00");
@@ -317,6 +324,32 @@ describe("WorkflowStats", () => {
     expect(figure(section, "Approved as proposed")).toHaveTextContent("-0 of 0 approved");
     expect(figure(section, "Time to decide")).toHaveTextContent("-95% within -");
     expect(within(section).queryByRole("table")).toBeNull();
+  });
+
+  it("hides a removed approval step until the By step switch shows it", async () => {
+    state.stats = stats({
+      approvals: approvals({
+        steps: [
+          approvalStep(),
+          approvalStep({ node_instance_id: "s3", label: null, definition_id: null }),
+        ],
+      }),
+    });
+    render(<WorkflowStats workflowId="wf" />);
+    const table = () =>
+      within(screen.getByRole("region", { name: "Approvals" })).getByRole("table");
+    expect(within(table()).getAllByRole("row")).toHaveLength(2);
+
+    await userEvent.click(screen.getByRole("button", { name: "Show removed steps" }));
+
+    expect(within(table()).getAllByRole("row")).toHaveLength(3);
+  });
+
+  it("offers no toggle when every step is still in the workflow", () => {
+    state.stats = stats({ steps: stats().steps.filter((step) => step.definition_id !== null) });
+    render(<WorkflowStats workflowId="wf" />);
+
+    expect(screen.queryByRole("button", { name: /removed step/ })).toBeNull();
   });
 
   it("shows no approvals section for a workflow without approvals", () => {

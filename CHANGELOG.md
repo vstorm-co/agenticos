@@ -28,6 +28,9 @@ Two things are versioned separately from this file and worth knowing about:
   toolbar) keeps the neutral look, per browser. A selected step can be resized
   by its right edge, bottom edge or corner, its text wrapping into the space, and
   **Reset size** in its right-click menu undoes it.
+- **Removed steps stay out of a workflow's Stats card.** A step taken out of the
+  workflow keeps its past runs, but its rows in **By step** and **Approvals** are
+  hidden until **Show removed steps** in **By step** brings them back.
 - **Approval outcomes on a workflow's Stats card.** An **Approvals** section sums
   up how people decided what the workflow asked them: approved as proposed, edited
   with the median change (each edit's `edit_ratio` is measured once when it is
@@ -812,6 +815,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- A `logic.merge` can rejoin `ai.classify`'s branches - `unsure` with a category,
+  or two categories - where publish refused it, although the step always leaves by
+  exactly one port. A node now declares `exclusive_branches` when it registers,
+  the node catalog carries it, and both the server and the editor read it instead
+  of a list of node ids each kept by hand.
 - Reserve workflow inputs, test snapshots and Wait payloads before storing them;
   authenticate resume links before reading bodies. Backfill retained byte counters
   with migration `0232_workflow_input_bytes.py` while API and worker writers stop.

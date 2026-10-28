@@ -28,6 +28,7 @@ register(
         retry_guarantee="idempotent",
         handler=handle,
         routes=routes,
+        exclusive_branches=True,
         resource_check=check_key,
     )
 )

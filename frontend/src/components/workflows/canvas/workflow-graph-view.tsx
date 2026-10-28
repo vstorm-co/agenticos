@@ -7,6 +7,7 @@ import {
   MiniMap,
   ReactFlow,
   useReactFlow,
+  useStoreApi,
 } from "@xyflow/react";
 import {
   useCallback,
@@ -120,6 +121,7 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
   const insert = useInsertNode(catalog);
 
   const { screenToFlowPosition, fitView, getZoom, flowToScreenPosition } = useReactFlow();
+  const flowStore = useStoreApi();
 
   const [connectSource, setConnectSource] = useState<ConnectEndpoint | null>(null);
   const regionRef = useRef<HTMLElement>(null);
@@ -141,11 +143,16 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
   const selectedNodeIds = useMemo(() => new Set(selection.nodeIds), [selection.nodeIds]);
   const selectedEdgeIds = useMemo(() => new Set(selection.edgeIds), [selection.edgeIds]);
   const nodes = useMemo(() => {
+    const { nodeLookup } = flowStore.getState();
     const steps: Array<WorkflowFlowNode | CanvasNoteNode> = toFlowNodes(
       activeGraph,
       definitions,
       readOnly,
       selectedNodeIds,
+      (nodeId) => {
+        const { width, height } = nodeLookup.get(nodeId)?.measured ?? {};
+        return width !== undefined && height !== undefined ? { width, height } : undefined;
+      },
     );
     // Notes sit on the workflow's own canvas, never inside a loop body.
     if (scopePath.length > 0) return steps;
@@ -161,7 +168,7 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
       data: { note, readOnly },
     }));
     return [...notes, ...steps];
-  }, [activeGraph, definitions, readOnly, selectedNodeIds, scopePath, graph]);
+  }, [activeGraph, definitions, readOnly, selectedNodeIds, scopePath, graph, flowStore]);
   const edges = useMemo(
     () => toFlowEdges(activeGraph, definitions, selectedEdgeIds),
     [activeGraph, definitions, selectedEdgeIds],

@@ -1,5 +1,5 @@
 ---
-source_sha: "d4b30e7a0a40"
+source_sha: "fbb39eddaab3"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -414,8 +414,10 @@ uruchamia dwa pierwsze dokładnie tak.
 dalej portem `true` albo `false`. Każdy węzeł na nieobranej gałęzi zostaje
 zapisany jako `skipped`. `logic.merge` łączy obie gałęzie z powrotem. Działa,
 gdy dotrze do niego obrana gałąź, i przekazuje dalej jej wyjście jako `value`.
-Publikacja sprawdza, czy wejścia merge'a wychodzą z jednego `logic.if` różnymi
-portami, żeby zawsze działało dokładnie jedno z nich.
+Publikacja sprawdza, czy wejścia merge'a wychodzą z jednego kroku różnymi
+portami i czy ten krok w każdym przebiegu wybiera dokładnie jeden port - If / else,
+Switch, decyzja, `ai.classify`, sprawdzenie tabeli albo zatwierdzenie - żeby zawsze
+działało dokładnie jedno z nich.
 
 Wyrażenia mogą wybierać, filtrować i porównywać oraz wywoływać stały zestaw
 czystych funkcji: `abs`, `avg`, `ceil`, `contains`, `ends_with`, `floor`,
@@ -497,6 +499,10 @@ wyjście, więc `category` nadal jest do dyspozycji workflow.
 Bez minimum model nie jest pytany o liczbę, prompt się nie zmienia, `confidence`
 jest null, a kategoria zawsze wygrywa. Odpowiedź bez liczby nigdy nie wychodzi
 portem `unsure`, a gdy ten port istnieje, `unsure` nie może być nazwą kategorii.
+
+Krok wychodzi dokładnie jednym portem, więc `logic.merge` może połączyć jego
+gałęzie: poprowadzić `unsure` i jedną kategorię tą samą ścieżką albo dwie kategorie
+do jednego kroku zapisu.
 
 ::: app.workflows.nodes.ai_classify._handler.AiClassifyConfig
 

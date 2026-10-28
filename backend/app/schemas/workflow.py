@@ -332,6 +332,10 @@ class NodeCatalogEntry(BaseSchema):
     loop_body_only: bool = Field(
         default=False, description="Whether the node exists only inside a for-each loop's body"
     )
+    exclusive_branches: bool = Field(
+        default=False,
+        description="Whether the node leaves by exactly one output port per run, so a merge may rejoin its branches",
+    )
 
 
 class NodeCatalog(BaseSchema):

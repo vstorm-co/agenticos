@@ -84,11 +84,21 @@ export function WorkflowStats({ workflowId }: { workflowId: string }) {
 
 function StatsBody({ stats, locale }: { stats: Stats; locale: string }) {
   const t = useTranslations("pages.workflows.stats");
+  // A step taken out of the workflow keeps its past runs; its rows are hidden unless asked
+  // for. An approval step is a step too, so this one switch covers both tables.
+  const [showRemoved, setShowRemoved] = useState(false);
+  const anyRemoved = [...stats.steps, ...stats.approvals.steps].some(
+    (step) => step.definition_id === null,
+  );
   const { nodes } = useNodeCatalog();
   // An unnamed step reads as what it is - "Manual" - not as its id.
   const typeName = (definitionId: string | null) =>
     nodes.find((definition) => definition.id === definitionId)?.name ?? definitionId;
-  const steps = [...stats.steps].sort((a, b) => b.cost_usd - a.cost_usd || b.failed - a.failed);
+  const shown = (step: { definition_id: string | null }) =>
+    showRemoved || step.definition_id !== null;
+  const steps = stats.steps
+    .filter(shown)
+    .sort((a, b) => b.cost_usd - a.cost_usd || b.failed - a.failed);
   const budget = stats.monthly_budget_usd;
   const over = budget !== null && stats.month_cost_usd >= budget;
 
@@ -128,9 +138,24 @@ function StatsBody({ stats, locale }: { stats: Stats; locale: string }) {
       </div>
       <Card>
         <CardContent className="p-0">
-          <div className="border-b px-4 py-3">
-            <h3 className="text-sm font-medium">{t("stepsHeading")}</h3>
-            <p className="text-muted-foreground text-xs">{t("stepsHint")}</p>
+          <div className="flex flex-wrap items-start justify-between gap-2 border-b px-4 py-3">
+            <div>
+              <h3 className="text-sm font-medium">{t("stepsHeading")}</h3>
+              <p className="text-muted-foreground text-xs">{t("stepsHint")}</p>
+            </div>
+            {anyRemoved && (
+              <button
+                type="button"
+                aria-pressed={showRemoved}
+                onClick={() => setShowRemoved((shown) => !shown)}
+                className={cn(
+                  "rounded-md border px-2.5 py-1 text-xs",
+                  showRemoved ? "bg-muted" : "text-muted-foreground",
+                )}
+              >
+                {t("showRemoved")}
+              </button>
+            )}
           </div>
           {steps.length === 0 ? (
             <p className="text-muted-foreground px-4 py-6 text-center text-sm">{t("stepsNone")}</p>
@@ -176,7 +201,11 @@ function StatsBody({ stats, locale }: { stats: Stats; locale: string }) {
         </CardContent>
       </Card>
       {stats.approvals.requests > 0 && (
-        <Approvals approvals={stats.approvals} locale={locale} typeName={typeName} />
+        <Approvals
+          approvals={{ ...stats.approvals, steps: stats.approvals.steps.filter(shown) }}
+          locale={locale}
+          typeName={typeName}
+        />
       )}
     </div>
   );

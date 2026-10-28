@@ -1,5 +1,5 @@
 ---
-source_sha: "d4b30e7a0a40"
+source_sha: "fbb39eddaab3"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -438,7 +438,9 @@ geht über den Port `true` oder `false` weiter. Jeder Knoten auf dem nicht
 genommenen Zweig wird als `skipped` festgehalten. `logic.merge` führt die beiden
 Zweige wieder zusammen. Er läuft, sobald der genommene Zweig ihn erreicht, und
 gibt dessen Ausgabe als `value` weiter. Das Veröffentlichen prüft, dass die
-Eingänge eines Merge einen `logic.if` über verschiedene Ports verlassen, sodass
+Eingänge eines Merge einen Schritt über verschiedene Ports verlassen und dass
+dieser Schritt pro Run genau einen Port nimmt - ein If / else, ein Switch, eine
+Entscheidung, `ai.classify`, eine Tabellenprüfung oder eine Freigabe -, sodass
 immer genau einer von ihnen läuft.
 
 Ausdrücke können auswählen, filtern und vergleichen und eine feste Menge reiner
@@ -527,6 +529,10 @@ Ohne Minimum wird das Modell nicht nach einer Zahl gefragt, der Prompt bleibt
 unverändert, `confidence` ist null und die Kategorie gewinnt immer. Eine Antwort
 ohne Zahl verlässt den Schritt nie über `unsure`, und solange der Port existiert,
 darf `unsure` kein Kategoriename sein.
+
+Der Schritt geht über genau einen Port weiter, also kann ein `logic.merge` seine
+Zweige wieder zusammenführen: `unsure` und eine Kategorie auf denselben Weg
+schicken oder zwei Kategorien zu einem Protokollschritt.
 
 ::: app.workflows.nodes.ai_classify._handler.AiClassifyConfig
 
