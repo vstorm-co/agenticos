@@ -8426,11 +8426,11 @@
     "anotherMember": "einem anderen Mitglied",
     "checkingSource": "Privatsphäre der Quelle wird geprüft…",
     "improvementSplit": {
-      "share": "Anteil zurückgehaltener neuer Fragen (%)",
-      "shareHint": "Die Zuordnung erfolgt einmal pro Frage. Die Einstellung gilt für neue Fragen; vorhandene behalten ihren Teil über Bearbeitungen und Versionen. Eine Verbesserung benötigt mindestens fünf bewertbare zurückgehaltene Fragen.",
-      "counts": "{train} Training · {holdout} zurückgehalten",
-      "train": "Training",
-      "holdout": "Zurückgehalten",
+      "share": "Anteil neuer Fragen, die zurückgelegt werden (%)",
+      "shareHint": "Die Zuordnung erfolgt einmal pro Frage. Die Einstellung gilt für neue Fragen; vorhandene behalten ihren Teil über Bearbeitungen und Versionen. Eine Verbesserung benötigt mindestens fünf bewertbare zurückgelegte Fragen.",
+      "counts": "{train} helfen beim Schreiben · {holdout} zurückgelegt",
+      "train": "Hilft beim Schreiben",
+      "holdout": "Zurückgelegt",
       "shareInvalid": "Geben Sie einen Prozentsatz von 0 bis 100 in Schritten von 0,1 ein."
     },
     "lengthRange": "Die Mindestlänge einer Längenprüfung liegt über ihrer Höchstlänge.",
@@ -9845,8 +9845,8 @@
       "corrected": "Von einer Person korrigiert",
       "askedOnly": "Nur der geöffnete Fall wird gezeigt.",
       "partition": {
-        "train": "Training",
-        "holdout": "Zurückgehalten",
+        "train": "Hilft beim Schreiben",
+        "holdout": "Zurückgelegt",
         "excluded": "Belegkopie"
       }
     },

@@ -8316,11 +8316,11 @@
     "anotherMember": "innego członka",
     "checkingSource": "Sprawdzanie prywatności źródła…",
     "improvementSplit": {
-      "share": "Udział pytań kontrolnych w nowych pytaniach (%)",
-      "shareHint": "Podział jest przypisywany raz na pytanie. Ustawienie dotyczy nowych pytań; istniejące zachowują część po edycjach i między wersjami. Poprawianie wymaga co najmniej pięciu pytań kontrolnych, które da się ocenić.",
-      "counts": "{train} uczących · {holdout} kontrolnych",
-      "train": "Uczące",
-      "holdout": "Kontrolne",
+      "share": "Udział nowych pytań odkładanych do sprawdzenia (%)",
+      "shareHint": "Podział jest przypisywany raz na pytanie. Ustawienie dotyczy nowych pytań; istniejące zachowują część po edycjach i między wersjami. Poprawianie wymaga co najmniej pięciu odłożonych pytań, które da się ocenić.",
+      "counts": "{train} pomaga pisać zmiany · {holdout} odłożonych",
+      "train": "Pomaga pisać zmiany",
+      "holdout": "Odłożone",
       "shareInvalid": "Wpisz procent od 0 do 100 z dokładnością do 0,1."
     },
     "lengthRange": "Najmniejsza długość w sprawdzeniu długości jest większa niż największa.",
@@ -9134,8 +9134,8 @@
       "corrected": "Poprawione przez człowieka",
       "askedOnly": "Widać tylko otwarty przypadek.",
       "partition": {
-        "train": "Uczące",
-        "holdout": "Kontrolne",
+        "train": "Pomaga pisać zmiany",
+        "holdout": "Odłożone",
         "excluded": "Kopia dowodu"
       }
     },
