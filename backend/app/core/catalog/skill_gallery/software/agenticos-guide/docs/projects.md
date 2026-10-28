@@ -141,6 +141,10 @@ Builder does an agent's, above the project's name, description and default agent
 
 ## Local folders in the desktop app
 
+When creating a desktop project, choose **Project sandbox → Computer · your files**,
+then approve a folder. The project can only be created after this native selection.
+Its shared workspace remains available to other members; this choice is personal.
+
 In **New project**, or on an existing project's **Files** tab, choose **Connect a
 folder**. The native picker confirms access; read-only is the initial choice.
 The folder connection belongs to your account and organization on this computer,
