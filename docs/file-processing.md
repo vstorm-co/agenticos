@@ -126,6 +126,15 @@ knows the file is there. A picture is named in that history rather than sent
 again; an agent that needs to look at it once more asks for it, or opens it from
 `uploads/` when it has a workspace.
 
+**A file its own turn could not store is put back later.** A file is tied to the
+message it came with before the run starts, so it cannot be attached again. If that
+turn failed before the file reached the workspace — the sandbox would not open, or
+refused the write — a later turn in the same conversation writes it back to
+`uploads/`, with its extracted text, the first time it uses the workspace. Only the
+person's own attachments on that conversation's messages are put back, the newest
+50 at most, and the run is told to list `uploads/` before it says a file is
+missing.
+
 **The extracted text comes with it only where nothing can read the original.** A
 `.txt` of the parse used to be written next to every PDF, `.docx` and spreadsheet,
 on the reasoning that a shell has no library for any of them — `read_file` on an

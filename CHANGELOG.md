@@ -19,6 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- A file attached to a chat turn that failed before the file reached the
+  workspace is now written back to `uploads/` by the next turn in the same
+  conversation, instead of staying missing until a new conversation and upload.
+  Only the person's own attachments on that conversation are restored.
+
 ## [1.27.0] - 2026-10-27
 
 ### Added

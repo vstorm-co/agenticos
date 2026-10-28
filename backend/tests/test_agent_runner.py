@@ -1970,6 +1970,114 @@ class TestASandboxIsSetUpOnFirstUse:
         assert [file.filename for file in prepared.outbound] == ["chart.png"]
 
 
+class TestAThreadsEarlierAttachmentsAreBroughtBack:
+    """A file whose turn failed before it reached the workspace (#2481).
+
+    Linked to its message, so it cannot be attached again; nothing wrote it later,
+    and the next turn's model reported it missing. A later turn puts it back.
+    """
+
+    @staticmethod
+    async def _prepare(workspace: OpenWorkspace, earlier: object | None):
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        restored: list[str] = []
+
+        async def restore(target, found, *, can_parse: bool) -> None:
+            restored.append("restored")
+            await target.write_text("uploads/0000-report.csv", "month,total")
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(
+                    return_value=(agent, AgentSpec(name="Books"), agent.current_version_id)
+                ),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+            ),
+            patch(
+                "app.services.agent_runner.conversation_share_repo.get_shares_for_conversation",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch(
+                "app.services.agent_runner.find_earlier_attachments",
+                new=AsyncMock(return_value=earlier),
+            ) as find,
+            patch("app.services.agent_runner.restore_earlier_attachments", new=restore),
+            patch("app.services.agent_runner.build_agent") as build,
+            patch.object(service.workspaces, "open", new=AsyncMock(return_value=workspace)),
+        ):
+            ctx = _ctx()
+            conversation_id = uuid.uuid4()
+            prepared = await service.prepare(ctx, agent.id, conversation_id=conversation_id)
+            prepared_only = list(restored)
+            # The run's first operation in the workspace, inside the patches: a
+            # sandbox's set-up waits for it.
+            await workspace.workspace.exists("anything")
+
+        assert find.await_args.kwargs == {
+            "conversation_id": conversation_id,
+            "organization_id": ctx.organization_id,
+            "user_id": ctx.user_id,
+        }
+        return prepared, build.call_args.args[0].instructions, prepared_only, restored
+
+    @pytest.mark.anyio
+    async def test_a_sandbox_puts_them_back_on_first_use_before_its_snapshot(self):
+        """Not while preparing - that would open a container for a turn that may
+        never use it - and before the snapshot, so a file put back is not posted
+        as something this turn made."""
+        sandbox = _sandbox(StateBackend())
+
+        prepared, instructions, while_preparing, restored = await self._prepare(
+            sandbox, earlier=MagicMock()
+        )
+
+        assert while_preparing == []
+        assert "attached earlier in this conversation" in instructions
+        assert restored == ["restored"]
+        assert prepared.workspace_at_start is not None
+        assert any(path.endswith("0000-report.csv") for path in prepared.workspace_at_start)
+
+    @pytest.mark.anyio
+    async def test_a_stored_workspace_puts_them_back_while_the_run_is_prepared(self):
+        stored = OpenWorkspace(
+            workspace=document_workspace(StateBackend()),
+            kind="state",
+            scope="conversation",
+            scope_key="c-1",
+            row_id=None,
+        )
+
+        prepared, instructions, while_preparing, _ = await self._prepare(
+            stored, earlier=MagicMock()
+        )
+
+        assert while_preparing == ["restored"]
+        assert "attached earlier in this conversation" in instructions
+        assert prepared.workspace_at_start is not None
+        assert any(path.endswith("0000-report.csv") for path in prepared.workspace_at_start)
+
+    @pytest.mark.anyio
+    async def test_a_thread_without_any_is_told_nothing(self):
+        _, instructions, _, restored = await self._prepare(_sandbox(StateBackend()), earlier=None)
+
+        assert restored == []
+        assert "attached earlier in this conversation" not in instructions
+
+
 class TestSkillChangesARunProposed:
     """What an agent wrote to its skills, on the way out of the run.
 
@@ -4688,6 +4796,11 @@ class TestTheWorkspaceReachesTheAgent:
             patch(
                 "app.services.agent_runner.conversation_share_repo.get_shares_for_conversation",
                 new=AsyncMock(return_value=shares),
+            ),
+            # What the thread already holds of the person's attachments (#2481).
+            patch(
+                "app.services.agent_runner.find_earlier_attachments",
+                new=AsyncMock(return_value=None),
             ),
             patch("app.services.agent_runner.build_agent") as build,
         ):

@@ -919,3 +919,188 @@ class TestWhenTheWorkspaceWillNotTakeAWrite:
 
         assert isinstance(prompt, str)
         assert "would not accept a write" not in prompt
+
+
+class TestALaterTurnPutsBackWhatAFailedTurnLost:
+    """A file whose turn failed before it reached the workspace (#2481).
+
+    It is linked to the message it came with, so it cannot be attached again, and
+    nothing else ever wrote an attachment: the next turn's model looked in
+    `uploads/`, found nothing, and the only way on was a new conversation.
+    """
+
+    @staticmethod
+    def _earlier(*files) -> attachments_module.EarlierAttachments:
+        return attachments_module.EarlierAttachments(
+            conversation_id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            paths={f.id: workspace_path(f) for f in files},
+        )
+
+    @staticmethod
+    def _rows(monkeypatch, *files) -> AsyncMock:
+        """The scoped read of the missing rows, on a session of its own."""
+        from contextlib import asynccontextmanager
+
+        @asynccontextmanager
+        async def session():
+            yield object()
+
+        read = AsyncMock(side_effect=lambda db, ids, **_: [f for f in files if f.id in ids])
+        monkeypatch.setattr(attachments_module, "get_db_context", session)
+        monkeypatch.setattr(attachments_module.chat_file_repo, "get_many_in_conversation", read)
+        return read
+
+    async def test_a_file_the_workspace_lacks_is_written_with_its_text(self, storage, monkeypatch):
+        chat_file = _file(filename="report.pdf", file_type="pdf", parsed_content="page one")
+        document = _document()
+        earlier = self._earlier(chat_file)
+        read = self._rows(monkeypatch, chat_file)
+
+        await attachments_module.restore_earlier_attachments(
+            document_workspace(document), earlier, can_parse=False
+        )
+
+        assert document.exists(workspace_path(chat_file))
+        assert document.exists(f"{workspace_path(chat_file)}.txt")
+        # Read under the thread's scope, not by id alone.
+        assert read.await_args.kwargs == {
+            "conversation_id": earlier.conversation_id,
+            "organization_id": earlier.organization_id,
+            "user_id": earlier.user_id,
+        }
+
+    async def test_a_file_already_there_is_not_read_or_written_again(self, storage, monkeypatch):
+        """The question asked on almost every turn: nothing is missing, so the rows -
+        and their parsed text - are never loaded."""
+        chat_file = _file()
+        workspace = document_workspace(_document())
+        await workspace.write_bytes(workspace_path(chat_file), b"already here")
+        read = self._rows(monkeypatch, chat_file)
+
+        await attachments_module.restore_earlier_attachments(
+            workspace, self._earlier(chat_file), can_parse=False
+        )
+
+        read.assert_not_awaited()
+        storage.assert_not_awaited()
+        assert await workspace.read_bytes(workspace_path(chat_file)) == b"already here"
+
+    async def test_a_row_the_scope_does_not_return_is_not_written(self, storage, monkeypatch):
+        """Whatever the paths said, only a row the scoped read hands back is written."""
+        chat_file = _file()
+        document = _document()
+        self._rows(monkeypatch)
+
+        await attachments_module.restore_earlier_attachments(
+            document_workspace(document), self._earlier(chat_file), can_parse=False
+        )
+
+        assert not document.exists(workspace_path(chat_file))
+
+    async def test_a_file_the_store_cannot_load_does_not_stop_the_rest(self, monkeypatch):
+        gone, kept = _file(storage_path="gone"), _file(filename="kept.csv")
+        document = _document()
+        self._rows(monkeypatch, gone, kept)
+
+        async def load(path: str) -> bytes:
+            if path == "gone":
+                raise FileNotFoundError(path)
+            return b"month,total"
+
+        monkeypatch.setattr(
+            attachments_module, "get_file_storage", lambda: SimpleNamespace(load=load)
+        )
+
+        await attachments_module.restore_earlier_attachments(
+            document_workspace(document), self._earlier(gone, kept), can_parse=False
+        )
+
+        assert not document.exists(workspace_path(gone))
+        assert document.exists(workspace_path(kept))
+
+    async def test_a_workspace_that_refuses_one_is_not_asked_for_the_rest(
+        self, storage, monkeypatch
+    ):
+        first, second = _file(), _file(filename="second.csv")
+        self._rows(monkeypatch, first, second)
+        workspace = ShellFailing(document_workspace())
+        writes = AsyncMock(side_effect=workspace.write_bytes)
+        monkeypatch.setattr(workspace, "write_bytes", writes)
+
+        await attachments_module.restore_earlier_attachments(
+            workspace, self._earlier(first, second), can_parse=False
+        )
+
+        assert writes.await_count == 1
+
+    async def test_a_workspace_that_cannot_be_asked_puts_nothing_back(self, storage, monkeypatch):
+        """The run goes on: this is set-up, and it never fails the operation behind it."""
+        read = self._rows(monkeypatch, _file())
+
+        class _Unreachable(ShellFailing):
+            async def exists(self, path: str) -> bool:
+                raise ConnectionError("sandbox down")
+
+        await attachments_module.restore_earlier_attachments(
+            _Unreachable(document_workspace()), self._earlier(_file()), can_parse=False
+        )
+
+        read.assert_not_awaited()
+
+    async def test_a_read_that_fails_puts_nothing_back(self, storage, monkeypatch):
+        from contextlib import asynccontextmanager
+
+        @asynccontextmanager
+        async def session():
+            raise ConnectionError("database down")
+            yield  # pragma: no cover - never reached
+
+        monkeypatch.setattr(attachments_module, "get_db_context", session)
+        chat_file = _file()
+        document = _document()
+
+        await attachments_module.restore_earlier_attachments(
+            document_workspace(document), self._earlier(chat_file), can_parse=False
+        )
+
+        assert not document.exists(workspace_path(chat_file))
+
+    async def test_an_agent_without_a_workspace_has_nothing_put_back(self, storage):
+        await AttachmentRouter(None).restore([_file()])
+
+        storage.assert_not_awaited()
+
+    async def test_the_thread_is_asked_as_the_caller_in_their_organization(self, monkeypatch):
+        conversation, organization, caller = uuid4(), uuid4(), uuid4()
+        file_id = uuid4()
+        found = AsyncMock(return_value=[(file_id, "raport.csv")])
+        monkeypatch.setattr(attachments_module.chat_file_repo, "attached_in_conversation", found)
+
+        earlier = await attachments_module.find_earlier_attachments(
+            object(), conversation_id=conversation, organization_id=organization, user_id=caller
+        )
+
+        assert earlier is not None
+        assert earlier.paths == {file_id: f"uploads/{file_id.hex[:8]}-raport.csv"}
+        assert found.await_args.kwargs == {
+            "conversation_id": conversation,
+            "organization_id": organization,
+            "user_id": caller,
+            "limit": attachments_module.EARLIER_ATTACHMENTS_RESTORED,
+        }
+
+    async def test_a_thread_with_no_attachments_has_nothing_to_put_back(self, monkeypatch):
+        monkeypatch.setattr(
+            attachments_module.chat_file_repo,
+            "attached_in_conversation",
+            AsyncMock(return_value=[]),
+        )
+
+        assert (
+            await attachments_module.find_earlier_attachments(
+                object(), conversation_id=uuid4(), organization_id=uuid4(), user_id=uuid4()
+            )
+            is None
+        )

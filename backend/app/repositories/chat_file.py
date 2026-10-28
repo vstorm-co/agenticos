@@ -8,7 +8,7 @@ from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.chat_file import ChatFile
-from app.db.models.conversation import Message
+from app.db.models.conversation import Conversation, Message
 
 
 async def get_by_id(db: AsyncSession, file_id: UUID) -> ChatFile | None:
@@ -74,6 +74,63 @@ async def latest_named_in_conversation(
         .limit(1)
     )
     return result.scalar_one_or_none()
+
+
+async def attached_in_conversation(
+    db: AsyncSession, *, conversation_id: UUID, organization_id: UUID, user_id: UUID, limit: int
+) -> list[tuple[UUID, str]]:
+    """The id and filename of `user_id`'s files attached to this thread's turns, newest first.
+
+    Three scopes, each one a predicate: the file hangs on a message of this
+    conversation, the conversation is this organization's, and the file is the
+    caller's own. The last is narrower than `get_in_conversation`, deliberately:
+    this answers what a run may write into the caller's workspace, and a shared
+    thread's other members attached their files to theirs (#2481).
+
+    Two columns rather than rows: a row carries the file's parsed text, up to a
+    million characters, and the caller needs the text only for a file its
+    workspace turns out to be missing.
+    """
+    result = await db.execute(
+        select(ChatFile.id, ChatFile.filename)
+        .join(Message, Message.id == ChatFile.message_id)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(
+            Message.conversation_id == conversation_id,
+            Conversation.organization_id == organization_id,
+            ChatFile.user_id == user_id,
+        )
+        .order_by(ChatFile.created_at.desc())
+        .limit(limit)
+    )
+    return [(file_id, filename) for file_id, filename in result.all()]
+
+
+async def get_many_in_conversation(
+    db: AsyncSession,
+    file_ids: Iterable[UUID],
+    *,
+    conversation_id: UUID,
+    organization_id: UUID,
+    user_id: UUID,
+) -> list[ChatFile]:
+    """These files, as whole rows, under exactly `attached_in_conversation`'s scope."""
+    ids = list(file_ids)
+    if not ids:
+        return []
+    result = await db.execute(
+        select(ChatFile)
+        .join(Message, Message.id == ChatFile.message_id)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(
+            ChatFile.id.in_(ids),
+            Message.conversation_id == conversation_id,
+            Conversation.organization_id == organization_id,
+            ChatFile.user_id == user_id,
+        )
+        .order_by(ChatFile.created_at)
+    )
+    return list(result.scalars().all())
 
 
 async def link_to_message(

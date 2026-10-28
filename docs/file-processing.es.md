@@ -1,5 +1,5 @@
 ---
-source_sha: "b2690527c166"
+source_sha: "6a0ade369ec9"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -137,6 +137,15 @@ al mensaje y se reproduce con el historial, así que «¿y marzo?» llega a un m
 que todavía sabe que el archivo existe. Una imagen se nombra en ese historial en
 lugar de enviarse de nuevo; un agent que necesita volver a mirarla la pide, o la
 abre desde `uploads/` si tiene workspace.
+
+**Un archivo que su propio turno no pudo guardar se repone después.** Un archivo
+queda ligado al mensaje con el que llegó antes de que empiece el run, así que no se
+puede adjuntar de nuevo. Si ese turno falló antes de que el archivo llegara al
+workspace — el sandbox no se abrió o rechazó la escritura —, un turno posterior de
+la misma conversación lo vuelve a escribir en `uploads/`, con su texto extraído, la
+primera vez que usa el workspace. Solo se reponen los adjuntos de la propia persona
+en los mensajes de esa conversación, como mucho los 50 más recientes, y al run se le
+indica que liste `uploads/` antes de decir que falta un archivo.
 
 **El texto extraído lo acompaña solo cuando nada puede leer el original.** Antes
 se escribía un `.txt` del parseo junto a cada PDF, `.docx` y hoja de cálculo,

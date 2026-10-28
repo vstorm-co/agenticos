@@ -1,5 +1,5 @@
 ---
-source_sha: "b2690527c166"
+source_sha: "6a0ade369ec9"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -134,6 +134,15 @@ odtwarzane razem z historią, więc pytanie „a co z marcem” trafia do modelu
 wciąż wie o pliku. Obraz jest w tej historii tylko nazwany, nie wysyłany ponownie;
 agent, który musi znów na niego spojrzeć, prosi o niego albo otwiera go z
 `uploads/`, jeśli ma workspace.
+
+**Plik, którego jego własna tura nie zapisała, wraca później.** Plik jest
+przypięty do wiadomości, z którą przyszedł, zanim run się zacznie, więc nie da się
+go załączyć ponownie. Jeśli ta tura zawiodła, zanim plik trafił do workspace'u —
+sandbox się nie otworzył albo odmówił zapisu — kolejna tura w tej samej rozmowie
+zapisuje go z powrotem w `uploads/`, razem z wyciągniętym tekstem, przy pierwszym
+użyciu workspace'u. Wracają tylko własne załączniki tej osoby z wiadomości tej
+rozmowy, najwyżej 50 najnowszych, a run dostaje polecenie, by wylistować
+`uploads/`, zanim powie, że pliku brakuje.
 
 **Wyciągnięty tekst idzie w parze z plikiem tylko tam, gdzie nic nie umie
 przeczytać oryginału.** Kiedyś `.txt` z parsowania zapisywany był obok każdego

@@ -1,5 +1,5 @@
 ---
-source_sha: "b2690527c166"
+source_sha: "6a0ade369ec9"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -141,6 +141,16 @@ mit März“ ein Modell erreicht, das noch von der Datei weiß. Ein Bild wird in
 diesem Verlauf nur genannt, nicht erneut gesendet; ein Agent, der es noch einmal
 ansehen muss, bittet darum oder öffnet es aus `uploads/`, wenn er einen Workspace
 hat.
+
+**Eine Datei, die ihr eigener Zug nicht ablegen konnte, kommt später zurück.**
+Eine Datei wird vor dem Start des Runs an die Nachricht gebunden, mit der sie kam,
+und kann deshalb nicht erneut angehängt werden. Ist dieser Zug gescheitert, bevor
+die Datei den Workspace erreichte — die Sandbox öffnete sich nicht oder lehnte den
+Schreibvorgang ab —, schreibt ein späterer Zug derselben Unterhaltung sie beim
+ersten Zugriff auf den Workspace zurück nach `uploads/`, mit ihrem extrahierten
+Text. Zurückgelegt werden nur die eigenen Anhänge der Person an Nachrichten dieser
+Unterhaltung, höchstens die 50 neuesten, und der Run wird angewiesen, `uploads/`
+aufzulisten, bevor er sagt, dass eine Datei fehlt.
 
 **Der extrahierte Text kommt nur dort mit, wo nichts das Original lesen kann.**
 Eine `.txt` des Parsens wurde früher neben jedes PDF, jede `.docx` und jede
