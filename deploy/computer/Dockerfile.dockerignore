@@ -1,0 +1,6 @@
+# The image is built from the repository root (see the Dockerfile), and these are
+# the three files it copies; the root .dockerignore is the backend's.
+*
+!deploy/computer/computerd.py
+!deploy/computer/entrypoint.sh
+!backend/app/agents/capabilities/computer_use/_desktop_apps.py

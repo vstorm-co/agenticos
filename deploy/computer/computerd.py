@@ -6,15 +6,24 @@
 # ///
 """computerd - one desktop, served to AgenticOS's `computer_use` capability.
 
-Two endpoints behind a bearer token:
+Three endpoints behind a bearer token:
 
     GET  /screenshot   the main screen as PNG; `x-screen-width` / `x-screen-height`
                        name the space the pointer moves in (points on a Retina Mac,
                        pixels on X11), `x-platform` what the panel calls it
     POST /actions      {"actions": [{"action": "click", "x": 10, "y": 20}, ...]}
                        carried out in order; 400 {"error": ...} on the first refusal
+    GET  /apps         the applications a `launch` action may name, as JSON
 
-and `GET /health`, unauthenticated, for a container's health check.
+and `GET /health`, unauthenticated, for a container's health check: 503 while
+the container's launcher is not running.
+
+`launch` and `/apps` are the container's only: there the desktop's own account
+runs `computerd.py launcher <socket>`, which lists and opens its menu's
+applications with `desktop_apps.py` (the backend's `_desktop_apps.py`, copied in
+by the Dockerfile), and the entrypoint names that socket in `COMPUTERD_LAUNCHER`.
+Without it both are refused, and the model is pointed at the desktop's own
+launcher.
 
 Standard library only on Linux (it shells out to `scrot` and `xdotool`, so X11
 only: a Wayland session reaches nothing but its XWayland windows that way); on
@@ -34,6 +43,7 @@ Settings, all from the environment:
     COMPUTERD_TOKEN   required; the API key the organization's vault holds for this desktop
     COMPUTERD_HOST    default 127.0.0.1 - set 0.0.0.0 only on a network you trust
     COMPUTERD_PORT    default 8765
+    COMPUTERD_LAUNCHER  the container's; the socket of the launcher running as the desktop's user
 """
 
 from __future__ import annotations
@@ -41,8 +51,11 @@ from __future__ import annotations
 import json
 import os
 import platform
+import re
 import secrets
 import shutil
+import socket
+import socketserver
 import struct
 import subprocess
 import sys
@@ -50,6 +63,7 @@ import tempfile
 import threading
 import time
 from abc import ABC, abstractmethod
+from dataclasses import asdict
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -57,6 +71,12 @@ from typing import Any
 
 MAX_TEXT = 2000
 MAX_BODY = 256 * 1024
+MAX_ERROR = 200
+APP_NAME = re.compile(r"\w[^/\\\x00-\x1f\x7f]{0,254}")  # as `Launch.app`: no path, option or control character
+NO_LAUNCH = (
+    "This desktop cannot open applications by name. Use its own launcher: cmd+space "
+    "and the name on a Mac, the Start menu elsewhere."
+)
 
 
 class Refused(Exception):
@@ -143,6 +163,83 @@ def split_chord(chord: str) -> list[str]:
     return parts
 
 
+class _Launcher(socketserver.StreamRequestHandler):
+    """One request from computerd - `list` or `launch <app>` - and its JSON answer, a line each."""
+
+    def handle(self) -> None:
+        # Beside this file in the image only, and only the launcher needs it.
+        import desktop_apps
+
+        # `launch` and an app's 255 characters, each up to four bytes in UTF-8.
+        request = self.rfile.readline(1100).decode(errors="replace").strip()
+        if not request:
+            # `/health` connecting to see the launcher is up, and nothing more.
+            return
+        env = dict(os.environ)
+        reply: dict[str, Any]
+        try:
+            match request.split(" ", 1):
+                case ["list"]:
+                    reply = {"apps": [asdict(app) for app in desktop_apps.installed(env)]}
+                case ["launch", app] if APP_NAME.fullmatch(app):
+                    desktop_apps.launch(desktop_apps.find(app, desktop_apps.installed(env)))
+                    reply = {"ok": True}
+                case _:
+                    reply = {"error": "expected 'list' or 'launch <app>'"}
+        except desktop_apps.AppError as exc:
+            reply = {"error": str(exc)}
+        self.wfile.write(json.dumps(reply).encode() + b"\n")
+
+
+def ask_launcher(request: str) -> dict[str, Any]:
+    """Have the desktop's own account list or open its applications - see `serve_launcher`."""
+    launcher = os.environ.get("COMPUTERD_LAUNCHER")
+    if not launcher:
+        raise Refused(NO_LAUNCH)
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
+            conn.settimeout(40)
+            conn.connect(launcher)
+            conn.sendall(request.encode() + b"\n")
+            reply = json.loads(conn.makefile("rb").readline())
+    except (OSError, ValueError) as exc:
+        raise Refused(f"the desktop's launcher did not answer: {exc}") from exc
+    if "error" in reply:
+        raise Refused(reply["error"])
+    return reply
+
+
+def launcher_down() -> str | None:
+    """Why the launcher cannot be reached, or `None` if it can or there is none.
+
+    Only a connection: a launch in progress delays the answer to a request,
+    but the socket still accepts one.
+    """
+    launcher = os.environ.get("COMPUTERD_LAUNCHER")
+    if not launcher:
+        return None
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
+            conn.settimeout(1)
+            conn.connect(launcher)
+    except OSError as exc:
+        return f"the desktop's launcher is not running: {exc}"
+    return None
+
+
+def serve_launcher(path: str) -> None:
+    """List and open applications for computerd, as the desktop's own account.
+
+    The socket is this account's and its directory's group's only; the
+    entrypoint makes that group computerd's, so computerd can ask and nothing
+    else in the container can.
+    """
+    os.umask(0o007)
+    Path(path).unlink(missing_ok=True)
+    with socketserver.UnixStreamServer(path, _Launcher) as server:
+        server.serve_forever()
+
+
 class X11Driver(Driver):
     """Any X11 display, through `scrot` and `xdotool`."""
 
@@ -194,7 +291,6 @@ class X11Driver(Driver):
 
     def key(self, chord: str) -> None:
         self._xdotool("key", "--", "+".join(self._KEYS.get(part, part) for part in split_chord(chord)))
-
 
 class MacDriver(Driver):
     """The Mac's main display, through `screencapture` and Quartz events."""
@@ -321,7 +417,6 @@ class MacDriver(Driver):
             raise Refused(f"'{main}' is not a key this desktop knows")
         self._keystroke(self._KEYCODES[main], flags)
 
-
 def perform(driver: Driver, action: dict[str, Any]) -> None:
     kind = action.get("action")
     if kind == "click":
@@ -348,6 +443,11 @@ def perform(driver: Driver, action: dict[str, Any]) -> None:
         if not isinstance(keys, str) or not 0 < len(keys) <= 64:
             raise Refused("'keys' must be 1 to 64 characters")
         driver.key(keys)
+    elif kind == "launch":
+        app = action.get("app")
+        if not isinstance(app, str) or not APP_NAME.fullmatch(app):
+            raise Refused("'app' must be an application's name: up to 255 characters, no slash or control character")
+        ask_launcher(f"launch {app}")
     elif kind == "wait":
         seconds = action.get("seconds", 1.0)
         if not isinstance(seconds, int | float) or not 0 < seconds <= 10:
@@ -367,7 +467,7 @@ def make_handler(driver: Driver, token: str) -> type[BaseHTTPRequestHandler]:
         def log_message(self, format: str, *args: Any) -> None:
             sys.stderr.write(f"computerd: {self.command} {self.path} {args[1] if len(args) > 1 else ''}\n")
 
-        def _json(self, status: HTTPStatus, body: dict[str, Any]) -> None:
+        def _json(self, status: HTTPStatus, body: object) -> None:
             data = json.dumps(body).encode()
             self.send_response(status)
             self.send_header("content-type", "application/json")
@@ -384,12 +484,21 @@ def make_handler(driver: Driver, token: str) -> type[BaseHTTPRequestHandler]:
 
         def do_GET(self) -> None:
             if self.path == "/health":
-                self._json(HTTPStatus.OK, {"ok": True, "platform": driver.name})
+                if down := launcher_down():
+                    self._json(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": down})
+                else:
+                    self._json(HTTPStatus.OK, {"ok": True, "platform": driver.name})
                 return
-            if self.path != "/screenshot":
+            if self.path not in {"/screenshot", "/apps"}:
                 self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
                 return
             if not self._authorized():
+                return
+            if self.path == "/apps":
+                try:
+                    self._json(HTTPStatus.OK, ask_launcher("list")["apps"])
+                except Refused as exc:
+                    self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)[:MAX_ERROR]})
                 return
             try:
                 with lock:
@@ -431,7 +540,7 @@ def make_handler(driver: Driver, token: str) -> type[BaseHTTPRequestHandler]:
                         perform(driver, action)
                         done += 1
             except Refused as exc:
-                self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)[:200], "done": done})
+                self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)[:MAX_ERROR], "done": done})
                 return
             self._json(HTTPStatus.OK, {"ok": True, "done": done})
 
@@ -439,6 +548,9 @@ def make_handler(driver: Driver, token: str) -> type[BaseHTTPRequestHandler]:
 
 
 def main() -> None:
+    if len(sys.argv) == 3 and sys.argv[1] == "launcher":
+        serve_launcher(sys.argv[2])
+        return
     token = os.environ.get("COMPUTERD_TOKEN", "")
     if len(token) < 16:
         sys.exit("computerd: set COMPUTERD_TOKEN to at least 16 characters (the key in the organization's vault)")

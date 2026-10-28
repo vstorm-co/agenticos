@@ -21,6 +21,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- A `launch` action in `computer_act` opens an application by name instead of
+  hunting for its icon, and a new `computer_apps` tool lists the names it takes.
+  A launch matches a name or id exactly and returns once the application's
+  window is up, or fails if none comes within ten seconds. It works on Linux
+  desktops: a sandbox's, E2B's and the computerd container, which opens it as
+  the desktop's account, never the one holding the token. Through the desktop
+  app the agent is told to use the computer's own launcher, and through another
+  computerd to fall back to it when `computer_apps` is refused. The
+  agent is also told to wait after a shortcut that opens a window before typing
+  into it.
+
 - Browser connection cards with icons, independent per-chat desktop browser
   overrides, an automatically opened browser side panel, and tools for up to
   eight tabs. Visited-page cards retain the site icon, domain and article title

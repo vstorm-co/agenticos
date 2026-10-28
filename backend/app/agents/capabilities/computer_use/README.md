@@ -1,8 +1,9 @@
 # Computer use (`computer_use`)
 
-Three tools. With `computer_screenshot` and `computer_act` the model looks at a
+Four tools. With `computer_screenshot` and `computer_act` the model looks at a
 desktop, sends a few mouse and keyboard actions in that screenshot's pixels and
-gets a new screenshot back. `computer_save_screenshot` keeps one for the user.
+gets a new screenshot back. `computer_apps` lists the applications a `launch`
+action may open, and `computer_save_screenshot` keeps a screenshot for the user.
 Unlike `browser_use`, the desktop can run any application, not only a web page.
 #2094 is the issue.
 
@@ -50,6 +51,9 @@ screenshot the model has already shown. The approved batch runs in a resumed
 run, which is a new one with nothing looked at yet, so `computer_act` measures
 the screen first rather than refuse the batch. The gate stores the batch as JSON
 and runs it from there, so `computer_act` validates its actions again.
+`computer_apps` only reads the menu, so it is not side-effecting either; it is a
+tool rather than an action so that holding `computer_act` never holds a look at
+what is installed.
 
 **A park forgets nothing the run needs.** Every answer carries a `Seen` in its
 `metadata`: the run's id, the screenshot's `Screen` and the actions taken so
@@ -95,8 +99,40 @@ need not be bound) and returned as a `desktop_screenshot` payload the chat draws
 `output/` too, which is what a channel reply posts and what a testing agent's
 report can link. It changes nothing on the desktop, so it is not side-effecting.
 
+**Opening an application:** `computer_apps` lists what the desktop's menu
+shows, and a `launch` action opens one of them by its name or id, because
+finding an icon in a screenshot and clicking it is the slowest and least
+reliable way there. Listing and opening are the same code everywhere:
+`_desktop_apps.py`, standard library only, which a sandbox runs with
+`python3 -c` and the computerd image copies in beside the daemon. It reads the
+desktop entries on the XDG search path and its subdirectories (whose names
+prefix the id), an earlier directory's shadowing a later one with the same id,
+and names each in the desktop's locale. It leaves out what the menu would not
+show: hidden entries, ones that are not applications, another desktop's
+(`OnlyShowIn` and `NotShowIn`, read for XFCE when `XDG_CURRENT_DESKTOP` is
+unset, as it is outside the session) and ones whose `TryExec` is missing. A launch
+must match an id or a name exactly, ignoring case, so it is never a guess: a
+name two entries share (a system and a Flatpak Firefox) is answered with their
+ids. It opens the entry with `exo-open` and returns once a new window shows or
+the focus moves. If neither happens within ten seconds the launch fails, so the
+rest of its batch does not type into the window that had the focus before. The name is validated to a name - no slash, no leading
+dash, no control character - so it can never be a path or an option; other
+punctuation is allowed, because real names have it. computerd's container
+lists and opens through a launcher running as `desk`: computerd itself holds
+the token.
+
+Only Linux desktops launch: a sandbox's, E2B's and computerd's container. A
+computerd without its container's launcher, on a Mac or a person's own Linux
+desktop, and the person's own computer through the desktop app refuse
+`launch` and `computer_apps`. The desktop app's instructions name that
+computer's own launcher instead. A daemon cannot be told apart in advance, so
+its instructions say to call `computer_apps` first and fall back to the
+computer's own launcher if it is refused.
+
 **Limits:** `max_actions_per_call` bounds one batch. `max_actions` bounds a run;
-past it the tool tells the model to stop and report what is left. A `type`
+past it the tool tells the model to stop and report what is left. The action
+that stopped a batch counts too: a launch whose window never came has still
+started the application, and retrying it must not be free. A `type`
 action carries at most 2000 characters.
 
 ## Not yet
@@ -120,6 +156,9 @@ action carries at most 2000 characters.
   one screen, and nothing queues one run's clicks behind another's.
 - A cloud desktop. A cloud sandbox provider (E2B, for one) would arrive as a
   sandbox connection kind, and its desktop would come with it.
+- `launch` on a Mac or a self-hosted Linux desktop, whether through computerd
+  or the person's own computer in the desktop app. Neither has a launcher yet,
+  so the model is told to use the computer's own.
 - A sandbox desktop is not hidden from the shell: an agent with `execute` can
   run `xdotool` itself, past an approval held on `computer_act`.
 

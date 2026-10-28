@@ -1504,6 +1504,8 @@
       "screenshotNotStored": "The screenshot was taken but not stored.",
       "usingComputer": "Using the computer",
       "useComputer": "Use the Computer",
+      "listingApps": "Listing the applications",
+      "listApps": "List the Applications",
       "browsingWeb": "Browsing the web",
       "cancelTask": "Cancel Task",
       "cancellingDelegate": "Cancelling a delegate",

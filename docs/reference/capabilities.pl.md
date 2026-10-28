@@ -1,5 +1,5 @@
 ---
-source_sha: "d1e3cf92658b"
+source_sha: "0d973027b0e8"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -73,7 +73,7 @@ Przeglądarka jest kierowana do usługi przeglądarki wdrożenia
 | `web_research` | Wyszukiwanie w internecie | badania | `web_search` | `web:read` | dla usług płatnych | bez zmian |
 | `web_fetch` | Czytanie stron | badania | `web_fetch` | `web:fetch` | — | bez zmian |
 | `browser_use` | Przeglądarka | badania | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | przez dodatek `browser` | przekazana |
-| `computer_use` | Obsługa komputera | badania | `computer_screenshot`, `computer_act`, `computer_save_screenshot` | `computer:use` | dla daemona | przekazana |
+| `computer_use` | Obsługa komputera | badania | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot` | `computer:use` | dla daemona | przekazana |
 | `code_execution` | Obliczenia | analiza | `run_python` | `code:execute` | — | bez zmian |
 | `sandbox` | Sandbox | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | dla Daytony | przekazana |
 | `charts` | Wykresy | analiza | `create_chart` | — | — | bez zmian |
@@ -910,7 +910,9 @@ są usuwane.
 
 `computer_screenshot` — *Take a screenshot of the desktop.*
 
-`computer_act` — *Act on the desktop: click, type, press keys, scroll, drag or wait.*
+`computer_act` — *Act on the desktop: click, type, press keys, scroll, drag, open an app or wait.*
+
+`computer_apps` — *List the applications installed on the desktop, to open one with `launch`.*
 
 `computer_save_screenshot` — *Save a screenshot of the desktop for the user: shown in the chat and kept.*
 
@@ -956,6 +958,35 @@ przeciwnym razie domyślny runtime połączenia. Sandbox, który nie wskazuje
 żadnego, też jest odrzucany, bo domyślny runtime dostarczany z platformą to
 `workbench`, który nie ma ekranu. Połączenie Daytony jest odrzucane, bo
 uruchamia własny obraz.
+
+**Otwieranie aplikacji.** `computer_apps` wypisuje aplikacje, które pokazuje
+menu pulpitu, każdą z nazwą w języku pulpitu i identyfikatorem, czyli nazwą
+pliku wpisu menu. Akcja `launch` otwiera jedną z nich po jednym albo drugim,
+zamiast szukać jej ikony. Dopasowanie jest dokładne, bez względu na wielkość
+liter: nazwa, którą mają dwa wpisy, na przykład systemowy Firefox i Firefox z
+Flatpaka, jest odrzucana razem z ich identyfikatorami, a nieznana nazwa ze
+wskazówką, żeby wywołać `computer_apps`. `launch` przyjmuje tylko nazwę, nigdy
+ścieżkę ani argumenty: bez ukośnika i znaków sterujących, a na początku litera
+albo cyfra.
+
+Czytany jest każdy katalog ścieżki menu (`$XDG_DATA_HOME` i `$XDG_DATA_DIRS`,
+więc także `/usr/local/share` i eksporty Flatpaka) razem z podkatalogami:
+`kde/konsole.desktop` ma identyfikator `kde-konsole`. Wpis, którego menu by nie
+pokazało, jest pomijany: ukryty, niebędący aplikacją, przeznaczony dla innego
+pulpitu niż XFCE albo wskazujący w `TryExec` program, którego nie ma. Wpis
+otwiera `exo-open`, a akcja wraca, gdy pojawi się nowe okno albo przesunie się
+fokus. Jeśli w ciągu dziesięciu sekund nie stanie się ani jedno, ani drugie,
+uruchomienie się nie udaje i reszta partii akcji nie jest wykonywana, więc nic
+nie zostanie wpisane w okno, które wcześniej miało fokus.
+
+Uruchamianie działa tylko na pulpitach linuksowych: w sandboksie, na pulpicie
+E2B i w kontenerze computerd, gdzie aplikacja działa jako `desk`, a nie jako
+konto, które trzyma token. computerd na Macu albo na własnym pulpicie Linux
+operatora oraz własny komputer użytkownika, osiągany przez aplikację
+desktopową, odrzucają `launch` i `computer_apps`. Przez aplikację desktopową
+model dostaje wskazówkę, żeby użył launchera tego komputera; przez demona,
+który może być jednym albo drugim, żeby najpierw wywołał `computer_apps`, a gdy
+zostanie odrzucone, użył launchera komputera.
 
 Narzędzie `execute` nie jest potrzebne, a jego wyłączenie trzyma akcje na
 pulpicie za `computer_act` i jego akceptacją: z `execute` agent może uruchomić

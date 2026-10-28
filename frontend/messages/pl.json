@@ -1504,6 +1504,8 @@
       "screenshotNotStored": "Zrzut ekranu został zrobiony, ale nie zapisany.",
       "usingComputer": "Używam komputera",
       "useComputer": "Użyj komputera",
+      "listingApps": "Sprawdzam zainstalowane aplikacje",
+      "listApps": "Lista aplikacji",
       "browsingWeb": "Przegląda strony",
       "cancelTask": "Anuluj zadanie",
       "cancellingDelegate": "Anuluje delegata",

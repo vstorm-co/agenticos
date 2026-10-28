@@ -90,7 +90,7 @@ async def test_local_computer_uses_the_paired_session_and_native_dimensions(
     from pydantic_ai.workspaces import Workspace
 
     from app.agents.capabilities.computer_use import _backends
-    from app.agents.capabilities.computer_use._actions import Wait
+    from app.agents.capabilities.computer_use._actions import Launch, Wait
     from app.schemas.local_target import LocalTarget
     from app.services.device_hub import DeviceCallFailed, DeviceWorkspace
 
@@ -117,6 +117,12 @@ async def test_local_computer_uses_the_paired_session_and_native_dimensions(
     assert (screenshot.width, screenshot.height) == (100, 80)
     await computer.perform(Click(x=20, y=10))
     assert call.call_args.args[1] == "screen.act"
+    calls = call.await_count
+    with pytest.raises(ComputerError, match="cannot open applications by name"):
+        await computer.perform(Launch(app="Safari"))
+    with pytest.raises(ComputerError, match="cannot open applications by name"):
+        await computer.apps()
+    assert call.await_count == calls
     sleep = AsyncMock()
     monkeypatch.setattr(_backends.anyio, "sleep", sleep)
     await computer.perform(Wait(seconds=0.5))
@@ -193,3 +199,47 @@ async def test_the_capability_selects_the_chosen_native_or_e2b_desktop(
     else:
         native.assert_called_once_with(workspace)
         hosted.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("backend", "on_device", "launch", "launcher"),
+    [
+        ("auto", True, False, True),
+        ("local", False, False, True),
+        ("auto", False, True, False),
+        ("sandbox", False, True, False),
+        ("daemon", True, True, True),
+    ],
+)
+def test_launch_is_recommended_only_where_the_desktop_has_it(
+    backend: Literal["auto", "local", "sandbox", "daemon"],
+    on_device: bool,
+    launch: bool,
+    launcher: bool,
+) -> None:
+    """The desktop app refuses `launch`; told so up front, the model skips the refused round trip.
+
+    A daemon may or may not launch, so the model is told to ask `computer_apps` first.
+    """
+    from uuid import uuid4
+
+    from pydantic_ai.models.test import TestModel
+    from pydantic_ai.tools import RunContext
+    from pydantic_ai.usage import RunUsage
+    from pydantic_ai.workspaces import Workspace
+    from pydantic_ai_backends import StateBackend
+
+    from app.agents.capabilities.computer_use import ComputerUse
+    from app.schemas.local_target import LocalTarget
+    from app.services.device_hub import DeviceWorkspace
+
+    workspace = Workspace(
+        DeviceWorkspace(uuid4(), uuid4(), LocalTarget(folder="/approved"))
+        if on_device
+        else StateBackend()
+    )
+    ctx = RunContext(deps=None, model=TestModel(), usage=RunUsage(), workspace=workspace)
+    instructions = ComputerUse(backend=backend).get_instructions()(ctx)
+    assert ("with the `launch` action" in instructions) is launch
+    assert ("cmd+space" in instructions) is launcher
+    assert ("do not work here" in instructions) is not launch

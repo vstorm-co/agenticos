@@ -1,5 +1,5 @@
 ---
-source_sha: "d1e3cf92658b"
+source_sha: "0d973027b0e8"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -74,7 +74,7 @@ hält er nur Dateien. Der Webbrowser zeigt auf den Browser-Dienst der Installati
 | `web_research` | Websuche | research | `web_search` | `web:read` | für kostenpflichtige Dienste | unverändert |
 | `web_fetch` | Webseiten lesen | research | `web_fetch` | `web:fetch` | — | unverändert |
 | `browser_use` | Webbrowser | research | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | über das Extra `browser` | übergeben |
-| `computer_use` | Computer-Bedienung | research | `computer_screenshot`, `computer_act`, `computer_save_screenshot` | `computer:use` | für einen Daemon | übergeben |
+| `computer_use` | Computer-Bedienung | research | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot` | `computer:use` | für einen Daemon | übergeben |
 | `code_execution` | Berechnungen | analysis | `run_python` | `code:execute` | — | unverändert |
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | für Daytona | übergeben |
 | `charts` | Diagramme | analysis | `create_chart` | — | — | unverändert |
@@ -965,7 +965,9 @@ entfallen.
 
 `computer_screenshot` — *Take a screenshot of the desktop.*
 
-`computer_act` — *Act on the desktop: click, type, press keys, scroll, drag or wait.*
+`computer_act` — *Act on the desktop: click, type, press keys, scroll, drag, open an app or wait.*
+
+`computer_apps` — *List the applications installed on the desktop, to open one with `launch`.*
 
 `computer_save_screenshot` — *Save a screenshot of the desktop for the user: shown in the chat and kept.*
 
@@ -1016,6 +1018,37 @@ Verbindung. Eine Sandbox, die keine von beiden nennt, wird ebenfalls verweigert,
 denn die mitgelieferte Standard-Runtime ist `workbench`, die keinen Bildschirm
 hat. Eine Daytona-Verbindung wird verweigert, weil sie ihr eigenes Image
 ausführt.
+
+**Eine Anwendung öffnen.** `computer_apps` listet die Anwendungen auf, die das
+Menü des Desktops zeigt, jede mit ihrem Namen in der Sprache des Desktops und
+ihrer ID, dem Dateinamen des Menüeintrags. Eine `launch`-Aktion öffnet eine
+davon über das eine oder das andere, statt ihr Symbol zu suchen. Der Vergleich
+ist exakt, ohne Rücksicht auf Groß- und Kleinschreibung: Ein Name, den zwei
+Einträge tragen, etwa ein System-Firefox und ein Flatpak-Firefox, wird mit ihren
+IDs abgelehnt, ein unbekannter Name mit dem Hinweis auf `computer_apps`.
+`launch` nimmt nur einen Namen, nie einen Pfad oder Argumente: kein
+Schrägstrich, kein Steuerzeichen, und am Anfang steht ein Buchstabe oder eine
+Ziffer.
+
+Gelesen wird jedes Verzeichnis des Menü-Suchpfads (`$XDG_DATA_HOME` und
+`$XDG_DATA_DIRS`, also auch `/usr/local/share` und die Exporte von Flatpak)
+samt Unterverzeichnissen: `kde/konsole.desktop` hat die ID `kde-konsole`. Ein
+Eintrag, den das Menü nicht zeigen würde, fehlt: versteckt, keine Anwendung,
+für einen anderen Desktop als XFCE gedacht oder mit einem `TryExec`-Programm,
+das nicht installiert ist. Geöffnet wird der Eintrag mit `exo-open`, und die
+Aktion kehrt zurück, sobald ein neues Fenster erscheint oder der Fokus wechselt.
+Geschieht keins von beiden innerhalb von zehn Sekunden, schlägt der Start fehl
+und der Rest seines Stapels läuft nicht, sodass nichts in das Fenster getippt
+wird, das vorher den Fokus hatte.
+
+Anwendungen starten nur Linux-Desktops: der einer Sandbox, ein E2B-Desktop und
+der computerd-Container, in dem die Anwendung als `desk` läuft, nicht als das
+Konto, das den Token hält. Ein computerd auf einem Mac oder auf dem eigenen
+Linux-Desktop eines Betreibers und der eigene Computer der Person, erreicht über
+die Desktop-App, lehnen `launch` und `computer_apps` ab. Über die Desktop-App
+wird das Modell angewiesen, stattdessen den Starter dieses Computers zu
+benutzen; über einen Daemon, der beides sein kann, zuerst `computer_apps`
+aufzurufen und den Starter des Computers zu benutzen, wenn das abgelehnt wird.
 
 Das Tool `execute` wird nicht gebraucht, und wer es weglässt, hält die Aktionen
 auf dem Desktop hinter `computer_act` und dessen Freigabe: Mit `execute` kann

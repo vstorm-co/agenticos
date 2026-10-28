@@ -1504,6 +1504,8 @@
       "screenshotNotStored": "Das Bildschirmfoto wurde aufgenommen, aber nicht gespeichert.",
       "usingComputer": "Bediene den Computer",
       "useComputer": "Den Computer bedienen",
+      "listingApps": "Liste die Anwendungen auf",
+      "listApps": "Anwendungen auflisten",
       "browsingWeb": "Surft im Web",
       "cancelTask": "Aufgabe abbrechen",
       "cancellingDelegate": "Bricht einen Delegaten ab",

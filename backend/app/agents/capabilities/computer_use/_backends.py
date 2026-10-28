@@ -1,7 +1,8 @@
 """Where the desktop is: the agent's own sandbox, or a `computerd` daemon the operator runs.
 
-Both answer the same two questions - what is on the screen, and do this - and
-neither is told how the model's screenshot was scaled; `_actions.to_native` has
+Each answers the same questions - what is on the screen, do this, and which
+applications a `launch` may open - and none is told how the model's screenshot
+was scaled; `_actions.to_native` has
 already moved every point into the backend's own input space by the time an
 action arrives here.
 
@@ -39,23 +40,29 @@ import logging
 import struct
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Protocol
 from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
 import anyio
 import httpx
+from pydantic import TypeAdapter, ValidationError
 from pydantic_ai.workspaces import SupportsCommands, Workspace, WorkspaceError
 
+from app.agents.capabilities.computer_use import _desktop_apps
 from app.agents.capabilities.computer_use._actions import (
+    AnyAction,
     Click,
     Drag,
     Key,
+    Launch,
     Move,
     Scroll,
     TypeText,
     Wait,
 )
+from app.agents.capabilities.computer_use._desktop_apps import App
 from app.agents.capabilities.sandbox._e2b import E2BWorkspace
 from app.core.config import settings
 from app.core.sanitize import UrlRefusedError
@@ -69,7 +76,8 @@ from app.services.device_hub import (
 
 logger = logging.getLogger(__name__)
 
-NativeAction = Click | Move | Drag | Scroll | TypeText | Key | Wait
+NativeAction = AnyAction
+"""An action whose points `_actions.to_native` has moved into the backend's own space."""
 
 DISPLAY = ":0"
 """The X display a sandbox's desktop runs on."""
@@ -113,6 +121,14 @@ class Computer(Protocol):
 
         Raises:
             ComputerError: The desktop refused it or could not be reached.
+        """
+        ...
+
+    async def apps(self) -> list[App]:
+        """The applications a `launch` may name.
+
+        Raises:
+            ComputerError: This desktop cannot open applications by name, or could not be reached.
         """
         ...
 
@@ -181,7 +197,9 @@ def x11_keys(chord: str) -> str:
 def xdotool(action: NativeAction) -> list[str] | None:
     """The `xdotool` command that carries out an action on an X11 display.
 
-    `None` for a wait, which is a sleep here rather than a process on the desktop.
+    `None` for a wait, which is a sleep here rather than a process on the desktop,
+    and for a launch, which `_desktop_apps` carries out.
+
     An argv rather than a shell line, so typed text reaches `xdotool` as one
     argument whatever it holds.
     """
@@ -209,6 +227,30 @@ def xdotool(action: NativeAction) -> list[str] | None:
             return ["xdotool", "key", "--", x11_keys(action.keys)]
         case _:
             return None
+
+
+_DESKTOP_APPS = Path(_desktop_apps.__file__).read_text()
+"""`_desktop_apps`' source, which a sandbox runs with `python3 -c`: one lookup for every Linux desktop."""
+
+_APPS: TypeAdapter[list[App]] = TypeAdapter(list[App])
+
+NO_LAUNCH = (
+    "This desktop cannot open applications by name. Use its own launcher: cmd+space "
+    "and the name on a Mac, the Start menu elsewhere."
+)
+"""The refusal of a desktop that cannot launch; computerd without its launcher says the same."""
+
+
+def read_apps(listing: str | bytes) -> list[App]:
+    """The applications a desktop listed, as `_desktop_apps.main` prints them.
+
+    Raises:
+        ComputerError: The listing is not one.
+    """
+    try:
+        return _APPS.validate_json(listing)
+    except ValidationError as exc:
+        raise ComputerError("The desktop's list of applications could not be read.") from exc
 
 
 def check_daemon_url(url: str) -> None:
@@ -302,6 +344,10 @@ class DaemonComputer:
         """Send one action; the daemon answers once it has been carried out."""
         await self._request("POST", "/actions", json={"actions": [action.model_dump()]})
 
+    async def apps(self) -> list[App]:
+        """The daemon's list, from its desktop's own account."""
+        return read_apps((await self._request("GET", "/apps")).content)
+
     async def close(self) -> None:
         """Close the client this desktop made; one it was handed is its caller's."""
         if self._owned:
@@ -356,6 +402,9 @@ class E2BComputer:
 
     async def perform(self, action: NativeAction) -> None:
         await self._desktop.perform(action)
+
+    async def apps(self) -> list[App]:
+        return await self._desktop.apps()
 
     async def close(self) -> None:
         """Kill the sandbox: nothing else ends it before its lifetime runs out, on their bill."""
@@ -425,10 +474,16 @@ class LocalComputer:
 
     async def perform(self, action: NativeAction) -> None:
         """Send one action; the app answers once it has been carried out."""
+        if isinstance(action, Launch):
+            raise ComputerError(NO_LAUNCH)
         if isinstance(action, Wait):
             await anyio.sleep(action.seconds)
             return
         await self._call("screen.act", {"action": action.model_dump()})
+
+    async def apps(self) -> list[App]:
+        """Refused: the desktop app cannot open applications by name yet."""
+        raise ComputerError(NO_LAUNCH)
 
     async def close(self) -> None:
         """Tell the app the run is done with the screen, so its outline goes."""
@@ -501,7 +556,7 @@ class SandboxComputer:
         # One file per run's desktop: runs sharing a workspace share its `/tmp`.
         self._shot = f"/tmp/agenticos-screen-{uuid4().hex}.png"  # noqa: S108 - inside the sandbox
 
-    async def _run(self, argv: list[str], what: str) -> None:
+    async def _run(self, argv: list[str], what: str) -> str:
         try:
             result = await self._workspace.run(argv, env={"DISPLAY": DISPLAY}, timeout=60)
         except (WorkspaceError, OSError) as exc:
@@ -512,6 +567,7 @@ class SandboxComputer:
         if result.exit_code != 0:
             said = (result.stderr or result.stdout).strip()[:200] or f"exit {result.exit_code}"
             raise ComputerError(f"The desktop refused to {what}: {said}")
+        return result.stdout
 
     async def capture(self) -> Capture:
         """Take a screenshot; on X11 the picture and the pointer share one space."""
@@ -539,12 +595,23 @@ class SandboxComputer:
 
     async def perform(self, action: NativeAction) -> None:
         """Carry out one action with `xdotool` inside the sandbox."""
+        if isinstance(action, Launch):
+            await self._run(
+                ["python3", "-c", _DESKTOP_APPS, "launch", action.app], f"open {action.app}"
+            )
+            return
         argv = xdotool(action)
         if argv is None:
             assert isinstance(action, Wait)
             await anyio.sleep(action.seconds)
             return
         await self._run(argv, f"run the {action.action} action")
+
+    async def apps(self) -> list[App]:
+        """The sandbox's own list, read where its menu is."""
+        return read_apps(
+            await self._run(["python3", "-c", _DESKTOP_APPS, "list"], "list its applications")
+        )
 
 
 async def open_sandbox_desktop(workspace: Workspace, *, width: int, height: int) -> SandboxComputer:
