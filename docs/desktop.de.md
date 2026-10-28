@@ -1,5 +1,5 @@
 ---
-source_sha: "887b8840ab00"
+source_sha: "8a95b0f3cca2"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -80,10 +80,10 @@ beiseitegelegt und eine neue geschrieben. Der Server wird unter
 **Einstellungen…** (`⌘,`), im Tray-Menü oder per Start mit `--server <address>`
 geändert.
 
-**Server wechseln…** ist auch eine feste Schaltfläche über Ihrem Konto in der
-Seitenleiste der Konsole. Sie öffnet direkt das Verbindungsformular; die
-eingeklappte Seitenleiste zeigt das Serversymbol. Sie können die Adresse ohne
-blobby ändern.
+**Server wechseln…** befindet sich im Kontomenü am unteren Rand der
+Konsolenseitenleiste. Öffnen Sie Ihren Kontonamen oder den Avatar in der
+eingeklappten Leiste und wählen Sie den Eintrag, um das Verbindungsformular
+zu öffnen. Er bleibt auch bei ausgeblendetem Blobby verfügbar.
 
 ### Docker und mehrere lokale Instanzen { #docker-and-multiple-local-instances }
 

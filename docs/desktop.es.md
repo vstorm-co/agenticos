@@ -1,5 +1,5 @@
 ---
-source_sha: "887b8840ab00"
+source_sha: "8a95b0f3cca2"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -77,10 +77,10 @@ Linux. Un archivo que ya no se puede leer se aparta como `server.json.invalid` y
 se escribe uno nuevo. El servidor se cambia en **Ajustes…** (`⌘,`), desde el menú
 de la bandeja o arrancando con `--server <address>`.
 
-**Cambiar servidor…** también es un botón fijo sobre tu cuenta en la barra
-lateral de la consola. Abre directamente el formulario de conexión; la barra
-lateral contraída muestra su icono de servidor. Puedes cambiar la dirección sin
-usar blobby.
+**Cambiar servidor…** está en el menú desplegable de la cuenta, al pie de la
+barra lateral. Pulsa el nombre de la cuenta o el avatar en la barra contraída
+y selecciona la opción para abrir el formulario de conexión. Sigue disponible
+cuando blobby está oculto.
 
 ### Docker y varias instancias locales { #docker-and-multiple-local-instances }
 

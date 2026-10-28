@@ -72,9 +72,9 @@ Linux. A file that no longer parses is set aside as `server.json.invalid` and a
 fresh one is written. The server is changed under **Settings…** (`⌘,`), from the
 tray menu, or by launching with `--server <address>`.
 
-**Change server…** is also a permanent button above your account in the console
-sidebar. It opens the connection form directly; a collapsed sidebar shows its
-server icon. You can change the address without using blobby.
+**Change server…** is in the account dropdown at the foot of the console
+sidebar. Open your account name or the avatar on a collapsed sidebar, then
+choose it to open the connection form. It remains available when blobby is hidden.
 
 ### Docker and multiple local instances
 

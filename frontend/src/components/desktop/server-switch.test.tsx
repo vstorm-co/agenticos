@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 
 import type { ShellInfo } from "@/lib/desktop/shell";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui";
 import { ServerSwitch } from "./server-switch";
 import { MAC_MAIN } from "./fixtures";
 
@@ -22,21 +23,29 @@ beforeEach(() => {
   env.change.mockClear();
 });
 
-it.each([false, true])(
-  "opens the native picker from the sidebar (compact: %s)",
-  async (compact) => {
-    render(<ServerSwitch compact={compact} />);
-    expect(env.change).not.toHaveBeenCalled();
-    await userEvent.click(screen.getByRole("button", { name: "Change server…" }));
-    expect(env.change).toHaveBeenCalledOnce();
-  },
-);
+function renderSwitch() {
+  return render(
+    <DropdownMenu open>
+      <DropdownMenuTrigger>Account</DropdownMenuTrigger>
+      <DropdownMenuContent>
+        <ServerSwitch />
+      </DropdownMenuContent>
+    </DropdownMenu>,
+  );
+}
+
+it("opens the native picker from an account menu item", async () => {
+  renderSwitch();
+  expect(env.change).not.toHaveBeenCalled();
+  await userEvent.click(await screen.findByRole("menuitem", { name: "Change server…" }));
+  expect(env.change).toHaveBeenCalledOnce();
+});
 
 it("prevents duplicate requests while the native picker opens", async () => {
   env.pending = true;
-  render(<ServerSwitch />);
-  const button = screen.getByRole("button", { name: "Change server…" });
-  expect(button).toBeDisabled();
+  renderSwitch();
+  const button = screen.getByRole("menuitem", { name: "Change server…" });
+  expect(button).toHaveAttribute("aria-disabled", "true");
   await userEvent.click(button);
   expect(env.change).not.toHaveBeenCalled();
 });
@@ -49,6 +58,6 @@ it.each<ShellInfo | null>([
   { ...MAC_MAIN, window: "quick-ask" },
 ])("offers the picker only in the main desktop window: %j", (shell) => {
   env.shell = shell;
-  render(<ServerSwitch />);
-  expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  renderSwitch();
+  expect(screen.queryByRole("menuitem", { name: "Change server…" })).not.toBeInTheDocument();
 });

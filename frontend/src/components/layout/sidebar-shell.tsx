@@ -9,7 +9,6 @@ import { useTranslations } from "next-intl";
 import { version } from "../../../package.json";
 
 import { NotificationBell } from "@/components/layout/notification-bell";
-import { ServerSwitch } from "@/components/desktop/server-switch";
 import { SidebarSearch } from "@/components/layout/sidebar-search";
 import { SidebarUser } from "@/components/layout/sidebar-user";
 import { cn } from "@/lib/utils";
@@ -58,7 +57,6 @@ export function SidebarShell({
             v{version}
           </span>
         </div>
-        <ServerSwitch compact={collapsed} />
         <SidebarUser compact={collapsed} />
       </div>
     </>

@@ -368,6 +368,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Desktop server switching lives in the account dropdown instead of a separate
+  sidebar button, including when the sidebar is collapsed.
+
 - Local instance creation has its own compact, grouped setup step with one action
   bar. Cancelling restores the instance overview; Blobby stays out of setup screens.
 

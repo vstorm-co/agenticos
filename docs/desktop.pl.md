@@ -1,5 +1,5 @@
 ---
-source_sha: "887b8840ab00"
+source_sha: "8a95b0f3cca2"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -77,9 +77,9 @@ Linuksie. Plik, który przestał się parsować, jest odkładany jako
 **Ustawieniach…** (`⌘,`), z menu w zasobniku albo uruchamiając z
 `--server <address>`.
 
-**Zmień serwer…** jest też stałym przyciskiem nad kontem w pasku bocznym konsoli.
-Otwiera bezpośrednio formularz połączenia; zwinięty pasek pokazuje jego ikonę
-serwera. Możesz zmienić adres bez używania blobby.
+**Zmień serwer…** znajduje się w rozwijanym menu konta na dole paska bocznego
+konsoli. Kliknij nazwę konta lub awatar w zwiniętym pasku, a następnie tę opcję,
+aby otworzyć formularz połączenia. Jest dostępna również przy ukrytym blobby.
 
 ### Docker i wiele lokalnych instancji { #docker-and-multiple-local-instances }
 
