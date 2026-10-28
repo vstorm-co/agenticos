@@ -26,6 +26,22 @@ def browser(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(visual_render.settings, "BROWSER_CDP_ALLOWED_HOSTS", ["Browser"])
 
 
+class TestRenderRequestBudget:
+    def test_total_requests_are_bounded_even_when_they_finish_quickly(self) -> None:
+        budget = visual_render.RenderRequestBudget()
+        assert all(budget.admit(0) for _ in range(visual_render.MAX_REQUESTS))
+        assert budget.admit(0) is False
+        assert budget.exceeded is True
+        assert budget.admit(0) is False
+
+    def test_pending_requests_are_bounded_before_another_task_is_created(self) -> None:
+        budget = visual_render.RenderRequestBudget()
+        assert budget.admit(visual_render.MAX_PENDING_REQUESTS - 1) is True
+        assert budget.admit(visual_render.MAX_PENDING_REQUESTS) is False
+        assert budget.admitted == 1
+        assert budget.exceeded is True
+
+
 class TestWhichBrowser:
     def test_none_is_configured_by_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(visual_render.settings, "VISUAL_RENDER_CDP_URL", "")
@@ -72,6 +88,20 @@ class TestWhatTheBrowserIsGiven:
         assert reply.body == png
         assert reply.content_type == "image/png"
         fetched.assert_awaited_once_with(3, 4, 5)
+
+    async def test_a_renderer_tile_over_the_shared_limit_never_reaches_the_provider(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        fetched = AsyncMock()
+        allowance = AsyncMock(return_value=visual_render.rate_limit.Decision(False, 60))
+        monkeypatch.setattr(visual_render.tile_proxy, "tile", fetched)
+        monkeypatch.setattr(visual_render.rate_limit, "consume", allowance)
+        reply = await visual_render.answer(f"{visual_render.artifacts.tile_source()}3/4/5", b"")
+        assert reply.body is None
+        fetched.assert_not_awaited()
+        assert allowance.await_args.kwargs["limit"].attempts == (
+            visual_render.settings.RATE_LIMIT_MAP_TILES_PER_MINUTE
+        )
 
     async def test_a_tile_that_cannot_be_had_is_refused(
         self, monkeypatch: pytest.MonkeyPatch
