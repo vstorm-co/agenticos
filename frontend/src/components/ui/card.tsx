@@ -70,7 +70,7 @@ const CardDescription = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HT
       <div
         ref={ref}
         className={cn(
-          "text-muted-foreground text-sm",
+          "text-foreground/85 text-sm leading-relaxed",
           !open && "flex min-w-0 items-center gap-2",
           className,
         )}

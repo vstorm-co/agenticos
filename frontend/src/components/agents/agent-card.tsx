@@ -141,7 +141,7 @@ export function AgentCard({
                 <div className="w-full min-w-0 sm:w-auto">
                   <h3
                     className={cn(
-                      "text-foreground line-clamp-2 font-medium break-words sm:truncate",
+                      "text-foreground line-clamp-2 font-semibold break-words sm:truncate",
                       archived && "text-muted-foreground",
                     )}
                   >
@@ -150,7 +150,7 @@ export function AgentCard({
                 </div>
                 <AgentStatusBadge status={agent.status} />
               </div>
-              <p className="text-muted-foreground col-span-2 line-clamp-2 min-h-[2.5rem] text-sm sm:mt-2">
+              <p className="text-foreground/85 col-span-2 line-clamp-2 min-h-[2.5rem] text-sm sm:mt-2">
                 {agent.description || t("noDescription")}
               </p>
               <div className="col-span-2 flex flex-wrap items-center gap-1.5 sm:mt-2">

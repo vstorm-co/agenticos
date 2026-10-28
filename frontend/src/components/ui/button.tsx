@@ -18,10 +18,10 @@ const buttonVariants = cva(
         // pointer. A card-coloured block with its own shadow made every secondary
         // action as heavy as the one primary beside it.
         outline:
-          "border border-foreground/12 bg-transparent hover:bg-foreground/[0.05] hover:border-foreground/20 active:bg-foreground/[0.09]",
+          "text-foreground border border-foreground/12 bg-transparent hover:bg-foreground/[0.05] hover:border-foreground/20 active:bg-foreground/[0.09]",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80 active:bg-secondary/65",
-        ghost: "hover:bg-accent hover:text-accent-foreground active:bg-accent/75",
+        ghost: "text-foreground hover:bg-accent hover:text-accent-foreground active:bg-accent/75",
         link: "text-brand underline-offset-4 hover:text-brand-hover hover:underline",
       },
       size: {
@@ -37,7 +37,7 @@ const buttonVariants = cva(
     // and set at 12px, so a row of them reads as controls beside the content
     // rather than a second toolbar above it.
     compoundVariants: [
-      { variant: "outline", size: "sm", class: "h-8 gap-1.5 px-3 text-xs [&_svg]:size-3.5" },
+      { variant: "outline", size: "sm", class: "h-8 gap-1.5 px-3 text-[13px] [&_svg]:size-3.5" },
     ],
     defaultVariants: {
       variant: "default",

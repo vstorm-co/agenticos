@@ -375,6 +375,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Skills and Context show agent usage and portraits directly on their cards.
+  Stronger foreground text, form labels and action contrast keep the console
+  readable, including over glass surfaces. Native and browser chat layouts share
+  their top inset so the conversation header is no longer clipped on desktop.
+
 - Desktop project drops now reach the console instead of being consumed by the
   native window. File rows target their containing folder; empty pane space
   accepts root uploads and moves. Drop feedback no longer covers the file tree.

@@ -139,3 +139,24 @@ it("keeps the preview visible while metadata and actions stay behind Details", a
   expect(details).toHaveAttribute("open");
   expect(onOpen).not.toHaveBeenCalled();
 });
+
+it("shows agent usage immediately while supporting metadata stays folded", () => {
+  renderCard({
+    skill: {
+      ...SKILL,
+      used_by: [
+        { id: "billing", name: "Billing" },
+        { id: "support", name: "Support" },
+      ],
+    },
+  });
+  const usage = screen.getByText("Used by Billing, Support");
+  expect(usage).toBeVisible();
+  expect(usage.closest("details")).toBeNull();
+  expect(screen.getByText("Details").closest("details")).not.toHaveAttribute("open");
+});
+
+it("shows an unused resource's next step without opening Details", () => {
+  renderCard({ skill: { ...SKILL, used_by: [] } });
+  expect(screen.getByText("Not used by any agent yet")).toBeVisible();
+});

@@ -17,7 +17,7 @@ interface ContextCardProps {
   onDelete: () => void;
 }
 
-/** Preview and next action stay visible; supporting metadata is disclosed on demand. */
+/** Preview, agent usage and next action stay visible; taxonomy opens on demand. */
 export function ContextCard({ file, canEdit, onOpen, onDelete }: ContextCardProps) {
   const tc = useTranslations("common");
   return (
@@ -40,17 +40,18 @@ export function ContextCard({ file, canEdit, onOpen, onDelete }: ContextCardProp
         <span className="flex w-full flex-1 flex-col gap-1.5 p-4">
           <span className="flex min-w-0 flex-wrap items-center gap-2">
             <span
-              className="text-foreground max-w-full truncate text-sm font-medium"
+              className="text-foreground max-w-full truncate text-base font-semibold"
               title={file.name}
             >
               {file.name}
             </span>
           </span>
-          <span className="text-muted-foreground line-clamp-1 min-h-5 text-sm">
+          <span className="text-foreground/85 line-clamp-2 min-h-10 text-sm leading-relaxed">
             {file.description}
           </span>
         </span>
       </button>
+      <UsedBy agents={file.used_by} className="text-foreground/85 mx-4 mb-3 gap-2" />
       <div className="flex items-start justify-between gap-2 border-t px-3 py-2">
         <details className="text-muted-foreground min-w-0 flex-1 text-xs">
           <summary className="hover:text-foreground touch:min-h-11 cursor-pointer py-2 focus-visible:outline-offset-[-2px]">
@@ -62,7 +63,6 @@ export function ContextCard({ file, canEdit, onOpen, onDelete }: ContextCardProp
               {file.format.toUpperCase()}
             </span>
             <AudienceChip visibility={file.visibility} groups={file.shared_groups} />
-            <UsedBy agents={file.used_by} />
             {canEdit && (
               <Button
                 variant="ghost"
@@ -79,7 +79,7 @@ export function ContextCard({ file, canEdit, onOpen, onDelete }: ContextCardProp
         <AddToAgent
           resource={{ kind: "context", id: file.id }}
           name={file.name}
-          className="h-8 shrink-0 text-xs"
+          className="h-8 shrink-0"
         />
       </div>
     </Card>

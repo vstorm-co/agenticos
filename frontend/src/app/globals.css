@@ -196,11 +196,11 @@
      depth changed with whatever it happened to be over. */
   --color-sidebar: oklch(96.3% 0.002 265);
   --color-background: oklch(97.8% 0.002 265);
-  --color-foreground: oklch(17.5% 0.004 265);
+  --color-foreground: oklch(16% 0.004 265);
   --color-card: oklch(100% 0 0);
-  --color-card-foreground: oklch(17.5% 0.004 265);
+  --color-card-foreground: oklch(16% 0.004 265);
   --color-popover: oklch(100% 0 0);
-  --color-popover-foreground: oklch(17.5% 0.004 265);
+  --color-popover-foreground: oklch(16% 0.004 265);
   /* The document peek: a card's content drawn as a sheet of paper resting in a
      well, with the rest of it stacked behind. The paper is always the lightest
      of the three, in both themes, which is why these are their own tokens
@@ -209,19 +209,19 @@
   --color-peek-well: oklch(95.5% 0.002 265);
   --color-peek-sheet: oklch(88.5% 0.004 265);
   --color-peek-paper: oklch(100% 0 0);
-  /* Actions sit on a neutral raised surface; colour is reserved for meaning. */
+  /* The main action carries full ink contrast; secondary actions stay quiet. */
   --color-primary: oklch(21% 0.01 250);
   --color-primary-foreground: oklch(98.5% 0 0);
   --color-primary-hover: oklch(30% 0.01 250);
   --color-primary-active: oklch(37% 0.012 250);
-  --color-action: oklch(95% 0 0);
-  --color-action-foreground: oklch(22% 0 0);
-  --color-action-hover: oklch(92% 0 0);
-  --color-action-active: oklch(89% 0 0);
+  --color-action: var(--color-primary);
+  --color-action-foreground: var(--color-primary-foreground);
+  --color-action-hover: var(--color-primary-hover);
+  --color-action-active: var(--color-primary-active);
   --color-secondary: oklch(95.5% 0.002 265);
   --color-secondary-foreground: oklch(22% 0.004 265);
   --color-muted: oklch(95.5% 0.002 265);
-  --color-muted-foreground: oklch(44% 0.006 265);
+  --color-muted-foreground: oklch(40% 0.006 265);
   /* Deeper than `muted`, where the two used to be the same value. `accent` is
      what paints a selected nav row and a hover, and the sidebar it paints them
      on is now a tinted surface of its own - at the muted step the selected row
@@ -300,11 +300,11 @@
   :root:not(.light) {
     --color-sidebar: oklch(20.5% 0.0025 265);
     --color-background: oklch(23.5% 0.0025 265);
-    --color-foreground: oklch(94.5% 0.003 265);
+    --color-foreground: oklch(96.5% 0.003 265);
     --color-card: oklch(26.2% 0.0025 265);
-    --color-card-foreground: oklch(94.5% 0.003 265);
+    --color-card-foreground: oklch(96.5% 0.003 265);
     --color-popover: oklch(28.5% 0.0025 265);
-    --color-popover-foreground: oklch(94.5% 0.003 265);
+    --color-popover-foreground: oklch(96.5% 0.003 265);
     --color-peek-well: oklch(21.5% 0.0025 265);
     --color-peek-sheet: oklch(25.5% 0.0025 265);
     --color-peek-paper: oklch(29.5% 0.003 265);
@@ -316,10 +316,10 @@
     --color-primary-foreground: oklch(16% 0.01 250);
     --color-primary-hover: oklch(88% 0.004 250);
     --color-primary-active: oklch(81% 0.005 250);
-    --color-action: oklch(34% 0 0);
-    --color-action-foreground: oklch(96% 0 0);
-    --color-action-hover: oklch(38% 0 0);
-    --color-action-active: oklch(41% 0 0);
+    --color-action: var(--color-primary);
+    --color-action-foreground: var(--color-primary-foreground);
+    --color-action-hover: var(--color-primary-hover);
+    --color-action-active: var(--color-primary-active);
     --color-brand: var(--brand-400);
     --color-brand-hover: var(--brand-300);
     --color-brand-active: var(--brand-200);
@@ -330,7 +330,7 @@
     --color-secondary: oklch(30% 0.0025 265);
     --color-secondary-foreground: oklch(95% 0 0);
     --color-muted: oklch(30% 0.0025 265);
-    --color-muted-foreground: oklch(73.5% 0.006 265);
+    --color-muted-foreground: oklch(78% 0.006 265);
     --color-accent: oklch(32.5% 0.0025 265);
     --color-accent-foreground: oklch(95% 0 0);
     --color-border: oklch(34% 0 0);
@@ -351,11 +351,11 @@
 :root.dark {
   --color-sidebar: oklch(20.5% 0.0025 265);
   --color-background: oklch(23.5% 0.0025 265);
-  --color-foreground: oklch(94.5% 0.003 265);
+  --color-foreground: oklch(96.5% 0.003 265);
   --color-card: oklch(26.2% 0.0025 265);
-  --color-card-foreground: oklch(94.5% 0.003 265);
+  --color-card-foreground: oklch(96.5% 0.003 265);
   --color-popover: oklch(28.5% 0.0025 265);
-  --color-popover-foreground: oklch(94.5% 0.003 265);
+  --color-popover-foreground: oklch(96.5% 0.003 265);
   --color-peek-well: oklch(21.5% 0.0025 265);
   --color-peek-sheet: oklch(25.5% 0.0025 265);
   --color-peek-paper: oklch(29.5% 0.003 265);
@@ -365,10 +365,10 @@
   --color-primary-foreground: oklch(16% 0.01 250);
   --color-primary-hover: oklch(88% 0.004 250);
   --color-primary-active: oklch(81% 0.005 250);
-  --color-action: oklch(34% 0 0);
-  --color-action-foreground: oklch(96% 0 0);
-  --color-action-hover: oklch(38% 0 0);
-  --color-action-active: oklch(41% 0 0);
+  --color-action: var(--color-primary);
+  --color-action-foreground: var(--color-primary-foreground);
+  --color-action-hover: var(--color-primary-hover);
+  --color-action-active: var(--color-primary-active);
   --color-brand: var(--brand-400);
   --color-brand-hover: var(--brand-300);
   --color-brand-active: var(--brand-200);
@@ -379,7 +379,7 @@
   --color-secondary: oklch(30% 0.0025 265);
   --color-secondary-foreground: oklch(95% 0 0);
   --color-muted: oklch(30% 0.0025 265);
-  --color-muted-foreground: oklch(73.5% 0.006 265);
+  --color-muted-foreground: oklch(78% 0.006 265);
   --color-accent: oklch(32.5% 0.0025 265);
   --color-accent-foreground: oklch(95% 0 0);
   --color-border: oklch(34% 0 0);
@@ -415,10 +415,10 @@
   --color-primary-foreground: oklch(98.5% 0 0);
   --color-primary-hover: oklch(30% 0.01 250);
   --color-primary-active: oklch(37% 0.012 250);
-  --color-action: oklch(95% 0 0);
-  --color-action-foreground: oklch(22% 0 0);
-  --color-action-hover: oklch(92% 0 0);
-  --color-action-active: oklch(89% 0 0);
+  --color-action: var(--color-primary);
+  --color-action-foreground: var(--color-primary-foreground);
+  --color-action-hover: var(--color-primary-hover);
+  --color-action-active: var(--color-primary-active);
   --color-brand: var(--brand-700);
   --color-brand-hover: var(--brand-800);
   --color-brand-active: var(--brand-900);
@@ -441,20 +441,20 @@
 .theme-dark {
   --color-sidebar: oklch(20.5% 0.0025 265);
   --color-background: oklch(23.5% 0.0025 265);
-  --color-foreground: oklch(94.5% 0.003 265);
+  --color-foreground: oklch(96.5% 0.003 265);
   --color-card: oklch(26.2% 0.0025 265);
-  --color-card-foreground: oklch(94.5% 0.003 265);
+  --color-card-foreground: oklch(96.5% 0.003 265);
   --color-muted: oklch(30% 0.0025 265);
-  --color-muted-foreground: oklch(73.5% 0.006 265);
+  --color-muted-foreground: oklch(78% 0.006 265);
   --color-border: oklch(34% 0 0);
   --color-primary: oklch(96% 0.003 250);
   --color-primary-foreground: oklch(16% 0.01 250);
   --color-primary-hover: oklch(88% 0.004 250);
   --color-primary-active: oklch(81% 0.005 250);
-  --color-action: oklch(34% 0 0);
-  --color-action-foreground: oklch(96% 0 0);
-  --color-action-hover: oklch(38% 0 0);
-  --color-action-active: oklch(41% 0 0);
+  --color-action: var(--color-primary);
+  --color-action-foreground: var(--color-primary-foreground);
+  --color-action-hover: var(--color-primary-hover);
+  --color-action-active: var(--color-primary-active);
   --color-brand: var(--brand-400);
   --color-brand-hover: var(--brand-300);
   --color-brand-active: var(--brand-200);
@@ -487,22 +487,10 @@
   html[data-motion="reduce"] {
     scroll-behavior: auto;
   }
-  :root.dark body {
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:not(.light) body {
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
-    }
-  }
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-body);
-    /* Grayscale smoothing only on dark: on macOS it turns off stem darkening,
-       which keeps light text on a dark ground from blooming - and leaves dark
-       text on a light ground thin and grey, worst on a 1x monitor. */
+    /* Keep the platform's font rendering and stem weight in both themes. */
     font-optical-sizing: auto;
     text-rendering: optimizeLegibility;
     /* Disable iOS tap highlight - focus rings + active states do the job. */

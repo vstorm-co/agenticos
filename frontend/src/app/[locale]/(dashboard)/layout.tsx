@@ -98,7 +98,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <main
                 id="main"
                 tabIndex={-1}
-                className="relative flex min-h-0 flex-1 flex-col overflow-auto px-3 pt-4 sm:px-6 sm:pt-8"
+                className="relative flex min-h-0 flex-1 flex-col overflow-auto px-3 pt-(--page-inset-top) [--page-inset-top:1rem] sm:px-6 sm:[--page-inset-top:2rem]"
               >
                 {/* Inside `main` rather than around the whole shell: a
                     maintenance window still leaves the navigation and the account

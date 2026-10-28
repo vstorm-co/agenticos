@@ -1,5 +1,5 @@
 ---
-source_sha: "69d730821642"
+source_sha: "d7931ad64582"
 ---
 
 # Konsola { #the-console }
@@ -21,7 +21,18 @@ Wprowadzenia do stron i objaśnienia ustawień są dostępne pod ikoną informac
 
 W Agentach, Skills, Context i historii uruchomień przycisk **Filtry** rozwija dodatkowe opcje niezależnie od rozmiaru ekranu i pokazuje liczbę aktywnych filtrów.
 
-Karty agentów pozostawiają status i dostęp na wierzchu, a uchwyt, etykiety, kanały i datę edycji przenoszą do **Szczegółów**. Karty Skills i Context zachowują podgląd dokumentu i widoczne **Dodaj do agenta**, z krótkim opisem pod podglądem. **Szczegóły** rozwijają odbiorców, użycie i drugorzędne akcje. Zakładki organizacji, kreatora agentów i projektów mają odpowiednie ikony. Wiersze budżetu pokazują avatary agentów.
+Karty agentów pozostawiają status i dostęp na wierzchu, a uchwyt, etykiety, kanały i
+datę edycji przenoszą do **Szczegółów**. Karty Skills i Context pokazują podgląd
+dokumentu, opis, używających agentów z avatarami i **Dodaj do agenta** bez
+rozwijania. **Szczegóły** zawierają odbiorców, kategorię, format i drugorzędne akcje.
+
+Nazwy, nawigacja i wartości formularzy używają wyraźnego tekstu pierwszego planu;
+metadane pozostają drugorzędne. Główne akcje mają kontrastujące neutralne
+wypełnienie. Glass zachowuje natywny materiał, ale treść, karty i menu mają bardziej
+kryjące powierzchnie do czytania.
+
+Zakładki organizacji, kreatora agentów i projektów mają odpowiednie ikony. Wiersze
+budżetu pokazują avatary agentów.
 
 Generowane portrety korzystają z ograniczonego zestawu kształtów Blobatar 2.7 i jaśniejszych odcieni; animują się po najechaniu, a pracujący agenci zachowują animację myślenia. Wgrane zdjęcia pozostają bez zmian. Nowe zdjęcia agentów startowych należą do tej samej rodziny; istniejące zapisane obrazy nie są automatycznie zastępowane.
 

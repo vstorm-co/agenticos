@@ -75,7 +75,7 @@ function NavLink({
         // with the content it points at.
         active
           ? "bg-accent text-foreground"
-          : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+          : "text-foreground/90 hover:bg-accent/60 hover:text-foreground",
       )}
     >
       <NavIcon icon={item.icon} />

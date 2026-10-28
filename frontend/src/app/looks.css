@@ -150,10 +150,10 @@
    less, a popover barely - a menu has to stay legible over anything. What is
    behind them is `desktop.css`'s to paint. */
 :root[data-look="glass"] {
-  --color-sidebar: oklch(97% 0.004 265 / 0.45);
-  --color-background: oklch(98.5% 0.002 265 / 0.62);
-  --color-card: oklch(100% 0 0 / 0.72);
-  --color-popover: oklch(100% 0 0 / 0.9);
+  --color-sidebar: oklch(97% 0.004 265 / 0.76);
+  --color-background: oklch(98.5% 0.002 265 / 0.88);
+  --color-card: oklch(100% 0 0 / 0.94);
+  --color-popover: oklch(100% 0 0 / 0.98);
   --color-peek-well: oklch(96% 0.003 265 / 0.6);
   --color-secondary: oklch(95% 0.003 265 / 0.6);
   --color-muted: oklch(95% 0.003 265 / 0.6);
@@ -163,10 +163,10 @@
 }
 
 :root.dark[data-look="glass"] {
-  --color-sidebar: oklch(22% 0.004 265 / 0.4);
-  --color-background: oklch(21% 0.004 265 / 0.62);
-  --color-card: oklch(28% 0.004 265 / 0.62);
-  --color-popover: oklch(27% 0.004 265 / 0.9);
+  --color-sidebar: oklch(22% 0.004 265 / 0.82);
+  --color-background: oklch(21% 0.004 265 / 0.88);
+  --color-card: oklch(28% 0.004 265 / 0.9);
+  --color-popover: oklch(27% 0.004 265 / 0.97);
   --color-peek-well: oklch(20% 0.004 265 / 0.6);
   --color-secondary: oklch(34% 0.004 265 / 0.55);
   --color-muted: oklch(34% 0.004 265 / 0.55);
@@ -225,10 +225,10 @@
   }
 
   :root:not(.light)[data-look="glass"] {
-    --color-sidebar: oklch(22% 0.004 265 / 0.4);
-    --color-background: oklch(21% 0.004 265 / 0.62);
-    --color-card: oklch(28% 0.004 265 / 0.62);
-    --color-popover: oklch(27% 0.004 265 / 0.9);
+    --color-sidebar: oklch(22% 0.004 265 / 0.82);
+    --color-background: oklch(21% 0.004 265 / 0.88);
+    --color-card: oklch(28% 0.004 265 / 0.9);
+    --color-popover: oklch(27% 0.004 265 / 0.97);
     --color-muted: oklch(34% 0.004 265 / 0.55);
     --color-accent: oklch(42% 0.005 265 / 0.45);
     --color-border: oklch(80% 0.006 265 / 0.16);

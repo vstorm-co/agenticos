@@ -151,3 +151,51 @@ moves stop bubbling and show a refused cursor. The upload hint is a small corner
 label instead of a banner over the tree. Focused regression tests cover these
 additional targets, along with existing nested/drop-cancellation behavior. Native
 packaging checks the builder change; no Computer Use was performed.
+
+
+## Legibility and visible agent usage
+
+The user's supplied desktop references favor clear primary text, recognizable
+portraits and quiet supporting data. Keep AgenticOS's existing neutral system and
+font family. Skill and Context cards now leave usage portraits and names visible,
+including the unassigned state, beside the already visible Add to an agent action.
+Category, audience and destructive actions remain under Details. Names use 16 px
+semibold type and descriptions allow two readable lines.
+
+Primary text is stronger in both themes. Labels and controls explicitly own their
+foreground instead of inheriting a muted toolbar color. Secondary actions keep
+quiet surfaces; main actions use the existing action roles mapped to high-contrast
+ink. Navigation and table headings receive clearer text. Remove forced grayscale
+font smoothing from the body so macOS retains its own stem rendering. Preserve
+font families, stored appearance preferences and the system/glass defaults.
+
+Glass content opacity rises from 62% to 88%; cards rise to 90% in dark and 94% in
+light, and popovers to 97%/98%. The sidebar retains translucency at 82%/76% opacity.
+The browser's main reading pane no longer needs an additional backdrop-blur layer;
+sidebars and floating surfaces keep their material.
+
+A static contrast experiment converted the actual dark OKLCH tokens through
+Oklab to sRGB, composited glass over black and white backings, and applied WCAG
+relative luminance. On a white backing the card metadata ratio rises from 4.16:1
+to 7.18:1; sidebar metadata rises from 1.07:1 to 4.89:1. On a black backing the new
+ratios are 7.48:1 and 9.06:1. This models the CSS colors, not captured OS pixels or
+an accessibility certification. Inputs and results are available during this run
+in `/tmp/console-legibility-contrast.py` and `.json`.
+
+## Shared top inset and chat header
+
+The desktop's 16 px top inset and chat's former fixed -32 px compensation disagreed,
+clipping the header by 16 px. `main` now declares `--page-inset-top` at its existing
+responsive values; desktop overrides that property, and chat reads the same value
+for its full-bleed margin. Chat headers do not shrink, scroll areas have a zero
+minimum height and all header icons share a 32 px box with 44 px touch targets.
+The Builder test panel also reads the inset and subtracts the native drag-strip
+height from its viewport height. No offset is guessed from the browser layout.
+
+Verification: 91 focused card/navigation/theme tests, 56 shared-control and
+appearance tests, 69 chat/page/test-panel regressions and a final 67-test chat/filter
+batch passed. Frontend lint, TypeScript, i18n/dependency checks and documentation
+translation checks passed. Tailwind compilation
+confirms that the positive padding and negative margin use the same property, with
+native drag-strip height included in the test panel. No browser automation or
+Computer Use was performed. The running app receives these frontend changes live.

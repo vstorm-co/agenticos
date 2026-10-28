@@ -30,7 +30,7 @@ const TabsList = React.forwardRef<
         // The strip's line is an inset shadow, not a border: a scroll container
         // clips to inside its border, so a border here cut the active tab's
         // 2px underline to a hairline nobody could tell from the line itself.
-        "text-muted-foreground relative flex max-w-full min-w-0 scrollbar-none gap-4 overflow-x-auto overflow-y-hidden overscroll-x-contain bg-transparent shadow-[inset_0_-1px_0_var(--color-border)] sm:gap-6 [&>*]:shrink-0",
+        "text-foreground/80 relative flex max-w-full min-w-0 scrollbar-none gap-4 overflow-x-auto overflow-y-hidden overscroll-x-contain bg-transparent shadow-[inset_0_-1px_0_var(--color-border)] sm:gap-6 [&>*]:shrink-0",
         SCROLL_FADE,
         className,
       )}

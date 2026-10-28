@@ -17,7 +17,15 @@ Page introductions and settings explanations are available from the information 
 
 In Agents, Skills, Context and run history, **Filters** reveals secondary controls on every screen size and shows how many filters are active.
 
-Agent cards keep status and access visible while moving handles, tags, channels and edit dates into **Details**. Skills and Context cards keep the document preview and **Add to an agent** visible, with a short summary below the preview. **Details** reveals sharing, usage and secondary actions.
+Agent cards keep status and access visible while moving handles, tags, channels
+and edit dates into **Details**. Skills and Context cards show the document
+preview, summary, **Used by** with agent portraits and **Add to an agent** without
+opening anything. **Details** reveals sharing, categories, formats and secondary
+actions.
+
+Names, navigation and form values use strong foreground text; metadata stays
+secondary. Primary actions use a contrasting neutral fill. Glass keeps the native
+material while giving content, cards and menus more opaque surfaces for reading.
 
 Organization, agent builder and project tabs carry matching icons. Budget headroom rows include agent portraits.
 

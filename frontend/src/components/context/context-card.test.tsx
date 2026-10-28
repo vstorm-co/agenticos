@@ -127,3 +127,24 @@ describe("ContextCard", () => {
     expect(screen.getByText("add-to-agent context c1")).toBeVisible();
   });
 });
+
+it("shows agent usage immediately while supporting metadata stays folded", () => {
+  renderCard({
+    file: {
+      ...FILE,
+      used_by: [
+        { id: "billing", name: "Billing" },
+        { id: "support", name: "Support" },
+      ],
+    },
+  });
+  const usage = screen.getByText("Used by Billing, Support");
+  expect(usage).toBeVisible();
+  expect(usage.closest("details")).toBeNull();
+  expect(screen.getByText("Details").closest("details")).not.toHaveAttribute("open");
+});
+
+it("shows an unused resource's next step without opening Details", () => {
+  renderCard({ file: { ...FILE, used_by: [] } });
+  expect(screen.getByText("Not used by any agent yet")).toBeVisible();
+});

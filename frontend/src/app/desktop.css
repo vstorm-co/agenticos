@@ -55,10 +55,10 @@
 }
 
 /* The blur, on the surfaces that float. Not on every card of a long list -
-   each is a compositor layer - only on the column, the page and what opens over
-   them. */
+   each is a compositor layer - only on the column and what opens over the page. The content pane uses
+   a more opaque surface so text is not painted through another blur layer. */
 :root[data-look="glass"]:not([data-vibrancy])
-  :is(aside, #main, [role="dialog"], [role="menu"], [data-radix-popper-content-wrapper] > *) {
+  :is(aside, [role="dialog"], [role="menu"], [data-radix-popper-content-wrapper] > *) {
   backdrop-filter: blur(28px) saturate(1.6);
   -webkit-backdrop-filter: blur(28px) saturate(1.6);
 }
@@ -144,7 +144,8 @@
     [data-shell="linux"]
   )[data-shell-window="main"]
   #main {
-  padding-block-start: 1rem;
+  --page-inset-top: 1rem;
+  --window-drag-height: 1.75rem;
 }
 
 /* --- Blobby and quick ask: pages that are a window's whole content -------- */

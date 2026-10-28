@@ -201,7 +201,7 @@ export function DataTable<T>({
                     className={cn(
                       // One line: a two-word heading wrapped to two rows made every
                       // header taller than the rows under it.
-                      "text-muted-foreground px-3 py-3 text-xs font-medium whitespace-nowrap sm:px-4",
+                      "text-foreground/85 px-3 py-3 text-[13px] font-semibold whitespace-nowrap sm:px-4",
                       alignClass[col.align ?? "left"],
                       col.hideBelow && hideBelowClass[col.hideBelow],
                       col.className,
