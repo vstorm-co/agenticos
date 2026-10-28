@@ -38,6 +38,12 @@ const STATE: DesktopState = {
 beforeEach(() => invoke.mockReset());
 
 describe("parseDesktopState", () => {
+  it("reads a connection revision without waiting on OS permission probes", () => {
+    expect(
+      parseDesktopState({ ...STATE, connection_revision: "connection-one" }).connection_revision,
+    ).toBe("connection-one");
+    expect(() => parseDesktopState({ ...STATE, connection_revision: false })).toThrow("malformed");
+  });
   it("reads the state the shell sends", () => {
     expect(parseDesktopState(STATE)).toEqual(STATE);
   });

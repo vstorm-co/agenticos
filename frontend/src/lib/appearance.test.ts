@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   APPEARANCE_BOOTSTRAP_SCRIPT,
+  DESKTOP_SETUP_ATTRIBUTE,
   isLook,
   LOOK_ATTRIBUTE,
   SHELL_ATTRIBUTE,
@@ -25,6 +26,8 @@ declare global {
 
 afterEach(() => {
   localStorage.clear();
+  window.history.replaceState(null, "", "/");
+  root().removeAttribute(DESKTOP_SETUP_ATTRIBUTE);
   delete window.__AGENTICOS_SHELL__;
   delete window.AgenticOSInsets;
   root().style.removeProperty("--shell-inset-top");
@@ -141,5 +144,19 @@ it("starts desktop glass before paint but respects an explicitly saved standard 
   root().removeAttribute(LOOK_ATTRIBUTE);
   localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify({ state: { look: "standard" } }));
   boot();
+  expect(root().hasAttribute(LOOK_ATTRIBUTE)).toBe(false);
+});
+
+it("marks connection setup before paint even when the console preference is opaque", () => {
+  window.__AGENTICOS_SHELL__ = {
+    platform: "macos",
+    window: "main",
+    version: "test",
+    vibrancy: true,
+  };
+  localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify({ state: { look: "standard" } }));
+  window.history.replaceState(null, "", "/pl/desktop/readiness?connection=1");
+  boot();
+  expect(root()).toHaveAttribute(DESKTOP_SETUP_ATTRIBUTE);
   expect(root().hasAttribute(LOOK_ATTRIBUTE)).toBe(false);
 });

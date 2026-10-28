@@ -153,6 +153,7 @@ fn capability_for(webview: &str, permissions: &[&str], pattern: &str) -> Capabil
 /// Everything the desktop tabs in the console's settings show.
 #[derive(Serialize)]
 pub struct DesktopState {
+    pub connection_revision: String,
     pub appearance: Appearance,
     pub blobby: BlobbySettings,
     /// The agents in "New Chat With", in order.
@@ -175,6 +176,7 @@ pub fn desktop_state(app: AppHandle) -> DesktopState {
     let settings = settings::current(&app);
     let launch_at_login = app.autolaunch().is_enabled().unwrap_or(false);
     DesktopState {
+        connection_revision: settings.connection_revision,
         appearance: settings.appearance,
         shortcuts: shortcuts::views(&app, &settings.shortcuts),
         blobby: settings.blobby,
@@ -190,10 +192,17 @@ pub fn desktop_state(app: AppHandle) -> DesktopState {
 /// The console's style changed: remember it for the next launch and dress every window in it.
 #[tauri::command]
 pub fn set_appearance(app: AppHandle, appearance: Appearance) -> Result<(), String> {
-    settings::update(&app, |settings| settings.appearance = appearance)?;
+    if settings::current(&app).appearance != appearance {
+        settings::update(&app, |settings| settings.appearance = appearance)?;
+    }
     for (label, surface) in [(WINDOW, Surface::Console), (quick_ask::WINDOW, Surface::Panel)] {
         if let Some(window) = app.get_webview_window(label) {
-            appearance::apply(&window, surface, appearance).map_err(|e| e.to_string())?;
+            if label == WINDOW {
+                let surface = crate::page_surface(&window.url().map_err(|e| e.to_string())?);
+                crate::dress(&window, surface, appearance).map_err(|e| e.to_string())?;
+            } else {
+                appearance::apply(&window, surface, appearance).map_err(|e| e.to_string())?;
+            }
         }
     }
     Ok(())

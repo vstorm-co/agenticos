@@ -22,6 +22,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Centered desktop connection setup with a persistent native glass surface,
+  local-computer status card and immediate feedback while connecting or opening
+  the workspace. Readiness preloads the dashboard and respects reduced motion.
+
 - Desktop defaults to the system theme and Glass look when no preference has
   been saved; explicit user choices take precedence.
 

@@ -78,6 +78,11 @@ server icon. You can change the address without using blobby.
 
 ## Connection setup and app readiness
 
+The connection review is centered on the native glass material, even when the
+console uses an opaque saved look. Its status rows stay mounted while checking.
+Connecting and Continue show progress immediately; the dashboard is prefetched
+while you review setup. Entry motion respects Reduce Motion.
+
 Connecting to a server opens **App readiness**, including for an existing account.
 It checks sign-in, the computer connection, an available published agent, the
 assistant model, shortcuts and macOS permissions. Permissions are requested only

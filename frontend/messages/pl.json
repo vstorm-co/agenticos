@@ -9031,7 +9031,7 @@
       "permissionNote": "Sprawdzenie nie przechwytuje ekranu, dźwięku ani schowka. Uprawnienia są opcjonalne i wymagają kliknięcia. Po zmianie Nagrywania ekranu macOS może wymagać restartu aplikacji.",
       "retryScreenshot": "Spróbuj ponownie zrobić zrzut",
       "welcome": "Dokończ łączenie tej aplikacji",
-      "welcomeHint": "Konto już istnieje. Te ustawienia nadal wymagają konfiguracji dla tego połączenia; możesz wrócić do nich później.",
+      "welcomeHint": "Włącz funkcje desktopowe, z których chcesz korzystać. Opcjonalne kroki możesz dokończyć później.",
       "later": "Później",
       "done": "Kontynuuj",
       "remaining": "{count, plural, one {Pozostał # element konfiguracji} few {Pozostały # elementy konfiguracji} many {Pozostało # elementów konfiguracji} other {Pozostało # elementu konfiguracji}}",
@@ -9058,7 +9058,8 @@
         "unsupported": "Niewymagane w tej konfiguracji"
       },
       "viewAgents": "Zobacz agentów",
-      "finishFailed": "Nie udało się zakończyć konfiguracji połączenia. Spróbuj ponownie."
+      "finishFailed": "Nie udało się zakończyć konfiguracji połączenia. Spróbuj ponownie.",
+      "opening": "Otwieranie przestrzeni roboczej…"
     },
     "notificationSettings": {
       "title": "Powiadomienia desktopowe",

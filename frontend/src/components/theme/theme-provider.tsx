@@ -1,8 +1,15 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect } from "react";
 
-import { LOOK_ATTRIBUTE, THEME_STORAGE_KEY, type Look } from "@/lib/appearance";
+import { usePathname } from "next/navigation";
+import {
+  DESKTOP_SETUP_ATTRIBUTE,
+  isDesktopSetupPath,
+  LOOK_ATTRIBUTE,
+  THEME_STORAGE_KEY,
+  type Look,
+} from "@/lib/appearance";
 import { setAppearance } from "@/lib/desktop/commands";
 import { isDesktopShell, readShellInfo, reportShellFailure } from "@/lib/desktop/shell";
 import { prefersReducedMotion } from "@/lib/motion";
@@ -64,6 +71,14 @@ function applyLook(look: Look) {
 
 export function ThemeProvider({ children }: ThemeProviderProps) {
   const { theme, look } = useThemeStore();
+  const setupPage = isDesktopSetupPath(usePathname());
+  useLayoutEffect(() => {
+    const shell = readShellInfo();
+    document.documentElement.toggleAttribute(
+      DESKTOP_SETUP_ATTRIBUTE,
+      isDesktopShell(shell) && shell.window === "main" && setupPage,
+    );
+  }, [setupPage]);
 
   useEffect(() => {
     applyLook(look);
@@ -78,7 +93,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     setAppearance({ look, mode: theme }).catch((error: unknown) =>
       reportShellFailure("could not dress the window in the chosen appearance", error),
     );
-  }, [look, theme]);
+  }, [look, theme, setupPage]);
 
   // Every window of the desktop app is a page of this origin with one
   // `localStorage`, and a choice made in the console has to reach blobby and

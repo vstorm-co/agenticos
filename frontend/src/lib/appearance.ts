@@ -40,6 +40,11 @@ export const SHELL_WINDOW_ATTRIBUTE = "data-shell-window";
 
 /** Present when the window draws a real material behind a glass console. */
 export const VIBRANCY_ATTRIBUTE = "data-vibrancy";
+export const DESKTOP_SETUP_ATTRIBUTE = "data-desktop-setup";
+const DESKTOP_SETUP_PATH = /^\/(?:(?:en|pl|de)\/)?desktop\/readiness\/?$/;
+export function isDesktopSetupPath(path: string | null): boolean {
+  return DESKTOP_SETUP_PATH.test(path ?? "");
+}
 
 /**
  * Sets the look, and the shell's attributes, on `<html>` before the first paint.
@@ -61,6 +66,7 @@ export const APPEARANCE_BOOTSTRAP_SCRIPT =
   `if(s&&${JSON.stringify(LOOKS)}.indexOf(s.look)>=0)l=s.look` +
   `}catch(e){}if(l!=="standard")d.setAttribute(${JSON.stringify(LOOK_ATTRIBUTE)},l);` +
   'if(h&&typeof h.platform==="string"){' +
+  `if(h.window==="main"&&${DESKTOP_SETUP_PATH}.test(window.location.pathname))d.setAttribute(${JSON.stringify(DESKTOP_SETUP_ATTRIBUTE)},"");` +
   `d.setAttribute(${JSON.stringify(SHELL_ATTRIBUTE)},h.platform);` +
   `d.setAttribute(${JSON.stringify(SHELL_WINDOW_ATTRIBUTE)},String(h.window));` +
   `if(h.vibrancy===true)d.setAttribute(${JSON.stringify(VIBRANCY_ATTRIBUTE)},"")` +

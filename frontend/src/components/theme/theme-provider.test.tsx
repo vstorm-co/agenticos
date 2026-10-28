@@ -6,6 +6,9 @@ import * as commands from "@/lib/desktop/commands";
 import * as shell from "@/lib/desktop/shell";
 import { useThemeStore } from "@/stores/theme-store";
 
+const route = vi.hoisted(() => ({ pathname: "/dashboard" }));
+vi.mock("next/navigation", () => ({ usePathname: () => route.pathname }));
+
 /**
  * The theme switch sweeps rather than flips: the class change is wrapped in
  * `document.startViewTransition`, whose snapshot the CSS clip-path animates
@@ -55,6 +58,8 @@ function reducedMotion(matches: boolean) {
 }
 
 beforeEach(() => {
+  route.pathname = "/dashboard";
+  document.documentElement.removeAttribute("data-desktop-setup");
   // The motion preference is a mock that outlives the test that set it.
   reducedMotion(false);
   root().classList.remove("light", "dark");
@@ -249,4 +254,24 @@ describe("a skipped sweep", () => {
     await expect(ready.catch(() => "handled")).resolves.toBe("handled");
     expect(root().classList.contains("dark")).toBe(true);
   });
+});
+
+it("keeps setup material independent of the console look and restores it on navigation", () => {
+  window.__AGENTICOS_SHELL__ = {
+    platform: "macos",
+    version: "test",
+    window: "main",
+    vibrancy: true,
+  };
+  const send = vi.spyOn(commands, "setAppearance").mockResolvedValue();
+  send.mockClear();
+  route.pathname = "/desktop/readiness";
+  const view = render(<ThemeProvider>{null}</ThemeProvider>);
+  expect(root()).toHaveAttribute("data-desktop-setup");
+  route.pathname = "/dashboard";
+  view.rerender(<ThemeProvider>{null}</ThemeProvider>);
+  expect(root()).not.toHaveAttribute("data-desktop-setup");
+  expect(send).toHaveBeenCalledTimes(2);
+  expect(useThemeStore.getState()).toMatchObject({ theme: "light", look: "standard" });
+  delete window.__AGENTICOS_SHELL__;
 });

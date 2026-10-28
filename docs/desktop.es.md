@@ -1,5 +1,5 @@
 ---
-source_sha: "858fbdfbef48"
+source_sha: "fec71634958b"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -83,6 +83,11 @@ lateral contraída muestra su icono de servidor. Puedes cambiar la dirección si
 usar blobby.
 
 ## Configuración de conexión y estado de la aplicación { #connection-setup-and-app-readiness }
+
+La revisión de conexión está centrada sobre el material de cristal nativo, incluso
+si la consola tiene guardado un estilo opaco. Las filas permanecen visibles durante
+la comprobación. Conectar y Continuar muestran progreso inmediato; el panel se precarga
+durante la configuración. La animación de entrada respeta la reducción de movimiento.
 
 Al conectar con un servidor se abre el estado de la aplicación, también para cuentas
 existentes. Comprueba el inicio de sesión, la conexión del ordenador, un agente

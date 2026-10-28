@@ -69,6 +69,7 @@ export interface PinnedAgent {
 }
 
 export interface DesktopState {
+  connection_revision?: string;
   appearance: Appearance;
   blobby: BlobbySettings;
   pinned: PinnedAgent[];
@@ -191,6 +192,9 @@ export function parseDesktopState(value: unknown): DesktopState {
   const window = record(fields.window, "window preferences");
   if (!Array.isArray(fields.shortcuts)) throw new ShellError("malformed", "shortcuts");
   return {
+    ...(fields.connection_revision === undefined
+      ? {}
+      : { connection_revision: field(fields, "connection_revision", isString) }),
     appearance: {
       look: field(appearance, "look", isLook),
       mode: field(appearance, "mode", isMode),

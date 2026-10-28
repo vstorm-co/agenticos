@@ -667,8 +667,17 @@ fn is_local_page(url: &Url) -> bool {
     url.scheme() == "tauri" || url.host_str() == Some("tauri.localhost")
 }
 
+/// The remote connection review belongs to setup, independent of the console's saved look.
+pub(crate) fn page_surface(url: &Url) -> Surface {
+    if is_local_page(url) || url.path().trim_end_matches('/').ends_with("/desktop/readiness") {
+        Surface::Setup
+    } else {
+        Surface::Console
+    }
+}
+
 /// The window's material and the colour behind its page, for what it shows.
-fn dress(window: &WebviewWindow, surface: Surface, appearance: Appearance) -> tauri::Result<()> {
+pub(crate) fn dress(window: &WebviewWindow, surface: Surface, appearance: Appearance) -> tauri::Result<()> {
     appearance::apply(window, surface, appearance)?;
     let behind = if surface == Surface::Setup && appearance::VIBRANCY {
         Color(0, 0, 0, 0)
@@ -748,11 +757,7 @@ fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow>
             // like a system setup assistant; the console wears its own look.
             if matches!(payload.event(), PageLoadEvent::Started) {
                 native_browser::hide_all(window.app_handle());
-                let surface = if is_local_page(payload.url()) {
-                    Surface::Setup
-                } else {
-                    Surface::Console
-                };
+                let surface = page_surface(payload.url());
                 if let Err(e) = dress(&window, surface, settings.appearance) {
                     eprintln!("appearance: {e}");
                 }
@@ -1441,6 +1446,24 @@ mod tests {
         appearance, attach_script, loading_color, notify, reachable, Appearance, Look, Url, GO, LOADING_DARK,
         LOADING_LIGHT,
     };
+
+    #[test]
+    fn connection_review_keeps_setup_material_until_dashboard_navigation() {
+        for path in [
+            "/desktop/readiness?connection=1",
+            "/pl/desktop/readiness",
+            "/desktop/readiness/",
+        ] {
+            assert!(matches!(
+                super::page_surface(&Url::parse(&format!("https://example.com{path}")).unwrap()),
+                super::Surface::Setup
+            ));
+        }
+        assert!(matches!(
+            super::page_surface(&Url::parse("https://example.com/dashboard").unwrap()),
+            super::Surface::Console
+        ));
+    }
 
     #[test]
     fn every_new_chat_click_has_an_explicit_distinct_request() {

@@ -425,3 +425,79 @@ select {
 .permission-row button {
   flex-shrink: 0;
 }
+
+.local-instance {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  inline-size: 100%;
+  padding: 1.1rem;
+  min-block-size: 8rem;
+  border-radius: 14px;
+  background: var(--fill);
+  box-shadow: var(--shadow);
+  text-align: start;
+}
+.local-machine {
+  flex: none;
+  color: var(--secondary);
+}
+.local-machine svg {
+  inline-size: 2rem;
+  block-size: 2rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+.local-copy {
+  flex: 1;
+  min-inline-size: 0;
+}
+.local-copy strong {
+  font-size: 0.95rem;
+}
+.local-copy p {
+  margin: 0.25rem 0 0;
+  color: var(--secondary);
+}
+.local-status {
+  flex: none;
+  inline-size: 0.6rem;
+  block-size: 0.6rem;
+  border-radius: 50%;
+  background: var(--tertiary);
+}
+.local-instance[data-state="running"] .local-status {
+  background: var(--success);
+}
+.local-instance[data-state="error"] .local-status {
+  background: var(--error);
+}
+.local-instance[aria-busy="true"] .local-status {
+  background: none;
+  border: 1.5px solid var(--tertiary);
+  border-block-start-color: var(--label);
+  animation: spin 0.75s linear infinite;
+}
+.primary[data-busy] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+.primary[data-busy]::before {
+  content: "";
+  inline-size: 0.8rem;
+  block-size: 0.8rem;
+  border: 1.5px solid currentColor;
+  border-inline-end-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .local-instance[aria-busy="true"] .local-status,
+  .primary[data-busy]::before {
+    animation: none;
+  }
+}

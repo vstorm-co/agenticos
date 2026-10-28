@@ -104,7 +104,7 @@ export function useDesktopSetup() {
   return {
     items,
     scope,
-    revision: native.status.data?.connection_revision,
+    revision: native.status.data?.connection_revision ?? shell.data?.connection_revision,
     native,
     link,
     canManageAgents: can(Perm.agentsEdit),

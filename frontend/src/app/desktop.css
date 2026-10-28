@@ -371,3 +371,50 @@
 :root[data-shell-window="main"][data-motion="reduce"] #main {
   scroll-behavior: auto;
 }
+
+/* Connection setup stays on the native material, including while its rows load.
+   A saved opaque console look is restored when the route leaves setup. */
+:root[data-desktop-setup][data-vibrancy],
+:root[data-desktop-setup][data-vibrancy] body {
+  background: transparent;
+}
+.desktop-setup-screen {
+  display: flex;
+  min-block-size: 100dvh;
+  flex-direction: column;
+  align-items: center;
+  padding: 3.5rem 1.25rem 2.5rem;
+}
+.desktop-setup-card {
+  inline-size: min(100%, 38rem);
+  margin-block: auto;
+  padding: 1.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 1.5rem;
+  background: color-mix(in oklab, var(--color-popover) 70%, transparent);
+  box-shadow: 0 12px 40px oklch(0% 0 0 / 0.06);
+  animation: desktop-setup-arrive 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: opacity 160ms ease;
+}
+.desktop-setup-card[data-busy] {
+  opacity: 0.8;
+}
+@keyframes desktop-setup-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+:root[data-motion="reduce"] .desktop-setup-card {
+  animation: none;
+  transition: none;
+}
+@media (max-width: 480px) {
+  .desktop-setup-card {
+    padding: 1.25rem;
+  }
+}

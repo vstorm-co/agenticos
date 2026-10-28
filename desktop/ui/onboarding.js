@@ -1,10 +1,11 @@
+import { localComputerStep } from "./local-computer.js";
 import { permissionStep } from "./permissions.js";
 
 /**
  * The first-run onboarding: where AgenticOS lives for this person - a stack the
  * app sets up on this computer, or an organization's server - and getting there.
  * What comes after (blobby, shortcuts, notifications) is the console's own
- * welcome, `/desktop/welcome`, which the shell opens once a console answers.
+ * connection review, `/desktop/readiness`, once a console answers.
  */
 
 const { invoke } = window.__TAURI__.core;
@@ -16,8 +17,11 @@ const screens = [...document.querySelectorAll("[data-screen]")];
 const serverForm = document.getElementById("server-form");
 const serverField = document.getElementById("server");
 const localForm = document.getElementById("local-form");
-const localMessage = document.querySelector("[data-local-message]");
-const localActions = document.querySelector("[data-local-actions]");
+const checkLocal = localComputerStep(
+  document.querySelector('[data-screen="local"]'),
+  invoke,
+  report,
+);
 
 function report(message) {
   void invoke("page_error", { message: String(message) });
@@ -38,9 +42,11 @@ function show(name) {
   document.body.classList.toggle("busy", name === "progress");
   if (name === "local") void checkLocal();
   if (name === "permissions") void refreshPermissions();
-  const first = document.querySelector(
-    `[data-screen="${name}"] input, [data-screen="${name}"] .primary`,
-  );
+  const first = [
+    ...document.querySelectorAll(
+      `[data-screen="${name}"] input, [data-screen="${name}"] button`,
+    ),
+  ].find((control) => !control.closest("[hidden]") && !control.disabled);
   first?.focus();
 }
 
@@ -63,69 +69,15 @@ serverForm.addEventListener("submit", async (event) => {
   hideError(serverForm);
   const submit = serverForm.querySelector(".primary");
   submit.disabled = true;
+  submit.dataset.busy = "true";
+  submit.textContent = "Connecting…";
   try {
     await invoke("connect", { url: serverField.value });
   } catch (message) {
     showError(serverForm, message);
     submit.disabled = false;
-  }
-});
-
-/** What the local screen says and offers, for each state of this computer. */
-const LOCAL = {
-  no_docker: {
-    message:
-      "AgenticOS runs in Docker, which is not on this computer yet. Install Docker Desktop, open it, then check again.",
-    actions: ["docker", "check"],
-  },
-  docker_stopped: {
-    message:
-      "Docker is installed but not running. Open Docker Desktop, then check again.",
-    actions: ["check"],
-  },
-  running: {
-    message: "AgenticOS is already running on this computer.",
-    actions: ["use"],
-  },
-  ready: {
-    message:
-      "Create your organization. AgenticOS downloads, starts and keeps itself up to date from the menu bar.",
-    actions: [],
-  },
-};
-
-async function checkLocal() {
-  localMessage.textContent = "Checking this computer…";
-  localActions.hidden = true;
-  localForm.hidden = true;
-  let status;
-  try {
-    status = await invoke("local_status");
-  } catch (message) {
-    localMessage.textContent = String(message);
-    localActions.hidden = false;
-    return;
-  }
-  const view = LOCAL[status];
-  localMessage.textContent = view.message;
-  for (const button of localActions.querySelectorAll("[data-action]")) {
-    button.hidden = !view.actions.includes(button.dataset.action);
-  }
-  localActions.hidden = view.actions.length === 0;
-  localForm.hidden = status !== "ready";
-  if (status === "ready") document.getElementById("organization").focus();
-}
-
-localActions.addEventListener("click", async (event) => {
-  const action = event.target.closest("[data-action]")?.dataset.action;
-  if (action === "check") await checkLocal();
-  if (action === "docker") await invoke("open_docker_download").catch(report);
-  if (action === "use") {
-    try {
-      await invoke("use_local");
-    } catch (message) {
-      localMessage.textContent = String(message);
-    }
+    delete submit.dataset.busy;
+    submit.textContent = "Connect";
   }
 });
 

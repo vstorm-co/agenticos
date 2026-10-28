@@ -9246,7 +9246,7 @@
       "permissionNote": "These checks capture no screen, audio or clipboard. Permissions are optional and requested only when you click. macOS may require restarting the app after a Screen Recording change.",
       "retryScreenshot": "Try the screenshot again",
       "welcome": "Finish connecting this desktop",
-      "welcomeHint": "Your account already exists. These are the settings still missing for this connection; you can finish them later.",
+      "welcomeHint": "Enable the desktop features you want to use. You can finish the optional steps later.",
       "later": "Later",
       "done": "Continue",
       "remaining": "{count, plural, one {# setup item remaining} other {# setup items remaining}}",
@@ -9273,7 +9273,8 @@
         "unsupported": "Not required for this setup"
       },
       "viewAgents": "View agents",
-      "finishFailed": "Could not finish this connection. Please retry."
+      "finishFailed": "Could not finish this connection. Please retry.",
+      "opening": "Opening your workspace…"
     },
     "notificationSettings": {
       "title": "Desktop notifications",

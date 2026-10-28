@@ -1,5 +1,5 @@
 ---
-source_sha: "858fbdfbef48"
+source_sha: "fec71634958b"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -82,6 +82,11 @@ Otwiera bezpośrednio formularz połączenia; zwinięty pasek pokazuje jego ikon
 serwera. Możesz zmienić adres bez używania blobby.
 
 ## Konfiguracja połączenia i gotowość aplikacji { #connection-setup-and-app-readiness }
+
+Przegląd połączenia jest wycentrowany na natywnym materiale Glass także wtedy,
+gdy konsola ma zapisany nieprzezroczysty styl. Wiersze pozostają widoczne podczas
+sprawdzania. Połączenie i Kontynuuj od razu pokazują postęp, a dashboard jest
+przygotowywany podczas konfiguracji. Animacja wejścia respektuje ograniczenie ruchu.
 
 Połączenie z serwerem otwiera panel gotowości aplikacji także dla istniejącego konta.
 Sprawdza on logowanie, połączenie komputera, dostępnego opublikowanego agenta,

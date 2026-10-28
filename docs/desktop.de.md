@@ -1,5 +1,5 @@
 ---
-source_sha: "858fbdfbef48"
+source_sha: "fec71634958b"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -86,6 +86,11 @@ eingeklappte Seitenleiste zeigt das Serversymbol. Sie können die Adresse ohne
 blobby ändern.
 
 ## Verbindungseinrichtung und App-Bereitschaft { #connection-setup-and-app-readiness }
+
+Die Verbindungsprüfung ist auf dem nativen Glasmaterial zentriert, auch wenn die
+Konsole einen undurchsichtigen Stil verwendet. Die Statuszeilen bleiben beim Prüfen
+sichtbar. Verbinden und Weiter zeigen sofort Fortschritt; das Dashboard wird
+während der Einrichtung vorgeladen. Die Eingangsanimation beachtet reduzierte Bewegung.
 
 Nach der Verbindung mit einem Server öffnet sich die App-Bereitschaft auch für
 bestehende Konten. Sie prüft Anmeldung, Computerverbindung, verfügbare veröffentlichte

@@ -8952,7 +8952,7 @@
       "permissionNote": "Die Prüfung erfasst weder Bildschirm noch Audio oder Zwischenablage. Berechtigungen sind optional und erfordern einen Klick. Nach Änderungen an der Bildschirmaufnahme kann macOS einen App-Neustart verlangen.",
       "retryScreenshot": "Screenshot erneut versuchen",
       "welcome": "Desktop-Verbindung fertig einrichten",
-      "welcomeHint": "Ihr Konto besteht bereits. Diese Einstellungen fehlen noch für diese Verbindung; Sie können später fortfahren.",
+      "welcomeHint": "Aktiviere die gewünschten Desktop-Funktionen. Optionale Schritte kannst du später abschließen.",
       "later": "Später",
       "done": "Weiter",
       "remaining": "{count, plural, one {# Einrichtungspunkt offen} other {# Einrichtungspunkte offen}}",
@@ -8979,7 +8979,8 @@
         "unsupported": "Hier nicht erforderlich"
       },
       "viewAgents": "Agents ansehen",
-      "finishFailed": "Die Verbindungseinrichtung konnte nicht abgeschlossen werden. Versuchen Sie es erneut."
+      "finishFailed": "Die Verbindungseinrichtung konnte nicht abgeschlossen werden. Versuchen Sie es erneut.",
+      "opening": "Arbeitsbereich wird geöffnet…"
     },
     "notificationSettings": {
       "title": "Desktop-Mitteilungen",
