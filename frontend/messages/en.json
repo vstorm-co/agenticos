@@ -9177,7 +9177,8 @@
         "allow": "Let AgenticOS read what you select",
         "attaching": "Attaching the selected files",
         "attachFailed": "The selected files could not be attached, so nothing was asked. Take them off to ask without them."
-      }
+      },
+      "conversation": "Quick Ask conversation"
     },
     "notifications": {
       "approvalTitle": "{agent} wants to run {tool}",

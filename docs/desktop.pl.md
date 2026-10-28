@@ -1,5 +1,5 @@
 ---
-source_sha: "016e4a5eac3c"
+source_sha: "1b76fb694391"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -140,6 +140,13 @@ trzyma już inna aplikacja, jest odrzucana z zachowaniem starego skrótu, a
 **Zrzut ekranu do nowego czatu** (`⌘⇧A`) pokazuje systemowy celownik; wybrany
 obszar trafia do nowego czatu, już w załączniku. Pierwsze naciśnięcie prosi macOS
 o Nagrywanie ekranu, które działa po restarcie.
+
+Quick Ask zachowuje pełny zapis rozmowy: twoje pytania, wcześniejsze odpowiedzi,
+aktywność narzędzi i wyniki korzystają z widoku wiadomości konsoli. W panelu można
+obsłużyć zatwierdzenia, pytania agenta i prośby o połączenie. Tekst oczekujący offline
+pozostaje widoczny, a przycisk zatrzymania kończy uruchomienie. Załączniki i cytowane
+źródła otwierają się w panelu; przewinięcie w górę wstrzymuje automatyczne przewijanie
+aż do powrotu na dół.
 
 ## Praca na tym komputerze { #work-on-this-computer }
 

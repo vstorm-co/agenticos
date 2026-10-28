@@ -1,15 +1,30 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useAgentSelectionStore } from "@/stores/agent-selection-store";
 
 import { QuickAsk } from "./quick-ask";
+import type { ToolCall, PendingApproval, Decision, QueuedMessage } from "@/types";
 
 const env = vi.hoisted(() => ({
   auth: { isAuthenticated: true, isLoading: false },
   chat: {
-    messages: [] as { role: string; content: string; isStreaming?: boolean }[],
+    messages: [] as {
+      role: string;
+      content: string;
+      isStreaming?: boolean;
+      toolCalls?: ToolCall[];
+    }[],
+    browses: [],
+    isConnected: true,
+    isStopping: false,
+    stopGeneration: vi.fn(),
+    pendingApproval: null as PendingApproval | null,
+    sendResumeDecisions: vi.fn(),
+    queuedMessages: [] as QueuedMessage[],
+    cancelQueued: vi.fn(),
+    retryQueued: vi.fn(),
     isProcessing: false,
     sendMessage: vi.fn(),
     clearMessages: vi.fn(),
@@ -41,6 +56,7 @@ const env = vi.hoisted(() => ({
   })),
   resize: null as null | ((entries: { contentRect: { height: number } }[]) => void),
 }));
+vi.mock("@/hooks/use-knowledge-bases", () => ({ useKnowledgeBaseFor: () => () => undefined }));
 vi.mock("@/hooks/use-auth", () => ({ useAuth: () => env.auth }));
 vi.mock("@/hooks/use-chat", () => ({
   useChat: (options: { onConversationCreated: (id: string) => void }) => {
@@ -76,6 +92,34 @@ vi.mock("@/components/chat/markdown-content", () => ({
   MarkdownContent: ({ content }: { content: string }) => <p>{content}</p>,
 }));
 
+vi.mock("@/components/chat/message-list", () => ({
+  MessageList: ({ messages }: { messages: typeof env.chat.messages }) => (
+    <div>
+      {messages.map((message, index) => (
+        <div key={index}>
+          <p>{message.content}</p>
+          {message.toolCalls?.map((tool) => (
+            <p key={tool.id}>{tool.name}</p>
+          ))}
+        </div>
+      ))}
+    </div>
+  ),
+}));
+vi.mock("@/components/chat/tool-approval-dialog", () => ({
+  ToolApprovalDialog: ({
+    onDecisions,
+    disabled,
+  }: {
+    onDecisions: (decisions: Decision[]) => void;
+    disabled: boolean;
+  }) => (
+    <button disabled={disabled} onClick={() => onDecisions([{ type: "approve" }])}>
+      Approve command
+    </button>
+  ),
+}));
+
 class CapturingResizeObserver {
   constructor(callback: (entries: { contentRect: { height: number } }[]) => void) {
     env.resize = callback;
@@ -91,6 +135,9 @@ beforeEach(() => {
   env.auth = { isAuthenticated: true, isLoading: false };
   env.chat.messages = [];
   env.chat.isProcessing = false;
+  env.chat.isConnected = true;
+  env.chat.pendingApproval = null;
+  env.chat.queuedMessages = [];
   env.listeners.clear();
   env.dictation.engine = "server";
   env.dictation.state = { phase: "idle", transcript: null };
@@ -339,4 +386,80 @@ describe("QuickAsk", () => {
       expect(screen.queryByRole("button", { name: "Selection from another app" })).toBeNull();
     });
   });
+});
+
+it("keeps user text, earlier answers, and tool activity through follow-up turns", () => {
+  env.chat.messages = [
+    { role: "user", content: "First question" },
+    {
+      role: "assistant",
+      content: "First answer",
+      toolCalls: [
+        { id: "tool", name: "read_file", args: { path: "note.txt" }, status: "completed" },
+      ],
+    },
+    { role: "user", content: "Follow-up question" },
+    { role: "assistant", content: "Second answer", isStreaming: true },
+  ];
+  env.chat.isProcessing = true;
+  render(<QuickAsk />);
+  const transcript = screen.getByRole("region", { name: "Quick Ask conversation" });
+  expect(transcript).toHaveTextContent("First question");
+  expect(transcript).toHaveTextContent("First answer");
+  expect(transcript).toHaveTextContent("read_file");
+  expect(transcript).toHaveTextContent("Follow-up question");
+  expect(transcript).toHaveTextContent("Second answer");
+});
+
+it("shows pending tool approval and lets the person stop the live run", async () => {
+  env.chat.messages = [{ role: "user", content: "Run the task" }];
+  env.chat.isProcessing = true;
+  env.chat.pendingApproval = {
+    runId: "run",
+    messageId: null,
+    actionRequests: [],
+    reviewConfigs: [],
+  };
+  render(<QuickAsk />);
+  await userEvent.click(screen.getByRole("button", { name: "Approve command" }));
+  expect(env.chat.sendResumeDecisions).toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("button", { name: "Stop generating" }));
+  expect(env.chat.stopGeneration).toHaveBeenCalled();
+});
+
+it("keeps the person's queued text visible while offline", () => {
+  env.chat.isConnected = false;
+  env.chat.queuedMessages = [{ id: "queued", content: "Keep this question until connected" }];
+  render(<QuickAsk />);
+  expect(screen.getByRole("region", { name: "Quick Ask conversation" })).toBeVisible();
+  expect(screen.getByText("Keep this question until connected")).toBeVisible();
+});
+
+it("does not enable approval while the connection is unavailable", () => {
+  env.chat.messages = [{ role: "user", content: "Run the task" }];
+  env.chat.isConnected = false;
+  env.chat.pendingApproval = {
+    runId: "run",
+    messageId: null,
+    actionRequests: [],
+    reviewConfigs: [],
+  };
+  render(<QuickAsk />);
+  expect(screen.getByRole("button", { name: "Approve command" })).toBeDisabled();
+});
+
+it("follows new messages until the reader scrolls up", () => {
+  env.chat.messages = [{ role: "user", content: "First" }];
+  const view = render(<QuickAsk />);
+  const transcript = screen.getByRole("region", { name: "Quick Ask conversation" });
+  Object.defineProperty(transcript, "scrollHeight", { value: 1000, configurable: true });
+  Object.defineProperty(transcript, "clientHeight", { value: 200, configurable: true });
+  env.chat.messages = [...env.chat.messages, { role: "assistant", content: "An answer" }];
+  view.rerender(<QuickAsk />);
+  expect(transcript.scrollTop).toBe(1000);
+  fireEvent.wheel(transcript, { deltaY: -1 });
+  transcript.scrollTop = 400;
+  env.chat.messages = [...env.chat.messages, { role: "user", content: "More text arrives" }];
+  view.rerender(<QuickAsk />);
+  expect(transcript.scrollTop).toBe(400);
 });

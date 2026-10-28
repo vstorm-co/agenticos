@@ -11,10 +11,21 @@ import {
   Mic,
   Quote,
   ShieldCheck,
+  Square,
 } from "lucide-react";
 
 import { AgentPicker } from "@/components/chat/agent-picker";
-import { MarkdownContent } from "@/components/chat/markdown-content";
+import { FilePreviewDialog } from "@/components/chat/file-preview-dialog";
+import { SourcesPanel } from "@/components/chat/sources-panel";
+import { BrowserPanel } from "@/components/chat/browser-panel";
+import { MessageList } from "@/components/chat/message-list";
+import { LiveBrowsesProvider } from "@/components/chat/browser-card";
+import { ConversationVisualsProvider } from "@/components/chat/visual-panel";
+import { ToolApprovalDialog } from "@/components/chat/tool-approval-dialog";
+import { ConnectAccountPrompt } from "@/components/chat/connect-account-prompt";
+import { PendingMessages } from "@/components/chat/pending-messages";
+import { QuestionPrompt } from "@/components/ui";
+import { useReaderScrolledUp } from "@/hooks/use-reader-scrolled-up";
 import { useAgentDictation } from "@/hooks/use-agent-dictation";
 import { useAuth } from "@/hooks/use-auth";
 import { useChanged } from "@/hooks/use-changed";
@@ -58,18 +69,44 @@ function run(what: string, command: () => Promise<void>) {
  */
 export function QuickAsk() {
   const t = useTranslations("desktop.quickAsk");
+  const tInput = useTranslations("chat.input");
   const { isAuthenticated, isLoading } = useAuth();
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [question, setQuestion] = useState("");
   const input = useRef<HTMLTextAreaElement>(null);
   const panel = useRef<HTMLDivElement>(null);
-  const { messages, isProcessing, sendMessage, clearMessages } = useChat({
+  const scroller = useRef<HTMLDivElement>(null);
+  const scrolledUp = useRef(false);
+  useReaderScrolledUp(scroller, scrolledUp);
+  const {
+    messages,
+    isProcessing,
+    isConnected,
+    isStopping,
+    sendMessage,
+    clearMessages,
+    stopGeneration,
+    browses,
+    reportVisual,
+    pendingApproval,
+    sendResumeDecisions,
+    pendingQuestions,
+    sendAskUserResponses,
+    pendingConnection,
+    sendConnectionResponse,
+    queuedMessages,
+    cancelQueued,
+    retryQueued,
+  } = useChat({
     conversationId,
     onConversationCreated: setConversationId,
   });
-  const answer = [...messages].reverse().find((message) => message.role === "assistant");
   const asked = messages.some((message) => message.role === "user");
   const signedOut = !isLoading && !isAuthenticated;
+  useEffect(() => {
+    const node = scroller.current;
+    if (node && !scrolledUp.current) node.scrollTop = node.scrollHeight;
+  }, [messages, pendingApproval, pendingQuestions, pendingConnection, queuedMessages]);
 
   const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
   const dictation = useAgentDictation(signedOut ? null : selectedAgentId);
@@ -165,6 +202,7 @@ export function QuickAsk() {
       }
     }
     const content = withContext(text, passages);
+    scrolledUp.current = false;
     if (attached.length > 0) {
       sendMessage(
         content,
@@ -200,6 +238,7 @@ export function QuickAsk() {
 
   const startOver = () => {
     clearMessages();
+    scrolledUp.current = false;
     setConversationId(null);
     setQuestion("");
   };
@@ -228,7 +267,7 @@ export function QuickAsk() {
   return (
     <div
       ref={panel}
-      className="quick-ask-panel flex max-h-[560px] flex-col"
+      className="quick-ask-panel relative flex max-h-[560px] flex-col"
       data-tauri-drag-region="deep"
     >
       <div className="flex items-start gap-2 px-3 py-3">
@@ -251,10 +290,15 @@ export function QuickAsk() {
           <Mic className="text-destructive mt-2 size-4 animate-pulse" aria-label={t("listening")} />
         ) : null}
         {isProcessing ? (
-          <Loader2
-            className="text-muted-foreground mt-2 size-4 animate-spin"
-            aria-label={t("thinking")}
-          />
+          <button
+            type="button"
+            onClick={stopGeneration}
+            disabled={isStopping}
+            aria-label={tInput("stopGenerating")}
+            className="text-muted-foreground hover:bg-muted hover:text-foreground mt-1 rounded-md p-2 disabled:opacity-50"
+          >
+            <Square className="size-4" aria-hidden />
+          </button>
         ) : null}
       </div>
       {context && !signedOut ? (
@@ -286,15 +330,67 @@ export function QuickAsk() {
           </button>
         </div>
       ) : null}
-      {asked ? (
+      <div
+        ref={scroller}
+        hidden={(!asked && !(queuedMessages?.length > 0)) || signedOut}
+        role="region"
+        aria-label={t("conversation")}
+        className="border-border min-h-0 flex-1 overflow-y-auto overscroll-contain border-t px-3 py-2 text-sm"
+      >
+        <LiveBrowsesProvider value={{ browses }}>
+          <ConversationVisualsProvider
+            messages={messages}
+            conversationId={conversationId}
+            onReport={reportVisual}
+            onCompose={setQuestion}
+            onSend={(text) => {
+              if (!isProcessing) void ask(text);
+            }}
+          >
+            <MessageList messages={messages} />
+          </ConversationVisualsProvider>
+        </LiveBrowsesProvider>
+        {isProcessing &&
+          !messages.some((message) => message.role === "assistant" && message.isStreaming) && (
+            <p role="status" className="text-muted-foreground flex items-center gap-2 px-1 py-2">
+              <Loader2 className="size-3.5 animate-spin" aria-hidden />
+              {t("thinking")}
+            </p>
+          )}
+        {queuedMessages?.length > 0 && (
+          <PendingMessages
+            messages={queuedMessages}
+            onCancel={cancelQueued}
+            onRetry={retryQueued}
+            waitingForNetwork={!isConnected}
+          />
+        )}
+        {pendingApproval && (
+          <ToolApprovalDialog
+            actionRequests={pendingApproval.actionRequests}
+            reviewConfigs={pendingApproval.reviewConfigs}
+            onDecisions={sendResumeDecisions}
+            disabled={!isConnected || isStopping}
+          />
+        )}
+        {pendingQuestions && pendingQuestions.length > 0 && (
+          <QuestionPrompt
+            questions={pendingQuestions}
+            onComplete={sendAskUserResponses}
+            disabled={!isConnected || isStopping}
+          />
+        )}
+        {pendingConnection && (
+          <ConnectAccountPrompt
+            request={pendingConnection}
+            onRespond={sendConnectionResponse}
+            disabled={!isConnected || isStopping}
+          />
+        )}
+      </div>
+
+      {asked && !signedOut ? (
         <>
-          <div className="border-border min-h-0 flex-1 overflow-y-auto border-t px-4 py-3 text-sm">
-            {answer?.content ? (
-              <MarkdownContent content={answer.content} streaming={answer.isStreaming} />
-            ) : (
-              <p className="text-muted-foreground">{t("thinking")}</p>
-            )}
-          </div>
           <div className="border-border text-muted-foreground flex items-center justify-between gap-3 border-t px-4 py-2 text-xs">
             <span>
               {t.rich("close", { kbd: (chunks) => <kbd className="font-mono">{chunks}</kbd> })}
@@ -312,6 +408,9 @@ export function QuickAsk() {
           </div>
         </>
       ) : null}
+      <FilePreviewDialog />
+      <SourcesPanel contained />
+      <BrowserPanel browses={browses} />
     </div>
   );
 }

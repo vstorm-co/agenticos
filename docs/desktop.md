@@ -135,6 +135,12 @@ the old binding kept, and **Clear** switches it off.
 pick lands in a fresh chat, already attached. The first press asks macOS for
 Screen Recording, which takes effect after a restart.
 
+Quick Ask keeps the full transcript: your questions, earlier answers, streamed tool
+activity and results use the console’s message renderer. Approval requests, follow-up
+questions and connection requests can be handled in the panel. Queued offline text
+stays visible and the stop button stops the run. Attachments and cited sources open
+in the panel; scrolling up pauses automatic following until you return to the bottom.
+
 ## Work on this computer
 
 The one thing a browser cannot do: a desktop chat can work in a

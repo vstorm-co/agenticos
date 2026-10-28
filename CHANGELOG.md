@@ -340,6 +340,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Quick Ask renders the whole conversation, tool activity, approvals and queued
+  messages instead of only the last answer. Add stopping, attachment/source
+  previews and scrolling that lets the person read earlier turns.
+
 - Automatic desktop attachment snapshots no longer ask to run an internal shell command.
 
 - Preserve desktop sessions through temporary backend failures and window restarts

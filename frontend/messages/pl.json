@@ -8962,7 +8962,8 @@
         "allow": "Pozwól AgenticOS czytać to, co zaznaczasz",
         "attaching": "Dołączam zaznaczone pliki",
         "attachFailed": "Nie udało się dołączyć zaznaczonych plików, więc pytanie nie zostało wysłane. Zdejmij je, żeby zapytać bez nich."
-      }
+      },
+      "conversation": "Rozmowa w Quick Ask"
     },
     "notifications": {
       "approvalTitle": "{agent} chce uruchomić {tool}",

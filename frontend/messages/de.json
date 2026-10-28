@@ -8927,6 +8927,9 @@
       "shortcuts": {
         "open_console": "AgenticOS öffnen"
       }
+    },
+    "quickAsk": {
+      "conversation": "Quick-Ask-Gespräch"
     }
   },
   "agentPin": {

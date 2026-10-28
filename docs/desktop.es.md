@@ -1,5 +1,5 @@
 ---
-source_sha: "016e4a5eac3c"
+source_sha: "1b76fb694391"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -142,6 +142,13 @@ rechaza conservando la anterior, y **Borrar** la desactiva.
 **Captura a un chat nuevo** (`⌘⇧A`) muestra la mira del sistema; la zona que
 eliges llega a un chat nuevo, ya adjunta. La primera pulsación pide a macOS
 Grabación de pantalla, que funciona tras reiniciar.
+
+Quick Ask conserva toda la conversación: tus preguntas, respuestas anteriores y
+actividad y resultados de herramientas usan la vista de mensajes de la consola.
+Las aprobaciones, preguntas del agente y solicitudes de conexión se resuelven en
+el panel. El texto en espera sin conexión sigue visible y el botón de parada
+detiene la ejecución. Los adjuntos y fuentes citadas se abren en el panel; al
+desplazarte hacia arriba se pausa el seguimiento automático hasta volver al final.
 
 ## Trabajar en este ordenador { #work-on-this-computer }
 

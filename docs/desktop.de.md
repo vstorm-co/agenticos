@@ -1,5 +1,5 @@
 ---
-source_sha: "016e4a5eac3c"
+source_sha: "1b76fb694391"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -150,6 +150,13 @@ eine andere App hält, wird abgelehnt und die alte Belegung bleibt, und
 **Screenshot in einen neuen Chat** (`⌘⇧A`) zeigt das Fadenkreuz des Systems; der
 gewählte Bereich landet in einem neuen Chat, schon angehängt. Der erste Druck
 fragt macOS nach Bildschirmaufnahme, die nach einem Neustart greift.
+
+Quick Ask behält das vollständige Gespräch: Ihre Fragen, frühere Antworten sowie
+Werkzeugaktivitäten und Ergebnisse nutzen die Nachrichtenansicht der Konsole.
+Freigaben, Rückfragen und Verbindungsanfragen lassen sich im Panel beantworten.
+Offline wartender Text bleibt sichtbar; die Stopptaste beendet den Run. Anhänge und
+zitierte Quellen öffnen sich im Panel. Nach oben scrollen pausiert das automatische
+Folgen, bis Sie zum Ende zurückkehren.
 
 ## Auf diesem Computer arbeiten { #work-on-this-computer }
 
