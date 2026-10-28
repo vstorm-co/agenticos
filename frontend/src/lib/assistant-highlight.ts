@@ -28,7 +28,8 @@ export interface ConsoleLink {
 
 /**
  * The console page an `href` names, or `null` for anything else - another
- * site, the API, a protocol-relative URL or a fragment stay ordinary links.
+ * site, the API, a fragment or a path that does not resolve to a page of this
+ * origin stay ordinary links.
  *
  * Decided on the parsed URL, never the raw string (#2544): the returned `path`
  * is the normalised one, and dot segments turn `/a/..//evil.example` into the

@@ -29,12 +29,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- Security: a link in an agent's answer that only looks like a console page no
-  longer opens another site in the console's own tab. `/a/..//evil.example`
-  normalises to `//evil.example`, which the console followed in place; such a
-  link, and a backslash or tab variant, is now an ordinary link that opens in a
-  new tab. Answers can be shaped by content the agent reads, so this was a
-  phishing route.
+- Security: a console link in an agent's answer can no longer send the console
+  tab to another site. A path such as `/a/..//evil.example` normalises to
+  `//evil.example`, and the console opened that in place as if it were one of
+  its own pages. Such a link is now an ordinary link and stays on the console.
+  Answers can be shaped by content the agent reads, so this was a phishing
+  route.
 - A knowledge base on a custom OpenRouter endpoint is offered only the
   embedding models that endpoint serves. The EU endpoint serves none of
   OpenAI's, so a collection created on the default model failed every upload
