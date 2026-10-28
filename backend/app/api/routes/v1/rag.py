@@ -54,10 +54,12 @@ from app.api.deps import (
 )
 from app.api.public_api import INTERNAL, PUBLIC
 from app.api.routes.v1._stored_bytes import stored_file_response
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.field_errors import refused_field
 from app.core.permissions import Perm
 from app.schemas.rag import (
     EmbeddingModelsResponse,
+    EndpointEmbeddingModels,
     RAGCollectionInfo,
     RAGCollectionList,
     RAGDocumentList,
@@ -83,6 +85,7 @@ from app.schemas.sync_source import (
     SyncSourceUpdate,
 )
 from app.services.ingestion_config import PdfParserName, parse_override
+from app.services.model_profile import validate_endpoint_url
 from app.services.rag import embedding_providers
 from app.services.rag.config import get_supported_formats
 from app.services.rag.filters import resolve_legacy_filter, scope_for
@@ -111,6 +114,38 @@ async def list_embedding_models() -> Any:
             }
             for entry in embedding_providers.providers()
         ],
+    }
+
+
+@router.get(
+    "/embedding-models/{provider}",
+    response_model=EndpointEmbeddingModels,
+    dependencies=[Depends(require(Perm.CONNECTIONS_MANAGE))],
+)
+async def list_embedding_models_at(provider: str, base_url: str) -> Any:
+    """The embedding models a custom endpoint serves, for the create form's picker.
+
+    A regional endpoint serves a subset of its provider's models - OpenRouter's
+    EU endpoint has none of OpenAI's - so the form asks the endpoint rather than
+    offering the whole catalog and letting the first upload fail. It needs the
+    authority that setting a custom endpoint needs, because it makes a request
+    to an address the caller chose; no credential is sent with it.
+    """
+    entry = embedding_providers.get(provider)
+    if entry is None or provider != "openrouter":
+        raise refused_field(
+            "embedding_base_url", "A custom embedding endpoint is supported only for OpenRouter"
+        )
+    try:
+        url = await validate_endpoint_url(base_url.strip())
+    except BadRequestError as error:
+        raise refused_field("embedding_base_url", error.message) from error
+    served = await embedding_providers.models_at(entry, url)
+    models = entry.models if served is None else served
+    return {
+        "provider": entry.provider,
+        "models": [{"model": model.model, "dim": model.dim} for model in models],
+        "source": "curated" if served is None else "live",
     }
 
 

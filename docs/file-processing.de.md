@@ -1,5 +1,5 @@
 ---
-source_sha: "9023abb0ba69"
+source_sha: "07c40d80a2b2"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -651,6 +651,24 @@ das Anlageformular bietet also die Modelle an, die ein Provider tatsächlich
 bedienen kann — früher bot es jedes Modell an, für das dieser Build eine *Breite*
 kannte, darunter drei Sentence-Transformer-Gewichte, die hier nichts aufrufen
 kann.
+
+Eine OpenRouter-Collection kann einen eigenen **Endpoint** (`embedding_base_url`)
+nennen, etwa den regionalen `https://eu.openrouter.ai/api/v1`. Ein regionaler
+Endpoint stellt nur einen Teil des Katalogs bereit, und nur er weiß, welchen.
+Deshalb fragt `GET /rag/embedding-models/openrouter?base_url=…` ihn und antwortet
+mit den Katalogmodellen, die er aufführt. Die Breite liefert weiterhin der
+Katalog, weil die Liste keine nennt. Das Anlageformular bietet diese engere Liste
+an, und der Service lehnt eine Collection ab, deren Modell der Endpoint nicht
+bereitstellt: beim Erstellen auf `embedding_model`, beim Verschieben einer
+bestehenden auf `embedding_base_url`.
+
+Ein Endpoint, der nicht gefragt werden
+kann, gilt nicht als Ablehnung: Das Formular zeigt den ganzen Katalog und
+kennzeichnet ihn als unbestätigt. Ein Modell, das der Endpoint nicht
+bereitstellt, wurde früher angenommen, und dann scheiterte jeder Upload mit
+OpenRouters "No endpoints found supporting your data region", gespeichert als
+allgemeiner Hinweis, den Schlüssel zu prüfen. Ein 404 eines Embedding-Endpoints
+wird jetzt als das Modell gespeichert, das er nicht bereitstellt.
 
 Der Schlüssel wird bei der Erstellung validiert. Ein Schlüssel, den eine andere
 Organisation hält, einer mit dem falschen Zweck oder einer, den die wählende
