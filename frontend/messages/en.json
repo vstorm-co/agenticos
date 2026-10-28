@@ -7866,6 +7866,13 @@
     "templatesFewer": "Show fewer"
   },
   "portals": {
+    "mailboxInterval": {
+      "label": "Check for new mail every",
+      "option": "{count, plural, =1 {1 minute} other {# minutes}}",
+      "shared": "This applies to every trigger on this mailbox.",
+      "saved": "Mailbox check interval saved.",
+      "saveError": "Could not change how often the mailbox is checked."
+    },
     "title": "Portals",
     "searchPlaceholder": "Search portals…",
     "category": "Category",
@@ -8048,6 +8055,7 @@
     "validationMergeNoCommonDominator": "This merge's branches do not share a common starting point.",
     "validationMergeNotFromIf": "A merge's branches must come from one condition's two outcomes.",
     "validationMergeNotExclusive": "This merge's branches are not mutually exclusive.",
+    "validationPortNameTaken": "`{name}` is already a port on this step - rename it.",
     "validationEdgeCrossesScope": "This connection crosses into or out of a loop's body.",
     "validationBindingCrossesScope": "This value crosses into or out of a loop's body.",
     "validationNodeInCycle": "This step is part of a loop back to an earlier step.",
@@ -8585,12 +8593,12 @@
       "connect": "Connect",
       "reconnect": "Reconnect",
       "gmail": {
-        "ready": "The organization's mailbox is connected, and read every minute.",
+        "ready": "The organization's mailbox is connected.",
         "connect": "No mailbox is connected yet. Publishing waits for one.",
         "reauthorize": "The mailbox needs connecting again before it can be read."
       },
       "microsoft": {
-        "ready": "The organization's Microsoft 365 mailbox is connected, and read every minute.",
+        "ready": "The organization's Microsoft 365 mailbox is connected.",
         "connect": "No Microsoft 365 mailbox is connected yet. Publishing waits for one.",
         "reauthorize": "The mailbox needs connecting again before it can be read."
       },

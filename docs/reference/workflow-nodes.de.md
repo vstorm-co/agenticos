@@ -1,5 +1,5 @@
 ---
-source_sha: "fbb39eddaab3"
+source_sha: "583f712a78d3"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -142,8 +142,7 @@ Organisation, wenn sie kann, oder zeigt das Geheimnis einmal zum Einfügen.
 ### trigger.gmail { #trigger-gmail }
 
 **Gmail.** Gestartet von einer neuen Nachricht im verbundenen Gmail-Postfach der
-Organisation, die zu allen gesetzten Filtern passt, einmal pro Minute gelesen. Die
-Veröffentlichung wird abgelehnt, bis ein Postfach verbunden ist. `triggered_by` ist
+Organisation, die zu allen gesetzten Filtern passt, im Prüfintervall **Check for new mail every** des Postfachs (standardmäßig eine Minute) gelesen. Die Veröffentlichung wird abgelehnt, bis ein Postfach verbunden ist. `triggered_by` ist
 `gmail`. **Sender contains** prüft die Adresse des Absenders, nicht den Anzeigenamen:
 `@acme.com` ist genau diese Domain, ohne Subdomains. Ist es gesetzt, muss die
 Nachricht außerdem die Prüfung des authentifizierten Absenders bestehen (DMARC oder
@@ -185,7 +184,7 @@ fehlschlagen, was wiederholt wird. Beide Mail-Trigger nehmen Eingaben von außen
 
 **Outlook.** Gestartet von einer neuen Nachricht in einem Ordner des verbundenen
 Microsoft-365-Postfachs der Organisation, die zu allen gesetzten Filtern passt,
-einmal pro Minute gelesen. Die Veröffentlichung wird abgelehnt, bis ein Postfach
+im Prüfintervall **Check for new mail every** des Postfachs (standardmäßig eine Minute) gelesen. Die Veröffentlichung wird abgelehnt, bis ein Postfach
 verbunden ist. `triggered_by` ist `outlook`. Microsoft Graph wird Ordner für Ordner
 gelesen, deshalb sind **Folder** und **Shared mailbox** zugleich der Ort, an dem der
 Poller sucht, und ein Filter; das erste Lesen eines Ordners beginnt mit dem Zeitpunkt
@@ -442,6 +441,19 @@ Eingänge eines Merge einen Schritt über verschiedene Ports verlassen und dass
 dieser Schritt pro Run genau einen Port nimmt - ein If / else, ein Switch, eine
 Entscheidung, `ai.classify`, eine Tabellenprüfung oder eine Freigabe -, sodass
 immer genau einer von ihnen läuft.
+
+Ein Merge kann zwei oder mehr Ports dieses Schritts direkt aufnehmen, ohne
+Schritt dazwischen, etwa `needs_reply` und `unsure` von `ai.classify`: Er läuft
+einmal, für den Port, den der Schritt genommen hat. Zwei Kanten vom selben Port
+werden weiterhin abgelehnt.
+
+Eine Regel, Kategorie, ein Zweig oder eine Auswahl, die Sie benennen, wird zu einem
+Ausgangsport und darf deshalb keinen Port wiederverwenden, den der Schritt schon
+hat: `in`, `otherwise`, `other`, `default`, `approved` und `rejected` bei den
+Schritten, die sie haben, `unsure` bei einem Klassifizierer mit Mindestsicherheit
+und `error` bei einem Schritt, der seine Fehler weiterleitet. Der Editor markiert
+den Namen, und das Veröffentlichen lehnt ihn ab und nennt den kollidierenden
+Namen mit der Bitte, ihn umzubenennen.
 
 Ausdrücke können auswählen, filtern und vergleichen und eine feste Menge reiner
 Funktionen aufrufen: `abs`, `avg`, `ceil`, `contains`, `ends_with`, `floor`,
@@ -867,6 +879,23 @@ ist. Eine Ablehnung oder ein Ablauf trägt kein `final`. Eine bearbeitete Fassun
 einen Schritt zu senden, der nicht `editable` ist, oder zusammen mit einer
 Ablehnung, wird mit `422` abgelehnt. Wer entscheiden darf, vom Schritt aber nicht
 genannt wird, sieht den Vorschlag schreibgeschützt.
+
+Ein Schritt kann statt einer schlichten Freigabe **Auswahlmöglichkeiten (`choices`)**
+anbieten, jede ein Weg der Freigabe: etwa einen Entwurf behalten oder ihn sofort
+senden. Bis zu fünf sind möglich, jede mit einer `id` (Kleinbuchstaben, Ziffern und
+Unterstriche, nicht `in`, `approved` oder `rejected`) und einem `label` mit bis zu
+40 Zeichen. Die Warteschlange zeigt statt **Approve** eine Schaltfläche je Auswahl,
+mit der Beschriftung genau so, wie sie geschrieben wurde, ohne Übersetzung; **Reject**
+bleibt. Der Schritt hat dann einen Ausgangsport je Auswahl, in dieser Reihenfolge,
+danach `rejected`, und keinen Port `approved`: Eine Kante von `approved` wird beim
+Veröffentlichen des Workflows abgelehnt.
+
+Die Auswahl der freigebenden Person ist der Port, über den der Schritt weitergeht, und
+ihre `id` ist `choice` in der Ausgabe. Sie ist null, wenn der Schritt keine Auswahl hat,
+bei einer Ablehnung und bei einem Ablauf. Ein Schritt ohne Auswahl bleibt unverändert:
+Er hat `approved` und `rejected`. Das Freigeben eines Schritts mit Auswahl verlangt eine
+davon als `choice`, und `choice` bei jeder anderen Entscheidung wird mit `422`
+abgelehnt. Die Statistiken teilen nicht nach Auswahl auf.
 
 Sendet der Workflow das freigegebene `final` über [`mcp.call`](#mcp-call), setzen
 Sie `approval` dieses Schritts auf `none`, sonst wird die Person zweimal gefragt.

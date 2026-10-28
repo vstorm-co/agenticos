@@ -1,5 +1,5 @@
 ---
-source_sha: "173a9224092a"
+source_sha: "517be3b7106d"
 ---
 
 # Einen Event-Trigger einrichten { #setting-up-an-event-trigger }
@@ -239,9 +239,7 @@ nichts.
 Es gibt keine URL zum Einfügen und kein Secret zum Speichern, weil nichts an uns
 postet. Was Sie darüber wissen sollten, wie es liest:
 
-- **Einmal pro Minute.** Der Heartbeat fragt Gmail, was seit dem letzten Blick
-  angekommen ist, die schlimmstenfalls auftretende Latenz ist also eine Minute.
-  Das ist Absicht: die Alternative - `users.watch` in ein Google-Cloud-Pub/Sub-Topic -
+- **Jede Minute oder so oft, wie Sie es festlegen.** Der Heartbeat fragt Gmail, was seit dem letzten Blick angekommen ist, die schlimmstenfalls auftretende Latenz ist also das Intervall - eine Minute, solange Sie es nicht ändern. **Check for new mail every** (1, 5, 15, 30 oder 60 Minuten) ist eine Einstellung des Postfachs, auf seiner Portalkarte und in einem Gmail-Trigger-Schritt, und gilt für jeden Trigger auf diesem Postfach; sie zu ändern braucht `mcp:manage`. Das Abfragen ist Absicht: die Alternative - `users.watch` in ein Google-Cloud-Pub/Sub-Topic -
   ist echtzeitfähig und kostet ein Topic und ein Abonnement als *Deployment*-
   Voraussetzungen, dazu eine Registrierung, die alle sieben Tage abläuft und etwas
   braucht, das sie erneuert.
@@ -275,8 +273,7 @@ postet. Was Sie darüber wissen sollten, wie es liest:
   entfernt -, werden die Trigger des Postfachs ausgeschaltet, die Karte bittet um
   eine neue Verbindung, und das Audit-Log hält den Grund fest
   (`mailbox_access_revoked`). Verbinden Sie neu und schalten Sie sie dann wieder
-  ein. Ein Ausfall bei Google ist etwas anderes: die Abfrage wird eine Minute
-  später wiederholt.
+  ein. Ein Ausfall bei Google ist etwas anderes: die Abfrage wird bei der nächsten Prüfung wiederholt.
 
 Die Organisation braucht einen eigenen Google-OAuth-Client, in Vault als Secret
 **Google OAuth client** (`google_oauth_app`) gespeichert, mit aktivierter
@@ -309,6 +306,9 @@ Gmail, die Einrichtung ist also wieder ein Zustimmungsbildschirm.
 
 Was anders ist als bei Gmail:
 
+- **Dasselbe Prüfintervall.** **Check for new mail every** gilt für ein
+  Outlook-Postfach wie für Gmail: eine Einstellung für das verbundene Postfach,
+  geteilt von jedem Trigger darauf.
 - **Er liest Ordner, nicht ein Postfach.** Microsoft Graph meldet neue Mail
   ordnerweise, also benennt ein Trigger den Ordner, den er beobachtet - den
   Posteingang, sofern er nichts anderes sagt -, und der Poller liest genau die

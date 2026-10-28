@@ -18,6 +18,7 @@ from app.repositories import virtual_table_repo
 from app.workflows._registry import REGISTRY, register
 from app.workflows.contracts.definition import NodeDefinition, Port
 from app.workflows.contracts.io import Binding, FileRef, LiteralValue, NodeOutputRef, TableIORef
+from app.workflows.contracts.policy import NodePolicy
 from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import Edge, NodeInstance, NodePosition, ScopeBoundary, WorkflowGraph
 from app.workflows.graph.validate import derive_scopes, validate_graph
@@ -714,6 +715,238 @@ async def test_a_merges_branches_from_the_same_if_port_are_refused(
         f["field"] == f"nodes.{merge_node.id}" and "same port" in f["message"]
         for f in excinfo.value.details["fields"]
     )
+
+
+def _switch_into_merge(*ports: str, legs: tuple[str, ...] = ()) -> tuple[WorkflowGraph, UUID]:
+    """A `logic.switch` wired straight into a `logic.merge` by `ports`, and through a leg by `legs`."""
+    entry = _echo_node()
+    switch = NodeInstance(
+        id=uuid4(),
+        definition_id="logic.switch",
+        definition_version=1,
+        config={
+            "rules": [
+                {"name": "a", "condition": "value"},
+                {"name": "b", "condition": "value"},
+            ]
+        },
+        layout=_pos(),
+    )
+    merge_node = NodeInstance(
+        id=uuid4(), definition_id="logic.merge", definition_version=1, config={}, layout=_pos()
+    )
+    leg_nodes = [_leg() for _ in legs]
+    edges = [
+        _edge(entry.id, "out", switch.id, "in"),
+        *(_edge(switch.id, port, merge_node.id, "in") for port in ports),
+        *(_edge(switch.id, port, leg.id, "in") for port, leg in zip(legs, leg_nodes, strict=True)),
+        *(_edge(leg.id, "out", merge_node.id, "in") for leg in leg_nodes),
+    ]
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, switch, *leg_nodes, merge_node),
+        edges=tuple(edges),
+    )
+    return graph, merge_node.id
+
+
+async def test_a_merge_may_take_two_ports_of_one_branching_step_straight(mock_db_session):
+    graph, _merge = _switch_into_merge("a", "otherwise")
+
+    validated = await validate_graph(mock_db_session, _owner_ctx(), graph)
+
+    assert len(validated.edges) == 3
+
+
+async def test_a_merge_may_take_a_port_straight_and_another_through_a_leg(mock_db_session):
+    graph, _merge = _switch_into_merge("a", legs=("b",))
+
+    await validate_graph(mock_db_session, _owner_ctx(), graph)
+
+
+async def test_a_merge_taking_the_same_port_straight_twice_is_refused(mock_db_session):
+    graph, merge = _switch_into_merge("a", "a")
+
+    with pytest.raises(GraphValidationError) as excinfo:
+        await validate_graph(mock_db_session, _owner_ctx(), graph)
+
+    assert any(
+        f["field"] == f"nodes.{merge}" and "same branch" in f["message"]
+        for f in excinfo.value.details["fields"]
+    )
+
+
+async def test_a_merge_taking_a_port_straight_and_through_a_leg_of_it_is_refused(mock_db_session):
+    graph, merge = _switch_into_merge("a", legs=("a",))
+
+    with pytest.raises(GraphValidationError) as excinfo:
+        await validate_graph(mock_db_session, _owner_ctx(), graph)
+
+    assert any(
+        f["field"] == f"nodes.{merge}" and "same port" in f["message"]
+        for f in excinfo.value.details["fields"]
+    )
+
+
+async def test_a_merge_taking_two_ports_of_a_step_that_branches_not_exclusively_is_refused(
+    mock_db_session, registered_node
+):
+    both = registered_node(
+        NodeDefinition(
+            id="test.two_ports",
+            version=1,
+            name="Two ports",
+            category="data",
+            description="test",
+            kind="action",
+            config_schema=None,
+            input_schema=None,
+            output_schema=None,
+            ports=(
+                Port(id="in", label="In", kind="input"),
+                Port(id="left", label="Left", kind="output"),
+                Port(id="right", label="Right", kind="output"),
+            ),
+            effect_kind="pure",
+            retry_guarantee="idempotent",
+        )
+    )
+    step = NodeInstance(
+        id=uuid4(), definition_id=both.id, definition_version=1, config={}, layout=_pos()
+    )
+    merge_node = NodeInstance(
+        id=uuid4(), definition_id="logic.merge", definition_version=1, config={}, layout=_pos()
+    )
+    graph = WorkflowGraph(
+        entry_node_id=step.id,
+        nodes=(step, merge_node),
+        edges=(
+            _edge(step.id, "left", merge_node.id, "in"),
+            _edge(step.id, "right", merge_node.id, "in"),
+        ),
+    )
+
+    with pytest.raises(GraphValidationError) as excinfo:
+        await validate_graph(mock_db_session, _owner_ctx(), graph)
+
+    assert any(
+        f["field"] == f"nodes.{merge_node.id}" and "logic.if" in f["message"]
+        for f in excinfo.value.details["fields"]
+    )
+
+
+async def test_a_merge_fed_through_two_ports_of_a_step_that_is_not_exclusive_is_refused(
+    mock_db_session, registered_node
+):
+    """`C.a -> M`, `C.b -> X`, `X.p -> M`, `X.q -> M`: C is exclusive, X is not."""
+    fan = registered_node(
+        NodeDefinition(
+            id="test.nested_fan",
+            version=1,
+            name="Fan",
+            category="data",
+            description="test",
+            kind="control",
+            config_schema=None,
+            input_schema=None,
+            output_schema=None,
+            ports=(
+                Port(id="in", label="In", kind="input"),
+                Port(id="p", label="P", kind="output"),
+                Port(id="q", label="Q", kind="output"),
+            ),
+            effect_kind="pure",
+            retry_guarantee="idempotent",
+        )
+    )
+    entry = _echo_node()
+    switch = NodeInstance(
+        id=uuid4(),
+        definition_id="logic.switch",
+        definition_version=1,
+        config={
+            "rules": [{"name": "a", "condition": "value"}, {"name": "b", "condition": "value"}]
+        },
+        layout=_pos(),
+    )
+    fanout = NodeInstance(
+        id=uuid4(), definition_id=fan.id, definition_version=1, config={}, layout=_pos()
+    )
+    merge_node = NodeInstance(
+        id=uuid4(), definition_id="logic.merge", definition_version=1, config={}, layout=_pos()
+    )
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, switch, fanout, merge_node),
+        edges=(
+            _edge(entry.id, "out", switch.id, "in"),
+            _edge(switch.id, "a", merge_node.id, "in"),
+            _edge(switch.id, "b", fanout.id, "in"),
+            _edge(fanout.id, "p", merge_node.id, "in"),
+            _edge(fanout.id, "q", merge_node.id, "in"),
+        ),
+    )
+
+    with pytest.raises(GraphValidationError) as excinfo:
+        await validate_graph(mock_db_session, _owner_ctx(), graph)
+
+    assert any(
+        f["field"] == f"nodes.{merge_node.id}" and "logic.if" in f["message"]
+        for f in excinfo.value.details["fields"]
+    )
+
+
+async def test_publish_refuses_a_stored_config_naming_an_output_like_a_static_port(
+    mock_db_session,
+):
+    entry = _echo_node()
+    switch = NodeInstance(
+        id=uuid4(),
+        definition_id="logic.switch",
+        definition_version=1,
+        config={"rules": [{"name": "otherwise", "condition": "value"}]},
+        layout=_pos(),
+    )
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, switch),
+        edges=(_edge(entry.id, "out", switch.id, "in"),),
+    )
+
+    with pytest.raises(GraphValidationError) as excinfo:
+        await validate_graph(mock_db_session, _owner_ctx(), graph)
+
+    assert {
+        "field": f"nodes.{switch.id}.config.rules.0.name",
+        "message": "Value error, `otherwise` is already a port on this step - rename it",
+    } in excinfo.value.details["fields"]
+
+
+async def test_publish_refuses_an_error_named_output_on_a_step_that_routes_its_errors(
+    mock_db_session,
+):
+    entry = _echo_node()
+    switch = NodeInstance(
+        id=uuid4(),
+        definition_id="logic.switch",
+        definition_version=1,
+        config={"rules": [{"name": "error", "condition": "value"}]},
+        layout=_pos(),
+        policy=NodePolicy(on_error="route"),
+    )
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, switch),
+        edges=(_edge(entry.id, "out", switch.id, "in"),),
+    )
+
+    with pytest.raises(GraphValidationError) as excinfo:
+        await validate_graph(mock_db_session, _owner_ctx(), graph)
+
+    assert {
+        "field": f"nodes.{switch.id}.config.rules.0.name",
+        "message": "`error` is already a port on this step - rename it",
+    } in excinfo.value.details["fields"]
 
 
 async def test_a_merge_with_two_edges_from_the_same_branch_is_refused(

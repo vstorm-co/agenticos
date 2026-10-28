@@ -93,8 +93,15 @@ async def decide_workflow_approval(
     """Approve or reject a step's request, which wakes the step. A decision is final.
 
     An editable step takes `final`, the version approved; any other step, and any
-    rejection, refuses it with 422 naming `final`.
+    rejection, refuses it with 422 naming `final`. A step that offers choices takes
+    an approval only with one of them as `choice`; any other decision refuses it
+    with 422 naming `choice`.
     """
     return await service.decide(
-        ctx, approval_id, approved=data.approved, note=data.note, final=data.final
+        ctx,
+        approval_id,
+        approved=data.approved,
+        note=data.note,
+        final=data.final,
+        choice=data.choice,
     )

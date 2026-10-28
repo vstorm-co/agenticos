@@ -875,3 +875,43 @@ def test_a_read_that_is_safe_to_repeat_may_retry():
 )
 def test_a_list_and_a_tuple_bind_to_each_other_by_what_they_hold(source, target, fits):
     assert _types_compatible(source, target) is fits
+
+
+def _approval(**config: object) -> NodeInstance:
+    return _echo_node(definition_id="human.approval", config={"title": "Send?", **config})
+
+
+_CHOICES = [{"id": "draft", "label": "Keep a draft"}, {"id": "send_now", "label": "Send now"}]
+
+
+async def test_an_edge_from_approved_on_a_step_with_choices_is_refused(mock_db_session):
+    a, b = _approval(choices=_CHOICES), _approval()
+    edge = _edge(a.id, "approved", b.id, "in")
+    graph = WorkflowGraph(entry_node_id=a.id, nodes=(a, b), edges=(edge,))
+    with pytest.raises(GraphValidationError) as excinfo:
+        await validate_graph(mock_db_session, _owner_ctx(), graph)
+    assert any(f["field"] == f"edges.{edge.id}" for f in excinfo.value.details["fields"])
+
+
+@pytest.mark.parametrize("port", ["draft", "send_now", "rejected"])
+async def test_an_edge_from_a_choice_or_rejected_publishes(mock_db_session, port):
+    a, b = _approval(choices=_CHOICES), _approval()
+    edge = _edge(a.id, port, b.id, "in")
+    graph = WorkflowGraph(entry_node_id=a.id, nodes=(a, b), edges=(edge,))
+    assert (await validate_graph(mock_db_session, _owner_ctx(), graph)).edges == (edge,)
+
+
+@pytest.mark.parametrize("port", ["approved", "rejected"])
+async def test_a_step_without_choices_still_publishes_its_two_ports(mock_db_session, port):
+    a, b = _approval(), _approval()
+    edge = _edge(a.id, port, b.id, "in")
+    graph = WorkflowGraph(entry_node_id=a.id, nodes=(a, b), edges=(edge,))
+    assert (await validate_graph(mock_db_session, _owner_ctx(), graph)).edges == (edge,)
+
+
+async def test_an_edge_from_a_choice_on_a_step_without_it_is_refused(mock_db_session):
+    a, b = _approval(), _approval()
+    edge = _edge(a.id, "draft", b.id, "in")
+    graph = WorkflowGraph(entry_node_id=a.id, nodes=(a, b), edges=(edge,))
+    with pytest.raises(GraphValidationError):
+        await validate_graph(mock_db_session, _owner_ctx(), graph)

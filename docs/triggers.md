@@ -211,11 +211,14 @@ Gmail is polled, so the setup is a consent screen and nothing else.
 There is no URL to paste and no secret to store, because nothing posts to us. What
 you should know about how it reads:
 
-- **Once a minute.** The heartbeat asks Gmail what arrived since it last looked, so
-  the worst-case latency is a minute. That is deliberate: the alternative -
-  `users.watch` into a Google Cloud Pub/Sub topic - is real-time and costs a topic
-  and a subscription as *deployment* prerequisites, plus a registration that expires
-  every seven days and needs something to renew it.
+- **Every minute, or as often as you choose.** The heartbeat asks Gmail what arrived
+  since it last looked, so the worst-case latency is the interval - a minute unless
+  changed. **Check for new mail every** (1, 5, 15, 30 or 60 minutes) is a setting of
+  the mailbox, on its portal card and on a Gmail trigger step, and it applies to
+  every trigger on that mailbox; changing it needs `mcp:manage`. Polling is
+  deliberate: the alternative - `users.watch` into a Google Cloud Pub/Sub topic - is
+  real-time and costs a topic and a subscription as *deployment* prerequisites, plus
+  a registration that expires every seven days and needs something to renew it.
 - **Connecting fires nothing - and loses nothing.** The mailbox's position is taken
   the moment consent completes, so connecting does not fire the agent once per
   message already sitting there, and mail arriving between the consent and the
@@ -241,7 +244,7 @@ you should know about how it reads:
   good - the refresh token was revoked, or the account removed the app - the
   mailbox's triggers are turned off, the card asks you to reconnect, and the audit
   log records why (`mailbox_access_revoked`). Reconnect, then turn them back on. A
-  Google outage is not this: the poll is tried again a minute later.
+  Google outage is not this: the poll is tried again at its next check.
 
 The organization needs its own Google OAuth client, stored in Vault as a
 **Google OAuth client** secret (`google_oauth_app`), with the Gmail API enabled in
@@ -270,6 +273,9 @@ is, so the setup is again a consent screen.
 
 What differs from Gmail:
 
+- **The same check interval.** **Check for new mail every** applies to an Outlook
+  mailbox as it does to Gmail: one setting for the connected mailbox, shared by
+  every trigger on it.
 - **It reads folders, not a mailbox.** Microsoft Graph reports new mail one folder
   at a time, so a trigger names the folder it watches - the inbox unless it says
   otherwise - and the poller reads exactly the folders the organization's Outlook

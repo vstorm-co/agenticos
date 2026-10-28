@@ -16,17 +16,20 @@ export async function listWorkflowApprovals(): Promise<WorkflowApprovalList> {
 /**
  * Approve or reject one request, which wakes the step waiting on it. `final` is
  * the approver's edited version of an editable step's proposal; the server
- * refuses it for any other step and for a rejection.
+ * refuses it for any other step and for a rejection. `choice` is the id of the way
+ * of approving the approver took; a step that offers choices needs it to approve.
  */
 export async function decideWorkflowApproval(
   id: string,
   approved: boolean,
   final?: string,
+  choice?: string,
 ): Promise<WorkflowApprovalRead> {
-  return apiClient.post<WorkflowApprovalRead>(
-    `${ROOT}/${id}`,
-    final === undefined ? { approved } : { approved, final },
-  );
+  return apiClient.post<WorkflowApprovalRead>(`${ROOT}/${id}`, {
+    approved,
+    ...(final === undefined ? {} : { final }),
+    ...(choice === undefined ? {} : { choice }),
+  });
 }
 
 /**

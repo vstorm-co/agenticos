@@ -1,13 +1,15 @@
 """`human.approval` - registration and nothing else. See `_handler.py` and `README.md`."""
 
 from app.workflows._registry import register
-from app.workflows.contracts.definition import NodeDefinition, Port
+from app.workflows.contracts.definition import NodeDefinition
 from app.workflows.nodes.human_approval._handler import (
+    STATIC_PORTS,
     HumanApprovalConfig,
     HumanApprovalInput,
     HumanApprovalOutput,
     check_resources,
     handle,
+    ports_for,
     routes,
 )
 
@@ -24,11 +26,8 @@ register(
         config_schema=HumanApprovalConfig,
         input_schema=HumanApprovalInput,
         output_schema=HumanApprovalOutput,
-        ports=(
-            Port(id="in", label="In", kind="input", schema=None),
-            Port(id="approved", label="Approved", kind="output", schema=HumanApprovalOutput),
-            Port(id="rejected", label="Rejected", kind="output", schema=HumanApprovalOutput),
-        ),
+        ports=STATIC_PORTS,
+        ports_for=ports_for,
         effect_kind="write",
         retry_guarantee="idempotent",
         handler=handle,

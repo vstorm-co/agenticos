@@ -114,6 +114,10 @@ class McpConnection(Base, TimestampMixin):
             "visibility IN ('private', 'team', 'org')", name="ck_mcp_connection_visibility"
         ),
         CheckConstraint("purpose IN ('mcp', 'portal')", name="ck_mcp_connection_purpose"),
+        CheckConstraint(
+            "poll_interval_minutes IN (1, 5, 15, 30, 60)",
+            name="ck_mcp_connection_poll_interval",
+        ),
         # A portal grant names its portal and nothing else does: the column is what
         # the poller and the trigger card look a connection up by.
         CheckConstraint(
@@ -236,6 +240,14 @@ class McpConnection(Base, TimestampMixin):
     # When the poller last asked. Read by the claim so one tick's work is spread
     # rather than every connection being polled by whichever worker gets there.
     polled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # How many minutes pass between reads of a polled mailbox. On the grant and not
+    # on a trigger: one read of the mailbox serves every trigger and workflow on it,
+    # so an interval per trigger would be overruled by a faster neighbour. The allowed
+    # values are the CHECK constraint's and `PortalPollIntervalUpdate`'s; the default
+    # is the poller's own tick.
+    poll_interval_minutes: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default=text("1")
+    )
 
     name: Mapped[str] = mapped_column(String(64), nullable=False)
     url: Mapped[str] = mapped_column(String(2048), nullable=False)

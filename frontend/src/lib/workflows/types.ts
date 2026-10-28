@@ -733,6 +733,16 @@ export interface WorkflowApprovalRead {
   final: string | null;
   /** Whether the approved text differs from the proposal. */
   edited: boolean;
+  /** The ways of approving the step offered, in order; empty when it offered none. */
+  choices: WorkflowApprovalChoice[];
+  /** The id of the one the approver took, once approved. */
+  choice: string | null;
+}
+
+/** One way of approving a step offered: its id and the button's label, as its author wrote it. */
+export interface WorkflowApprovalChoice {
+  id: string;
+  label: string;
 }
 
 /**

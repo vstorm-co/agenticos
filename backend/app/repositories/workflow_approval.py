@@ -43,6 +43,7 @@ async def create(
     proposal: str | None = None,
     proposal_format: ProposalFormat = "text",
     proposal_label: str | None = None,
+    choices: list[dict[str, str]] | None = None,
 ) -> WorkflowApproval:
     row = WorkflowApproval(
         organization_id=organization_id,
@@ -57,6 +58,7 @@ async def create(
         proposal=proposal,
         proposal_format=proposal_format,
         proposal_label=proposal_label,
+        choices=choices,
     )
     db.add(row)
     await db.flush()

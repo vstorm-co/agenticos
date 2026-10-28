@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from app.workflows.contracts.definition import Port
 from app.workflows.contracts.results import Completed, Failed, NodeResult, WorkflowError
 from app.workflows.nodes import _expr
+from app.workflows.nodes._port_names import refuse_clash
 
 OTHERWISE = "otherwise"
 MAX_RULES = 20
@@ -34,6 +35,11 @@ class SwitchRule(BaseModel):
         json_schema_extra={"x-condition": "value"},
     )
 
+    @field_validator("name")
+    @classmethod
+    def _not_a_port_already(cls, name: str) -> str:
+        return refuse_clash(name, _RESERVED)
+
     @field_validator("condition")
     @classmethod
     def _checked(cls, condition: str) -> str:
@@ -52,8 +58,6 @@ class LogicSwitchConfig(BaseModel):
         names = [rule.name for rule in self.rules]
         if len(set(names)) != len(names):
             raise ValueError("Each rule needs a name of its own")
-        if _RESERVED & set(names):
-            raise ValueError("A rule cannot be called 'in' or 'otherwise'")
         return self
 
 

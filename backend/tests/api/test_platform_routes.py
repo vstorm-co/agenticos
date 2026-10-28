@@ -442,6 +442,13 @@ CALLS: tuple[Call, ...] = (
         body={"name": "github", "url": "https://mcp.example.com/mcp"},
     ),
     Call(
+        # A polled mailbox's check interval, one setting for every trigger on it.
+        "PUT",
+        "/mcp-connections/portals/{connection_id}/poll-interval",
+        Perm.MCP_MANAGE,
+        body={"poll_interval_minutes": 5},
+    ),
+    Call(
         "PATCH",
         "/mcp-connections/{connection_id}",
         Perm.MCP_MANAGE,

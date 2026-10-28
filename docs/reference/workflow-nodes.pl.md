@@ -1,5 +1,5 @@
 ---
-source_sha: "fbb39eddaab3"
+source_sha: "583f712a78d3"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -133,7 +133,7 @@ sekret do wklejenia. `triggered_by` to `github`.
 ### trigger.gmail { #trigger-gmail }
 
 **Gmail.** Startuje od nowej wiadomości w podłączonej skrzynce Gmail organizacji,
-pasującej do wszystkich ustawionych filtrów, czytanej raz na minutę. Publikacja jest
+pasującej do wszystkich ustawionych filtrów, czytanej w odstępie **Check for new mail every** skrzynki (domyślnie minuta). Publikacja jest
 odrzucana, dopóki skrzynka nie jest podłączona. `triggered_by` to `gmail`. **Sender contains** dopasowuje adres nadawcy, nie nazwę
 wyświetlaną: `@acme.com` to dokładnie ta domena, bez poddomen. Gdy jest ustawiony,
 wiadomość musi też przejść sprawdzenie uwierzytelnienia nadawcy (DMARC albo podpis
@@ -173,8 +173,7 @@ ponawiany. Oba wyzwalacze poczty przyjmują dane z zewnątrz.
 ### trigger.outlook { #trigger-outlook }
 
 **Outlook.** Startuje od nowej wiadomości w folderze podłączonej skrzynki Microsoft
-365 organizacji, pasującej do wszystkich ustawionych filtrów, czytanej raz na
-minutę. Publikacja jest odrzucana, dopóki skrzynka nie jest podłączona.
+365 organizacji, pasującej do wszystkich ustawionych filtrów, czytanej w odstępie **Check for new mail every** skrzynki (domyślnie minuta). Publikacja jest odrzucana, dopóki skrzynka nie jest podłączona.
 `triggered_by` to `outlook`. Microsoft Graph jest czytany folder po folderze, więc
 **Folder** i **Shared mailbox** są miejscem, w którym poller szuka, a zarazem
 filtrem, a pierwszy odczyt folderu zaczyna się od chwili opublikowania lub ostatniego włączenia workflow. Wskazanie skrzynki
@@ -418,6 +417,18 @@ Publikacja sprawdza, czy wejścia merge'a wychodzą z jednego kroku różnymi
 portami i czy ten krok w każdym przebiegu wybiera dokładnie jeden port - If / else,
 Switch, decyzja, `ai.classify`, sprawdzenie tabeli albo zatwierdzenie - żeby zawsze
 działało dokładnie jedno z nich.
+
+Merge może przyjąć dwa lub więcej portów tego kroku bezpośrednio, bez kroku
+pomiędzy, na przykład `needs_reply` i `unsure` z `ai.classify`: uruchamia się raz,
+dla portu, który krok wybrał. Dwie krawędzie z tego samego portu nadal są
+odrzucane.
+
+Reguła, kategoria, gałąź albo wybór, któremu nadasz nazwę, staje się portem
+wyjściowym, więc nie może powtarzać portu, który krok już ma: `in`, `otherwise`,
+`other`, `default`, `approved` i `rejected` w krokach, które je mają, `unsure` w
+klasyfikatorze z minimalną pewnością oraz `error` w kroku, który kieruje swoje
+błędy. Edytor oznacza taką nazwę, a publikacja ją odrzuca, wskazując, która nazwa
+koliduje i że trzeba ją zmienić.
 
 Wyrażenia mogą wybierać, filtrować i porównywać oraz wywoływać stały zestaw
 czystych funkcji: `abs`, `avg`, `ceil`, `contains`, `ends_with`, `floor`,
@@ -824,6 +835,21 @@ kolejne kroki mogą wiązać `final` niezależnie od trybu kroku. Odrzucenie alb
 wygaśnięcie nie niesie `final`. Wysłanie edytowanej wersji do kroku, który nie jest
 `editable`, albo razem z odrzuceniem, kończy się odmową `422`. Decydujący, którego
 krok nie wskazuje, widzi propozycję tylko do odczytu.
+
+Krok może zamiast zwykłego zatwierdzenia oferować **wybory (`choices`)**, z których
+każdy jest sposobem zatwierdzenia: na przykład zostawić szkic albo wysłać go od razu.
+Można podać do pięciu, każdy z `id` (małe litery, cyfry i podkreślenia, nie `in`,
+`approved` ani `rejected`) i `label` do 40 znaków. Kolejka pokazuje jeden przycisk na
+wybór zamiast **Approve**, z etykietą dokładnie tak, jak ją zapisano, bez tłumaczenia,
+a **Reject** zostaje. Krok ma wtedy po jednym porcie wyjściowym na wybór, w kolejności,
+potem `rejected`, i nie ma portu `approved`: krawędź z `approved` jest odrzucana przy
+publikacji workflow.
+
+Wybór zatwierdzającego jest portem, którym krok wychodzi, a jego `id` to `choice` w
+wyjściu. Jest null, gdy krok nie ma wyborów, przy odrzuceniu i przy wygaśnięciu. Krok
+bez wyborów działa jak dotąd: ma `approved` i `rejected`. Zatwierdzenie kroku z wyborami
+wymaga jednego z nich jako `choice`, a podanie `choice` przy każdej innej decyzji kończy
+się odmową `422`. Statystyki nie dzielą się według wyboru.
 
 Jeśli workflow wysyła zatwierdzone `final` przez [`mcp.call`](#mcp-call), ustaw
 `approval` tego kroku na `none`, bo inaczej osoba zostanie zapytana dwa razy.

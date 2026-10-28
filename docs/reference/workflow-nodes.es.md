@@ -1,5 +1,5 @@
 ---
-source_sha: "fbb39eddaab3"
+source_sha: "583f712a78d3"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -136,8 +136,7 @@ puede, o muestra el secreto una vez para pegarlo. `triggered_by` es `github`.
 ### trigger.gmail { #trigger-gmail }
 
 **Gmail.** Se inicia con un mensaje nuevo en el buzón de Gmail conectado de la
-organización que encaja con todos los filtros puestos, leído una vez por minuto. La
-publicación se rechaza hasta que haya un buzón conectado. `triggered_by` es `gmail`. **Sender contains** compara la dirección del remitente, no el
+organización que encaja con todos los filtros puestos, leído en el intervalo **Check for new mail every** del buzón (por defecto un minuto). La publicación se rechaza hasta que haya un buzón conectado. `triggered_by` es `gmail`. **Sender contains** compara la dirección del remitente, no el
 nombre visible: `@acme.com` es exactamente ese dominio, sin subdominios. Con él
 puesto, el mensaje debe además pasar la comprobación de remitente autenticado (DMARC
 o una firma DKIM del dominio del remitente). Los mensajes con la etiqueta `SENT`,
@@ -177,8 +176,7 @@ Los dos triggers de correo aceptan entrada de fuera.
 ### trigger.outlook { #trigger-outlook }
 
 **Outlook.** Se inicia con un mensaje nuevo en una carpeta del buzón de Microsoft 365
-conectado de la organización que encaja con todos los filtros puestos, leído una vez
-por minuto. La publicación se rechaza hasta que haya un buzón conectado.
+conectado de la organización que encaja con todos los filtros puestos, leído en el intervalo **Check for new mail every** del buzón (por defecto un minuto). La publicación se rechaza hasta que haya un buzón conectado.
 `triggered_by` es `outlook`. Microsoft Graph se lee carpeta a carpeta, así que
 **Folder** y **Shared mailbox** son a la vez donde mira el poller y un filtro, y la
 primera lectura de una carpeta empieza en el momento en que se publicó o se encendió por última vez el workflow. Nombrar un
@@ -428,6 +426,18 @@ que las entradas de un merge salen de un mismo paso por puertos distintos y que
 ese paso toma exactamente un puerto en cada run - un If / else, un Switch, una
 decisión, `ai.classify`, una comprobación de tabla o una aprobación -, de modo que
 siempre se ejecuta exactamente una de ellas.
+
+Un merge puede tomar dos o más puertos de ese paso directamente, sin ningún paso
+entre medias, como `needs_reply` y `unsure` de `ai.classify`: se ejecuta una vez,
+para el puerto que tomó el paso. Dos aristas del mismo puerto siguen
+rechazándose.
+
+Una regla, categoría, rama u opción a la que das nombre se convierte en un puerto
+de salida, así que no puede repetir un puerto que su paso ya tiene: `in`,
+`otherwise`, `other`, `default`, `approved` y `rejected` en los pasos que los
+tienen, `unsure` en un clasificador con confianza mínima y `error` en un paso que
+encamina sus errores. El editor marca el nombre y publicar lo rechaza, indicando
+qué nombre choca y pidiendo que se cambie.
 
 Las expresiones pueden seleccionar, filtrar y comparar, y llamar a un conjunto
 fijo de funciones puras: `abs`, `avg`, `ceil`, `contains`, `ends_with`,
@@ -840,6 +850,21 @@ pasos posteriores pueden vincular `final` sea cual sea el modo del paso. Un rech
 o una caducidad no lleva `final`. Enviar una versión editada a un paso que no es
 `editable`, o junto con un rechazo, se rechaza con `422`. Quien puede decidir pero
 no está nombrado en el paso ve la propuesta de solo lectura.
+
+Un paso puede ofrecer **opciones (`choices`)** en lugar de una aprobación simple, cada
+una una forma de aprobar: por ejemplo, conservar un borrador o enviarlo de inmediato.
+Se pueden dar hasta cinco, cada una con un `id` (minúsculas, dígitos y guiones bajos,
+que no sea `in`, `approved` ni `rejected`) y un `label` de hasta 40 caracteres. La cola
+muestra un botón por opción en lugar de **Approve**, con la etiqueta tal como se
+escribió y sin traducir, y **Reject** se queda. El paso tiene entonces un puerto de
+salida por opción, en orden, después `rejected`, y no tiene puerto `approved`: una
+arista desde `approved` se rechaza al publicar el workflow.
+
+La opción de quien aprueba es el puerto por el que sale el paso, y su `id` es `choice`
+en la salida. Es null cuando el paso no tiene opciones, en un rechazo y en una
+caducidad. Un paso sin opciones no cambia: tiene `approved` y `rejected`. Aprobar un
+paso con opciones exige una de ellas como `choice`, y dar `choice` en cualquier otra
+decisión se rechaza con `422`. Las estadísticas no se dividen por opción.
 
 Si el workflow envía el `final` aprobado por [`mcp.call`](#mcp-call), pon el
 `approval` de ese paso en `none`, o se pregunta dos veces a la persona.

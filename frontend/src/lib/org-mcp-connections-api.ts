@@ -103,3 +103,16 @@ export async function listOrgMcpToolCalls(id: string): Promise<McpToolCall[]> {
 export async function testOrgMcpConnection(id: string): Promise<McpConnectionTestResult> {
   return apiClient.post<McpConnectionTestResult>(`${ROOT}/${id}/test`);
 }
+
+/** The minutes a connected mailbox may be left between checks. */
+export const POLL_INTERVAL_MINUTES = [1, 5, 15, 30, 60] as const;
+
+/** Set how often the organization's connected mailbox is checked, for every trigger on it. */
+export async function setPortalPollInterval(
+  connectionId: string,
+  minutes: number,
+): Promise<{ connection_id: string; poll_interval_minutes: number }> {
+  return apiClient.put(`/mcp-connections/portals/${connectionId}/poll-interval`, {
+    poll_interval_minutes: minutes,
+  });
+}

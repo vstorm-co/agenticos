@@ -3649,7 +3649,9 @@ class TestPortalCatalogConnectionState:
         github = await self._github(None, oauth_apps=1)
         assert github.connect_blocked_by is None
 
-    async def _gmail(self, monkeypatch, *, stored: int = 1, grant=None) -> object:
+    async def _gmail(
+        self, monkeypatch, *, stored: int = 1, grant=None, key: str = "google"
+    ) -> object:
         service = _service()
         with (
             patch("app.services.agent_trigger.mcp_connection_repo") as connections,
@@ -3667,7 +3669,7 @@ class TestPortalCatalogConnectionState:
                 return_value=[MagicMock() for _ in range(stored)]
             )
             items = await service.list_portals(_ctx())
-        return next(item for item in items if item.key == "google")
+        return next(item for item in items if item.key == key)
 
     async def test_a_polled_portal_with_no_stored_client_says_so(self, monkeypatch):
         """Gmail connects on a Google client the organization stored in the vault -
@@ -3743,6 +3745,25 @@ class TestPortalCatalogConnectionState:
 
         assert gmail.connection_id == grant.id
         assert gmail.connection_state == "connected"
+
+    async def test_a_connected_mailbox_reports_how_often_it_is_checked(self, monkeypatch):
+        grant = self._connection(
+            granted_scopes=["https://www.googleapis.com/auth/gmail.readonly"],
+            poll_interval_minutes=15,
+        )
+        assert (await self._gmail(monkeypatch, grant=grant)).poll_interval_minutes == 15
+        assert (await self._gmail(monkeypatch, grant=None)).poll_interval_minutes is None
+        # A webhook portal has no interval, whatever its grant row holds.
+        github = await self._github(self._connection(poll_interval_minutes=1))
+        assert github.poll_interval_minutes is None
+
+    async def test_a_polled_calendar_has_no_interval_to_report(self, monkeypatch):
+        """Calendar and file grants are polled on a fixed minute, so the catalog
+        offers no setting for them."""
+        grant = self._connection(poll_interval_minutes=1)
+        calendar = await self._gmail(monkeypatch, grant=grant, key="google_calendar")
+        assert calendar.connection_id == grant.id
+        assert calendar.poll_interval_minutes is None
 
     async def test_a_mailbox_awaiting_consent_is_not_connected_yet(self, monkeypatch):
         gmail = await self._gmail(monkeypatch, grant=self._connection(oauth_payload=None))

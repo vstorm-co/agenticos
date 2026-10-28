@@ -25,16 +25,23 @@ on unchanged as `final` (`edited` is false), so later steps bind `final` whichev
 mode the step is in.
 A rejection or an expiry carries no `final`.
 
+A step can offer choices instead of a plain approval: each is a way of approving,
+such as keeping a draft or sending it now. The approvals queue then shows one button
+per choice in place of Approve, and the approver's choice is the one that leaves the
+step: it has an output port per choice, in the order given, then `rejected`, and no
+`approved`. The chosen id is `choice` in the output (null with no choices, for a
+rejection and for an expiry). Without choices the step is unchanged.
+
 A workflow that sends the approved `final` through `mcp.call` sets that step's
 `approval` to `none`, or the person is asked twice.
 """
 
 import hashlib
 from datetime import UTC, datetime, timedelta
-from typing import Any, Literal
+from typing import Any, Literal, Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import AuthContext, Perm, role_has
@@ -50,9 +57,39 @@ from app.repositories import workflow_approval as approval_repo
 from app.schemas.workflow_approval import MAX_PROPOSAL_CHARS
 from app.services.notification_center import NotificationCenterService
 from app.services.workflow_execution import context
+from app.workflows.contracts.definition import Port
 from app.workflows.contracts.results import Completed, Failed, NodeResult, Waiting, WorkflowError
+from app.workflows.nodes._port_names import refuse_clash
 
 MAX_APPROVERS = 50
+MAX_CHOICES = 5
+_RESERVED_CHOICES = frozenset({"in", "approved", "rejected"})
+
+
+class ApprovalChoice(BaseModel):
+    """One way of approving: a button in the queue, and an output port of the step."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    id: str = Field(
+        pattern=r"^[a-z][a-z0-9_]{0,31}$",
+        title="Port id",
+        description=(
+            "Names the output port and what later steps read as choice. Lower case letters, "
+            "digits and underscores; not in, approved or rejected."
+        ),
+    )
+    label: str = Field(
+        min_length=1,
+        max_length=40,
+        title="Button label",
+        description="What the approver reads on the button, such as Send now.",
+    )
+
+    @field_validator("id")
+    @classmethod
+    def _not_reserved(cls, value: str) -> str:
+        return refuse_clash(value, _RESERVED_CHOICES)
 
 
 class HumanApprovalConfig(BaseModel):
@@ -98,6 +135,23 @@ class HumanApprovalConfig(BaseModel):
         title="Proposal format",
         description="Whether the proposal is plain text or Markdown.",
     )
+    choices: tuple[ApprovalChoice, ...] = Field(
+        default=(),
+        max_length=MAX_CHOICES,
+        title="Ways to approve",
+        description=(
+            "Offer these instead of a plain Approve: one button and one output port each, "
+            "in this order, and the step has no approved port. Empty, the step approves "
+            "or rejects."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _distinct_ids(self) -> Self:
+        ids = [choice.id for choice in self.choices]
+        if len(set(ids)) != len(ids):
+            raise ValueError("Each choice needs an id of its own")
+        return self
 
 
 class HumanApprovalInput(BaseModel):
@@ -128,13 +182,43 @@ class HumanApprovalOutput(BaseModel):
     )
     original: str | None = Field(default=None, description="The proposal the approver was asked.")
     edited: bool = Field(default=False, description="Whether final differs from original.")
+    choice: str | None = Field(
+        default=None,
+        description=(
+            "The id of the choice the approver made. None when the step has no choices, "
+            "for a rejection and for an expiry."
+        ),
+    )
+
+
+STATIC_PORTS = (
+    Port(id="in", label="In", kind="input", schema=None),
+    Port(id="approved", label="Approved", kind="output", schema=HumanApprovalOutput),
+    Port(id="rejected", label="Rejected", kind="output", schema=HumanApprovalOutput),
+)
+
+
+def ports_for(config: BaseModel | None) -> tuple[Port, ...]:
+    """`in`, `approved` and `rejected`; with choices, `in`, one output per choice, `rejected`."""
+    if not isinstance(config, HumanApprovalConfig) or not config.choices:
+        return STATIC_PORTS
+    return (
+        STATIC_PORTS[0],
+        *(
+            Port(id=choice.id, label=choice.label, kind="output", schema=HumanApprovalOutput)
+            for choice in config.choices
+        ),
+        STATIC_PORTS[2],
+    )
 
 
 def routes(output: dict[str, Any] | None) -> frozenset[str]:
-    """`approved`, or `rejected` for a rejection and an expiry alike."""
+    """The chosen port, else `approved`; `rejected` for a rejection and an expiry alike."""
     if output is None:
         return frozenset()
-    return frozenset({"approved" if output.get("decision") == "approved" else "rejected"})
+    if output.get("decision") != "approved":
+        return frozenset({"rejected"})
+    return frozenset({output.get("choice") or "approved"})
 
 
 async def check_resources(
@@ -176,6 +260,7 @@ def _decided(approval: WorkflowApproval) -> Completed[HumanApprovalOutput]:
             final=approval.final,
             original=approval.proposal,
             edited=approval.edited,
+            choice=approval.choice,
         )
     )
 
@@ -202,6 +287,7 @@ async def _ask(
         proposal=(proposal or "") if config.editable else proposal,
         proposal_format=config.proposal_format,
         proposal_label=config.proposal_label,
+        choices=[{"id": choice.id, "label": choice.label} for choice in config.choices] or None,
         approver_user_ids=list(config.approvers),
         expires_at=(
             now + timedelta(hours=config.timeout_hours)

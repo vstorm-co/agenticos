@@ -11,14 +11,16 @@ const state = vi.hoisted(() => ({
   canManage: true,
   isLoading: false,
   items: [] as unknown[],
+  save: vi.fn(),
 }));
 
 vi.mock("@/hooks", () => ({
   usePermissions: () => ({ can: () => state.canManage }),
   usePortals: () => ({ items: state.items, isLoading: state.isLoading }),
+  usePortalPollInterval: () => ({ mutateAsync: state.save, isPending: false }),
 }));
 vi.mock("@/lib/portal-connect", () => ({ portalConnectUrl: vi.fn() }));
-vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 const gmail = (action: string, blocked: string | null = null) => ({
   portal: { key: "google", name: "Gmail", connect_blocked_by: blocked },
@@ -35,6 +37,7 @@ beforeEach(() => {
   state.canManage = true;
   state.isLoading = false;
   state.items = [];
+  state.save = vi.fn().mockResolvedValue({});
   vi.clearAllMocks();
   Object.defineProperty(window, "location", { value: { assign }, writable: true });
 });
@@ -45,6 +48,88 @@ describe("PortalAccount", () => {
     render(<PortalAccount account={ACCOUNT_TRIGGERS["trigger.gmail"]!} />);
     expect(screen.getByText(/mailbox is connected/)).toBeVisible();
     expect(screen.queryByRole("button")).toBeNull();
+  });
+
+  it.each([
+    ["trigger.gmail", "google", "Gmail"],
+    ["trigger.outlook", "microsoft", "Outlook"],
+  ])(
+    "sets how often the %s mailbox is checked, for every trigger on it",
+    async (trigger, key, name) => {
+      state.items = [
+        {
+          portal: {
+            key,
+            name,
+            connect_blocked_by: null,
+            connection_id: "conn-1",
+            connection_state: "connected",
+            poll_interval_minutes: 5,
+          },
+          action: "create",
+        },
+      ];
+      state.save = vi.fn().mockResolvedValue({});
+      render(<PortalAccount account={ACCOUNT_TRIGGERS[trigger]!} />);
+
+      expect(screen.getByText("This applies to every trigger on this mailbox.")).toBeVisible();
+      await userEvent.click(screen.getByRole("combobox", { name: "Check for new mail every" }));
+      expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+        "1 minute",
+        "5 minutes",
+        "15 minutes",
+        "30 minutes",
+        "60 minutes",
+      ]);
+      await userEvent.click(screen.getByRole("option", { name: "15 minutes" }));
+
+      expect(state.save).toHaveBeenCalledWith({ connectionId: "conn-1", minutes: 15 });
+      expect(toast.success).toHaveBeenCalled();
+    },
+  );
+
+  it("only shows the interval to a member without mcp:manage", () => {
+    state.canManage = false;
+    state.items = [
+      {
+        portal: {
+          key: "google",
+          name: "Gmail",
+          connect_blocked_by: null,
+          connection_id: "conn-1",
+          connection_state: "connected",
+          poll_interval_minutes: 30,
+        },
+        action: "create",
+      },
+    ];
+    render(<PortalAccount account={ACCOUNT_TRIGGERS["trigger.gmail"]!} />);
+
+    expect(screen.getByText("30 minutes")).toBeVisible();
+    expect(screen.queryByRole("combobox")).toBeNull();
+  });
+
+  it("says so when the interval could not be saved", async () => {
+    state.items = [
+      {
+        portal: {
+          key: "google",
+          name: "Gmail",
+          connect_blocked_by: null,
+          connection_id: "conn-1",
+          connection_state: "connected",
+          poll_interval_minutes: 1,
+        },
+        action: "create",
+      },
+    ];
+    state.save = vi.fn().mockRejectedValue(new Error("no"));
+    render(<PortalAccount account={ACCOUNT_TRIGGERS["trigger.gmail"]!} />);
+    await userEvent.click(screen.getByRole("combobox"));
+    await userEvent.click(screen.getByRole("option", { name: "5 minutes" }));
+
+    expect(toast.error).toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
   });
 
   it("connects a mailbox nobody connected, through the portal's own flow", async () => {

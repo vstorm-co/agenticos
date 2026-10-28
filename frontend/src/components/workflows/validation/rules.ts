@@ -31,7 +31,7 @@ import {
   typesCompatible,
   UNKNOWN,
 } from "./schema";
-import { ERROR_PORT } from "@/lib/workflows/ports";
+import { ERROR_PORT, routesErrors } from "@/lib/workflows/ports";
 import { isTrigger } from "@/lib/workflows/triggers";
 import { definitionFor, forwardEdges, kahn, nodeIds, type DefinitionMap } from "./topology";
 import type { RawProblem } from "./types";
@@ -235,6 +235,53 @@ export function rule4BranchLocalAvailability(
   return problems;
 }
 
+/**
+ * The ports an author names on a step: its config's list, the key holding each
+ * entry's name, and the ports the step has whatever the author names - what the
+ * backend's `_RESERVED` sets hold. (The catalog's ports here already carry the
+ * author's own, so they cannot say which are static.)
+ */
+const AUTHOR_NAMED_PORTS: Record<string, { list: string; key: string; static: readonly string[] }> =
+  {
+    "logic.switch": { list: "rules", key: "name", static: ["in", "otherwise"] },
+    "ai.classify": { list: "categories", key: "name", static: ["in", "other"] },
+    "error.handle": { list: "branches", key: "name", static: ["in", "default"] },
+    "human.approval": { list: "choices", key: "id", static: ["in", "approved", "rejected"] },
+  };
+
+/**
+ * An author-named output that reuses a port its step has - the static ones, the
+ * `unsure` of a classifier with a minimum confidence, the `error` of a step that
+ * routes its errors. The analog of `nodes/_port_names.py` and
+ * `_error_port_clash_problems`; the problem sits on the entry's name field.
+ */
+export function portNameClashes(graph: WorkflowGraph, definitions: DefinitionMap): RawProblem[] {
+  const problems: RawProblem[] = [];
+  for (const n of graph.nodes) {
+    const definition = definitionFor(definitions, n.id);
+    const named = definition === null ? undefined : AUTHOR_NAMED_PORTS[definition.id];
+    const entries = named === undefined ? undefined : n.config[named.list];
+    if (named === undefined || !Array.isArray(entries)) continue;
+    const taken = new Set(named.static);
+    if (routesErrors(n)) taken.add(ERROR_PORT);
+    if (definition?.id === "ai.classify" && typeof n.config.min_confidence === "number") {
+      taken.add("unsure");
+    }
+    entries.forEach((entry, index) => {
+      const name = typeof entry === "object" && entry !== null ? entry[named.key] : undefined;
+      if (typeof name !== "string" || !taken.has(name)) return;
+      problems.push({
+        nodeId: n.id,
+        edgeId: null,
+        field: `${named.list}/${index}/${named.key}`,
+        code: "port-name-taken",
+        params: { name },
+      });
+    });
+  }
+  return problems;
+}
+
 // Rule 5 — exclusive merge.
 
 export function rule5ExclusiveMerge(
@@ -243,23 +290,36 @@ export function rule5ExclusiveMerge(
   dominators: Map<string, Set<string>>,
 ): RawProblem[] {
   const problems: RawProblem[] = [];
-  const predecessors = new Map<string, string[]>();
+  const incoming = new Map<string, { source: string; port: string }[]>();
   for (const e of graph.edges) {
-    const list = predecessors.get(e.target_node_id);
-    if (list === undefined) predecessors.set(e.target_node_id, [e.source_node_id]);
-    else list.push(e.source_node_id);
+    const list = incoming.get(e.target_node_id) ?? [];
+    list.push({ source: e.source_node_id, port: e.source_port });
+    incoming.set(e.target_node_id, list);
   }
 
   for (const n of graph.nodes) {
     const definition = definitionFor(definitions, n.id);
     if (definition === null || definition.id !== "logic.merge") continue;
-    const branches = predecessors.get(n.id) ?? [];
-    if (branches.length < 2) continue;
-    const distinct = new Set(branches);
-    if (distinct.size !== branches.length) {
+    const edgesIn = incoming.get(n.id) ?? [];
+    if (edgesIn.length < 2) continue;
+    // One branching step may feed a merge through several of its ports - only one
+    // of them is taken - but never twice through the same one.
+    if (new Set(edgesIn.map((e) => `${e.source}\u0000${e.port}`)).size !== edgesIn.length) {
       problems.push(node(n.id, "merge-duplicate-branch"));
       continue;
     }
+    const distinct = new Set(edgesIn.map((e) => e.source));
+    // A step that feeds the merge by several ports must itself take one per run.
+    const feedsBySeveral = [...distinct].some(
+      (source) =>
+        edgesIn.filter((e) => e.source === source).length > 1 &&
+        definitionFor(definitions, source)?.exclusive_branches !== true,
+    );
+    if (feedsBySeveral) {
+      problems.push(node(n.id, "merge-not-from-if"));
+      continue;
+    }
+    const branches = [...distinct];
     const common = nearestCommonDominator(branches, dominators);
     if (common === null) {
       problems.push(node(n.id, "merge-no-common-dominator"));
@@ -272,7 +332,7 @@ export function rule5ExclusiveMerge(
       problems.push(node(n.id, "merge-not-from-if"));
       continue;
     }
-    if (!branchesDivergeAt(common, distinct, graph, dominators)) {
+    if (!branchesDivergeAt(common, n.id, distinct, graph, dominators)) {
       problems.push(node(n.id, "merge-not-exclusive"));
     }
   }
@@ -281,6 +341,7 @@ export function rule5ExclusiveMerge(
 
 function branchesDivergeAt(
   common: string,
+  merge: string,
   branches: Set<string>,
   graph: WorkflowGraph,
   dominators: Map<string, Set<string>>,
@@ -288,9 +349,15 @@ function branchesDivergeAt(
   const seenPorts = new Set<string>();
   for (const branch of branches) {
     const branchDom = dominators.get(branch) ?? new Set<string>();
+    // A branch that is the branching step itself - its ports wired straight to the
+    // merge - is fed by those edges' ports.
     const feedingPorts = new Set(
       graph.edges
-        .filter((e) => e.source_node_id === common && branchDom.has(e.target_node_id))
+        .filter(
+          (e) =>
+            e.source_node_id === common &&
+            (branch === common ? e.target_node_id === merge : branchDom.has(e.target_node_id)),
+        )
         .map((e) => e.source_port),
     );
     if (feedingPorts.size === 0) return false;

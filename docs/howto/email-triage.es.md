@@ -1,5 +1,5 @@
 ---
-source_sha: "e132a630b16c"
+source_sha: "aa3007c21550"
 title: "Clasifica tu bandeja de entrada y redacta respuestas"
 description: "Conecta un buzón como trigger de eventos consultado periódicamente y haz que un agent redacte respuestas o extraiga tareas, sin enviar nunca nada."
 ---
@@ -12,7 +12,7 @@ Conecta un buzón de Gmail como [trigger de eventos](../triggers.md#gmail-1-minu
 
 Lee esto antes de conectar nada, porque decide si la página de abajo compensa el consentimiento de OAuth.
 
-**Puede leer.** El trigger de Gmail consulta el buzón conectado una vez por minuto y entrega al agent el asunto, el remitente y el cuerpo de un mensaje nuevo. El despliegue solo pide a Google el alcance `gmail.readonly`: en la pantalla de consentimiento no se solicita nada más, así que no existe un permiso más amplio en el que apoyarse por accidente.
+**Puede leer.** El trigger de Gmail consulta el buzón conectado cada minuto, o con la frecuencia que indique su ajuste **Check for new mail every**, y entrega al agent el asunto, el remitente y el cuerpo de un mensaje nuevo. El despliegue solo pide a Google el alcance `gmail.readonly`: en la pantalla de consentimiento no se solicita nada más, así que no existe un permiso más amplio en el que apoyarse por accidente.
 
 **No puede enviar, ni crear un borrador real en Gmail.** El agent que se construye en esta página no tiene ninguna herramienta que llame a la API de envío o de borradores de Gmail. Lo que las plantillas de abajo llaman "borrador" es el texto de respuesta del agent, escrito en el run que se disparó: queda en **Activity**, en la conversación de ese run, como un mensaje que una persona tiene que leer y pegar ella misma en un correo saliente. Nunca se envía nada en tu nombre ni se escribe nada de vuelta en el buzón. Para que la respuesta quede en el hilo del buzón, como borrador o como correo enviado, después de que una persona la apruebe, usa un workflow: [responde al correo con un borrador aprobado](answer-mail-with-approved-draft.md).
 
@@ -50,7 +50,7 @@ brief.
 No hay ninguna entrega firmada que enviar a mano: Gmail se consulta, no empuja, así que no hay ni URL ni secreto. Hay dos formas de ver trabajar al agent antes de que llegue un mensaje real:
 
 - **Run now**, en el trigger, dispara el **prompt base del agent sin contexto de entrega**: sin mensaje, sin remitente, sin nada a lo que responder. Demuestra que el agent, su budget y su estado de publicación están en orden, pero no pone a prueba la clasificación: en ese run no hay correo sobre el que actúen las instrucciones de la plantilla.
-- **Un mensaje real que llega al buzón conectado** es la única forma de ver un borrador de verdad. El heartbeat lee lo que ha llegado desde su última comprobación, una vez por minuto, hasta 25 mensajes por ciclo, así que la latencia máxima es de un minuto y una ráfaga de una lista de correo no se convierte en cientos de runs.
+- **Un mensaje real que llega al buzón conectado** es la única forma de ver un borrador de verdad. El heartbeat lee lo que ha llegado desde su última comprobación, en el intervalo de comprobación del buzón (por defecto un minuto), hasta 25 mensajes por ciclo, así que la latencia máxima es ese intervalo y una ráfaga de una lista de correo no se convierte en cientos de runs.
 
 ## Comprueba el resultado { #check-the-result }
 

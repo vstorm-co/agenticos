@@ -7749,6 +7749,13 @@
     "templatesFewer": "Weniger zeigen"
   },
   "portals": {
+    "mailboxInterval": {
+      "label": "Auf neue Mails prüfen",
+      "option": "{count, plural, =1 {jede Minute} other {alle # Minuten}}",
+      "shared": "Das gilt für jeden Trigger auf diesem Postfach.",
+      "saved": "Prüfintervall des Postfachs gespeichert.",
+      "saveError": "Das Prüfintervall des Postfachs konnte nicht geändert werden."
+    },
     "title": "Portale",
     "searchPlaceholder": "Portale suchen …",
     "category": "Kategorie",
@@ -7925,6 +7932,7 @@
     "validationMergeNoCommonDominator": "Die Zweige dieser Zusammenführung haben keinen gemeinsamen Ausgangspunkt.",
     "validationMergeNotFromIf": "Die Zweige einer Zusammenführung müssen aus den zwei Ergebnissen einer Bedingung kommen.",
     "validationMergeNotExclusive": "Die Zweige dieser Zusammenführung schließen sich nicht gegenseitig aus.",
+    "validationPortNameTaken": "„{name}“ ist an diesem Schritt bereits ein Ausgang - benennen Sie ihn um.",
     "validationEdgeCrossesScope": "Diese Verbindung führt in den Körper einer Schleife hinein oder aus ihm heraus.",
     "validationBindingCrossesScope": "Dieser Wert führt in den Körper einer Schleife hinein oder aus ihm heraus.",
     "validationNodeInCycle": "Dieser Schritt ist Teil einer Schleife zurück zu einem früheren Schritt.",
@@ -8468,12 +8476,12 @@
       "connect": "Verbinden",
       "reconnect": "Neu verbinden",
       "gmail": {
-        "ready": "Das Postfach der Organisation ist verbunden und wird jede Minute gelesen.",
+        "ready": "Das Postfach der Organisation ist verbunden.",
         "connect": "Noch ist kein Postfach verbunden. Die Veröffentlichung wartet darauf.",
         "reauthorize": "Das Postfach muss neu verbunden werden, bevor es gelesen werden kann."
       },
       "microsoft": {
-        "ready": "Das Microsoft-365-Postfach der Organisation ist verbunden und wird jede Minute gelesen.",
+        "ready": "Das Microsoft-365-Postfach der Organisation ist verbunden.",
         "connect": "Noch kein Microsoft-365-Postfach verbunden. Das Veröffentlichen wartet darauf.",
         "reauthorize": "Das Postfach muss erneut verbunden werden, bevor es gelesen werden kann."
       },

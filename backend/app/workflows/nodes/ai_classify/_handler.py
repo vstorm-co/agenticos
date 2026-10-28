@@ -19,7 +19,8 @@ are what they were before the field existed.
 
 from typing import Any, Self
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
+from pydantic_core import InitErrorDetails, PydanticCustomError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec
@@ -28,6 +29,7 @@ from app.workflows.contracts.definition import Port
 from app.workflows.contracts.results import Completed, Failed, NodeResult, WorkflowError
 from app.workflows.nodes import _model_step
 from app.workflows.nodes._decide import UNSURE_PORT, unsure_or
+from app.workflows.nodes._port_names import refuse_clash
 
 NAME = "Classify"
 OTHER = "other"
@@ -44,6 +46,11 @@ class Category(BaseModel):
     description: str = Field(
         min_length=1, max_length=500, description="What belongs in this category"
     )
+
+    @field_validator("name")
+    @classmethod
+    def _not_a_port_already(cls, name: str) -> str:
+        return refuse_clash(name, _RESERVED)
 
 
 class AiClassifyConfig(_model_step.ModelStepConfig):
@@ -73,11 +80,21 @@ class AiClassifyConfig(_model_step.ModelStepConfig):
         names = [category.name for category in self.categories]
         if len(set(names)) != len(names):
             raise ValueError("Each category needs a name of its own")
-        if _RESERVED & set(names):
-            raise ValueError("A category cannot be called 'in' or 'other'")
         if self.min_confidence is not None and UNSURE_PORT in names:
-            raise ValueError(
-                f"A category cannot be called '{UNSURE_PORT}' when the step has a minimum confidence"
+            # Raised as the entry's own error, so the form marks that category.
+            raise ValidationError.from_exception_data(
+                "AiClassifyConfig",
+                [
+                    InitErrorDetails(
+                        type=PydanticCustomError(
+                            "value_error",
+                            "`{name}` is already a port on this step - rename it",
+                            {"name": UNSURE_PORT},
+                        ),
+                        loc=("categories", names.index(UNSURE_PORT), "name"),
+                        input=UNSURE_PORT,
+                    )
+                ],
             )
         return self
 

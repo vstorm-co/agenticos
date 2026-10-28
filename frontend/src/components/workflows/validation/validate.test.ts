@@ -132,6 +132,28 @@ const CLASSIFY = makeDefinition({
     port("unsure", "output", null),
   ],
 });
+const LOGIC_SWITCH = makeDefinition({
+  id: "logic.switch",
+  kind: "control",
+  exclusive_branches: true,
+  ports: [port("in", "input", null), port("otherwise", "output", null)],
+});
+const ERROR_HANDLE = makeDefinition({
+  id: "error.handle",
+  kind: "control",
+  exclusive_branches: true,
+  ports: [port("in", "input", null), port("default", "output", null)],
+});
+const HUMAN_APPROVAL = makeDefinition({
+  id: "human.approval",
+  kind: "control",
+  exclusive_branches: true,
+  ports: [
+    port("in", "input", null),
+    port("approved", "output", null),
+    port("rejected", "output", null),
+  ],
+});
 const MERGE = makeDefinition({
   id: "logic.merge",
   ports: [port("in", "input", null), port("out", "output", null)],
@@ -181,6 +203,9 @@ const CATALOG = makeCatalog([
   SCHEDULE,
   YES_NO,
   CLASSIFY,
+  LOGIC_SWITCH,
+  ERROR_HANDLE,
+  HUMAN_APPROVAL,
   DEBUG_ECHO,
   CONSUMER,
   CONSUMER_NOREQ,
@@ -511,6 +536,146 @@ describe("drift parity — graphs the backend refuses", () => {
       edges: [edge("e1", "a", "out", "c", "in"), edge("e2", "a", "out", "c", "in")],
     });
     expect(codesOf(run(g))).toEqual(["fanout-port-multiple-edges", "merge-duplicate-branch"]);
+  });
+
+  it("rule 5 — a merge may take two ports of one branching step straight", () => {
+    const g = graph({
+      entry: "entry",
+      nodes: [echo("entry"), node("c", "ai.classify"), node("m", "logic.merge")],
+      edges: [
+        edge("e1", "entry", "out", "c", "in"),
+        edge("e2", "c", "needs_reply", "m", "in"),
+        edge("e3", "c", "unsure", "m", "in"),
+      ],
+    });
+    expect(run(g)).toEqual([]);
+  });
+
+  it("rule 5 — a merge may take a port straight and another through a leg", () => {
+    const g = graph({
+      entry: "entry",
+      nodes: [echo("entry"), node("c", "ai.classify"), echo("leg"), node("m", "logic.merge")],
+      edges: [
+        edge("e1", "entry", "out", "c", "in"),
+        edge("e2", "c", "needs_reply", "m", "in"),
+        edge("e3", "c", "other", "leg", "in"),
+        edge("e4", "leg", "out", "m", "in"),
+      ],
+    });
+    expect(run(g)).toEqual([]);
+  });
+
+  it("rule 5 — a merge taking a port straight and through a leg of the same port", () => {
+    const g = graph({
+      entry: "entry",
+      nodes: [echo("entry"), node("c", "ai.classify"), echo("leg"), node("m", "logic.merge")],
+      edges: [
+        edge("e1", "entry", "out", "c", "in"),
+        edge("e2", "c", "other", "m", "in"),
+        edge("e3", "c", "other", "leg", "in"),
+        edge("e4", "leg", "out", "m", "in"),
+      ],
+    });
+    expect(codesOf(run(g))).toEqual(["merge-not-exclusive"]);
+  });
+
+  it("rule 5 — a merge taking the same port of one step twice stays refused", () => {
+    const g = graph({
+      entry: "entry",
+      nodes: [echo("entry"), node("c", "ai.classify"), node("m", "logic.merge")],
+      edges: [
+        edge("e1", "entry", "out", "c", "in"),
+        edge("e2", "c", "other", "m", "in"),
+        edge("e3", "c", "other", "m", "in"),
+      ],
+    });
+    expect(codesOf(run(g))).toEqual(["merge-duplicate-branch"]);
+  });
+
+  it("rule 5 — a merge taking two ports of a step that does not branch exclusively", () => {
+    const g = graph({
+      entry: "entry",
+      nodes: [echo("entry"), node("f", "test.fanout"), node("m", "logic.merge")],
+      edges: [
+        edge("e1", "entry", "out", "f", "in"),
+        edge("e2", "f", "a", "m", "in"),
+        edge("e3", "f", "b", "m", "in"),
+      ],
+    });
+    expect(codesOf(run(g))).toEqual(["merge-not-from-if"]);
+  });
+
+  it("rule 5 — a merge fed through two ports of a non-exclusive step below an exclusive one", () => {
+    const g = graph({
+      entry: "entry",
+      nodes: [
+        echo("entry"),
+        node("c", "ai.classify"),
+        node("x", "test.fanout"),
+        node("m", "logic.merge"),
+      ],
+      edges: [
+        edge("e1", "entry", "out", "c", "in"),
+        edge("e2", "c", "needs_reply", "m", "in"),
+        edge("e3", "c", "other", "x", "in"),
+        edge("e4", "x", "a", "m", "in"),
+        edge("e5", "x", "b", "m", "in"),
+      ],
+    });
+    expect(codesOf(run(g))).toEqual(["merge-not-from-if"]);
+  });
+
+  describe("an output an author names may not reuse a port the step has", () => {
+    const cases: [string, string, Record<string, unknown>, string][] = [
+      [
+        "logic.switch",
+        "otherwise",
+        { rules: [{ name: "a" }, { name: "otherwise" }] },
+        "rules/1/name",
+      ],
+      ["logic.switch", "in", { rules: [{ name: "in" }] }, "rules/0/name"],
+      ["ai.classify", "other", { categories: [{ name: "other" }] }, "categories/0/name"],
+      ["error.handle", "default", { branches: [{ name: "default" }] }, "branches/0/name"],
+      ["human.approval", "approved", { choices: [{ id: "approved" }] }, "choices/0/id"],
+      ["human.approval", "rejected", { choices: [{ id: "rejected" }] }, "choices/0/id"],
+    ];
+
+    it.each(cases)("%s: `%s` is refused on the entry", (definitionId, name, config, field) => {
+      const g = graph({ entry: "n", nodes: [node("n", definitionId, config)] });
+      const problems = run(g).filter((problem) => problem.code === "port-name-taken");
+      expect(problems.map((problem) => [problem.nodeId, problem.field, problem.message])).toEqual([
+        ["n", field, `${MESSAGE_KEYS["port-name-taken"]} ${JSON.stringify({ name })}`],
+      ]);
+    });
+
+    it("`unsure` clashes only when the classifier has a minimum confidence", () => {
+      const categories = [{ name: "unsure" }];
+      const free = run(graph({ entry: "n", nodes: [node("n", "ai.classify", { categories })] }));
+      expect(codesOf(free)).not.toContain("port-name-taken");
+      const set = run(
+        graph({
+          entry: "n",
+          nodes: [node("n", "ai.classify", { categories, min_confidence: 0.5 })],
+        }),
+      );
+      expect(codesOf(set)).toContain("port-name-taken");
+    });
+
+    it("`error` clashes only on a step that routes its errors", () => {
+      const config = { rules: [{ name: "error" }] };
+      const plain = node("n", "logic.switch", config);
+      expect(codesOf(run(graph({ entry: "n", nodes: [plain] })))).not.toContain("port-name-taken");
+      const routing = { ...plain, policy: { on_error: "route" as const } };
+      expect(codesOf(run(graph({ entry: "n", nodes: [routing] })))).toContain("port-name-taken");
+    });
+
+    it("a step with free names, or a malformed list, has nothing to refuse", () => {
+      const nodes = [
+        node("a", "logic.switch", { rules: [{ name: "fine" }, "x", null] }),
+        node("b", "ai.classify", { categories: "nope" }),
+      ];
+      expect(codesOf(run(graph({ entry: "a", nodes })))).not.toContain("port-name-taken");
+    });
   });
 
   it("rule 5 — a merge branch reconverged from both if arms", () => {

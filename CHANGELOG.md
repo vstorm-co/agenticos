@@ -21,6 +21,25 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **`human.approval` can offer the approver several ways to approve.** List up to
+  five **Ways to approve**, each an `id` and a button label, such as keep a draft or
+  send it now. The Approvals queue shows one button per choice in place of
+  **Approve**, with **Reject** beside them, and the step has an output port per
+  choice, in order, then `rejected`, and no `approved` port. The chosen `id` is
+  `choice` in the step's output, and the decided row shows its label.
+  `POST /api/v1/workflow-approvals/{id}` takes `choice`, which an approval of a step
+  with choices needs and any other decision refuses with `422`. A step with no
+  choices is unchanged. Migration `0236_workflow_approval_choices.py` adds
+  `choices` and `choice` to `workflow_approvals`, with nothing to backfill.
+- **A connected mailbox is checked as often as you choose.** **Check for new mail
+  every** - 1, 5, 15, 30 or 60 minutes, a minute by default - is a setting of the
+  connected Gmail or Outlook mailbox, on its card in Triggers and on the Gmail and
+  Outlook trigger steps. It applies to every trigger and workflow on that mailbox,
+  because one read of the mailbox serves them all. Changing it needs `mcp:manage`:
+  `PUT /api/v1/mcp-connections/portals/{connection_id}/poll-interval`, which refuses
+  any other value with `422`. The portal catalog carries it as `poll_interval_minutes`.
+  Migration `0237_mailbox_poll_interval.py` adds the column; every existing mailbox
+  keeps its minute.
 - Draw workflow steps by family: Start, AI, Flow, Data, Apps and Error each get
   their own tile and a "Family · Kind" label, steps that can park the run say so in
   a band, the minimap follows the families, and a step waiting for a person is rose
@@ -815,6 +834,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- A branch, rule, category or choice named `error` on a step that routes its errors is
+  now refused, naming the clash and asking for another name, in the editor and at
+  publish; a saved workflow that already has one needs the rename before it
+  publishes again. The other clashes - `in`, `other`, `default`, `approved`,
+  `rejected`, `otherwise`, and `unsure` with a minimum confidence - were already
+  refused and now get the clearer message, on the entry. A `logic.merge` can also
+  take two ports of one branching step wired straight into it, such as
+  `ai.classify`'s `needs_reply` and `unsure`, which publish read as two edges from
+  one branch; it runs once, for the port taken. Two edges from the same port stay
+  refused.
 - A `logic.merge` can rejoin `ai.classify`'s branches - `unsure` with a category,
   or two categories - where publish refused it, although the step always leaves by
   exactly one port. A node now declares `exclusive_branches` when it registers,

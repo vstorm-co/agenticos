@@ -1,10 +1,10 @@
 """`trigger.gmail`: a workflow a message arriving in the organization's Gmail starts.
 
-The mailbox is the one the organization connected through the Gmail portal, read
-once a minute by the same poll that fires agent triggers. Each new message that
-fits this node's filter starts one run, as the member who published it. Sent mail,
-drafts, spam and the bin are not arrivals and start nothing, unless the label filter
-names one of them.
+The mailbox is the one the organization connected through the Gmail portal, read at the
+mailbox's own interval (a minute unless an administrator set another) by the same poll
+that fires agent triggers. Each new message that fits this node's filter starts one run,
+as the member who published it. Sent mail, drafts, spam and the bin are not arrivals and
+start nothing, unless the label filter names one of them.
 """
 
 from pydantic import BaseModel, ConfigDict, Field

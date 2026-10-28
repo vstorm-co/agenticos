@@ -747,7 +747,7 @@ class TestStoringTheCursor:
 
 
 class TestClaimingGrants:
-    async def test_it_asks_for_grants_older_than_the_interval(self):
+    async def test_it_asks_for_grants_due_by_their_own_interval(self):
         from app.services.mcp_connection import McpConnectionService
 
         service = McpConnectionService(MagicMock())
@@ -757,7 +757,7 @@ class TestClaimingGrants:
 
         asked = repo.portal_poll_candidates.await_args.kwargs
         assert asked["portal_keys"] == ["google"]
-        assert asked["not_polled_since"] < datetime.now(UTC)
+        assert asked["now"] <= datetime.now(UTC)
 
 
 class TestTheRefusalsAroundIt:
@@ -987,7 +987,7 @@ async def test_one_poll_claim_is_rechecked_and_processing_failure_is_recorded(mo
         is expected
     )
     assert claim.await_args.kwargs["connection_id"] == grant.id
-    assert claim.await_args.kwargs["not_polled_since"] < datetime.now(UTC)
+    assert claim.await_args.kwargs["now"] <= datetime.now(UTC)
     await connection_service.record_poll_processing_failure(grant.id)
     assert failure.await_count == (0 if missing else 1)
 

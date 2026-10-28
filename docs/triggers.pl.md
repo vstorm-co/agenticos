@@ -1,5 +1,5 @@
 ---
-source_sha: "173a9224092a"
+source_sha: "517be3b7106d"
 ---
 
 # Konfigurowanie triggera zdarzeniowego { #setting-up-an-event-trigger }
@@ -227,8 +227,7 @@ Gmail jest odpytywany, więc konfiguracja to ekran zgody i nic poza tym.
 Nie ma URL-a do wklejenia ani sekretu do zapisania, bo nic do nas nie wysyła. Co
 warto wiedzieć o tym, jak to czyta:
 
-- **Raz na minutę.** Heartbeat pyta Gmaila, co przyszło od ostatniego zajrzenia,
-  więc najgorsze opóźnienie to minuta. To celowe: alternatywa - `users.watch` do
+- **Co minutę albo tak często, jak ustawisz.** Heartbeat pyta Gmaila, co przyszło od ostatniego zajrzenia, więc najgorsze opóźnienie to ten odstęp - minuta, dopóki go nie zmienisz. **Check for new mail every** (1, 5, 15, 30 lub 60 minut) to ustawienie skrzynki, na jej karcie portalu i w kroku triggera Gmail, i dotyczy każdego triggera na tej skrzynce; zmiana wymaga `mcp:manage`. Odpytywanie jest celowe: alternatywa - `users.watch` do
   tematu Google Cloud Pub/Sub - jest w czasie rzeczywistym i kosztuje temat oraz
   subskrypcję jako wymagania *deploymentu*, plus rejestrację, która wygasa co
   siedem dni i potrzebuje czegoś, co ją odnowi.
@@ -259,8 +258,7 @@ warto wiedzieć o tym, jak to czyta:
   refresh token został unieważniony albo konto usunęło aplikację - triggery
   skrzynki są wyłączane, kafelek prosi o ponowne podłączenie, a dziennik audytu
   zapisuje powód (`mailbox_access_revoked`). Podłącz ponownie, potem włącz je z
-  powrotem. Awaria po stronie Google to nie to: odpytanie jest ponawiane minutę
-  później.
+  powrotem. Awaria po stronie Google to nie to: odpytanie jest ponawiane przy następnym sprawdzeniu.
 
 Organizacja potrzebuje własnego klienta Google OAuth, zapisanego w Vault jako
 sekret **Google OAuth client** (`google_oauth_app`), z włączonym Gmail API w jej
@@ -291,6 +289,9 @@ Gmail, więc konfiguracja to znowu ekran zgody.
 
 Czym różni się od Gmaila:
 
+- **Ten sam odstęp sprawdzania.** **Check for new mail every** dotyczy skrzynki
+  Outlooka tak samo jak Gmaila: jedno ustawienie podłączonej skrzynki, wspólne dla
+  każdego triggera na niej.
 - **Czyta foldery, nie skrzynkę.** Microsoft Graph zgłasza nową pocztę po jednym
   folderze naraz, więc trigger nazywa folder, który obserwuje - skrzynkę odbiorczą,
   chyba że wskaże inny - a poller czyta dokładnie te foldery, które nazywają

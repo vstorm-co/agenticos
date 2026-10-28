@@ -202,3 +202,46 @@ class TestSwitch:
         statuses = await node_statuses(seeded)
         assert statuses[de.id] == NodeRunStatus.SUCCEEDED.value
         assert statuses[pl.id] == statuses[other.id] == NodeRunStatus.SKIPPED.value
+
+    @pytest.mark.parametrize("country", ["PL", "FR"])
+    async def test_a_merge_wired_straight_to_two_ports_runs_once_for_the_one_taken(
+        self, engine: AsyncEngine, country: str
+    ):
+        entry = _node("core.input")
+        switch = _node(
+            "logic.switch",
+            {"rules": [{"name": "poland", "condition": "value.country == 'PL'"}]},
+        )
+        merge, out = _node("logic.merge"), _node("core.output")
+        graph = WorkflowGraph(
+            entry_node_id=entry.id,
+            nodes=(entry, switch, merge, out),
+            edges=(
+                _edge(entry, switch),
+                _edge(switch, merge, "poland"),
+                _edge(switch, merge, "otherwise"),
+                _edge(merge, out),
+            ),
+            bindings=(
+                Binding(
+                    target_node_id=switch.id,
+                    target_field="value",
+                    source=NodeOutputRef(node_id=entry.id, port="out", field_path=("payload",)),
+                ),
+            ),
+        )
+        seeded = await seed_run(engine, graph, run_input={"country": country})
+        async with async_sessionmaker(engine)() as db:
+            await validate_graph(db, seeded.ctx, graph)
+
+        finished = await drive(seeded)
+
+        assert finished.status == "succeeded"
+        assert (await node_statuses(seeded))[merge.id] == NodeRunStatus.SUCCEEDED.value
+        async with async_sessionmaker(engine)() as db:
+            merge_runs = (
+                (await db.execute(select(NodeRun).where(NodeRun.node_instance_id == merge.id)))
+                .scalars()
+                .all()
+            )
+        assert len(merge_runs) == 1

@@ -120,6 +120,12 @@ class WorkflowApproval(Base, TimestampMixin):
     # request was decided and never recomputed. Null: not an approved edit
     # decision, or decided before it was measured.
     edit_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # The ways of approving the step offered when it asked, as `{id, label}` in the
+    # order given; null when it offered none (every request before choices existed).
+    choices: Mapped[list[Any] | None] = mapped_column(JSONB, nullable=True)
+    # The id of the one the approver took; null for a rejection, an expiry and a
+    # request with no choices.
+    choice: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     __table_args__ = (
         CheckConstraint(

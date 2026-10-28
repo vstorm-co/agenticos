@@ -4,7 +4,7 @@ Drive's changes feed is Gmail's history in another shape: a page token is an
 exact position in the account's log of changes, so "what since this token" has
 no race with the clock. Drive can push changes to a channel too, which needs a
 public HTTPS endpoint verified per domain and a registration that expires, so
-this reads the feed once a minute like the mailboxes.
+this reads the feed once a minute, whatever interval a mailbox is set to.
 
 The feed covers every file the account can see, shared drives included; a
 trigger narrows by folder and name in `trigger_events`. Only metadata is read -

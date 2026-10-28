@@ -30,8 +30,17 @@ export function useWorkflowApprovals(options?: { enabled?: boolean }) {
     enabled: options?.enabled ?? true,
   });
   const decide = useMutation({
-    mutationFn: ({ id, approved, final }: { id: string; approved: boolean; final?: string }) =>
-      decideWorkflowApproval(id, approved, final),
+    mutationFn: ({
+      id,
+      approved,
+      final,
+      choice,
+    }: {
+      id: string;
+      approved: boolean;
+      final?: string;
+      choice?: string;
+    }) => decideWorkflowApproval(id, approved, final, choice),
     onSuccess: async (approval) => {
       await queryClient.invalidateQueries({ queryKey: qk.workflows.all() });
       toast.success(approval.status === "approved" ? t("decisionApproved") : t("decisionRejected"));

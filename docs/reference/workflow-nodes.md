@@ -124,13 +124,14 @@ secret once to paste. `triggered_by` is `github`.
 
 ### trigger.gmail { #trigger-gmail }
 
-**Gmail.** Started by a new message in the organization's connected Gmail mailbox that
-fits every filter set, read once a minute. Publishing is refused until a mailbox is
-connected. `triggered_by` is `gmail`. **Sender contains** matches the sender's
-address, not the display name: `@acme.com` is that domain exactly, not its
-subdomains. With it set, the message must also pass the authenticated-sender check
-(DMARC, or a DKIM signature from the sender's domain). Mail labelled `SENT`,
-`DRAFT`, `SPAM` or `TRASH` is skipped unless **Label** names it.
+**Gmail.** Started by a new message in the organization's connected Gmail mailbox
+that fits every filter set, read at the mailbox's **Check for new mail every**
+interval (a minute by default). Publishing is refused until a mailbox is connected.
+`triggered_by` is `gmail`. **Sender contains** matches the sender's address, not the
+display name: `@acme.com` is that domain exactly, not its subdomains. With it set,
+the message must also pass the authenticated-sender check (DMARC, or a DKIM signature
+from the sender's domain). Mail labelled `SENT`, `DRAFT`, `SPAM` or `TRASH` is
+skipped unless **Label** names it.
 
 The output carries the thread - `thread_id`, `rfc_message_id`, `in_reply_to`,
 `references`, `received_at` - and the `html` body, read up to 20,000 characters. The
@@ -164,19 +165,20 @@ triggers take outside input.
 ### trigger.outlook { #trigger-outlook }
 
 **Outlook.** Started by a new message in a folder of the organization's connected
-Microsoft 365 mailbox that fits every filter set, read once a minute. Publishing is
-refused until a mailbox is connected. `triggered_by` is `outlook`. Microsoft Graph
-is read one folder at a time, so **Folder** and **Shared mailbox** are where the
-poll looks as well as a filter, and the first read of a folder starts at the moment
-the workflow was published or last switched on. Naming a shared mailbox the organization's
-Microsoft grant can open takes the permission to manage connections, as it does for
-Outlook agent triggers; a workflow already listening to one keeps it through later
-publishes, and changing it needs the permission again. **Sender contains** matches the sender's address, as
-for Gmail, and needs mail the sender's domain authenticated or that came from inside
-the tenant. A folder or shared mailbox Outlook says cannot be read switches the
-workflow off, with `mailbox_folder_unreadable` in the audit log. A stored
-configuration that no longer validates is skipped by the poll. The attachments are
-staged as for [trigger.gmail](#trigger-gmail), and `labels` holds the message's
+Microsoft 365 mailbox that fits every filter set, read at the mailbox's **Check for
+new mail every** interval (a minute by default). Publishing is refused until a
+mailbox is connected. `triggered_by` is `outlook`. Microsoft Graph is read one folder
+at a time, so **Folder** and **Shared mailbox** are where the poll looks as well as a
+filter, and the first read of a folder starts at the moment the workflow was
+published or last switched on. Naming a shared mailbox the organization's Microsoft
+grant can open takes the permission to manage connections, as it does for Outlook
+agent triggers; a workflow already listening to one keeps it through later publishes,
+and changing it needs the permission again. **Sender contains** matches the sender's
+address, as for Gmail, and needs mail the sender's domain authenticated or that came
+from inside the tenant. A folder or shared mailbox Outlook says cannot be read
+switches the workflow off, with `mailbox_folder_unreadable` in the audit log. A
+stored configuration that no longer validates is skipped by the poll. The attachments
+are staged as for [trigger.gmail](#trigger-gmail), and `labels` holds the message's
 categories. Its output is the one of [trigger.gmail](#trigger-gmail).
 
 ::: app.workflows.nodes.trigger_outlook._handler.OutlookTriggerConfig
@@ -403,6 +405,17 @@ Publishing checks that a merge's inputs leave one step through different ports,
 and that the step takes exactly one port per run - an If / else, a Switch, a
 decision, `ai.classify`, a table check or an approval - so exactly one of them
 ever runs.
+
+A merge can take two or more ports of that step straight, with nothing
+between them, such as `ai.classify`'s `needs_reply` and `unsure`: it runs once,
+for the port the step took. Two edges from the same port stay refused.
+
+A rule, category, branch or choice you name becomes an output port, so it may not
+reuse a port its step already has: `in`, `otherwise`, `other`, `default`,
+`approved` and `rejected` on the step that has them, `unsure` on a classifier with
+a minimum confidence, and `error` on a step that routes its errors. The editor
+marks the name and publishing refuses it, saying which name clashes and to rename
+it.
 
 Expressions can select, filter and compare, and call a fixed set of pure
 functions: `abs`, `avg`, `ceil`, `contains`, `ends_with`, `floor`, `join`,
@@ -799,6 +812,21 @@ hands it on unchanged as `final` with `edited` false, so later steps can bind
 `final`. Sending an edited version to a step that is not `editable`, or with a
 rejection, is refused with `422`. A decider the step does not name sees the
 proposal read-only.
+
+A step can offer **choices** instead of a plain approval, each a way of
+approving: keep a draft or send it now, say. Give up to five, each with an `id`
+(lower case letters, digits and underscores, not `in`, `approved` or `rejected`)
+and a `label` of up to 40 characters. The queue shows one button per choice in
+place of **Approve**, with the label as written and not translated, and
+**Reject** stays. The step then has an output port per choice, in order, then
+`rejected`, and no `approved` port: an edge from `approved` is refused when the
+workflow is published.
+
+The approver's choice is the port the step leaves by, and its `id` is `choice` in
+the output. It is null when the step has no choices, for a rejection and for an
+expiry. A step with no choices is unchanged: it has `approved` and `rejected`.
+Approving a step with choices needs one of them as `choice`, and giving `choice`
+to any other decision is refused with `422`. The stats do not split by choice.
 
 If the workflow sends the approved `final` through [`mcp.call`](#mcp-call), set
 that step's `approval` to `none`, or the person is asked twice.

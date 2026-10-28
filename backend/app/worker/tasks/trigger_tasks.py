@@ -144,8 +144,8 @@ async def poll_portal_grants() -> None:
     The `poll-portal-grants` schedule, beside `check_agent_triggers`, and the one
     that makes a polled portal a delivery mechanism
     rather than a second kind of trigger. Gmail pushes nothing without a Cloud
-    Pub/Sub topic and a registration that expires weekly, so this asks - once a
-    minute, one request per connected mailbox - and hands whatever it finds to the
+    Pub/Sub topic and a registration that expires weekly, so this asks - each connected mailbox on its own interval, a minute unless
+    set otherwise, one request per read - and hands whatever it finds to the
     same match-then-fire path a webhook delivery takes.
 
     Each mailbox owns a transaction advisory lock until its cursor and queued

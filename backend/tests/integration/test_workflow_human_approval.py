@@ -137,10 +137,16 @@ async def _decide(
     approved: bool,
     ctx: AuthContext | None = None,
     final: str | None = None,
+    choice: str | None = None,
 ) -> WorkflowApprovalRead:
     async with seeded.factory() as db:
         decided = await WorkflowApprovalService(db).decide(
-            ctx or seeded.ctx, approval_id, approved=approved, note="checked the order", final=final
+            ctx or seeded.ctx,
+            approval_id,
+            approved=approved,
+            note="checked the order",
+            final=final,
+            choice=choice,
         )
         await db.commit()
     return decided
@@ -825,6 +831,180 @@ class TestTheQueue:
             )
         assert [row.id for row in inside.items] == [item.id]
         assert before.total == 0 and after.total == 0
+
+
+_CHOICES = [{"id": "draft", "label": "Keep a draft"}, {"id": "send_now", "label": "Send now"}]
+
+
+class ChoiceGraph:
+    """Input, an approval step with choices, then one echo on each of its ports."""
+
+    def __init__(self, **config: Any) -> None:
+        self.entry = _node("core.input")
+        self.ask = _node(
+            "human.approval", {"title": "Send the reply?", "choices": _CHOICES, **config}
+        )
+        self.draft = _node("debug.echo", {"message": "drafted"})
+        self.send = _node("debug.echo", {"message": "sent"})
+        self.no = _node("debug.echo", {"message": "held"})
+        self.graph = WorkflowGraph(
+            entry_node_id=self.entry.id,
+            nodes=(self.entry, self.ask, self.draft, self.send, self.no),
+            edges=(
+                _edge(self.entry, "out", self.ask),
+                _edge(self.ask, "draft", self.draft),
+                _edge(self.ask, "send_now", self.send),
+                _edge(self.ask, "rejected", self.no),
+            ),
+        )
+
+
+class TestChoices:
+    async def test_the_row_stores_the_choices_when_the_step_asks(self, engine: AsyncEngine):
+        seeded = await seed_run(engine, ChoiceGraph().graph)
+        await drive(seeded)
+        request = await _request(seeded)
+        assert request.choices == _CHOICES
+        assert request.choice is None
+        async with seeded.factory() as db:
+            queue = await WorkflowApprovalService(db).queue(seeded.ctx, statuses=[])
+        assert [(c.id, c.label) for c in queue.items[0].choices] == [
+            ("draft", "Keep a draft"),
+            ("send_now", "Send now"),
+        ]
+        assert queue.items[0].choice is None
+
+    async def test_a_step_without_choices_stores_none_and_reads_an_empty_list(
+        self, engine: AsyncEngine
+    ):
+        seeded = await seed_run(engine, Graph().graph)
+        await drive(seeded)
+        assert (await _request(seeded)).choices is None
+        async with seeded.factory() as db:
+            queue = await WorkflowApprovalService(db).queue(seeded.ctx, statuses=[])
+        assert queue.items[0].choices == []
+
+    @pytest.mark.parametrize("chosen", ["draft", "send_now"])
+    async def test_an_approval_leaves_by_the_chosen_port(
+        self, engine: AsyncEngine, wakes, chosen: str
+    ):
+        shape = ChoiceGraph()
+        seeded = await seed_run(engine, shape.graph)
+        await drive(seeded)
+        request = await _request(seeded)
+        decided = await _decide(seeded, request.id, approved=True, choice=chosen)
+        assert decided.choice == chosen
+        assert (await _request(seeded)).choice == chosen
+        await wake_approval_step(request.node_run_id, organization_id=seeded.org.id)
+        await drive(seeded)
+        output = await _step_output(seeded, request.node_run_id)
+        assert (output["decision"], output["choice"]) == ("approved", chosen)
+        assert routes(output) == frozenset({chosen})
+        ran = await node_statuses(seeded)
+        taken, other = (shape.draft, shape.send) if chosen == "draft" else (shape.send, shape.draft)
+        assert ran[taken.id] == NodeRunStatus.SUCCEEDED.value
+        assert ran[other.id] == NodeRunStatus.SKIPPED.value
+        assert ran[shape.no.id] == NodeRunStatus.SKIPPED.value
+
+    async def test_a_rejection_leaves_by_rejected_with_no_choice(self, engine: AsyncEngine, wakes):
+        seeded = await seed_run(engine, ChoiceGraph().graph)
+        await drive(seeded)
+        request = await _request(seeded)
+        decided = await _decide(seeded, request.id, approved=False)
+        assert decided.choice is None
+        await wake_approval_step(request.node_run_id, organization_id=seeded.org.id)
+        await drive(seeded)
+        output = await _step_output(seeded, request.node_run_id)
+        assert (output["decision"], output["choice"]) == ("rejected", None)
+        assert routes(output) == frozenset({"rejected"})
+
+    async def test_an_expired_request_leaves_by_rejected(self, engine: AsyncEngine):
+        seeded = await seed_run(engine, ChoiceGraph(timeout_hours=1).graph)
+        await drive(seeded)
+        request = await _request(seeded)
+        async with seeded.factory() as db:
+            await db.execute(
+                update(WorkflowApproval)
+                .where(WorkflowApproval.id == request.id)
+                .values(expires_at=datetime.now(UTC) - timedelta(minutes=1))
+            )
+            await db.commit()
+        await wake_approval_step(request.node_run_id, organization_id=seeded.org.id)
+        await drive(seeded)
+        output = await _step_output(seeded, request.node_run_id)
+        assert (output["decision"], output["choice"]) == ("expired", None)
+        assert routes(output) == frozenset({"rejected"})
+
+    @pytest.mark.parametrize("choice", [None, "", "archive", "approved", "rejected"])
+    async def test_an_approval_needs_one_of_the_choices(
+        self, engine: AsyncEngine, wakes, choice: str | None
+    ):
+        seeded = await seed_run(engine, ChoiceGraph().graph)
+        await drive(seeded)
+        request = await _request(seeded)
+        with pytest.raises(ValidationError) as refused:
+            await _decide(seeded, request.id, approved=True, choice=choice)
+        assert refused.value.details["fields"][0]["field"] == "choice"
+        assert (await _request(seeded)).status == WorkflowApprovalStatus.PENDING.value
+        assert await _audit(seeded) == []
+        assert wakes == []
+
+    async def test_a_step_without_choices_refuses_a_choice(self, engine: AsyncEngine, wakes):
+        seeded = await seed_run(engine, Graph().graph)
+        await drive(seeded)
+        request = await _request(seeded)
+        with pytest.raises(ValidationError) as refused:
+            await _decide(seeded, request.id, approved=True, choice="draft")
+        assert refused.value.details["fields"][0]["field"] == "choice"
+        assert (await _request(seeded)).status == WorkflowApprovalStatus.PENDING.value
+        assert wakes == []
+
+    async def test_a_rejection_with_a_choice_is_refused(self, engine: AsyncEngine, wakes):
+        seeded = await seed_run(engine, ChoiceGraph().graph)
+        await drive(seeded)
+        request = await _request(seeded)
+        with pytest.raises(ValidationError) as refused:
+            await _decide(seeded, request.id, approved=False, choice="draft")
+        assert refused.value.details["fields"][0]["field"] == "choice"
+        assert (await _request(seeded)).status == WorkflowApprovalStatus.PENDING.value
+        assert await _audit(seeded) == []
+
+    async def test_the_audit_records_the_choice_id(self, engine: AsyncEngine, wakes):
+        seeded = await seed_run(engine, ChoiceGraph().graph)
+        await drive(seeded)
+        request = await _request(seeded)
+        await _decide(seeded, request.id, approved=True, choice="send_now")
+        (entry,) = await _audit(seeded)
+        assert entry.details["choice"] == "send_now"
+
+    async def test_the_choice_goes_with_an_edit(self, engine: AsyncEngine, wakes):
+        shape = ChoiceGraph(editable=True)
+        shape.graph = shape.graph.model_copy(
+            update={
+                "bindings": (
+                    Binding(
+                        target_node_id=shape.ask.id,
+                        target_field="proposal",
+                        source=LiteralValue(value="Dear customer"),
+                    ),
+                )
+            }
+        )
+        seeded = await seed_run(engine, shape.graph)
+        await drive(seeded)
+        request = await _request(seeded)
+        decided = await _decide(
+            seeded, request.id, approved=True, final="Dear Ann", choice="send_now"
+        )
+        assert (decided.choice, decided.final, decided.edited) == ("send_now", "Dear Ann", True)
+        await wake_approval_step(request.node_run_id, organization_id=seeded.org.id)
+        await drive(seeded)
+        output = await _step_output(seeded, request.node_run_id)
+        assert (output["choice"], output["final"], output["edited"]) == (
+            "send_now",
+            "Dear Ann",
+            True,
+        )
 
 
 class TestTheStep:

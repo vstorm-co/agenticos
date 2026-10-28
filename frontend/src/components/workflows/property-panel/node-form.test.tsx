@@ -1160,3 +1160,52 @@ describe("a step's optional settings", () => {
     expect(screen.getByRole("button", { name: "2 more options" })).toBeInTheDocument();
   });
 });
+
+describe("an approval step's choices", () => {
+  const approval = makeDefinition({
+    id: "human.approval",
+    name: "Ask for approval",
+    config_schema: {
+      type: "object",
+      properties: {
+        title: { type: "string", title: "Title", minLength: 1 },
+        choices: {
+          type: "array",
+          title: "Ways to approve",
+          maxItems: 5,
+          items: { $ref: "#/$defs/ApprovalChoice" },
+        },
+      },
+      required: ["title"],
+      $defs: {
+        ApprovalChoice: {
+          type: "object",
+          title: "ApprovalChoice",
+          properties: {
+            id: { type: "string", title: "Port id", pattern: "^[a-z][a-z0-9_]{0,31}$" },
+            label: { type: "string", title: "Button label", maxLength: 40 },
+          },
+          required: ["id", "label"],
+        },
+      },
+    },
+  });
+
+  it("edits each choice's id and label as a row", async () => {
+    const { updateNodeConfig } = renderForm({
+      definition: approval,
+      config: { title: "Send?", choices: [{ id: "draft", label: "Keep a draft" }] },
+    });
+    expect(screen.getByLabelText(/Port id/)).toHaveValue("draft");
+    await userEvent.type(screen.getByLabelText(/Button label/), "!");
+    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", {
+      title: "Send?",
+      choices: [{ id: "draft", label: "Keep a draft!" }],
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Add row" }));
+    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", {
+      title: "Send?",
+      choices: [{ id: "draft", label: "Keep a draft" }, {}],
+    });
+  });
+});

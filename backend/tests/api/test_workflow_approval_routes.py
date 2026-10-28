@@ -51,6 +51,8 @@ def _read() -> WorkflowApprovalRead:
         proposal_label=None,
         final=None,
         edited=False,
+        choices=[],
+        choice=None,
     )
 
 
@@ -136,7 +138,22 @@ async def test_a_decision_is_handed_to_the_service(service: MagicMock):
             )
     assert response.status_code == 200
     assert service.decide.await_args.args[1] == approval_id
-    assert service.decide.await_args.kwargs == {"approved": True, "note": "ok", "final": None}
+    assert service.decide.await_args.kwargs == {
+        "approved": True,
+        "note": "ok",
+        "final": None,
+        "choice": None,
+    }
+
+
+async def test_a_choice_is_handed_to_the_service(service: MagicMock):
+    for open_client in _client_for(OrgRoleName.OWNER, service):
+        async with open_client() as http:
+            response = await http.post(
+                _url(f"/{uuid.uuid4()}"), json={"approved": True, "choice": "send_now"}
+            )
+    assert response.status_code == 200
+    assert service.decide.await_args.kwargs["choice"] == "send_now"
 
 
 async def test_an_edited_version_is_handed_to_the_service(service: MagicMock):
@@ -240,3 +257,14 @@ async def test_the_window_may_span_366_days_but_not_367(service: MagicMock):
     }
     assert one_more.status_code == 400
     assert service.approvals_summary.await_count == 1
+
+
+async def test_a_choice_longer_than_an_id_can_be_is_refused(service: MagicMock):
+    for open_client in _client_for(OrgRoleName.OWNER, service):
+        async with open_client() as http:
+            response = await http.post(
+                _url(f"/{uuid.uuid4()}"), json={"approved": True, "choice": "x" * 33}
+            )
+    assert response.status_code == 422
+    assert response.json()["error"]["details"]["fields"][0]["field"] == "choice"
+    service.decide.assert_not_awaited()

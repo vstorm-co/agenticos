@@ -39,6 +39,7 @@ const GITHUB: PortalCatalogEntry = {
   connection_id: null,
   connection_state: null,
   connection_covers_webhook_scopes: false,
+  poll_interval_minutes: null,
   connect_blocked_by: null,
   oauth_app_kind: "github_oauth_app",
   presets: [
@@ -60,6 +61,7 @@ const GMAIL: PortalCatalogEntry = {
   connection_id: null,
   connection_state: null,
   connection_covers_webhook_scopes: false,
+  poll_interval_minutes: null,
   connect_blocked_by: null,
   oauth_app_kind: "google_oauth_app",
   presets: [
@@ -81,6 +83,7 @@ const TRACKER: PortalCatalogEntry = {
   connection_id: null,
   connection_state: null,
   connection_covers_webhook_scopes: false,
+  poll_interval_minutes: null,
   connect_blocked_by: null,
   oauth_app_kind: null,
   presets: [{ key: "new_ticket", label: "A new ticket", description: "…", target_required: false }],

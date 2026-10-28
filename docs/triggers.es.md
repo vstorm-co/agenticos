@@ -1,5 +1,5 @@
 ---
-source_sha: "173a9224092a"
+source_sha: "517be3b7106d"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -228,9 +228,7 @@ Gmail se sondea, así que el montaje es una pantalla de consentimiento y nada m�
 No hay URL que pegar ni secreto que guardar, porque nadie nos envía nada. Lo que
 conviene saber sobre cómo lee:
 
-- **Una vez por minuto.** El latido le pregunta a Gmail qué ha llegado desde que
-  miró por última vez, así que la latencia en el peor caso es un minuto. Es
-  deliberado: la alternativa - `users.watch` hacia un topic de Google Cloud
+- **Cada minuto, o con la frecuencia que elijas.** El latido le pregunta a Gmail qué ha llegado desde que miró por última vez, así que la latencia en el peor caso es el intervalo - un minuto mientras no lo cambies. **Check for new mail every** (1, 5, 15, 30 o 60 minutos) es un ajuste del buzón, en su tarjeta del portal y en un paso de trigger de Gmail, y vale para todos los triggers de ese buzón; cambiarlo requiere `mcp:manage`. Sondear es deliberado: la alternativa - `users.watch` hacia un topic de Google Cloud
   Pub/Sub - es en tiempo real y cuesta un topic y una suscripción como requisitos
   del *despliegue*, más un registro que caduca cada siete días y necesita algo
   que lo renueve.
@@ -263,7 +261,7 @@ conviene saber sobre cómo lee:
   aplicación -, los triggers del buzón se apagan, la tarjeta pide volver a
   conectar y el registro de auditoría anota el motivo (`mailbox_access_revoked`).
   Vuelve a conectar y luego enciéndelos otra vez. Una caída de Google no es esto:
-  el sondeo se repite un minuto después.
+  el sondeo se repite en la siguiente comprobación.
 
 La organización necesita su propio cliente OAuth de Google, guardado en Vault como
 secreto **Google OAuth client** (`google_oauth_app`), con la API de Gmail
@@ -295,6 +293,9 @@ que el montaje vuelve a ser una pantalla de consentimiento.
 
 En qué se diferencia de Gmail:
 
+- **El mismo intervalo de comprobación.** **Check for new mail every** vale para un
+  buzón de Outlook igual que para Gmail: un solo ajuste del buzón conectado,
+  compartido por todos los triggers que lo usan.
 - **Lee carpetas, no un buzón.** Microsoft Graph informa del correo nuevo carpeta
   a carpeta, así que un trigger nombra la carpeta que vigila - la bandeja de
   entrada salvo que diga otra - y el sondeador lee exactamente las carpetas que

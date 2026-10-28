@@ -76,6 +76,7 @@ export {
   type PortalAction,
   type PortalWithState,
 } from "./use-portals";
+export { usePortalPollInterval } from "./use-portal-poll-interval";
 export { usePortalTargets } from "./use-portal-targets";
 export { useTriggerTemplates } from "./use-trigger-templates";
 export { useUrlSort, type UrlSort } from "./use-url-sort";

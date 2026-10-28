@@ -1,5 +1,5 @@
 ---
-source_sha: "e132a630b16c"
+source_sha: "aa3007c21550"
 title: "Segreguj skrzynkę i przygotowuj szkice odpowiedzi"
 description: "Podłącz skrzynkę jako odpytywany trigger zdarzeń i niech agent przygotowuje szkice odpowiedzi albo wyciąga zadania, nigdy niczego nie wysyłając."
 ---
@@ -12,7 +12,7 @@ Podłącz skrzynkę Gmail jako [trigger zdarzeń](../triggers.md#gmail-1-minute-
 
 Przeczytaj to przed podłączeniem czegokolwiek, bo od tego zależy, czy ta strona jest warta zgody OAuth.
 
-**Może czytać.** Trigger Gmaila odpytuje podłączoną skrzynkę raz na minutę i przekazuje agentowi temat, nadawcę i treść nowej wiadomości. Wdrożenie prosi Google wyłącznie o zakres `gmail.readonly`. Na ekranie zgody nie ma prośby o nic więcej, więc nie istnieje szersze uprawnienie, na którym można by przypadkiem polegać.
+**Może czytać.** Trigger Gmaila odpytuje podłączoną skrzynkę co minutę albo tak często, jak mówi jej ustawienie **Check for new mail every**, i przekazuje agentowi temat, nadawcę i treść nowej wiadomości. Wdrożenie prosi Google wyłącznie o zakres `gmail.readonly`. Na ekranie zgody nie ma prośby o nic więcej, więc nie istnieje szersze uprawnienie, na którym można by przypadkiem polegać.
 
 **Nie może wysyłać ani tworzyć prawdziwego szkicu w Gmailu.** Agent zbudowany według tej strony nie ma narzędzia, które wywołuje API wysyłania albo szkiców Gmaila. To, co szablony poniżej nazywają „szkicem”, jest tekstem odpowiedzi agenta zapisanym w runie, który się uruchomił. Trafia do **Activity**, do rozmowy tego runu, jako wiadomość, którą człowiek musi przeczytać i sam wkleić do wychodzącego maila. Nic nigdy nie jest wysyłane w Twoim imieniu i nic nie jest zapisywane z powrotem w skrzynce. Jeśli odpowiedź ma trafić do wątku w skrzynce, jako szkic albo wysłana wiadomość, po zatwierdzeniu przez człowieka, użyj workflow: [odpowiedz na pocztę zatwierdzonym szkicem](answer-mail-with-approved-draft.md).
 
@@ -50,7 +50,7 @@ brief.
 Nie ma podpisanej dostawy do wysłania ręcznie: Gmail jest odpytywany, a nie wypycha zdarzeń, więc nie ma ani adresu URL, ani sekretu. Są dwa sposoby, żeby zobaczyć agenta w działaniu, zanim przyjdzie prawdziwa wiadomość:
 
 - **Run now** na triggerze uruchamia **podstawowy prompt agenta bez kontekstu dostawy**: bez wiadomości, bez nadawcy, bez niczego, na co można by przygotować odpowiedź. Dowodzi, że agent, jego budżet i stan publikacji są w porządku, ale nie sprawdza segregacji, bo w tym runie nie ma maila, na którym mogłyby zadziałać instrukcje szablonu.
-- **Prawdziwa wiadomość w podłączonej skrzynce** to jedyny sposób, żeby zobaczyć faktyczny szkic. Heartbeat raz na minutę czyta to, co przyszło od ostatniego sprawdzenia, do 25 wiadomości na raz, więc najgorsze opóźnienie to minuta, a nagły napływ z listy mailingowej nie zamienia się w setki runów.
+- **Prawdziwa wiadomość w podłączonej skrzynce** to jedyny sposób, żeby zobaczyć faktyczny szkic. Heartbeat czyta w odstępie ustawionym dla skrzynki (domyślnie minuta) to, co przyszło od ostatniego sprawdzenia, do 25 wiadomości na raz, więc najgorsze opóźnienie to ten odstęp, a nagły napływ z listy mailingowej nie zamienia się w setki runów.
 
 ## Sprawdź wynik { #check-the-result }
 

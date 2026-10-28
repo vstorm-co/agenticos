@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { BrandIcon } from "@/components/icons/brand-icon";
 import Link from "next/link";
 
+import { MailboxInterval } from "@/components/triggers/mailbox-interval";
 import { Button, Skeleton } from "@/components/ui";
 import { usePermissions, usePortals } from "@/hooks";
 import { getErrorMessage } from "@/lib/api-error";
@@ -82,6 +83,11 @@ export function PortalAccount({ account }: { account: TriggerAccount }) {
               </Link>
             )}
           </p>
+        )}
+        {ready && account.brand !== "github" && (
+          <div className="pt-1">
+            <MailboxInterval portal={item.portal} canManage={can(Perm.mcpManage)} />
+          </div>
         )}
       </div>
       {!ready && blockedBy === null && can(Perm.mcpManage) && (

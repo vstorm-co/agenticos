@@ -16,10 +16,11 @@ have configured here, so nothing on this page was fired against a live mailbox.
 Read this before connecting anything, because it decides whether the page below
 is worth the OAuth consent.
 
-**It can read.** The Gmail trigger polls the connected mailbox once a minute and
-hands the agent a new message's subject, sender and body. The deployment asks
-Google only for the `gmail.readonly` scope — nothing more is requested at the
-consent screen, so there is no broader grant to accidentally rely on.
+**It can read.** The Gmail trigger polls the connected mailbox every minute, or as
+often as its **Check for new mail every** setting says, and hands the agent a new
+message's subject, sender and body. The deployment asks Google only for the
+`gmail.readonly` scope — nothing more is requested at the consent screen, so there is
+no broader grant to accidentally rely on.
 
 **It cannot send, and it cannot create an actual Gmail draft.** The agent built on
 this page has no tool that calls Gmail's send or drafts API. What the templates below
@@ -84,9 +85,10 @@ real message arrives:
   exercise triage: there is no email in that run for the template's instructions
   to act on.
 - **A real message landing in the connected mailbox** is the only way to see an
-  actual draft. The heartbeat reads what arrived since its last check, once a
-  minute, up to 25 messages per tick — so the worst-case latency is a minute, and
-  a mailing-list burst does not turn into hundreds of runs.
+  actual draft. The heartbeat reads what arrived since its last check, at the
+  mailbox's check interval (a minute by default), up to 25 messages per check — so
+  the worst-case latency is that interval, and a mailing-list burst does not turn
+  into hundreds of runs.
 
 ## Check the result
 

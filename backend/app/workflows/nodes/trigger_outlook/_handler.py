@@ -1,9 +1,10 @@
 """`trigger.outlook`: a workflow a message arriving in the organization's Outlook starts.
 
-The mailbox is the one the organization connected through the Outlook portal, read
-once a minute by the same poll that fires agent triggers - one folder at a time,
-so the folder this node names is where the poll looks. Each new message that fits
-this node's filter starts one run, as the member who published it.
+The mailbox is the one the organization connected through the Outlook portal, read at
+the mailbox's own interval (a minute unless an administrator set another) by the same
+poll that fires agent triggers - one folder at a time, so the folder this node names is
+where the poll looks. Each new message that fits this node's filter starts one run, as
+the member who published it.
 """
 
 from typing import Literal

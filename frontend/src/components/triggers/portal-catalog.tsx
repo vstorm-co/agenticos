@@ -10,6 +10,7 @@ import Link from "next/link";
 import { BrandIcon, isBrandName } from "@/components/icons/brand-icon";
 import { Monogram } from "@/components/icons/monogram";
 import { AddSecretDialog } from "@/components/vault/secret-dialog";
+import { MailboxInterval } from "@/components/triggers/mailbox-interval";
 import { PortalTriggerDialog } from "@/components/triggers/portal-trigger-dialog";
 import { TriggerFormDialog } from "@/components/triggers/trigger-form-dialog";
 import { ErrorState, LoadingState } from "@/components/states";
@@ -308,6 +309,10 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
                 </div>
 
                 <div className="mt-auto">
+                  {/* How often a connected mailbox is checked - the mailbox's own
+                      setting, shared by every trigger on it. Renders nothing for
+                      any other portal. */}
+                  <MailboxInterval portal={item.portal} canManage={canManageConnections} />
                   {/* The prerequisite, said before the click rather than as a red
                       toast after it - and answerable *here*, which is the half
                       that was missing. GitHub's consent URL is built from the

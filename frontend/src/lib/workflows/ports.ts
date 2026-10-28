@@ -8,7 +8,8 @@ import type { JsonSchema, NodeDefinition, NodeInstance, Port } from "./types";
  *
  * `error.handle` has one output per configured branch beside `default`,
  * `logic.switch` one per rule before `otherwise`, and `ai.classify` one per
- * category before `other`, then `unsure` when it sets a minimum confidence; a
+ * category before `other`, then `unsure` when it sets a minimum confidence,
+ * `human.approval` one per choice before `rejected` in place of `approved`; a
  * Manual or API trigger's `out` carries a `payload` typed by the fields it
  * declares, and any node whose policy routes its errors has an `error` output
  * carrying the `WorkflowError`. Everything that reads ports - the node's handles, the edge
@@ -76,6 +77,17 @@ function namedOutputsBefore(ports: Port[], names: string[], last: string): Port[
   ];
 }
 
+/** The ways of approving a `human.approval` config offers, in order - bad entries skipped. */
+export function approvalChoices(config: Record<string, unknown>): { id: string; label: string }[] {
+  if (!Array.isArray(config.choices)) return [];
+  return config.choices.flatMap((entry) => {
+    if (typeof entry !== "object" || entry === null) return [];
+    const { id, label } = entry as { id?: unknown; label?: unknown };
+    if (typeof id !== "string" || id.length === 0) return [];
+    return [{ id, label: typeof label === "string" && label.length > 0 ? label : id }];
+  });
+}
+
 function namedEntries(entries: unknown): string[] {
   if (!Array.isArray(entries)) return [];
   return entries
@@ -117,6 +129,23 @@ export function instancePorts(instance: NodeInstance, definition: NodeDefinition
       ports = [
         ...ports,
         { id: "unsure", label: "Unsure", kind: "output", schema: other?.schema ?? null },
+      ];
+    }
+  }
+  if (definition.id === "human.approval") {
+    // With choices there is no `approved`: the approver's choice is the way out.
+    const choices = approvalChoices(instance.config);
+    if (choices.length > 0) {
+      const rejected = ports.find((port) => port.id === "rejected");
+      const schema = rejected?.schema ?? null;
+      const kept = ports.filter((port) => port.id !== "approved" && port.id !== "rejected");
+      // A draft config may repeat an id or reuse `in` or `rejected`; one handle per id.
+      const seen = new Set([...ports.map((port) => port.id), "approved"]);
+      const named = choices.filter(({ id }) => !seen.has(id) && seen.add(id));
+      ports = [
+        ...kept,
+        ...named.map<Port>(({ id, label }) => ({ id, label, kind: "output", schema })),
+        ...(rejected === undefined ? [] : [rejected]),
       ];
     }
   }

@@ -597,6 +597,12 @@ class AgentTriggerService:
                         if connection is not None
                         else None
                     ),
+                    poll_interval_minutes=(
+                        connection.poll_interval_minutes
+                        if connection is not None
+                        and portal.key in portal_catalog.MAILBOX_PORTAL_KEYS
+                        else None
+                    ),
                     connect_blocked_by=_connect_blocked_by(
                         portal, oauth_apps=stored.get(portal.oauth_app_kind or "", 0)
                     ),

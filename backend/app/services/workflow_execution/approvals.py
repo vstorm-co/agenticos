@@ -38,7 +38,11 @@ from app.db.session import get_worker_db_context
 from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_approval as approval_repo
 from app.repositories import workflow_run as workflow_run_repo
-from app.schemas.workflow_approval import WorkflowApprovalList, WorkflowApprovalRead
+from app.schemas.workflow_approval import (
+    WorkflowApprovalChoice,
+    WorkflowApprovalList,
+    WorkflowApprovalRead,
+)
 from app.services import text_similarity
 from app.services.workflow_execution import dispatch_queue
 
@@ -78,6 +82,11 @@ def _read(approval: WorkflowApproval, workflow_name: str) -> WorkflowApprovalRea
         proposal_label=approval.proposal_label,
         final=approval.final,
         edited=approval.edited,
+        choices=[
+            WorkflowApprovalChoice(id=str(entry["id"]), label=str(entry["label"]))
+            for entry in approval.choices or []
+        ],
+        choice=approval.choice,
     )
 
 
@@ -123,6 +132,7 @@ class WorkflowApprovalService:
         approved: bool,
         note: str | None = None,
         final: str | None = None,
+        choice: str | None = None,
     ) -> WorkflowApprovalRead:
         """Approve or reject a request, and wake the step waiting on it.
 
@@ -131,14 +141,16 @@ class WorkflowApprovalService:
         `edited` says whether the submitted version differs from the proposal
         beyond line endings and trailing spaces, and `edit_ratio` how much of it
         changed (0 when not edited), scored once here. A rejection and a step
-        that is not editable record no ratio.
+        that is not editable record no ratio. A step that offers choices takes an
+        approval only with one of them as `choice`, and the step leaves by it.
 
         Raises:
             NotFoundError: The request is not in this organization.
             AuthorizationError: The step names approvers and the caller is not
                 one of them.
             ValidationError: `final` came with a step that is not editable, or
-                with a rejection.
+                with a rejection; an approval of a step with choices named none of
+                them; `choice` came with a rejection or a step with no choices.
             BadRequestError: It was already decided, expired or cancelled, or
                 its time has run out - a decision after the step stopped
                 waiting would decide nothing.
@@ -170,6 +182,31 @@ class WorkflowApprovalService:
                 message="A rejection carries no edited version",
                 details=field_details(
                     "final", "A rejection carries no edited version", approval_id=str(approval_id)
+                ),
+            )
+        offered = {str(entry["id"]) for entry in approval.choices or []}
+        if choice is not None and not offered:
+            raise ValidationError(
+                message="This step offers no choices",
+                details=field_details(
+                    "choice", "This step offers no choices", approval_id=str(approval_id)
+                ),
+            )
+        if choice is not None and not approved:
+            raise ValidationError(
+                message="A rejection carries no choice",
+                details=field_details(
+                    "choice", "A rejection carries no choice", approval_id=str(approval_id)
+                ),
+            )
+        if approved and offered and choice not in offered:
+            raise ValidationError(
+                message="Choose one of the ways this step offers to approve it",
+                details=field_details(
+                    "choice",
+                    "Choose one of the ways this step offers to approve it",
+                    approval_id=str(approval_id),
+                    choices=sorted(offered),
                 ),
             )
         now = datetime.now(UTC)
@@ -214,6 +251,7 @@ class WorkflowApprovalService:
                 "final": decided_final,
                 "edited": edited,
                 "edit_ratio": edit_ratio,
+                "choice": choice,
             },
         )
         await record_audit(
@@ -232,6 +270,7 @@ class WorkflowApprovalService:
                 "editable": approval.editable,
                 "edited": edited,
                 "edit_ratio": edit_ratio,
+                "choice": choice,
                 "proposal_length": None if proposal is None else len(proposal),
                 "final_length": None if decided_final is None else len(decided_final),
             },

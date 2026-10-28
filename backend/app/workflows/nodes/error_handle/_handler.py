@@ -14,12 +14,13 @@ the run however the graph is wired (`WorkflowError.bypassable`).
 
 from typing import Any, Self
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic import ValidationError as PydanticValidationError
 
 from app.services.workflow_execution import context
 from app.workflows.contracts.definition import Port
 from app.workflows.contracts.results import Completed, Failed, NodeResult, WorkflowError
+from app.workflows.nodes._port_names import refuse_clash
 
 DEFAULT_BRANCH = "default"
 _RESERVED = frozenset({"in", DEFAULT_BRANCH})
@@ -33,6 +34,11 @@ class ErrorBranch(BaseModel):
     name: str = Field(pattern=r"^[a-z][a-z0-9_]{0,31}$", description="The branch's port id.")
     code: str | None = Field(default=None, max_length=64)
     retryable: bool | None = None
+
+    @field_validator("name")
+    @classmethod
+    def _not_a_port_already(cls, name: str) -> str:
+        return refuse_clash(name, _RESERVED)
 
     def matches(self, error: WorkflowError) -> bool:
         return (self.code is None or self.code == error.code) and (
@@ -52,8 +58,6 @@ class ErrorHandleConfig(BaseModel):
         names = [branch.name for branch in self.branches]
         if len(set(names)) != len(names):
             raise ValueError("Each branch needs a name of its own")
-        if _RESERVED & set(names):
-            raise ValueError("A branch cannot be called 'in' or 'default'")
         return self
 
 

@@ -69,6 +69,14 @@ class PortalRead(BaseSchema):
             ),
         )
     )
+    poll_interval_minutes: int | None = Field(
+        default=None,
+        description=(
+            "How many minutes pass between checks of the connected mailbox - one "
+            "setting for every trigger on it - or null for a portal that is not "
+            "polled or has no connection"
+        ),
+    )
     connect_blocked_by: (
         Literal["oauth_app_secret", "ambiguous_oauth_app_secret", "oauth_unavailable"] | None
     ) = Field(

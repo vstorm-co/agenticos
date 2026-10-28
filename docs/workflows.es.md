@@ -1,5 +1,5 @@
 ---
-source_sha: "735b6c801d0d"
+source_sha: "211121201359"
 ---
 
 # Workflows { #workflows }
@@ -595,7 +595,7 @@ límites propios de cada paso - el techo de coste de un paso de agente entre ell
 - **Runs under way at once** - una ejecución real iniciada por encima se rechaza con
   `429` hasta que termine una. Al remitente de un webhook o de GitHub se le pide que
   reintente, una programación espera a su siguiente tic, y un evento de tabla o una respuesta de
-  formulario por encima se rechaza. Un buzón se vuelve a leer un minuto después, así que
+  formulario por encima se rechaza. Un buzón se vuelve a leer un minuto después, sea cual sea su intervalo, así que
   el mensaje espera a que termine una ejecución - salvo que las que ocupan el límite
   esperen una aprobación: entonces el mensaje se omite para este workflow y el registro
   de auditoría lo anota (`workflow.mail_message_skipped`). Las
@@ -709,6 +709,11 @@ pasa entonces `final`, `original` y `edited`, de modo que un paso posterior env�
 lo que la persona aprobó. Quien puede decidir pero no está nombrado en el paso ve la propuesta de solo
 lectura, y una solicitud decidida con una versión cambiada lleva la insignia
 **Edited** en **Decided**.
+
+Cuando el paso enumera **Ways to approve**, la cola muestra un botón por cada una, con la
+etiqueta que escribió su autor, en lugar de **Approve**; **Reject** se queda. Cada forma
+es un puerto de salida del paso, así que el workflow sigue por la que pulsó quien
+aprueba, y la fila decidida la nombra. Una edición va con el botón que se pulse.
 
 
 En la lista, la versión de un run de prueba dice **Draft (test)** y la de uno real
@@ -887,11 +892,12 @@ sustituye el secreto y vuelve a registrar el hook donde la cuenta lo creó. Ver
 Un trigger **Gmail** inicia el workflow cuando llega un mensaje al buzón de Gmail de
 la organización - el conectado mediante el portal **Gmail**. El panel del paso dice
 si hay un buzón conectado y conecta uno, y la publicación se rechaza hasta que lo
-haya. El buzón se lee una vez por minuto, en la misma consulta que dispara los
-triggers de Gmail de los agentes, y cada mensaje nuevo que encaja con todos los
+haya. El buzón se lee en la misma consulta que dispara los triggers de Gmail de los agentes, cada minuto, y cada mensaje nuevo que encaja con todos los
 filtros puestos - **Subject contains** y **Sender contains**, sin distinguir
 mayúsculas, y **Label**, exacto - inicia una ejecución como el miembro que publicó el
 workflow.
+
+**Check for new mail every**, en el bloque del buzón del paso, cambia ese ritmo (1, 5, 15, 30 o 60 minutos). Es un ajuste del buzón y vale para todos los triggers de ese buzón.
 
 **Sender contains** lee la dirección del remitente, nunca el nombre visible:
 `@acme.com` coincide exactamente con ese dominio y no con sus subdominios, una

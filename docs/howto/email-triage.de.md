@@ -1,5 +1,5 @@
 ---
-source_sha: "e132a630b16c"
+source_sha: "aa3007c21550"
 title: "Ihren Posteingang triagieren und Antworten entwerfen"
 description: "Verbinden Sie ein Postfach als abgefragten Ereignis-Trigger und lassen Sie einen Agent Antworten entwerfen oder Aufgaben extrahieren, ohne jemals etwas zu senden."
 ---
@@ -12,7 +12,7 @@ Verbinden Sie ein Gmail-Postfach als [Ereignis-Trigger](../triggers.md#gmail-1-m
 
 Lesen Sie das, bevor Sie etwas verbinden, denn davon hängt ab, ob die Seite unten die OAuth-Zustimmung wert ist.
 
-**Er kann lesen.** Der Gmail-Trigger fragt das verbundene Postfach einmal pro Minute ab und übergibt dem Agent Betreff, Absender und Text einer neuen Nachricht. Die Bereitstellung bittet Google nur um den Scope `gmail.readonly`. Auf dem Zustimmungsbildschirm wird nichts weiter angefragt, es gibt also keine breitere Berechtigung, auf die man sich versehentlich verlassen könnte.
+**Er kann lesen.** Der Gmail-Trigger fragt das verbundene Postfach jede Minute ab, oder so oft, wie seine Einstellung **Check for new mail every** vorgibt, und übergibt dem Agent Betreff, Absender und Text einer neuen Nachricht. Die Bereitstellung bittet Google nur um den Scope `gmail.readonly`. Auf dem Zustimmungsbildschirm wird nichts weiter angefragt, es gibt also keine breitere Berechtigung, auf die man sich versehentlich verlassen könnte.
 
 **Er kann weder senden noch einen echten Gmail-Entwurf anlegen.** Der Agent, den diese Seite aufbaut, hat kein Tool, das die Sende- oder Entwurfs-API von Gmail aufruft. Was die Vorlagen unten "Entwurf" nennen, ist der Antworttext des Agents, geschrieben in den ausgelösten Run. Er landet in **Activity**, in der Konversation dieses Runs, als Nachricht, die ein Mensch noch lesen und selbst in eine ausgehende E-Mail einfügen muss. Nichts wird je in Ihrem Namen gesendet, und nichts wird ins Postfach zurückgeschrieben. Soll die Antwort nach der Freigabe durch eine Person im Thread des Postfachs landen, als Entwurf oder als gesendete Nachricht, verwenden Sie einen Workflow: [E-Mails mit einem freigegebenen Entwurf beantworten](answer-mail-with-approved-draft.md).
 
@@ -50,7 +50,7 @@ brief.
 Es gibt keine signierte Zustellung, die man von Hand senden könnte: Gmail wird abgefragt, nicht gepusht, also gibt es weder eine URL noch ein Geheimnis. Zwei Wege, den Agent arbeiten zu sehen, bevor eine echte Nachricht eintrifft:
 
 - **Run now** am Trigger löst den **Basis-Prompt des Agents ohne Zustellungskontext** aus: keine Nachricht, kein Absender, nichts, worauf man antworten könnte. Das beweist, dass Agent, Budget und Veröffentlichungsstatus in Ordnung sind, prüft aber nicht die Triage, denn in diesem Run gibt es keine E-Mail, auf die die Instruktionen der Vorlage wirken könnten.
-- **Eine echte Nachricht im verbundenen Postfach** ist der einzige Weg, einen tatsächlichen Entwurf zu sehen. Der Heartbeat liest einmal pro Minute, was seit der letzten Prüfung eingetroffen ist, bis zu 25 Nachrichten pro Durchlauf. Die schlimmste Verzögerung ist also eine Minute, und ein Schwall von einer Mailingliste wird nicht zu Hunderten von Runs.
+- **Eine echte Nachricht im verbundenen Postfach** ist der einzige Weg, einen tatsächlichen Entwurf zu sehen. Der Heartbeat liest im Prüfintervall des Postfachs (standardmäßig eine Minute), was seit der letzten Prüfung eingetroffen ist, bis zu 25 Nachrichten pro Durchlauf. Die schlimmste Verzögerung ist also dieses Intervall, und ein Schwall von einer Mailingliste wird nicht zu Hunderten von Runs.
 
 ## Das Ergebnis prüfen { #check-the-result }
 

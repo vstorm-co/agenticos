@@ -11,10 +11,9 @@ reply, shows it to a person who may edit it, and then writes it into the
 mailbox - as a draft in the same thread, or as a sent reply. The mailbox is
 reached through an MCP server you run yourself.
 
-This is a procedure to follow, not a report of a measured deployment. It needs a
-mailbox, a Google or Microsoft app registration and a server that the maintainers
-did not run for this page, so nothing here was run against a live mailbox. The tool
-and argument names were read from the servers' source code, not from a running server.
+The Gmail workflow below was run end to end against a test mailbox on a development
+deployment, with `workspace-mcp` 2.2.1. The Microsoft 365 recipe was not: its tool and
+argument names were read from the server's source code, not from a running server.
 
 ## What you need
 
@@ -28,6 +27,13 @@ and argument names were read from the servers' source code, not from a running s
 - A server on your own network is refused until an operator lists its host in
   `OUTBOUND_PRIVATE_ALLOWLIST` or `MCP_ALLOWED_HOSTS`. See
   [MCP servers](../mcp.md) and [Settings](../configuration.md#project-settings).
+- With `MCP_ENABLE_OAUTH21=true` the Google Workspace server refuses to start on plain
+  `http` anywhere but `localhost`, and the deployment refuses a loopback address for an
+  MCP server. So serve it over HTTPS on a host name the deployment can reach. To try the
+  workflow on a laptop, run the server with `--single-user` and without
+  `MCP_ENABLE_OAUTH21` instead: it signs in to Google once, keeps that account's token,
+  and answers the deployment without a sign-in. Anyone who can reach the server can
+  then use that mailbox, so keep it to a test account on a machine nobody else reaches.
 - An **organization** MCP connection to the server, made from that catalog entry by
   someone holding `mcp:manage`. Each connection signs in as one account, so it
   answers from one mailbox. A workflow cannot use a person's own connection yet, so
@@ -38,50 +44,71 @@ and argument names were read from the servers' source code, not from a running s
 
 ## Gmail
 
-Build the workflow in this order.
+The workflow follows a common Gmail auto-responder pattern: decide whether a mail needs
+an answer, draft one, and put it in the thread. It adds two things. A person reviews
+every reply before it reaches the mailbox, and chooses there whether to send it or keep
+it as a draft. Build it in this order.
 
-1. **Gmail** trigger ([`trigger.gmail`](../reference/workflow-nodes.md#trigger-gmail)).
-   Its output carries `thread_id`, `rfc_message_id`, `subject`, `sender` and `text`.
-2. A drafting step: [`agent.run`](../reference/workflow-nodes.md#agent-run) with the
-   knowledge capability, or [`knowledge.search`](../reference/workflow-nodes.md#knowledge-search)
-   followed by [`ai.prompt`](../reference/workflow-nodes.md#model-steps). Its text is
-   the proposed reply.
-3. [`human.approval`](../reference/workflow-nodes.md#human-approval) with `editable`
-   on and `proposal` bound from the drafting step. The approver reads the mail's
-   summary in `details`, edits the text and approves.
+1. **Gmail** trigger ([`trigger.gmail`](../reference/workflow-nodes.md#trigger-gmail))
+   with **Label** `INBOX`. Its output carries `sender`, `subject`, `text`,
+   `message_id`, `thread_id` and `rfc_message_id`. The mailbox is checked every minute
+   unless you choose a longer interval on the step.
+2. **Does it need a reply?** [`ai.classify`](../reference/workflow-nodes.md#model-steps)
+   with three categories, `needs_reply`, `fyi` (newsletters, receipts, notifications,
+   thanks) and `spam`, and `text` bound to the sender, subject and body. Set **Minimum
+   confidence**, for example `0.7`: a mail the model is less sure about leaves by
+   `unsure`, so a person decides it rather than the model. The model's confidence is its
+   own report and not calibrated, so try the threshold on your own mail with the step's
+   [evals](../workflows.md#evals-for-a-model-step).
+3. **Join the two ways to a reply.** Connect `needs_reply` and `unsure` to one
+   [`logic.merge`](../reference/workflow-nodes.md#logic-if-and-logic-merge). `fyi`,
+   `spam` and `other` end there, or lead to whatever records them.
+4. **Draft the reply.** [`knowledge.search`](../reference/workflow-nodes.md#knowledge-search)
+   on the collection that holds your answers, with `query` bound to the subject and
+   body, then [`ai.prompt`](../reference/workflow-nodes.md#model-steps) with the mail
+   and the search's `sources` in its prompt. Instructions that work well: reply in the
+   sender's language, in plain text, start with a greeting and end with a sign-off, use
+   the passages and never invent an answer, and write a placeholder such as
+   `[YOUR_ANSWER_HERE]` where the answer is not known. The approver fills it in. An
+   [`agent.run`](../reference/workflow-nodes.md#agent-run) with the knowledge capability
+   does the same in one step.
+5. **Review it.** [`human.approval`](../reference/workflow-nodes.md#human-approval) with
+   `editable` on, `proposal` bound to the drafted reply, the mail itself in `details`,
+   and two **choices**: `send` (**Send now**) and `draft` (**Save as draft**). The
+   approver edits the text and presses the button for what should happen to it, or
+   **Reject**.
+6. **Write it to the mailbox.** One
+   [`mcp.call`](../reference/workflow-nodes.md#mcp-call) on the Google Workspace
+   connection per choice:
 
-4. [`mcp.call`](../reference/workflow-nodes.md#mcp-call) on the Google Workspace
-   connection, tool `draft_gmail_message`, with these arguments:
+   | Choice | Tool | Arguments |
+   |---|---|---|
+   | `send` | `send_gmail_message` | `thread_id`, `in_reply_to`, `body`, and `to` from the trigger's `sender` |
+   | `draft` | `draft_gmail_message` | `thread_id`, `in_reply_to`, `body` |
 
-   | Argument | Bound from |
-   |---|---|
-   | `thread_id` | the trigger's `thread_id` |
-   | `in_reply_to` | the trigger's `rfc_message_id` |
-   | `body` | the approval step's `final` |
+   Bind `thread_id` from the trigger's `thread_id`, `in_reply_to` from its
+   `rfc_message_id`, and `body` from the `final` of the approval's output on that
+   choice's port. Leave `references` out: the server derives the chain through the
+   message being answered. Leave `subject` out and the reply keeps the thread's subject.
+   The send tool refuses a call with neither `to` nor `reply_all` set to `true`; the
+   draft tool fills in `to` itself. `user_google_email` is filled in by a server
+   running with `MCP_ENABLE_OAUTH21=true`; in single-user mode, bind it to the
+   mailbox's address.
 
-   Leave `references` out: the server derives the chain through the message being
-   answered. Leave `to` out too and the server replies to that message's sender; set
-   `reply_all` to `true` to answer everyone on the thread. Leave `subject` out and the
-   draft keeps the thread's subject. `user_google_email` is filled in by the server
-   because it runs with `MCP_ENABLE_OAUTH21=true`.
-
-   Set this step's **Ask for approval** to **Never**. A person approved the exact text a
+   Set both steps' **Ask for approval** to **Never**. A person approved the exact text a
    step ago and would otherwise be asked a second time.
 
-To **send** instead of leaving a draft, use `send_gmail_message` with the same
-arguments and one more: bind `to` from the trigger's `sender`, or set `reply_all` to
-`true`. The tool refuses a call that has neither (`reply_all` needs the `thread_id`),
-and only the draft tool fills `to` in by itself. The server has no tool that sends a
-saved draft, so the two are separate choices, not two steps.
+To keep a record, add a record step after any of these to write a row to a
+[table](../virtual-tables.md), with the category, the decision and the text sent.
 
 !!! warning "A direct send has no guard"
 
     `send_gmail_message` takes no idempotency key, and the server marks it as a
     write. If the call is made and no answer comes back, the step ends **Uncertain**
     and the run waits for a person: the mail may or may not have gone out. Open the
-    thread in Gmail and look before you run the step again. When you want a second
-    chance to catch a mistake, use `draft_gmail_message` and let a person press
-    **Send** in Gmail: a repeat can only leave a second draft.
+    thread in Gmail and look before you run the step again. **Save as draft** cannot
+    do this: a repeat can only leave a second draft. The server has no tool that sends
+    a saved draft, so a draft is sent from Gmail.
 
 ## Microsoft 365
 
@@ -146,8 +173,8 @@ empty on these steps. The recipes below make a repeat harmless without one.
   spare draft and never a second sent mail. If the send step breaks after it was
   called, it ends **Uncertain**: look in Sent Items, then re-run it. A re-run of a
   send that had gone out fails instead of sending again.
-- **Gmail: leave a draft** (recommended). A repeat leaves at most a second draft.
-- **Gmail: a direct send** has no such protection; see the warning above.
+- **Gmail: Save as draft.** A repeat leaves at most a second draft.
+- **Gmail: Send now** has no such protection; see the warning above.
 
 A failure before the call - the server down, the connection refused - is
 retried on its own. After an unkeyed call to a tool the server does not mark
@@ -170,7 +197,13 @@ Attachments reach the workflow as files, but a reply written this way carries no
   `rfc_message_id`.
 - Edit the text in the approval and check that the edited text, not the proposal,
   is what lands in the mailbox.
+- Press **Save as draft** once and **Send now** once, and check that each did only
+  what its button says.
+- Send a newsletter and check that it starts no approval.
 - Reject the approval and check that nothing is written.
+
+Mail sent to the mailbox from its own address is labelled SENT, and the trigger skips
+SENT mail, so test with mail from another account.
 
 ## Next steps from the same connection
 

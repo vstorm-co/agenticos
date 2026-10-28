@@ -1,7 +1,7 @@
 ---
 title: "E-Mails mit einem freigegebenen Entwurf beantworten"
 description: "Ein Workflow liest neue Mail, entwirft eine Antwort, lässt eine Person sie bearbeiten und freigeben und legt dann einen Entwurf im Thread an oder sendet sie über einen selbst betriebenen MCP-Server für Gmail oder Microsoft 365."
-source_sha: "fc39b8c85301"
+source_sha: "bc960ef3277b"
 ---
 
 # E-Mails mit einem freigegebenen Entwurf beantworten { #answer-mail-with-an-approved-draft }
@@ -13,12 +13,10 @@ darf, und schreibt sie dann ins Postfach - als Entwurf im selben Thread oder als
 gesendete Antwort. Das Postfach wird über einen MCP-Server erreicht, den Sie selbst
 betreiben.
 
-Das ist ein Ablauf zum Nachvollziehen, kein Bericht über eine gemessene
-Bereitstellung. Er braucht ein Postfach, eine Google- oder Microsoft-App-Registrierung
-und einen Server, die die Maintainer für diese Seite nicht betrieben haben; nichts
-hier wurde also an einem echten Postfach ausgeführt. Die Namen von Tools und
-Argumenten wurden aus dem Quellcode der Server gelesen, nicht von einem laufenden
-Server.
+Der Gmail-Workflow unten wurde mit einem Testpostfach auf einer Entwicklungs-Bereitstellung
+vollständig durchgespielt, mit `workspace-mcp` 2.2.1. Das Rezept für Microsoft 365 nicht:
+Die Namen von Tools und Argumenten wurden aus dem Quellcode des Servers gelesen, nicht von
+einem laufenden Server.
 
 ## Was Sie brauchen { #what-you-need }
 
@@ -34,6 +32,15 @@ Server.
 - Ein Server im eigenen Netzwerk wird abgelehnt, bis ein Betreiber seinen Host in
   `OUTBOUND_PRIVATE_ALLOWLIST` oder `MCP_ALLOWED_HOSTS` einträgt. Siehe
   [MCP-Server](../mcp.md) und [Einstellungen](../configuration.md#project-settings).
+- Mit `MCP_ENABLE_OAUTH21=true` weigert sich der Google-Workspace-Server, über
+  einfaches `http` zu starten, außer auf `localhost`, und die Bereitstellung lehnt eine
+  Loopback-Adresse für einen MCP-Server ab. Betreiben Sie ihn also über HTTPS unter einem
+  Hostnamen, den die Bereitstellung erreicht. Um den Workflow auf einem Laptop
+  auszuprobieren, starten Sie den Server stattdessen mit `--single-user` und ohne
+  `MCP_ENABLE_OAUTH21`: Er meldet sich einmal bei Google an, behält das Token dieses
+  Kontos und antwortet der Bereitstellung ohne Anmeldung. Jeder, der den Server
+  erreicht, kann dann dieses Postfach nutzen; beschränken Sie ihn daher auf ein Testkonto
+  auf einem Rechner, den sonst niemand erreicht.
 - Eine MCP-Connection der **Organisation** zu diesem Server, aus diesem
   Katalogeintrag angelegt von jemandem mit `mcp:manage`. Jede Connection meldet sich
   als ein Konto an und antwortet daher aus einem Postfach. Ein Workflow kann noch
@@ -45,46 +52,65 @@ Server.
 
 ## Gmail { #gmail }
 
-Bauen Sie den Workflow in dieser Reihenfolge.
+Der Workflow folgt einem verbreiteten Muster für Gmail-Autoresponder: entscheiden, ob
+eine Mail eine Antwort braucht, eine entwerfen und in den Thread legen. Er ergänzt zwei
+Dinge. Eine Person prüft jede Antwort, bevor sie das Postfach erreicht, und wählt dort,
+ob sie gesendet oder als Entwurf behalten wird. Bauen Sie ihn in dieser Reihenfolge.
 
-1. **Gmail**-Trigger ([`trigger.gmail`](../reference/workflow-nodes.md#trigger-gmail)).
-   Seine Ausgabe enthält `thread_id`, `rfc_message_id`, `subject`, `sender` und
-   `text`.
-2. Ein Entwurfsschritt: [`agent.run`](../reference/workflow-nodes.md#agent-run) mit
-   der Knowledge-Capability, oder [`knowledge.search`](../reference/workflow-nodes.md#knowledge-search)
-   gefolgt von [`ai.prompt`](../reference/workflow-nodes.md#model-steps). Sein Text
-   ist die vorgeschlagene Antwort.
-3. [`human.approval`](../reference/workflow-nodes.md#human-approval) mit
-   eingeschaltetem `editable` und `proposal`, gebunden an den Entwurfsschritt. Die
-   freigebende Person liest die Zusammenfassung der Mail in `details`, bearbeitet den
-   Text und gibt frei.
+1. **Gmail**-Trigger ([`trigger.gmail`](../reference/workflow-nodes.md#trigger-gmail))
+   mit **Label** `INBOX`. Seine Ausgabe enthält `sender`, `subject`, `text`,
+   `message_id`, `thread_id` und `rfc_message_id`. Das Postfach wird jede Minute
+   geprüft, sofern Sie am Schritt kein längeres Intervall wählen.
+2. **Braucht sie eine Antwort?** [`ai.classify`](../reference/workflow-nodes.md#model-steps)
+   mit drei Kategorien, `needs_reply`, `fyi` (Newsletter, Belege, Benachrichtigungen,
+   Dank) und `spam`, und `text`, gebunden an Absender, Betreff und Text. Setzen Sie
+   **Minimum confidence**, zum Beispiel `0.7`: Eine Mail, bei der das Modell sich weniger
+   sicher ist, verlässt den Schritt über `unsure`, sodass eine Person entscheidet statt
+   des Modells. Die Konfidenz ist die Selbstauskunft des Modells und nicht kalibriert;
+   prüfen Sie den Schwellenwert an Ihrer eigenen Mail mit den
+   [Evals](../workflows.md#evals-for-a-model-step) des Schritts.
+3. **Die zwei Wege zu einer Antwort zusammenführen.** Verbinden Sie `needs_reply` und
+   `unsure` mit einem [`logic.merge`](../reference/workflow-nodes.md#logic-if-and-logic-merge).
+   `fyi`, `spam` und `other` enden dort oder führen zu dem, was sie festhält.
+4. **Die Antwort entwerfen.** [`knowledge.search`](../reference/workflow-nodes.md#knowledge-search)
+   in der Collection, die Ihre Antworten enthält, mit `query`, gebunden an Betreff und
+   Text, dann [`ai.prompt`](../reference/workflow-nodes.md#model-steps) mit der Mail und
+   den `sources` der Suche in seinem Prompt. Anweisungen, die sich bewähren: in der
+   Sprache des Absenders antworten, als reiner Text, mit einer Anrede beginnen und mit
+   einer Grußformel enden, die Passagen verwenden und nie eine Antwort erfinden, und dort,
+   wo die Antwort nicht bekannt ist, einen Platzhalter wie `[YOUR_ANSWER_HERE]` schreiben.
+   Die freigebende Person füllt ihn aus. Ein [`agent.run`](../reference/workflow-nodes.md#agent-run)
+   mit der Knowledge-Capability leistet dasselbe in einem Schritt.
+5. **Sie prüfen lassen.** [`human.approval`](../reference/workflow-nodes.md#human-approval)
+   mit eingeschaltetem `editable`, `proposal`, gebunden an die entworfene Antwort, der
+   Mail selbst in `details` und zwei **Auswahlmöglichkeiten (choices)**: `send` (**Send now**)
+   und `draft` (**Save as draft**). Die freigebende Person bearbeitet den Text und drückt
+   die Schaltfläche für das, was damit geschehen soll, oder **Reject**.
+6. **In das Postfach schreiben.** Je ein
+   [`mcp.call`](../reference/workflow-nodes.md#mcp-call) an der Connection zu Google
+   Workspace pro Auswahl:
 
-4. [`mcp.call`](../reference/workflow-nodes.md#mcp-call) an der Connection
-   zu Google Workspace, Tool `draft_gmail_message`, mit diesen Argumenten:
+   | Auswahl | Tool | Argumente |
+   |---|---|---|
+   | `send` | `send_gmail_message` | `thread_id`, `in_reply_to`, `body` und `to` aus `sender` des Triggers |
+   | `draft` | `draft_gmail_message` | `thread_id`, `in_reply_to`, `body` |
 
-   | Argument | Gebunden an |
-   |---|---|
-   | `thread_id` | `thread_id` des Triggers |
-   | `in_reply_to` | `rfc_message_id` des Triggers |
-   | `body` | `final` des Freigabeschritts |
+   Binden Sie `thread_id` an `thread_id` des Triggers, `in_reply_to` an dessen
+   `rfc_message_id` und `body` an das `final` der Ausgabe der Freigabe auf dem Port dieser
+   Auswahl. Lassen Sie `references` weg: Der Server leitet die Kette aus der beantworteten
+   Nachricht ab. Ohne `subject` behält die Antwort den Betreff des Threads. Das
+   Sende-Tool lehnt einen Aufruf ab, bei dem weder `to` noch `reply_all` auf `true`
+   gesetzt ist; das Entwurfs-Tool füllt `to` selbst. `user_google_email` füllt ein Server
+   selbst, der mit `MCP_ENABLE_OAUTH21=true` läuft; im Einzelnutzer-Modus binden Sie es an
+   die Adresse des Postfachs.
 
-   Lassen Sie `references` weg: Der Server leitet die Kette aus der beantworteten
-   Nachricht ab. Lassen Sie auch `to` weg, und der Server antwortet dem Absender
-   dieser Nachricht; setzen Sie `reply_all` auf `true`, um allen im Thread zu
-   antworten. Ohne `subject` behält der Entwurf den Betreff des Threads.
-   `user_google_email` füllt der Server selbst, weil er mit
-   `MCP_ENABLE_OAUTH21=true` läuft.
-
-   Setzen Sie **Ask for approval** dieses Schritts auf **Never**. Eine Person hat den
+   Setzen Sie **Ask for approval** beider Schritte auf **Never**. Eine Person hat den
    genauen Text einen Schritt zuvor freigegeben und würde sonst ein zweites Mal
    gefragt.
 
-Um zu **senden**, statt einen Entwurf anzulegen, verwenden Sie `send_gmail_message`
-mit denselben Argumenten und einem weiteren: Binden Sie `to` an `sender` des
-Triggers, oder setzen Sie `reply_all` auf `true`. Das Tool lehnt einen Aufruf ohne
-beides ab (`reply_all` braucht die `thread_id`), und nur das Entwurfs-Tool füllt `to`
-selbst. Der Server hat kein Tool, das einen gespeicherten Entwurf sendet; es sind
-also zwei getrennte Wege, nicht zwei Schritte.
+Um festzuhalten, was geschehen ist, ergänzen Sie nach einem dieser Schritte einen
+Schritt, der einen Datensatz in eine [Tabelle](../virtual-tables.md) schreibt, mit der
+Kategorie, der Entscheidung und dem gesendeten Text.
 
 !!! warning "Ein direktes Senden hat keine Absicherung"
 
@@ -92,10 +118,10 @@ also zwei getrennte Wege, nicht zwei Schritte.
     markiert es als Schreibzugriff. Wurde der Aufruf gemacht und kam keine Antwort,
     endet der Schritt als **Uncertain** und der Run wartet auf eine Person: Die Mail
     kann hinausgegangen sein oder nicht. Öffnen Sie den Thread in Gmail und sehen
-    Sie nach, bevor Sie den Schritt erneut ausführen. Wollen Sie eine zweite Chance,
-    einen Fehler abzufangen, verwenden Sie `draft_gmail_message` und lassen Sie eine
-    Person in Gmail auf **Senden** drücken: Eine Wiederholung kann höchstens einen
-    zweiten Entwurf hinterlassen.
+    Sie nach, bevor Sie den Schritt erneut ausführen. **Save as draft** hat dieses
+    Problem nicht: Eine Wiederholung kann höchstens einen zweiten Entwurf
+    hinterlassen. Der Server hat kein Tool, das einen gespeicherten Entwurf sendet;
+    ein Entwurf wird also aus Gmail gesendet.
 
 ## Microsoft 365 { #microsoft-365 }
 
@@ -166,10 +192,8 @@ Wiederholung auch ohne ihn harmlos.
   **Uncertain**: Sehen Sie in den gesendeten Elementen nach und führen Sie ihn dann
   erneut aus. Eine erneute Ausführung eines Sendens, das stattgefunden hatte,
   scheitert, statt noch einmal zu senden.
-- **Gmail: einen Entwurf anlegen** (empfohlen). Eine Wiederholung hinterlässt
-  höchstens einen zweiten Entwurf.
-- **Gmail: ein direktes Senden** hat diesen Schutz nicht; siehe die Warnung oben.
-
+- **Gmail: Save as draft.** Eine Wiederholung hinterlässt höchstens einen zweiten Entwurf.
+- **Gmail: Send now** hat diesen Schutz nicht; siehe die Warnung oben.
 Ein Fehler vor dem Aufruf - Server nicht erreichbar, Verbindung abgelehnt - wird von
 selbst wiederholt. Nach einem Aufruf ohne Schlüssel an einem Tool, das der Server
 nicht als nur lesend markiert, wird der Schritt nie von selbst wiederholt. Die Regel
@@ -192,7 +216,13 @@ keine.
   `rfc_message_id` des Triggers.
 - Bearbeiten Sie den Text in der Freigabe und prüfen Sie, dass der bearbeitete Text,
   nicht der Vorschlag, im Postfach landet.
+- Drücken Sie einmal **Save as draft** und einmal **Send now** und prüfen Sie, dass jede
+  nur tat, was ihre Schaltfläche sagt.
+- Senden Sie einen Newsletter und prüfen Sie, dass er keine Freigabe startet.
 - Lehnen Sie die Freigabe ab und prüfen Sie, dass nichts geschrieben wird.
+
+Mail, die das Postfach von der eigenen Adresse erhält, trägt das Label SENT, und der
+Trigger überspringt SENT-Mail; testen Sie also mit Mail von einem anderen Konto.
 
 ## Nächste Schritte von derselben Connection { #next-steps-from-the-same-connection }
 

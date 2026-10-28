@@ -6,6 +6,7 @@ import {
   ERROR_PORT,
   WORKFLOW_ERROR_SCHEMA,
   effectiveDefinition,
+  approvalChoices,
   errorBranches,
   instancePorts,
   switchRules,
@@ -91,6 +92,79 @@ describe("instancePorts", () => {
     expect(ports.map((p) => p.id)).toEqual(["in", "sales", "support", "other"]);
     expect(ports[1]?.schema).toBe(OUT);
     expect(classifyCategories({})).toEqual([]);
+  });
+
+  describe("an approval's choices", () => {
+    const OUT = { type: "object", title: "HumanApprovalOutput" };
+    const APPROVAL = makeDefinition({
+      id: "human.approval",
+      ports: [
+        port("in", "input", null),
+        port("approved", "output", OUT),
+        port("rejected", "output", OUT),
+      ],
+    });
+
+    it("keeps approved and rejected when the step offers no choices", () => {
+      const plain = instance({ definition_id: "human.approval", config: { title: "Send?" } });
+      expect(instancePorts(plain, APPROVAL).map((p) => p.id)).toEqual([
+        "in",
+        "approved",
+        "rejected",
+      ]);
+      expect(effectiveDefinition(plain, APPROVAL)).toBe(APPROVAL);
+    });
+
+    it("gives one output per choice, labelled as the author wrote it, in place of approved", () => {
+      const asking = instance({
+        definition_id: "human.approval",
+        config: {
+          choices: [
+            { id: "draft", label: "Keep a draft" },
+            { id: "send_now", label: "Send now" },
+            { label: "no id" },
+            "junk",
+          ],
+        },
+      });
+      const ports = instancePorts(asking, APPROVAL);
+      expect(ports.map((p) => [p.id, p.label])).toEqual([
+        ["in", "in"],
+        ["draft", "Keep a draft"],
+        ["send_now", "Send now"],
+        ["rejected", "rejected"],
+      ]);
+      expect(ports[1]?.schema).toBe(OUT);
+    });
+
+    it("draws one handle per id, skipping a repeat and any id a port already has", () => {
+      const asking = instance({
+        definition_id: "human.approval",
+        config: {
+          choices: [
+            { id: "draft", label: "Keep a draft" },
+            { id: "draft", label: "Again" },
+            { id: "in", label: "In" },
+            { id: "rejected", label: "No" },
+            { id: "approved", label: "Yes" },
+            { id: "send_now", label: "Send now" },
+          ],
+        },
+      });
+      expect(instancePorts(asking, APPROVAL).map((p) => p.id)).toEqual([
+        "in",
+        "draft",
+        "send_now",
+        "rejected",
+      ]);
+    });
+
+    it("reads a choice with no label as its id, and nothing from a config with no list", () => {
+      expect(approvalChoices({ choices: [{ id: "draft" }] })).toEqual([
+        { id: "draft", label: "draft" },
+      ]);
+      expect(approvalChoices({})).toEqual([]);
+    });
   });
 
   describe("a classifier's unsure port", () => {

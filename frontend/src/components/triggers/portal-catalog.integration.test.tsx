@@ -14,7 +14,7 @@ vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
   return {
     ...actual,
-    apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
+    apiClient: { get: vi.fn(), post: vi.fn(), put: vi.fn(), patch: vi.fn(), delete: vi.fn() },
   };
 });
 vi.mock("@/lib/mcp-connections-api", async () => {
@@ -422,6 +422,41 @@ describe("PortalCatalog", () => {
 
     expect(card.getByText(/organization's GitHub OAuth App credentials/)).toBeVisible();
     expect(screen.queryAllByText(/GitHub OAuth App/)).toHaveLength(1);
+  });
+
+  it("sets how often a connected mailbox is checked, from its own card", async () => {
+    const user = userEvent.setup();
+    serve([]);
+    const base = vi.mocked(apiClient.get).getMockImplementation()!;
+    const connected = {
+      ...polledPortal(null),
+      connection_id: "grant-1",
+      connection_state: "connected",
+      poll_interval_minutes: 5,
+    };
+    let interval = 5;
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path === "/trigger-portals"
+        ? { items: [{ ...connected, poll_interval_minutes: interval }], total: 1 }
+        : base(path),
+    );
+    vi.mocked(apiClient.put).mockImplementation(async (_path: string, body: unknown) => {
+      interval = (body as { poll_interval_minutes: number }).poll_interval_minutes;
+      return { connection_id: "grant-1", poll_interval_minutes: interval };
+    });
+    render(<PortalCatalog canRun canManageConnections />, { wrapper });
+    await screen.findByText("Gmail");
+    const gmail = within(screen.getByRole("group", { name: "Gmail" }));
+
+    expect(gmail.getByText("This applies to every trigger on this mailbox.")).toBeVisible();
+    await user.click(gmail.getByRole("combobox", { name: "Check for new mail every" }));
+    await user.click(screen.getByRole("option", { name: "30 minutes" }));
+
+    expect(apiClient.put).toHaveBeenCalledWith("/mcp-connections/portals/grant-1/poll-interval", {
+      poll_interval_minutes: 30,
+    });
+    expect(await gmail.findByRole("combobox")).toHaveTextContent("30 minutes");
+    expect(toast.success).toHaveBeenCalled();
   });
 
   it("asks a Gmail card for the Google client its consent flow spends", async () => {

@@ -1,7 +1,7 @@
 ---
 title: "Responde al correo con un borrador aprobado"
 description: "Un workflow lee el correo nuevo, redacta una respuesta, pide a una persona que la edite y la apruebe, y luego deja un borrador en el hilo o la envía mediante un servidor MCP de Gmail o Microsoft 365 que ejecutas tú."
-source_sha: "fc39b8c85301"
+source_sha: "bc960ef3277b"
 ---
 
 # Responde al correo con un borrador aprobado { #answer-mail-with-an-approved-draft }
@@ -12,11 +12,10 @@ nuevo, redacta una respuesta, se la muestra a una persona que puede editarla y l
 la escribe en el buzón, como borrador en el mismo hilo o como respuesta enviada. Al
 buzón se llega mediante un servidor MCP que ejecutas tú.
 
-Es un procedimiento que seguir, no el informe de un despliegue medido. Necesita un
-buzón, un registro de aplicación en Google o Microsoft y un servidor que los
-mantenedores no ejecutaron para esta página, así que nada de lo que sigue se probó
-con un buzón real. Los nombres de herramientas y argumentos se leyeron del código
-fuente de los servidores, no de un servidor en marcha.
+El workflow de Gmail de abajo se ejecutó de principio a fin contra un buzón de prueba
+en un despliegue de desarrollo, con `workspace-mcp` 2.2.1. La fórmula de Microsoft 365
+no: los nombres de sus herramientas y argumentos se leyeron del código fuente del
+servidor, no de un servidor en marcha.
 
 ## Qué necesitas { #what-you-need }
 
@@ -32,6 +31,14 @@ fuente de los servidores, no de un servidor en marcha.
 - Un servidor de tu propia red se rechaza hasta que un operador lista su host en
   `OUTBOUND_PRIVATE_ALLOWLIST` o `MCP_ALLOWED_HOSTS`. Consulta [servidores MCP](../mcp.md)
   y [ajustes](../configuration.md#project-settings).
+- Con `MCP_ENABLE_OAUTH21=true`, el servidor de Google Workspace se niega a arrancar
+  con `http` plano fuera de `localhost`, y el despliegue rechaza una dirección de
+  loopback para un servidor MCP. Así que sírvelo por HTTPS en un nombre de host que el
+  despliegue pueda alcanzar. Para probar el workflow en un portátil, ejecuta el
+  servidor con `--single-user` y sin `MCP_ENABLE_OAUTH21`: inicia sesión en Google una
+  vez, conserva el token de esa cuenta y responde al despliegue sin inicio de sesión.
+  Cualquiera que pueda alcanzar el servidor podrá usar ese buzón, así que limítalo a
+  una cuenta de prueba en una máquina a la que nadie más llegue.
 - Una conexión MCP **de la organización** con ese servidor, creada desde esa entrada
   del catálogo por alguien con `mcp:manage`. Cada conexión inicia sesión como una
   cuenta, así que responde desde un buzón. Un workflow aún no puede usar la conexión
@@ -43,52 +50,74 @@ fuente de los servidores, no de un servidor en marcha.
 
 ## Gmail { #gmail }
 
-Construye el workflow en este orden.
+El workflow sigue un patrón habitual de autorrespondedor de Gmail: decidir si un correo
+necesita respuesta, redactarla y dejarla en el hilo. Añade dos cosas. Una persona revisa
+cada respuesta antes de que llegue al buzón y elige ahí si enviarla o dejarla como
+borrador. Constrúyelo en este orden.
 
-1. Trigger **Gmail** ([`trigger.gmail`](../reference/workflow-nodes.md#trigger-gmail)).
-   Su salida lleva `thread_id`, `rfc_message_id`, `subject`, `sender` y `text`.
-2. Un paso de redacción: [`agent.run`](../reference/workflow-nodes.md#agent-run) con la
-   capability de knowledge, o [`knowledge.search`](../reference/workflow-nodes.md#knowledge-search)
-   seguido de [`ai.prompt`](../reference/workflow-nodes.md#model-steps). Su texto es
-   la respuesta propuesta.
-3. [`human.approval`](../reference/workflow-nodes.md#human-approval) con `editable`
-   activado y `proposal` enlazado al paso de redacción. Quien aprueba lee el
-   resumen del correo en `details`, edita el texto y aprueba.
+1. Trigger **Gmail** ([`trigger.gmail`](../reference/workflow-nodes.md#trigger-gmail))
+   con **Label** `INBOX`. Su salida lleva `sender`, `subject`, `text`, `message_id`,
+   `thread_id` y `rfc_message_id`. El buzón se revisa cada minuto, salvo que elijas un
+   intervalo más largo en el paso.
+2. **¿Necesita respuesta?** [`ai.classify`](../reference/workflow-nodes.md#model-steps)
+   con tres categorías, `needs_reply`, `fyi` (boletines, recibos, notificaciones,
+   agradecimientos) y `spam`, y `text` enlazado al remitente, el asunto y el cuerpo.
+   Fija **Minimum confidence**, por ejemplo `0.7`: un correo del que el modelo está
+   menos seguro sale por `unsure`, de modo que lo decide una persona y no el modelo. La
+   confianza del modelo es un informe suyo y no está calibrada, así que prueba el
+   umbral con tu propio correo mediante los
+   [evals](../workflows.md#evals-for-a-model-step) del paso.
+3. **Une los dos caminos hacia una respuesta.** Conecta `needs_reply` y `unsure` a un
+   mismo [`logic.merge`](../reference/workflow-nodes.md#logic-if-and-logic-merge).
+   `fyi`, `spam` y `other` terminan ahí, o llevan a lo que los registre.
+4. **Redacta la respuesta.** [`knowledge.search`](../reference/workflow-nodes.md#knowledge-search)
+   sobre la colección que contiene tus respuestas, con `query` enlazado al asunto y al
+   cuerpo, y después [`ai.prompt`](../reference/workflow-nodes.md#model-steps) con el
+   correo y las `sources` de la búsqueda en su prompt. Instrucciones que funcionan
+   bien: responder en el idioma del remitente, en texto plano, empezar con un saludo y
+   terminar con una despedida, usar los pasajes y no inventar nunca una respuesta, y
+   escribir un marcador como `[YOUR_ANSWER_HERE]` donde no se conozca la respuesta.
+   Quien aprueba lo rellena. Un [`agent.run`](../reference/workflow-nodes.md#agent-run)
+   con la capability de knowledge hace lo mismo en un solo paso.
+5. **Revísala.** [`human.approval`](../reference/workflow-nodes.md#human-approval) con
+   `editable` activado, `proposal` enlazado a la respuesta redactada, el propio correo
+   en `details` y dos **opciones (choices)**: `send` (**Send now**) y `draft` (**Save
+   as draft**). Quien aprueba edita el texto y pulsa el botón de lo que debe pasar con
+   él, o **Reject**.
+6. **Escríbela en el buzón.** Un
+   [`mcp.call`](../reference/workflow-nodes.md#mcp-call) en la conexión de Google
+   Workspace por cada opción:
 
-4. [`mcp.call`](../reference/workflow-nodes.md#mcp-call) en la conexión de Google
-   Workspace, herramienta `draft_gmail_message`, con estos argumentos:
+   | Opción | Herramienta | Argumentos |
+   |---|---|---|
+   | `send` | `send_gmail_message` | `thread_id`, `in_reply_to`, `body` y `to` del `sender` del trigger |
+   | `draft` | `draft_gmail_message` | `thread_id`, `in_reply_to`, `body` |
 
-   | Argumento | Enlazado a |
-   |---|---|
-   | `thread_id` | el `thread_id` del trigger |
-   | `in_reply_to` | el `rfc_message_id` del trigger |
-   | `body` | el `final` del paso de aprobación |
+   Enlaza `thread_id` al `thread_id` del trigger, `in_reply_to` a su `rfc_message_id` y
+   `body` al `final` de la salida de la aprobación en el puerto de esa opción. Omite
+   `references`: el servidor deriva la cadena a partir del mensaje al que se responde.
+   Si omites `subject`, la respuesta conserva el asunto del hilo. La herramienta de
+   envío rechaza una llamada sin `to` y sin `reply_all` en `true`; la de borradores
+   rellena `to` por sí misma. `user_google_email` lo rellena un servidor que se ejecuta
+   con `MCP_ENABLE_OAUTH21=true`; en modo de un solo usuario, enlázalo a la dirección
+   del buzón.
 
-   Omite `references`: el servidor deriva la cadena a partir del mensaje al que se
-   responde. Omite también `to` y el servidor responde al remitente de ese mensaje;
-   pon `reply_all` en `true` para responder a todos los del hilo. Si omites
-   `subject`, el borrador conserva el asunto del hilo. `user_google_email` lo rellena
-   el servidor porque se ejecuta con `MCP_ENABLE_OAUTH21=true`.
-
-   Pon **Ask for approval** de este paso en **Never**. Una persona aprobó el texto
+   Pon **Ask for approval** de los dos pasos en **Never**. Una persona aprobó el texto
    exacto un paso antes y, si no, se le preguntaría una segunda vez.
 
-Para **enviar** en lugar de dejar un borrador, usa `send_gmail_message` con los mismos
-argumentos y uno más: enlaza `to` al `sender` del trigger, o pon `reply_all` en
-`true`. La herramienta rechaza una llamada que no tenga ninguno (`reply_all` necesita
-el `thread_id`), y solo la herramienta de borradores rellena `to` por sí misma. El
-servidor no tiene ninguna herramienta que envíe un borrador guardado, así que son dos
-opciones separadas, no dos pasos.
+Para llevar un registro, añade un paso de registro después de cualquiera de estos que
+escriba una fila en una [tabla](../virtual-tables.md), con la categoría, la decisión y
+el texto enviado.
 
 !!! warning "Un envío directo no tiene protección"
 
     `send_gmail_message` no acepta una clave de idempotencia y el servidor lo marca
     como escritura. Si la llamada se hizo y no llegó respuesta, el paso termina como
     **Uncertain** y el run espera a una persona: el correo pudo salir o no. Abre el
-    hilo en Gmail y mira antes de volver a ejecutar el paso. Cuando quieras una
-    segunda oportunidad de detectar un error, usa `draft_gmail_message` y deja que
-    una persona pulse **Enviar** en Gmail: una repetición como mucho deja un segundo
-    borrador.
+    hilo en Gmail y mira antes de volver a ejecutar el paso. **Save as draft** no
+    tiene este problema: una repetición como mucho deja un segundo borrador. El
+    servidor no tiene ninguna herramienta que envíe un borrador guardado, así que un
+    borrador se envía desde Gmail.
 
 ## Microsoft 365 { #microsoft-365 }
 
@@ -155,10 +184,8 @@ repetición sin ella.
   después de la llamada, termina como **Uncertain**: mira en Elementos enviados y
   luego vuelve a ejecutarlo. Volver a ejecutar un envío que sí se hizo falla en lugar
   de enviar otra vez.
-- **Gmail: deja un borrador** (recomendado). Una repetición deja como mucho un segundo
-  borrador.
-- **Gmail: un envío directo** no tiene esa protección; consulta la advertencia de
-  arriba.
+- **Gmail: Save as draft.** Una repetición deja como mucho un segundo borrador.
+- **Gmail: Send now** no tiene esa protección; consulta la advertencia de arriba.
 
 Un fallo antes de la llamada - servidor caído, conexión rechazada - se reintenta solo.
 Tras una llamada sin clave a una herramienta que el servidor no marca como de solo
@@ -182,7 +209,13 @@ ninguno.
   `rfc_message_id` del trigger.
 - Edita el texto en la aprobación y comprueba que el texto editado, no la propuesta,
   es el que llega al buzón.
+- Pulsa **Save as draft** una vez y **Send now** otra, y comprueba que cada uno hizo
+  solo lo que dice su botón.
+- Envía un boletín y comprueba que no inicia ninguna aprobación.
 - Rechaza la aprobación y comprueba que no se escribe nada.
+
+El correo enviado al buzón desde su propia dirección se etiqueta SENT, y el trigger
+omite el correo SENT, así que prueba con correo de otra cuenta.
 
 ## Siguientes pasos desde la misma conexión { #next-steps-from-the-same-connection }
 

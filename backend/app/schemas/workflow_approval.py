@@ -14,6 +14,13 @@ from app.schemas.base import BaseSchema
 MAX_PROPOSAL_CHARS: Final = 100_000
 
 
+class WorkflowApprovalChoice(BaseSchema):
+    """One way of approving a step offered: its id and the label on its button."""
+
+    id: str
+    label: str
+
+
 class WorkflowApprovalRead(BaseSchema):
     """One step's request for a decision, as the approver sees it."""
 
@@ -39,6 +46,10 @@ class WorkflowApprovalRead(BaseSchema):
     proposal_label: str | None
     final: str | None
     edited: bool
+    choices: list[WorkflowApprovalChoice] = Field(
+        description="The ways of approving the step offered. Empty when it offered none."
+    )
+    choice: str | None = Field(description="The id of the one the approver took, once approved.")
 
 
 class WorkflowApprovalList(BaseSchema):
@@ -58,5 +69,13 @@ class WorkflowApprovalDecision(BaseSchema):
         description=(
             "The version approved, for a step that lets its approver edit. "
             "Omitted, the proposal is approved as it is."
+        ),
+    )
+    choice: str | None = Field(
+        default=None,
+        max_length=32,
+        description=(
+            "The id of the way of approving, one of the request's choices. An approval "
+            "of a step that offers choices needs it; any other decision refuses it."
         ),
     )

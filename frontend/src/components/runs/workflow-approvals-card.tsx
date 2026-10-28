@@ -39,7 +39,9 @@ export function WorkflowApprovalsCard() {
           key={approval.id}
           approval={approval}
           deciding={decide.isPending}
-          onDecide={(approved, final) => decide.mutate({ id: approval.id, approved, final })}
+          onDecide={(approved, final, choice) =>
+            decide.mutate({ id: approval.id, approved, final, choice })
+          }
         />
       ))}
     </ListCard>
@@ -58,7 +60,7 @@ function StepApprovalRow({
 }: {
   approval: WorkflowApprovalRead;
   deciding: boolean;
-  onDecide: (approved: boolean, final?: string) => void;
+  onDecide: (approved: boolean, final?: string, choice?: string) => void;
 }) {
   const t = useTranslations("pages.runs");
   const locale = useLocale();
@@ -74,6 +76,9 @@ function StepApprovalRow({
   const notYours = named && (userId === null || !approval.approver_user_ids.includes(userId));
   const unsendable = draft.trim() === "" || draft.length > MAX_PROPOSAL_CHARS;
   const heading = approval.proposal_label ?? t("stepApprovalProposal");
+  const approveDisabled = deciding || notYours || (approval.editable && unsendable);
+  // What goes with an approval: the edit, when there is one, whichever button is pressed.
+  const edit = approval.editable && draft !== original ? draft : undefined;
 
   return (
     <div className="flex flex-col gap-3 px-5 py-4">
@@ -106,17 +111,25 @@ function StepApprovalRow({
             )}
           </p>
         </div>
-        <div className="flex shrink-0 gap-2">
-          <Button
-            size="sm"
-            disabled={deciding || notYours || (approval.editable && unsendable)}
-            onClick={() =>
-              onDecide(true, approval.editable && draft !== original ? draft : undefined)
-            }
-          >
-            <CheckCircle2 className="h-4 w-4" />
-            {t("approve")}
-          </Button>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          {approval.choices.length > 0 ? (
+            approval.choices.map((choice) => (
+              <Button
+                key={choice.id}
+                size="sm"
+                disabled={approveDisabled}
+                onClick={() => onDecide(true, edit, choice.id)}
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                {choice.label}
+              </Button>
+            ))
+          ) : (
+            <Button size="sm" disabled={approveDisabled} onClick={() => onDecide(true, edit)}>
+              <CheckCircle2 className="h-4 w-4" />
+              {t("approve")}
+            </Button>
+          )}
           <Button
             size="sm"
             variant="outline"
@@ -225,6 +238,7 @@ export function DecidedWorkflowApproval({ approval }: { approval: WorkflowApprov
   const t = useTranslations("pages.runs");
   const locale = useLocale();
   const labelKey = DECISION_LABEL[approval.status];
+  const chosen = approval.choices.find((choice) => choice.id === approval.choice);
 
   return (
     <li className="px-5 py-3">
@@ -246,6 +260,9 @@ export function DecidedWorkflowApproval({ approval }: { approval: WorkflowApprov
         >
           {labelKey ? t(labelKey) : approval.status}
         </span>
+        {approval.choice !== null && (
+          <Badge variant="outline">{chosen?.label ?? approval.choice}</Badge>
+        )}
         {approval.edited && <Badge variant="outline">{t("stepApprovalEdited")}</Badge>}
       </div>
       {approval.note !== null && (

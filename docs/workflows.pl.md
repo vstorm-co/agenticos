@@ -1,5 +1,5 @@
 ---
-source_sha: "735b6c801d0d"
+source_sha: "211121201359"
 ---
 
 # Workflows { #workflows }
@@ -576,7 +576,7 @@ limitami każdego kroku - w tym pułapem kosztu kroku agenta:
 - **Runs under way at once** - prawdziwy run uruchomiony ponad limit jest odrzucany
   z `429`, dopóki któryś się nie skończy. Nadawca webhooka lub GitHub dostaje prośbę
   o ponowienie, harmonogram czeka na kolejny takt, a zdarzenie tabeli lub odpowiedź z formularza ponad
-  limit są odrzucane. Skrzynka jest czytana ponownie minutę później, więc wiadomość czeka
+  limit są odrzucane. Skrzynka jest czytana ponownie minutę później, niezależnie od odstępu, więc wiadomość czeka
   na koniec runu - chyba że limit zajmują runy czekające na zatwierdzenie: wiadomość jest
   wtedy pomijana dla tego workflow, a dziennik audytu to zapisuje
   (`workflow.mail_message_skipped`). Runy testowe
@@ -690,6 +690,11 @@ dalej `final`, `original` i `edited`, więc kolejny krok wysyła to, co osoba
 zatwierdziła. Decydujący, którego krok nie wskazuje, widzi propozycję tylko do odczytu, a
 prośba rozstrzygnięta ze zmienioną wersją ma pod **Zdecydowane (Decided)** znacznik
 **Zmieniono (Edited)**.
+
+Gdy krok wymienia **Ways to approve**, kolejka pokazuje po jednym przycisku na każdy, z
+etykietą, którą napisał autor, zamiast **Approve**; **Reject** zostaje. Każdy sposób
+jest portem wyjściowym kroku, więc workflow idzie dalej tym, który wybrał zatwierdzający,
+a zdecydowany wiersz go wymienia. Edycja idzie z dowolnym naciśniętym przyciskiem.
 
 
 Na liście wersja testowego przebiegu to **Draft (test)**, a prawdziwego
@@ -865,10 +870,11 @@ sekret i ponownie rejestruje hook tam, gdzie założyło go konto. Zobacz
 Wyzwalacz **Gmail** uruchamia workflow, gdy do skrzynki Gmail organizacji - tej
 podłączonej przez portal **Gmail** - przyjdzie wiadomość. Panel kroku mówi, czy
 skrzynka jest podłączona, i pozwala ją podłączyć, a publikacja jest odrzucana, dopóki
-nie jest. Skrzynka jest czytana raz na minutę, tym samym odczytem, który uruchamia
-wyzwalacze Gmail agentów, a każda nowa wiadomość pasująca do wszystkich ustawionych
+nie jest. Skrzynka jest czytana tym samym odczytem, który uruchamia wyzwalacze Gmail agentów, co minutę, a każda nowa wiadomość pasująca do wszystkich ustawionych
 filtrów - **Subject contains** i **Sender contains** bez względu na wielkość liter
 oraz **Label** dokładnie - uruchamia run jako członek, który opublikował workflow.
+
+**Check for new mail every** w bloku skrzynki w kroku zmienia ten takt (1, 5, 15, 30 lub 60 minut). To ustawienie skrzynki i dotyczy każdego triggera na niej.
 
 **Sender contains** czyta adres nadawcy, nigdy nazwę wyświetlaną: `@acme.com`
 pasuje dokładnie do tej domeny, a nie do jej poddomen, pełny adres pasuje do tego
@@ -883,8 +889,7 @@ skrzynki oraz wątek, do którego wiadomość należy: `thread_id`, `rfc_message
 (nagłówek `Message-ID`), `in_reply_to`, `references`, `received_at` i treść `html`.
 Trzy pola nagłówkowe pisze nadawca, więc pozwalają powiązać odpowiedź z wątkiem, ale
 nic nie dowodzą o tym, kto wysłał wiadomość. Wiadomość przeczytana dwa razy uruchamia
-run raz, a ta, dla której organizacja nie miała jeszcze miejsca, jest czytana
-ponownie minutę później. Zobacz
+run raz, a ta, dla której organizacja nie miała jeszcze miejsca, jest czytana ponownie minutę później. Zobacz
 [trigger.gmail](reference/workflow-nodes.md#trigger-gmail). Aby odczytać treść `html`
 jako tekst, linki albo to, co wybiera selektor CSS, powiąż ją z
 [`html.parse`](reference/workflow-nodes.md#html-parse).

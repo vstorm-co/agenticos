@@ -58,6 +58,11 @@ export interface PortalCatalogEntry {
   connection_id: string | null;
   /** How usable that connection is; null exactly when `connection_id` is null. */
   connection_state: "connected" | "needs_authorization" | "disabled" | "error" | null;
+  /**
+   * Minutes between checks of a connected, polled mailbox - one setting for every
+   * trigger on it. Null for a portal that is not polled, or has no connection.
+   */
+  poll_interval_minutes: number | null;
   /** Whether the grant covers every webhook scope - create vs re-authorize. */
   connection_covers_webhook_scopes: boolean;
   /**

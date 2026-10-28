@@ -37,7 +37,7 @@ import secrets
 from collections import Counter
 from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import UUID
 
@@ -463,11 +463,10 @@ installation id - and inventing a per-installation URL would imply a lookup that
 does not exist.
 """
 
-# How stale a grant's `polled_at` must be before a tick claims it again, and how
-# many one tick takes. The interval matches the heartbeat's own minute; the batch
-# bounds a tick's cost on a deployment with many connected mailboxes - the rest
-# are claimed by the next tick, oldest first, so nothing starves.
-_POLL_INTERVAL = timedelta(seconds=55)
+# How many grants one tick takes. How stale a grant's `polled_at` must be before a
+# tick claims it again is the grant's own `poll_interval_minutes`. The batch bounds
+# a tick's cost on a deployment with many connected mailboxes - the rest are
+# claimed by the next tick, oldest first, so nothing starves.
 _POLL_BATCH = 50
 
 
@@ -1434,7 +1433,7 @@ class McpConnectionService:
         return await mcp_connection_repo.portal_poll_candidates(
             self.db,
             portal_keys=portal_keys,
-            not_polled_since=datetime.now(UTC) - _POLL_INTERVAL,
+            now=datetime.now(UTC),
             limit=_POLL_BATCH,
         )
 
@@ -1446,7 +1445,7 @@ class McpConnectionService:
             self.db,
             connection_id=connection_id,
             portal_keys=portal_keys,
-            not_polled_since=datetime.now(UTC) - _POLL_INTERVAL,
+            now=datetime.now(UTC),
         )
 
     async def record_poll_processing_failure(self, connection_id: UUID) -> None:
@@ -2259,6 +2258,45 @@ class McpConnectionService:
         if grant is None or not grant.is_enabled:
             return None
         return await _oauth_access_token(grant)
+
+    async def set_poll_interval(
+        self, ctx: AuthContext, *, connection_id: UUID, minutes: int
+    ) -> McpConnection:
+        """Set how often the organization's polled mailbox is read.
+
+        One setting for the grant, which every trigger and workflow on that mailbox
+        shares: a single read of it serves them all. Only a mailbox portal
+        (Gmail, Outlook) has one: the calendar and file portals read on a fixed minute,
+        so their grants get the same refusal a missing one does.
+
+        Raises:
+            NotFoundError: If the grant is not the caller's organization's, or its
+                portal is not a mailbox.
+        """
+        grant = await self.get_org_portal_connection(ctx, connection_id)
+        if grant.portal_key not in portal_catalog.MAILBOX_PORTAL_KEYS:
+            raise NotFoundError(
+                message="Connection not found", details={"connection_id": connection_id}
+            )
+        previous = grant.poll_interval_minutes
+        if previous != minutes:
+            grant = await mcp_connection_repo.update(
+                self.db, db_connection=grant, update_data={"poll_interval_minutes": minutes}
+            )
+            await record_audit(
+                self.db,
+                actor_user_id=ctx.subject_id,
+                organization_id=ctx.organization_id,
+                action="mcp_connection.poll_interval_set",
+                target_type="mcp_connection",
+                target_id=str(grant.id),
+                details={
+                    "portal_key": grant.portal_key,
+                    "from_minutes": previous,
+                    "to_minutes": minutes,
+                },
+            )
+        return grant
 
     async def get_org_portal_connection(
         self, ctx: AuthContext, connection_id: UUID

@@ -391,6 +391,8 @@ const STEP: WorkflowApprovalRead = {
   proposal_label: null,
   final: null,
   edited: false,
+  choices: [],
+  choice: null,
 };
 
 describe("the workflow steps beside the tool calls", () => {

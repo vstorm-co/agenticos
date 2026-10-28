@@ -45,6 +45,8 @@ export type ValidationCode =
   | "merge-no-common-dominator"
   | "merge-not-from-if"
   | "merge-not-exclusive"
+  // A name an author gave to an output the step already has.
+  | "port-name-taken"
   // Rule 6 — nested scope boundaries.
   | "edge-crosses-scope"
   | "binding-crosses-scope"
@@ -92,6 +94,7 @@ export const MESSAGE_KEYS: Record<ValidationCode, string> = {
   "merge-no-common-dominator": "validationMergeNoCommonDominator",
   "merge-not-from-if": "validationMergeNotFromIf",
   "merge-not-exclusive": "validationMergeNotExclusive",
+  "port-name-taken": "validationPortNameTaken",
   "edge-crosses-scope": "validationEdgeCrossesScope",
   "binding-crosses-scope": "validationBindingCrossesScope",
   "node-in-cycle": "validationNodeInCycle",

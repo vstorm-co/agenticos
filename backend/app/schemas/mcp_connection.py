@@ -370,6 +370,23 @@ class GithubOAuthStart(BaseSchema):
     portal_key: str = Field(..., min_length=1, max_length=64)
 
 
+class PortalPollIntervalUpdate(BaseSchema):
+    """How often a connected mailbox is checked, for every trigger on it.
+
+    The values are the ones `ck_mcp_connection_poll_interval` allows; a literal so
+    the refusal of anything else names the field like every other 422.
+    """
+
+    poll_interval_minutes: Literal[1, 5, 15, 30, 60]
+
+
+class PortalPollIntervalRead(BaseSchema):
+    """The mailbox grant and how often it is now checked, in minutes."""
+
+    connection_id: UUID
+    poll_interval_minutes: int
+
+
 class McpOAuthStartResult(BaseSchema):
     # The provider consent URL the browser should be redirected to.
     authorization_url: str

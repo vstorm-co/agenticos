@@ -47,6 +47,8 @@ const ASKING: WorkflowApprovalRead = {
   proposal_label: null,
   final: null,
   edited: false,
+  choices: [],
+  choice: null,
 };
 
 const EDITABLE: WorkflowApprovalRead = {
@@ -62,6 +64,14 @@ beforeEach(() => {
   vi.mocked(toast.error).mockReset();
   useAuthStore.setState({ user: { id: "u-1" } as User });
 });
+
+const CHOOSING: WorkflowApprovalRead = {
+  ...EDITABLE,
+  choices: [
+    { id: "draft", label: "Keep a draft" },
+    { id: "send_now", label: "Send now" },
+  ],
+};
 
 describe("WorkflowApprovalsCard", () => {
   it("shows what each step asks, from which run, and answers it", async () => {
@@ -397,5 +407,90 @@ describe("DecidedWorkflowApproval", () => {
     );
 
     expect(screen.getByText("escalated")).toBeTruthy();
+  });
+});
+
+describe("a step that offers choices", () => {
+  it("draws one button per choice in place of Approve, and Reject beside them", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [CHOOSING], total: 1 });
+    vi.mocked(apiClient.post).mockResolvedValue({ ...CHOOSING, status: "approved" });
+    render(<WorkflowApprovalsCard />, { wrapper });
+
+    expect(await screen.findByRole("button", { name: /Keep a draft/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Send now/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Approve/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /Reject/ })).toBeTruthy();
+
+    await userEvent.click(screen.getByRole("button", { name: /Send now/ }));
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith("/workflow-approvals/wa-1", {
+        approved: true,
+        choice: "send_now",
+      }),
+    );
+  });
+
+  it("sends the edited text with whichever choice is pressed, and none with a rejection", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [CHOOSING], total: 1 });
+    vi.mocked(apiClient.post).mockResolvedValue({ ...CHOOSING, status: "approved" });
+    render(<WorkflowApprovalsCard />, { wrapper });
+
+    const editor = await screen.findByRole("textbox");
+    await userEvent.type(editor, "!");
+    await userEvent.click(screen.getByRole("button", { name: /Keep a draft/ }));
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith("/workflow-approvals/wa-1", {
+        approved: true,
+        final: `${CHOOSING.proposal}!`,
+        choice: "draft",
+      }),
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /Reject/ }));
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenLastCalledWith("/workflow-approvals/wa-1", {
+        approved: false,
+      }),
+    );
+  });
+
+  it("keeps every choice off while the approver may not decide it", async () => {
+    useAuthStore.setState({ user: { id: "u-2" } as User });
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [CHOOSING], total: 1 });
+    render(<WorkflowApprovalsCard />, { wrapper });
+    expect(
+      (await screen.findByRole("button", { name: /Keep a draft/ })).hasAttribute("disabled"),
+    ).toBe(true);
+    expect(screen.getByRole("button", { name: /Send now/ }).hasAttribute("disabled")).toBe(true);
+  });
+
+  it("shows the chosen label on a decided row, and its id when the label is gone", () => {
+    const decided: WorkflowApprovalRead = {
+      ...CHOOSING,
+      status: "approved",
+      choice: "send_now",
+      decided_at: "2026-09-29T10:00:00Z",
+    };
+    const { rerender } = render(
+      <ul>
+        <DecidedWorkflowApproval approval={decided} />
+      </ul>,
+    );
+    expect(screen.getByText("Send now")).toBeTruthy();
+    rerender(
+      <ul>
+        <DecidedWorkflowApproval approval={{ ...decided, choices: [] }} />
+      </ul>,
+    );
+    expect(screen.getByText("send_now")).toBeTruthy();
+  });
+
+  it("shows no choice on a row decided without one", () => {
+    render(
+      <ul>
+        <DecidedWorkflowApproval approval={{ ...ASKING, status: "approved" }} />
+      </ul>,
+    );
+    expect(screen.queryByText("send_now")).toBeNull();
   });
 });

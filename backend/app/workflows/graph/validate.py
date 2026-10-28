@@ -99,6 +99,7 @@ from app.workflows.contracts.policy import ERROR_PORT
 from app.workflows.contracts.results import WorkflowError
 from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import Edge, NodeInstance, ScopeBoundary, WorkflowGraph
+from app.workflows.nodes._port_names import clash_message
 from app.workflows.nodes.control_foreach._handler import BODY_PORT, DONE_PORT
 
 Problems = list[tuple[str, str]]
@@ -161,6 +162,7 @@ async def validate_graph(db: AsyncSession, ctx: AuthContext, graph: WorkflowGrap
     problems += _missing_version_problems(graph, definitions)
     problems += _scope_access_problems(graph, definitions)
     problems += _config_schema_problems(graph, definitions)
+    problems += _error_port_clash_problems(graph, definitions)
     problems += _binding_target_field_problems(graph, definitions)
     problems += _literal_binding_type_problems(graph, definitions)
     problems += _template_binding_problems(graph, definitions)
@@ -501,6 +503,46 @@ def _config_schema_problems(graph: WorkflowGraph, definitions: DefinitionMap) ->
             ]
             for problem in field_problems(errors, root=root):
                 problems.append((problem["field"], problem["message"]))
+    return problems
+
+
+# Where an author names the output ports of a step: its config's list and the key
+# holding each entry's name.
+_AUTHOR_NAMED_PORTS = {
+    "logic.switch": ("rules", "name"),
+    "ai.classify": ("categories", "name"),
+    "error.handle": ("branches", "name"),
+    "human.approval": ("choices", "id"),
+}
+
+
+def _error_port_clash_problems(graph: WorkflowGraph, definitions: DefinitionMap) -> Problems:
+    """An author-named port called `error`, on a step that routes its errors.
+
+    The step's own config refuses a name that is one of its static ports
+    (`nodes._port_names`), but `error` is a port only when the step's policy
+    routes its errors, which only the graph knows.
+    """
+    problems: Problems = []
+    for node in graph.nodes:
+        definition = definitions.get(node.id)
+        if definition is None or not node.routes_errors:
+            continue
+        named = _AUTHOR_NAMED_PORTS.get(definition.id)
+        if named is None:
+            continue
+        field, key = named
+        entries = node.config.get(field)
+        if not isinstance(entries, list):
+            continue
+        for index, entry in enumerate(entries):
+            if isinstance(entry, dict) and entry.get(key) == ERROR_PORT:
+                problems.append(
+                    (
+                        f"nodes.{node.id}.config.{field}.{index}.{key}",
+                        clash_message(ERROR_PORT),
+                    )
+                )
     return problems
 
 
@@ -1188,23 +1230,43 @@ def _rule_5_exclusive_merge(
     graph: WorkflowGraph, definitions: DefinitionMap, dominators: dict[UUID, frozenset[UUID]]
 ) -> Problems:
     problems: Problems = []
-    predecessors: dict[UUID, list[UUID]] = {}
+    incoming: dict[UUID, list[tuple[UUID, str]]] = {}
     for edge in graph.edges:
-        predecessors.setdefault(edge.target_node_id, []).append(edge.source_node_id)
+        incoming.setdefault(edge.target_node_id, []).append((edge.source_node_id, edge.source_port))
 
     for node in graph.nodes:
         definition = definitions.get(node.id)
         if definition is None or definition.id != "logic.merge":
             continue
-        branches = predecessors.get(node.id, [])
-        if len(branches) < 2:
+        edges_in = incoming.get(node.id, [])
+        if len(edges_in) < 2:
             continue
-        distinct_branches = set(branches)
-        if len(distinct_branches) != len(branches):
+        # One branching step may feed a merge through several of its ports - only
+        # one of them is taken - but never twice through the same one.
+        if len(set(edges_in)) != len(edges_in):
             problems.append(
                 (f"nodes.{node.id}", "This merge has more than one edge from the same branch")
             )
             continue
+        # A step that feeds the merge by several ports must itself take one per run.
+        ports_by_source: dict[UUID, int] = {}
+        for source, _port in edges_in:
+            ports_by_source[source] = ports_by_source.get(source, 0) + 1
+        if any(
+            count > 1
+            and not _branches_exclusively(graph.node_by_id[source], definitions.get(source))
+            for source, count in ports_by_source.items()
+        ):
+            problems.append(
+                (
+                    f"nodes.{node.id}",
+                    "A merge's branches must come from one logic.if, error handler or "
+                    "error-routing step",
+                )
+            )
+            continue
+        branches = list(ports_by_source)
+        distinct_branches = set(branches)
         common = _nearest_common_dominator(branches, dominators)
         if common is None:
             problems.append((f"nodes.{node.id}", "This merge's branches share no common dominator"))

@@ -563,12 +563,13 @@ to every run started after it, and publishing keeps them.
 **Limits** bound what its runs do at once and spend, above each step's own limits -
 an agent step's cost ceiling among them:
 
-- **Runs under way at once** - a real run started past it is refused with `429`
-  until one ends. A webhook's or GitHub's sender is told to retry, a schedule waits
-  for its next tick, and a table event or a form answer past it is refused. A mailbox
-  is read again a minute later, so the message waits for the run to end - unless the
-  runs holding the limit are waiting for an approval: the message is then skipped for
-  this workflow and the audit log records it (`workflow.mail_message_skipped`). Test runs are neither counted nor held back.
+- **Runs under way at once** - a real run started past it is refused with `429` until
+  one ends. A webhook's or GitHub's sender is told to retry, a schedule waits for its
+  next tick, and a table event or a form answer past it is refused. A mailbox is read
+  again a minute later, whatever its interval, so the message waits for the run to
+  end - unless the runs holding the limit are waiting for an approval: the message is
+  then skipped for this workflow and the audit log records it
+  (`workflow.mail_message_skipped`). Test runs are neither counted nor held back.
 - **Most one run may spend** - the run's own budget, the tighter of it and the
   version's: a run that reaches it stops before its next step, out of budget.
 - **Most its runs may spend a month** - counted over the calendar month in UTC,
@@ -669,6 +670,10 @@ a later step sends what the person approved. A decider the step does not name se
 the proposal read-only, and a request decided with a changed version
 shows an **Edited** badge under **Decided**.
 
+When the step lists **Ways to approve**, the queue shows one button for each, with the
+label its author wrote, in place of **Approve**; **Reject** stays. Each way is an output
+port of the step, so the workflow goes on by the one the approver pressed, and the
+decided row names it. An edit goes with whichever button is pressed.
 
 In the list a test run's version reads **Draft (test)** and a real one's
 **Published**, and a run started from the console or the HTTP API reads **Console or
@@ -837,10 +842,14 @@ secret and registers the hook again where the account set it up. See
 A **Gmail** trigger starts the workflow when a message arrives in the organization's
 Gmail mailbox - the one connected through the **Gmail** portal. The step's panel says
 whether a mailbox is connected and connects one, and publishing is refused until it
-is. The mailbox is read once a minute, by the poll that also fires agents' Gmail
-triggers, and each new message that fits every filter set - **Subject contains** and
+is. The mailbox is read by the poll that also fires agents' Gmail triggers, every
+minute, and each new message that fits every filter set - **Subject contains** and
 **Sender contains**, ignoring case, and **Label**, exactly - starts a run as the
 member who published the workflow.
+
+**Check for new mail every**, in the step's mailbox block, changes that pace (1, 5,
+15, 30 or 60 minutes). It is a setting of the mailbox and applies to every trigger on
+it.
 
 **Sender contains** reads the sender's address, never the display name: `@acme.com`
 matches that domain exactly and not its subdomains, a full address matches that
@@ -855,8 +864,7 @@ mailbox's `message_id`, and the thread the message belongs to: `thread_id`, the
 `rfc_message_id` (the `Message-ID` header), `in_reply_to`, `references`,
 `received_at` and the `html` body. The sender writes the three header fields, so a
 reply can be threaded with them but they prove nothing about who sent it. A message
-read twice starts its run once, and one the organization had no room to run yet is
-read again a minute later. See
+read twice starts its run once, and one the organization had no room to run yet is read again a minute later. See
 [trigger.gmail](reference/workflow-nodes.md#trigger-gmail). To read the `html` body
 as text, links or what a CSS selector picks, bind it to
 [`html.parse`](reference/workflow-nodes.md#html-parse).

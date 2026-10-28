@@ -6730,6 +6730,13 @@
     "templatesFewer": "Pokaż mniej"
   },
   "portals": {
+    "mailboxInterval": {
+      "label": "Sprawdzaj nowe wiadomości co",
+      "option": "{count, plural, =1 {1 minutę} other {# minut}}",
+      "shared": "Dotyczy każdego wyzwalacza na tej skrzynce.",
+      "saved": "Zapisano częstotliwość sprawdzania skrzynki.",
+      "saveError": "Nie udało się zmienić częstotliwości sprawdzania skrzynki."
+    },
     "title": "Portale",
     "searchPlaceholder": "Szukaj portali…",
     "category": "Kategoria",
@@ -8579,6 +8586,7 @@
     "validationMergeNoCommonDominator": "Gałęzie tego scalenia nie mają wspólnego punktu wyjścia.",
     "validationMergeNotFromIf": "Gałęzie scalenia muszą pochodzić z dwóch wyników jednego warunku.",
     "validationMergeNotExclusive": "Gałęzie tego scalenia nie wykluczają się wzajemnie.",
+    "validationPortNameTaken": "„{name}” jest już wyjściem tego kroku - zmień nazwę.",
     "validationEdgeCrossesScope": "To połączenie przechodzi do wnętrza pętli albo z niego wychodzi.",
     "validationBindingCrossesScope": "Ta wartość przechodzi do wnętrza pętli albo z niego wychodzi.",
     "validationNodeInCycle": "Ten krok jest częścią pętli wracającej do wcześniejszego kroku.",
@@ -9122,12 +9130,12 @@
       "connect": "Podłącz",
       "reconnect": "Podłącz ponownie",
       "gmail": {
-        "ready": "Skrzynka organizacji jest podłączona i czytana co minutę.",
+        "ready": "Skrzynka organizacji jest podłączona.",
         "connect": "Żadna skrzynka nie jest jeszcze podłączona. Publikacja na nią poczeka.",
         "reauthorize": "Skrzynkę trzeba podłączyć ponownie, zanim da się ją czytać."
       },
       "microsoft": {
-        "ready": "Skrzynka Microsoft 365 organizacji jest podłączona i czytana co minutę.",
+        "ready": "Skrzynka Microsoft 365 organizacji jest podłączona.",
         "connect": "Nie podłączono jeszcze skrzynki Microsoft 365. Publikowanie na nią czeka.",
         "reauthorize": "Skrzynkę trzeba podłączyć ponownie, zanim będzie można ją czytać."
       },

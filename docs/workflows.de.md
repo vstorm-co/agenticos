@@ -1,5 +1,5 @@
 ---
-source_sha: "735b6c801d0d"
+source_sha: "211121201359"
 ---
 
 # Workflows { #workflows }
@@ -635,7 +635,7 @@ eigenen Grenzen jedes Schritts - darunter die Kostenobergrenze eines Agentenschr
   wird mit `429` abgelehnt, bis einer endet. Der Absender eines Webhooks oder GitHub
   wird um einen erneuten Versuch gebeten, ein Zeitplan wartet auf seinen nächsten
   Takt, und ein Tabellenereignis oder eine Formularantwort darüber hinaus wird
-  abgelehnt. Ein Postfach wird eine Minute später erneut gelesen, die Nachricht wartet
+  abgelehnt. Ein Postfach wird eine Minute später erneut gelesen, unabhängig vom Intervall, die Nachricht wartet
   also, bis ein Lauf endet - außer die Läufe, die das Limit belegen, warten auf eine
   Freigabe: Dann wird die Nachricht für diesen Workflow übersprungen, und das Audit-Log
   hält es fest (`workflow.mail_message_skipped`). Testläufe werden weder gezählt noch
@@ -758,6 +758,12 @@ weiter, sodass ein späterer Schritt sendet, was die Person freigegeben hat. Wer
 Schritt aber nicht genannt wird, sieht den Vorschlag schreibgeschützt, und eine mit
 einer geänderten Fassung entschiedene Anfrage trägt unter **Entschieden (Decided)** das Zeichen
 **Bearbeitet (Edited)**.
+
+Listet der Schritt **Ways to approve**, zeigt die Warteschlange statt **Approve** eine
+Schaltfläche je Weg, mit der Beschriftung, die ihr Autor geschrieben hat; **Reject**
+bleibt. Jeder Weg ist ein Ausgangsport des Schritts, der Workflow geht also über den
+weiter, den die freigebende Person gedrückt hat, und die entschiedene Zeile nennt ihn.
+Eine Bearbeitung geht mit jeder gedrückten Schaltfläche mit.
 
 
 In der Liste lautet die Version eines Testlaufs **Draft (test)** und die eines echten
@@ -944,11 +950,12 @@ registriert den Hook dort neu, wo das Konto ihn angelegt hat. Siehe
 Ein Trigger **Gmail** startet den Workflow, wenn im Gmail-Postfach der Organisation -
 dem über das Portal **Gmail** verbundenen - eine Nachricht ankommt. Das Panel des
 Schritts sagt, ob ein Postfach verbunden ist, und verbindet eines, und die
-Veröffentlichung wird abgelehnt, bis es so ist. Das Postfach wird einmal pro Minute
-gelesen, von dem Abruf, der auch die Gmail-Trigger der Agenten auslöst, und jede neue
+Veröffentlichung wird abgelehnt, bis es so ist. Das Postfach wird von dem Abruf gelesen, der auch die Gmail-Trigger der Agenten auslöst, jede Minute, und jede neue
 Nachricht, die zu allen gesetzten Filtern passt - **Subject contains** und **Sender
 contains** ohne Groß- und Kleinschreibung, **Label** genau -, startet einen Lauf als
 das Mitglied, das den Workflow veröffentlicht hat.
+
+**Check for new mail every** im Postfachblock des Schritts ändert diesen Takt (1, 5, 15, 30 oder 60 Minuten). Es ist eine Einstellung des Postfachs und gilt für jeden Trigger darauf.
 
 **Sender contains** liest die Adresse des Absenders, nie den Anzeigenamen:
 `@acme.com` passt genau auf diese Domain und nicht auf ihre Subdomains, eine
@@ -965,8 +972,7 @@ Der Lauf bekommt `sender`, `to`, `subject`, `text`, `snippet`, `labels` und die
 `received_at` und den `html`-Inhalt. Die drei Header-Felder schreibt der Absender;
 mit ihnen lässt sich eine Antwort in den Thread einordnen, sie beweisen aber nichts
 darüber, wer die Nachricht gesendet hat. Eine zweimal gelesene Nachricht startet
-ihren Lauf einmal, und eine, für die die Organisation noch keinen Platz hatte, wird
-eine Minute später erneut gelesen. Siehe
+ihren Lauf einmal, und eine, für die die Organisation noch keinen Platz hatte, wird eine Minute später erneut gelesen. Siehe
 [trigger.gmail](reference/workflow-nodes.md#trigger-gmail). Um den `html`-Text als
 Text, als Links oder als das zu lesen, was ein CSS-Selektor auswählt, binden Sie ihn an
 [`html.parse`](reference/workflow-nodes.md#html-parse).
