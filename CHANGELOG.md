@@ -368,6 +368,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Desktop startup keeps the system theme and Glass defaults through hydration,
+  without briefly sending the server-rendered standard look to the native window.
+
 - Desktop server switching lives in the account dropdown instead of a separate
   sidebar button, including when the sidebar is collapsed.
 

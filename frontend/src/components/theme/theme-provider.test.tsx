@@ -1,3 +1,6 @@
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
+import { THEME_STORAGE_KEY } from "@/lib/appearance";
 import { act, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -273,5 +276,38 @@ it("keeps setup material independent of the console look and restores it on navi
   expect(root()).not.toHaveAttribute("data-desktop-setup");
   expect(send).toHaveBeenCalledTimes(2);
   expect(useThemeStore.getState()).toMatchObject({ theme: "light", look: "standard" });
+  delete window.__AGENTICOS_SHELL__;
+});
+
+it("does not send server-rendered defaults to the native window during hydration", async () => {
+  window.__AGENTICOS_SHELL__ = {
+    platform: "macos",
+    version: "test",
+    window: "main",
+    vibrancy: true,
+  };
+  localStorage.removeItem(THEME_STORAGE_KEY);
+  await useThemeStore.persist.rehydrate();
+  expect(useThemeStore.getState()).toMatchObject({ theme: "system", look: "glass" });
+  const send = vi.spyOn(commands, "setAppearance").mockResolvedValue();
+  send.mockClear();
+  const container = document.createElement("div");
+  document.body.append(container);
+  const content = (
+    <ThemeProvider>
+      <span />
+    </ThemeProvider>
+  );
+  container.innerHTML = renderToString(content);
+  let hydrated: ReturnType<typeof hydrateRoot> | undefined;
+  await act(async () => {
+    hydrated = hydrateRoot(container, content);
+  });
+  expect(send).toHaveBeenCalledWith({ mode: "system", look: "glass" });
+  expect(send).not.toHaveBeenCalledWith({ mode: "system", look: "standard" });
+  await act(async () => {
+    hydrated?.unmount();
+  });
+  container.remove();
   delete window.__AGENTICOS_SHELL__;
 });

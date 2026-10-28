@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect } from "react";
+import { useEffect, useLayoutEffect, useSyncExternalStore } from "react";
 
 import { usePathname } from "next/navigation";
 import {
@@ -69,7 +69,16 @@ function applyLook(look: Look) {
   else root.setAttribute(LOOK_ATTRIBUTE, look);
 }
 
+const noSubscription = () => () => {};
+
 export function ThemeProvider({ children }: ThemeProviderProps) {
+  // Zustand exposes its server snapshot during hydration. Keep the bootstrap
+  // appearance until the client snapshot includes the saved/platform defaults.
+  const hydrated = useSyncExternalStore(
+    noSubscription,
+    () => true,
+    () => false,
+  );
   const { theme, look } = useThemeStore();
   const setupPage = isDesktopSetupPath(usePathname());
   useLayoutEffect(() => {
@@ -81,19 +90,20 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   }, [setupPage]);
 
   useEffect(() => {
-    applyLook(look);
-  }, [look]);
+    if (hydrated) applyLook(look);
+  }, [look, hydrated]);
 
   // The desktop app's console window draws its material and its title bar in
   // the chosen mode, and builds itself that way on the next launch - so the
   // console window tells it. Blobby and quick ask follow; they do not lead.
   useEffect(() => {
+    if (!hydrated) return;
     const shell = readShellInfo();
     if (!isDesktopShell(shell) || shell.window !== "main") return;
     setAppearance({ look, mode: theme }).catch((error: unknown) =>
       reportShellFailure("could not dress the window in the chosen appearance", error),
     );
-  }, [look, theme, setupPage]);
+  }, [look, theme, setupPage, hydrated]);
 
   // Every window of the desktop app is a page of this origin with one
   // `localStorage`, and a choice made in the console has to reach blobby and
@@ -107,11 +117,11 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   }, []);
 
   useEffect(() => {
-    applyThemeAnimated(getResolvedTheme(theme));
-  }, [theme]);
+    if (hydrated) applyThemeAnimated(getResolvedTheme(theme));
+  }, [theme, hydrated]);
 
   useEffect(() => {
-    if (theme !== "system") return;
+    if (!hydrated || theme !== "system") return;
 
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
     const handleChange = () => {
@@ -120,7 +130,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
 
     mediaQuery.addEventListener("change", handleChange);
     return () => mediaQuery.removeEventListener("change", handleChange);
-  }, [theme]);
+  }, [theme, hydrated]);
 
   return <>{children}</>;
 }
