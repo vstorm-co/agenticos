@@ -1,5 +1,6 @@
 "use client";
 
+import { ContextHelp } from "@/components/ui/context-help";
 import { useState } from "react";
 import { Server, Trash2 } from "lucide-react";
 
@@ -49,13 +50,13 @@ export function LocalServices() {
   if (!mayManage) return null;
 
   return (
-    <section className="border-border bg-card flex min-h-64 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border">
-      <div className="border-border flex min-h-28 flex-col items-start justify-between gap-3 border-b px-5 py-4 sm:flex-row">
+    <section className="border-border bg-card flex min-w-0 flex-col overflow-hidden rounded-xl border">
+      <div className="border-border flex flex-col items-start justify-between gap-3 border-b px-5 py-4 sm:flex-row sm:items-center">
         <div className="min-w-0 flex-1">
-          <h2 className="text-foreground text-sm font-semibold">{t("localServices")}</h2>
-          <p className="text-muted-foreground mt-1 line-clamp-2 text-xs leading-relaxed">
-            {t("localServicesHint")}
-          </p>
+          <div className="flex items-center gap-1">
+            <h2 className="text-foreground text-sm font-semibold">{t("localServices")}</h2>
+            <ContextHelp>{t("localServicesHint")}</ContextHelp>
+          </div>
         </div>
         <Button
           data-tour="knowledge-add-local-service"
@@ -83,11 +84,16 @@ export function LocalServices() {
           ))}
         </div>
       ) : services.length === 0 ? (
-        <p className="text-muted-foreground flex flex-1 items-center justify-center px-5 py-12 text-center text-sm">
-          {t("noLocalServicesYet")}
-        </p>
+        <div className="flex items-start gap-3 px-5 py-6">
+          <span className="bg-muted text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-xl">
+            <Server className="size-5" aria-hidden />
+          </span>
+          <p className="text-muted-foreground max-w-md text-sm leading-relaxed">
+            {t("noLocalServicesYet")}
+          </p>
+        </div>
       ) : (
-        <ul className="divide-border flex-1 divide-y">
+        <ul className="divide-border divide-y">
           {services.map((service) => (
             <LocalServiceRow
               key={service.id}

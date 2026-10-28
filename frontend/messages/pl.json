@@ -1214,7 +1214,9 @@
         "revokeComputer": "Cofnij dostęp do całego komputera",
         "computerConsent": "Zgoda dla tej rozmowy. Polecenia działają bez osobnych okien potwierdzenia. Tutaj możesz cofnąć dostęp; uprawnienia systemu nadal obowiązują.",
         "computerFailed": "Nie udało się zmienić dostępu do komputera. Spróbuj ponownie."
-      }
+      },
+      "modelSection": "Model",
+      "permissionsSection": "Uprawnienia"
     },
     "conversationArchived": "Ta rozmowa jest zarchiwizowana",
     "conversationDeleted": "Rozmowa usunięta",

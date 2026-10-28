@@ -148,17 +148,6 @@
   --window-drag-height: 1.75rem;
 }
 
-/* Chat owns the full content area. Its header is draggable, so it needs neither
-   an empty title strip nor the padding used by ordinary pages. */
-.window-drag-strip:has(+ #main [data-page-layout="chat"]) {
-  display: none;
-}
-
-#main:has([data-page-layout="chat"]) {
-  padding-block-start: 0;
-  padding-inline: 0;
-}
-
 /* --- Blobby and quick ask: pages that are a window's whole content -------- */
 :root[data-shell-window="blobby"],
 :root[data-shell-window="blobby"] body {

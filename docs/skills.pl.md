@@ -1,5 +1,5 @@
 ---
-source_sha: "6ff448f395ce"
+source_sha: "45b8ddef8277"
 ---
 
 # Skille { #skills }
@@ -48,6 +48,8 @@ południu. Bez deployu, bez pull requesta, bez inżyniera.
     istotna, wstrzykiwana albo czytana na żądanie.
     [Kolekcja wiedzy](file-processing.md) to korpus zbyt duży, żeby go przeczytać,
     dostępny przez wyszukiwanie.
+
+W kreatorze agenta wybierz **Skills → New skill**, aby napisać skill bez opuszczania panelu zdolności. Zapis tworzy wpis w bibliotece, dołącza go do bieżącego szkicu i włącza zdolność Skills. Publikacja pozostaje osobnym krokiem. Akcja wymaga uprawnień do edycji agenta i skilli.
 
 ## Kształt { #the-shape }
 

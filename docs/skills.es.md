@@ -1,5 +1,5 @@
 ---
-source_sha: "6ff448f395ce"
+source_sha: "45b8ddef8277"
 ---
 
 # Skills { #skills }
@@ -49,6 +49,8 @@ request, sin ingeniero.
     permanente — corto, siempre relevante, inyectado o leído bajo demanda. Una
     [colección de conocimiento](file-processing.md) es un corpus demasiado
     grande para leerlo, al que se llega por búsqueda.
+
+En Agent Builder, **Skills → New skill** permite escribir un skill sin salir del panel de capacidades. Al guardar se crea la entrada de biblioteca, se vincula al borrador actual y se activa la capacidad Skills. La publicación sigue siendo un paso separado. La acción requiere permisos para editar tanto el agente como los skills.
 
 ## La forma { #the-shape }
 

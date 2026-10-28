@@ -1214,7 +1214,9 @@
         "revokeComputer": "Zugriff auf den gesamten Computer widerrufen",
         "computerConsent": "Für dieses Gespräch erlaubt. Befehle laufen ohne einzelne native Bestätigungen. Hier können Sie den Zugriff widerrufen; Systemberechtigungen gelten weiterhin.",
         "computerFailed": "Der Computerzugriff konnte nicht geändert werden. Versuchen Sie es erneut."
-      }
+      },
+      "modelSection": "Modell",
+      "permissionsSection": "Berechtigungen"
     },
     "conversationArchived": "Diese Unterhaltung ist archiviert",
     "conversationDeleted": "Unterhaltung gelöscht",

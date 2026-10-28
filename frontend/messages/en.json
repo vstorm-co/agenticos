@@ -1214,7 +1214,9 @@
         "revokeComputer": "Revoke whole-computer access",
         "computerConsent": "Allowed for this conversation. Commands run without individual native prompts. You can revoke access here; operating system permissions still apply.",
         "computerFailed": "Could not change computer access. Try again."
-      }
+      },
+      "modelSection": "Model",
+      "permissionsSection": "Permissions"
     },
     "conversationArchived": "This conversation is archived",
     "conversationDeleted": "Conversation deleted",

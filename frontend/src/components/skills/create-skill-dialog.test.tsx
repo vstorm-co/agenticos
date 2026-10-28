@@ -229,6 +229,7 @@ describe("CreateSkillDialog", () => {
  */
 describe("CreateSkillDialog files", () => {
   const onOpenChange = vi.fn();
+  const onCreated = vi.fn();
 
   // jsdom's File does not implement `.text()`, which `PendingFilePane` uses to
   // read a pending file into the pane. Polyfilled rather than mocked away: the
@@ -254,7 +255,9 @@ describe("CreateSkillDialog files", () => {
     });
     vi.mocked(apiClient.post).mockResolvedValue({ id: "s-1", name: "refund-policy" });
     vi.mocked(apiClient.uploadMany).mockResolvedValue({ items: [] });
-    render(<CreateSkillDialog open onOpenChange={onOpenChange} />, { wrapper });
+    render(<CreateSkillDialog open onOpenChange={onOpenChange} onCreated={onCreated} />, {
+      wrapper,
+    });
   });
 
   it("cannot be created without a name and a description", async () => {
@@ -344,8 +347,10 @@ describe("CreateSkillDialog files", () => {
     await userEvent.click(create());
     expect(apiClient.post).toHaveBeenCalledTimes(1);
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(onCreated).not.toHaveBeenCalled();
     finish?.();
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(onCreated).toHaveBeenCalledWith({ id: "s-1", name: "refund-policy" });
   });
 
   it("uploads the pending files once the skill exists", async () => {
@@ -492,6 +497,7 @@ describe("CreateSkillDialog files", () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
     // The dialog stays open, so the failure is not dismissed along with it.
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(onCreated).not.toHaveBeenCalled();
   });
 
   it("clears a field's refusal as soon as that field changes", async () => {

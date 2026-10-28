@@ -1,5 +1,6 @@
 "use client";
 
+import { useResourceCreation, mergeResourceChoices } from "@/components/agents/resource-creation";
 import { use, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -346,6 +347,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
   const canEdit = can(Perm.agentsEdit);
   const canPublish = can(Perm.agentsPublish);
+  const resourceCreation = useResourceCreation({
+    mayCreateSkill: canEdit && can(Perm.skillsEdit),
+    mayCreateContext: canEdit && can(Perm.contextEdit),
+    setSpec,
+  });
   useTestShortcut(canEdit, () => toggleTesting(!testing));
 
   // The stale-reference check reads a reference as dead when its id is absent
@@ -1535,7 +1541,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   // on with the first pick, because bound without it the resources
                   // are resolved and then discarded.
                   resources={{
-                    contextFiles,
+                    contextFiles: mergeResourceChoices(contextFiles, resourceCreation.context),
+                    onCreateContext: resourceCreation.createContext,
                     contextTotal: contextCount,
                     contextIds: spec.context_ids,
                     onContextToggle: (fileId: string) =>
@@ -1544,7 +1551,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     collectionIds: spec.collection_ids,
                     onCollectionToggle: (collectionId: string) =>
                       update({ collection_ids: toggleId(spec.collection_ids, collectionId) }),
-                    skills,
+                    skills: mergeResourceChoices(skills, resourceCreation.skills),
+                    onCreateSkill: resourceCreation.createSkill,
                     skillTotal: skillCount,
                     skillIds: spec.skill_ids,
                     onSkillToggle: (skillId: string) =>
@@ -1831,6 +1839,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </TabsContent>
         </Tabs>
       </div>
+      {resourceCreation.dialogs}
       {testing && canEdit && (
         <TestPanel
           agentId={id}

@@ -1,5 +1,5 @@
 ---
-source_sha: "0a7a3017b48c"
+source_sha: "116829a45f08"
 ---
 
 # La consola { #the-console }
@@ -41,6 +41,8 @@ Los retratos generados usan formas seleccionadas de Blobatar 2.7 y tonos más cl
 Los ajustes del chat muestran Browser y Work on antes de Permissions. Las
 notificaciones de la conversación y las conexiones de cuentas quedan debajo de los
 permisos.
+
+Los ajustes del chat tienen un encabezado fijo y un botón de cierre sobre el contenido desplazable. Los iconos de información explican el modelo, Browser, Work on y los modos de permisos cuando se solicitan; la explicación del modo seleccionado permanece visible. En **Knowledge bases → Integrations**, los paneles compactos de integraciones y servicios locales se ajustan al contenido, con explicaciones en los iconos de información.
 
 ## El dashboard { #the-dashboard }
 

@@ -39,6 +39,8 @@ const MAX_DESCRIPTION = 500;
 
 type Field = "name" | "description" | "content";
 
+import type { ContextFile } from "@/types/providers";
+
 interface CreateContextDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -56,7 +58,7 @@ interface CreateContextDialogProps {
    * A file was created. The dialog does not close itself: whether that means
    * "done" or "next one" is the caller's queue to answer.
    */
-  onCreated: () => void;
+  onCreated: (file: ContextFile) => void;
 }
 
 /**
@@ -100,7 +102,7 @@ export function CreateContextDialog({
 
   async function handleCreate() {
     try {
-      await create.mutateAsync({
+      const file = await create.mutateAsync({
         name,
         // Whitespace-only means "no description" - the column is nullable and a
         // blank one says nothing to a reader of the link list.
@@ -115,7 +117,7 @@ export function CreateContextDialog({
       setContent("");
       setAudience(EVERYONE);
       setErrors({});
-      onCreated();
+      onCreated(file);
     } catch (error) {
       const failure = submitFailure(
         error,

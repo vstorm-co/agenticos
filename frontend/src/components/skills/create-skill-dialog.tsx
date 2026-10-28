@@ -64,7 +64,10 @@ function isReadableText(file: File): boolean {
   return readsAsText(resolveFileKind(pathOf(file), file.type));
 }
 
+import type { Skill } from "@/types/providers";
+
 interface CreateSkillDialogProps {
+  onCreated?: (skill: Skill) => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -92,7 +95,7 @@ const PHONE_SCROLLS = "max-md:overflow-y-auto";
  * the files are local File objects held until
  * the skill exists to attach them to.
  */
-export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps) {
+export function CreateSkillDialog({ open, onOpenChange, onCreated }: CreateSkillDialogProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("skills");
   const { create, categories, suggestedCategories } = useSkills();
@@ -181,6 +184,7 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
       setOpenPath(null);
       setAdding(false);
       setErrors({});
+      onCreated?.(skill);
       onOpenChange(false);
     } catch (error) {
       const failure = submitFailure(

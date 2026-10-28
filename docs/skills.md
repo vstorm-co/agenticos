@@ -43,6 +43,8 @@ Tuesday afternoon. No deploy, no pull request, no engineer.
     [knowledge collection](file-processing.md) is a corpus too large to read,
     reached by search.
 
+In the Agent Builder, open **Skills → New skill** to write a skill without leaving the capability panel. Saving creates the library entry, attaches it to the current draft and enables the Skills capability. Publishing remains a separate step. The action requires permission to edit both the agent and skills.
+
 ## The shape
 
 ```markdown

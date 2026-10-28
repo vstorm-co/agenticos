@@ -322,3 +322,27 @@ it("puts browser and sandbox choices before permissions, with notifications afte
     permissions.compareDocumentPosition(notifications) & Node.DOCUMENT_POSITION_FOLLOWING,
   ).not.toBe(0);
 });
+
+describe("the compact settings panel", () => {
+  it("opens on the panel and closes explicitly without changing choices", async () => {
+    const change = vi.fn();
+    open({ onApprovalModeChange: change });
+    await userEvent.click(trigger());
+    expect(screen.getByRole("dialog", { name: "Chat controls" })).toHaveFocus();
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(change).not.toHaveBeenCalled();
+    expect(trigger()).toHaveFocus();
+  });
+
+  it("shows the current permission explanation and reveals the others on demand", async () => {
+    open();
+    await userEvent.click(trigger());
+    const askHint =
+      "Ask before every tool this agent can use, including the ones it does not normally gate.";
+    expect(screen.queryByText(askHint)).not.toBeInTheDocument();
+    const help = screen.getAllByRole("button", { name: "More information" });
+    await userEvent.click(help[1]!);
+    expect(screen.getByText(askHint)).toBeInTheDocument();
+  });
+});

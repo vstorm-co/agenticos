@@ -1,5 +1,5 @@
 ---
-source_sha: "6ff448f395ce"
+source_sha: "45b8ddef8277"
 ---
 
 # Skills { #skills }
@@ -49,6 +49,8 @@ kein Pull Request, kein Entwickler.
     Wissen — kurz, immer relevant, eingefügt oder bei Bedarf gelesen. Eine
     [Knowledge-Collection](file-processing.md) ist ein Korpus, der zu groß zum
     Lesen ist und über Suche erreicht wird.
+
+Im Agent Builder öffnet **Skills → New skill** die Erstellung direkt im Fähigkeitspanel. Beim Speichern entsteht ein Bibliothekseintrag, der dem aktuellen Entwurf zugeordnet wird; zugleich wird die Fähigkeit Skills aktiviert. Das Veröffentlichen bleibt ein eigener Schritt. Die Aktion erfordert Bearbeitungsrechte für den Agenten und Skills.
 
 ## Die Form { #the-shape }
 

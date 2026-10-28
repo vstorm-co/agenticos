@@ -1,5 +1,5 @@
 ---
-source_sha: "0a7a3017b48c"
+source_sha: "116829a45f08"
 ---
 
 # Die Konsole { #the-console }
@@ -41,6 +41,8 @@ Generierte Porträts verwenden ausgewählte Blobatar-2.7-Formen und hellere Farb
 Die Chat-Einstellungen zeigen Browser und Work on vor Permissions.
 Gesprächsbenachrichtigungen und Kontoverbindungen bleiben unter den
 Freigabeeinstellungen.
+
+Die Chat-Einstellungen haben eine feste Überschrift und Schließen-Schaltfläche über dem scrollbaren Inhalt. Informationssymbole erklären Modell, Browser, Work on und Berechtigungsmodi bei Bedarf; die Erklärung des ausgewählten Modus bleibt sichtbar. Unter **Knowledge bases → Integrations** passen sich kompakte Panels für Integrationen und lokale Dienste ihrem Inhalt an; Erläuterungen stehen hinter Informationssymbolen.
 
 ## Das Dashboard { #the-dashboard }
 

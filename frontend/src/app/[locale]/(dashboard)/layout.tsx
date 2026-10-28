@@ -8,6 +8,7 @@ import { MobileBridge } from "@/components/mobile/mobile-bridge";
 import { PullToRefresh } from "@/components/mobile/pull-to-refresh";
 import { CustomIconsProvider } from "@/components/icons/custom-icons";
 import { MobileHeader, Sidebar } from "@/components/layout";
+import { MainViewport } from "@/components/layout/main-viewport";
 import { AccountLocale } from "@/components/layout/account-locale";
 import { AccountTimeZone } from "@/components/layout/account-time-zone";
 import { ActiveOrgGuard } from "@/components/layout/active-org-guard";
@@ -91,24 +92,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 Measured at 0px below the last card, at every width, in Chromium
                 151 and WebKit 26.5. The room under a page is declared once, on
                 `PageTransition`'s unconstrained branch, where it paints (#933). */}
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-              {/* Reserve the drag surface outside the scrolling viewport. A
-                  sticky overlay intercepts header buttons and panel controls. */}
-              <div aria-hidden className="window-drag-strip" data-tauri-drag-region />
-              <main
-                id="main"
-                tabIndex={-1}
-                className="relative flex min-h-0 flex-1 flex-col overflow-auto px-3 pt-(--page-inset-top) [--page-inset-top:1rem] sm:px-6 sm:[--page-inset-top:2rem]"
-              >
-                {/* Inside `main` rather than around the whole shell: a
+            <MainViewport>
+              {/* Inside `main` rather than around the whole shell: a
                     maintenance window still leaves the navigation and the account
                     menu, because the administrator who has to end it reaches the
                     settings page through them. */}
-                <DeploymentGate>
-                  <PageTransition>{children}</PageTransition>
-                </DeploymentGate>
-              </main>
-            </div>
+              <DeploymentGate>
+                <PageTransition>{children}</PageTransition>
+              </DeploymentGate>
+            </MainViewport>
           </div>
           {/* The one navigation on a phone too: the drawer holds every section,
               where a bottom bar repeated five of them and took a strip of the

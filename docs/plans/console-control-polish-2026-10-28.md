@@ -204,8 +204,8 @@ Computer Use was performed. The running app receives these frontend changes live
 ## Edge-to-edge chat and settings order
 
 The remaining empty native strip did not belong over the chat list. The chat route
-now marks its layout on PageTransition; the parent scrollport removes its own
-padding and the sibling drag strip instead of asking a child to cancel padding
+now selects an explicit MainViewport frame; the parent scrollport omits its own
+padding and the native drag strip instead of asking a child to cancel padding
 with negative margins. The expanded and collapsed chat headers provide the native
 deep drag region, which Tauri 2.12.5 explicitly excludes clickable descendants
 from. Other pages keep their existing native drag strip and content inset.
@@ -220,3 +220,33 @@ Browser and Work on explanatory copy now opens from the existing ContextHelp
 control beside each heading. Connection state, access-mode descriptions and active
 computer consent remain visible. The additional 42-test environment/settings batch
 and TypeScript/ESLint checks pass.
+
+
+## Consistent conversation controls
+
+The settings popover has one fixed title and close action, a bounded scrolling
+body, and a quiet footer. Model, browser, workspace and permissions use the same
+section hierarchy. Permission choices show a selection mark and only the current
+choice's explanation; the information control explains all modes. The reason an
+approval mode is unavailable remains visible. The panel takes initial focus, and
+closing returns focus to its trigger without changing conversation settings.
+
+
+## Creation and integrations
+
+The Builder's Skills and Context panels offer the existing creation editors
+in place. Creation attaches the completed resource to the current draft and
+enables its capability through the same binding helpers as manual selection.
+Permission checks require both agent editing and the resource's edit permission.
+New metadata remains visible outside the first catalog page; refreshed server
+metadata takes precedence. Skill uploads must complete before attachment.
+
+Knowledge integration and local-service panels now size to their content and
+align at the top. Their explanations open from information controls, while
+empty states use compact icon-led blocks. Existing loading, error, registration,
+clone and deletion paths remain covered by their integration tests.
+
+Verification: 73 initial settings/frame regressions, 23 focused settings/frame
+regressions, 103 existing gallery/editor/integration tests and 70 creation/binding
+tests passed. Frontend lint includes TypeScript, formatting, translations and
+dependency checks. Computer Use and browser automation were not used.

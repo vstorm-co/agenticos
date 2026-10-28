@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { FolderOpen, HelpCircle, SlidersHorizontal } from "lucide-react";
+import { Check, FolderOpen, HelpCircle, SlidersHorizontal, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { useShell } from "@/hooks/use-shell";
@@ -11,7 +11,8 @@ import { useWorkOnStore } from "@/stores/work-on-store";
 import { ChatModelPicker } from "./chat-model-picker";
 import { WorkOn, ConversationNotifications } from "./work-on";
 import { YourConnections } from "./your-connections";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
+import { ContextHelp } from "@/components/ui/context-help";
+import { IconButton, Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
 import { useModelProviders, useOrganizationList, usePermissions } from "@/hooks";
 import { useConversationStore, useOrgStore } from "@/stores";
 import { useOnboardingStore } from "@/stores/onboarding-store";
@@ -75,6 +76,8 @@ export function ChatControls({
   agentModel = null,
 }: ChatControlsProps) {
   const t = useTranslations("chat.controls");
+  const tc = useTranslations("common");
+  const panel = useRef<HTMLDivElement>(null);
   const tOnboarding = useTranslations("onboarding");
   const pathname = usePathname();
   const openPage = useOnboardingStore((state) => state.openPage);
@@ -156,9 +159,15 @@ export function ChatControls({
       </PopoverTrigger>
 
       <PopoverContent
+        ref={panel}
+        aria-label={t("label")}
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          panel.current?.focus();
+        }}
         align="end"
         sideOffset={8}
-        className="border-border bg-popover relative w-[380px] overflow-hidden rounded-2xl border p-0 shadow-md"
+        className="border-border bg-popover relative flex max-h-[var(--radix-popover-content-available-height)] w-[380px] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-xl border p-0 shadow-md outline-none"
         // The page tour walks through this popover's sections. Its caption takes
         // focus and its overlay takes the pointer - both outside - and closing on
         // either left the next stop pinned to a section that had gone.
@@ -166,10 +175,17 @@ export function ChatControls({
           if (document.querySelector(".driver-popover")) event.preventDefault();
         }}
       >
-        <div className="max-h-[420px] scrollbar-thin overflow-y-auto p-4">
-          <p className="text-muted-foreground mb-3 text-xs leading-relaxed">
-            {t("whichModelRunsHere")}
-          </p>
+        <div className="flex shrink-0 items-center justify-between border-b px-4 py-2">
+          <h2 className="text-sm font-semibold">{t("label")}</h2>
+          <IconButton aria-label={tc("close")} onClick={() => setOpen(false)}>
+            <X />
+          </IconButton>
+        </div>
+        <div className="max-h-[420px] min-h-0 flex-1 scrollbar-thin overflow-y-auto p-4">
+          <div className="mb-2 flex items-center gap-1">
+            <h3 className="text-foreground/85 text-[13px] font-medium">{t("modelSection")}</h3>
+            <ContextHelp>{t("whichModelRunsHere")}</ContextHelp>
+          </div>
           <ChatModelPicker
             value={profileId}
             agentModel={agentModel}
@@ -197,9 +213,22 @@ export function ChatControls({
           <WorkOn />
 
           <div className="border-foreground/10 mt-4 border-t pt-4" data-tour="chat-approval-mode">
-            <p className="text-muted-foreground mb-3 text-xs leading-relaxed">
-              {t("howMuchToBeAsked")}
-            </p>
+            <div className="mb-2 flex items-center gap-1">
+              <h3 className="text-foreground/85 text-[13px] font-medium">
+                {t("permissionsSection")}
+              </h3>
+              <ContextHelp>
+                <p>{t("howMuchToBeAsked")}</p>
+                <ul className="mt-3 space-y-3">
+                  {APPROVAL_MODES.map((mode) => (
+                    <li key={mode}>
+                      <strong className="font-medium">{t(`mode.${mode}`)}</strong>
+                      <p className="text-muted-foreground mt-1">{t(`modeHint.${mode}`)}</p>
+                    </li>
+                  ))}
+                </ul>
+              </ContextHelp>
+            </div>
             <div role="radiogroup" aria-label={t("approvalMode")} className="space-y-1">
               {APPROVAL_MODES.map((mode) => {
                 // Rendered but unavailable, rather than hidden: "you cannot waive
@@ -219,16 +248,31 @@ export function ChatControls({
                       onApprovalModeChange?.(mode);
                     }}
                     className={cn(
-                      "w-full rounded-xl px-3 py-2 text-left transition-colors",
+                      "focus-visible:ring-ring flex w-full items-start gap-2.5 rounded-lg px-3 py-2.5 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset",
                       approvalMode === mode
                         ? "bg-foreground/[0.06] text-foreground"
                         : "text-foreground/70 hover:bg-foreground/[0.04]",
                       !offered && "cursor-not-allowed opacity-45",
                     )}
                   >
-                    <span className="block text-xs font-medium">{t(`mode.${mode}`)}</span>
-                    <span className="text-muted-foreground block text-xs leading-relaxed">
-                      {t(`modeHint.${mode}`)}
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border",
+                        approvalMode === mode
+                          ? "border-foreground bg-foreground text-background"
+                          : "border-input",
+                      )}
+                    >
+                      {approvalMode === mode && <Check className="size-3" />}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-[13px] font-medium">{t(`mode.${mode}`)}</span>
+                      {approvalMode === mode && (
+                        <span className="text-muted-foreground mt-1 block text-xs leading-relaxed">
+                          {t(`modeHint.${mode}`)}
+                        </span>
+                      )}
                     </span>
                   </button>
                 );
@@ -262,12 +306,9 @@ export function ChatControls({
           )}
         </div>
 
-        <div className="border-foreground/10 text-muted-foreground flex items-center justify-between border-t px-4 py-2 font-mono text-xs tracking-wider uppercase">
+        <div className="border-foreground/10 text-muted-foreground flex shrink-0 items-center justify-between border-t px-4 py-2 text-[11px]">
           <span className="inline-flex items-center gap-1.5">
-            <span
-              aria-hidden
-              className="bg-foreground inline-block h-1 w-1 animate-pulse rounded-full"
-            />
+            <span aria-hidden className="bg-foreground inline-block h-1 w-1 rounded-full" />
             {currentConversationId ? t("savedForChat") : t("savesOnSend")}
           </span>
           <span>{t("escToClose")}</span>

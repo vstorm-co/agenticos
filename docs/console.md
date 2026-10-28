@@ -34,6 +34,8 @@ Generated portraits use a constrained set of Blobatar 2.7 silhouettes and bright
 Chat settings show Browser and Work on before Permissions. Conversation notifications
 and account connections remain below the permissions controls.
 
+Chat settings use a fixed heading and close button above a scrolling body. Information icons explain the model, Browser, Work on and permission modes on demand; the selected permission mode keeps its explanation visible. Under **Knowledge bases → Integrations**, integrations and local services use compact panels that fit their content, with explanatory text behind information icons.
+
 ## The dashboard
 
 The landing page is an **arrangeable grid of widgets**, and it is the answer to

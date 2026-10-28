@@ -76,27 +76,3 @@ describe("the page transition wrapper", () => {
     expect(rootClasses("/en/runsomething")).toContain(PAGE_CLEARANCE);
   });
 });
-
-it("marks only chat for edge-to-edge layout so its parent can remove page padding", () => {
-  pathname = "/en/chat";
-  const view = render(
-    <PageTransition>
-      <div />
-    </PageTransition>,
-  );
-  expect(view.container.firstElementChild).toHaveAttribute("data-page-layout", "chat");
-  pathname = "/en/agents";
-  view.rerender(
-    <PageTransition>
-      <div />
-    </PageTransition>,
-  );
-  expect(view.container.firstElementChild).not.toHaveAttribute("data-page-layout");
-  pathname = "/en/chatty";
-  view.rerender(
-    <PageTransition>
-      <div />
-    </PageTransition>,
-  );
-  expect(view.container.firstElementChild).not.toHaveAttribute("data-page-layout");
-});
