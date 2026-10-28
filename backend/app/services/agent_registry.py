@@ -617,12 +617,19 @@ class _ModelRef:
     profile_id: UUID
 
 
-def _binding_model_refs(
-    bindings: Sequence[CapabilityBindingSpec], *, root: str, says: str
-) -> list[_ModelRef]:
-    """The models capabilities run their own calls on: a browse's steps, follow-ups."""
+def _binding_model_refs(bindings: Sequence[CapabilityBindingSpec]) -> list[_ModelRef]:
+    """The models enabled capabilities run their own calls on: a browse's steps, follow-ups.
+
+    Only an enabled binding: the runner resolves neither model for one that is
+    switched off (`_browser_step_profile`, `follow_ups.model_profile`), and the
+    sign-in check refuses only what a run can spend. The field is the config's,
+    addressed the way `_config_problems` addresses one, so the capability's form
+    marks it.
+    """
     refs: list[_ModelRef] = []
     for binding in bindings:
+        if not binding.enabled:
+            continue
         try:
             config = get_capability(binding.id).validate_config(binding.config)
         except BadRequestError:
@@ -638,8 +645,8 @@ def _binding_model_refs(
         if profile_id is not None:
             refs.append(
                 _ModelRef(
-                    f"{root}capabilities.{binding.id}.{name}",
-                    f"{says}Capability '{binding.id}': ",
+                    f"capabilities.{binding.id}.config.{name}",
+                    f"Capability '{binding.id}': ",
                     profile_id,
                 )
             )
@@ -649,11 +656,15 @@ def _binding_model_refs(
 def _model_refs(spec: AgentSpec) -> list[_ModelRef]:
     """Every model a run of this spec can be handed to, and the input that names it.
 
-    The places `validate_spec` checks a profile, walked once more for the one
-    check that also has to run when a version is promoted rather than published:
-    the agent's model, each reviewer's, the models its capabilities run steps on,
-    and each inline specialist's - field paths prefixed the way
-    `_SpecProblems.within_specialist` prefixes the rest of a specialist's.
+    Not `validate_spec`'s walk, on purpose: that one asks whether each named
+    profile *exists* and can run, wherever it is named; this one asks only about
+    the models a run reaches, because it is held to the runtime's spend rule -
+    and it also runs on its own when a version is promoted. So: the agent's
+    model, each reviewer's, the models its enabled capabilities run steps on,
+    and each inline specialist's own model, prefixed the way
+    `_SpecProblems.within_specialist` prefixes a specialist's fields. A
+    specialist's browse and follow-ups capabilities run on no model of their
+    own - the runner hands neither to a delegated run.
     """
     refs: list[_ModelRef] = []
     if spec.model_profile_id is not None:
@@ -667,14 +678,17 @@ def _model_refs(spec: AgentSpec) -> list[_ModelRef]:
                     reviewer.model_profile_id,
                 )
             )
-    refs.extend(_binding_model_refs(spec.capabilities, root="", says=""))
+    refs.extend(_binding_model_refs(spec.capabilities))
     config = _subagents_config(spec)
     for specialist in config.inline if config is not None else ():
-        root = f"specialists.{specialist.name}."
-        says = f"Specialist '{specialist.name}': "
         if specialist.model_profile_id is not None:
-            refs.append(_ModelRef(f"{root}model_profile_id", says, specialist.model_profile_id))
-        refs.extend(_binding_model_refs(specialist.capabilities, root=root, says=says))
+            refs.append(
+                _ModelRef(
+                    f"specialists.{specialist.name}.model_profile_id",
+                    f"Specialist '{specialist.name}': ",
+                    specialist.model_profile_id,
+                )
+            )
     return refs
 
 

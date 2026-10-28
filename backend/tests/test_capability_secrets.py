@@ -38,16 +38,25 @@ from app.core.secret_kinds import (
     SecretRequirement,
 )
 from app.db.models.resource_grant import GrantLevel, Visibility
-from app.services.agent_registry import AgentRegistryService, _SpecProblems
+from app.services.agent_registry import AgentRegistryService
 
 pytestmark = pytest.mark.security
 
 
 @pytest.fixture(autouse=True)
 def _no_model_runs_on_a_sign_in(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The mocked database answers anything; `test_publish_sign_ins` covers the check."""
+    """No profile here runs on a ChatGPT sign-in; `test_publish_sign_ins` has those.
+
+    Stubbed at the repository boundary, so the real check runs - and finds nothing
+    to refuse - on every publish, rollback and draft check below.
+    """
     monkeypatch.setattr(
-        AgentRegistryService, "_sign_in_problems", AsyncMock(return_value=_SpecProblems())
+        "app.services.agent_registry.credential_repo.get_profiles_by_ids",
+        AsyncMock(return_value={}),
+    )
+    monkeypatch.setattr(
+        "app.services.agent_registry.organization_secret_repo.get_many",
+        AsyncMock(return_value={}),
     )
 
 

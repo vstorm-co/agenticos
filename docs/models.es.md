@@ -1,5 +1,5 @@
 ---
-source_sha: "3509334c4bc7"
+source_sha: "67e007c8a946"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -387,11 +387,13 @@ el secreto, que vuelve a iniciar sesión sin cambiar su id.
       trabajo en segundo plano como describir las imágenes de un documento, el
       modelo se rechaza y un fallback sobre él se omite.
     - **No cualquiera puede publicar sobre él.** Publicar, hacer rollback a o
-      promocionar una versión de un agente cuyo modelo - o uno de sus tres
-      primeros fallbacks - funciona sobre un inicio de sesión se rechaza para
-      quien no puede ver ese inicio de sesión en el vault. Pueden hacerlo su
-      dueño, los owners y admins, y cualquiera con quien se haya compartido. Una
-      versión publicada antes sobre él sigue funcionando.
+      promover una versión de un agente se rechaza para quien no puede ver el
+      inicio de sesión en el vault cuando funciona sobre él un modelo al que
+      llegan sus runs: el modelo del agente o uno de sus tres primeros
+      fallbacks, el de un revisor, el de un especialista inline o el de una
+      capability activada. Pueden hacerlo el dueño del inicio de sesión, los
+      owners y admins, y cualquiera con quien se haya compartido. Una versión
+      publicada antes sobre él sigue funcionando.
     - **El gasto mostrado no es tu factura.** Un run se tarifa a los precios de
       la API de OpenAI para el mismo modelo, que es lo que un
       [budget](governance.md#budgets) puede razonar. La suscripción en sí la

@@ -1,5 +1,5 @@
 ---
-source_sha: "3509334c4bc7"
+source_sha: "67e007c8a946"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -376,11 +376,13 @@ jego id.
       opisywanie obrazów z dokumentu, model jest odrzucany, a fallback na nim
       pomijany.
     - **Nie każdy może na nim publikować.** Publikacja, rollback do wersji lub
-      promocja wersji agenta, którego model - albo jeden z jego pierwszych trzech
-      fallbacków - działa na logowaniu, jest odrzucana dla kogoś, kto nie widzi
-      tego logowania w vault. Mogą to zrobić jego właściciel, właściciele i
-      administratorzy organizacji oraz każdy, komu je udostępniono. Wersja
-      opublikowana na nim wcześniej działa dalej.
+      promocja wersji agenta jest odrzucana dla kogoś, kto nie widzi logowania w
+      vault, gdy działa na nim model, do którego docierają runy agenta: model
+      agenta lub jeden z jego pierwszych trzech fallbacków, model recenzenta,
+      wbudowanego specjalisty albo włączonej capability. Mogą to zrobić osoba,
+      do której należy logowanie, właściciele (owner) i administratorzy (admin)
+      organizacji oraz każdy, komu je udostępniono. Wersja opublikowana na nim
+      wcześniej działa dalej.
     - **Pokazany wydatek to nie twój rachunek.** Run jest wyceniany według
       stawek API OpenAI dla tego samego modelu, bo to na tym może opierać się
       [budżet](governance.md#budgets). Samą subskrypcję OpenAI rozlicza według

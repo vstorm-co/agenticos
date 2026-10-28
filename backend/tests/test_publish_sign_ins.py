@@ -9,6 +9,8 @@ and grants deciding it against real rows are in
 """
 
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -69,12 +71,17 @@ class _Vault:
     async def _may_see(self, _db, _ctx, secret, *_args, **_kwargs) -> bool:
         return secret.id in self.visible
 
-    async def problems(self, spec: AgentSpec):
+    @contextmanager
+    def patched(self) -> Iterator[None]:
         with (
             patch(f"{REGISTRY_PATH}.credential_repo.get_profiles_by_ids", new=self._profiles),
             patch(f"{REGISTRY_PATH}.organization_secret_repo.get_many", new=self._secrets),
             patch(f"{REGISTRY_PATH}.resolve_access", new=self.access),
         ):
+            yield
+
+    async def problems(self, spec: AgentSpec):
+        with self.patched():
             return await AgentRegistryService(MagicMock())._sign_in_problems(_ctx(), spec)
 
 
@@ -119,6 +126,8 @@ class TestTheAgentsOwnModel:
             _spec(
                 model_profile_id=str(model.id),
                 reviewers=[{"name": "tone", "model_profile_id": str(keyless.id)}],
+                # Follow-ups on no model of its own runs on the agent's.
+                capabilities=[{"id": "follow_ups"}],
             )
         )
 
@@ -220,19 +229,11 @@ class TestEveryModelARunReaches:
                                     "description": "Looks things up",
                                     "instructions": "Find sources.",
                                     "model_profile_id": pid,
-                                    "capabilities": [
-                                        {"id": "follow_ups", "config": {"model_profile_id": pid}},
-                                        {
-                                            "id": "browser_use",
-                                            "config": {"step_model_profile_id": "not-an-id"},
-                                        },
-                                    ],
                                 },
                                 {
                                     "name": "writer",
                                     "description": "Writes it down",
                                     "instructions": "Write it up.",
-                                    "capabilities": [{"id": "browser_use", "config": {}}],
                                 },
                             ]
                         },
@@ -241,43 +242,56 @@ class TestEveryModelARunReaches:
             )
         )
 
+        # A capability's field is addressed inside its config, as the card's
+        # generated form marks one (`capabilityConfigErrors`).
         assert [problem["field"] for problem in problems.fields] == [
             "reviewers.0.model_profile_id",
-            "capabilities.browser_use.step_model_profile_id",
-            "capabilities.follow_ups.model_profile_id",
+            "capabilities.browser_use.config.step_model_profile_id",
+            "capabilities.follow_ups.config.model_profile_id",
             "specialists.researcher.model_profile_id",
-            "specialists.researcher.capabilities.follow_ups.model_profile_id",
         ]
         assert problems.messages[0].startswith("Reviewer 'tone': Model 'Ada's Codex'")
         assert problems.messages[1].startswith("Capability 'browser_use': Model")
         assert problems.messages[3].startswith("Specialist 'researcher': Model")
-        assert problems.messages[4].startswith(
-            "Specialist 'researcher': Capability 'follow_ups': Model"
+
+    async def test_a_model_no_run_reaches_is_not_refused(self):
+        """Held to the spend rule, not wider: a switched-off capability's model and
+        a specialist's capability models are never handed a run, so a sign-in there
+        spends nobody's subscription. `validate_spec` still checks they exist."""
+        sign_in = _secret(SecretKind.OPENAI_CODEX)
+        codex = _profile("Ada's Codex", secret=sign_in)
+        vault = _Vault(codex, secrets=(sign_in,))
+        pid = str(codex.id)
+
+        problems = await vault.problems(
+            _spec(
+                capabilities=[
+                    {
+                        "id": "browser_use",
+                        "enabled": False,
+                        "config": {"step_model_profile_id": pid},
+                    },
+                    {"id": "follow_ups", "enabled": False, "config": {"model_profile_id": pid}},
+                    {
+                        "id": "subagents",
+                        "config": {
+                            "inline": [
+                                {
+                                    "name": "researcher",
+                                    "description": "Looks things up",
+                                    "instructions": "Find sources.",
+                                    "capabilities": [
+                                        {"id": "follow_ups", "config": {"model_profile_id": pid}}
+                                    ],
+                                }
+                            ]
+                        },
+                    },
+                ],
+            )
         )
 
-
-class TestValidateSpecReportsIt:
-    async def test_publish_validation_carries_the_refusal_and_its_field(self):
-        """The check is part of `validate_spec`, so publish, rollback, the Builder's
-        draft check and switching a capability on all refuse it."""
-        registry = AgentRegistryService(MagicMock())
-        message = "Model 'Ada's Codex' runs on somebody's own ChatGPT sign-in"
-        found = MagicMock()
-        found.messages, found.fields = (
-            [message],
-            [{"field": "model_profile_id", "message": message}],
-        )
-        with (
-            patch(f"{REGISTRY_PATH}.credential_repo.get_profile", new=AsyncMock(return_value=None)),
-            patch.object(AgentRegistryService, "_sign_in_problems", AsyncMock(return_value=found)),
-            pytest.raises(BadRequestError) as refused,
-        ):
-            await registry.validate_spec(_ctx(), _spec(model_profile_id=str(uuid.uuid4())))
-
-        assert message in refused.value.details["problems"]
-        assert refused.value.details["fields"] == [
-            {"field": "model_profile_id", "message": message}
-        ]
+        assert problems.messages == []
 
 
 class TestPromotion:
@@ -288,12 +302,7 @@ class TestPromotion:
         version = MagicMock(id=uuid.uuid4(), version=4)
         version.spec = {"name": "x", "model_profile_id": str(codex.id)}
 
-        with (
-            patch(f"{REGISTRY_PATH}.credential_repo.get_profiles_by_ids", new=vault._profiles),
-            patch(f"{REGISTRY_PATH}.organization_secret_repo.get_many", new=vault._secrets),
-            patch(f"{REGISTRY_PATH}.resolve_access", new=vault.access),
-            pytest.raises(BadRequestError) as refused,
-        ):
+        with vault.patched(), pytest.raises(BadRequestError) as refused:
             await AgentRegistryService(MagicMock()).refuse_borrowed_sign_ins(_ctx(), version)
 
         assert refused.value.message == (
@@ -309,9 +318,5 @@ class TestPromotion:
         version = MagicMock()
         version.spec = {"name": "x", "model_profile_id": str(codex.id)}
 
-        with (
-            patch(f"{REGISTRY_PATH}.credential_repo.get_profiles_by_ids", new=vault._profiles),
-            patch(f"{REGISTRY_PATH}.organization_secret_repo.get_many", new=vault._secrets),
-            patch(f"{REGISTRY_PATH}.resolve_access", new=vault.access),
-        ):
+        with vault.patched():
             await AgentRegistryService(MagicMock()).refuse_borrowed_sign_ins(_ctx(), version)

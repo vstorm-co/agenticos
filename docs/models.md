@@ -360,10 +360,12 @@ again without changing its id.
       describing a document's images, the model is refused, and a fallback on it is
       skipped.
     - **It is not anybody's to publish on.** Publishing, rolling back to or
-      promoting a version of an agent whose model - or one of its first three
-      fallbacks - runs on a sign-in is refused for somebody who cannot see that
-      sign-in in the vault: its owner, owners and admins, and anybody it was
-      shared with may. A version published on it earlier keeps running.
+      promoting a version of an agent is refused for somebody who cannot see the
+      sign-in in the vault when a model its runs reach is on one: the agent's
+      model or one of its first three fallbacks, a reviewer's, an inline
+      specialist's, or an enabled capability's. The sign-in's owner, owners and
+      admins, and anybody it was shared with may. A version published on it
+      earlier keeps running.
     - **The spend shown is not your bill.** A run is priced at the OpenAI API
       rates for the same model, which is what a [budget](governance.md#budgets)
       can reason about. The subscription itself is billed by OpenAI at a flat rate.

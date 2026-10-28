@@ -1,5 +1,5 @@
 ---
-source_sha: "3509334c4bc7"
+source_sha: "67e007c8a946"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -404,11 +404,13 @@ ohne seine Id zu ändern.
       Dokuments, wird das Modell abgelehnt, und ein Fallback darauf wird
       übersprungen.
     - **Nicht jeder darf darauf veröffentlichen.** Das Veröffentlichen, das
-      Zurückrollen auf oder das Promoten einer Version eines Agenten, dessen
-      Modell - oder einer seiner ersten drei Fallbacks - auf einer Anmeldung
-      läuft, wird für jemanden abgelehnt, der diese Anmeldung im Vault nicht sehen
-      kann. Ihr Inhaber, Owner und Admins sowie alle, mit denen sie geteilt wurde,
-      dürfen es. Eine früher darauf veröffentlichte Version läuft weiter.
+      Zurückrollen auf oder das Promoten einer Version eines Agenten wird für
+      jemanden abgelehnt, der die Anmeldung im Vault nicht sehen kann, wenn ein
+      Modell, das seine Runs erreichen, darauf läuft: das Modell des Agenten oder
+      einer seiner ersten drei Fallbacks, das eines Reviewers, eines
+      Inline-Spezialisten oder einer eingeschalteten Capability. Der Inhaber der
+      Anmeldung, Owner und Admins sowie alle, mit denen sie geteilt wurde, dürfen
+      es. Eine früher darauf veröffentlichte Version läuft weiter.
     - **Die angezeigten Ausgaben sind nicht Ihre Rechnung.** Ein Run wird zu den
       OpenAI-API-Preisen für dasselbe Modell bepreist, und damit kann ein
       [Budget](governance.md#budgets) rechnen. Das Abonnement selbst rechnet
