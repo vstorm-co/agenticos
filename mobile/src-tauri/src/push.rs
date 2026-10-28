@@ -14,6 +14,8 @@ use tauri::{AppHandle, Runtime};
 #[derive(Serialize, Deserialize, Default, Debug, PartialEq)]
 #[serde(default, rename_all = "camelCase")]
 pub struct PushStatus {
+    #[serde(default)]
+    pub permission: Option<String>,
     /// Distributor apps installed - none means push needs one (ntfy).
     pub distributors: Vec<String>,
     /// The one in use, once registered.
@@ -105,6 +107,21 @@ pub async fn push_unregister<R: Runtime>(app: AppHandle<R>) -> Result<(), String
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+#[cfg(target_os = "android")]
+pub fn open_settings<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
+    run::<R, _, serde::de::IgnoredAny>(app, "openSettings", ()).map(|_| ())
+}
+
+#[cfg(target_os = "android")]
+pub fn bind<R: Runtime>(app: &AppHandle<R>, session_id: &str) -> Result<(), String> {
+    run::<R, _, serde::de::IgnoredAny>(
+        app,
+        "bindSession",
+        serde_json::json!({"sessionId": session_id}),
+    )
+    .map(|_| ())
 }
 
 #[cfg(test)]

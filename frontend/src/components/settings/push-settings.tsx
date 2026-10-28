@@ -6,6 +6,7 @@ import { BellRing } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui";
+import { MobileNotificationPreferences } from "@/components/mobile/notification-preferences";
 import { IphonePush } from "@/components/mobile/iphone-push";
 import { PhonePush } from "@/components/mobile/phone-push";
 import { SectionCard } from "@/components/settings/settings-section";
@@ -23,8 +24,19 @@ import { disablePush, enablePush, pushState, sendTestPush, type PushState } from
 export function PushSettings() {
   const shell = useShell();
   if (shell === null) return <PushCard />;
-  if (shell.platform === "android") return <PhonePush />;
-  return shell.platform === "ios" ? <IphonePush /> : null;
+  if (shell.platform === "android")
+    return (
+      <>
+        <PhonePush />
+        <MobileNotificationPreferences />
+      </>
+    );
+  return shell.platform === "ios" ? (
+    <>
+      <IphonePush />
+      <MobileNotificationPreferences />
+    </>
+  ) : null;
 }
 
 function PushCard() {

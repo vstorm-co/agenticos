@@ -1,5 +1,6 @@
 "use client";
 
+import { MobileConversationNotifications } from "@/components/mobile/notification-preferences";
 import { ConversationNotificationToggle } from "@/components/desktop/notification-settings";
 import { useId } from "react";
 import { useMutation } from "@tanstack/react-query";
@@ -12,7 +13,7 @@ import {
   useLocalFolders,
   useLocalServices,
 } from "@/hooks/use-desktop";
-import { isDesktopShell } from "@/lib/desktop/shell";
+import { isDesktopShell, isMobileShell } from "@/lib/desktop/shell";
 import { useShell } from "@/hooks/use-shell";
 import { allowWholeComputer, revokeWholeComputer, type LocalMode } from "@/lib/desktop/commands";
 import { reportShellFailure } from "@/lib/desktop/shell";
@@ -43,7 +44,14 @@ export function WorkOn() {
       <ComputerWorkOn />
       <ConversationNotifications />
     </>
+  ) : isMobileShell(shell) ? (
+    <MobileConversationNotification />
   ) : null;
+}
+
+function MobileConversationNotification() {
+  const id = useConversationStore((s) => s.currentConversationId);
+  return <MobileConversationNotifications conversationId={id} />;
 }
 
 function ConversationNotifications() {

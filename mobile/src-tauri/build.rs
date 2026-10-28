@@ -6,6 +6,12 @@ fn main() {
     let mut attributes =
         tauri_build::Attributes::new().app_manifest(tauri_build::AppManifest::new().commands(&[
             "server_url",
+            "mobile_settings",
+            "bind_push_session",
+            "open_mobile_settings",
+            "set_mobile_lock",
+            "forget_server",
+            "choose_server",
             "startup_notice",
             "pair_with",
             "connect",

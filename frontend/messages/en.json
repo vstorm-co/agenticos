@@ -5884,7 +5884,8 @@
           "failed": "{distributor} did not take the registration. Open it, check it can reach its server, and try again.",
           "on": "On, through {distributor}. Which events reach you is set below, under Push.",
           "turnOff": "Turn off on this phone",
-          "notRegistered": "ntfy did not hand over an address. Open it and try again."
+          "notRegistered": "ntfy did not hand over an address. Open it and try again.",
+          "denied": "Notifications are disabled in Android settings. Allow them for AgenticOS, then check again."
         },
         "iphone": {
           "title": "Notifications while the app is closed",
@@ -9345,6 +9346,44 @@
     },
     "share": {
       "notAttached": "Could not attach: {names}"
+    },
+    "setup": {
+      "title": "Finish setting up this phone",
+      "welcome": "Review this connection, even if you already use AgenticOS elsewhere. You can finish optional settings later.",
+      "hint": "Your account and this phone’s settings on this server.",
+      "account": "Signed-in account",
+      "agent": "An agent you can use",
+      "lock": "App lock",
+      "notifications": "Notifications",
+      "ready": "Ready",
+      "missing": "Not set up",
+      "checking": "Checking…",
+      "error": "Could not check. Try again.",
+      "unavailable": "Not available on this device",
+      "retry": "Check again",
+      "open": "Open",
+      "settings": "Phone settings",
+      "deviceTitle": "This phone",
+      "deviceHint": "Protection and saved server connections.",
+      "lockHint": "Use Face ID, fingerprint or the device passcode when returning to the app.",
+      "managed": "Managed by your organization",
+      "failed": "Could not update this setting. Try again.",
+      "servers": "Switch server",
+      "switching": "Switching…",
+      "switchFailed": "Could not switch. Connect to the current server so its push registration can be removed, then try again.",
+      "serverHint": "Saved servers keep their own sign-in and offline data. Switching turns off push for the server you leave; enable it again on the next server. Removing an entry does not erase its sign-in: sign out there first on a shared phone.",
+      "contextPermissions": "Camera access is requested only when you scan a code. Microphone access is requested when you start voice. Nothing is recorded by these checks.",
+      "privacyTitle": "Phone notification privacy",
+      "privacyHint": "Saved for this sign-in and applied before a push is sent, including when the app is closed.",
+      "hidePreviews": "Hide notification text",
+      "mutedCount": "{count} conversations muted on this phone.",
+      "mute": "Mute notifications for this conversation",
+      "unmute": "Unmute notifications for this conversation",
+      "systemSettings": "Open system settings",
+      "installDistributor": "Install ntfy",
+      "testAccepted": "Push service accepted the test.",
+      "testHint": "A successful test means a push service accepted it, not that this phone displayed it. Check the notification shade or lock screen.",
+      "continue": "Continue"
     }
   },
   "agentPin": {

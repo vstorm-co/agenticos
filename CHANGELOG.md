@@ -19,8 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
-
 ### Added
+
+- Mobile connection readiness for existing accounts, configurable biometric app
+  lock, named saved servers with session-preserving switching, and server-side
+  push preview privacy, conversation muting and expiring active-chat
+  suppression.
 
 - Multiple named local desktop instances with separate Compose projects, ports,
   volumes, networks, deployment keys and login cookies; interrupted setup can

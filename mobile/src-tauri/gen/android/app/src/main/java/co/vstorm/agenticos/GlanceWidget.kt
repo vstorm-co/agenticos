@@ -101,6 +101,14 @@ class GlanceArgs {
 @TauriPlugin
 class WidgetPlugin(private val activity: Activity) : Plugin(activity) {
     @Command
+    fun clear(invoke: Invoke) {
+        activity.getSharedPreferences(STORE, Context.MODE_PRIVATE).edit().clear().apply()
+        PinnedAgentsWidget.clear(activity)
+        GlanceWidget.refresh(activity)
+        invoke.resolve()
+    }
+
+    @Command
     fun update(invoke: Invoke) {
         val args = invoke.parseArgs(GlanceArgs::class.java)
         activity.getSharedPreferences(STORE, Context.MODE_PRIVATE).edit()

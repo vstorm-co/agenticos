@@ -60,7 +60,7 @@ def _row(*, sandbox: bool = False, **overrides: object) -> SimpleNamespace:
 
 
 def _device() -> MagicMock:
-    return MagicMock(id=uuid4(), token=TOKEN)
+    return MagicMock(id=uuid4(), session_id=None, token=TOKEN)
 
 
 class _Apple:
@@ -419,3 +419,25 @@ class TestEverywhere:
     def test_it_builds_both_senders_by_default(self) -> None:
         service = PushService(AsyncMock())
         assert isinstance(service.apple, ApnsService)
+
+
+async def test_a_muted_conversation_never_leaves_for_apple() -> None:
+    device = _device()
+    device.session_id = uuid4()
+    conversation = uuid4()
+    apple = _Apple()
+    with (
+        patch(f"{MODULE}.device_repo.list_for_user", new=AsyncMock(return_value=[device])),
+        patch(
+            f"{MODULE}.session_repo.push_preferences_for",
+            new=AsyncMock(
+                return_value={device.session_id: {"muted_conversations": [str(conversation)]}}
+            ),
+        ),
+        patch(f"{MODULE}.deployment_repo.get", new=AsyncMock(return_value=_row())),
+    ):
+        outcome = await ApnsService(AsyncMock(), connect=apple.connect).send(
+            uuid4(), PushMessage("Acme", "Private", f"/chat?id={conversation}", "n")
+        )
+    assert outcome == PushOutcome(sent=0, gone=0, failed=0)
+    assert apple.posts == []

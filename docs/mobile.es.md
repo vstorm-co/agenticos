@@ -1,5 +1,5 @@
 ---
-source_sha: "dc1f3fe63a6e"
+source_sha: "155922214d1d"
 ---
 
 # La app del móvil { #the-phone-app }
@@ -35,6 +35,53 @@ en 30 segundos, la app vuelve al formulario del servidor con la dirección
 guardada y un mensaje de conexión. Reintenta o escribe otra dirección. Una copia
 sin conexión que carga correctamente permanece abierta.
 
+## Preparación de la conexión y servidores guardados { #connection-readiness-and-saved-servers }
+
+Tras iniciar sesión, **Termina de configurar este teléfono** comprueba la cuenta,
+un agente publicado disponible, el bloqueo y las notificaciones. También se ofrece
+a cuentas existentes con ajustes pendientes. Continuar aplaza los pasos opcionales;
+se pueden revisar en **Ajustes → Aplicación móvil**. Si cambian los ajustes que
+faltan, se ofrece otra revisión. La cámara solo se solicita al escanear y el
+micrófono al iniciar voz, nunca durante estas comprobaciones. Si iOS deniega
+notificaciones, un botón abre los ajustes del sistema; al volver se revisa el permiso.
+
+**Ajustes → Aplicación móvil → Cambiar servidor** abre las conexiones guardadas.
+Asigna un nombre, escanea otro código o introduce una dirección. Se guardan hasta
+20 servidores. La dirección existente se migra automáticamente. Volver abre el
+panel con su sesión persistente. Las cookies y los datos sin conexión no se copian
+entre orígenes; cerrar sesión o cambiar de cuenta sigue borrando su caché del
+dispositivo. Cada servidor debe tener un nombre de host diferente: los puertos no
+aíslan cookies. Quitar una entrada no borra los datos del navegador; cierra sesión
+antes de compartir el teléfono.
+
+Cambiar elimina primero el registro push del servidor anterior. Si tiene un
+registro, ese servidor debe estar accesible. Activa push explícitamente en el
+siguiente. No se mantienen notificaciones de varios servidores a la vez. Las
+políticas de la organización sobre servidor y bloqueo tienen prioridad;
+desactivar el bloqueo requiere autenticación del dispositivo.
+
+El cambio también borra Live Activities anteriores, acciones pendientes y
+agentes fijados en widgets. Los toques de notificaciones nativas se vinculan al
+inicio de sesión que registró push; una notificación tardía no abrirá una
+conversación en otro servidor.
+
+## Privacidad de notificaciones { #notification-privacy }
+
+Las preferencias del teléfono pertenecen al inicio de sesión actual. **Ajustes →
+Notificaciones** permite ocultar el texto; los ajustes del chat permiten silenciar
+una conversación. El servidor las aplica antes de enviar APNs o Web Push, incluso
+con la aplicación cerrada. Un chat visible y enfocado renueva cada 30 segundos una
+supresión de 90 segundos. Salir del chat o pasar a segundo plano borra el foco;
+si el proceso termina sin limpieza, caduca como máximo a los 90 segundos. Esto
+afecta a push, no a la bandeja de entrada ni a las Live Activities en curso.
+
+El test confirma la aceptación del servicio push, no la visualización en ese
+teléfono. Comprueba la pantalla de bloqueo o el centro de notificaciones. Android
+usa UnifiedPush y ofrece instrucciones de instalación de ntfy si falta un
+distribuidor. iOS distingue la falta de configuración APNs de la organización y
+un permiso del sistema denegado. No se añade Firebase.
+
+
 ## Push { #push }
 
 | Dónde | A través de | Se activa en |
@@ -46,7 +93,11 @@ sin conexión que carga correctamente permanece abierta.
 Las notificaciones de cada evento - correo, push - se eligen por evento en Ajustes
 → Notificaciones. Una notificación abre su página a través del bloqueo de la app.
 
-El push registrado por un inicio de sesión se detiene cuando la sesión se revoca o caduca. Un token vinculado solo recibe mensajes si su sesión pertenece al mismo usuario. Las suscripciones antiguas sin sesión registrada conservan su permiso; elimínalas y regístralas de nuevo para vincularlas al dispositivo actual.
+El push registrado por un inicio de sesión se detiene cuando la sesión se revoca
+o caduca. Un token vinculado solo recibe mensajes si su sesión pertenece al
+mismo usuario. Las suscripciones antiguas sin sesión registrada conservan su
+permiso; elimínalas y regístralas de nuevo para vincularlas al dispositivo
+actual.
 
 ## Fuera de la app { #outside-the-app }
 

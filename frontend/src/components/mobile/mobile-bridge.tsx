@@ -1,5 +1,9 @@
 "use client";
 
+import { readMobilePushPreferences } from "@/lib/mobile/notifications";
+import { MobilePushFocus } from "./notification-preferences";
+import { MobileSetupGate } from "./mobile-setup";
+
 import { useEffect, useEffectEvent, useMemo, useRef } from "react";
 import { useTranslations } from "next-intl";
 
@@ -55,7 +59,13 @@ const MAX_RUNS = 3;
  */
 export function MobileBridge() {
   const shell = useShell();
-  return isMobileShell(shell) ? <Bridge shell={shell} /> : null;
+  return isMobileShell(shell) ? (
+    <>
+      <Bridge shell={shell} />
+      <MobileSetupGate />
+      <MobilePushFocus />
+    </>
+  ) : null;
 }
 
 function Bridge({ shell }: { shell: ShellInfo }) {
@@ -155,10 +165,11 @@ function Bridge({ shell }: { shell: ShellInfo }) {
   // server is told the current one whenever the console arrives, as a
   // browser's is.
   useEffect(() => {
-    const sync =
+    const sync = readMobilePushPreferences().then(() =>
       shell.platform === "android"
         ? phonePushStatus().then(syncPhonePush)
-        : iphonePush().then(syncIphonePush);
+        : iphonePush().then(syncIphonePush),
+    );
     sync.catch((error: unknown) => reportShellFailure("could not sync push", error));
   }, [shell]);
 

@@ -5,7 +5,9 @@
  * over is told to the server, which signs every message with that key.
  */
 
+import { readMobilePushPreferences } from "./notifications";
 import { apiClient } from "@/lib/api-client";
+import { ApiError } from "@/lib/api-error";
 import { invokeShell, ShellError } from "@/lib/desktop/shell";
 
 export type ApnsEnvironment = "production" | "sandbox";
@@ -51,9 +53,13 @@ export function apnsSetup(): Promise<ApnsSetup> {
   return apiClient.get<ApnsSetup>("/push/apns");
 }
 
+export async function nativeIphonePush(): Promise<Omit<IphonePush, "configured">> {
+  return parseApnsStatus(await invokeShell("apns_status"));
+}
+
 export async function iphonePush(): Promise<IphonePush> {
-  const [setup, status] = await Promise.all([apnsSetup(), invokeShell("apns_status")]);
-  return { configured: setup.configured, ...parseApnsStatus(status) };
+  const [setup, status] = await Promise.all([apnsSetup(), nativeIphonePush()]);
+  return { configured: setup.configured, ...status };
 }
 
 /** Tell the server this iPhone's token - again on every arrival, as a browser's subscription is. */
@@ -65,6 +71,7 @@ export async function syncIphonePush(push: IphonePush): Promise<void> {
 
 /** Ask the person, register with APNs, tell the server. The state it ended in. */
 export async function enableIphonePush(): Promise<IphonePush> {
+  await readMobilePushPreferences();
   const status = parseApnsStatus(await invokeShell("apns_register"));
   const push = { configured: true, ...status };
   await syncIphonePush(push);
@@ -73,7 +80,11 @@ export async function enableIphonePush(): Promise<IphonePush> {
 
 export async function disableIphonePush(push: IphonePush): Promise<IphonePush> {
   if (push.token !== null) {
-    await apiClient.delete("/push/apns/devices", { params: { token: push.token } });
+    try {
+      await apiClient.delete("/push/apns/devices", { params: { token: push.token } });
+    } catch (error) {
+      if (!(error instanceof ApiError && error.status === 404)) throw error;
+    }
   }
   await invokeShell("apns_unregister");
   return { ...push, token: null };

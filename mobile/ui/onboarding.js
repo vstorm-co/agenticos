@@ -28,7 +28,10 @@ for (const button of document.querySelectorAll("[data-go]")) {
 /** The camera, asked for once, with a way to the system settings if it was refused. */
 async function scan() {
   const scanner = window.__TAURI__.barcodeScanner;
-  if (!scanner) throw new Error("This device has no camera to scan with. Enter the address instead.");
+  if (!scanner)
+    throw new Error(
+      "This device has no camera to scan with. Enter the address instead.",
+    );
   let permission = await scanner.checkPermissions();
   if (permission === "prompt" || permission === "prompt-with-rationale") {
     permission = await scanner.requestPermissions();
@@ -37,19 +40,24 @@ async function scan() {
     await scanner.openAppSettings();
     throw new Error("Allow AgenticOS to use the camera, then scan again.");
   }
-  const result = await scanner.scan({ windowed: false, formats: [scanner.Format.QRCode] });
+  const result = await scanner.scan({
+    windowed: false,
+    formats: [scanner.Format.QRCode],
+  });
   return result.content;
 }
 
-document.querySelector('[data-action="scan"]').addEventListener("click", async () => {
-  welcomeError.hidden = true;
-  try {
-    const link = await scan();
-    await invoke("pair_with", { link });
-  } catch (message) {
-    say(welcomeError, message instanceof Error ? message.message : message);
-  }
-});
+document
+  .querySelector('[data-action="scan"]')
+  .addEventListener("click", async () => {
+    welcomeError.hidden = true;
+    try {
+      const link = await scan();
+      await invoke("pair_with", { link });
+    } catch (message) {
+      say(welcomeError, message instanceof Error ? message.message : message);
+    }
+  });
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -57,7 +65,10 @@ form.addEventListener("submit", async (event) => {
   const submit = form.querySelector(".filled");
   submit.disabled = true;
   try {
-    await invoke("connect", { url: field.value });
+    await invoke("connect", {
+      url: field.value,
+      name: document.getElementById("server-name").value || null,
+    });
   } catch (message) {
     say(formError, message);
     submit.disabled = false;
@@ -73,3 +84,49 @@ Promise.all([invoke("server_url"), invoke("startup_notice")])
     }
   })
   .catch((message) => say(welcomeError, message));
+
+// Build labels with textContent: a saved name is user input, never HTML.
+invoke("mobile_settings")
+  .then((settings) => {
+    const list = document.getElementById("saved-servers");
+    list.hidden = settings.servers.length === 0;
+    for (const server of settings.servers) {
+      const row = document.createElement("div");
+      const open = document.createElement("button");
+      open.className = "saved-server";
+      const title = document.createElement("strong");
+      title.textContent = server.name;
+      const address = document.createElement("span");
+      address.textContent = server.url;
+      open.append(title, address);
+      open.addEventListener("click", async () => {
+        open.disabled = true;
+        try {
+          await invoke("connect", { url: server.url, name: server.name });
+        } catch (error) {
+          say(welcomeError, error);
+          open.disabled = false;
+        }
+      });
+      row.append(open);
+      if (server.url !== settings.active && !settings.locked_server) {
+        const remove = document.createElement("button");
+        remove.className = "remove-server";
+        remove.textContent = "Remove";
+        remove.setAttribute("aria-label", `Remove ${server.name}`);
+        remove.addEventListener("click", async () => {
+          remove.disabled = true;
+          try {
+            await invoke("forget_server", { url: server.url });
+            row.remove();
+          } catch (error) {
+            say(welcomeError, error);
+            remove.disabled = false;
+          }
+        });
+        row.append(remove);
+      }
+      list.append(row);
+    }
+  })
+  .catch((error) => say(welcomeError, error));

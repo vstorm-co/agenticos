@@ -29,6 +29,52 @@ seconds, the app returns to the server form with the saved address and a
 connection message. Retry or enter another address. A cached offline page that
 loads successfully stays open.
 
+## Connection readiness and saved servers
+
+After signing in, **Finish setting up this phone** checks the account, an available
+published agent, app lock and notifications. Existing accounts receive the same
+review when settings are still missing. Continue postpones optional setup; revisit
+it under **Settings → Mobile app**. A changed set of missing settings is reviewed
+again. Camera access is requested when scanning, microphone access when starting
+voice, never by readiness checks. Denied iOS notifications offer a system-settings
+button; returning to the app rechecks the permission.
+
+**Settings → Mobile app → Switch server** opens saved connections. Give a server a
+name, scan another pairing code, or enter another address. Up to 20 servers are
+kept. Existing installations migrate their current address automatically. Returning
+to a saved server opens its dashboard and uses its persistent session. Cookies and
+offline storage are not copied between origins; signing out or changing account
+continues to clear that account's device cache. Different saved servers must use
+different hostnames: cookies are not isolated by port. Removing a saved entry does
+not erase its browser storage; sign out first before sharing the phone.
+
+Switching unregisters push from the previous server before opening the picker;
+connectivity to that server is required if it has a push registration. Enable push
+on the next server explicitly. The app does not keep background push from several
+servers enabled together. Organization-managed server and lock policies take
+precedence; disabling the app lock requires device authentication.
+
+Switching also clears old Live Activities, pending actions and widget pins.
+Native notification taps are bound to the sign-in that registered push, so a
+delayed notification cannot open a different server’s conversation.
+
+## Notification privacy
+
+Phone notification preferences belong to the current sign-in. **Settings →
+Notifications** can hide notification text; chat settings can mute a conversation.
+Both are applied on the server before an APNs or Web Push payload is sent, so they
+work with the app closed. A visible, focused chat renews a 90-second suppression
+lease every 30 seconds. Leaving the chat or putting the app in the background
+clears focus; a process killed without cleanup leaves at most the lease lifetime.
+These choices affect push, not the in-app inbox or ongoing Live Activities.
+
+The test reports acceptance by the push service, not confirmed display on a
+particular phone. Check the lock screen or notification center. Android uses
+UnifiedPush and offers an ntfy installation guide when no distributor is installed;
+iOS reports a missing organization APNs configuration separately from denied OS
+permission. No Firebase dependency is added.
+
+
 ## Push
 
 | Where | Through | Turned on in |
@@ -40,7 +86,10 @@ loads successfully stays open.
 Each event's notifications - email, push - are chosen per event under Settings →
 Notifications. A notification opens its page through the app's lock.
 
-Push registered by a sign-in stops when that session is revoked or expires. A linked token is delivered to only when its session belongs to the same user. Older subscriptions with no recorded session retain their standing permission; remove and register them again to bind them to the current device.
+Push registered by a sign-in stops when that session is revoked or expires. A
+linked token is delivered to only when its session belongs to the same user.
+Older subscriptions with no recorded session retain their standing permission;
+remove and register them again to bind them to the current device.
 
 ## Outside the app
 

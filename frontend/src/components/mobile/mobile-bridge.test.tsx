@@ -8,6 +8,12 @@ import { useLiveCallStore } from "@/stores/live-call-store";
 
 import { MobileBridge } from "./mobile-bridge";
 
+vi.mock("@/lib/mobile/notifications", () => ({
+  readMobilePushPreferences: vi.fn(async () => ({})),
+}));
+vi.mock("./mobile-setup", () => ({ MobileSetupGate: () => null }));
+vi.mock("./notification-preferences", () => ({ MobilePushFocus: () => null }));
+
 const PHONE: ShellInfo = { platform: "ios", version: "0.1.0", window: "main", vibrancy: false };
 
 const IPHONE_PUSH = { configured: true, permission: "granted", token: "ab" };

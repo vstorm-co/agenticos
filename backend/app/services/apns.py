@@ -36,8 +36,9 @@ from app.core.vault import VaultScope, unseal
 from app.db.models.apns_device import ApnsDevice
 from app.repositories import apns_device as device_repo
 from app.repositories import deployment_settings as deployment_repo
+from app.repositories import session as session_repo
 from app.schemas.push import ApnsRead
-from app.services.web_push import PushMessage, PushOutcome
+from app.services.web_push import PushMessage, PushOutcome, filtered_message
 
 logger = logging.getLogger(__name__)
 
@@ -216,19 +217,30 @@ class ApnsService:
         key = await self._key()
         if key is None:
             return PushOutcome(sent=0, gone=0, failed=0)
-        body = json.dumps(
-            {
-                "aps": {
-                    "alert": {"title": message.title, "body": message.body},
-                    "sound": "default",
-                    "thread-id": "agenticos",
-                },
-                "url": message.url,
-            }
-        ).encode()
+        preferences = await session_repo.push_preferences_for(
+            self.db,
+            user_id=user_id,
+            session_ids=[d.session_id for d in devices if d.session_id is not None],
+        )
         sent = gone = failed = 0
         async with self._connect() as transport:
             for device in devices:
+                visible = filtered_message(
+                    message, preferences.get(device.session_id), now=datetime.now(UTC)
+                )
+                if visible is None:
+                    continue
+                body = json.dumps(
+                    {
+                        "aps": {
+                            "alert": {"title": visible.title, "body": visible.body},
+                            "sound": "default",
+                            "thread-id": "agenticos",
+                        },
+                        "url": visible.url,
+                        "session_id": str(device.session_id) if device.session_id else None,
+                    }
+                ).encode()
                 outcome = await self._send_one(transport, key, device, message.tag, body)
                 if outcome == "sent":
                     sent += 1

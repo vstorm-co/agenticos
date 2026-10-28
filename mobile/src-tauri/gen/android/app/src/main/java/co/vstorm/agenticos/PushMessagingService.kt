@@ -42,11 +42,11 @@ class PushMessagingService : PushService() {
     }
 
     override fun onRegistrationFailed(reason: FailedReason, instance: String) {
-        store(this).edit().clear().putString("failed", reason.name).apply()
+        store(this).edit().remove("endpoint").remove("p256dh").remove("auth").putString("failed", reason.name).apply()
     }
 
     override fun onUnregistered(instance: String) {
-        store(this).edit().clear().apply()
+        store(this).edit().remove("endpoint").remove("p256dh").remove("auth").remove("failed").apply()
     }
 
     override fun onMessage(message: PushMessage, instance: String) {
@@ -75,10 +75,12 @@ class PushMessagingService : PushService() {
                     ),
                 )
             }
+            val expected = store(context).getString("session", null) ?: return
+            if (push.optString("session_id") != expected) return
             val path = push.optString("url").takeIf { it.startsWith("/") && !it.startsWith("//") } ?: "/dashboard"
             val open = Intent(
                 Intent.ACTION_VIEW,
-                Uri.parse("agenticos://activity/open?path=" + Uri.encode(path)),
+                Uri.parse("agenticos://activity/open?path=" + Uri.encode(path) + "&push_session=" + Uri.encode(expected)),
             ).setPackage(context.packageName)
             val tag = push.optString("tag").ifEmpty { path }
             val notification = NotificationCompat.Builder(context, CHANNEL)

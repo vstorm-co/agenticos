@@ -1,5 +1,6 @@
 package co.vstorm.agenticos
 
+import android.content.Intent
 import android.os.Bundle
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
@@ -14,6 +15,7 @@ class MainActivity : TauriActivity() {
   @Volatile private var insetBottom = 0f
 
   override fun onCreate(savedInstanceState: Bundle?) {
+    if (!acceptsPush(intent)) setIntent(Intent(this, MainActivity::class.java))
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
   }
@@ -45,6 +47,18 @@ class MainActivity : TauriActivity() {
     @JavascriptInterface fun top(): Float = insetTop
 
     @JavascriptInterface fun bottom(): Float = insetBottom
+  }
+
+  /** Notification history can retain a tap after switching servers. */
+  private fun acceptsPush(opened: Intent?): Boolean {
+    val data = opened?.data ?: return true
+    if (!data.isHierarchical) return true
+    val session = data.getQueryParameter("push_session") ?: return true
+    return session == PushMessagingService.store(this).getString("session", null)
+  }
+
+  override fun onNewIntent(intent: Intent) {
+    if (acceptsPush(intent)) super.onNewIntent(intent)
   }
 
   // The console's session lives in its cookies, and the WebView writes them to

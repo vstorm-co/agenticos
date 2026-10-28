@@ -64,6 +64,16 @@ class LiveActivityPlugin: Plugin {
     }
   }
 
+  @objc public func clear(_ invoke: Invoke) throws {
+    guard #available(iOS 16.2, *) else { invoke.resolve(); return }
+    Task {
+      for activity in Activity<AgentActivityAttributes>.activities {
+        await activity.end(nil, dismissalPolicy: .immediate)
+      }
+      invoke.resolve()
+    }
+  }
+
   @objc public func end(_ invoke: Invoke) throws {
     let args = try invoke.parseArgs(EndActivityArgs.self)
     guard #available(iOS 16.2, *) else {

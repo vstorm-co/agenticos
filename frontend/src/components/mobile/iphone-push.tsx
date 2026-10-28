@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { BellRing } from "lucide-react";
 import { toast } from "sonner";
 
+import { invokeShell } from "@/lib/desktop/shell";
 import { Button } from "@/components/ui";
 import { SectionCard } from "@/components/settings/settings-section";
 import { getErrorMessage } from "@/lib/api-error";
@@ -28,16 +29,34 @@ export function IphonePush() {
   const tErrors = useTranslations("errors");
   const [push, setPush] = useState<IphonePushState | null>(null);
   const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const tSetup = useTranslations("mobile.setup");
 
   useEffect(() => {
     let current = true;
-    iphonePush()
-      .then((read) => {
-        if (current) setPush(read);
-      })
-      .catch((error: unknown) => toast.error(getErrorMessage(error, tErrors, tPush("failed"))));
+    const refresh = () => {
+      setFailed(false);
+      iphonePush()
+        .then((read) => {
+          if (current) setPush(read);
+        })
+        .catch((error: unknown) => {
+          if (current) {
+            setFailed(true);
+            toast.error(getErrorMessage(error, tErrors, tPush("failed")));
+          }
+        });
+    };
+    const visible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    refresh();
+    document.addEventListener("visibilitychange", visible);
+    window.addEventListener("mobile:push-refresh", refresh);
     return () => {
       current = false;
+      document.removeEventListener("visibilitychange", visible);
+      window.removeEventListener("mobile:push-refresh", refresh);
     };
   }, [tErrors, tPush]);
 
@@ -45,6 +64,7 @@ export function IphonePush() {
     setBusy(true);
     try {
       await action();
+      window.dispatchEvent(new Event("mobile:push-changed"));
     } catch (error) {
       toast.error(getErrorMessage(error, tErrors, tPush("failed")));
     } finally {
@@ -52,7 +72,22 @@ export function IphonePush() {
     }
   };
 
-  if (push === null) return null;
+  if (push === null || failed)
+    return (
+      <SectionCard title={t("title")}>
+        <p role="status" className="text-muted-foreground text-sm">
+          {tSetup(failed ? "error" : "checking")}
+        </p>
+        {failed && (
+          <Button
+            variant="outline"
+            onClick={() => window.dispatchEvent(new Event("mobile:push-refresh"))}
+          >
+            {tSetup("retry")}
+          </Button>
+        )}
+      </SectionCard>
+    );
   const on = push.permission === "granted" && push.token !== null;
   const state = !push.configured
     ? "notConfigured"
@@ -68,6 +103,19 @@ export function IphonePush() {
         <span className="bg-muted text-muted-foreground inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
           <BellRing className="h-4 w-4" aria-hidden />
         </span>
+        {state === "denied" ? (
+          <Button
+            variant="outline"
+            disabled={busy}
+            onClick={() =>
+              act(async () => {
+                await invokeShell("open_mobile_settings");
+              })
+            }
+          >
+            {tSetup("systemSettings")}
+          </Button>
+        ) : null}
         {state === "off" ? (
           <Button
             disabled={busy}
@@ -90,7 +138,7 @@ export function IphonePush() {
               onClick={() =>
                 act(async () => {
                   const result = await sendTestPush();
-                  if (result.sent > 0) toast.success(tPush("testSent"));
+                  if (result.sent > 0) toast.success(tSetup("testAccepted"));
                   else toast.error(tPush("testNotSent"));
                 })
               }
@@ -107,6 +155,7 @@ export function IphonePush() {
           </>
         ) : null}
       </div>
+      <p className="text-muted-foreground mt-3 text-xs">{tSetup("testHint")}</p>
     </SectionCard>
   );
 }

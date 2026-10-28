@@ -144,7 +144,9 @@ class TestTheSigningKey:
 
 
 def _subscription(endpoint: str = "https://fcm.googleapis.com/fcm/send/a") -> MagicMock:
-    return MagicMock(id=uuid4(), endpoint=endpoint, p256dh=KEYS["p256dh"], auth=KEYS["auth"])
+    return MagicMock(
+        id=uuid4(), session_id=None, endpoint=endpoint, p256dh=KEYS["p256dh"], auth=KEYS["auth"]
+    )
 
 
 def _refusal(status: int) -> WebPushException:
@@ -239,3 +241,27 @@ class TestSubscribing:
         ):
             await WebPushService(AsyncMock()).subscribe(uuid4(), subscription, user_agent=None)
         upsert.assert_not_called()
+
+
+async def test_muted_conversation_is_not_sent_to_its_device() -> None:
+    subscription = _subscription()
+    subscription.session_id = uuid4()
+    conversation = uuid4()
+    with (
+        patch(f"{MODULE}.push_repo.list_for_user", new=AsyncMock(return_value=[subscription])),
+        patch(
+            f"{MODULE}.session_repo.push_preferences_for",
+            new=AsyncMock(
+                return_value={subscription.session_id: {"muted_conversations": [str(conversation)]}}
+            ),
+        ),
+        patch.object(
+            WebPushService, "_signing_key", new=AsyncMock(return_value=web_push._new_key())
+        ),
+        patch(f"{MODULE}.webpush_async", new=AsyncMock()) as send,
+    ):
+        outcome = await WebPushService(AsyncMock()).send(
+            uuid4(), PushMessage("Acme", "Private", f"/chat?id={conversation}", "n")
+        )
+    assert (outcome.sent, outcome.failed) == (0, 0)
+    send.assert_not_awaited()

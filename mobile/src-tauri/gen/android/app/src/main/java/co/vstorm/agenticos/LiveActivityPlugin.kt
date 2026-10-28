@@ -87,18 +87,11 @@ class LiveActivityPlugin(private val activity: Activity) : Plugin(activity) {
             ContextCompat.checkSelfPermission(activity, Manifest.permission.POST_NOTIFICATIONS) ==
             PackageManager.PERMISSION_GRANTED
 
-    private var asked = false
-
     @Command
     fun show(invoke: Invoke) {
         val args = invoke.parseArgs(LiveActivityArgs::class.java)
         if (!allowed()) {
-            // Asked when there is first something to show, so the question
-            // comes with its reason on screen; once per launch, never nagging.
-            if (!asked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                asked = true
-                activity.requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 2097)
-            }
+            // Permission is requested only by the explicit push setup action.
             invoke.resolve()
             return
         }
@@ -136,6 +129,12 @@ class LiveActivityPlugin(private val activity: Activity) : Plugin(activity) {
             builder.addAction(0, args.approveLabel ?: "Approve", link("agenticos://activity/approve?approval=$id"))
         }
         manager.notify(args.id.hashCode(), builder.build())
+        invoke.resolve()
+    }
+
+    @Command
+    fun clear(invoke: Invoke) {
+        manager.cancelAll()
         invoke.resolve()
     }
 

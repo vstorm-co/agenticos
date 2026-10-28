@@ -2,8 +2,9 @@
 
 from typing import Literal
 from urllib.parse import urlsplit
+from uuid import UUID
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import AwareDatetime, Field, SecretStr, field_validator
 
 from app.schemas.base import BaseSchema
 
@@ -90,3 +91,25 @@ class ApnsDeviceCreate(BaseSchema):
     """The token the iOS app received from APNs, hex."""
 
     token: str = Field(min_length=64, max_length=200, pattern=r"^[0-9a-f]+$")
+
+
+class PushPreferencesUpdate(BaseSchema):
+    """Per sign-in, applied before a payload leaves for Apple or a distributor."""
+
+    hide_previews: bool = False
+    muted_conversations: list[UUID] = Field(default_factory=list, max_length=500)
+
+
+class PushPreferencesRead(PushPreferencesUpdate):
+    """The current sign-in also binds native notification taps to this connection."""
+
+    session_id: UUID | None = None
+
+
+class PushFocusUpdate(BaseSchema):
+    conversation_id: UUID | None = None
+
+
+class PushDeliveryPreferences(PushPreferencesUpdate):
+    focused_conversation: UUID | None = None
+    focus_until: AwareDatetime | None = None

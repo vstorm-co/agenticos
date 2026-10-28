@@ -2,32 +2,64 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"
+    />
     <title>AgenticOS</title>
     <link rel="stylesheet" href="onboarding.css" />
   </head>
   <body>
     <section data-screen="welcome">
       <div class="hero">
-        <img class="app-icon" src="app-icon.png" alt="" width="104" height="104" />
+        <img
+          class="app-icon"
+          src="app-icon.png"
+          alt=""
+          width="104"
+          height="104"
+        />
         <h1>AgenticOS</h1>
-        <p class="lead">Approvals and your agents' questions, wherever you are.</p>
+        <p class="lead">
+          Approvals and your agents' questions, wherever you are.
+        </p>
       </div>
+      <div
+        id="saved-servers"
+        class="group saved-servers"
+        aria-label="Saved servers"
+        hidden
+      ></div>
       <div class="bottom">
         <p class="error" role="alert" hidden></p>
-        <button type="button" class="filled" data-action="scan">Scan a code</button>
-        <button type="button" class="tinted" data-go="address">Enter the address</button>
-        <p class="footnote">On your computer, open AgenticOS and go to Settings, Mobile app.</p>
+        <button type="button" class="filled" data-action="scan">
+          Scan a code
+        </button>
+        <button type="button" class="tinted" data-go="address">
+          Enter the address
+        </button>
+        <p class="footnote">
+          On your computer, open AgenticOS and go to Settings, Mobile app.
+        </p>
       </div>
     </section>
 
     <section data-screen="address" hidden>
       <nav class="navbar">
-        <button type="button" class="back" data-go="welcome" aria-label="Back">Back</button>
+        <button type="button" class="back" data-go="welcome" aria-label="Back">
+          Back
+        </button>
       </nav>
       <h1 class="large-title">Your server</h1>
       <form id="address-form">
         <div class="group">
+          <input
+            id="server-name"
+            name="name"
+            maxlength="80"
+            placeholder="Name (Work, Personal…)"
+            aria-label="Server name"
+          />
           <input
             id="server"
             name="server"
@@ -40,7 +72,10 @@
             aria-label="Server address"
           />
         </div>
-        <p class="footnote">The address you open AgenticOS at in a browser. You sign in on the next screen.</p>
+        <p class="footnote">
+          The address you open AgenticOS at in a browser. You sign in on the
+          next screen.
+        </p>
         <p class="error" role="alert" hidden></p>
         <div class="bottom">
           <button type="submit" class="filled">Continue</button>

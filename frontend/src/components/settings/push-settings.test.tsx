@@ -21,6 +21,9 @@ vi.mock("@/lib/web-push", () => ({
   sendTestPush: env.test,
 }));
 vi.mock("sonner", () => ({ toast: { success: env.success, error: env.error } }));
+vi.mock("@/components/mobile/notification-preferences", () => ({
+  MobileNotificationPreferences: () => null,
+}));
 vi.mock("@/components/mobile/phone-push", () => ({ PhonePush: () => <p>phone push</p> }));
 vi.mock("@/components/mobile/iphone-push", () => ({ IphonePush: () => <p>iphone push</p> }));
 

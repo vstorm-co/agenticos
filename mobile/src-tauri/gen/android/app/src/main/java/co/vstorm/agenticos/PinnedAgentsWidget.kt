@@ -55,6 +55,18 @@ class PinnedAgentsWidget : AppWidgetProvider() {
             refresh(context)
         }
 
+        fun clear(context: Context) {
+            read(context).forEach { it.face.delete() }
+            context.getSharedPreferences(STORE, Context.MODE_PRIVATE).edit().clear().apply()
+            val ids = androidx.core.content.pm.ShortcutManagerCompat.getShortcuts(context,
+                androidx.core.content.pm.ShortcutManagerCompat.FLAG_MATCH_DYNAMIC or
+                androidx.core.content.pm.ShortcutManagerCompat.FLAG_MATCH_PINNED)
+                .filter { it.id.startsWith("agent-") }.map { it.id }
+            androidx.core.content.pm.ShortcutManagerCompat.disableShortcuts(context, ids, null)
+            androidx.core.content.pm.ShortcutManagerCompat.removeDynamicShortcuts(context, ids)
+            refresh(context)
+        }
+
         fun refresh(context: Context) {
             val manager = AppWidgetManager.getInstance(context)
             val ids = manager.getAppWidgetIds(ComponentName(context, PinnedAgentsWidget::class.java))

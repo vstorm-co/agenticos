@@ -19,12 +19,14 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Literal
+from urllib.parse import parse_qs, urlsplit
 
 import aiohttp
 from aiohttp.abc import AbstractResolver, ResolveResult
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from py_vapid import Vapid
+from pydantic import JsonValue
 from pywebpush import WebPushException, webpush_async
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,7 +37,8 @@ from app.core.vault import VaultScope, current_key_version, seal, unseal
 from app.db.models.push_subscription import PushSubscription
 from app.repositories import deployment_settings as deployment_repo
 from app.repositories import push_subscription as push_repo
-from app.schemas.push import PushSubscriptionCreate
+from app.repositories import session as session_repo
+from app.schemas.push import PushDeliveryPreferences, PushSubscriptionCreate
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +114,36 @@ class PushMessage:
     body: str
     url: str
     tag: str
+
+
+def filtered_message(
+    message: PushMessage, raw: dict[str, JsonValue] | None, *, now: datetime
+) -> PushMessage | None:
+    """Privacy is applied on the server, before even a closed app receives it."""
+    prefs = PushDeliveryPreferences.model_validate(raw or {})
+    parsed = urlsplit(message.url)
+    conversation = (
+        parse_qs(parsed.query).get("id", [None])[0]
+        if parsed.path.rstrip("/").endswith("/chat")
+        else None
+    )
+    if conversation:
+        muted = {str(value) for value in prefs.muted_conversations}
+        focused = (
+            prefs.focus_until is not None
+            and prefs.focus_until > now
+            and str(prefs.focused_conversation) == conversation
+        )
+        if conversation in muted or focused:
+            return None
+    if prefs.hide_previews:
+        return PushMessage(
+            title=message.title,
+            body="You have a new notification. Open AgenticOS to read it.",
+            url=message.url,
+            tag=message.tag,
+        )
+    return message
 
 
 @dataclass(frozen=True)
@@ -202,14 +235,32 @@ class WebPushService:
             return PushOutcome(sent=0, gone=0, failed=0)
         private, _ = await self._signing_key()
         signer = Vapid.from_string(private_key=private)
-        data = json.dumps(
-            {"title": message.title, "body": message.body, "url": message.url, "tag": message.tag}
+        preferences = await session_repo.push_preferences_for(
+            self.db,
+            user_id=user_id,
+            session_ids=[s.session_id for s in subscriptions if s.session_id is not None],
         )
         sent = gone = failed = 0
         async with aiohttp.ClientSession(
             connector=aiohttp.TCPConnector(resolver=_PublicOnly())
         ) as session:
             for subscription in subscriptions:
+                visible = filtered_message(
+                    message, preferences.get(subscription.session_id), now=datetime.now(UTC)
+                )
+                if visible is None:
+                    continue
+                data = json.dumps(
+                    {
+                        "title": visible.title,
+                        "body": visible.body,
+                        "url": visible.url,
+                        "tag": visible.tag,
+                        "session_id": str(subscription.session_id)
+                        if subscription.session_id
+                        else None,
+                    }
+                )
                 outcome = await self._send_one(session, subscription, data, signer)
                 if outcome == "sent":
                     sent += 1

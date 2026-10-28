@@ -5762,7 +5762,8 @@
           "failed": "{distributor} hat die Registrierung nicht angenommen. Öffne es, prüfe die Verbindung zu seinem Server und versuche es erneut.",
           "on": "An, über {distributor}. Welche Ereignisse dich erreichen, legst du unten unter Push fest.",
           "turnOff": "Auf diesem Telefon ausschalten",
-          "notRegistered": "ntfy hat keine Adresse übergeben. Öffne es und versuche es erneut."
+          "notRegistered": "ntfy hat keine Adresse übergeben. Öffne es und versuche es erneut.",
+          "denied": "Benachrichtigungen sind in den Android-Einstellungen deaktiviert. Erlaube sie für AgenticOS und prüfe erneut."
         },
         "iphone": {
           "title": "Benachrichtigungen bei geschlossener App",
@@ -8871,6 +8872,44 @@
     },
     "share": {
       "notAttached": "Konnte nicht angehängt werden: {names}"
+    },
+    "setup": {
+      "title": "Dieses Telefon fertig einrichten",
+      "welcome": "Prüfe diese Verbindung, auch wenn du AgenticOS bereits nutzt. Optionale Einstellungen kannst du später ergänzen.",
+      "hint": "Dein Konto und die Einstellungen dieses Telefons auf diesem Server.",
+      "account": "Angemeldetes Konto",
+      "agent": "Ein verfügbarer Agent",
+      "lock": "App-Sperre",
+      "notifications": "Benachrichtigungen",
+      "ready": "Bereit",
+      "missing": "Nicht eingerichtet",
+      "checking": "Wird geprüft…",
+      "error": "Prüfung fehlgeschlagen. Bitte erneut versuchen.",
+      "unavailable": "Auf diesem Gerät nicht verfügbar",
+      "retry": "Erneut prüfen",
+      "open": "Öffnen",
+      "settings": "Telefoneinstellungen",
+      "deviceTitle": "Dieses Telefon",
+      "deviceHint": "Schutz und gespeicherte Serververbindungen.",
+      "lockHint": "Face ID, Fingerabdruck oder Gerätecode beim Zurückkehren zur App verwenden.",
+      "managed": "Von deiner Organisation verwaltet",
+      "failed": "Die Einstellung konnte nicht geändert werden. Bitte erneut versuchen.",
+      "servers": "Server wechseln",
+      "switching": "Wechsel läuft…",
+      "switchFailed": "Wechsel fehlgeschlagen. Verbinde dich mit dem aktuellen Server, um seine Push-Registrierung zu entfernen, und versuche es erneut.",
+      "serverHint": "Gespeicherte Server behalten ihre eigene Anmeldung und Offline-Daten. Ein Wechsel deaktiviert Push für den bisherigen Server; aktiviere es beim nächsten erneut. Das Entfernen eines Eintrags löscht die Anmeldung nicht: Melde dich auf einem gemeinsam genutzten Telefon zuerst ab.",
+      "contextPermissions": "Kamerazugriff wird nur beim Scannen angefragt, Mikrofonzugriff beim Start einer Sprachunterhaltung. Diese Prüfungen nehmen nichts auf.",
+      "privacyTitle": "Datenschutz bei Telefonbenachrichtigungen",
+      "privacyHint": "Gilt für diese Anmeldung und wird vor dem Versand angewendet, auch bei geschlossener App.",
+      "hidePreviews": "Benachrichtigungstext ausblenden",
+      "mutedCount": "{count} Unterhaltungen auf diesem Telefon stummgeschaltet.",
+      "mute": "Diese Unterhaltung stummschalten",
+      "unmute": "Benachrichtigungen für diese Unterhaltung aktivieren",
+      "systemSettings": "Systemeinstellungen öffnen",
+      "installDistributor": "ntfy installieren",
+      "testAccepted": "Der Push-Dienst hat den Test angenommen.",
+      "testHint": "Ein erfolgreicher Test bestätigt die Annahme durch den Push-Dienst, nicht die Anzeige auf diesem Telefon. Prüfe die Mitteilungszentrale oder den Sperrbildschirm.",
+      "continue": "Weiter"
     }
   },
   "desktop": {

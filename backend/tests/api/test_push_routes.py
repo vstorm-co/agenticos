@@ -140,3 +140,27 @@ async def test_only_an_app_admin_sets_or_clears_the_key() -> None:
     assert P8 not in stored.text
     assert cleared.json()["configured"] is False
     assert deployment.set_apns_key.await_args.kwargs["data"].private_key.get_secret_value() == P8
+
+
+async def test_preferences_and_focus_are_bound_to_the_authenticated_session() -> None:
+    from app.schemas.push import PushPreferencesRead
+
+    user, session, conversation = uuid4(), uuid4(), uuid4()
+    push = MagicMock(
+        preferences=AsyncMock(return_value=PushPreferencesRead()),
+        set_preferences=AsyncMock(return_value=PushPreferencesRead(hide_previews=True)),
+        focus=AsyncMock(),
+    )
+    async with _client(push, user, session_id=session) as client:
+        read = await client.get("/api/v1/push/preferences")
+        updated = await client.put(
+            "/api/v1/push/preferences",
+            json={"hide_previews": True, "muted_conversations": [str(conversation)]},
+        )
+        focus = await client.put("/api/v1/push/focus", json={"conversation_id": str(conversation)})
+        invalid = await client.put("/api/v1/push/focus", json={"conversation_id": "not-an-id"})
+    assert read.status_code == updated.status_code == 200
+    assert focus.status_code == 204 and invalid.status_code == 422
+    push.preferences.assert_awaited_once_with(user, session)
+    assert push.set_preferences.await_args.args[:2] == (user, session)
+    push.focus.assert_awaited_once_with(user, session, conversation)

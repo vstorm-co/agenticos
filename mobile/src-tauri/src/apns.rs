@@ -104,6 +104,24 @@ pub async fn apns_unregister<R: Runtime>(app: AppHandle<R>) -> Result<(), String
     }
 }
 
+#[cfg(target_os = "ios")]
+pub fn open_settings<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
+    run::<R, serde::de::IgnoredAny>(app, "openSettings").map(|_| ())
+}
+
+#[cfg(target_os = "ios")]
+pub fn bind<R: Runtime>(app: &AppHandle<R>, session_id: &str) -> Result<(), String> {
+    let native = app.try_state::<Native<R>>().ok_or("Push is not set up.")?;
+    native
+        .0
+        .run_mobile_plugin::<serde::de::IgnoredAny>(
+            "bindSession",
+            serde_json::json!({"sessionId": session_id}),
+        )
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::ApnsStatus;

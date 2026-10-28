@@ -13,6 +13,21 @@ struct GlanceArgs: Decodable {
 /// `widget.rs`. The console sends what it just counted; it is kept in the App
 /// Group, with the time, for the widget extension to draw.
 class WidgetPlugin: Plugin {
+  @objc public func clear(_ invoke: Invoke) throws {
+    guard let defaults = AppGroup.defaults else {
+      invoke.reject("The app group is missing from this build.")
+      return
+    }
+    for key in [AppGroup.Glance.approvals, AppGroup.Glance.running, AppGroup.Glance.budgetLeft, AppGroup.Glance.countedAt, AppGroup.pinnedAgents] {
+      defaults.removeObject(forKey: key)
+    }
+    if let faces = AppGroup.faces, FileManager.default.fileExists(atPath: faces.path) {
+      try FileManager.default.removeItem(at: faces)
+    }
+    WidgetCenter.shared.reloadAllTimelines()
+    invoke.resolve()
+  }
+
   @objc public func update(_ invoke: Invoke) throws {
     let args = try invoke.parseArgs(GlanceArgs.self)
     guard let defaults = AppGroup.defaults else {

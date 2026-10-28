@@ -643,6 +643,12 @@ export const qk = {
     backgroundJobList: (filters: { status?: string; pool?: string }) =>
       ["admin", "background-jobs", "list", filters] as const,
   },
+  mobile: {
+    settings: () => ["mobile", "settings"] as const,
+    push: (userId?: string, tenant?: string | null) => ["mobile", "push", userId, tenant] as const,
+    pushPreferences: (userId?: string, tenant?: string | null) =>
+      ["mobile", "push-preferences", userId, tenant] as const,
+  },
   desktop: {
     focus: () => ["desktop", "focus"] as const,
     readiness: () => ["desktop", "readiness"] as const,

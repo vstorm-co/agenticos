@@ -3,7 +3,9 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import Select, func, select, update
+from pydantic import JsonValue
+from sqlalchemy import Select, cast, func, select, update
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.session import Session
@@ -282,3 +284,39 @@ async def deactivate_by_refresh_token_hash(db: AsyncSession, token_hash: str) ->
         db.add(session)
         await db.flush()
     return session
+
+
+async def push_preferences_for(
+    db: AsyncSession, *, user_id: UUID, session_ids: list[UUID]
+) -> dict[UUID, dict[str, JsonValue]]:
+    if not session_ids:
+        return {}
+    result = await db.execute(
+        select(Session.id, Session.push_preferences).where(
+            Session.user_id == user_id, Session.id.in_(session_ids), Session.is_active.is_(True)
+        )
+    )
+    return {session_id: raw for session_id, raw in result.all() if raw is not None}
+
+
+async def update_push_preferences(
+    db: AsyncSession, *, user_id: UUID, session_id: UUID, patch: dict[str, JsonValue]
+) -> bool:
+    # JSONB concatenation merges this patch atomically. A focus heartbeat must
+    # never overwrite a concurrently saved privacy choice (or the reverse).
+    result = await db.execute(
+        update(Session)
+        .where(
+            Session.id == session_id,
+            Session.user_id == user_id,
+            Session.is_active.is_(True),
+            Session.expires_at > datetime.now(UTC),
+        )
+        .values(
+            push_preferences=func.coalesce(Session.push_preferences, cast({}, JSONB)).op("||")(
+                cast(patch, JSONB)
+            )
+        )
+    )
+    await db.flush()
+    return bool(getattr(result, "rowcount", 0))

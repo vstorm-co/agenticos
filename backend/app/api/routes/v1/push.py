@@ -19,7 +19,10 @@ from app.schemas.push import (
     ApnsDeviceCreate,
     ApnsKeyUpdate,
     ApnsRead,
+    PushFocusUpdate,
     PushKeyRead,
+    PushPreferencesRead,
+    PushPreferencesUpdate,
     PushSubscriptionCreate,
     PushTestRead,
 )
@@ -110,3 +113,30 @@ async def send_test(
     arrives. 404 when none is subscribed."""
     outcome = await push.send_test(current_user.id, app_name=await deployment.effective_app_name())
     return PushTestRead(sent=outcome.sent, gone=outcome.gone, failed=outcome.failed)
+
+
+@router.get("/preferences", response_model=PushPreferencesRead)
+async def push_preferences(
+    current_user: CurrentUser, session_id: CurrentSessionId, push: PushSvc
+) -> Any:
+    """This app sign-in's notification privacy and muted conversations."""
+    return await push.preferences(current_user.id, session_id)
+
+
+@router.put("/preferences", response_model=PushPreferencesRead)
+async def set_push_preferences(
+    data: PushPreferencesUpdate,
+    current_user: CurrentUser,
+    session_id: CurrentSessionId,
+    push: PushSvc,
+) -> Any:
+    """Apply privacy and mute choices to this sign-in, including closed-app push."""
+    return await push.set_preferences(current_user.id, session_id, data)
+
+
+@router.put("/focus", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
+async def push_focus(
+    data: PushFocusUpdate, current_user: CurrentUser, session_id: CurrentSessionId, push: PushSvc
+) -> None:
+    """Suppress push to an open conversation for 90 seconds; clients renew while visible."""
+    await push.focus(current_user.id, session_id, data.conversation_id)

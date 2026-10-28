@@ -5655,7 +5655,8 @@
           "failed": "{distributor} nie przyjął rejestracji. Otwórz go, sprawdź, czy łączy się ze swoim serwerem, i spróbuj ponownie.",
           "on": "Włączone, przez {distributor}. Które zdarzenia do Ciebie trafiają, ustawisz niżej, w kolumnie Push.",
           "turnOff": "Wyłącz na tym telefonie",
-          "notRegistered": "ntfy nie przekazał adresu. Otwórz go i spróbuj ponownie."
+          "notRegistered": "ntfy nie przekazał adresu. Otwórz go i spróbuj ponownie.",
+          "denied": "Powiadomienia są wyłączone w ustawieniach Androida. Włącz je dla AgenticOS i sprawdź ponownie."
         },
         "iphone": {
           "title": "Powiadomienia przy zamkniętej aplikacji",
@@ -9130,6 +9131,44 @@
     },
     "share": {
       "notAttached": "Nie udało się dołączyć: {names}"
+    },
+    "setup": {
+      "title": "Dokończ konfigurację telefonu",
+      "welcome": "Sprawdź to połączenie, nawet jeśli korzystasz już z AgenticOS. Opcjonalne ustawienia możesz uzupełnić później.",
+      "hint": "Twoje konto i ustawienia tego telefonu na tym serwerze.",
+      "account": "Zalogowane konto",
+      "agent": "Dostępny agent",
+      "lock": "Blokada aplikacji",
+      "notifications": "Powiadomienia",
+      "ready": "Gotowe",
+      "missing": "Nieskonfigurowane",
+      "checking": "Sprawdzanie…",
+      "error": "Nie udało się sprawdzić. Spróbuj ponownie.",
+      "unavailable": "Niedostępne na tym urządzeniu",
+      "retry": "Sprawdź ponownie",
+      "open": "Otwórz",
+      "settings": "Ustawienia telefonu",
+      "deviceTitle": "Ten telefon",
+      "deviceHint": "Ochrona i zapisane połączenia z serwerami.",
+      "lockHint": "Używaj Face ID, odcisku palca lub kodu urządzenia po powrocie do aplikacji.",
+      "managed": "Zarządzane przez organizację",
+      "failed": "Nie udało się zmienić ustawienia. Spróbuj ponownie.",
+      "servers": "Zmień serwer",
+      "switching": "Przełączanie…",
+      "switchFailed": "Nie udało się przełączyć. Połącz się z obecnym serwerem, aby usunąć rejestrację push, i spróbuj ponownie.",
+      "serverHint": "Zapisane serwery zachowują własne logowanie i dane offline. Zmiana serwera wyłącza push na poprzednim; włącz je ponownie na kolejnym. Usunięcie wpisu nie usuwa sesji: na współdzielonym telefonie najpierw się wyloguj.",
+      "contextPermissions": "Dostęp do aparatu jest wymagany tylko przy skanowaniu kodu. O mikrofon pytamy przy rozpoczęciu rozmowy głosowej. Te kontrole niczego nie nagrywają.",
+      "privacyTitle": "Prywatność powiadomień telefonu",
+      "privacyHint": "Ustawienia dotyczą tego logowania i są stosowane przed wysłaniem push, również przy zamkniętej aplikacji.",
+      "hidePreviews": "Ukrywaj treść powiadomień",
+      "mutedCount": "Wyciszone rozmowy na tym telefonie: {count}.",
+      "mute": "Wycisz powiadomienia tej rozmowy",
+      "unmute": "Włącz powiadomienia tej rozmowy",
+      "systemSettings": "Otwórz ustawienia systemowe",
+      "installDistributor": "Zainstaluj ntfy",
+      "testAccepted": "Usługa push przyjęła test.",
+      "testHint": "Udany test oznacza przyjęcie przez usługę push, a nie potwierdzenie wyświetlenia na tym telefonie. Sprawdź centrum powiadomień lub ekran blokady.",
+      "continue": "Kontynuuj"
     }
   },
   "agentPin": {

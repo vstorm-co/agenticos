@@ -1,5 +1,5 @@
 ---
-source_sha: "dc1f3fe63a6e"
+source_sha: "155922214d1d"
 ---
 
 # Aplikacja na telefon { #the-phone-app }
@@ -34,6 +34,52 @@ Jeśli pierwsze połączenie albo powrót z logowania nie zakończy ładowania w
 połączeniu. Ponów próbę albo wpisz inny adres. Poprawnie załadowana kopia offline
 pozostaje otwarta.
 
+## Gotowość połączenia i zapisane serwery { #connection-readiness-and-saved-servers }
+
+Po zalogowaniu panel **Dokończ konfigurację telefonu** sprawdza konto, dostępnego
+opublikowanego agenta, blokadę aplikacji i powiadomienia. Dotyczy również
+istniejących kont, jeśli konfiguracja jest niepełna. Kontynuuj odkłada opcjonalne
+ustawienia; można do nich wrócić w **Ustawienia → Aplikacja mobilna**. Zmieniony
+zestaw braków jest pokazywany ponownie. Aparat jest wymagany przy skanowaniu,
+mikrofon przy rozpoczęciu rozmowy głosowej; kontrola gotowości ich nie uruchamia.
+Odmowa powiadomień iOS udostępnia przycisk ustawień systemowych. Powrót do aplikacji
+ponownie sprawdza zgodę.
+
+**Ustawienia → Aplikacja mobilna → Zmień serwer** otwiera zapisane połączenia.
+Nadaj serwerowi nazwę, zeskanuj kolejny kod lub wpisz adres. Limit wynosi 20
+serwerów. Obecny adres jest migrowany automatycznie. Powrót otwiera dashboard z
+zachowaną sesją. Cookies i dane offline nie są kopiowane między originami;
+wylogowanie lub zmiana konta nadal usuwa jego pamięć urządzenia. Serwery muszą mieć
+różne nazwy hostów: porty nie izolują cookies. Usunięcie wpisu nie usuwa danych
+przeglądarki; przed udostępnieniem telefonu najpierw się wyloguj.
+
+Przełączenie usuwa rejestrację push poprzedniego serwera przed otwarciem listy;
+jeśli push jest zarejestrowany, potrzebne jest połączenie z tym serwerem. Na
+kolejnym włącz push jawnie. Aplikacja nie utrzymuje równocześnie powiadomień w tle
+z wielu serwerów. Polityki organizacji dotyczące serwera i blokady mają
+pierwszeństwo. Wyłączenie blokady wymaga uwierzytelnienia na urządzeniu.
+
+Przełączenie czyści również stare Live Activities, oczekujące akcje i przypięcia
+widżetów. Natywne kliknięcia powiadomień są związane z logowaniem, które
+zarejestrowało push; opóźnione powiadomienie nie otworzy rozmowy na innym
+serwerze.
+
+## Prywatność powiadomień { #notification-privacy }
+
+Preferencje telefonu dotyczą bieżącego logowania. W **Ustawienia → Powiadomienia**
+można ukryć treść, a w ustawieniach czatu wyciszyć rozmowę. Serwer stosuje je przed
+wysłaniem APNs lub Web Push, więc działają przy zamkniętej aplikacji. Widoczny,
+aktywny czat odnawia 90-sekundowe wyciszenie co 30 sekund. Opuszczenie czatu lub
+tło usuwa aktywność; po wymuszonym zamknięciu wygasa ona najpóźniej po 90 sekundach.
+Ustawienia dotyczą push, nie skrzynki w aplikacji ani trwających Live Activities.
+
+Test potwierdza przyjęcie przez usługę push, a nie wyświetlenie na konkretnym
+telefonie. Sprawdź ekran blokady lub centrum powiadomień. Android korzysta z
+UnifiedPush i pokazuje instrukcję instalacji ntfy, gdy brakuje dystrybutora.
+iOS rozróżnia brak konfiguracji APNs organizacji i odmowę zgody systemowej.
+Nie dodano zależności od Firebase.
+
+
 ## Push { #push }
 
 | Gdzie | Przez | Włączane w |
@@ -45,7 +91,10 @@ pozostaje otwarta.
 Powiadomienia każdego zdarzenia - e-mail, push - wybiera się osobno w Ustawienia →
 Powiadomienia. Powiadomienie otwiera swoją stronę przez blokadę aplikacji.
 
-Push zarejestrowany przez sesję przestaje być wysyłany po jej odwołaniu lub wygaśnięciu. Powiązany token działa tylko wtedy, gdy sesja należy do tego samego użytkownika. Starsze subskrypcje bez zapisanej sesji zachowują dotychczasową zgodę; usuń je i zarejestruj ponownie, aby przypisać je do bieżącego urządzenia.
+Push zarejestrowany przez sesję przestaje być wysyłany po jej odwołaniu lub
+wygaśnięciu. Powiązany token działa tylko wtedy, gdy sesja należy do tego samego
+użytkownika. Starsze subskrypcje bez zapisanej sesji zachowują dotychczasową
+zgodę; usuń je i zarejestruj ponownie, aby przypisać je do bieżącego urządzenia.
 
 ## Poza aplikacją { #outside-the-app }
 

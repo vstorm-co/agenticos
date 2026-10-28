@@ -143,6 +143,11 @@ pub fn end_activity<R: Runtime>(app: AppHandle<R>, id: String) -> Result<(), Str
     run(&app, "end", EndPayload { id: &id })
 }
 
+/// Clear the old server's actions before a different server becomes active.
+pub fn clear<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
+    run(app, "clear", ())
+}
+
 #[cfg(test)]
 mod tests {
     use super::{validate, Kind, LiveActivity};

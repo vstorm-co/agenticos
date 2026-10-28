@@ -1,9 +1,9 @@
 //! AgenticOS on a phone: the deployment's console in a full-screen webview,
 //! reached by scanning the QR the console shows (#2097).
 //!
-//! Like the desktop shell it holds one thing of its own - the server's address -
-//! and is otherwise the console the server serves, with its cookies and its
-//! permissions. Its own pages are only the first run: scan a code, or type an
+//! Like the desktop shell it remembers named server connections and opens the
+//! console each server serves, with its own cookies and permissions. Native
+//! pages handle first connection and server switching: scan a code or type an
 //! address. What makes a sign-in this app's and nobody else's is shared with the
 //! desktop shell, in `agenticos-shell-core`.
 //!
@@ -20,7 +20,9 @@ mod managed;
 mod navigation;
 mod pin;
 mod push;
+mod settings;
 mod share;
+use settings::Settings;
 mod widget;
 
 use std::fs;
@@ -34,7 +36,7 @@ use agenticos_shell_core::{
     pairing_link, parse_server_url_with, ActivityAction, ManagedPolicy, Mode, Pairing,
     PendingSignIn,
 };
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use tauri::webview::PageLoadEvent;
 use tauri::{
     AppHandle, Emitter, Manager, RunEvent, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
@@ -51,19 +53,6 @@ const LOCK_AFTER: Duration = Duration::from_secs(5 * 60);
 const LAN_HTTP: bool = cfg!(debug_assertions);
 /// Told to the console when a live activity's button is waiting for it.
 const ACTIVITY_EVENT: &str = "mobile:activity";
-
-#[derive(Serialize, Deserialize, Default)]
-struct Settings {
-    #[serde(default)]
-    server_url: Option<Url>,
-    /// Lock the console behind the device's biometrics. On unless turned off.
-    #[serde(default = "locked_by_default")]
-    lock: bool,
-}
-
-fn locked_by_default() -> bool {
-    true
-}
 
 /// Where the settings file is, resolved once at start-up.
 ///
@@ -317,6 +306,11 @@ fn grant_console(app: &AppHandle, server: &Url) -> Result<(), String> {
             .local(false)
             .window(WINDOW)
             .permission("allow-unlock")
+            .permission("allow-mobile-settings")
+            .permission("allow-bind-push-session")
+            .permission("allow-open-mobile-settings")
+            .permission("allow-set-mobile-lock")
+            .permission("allow-choose-server")
             .permission("allow-show-activity")
             .permission("allow-end-activity")
             .permission("allow-update-widget")
@@ -375,7 +369,7 @@ fn pair(app: &AppHandle, pairing: &Pairing) -> Result<(), String> {
     check_managed(app, &pairing.server)?;
     grant_console(app, &pairing.server)?;
     let mut stored = settings(app);
-    stored.server_url = Some(pairing.server.clone());
+    stored.remember(pairing.server.clone(), None)?;
     save(app, &stored)?;
     navigate_console(app, pairing.redeem_url())
 }
@@ -394,15 +388,166 @@ fn pair_with(app: AppHandle, link: String) -> Result<(), String> {
 
 /// An address typed by hand: remember it and open its sign-in page.
 #[tauri::command]
-fn connect(app: AppHandle, url: String) -> Result<(), String> {
+fn connect(app: AppHandle, url: String, name: Option<String>) -> Result<(), String> {
     let server = parse_server_url_with(&url, LAN_HTTP)?;
     check_managed(&app, &server)?;
     grant_console(&app, &server)?;
     let mut stored = settings(&app);
-    stored.server_url = Some(server.clone());
+    stored.remember(server.clone(), name)?;
     save(&app, &stored)?;
-    let login = server.join("login").map_err(|e| e.to_string())?;
+    let login = server.join("dashboard").map_err(|e| e.to_string())?;
     navigate_console(&app, login)
+}
+
+#[derive(Serialize)]
+struct MobileSettings {
+    servers: Vec<settings::Server>,
+    active: Option<Url>,
+    locked_server: bool,
+    biometric_lock: bool,
+    biometric_managed: bool,
+    biometric_available: bool,
+}
+
+#[tauri::command]
+async fn mobile_settings(app: AppHandle, window: WebviewWindow) -> Result<MobileSettings, String> {
+    let mut stored = settings(&app);
+    stored.migrate();
+    let policy = managed(&app);
+    let caller = window.url().map_err(|e| e.to_string())?;
+    let local = caller.scheme() == "tauri" || caller.host_str() == Some("tauri.localhost");
+    // A remote deployment may label its own connection, never enumerate the
+    // other organizations' servers saved on this phone. The picker is local.
+    let servers = stored
+        .visible_servers(local)
+        .into_iter()
+        .filter(|s| policy.allows(&s.url))
+        .collect();
+    let handle = app.clone();
+    let available = tauri::async_runtime::spawn_blocking(move || handle.biometric().status())
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())?
+        .is_available;
+    Ok(MobileSettings {
+        active: stored.server_url.clone(),
+        servers,
+        locked_server: policy.server_locked,
+        biometric_lock: lock_enabled(&app, &settings(&app)),
+        biometric_managed: policy.biometric_lock.is_some(),
+        biometric_available: available,
+    })
+}
+
+#[tauri::command]
+async fn set_mobile_lock(app: AppHandle, enabled: bool) -> Result<(), String> {
+    if managed(&app).biometric_lock.is_some() {
+        return Err("Your organization manages the app lock.".to_owned());
+    }
+    // Turning off protection is an authenticated action too.
+    let handle = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        handle.biometric().authenticate(
+            "Change app lock".to_owned(),
+            AuthOptions {
+                allow_device_credential: true,
+                ..Default::default()
+            },
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())?;
+    let mut stored = settings(&app);
+    stored.lock = enabled;
+    save(&app, &stored)
+}
+
+#[tauri::command]
+async fn bind_push_session(app: AppHandle, session_id: String) -> Result<(), String> {
+    if session_id.len() != 36
+        || !session_id
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() || c == '-')
+    {
+        return Err("The push connection identifier is invalid.".to_owned());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        #[cfg(target_os = "ios")]
+        return apns::bind(&app, &session_id);
+        #[cfg(target_os = "android")]
+        return push::bind(&app, &session_id);
+        #[cfg(not(mobile))]
+        {
+            let _ = (app, session_id);
+            Ok(())
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn open_mobile_settings(app: AppHandle) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        #[cfg(target_os = "ios")]
+        return apns::open_settings(&app);
+        #[cfg(target_os = "android")]
+        return push::open_settings(&app);
+        #[cfg(not(mobile))]
+        {
+            let _ = app;
+            Err("App settings are only available on a phone.".to_owned())
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn forget_server(app: AppHandle, url: String) -> Result<(), String> {
+    let server = parse_server_url_with(&url, LAN_HTTP)?;
+    let mut stored = settings(&app);
+    if stored.server_url.as_ref() == Some(&server) {
+        return Err("Switch to another server before removing this one.".to_owned());
+    }
+    stored.servers.retain(|s| s.url != server);
+    save(&app, &stored)
+}
+
+#[tauri::command]
+async fn choose_server(app: AppHandle) -> Result<(), String> {
+    if managed(&app).server_locked {
+        return Err("Your organization manages which server this app connects to.".to_owned());
+    }
+    let handle = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        live::clear(&handle)?;
+        widget::clear(&handle)?;
+        share::take(&handle)?;
+        Ok::<(), String>(())
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    app.state::<navigation::Navigation>().finish()?;
+    app.state::<PendingSignIn>()
+        .0
+        .lock()
+        .map_err(|e| e.to_string())?
+        .take();
+    app.state::<Lock>()
+        .0
+        .lock()
+        .map_err(|e| e.to_string())?
+        .asked = None;
+    let origin = if cfg!(target_os = "android") {
+        "http://tauri.localhost"
+    } else {
+        "tauri://localhost"
+    };
+    console(&app)?
+        .navigate(Url::parse(&format!("{origin}/index.html")).map_err(|e| e.to_string())?)
+        .map_err(|e| e.to_string())
 }
 
 /// Hide the console and ask for the device's biometrics; reveal it once they
@@ -635,6 +780,12 @@ pub fn run() {
     builder
         .invoke_handler(tauri::generate_handler![
             server_url,
+            mobile_settings,
+            bind_push_session,
+            open_mobile_settings,
+            set_mobile_lock,
+            forget_server,
+            choose_server,
             startup_notice,
             pair_with,
             connect,
@@ -671,6 +822,7 @@ pub fn run() {
             // has chosen one, and the only one it opens while it is locked.
             let policy = managed::load(handle, LAN_HTTP);
             let mut stored = settings(handle);
+            stored.migrate();
             let server = policy.server_for(stored.server_url.as_ref());
             if server != stored.server_url {
                 stored.server_url = server;

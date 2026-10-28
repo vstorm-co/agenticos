@@ -7,6 +7,8 @@
     "core:default",
     "deep-link:default",
     "allow-server-url",
+    "allow-mobile-settings",
+    "allow-forget-server",
     "allow-startup-notice",
     "allow-pair-with",
     "allow-connect"

@@ -62,3 +62,19 @@ pub fn update_widget<R: Runtime>(app: AppHandle<R>, glance: Glance) -> Result<()
         Ok(())
     }
 }
+
+pub fn clear<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
+    #[cfg(mobile)]
+    return app
+        .try_state::<Native<R>>()
+        .ok_or("The widget is not set up.")?
+        .0
+        .run_mobile_plugin::<serde::de::IgnoredAny>("clear", ())
+        .map(|_| ())
+        .map_err(|e| e.to_string());
+    #[cfg(not(mobile))]
+    {
+        let _ = app;
+        Ok(())
+    }
+}

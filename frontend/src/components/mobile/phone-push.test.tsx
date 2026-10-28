@@ -40,8 +40,12 @@ describe("PhonePush", () => {
   it("says what to install when the phone has no distributor", async () => {
     env.read.mockResolvedValue(status({ distributors: [], distributor: null }));
     render(<PhonePush />);
-    expect(await screen.findByText(/Install ntfy/)).toBeInTheDocument();
-    expect(screen.queryByRole("button")).toBeNull();
+    expect(await screen.findByText(/AgenticOS delivers these through ntfy/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Install ntfy" })).toHaveAttribute(
+      "href",
+      "https://ntfy.sh/docs/subscribe/phone/",
+    );
+    expect(screen.getByRole("button", { name: "Check again" })).toBeInTheDocument();
   });
 
   it("turns push on, tests it and turns it off", async () => {

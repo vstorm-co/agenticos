@@ -8,6 +8,8 @@ import WebKit
 /// The last device token APNs handed this app, kept so the console can tell
 /// the server again on every arrival, as a browser's subscription is.
 private let tokenKey = "apns.token"
+private let sessionKey = "apns.session"
+struct PushSessionArgs: Decodable { let sessionId: String }
 /// How long registering waits for APNs to answer with a token.
 private let registerTimeout: TimeInterval = 15
 
@@ -29,6 +31,33 @@ class ApnsPlugin: Plugin, UNUserNotificationCenterDelegate {
   override func load(webview: WKWebView) {
     UNUserNotificationCenter.current().delegate = self
     Self.installTokenHandlers()
+  }
+
+  @objc public func bindSession(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(PushSessionArgs.self)
+    if UserDefaults.standard.string(forKey: sessionKey) != args.sessionId {
+      UNUserNotificationCenter.current().removeAllDeliveredNotifications()
+    }
+    UserDefaults.standard.set(args.sessionId, forKey: sessionKey)
+    invoke.resolve()
+  }
+
+  private func belongsToConnection(_ notification: UNNotification) -> Bool {
+    guard let expected = UserDefaults.standard.string(forKey: sessionKey),
+      let received = notification.request.content.userInfo["session_id"] as? String else { return false }
+    return !expected.isEmpty && received == expected
+  }
+
+  @objc public func openSettings(_ invoke: Invoke) throws {
+    DispatchQueue.main.async {
+      guard let url = URL(string: UIApplication.openSettingsURLString) else {
+        invoke.reject("App settings are unavailable.")
+        return
+      }
+      UIApplication.shared.open(url) { opened in
+        if opened { invoke.resolve() } else { invoke.reject("App settings could not be opened.") }
+      }
+    }
   }
 
   @objc public func status(_ invoke: Invoke) throws {
@@ -78,6 +107,8 @@ class ApnsPlugin: Plugin, UNUserNotificationCenterDelegate {
     DispatchQueue.main.async {
       UIApplication.shared.unregisterForRemoteNotifications()
       UserDefaults.standard.removeObject(forKey: tokenKey)
+      UserDefaults.standard.set("", forKey: sessionKey)
+      UNUserNotificationCenter.current().removeAllDeliveredNotifications()
       invoke.resolve()
     }
   }
@@ -98,7 +129,7 @@ class ApnsPlugin: Plugin, UNUserNotificationCenterDelegate {
     _ center: UNUserNotificationCenter, willPresent notification: UNNotification,
     withCompletionHandler done: @escaping (UNNotificationPresentationOptions) -> Void
   ) {
-    done([.banner, .list, .sound])
+    done(belongsToConnection(notification) ? [.banner, .list, .sound] : [])
   }
 
   /// A tap opens the page the server named - a path of the console, checked
@@ -107,6 +138,7 @@ class ApnsPlugin: Plugin, UNUserNotificationCenterDelegate {
     _ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
     withCompletionHandler done: @escaping () -> Void
   ) {
+    guard belongsToConnection(response.notification) else { done(); return }
     let path = response.notification.request.content.userInfo["url"] as? String ?? "/dashboard"
     DispatchQueue.main.async {
       QuickActions.deliver(ActivityLink.open(path))

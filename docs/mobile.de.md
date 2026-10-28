@@ -1,5 +1,5 @@
 ---
-source_sha: "dc1f3fe63a6e"
+source_sha: "155922214d1d"
 ---
 
 # Die Telefon-App { #the-phone-app }
@@ -34,6 +34,54 @@ noch nicht geladen ist, kehrt die App zum Serverformular mit der gespeicherten
 Adresse und einem Verbindungshinweis zurück. Erneut versuchen oder eine andere
 Adresse eingeben. Eine erfolgreich geladene Offlinekopie bleibt geöffnet.
 
+## Verbindungsbereitschaft und gespeicherte Server { #connection-readiness-and-saved-servers }
+
+Nach der Anmeldung prüft **Dieses Telefon fertig einrichten** das Konto, einen
+verfügbaren veröffentlichten Agenten, die App-Sperre und Benachrichtigungen. Auch
+bestehende Konten erhalten diese Prüfung bei fehlenden Einstellungen. Weiter
+verschiebt optionale Schritte; **Einstellungen → Mobile App** öffnet sie erneut.
+Ändert sich die Menge fehlender Einstellungen, erscheint die Prüfung wieder.
+Kamerazugriff wird beim Scannen, Mikrofonzugriff beim Sprachstart angefragt, nie
+durch diese Prüfung. Bei verweigerten iOS-Mitteilungen führt eine Schaltfläche zu
+den Systemeinstellungen; bei der Rückkehr wird die Berechtigung neu geprüft.
+
+**Einstellungen → Mobile App → Server wechseln** öffnet gespeicherte Verbindungen.
+Benenne einen Server, scanne einen weiteren Code oder gib eine Adresse ein. Bis zu
+20 Server sind möglich. Vorhandene Adressen werden automatisch übernommen. Die
+Rückkehr öffnet das Dashboard mit der gespeicherten Sitzung. Cookies und
+Offline-Daten werden nicht zwischen Ursprüngen kopiert; Abmelden oder Kontowechsel
+löscht weiterhin den Kontocache. Server benötigen unterschiedliche Hostnamen:
+Ports isolieren Cookies nicht. Das Entfernen eines Eintrags löscht keine
+Browserdaten; melde dich vor der Weitergabe des Telefons zuerst ab.
+
+Der Wechsel entfernt zuerst die Push-Registrierung des bisherigen Servers. Bei
+bestehender Registrierung muss dieser erreichbar sein. Aktiviere Push auf dem
+nächsten Server ausdrücklich. Gleichzeitiger Hintergrund-Push mehrerer Server wird
+nicht eingerichtet. Organisationsvorgaben für Server und Sperre haben Vorrang;
+das Abschalten der App-Sperre erfordert Geräteauthentifizierung.
+
+Ein Wechsel löscht außerdem alte Live Activities, wartende Aktionen und Widget-
+Pins. Native Benachrichtigungsklicks sind an die Anmeldung ihrer Push-
+Registrierung gebunden; eine verspätete Mitteilung öffnet keine Unterhaltung auf
+einem anderen Server.
+
+## Datenschutz bei Benachrichtigungen { #notification-privacy }
+
+Telefoneinstellungen gelten für die aktuelle Anmeldung. **Einstellungen →
+Benachrichtigungen** kann den Text ausblenden; Chateinstellungen können eine
+Unterhaltung stummschalten. Der Server wendet beides vor dem Versand an APNs oder
+Web Push an, auch bei geschlossener App. Ein sichtbarer, fokussierter Chat erneuert
+alle 30 Sekunden eine 90-sekündige Unterdrückung. Verlassen oder Hintergrundbetrieb
+löscht den Fokus; nach einem Prozessabbruch verfällt er spätestens nach 90 Sekunden.
+Dies betrifft Push, nicht den Posteingang oder laufende Live Activities.
+
+Ein erfolgreicher Test bestätigt die Annahme durch den Push-Dienst, nicht die
+Anzeige auf diesem Telefon. Prüfe Sperrbildschirm oder Mitteilungszentrale.
+Android verwendet UnifiedPush und bietet bei fehlendem Verteiler eine
+ntfy-Installationsanleitung. iOS unterscheidet fehlende APNs-Konfiguration der
+Organisation von verweigerter Systemberechtigung. Firebase wird nicht hinzugefügt.
+
+
 ## Push { #push }
 
 | Wo | Über | Eingeschaltet in |
@@ -46,7 +94,11 @@ Die Benachrichtigungen jedes Ereignisses - E-Mail, Push - werden je Ereignis unt
 Einstellungen → Benachrichtigungen gewählt. Eine Benachrichtigung öffnet ihre Seite
 durch die Sperre der App.
 
-Push einer Anmeldung endet, sobald diese Sitzung widerrufen wird oder abläuft. Ein verknüpftes Token wird nur verwendet, wenn seine Sitzung demselben Benutzer gehört. Ältere Abonnements ohne gespeicherte Sitzung behalten ihre bestehende Erlaubnis; entferne und registriere sie erneut, um sie dem aktuellen Gerät zuzuordnen.
+Push einer Anmeldung endet, sobald diese Sitzung widerrufen wird oder abläuft.
+Ein verknüpftes Token wird nur verwendet, wenn seine Sitzung demselben Benutzer
+gehört. Ältere Abonnements ohne gespeicherte Sitzung behalten ihre bestehende
+Erlaubnis; entferne und registriere sie erneut, um sie dem aktuellen Gerät
+zuzuordnen.
 
 ## Außerhalb der App { #outside-the-app }
 
