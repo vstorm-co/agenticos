@@ -318,3 +318,18 @@ class EmbeddingModelsResponse(BaseSchema):
     """
 
     providers: list[EmbeddingProviderEntry]
+
+
+class EndpointEmbeddingModels(BaseSchema):
+    """The embedding models one custom endpoint serves, of those this build offers.
+
+    `source` says whether the endpoint answered. `live` is its own listing,
+    narrowed to the catalog because a width is needed and the listing states
+    none; `curated` is the provider's whole catalog, returned when the endpoint
+    could not be asked, so the form still has something to show and can say
+    that it is unconfirmed.
+    """
+
+    provider: str
+    models: list[EmbeddingModelEntry]
+    source: Literal["live", "curated"]

@@ -3,7 +3,11 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { EmbeddingProviderFields, useEmbeddingProviders } from "@/components/kb/embedding-picker";
+import {
+  EmbeddingProviderFields,
+  useEmbeddingProviders,
+  useEndpointEmbeddingModels,
+} from "@/components/kb/embedding-picker";
 import {
   Button,
   Dialog,
@@ -78,6 +82,11 @@ export function EmbeddingDialog({
       (model) => model.model === kb.embedding_model && model.dim === kb.embedding_dim,
     ),
   );
+  // The model cannot follow a move, so an endpoint that lists its models and
+  // leaves this one out is refused on save - said here, before it is.
+  const { served, checking } = useEndpointEmbeddingModels(provider, baseUrl);
+  const endpointLacksModel =
+    served?.source === "live" && !served.models.some((entry) => entry.model === kb.embedding_model);
   const moved =
     provider !== kb.embedding_provider ||
     secretId !== kb.embedding_secret_id ||
@@ -155,6 +164,11 @@ export function EmbeddingDialog({
                 onEndpointId={setEndpointId}
                 idPrefix="kb-embedding"
               />
+              {endpointLacksModel && (
+                <p className="text-destructive text-xs">
+                  {t("endpointLacksCollectionModel", { model: kb.embedding_model })}
+                </p>
+              )}
               {(errors.embedding_provider ??
                 errors.embedding_secret_id ??
                 errors.embedding_endpoint_id ??
@@ -173,7 +187,11 @@ export function EmbeddingDialog({
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             {t("cancel")}
           </Button>
-          <Button type="button" onClick={save} disabled={!moved || isSaving}>
+          <Button
+            type="button"
+            onClick={save}
+            disabled={!moved || isSaving || checking || endpointLacksModel}
+          >
             {isSaving ? t("saving") : t("save")}
           </Button>
         </DialogFooter>
