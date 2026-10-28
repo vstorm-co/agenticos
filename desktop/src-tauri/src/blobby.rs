@@ -346,10 +346,21 @@ pub fn open(app: &AppHandle, server: &Url, blobby: &BlobbySettings) -> tauri::Re
 
 /// Bring blobby's window in line with the settings: open, closed, or told who it is now.
 pub fn sync(app: &AppHandle, server: Option<&Url>, blobby: &BlobbySettings) -> Result<(), String> {
+    if blobby.enabled {
+        if let Some(console) = app.get_webview_window(crate::WINDOW) {
+            if crate::page_surface(&console.url().map_err(|e| e.to_string())?) == appearance::Surface::Setup {
+                if let Some(window) = app.get_webview_window(WINDOW) {
+                    window.hide().map_err(|e| e.to_string())?;
+                }
+                return Ok(());
+            }
+        }
+    }
     match (app.get_webview_window(WINDOW), blobby.enabled, server) {
         (Some(window), false, _) => window.close().map_err(|e| e.to_string()),
         (Some(window), true, _) => {
             resize(&window, blobby.size)?;
+            window.show().map_err(|e| e.to_string())?;
             app.emit_to(WINDOW, SETTINGS_EVENT, blobby).map_err(|e| e.to_string())
         }
         (None, true, Some(server)) => open(app, server, blobby).map(|_| ()).map_err(|e| e.to_string()),

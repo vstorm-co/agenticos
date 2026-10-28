@@ -205,7 +205,8 @@ pub fn set_appearance(app: AppHandle, appearance: Appearance) -> Result<(), Stri
             }
         }
     }
-    Ok(())
+    let settings = settings::current(&app);
+    blobby::sync(&app, settings.server_url.as_ref(), &settings.blobby)
 }
 
 /// Blobby's settings from the desktop tab. Where it was left is the shell's, not the page's.

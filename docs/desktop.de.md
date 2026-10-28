@@ -1,5 +1,5 @@
 ---
-source_sha: "cf9bf28042c4"
+source_sha: "887b8840ab00"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -86,6 +86,11 @@ eingeklappte Seitenleiste zeigt das Serversymbol. Sie können die Adresse ohne
 blobby ändern.
 
 ### Docker und mehrere lokale Instanzen { #docker-and-multiple-local-instances }
+
+Eine neue Instanz öffnet einen eigenen Schritt mit gruppierten Feldern für
+Arbeitsbereich, Eigentümer und Anbieter. **Cancel** führt zur Instanzliste zurück.
+Blobby bleibt während der Einrichtung verborgen und kehrt mit der Konsole
+gemäß seiner gespeicherten Sichtbarkeit zurück.
 
 Unter macOS lädt **Download Docker Desktop** den offiziellen Installer für Apple
 silicon oder Intel herunter, zeigt den Fortschritt und öffnet das Disk-Image.

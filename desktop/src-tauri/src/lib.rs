@@ -806,6 +806,13 @@ fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow>
             if matches!(payload.event(), PageLoadEvent::Started) {
                 native_browser::hide_all(window.app_handle());
                 let surface = page_surface(payload.url());
+                if surface == Surface::Setup {
+                    if let Some(blobby) = window.app_handle().get_webview_window(blobby::WINDOW) {
+                        if let Err(error) = blobby.hide() {
+                            eprintln!("hide blobby during setup: {error}");
+                        }
+                    }
+                }
                 if let Err(e) = dress(&window, surface, settings.appearance) {
                     eprintln!("appearance: {e}");
                 }

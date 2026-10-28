@@ -1,5 +1,5 @@
 ---
-source_sha: "cf9bf28042c4"
+source_sha: "887b8840ab00"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -82,6 +82,10 @@ Otwiera bezpośrednio formularz połączenia; zwinięty pasek pokazuje jego ikon
 serwera. Możesz zmienić adres bez używania blobby.
 
 ### Docker i wiele lokalnych instancji { #docker-and-multiple-local-instances }
+
+Tworzenie instancji otwiera osobny krok z pogrupowanymi polami przestrzeni,
+właściciela i dostawcy. **Cancel** wraca do listy instancji. Blobby jest ukryty
+podczas konfiguracji i wraca razem z konsolą zgodnie z zapisanym ustawieniem.
 
 Na macOS **Download Docker Desktop** pobiera oficjalny instalator dla Apple silicon
 lub Intela, pokazuje postęp i otwiera obraz dysku. Dokończ instalację w oknie

@@ -135,120 +135,161 @@
       </section>
 
       <section data-screen="local" hidden>
-        <h1>AgenticOS on this computer</h1>
-        <p class="lead">A local workspace, managed from your menu bar.</p>
-        <div
-          class="local-instance"
-          data-local-instance
-          data-state="checking"
-          aria-busy="true"
-        >
-          <span class="local-machine" aria-hidden="true"
-            ><svg viewBox="0 0 24 24">
-              <rect x="3" y="4" width="18" height="13" rx="2" />
-              <path d="M8 21h8m-4-4v4" /></svg
-          ></span>
-          <div class="local-copy">
-            <strong data-local-title>Checking this computer</strong>
-            <p data-local-message role="status">
-              Looking for AgenticOS and Docker…
-            </p>
+        <h1 data-local-heading>AgenticOS on this computer</h1>
+        <p class="lead" data-local-lead>
+          A local workspace, managed from your menu bar.
+        </p>
+        <div class="local-overview" data-local-overview>
+          <div
+            class="local-instance"
+            data-local-instance
+            data-state="checking"
+            aria-busy="true"
+          >
+            <span class="local-machine" aria-hidden="true"
+              ><svg viewBox="0 0 24 24">
+                <rect x="3" y="4" width="18" height="13" rx="2" />
+                <path d="M8 21h8m-4-4v4" /></svg
+            ></span>
+            <div class="local-copy">
+              <strong data-local-title>Checking this computer</strong>
+              <p data-local-message role="status">
+                Looking for AgenticOS and Docker…
+              </p>
+            </div>
+            <span class="local-status" aria-hidden="true"></span>
           </div>
-          <span class="local-status" aria-hidden="true"></span>
-        </div>
-        <div class="actions" data-local-actions hidden>
-          <button type="button" class="link" data-go="where">Back</button>
-          <button type="button" class="secondary" data-action="docker" hidden>
-            Download Docker Desktop
-          </button>
-          <button
-            type="button"
-            class="secondary"
-            data-action="open-docker"
-            hidden
-          >
-            Open Docker Desktop
-          </button>
-          <button type="button" class="secondary" data-action="check" hidden>
-            Check again
-          </button>
-          <button type="button" class="secondary" data-action="create" hidden>
-            New instance
-          </button>
-          <button type="button" class="primary" data-action="use" hidden>
-            Connect and continue
-          </button>
-        </div>
-        <div class="instance-list" data-instance-list hidden></div>
-        <p class="error" role="alert" data-instance-error hidden></p>
-        <form id="local-form" hidden>
-          <input type="hidden" id="instance-id" name="instance-id" value="" />
-          <label for="instance-name">Instance name</label>
-          <input
-            id="instance-name"
-            name="instance-name"
-            type="text"
-            placeholder="Work, Personal, Testing…"
-            maxlength="80"
-            required
-          />
-          <label for="organization">Organization</label>
-          <input
-            id="organization"
-            name="organization"
-            type="text"
-            placeholder="Acme"
-            required
-          />
-          <label for="email">Your email</label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            autocomplete="email"
-            required
-          />
-          <label for="password">Password</label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            autocomplete="new-password"
-            minlength="8"
-            required
-          />
-          <label for="provider">Model provider</label>
-          <select id="provider" name="provider">
-            <option value="anthropic">Anthropic</option>
-            <option value="openai">OpenAI</option>
-            <option value="google">Google</option>
-            <option value="openrouter">OpenRouter</option>
-          </select>
-          <label for="api-key"
-            >API key <span class="optional">optional</span></label
-          >
-          <input
-            id="api-key"
-            name="api-key"
-            type="password"
-            autocomplete="off"
-            spellcheck="false"
-          />
-          <p class="hint">
-            Without one your agents are created but cannot answer yet. Add it
-            later under Settings, AI providers. The key is stored in this
-            instance’s vault.
-          </p>
-          <p class="hint">
-            Each instance has its own data and automatically assigned local
-            ports. Downloads need several GB of disk.
-          </p>
-          <p class="error" role="alert" hidden></p>
-          <div class="actions">
+          <div class="actions" data-local-actions hidden>
             <button type="button" class="link" data-go="where">Back</button>
-            <button type="submit" class="primary">Set up AgenticOS</button>
+            <button type="button" class="secondary" data-action="docker" hidden>
+              Download Docker Desktop
+            </button>
+            <button
+              type="button"
+              class="secondary"
+              data-action="open-docker"
+              hidden
+            >
+              Open Docker Desktop
+            </button>
+            <button type="button" class="secondary" data-action="check" hidden>
+              Check again
+            </button>
+            <button type="button" class="secondary" data-action="create" hidden>
+              New instance
+            </button>
+            <button type="button" class="primary" data-action="use" hidden>
+              Connect and continue
+            </button>
           </div>
-        </form>
+          <div class="instance-list" data-instance-list hidden></div>
+          <p class="error" role="alert" data-instance-error hidden></p>
+        </div>
+        <div class="local-create" data-local-create hidden>
+          <form id="local-form" hidden>
+            <input type="hidden" id="instance-id" name="instance-id" value="" />
+            <div class="form-surface">
+              <fieldset class="form-group">
+                <legend>Workspace</legend>
+                <div class="form-fields">
+                  <div class="form-field">
+                    <label for="instance-name">Instance name</label
+                    ><input
+                      id="instance-name"
+                      name="instance-name"
+                      type="text"
+                      placeholder="Work or Personal"
+                      maxlength="80"
+                      required
+                    />
+                  </div>
+                  <div class="form-field">
+                    <label for="organization">Organization</label
+                    ><input
+                      id="organization"
+                      name="organization"
+                      type="text"
+                      placeholder="Acme"
+                      required
+                    />
+                  </div>
+                </div>
+              </fieldset>
+              <fieldset class="form-group">
+                <legend>Owner account</legend>
+                <div class="form-fields">
+                  <div class="form-field">
+                    <label for="email">Your email</label
+                    ><input
+                      id="email"
+                      name="email"
+                      type="email"
+                      autocomplete="email"
+                      placeholder="you@company.com"
+                      required
+                    />
+                  </div>
+                  <div class="form-field">
+                    <label for="password">Password</label
+                    ><input
+                      id="password"
+                      name="password"
+                      type="password"
+                      autocomplete="new-password"
+                      placeholder="At least 8 characters"
+                      minlength="8"
+                      required
+                    />
+                  </div>
+                </div>
+              </fieldset>
+              <fieldset class="form-group">
+                <legend>AI provider</legend>
+                <div class="form-fields">
+                  <div class="form-field form-field-select">
+                    <label for="provider">Provider</label
+                    ><select id="provider" name="provider">
+                      <option value="anthropic">Anthropic</option>
+                      <option value="openai">OpenAI</option>
+                      <option value="google">Google</option>
+                      <option value="openrouter">OpenRouter</option>
+                    </select>
+                  </div>
+                  <div class="form-field">
+                    <label for="api-key"
+                      >API key <span class="optional">optional</span></label
+                    ><input
+                      id="api-key"
+                      name="api-key"
+                      type="password"
+                      autocomplete="off"
+                      placeholder="Add now or later"
+                      spellcheck="false"
+                    />
+                  </div>
+                </div>
+                <p class="hint">
+                  A key is needed for agent responses. You can add it later in
+                  AI providers.
+                </p>
+              </fieldset>
+              <p class="form-note">
+                <svg aria-hidden="true" viewBox="0 0 24 24">
+                  <path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6Z" />
+                  <path d="m8 12 3 3 5-6" /></svg
+                >Separate data and login. Keys are stored in this instance’s
+                vault.
+              </p>
+              <p class="error" role="alert" hidden></p>
+              <div class="actions form-actions">
+                <button type="button" class="link" data-action="cancel-create">
+                  Cancel
+                </button>
+                <button type="submit" class="primary">Create instance</button>
+              </div>
+            </div>
+          </form>
+        </div>
       </section>
 
       <section data-screen="progress" hidden>

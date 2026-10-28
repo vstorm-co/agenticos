@@ -129,6 +129,8 @@ it("resumes a partial installation and offers a fresh instance beside an existin
   fireEvent.click(await screen.findByRole("button", { name: "Finish setup" }));
   expect(root.querySelector('[name="instance-id"]')).toHaveValue("partial");
   expect(screen.getByLabelText("Instance name")).toHaveValue("Interrupted");
+  expect(screen.queryByRole("button", { name: "New instance" })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
   fireEvent.click(screen.getByRole("button", { name: "New instance" }));
   expect(root.querySelector('[name="instance-id"]')).toHaveValue("");
   expect(screen.getByLabelText("Instance name")).toHaveValue("");
@@ -141,4 +143,23 @@ it("downloads Docker only after the explicit download action", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Download Docker Desktop" }));
   await waitFor(() => expect(invoke).toHaveBeenCalledWith("download_docker"));
   expect(screen.getByRole("status")).toHaveTextContent("Finish installing Docker Desktop");
+});
+
+it("shows a separate, grouped creation step with one action bar and restores the overview on Cancel", async () => {
+  invoke.mockResolvedValueOnce("running");
+  const { root, refresh } = mount();
+  await refresh();
+  fireEvent.click(screen.getByRole("button", { name: "New instance" }));
+  expect(screen.getByRole("heading", { name: "Create a local instance" })).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Connect and continue" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
+  expect(screen.getByRole("group", { name: "Workspace" })).toBeVisible();
+  expect(screen.getByRole("group", { name: "Owner account" })).toBeVisible();
+  expect(screen.getByRole("group", { name: "AI provider" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Create instance" })).toBeVisible();
+  expect(root).toHaveAttribute("data-view", "create");
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(screen.getByRole("button", { name: "Connect and continue" })).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Create instance" })).not.toBeInTheDocument();
+  expect(root).toHaveAttribute("data-view", "overview");
 });

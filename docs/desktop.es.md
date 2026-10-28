@@ -1,5 +1,5 @@
 ---
-source_sha: "cf9bf28042c4"
+source_sha: "887b8840ab00"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -83,6 +83,11 @@ lateral contraída muestra su icono de servidor. Puedes cambiar la dirección si
 usar blobby.
 
 ### Docker y varias instancias locales { #docker-and-multiple-local-instances }
+
+Crear una instancia abre un paso propio con campos agrupados de espacio,
+propietario y proveedor. **Cancel** vuelve a la lista de instancias. Blobby se
+oculta durante la configuración y regresa con la consola según su preferencia
+de visibilidad guardada.
 
 En macOS, **Download Docker Desktop** descarga el instalador oficial para Apple
 silicon o Intel, muestra el progreso y abre la imagen de disco. Termina la

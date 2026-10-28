@@ -364,6 +364,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Local instance creation has its own compact, grouped setup step with one action
+  bar. Cancelling restores the instance overview; Blobby stays out of setup screens.
+
 - Quick Ask renders the whole conversation, tool activity, approvals and queued
   messages instead of only the last answer. Add stopping, attachment/source
   previews and scrolling that lets the person read earlier turns.

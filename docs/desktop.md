@@ -78,6 +78,10 @@ server icon. You can change the address without using blobby.
 
 ### Docker and multiple local instances
 
+Creating an instance opens a dedicated step with grouped workspace, owner and
+provider fields. **Cancel** returns to the instance list. Blobby stays hidden
+during setup and returns with the console, following its saved visibility setting.
+
 On macOS, **Download Docker Desktop** downloads the official installer for Apple
 silicon or Intel, shows progress and opens the disk image. Finish installation
 in the system window, then choose **Open Docker Desktop** and **Check again**.

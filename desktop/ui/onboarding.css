@@ -532,3 +532,126 @@ select {
 .instance-row button {
   flex: none;
 }
+
+.local-overview,
+.local-create {
+  inline-size: 100%;
+}
+main:has(> [data-screen="local"][data-view="create"]:not([hidden])) {
+  inline-size: min(38rem, calc(100vw - 3rem));
+}
+main:has(> [data-screen="local"][data-view="create"]:not([hidden]))
+  > .app-icon {
+  inline-size: 64px;
+  block-size: 64px;
+  margin-block-end: 1rem;
+}
+.local-create {
+  animation: arrive 260ms var(--ease);
+}
+.form-surface {
+  padding: 1.5rem;
+  border-radius: 16px;
+  background: var(--fill);
+  box-shadow: var(--shadow);
+}
+.form-group {
+  min-inline-size: 0;
+  padding: 0;
+  border: 0;
+  margin: 0;
+}
+.form-group + .form-group {
+  margin-block-start: 1.35rem;
+}
+.form-group legend {
+  padding: 0;
+  margin-block-end: 0.85rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--secondary);
+}
+.form-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+}
+.form-field {
+  min-inline-size: 0;
+}
+.form-field label {
+  display: block;
+  margin: 0 0 0.4rem;
+  font-size: 0.82rem;
+}
+.form-field input,
+.form-field select {
+  min-block-size: 2.5rem;
+  padding-inline: 0.75rem;
+  border-radius: 8px;
+}
+.form-field input::placeholder {
+  color: var(--tertiary);
+}
+.form-field select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-inline-end: 2.25rem;
+}
+.form-group .hint {
+  margin-block-start: 0.6rem;
+  line-height: 1.45;
+}
+.form-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 1.2rem 0 0;
+  font-size: 0.78rem;
+  color: var(--secondary);
+}
+.form-note svg {
+  flex: none;
+  inline-size: 1rem;
+  block-size: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.form-actions {
+  margin-block-start: 1.25rem;
+  padding-block-start: 1.1rem;
+  border-block-start: 0.5px solid var(--separator);
+}
+@media (max-width: 480px) {
+  .form-fields {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.85rem;
+  }
+  .form-surface {
+    padding: 1.25rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .local-create {
+    animation: none;
+  }
+}
+
+.form-field-select {
+  position: relative;
+}
+.form-field-select::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  inline-size: 0.4rem;
+  block-size: 0.4rem;
+  inset-inline-end: 1rem;
+  inset-block-end: 1.05rem;
+  border-inline-end: 1.5px solid var(--secondary);
+  border-block-end: 1.5px solid var(--secondary);
+  transform: rotate(45deg);
+}

@@ -20,8 +20,8 @@ const VIEWS = {
   ready: {
     title: "Ready to create your workspace",
     message:
-      "Add your organization and account below. The app will download and start AgenticOS for you.",
-    actions: [],
+      "Create an instance for your organization and choose its owner account.",
+    actions: ["create"],
   },
 };
 
@@ -40,9 +40,36 @@ export function localComputerStep(root, invoke, report) {
   const form = root.querySelector("form");
   const list = root.querySelector("[data-instance-list]");
   const instanceError = root.querySelector("[data-instance-error]");
+  const overview = root.querySelector("[data-local-overview]");
+  const create = root.querySelector("[data-local-create]");
+  const heading = root.querySelector("[data-local-heading]");
+  const lead = root.querySelector("[data-local-lead]");
   let instances = [];
+  function showOverview() {
+    root.dataset.view = "overview";
+    overview.hidden = false;
+    create.hidden = true;
+    form.hidden = true;
+    heading.textContent = "AgenticOS on this computer";
+    lead.textContent = "A local workspace, managed from your menu bar.";
+  }
+  form
+    .querySelector('[data-action="cancel-create"]')
+    .addEventListener("click", () => {
+      showOverview();
+      actions
+        .querySelector('[data-action="create"]')
+        ?.focus({ preventScroll: true });
+    });
   function showForm(instance) {
+    root.dataset.view = "create";
+    overview.hidden = true;
+    create.hidden = false;
     form.hidden = false;
+    heading.textContent = instance
+      ? "Finish setting up your instance"
+      : "Create a local instance";
+    lead.textContent = "Your own workspace, running on this computer.";
     form.querySelector("[name=instance-id]").value = instance?.id ?? "";
     form.querySelector("[name=instance-name]").value = instance?.name ?? "";
     form.querySelector("[name=instance-name]").focus();
@@ -128,12 +155,18 @@ export function localComputerStep(root, invoke, report) {
   }
   function showActions(visible) {
     actions.hidden = false;
+    const primary = ["use", "create", "docker", "open-docker", "check"].find(
+      (action) => visible.includes(action),
+    );
     for (const button of actions.querySelectorAll("[data-action]")) {
       button.hidden = !visible.includes(button.dataset.action);
+      button.classList.toggle("primary", button.dataset.action === primary);
+      button.classList.toggle("secondary", button.dataset.action !== primary);
     }
   }
   async function refresh() {
     const request = ++generation;
+    showOverview();
     card.dataset.state = "checking";
     setBusy(true);
     title.textContent = "Checking this computer";
@@ -151,8 +184,6 @@ export function localComputerStep(root, invoke, report) {
       title.textContent = view.title;
       message.textContent = view.message;
       showActions(view.actions);
-      form.hidden = status !== "ready";
-      if (status === "ready") showForm(null);
     } catch (error) {
       if (request !== generation || root.hidden) return;
       card.dataset.state = "error";
