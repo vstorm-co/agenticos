@@ -137,6 +137,13 @@ describe("AssistantStrip", () => {
     expect(screen.queryByRole("button", { name: "Verify my edits" })).toBeNull();
   });
 
+  it("lets the line about what waits wrap on a phone", () => {
+    strip();
+    expect(screen.getByText("1 suggestion · from 6 rated-down answers across 22 runs")).toHaveClass(
+      "whitespace-normal",
+    );
+  });
+
   it("counts what waits even when the request said nothing about its evidence", () => {
     state.authoring = agentAuthoring({ latest: authoringRequest({ evidence: {} }) });
     strip();

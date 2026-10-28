@@ -116,7 +116,7 @@ export function AssistantStrip({
         <Sparkles className="text-primary h-5 w-5" aria-hidden />
         <CardTitle className="flex-1">{t("title")}</CardTitle>
         {pending.length > 0 && (
-          <Badge>
+          <Badge className="whitespace-normal">
             {t("chip", {
               count: pending.length,
               ratedDown: latest?.evidence.rated_down ?? 0,
