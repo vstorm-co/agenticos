@@ -21,6 +21,7 @@ from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.models.workflow import Workflow
 from app.db.models.workflow_log_alert import WorkflowLogAlertFiring, WorkflowLogAlertRule
+from app.db.updates import writable
 from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_log_alert as alert_repo
 from app.repositories import workflow_log_entry as log_repo
@@ -123,7 +124,7 @@ class WorkflowLogAlertService:
         """
         workflow = await self._workflow(ctx, workflow_id, Perm.WORKFLOWS_EDIT)
         rule = await self._rule(ctx, workflow, rule_id)
-        fields: dict[str, Any] = data.model_dump(exclude_unset=True)
+        fields: dict[str, Any] = writable(data, over=WorkflowLogAlertRule)
         if "audience" in fields:
             fields["audience"] = [a.value for a in data.audience or []]
         if "audience" in fields or "user_ids" in fields:

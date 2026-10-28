@@ -26,7 +26,13 @@ from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.core.security import create_artifact_view_token, verify_special_token
 from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion
 from app.db.models.resource_grant import Visibility
-from app.schemas.artifact import ArtifactBinding, ArtifactData, ArtifactUpdate, BindingReach
+from app.schemas.artifact import (
+    ArtifactBinding,
+    ArtifactData,
+    ArtifactUpdate,
+    BindingReach,
+    WorkflowLogBinding,
+)
 from app.services import artifact as artifacts
 from app.services import rate_limit
 from app.services.artifact import ArtifactService
@@ -1530,6 +1536,50 @@ class TestData:
             MagicMock(remaining_ms=lambda: 0),
         )
         assert read == Unavailable("timeout")
+
+    async def test_a_log_read_with_no_time_left_is_a_timeout(self) -> None:
+        read = await ArtifactService(_session())._read_log(
+            _ctx(),
+            WorkflowLogBinding(name="log", workflow_id=uuid.uuid4(), lines=5),
+            MagicMock(remaining_ms=lambda: 0),
+            rows=True,
+        )
+        assert read == Unavailable("timeout")
+
+    @pytest.mark.parametrize(
+        "stopped",
+        [
+            DBAPIError("SELECT pg_sleep(1)", {"needle": "x"}, MagicMock(sqlstate="57014")),
+            DeadlineReached(remaining_ms=0),
+        ],
+        ids=["statement_timeout", "deadline"],
+    )
+    async def test_a_log_read_stopped_is_a_timeout(self, stopped: Exception) -> None:
+        with patch(
+            f"{PATH}.virtual_table_repo.statement_timeout", new=AsyncMock(side_effect=stopped)
+        ):
+            read = await ArtifactService(_session())._read_log(
+                _ctx(),
+                WorkflowLogBinding(name="log", workflow_id=uuid.uuid4(), lines=5),
+                MagicMock(remaining_ms=lambda: 5),
+                rows=True,
+            )
+        assert read == Unavailable("timeout")
+
+    async def test_a_log_read_failing_for_another_reason_is_not_swallowed(self) -> None:
+        broken = DBAPIError("SELECT 1", {}, MagicMock(sqlstate="40001"))
+        with (
+            patch(
+                f"{PATH}.virtual_table_repo.statement_timeout", new=AsyncMock(side_effect=broken)
+            ),
+            pytest.raises(DBAPIError),
+        ):
+            await ArtifactService(_session())._read_log(
+                _ctx(),
+                WorkflowLogBinding(name="log", workflow_id=uuid.uuid4(), lines=5),
+                MagicMock(remaining_ms=lambda: 5),
+                rows=True,
+            )
 
     async def test_a_read_that_is_not_a_timeout_is_not_swallowed_after_the_source(self) -> None:
         broken = DBAPIError("SELECT 1", {}, MagicMock(sqlstate="40001"))

@@ -65,6 +65,7 @@ from app.db.models.virtual_table_trigger import VirtualTableTrigger
 from app.db.models.watch import Watch
 from app.db.models.workflow import Workflow
 from app.db.models.workflow_exposure import WorkflowExposure
+from app.db.models.workflow_log_alert import WorkflowLogAlertRule
 from app.db.updates import cleared, writable
 from app.schemas.agent import AgentDraftUpdate
 from app.schemas.agent_embed import EmbedUpdate
@@ -86,7 +87,11 @@ from app.schemas.deployment_settings import DeploymentSettingsUpdate
 from app.schemas.group import GroupLeadUpdate, GroupUpdate
 from app.schemas.knowledge_base import KnowledgeBaseUpdate
 from app.schemas.local_service import LocalServiceUpdate
-from app.schemas.mcp_connection import McpConnectionUpdate, OrgMcpConnectionUpdate
+from app.schemas.mcp_connection import (
+    McpConnectionUpdate,
+    OrgMcpConnectionUpdate,
+    PortalPollIntervalUpdate,
+)
 from app.schemas.memory import MemoryNoteUpdate
 from app.schemas.notification import NotificationPreferenceUpdate
 from app.schemas.organization import OrganizationMemberUpdate, OrganizationUpdate
@@ -105,6 +110,7 @@ from app.schemas.virtual_table_trigger import TableTriggerUpdate
 from app.schemas.watch import WatchUpdate
 from app.schemas.workflow import WorkflowActiveUpdate, WorkflowDraftUpdate, WorkflowUpdate
 from app.schemas.workflow_exposure import WorkflowExposureUpdate
+from app.schemas.workflow_log_alert import WorkflowLogAlertUpdate
 
 # Which row each `*Update` schema writes, and `None` where it writes no single
 # one. Declared by hand because nothing in the code says it: the pairing lives in
@@ -147,6 +153,7 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     OrgMcpConnectionUpdate: McpConnection,
     OrganizationMemberUpdate: OrganizationMember,
     OrganizationUpdate: Organization,
+    PortalPollIntervalUpdate: McpConnection,
     ProjectUpdate: Project,
     RecordUpdate: None,
     RetentionUpdate: Organization,
@@ -168,6 +175,7 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     WorkflowActiveUpdate: None,
     WorkflowUpdate: Workflow,
     WorkflowExposureUpdate: WorkflowExposure,
+    WorkflowLogAlertUpdate: WorkflowLogAlertRule,
     WatchUpdate: Watch,
 }
 

@@ -661,6 +661,7 @@ class TestAPublishResult:
                 unchanged=False,
                 bindings={},
                 actions=[],
+                notes=[],
             )
         assert published.consent is ConsentState.PENDING
         assert (published.audience_version, published.owner_name) == (2, "Olga Owner")
@@ -670,7 +671,14 @@ class TestAPublishResult:
         artifact = _artifact(owner)
         plain = _version(artifact, state=ConsentState.NOT_NEEDED, bound=False)
         published = await artifacts._published(
-            MagicMock(), artifact, plain, created=True, unchanged=False, bindings={}, actions=[]
+            MagicMock(),
+            artifact,
+            plain,
+            created=True,
+            unchanged=False,
+            bindings={},
+            actions=[],
+            notes=[],
         )
         assert (published.consent, published.audience_version) == (ConsentState.NOT_NEEDED, 2)
 
@@ -687,6 +695,7 @@ class TestAPublishResult:
                 unchanged=False,
                 bindings={},
                 actions=[],
+                notes=[],
             )
         assert published.consent is ConsentState.CONSENTED
         assert (published.audience_version, published.owner_name) == (3, None)

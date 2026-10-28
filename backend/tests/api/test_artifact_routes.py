@@ -319,6 +319,8 @@ class TestMembers:
             patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=row)),
             patch(f"{PATH}.artifact_repo.lock", new=AsyncMock(return_value=row)),
             patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=None)),
+            patch(f"{PATH}.artifact_repo.latest_served", new=AsyncMock(return_value=None)),
+            patch(f"{PATH}.artifact_repo.list_versions", new=AsyncMock(return_value=[])),
             patch(f"{PATH}.artifact_repo.update", new=_update),
             patch(f"{PATH}.record_audit", new=AsyncMock()),
         ):
