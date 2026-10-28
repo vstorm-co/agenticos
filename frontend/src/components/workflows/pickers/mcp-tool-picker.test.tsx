@@ -1,29 +1,33 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, renderHook, screen, waitFor } from "@testing-library/react";
+import { render, renderHook, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
+import { qk } from "@/lib/query-keys";
+import type { UsableMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 
 import { McpConnectionPicker, McpToolField, useMcpToolSchema } from "./mcp-tool-picker";
 
 const state = vi.hoisted(() => ({
   canManage: true,
-  connections: [] as OrgMcpConnectionRecord[],
+  canEdit: true,
+  connections: [] as UsableMcpConnectionRecord[],
   isLoading: false,
   test: vi.fn(),
+  invalidate: vi.fn(),
 }));
 const toast = vi.hoisted(() => ({ error: vi.fn() }));
-const listed = vi.hoisted(() => ({ list: vi.fn() }));
 
 vi.mock("sonner", () => ({ toast }));
-vi.mock("@/lib/org-mcp-connections-api", () => ({ listOrgMcpConnections: listed.list }));
+vi.mock("@/lib/org-mcp-connections-api", () => ({
+  testOrgMcpConnection: (id: string) => state.test(id),
+}));
 vi.mock("@/hooks", () => ({
   usePermissions: () => ({ can: () => state.canManage }),
-  useOrgMcpConnections: () => ({
-    connections: state.connections,
+  useUsableMcpConnections: () => ({
+    connections: state.canEdit ? state.connections : null,
     isLoading: state.isLoading,
-    test: state.test,
+    canRead: state.canEdit,
   }),
   useMcpCatalog: () => ({
     servers: [{ key: "hubspot", url: "https://mcp.hubspot.com", icon: "hubspot" }],
@@ -35,31 +39,39 @@ vi.mock("@/components/mcp/mcp-server-icon", () => ({
   ),
 }));
 
-const connection = (overrides: Partial<OrgMcpConnectionRecord>) =>
+const connection = (overrides: Partial<UsableMcpConnectionRecord>) =>
   ({
     id: "c1",
     name: "hubspot",
     label: "HubSpot",
-    url: "https://mcp.hubspot.com",
+    catalog_key: "hubspot",
     is_enabled: true,
     last_tools: [
       { name: "find_contact", description: "Look a contact up" },
       { name: "create_contact", description: "" },
     ],
     ...overrides,
-  }) as OrgMcpConnectionRecord;
+  }) as UsableMcpConnectionRecord;
 
 beforeEach(() => {
   state.canManage = true;
+  state.canEdit = true;
   state.connections = [connection({})];
   state.isLoading = false;
   state.test.mockReset();
+  state.invalidate.mockReset();
   toast.error.mockReset();
 });
 
 function renderField(props: Partial<Parameters<typeof McpToolField>[0]> = {}) {
   const onChange = vi.fn();
-  render(<McpToolField connectionId="c1" tool={null} onChange={onChange} {...props} />);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  vi.spyOn(client, "invalidateQueries").mockImplementation(state.invalidate);
+  render(
+    <QueryClientProvider client={client}>
+      <McpToolField connectionId="c1" tool={null} onChange={onChange} {...props} />
+    </QueryClientProvider>,
+  );
   return onChange;
 }
 
@@ -71,7 +83,7 @@ describe("McpToolField", () => {
         id: "c2",
         name: "custom",
         label: null,
-        url: "https://x.example",
+        catalog_key: null,
         is_enabled: false,
       }),
     ];
@@ -120,6 +132,8 @@ describe("McpToolField", () => {
     await userEvent.click(screen.getByRole("button", { name: "Refresh tools" }));
 
     expect(state.test).toHaveBeenCalledWith("c1");
+    // The list the picker reads is read again, so the new tools show.
+    expect(state.invalidate).toHaveBeenCalledWith({ queryKey: qk.mcpConnections.all() });
     expect(toast.error).not.toHaveBeenCalled();
   });
 
@@ -159,12 +173,40 @@ describe("McpToolField", () => {
     expect(screen.getByText("The server did not offer this tool")).toBeVisible();
   });
 
-  it("tells a member who may not manage servers why there is no list", () => {
-    state.canManage = false;
+  it("tells a member who may not edit this workflow why there is no list", () => {
+    state.canEdit = false;
     renderField();
 
-    expect(screen.getByText(/needs mcp:manage/)).toBeVisible();
+    expect(screen.getByText(/can't edit this workflow/)).toBeVisible();
     expect(screen.queryByRole("combobox")).toBeNull();
+  });
+
+  it("lets an editor who does not manage servers pick a server and a tool, with no way to add or test one", async () => {
+    state.canManage = false;
+    state.connections = [connection({}), connection({ id: "c2", name: "nope", last_tools: null })];
+    const onChange = renderField();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Tool" }));
+    await userEvent.click(screen.getByRole("option", { name: /find_contact/ }));
+
+    expect(onChange).toHaveBeenCalledWith({ connectionId: "c1", tool: "find_contact" });
+    expect(screen.queryByRole("button", { name: "Refresh tools" })).toBeNull();
+  });
+
+  it("offers an editor who cannot manage servers no Connect link when there are none", () => {
+    state.canManage = false;
+    state.connections = [];
+    renderField({ connectionId: null });
+
+    expect(screen.queryByRole("link", { name: "Connect one" })).toBeNull();
+  });
+
+  it("tells an editor who cannot test a server to ask a manager", () => {
+    state.canManage = false;
+    state.connections = [connection({ last_tools: null })];
+    renderField();
+
+    expect(screen.getByText(/Ask someone who manages the organization's servers/)).toBeVisible();
   });
 });
 
@@ -180,35 +222,28 @@ describe("McpConnectionPicker", () => {
     expect(screen.getByText("Required")).toBeVisible();
   });
 
-  it("tells a member who may not manage servers why there is no list", () => {
+  it("tells a member who may not edit this workflow why there is no list", () => {
+    state.canEdit = false;
+    render(<McpConnectionPicker value={null} onChange={vi.fn()} />);
+
+    expect(screen.getByText(/can't edit this workflow/)).toBeVisible();
+  });
+
+  it("lists the servers for an editor without mcp:manage", async () => {
     state.canManage = false;
     render(<McpConnectionPicker value={null} onChange={vi.fn()} />);
 
-    expect(screen.getByText(/needs mcp:manage/)).toBeVisible();
+    await userEvent.click(screen.getByRole("combobox", { name: "MCP server" }));
+
+    expect(screen.getByRole("option", { name: /HubSpot/ })).toBeVisible();
   });
 });
 
 describe("useMcpToolSchema", () => {
   const schema = { type: "object", properties: { email: { type: "string" } } };
 
-  function renderSchema(connectionId: string | null, tool: string | null) {
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    return renderHook(() => useMcpToolSchema(connectionId, tool), {
-      wrapper: ({ children }) => (
-        <QueryClientProvider client={client}>{children}</QueryClientProvider>
-      ),
-    });
-  }
-
-  beforeEach(() => {
-    listed.list.mockReset();
-    listed.list.mockResolvedValue([
-      connection({ last_tools: [{ name: "find_contact", description: "", input_schema: schema }] }),
-    ]);
-  });
-
-  it("selects schemas only among the connection's allowed tools", async () => {
-    listed.list.mockResolvedValue([
+  it("selects schemas only among the connection's allowed tools", () => {
+    state.connections = [
       connection({
         allowed_tools: ["other"],
         last_tools: [
@@ -216,30 +251,23 @@ describe("useMcpToolSchema", () => {
           { name: "other", description: "", input_schema: schema },
         ],
       }),
-    ]);
-    const { result } = renderSchema("c1", "other");
-    await waitFor(() => expect(result.current).toEqual(schema));
+    ];
+    const { result } = renderHook(() => useMcpToolSchema("c1", "other"));
+    expect(result.current).toEqual(schema);
   });
 
-  it("reads the chosen tool's argument schema from the server's last list", async () => {
-    const { result } = renderSchema("c1", "find_contact");
-
-    await waitFor(() => expect(result.current).toEqual(schema));
-  });
-
-  it("is null for a tool the list has no schema for", async () => {
-    const { result } = renderSchema("c1", "other");
-
-    await waitFor(() => expect(listed.list).toHaveBeenCalled());
-    expect(result.current).toBeNull();
-  });
-
-  it("asks nothing before a server is chosen, or of somebody who may not list them", () => {
-    renderSchema(null, null);
+  it("reads the chosen tool's argument schema for an editor who does not manage servers", () => {
     state.canManage = false;
-    const { result } = renderSchema("c1", "find_contact");
+    state.connections = [
+      connection({ last_tools: [{ name: "find_contact", description: "", input_schema: schema }] }),
+    ];
+    const { result } = renderHook(() => useMcpToolSchema("c1", "find_contact"));
+    expect(result.current).toEqual(schema);
+  });
 
-    expect(listed.list).not.toHaveBeenCalled();
-    expect(result.current).toBeNull();
+  it("is null for a tool the list has no schema for, and for somebody who may not edit", () => {
+    expect(renderHook(() => useMcpToolSchema("c1", "other")).result.current).toBeNull();
+    state.canEdit = false;
+    expect(renderHook(() => useMcpToolSchema("c1", "find_contact")).result.current).toBeNull();
   });
 });

@@ -34,7 +34,7 @@ export function PanePicker({
   at: PanePoint | null;
   catalog: NodeDefinition[];
   onClose: () => void;
-  onPick: (definition: NodeDefinition) => void;
+  onPick: (definition: NodeDefinition, config?: Record<string, unknown>) => void;
   /** Put a note there; absent inside a loop body, which holds no notes. */
   onAddNote?: () => void;
 }) {
@@ -69,7 +69,7 @@ export function PanePicker({
         <NodePicker
           offered={offered}
           draggable
-          onPick={(definition) => act(() => onPick(definition))()}
+          onPick={(definition, config) => act(() => onPick(definition, config))()}
         />
         {(onAddNote !== undefined || clipboard !== null) && (
           <div className="border-border flex items-center gap-1 border-t p-1.5">

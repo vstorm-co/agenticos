@@ -277,6 +277,8 @@ export default defineConfig({
         // run views (#1790).
         "src/components/workflows/workflow-card.tsx",
         "src/components/workflows/node-visuals.ts",
+        "src/components/workflows/apps.ts",
+        "src/components/workflows/use-app-connections.ts",
         "src/components/workflows/node-tile.tsx",
         "src/components/workflows/runs/**/*.{ts,tsx}",
         // A workflow's Logs page and a run's per-step lines.

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { AlertTriangle, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -15,7 +16,11 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui";
+import { appToolLabel } from "@/components/workflows/apps";
+import { connectionLabel } from "@/lib/mcp-servers";
 import { NodeTile } from "@/components/workflows/node-tile";
+import { useMcpAppStep } from "@/components/workflows/use-app-connections";
+import { ROUTES } from "@/lib/constants";
 import { NodeForm } from "@/components/workflows/property-panel/node-form";
 import { PolicySection } from "@/components/workflows/property-panel/policy-section";
 import { carriesField, scrollNearEdge } from "@/lib/workflows/field-drag";
@@ -241,6 +246,7 @@ export function NodeEditorDialog({
                   ? `${definition.name} · ${definition.description}`
                   : definition.description}
             </DialogDescription>
+            {definition?.id === "mcp.call" && <McpCallNote config={node.config} />}
             {/* Every problem the canvas counts for this step, so the two agree; the
                 field's own message under it stays quiet until it was left. */}
             {nodeProblems.map((problem, index) => {
@@ -371,5 +377,30 @@ export function NodeEditorDialog({
         </footer>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Says a step on an app's connection is an MCP tool call, on which connection and
+ * which tool, with a link to the connection - the friendly name never hides it.
+ */
+function McpCallNote({ config }: { config: Record<string, unknown> }) {
+  const t = useTranslations("workflows");
+  const mcp = useMcpAppStep(config);
+  if (mcp === null || mcp.tool === "") return null;
+  return (
+    <p className="text-muted-foreground text-xs">
+      {t("appPanelNote", {
+        tool: appToolLabel(mcp.app, mcp.tool, t),
+        raw: mcp.tool,
+        connection: connectionLabel(mcp.connection),
+      })}{" "}
+      <Link
+        href={`${ROUTES.MCP_SERVERS}?server=${encodeURIComponent(mcp.connection.catalog_key ?? "")}`}
+        className="underline underline-offset-2"
+      >
+        {t("appPanelLink")}
+      </Link>
+    </p>
   );
 }

@@ -95,6 +95,10 @@ it as a draft. Build it in this order.
    running with `MCP_ENABLE_OAUTH21=true`; in single-user mode, bind it to the
    mailbox's address.
 
+   Picking **Create draft** or **Send message** from the step picker's Gmail group below the
+   Gmail trigger binds `thread_id`, `in_reply_to` and, for a send, `to` for you; bind `body`
+   yourself, and change any of them like any binding.
+
    Set both steps' **Ask for approval** to **Never**. A person approved the exact text a
    step ago and would otherwise be asked a second time.
 

@@ -1,23 +1,37 @@
 "use client";
 
 import { Command } from "cmdk";
-import { ArrowLeft, ChevronRight, Search } from "lucide-react";
+import { ArrowLeft, ChevronRight, Plus, Search } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 
+import { appToolLabel } from "@/components/workflows/apps";
 import { NodeTile } from "@/components/workflows/node-tile";
 import { sectionSwatchClass } from "@/components/workflows/node-visuals";
 import { writeNodeDragData } from "@/components/workflows/palette/drag";
+import { useAppConnections } from "@/components/workflows/use-app-connections";
+import { ROUTES } from "@/lib/constants";
 import type { NodeDefinition } from "@/lib/workflows/types";
 import { useWorkflowNodeStyleStore } from "@/stores/workflow-node-style-store";
 import { cn } from "@/lib/utils";
 
-import { type PickerGroup, matchesSearch, pickerSections } from "./groups";
+import {
+  type AppAction,
+  type PickerGroup,
+  matchesAction,
+  matchesSearch,
+  pickerSections,
+} from "./groups";
 
 interface NodePickerProps {
   /** The steps that may be added here, already narrowed to the scope in view. */
   offered: readonly NodeDefinition[];
-  onPick: (definition: NodeDefinition) => void;
+  /**
+   * `config` is set when an app's action was picked: the `mcp.call` it adds is
+   * then already pointed at that connection and tool.
+   */
+  onPick: (definition: NodeDefinition, config?: Record<string, unknown>) => void;
   /** Whether a row may also be dragged onto the canvas, to place the step there. */
   draggable?: boolean;
 }
@@ -27,6 +41,10 @@ const GROUP_HEADING =
 
 type TileFor =
   { kind: "step" | "operation"; item: NodeDefinition } | { kind: "group"; category: string };
+
+type FoundRow =
+  | { kind: "step"; item: NodeDefinition; name: string; group: PickerGroup }
+  | { kind: "action"; action: AppAction; name: string; group: PickerGroup };
 
 function Tile(which: TileFor) {
   const shape = { className: "size-7 rounded-lg", iconClassName: "size-3.5" };
@@ -62,22 +80,70 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
   const hint = (category: string) =>
     t.has(`categoryHint.${category}`) ? t(`categoryHint.${category}`) : null;
 
-  const sections = useMemo(() => pickerSections(offered), [offered]);
+  const { connections, canConnect, unavailable } = useAppConnections();
+  const sections = useMemo(
+    () => pickerSections(offered, { connections, canConnect, unavailable }),
+    [offered, connections, canConnect, unavailable],
+  );
   const searching = query.trim() !== "";
+  const actionLabel = (action: AppAction) => appToolLabel(action.app, action.tool, t);
   // A few dozen steps: filtered on every keystroke, no memo to keep in step.
-  const found = searching
+  const found: FoundRow[] = searching
     ? sections.flatMap((section) =>
-        section.groups.flatMap((group) =>
-          group.items
-            .filter((item) => matchesSearch(item, query, label(group.category)))
-            .map((item) => ({ item, group })),
-        ),
+        section.groups.flatMap((group): FoundRow[] => [
+          // An app's trigger is listed under Triggers already: not twice.
+          ...(group.app === undefined
+            ? group.items
+                .filter((item) => matchesSearch(item, query, label(group.category)))
+                .map((item): FoundRow => ({ kind: "step", item, name: item.name, group }))
+            : []),
+          ...(group.app?.actions ?? [])
+            .filter((action) =>
+              matchesAction(action, query, actionLabel(action), label(group.category)),
+            )
+            .map((action): FoundRow => ({
+              kind: "action",
+              action,
+              name: actionLabel(action),
+              group,
+            })),
+        ]),
       )
     : [];
   // A step whose name says it comes before one that only mentions it.
-  const named = (item: NodeDefinition) =>
-    item.name.toLowerCase().includes(query.trim().toLowerCase());
-  found.sort((a, b) => Number(named(b.item)) - Number(named(a.item)));
+  const named = (row: FoundRow) => row.name.toLowerCase().includes(query.trim().toLowerCase());
+  found.sort((a, b) => Number(named(b)) - Number(named(a)));
+
+  const actionRow = (group: PickerGroup, action: AppAction, groupLabel?: string) => {
+    const name = actionLabel(action);
+    return (
+      <Command.Item
+        key={action.key}
+        value={`action:${action.key}`}
+        onSelect={() =>
+          onPick(action.definition, { connection_id: action.connectionId, tool: action.tool })
+        }
+        className="aria-selected:bg-accent flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2"
+      >
+        <Tile kind="group" category={group.category} />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm break-words">{name}</span>
+          {/* Nothing hidden: the tool's own name, as the connection lists it, on its own line. */}
+          <span className="text-muted-foreground block font-mono text-xs break-all">
+            {action.tool}
+          </span>
+        </span>
+        <span className="flex shrink-0 flex-col items-end gap-0.5">
+          <span className="text-muted-foreground border-border rounded border px-1 text-[10px] font-medium tracking-wide">
+            {t("appMcpBadge")}
+          </span>
+          <span className="text-muted-foreground max-w-32 text-right text-xs break-words">
+            {groupLabel ?? action.connectionName}
+          </span>
+        </span>
+      </Command.Item>
+    );
+  };
 
   const stepRow = (item: NodeDefinition, kind: "step" | "operation", groupLabel?: string) => (
     <Command.Item
@@ -128,7 +194,15 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
               {t("paletteNoMatches")}
             </p>
           ) : (
-            found.map(({ item, group }) => stepRow(item, "step", label(group.category)))
+            found.map((row) =>
+              row.kind === "step"
+                ? stepRow(row.item, "step", label(row.group.category))
+                : actionRow(
+                    row.group,
+                    row.action,
+                    `${label(row.group.category)} · ${row.action.connectionName}`,
+                  ),
+            )
           )
         ) : open !== null ? (
           <>
@@ -145,6 +219,11 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
               heading={
                 <>
                   {label(open.category)}
+                  {open.app !== undefined && (
+                    <span className="mt-0.5 block text-xs font-normal tracking-normal normal-case">
+                      {t(`appServerFull.${open.category}`)}
+                    </span>
+                  )}
                   {hint(open.category) !== null && (
                     <span className="mt-0.5 block text-xs font-normal tracking-normal normal-case">
                       {hint(open.category)}
@@ -155,6 +234,27 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
               className={cn(GROUP_HEADING, "border-border mt-1 border-t pt-1")}
             >
               {open.items.map((item) => stepRow(item, "operation"))}
+              {open.app?.actions.map((action) => actionRow(open, action))}
+              {open.app?.untested.map(({ id, name }) => (
+                <p key={id} className="text-muted-foreground px-2 py-1.5 text-xs">
+                  {t("appUntested", { connection: name })}
+                </p>
+              ))}
+              {open.app?.connectKey != null && (
+                <ConnectRow
+                  group={open}
+                  catalogKey={open.app.connectKey}
+                  label={label(open.category)}
+                />
+              )}
+              {open.app?.needsPermission === true && (
+                <p className="text-muted-foreground px-2 py-1.5 text-xs">
+                  {t("appNeedsPermission", { app: label(open.category) })}
+                </p>
+              )}
+              {open.app !== undefined && (
+                <p className="text-muted-foreground px-2 pt-1.5 text-xs">{t("appOrgOnly")}</p>
+              )}
             </Command.Group>
           </>
         ) : (
@@ -176,7 +276,7 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
             >
               {section.groups.map((group) => {
                 // A group of one step is that step: a click adds it at once.
-                if (group.items.length === 1) {
+                if (group.items.length === 1 && group.app === undefined) {
                   const only = group.items[0] as NodeDefinition;
                   return stepRow(only, "step");
                 }
@@ -200,7 +300,7 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
                       )}
                     </span>
                     <span className="text-muted-foreground text-xs tabular-nums">
-                      {group.items.length}
+                      {group.items.length + (group.app?.actions.length ?? 0)}
                     </span>
                     <ChevronRight aria-hidden="true" className="text-muted-foreground size-4" />
                   </Command.Item>
@@ -211,5 +311,29 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
         )}
       </Command.List>
     </Command>
+  );
+}
+
+/** The way to get an app's actions when no connection provides them: opens that catalog entry. */
+function ConnectRow({
+  group,
+  catalogKey,
+  label,
+}: {
+  group: PickerGroup;
+  catalogKey: string;
+  label: string;
+}) {
+  const t = useTranslations("workflows");
+  const router = useRouter();
+  return (
+    <Command.Item
+      value={`connect:${catalogKey}`}
+      onSelect={() => router.push(`${ROUTES.MCP_SERVERS}?server=${encodeURIComponent(catalogKey)}`)}
+      className="aria-selected:bg-accent text-muted-foreground flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-xs"
+    >
+      <Plus aria-hidden="true" className="size-4 shrink-0" />
+      {t("appConnect", { server: t(`appServer.${group.category}`), app: label })}
+    </Command.Item>
   );
 }

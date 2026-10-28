@@ -18,7 +18,7 @@ interface QuickAddProps {
   nodeName: string;
   portLabel: string;
   /** Add the chosen step after this output. */
-  onPick: (definition: NodeDefinition) => void;
+  onPick: (definition: NodeDefinition, config?: Record<string, unknown>) => void;
   /** Always shown when nothing leaves the port yet; otherwise on hover and focus. */
   prominent: boolean;
 }
@@ -72,8 +72,8 @@ export function QuickAdd({ catalog, nodeName, portLabel, onPick, prominent }: Qu
       >
         <NodePicker
           offered={offered}
-          onPick={(definition) => {
-            onPick(definition);
+          onPick={(definition, config) => {
+            onPick(definition, config);
             setOpen(false);
           }}
         />

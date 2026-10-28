@@ -40,7 +40,7 @@ interface CanvasToolbarProps {
   readOnly: boolean;
   /** Whether the graph in view has no steps - the picker then opens from its middle. */
   empty: boolean;
-  onAdd: (definition: NodeDefinition) => void;
+  onAdd: (definition: NodeDefinition, config?: Record<string, unknown>) => void;
   /** Arrange the steps in view left to right. */
   onTidy: () => void;
 }
@@ -102,9 +102,9 @@ export function CanvasToolbar({
       <NodePicker
         offered={offered}
         draggable
-        onPick={(definition) => {
+        onPick={(definition, config) => {
           // Added before the picker closes: closing forgets the connection it was for.
-          onAdd(definition);
+          onAdd(definition, config);
           close();
         }}
       />

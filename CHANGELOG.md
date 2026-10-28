@@ -21,6 +21,31 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **A mail action added below its trigger starts bound to it.** Adding Gmail **Create draft**
+  or **Send message** under a Gmail trigger binds `thread_id`, `in_reply_to` (from
+  `rfc_message_id`) and, for a send, `to` (from `sender`); Outlook's reply drafts bind
+  `messageId`, and the shared-mailbox reply draft and send bind `userId`, from the Outlook
+  trigger. They are
+  ordinary bindings, changeable, and one undo takes the step and them back together.
+  Nothing is bound without that trigger upstream.
+- **A workflow editor can pick an organization MCP connection without `mcp:manage`.**
+  `GET /workflows/{id}/mcp-connections`, open to whoever may edit that workflow (by role
+  or by a grant on it), lists the organization's own servers, disabled ones included,
+  with only their name, label, catalog entry, tools and test time - never the URL,
+  credential or consent. The `mcp.call` panel and the step picker's Gmail and Outlook
+  actions read it, so publishing and choosing a step need the same right; adding or
+  testing a server still needs `mcp:manage`. The list is read again on focus. The
+  service icon beside a server in that picker now matches by catalog key or name only,
+  not by URL, which an editor does not see.
+- **The step picker groups a service's trigger and MCP tools by app.** **Gmail** and
+  **Outlook** are groups under **Apps and the web**: the app's trigger, then one entry
+  per tool of each organization MCP connection to Google Workspace or Microsoft 365,
+  named **Create draft**, **Send message** and so on, or by the tool's own name for
+  the rest. Picking one adds an `mcp.call` set to that connection and tool; stored
+  workflows are untouched. Nothing is hidden: entries and cards carry an **MCP** badge
+  and the connection and tool name, search finds either name, and the step's settings
+  say it is an MCP tool call and link to the connection. With no connection the group
+  offers to connect the server. No API change.
 - **A step can log its outcome with a Quick Log.** A step's `quick_log` setting
   (`message`, and `outputs` for the ports that log; unset means all) writes one line
   to the workflow's own log each time the step settles: its time, name, the port it

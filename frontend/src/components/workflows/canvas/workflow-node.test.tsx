@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -12,9 +12,20 @@ import type {
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 import { useWorkflowNodeStyleStore } from "@/stores/workflow-node-style-store";
 
+import { WORKFLOW_APPS } from "@/components/workflows/apps";
+import type { McpAppStep } from "@/components/workflows/use-app-connections";
+import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
+
 import { NodeRunOverlayProvider, summarizeNodeRuns } from "./run-overlay";
 import { WorkflowCanvas } from "./workflow-canvas";
 import { nodeSummary } from "./workflow-node";
+
+const appConns = vi.hoisted(() => ({ list: null as OrgMcpConnectionRecord[] | null }));
+const mcpApp = vi.hoisted(() => ({ step: null as McpAppStep | null }));
+vi.mock("@/components/workflows/use-app-connections", () => ({
+  useAppConnections: () => ({ connections: appConns.list, canConnect: false }),
+  useMcpAppStep: () => mcpApp.step,
+}));
 
 /**
  * What a node card says about its step: a line of what it is set to do, its
@@ -153,6 +164,8 @@ function seed(nodes: NodeInstance[], extra: Partial<WorkflowGraph> = {}): void {
 }
 
 beforeEach(() => {
+  mcpApp.step = null;
+  appConns.list = null;
   store.getState().teardown();
   useWorkflowNodeStyleStore.setState({ style: "colour" });
 });
@@ -735,6 +748,36 @@ describe("a node card's +", () => {
     expect(store.getState().selection.nodeIds).toEqual([graph?.nodes[1]?.id]);
   });
 
+  it("adds an app's action as an MCP call set up for its connection and tool", async () => {
+    appConns.list = [
+      {
+        id: "c1",
+        name: "gmail-dev",
+        label: null,
+        catalog_key: "google-workspace",
+        is_enabled: true,
+        allowed_tools: null,
+        last_tools: [{ name: "draft_gmail_message", description: "Draft" }],
+      } as OrgMcpConnectionRecord,
+    ];
+    seed([instance("m", "data.map")]);
+    const { container } = render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
+
+    await userEvent.click(
+      container.querySelector('button[aria-label="Add a step after Map (out)"]') as HTMLElement,
+    );
+    await userEvent.click(await screen.findByText("Mail trigger and Gmail actions"));
+    await userEvent.click(screen.getByRole("option", { name: /Create draft/ }));
+
+    const graph = store.getState().graph;
+    const added = graph?.nodes[1];
+    expect(added?.definition_id).toBe("mcp.call");
+    expect(added?.config).toEqual({ connection_id: "c1", tool: "draft_gmail_message" });
+    expect(graph?.edges).toEqual([
+      expect.objectContaining({ source_node_id: "m", target_node_id: added?.id }),
+    ]);
+  });
+
   it("sits beside a single output too, and is not offered on a read-only canvas", () => {
     seed([instance("m", "data.map")]);
     const first = render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
@@ -1091,5 +1134,84 @@ describe("a resizable node card", () => {
 
     expect(name(101)).toContain("truncate");
     expect(name(102)).toContain("line-clamp-2");
+  });
+});
+
+describe("an MCP call on an app's connection", () => {
+  const gmail = WORKFLOW_APPS[0] as (typeof WORKFLOW_APPS)[number];
+  const step = (tool: string): McpAppStep => ({
+    app: gmail,
+    connection: { id: "c1", name: "gmail-dev", label: null } as OrgMcpConnectionRecord,
+    tool,
+  });
+  const card = (id: string) => document.querySelector(`[data-node-id="${id}"]`) as HTMLElement;
+
+  it("reads as the app's action, and still says it is an MCP call on that connection and tool", () => {
+    mcpApp.step = step("draft_gmail_message");
+    seed([
+      instance("m", "mcp.call", { config: { connection_id: "c1", tool: "draft_gmail_message" } }),
+    ]);
+    render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
+
+    const el = card("m");
+    expect(within(el).getByText("Gmail · Create draft")).toBeInTheDocument();
+    expect(within(el).getByText("MCP")).toBeInTheDocument();
+    expect(within(el).getByText("gmail-dev · draft_gmail_message")).toBeInTheDocument();
+    // Still an Apps step, drawn with the app's own mark; the kind it is stays in the label.
+    expect(el).toHaveAttribute("data-node-family", "apps");
+    expect(within(el).getByText("Apps · MCP call")).toBeInTheDocument();
+  });
+
+  it("never cuts the app action's name or its connection and raw tool line", () => {
+    mcpApp.step = step("draft_gmail_message");
+    seed([
+      instance("m", "mcp.call", { config: { connection_id: "c1", tool: "draft_gmail_message" } }),
+    ]);
+    render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
+
+    for (const text of ["Gmail · Create draft", "gmail-dev · draft_gmail_message"]) {
+      const el = within(card("m")).getByText(text);
+      expect(el.className).toContain("break-words");
+      expect(el.className).not.toMatch(/truncate|line-clamp/);
+    }
+  });
+
+  it("keeps the label with a quick log's strip docked, and a person's own name over the app's", () => {
+    mcpApp.step = step("list_gmail_drafts");
+    seed([
+      instance("m", "mcp.call", {
+        config: { connection_id: "c1", tool: "list_gmail_drafts" },
+        quick_log: { message: "seen", outputs: null },
+      }),
+      instance("n", "mcp.call", {
+        label: "Mine",
+        config: { connection_id: "c1", tool: "list_gmail_drafts" },
+      }),
+    ]);
+    render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
+
+    expect(within(card("m")).getByText("Gmail · List gmail drafts")).toBeInTheDocument();
+    expect(within(card("m")).getByText("MCP")).toBeInTheDocument();
+    expect(within(card("n")).getByText("Mine")).toBeInTheDocument();
+    expect(within(card("n")).getByText("MCP")).toBeInTheDocument();
+  });
+
+  it("names the app alone until a tool is chosen, and leaves any other connection's call as it was", () => {
+    mcpApp.step = step("");
+    seed([instance("m", "mcp.call", { config: { connection_id: "c1" } })]);
+    const { unmount } = render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
+    expect(within(card("m")).getByText("MCP call")).toBeInTheDocument();
+    // Still known to be an app's MCP call: the badge and the app's tile stay.
+    expect(within(card("m")).getByText("MCP")).toBeInTheDocument();
+    expect(card("m").querySelector("[data-node-family]")?.querySelector("svg")).not.toBeNull();
+    expect(card("m").querySelector("span[data-node-family=apps]")).not.toBeNull();
+    unmount();
+
+    mcpApp.step = null;
+    store.getState().teardown();
+    seed([instance("m", "mcp.call", { config: { connection_id: "c9", tool: "find_contact" } })]);
+    render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
+    expect(within(card("m")).getByText("find_contact")).toBeInTheDocument();
+    expect(within(card("m")).queryByText("MCP")).toBeNull();
   });
 });

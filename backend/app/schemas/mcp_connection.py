@@ -189,6 +189,48 @@ class McpConnectionList(BaseSchema):
     total: int
 
 
+class McpConnectionUsable(BaseSchema):
+    """An organization connection as a workflow editor picks it (`mcp.call`).
+
+    A narrow projection, not `McpConnectionRead`: choosing a server and a tool
+    needs the name, what it offers and whether it is on - never where it points,
+    how it authenticates, what it consented to or why it last failed. Those stay
+    behind `mcp:manage`.
+    """
+
+    id: UUID
+    name: str
+    label: str | None = None
+    catalog_key: str | None = None
+    is_enabled: bool
+    allowed_tools: list[str] | None = None
+    # Null means nothing has tested the server yet, which is not "offers none".
+    last_tools: list[McpToolRead] | None = None
+    last_checked_at: datetime | None = None
+
+    @classmethod
+    def from_model(cls, connection: McpConnection) -> McpConnectionUsable:
+        return cls(
+            id=connection.id,
+            name=connection.name,
+            label=connection.label,
+            catalog_key=connection.catalog_key,
+            is_enabled=connection.is_enabled,
+            allowed_tools=connection.allowed_tools,
+            last_tools=(
+                None
+                if connection.last_tools is None
+                else [McpToolRead(**tool) for tool in connection.last_tools]
+            ),
+            last_checked_at=connection.last_checked_at,
+        )
+
+
+class McpConnectionUsableList(BaseSchema):
+    items: list[McpConnectionUsable]
+    total: int
+
+
 class OrgMcpConnectionCreate(AudienceChoice):
     """A server the organization connects, not one person.
 

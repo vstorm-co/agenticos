@@ -34,6 +34,7 @@ export { useLocalServices } from "./use-local-services";
 export { useExternalAgents } from "./use-external-agents";
 export { useMcpConnections } from "./use-mcp-connections";
 export { useOrgMcpConnections, useOrgMcpToolCalls } from "./use-org-mcp-connections";
+export { useUsableMcpConnections } from "./use-usable-mcp-connections";
 export { useMcpToolServers } from "./use-mcp-tool-servers";
 export { useMyMemory } from "./use-my-memory";
 export { usePermissions, useRoleCatalog, useAssignableRoles } from "./use-permissions";

@@ -1,5 +1,5 @@
 ---
-source_sha: "26c239a5c5b9"
+source_sha: "cf95c915daaa"
 ---
 
 # Workflows { #workflows }
@@ -130,6 +130,26 @@ fügen einen Schritt auf vier Wegen hinzu:
   etwas kopiert ist, **Einfügen** (Paste).
 - **Ziehen** Sie einen Schritt aus der Auswahl, um ihn dort abzulegen, wo Sie ihn
   fallen lassen, ohne Verbindung.
+
+**Gmail** und **Outlook** sind eigene Gruppen unter **Apps and the web**. Jede enthält
+den nativen Trigger der App, wo die Zeichenfläche einen annimmt, und einen Eintrag je
+Tool jeder MCP-Verbindung der Organisation zum passenden Server - Google Workspace für
+Gmail, Microsoft 365 für Outlook - etwa **Create draft** oder **Send message**. Ein
+Eintrag fügt einen [MCP call](reference/workflow-nodes.md#mcp-call) hinzu, der schon auf
+diese Verbindung und dieses Tool gesetzt ist; gespeicherte Workflows und der Vertrag
+des Knotens ändern sich nicht. Der Eintrag verbirgt nichts: Er trägt ein **MCP**-Abzeichen
+und den Namen der Verbindung, der eigene Name des Tools steht darunter in einer eigenen
+Zeile, der Server einmal in der Überschrift der Gruppe; nichts wird abgeschnitten. **Search steps** findet ihn über beide Namen oder die App. Auf der
+Zeichenfläche liest sich der Schritt **Gmail · Create draft** mit einem
+**MCP**-Abzeichen, darunter stehen die Verbindung und der eigene Name des Tools; seine
+Einstellungen sagen, dass es ein MCP-Tool-Aufruf auf dieser Verbindung ist, und
+verlinken sie. Jedes Gmail-Tool, das der Server anbietet, hat einen klaren Namen, etwa **List labels**
+oder **Read thread**; ein Tool ohne Namen in der Liste zeigt seinen eigenen Namen. Der native Trigger ist kein MCP-Aufruf und trägt kein Abzeichen.
+Ohne passende Verbindung zeigt die Gruppe den Trigger und eine Zeile **Connect**, um den
+Server zu verbinden. Es werden nur Verbindungen der Organisation aufgelistet, und die
+Tools einer Verbindung sind die, die ihr letzter Test festgehalten hat; testen Sie sie
+erneut, um neue aufzulisten. Wer den Workflow nicht bearbeiten darf, sieht nur den Trigger. Wer ihn bearbeitet, aber keine MCP-Server verwaltet, sieht alle Aktionen und bekommt keine Zeile **Connect**: Nur wer Server verwaltet, verbindet einen. Die Aktionszeilen einer App werden ausgewählt, nicht gezogen: Auf
+die Zeichenfläche lassen sich nur die eigenen Zeilen eines Schritts ziehen.
 
 Ein neuer Schritt landet nie auf einem anderen, wird ausgewählt, öffnet seine
 Einstellungen, wenn er welche hat, und die Zeichenfläche scrollt zu ihm, wenn er
@@ -377,7 +397,7 @@ hat:
 | **Agent** und **Version** | Einen Agent, an seinem Avatar und seiner Beschreibung erkennbar, dann eine seiner veröffentlichten Versionen, mit markierter Live-Version sowie Datum und Release Note jeder Version. Ein Wechsel des Agents löscht die gepinnte Version, weil eine Version zu einem Agent gehört. Die Karte des Schritts zeigt dann den Avatar des Agents und „Name · v3“ |
 | **Table** und **Columns** | Eine [Virtual Table](virtual-tables.md), dann die Spalten, die der Schritt liest — begrenzt auf das aktuelle Schema dieser Tabelle |
 | **Secret** | Ein [Vault](secrets.md)-Secret, per Referenz. Ein Schritt speichert die id des Secrets, nie seinen Wert |
-| **MCP server** und **Tool** | Einer der [MCP-Server](mcp.md) der Organisation, mit dem Zeichen seines Dienstes, dann eines der Tools, die er beim letzten Test gelistet hat. Die Wahl erfordert `mcp:manage` |
+| **MCP server** und **Tool** | Einer der [MCP-Server](mcp.md) der Organisation, mit dem Zeichen seines Dienstes, dann eines der Tools, die er beim letzten Test gelistet hat. Die Wahl erfordert das Recht, den Workflow zu bearbeiten - per Rolle oder per Freigabe, wie beim Veröffentlichen des Schritts -, nicht `mcp:manage`; nur wer Server verwaltet, kann einen testen oder einen weiteren hinzufügen |
 
 Jedes Auswahlfeld unterscheidet gleichnamige Zeilen durch Kontext und markiert
 eine Referenz, deren Ziel verschwunden ist. Die Auswahlfelder **Agent** und

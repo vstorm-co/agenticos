@@ -133,6 +133,23 @@ async def test_finance_s_server_is_seen_by_finance_its_creator_and_the_owner(
         )
 
 
+async def test_a_workflow_editor_is_shown_only_the_servers_their_audience_reaches(
+    db: AsyncSession,
+) -> None:
+    """The picker's list is the one a step's publish check resolves: a server narrowed to
+    a department is hidden from an editor outside it and shown to one inside."""
+    organization, owner = await _setup(db)
+    accountant = await _member(db, organization, "member")
+    seller = await _member(db, organization, "member")
+    finance = await _department(db, organization, accountant)
+    await _server(db, owner, "wiki")
+    await _server(db, owner, "ledger", group_ids=[finance.id])
+
+    usable = McpConnectionService(db).list_usable
+    assert sorted(row.name for row in await usable(accountant)) == ["ledger", "wiki"]
+    assert [row.name for row in await usable(seller)] == ["wiki"]
+
+
 async def test_a_server_can_be_limited_to_a_person(db: AsyncSession) -> None:
     organization, owner = await _setup(db)
     analyst = await _member(db, organization, "builder")

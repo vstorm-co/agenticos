@@ -7,6 +7,11 @@ import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { QuickAdd } from "./quick-add";
 
+vi.mock("@/components/workflows/use-app-connections", () => ({
+  useAppConnections: () => ({ connections: null, canConnect: false }),
+  useMcpAppStep: () => null,
+}));
+
 function def(id: string, name: string, ports: Port["kind"][], description = ""): NodeDefinition {
   return {
     id,
@@ -59,7 +64,7 @@ describe("QuickAdd", () => {
     expect(screen.queryByText("Download a file")).toBeNull();
     await userEvent.click(screen.getByText("Notify members"));
 
-    expect(onPick).toHaveBeenCalledWith(NOTIFY);
+    expect(onPick).toHaveBeenCalledWith(NOTIFY, undefined);
     await waitFor(() => expect(screen.queryByPlaceholderText("Search steps")).toBeNull());
   });
 

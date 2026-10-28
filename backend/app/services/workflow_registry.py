@@ -9,6 +9,7 @@ compare-and-set runs before the graph is even looked at.
 
 import logging
 import re
+from collections.abc import Sequence
 from typing import Any
 from uuid import UUID
 
@@ -28,6 +29,7 @@ from app.core.exceptions import (
 from app.core.field_errors import field_problems
 from app.core.permissions import AuthContext, Perm
 from app.db.locks import LockScope, hold_subject
+from app.db.models.mcp_connection import McpConnection
 from app.db.models.workflow import Workflow, WorkflowStatus
 from app.db.models.workflow_run import WorkflowRun
 from app.db.updates import writable
@@ -57,6 +59,7 @@ from app.schemas.workflow import (
 )
 from app.services.access import WORKFLOW, resolve_access, visible_resource_ids
 from app.services.file_storage import delete_files_best_effort
+from app.services.mcp_connection import McpConnectionService
 from app.services.virtual_tables.dependencies import Dependent, register_dependency_checker
 from app.services.workflow_authority import require_human_publisher
 from app.services.workflow_execution.exceptions import WorkflowArchivedError
@@ -963,6 +966,17 @@ class WorkflowRegistryService:
             exposure=switched.exposure,
             webhook_secret=switched.webhook_secret,
         )
+
+    async def usable_mcp_connections(
+        self, ctx: AuthContext, workflow_id: UUID
+    ) -> Sequence[McpConnection]:
+        """The organization's MCP servers an `mcp.call` step of this workflow may bind.
+
+        Asked of whoever may edit the workflow - by role or by a grant on it - because
+        that is who publishing a step is open to; choosing a server needs no more.
+        """
+        await self._load(ctx, workflow_id, Perm.WORKFLOWS_EDIT)
+        return await McpConnectionService(self.db).list_usable(ctx)
 
     async def _load(
         self, ctx: AuthContext, workflow_id: UUID, perm: Perm, *, lock: bool = False

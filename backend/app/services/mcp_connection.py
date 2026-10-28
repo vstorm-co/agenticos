@@ -1956,6 +1956,13 @@ class McpConnectionService:
         kept = [row for row in rows if row.visibility == Visibility.ORG.value or row.id in reached]
         return kept, len(kept)
 
+    async def list_usable(self, ctx: AuthContext) -> list[McpConnection]:
+        """The organization servers a workflow step may bind, disabled ones included
+        (a step can still name one): the same set the step's publish check resolves
+        (`get_org_connection`), which needs no `mcp:manage`."""
+        rows, _ = await self.list_for_org(ctx)
+        return rows
+
     async def used_by(
         self, ctx: AuthContext, connections: list[McpConnection]
     ) -> dict[UUID, list[AgentUsage]]:

@@ -23,6 +23,7 @@ from app.api.deps import (
 )
 from app.core.exceptions import BadRequestError
 from app.core.permissions import Perm
+from app.schemas.mcp_connection import McpConnectionUsable, McpConnectionUsableList
 from app.schemas.workflow import (
     NodeCatalog,
     WorkflowActiveUpdate,
@@ -178,6 +179,23 @@ async def delete_workflow(workflow_id: UUID, service: WorkflowRegistrySvc, ctx: 
     when runs of another workflow were started by its runs.
     """
     await service.delete(ctx, workflow_id)
+
+
+@router.get("/{workflow_id}/mcp-connections", response_model=McpConnectionUsableList)
+async def list_workflow_mcp_connections(
+    workflow_id: UUID, service: WorkflowRegistrySvc, ctx: Auth
+) -> Any:
+    """The organization's MCP servers an `mcp.call` step of this workflow may bind.
+
+    For whoever may edit the workflow, by role or by a grant on it, so no
+    `mcp:manage` is needed to choose a server. Disabled servers are listed too.
+    Only a narrow projection comes back - name, label, catalog entry, tools and
+    test time; never the URL, the credential or the consent.
+    """
+    items = await service.usable_mcp_connections(ctx, workflow_id)
+    return McpConnectionUsableList(
+        items=[McpConnectionUsable.from_model(c) for c in items], total=len(items)
+    )
 
 
 @router.get("/{workflow_id}/stats", response_model=WorkflowStats)

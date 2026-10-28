@@ -4277,6 +4277,14 @@ class TestOrganizationConnections:
         assert (items, total) == ([conn], 1)
         assert repo.list_org_scoped.call_args.kwargs == {"organization_id": ctx.organization_id}
 
+    @pytest.mark.anyio
+    async def test_usable_servers_are_the_organization_s_own(self, service, ctx, repo):
+        conn = self._org_connection(ctx)
+        repo.list_org_scoped.return_value = ([conn], 1)
+
+        assert await service.list_usable(ctx) == [conn]
+        assert repo.list_org_scoped.call_args.kwargs == {"organization_id": ctx.organization_id}
+
     # -- creating -------------------------------------------------------
 
     @pytest.mark.anyio

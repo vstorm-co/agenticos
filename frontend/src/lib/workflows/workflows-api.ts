@@ -7,6 +7,7 @@
  */
 
 import { apiClient } from "@/lib/api-client";
+import type { UsableMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 import type {
   WorkflowApprovalsSummary,
   WorkflowExport,
@@ -82,6 +83,16 @@ export async function createWorkflow(input: WorkflowCreate): Promise<WorkflowRea
 /** One workflow with the graph currently being edited. */
 export async function getWorkflow(workflowId: string): Promise<WorkflowDetail> {
   return apiClient.get<WorkflowDetail>(`${ROOT}/${workflowId}`);
+}
+
+/** The organization's MCP servers a step of this workflow may bind, for whoever may edit it. */
+export async function listWorkflowMcpConnections(
+  workflowId: string,
+): Promise<UsableMcpConnectionRecord[]> {
+  const data = await apiClient.get<{ items: UsableMcpConnectionRecord[] }>(
+    `${ROOT}/${workflowId}/mcp-connections`,
+  );
+  return data.items;
 }
 
 /** Rename a workflow, or change its description or tags. Its handle stays. */

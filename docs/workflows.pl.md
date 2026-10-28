@@ -1,5 +1,5 @@
 ---
-source_sha: "26c239a5c5b9"
+source_sha: "cf95c915daaa"
 ---
 
 # Workflows { #workflows }
@@ -116,6 +116,27 @@ robi, albo po grupie. Krok dodajesz na cztery sposoby:
 - **Prawy przycisk** na kanwie: ten sam wybór kroków otwiera się tam, gdzie kliknąłeś,
   i tam trafia krok. Pod nim **Dodaj notatkę** (Add a note) oraz, gdy coś skopiowano, **Wklej** (Paste).
 - **Przeciągnij** krok z wyboru, żeby położyć go tam, gdzie go upuścisz, bez połączeń.
+
+**Gmail** i **Outlook** to osobne grupy w **Apps and the web**. Każda zawiera
+natywny trigger aplikacji, tam gdzie kanwa może go przyjąć, oraz po jednym wpisie na
+narzędzie każdego organizacyjnego połączenia MCP z odpowiednim serwerem - Google
+Workspace dla Gmaila, Microsoft 365 dla Outlooka - na przykład **Create draft** albo
+**Send message**. Wybranie wpisu dodaje [MCP call](reference/workflow-nodes.md#mcp-call)
+od razu ustawiony na to połączenie i to narzędzie, więc zapisane workflowy i kontrakt
+węzła się nie zmieniają. Wpis niczego nie ukrywa: ma plakietkę **MCP** i nazwę
+połączenia, pod nią stoi własna nazwa narzędzia w osobnym wierszu, a serwer jest nazwany raz w nagłówku grupy; nic nie jest
+ucinane. **Search steps**
+znajduje go po którejkolwiek z nazw albo po aplikacji. Na kanwie krok czyta się
+**Gmail · Create draft** z plakietką **MCP**, a pod spodem widać połączenie i własną
+nazwę narzędzia; jego ustawienia mówią, że to wywołanie narzędzia MCP w tym połączeniu,
+i linkują do niego. Każde narzędzie Gmaila, które oferuje serwer, ma zwykłą nazwę, na przykład **List labels**
+lub **Read thread**; narzędzie spoza listy nazw pokazuje własną nazwę. Natywny trigger nie jest wywołaniem MCP i nie ma plakietki. Bez
+pasującego połączenia grupa pokazuje trigger i wiersz **Connect** do podłączenia serwera.
+Wypisane są tylko połączenia organizacji, a narzędzia połączenia to te, które zapisał
+jego ostatni test, więc przetestuj je ponownie, żeby zobaczyć nowe. Członek, który nie
+może edytować danego workflow, widzi sam trigger. Członek, który go edytuje, ale nie zarządza serwerami MCP,
+widzi wszystkie akcje i nie dostaje wiersza **Connect**: serwer podłącza tylko osoba nim zarządzająca. Wiersze akcji aplikacji się wybiera, nie przeciąga: na kanwę można
+przeciągać tylko własne wiersze kroków.
 
 Nowy krok nigdy nie ląduje na innym, zostaje zaznaczony, otwiera swoje ustawienia,
 gdy jakieś ma, a kanwa przewija się do niego, gdy wypada poza widok. W ciele pętli
@@ -344,7 +365,7 @@ krok nazywa realną rzecz, którą ma Twoja organizacja:
 | **Agent** i **Version** | Agenta, po jego awatarze i opisie, a potem jedną z jego opublikowanych wersji, z oznaczoną wersją live oraz datą i notatką każdej. Zmiana agenta czyści przypiętą wersję, bo wersja należy do jednego agenta. Karta kroku pokazuje wtedy awatar agenta i „nazwa · v3” |
 | **Table** i **Columns** | [Virtual Table](virtual-tables.md), a potem kolumny, które krok odczytuje — ograniczone do bieżącego schematu tej tabeli |
 | **Secret** | Sekret w [vault](secrets.md), przez referencję. Krok zapisuje id sekretu, nigdy jego wartość |
-| **MCP server** i **Tool** | Jeden z [serwerów MCP](mcp.md) organizacji, ze znakiem jego usługi, a potem jedno z narzędzi, które wypisał przy ostatnim teście. Wybór wymaga `mcp:manage` |
+| **MCP server** i **Tool** | Jeden z [serwerów MCP](mcp.md) organizacji, ze znakiem jego usługi, a potem jedno z narzędzi, które wypisał przy ostatnim teście. Wybór wymaga prawa do edycji workflow - z roli lub z udzielonego dostępu, tak jak publikacja kroku - a nie `mcp:manage`; tylko osoba zarządzająca serwerami może przetestować serwer lub dodać kolejny |
 
 Każde pole wyboru rozróżnia jednakowo nazwane wiersze przez kontekst i oznacza
 referencję, której cel zniknął. Pola wyboru **Agent** i **Secret** mają też link do

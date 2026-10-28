@@ -112,6 +112,28 @@ group. You add a step four ways:
   lands there. Beneath it, **Add a note** and, once something is copied, **Paste**.
 - **Drag** a step from the picker to put it where you drop it, wired to nothing.
 
+**Gmail** and **Outlook** are groups of their own in **Apps and the web**. Each holds
+the app's native trigger, where the canvas may take one, and one entry per tool of
+every organization MCP connection to the matching server - Google Workspace for
+Gmail, Microsoft 365 for Outlook - such as **Create draft** or **Send message**.
+Picking an entry adds an [MCP call](reference/workflow-nodes.md#mcp-call) already
+set to that connection and tool, so stored workflows and the node's contract do not
+change. The entry never hides what it is: it carries an **MCP** badge and the
+connection's name, and the tool's own name stands on its own line under it, with the
+server named once in the group's heading; nothing is cut short. **Search
+steps** finds it by either name or by the app. On the canvas the step reads
+**Gmail · Create draft** with an **MCP** badge, with the connection and the tool's own
+name beneath, and its settings say it is an MCP tool call on that connection and link
+to it. Every Gmail tool the server offers has a plain name, such as **List labels** or
+**Read thread**; a tool the list does not name shows its own name. The native trigger is not an MCP call and carries no badge. With no
+matching connection the group shows the trigger and a row to **Connect** the server.
+Only organization connections are listed, and a connection's tools are the ones its
+last test recorded, so test it again to list new ones. A member who may not edit
+a workflow sees the trigger alone. A member who edits it but does not manage
+MCP servers sees every action and is not offered a **Connect** row: only a manager
+connects a server. An app's action rows are picked, not dragged: only
+the step's own rows can be dragged onto the canvas.
+
 A new step never lands on top of another, is selected, opens its settings when it
 has any, and the canvas scrolls to it when it falls outside the view. Inside a
 loop's body every new step is wired into the body, so it stays there. The picker
@@ -333,7 +355,7 @@ step names a real thing your organization has:
 | **Agent** and **Version** | An agent, by its face and description, then one of its published versions, with the live one marked and each one's date and release note. Changing the agent clears the pinned version, because a version belongs to one agent. The step's card then shows the agent's face and "name · v3" |
 | **Table** and **Columns** | A [virtual table](virtual-tables.md), then the columns the step reads — scoped to that table's current schema |
 | **Secret** | A [vault](secrets.md) secret, by reference. A step stores the secret's id, never its value |
-| **MCP server** and **Tool** | One of the organization's [MCP servers](mcp.md), with its service's mark, then one of the tools it listed when last tested. Choosing it needs `mcp:manage` |
+| **MCP server** and **Tool** | One of the organization's [MCP servers](mcp.md), with its service's mark, then one of the tools it listed when last tested. Choosing it needs the right to edit the workflow - by role or by a grant on it, as publishing the step does - not `mcp:manage`; only a member who manages servers can test one or add another |
 
 Each picker disambiguates same-named rows with context and marks a reference
 whose target has gone away. The **Agent** and **Secret** pickers also carry a

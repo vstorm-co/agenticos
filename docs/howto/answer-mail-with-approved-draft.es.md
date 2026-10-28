@@ -1,7 +1,7 @@
 ---
 title: "Responde al correo con un borrador aprobado"
 description: "Un workflow lee el correo nuevo, redacta una respuesta, pide a una persona que la edite y la apruebe, y luego deja un borrador en el hilo o la envía mediante un servidor MCP de Gmail o Microsoft 365 que ejecutas tú."
-source_sha: "cf7392e88a2b"
+source_sha: "8318484b7f9a"
 ---
 
 # Responde al correo con un borrador aprobado { #answer-mail-with-an-approved-draft }
@@ -101,6 +101,10 @@ borrador. Constrúyelo en este orden.
    rellena `to` por sí misma. `user_google_email` lo rellena un servidor que se ejecuta
    con `MCP_ENABLE_OAUTH21=true`; en modo de un solo usuario, enlázalo a la dirección
    del buzón.
+
+   Al elegir **Create draft** o **Send message** del grupo Gmail del selector de pasos bajo
+   el trigger de Gmail, `thread_id`, `in_reply_to` y, en un envío, `to` ya quedan enlazados;
+   `body` lo enlazas tú, y cualquiera de ellos se cambia como cualquier enlace.
 
    Pon **Ask for approval** de los dos pasos en **Never**. Una persona aprobó el texto
    exacto un paso antes y, si no, se le preguntaría una segunda vez.

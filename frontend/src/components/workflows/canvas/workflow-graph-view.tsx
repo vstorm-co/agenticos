@@ -276,8 +276,12 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
   const onKeyDown = useCanvasShortcuts(readOnly, cancelConnect);
 
   const insertAfter = useCallback(
-    (nodeId: string, portId: string, definition: NodeDefinition) =>
-      insert(definition, { from: { nodeId, portId } }),
+    (
+      nodeId: string,
+      portId: string,
+      definition: NodeDefinition,
+      config?: Record<string, unknown>,
+    ) => insert(definition, { from: { nodeId, portId }, config }),
     [insert],
   );
   // Worked out once for the whole graph, not per card: each rule reads the graph
@@ -417,11 +421,11 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
             problems={problems}
             readOnly={readOnly}
             empty={activeGraph.nodes.length === 0}
-            onAdd={(definition) => {
+            onAdd={(definition, config) => {
               // The "+" on a connection opened the picker: the step goes into it.
               const { splitEdgeId } = useWorkflowEditorStore.getState();
               const between = graph?.edges.find((edge) => edge.id === splitEdgeId);
-              insert(definition, between === undefined ? {} : { between });
+              insert(definition, between === undefined ? { config } : { between, config });
             }}
             onTidy={() => moveNodes(tidyLayout(activeGraph, definitions))}
           />
@@ -430,8 +434,8 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
             at={pickerAt}
             catalog={catalog}
             onClose={() => setPickerAt(null)}
-            onPick={(definition) =>
-              insert(definition, { dropAt: screenToFlowPosition(menuPoint.current) })
+            onPick={(definition, config) =>
+              insert(definition, { dropAt: screenToFlowPosition(menuPoint.current), config })
             }
             onAddNote={
               scopePath.length === 0

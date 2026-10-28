@@ -246,39 +246,43 @@ export function BindingField({
   } else {
     const literalValue = literalValueOf(binding);
     control = (
-      <>
-        {!disabled && <div className="absolute top-0 right-0 z-10">{menu}</div>}
-        {isDynamic(own) || takesJson(schema) ? (
-          <JsonLiteral
-            key={`${targetNodeId}:${targetField}`}
-            id={`${idPrefix}-json`}
-            label={label}
-            required={required}
-            list={own["type"] === "array"}
-            value={literalValue}
-            error={error}
-            disabled={disabled}
-            onChange={(value) =>
-              value === undefined
-                ? onRemove(targetNodeId, targetField)
-                : onUpsert(literalBinding(targetNodeId, targetField, value))
-            }
-          />
-        ) : (
-          <SchemaForm
-            schema={singleFieldSchema(name, schema, required)}
-            value={literalValue === undefined ? {} : { [name]: literalValue }}
-            idPrefix={idPrefix}
-            disabled={disabled}
-            errors={error === undefined ? undefined : { [name]: error }}
-            onChange={(next) => {
-              const value = next[name];
-              if (value === undefined) onRemove(targetNodeId, targetField);
-              else onUpsert(literalBinding(targetNodeId, targetField, value));
-            }}
-          />
-        )}
-      </>
+      // Data beside the field, never over it: laid over the form's first row, it
+      // covered a boolean's switch.
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          {isDynamic(own) || takesJson(schema) ? (
+            <JsonLiteral
+              key={`${targetNodeId}:${targetField}`}
+              id={`${idPrefix}-json`}
+              label={label}
+              required={required}
+              list={own["type"] === "array"}
+              value={literalValue}
+              error={error}
+              disabled={disabled}
+              onChange={(value) =>
+                value === undefined
+                  ? onRemove(targetNodeId, targetField)
+                  : onUpsert(literalBinding(targetNodeId, targetField, value))
+              }
+            />
+          ) : (
+            <SchemaForm
+              schema={singleFieldSchema(name, schema, required)}
+              value={literalValue === undefined ? {} : { [name]: literalValue }}
+              idPrefix={idPrefix}
+              disabled={disabled}
+              errors={error === undefined ? undefined : { [name]: error }}
+              onChange={(next) => {
+                const value = next[name];
+                if (value === undefined) onRemove(targetNodeId, targetField);
+                else onUpsert(literalBinding(targetNodeId, targetField, value));
+              }}
+            />
+          )}
+        </div>
+        {!disabled && <div className="shrink-0">{menu}</div>}
+      </div>
     );
   }
 

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -18,10 +18,13 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
-import { useMcpCatalog, useOrgMcpConnections, usePermissions } from "@/hooks";
+import { useMcpCatalog, usePermissions, useUsableMcpConnections } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
-import { entryForConnection } from "@/lib/mcp-servers";
-import { listOrgMcpConnections, type OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
+import { connectionLabel, offeredTools } from "@/lib/mcp-servers";
+import {
+  testOrgMcpConnection,
+  type UsableMcpConnectionRecord,
+} from "@/lib/org-mcp-connections-api";
 import { qk } from "@/lib/query-keys";
 import { Perm } from "@/types/permissions";
 
@@ -33,22 +36,19 @@ export interface McpConnectionPickerProps {
   error?: string;
 }
 
-/** What a person reads a connection as: its label, or its name when it has none. */
-function connectionName(connection: OrgMcpConnectionRecord): string {
-  return connection.label ?? connection.name;
-}
-
 /**
  * One of the organization's MCP servers, each with its service's mark.
  *
  * Only the organization's own servers: a workflow's reach cannot depend on whose
  * account starts it, the rule an agent's bindings follow. Listing them needs
- * `mcp:manage`, so a member without it is told so instead of shown an empty list.
+ * the right to edit this workflow, which publishing a step needs, so an editor
+ * picks one without managing servers; anybody else is told so instead of shown
+ * an empty list. Only a manager is offered a way to connect another.
  */
 export function McpConnectionPicker(props: McpConnectionPickerProps) {
   const t = useTranslations("workflows");
-  const { can } = usePermissions();
-  if (!can(Perm.mcpManage)) {
+  const { canRead } = useUsableMcpConnections();
+  if (!canRead) {
     return <p className="text-muted-foreground text-xs">{t("pickerMcpNeedsPermission")}</p>;
   }
   return <ConnectionSelect {...props} />;
@@ -62,13 +62,14 @@ function ConnectionSelect({
   connections,
   isLoading,
 }: McpConnectionPickerProps & {
-  connections?: OrgMcpConnectionRecord[];
+  connections?: UsableMcpConnectionRecord[];
   isLoading?: boolean;
 }) {
   const t = useTranslations("workflows");
-  const listed = useOrgMcpConnections();
+  const { can } = usePermissions();
+  const listed = useUsableMcpConnections();
   const { servers: catalog } = useMcpCatalog();
-  const all = connections ?? listed.connections;
+  const all = connections ?? listed.connections ?? [];
   const loading = isLoading ?? listed.isLoading;
   const orphaned = value !== null && !loading && !all.some((one) => one.id === value);
   const caption = t("pickerMcpServerLabel");
@@ -85,11 +86,15 @@ function ConnectionSelect({
             <SelectItem key={connection.id} value={connection.id}>
               <span className="flex items-center gap-2">
                 <McpServerIcon
-                  icon={entryForConnection(connection, catalog)?.icon}
-                  name={connectionName(connection)}
+                  icon={
+                    catalog.find(
+                      (entry) => entry.key === (connection.catalog_key ?? connection.name),
+                    )?.icon
+                  }
+                  name={connectionLabel(connection)}
                   className="h-4 w-4"
                 />
-                <span className="truncate">{connectionName(connection)}</span>
+                <span className="truncate">{connectionLabel(connection)}</span>
                 {!connection.is_enabled && <Badge variant="secondary">{t("pickerHostOff")}</Badge>}
               </span>
             </SelectItem>
@@ -99,9 +104,11 @@ function ConnectionSelect({
       {all.length === 0 && !loading && (
         <p className="text-muted-foreground text-xs">
           {t("pickerMcpEmpty")}{" "}
-          <Link href={ROUTES.MCP_SERVERS} className="underline underline-offset-2">
-            {t("pickerMcpAdd")}
-          </Link>
+          {can(Perm.mcpManage) && (
+            <Link href={ROUTES.MCP_SERVERS} className="underline underline-offset-2">
+              {t("pickerMcpAdd")}
+            </Link>
+          )}
         </p>
       )}
       {orphaned && <p className="text-foreground/70 text-xs">{t("pickerMcpOrphaned")}</p>}
@@ -126,8 +133,8 @@ export interface McpToolFieldProps {
  */
 export function McpToolField(props: McpToolFieldProps) {
   const t = useTranslations("workflows");
-  const { can } = usePermissions();
-  if (!can(Perm.mcpManage)) {
+  const { canRead } = useUsableMcpConnections();
+  if (!canRead) {
     return <p className="text-muted-foreground text-xs">{t("pickerMcpNeedsPermission")}</p>;
   }
   return <ToolField {...props} />;
@@ -142,13 +149,13 @@ function ToolField({
   toolError,
 }: McpToolFieldProps) {
   const t = useTranslations("workflows");
-  const { connections, isLoading, test } = useOrgMcpConnections();
+  const { can } = usePermissions();
+  const queryClient = useQueryClient();
+  const { connections: listed, isLoading } = useUsableMcpConnections();
+  const connections = listed ?? [];
   const [testing, setTesting] = useState(false);
   const connection = connections.find((one) => one.id === connectionId) ?? null;
-  const offered =
-    connection?.last_tools?.filter(
-      (entry) => !connection.allowed_tools || connection.allowed_tools.includes(entry.name),
-    ) ?? null;
+  const offered = connection === null ? null : offeredTools(connection);
   // A tool the step names but the list no longer has stays a choice, so the
   // select shows what is set rather than going blank.
   const tools =
@@ -160,7 +167,9 @@ function ToolField({
   const refresh = async (id: string) => {
     setTesting(true);
     try {
-      const result = await test(id);
+      // Testing probes the server and writes what it offers; only a manager may.
+      const result = await testOrgMcpConnection(id);
+      await queryClient.invalidateQueries({ queryKey: qk.mcpConnections.all() });
       if (result.error) toast.error(result.error);
     } catch {
       toast.error(t("pickerMcpTestFailed"));
@@ -183,17 +192,19 @@ function ToolField({
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-2">
             <Label>{caption}</Label>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 gap-1.5 px-2 text-xs"
-              onClick={() => void refresh(connection.id)}
-              disabled={disabled || testing}
-            >
-              <RefreshCw aria-hidden className={testing ? "size-3.5 animate-spin" : "size-3.5"} />
-              {t("pickerMcpRefresh")}
-            </Button>
+            {can(Perm.mcpManage) && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1.5 px-2 text-xs"
+                onClick={() => void refresh(connection.id)}
+                disabled={disabled || testing}
+              >
+                <RefreshCw aria-hidden className={testing ? "size-3.5 animate-spin" : "size-3.5"} />
+                {t("pickerMcpRefresh")}
+              </Button>
+            )}
           </div>
           <Select
             value={tool ?? ""}
@@ -222,7 +233,9 @@ function ToolField({
             </SelectContent>
           </Select>
           {offered === null && (
-            <p className="text-muted-foreground text-xs">{t("pickerMcpNeverTested")}</p>
+            <p className="text-muted-foreground text-xs">
+              {t(can(Perm.mcpManage) ? "pickerMcpNeverTested" : "pickerMcpNeverTestedEditor")}
+            </p>
           )}
           {toolError !== undefined && <p className="text-destructive text-xs">{toolError}</p>}
         </div>
@@ -236,23 +249,15 @@ function ToolField({
  * tested - what `mcp.call`'s arguments are edited as, one field per argument.
  *
  * Null until a server and tool are chosen, when the server kept none, or for a
- * member who may not list servers: they get the arguments as one object instead.
- * Reads the list `useOrgMcpConnections` holds, through the same cache key, but
- * asks only of somebody allowed to - that hook deliberately always asks.
+ * member who may not edit the workflow: they get the arguments as one object instead.
+ * Reads the list the picker holds, through the same cache key.
  */
 export function useMcpToolSchema(
   connectionId: string | null,
   tool: string | null,
 ): Record<string, unknown> | null {
-  const { can } = usePermissions();
-  const { data: connections = [] } = useQuery({
-    queryKey: qk.mcpConnections.org(),
-    queryFn: listOrgMcpConnections,
-    enabled: connectionId !== null && can(Perm.mcpManage),
-  });
-  const connection = connections.find((one) => one.id === connectionId);
-  const offered = (connection?.last_tools ?? []).filter(
-    (entry) => !connection?.allowed_tools || connection.allowed_tools.includes(entry.name),
-  );
+  const { connections } = useUsableMcpConnections(connectionId !== null);
+  const connection = (connections ?? []).find((one) => one.id === connectionId);
+  const offered = (connection === undefined ? null : offeredTools(connection)) ?? [];
   return offered.find((one) => one.name === tool)?.input_schema ?? null;
 }

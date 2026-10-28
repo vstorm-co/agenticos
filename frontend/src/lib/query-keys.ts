@@ -571,6 +571,8 @@ export const qk = {
     // endpoints - sharing a key would let one page's refetch overwrite the
     // other's data with rows it has no business showing.
     org: () => ["mcp-connections", "org"] as const,
+    // What the editor of one workflow may pick: its own endpoint and projection, so its own key.
+    usable: (workflowId: string) => ["mcp-connections", "usable", workflowId] as const,
     calls: (connectionId: string) => ["mcp-connections", "calls", connectionId] as const,
   },
   conversationWorkspace: {

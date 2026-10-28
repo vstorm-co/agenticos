@@ -1,7 +1,7 @@
 ---
 title: "E-Mails mit einem freigegebenen Entwurf beantworten"
 description: "Ein Workflow liest neue Mail, entwirft eine Antwort, lässt eine Person sie bearbeiten und freigeben und legt dann einen Entwurf im Thread an oder sendet sie über einen selbst betriebenen MCP-Server für Gmail oder Microsoft 365."
-source_sha: "cf7392e88a2b"
+source_sha: "8318484b7f9a"
 ---
 
 # E-Mails mit einem freigegebenen Entwurf beantworten { #answer-mail-with-an-approved-draft }
@@ -103,6 +103,10 @@ ob sie gesendet oder als Entwurf behalten wird. Bauen Sie ihn in dieser Reihenfo
    gesetzt ist; das Entwurfs-Tool füllt `to` selbst. `user_google_email` füllt ein Server
    selbst, der mit `MCP_ENABLE_OAUTH21=true` läuft; im Einzelnutzer-Modus binden Sie es an
    die Adresse des Postfachs.
+
+   Wählen Sie im Schrittwähler in der Gmail-Gruppe unter dem Gmail-Trigger **Create draft**
+   oder **Send message**, sind `thread_id`, `in_reply_to` und beim Senden `to` schon
+   gebunden; `body` binden Sie selbst, und jede Bindung ändern Sie wie gewohnt.
 
    Setzen Sie **Ask for approval** beider Schritte auf **Never**. Eine Person hat den
    genauen Text einen Schritt zuvor freigegeben und würde sonst ein zweites Mal

@@ -1,5 +1,5 @@
 ---
-source_sha: "2c6b8d107b99"
+source_sha: "bd642ed8004b"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -141,6 +141,9 @@ dazu mit.
 GET  /api/v1/me/mcp-connections     personal
 GET  /api/v1/mcp-connections        organization, requires mcp:manage; each server
                                     narrowed to groups only for them
+GET  /api/v1/workflows/{id}/mcp-connections   the servers a step of this workflow may
+                                    bind - for whoever may edit it (role or grant); name,
+                                    tools, no URL or credential
 POST /api/v1/mcp-connections/{id}/test   probe it, list its tools, store the status
 GET  /api/v1/mcp-connections/{id}/sharing   who it is narrowed to, and the same
                                             grant routes as an agent's

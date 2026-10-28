@@ -22,6 +22,9 @@ import { useTranslations } from "next-intl";
 
 import { NodeTile } from "@/components/workflows/node-tile";
 import { familyLabelClass, nodeFamily } from "@/components/workflows/node-visuals";
+import { appToolLabel } from "@/components/workflows/apps";
+import { connectionLabel } from "@/lib/mcp-servers";
+import { type McpAppStep, useMcpAppStep } from "@/components/workflows/use-app-connections";
 import { cadenceDraftOf } from "@/components/workflows/property-panel/cadence";
 import { ownsAScope } from "@/components/workflows/palette";
 import { routesErrors } from "@/lib/workflows/ports";
@@ -281,7 +284,25 @@ const SUMMARY_LINES = { 1: "truncate", 2: "line-clamp-2 break-words" };
  * every input completes a keyboard connection through a labelled button, one per
  * port, shown on hover and focus so the card stays quiet otherwise.
  */
-export function WorkflowNode({ data, selected, height }: NodeProps<WorkflowFlowNode>) {
+export function WorkflowNode(props: NodeProps<WorkflowFlowNode>) {
+  // Only an MCP call asks which app its connection belongs to: no other card needs the list.
+  return props.data.instance.definition_id === "mcp.call" ? (
+    <McpWorkflowNode {...props} />
+  ) : (
+    <WorkflowCard {...props} mcp={null} />
+  );
+}
+
+function McpWorkflowNode(props: NodeProps<WorkflowFlowNode>) {
+  return <WorkflowCard {...props} mcp={useMcpAppStep(props.data.instance.config)} />;
+}
+
+function WorkflowCard({
+  data,
+  selected,
+  height,
+  mcp,
+}: NodeProps<WorkflowFlowNode> & { mcp: McpAppStep | null }) {
   const t = useTranslations("workflows");
   const { instance, definition, readOnly, bodySize } = data;
   const {
@@ -299,19 +320,34 @@ export function WorkflowNode({ data, selected, height }: NodeProps<WorkflowFlowN
 
   const kind = definition?.kind ?? "action";
   const scopeOwner = definition !== null && ownsAScope(definition);
-  const name = nodeDisplayName(
-    definition?.name ?? instance.definition_id,
-    instance.id,
-    false,
-    instance.label,
-  );
+  // A call on an app's connection reads as that app's action - "Gmail · Create draft" -
+  // and still says it is an MCP call: a badge, and its connection and raw tool below.
+  const mcpAction =
+    mcp === null || mcp.tool === ""
+      ? null
+      : t("appCardName", {
+          app: t(`category.${mcp.app.id}`),
+          tool: appToolLabel(mcp.app, mcp.tool, t),
+        });
+  const name =
+    instance.label || mcpAction === null
+      ? nodeDisplayName(
+          definition?.name ?? instance.definition_id,
+          instance.id,
+          false,
+          instance.label,
+        )
+      : mcpAction;
   const style = useWorkflowNodeStyleStore((state) => state.style);
   const family = nodeFamily(definition?.category ?? "");
   const band = waitsBand(instance, graph?.bindings ?? []);
   const inputs: Port[] = definition?.ports.filter((port) => port.kind === "input") ?? [];
   const outputs: Port[] = definition?.ports.filter((port) => port.kind === "output") ?? [];
   const connecting = connectSource !== null;
-  const summary = nodeSummary(instance, t);
+  const summary =
+    mcp === null || mcp.tool === ""
+      ? nodeSummary(instance, t)
+      : t("appCardSubtitle", { connection: connectionLabel(mcp.connection), tool: mcp.tool });
   // Sized by a person: the card then fills the box xyflow gives the node, and the
   // height above what the card needs goes to its text.
   const { width: sizedWidth, height: sizedHeight } = instance.layout;
@@ -329,8 +365,9 @@ export function WorkflowNode({ data, selected, height }: NodeProps<WorkflowFlowN
   const floor = sizedHeight == null && height ? height : natural;
   const tile = (
     <NodeTile
-      definitionId={instance.definition_id}
-      category={definition?.category ?? ""}
+      {...(mcp === null
+        ? { definitionId: instance.definition_id, category: definition?.category ?? "" }
+        : { kind: "group" as const, category: mcp.app.id })}
       className="size-8 rounded-lg"
       iconClassName="size-4"
     />
@@ -409,7 +446,7 @@ export function WorkflowNode({ data, selected, height }: NodeProps<WorkflowFlowN
           nodeName={name}
           portLabel={port.label}
           prominent={!usedPorts.has(port.id)}
-          onPick={(next) => insertAfter(instance.id, port.id, next)}
+          onPick={(next, config) => insertAfter(instance.id, port.id, next, config)}
         />
       </span>
     );
@@ -546,10 +583,24 @@ export function WorkflowNode({ data, selected, height }: NodeProps<WorkflowFlowN
             {cardLabel}
           </p>
           <div className="flex items-baseline justify-between gap-2">
-            <span className={cn("text-sm leading-5 font-medium", NAME_LINES[lines.name])}>
+            <span
+              className={cn(
+                "text-sm leading-5 font-medium",
+                // An app's action reads in full: the tool is what tells two cards apart.
+                mcpAction !== null && !instance.label ? "break-words" : NAME_LINES[lines.name],
+              )}
+            >
               {name}
             </span>
             <span className="flex shrink-0 items-center gap-1">
+              {mcp !== null && (
+                <span
+                  title={t("appMcpBadgeHint")}
+                  className="text-muted-foreground border-border rounded border px-1 text-[10px] font-medium tracking-wide"
+                >
+                  {t("appMcpBadge")}
+                </span>
+              )}
               {instance.disabled && (
                 <span
                   role="img"
@@ -606,7 +657,7 @@ export function WorkflowNode({ data, selected, height }: NodeProps<WorkflowFlowN
               title={definition?.description}
               className={cn(
                 "text-muted-foreground text-xs",
-                SUMMARY_LINES[lines.summary],
+                mcp !== null && mcp.tool !== "" ? "break-words" : SUMMARY_LINES[lines.summary],
                 summary !== null && summaryIsCode(instance) && "font-mono",
               )}
             >

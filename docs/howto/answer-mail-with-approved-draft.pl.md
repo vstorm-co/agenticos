@@ -1,7 +1,7 @@
 ---
 title: "Odpowiedz na pocztę zatwierdzonym szkicem"
 description: "Workflow czyta nową pocztę, przygotowuje odpowiedź, prosi człowieka o jej edycję i zatwierdzenie, a potem zostawia szkic w wątku albo wysyła ją przez własny serwer MCP dla Gmaila lub Microsoft 365."
-source_sha: "cf7392e88a2b"
+source_sha: "8318484b7f9a"
 ---
 
 # Odpowiedz na pocztę zatwierdzonym szkicem { #answer-mail-with-an-approved-draft }
@@ -99,6 +99,10 @@ jako szkic. Zbuduj go w tej kolejności.
    ustawiono ani `to`, ani `reply_all` na `true`; narzędzie szkicu samo uzupełnia `to`.
    `user_google_email` uzupełnia serwer działający z `MCP_ENABLE_OAUTH21=true`; w trybie
    single-user podepnij je z adresu skrzynki.
+
+   Wybranie **Create draft** lub **Send message** z grupy Gmail w selektorze kroków pod
+   triggerem Gmail podpina za Ciebie `thread_id`, `in_reply_to`, a przy wysyłce także `to`;
+   `body` podpinasz sam, a każde z nich zmieniasz jak każde podpięcie.
 
    Ustaw **Ask for approval** obu kroków na **Never**. Człowiek zatwierdził dokładny
    tekst krok wcześniej i inaczej zostałby zapytany drugi raz.

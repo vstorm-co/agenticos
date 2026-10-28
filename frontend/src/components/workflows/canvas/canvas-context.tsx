@@ -31,7 +31,12 @@ export interface CanvasInteraction {
   /** The node catalog a node's "+" offers the next step from. */
   catalog: NodeDefinition[];
   /** Add `definition` after `nodeId`'s `portId`, wired to it. */
-  insertAfter: (nodeId: string, portId: string, definition: NodeDefinition) => void;
+  insertAfter: (
+    nodeId: string,
+    portId: string,
+    definition: NodeDefinition,
+    config?: Record<string, unknown>,
+  ) => void;
   /** Each node's problems that stop publishing, as sentences - a node with none is absent. */
   problemTexts: ReadonlyMap<string, readonly string[]>;
   /** When two versions are compared: how each step differs - one the same is absent. */

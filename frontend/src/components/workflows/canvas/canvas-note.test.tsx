@@ -1,12 +1,17 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { makeDefinition, port } from "@/components/workflows/validation/fixtures";
 import type { CanvasNote, NodeInstance, WorkflowDetail } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { WorkflowCanvas } from "./workflow-canvas";
+
+vi.mock("@/components/workflows/use-app-connections", () => ({
+  useAppConnections: () => ({ connections: null, canConnect: false }),
+  useMcpAppStep: () => null,
+}));
 
 const store = useWorkflowEditorStore;
 const ACT = makeDefinition({

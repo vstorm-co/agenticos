@@ -8082,7 +8082,9 @@
       "transform": "Umformen",
       "model": "Modelle",
       "mcp": "MCP-Server",
-      "email": "E-Mail"
+      "email": "E-Mail",
+      "gmail": "Gmail",
+      "outlook": "Outlook"
     },
     "nodeSummaryBranches": "{count, plural, =0 {Nur der Standardzweig} one {# Zweig und Standard} other {# Zweige und Standard}}",
     "nodeSummaryCollect": "Sammelt fehlgeschlagene Elemente und macht weiter",
@@ -8171,12 +8173,13 @@
     "pickerMcpEmpty": "Die Organisation hat noch keinen MCP-Server.",
     "pickerMcpAdd": "Einen verbinden",
     "pickerMcpOrphaned": "Der Server dieses Schritts existiert nicht mehr. Wählen Sie einen anderen.",
-    "pickerMcpNeedsPermission": "Die Wahl eines MCP-Servers erfordert mcp:manage. Fragen Sie jemanden, der die Server der Organisation verwaltet.",
+    "pickerMcpNeedsPermission": "Sie dürfen diesen Workflow nicht bearbeiten und können daher keinen MCP-Server wählen.",
     "pickerMcpToolLabel": "Tool",
     "pickerMcpToolPlaceholder": "Tool wählen",
     "pickerMcpRefresh": "Tools aktualisieren",
     "pickerMcpTestFailed": "Der Server war nicht erreichbar.",
     "pickerMcpNeverTested": "Dieser Server wurde noch nicht getestet, daher sind seine Tools unbekannt. Aktualisieren Sie, um sie abzurufen.",
+    "pickerMcpNeverTestedEditor": "Dieser Server wurde noch nicht getestet, daher sind seine Tools nicht aufgelistet. Bitten Sie jemanden, der die Server der Organisation verwaltet, ihn zu testen.",
     "categoryHint": {
       "triggers": "Wie ein Run startet",
       "agent": "Einen deiner Agenten ausführen",
@@ -8199,7 +8202,9 @@
       "transform": "Listen sortieren, begrenzen und umformen",
       "model": "Ein Modell fragen, klassifizieren, extrahieren oder zusammenfassen",
       "mcp": "Ein Tool auf einem Ihrer MCP-Server aufrufen",
-      "email": "Personen außerhalb Ihrer Organisation mailen"
+      "email": "Personen außerhalb Ihrer Organisation mailen",
+      "gmail": "Mail-Trigger und Gmail-Aktionen",
+      "outlook": "Mail-Trigger und Outlook-Aktionen"
     },
     "pickerSection": {
       "start": "Start",
@@ -8581,7 +8586,46 @@
       "valuePlaceholder": "billing",
       "cancel": "Abbrechen",
       "save": "Fall hinzufügen"
-    }
+    },
+    "appMcpBadge": "MCP",
+    "appMcpBadgeHint": "Ein Tool-Aufruf auf einem MCP-Server",
+    "appServer": {
+      "gmail": "Google Workspace",
+      "outlook": "Microsoft 365"
+    },
+    "appConnect": "Verbinde {server}, um {app}-Aktionen hinzuzufügen",
+    "appOrgOnly": "Aktionen stammen aus den MCP-Verbindungen der Organisation, nicht aus persönlichen.",
+    "appUntested": "Für {connection} sind noch keine Tools aufgelistet. Teste die Verbindung, um sie aufzulisten.",
+    "appCardName": "{app} · {tool}",
+    "appCardSubtitle": "{connection} · {tool}",
+    "appPanelNote": "MCP-Tool-Aufruf: {tool} ({raw}) über die Verbindung {connection}.",
+    "appPanelLink": "Verbindung öffnen",
+    "appTool": {
+      "readMessage": "Nachricht lesen",
+      "readMessages": "Nachrichten lesen",
+      "readAttachment": "Anhang lesen",
+      "readThreads": "Unterhaltungen lesen",
+      "listLabels": "Labels auflisten",
+      "manageLabel": "Label verwalten",
+      "listFilters": "Filter auflisten",
+      "manageFilter": "Filter verwalten",
+      "changeLabelsBatch": "Labels mehrerer ändern",
+      "startGoogleSignIn": "Google-Anmeldung starten",
+      "createDraft": "Entwurf erstellen",
+      "sendMessage": "Nachricht senden",
+      "searchMail": "E-Mails suchen",
+      "readThread": "Thread lesen",
+      "changeLabels": "Labels ändern",
+      "createReplyDraft": "Antwortentwurf erstellen",
+      "createSharedReplyDraft": "Antwortentwurf erstellen (geteiltes Postfach)",
+      "sendDraft": "Entwurf senden",
+      "sendSharedDraft": "Entwurf senden (geteiltes Postfach)"
+    },
+    "appServerFull": {
+      "gmail": "Google Workspace (selbst gehostet)",
+      "outlook": "Microsoft 365 (selbst gehostet)"
+    },
+    "appNeedsPermission": "{app}-Aktionen werden nicht angezeigt, weil Sie diesen Workflow nicht bearbeiten dürfen."
   },
   "artifacts": {
     "title": "Apps",

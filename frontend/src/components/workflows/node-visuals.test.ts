@@ -114,6 +114,14 @@ describe("nodeVisual", () => {
     expect(operationVisual("slack.message.send", "slack", "colour").family).toBe("apps");
   });
 
+  it("draws an app's group in the Apps family, on the app's own mark", () => {
+    for (const app of ["gmail", "outlook"]) {
+      expect(nodeFamily(app)).toBe("apps");
+      expect(groupVisual(app, "colour").tileClass).toBe("node-tile-apps");
+      expect(groupVisual(app, "colour").icon).not.toBe(groupVisual("custom", "colour").icon);
+    }
+  });
+
   it("puts a trigger drawn with a brand's mark on the white tile, still round", () => {
     for (const id of ["trigger.gmail", "trigger.github"]) {
       expect(nodeVisual(id, "triggers", "colour").tileClass).toBe("node-tile-apps rounded-full");

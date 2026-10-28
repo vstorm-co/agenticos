@@ -8205,7 +8205,9 @@
       "transform": "Transform",
       "model": "Models",
       "mcp": "MCP servers",
-      "email": "Email"
+      "email": "Email",
+      "gmail": "Gmail",
+      "outlook": "Outlook"
     },
     "nodeSummaryBranches": "{count, plural, =0 {Default branch only} one {# branch and default} other {# branches and default}}",
     "nodeSummaryCollect": "Collects failed items and carries on",
@@ -8288,12 +8290,13 @@
     "pickerMcpEmpty": "The organization has no MCP server yet.",
     "pickerMcpAdd": "Connect one",
     "pickerMcpOrphaned": "The server this step names is gone. Pick another.",
-    "pickerMcpNeedsPermission": "Choosing an MCP server needs mcp:manage. Ask someone who manages the organization's servers.",
+    "pickerMcpNeedsPermission": "You can't edit this workflow, so you can't choose an MCP server.",
     "pickerMcpToolLabel": "Tool",
     "pickerMcpToolPlaceholder": "Choose a tool",
     "pickerMcpRefresh": "Refresh tools",
     "pickerMcpTestFailed": "Could not reach the server.",
     "pickerMcpNeverTested": "Nobody has tested this server yet, so its tools are not listed. Refresh to list them.",
+    "pickerMcpNeverTestedEditor": "Nobody has tested this server yet, so its tools are not listed. Ask someone who manages the organization's servers to test it.",
     "categoryHint": {
       "triggers": "How a run starts",
       "agent": "Run one of your agents",
@@ -8316,7 +8319,9 @@
       "transform": "Sort, limit and reshape lists",
       "model": "Ask a model, classify, extract or summarize",
       "mcp": "Call a tool on one of your MCP servers",
-      "email": "Email people outside your organization"
+      "email": "Email people outside your organization",
+      "gmail": "Mail trigger and Gmail actions",
+      "outlook": "Mail trigger and Outlook actions"
     },
     "pickerSection": {
       "start": "Start",
@@ -8698,7 +8703,46 @@
       "valuePlaceholder": "billing",
       "cancel": "Cancel",
       "save": "Add the case"
-    }
+    },
+    "appMcpBadge": "MCP",
+    "appMcpBadgeHint": "A tool call on an MCP server",
+    "appServer": {
+      "gmail": "Google Workspace",
+      "outlook": "Microsoft 365"
+    },
+    "appConnect": "Connect {server} to add {app} actions",
+    "appOrgOnly": "Actions come from the organization's MCP connections, not from personal ones.",
+    "appUntested": "{connection} has no tools listed yet. Test the connection to list them.",
+    "appCardName": "{app} · {tool}",
+    "appCardSubtitle": "{connection} · {tool}",
+    "appPanelNote": "MCP tool call: {tool} ({raw}) on the connection {connection}.",
+    "appPanelLink": "Open the connection",
+    "appTool": {
+      "readMessage": "Read message",
+      "readMessages": "Read messages",
+      "readAttachment": "Read attachment",
+      "readThreads": "Read threads",
+      "listLabels": "List labels",
+      "manageLabel": "Manage label",
+      "listFilters": "List filters",
+      "manageFilter": "Manage filter",
+      "changeLabelsBatch": "Change labels on several",
+      "startGoogleSignIn": "Start Google sign-in",
+      "createDraft": "Create draft",
+      "sendMessage": "Send message",
+      "searchMail": "Search mail",
+      "readThread": "Read thread",
+      "changeLabels": "Change labels",
+      "createReplyDraft": "Create reply draft",
+      "createSharedReplyDraft": "Create reply draft (shared mailbox)",
+      "sendDraft": "Send draft",
+      "sendSharedDraft": "Send draft (shared mailbox)"
+    },
+    "appServerFull": {
+      "gmail": "Google Workspace (self-hosted)",
+      "outlook": "Microsoft 365 (self-hosted)"
+    },
+    "appNeedsPermission": "{app} actions are not shown because you can't edit this workflow."
   },
   "artifacts": {
     "title": "Apps",

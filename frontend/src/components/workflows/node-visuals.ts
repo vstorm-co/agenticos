@@ -92,6 +92,7 @@ import {
 import type { ComponentType, SVGProps } from "react";
 
 import { brandMark } from "@/components/icons/brand-icon";
+import { APP_MARKS } from "@/components/workflows/apps";
 import type { NodeStyle } from "@/stores/workflow-node-style-store";
 
 /** An icon a tile draws: a lucide icon, or a brand's mark. */
@@ -200,6 +201,8 @@ const PLATFORM_MARKS: Record<string, NodeIcon> = {
   slack: brandMark("slack"),
   mattermost: brandMark("mattermost"),
   telegram: brandMark("telegram"),
+  // An app's group in the picker, which holds its trigger and its MCP actions.
+  ...APP_MARKS,
 };
 
 /**
@@ -234,7 +237,17 @@ export const PICKER_SECTIONS = [
   { id: "data", groups: ["tables", "data", "transform", "files", "code"] },
   {
     id: "apps",
-    groups: ["slack", "mattermost", "telegram", "mcp", "http", "email", "notification"],
+    groups: [
+      "gmail",
+      "outlook",
+      "slack",
+      "mattermost",
+      "telegram",
+      "mcp",
+      "http",
+      "email",
+      "notification",
+    ],
   },
 ] as const;
 

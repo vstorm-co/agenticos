@@ -99,6 +99,18 @@ describe("a parameter that is not text", () => {
     mount({ schema: INTEGER, disabled: true });
     expect(screen.queryByRole("button", { name: /from an earlier step/ })).toBeNull();
   });
+
+  it("puts Data beside a yes-or-no switch, not over it", () => {
+    mount({ schema: { type: "boolean", title: "Quote the original" } });
+    const data = screen.getByRole("button", { name: /from an earlier step/ });
+    const toggle = screen.getByRole("switch");
+    // Siblings in one row: the switch's column and Data's own, neither laid over the other.
+    const dataColumn = data.parentElement as HTMLElement;
+    expect(dataColumn).toHaveClass("shrink-0");
+    expect(dataColumn).not.toHaveClass("absolute");
+    expect(dataColumn.parentElement).toContainElement(toggle);
+    expect(dataColumn).not.toContainElement(toggle);
+  });
 });
 
 describe("a parameter read from an earlier step", () => {

@@ -10,6 +10,10 @@ import {
 import type { NodeInstance, WorkflowGraph } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
+import { WORKFLOW_APPS } from "@/components/workflows/apps";
+import type { McpAppStep } from "@/components/workflows/use-app-connections";
+import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
+
 import { NodeEditorDialog } from "./node-editor-dialog";
 
 vi.mock("@/hooks", () => ({
@@ -25,6 +29,15 @@ vi.mock("@/components/workflows/canvas/node-resource", async (original) => ({
   ...(await original<typeof import("@/components/workflows/canvas/node-resource")>()),
   AgentTile: ({ agentId }: { agentId: string }) => <span>face of {agentId}</span>,
   InlineAgentTile: ({ name }: { name: string }) => <span>own face of {name}</span>,
+}));
+
+vi.mock("@/components/workflows/pickers/mcp-tool-picker", async (original) => ({
+  ...(await original<typeof import("@/components/workflows/pickers/mcp-tool-picker")>()),
+  useMcpToolSchema: () => null,
+}));
+const mcpApp = vi.hoisted(() => ({ step: null as McpAppStep | null }));
+vi.mock("@/components/workflows/use-app-connections", () => ({
+  useMcpAppStep: () => mcpApp.step,
 }));
 
 const store = useWorkflowEditorStore;
@@ -44,7 +57,10 @@ function seed(...nodes: NodeInstance[]) {
   store.getState().seedGraph(graph);
 }
 
-afterEach(() => store.getState().teardown());
+afterEach(() => {
+  mcpApp.step = null;
+  store.getState().teardown();
+});
 
 describe("NodeEditorDialog", () => {
   it("offers a model step's evals to an editor, and no other step's", async () => {
@@ -61,6 +77,39 @@ describe("NodeEditorDialog", () => {
     store.getState().editNode("b");
     render(<NodeEditorDialog workflowId="wf" catalog={[classify, DEBUG_ECHO]} />);
     expect(screen.queryByRole("tab", { name: "Evals" })).toBeNull();
+  });
+
+  it("says an MCP call on an app's connection is one, on which connection and tool, with a link to it", () => {
+    const call = { ...DEBUG_ECHO, id: "mcp.call", name: "Call an MCP tool", category: "mcp" };
+    seed(node("a", "mcp.call", { connection_id: "c1", tool: "draft_gmail_message" }));
+    store.getState().editNode("a");
+    mcpApp.step = {
+      app: WORKFLOW_APPS[0] as McpAppStep["app"],
+      connection: {
+        id: "c1",
+        name: "gmail-dev",
+        label: null,
+        catalog_key: "google-workspace",
+      } as OrgMcpConnectionRecord,
+      tool: "draft_gmail_message",
+    };
+    const { unmount } = render(<NodeEditorDialog catalog={[call]} />);
+
+    expect(
+      screen.getByText(
+        "MCP tool call: Create draft (draft_gmail_message) on the connection gmail-dev.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open the connection" })).toHaveAttribute(
+      "href",
+      "/mcp-servers?server=google-workspace",
+    );
+    unmount();
+
+    // Another connection's call, or one with no tool yet, says nothing extra.
+    mcpApp.step = null;
+    render(<NodeEditorDialog catalog={[call]} />);
+    expect(screen.queryByText(/MCP tool call:/)).toBeNull();
   });
 
   it("opens nothing until a step is being edited", () => {

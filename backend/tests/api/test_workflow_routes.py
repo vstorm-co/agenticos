@@ -22,6 +22,7 @@ from httpx import ASGITransport, AsyncClient
 from app.api import deps
 from app.core.config import settings
 from app.core.permissions import AuthContext, OrgRoleName
+from app.db.models.mcp_connection import McpConnection
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.db.models.workflow import WorkflowStatus
 from app.main import app
@@ -782,3 +783,101 @@ async def test_version_history_rejects_out_of_bounds_paging(owner_client, query)
     async with owner_client() as http:
         response = await http.get(_url(f"/{uuid.uuid4()}/versions?{query}"))
     assert response.status_code == 422
+
+
+# -- the MCP servers a step may bind --------------------------------------------
+
+
+def _server(**overrides: object) -> McpConnection:
+    row = McpConnection()
+    defaults: dict[str, object] = {
+        "id": uuid.uuid4(),
+        "name": "google-workspace",
+        "label": "Sales Gmail",
+        "catalog_key": "google-workspace",
+        "url": "https://secret-host.example/mcp",
+        "auth_token": "sealed-token",
+        "auth_type": "oauth",
+        "granted_scopes": ["gmail.send"],
+        "last_error": "boom at secret-host",
+        "is_enabled": False,
+        "allowed_tools": None,
+        "last_tools": [
+            {"name": "send_gmail_message", "description": "Send", "input_schema": {"a": 1}}
+        ],
+        "last_checked_at": datetime(2026, 10, 28, tzinfo=UTC),
+    }
+    defaults.update(overrides)
+    for key, value in defaults.items():
+        setattr(row, key, value)
+    return row
+
+
+_USABLE = "app.services.mcp_connection.McpConnectionService.list_usable"
+_GRANT = "app.services.access.resource_grant_repo.get_level"
+
+
+async def test_a_viewer_with_an_edit_grant_lists_the_servers_a_step_may_bind(
+    viewer_client: OpenClient,
+):
+    """No role gate: the grant on this workflow is what lets a Viewer edit it."""
+    workflow = _workflow()
+    with (
+        patch(f"{REGISTRY_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+        patch(_GRANT, new=AsyncMock(return_value=GrantLevel.EDIT)),
+        patch(_USABLE, new=AsyncMock(return_value=[_server()])),
+    ):
+        async with viewer_client() as http:
+            response = await http.get(_url(f"/{workflow.id}/mcp-connections"))
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] == 1
+    item = body["items"][0]
+    # Disabled servers are listed, and the projection holds nothing a manager alone reads.
+    assert item["is_enabled"] is False
+    assert item["last_tools"][0]["input_schema"] == {"a": 1}
+    assert set(item) == {
+        "id",
+        "name",
+        "label",
+        "catalog_key",
+        "is_enabled",
+        "allowed_tools",
+        "last_tools",
+        "last_checked_at",
+    }
+    for leaked in ("secret-host", "sealed-token", "gmail.send", "boom"):
+        assert leaked not in response.text
+
+
+@pytest.mark.security
+async def test_a_viewer_without_an_edit_grant_is_not_told_the_servers(viewer_client: OpenClient):
+    workflow = _workflow()
+    with (
+        patch(f"{REGISTRY_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+        patch(_GRANT, new=AsyncMock(return_value=GrantLevel.READ)),
+        patch(_USABLE, new=AsyncMock(return_value=[_server()])) as listed,
+    ):
+        async with viewer_client() as http:
+            response = await http.get(_url(f"/{workflow.id}/mcp-connections"))
+
+    assert response.status_code == 404
+    listed.assert_not_called()
+
+
+@pytest.mark.security
+async def test_another_tenants_workflow_is_a_not_found_for_the_server_list(
+    owner_client: OpenClient,
+):
+    with (
+        patch(f"{REGISTRY_PATH}.workflow_repo.get", new=AsyncMock(return_value=None)) as fetched,
+        patch(_USABLE, new=AsyncMock(return_value=[_server()])) as listed,
+    ):
+        async with owner_client() as http:
+            response = await http.get(_url(f"/{uuid.uuid4()}/mcp-connections"))
+
+    assert response.status_code == 404
+    # The lookup is scoped to the caller's organization, so another tenant's id finds nothing.
+    assert fetched.call_args.kwargs["organization_id"] == _ORGANIZATION_ID
+    listed.assert_not_called()

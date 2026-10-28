@@ -1,5 +1,5 @@
 ---
-source_sha: "26c239a5c5b9"
+source_sha: "cf95c915daaa"
 ---
 
 # Workflows { #workflows }
@@ -124,6 +124,26 @@ hace o por su grupo. Añades un paso de cuatro maneras:
 - **Clic derecho** en el lienzo: el mismo selector se abre donde hiciste clic, y el
   paso aparece allí. Debajo, **Add a note** y, cuando hay algo copiado, **Paste**.
 - **Arrastra** un paso desde el selector para dejarlo donde lo sueltes, sin conectar.
+
+**Gmail** y **Outlook** son grupos propios en **Apps and the web**. Cada uno contiene
+el trigger nativo de la aplicación, donde el lienzo puede aceptar uno, y una entrada por
+herramienta de cada conexión MCP de la organización al servidor correspondiente - Google
+Workspace para Gmail, Microsoft 365 para Outlook - como **Create draft** o **Send
+message**. Elegir una entrada añade un [MCP call](reference/workflow-nodes.md#mcp-call)
+ya configurado con esa conexión y esa herramienta, así que los workflows guardados y el
+contrato del nodo no cambian. La entrada no oculta nada: lleva una insignia **MCP** y el
+nombre de la conexión, el nombre propio de la herramienta va debajo, en su propia línea, y el servidor se nombra una vez en el encabezado del grupo; nada se recorta.
+**Search steps** la encuentra por cualquiera de los dos nombres o por la aplicación. En
+el lienzo el paso se lee **Gmail · Create draft** con una insignia **MCP**, y debajo se
+ven la conexión y el nombre propio de la herramienta; sus ajustes dicen que es una
+llamada a una herramienta MCP en esa conexión y enlazan a ella. Una herramienta que la
+lista no nombra muestra su propio nombre. Cada herramienta de Gmail que ofrece el servidor tiene un nombre claro, como **List labels** o **Read thread**. El trigger nativo
+no es una llamada MCP y no lleva insignia. Sin una conexión que encaje, el grupo muestra
+el trigger y una fila **Connect** para conectar el servidor. Solo se listan las conexiones
+de la organización, y las herramientas de una conexión son las que registró su última
+prueba, así que vuelve a probarla para listar las nuevas. Quien no puede editar
+el workflow ve solo el trigger. Quien lo edita pero no gestiona servidores MCP ve todas las acciones y no recibe una fila **Connect**: solo quien gestiona servidores conecta uno. Las filas de acciones de una aplicación se eligen, no se arrastran:
+solo las filas propias de un paso se pueden arrastrar al lienzo.
 
 Un paso nuevo nunca cae encima de otro, queda seleccionado, abre sus ajustes cuando
 tiene alguno, y el lienzo se desplaza hasta él cuando queda fuera de la vista. Dentro
@@ -355,7 +375,7 @@ que un paso nombre algo real que tu organización tiene:
 | **Agent** y **Version** | Un agent, por su avatar y su descripción, y luego una de sus versiones publicadas, con la versión live marcada y la fecha y la nota de cada una. Cambiar el agent borra la versión fijada, porque una versión pertenece a un agent. La tarjeta del paso muestra entonces el avatar del agent y «nombre · v3» |
 | **Table** y **Columns** | Una [Virtual Table](virtual-tables.md), y luego las columnas que el paso lee — acotadas al esquema actual de esa tabla |
 | **Secret** | Un secreto del [vault](secrets.md), por referencia. Un paso guarda la id del secreto, nunca su valor |
-| **MCP server** y **Tool** | Uno de los [servidores MCP](mcp.md) de la organización, con la marca de su servicio, y luego una de las herramientas que listó en su última prueba. Elegirlo requiere `mcp:manage` |
+| **MCP server** y **Tool** | Uno de los [servidores MCP](mcp.md) de la organización, con la marca de su servicio, y luego una de las herramientas que listó en su última prueba. Elegirlo requiere poder editar el workflow - por rol o por un acceso concedido, como al publicar el paso -, no `mcp:manage`; solo quien gestiona servidores puede probar uno o añadir otro |
 
 Cada selector desambigua filas con el mismo nombre mediante contexto y marca una
 referencia cuyo destino ha desaparecido. Los selectores **Agent** y **Secret**
