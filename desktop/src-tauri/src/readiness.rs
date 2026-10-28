@@ -88,7 +88,7 @@ pub async fn desktop_request_permission(app: AppHandle, permission: Permission) 
     #[cfg(not(target_os = "macos"))]
     {
         let _ = (app, permission);
-        return Err("Permission setup is managed by your operating system.".into());
+        Err("Permission setup is managed by your operating system.".into())
     }
     #[cfg(target_os = "macos")]
     Ok(())
