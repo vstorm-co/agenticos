@@ -50,6 +50,7 @@ export function ConversationAgents({
 
   const shown = agents.slice(0, MAX_SHOWN);
   const extra = agents.length - shown.length;
+  const compactTuck = size === "md" ? (shown.length > 2 ? "-ml-[34px]" : "-ml-8") : "-ml-5";
 
   return (
     <span
@@ -64,12 +65,14 @@ export function ConversationAgents({
             slug={agent.slug}
             hasAvatar={agent.has_avatar}
             colorSlot={agent.avatar_color}
-            size={compact && shown.length > 1 ? "sm" : size}
+            size={size}
             unframed={unframed}
             className={cn(
               "transition-[margin] duration-200 ease-out motion-reduce:transition-none",
               !unframed && "ring-background ring-2",
-              index > 0 && (compact ? "-ml-4" : [shown.length > 2 ? TUCK.more : TUCK.two, SPREAD]),
+              compact && ["relative z-30", "relative z-20", "relative z-10"][index],
+              index > 0 &&
+                (compact ? compactTuck : [shown.length > 2 ? TUCK.more : TUCK.two, SPREAD]),
             )}
           />
         ))}
@@ -79,16 +82,8 @@ export function ConversationAgents({
           {agents.length === 1 ? agents[0]!.name : t("agentCount", { count: agents.length })}
         </span>
       )}
-      {!showName && extra > 0 && (
-        <span
-          className={cn(
-            "text-muted-foreground text-xs",
-            compact &&
-              "bg-sidebar text-foreground absolute right-0 -bottom-1 rounded px-0.5 text-[9px] leading-3",
-          )}
-        >
-          +{extra}
-        </span>
+      {!showName && !compact && extra > 0 && (
+        <span className="text-muted-foreground text-xs">+{extra}</span>
       )}
     </span>
   );

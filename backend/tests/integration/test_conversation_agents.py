@@ -11,7 +11,7 @@ while *participation* is: `agent_runs` has carried `conversation_id` and
 `agent_id` since it existed. So the listing merges the two sources, and what has to
 be true of the merge is exactly what a statement test cannot show: the join lands on
 real rows, an agent recorded twice appears once, and the order is the order the
-agents appeared whichever source recorded them.
+agents were last used, whichever source recorded them.
 
 The run-sourced half also has to say *which* runs count. A delegation is written
 with its parent's `conversation_id` and a terminal status, so the same query that
@@ -181,7 +181,7 @@ class TestWhoAnsweredHere:
         await _answer(db, conversation, first, at=_START)
         await _answer(db, conversation, second, at=_START + timedelta(minutes=5))
 
-        assert await _agents_of(db, conversation) == ["Analyst", "Writer"]
+        assert await _agents_of(db, conversation) == ["Writer", "Analyst"]
 
     async def test_an_agent_recorded_by_both_sources_appears_once(self, db) -> None:
         organization = await _org(db)
@@ -193,9 +193,9 @@ class TestWhoAnsweredHere:
 
         assert await _agents_of(db, conversation) == ["Analyst"]
 
-    async def test_the_order_follows_the_earliest_evidence_from_either_source(self, db) -> None:
+    async def test_the_order_follows_the_latest_evidence_from_either_source(self, db) -> None:
         """One agent known only from a run, another only from a message: the list is
-        still in the order they appeared."""
+        ordered by most recent use."""
         organization = await _org(db)
         owner = await _user(db)
         early = await _agent(db, organization, owner, "Analyst")
@@ -203,6 +203,22 @@ class TestWhoAnsweredHere:
         conversation = await _conversation(db, organization, owner)
         await _run(db, conversation, early, at=_START)
         await _answer(db, conversation, late, at=_START + timedelta(minutes=5))
+
+        assert await _agents_of(db, conversation) == ["Writer", "Analyst"]
+
+    @pytest.mark.parametrize("source", ["message", "run"])
+    async def test_reusing_an_earlier_agent_moves_it_to_the_front(self, db, source: str) -> None:
+        organization = await _org(db)
+        owner = await _user(db)
+        first = await _agent(db, organization, owner, "Analyst")
+        second = await _agent(db, organization, owner, "Writer")
+        conversation = await _conversation(db, organization, owner)
+        await _answer(db, conversation, first, at=_START)
+        await _run(db, conversation, second, at=_START + timedelta(minutes=5))
+        if source == "message":
+            await _answer(db, conversation, first, at=_START + timedelta(minutes=10))
+        else:
+            await _run(db, conversation, first, at=_START + timedelta(minutes=10))
 
         assert await _agents_of(db, conversation) == ["Analyst", "Writer"]
 

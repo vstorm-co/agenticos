@@ -1,5 +1,5 @@
 ---
-source_sha: "116829a45f08"
+source_sha: "c897221fc5c9"
 ---
 
 # Konsola { #the-console }
@@ -40,6 +40,8 @@ Ustawienia czatu pokazują Browser i Work on przed Permissions. Powiadomienia ro
 i połączenia kont pozostają pod kontrolkami uprawnień.
 
 Ustawienia chatu mają stały nagłówek i przycisk zamknięcia nad przewijaną zawartością. Ikony informacji objaśniają model, Browser, Work on i tryby uprawnień; opis wybranego trybu pozostaje widoczny. W **Knowledge bases → Integrations** integracje i usługi lokalne mają zwarte panele dopasowane do zawartości, z objaśnieniami pod ikonami informacji.
+
+Agenci rozmowy są uporządkowani według ostatniej wiadomości lub uruchomienia głównego agenta, od najnowszego. Zwinięty pasek chatu zachowuje pełny rozmiar avatarów, nakłada maksymalnie trzy i ukrywa starszych uczestników; pełna lista pozostaje dostępna w podpowiedzi.
 
 ## Dashboard { #the-dashboard }
 

@@ -323,6 +323,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Order conversation agents by latest use, with full-size overlapping avatars and hidden older participants in the collapsed chat rail.
+
 - **Breaking:** Remove the skill-level `enabled` switch and API field. Bound skills are available regardless of their former switch; remove unwanted bindings and publish affected agents before upgrading. Migration `0180_remove_skill_enabled` drops the retired state; downgrade restores all skills as enabled.
 
 - Separate shared project uploads from personal Desktop folders, retain the selected Computer view, and brief agents, Architect and MCP clients on Desktop, Mobile and selected local execution resources.

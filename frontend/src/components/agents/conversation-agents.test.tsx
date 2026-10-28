@@ -104,22 +104,41 @@ describe("who answered in a conversation", () => {
   });
 });
 
-it("keeps a multi-agent rail stack within 40px and does not spread on hover", () => {
+it("keeps full-size rail faces overlapping within 40px and hides older overflow", () => {
   const { container } = render(
     <ConversationAgents
-      agents={[agent("A"), agent("B"), agent("C"), agent("D")]}
+      agents={[agent("Newest"), agent("Recent"), agent("Third"), agent("Old"), agent("Oldest")]}
       showName={false}
       compact
       size="md"
     />,
   );
   const faces = container.querySelectorAll<HTMLElement>("[data-agent-avatar]");
-  expect(faces).toHaveLength(3);
-  for (const face of faces) expect(face).toHaveClass("w-6");
-  expect(faces[1]).toHaveClass("-ml-4");
-  expect(faces[2]).toHaveClass("-ml-4");
+  expect(Array.from(faces, (face) => face.dataset.agentAvatar)).toEqual([
+    "Newest-id",
+    "Recent-id",
+    "Third-id",
+  ]);
+  for (const face of faces) expect(face).toHaveClass("w-9");
+  expect(faces[1]).toHaveClass("-ml-[34px]");
+  expect(faces[2]).toHaveClass("-ml-[34px]");
+  expect(faces[0]).toHaveClass("z-30");
   expect(faces[1]).not.toHaveClass("group-hover/stack:ml-0.5");
-  // 3 * 24px - 2 * 16px = 40px; the count overlays instead of widening it.
-  expect(screen.getByText("+1")).toHaveClass("absolute");
-  expect(screen.getByTitle("A → B → C → D")).toBeInTheDocument();
+  // 3 * 36px - 2 * 34px = 40px, with the most recent face in front.
+  expect(screen.queryByText(/^\+/)).toBeNull();
+  expect(screen.getByTitle("Newest → Recent → Third → Old → Oldest")).toBeInTheDocument();
+});
+
+it("overlaps two full-size faces without shrinking either one", () => {
+  const { container } = render(
+    <ConversationAgents
+      agents={[agent("Newest"), agent("Older")]}
+      compact
+      size="md"
+      showName={false}
+    />,
+  );
+  const faces = container.querySelectorAll<HTMLElement>("[data-agent-avatar]");
+  expect(faces[0]).toHaveClass("w-9");
+  expect(faces[1]).toHaveClass("w-9", "-ml-8");
 });

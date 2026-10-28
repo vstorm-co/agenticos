@@ -1,5 +1,5 @@
 ---
-source_sha: "116829a45f08"
+source_sha: "c897221fc5c9"
 ---
 
 # Die Konsole { #the-console }
@@ -43,6 +43,8 @@ Gesprächsbenachrichtigungen und Kontoverbindungen bleiben unter den
 Freigabeeinstellungen.
 
 Die Chat-Einstellungen haben eine feste Überschrift und Schließen-Schaltfläche über dem scrollbaren Inhalt. Informationssymbole erklären Modell, Browser, Work on und Berechtigungsmodi bei Bedarf; die Erklärung des ausgewählten Modus bleibt sichtbar. Unter **Knowledge bases → Integrations** passen sich kompakte Panels für Integrationen und lokale Dienste ihrem Inhalt an; Erläuterungen stehen hinter Informationssymbolen.
+
+Die Agenten einer Unterhaltung sind nach ihrer letzten Nachricht oder ihrem letzten übergeordneten Lauf sortiert, die neuesten zuerst. Die eingeklappte Chat-Leiste behält die volle Avatargröße bei, überlagert bis zu drei Bilder und blendet ältere Teilnehmer aus; die vollständige Liste bleibt im Tooltip verfügbar.
 
 ## Das Dashboard { #the-dashboard }
 

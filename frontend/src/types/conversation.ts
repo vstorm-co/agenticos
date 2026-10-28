@@ -5,7 +5,7 @@ import type { RatingsByDay } from "./stats";
  * An agent that answered in a conversation.
  *
  * A list, never one: the picker can be changed mid-thread, so a conversation
- * can have been had with several agents in turn.
+ * can have been had with several agents in turn. Listings order them by latest use, newest first.
  */
 export interface ConversationAgent {
   id: string;

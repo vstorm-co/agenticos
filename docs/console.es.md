@@ -1,5 +1,5 @@
 ---
-source_sha: "116829a45f08"
+source_sha: "c897221fc5c9"
 ---
 
 # La consola { #the-console }
@@ -43,6 +43,8 @@ notificaciones de la conversación y las conexiones de cuentas quedan debajo de 
 permisos.
 
 Los ajustes del chat tienen un encabezado fijo y un botón de cierre sobre el contenido desplazable. Los iconos de información explican el modelo, Browser, Work on y los modos de permisos cuando se solicitan; la explicación del modo seleccionado permanece visible. En **Knowledge bases → Integrations**, los paneles compactos de integraciones y servicios locales se ajustan al contenido, con explicaciones en los iconos de información.
+
+Los agentes de una conversación se ordenan por su último mensaje o ejecución principal, del más reciente al más antiguo. La barra de chat contraída mantiene los avatares a tamaño completo, superpone hasta tres y oculta a los participantes más antiguos; la lista completa sigue disponible en la ayuda emergente.
 
 ## El dashboard { #the-dashboard }
 

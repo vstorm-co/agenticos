@@ -258,9 +258,12 @@ Skills and Context grids align cards at the start rather than stretching every
 card to the tallest one. Removing forced full-height cards lets Details expand
 only its own card while agent usage and Add to an agent remain visible.
 
-Collapsed conversation lists use a compact avatar stack: two or three faces
-are 24px with 16px overlap, so three fit the 40px row. Hover does not widen that
-stack; overflow counts overlay it. The ordinary list keeps its existing treatment.
+Collapsed conversation lists keep full-size 36px avatars. Two faces overlap by
+32px and three by 34px, fitting the 40px row without shrinking. The newest face
+is in front; older overflow is hidden rather than adding a count badge. Hover
+does not widen the stack. Participant order comes from the latest message or
+top-level run, so reusing an earlier agent moves it to the front. The tooltip
+retains the full list.
 
 Chat has a native-only eight-pixel drag hit area at the top of the entire content
 frame. It is absolutely positioned, adds no layout height, and sits above the
@@ -271,3 +274,7 @@ Verification: 90 focused avatar, conversation-list, card and frame regressions,
 TypeScript and scoped ESLint checks passed. Native dragging was checked against
 the installed Tauri drag-region contract; no automated native interaction was
 performed because Computer Use is disabled for this task.
+
+
+The full-size correction passed 57 avatar/sidebar tests. Repository regressions
+cover ordering across both evidence sources and reuse of an earlier participant.
