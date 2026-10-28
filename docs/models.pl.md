@@ -1,5 +1,5 @@
 ---
-source_sha: "67e007c8a946"
+source_sha: "a1bf2f791213"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -378,8 +378,8 @@ jego id.
     - **Nie każdy może na nim publikować.** Publikacja, rollback do wersji lub
       promocja wersji agenta jest odrzucana dla kogoś, kto nie widzi logowania w
       vault, gdy działa na nim model, do którego docierają runy agenta: model
-      agenta lub jeden z jego pierwszych trzech fallbacków, model recenzenta,
-      wbudowanego specjalisty albo włączonej capability. Mogą to zrobić osoba,
+      agenta, recenzenta, wbudowanego specjalisty albo włączonej capability lub
+      jeden z pierwszych trzech fallbacków któregokolwiek z nich. Mogą to zrobić osoba,
       do której należy logowanie, właściciele (owner) i administratorzy (admin)
       organizacji oraz każdy, komu je udostępniono. Wersja opublikowana na nim
       wcześniej działa dalej.

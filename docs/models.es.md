@@ -1,5 +1,5 @@
 ---
-source_sha: "67e007c8a946"
+source_sha: "a1bf2f791213"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -389,9 +389,9 @@ el secreto, que vuelve a iniciar sesión sin cambiar su id.
     - **No cualquiera puede publicar sobre él.** Publicar, hacer rollback a o
       promover una versión de un agente se rechaza para quien no puede ver el
       inicio de sesión en el vault cuando funciona sobre él un modelo al que
-      llegan sus runs: el modelo del agente o uno de sus tres primeros
-      fallbacks, el de un revisor, el de un especialista inline o el de una
-      capability activada. Pueden hacerlo el dueño del inicio de sesión, los
+      llegan sus runs: el modelo del agente, el de un revisor, el de un
+      especialista inline o el de una capability activada, o uno de los tres
+      primeros fallbacks de cualquiera de ellos. Pueden hacerlo el dueño del inicio de sesión, los
       owners y admins, y cualquiera con quien se haya compartido. Una versión
       publicada antes sobre él sigue funcionando.
     - **El gasto mostrado no es tu factura.** Un run se tarifa a los precios de

@@ -23,10 +23,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Publishing an agent on somebody else's ChatGPT sign-in is refused. Publish,
   rollback, the Builder's draft check and promoting a version to an environment
-  now refuse a model a run can reach - the agent's own or one of its first three
-  fallbacks, a reviewer's, an inline specialist's, or the model an enabled web
-  browser or follow-ups capability runs on - when it runs on a ChatGPT sign-in
-  the person doing it cannot see in the vault. The refusal names the model
+  now refuse a model a run can reach - the agent's own, a reviewer's, an inline
+  specialist's, or the one an enabled web browser or follow-ups capability runs
+  on, or one of the first three fallbacks of any of them - when it runs on a
+  ChatGPT sign-in the person doing it cannot see in the vault. The refusal names the model
   field. Before, a builder could publish on a colleague's private sign-in, and
   its owner's and the admins' runs then spent that subscription. The rule is
   the one runs already follow: the sign-in's owner, owners and admins, and

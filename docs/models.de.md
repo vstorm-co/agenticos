@@ -1,5 +1,5 @@
 ---
-source_sha: "67e007c8a946"
+source_sha: "a1bf2f791213"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -406,9 +406,9 @@ ohne seine Id zu ändern.
     - **Nicht jeder darf darauf veröffentlichen.** Das Veröffentlichen, das
       Zurückrollen auf oder das Promoten einer Version eines Agenten wird für
       jemanden abgelehnt, der die Anmeldung im Vault nicht sehen kann, wenn ein
-      Modell, das seine Runs erreichen, darauf läuft: das Modell des Agenten oder
-      einer seiner ersten drei Fallbacks, das eines Reviewers, eines
-      Inline-Spezialisten oder einer eingeschalteten Capability. Der Inhaber der
+      Modell, das seine Runs erreichen, darauf läuft: das Modell des Agenten,
+      eines Reviewers, eines Inline-Spezialisten oder einer eingeschalteten
+      Capability oder einer der ersten drei Fallbacks eines dieser Modelle. Der Inhaber der
       Anmeldung, Owner und Admins sowie alle, mit denen sie geteilt wurde, dürfen
       es. Eine früher darauf veröffentlichte Version läuft weiter.
     - **Die angezeigten Ausgaben sind nicht Ihre Rechnung.** Ein Run wird zu den

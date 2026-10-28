@@ -126,7 +126,7 @@ class TestTheAgentsOwnModel:
             _spec(
                 model_profile_id=str(model.id),
                 reviewers=[{"name": "tone", "model_profile_id": str(keyless.id)}],
-                # Follow-ups on no model of its own runs on the agent's.
+                # Follow-ups with no model of its own does not run, so it names none.
                 capabilities=[{"id": "follow_ups"}],
             )
         )
