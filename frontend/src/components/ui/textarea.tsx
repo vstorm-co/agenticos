@@ -10,7 +10,7 @@ const Textarea = React.forwardRef<
       className={cn(
         // Matches `Input`: `FormField` marks a refused value with
         // `aria-invalid`, and that has to be visible on the control itself.
-        "border-input placeholder:text-muted-foreground focus-visible:ring-ring aria-invalid:border-destructive aria-invalid:focus-visible:ring-destructive bg-card flex min-h-24 w-full min-w-0 scroll-m-4 rounded-xl border px-3 py-2 text-base leading-relaxed focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
+        "border-input placeholder:text-muted-foreground focus-visible:ring-ring aria-invalid:border-destructive aria-invalid:focus-visible:ring-destructive bg-card flex min-h-24 w-full min-w-0 scroll-m-4 rounded-lg border px-3 py-2 text-base leading-relaxed transition-colors duration-[var(--duration-fast)] focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
         className,
       )}
       ref={ref}

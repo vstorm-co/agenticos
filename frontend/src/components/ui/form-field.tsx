@@ -6,6 +6,7 @@ import { Label } from "./label";
 interface InjectableProps {
   id?: string;
   "aria-invalid"?: boolean;
+  "aria-required"?: boolean;
   "aria-describedby"?: string;
 }
 
@@ -43,9 +44,13 @@ export function FormField({
   const errId = `${htmlFor}-err`;
   const describedBy = [error ? errId : description ? descId : null].filter(Boolean).join(" ");
 
+  const controlId = React.isValidElement<InjectableProps>(children)
+    ? (children.props.id ?? htmlFor)
+    : htmlFor;
   const control = React.isValidElement<InjectableProps>(children)
     ? React.cloneElement(children, {
-        id: children.props.id ?? htmlFor,
+        id: controlId,
+        "aria-required": required || children.props["aria-required"],
         "aria-invalid": error ? true : children.props["aria-invalid"],
         "aria-describedby":
           [children.props["aria-describedby"], describedBy].filter(Boolean).join(" ") || undefined,
@@ -55,7 +60,7 @@ export function FormField({
   return (
     <div className={cn("space-y-1.5", className)}>
       {label && (
-        <Label htmlFor={htmlFor}>
+        <Label htmlFor={controlId}>
           {label}
           {required && (
             <span className="text-destructive ml-0.5" aria-hidden="true">

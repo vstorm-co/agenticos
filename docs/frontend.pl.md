@@ -1,5 +1,5 @@
 ---
-source_sha: "5538880e71c7"
+source_sha: "3b553bcc7ca4"
 ---
 
 # Kod konsoli { #the-consoles-code }
@@ -35,6 +35,8 @@ dla zaznaczonych kontrolek i odznak. Fokus i krawędzie pól pozostają widoczne
 Osoby i organizacje korzystają z `EntityAvatar`: zdjęcia są kadrowane do koła,
 a zastępują je inicjały na stałym kolorze. Agenci zachowują generowane twarze.
 Opisy w katalogach zajmują dwa wiersze; otwarcie elementu pokazuje pełny opis.
+
+Akcje asynchroniczne korzystają z `Button loading`, aby zachować etykietę i wymiary oraz blokować ponowne wysłanie. Stan oczekiwania trwa do końca wszystkich kroków, także przesyłania plików. Przyciski oparte na linkach zachowują jedno dziecko i blokują aktywację, gdy są niedostępne. Kontrolki mają spójny fokus klawiatury, zwarte rozmiary na desktopie i pola dotykowe 44px tam, gdzie jest miejsce. Nakładki animują się od swojego punktu zaczepienia; podpowiedzi zawijają tekst w granicach okna. Kalendarz używa języka konsoli, a postęp udostępnia rzeczywistą wartość i maksimum technologiom asystującym. Animacje respektują ustawienie Motion użytkownika.
 
 ## Przeglądarka nigdy nie woła backendu { #the-browser-never-calls-the-backend }
 

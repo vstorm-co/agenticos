@@ -115,7 +115,8 @@ export function ProjectSettings({ project }: { project: Project }) {
           {editable && (
             <div className="flex justify-end">
               <Button
-                disabled={!changed || !name.trim() || update.isPending}
+                loading={update.isPending}
+                disabled={!changed || !name.trim()}
                 onClick={() =>
                   update.mutate({
                     name: name.trim(),

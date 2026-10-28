@@ -164,7 +164,8 @@ export function FilePane({
           <>
             <Button
               size="sm"
-              disabled={!dirty || busy}
+              loading={busy}
+              disabled={!dirty}
               onClick={() => {
                 onSave(value);
                 setDraft(null);
@@ -273,7 +274,7 @@ export function NewFileForm({
         className="font-mono text-xs"
       />
       <div className="flex items-center gap-2">
-        <Button type="submit" size="sm" disabled={busy || name.trim() === ""}>
+        <Button type="submit" size="sm" loading={busy} disabled={name.trim() === ""}>
           {t("addFile")}
         </Button>
         <Button type="button" size="sm" variant="ghost" onClick={onCancel}>

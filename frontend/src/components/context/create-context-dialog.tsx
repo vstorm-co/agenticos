@@ -220,7 +220,7 @@ export function CreateContextDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("cancel")}
           </Button>
-          <Button onClick={handleCreate} disabled={!name.trim() || create.isPending}>
+          <Button onClick={handleCreate} loading={create.isPending} disabled={!name.trim()}>
             {t("create")}
           </Button>
         </DialogFooter>

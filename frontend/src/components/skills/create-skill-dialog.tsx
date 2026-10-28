@@ -109,6 +109,7 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
   const [openPath, setOpenPath] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
+  const [submitting, setSubmitting] = useState(false);
 
   const setters: Record<Field, (value: string) => void> = {
     name: setName,
@@ -153,6 +154,7 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
   }
 
   async function handleCreate() {
+    setSubmitting(true);
     try {
       const skill = await create.mutateAsync({
         name,
@@ -191,6 +193,8 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
       );
       setErrors(failure.fields);
       if (failure.toast) toast.error(failure.toast);
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -353,7 +357,8 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
             </Button>
             <Button
               onClick={handleCreate}
-              disabled={!name.trim() || !description.trim() || create.isPending}
+              loading={submitting || create.isPending}
+              disabled={!name.trim() || !description.trim()}
               data-tour="skill-dialog-create"
             >
               {t("create")}

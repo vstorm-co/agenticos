@@ -326,6 +326,28 @@ describe("CreateSkillDialog files", () => {
     );
   });
 
+  it("keeps creation busy until the files finish uploading", async () => {
+    let finish: (() => void) | undefined;
+    vi.mocked(apiClient.uploadMany).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = () => resolve({ items: [] });
+        }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "New" }));
+    await userEvent.type(screen.getByLabelText("Path"), "a.md");
+    await userEvent.click(screen.getByRole("button", { name: "Add file" }));
+    await fillWithBody();
+    await userEvent.click(create());
+    await waitFor(() => expect(create()).toHaveAttribute("aria-busy", "true"));
+    expect(create()).toBeDisabled();
+    await userEvent.click(create());
+    expect(apiClient.post).toHaveBeenCalledTimes(1);
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    finish?.();
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+  });
+
   it("uploads the pending files once the skill exists", async () => {
     // Second write, after the id exists - there is nothing to attach them to
     // before this point.

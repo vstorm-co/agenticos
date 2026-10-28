@@ -372,6 +372,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Refine console control spacing, keyboard focus, touch targets and anchored overlay motion; preserve action labels during saving, keep skill creation busy through uploads, localize calendar labels, and expose form requirements and progress values to assistive technology.
+
 - Restore document previews and visible Add to an agent actions on Skills and Context cards; spread automatic avatar colors across a continuous clean hue range and preserve archived portrait colors.
 
 - Desktop startup keeps the system theme and Glass defaults through hydration,

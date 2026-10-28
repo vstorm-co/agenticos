@@ -187,6 +187,7 @@ export function CreateProjectDialog({
           </Button>
           <Button
             onClick={handleCreate}
+            loading={create.isPending}
             disabled={
               !name.trim() || create.isPending || (sandbox === "computer" && localFolder === null)
             }

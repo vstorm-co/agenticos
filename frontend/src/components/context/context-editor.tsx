@@ -107,7 +107,8 @@ export function ContextEditor({ file, canEdit, isSaving, onSave, onCancel }: Con
                 content,
               })
             }
-            disabled={!changed || isSaving}
+            loading={isSaving}
+            disabled={!changed}
           >
             {t("save")}
           </Button>

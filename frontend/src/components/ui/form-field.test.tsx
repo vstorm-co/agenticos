@@ -36,4 +36,16 @@ describe("FormField feedback", () => {
     expect(screen.getByRole("textbox")).not.toHaveAttribute("aria-invalid");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
+  it("associates its label with an explicitly named control and exposes required", () => {
+    render(
+      <FormField htmlFor="account" label="Account" required>
+        <Input id="account-email" />
+      </FormField>,
+    );
+    expect(screen.getByRole("textbox", { name: "Account" })).toHaveAttribute("id", "account-email");
+    expect(screen.getByRole("textbox", { name: "Account" })).toHaveAttribute(
+      "aria-required",
+      "true",
+    );
+  });
 });

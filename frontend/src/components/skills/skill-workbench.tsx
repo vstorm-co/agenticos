@@ -222,7 +222,8 @@ export function SkillWorkbench({
         {canEdit && (
           <Button
             onClick={() => onSave({ description, content, category: editedCategory })}
-            disabled={!changed || !description.trim() || isSaving}
+            loading={isSaving}
+            disabled={!changed || !description.trim()}
           >
             {t("save")}
           </Button>

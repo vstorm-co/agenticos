@@ -144,7 +144,8 @@ export function DirectoryMappingDialog({ orgId, onClose }: { orgId: string; onCl
             </Button>
             <Button
               type="submit"
-              disabled={!externalGroup.trim() || role === "" || create.isPending}
+              loading={create.isPending}
+              disabled={!externalGroup.trim() || role === ""}
             >
               {t("add")}
             </Button>

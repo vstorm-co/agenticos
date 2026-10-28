@@ -321,7 +321,8 @@ function SharedProjectFiles({ project }: { project: Project }) {
               {t("cancel")}
             </Button>
             <Button
-              disabled={!folderName.trim() || addFolder.isPending}
+              loading={addFolder.isPending}
+              disabled={!folderName.trim()}
               onClick={async () => {
                 await addFolder.mutateAsync(folderName.trim());
                 setFolderName("");
