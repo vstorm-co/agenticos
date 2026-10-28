@@ -28,6 +28,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.db.vector_tables import VectorScope
 from app.services.rag.connectors import RemoteFile, RemoteListing
 from app.services.rag.models import IngestionStatus
 from app.services.rag.vectorstore import BaseVectorStore
@@ -195,8 +196,13 @@ class TestWhichKnowledgeBaseOwnsTheCollection:
         )
 
     @staticmethod
-    def _kb(*, organization_id: uuid.UUID | None) -> MagicMock:
-        return MagicMock(id=uuid.uuid4(), organization_id=organization_id, ingestion_config={})
+    def _kb(*, organization_id: uuid.UUID | None, scope: str | None = None) -> MagicMock:
+        return MagicMock(
+            id=uuid.uuid4(),
+            organization_id=organization_id,
+            scope=scope or ("app" if organization_id is None else "org"),
+            ingestion_config={},
+        )
 
     async def test_the_callers_own_collection_is_found(self):
         org = uuid.uuid4()
@@ -232,6 +238,18 @@ class TestWhichKnowledgeBaseOwnsTheCollection:
             found = await rag_tasks._knowledge_base_for(MagicMock(), "docs", uuid.uuid4())
 
         assert found is None
+
+    @pytest.mark.security
+    async def test_a_personal_base_outside_any_organization_is_not_borrowed(self):
+        """It has no organization either, but it is one person's: a sync for an
+        organization without its own base must not write into it (#2537)."""
+        personal = self._kb(organization_id=None, scope="personal")
+        shared = self._kb(organization_id=None)
+
+        with self._kbs(personal, shared):
+            found = await rag_tasks._knowledge_base_for(MagicMock(), "docs", uuid.uuid4())
+
+        assert found is shared
 
     async def test_a_source_with_no_collection_asks_nothing(self):
         assert await rag_tasks._knowledge_base_for(MagicMock(), None, uuid.uuid4()) is None
@@ -704,16 +722,19 @@ class TestTheLocalDirectorySync:
             yield documents
 
     @pytest.mark.security
-    async def test_it_stamps_the_rows_with_the_authorized_bases_tenant(self, tmp_path: Path):
+    async def test_it_stamps_the_rows_with_the_authorized_bases_scope(self, tmp_path: Path):
         """The route resolved and authorized a knowledge base and passes its id; the
-        flow loads it and stamps every row with that base's tenant and organization,
+        flow loads it and stamps every row with that base's scope and organization,
         rather than writing them untagged into an org-backed collection where normal
-        reads would never see them (#1684)."""
+        reads would never see them (#1684), or unfiled where a same-named base of
+        the same tenant would read them (#2537)."""
         org = uuid.uuid4()
+        kb_id = uuid.uuid4()
+        scope = VectorScope(tenant=org, knowledge_base_id=kb_id)
         kb = MagicMock(
-            id=uuid.uuid4(),
+            id=kb_id,
             organization_id=org,
-            vector_tenant=org,
+            vector_scope=scope,
             ingestion_config={},
             embedding_model="text-embedding-3-small",
         )
@@ -722,8 +743,8 @@ class TestTheLocalDirectorySync:
         captured: dict[str, Any] = {}
 
         @asynccontextmanager
-        async def _ingestion(*, processor: Any, organization_id: Any, tenant: Any) -> Any:
-            captured["tenant"] = tenant
+        async def _ingestion(*, processor: Any, organization_id: Any, scope: Any) -> Any:
+            captured["scope"] = scope
             captured["organization_id"] = organization_id
             yield MagicMock(ingest_file=AsyncMock(return_value=_result()))
 
@@ -738,7 +759,7 @@ class TestTheLocalDirectorySync:
                     str(uuid.uuid4()), "local", "docs", "full", str(tmp_path), str(kb.id)
                 )
 
-        assert captured == {"tenant": org, "organization_id": org}
+        assert captured == {"scope": scope, "organization_id": org}
         created = documents.create_document.await_args.kwargs
         assert created["organization_id"] == org
         assert created["knowledge_base_id"] == kb.id

@@ -24,6 +24,7 @@ from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.rag_document import DocumentStatus
 from app.db.models.sync_source import SyncSource
 from app.db.session import get_worker_connection, get_worker_db_context
+from app.db.vector_tables import VectorScope
 from app.repositories import (
     collection_teardown_repo,
     ingestion_spend_repo,
@@ -121,16 +122,17 @@ def _announcing_resolver(organization_id: UUID | None) -> EmbeddingResolver:
 
 @asynccontextmanager
 async def _ingestion_service(
-    *, processor: DocumentProcessor, organization_id: UUID | None, tenant: UUID | None
+    *, processor: DocumentProcessor, organization_id: UUID | None, scope: VectorScope
 ) -> AsyncGenerator[IngestionService]:
     """An ingester that reads documents the way the collection asked to be read.
 
     `organization_id` is the flow's own, and scopes embedding resolution to the
-    right tenant's key (#913). `tenant` is the collection's - resolved from its
-    knowledge base by the caller, `None` for an app-scoped base or a local-path
-    sync - and is what the rows are stamped and scoped by (#1684). They differ for
-    an app-scoped base: the organization pays for the embeddings, but the rows are
-    deployment-wide and carry no tenant.
+    right tenant's key (#913). `scope` is the collection's knowledge base -
+    resolved by the caller, its `vector_scope`, or the deployment-wide tenant with
+    no base for a collection no base claims - and is what the rows are stamped and
+    scoped by (#1684, #2537). They differ for an app-scoped base: the
+    organization pays for the embeddings, but the rows are deployment-wide and
+    carry no tenant.
 
     Both halves come off the collection. The parser, the chunker and the image
     model come through the `processor` the caller built from its
@@ -167,7 +169,7 @@ async def _ingestion_service(
                 resolver=_announcing_resolver(organization_id),
                 engine=engine,
             ),
-            tenant=tenant,
+            scope=scope,
         )
     finally:
         await engine.dispose()
@@ -395,16 +397,17 @@ async def _run_ingestion(
         # rather than a flow parameter a queued run would not carry (#1777).
         organizational_unit = record.organizational_unit
         processor = await IngestionConfigService(db).build_processor(organization_id, config)
-        # The collection's own tenant, off the knowledge base this document is
-        # tracked under - its organization for an org base, None for an app-scoped
-        # one every organization reads. Distinct from `organization_id`, which
-        # pays for the embeddings even when the rows are deployment-wide (#1684).
+        # The collection's own scope, off the knowledge base this document is
+        # tracked under: the base itself (#2537) and its tenant - its organization
+        # for an org base, None for an app-scoped one every organization reads.
+        # Distinct from `organization_id`, which pays for the embeddings even when
+        # the rows are deployment-wide (#1684).
         kb = (
             await knowledge_base_repo.get_by_id(db, record.knowledge_base_id)
             if record.knowledge_base_id is not None
             else None
         )
-        tenant = kb.vector_tenant if kb is not None else None
+        scope = kb.vector_scope if kb is not None else VectorScope(tenant=None)
 
     ledger = SpendLedger(organization_id=organization_id)
     file_path = Path(filepath)
@@ -412,7 +415,7 @@ async def _run_ingestion(
     # The trusted tenant comes off the tracked row, never from the uploader.
     upload_mtime = file_path.stat().st_mtime if file_path.exists() else None
     async with _ingestion_service(
-        processor=processor, organization_id=organization_id, tenant=tenant
+        processor=processor, organization_id=organization_id, scope=scope
     ) as ingester:
         try:
             with metered_by(ledger):
@@ -511,8 +514,9 @@ async def _run_sync(
         # the route resolved rather than re-resolved from the name here: `path`
         # names a server directory, but the *destination* is a real collection, and
         # re-resolving by name could pick a same-named base in a different scope than
-        # the one authorized (#1684). Its tenant is what every row this sync writes
-        # is stamped and scoped by - `None` for an app-scoped base (deployment-wide,
+        # the one authorized (#1684). Its scope - the base itself (#2537) and its
+        # tenant - is what every row this sync writes is stamped and scoped by. The
+        # tenant is `None` for an app-scoped base (deployment-wide,
         # as a local sync always was) or its organization for an org or personal one,
         # which normal reads for that collection filter on; writing untagged there
         # would strand the content from search, listing, count and replace, and could
@@ -526,7 +530,7 @@ async def _run_sync(
             else await knowledge_base_repo.get_by_id(db, UUID(knowledge_base_id))
         )
         organization_id = None if kb is None else kb.organization_id
-        tenant = None if kb is None else kb.vector_tenant
+        scope = VectorScope(tenant=None) if kb is None else kb.vector_scope
         resolved_kb_id = None if kb is None else kb.id
         ingestion_config = (
             deployment_defaults()
@@ -569,7 +573,7 @@ async def _run_sync(
     # Entered after the validations above, so an early "path not found" return
     # builds no engine, and every return inside the loop still disposes one (#948).
     async with _ingestion_service(
-        processor=processor, organization_id=organization_id, tenant=tenant
+        processor=processor, organization_id=organization_id, scope=scope
     ) as ingester:
         for filepath in files:
             async with get_worker_db_context() as db:
@@ -1276,11 +1280,12 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
             else IngestionConfig.model_validate(knowledge_base.ingestion_config)
         )
         knowledge_base_id = None if knowledge_base is None else knowledge_base.id
-        # The collection's tenant, read off the base while its row is loaded (the
-        # property only touches already-loaded columns). Its organization for an
-        # org base, None for an app-scoped one or a collection no base claims -
-        # what this sync's rows are stamped and scoped by (#1684).
-        tenant = None if knowledge_base is None else knowledge_base.vector_tenant
+        # The collection's scope, read off the base while its row is loaded (the
+        # property only touches already-loaded columns): the base and its tenant -
+        # its organization for an org base, None for an app-scoped one or a
+        # collection no base claims. What this sync's rows are stamped and scoped
+        # by (#1684, #2537).
+        scope = VectorScope(tenant=None) if knowledge_base is None else knowledge_base.vector_scope
         # Both models, resolved once for the collection rather than per file, and
         # recorded on every row this sync writes - the provenance the documents
         # page reads. An upload has carried them since it started tracking; a
@@ -1313,7 +1318,7 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
     version: str | None = None
 
     async with _ingestion_service(
-        processor=processor, organization_id=organization_id, tenant=tenant
+        processor=processor, organization_id=organization_id, scope=scope
     ) as ingester:
         try:
             # Asked before anything is listed: the same version under the same
@@ -1446,7 +1451,7 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
                                 replace=True,
                                 source_path=remote_file.source_path,
                                 # The trusted tenant already rides `ingester`'s own
-                                # bound `self._tenant`, resolved from the source's
+                                # bound `self._scope`, resolved from the source's
                                 # collection when it was built above; `source` is
                                 # the connector's canonical name (gdrive, s3);
                                 # doc_date is the remote file's modified time, else
@@ -1663,16 +1668,16 @@ async def apply_retention() -> None:
     """
     from app.services.retention import RetentionService
 
-    # Bound to no tenant, deliberately: this ingester exists to delete by id for
-    # every organization in turn, and the tag each document's chunks carry comes
-    # off its own collection - so `RetentionService` passes it per document
-    # rather than letting the ingester's own stand in (#1684).
+    # Bound to no base, deliberately: this ingester exists to delete by id for
+    # every organization in turn, and the tags each document's chunks carry come
+    # off its own knowledge base - so `RetentionService` passes its scope per
+    # document rather than letting the ingester's own stand in (#1684, #2537).
     async with (
         get_worker_db_context() as db,
         _ingestion_service(
             processor=DocumentProcessor(settings=settings.rag),
             organization_id=None,
-            tenant=None,
+            scope=VectorScope(tenant=None),
         ) as ingestion,
     ):
         service = RetentionService(db, remove_vectors=ingestion.remove_document)

@@ -26,6 +26,7 @@ from pydantic import SecretStr
 from app.core.exceptions import ConfigurationError
 from app.core.secret_kinds import ApiKeySecret, SecretKind, seal_secret
 from app.core.vault import VaultScope
+from app.db.vector_tables import VectorScope
 from app.services.embedding_resolution import EmbeddingKeySource, ResolvedEmbeddings
 from app.services.rag import embedding_providers
 from app.services.rag.config import RAGSettings
@@ -101,7 +102,7 @@ async def _store() -> PgVectorStore:
         return_value=MagicMock(dispose=AsyncMock()),
     ):
         async with _ingestion_service(
-            processor=MagicMock(), organization_id=None, tenant=None
+            processor=MagicMock(), organization_id=None, scope=VectorScope(tenant=None)
         ) as service:
             store = service.store
     assert isinstance(store, PgVectorStore)

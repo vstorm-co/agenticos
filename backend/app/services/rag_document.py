@@ -15,6 +15,7 @@ from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundErr
 from app.core.permissions import AuthContext
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.rag_document import DocumentStatus, RAGDocument
+from app.db.vector_tables import VectorScope
 from app.services.rag.config import get_supported_formats
 from app.services.rag.documents import has_indexable_text
 from app.services.rag.ingestion import IngestionService
@@ -628,20 +629,20 @@ class RAGDocumentService:
         )
         return updated
 
-    async def _vector_tenant(self, doc: RAGDocument) -> UUID | None:
-        """The tenant this document's chunks are stamped and scoped by (#1684).
+    async def _vector_scope(self, doc: RAGDocument) -> VectorScope:
+        """The scope this document's chunks are stamped and read under (#1684, #2537).
 
         Off the knowledge base the document is tracked under, not `organization_id`
         on the row: an app-scoped base's documents carry the uploader's
         organization for billing, but their vectors are deployment-wide and carry
         no tenant, so scoping a read or a delete by the row's organization would
         miss them. A document with no base, or whose base is gone, is
-        deployment-wide (`None`).
+        deployment-wide: no tenant and no base.
         """
         if doc.knowledge_base_id is None:
-            return None
+            return VectorScope(tenant=None)
         kb = await knowledge_base_repo.get_by_id(self.db, doc.knowledge_base_id)
-        return kb.vector_tenant if kb is not None else None
+        return kb.vector_scope if kb is not None else VectorScope(tenant=None)
 
     async def delete_document(
         self,
@@ -678,11 +679,11 @@ class RAGDocumentService:
         collection_name = doc.collection_name
         vector_document_id = doc.vector_document_id
         storage_path = doc.storage_path
-        # The tenant the chunks were stamped with at ingest - the collection's
-        # own, off its knowledge base - so the vector delete is scoped to them and
-        # cannot reach another org's document in a collection whose name they
-        # share (#1684). Read now, before the row is deleted.
-        tenant = await self._vector_tenant(doc)
+        # The scope the chunks were stamped with at ingest - the knowledge base's
+        # own - so the vector delete is confined to them and cannot reach another
+        # org's or base's document in a collection whose name they share (#1684,
+        # #2537). Read now, before the row is deleted.
+        scope = await self._vector_scope(doc)
         await rag_document_repo.delete(self.db, doc.id)
 
         from app.core.background import spawn_after_commit
@@ -690,9 +691,7 @@ class RAGDocumentService:
         if vector_document_id:
             spawn_after_commit(
                 self.db,
-                ingestion_service.remove_document(
-                    collection_name, vector_document_id, tenant=tenant
-                ),
+                ingestion_service.remove_document(collection_name, vector_document_id, scope=scope),
                 name="delete-document-vectors",
             )
         if storage_path:
@@ -842,7 +841,7 @@ class RAGDocumentService:
             )
 
         chunks = await vector_store.get_document_chunks(
-            doc.collection_name, doc.vector_document_id, await self._vector_tenant(doc)
+            doc.collection_name, doc.vector_document_id, await self._vector_scope(doc)
         )
 
         pages: list[RAGParsedPage] = []

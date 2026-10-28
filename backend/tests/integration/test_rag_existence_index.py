@@ -22,8 +22,10 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 from app.db.vector_tables import (
     VECTOR_CONTENT_HASH_INDEX_SUFFIX,
     VECTOR_FILENAME_INDEX_SUFFIX,
+    VECTOR_KB_INDEX_SUFFIX,
     VECTOR_ORG_INDEX_SUFFIX,
     VECTOR_SOURCE_PATH_INDEX_SUFFIX,
+    VectorScope,
 )
 from app.services.rag.vectorstore import PgVectorStore
 
@@ -102,8 +104,10 @@ async def test_ensure_collection_builds_an_index_per_lookup_key(engine: AsyncEng
         VECTOR_SOURCE_PATH_INDEX_SUFFIX,
         VECTOR_FILENAME_INDEX_SUFFIX,
         VECTOR_CONTENT_HASH_INDEX_SUFFIX,
-        # The tenant key every row-level op scopes by (#1684).
+        # The tenant key every row-level op scopes by (#1684), and the base key
+        # it narrows to (#2537).
         VECTOR_ORG_INDEX_SUFFIX,
+        VECTOR_KB_INDEX_SUFFIX,
     ):
         name = f"{TABLE}{suffix}"
         assert name in defs
@@ -136,7 +140,10 @@ async def test_source_path_wins_and_returns_that_documents_own_hash(engine: Asyn
     )
 
     hit = await store.find_existing_document(
-        COLLECTION, source_path="/srv/sync/handbook.pdf", content_hash="unrelated"
+        COLLECTION,
+        source_path="/srv/sync/handbook.pdf",
+        content_hash="unrelated",
+        scope=VectorScope(tenant=None),
     )
 
     assert hit is not None
@@ -165,7 +172,10 @@ async def test_the_filename_fallback_keeps_the_unaddressed_rule(engine: AsyncEng
     )
 
     hit = await store.find_existing_document(
-        COLLECTION, source_path="/elsewhere/handbook.pdf", content_hash=""
+        COLLECTION,
+        source_path="/elsewhere/handbook.pdf",
+        content_hash="",
+        scope=VectorScope(tenant=None),
     )
 
     assert hit is not None
@@ -180,7 +190,10 @@ async def test_content_hash_is_the_last_resort(engine: AsyncEngine) -> None:
     )
 
     hit = await store.find_existing_document(
-        COLLECTION, source_path="/new/renamed.pdf", content_hash="same"
+        COLLECTION,
+        source_path="/new/renamed.pdf",
+        content_hash="same",
+        scope=VectorScope(tenant=None),
     )
 
     assert hit is not None
@@ -201,7 +214,7 @@ async def test_the_fallback_tiebreak_is_deterministic(engine: AsyncEngine) -> No
     )
 
     hit = await store.find_existing_document(
-        COLLECTION, source_path="/nowhere/dup.pdf", content_hash=""
+        COLLECTION, source_path="/nowhere/dup.pdf", content_hash="", scope=VectorScope(tenant=None)
     )
 
     assert hit is not None
@@ -217,7 +230,9 @@ async def test_a_source_path_too_long_for_a_btree_index_still_ingests(engine: As
     long_path = "s3://bucket/" + "a" * 3000
     await _insert(store, doc_id="big", source_path=long_path, filename="big.pdf", content_hash="h")
 
-    hit = await store.find_existing_document(COLLECTION, source_path=long_path, content_hash="")
+    hit = await store.find_existing_document(
+        COLLECTION, source_path=long_path, content_hash="", scope=VectorScope(tenant=None)
+    )
 
     assert hit is not None
     assert hit.document_id == "big"
@@ -231,7 +246,10 @@ async def test_no_key_matches_answers_none(engine: AsyncEngine) -> None:
     )
 
     hit = await store.find_existing_document(
-        COLLECTION, source_path="/srv/absent.pdf", content_hash="nope"
+        COLLECTION,
+        source_path="/srv/absent.pdf",
+        content_hash="nope",
+        scope=VectorScope(tenant=None),
     )
 
     assert hit is None
@@ -249,5 +267,10 @@ async def test_every_document_at_an_address_is_found_and_nothing_else(engine: As
         store, doc_id="upload", source_path="intro.md", filename="intro.md", content_hash="v2"
     )
 
-    assert await store.document_ids_at(COLLECTION, source_path=address) == ["new", "old"]
-    assert await store.document_ids_at("absent", source_path=address) == []
+    assert await store.document_ids_at(
+        COLLECTION, source_path=address, scope=VectorScope(tenant=None)
+    ) == ["new", "old"]
+    assert (
+        await store.document_ids_at("absent", source_path=address, scope=VectorScope(tenant=None))
+        == []
+    )

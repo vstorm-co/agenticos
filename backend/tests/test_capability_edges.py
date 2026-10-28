@@ -31,6 +31,7 @@ from app.agents.model_resolver import ResolvedCredential, build_with_fallbacks
 from app.core.config import settings as app_settings
 from app.core.exceptions import ConfigurationError, ExternalServiceError
 from app.core.secret_kinds import ApiKeySecret
+from app.db.vector_tables import VectorScope
 from app.services.mcp_catalog import CatalogAuth, get_entry
 from app.services.rag.embeddings import EmbeddingService, OpenAIEmbeddingProvider
 from app.services.rag.filters import RetrievalFilters, RetrievalQuery, TenantScope
@@ -70,7 +71,7 @@ class TestSearchingSeveralCollections:
         held and nothing on any screen said so.
         """
         store = MagicMock()
-        store.resolve_tenant = AsyncMock(return_value=None)
+        store.resolve_scope = AsyncMock(return_value=VectorScope(tenant=None))
         store.search = AsyncMock(
             side_effect=[
                 [SearchResult(content="from the healthy one", score=0.9)],
@@ -90,7 +91,7 @@ class TestSearchingSeveralCollections:
     async def test_an_empty_collection_is_not_a_failure(self):
         """The store reports an absent table as no results, so it merges as none."""
         store = MagicMock()
-        store.resolve_tenant = AsyncMock(return_value=None)
+        store.resolve_scope = AsyncMock(return_value=VectorScope(tenant=None))
         store.search = AsyncMock(
             side_effect=[[SearchResult(content="found", score=0.9)], []],
         )
@@ -113,7 +114,7 @@ class TestSearchingSeveralCollections:
         silently dropped the attribution from every result.
         """
         store = MagicMock()
-        store.resolve_tenant = AsyncMock(return_value=None)
+        store.resolve_scope = AsyncMock(return_value=VectorScope(tenant=None))
         store.search = AsyncMock(return_value=[SearchResult(content="chunk", score=0.5)])
 
         results = await _retrieval_over(store).retrieve(
@@ -446,7 +447,7 @@ class TestEmbeddingCredential:
         # empty collection must not depend on the query succeeding.
         store.async_session = MagicMock(side_effect=AssertionError("should not query"))
 
-        info = asyncio.run(store.get_collection_info("never_ingested"))
+        info = asyncio.run(store.get_collection_info("never_ingested", VectorScope(tenant=None)))
 
         assert (info.name, info.total_vectors, info.dim) == ("never_ingested", 0, 1536)
 

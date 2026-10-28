@@ -1,5 +1,5 @@
 ---
-source_sha: "b2690527c166"
+source_sha: "dc6d25176855"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -588,6 +588,11 @@ organización pasa por ella
 resuelve así la configuración de cada una, cayendo a una colección de ámbito app,
 nunca a la de un tercero.
 
+Dentro de la organización, su propia base de organización va
+antes que la base personal de un miembro con el mismo nombre, y el recurso es solo una
+base de ámbito app: una base personal fuera de toda organización tampoco tiene
+organización, pero es de una sola persona ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
 !!! warning "Un nombre de colección es un espacio de embeddings"
 
     Resolver por organización solo es seguro porque todas las filas con un mismo
@@ -871,6 +876,16 @@ de modo que un filtro selectivo no puede sacar una fila de fuera del ámbito. Un
 colección app-scoped, de todo el deployment, se casa por *no llevar tenant sellado* en
 vez de por una igualdad que toda organización incumpliría — y eso es lo que permite
 que todos lean la base compartida sin que nadie lea la de los demás.
+
+**Un filtro tampoco llega a otra base de conocimiento del mismo nombre.** El tenant
+por sí solo no distingue cada par: una base de ámbito app y una base personal fuera de
+toda organización no tienen ninguno, y la base de una organización y la base personal
+de un miembro en ella tienen la misma organización. Por eso cada fragmento registra
+también la base de conocimiento para la que se indexó, y la búsqueda, el recuento de
+vectores, la búsqueda al reemplazar y el borrado leen solo los fragmentos de la propia
+base. Un fragmento escrito antes de que los fragmentos registraran su base, y que la
+actualización no asignó, coincide por su tenant como antes, salvo para una base
+personal fuera de toda organización, que no toma ninguno ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 **`GET /rag/collections/{name}/filter-values`** responde con los valores de
 `organizational_unit` realmente presentes en la colección, bajo ese mismo ámbito.

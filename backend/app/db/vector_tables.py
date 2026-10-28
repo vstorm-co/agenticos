@@ -37,7 +37,9 @@ write and drop went through the lax one (#368, #371).
 """
 
 import re
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
+from uuid import UUID
 
 from app.core.exceptions import BadRequestError
 
@@ -83,14 +85,15 @@ rather than silently truncate into the collision below.
 """
 
 VECTOR_ORG_INDEX_SUFFIX = "_org_idx"
+VECTOR_KB_INDEX_SUFFIX = "_kb_idx"
 VECTOR_SOURCE_INDEX_SUFFIX = "_source_idx"
 VECTOR_DOCTYPE_INDEX_SUFFIX = "_doctype_idx"
 VECTOR_ORGUNIT_INDEX_SUFFIX = "_orgunit_idx"
 VECTOR_DOCDATE_INDEX_SUFFIX = "_docdate_idx"
 """The expression indexes for the FA-039 metadata filter dimensions.
 
-Hash indexes on the equality dimensions (`organization_id`, `source`,
-`document_type`, `organizational_unit`) and a partial btree on the safe date
+Hash indexes on the equality dimensions (`organization_id`, `knowledge_base_id`,
+`source`, `document_type`, `organizational_unit`) and a partial btree on the safe date
 expression. All kept no longer than :data:`VECTOR_INDEX_SUFFIX`, for the same
 truncation reason as the lookup-key indexes above.
 """
@@ -101,11 +104,13 @@ _INDEX_SUFFIXES = (
     VECTOR_FILENAME_INDEX_SUFFIX,
     VECTOR_CONTENT_HASH_INDEX_SUFFIX,
     VECTOR_ORG_INDEX_SUFFIX,
+    VECTOR_KB_INDEX_SUFFIX,
     VECTOR_SOURCE_INDEX_SUFFIX,
     VECTOR_DOCTYPE_INDEX_SUFFIX,
     VECTOR_ORGUNIT_INDEX_SUFFIX,
     VECTOR_DOCDATE_INDEX_SUFFIX,
 )
+
 
 _MAX_IDENTIFIER_LENGTH = 63
 """What Postgres keeps of an identifier - `NAMEDATALEN - 1`, in bytes.
@@ -296,3 +301,30 @@ def validate_collection_name(collection: str, *, metadata: MetaData) -> None:
                 "table": f"{VECTOR_TABLE_PREFIX}{collection.lower()}",
             },
         )
+
+
+@dataclass(frozen=True)
+class VectorScope:
+    """Which chunks of a shared runtime table one caller may read or change.
+
+    A collection name is not unique, so bases of different scopes share one
+    `rag_<name>` table. `tenant` is the vector tenant every chunk is stamped with
+    (#1684): an organization's id, or `None` for an app-scoped base and a
+    personal base outside any organization. The tenant alone cannot tell those
+    two apart, nor an organization's base from a personal base in the same
+    organization, so a chunk also records the knowledge base it was ingested
+    for (#2537).
+
+    `knowledge_base_id` is that base. A chunk filed under it matches; a chunk
+    filed under any other base never does. A chunk filed under no base - written
+    before chunks recorded their base, or by a caller with no base - matches by
+    `tenant` when `takes_unfiled` is set, the rule
+    `rag_document_repo.in_collection_scope` applies to document rows.
+
+    With no `knowledge_base_id` - the CLI, or a collection no base claims - the
+    scope is the tenant alone, as it was before chunks recorded their base.
+    """
+
+    tenant: UUID | None
+    knowledge_base_id: UUID | None = None
+    takes_unfiled: bool = True

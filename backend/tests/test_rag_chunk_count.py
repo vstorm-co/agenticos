@@ -21,6 +21,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.core import background
+from app.db.vector_tables import VectorScope
 from app.repositories import rag_document_repo
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.models import (
@@ -177,8 +178,8 @@ class TestDocumentTypeDerivation:
 class TestWhatTheUploadPathRecords:
     async def test_the_worker_writes_the_chunk_count_it_was_given(self):
         document_id = str(uuid.uuid4())
-        # No knowledge base, so the worker resolves this document's vector tenant
-        # to None without a repository lookup (#1684).
+        # No knowledge base, so the worker resolves this document's vector scope
+        # to the deployment-wide tenant without a repository lookup (#1684).
         record = MagicMock(
             organization_id=uuid.uuid4(), ingestion_config={}, knowledge_base_id=None
         )
@@ -267,7 +268,9 @@ class TestRetiringWhatAReplacementDeleted:
         )
 
         assert result.replaced_document_id == "old-vector-doc"
-        service.store.delete_document.assert_awaited_once_with("docs", "old-vector-doc", None)
+        service.store.delete_document.assert_awaited_once_with(
+            "docs", "old-vector-doc", VectorScope(tenant=None)
+        )
 
     async def test_a_first_ingest_reports_nothing_replaced(self):
         processor = MagicMock(process_file=AsyncMock(return_value=_document(chunks=3)))

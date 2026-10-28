@@ -1,5 +1,5 @@
 ---
-source_sha: "b2690527c166"
+source_sha: "dc6d25176855"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -581,6 +581,12 @@ poświadczenie
 rozwiązuje więc własną konfigurację każdej organizacji, spadając na kolekcję
 o zasięgu app, ale nigdy na kolekcję trzeciego tenanta.
 
+W obrębie organizacji jej
+własna baza organizacyjna ma pierwszeństwo przed bazą osobistą członka o tej samej
+nazwie, a jedynym rozwiązaniem zapasowym jest baza o zasięgu app: baza osobista poza
+jakąkolwiek organizacją też nie ma organizacji, ale należy do jednej osoby
+([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
 !!! warning "Jedna nazwa kolekcji to jedna przestrzeń embeddingów"
 
     Rozwiązywanie per organizacja jest bezpieczne tylko dlatego, że wszystkie
@@ -857,6 +863,16 @@ filtr nie wyciągnie wiersza spoza zakresu. Kolekcja app-scoped, obejmująca ca�
 wdrożenie, dopasowywana jest po *braku ostemplowanego tenanta*, a nie po równości,
 której każda organizacja by nie spełniła — i to właśnie pozwala wszystkim czytać
 wspólną bazę, nie czytając siebie nawzajem.
+
+**Filtr nie sięgnie też innej bazy wiedzy o tej samej nazwie.** Sam tenant nie
+rozróżnia każdej pary: baza o zasięgu app i baza osobista poza jakąkolwiek organizacją
+nie mają go wcale, a baza organizacji i osobista baza członka w tej organizacji mają
+tę samą organizację. Dlatego każdy chunk zapisuje także bazę wiedzy, dla której został
+zaindeksowany, a wyszukiwanie, licznik wektorów, wyszukiwanie przy zastępowaniu i
+usuwanie czytają wyłącznie chunki danej bazy. Chunk zapisany, zanim chunki zaczęły
+zapisywać swoją bazę, i nieprzypisany przez aktualizację, pasuje jak dotąd po swoim
+tenancie — z wyjątkiem bazy osobistej poza jakąkolwiek organizacją, która nie bierze
+żadnego z nich ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 **`GET /rag/collections/{name}/filter-values`** odpowiada wartościami
 `organizational_unit` faktycznie obecnymi w kolekcji, w tym samym zakresie. Istnieje,

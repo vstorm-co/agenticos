@@ -85,7 +85,7 @@ from app.schemas.sync_source import (
 from app.services.ingestion_config import PdfParserName, parse_override
 from app.services.rag import embedding_providers
 from app.services.rag.config import get_supported_formats
-from app.services.rag.filters import resolve_legacy_filter, scope_for_tenant
+from app.services.rag.filters import resolve_legacy_filter, scope_for
 
 router = APIRouter(dependencies=[PUBLIC])
 
@@ -233,7 +233,7 @@ async def get_collection_info(
     """
     collection = await access.readable(ctx, name)
     info = await vector_store.get_collection_info(
-        collection.collection_name, ctx.organization_id, tenant=collection.vector_tenant
+        collection.collection_name, collection.vector_scope, ctx.organization_id
     )
     return await rag_doc_svc.collection_info(info, kb=collection)
 
@@ -251,9 +251,7 @@ async def list_documents(
 ) -> Any:
     """List all documents in a specific collection."""
     collection = await access.readable(ctx, name)
-    return await vector_store.get_document_list(
-        collection.collection_name, collection.vector_tenant
-    )
+    return await vector_store.get_document_list(collection.collection_name, collection.vector_scope)
 
 
 @router.post(
@@ -274,19 +272,19 @@ async def search_documents(
     from it - see `CollectionAccessService.readable_all`.
     """
     names = request.collection_names or [request.collection_name]
-    # The authorized knowledge base for each name carries the tenant its rows are
-    # scoped by; threading it through means the search reads the base the caller
-    # was authorized for, not a same-named base in their organization the store
-    # would otherwise resolve without checking resource access (#1684).
+    # The authorized knowledge base for each name carries the scope its rows are
+    # read under; threading it through means the search reads the base the caller
+    # was authorized for, not a same-named base the store would otherwise resolve
+    # without checking resource access (#1684, #2537).
     kbs = await access.readable_all(ctx, names)
     collections = [kb.collection_name for kb in kbs]
-    # One scope per base, built from *its own* resolved tenant - `AppScope` for
-    # an app-scoped base every organization reads, `TenantScope` for an org one -
+    # One scope per base, built from *its own* vector scope - `AppScope` for a
+    # base with no tenant, `TenantScope` for an org one, each naming the base -
     # never from `ctx.organization_id` directly, which cannot match an app-scoped
-    # base's untagged rows (#1684, FA-039). The request body carries business
-    # filters only, so a supplied filter can only narrow, never widen, access
-    # (FA-039 §2.2).
-    scopes = {kb.collection_name: scope_for_tenant(kb.vector_tenant) for kb in kbs}
+    # base's untagged rows (#1684, FA-039), nor tell two same-named bases of one
+    # tenant apart (#2537). The request body carries business filters only, so a
+    # supplied filter can only narrow, never widen, access (FA-039 §2.2).
+    scopes = {kb.collection_name: scope_for(kb.vector_scope) for kb in kbs}
     filters = resolve_legacy_filter(request.filter, request.filters)
     if len(collections) > 1:
         results = await retrieval_service.retrieve_multi(
@@ -333,7 +331,7 @@ async def list_filter_values(
     values = await vector_store.distinct_metadata_values(
         collection.collection_name,
         ["organizational_unit"],
-        scope_for_tenant(collection.vector_tenant),
+        scope_for(collection.vector_scope),
     )
     return RAGFilterValues(organizational_unit=values.get("organizational_unit", []))
 
@@ -354,7 +352,7 @@ async def delete_document(
     """Delete a specific document by its ID from a collection."""
     collection = await access.writable(ctx, name)
     success = await ingestion_service.remove_document(
-        collection.collection_name, document_id, tenant=collection.vector_tenant
+        collection.collection_name, document_id, scope=collection.vector_scope
     )
     if not success:
         raise NotFoundError(

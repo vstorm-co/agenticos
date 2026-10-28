@@ -27,6 +27,7 @@ from app.core.exceptions import AppException
 from app.core.permissions import AuthContext
 from app.db.models.knowledge_base import KBScope
 from app.db.session import get_db_context
+from app.db.vector_tables import VectorScope
 from app.repositories import knowledge_base_repo, organization_repo
 from app.schemas.sync_source import SyncSourceCreate
 from app.services.rag.citation import citation_locator
@@ -94,7 +95,7 @@ async def list_collections_async(vector_store: BaseVectorStore) -> None:
 
     for name in collection_names:
         try:
-            info_obj = await vector_store.get_collection_info(name)
+            info_obj = await vector_store.get_collection_info(name, VectorScope(tenant=None))
             click.echo(f"  {name}")
             click.echo(f"    Vectors: {info_obj.total_vectors:,}")
             click.echo(f"    Dimension: {info_obj.dim}")
@@ -489,7 +490,7 @@ async def stats_async(settings: RAGSettings, vector_store: BaseVectorStore) -> N
         total_vectors = 0
         for name in collection_names:
             try:
-                info_obj = await vector_store.get_collection_info(name)
+                info_obj = await vector_store.get_collection_info(name, VectorScope(tenant=None))
                 click.echo(f"  {name}:")
                 click.echo(f"    Vectors: {info_obj.total_vectors:,}")
                 total_vectors += info_obj.total_vectors

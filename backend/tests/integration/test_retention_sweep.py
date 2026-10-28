@@ -32,6 +32,7 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.models.run_manifest import RunManifest
 from app.db.models.user import User
+from app.db.vector_tables import VectorScope
 from app.repositories import project_repo, retention_repo
 from app.schemas.retention import RetentionUpdate
 from app.services.retention import RetentionService
@@ -399,7 +400,7 @@ class TestTheOtherClasses:
         assert list(remaining) == ["synced.pdf"]
         # No knowledge base behind these rows, so no tag to scope by: the chunks
         # of a document tracked under none were never stamped with one (#1684).
-        assert removed_vectors == [("kb_main", "vec-1", None)]
+        assert removed_vectors == [("kb_main", "vec-1", VectorScope(tenant=None))]
         storage.delete.assert_not_awaited()
         job = (await db.scalars(select(BackgroundJob))).one()
         assert job.payload["required_paths"] == ["uploads/report.pdf"]

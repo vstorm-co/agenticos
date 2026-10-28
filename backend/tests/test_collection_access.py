@@ -778,7 +778,9 @@ class TestResolvingASyncSourceInAKnowledgeBase:
         self, service: CollectionAccessService, rows: Rows
     ) -> None:
         """An app base and a personal base outside any organization share no tenant,
-        so a source the sync files under the personal base is not the app base's."""
+        so a source belongs to the one its sync writes into. For an organization
+        with no base of its own that is the app base - never the older personal
+        base, which has no organization either but is one person's (#2537)."""
         mine = _kb("handbook", scope=KBScope.PERSONAL, organization_id=None, owner_user_id=CALLER)
         app_kb = _kb("handbook", scope=KBScope.APP, organization_id=None)
         source = self._source(organization_id=OTHER_ORG)
@@ -786,8 +788,8 @@ class TestResolvingASyncSourceInAKnowledgeBase:
         rows.sources = [source]
 
         with pytest.raises(NotFoundError):
-            await service.kb_sync_source(app_kb, str(source.id))
-        assert (await service.kb_sync_source(mine, str(source.id))).id == source.id
+            await service.kb_sync_source(mine, str(source.id))
+        assert (await service.kb_sync_source(app_kb, str(source.id))).id == source.id
 
     @pytest.mark.security
     async def test_a_source_of_another_collection_or_organization_is_refused(

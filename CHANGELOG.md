@@ -19,6 +19,23 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Knowledge bases that share a collection name and a vector tenant keep their
+  chunks apart. An app-scoped base and a personal base outside any organization,
+  or an organization's base and a member's personal base in it, no longer return,
+  count, replace or delete each other's chunks: every chunk records the knowledge
+  base it was ingested for, and every vector read and write is confined to the
+  base. Resolving a collection name for an organization now prefers its own
+  organization base over a member's personal one and falls back only to an
+  app-scoped base, never to a personal base outside any organization (#2537).
+  **Upgrade action:** migration `0179_stamp_rag_rows_by_base` files existing
+  chunks under their knowledge base from `rag_documents` and adds an index to
+  every `rag_<collection>` table. It rewrites each tracked chunk once, so it takes
+  longer on large collections. Chunks it cannot attribute to one base stay matched
+  by their tenant, as before; re-ingest a personal base outside any organization
+  if some of its older documents no longer appear in search.
+
 ## [1.27.0] - 2026-10-27
 
 ### Added

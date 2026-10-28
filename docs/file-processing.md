@@ -554,6 +554,12 @@ running this organization's text through their credential
 therefore resolves each organization's own configuration, falling back to an
 app-scoped collection but never to a third tenant's.
 
+Within the organization its
+own organization base comes before a member's personal base of the same name, and
+the fallback is an app-scoped base only: a personal base outside any organization
+has no organization either, but it is one person's
+([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
 !!! warning "One collection name is one embedding space"
 
     Resolving per organization is only safe because every row on one collection
@@ -808,6 +814,16 @@ selective filter cannot surface a row from outside the scope. An app-scoped,
 deployment-wide collection is matched on *having no tenant stamped* rather than on an
 equality every organization would fail, which is what lets everybody read the shared
 base without anybody reading each other's.
+
+**A filter cannot reach another knowledge base of the same name either.** The tenant
+alone does not tell every pair apart: an app-scoped base and a personal base outside
+any organization both have none, and an organization's base and a member's personal
+base in it both have the organization. So every chunk also records the knowledge base
+it was ingested for, and search, the vector count, the replace lookup and delete read
+a base's own chunks only. A chunk written before chunks recorded their base, and not
+filed by the upgrade, matches by its tenant as before - except for a personal base
+outside any organization, which takes none of those
+([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 **`GET /rag/collections/{name}/filter-values`** answers with the `organizational_unit`
 values actually present in the collection, under that same scope. It exists because

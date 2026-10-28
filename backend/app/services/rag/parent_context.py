@@ -27,8 +27,8 @@ than a stated number.
 
 from collections.abc import Callable
 from typing import Protocol
-from uuid import UUID
 
+from app.db.vector_tables import VectorScope
 from app.services.rag.filters import AppScope, RetrievalScope, TenantScope
 from app.services.rag.models import DocumentChunk, ParentContextMode, SearchResult
 
@@ -52,7 +52,7 @@ class ChunkReader(Protocol):
         self,
         collection_name: str,
         document_id: str,
-        tenant: UUID | None,
+        scope: VectorScope,
         *,
         page_num: int,
         chunk_num: int,
@@ -61,25 +61,24 @@ class ChunkReader(Protocol):
     ) -> list[DocumentChunk]: ...
 
 
-#: Which collection a result's siblings are read from, and under which tenant -
+#: Which collection a result's siblings are read from, and under which scope -
 #: or `None` when this result is not to be expanded.
-FetchResolver = Callable[[SearchResult], tuple[str, UUID | None] | None]
+FetchResolver = Callable[[SearchResult], tuple[str, VectorScope] | None]
 
 
-def expansion_tenant(scope: RetrievalScope) -> tuple[bool, UUID | None]:
-    """Whether a search under `scope` may be expanded, and the tenant it reads under.
+def expansion_scope(scope: RetrievalScope) -> VectorScope | None:
+    """The scope a search under `scope` reads siblings under, or `None` for none.
 
-    Siblings are read under exactly the tenant the match was found under: a
-    `TenantScope`'s organization, or `None` - the untagged, deployment-wide rows -
-    for an `AppScope`. An `UnscopedScope` (a maintenance search with no tenant
-    conjunct) is not expanded at all: it can match any tenant's rows, and no
-    caller that asks for expansion searches that way.
+    Siblings are read under exactly the scope the match was found under: a
+    `TenantScope`'s organization, or the untagged, deployment-wide rows for an
+    `AppScope`, each narrowed to the knowledge base the search named (#2537). An
+    `UnscopedScope` (a maintenance search with no tenant conjunct) is not
+    expanded at all: it can match any tenant's rows, and no caller that asks for
+    expansion searches that way.
     """
-    if isinstance(scope, TenantScope):
-        return True, scope.organization_id
-    if isinstance(scope, AppScope):
-        return True, None
-    return False, None
+    if isinstance(scope, TenantScope | AppScope):
+        return scope.vectors()
+    return None
 
 
 def assemble_passage(
@@ -160,13 +159,13 @@ async def expand_context(
         fetch = resolve_fetch(result)
         if fetch is None:
             continue
-        collection_name, tenant = fetch
+        collection_name, scope = fetch
         page_num = int(result.metadata.get("page_num", 0) or 0)
         chunk_num = int(result.metadata.get("chunk_num", 0) or 0)
         chunks = await store.get_chunks_around(
             collection_name,
             result.parent_doc_id,
-            tenant,
+            scope,
             page_num=page_num,
             chunk_num=chunk_num,
             before=each_side,

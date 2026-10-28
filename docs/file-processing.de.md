@@ -1,5 +1,5 @@
 ---
-source_sha: "b2690527c166"
+source_sha: "dc6d25176855"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -612,6 +612,12 @@ seine Zugangsdaten laufen lassen
 löst daher die eigene Konfiguration jeder Organisation auf, mit Rückfall auf
 eine app-weite Collection, aber nie auf die eines dritten Tenants.
 
+Innerhalb der
+Organisation geht ihre eigene Organisations-Basis der persönlichen Basis eines
+Mitglieds mit demselben Namen vor, und der Rückfall ist ausschließlich eine app-weite
+Basis: Eine persönliche Basis außerhalb jeder Organisation hat ebenfalls keine
+Organisation, gehört aber einer einzelnen Person ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
 !!! warning "Ein Collection-Name ist ein Embedding-Raum"
 
     Pro Organisation aufzulösen ist nur deshalb sicher, weil sich alle Zeilen zu
@@ -911,6 +917,17 @@ von außerhalb des Scopes hervorholen kann. Eine app-scoped, deploymentweite Col
 wird darüber getroffen, dass *kein Tenant aufgestempelt ist*, statt über eine
 Gleichheit, an der jede Organisation scheitern würde - und genau das lässt alle die
 geteilte Basis lesen, ohne dass jemand die der anderen liest.
+
+**Ein Filter reicht auch nicht in eine andere Wissensbasis desselben Namens.** Der
+Tenant allein unterscheidet nicht jedes Paar: Eine app-weite Basis und eine persönliche
+Basis außerhalb jeder Organisation haben keinen, und die Basis einer Organisation und
+die persönliche Basis eines Mitglieds darin haben dieselbe Organisation. Deshalb hält
+jeder Chunk auch die Wissensbasis fest, für die er indexiert wurde, und Suche,
+Vektorzählung, die Suche beim Ersetzen und das Löschen lesen nur die Chunks der
+eigenen Basis. Ein Chunk, der geschrieben wurde, bevor Chunks ihre Basis festhielten,
+und den das Upgrade nicht zugeordnet hat, passt wie bisher über seinen Tenant - außer
+für eine persönliche Basis außerhalb jeder Organisation, die keinen davon nimmt
+([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 **`GET /rag/collections/{name}/filter-values`** antwortet mit den
 `organizational_unit`-Werten, die in der Collection tatsächlich vorkommen, unter
