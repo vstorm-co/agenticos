@@ -19,6 +19,67 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- A new agent starts on the organization's model when the organization has
+  exactly one model an agent can run on: a chat model with a key, or a
+  self-hosted one saved without a key, that publish accepts (#2483). This
+  applies to **New agent**, `POST /agents` without a `model_profile_id`,
+  templates, copies and promoted specialists. The model is written into the
+  draft, so the agent publishes without opening **Model**, and the draft counts
+  as using the model. With no model or several, the draft has no model as
+  before. A model on a ChatGPT sign-in is never chosen for somebody, and
+  neither is a model that falls back to one; the Architect no longer chooses
+  either for its first publish (#2545). See
+  [The model a new agent starts on](docs/models.md#the-model-a-new-agent-starts-on).
+
+### Changed
+
+- Publish's refusal of an agent with no model now reads *No model selected -
+  pick one under Build > Model before publishing* and also marks
+  `model_profile_id` in `details.fields` (#2483). The Builder shows **Go to
+  Model** beside it, which opens the Model card on the Build tab.
+
+### Fixed
+
+- The Architect, the organization's assistant, is no longer published on a
+  model that runs on a ChatGPT sign-in (#2535). A sign-in is one person's
+  subscription: on the Architect, runs by members who could not see it in the
+  vault were refused, and runs by those who could, such as the organization's
+  owners and admins, spent it. The Architect now publishes on the first chat
+  model publish accepts that is not a sign-in, and with only a sign-in it waits
+  for another model, as a new agent does (#2483). A sign-in somebody picked in
+  its draft, or a model that falls back to one (#2545), stays there, but is
+  published only when somebody who may change the organization's settings
+  publishes it in the Builder. An Architect already published on a sign-in is
+  not changed: such a person moves it under **Build > Model** and publishes it.
+  See
+  [The model a new agent starts on](docs/models.md#the-model-a-new-agent-starts-on).
+
+## [1.28.0] - 2026-10-28
+
+### Added
+
+- More OpenRouter embedding models for knowledge bases: the three its EU
+  endpoint serves (`mistralai/mistral-embed-2312`,
+  `mistralai/codestral-embed-2505`, `google/gemini-embedding-2`) and
+  `google/gemini-embedding-001`. The Mistral models are not in the bundled price
+  snapshot, so their spend is recorded as partially priced.
+
+### Fixed
+
+- A knowledge base on a custom OpenRouter endpoint is offered only the
+  embedding models that endpoint serves. The EU endpoint serves none of
+  OpenAI's, so a collection created on the default model failed every upload
+  with "No endpoints found supporting your data region". Creating a collection
+  on a model its endpoint does not serve, or moving one to such an endpoint, is
+  now refused, and the editor says so before saving.
+- An upload that fails because the embedding endpoint does not serve the model
+  says so, instead of pointing at the collection's key.
+- Model pickers sort versions as numbers and keep a variant such as
+  OpenRouter's `:batch` beside its model. Plain string order put
+  `openai/gpt-5:batch` below every `gpt-5.6` model.
+
 ## [1.27.0] - 2026-10-27
 
 ### Added
@@ -124,22 +185,9 @@ Two things are versioned separately from this file and worth knowing about:
   edit is audited as `model_profile.updated` with the changed field names only.
   See
   [Changing a profile's key or endpoint](docs/models.md#changing-a-profiles-key-or-endpoint).
-- A new agent starts on the organization's model when the organization has
-  exactly one model an agent can run on: a chat model with a key, or a
-  self-hosted one saved without a key, that publish accepts (#2483). This
-  applies to **New agent**, `POST /agents` without a `model_profile_id`,
-  templates, copies and promoted specialists. The model is written into the
-  draft, so the agent publishes without opening **Model**, and the draft counts
-  as using the model. With no model or several, the draft has no model as
-  before. A model on a ChatGPT sign-in is never chosen for somebody. See
-  [The model a new agent starts on](docs/models.md#the-model-a-new-agent-starts-on).
 
 ### Changed
 
-- Publish's refusal of an agent with no model now reads *No model selected -
-  pick one under Build > Model before publishing* and also marks
-  `model_profile_id` in `details.fields` (#2483). The Builder shows **Go to
-  Model** beside it, which opens the Model card on the Build tab.
 - Deleting a model profile that agents use is refused with `409 IN_USE`
   (#2478). `details.agents` names each agent the caller can see and marks the
   archived ones, and `details.hidden_agents` counts the rest. A profile counts as in use when an
@@ -165,18 +213,6 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- The Architect, the organization's assistant, is no longer published on a
-  model that runs on a ChatGPT sign-in (#2535). A sign-in is one person's
-  subscription: on the Architect, runs by members who could not see it in the
-  vault were refused, and runs by those who could, such as the organization's
-  owners and admins, spent it. The Architect now publishes on the first chat
-  model publish accepts that is not a sign-in, and with only a sign-in it waits
-  for another model, as a new agent does (#2483). A sign-in somebody picked in
-  its draft stays there, but is published only when somebody who may change the
-  organization's settings publishes it in the Builder. An Architect already
-  published on a sign-in is not changed: such a person moves it under
-  **Build > Model** and publishes it. See
-  [The model a new agent starts on](docs/models.md#the-model-a-new-agent-starts-on).
 - The Builder's Endpoint field no longer shows the local example
   `http://localhost:11434/v1` for a model that has a key (#2478). OpenAI is
   marked `keyless` because OpenAI-compatible servers exist, and the field showed

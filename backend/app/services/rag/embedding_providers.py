@@ -48,6 +48,7 @@ from pydantic import TypeAdapter
 
 from app.core import catalog
 from app.core.field_errors import refused_field
+from app.services import model_catalog
 
 
 @dataclass(frozen=True)
@@ -133,3 +134,51 @@ def require(provider: str, *, model: str, dim: int) -> EmbeddingProviderEntry:
             dim=dim,
         )
     return entry
+
+
+async def models_at(
+    entry: EmbeddingProviderEntry, base_url: str
+) -> tuple[EmbeddingModelEntry, ...] | None:
+    """The catalog models a custom endpoint lists, or None when it cannot be asked.
+
+    The catalog says what a provider serves at its own address; a regional
+    endpoint serves a subset of that, and only the endpoint knows which. Its
+    listing decides *which* models, and the catalog keeps deciding the width,
+    because the listing states none. A catalog id is matched with or without the
+    vendor namespace OpenRouter lists it under: the OpenAI models are stored
+    bare (`text-embedding-3-small`) on rows that predate the namespaced ones.
+
+    Args:
+        entry: The provider the endpoint belongs to.
+        base_url: A validated endpoint, authorized by the caller.
+    """
+    listed = await model_catalog.embedding_models_at(base_url)
+    if listed is None:
+        return None
+    ids = {model.id for model in listed} | {model.id.partition("/")[2] for model in listed}
+    return tuple(model for model in entry.models if model.model in ids)
+
+
+async def require_served_at(
+    entry: EmbeddingProviderEntry, base_url: str, *, model: str, field: str
+) -> None:
+    """Refuse an endpoint that lists its embedding models and leaves this one out.
+
+    Without this a collection is created on a model its endpoint does not serve,
+    and every upload then fails in the worker with "No endpoints found supporting
+    your data region". An endpoint that cannot be asked is let through: the
+    question is unanswered rather than answered no, and the upload says so if it
+    was the wrong one.
+
+    Raises:
+        BadRequestError: On `field`, if the endpoint's listing omits `model`.
+    """
+    served = await models_at(entry, base_url)
+    if served is None or any(item.model == model for item in served):
+        return
+    offered = ", ".join(item.model for item in served) or "none of this build's models"
+    raise refused_field(
+        field,
+        f"This endpoint does not serve the embedding model '{model}'. It serves: {offered}.",
+        model=model,
+    )

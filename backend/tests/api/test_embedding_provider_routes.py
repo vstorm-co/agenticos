@@ -28,6 +28,7 @@ from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.resource_grant import Visibility
 from app.main import app
 from app.services.knowledge_base import KnowledgeBaseService
+from app.services.rag import embedding_providers
 
 pytestmark = pytest.mark.anyio
 
@@ -166,3 +167,81 @@ class TestMovingACollection:
 
         assert response.status_code == 200
         assert response.json()["embedding_model"] == "text-embedding-3-small"
+
+
+class TestWhatAnEndpointServes:
+    """`GET /rag/embedding-models/{provider}` - the models a custom endpoint lists.
+
+    OpenRouter's EU endpoint serves three embedding models and none of OpenAI's,
+    so a form offering the whole catalog created collections whose every upload
+    failed with "No endpoints found supporting your data region".
+    """
+
+    _URL = f"{_V1}/rag/embedding-models/openrouter"
+
+    async def test_the_endpoints_own_listing_narrows_the_catalog(
+        self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+    ):
+        entry = embedding_providers.get("openrouter")
+        assert entry is not None
+        served = tuple(m for m in entry.models if m.model == "mistralai/mistral-embed-2312")
+        asked = AsyncMock(return_value=served)
+        monkeypatch.setattr(embedding_providers, "models_at", asked)
+
+        response = await client.get(
+            self._URL, params={"base_url": "https://eu.openrouter.ai/api/v1"}
+        )
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "provider": "openrouter",
+            "models": [{"model": "mistralai/mistral-embed-2312", "dim": 1024}],
+            "source": "live",
+        }
+        assert asked.await_args.args[1] == "https://eu.openrouter.ai/api/v1"
+
+    async def test_an_endpoint_that_cannot_be_asked_answers_with_the_catalog(
+        self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Unconfirmed rather than empty, and labelled so the form can say so."""
+        monkeypatch.setattr(embedding_providers, "models_at", AsyncMock(return_value=None))
+
+        body = (
+            await client.get(self._URL, params={"base_url": "https://eu.openrouter.ai/api/v1"})
+        ).json()
+
+        entry = embedding_providers.get("openrouter")
+        assert entry is not None
+        assert body["source"] == "curated"
+        assert [m["model"] for m in body["models"]] == [m.model for m in entry.models]
+
+    async def test_only_openrouter_takes_a_custom_endpoint(self, client: AsyncClient):
+        response = await client.get(
+            f"{_V1}/rag/embedding-models/openai", params={"base_url": "https://x.example/v1"}
+        )
+
+        assert response.status_code == 400
+        assert response.json()["error"]["details"]["fields"][0]["field"] == "embedding_base_url"
+
+    async def test_an_address_that_is_not_an_endpoint_is_refused_on_the_field(
+        self, client: AsyncClient
+    ):
+        response = await client.get(self._URL, params={"base_url": "file:///etc/passwd"})
+
+        assert response.status_code == 400
+        assert response.json()["error"]["details"]["fields"][0]["field"] == "embedding_base_url"
+
+    async def test_asking_needs_the_authority_setting_an_endpoint_needs(self, client: AsyncClient):
+        """It is an outbound request to an address the caller chose."""
+        app.dependency_overrides[deps.get_auth_context] = lambda: AuthContext(
+            user_id=uuid.uuid4(),
+            organization_id=_ORGANIZATION,
+            role=OrgRoleName.MEMBER.value,
+            is_app_admin=False,
+        )
+
+        response = await client.get(
+            self._URL, params={"base_url": "https://eu.openrouter.ai/api/v1"}
+        )
+
+        assert response.status_code == 403

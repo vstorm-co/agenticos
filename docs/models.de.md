@@ -1,5 +1,5 @@
 ---
-source_sha: "91887e7e39b0"
+source_sha: "5132f2298d1b"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -125,8 +125,8 @@ Mitgliedern, die sie im Vault nicht sehen dürfen, werden abgelehnt, und Läufe 
 die es dürfen, etwa der Eigentümer und Administratoren der Organisation, verbrauchen
 es. Gibt es nur eine Anmeldung, wartet der Architekt auf ein anderes Modell.
 
-Eine Anmeldung, die jemand im Entwurf des Architekten wählt, bleibt dort, wird aber
-erst veröffentlicht, wenn jemand, der die Einstellungen der Organisation ändern
+Eine Anmeldung, die jemand im Entwurf des Architekten wählt, oder ein Modell mit
+einer Anmeldung als Fallback bleibt dort, wird aber erst veröffentlicht, wenn jemand, der die Einstellungen der Organisation ändern
 darf, es im Builder veröffentlicht. Ein Architekt, der bereits auf einer Anmeldung
 veröffentlicht ist, behält dieses Modell, bis jemand, der die Einstellungen der
 Organisation ändern darf, unter **Bauen > Modell** (Build > Model) ein anderes wählt
@@ -150,6 +150,12 @@ als Fallback. Ein Modell auf einer
 [ChatGPT-Anmeldung](#running-on-a-chatgpt-subscription) wird nie für jemanden
 gewählt, weil es das Abonnement einer einzelnen Person ist, aber es zählt als
 Modell.
+
+Ebenso wenig ein Modell, unter dessen ersten drei Fallbacks, die ein Run
+versucht, eine Anmeldung ist: Fällt das Modell aus, wiche der Run jedes
+Menschen, der die Anmeldung sehen darf, auf dieses Abonnement aus. Auch der
+Architekt wählt kein solches Modell. Ein Autor kann ein
+solches Modell weiterhin bewusst wählen und veröffentlichen.
 
 Die Veröffentlichung lehnt den Entwurf dann mit *No model selected - pick one under
 Build > Model before publishing* ab. Die Ablehnung markiert auch das Feld
@@ -776,6 +782,8 @@ make platform-bootstrap BOOTSTRAP_API_KEY=sk-...
 erledigt alle drei Schritte für ein neues Deployment.
 
 Für eine regionale OpenRouter-API bleibt **OpenRouter** der Anbieter. Trage im Modellformular unter **Endpoint** `https://eu.openrouter.ai/api/v1` ein. Das Profil behält seinen OpenRouter-Schlüssel aus dem Vault, die native Modellverarbeitung und die Cache-Steuerung. Modellvorschläge stammen von diesem Endpunkt und werden separat zwischengespeichert; eine fehlgeschlagene regionale Abfrage wechselt nicht zum globalen Katalog. Lege für Wissensbasen den Embedding-Endpunkt beim Erstellen oder Bearbeiten des Embedding-Anbieters separat fest. Bestehende Konfigurationen behalten den globalen Endpunkt. EU-Routing erfordert einen passenden OpenRouter-Business- oder Enterprise-Tarif; [regionales Routing](https://openrouter.ai/docs/guides/get-started/sovereign-ai) und ZDR sind getrennte OpenRouter-Richtlinien.
+
+Ein regionaler Endpunkt stellt weniger Embedding-Modelle bereit als der globale: `eu.openrouter.ai` bietet `mistralai/mistral-embed-2312`, `mistralai/codestral-embed-2505` und `google/gemini-embedding-2`, aber keines von OpenAI. Das Anlageformular bietet nur die Modelle an, die der Endpunkt aufführt, und eine Collection, deren Modell der Endpunkt nicht bereitstellt, wird abgelehnt, sowohl beim Erstellen als auch beim Verschieben dorthin. Die beiden Mistral-Modelle fehlen im mitgelieferten Preis-Snapshot, daher werden ihre Kosten als teilweise bepreist erfasst.
 
 Aktualisiere alle API- und Worker-Prozesse, bevor du regionale Endpunkte konfigurierst. Ältere Versionen ignorieren den überschriebenen OpenRouter-Endpunkt.
 

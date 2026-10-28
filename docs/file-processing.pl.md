@@ -1,5 +1,5 @@
 ---
-source_sha: "b2690527c166"
+source_sha: "a2d3374dd0ae"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -602,6 +602,23 @@ jednego dostawcy pod adres drugiego. Tym samym katalogiem odpowiada
 provider faktycznie umie obsłużyć — kiedyś proponował każdy model, dla którego ta
 kompilacja znała *szerokość*, a trzy z nich to były wagi sentence-transformer,
 których nic tutaj nie umie wywołać.
+
+Kolekcja na OpenRouter może wskazać własny **endpoint** (`embedding_base_url`),
+na przykład regionalny `https://eu.openrouter.ai/api/v1`. Endpoint regionalny
+obsługuje tylko część katalogu i tylko on wie którą, więc
+`GET /rag/embedding-models/openrouter?base_url=…` pyta go i zwraca te modele
+z katalogu, które wymienia. Szerokość nadal pochodzi z katalogu, bo lista jej nie
+podaje. Formularz tworzenia proponuje tę węższą listę, a serwis odrzuca kolekcję,
+której modelu endpoint nie obsługuje: na `embedding_model` przy tworzeniu i na
+`embedding_base_url` przy przenoszeniu istniejącej.
+
+Endpointu, którego nie udało
+się zapytać, nie traktuje się jako odmowy: formularz pokazuje cały katalog
+i zaznacza, że lista jest niepotwierdzona. Model nieobsługiwany przez endpoint był
+kiedyś przyjmowany, a potem każdy upload kończył się błędem OpenRoutera "No
+endpoints found supporting your data region", zapisanym jako ogólna wskazówka, by
+sprawdzić klucz. Teraz 404 z endpointu embeddingów zapisuje się jako model, którego
+endpoint nie obsługuje.
 
 Klucz jest walidowany przy tworzeniu. Klucz należący do innej organizacji, klucz
 o niewłaściwym przeznaczeniu albo taki, którego wybierający sam nie widzi, jest

@@ -670,3 +670,137 @@ async def test_endpoint_cache_evicts_the_least_recently_used_catalog(monkeypatch
     assert len(model_catalog._cache) == 2
     assert "openrouter:https://two.example/v1" not in model_catalog._cache
     assert fetched.await_count == 3
+
+
+@pytest.mark.anyio
+async def test_an_endpoints_embedding_models_are_asked_for_by_modality_and_cached_apart():
+    """`/models` leaves embedding models out unless asked for them, and the chat
+    catalog of the same endpoint must not answer for its embedding catalog."""
+    requests: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        embeddings = request.url.params.get("output_modalities") == "embeddings"
+        model = "mistralai/mistral-embed-2312" if embeddings else "vendor/chat"
+        return httpx.Response(200, json={"data": [{"id": model}]})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        with patch(f"{MODULE}._client", return_value=client):
+            chat, _ = await models_for("openrouter", base_url="https://eu.openrouter.ai/api/v1")
+            listed = await model_catalog.embedding_models_at("https://eu.openrouter.ai/api/v1/")
+            again = await model_catalog.embedding_models_at("https://eu.openrouter.ai/api/v1")
+
+    assert [model.id for model in chat] == ["vendor/chat"]
+    assert listed is not None
+    assert [model.id for model in listed] == ["mistralai/mistral-embed-2312"]
+    assert again == listed
+    assert len(requests) == 2
+    assert str(requests[-1].url) == (
+        "https://eu.openrouter.ai/api/v1/models?output_modalities=embeddings"
+    )
+    assert "Authorization" not in requests[-1].headers
+
+
+@pytest.mark.anyio
+async def test_an_endpoint_that_cannot_be_asked_is_none_and_one_listing_nothing_is_empty():
+    """None is no answer; an empty tuple is the answer "serves no embedding model",
+    and neither is cached, so the next form asks again."""
+    iterator = iter([httpx.ConnectError("down"), httpx.Response(200, json={"data": []})])
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        answer = next(iterator)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        with patch(f"{MODULE}._client", return_value=client):
+            assert await model_catalog.embedding_models_at("https://x.example/v1") is None
+            assert await model_catalog.embedding_models_at("https://x.example/v1") == ()
+
+    assert model_catalog._cache == {}
+
+
+class TestTheOrderAPickerShows:
+    def test_a_variant_sits_beside_its_model_rather_than_after_every_version(self):
+        """`:` sorts after `.` as a character, which scattered OpenRouter's
+        `:batch` variants to the end of their family."""
+        ids = [
+            "openai/gpt-5.6-terra",
+            "openai/gpt-5:batch",
+            "openai/gpt-5.1",
+            "openai/gpt-5",
+            "anthropic/claude-opus-5.5:batch",
+            "anthropic/claude-opus-5:batch",
+            "anthropic/claude-opus-5.5",
+            "anthropic/claude-opus-5",
+        ]
+
+        assert sorted(ids, key=model_catalog.listing_order) == [
+            "anthropic/claude-opus-5",
+            "anthropic/claude-opus-5:batch",
+            "anthropic/claude-opus-5.5",
+            "anthropic/claude-opus-5.5:batch",
+            "openai/gpt-5",
+            "openai/gpt-5:batch",
+            "openai/gpt-5.1",
+            "openai/gpt-5.6-terra",
+        ]
+
+    def test_versions_compare_as_numbers(self):
+        ids = [
+            "gpt-5.10",
+            "gpt-5.9",
+            "gpt-5.2-mini",
+            "gpt-5.2",
+            "deepseek-v4-1017",
+            "deepseek-v4-0731",
+        ]
+
+        assert sorted(ids, key=model_catalog.listing_order) == [
+            "deepseek-v4-0731",
+            "deepseek-v4-1017",
+            "gpt-5.2",
+            "gpt-5.2-mini",
+            "gpt-5.9",
+            "gpt-5.10",
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_listing_arrives_in_that_order(self):
+        rows = [{"id": "openai/gpt-5:batch"}, {"id": "openai/gpt-5.1"}, {"id": "openai/gpt-5"}]
+        with patch(f"{MODULE}._client", return_value=_responds({"data": rows})):
+            models, _ = await models_for("openrouter")
+
+        assert [model.id for model in models] == [
+            "openai/gpt-5",
+            "openai/gpt-5:batch",
+            "openai/gpt-5.1",
+        ]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "body",
+    [{"data": {"not": "a list"}}, [{"id": "a/b"}], "not json at all"],
+    ids=["no-list", "bare-array", "not-json"],
+)
+async def test_an_endpoint_answering_something_that_is_not_a_catalog_is_no_answer(body):
+    def respond(request: httpx.Request) -> httpx.Response:
+        if isinstance(body, str):
+            return httpx.Response(200, content=body.encode())
+        return httpx.Response(200, json=body)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        with patch(f"{MODULE}._client", return_value=client):
+            assert await model_catalog.embedding_models_at("https://x.example/v1") is None
+
+
+@pytest.mark.anyio
+async def test_a_defect_while_listing_embedding_models_is_not_read_as_unconfirmed():
+    """Swallowed, it would let `require_served_at` wave every model through."""
+    with (
+        patch(f"{MODULE}._fetch", AsyncMock(side_effect=AttributeError("a bug"))),
+        pytest.raises(AttributeError),
+    ):
+        await model_catalog.embedding_models_at("https://x.example/v1")

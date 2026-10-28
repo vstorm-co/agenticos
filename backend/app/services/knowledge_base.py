@@ -446,6 +446,10 @@ class KnowledgeBaseService:
             embedding_base_url = await self._embedding_url(
                 ctx, provider.provider, data.embedding_base_url
             )
+            if embedding_base_url is not None:
+                await embedding_providers.require_served_at(
+                    provider, embedding_base_url, model=embedding_model, field="embedding_model"
+                )
             if provider.keyless:
                 _refuse_key_for_keyless(provider, secret_id=embedding_secret_id)
                 if embedding_endpoint_id is None:
@@ -660,6 +664,12 @@ class KnowledgeBaseService:
                     provider=provider,
                 )
             wanted_url = await self._embedding_url(ctx, provider.provider, wanted_url)
+            if wanted_url is not None:
+                # The model is the collection's own and cannot follow the move,
+                # so an endpoint that does not serve it is the wrong endpoint.
+                await embedding_providers.require_served_at(
+                    provider, wanted_url, model=kb.embedding_model, field="embedding_base_url"
+                )
             shared = await knowledge_base_repo.list_by_collection_name(self.db, kb.collection_name)
             if any(row.id != kb.id and row.embedding_base_url != wanted_url for row in shared):
                 raise refused_field(

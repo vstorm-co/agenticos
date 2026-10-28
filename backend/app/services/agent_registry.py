@@ -1393,8 +1393,9 @@ class AgentRegistryService:
         publish asks for it. One means a profile `usable_for_agents` - a chat
         model with a key, or a self-hosted one saved to run without one (#2478) -
         that publish would also accept as it stands, fallback chain included, so
-        the agent publishes without anybody opening Model. Never one on a ChatGPT
-        sign-in (`choosable_for_others`): that is one person's subscription, not
+        the agent publishes without anybody opening Model. Never one a run on
+        which can reach a ChatGPT sign-in, as the model or a fallback
+        (`choosable_for_others`, #2545): that is one person's subscription, not
         the organization's to hand out. It still counts towards "only one",
         because it is a model the author could deliberately pick.
 
@@ -1409,17 +1410,19 @@ class AgentRegistryService:
         # Counted after publish's own check, so a broken profile beside a good
         # one does not make two. A sign-in is counted without it: it is a model
         # the author could pick, and whose it is to spend is decided at run time.
+        profiles = await credential_repo.list_profiles(self.db, organization_id=ctx.organization_id)
         candidates = [
             profile
-            for profile in await credential_repo.list_profiles(
-                self.db, organization_id=ctx.organization_id
-            )
+            for profile in profiles
             if usable_for_agents(profile)
             and (is_sign_in(profile) or not await self.model_profile_problems(ctx, profile.id))
         ]
-        if len(candidates) != 1 or not choosable_for_others(candidates[0]):
+        if len(candidates) != 1:
             return None
-        return candidates[0].id
+        (only,) = candidates
+        if not choosable_for_others(only, {p.id: p for p in profiles}):
+            return None
+        return only.id
 
     async def clone(self, ctx: AuthContext, agent_id: UUID, *, name: str | None = None) -> Agent:
         """Copy an agent's draft into a new agent, in draft.

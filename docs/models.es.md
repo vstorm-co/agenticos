@@ -1,5 +1,5 @@
 ---
-source_sha: "91887e7e39b0"
+source_sha: "5132f2298d1b"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -121,8 +121,8 @@ ejecuciones de los miembros que no pueden verlo en el vault se rechazan, y las d
 quienes sí pueden, como los propietarios y administradores de la organización, la
 gastan. Con solo un inicio de sesión, el Architect espera a otro modelo.
 
-Un inicio de sesión que alguien elige en su borrador se queda ahí, pero solo se
-publica cuando alguien que puede cambiar la configuración de la organización lo
+Un inicio de sesión que alguien elige en su borrador, o un modelo con un fallback
+a uno, se queda ahí, pero solo se publica cuando alguien que puede cambiar la configuración de la organización lo
 publica en el Builder. Un Architect ya publicado con un inicio de sesión conserva
 ese modelo hasta que alguien que puede cambiar la configuración de la organización
 elige otro en **Build > Model** y lo publica.
@@ -141,6 +141,12 @@ agent no puede ejecutarse](#a-profile-an-agent-cannot-run-on), ni un perfil que 
 publicación rechazaría, como uno con un fallback a uno de esos modelos. Un modelo con un
 [inicio de sesión de ChatGPT](#running-on-a-chatgpt-subscription) nunca se elige en
 nombre de nadie, porque es la suscripción de una persona, pero cuenta como modelo.
+
+Tampoco se elige un modelo cuyos fallbacks incluyen un inicio de sesión entre los
+tres primeros, los que prueba un run: cuando el modelo falla, el run de cualquiera
+que pueda ver el inicio de sesión pasaría a esa suscripción. El Architect tampoco
+elige un modelo así. Un autor todavía puede elegirlo a
+propósito y publicarlo.
 
 La publicación rechaza entonces el borrador con *No model selected - pick one under
 Build > Model before publishing*. El rechazo también marca el campo
@@ -743,6 +749,8 @@ make platform-bootstrap BOOTSTRAP_API_KEY=sk-...
 hace las tres cosas para un despliegue nuevo.
 
 Para usar la API regional de OpenRouter, conserva **OpenRouter** como proveedor e introduce `https://eu.openrouter.ai/api/v1` en **Endpoint** del formulario del modelo. El perfil mantiene su clave OpenRouter del Vault, el tratamiento nativo de modelos y los controles de caché. Las sugerencias se obtienen de ese endpoint y se almacenan en una caché independiente; si falla la lista regional, no se utiliza el catálogo global. En las bases de conocimiento, configura el endpoint de embeddings por separado al crear la colección o editar su proveedor de embeddings. Las configuraciones existentes mantienen el endpoint global. El enrutamiento EU requiere un plan OpenRouter Business o Enterprise adecuado; el [enrutamiento regional](https://openrouter.ai/docs/guides/get-started/sovereign-ai) y ZDR son políticas distintas de OpenRouter.
+
+Un endpoint regional sirve menos modelos de embeddings que el global: `eu.openrouter.ai` sirve `mistralai/mistral-embed-2312`, `mistralai/codestral-embed-2505` y `google/gemini-embedding-2`, y ninguno de OpenAI. El formulario de creación ofrece solo los modelos que lista el endpoint, y se rechaza una colección cuyo modelo el endpoint no sirve, tanto al crearla como al moverla a él. Los dos modelos de Mistral no están en la instantánea de precios incluida, así que su gasto se registra como valorado en parte.
 
 Actualiza todos los procesos de API y workers antes de configurar endpoints regionales. Las versiones anteriores ignoran el endpoint personalizado de OpenRouter.
 

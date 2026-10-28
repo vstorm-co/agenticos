@@ -105,8 +105,9 @@ may not see it in the vault are refused, and runs by those who may, such as the
 organization's owners and admins, spend it. With only a sign-in, the Architect waits
 for another model.
 
-A sign-in somebody picks in its draft stays there, but is published only when
-somebody who may change the organization's settings publishes it in the Builder. An
+A sign-in somebody picks in its draft, or a model that falls back to one, stays
+there, but is published only when somebody who may change the organization's
+settings publishes it in the Builder. An
 Architect already published on a sign-in keeps that model until somebody who may
 change the organization's settings picks another under **Build > Model** and
 publishes it.
@@ -125,6 +126,12 @@ text-to-speech model and the other models in
 publish would refuse, such as one that falls back to such a model. A model on
 a [ChatGPT sign-in](#running-on-a-chatgpt-subscription) is never chosen for
 somebody, because it is one person's subscription, but it counts as a model.
+
+Nor is a new agent started on a model whose fallbacks include a sign-in among
+the first three, the ones a run tries: when the model fails, the run of anybody
+who may see the sign-in would fall back onto that subscription. The Architect
+does not choose such a model either. An author may still pick one deliberately
+and publish it.
 
 Publish then refuses the draft with *No model selected - pick one under Build >
 Model before publishing*. The refusal also marks the field (`model_profile_id` in
@@ -694,6 +701,8 @@ make platform-bootstrap BOOTSTRAP_API_KEY=sk-...
 does all three for a new deployment.
 
 For a regional OpenRouter API, keep **OpenRouter** as the provider and set **Endpoint** to `https://eu.openrouter.ai/api/v1` in the model form. The profile keeps its OpenRouter vault key, native model handling and cache controls. Model suggestions come from that endpoint and are cached separately; a failed regional listing does not fall back to the global catalog. For knowledge bases, set the embedding **Endpoint** separately when creating the collection or editing its embedding provider. Existing configurations keep the global endpoint. EU routing requires an eligible OpenRouter Business or Enterprise plan; [regional routing](https://openrouter.ai/docs/guides/get-started/sovereign-ai) and ZDR are separate OpenRouter policies.
+
+A regional endpoint serves fewer embedding models than the global one: `eu.openrouter.ai` serves `mistralai/mistral-embed-2312`, `mistralai/codestral-embed-2505` and `google/gemini-embedding-2`, and none of OpenAI's. The create form offers only the models the endpoint lists, and a collection whose model the endpoint does not serve is refused, both when it is created and when it is moved there. The two Mistral models are not in the bundled price snapshot, so their spend is recorded as partially priced.
 
 Upgrade every API and worker process before configuring regional endpoints. Earlier builds ignore the OpenRouter endpoint override.
 

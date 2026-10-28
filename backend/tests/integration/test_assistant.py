@@ -227,6 +227,34 @@ async def test_a_chatgpt_sign_in_picked_for_it_waits_for_its_author_to_publish(
     assert AgentSpec.model_validate(agent.draft_spec).model_profile_id == sign_in.id
 
 
+@pytest.mark.security
+async def test_a_drafted_model_that_falls_back_to_a_sign_in_waits_for_its_author(
+    db: AsyncSession,
+) -> None:
+    """Somebody's choice stays in the draft, but the next person to open the console
+    does not publish a chain that reaches one person's subscription (#2545)."""
+    organization, owner = await _organization(db)
+    ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
+    service = AssistantService(db)
+    installed = await service.state(ctx)
+    chosen = await _model(db, organization)
+    chosen.fallback_profile_ids = [str((await _sign_in(db, organization, owner)).id)]
+    await db.flush()
+    agent = (await db.execute(select(Agent).where(Agent.id == installed.agent_id))).scalar_one()
+    spec = AgentSpec.model_validate(agent.draft_spec).model_copy(
+        update={"model_profile_id": chosen.id}
+    )
+    await AgentRegistryService(db).save_draft(ctx, agent.id, spec)
+    await _model(db, organization)
+
+    state = await service.state(ctx)
+
+    assert state.status == "needs_model"
+    await db.refresh(agent)
+    assert agent.current_version_id is None
+    assert AgentSpec.model_validate(agent.draft_spec).model_profile_id == chosen.id
+
+
 @pytest.mark.parametrize("has_valid_model", [False, True])
 async def test_architect_skips_a_chat_profile_with_an_incompatible_fallback(
     db: AsyncSession, has_valid_model: bool
@@ -246,6 +274,36 @@ async def test_architect_skips_a_chat_profile_with_an_incompatible_fallback(
     agent = (await db.execute(select(Agent).where(Agent.id == state.agent_id))).scalar_one()
     assert AgentSpec.model_validate(agent.draft_spec).model_profile_id == (
         valid.id if valid else None
+    )
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("onto_a_sign_in", [True, False])
+async def test_it_is_not_published_on_a_model_that_falls_back_to_a_chatgpt_sign_in(
+    db: AsyncSession, onto_a_sign_in: bool
+) -> None:
+    """An outage would hand the organization's runs to one person's subscription
+    (#2545); a chain with no sign-in in it is published on as before."""
+    organization, owner = await _organization(db)
+    viewer = await _member(db, organization, OrgRoleName.VIEWER)
+    fallback = (
+        await _sign_in(db, organization, owner)
+        if onto_a_sign_in
+        else await _model(db, organization)
+    )
+    fallback.label = "Z fallback"
+    primary = await _model(db, organization)
+    primary.label = "A primary"
+    primary.fallback_profile_ids = [str(fallback.id)]
+    await db.flush()
+
+    state = await AssistantService(db).state(viewer)
+
+    assert state.status == ("needs_model" if onto_a_sign_in else "ready")
+    agent = (await db.execute(select(Agent).where(Agent.id == state.agent_id))).scalar_one()
+    # Neither the model nor the sign-in it falls back to.
+    assert AgentSpec.model_validate(agent.draft_spec).model_profile_id == (
+        None if onto_a_sign_in else primary.id
     )
 
 

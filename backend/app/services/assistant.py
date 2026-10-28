@@ -201,21 +201,20 @@ class AssistantService:
         A text-to-speech or embedding profile is not one (#2487), and neither is a
         profile whose key was deleted (#2478): publish refuses both, so the
         assistant waits for a model it can run on. Nor is a ChatGPT sign-in
-        (#2535): it is one person's subscription, and the assistant serves the
-        whole organization, so the assistant waits for a model the organization
-        can share.
+        (#2535), or a profile that falls back to one (#2545): it is one person's
+        subscription, and the assistant serves the whole organization, so the
+        assistant waits for a model the organization can share.
 
         A model already in the draft is somebody's deliberate choice and is kept,
         but published here only on the same terms: this runs for whoever opens
-        the console next, so a sign-in in the draft waits for somebody who may
-        change the organization's settings to publish it in the Builder.
+        the console next, so a sign-in in the draft, or a model that falls back
+        to one, waits for somebody who may change the organization's settings to
+        publish it in the Builder.
         """
+        profiles = await credential_repo.list_profiles(self.db, organization_id=organization_id)
+        by_id = {profile.id: profile for profile in profiles}
         choosable = {
-            profile.id: profile
-            for profile in await credential_repo.list_profiles(
-                self.db, organization_id=organization_id
-            )
-            if choosable_for_others(profile)
+            profile.id: profile for profile in profiles if choosable_for_others(profile, by_id)
         }
         drafted = AgentSpec.model_validate(agent.draft_spec).model_profile_id
         if not choosable or (drafted is not None and drafted not in choosable):

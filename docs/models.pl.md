@@ -1,5 +1,5 @@
 ---
-source_sha: "91887e7e39b0"
+source_sha: "5132f2298d1b"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -113,8 +113,8 @@ vault, są odrzucane, a uruchomienia tych, którzy je widzą, na przykład wła�
 administratorów organizacji, zużywają tę subskrypcję. Gdy jest tylko logowanie,
 Architekt czeka na inny model.
 
-Logowanie wybrane przez kogoś w szkicu Architekta zostaje w nim, ale jest
-publikowane dopiero wtedy, gdy opublikuje je w Builderze ktoś, kto może zmieniać
+Logowanie wybrane przez kogoś w szkicu Architekta, albo model z fallbackiem na
+logowanie, zostaje w nim, ale jest publikowane dopiero wtedy, gdy opublikuje je w Builderze ktoś, kto może zmieniać
 ustawienia organizacji. Architekt opublikowany już wcześniej na logowaniu zachowuje
 ten model, dopóki ktoś, kto może zmieniać ustawienia organizacji, nie wybierze
 innego w **Budowa > Model** (Build > Model) i go nie opublikuje.
@@ -134,6 +134,12 @@ nie może działać](#a-profile-an-agent-cannot-run-on), ani profil, który publ
 odrzuciła, na przykład taki z fallbackiem na taki model. Model na [logowaniu
 ChatGPT](#running-on-a-chatgpt-subscription) nigdy nie jest wybierany za kogoś, bo
 to subskrypcja jednej osoby, ale jest liczony jako model.
+
+Nie jest też wybierany model, którego fallbacki zawierają logowanie wśród
+pierwszych trzech, czyli tych, których próbuje run: gdy model zawiedzie, run
+każdego, kto widzi to logowanie, przeszedłby na tę subskrypcję. Architekt też
+nie wybiera takiego modelu. Autor nadal może świadomie wybrać taki
+model i go opublikować.
 
 Publikacja odrzuca wtedy szkic komunikatem *No model selected - pick one under
 Build > Model before publishing*. Odmowa oznacza też pole (`model_profile_id` w
@@ -722,6 +728,8 @@ make platform-bootstrap BOOTSTRAP_API_KEY=sk-...
 robi wszystkie trzy rzeczy dla nowego deploymentu.
 
 Aby użyć regionalnego API OpenRouter, pozostaw dostawcę **OpenRouter** i wpisz `https://eu.openrouter.ai/api/v1` w polu **Endpoint** formularza modelu. Profil zachowuje klucz OpenRouter z sejfu, natywną obsługę modeli i ustawienia pamięci podręcznej. Lista modeli pochodzi z tego endpointu i ma osobną pamięć podręczną; awaria regionalnej listy nie przełącza jej na globalny katalog. W bazach wiedzy ustaw **Endpoint** embeddingów osobno podczas tworzenia kolekcji lub edycji dostawcy embeddingów. Istniejące konfiguracje zachowują globalny endpoint. Routing EU wymaga odpowiedniego planu OpenRouter Business lub Enterprise; [routing regionalny](https://openrouter.ai/docs/guides/get-started/sovereign-ai) i ZDR są osobnymi politykami OpenRouter.
+
+Endpoint regionalny obsługuje mniej modeli embeddingów niż globalny: `eu.openrouter.ai` obsługuje `mistralai/mistral-embed-2312`, `mistralai/codestral-embed-2505` i `google/gemini-embedding-2`, a żadnego z modeli OpenAI. Formularz tworzenia proponuje tylko modele, które endpoint wymienia, a kolekcja, której modelu endpoint nie obsługuje, jest odrzucana zarówno przy tworzeniu, jak i przy przenoszeniu na ten endpoint. Dwóch modeli Mistral nie ma w dołączonym snapshocie cen, więc ich koszt zapisuje się jako wyceniony częściowo.
 
 Przed ustawieniem regionalnych endpointów zaktualizuj wszystkie procesy API i workerów. Starsze wersje ignorują nadpisanie endpointu OpenRouter.
 

@@ -5,6 +5,7 @@ profile ids; everything below deals in ciphertext.
 """
 
 import logging
+from collections.abc import Mapping
 from dataclasses import replace
 from urllib.parse import urlparse
 from uuid import UUID
@@ -150,18 +151,30 @@ def is_sign_in(profile: ModelProfile) -> bool:
     return provider is not None and provider.secret_kind is SecretKind.OPENAI_CODEX
 
 
-def choosable_for_others(profile: ModelProfile) -> bool:
+def choosable_for_others(profile: ModelProfile, profiles: Mapping[UUID, ModelProfile]) -> bool:
     """Whether the platform may put this profile in an agent nobody chose it for.
 
-    `usable_for_agents`, and not a ChatGPT sign-in: that is one person's
-    subscription. A run on it spends it when the person who started the run may
-    see the sign-in in the vault - its owner, anybody it is shared with, and the
-    organization's owners and admins - and is refused otherwise (`_may_spend`). The one rule for every model
-    the platform picks rather than an author: a new agent's only model (#2483)
-    and the organization assistant's publish (#2535). An author may still pick
-    a sign-in deliberately and publish it themselves.
+    `usable_for_agents`, and no run on it can reach a ChatGPT sign-in, one
+    person's subscription: the profile is not one (#2535), and neither is any
+    of its first `MAX_FALLBACK_DEPTH` fallbacks, all a run tries
+    (`ModelProfileService.resolve`, #2545). A run on a sign-in spends it when
+    the person who started the run may see it in the vault - its owner, anybody
+    it is shared with, and the organization's owners and admins - and is refused
+    otherwise (`_may_spend`). `profiles` is the organization's own, by id, so an
+    id from elsewhere or one since deleted is not a fallback: the run skips both.
+
+    The one rule for every model the platform picks rather than an author: a new
+    agent's only model (#2483) and the organization assistant's publish. An
+    author may still pick such a model deliberately and publish it themselves.
     """
-    return usable_for_agents(profile) and not is_sign_in(profile)
+    return (
+        usable_for_agents(profile)
+        and not is_sign_in(profile)
+        and not any(
+            (fallback := profiles.get(UUID(fallback_id))) is not None and is_sign_in(fallback)
+            for fallback_id in profile.fallback_profile_ids[:MAX_FALLBACK_DEPTH]
+        )
+    )
 
 
 async def _checked_endpoint(spec: ProviderSpec, base_url: str) -> str:
