@@ -187,6 +187,12 @@ operation is in flight, the tray says an agent is working on this computer.
 
 The server checks the sign-in before forwarding each local operation. Revoked or expired sessions refuse new work; the heartbeat also closes idle connections. Operations already in progress are cancelled when the desktop socket closes.
 
+In the Builder, **Sandbox → Computer** stores `backend: local` with no path or
+native consent. Each person approves their own target in desktop chat. Without a
+selection, the run asks for it instead of opening a cloud sandbox. When creating a
+project, **Project sandbox → Computer · your files** opens the personal folder
+selector; other members keep the project’s shared workspace.
+
 **Whole computer.** Desktop chat also offers **Whole computer** without a folder
 picker. One native warning grants access for this conversation: file tools can reach
 absolute paths anywhere your account can access and commands run as you, without

@@ -963,7 +963,10 @@
     "openRouterEndpointHint": "Leer lassen für die globale OpenRouter-API oder eine regionale URL wie https://eu.openrouter.ai/api/v1 eingeben. EU-Routing erfordert einen passenden OpenRouter-Tarif; ZDR wird separat bei OpenRouter konfiguriert.",
     "defaultEndpoint": "Standard-API",
     "addSeparateModel": "Separates Modell hinzufügen",
-    "separateEndpointHint": "Speichern Sie diesen Endpunkt als separates Modell, damit andere Agenten ihr bisheriges Profil behalten. „Modell aktualisieren“ ändert das gemeinsame Profil überall, wo es verwendet wird."
+    "separateEndpointHint": "Speichern Sie diesen Endpunkt als separates Modell, damit andere Agenten ihr bisheriges Profil behalten. „Modell aktualisieren“ ändert das gemeinsame Profil überall, wo es verwendet wird.",
+    "backendComputerLabel": "Computer",
+    "backendComputerDetail": "Den Computer der Person nutzen, separat im Desktop-Chat erlaubt.",
+    "backendComputerConsent": "Jede Person wählt einen Ordner oder Gesamter Computer in den Chat-Einstellungen. Diese Einstellung gewährt keinen Zugriff und speichert keinen persönlichen Pfad. Dieser Workspace benötigt die Desktop-App."
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -7871,8 +7874,8 @@
       "example1": "Eine Tabelle bereinigen und das Ergebnis zurückgeben",
       "example2": "Ein Skript schreiben, ausführen und korrigieren, bis es läuft",
       "example3": "Einen Berichtsentwurf über mehrere Tage fortschreiben",
-      "needs": "Eine Sandbox. Ein Standard-Deployment richtet sie selbst ein; sonst fügt ein Administrator sie unter Sandboxes hinzu.",
-      "never": "Erreicht nie Ihren Computer oder andere Systeme des Unternehmens. Dateien ändern und Befehle ausführen warten auf die Freigabe durch einen Menschen, außer Sie ändern das."
+      "needs": "Ein Dateispeicher, eine registrierte Sandbox oder ein gekoppelter, im Chat erlaubter Computer.",
+      "never": "Erreicht Ihren Computer erst nach Auswahl und Zustimmung in der Desktop-App. Dateiänderungen und Befehle folgen den Freigaberegeln des Agents und dem gewählten nativen Zugriffsmodus."
     },
     "skills": {
       "name": "Skills",
@@ -8806,7 +8809,9 @@
       "progress": "{copied} von {total} Dateien kopiert",
       "paused": "Vorhandene Dateien bleiben lesbar. Neue Läufe und Änderungen sind nach Abschluss wieder möglich.",
       "moveFailed": "Die Übertragung wurde nicht abgeschlossen. Der bisherige Arbeitsbereich bleibt ausgewählt. Versuchen Sie es erneut.",
-      "moved": "Dateien geprüft und neuer Arbeitsbereich aktiviert."
+      "moved": "Dateien geprüft und neuer Arbeitsbereich aktiviert.",
+      "computer": "Computer · Ihre Dateien",
+      "computerHint": "Einen Ordner auf diesem Computer für Ihre Chats verwenden. Das ist Ihre persönliche Wahl; andere Projektmitglieder nutzen weiter den gemeinsamen Workspace."
     }
   },
   "voiceGlow": {

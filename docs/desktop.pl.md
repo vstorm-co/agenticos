@@ -1,5 +1,5 @@
 ---
-source_sha: "7bc5ea5e3adf"
+source_sha: "016e4a5eac3c"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -143,7 +143,7 @@ o Nagrywanie ekranu, które działa po restarcie.
 
 ## Praca na tym komputerze { #work-on-this-computer }
 
-Jedyna rzecz, której przeglądarka nie potrafi: czat, którego agent ma sandbox,
+Jedyna rzecz, której przeglądarka nie potrafi: czat desktopowy
 może pracować w folderze na komputerze, na którym działa aplikacja, zamiast w
 chmurze. Narzędzia agenta do plików i powłoki - listowanie, czytanie, zapis,
 edycja, uruchamianie - sięgają tego folderu przez aplikację.
@@ -194,6 +194,12 @@ która zastanie aplikację rozłączoną w trakcie runa - zamknięta klapa, zmia
 operacja runa jest w toku, zasobnik mówi, że agent pracuje na tym komputerze.
 
 Serwer sprawdza sesję przed przekazaniem każdej lokalnej operacji. Odwołana lub wygasła sesja odmawia nowej pracy; heartbeat zamyka też bezczynne połączenia. Operacje już w toku są anulowane po zamknięciu połączenia desktopu.
+
+W Builderze **Sandbox → Komputer** zapisuje `backend: local`, bez ścieżki i
+natywnej zgody. Każda osoba zatwierdza własne miejsce pracy w czacie desktopowym.
+Bez wyboru uruchomienie prosi o niego zamiast otwierać sandbox w chmurze. Przy
+tworzeniu projektu **Sandbox projektu → Komputer · Twoje pliki** otwiera wybór
+prywatnego folderu; inni członkowie zachowują wspólny obszar projektu.
 
 **Cały komputer.** Czat desktopowy oferuje też **Cały komputer**, bez wyboru
 folderu. Jedno natywne ostrzeżenie zatwierdza dostęp dla tej rozmowy: narzędzia

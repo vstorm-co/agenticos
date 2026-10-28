@@ -1,5 +1,5 @@
 ---
-source_sha: "7bc5ea5e3adf"
+source_sha: "016e4a5eac3c"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -198,6 +198,12 @@ una operación de un run está en curso, la bandeja dice que un agent trabaja en
 ordenador.
 
 El servidor comprueba la sesión antes de reenviar cada operación local. Las sesiones revocadas o caducadas rechazan trabajo nuevo; el heartbeat también cierra conexiones inactivas. Las operaciones en curso se cancelan al cerrar el socket del escritorio.
+
+En el Builder, **Sandbox → Computer** guarda `backend: local` sin rutas ni
+consentimiento nativo. Cada persona autoriza su propio destino en el chat de
+escritorio. Sin selección, la ejecución la solicita en lugar de abrir una sandbox
+en la nube. Al crear un proyecto, **Project sandbox → Computer · your files** abre
+el selector de carpeta personal; los demás miembros conservan el espacio compartido.
 
 **Todo el equipo.** El chat de escritorio ofrece **Todo el equipo** sin
 selector de carpetas. Una advertencia nativa autoriza el acceso para esta conversación:

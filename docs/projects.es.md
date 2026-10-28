@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "2c827331be86"
+source_sha: "20fad851d8d5"
 ---
 
 # Proyectos { #projects }
@@ -150,6 +150,11 @@ Fuente y Vista previa, como las de un agent en el Agent Builder, encima del
 nombre, la descripción y el agent por defecto del proyecto.
 
 ## Carpetas locales en la aplicación de escritorio { #local-folders-in-the-desktop-app }
+
+Al crear un proyecto de escritorio, elige **Project sandbox → Computer · your files**
+y autoriza una carpeta. El proyecto solo se puede crear después de esta selección
+nativa. El espacio compartido sigue disponible para otros miembros; esta elección
+es personal.
 
 En **Nuevo proyecto** o en la pestaña **Archivos** de un proyecto, elige
 **Conectar una carpeta**. El selector nativo confirma el acceso; inicialmente es

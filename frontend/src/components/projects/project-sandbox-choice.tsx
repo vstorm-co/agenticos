@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useProject } from "@/hooks/use-projects";
 import { useQuery } from "@tanstack/react-query";
-import { Cloud, Folder, Server } from "lucide-react";
+import { Cloud, Folder, Server, Laptop } from "lucide-react";
 import { useTranslations } from "next-intl";
 import {
   Button,
@@ -25,6 +25,11 @@ import { listSandboxConnections } from "@/lib/sandbox-connections-api";
 import { qk } from "@/lib/query-keys";
 import { Perm } from "@/types/permissions";
 import type { Project } from "@/types/projects";
+import type { LocalTarget } from "@/lib/desktop/commands";
+import { ProjectFolderChoice } from "./project-folder-choice";
+import { useProjectFolder } from "@/hooks/use-project-folder";
+import { useShell } from "@/hooks/use-shell";
+import { isDesktopShell } from "@/lib/desktop/shell";
 
 export function ProjectSandboxChoice({
   value,
@@ -32,12 +37,18 @@ export function ProjectSandboxChoice({
   enabled,
   error,
   allowAutomatic = true,
+  computer,
 }: {
   value: string;
   onChange: (value: string) => void;
   enabled: boolean;
   error?: string;
   allowAutomatic?: boolean;
+  computer?: {
+    target: LocalTarget | null;
+    onChange: (target: LocalTarget | null) => void;
+    disabled?: boolean;
+  };
 }) {
   const t = useTranslations("projects.sandbox");
   const { can } = usePermissions();
@@ -69,6 +80,14 @@ export function ProjectSandboxChoice({
                 </span>
               </SelectItem>
             )}
+            {computer && (
+              <SelectItem value="computer">
+                <span className="flex items-center gap-2">
+                  <Laptop className="h-4 w-4" aria-hidden />
+                  {t("computer")}
+                </span>
+              </SelectItem>
+            )}
             {connections.map((connection) => (
               <SelectItem key={connection.id} value={connection.id}>
                 <span className="flex items-center gap-2">
@@ -91,9 +110,21 @@ export function ProjectSandboxChoice({
         </Select>
       </FormField>
       <p className="text-muted-foreground text-xs leading-relaxed">
-        {value === "state" ? t("storedHint") : t("sharedHint")}
+        {value === "computer"
+          ? t("computerHint")
+          : value === "state"
+            ? t("storedHint")
+            : t("sharedHint")}
       </p>
-      <ProjectSandboxExplanation />
+      {value === "computer" && computer ? (
+        <ProjectFolderChoice
+          value={computer.target}
+          onChange={computer.onChange}
+          disabled={computer.disabled}
+        />
+      ) : (
+        <ProjectSandboxExplanation />
+      )}
       {isError && (
         <p role="alert" className="text-destructive text-xs">
           {t("failed")}
@@ -106,15 +137,22 @@ export function ProjectSandboxChoice({
 export function ProjectSandboxSummary({ project }: { project: Project }) {
   const t = useTranslations("projects.sandbox");
   const { moveWorkspace } = useProject(project.id);
+  const local = useProjectFolder(project.id);
+  const shell = useShell();
+  const native = isDesktopShell(shell) && local.available;
   const [changing, setChanging] = useState(false);
   const [target, setTarget] = useState(
-    project.backend === "state" ? "state" : (project.sandbox_connection_id ?? ""),
+    native && local.target
+      ? "computer"
+      : project.backend === "state"
+        ? "state"
+        : (project.sandbox_connection_id ?? ""),
   );
   const [confirm, setConfirm] = useState(false);
   const transfer = project.workspace_move;
   const moving = transfer?.status === "queued" || transfer?.status === "running";
   const stored = project.backend === "state";
-  const Icon = stored ? Folder : Server;
+  const Icon = native && local.target ? Laptop : stored ? Folder : Server;
   return (
     <Card data-tour="project-workspace">
       <CardHeader>
@@ -128,10 +166,18 @@ export function ProjectSandboxSummary({ project }: { project: Project }) {
           </span>
           <div className="min-w-0 space-y-1">
             <p className="truncate text-sm font-medium">
-              {stored ? t("stored") : (project.sandbox_connection_name ?? t("configured"))}
+              {native && local.target
+                ? t("computer")
+                : stored
+                  ? t("stored")
+                  : (project.sandbox_connection_name ?? t("configured"))}
             </p>
             <p className="text-muted-foreground text-xs leading-relaxed">
-              {stored ? t("storedHint") : t("containerHint")}
+              {native && local.target
+                ? t("computerHint")
+                : stored
+                  ? t("storedHint")
+                  : t("containerHint")}
             </p>
             {!stored && project.runtime && (
               <p className="text-muted-foreground font-mono text-xs">{project.runtime}</p>
@@ -162,7 +208,10 @@ export function ProjectSandboxSummary({ project }: { project: Project }) {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setChanging(!changing)}
+            onClick={() => {
+              setChanging(!changing);
+              if (!changing && native && local.target) setTarget("computer");
+            }}
             aria-expanded={changing}
           >
             {t("change")}
@@ -172,22 +221,34 @@ export function ProjectSandboxSummary({ project }: { project: Project }) {
           <div className="space-y-3 border-t pt-4">
             <ProjectSandboxChoice
               value={target}
-              onChange={setTarget}
+              onChange={(next) => {
+                setTarget(next);
+                if (next !== "computer" && local.target) local.bind(project.id, null);
+              }}
+              computer={
+                native
+                  ? { target: local.target, onChange: (folder) => local.bind(project.id, folder) }
+                  : undefined
+              }
               enabled
               allowAutomatic={false}
             />
-            <p className="text-muted-foreground text-xs leading-relaxed">{t("transferHint")}</p>
-            <Button
-              variant="outline"
-              disabled={
-                !target ||
-                moveWorkspace.isPending ||
-                target === (stored ? "state" : project.sandbox_connection_id)
-              }
-              onClick={() => setConfirm(true)}
-            >
-              {t("move")}
-            </Button>
+            {target !== "computer" && (
+              <>
+                <p className="text-muted-foreground text-xs leading-relaxed">{t("transferHint")}</p>
+                <Button
+                  variant="outline"
+                  disabled={
+                    !target ||
+                    moveWorkspace.isPending ||
+                    target === (stored ? "state" : project.sandbox_connection_id)
+                  }
+                  onClick={() => setConfirm(true)}
+                >
+                  {t("move")}
+                </Button>
+              </>
+            )}
           </div>
         )}
         <ConfirmDialog

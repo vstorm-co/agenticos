@@ -29,7 +29,6 @@ import { cn } from "@/lib/utils";
 import type { Project } from "@/types/projects";
 import { ProjectSandboxChoice } from "./project-sandbox-choice";
 import { DefaultAgentSelect } from "./default-agent-select";
-import { ProjectFolderChoice } from "./project-folder-choice";
 import { useProjectFolder } from "@/hooks/use-project-folder";
 import { useShell } from "@/hooks/use-shell";
 import { isDesktopShell } from "@/lib/desktop/shell";
@@ -74,7 +73,7 @@ export function CreateProjectDialog({
         description: description.trim() || null,
         instructions,
         default_agent_id: agentId,
-        ...(sandbox === "auto"
+        ...(sandbox === "auto" || sandbox === "computer"
           ? {}
           : sandbox === "state"
             ? { backend: "state" as const }
@@ -162,16 +161,17 @@ export function CreateProjectDialog({
               maxLength={20000}
             />
           </FormField>
-          {isDesktopShell(shell) && folder.available && (
-            <ProjectFolderChoice
-              value={localFolder}
-              onChange={setLocalFolder}
-              disabled={create.isPending}
-            />
-          )}
           <ProjectSandboxChoice
             value={sandbox}
-            onChange={setSandbox}
+            onChange={(next) => {
+              setSandbox(next);
+              if (next !== "computer") setLocalFolder(null);
+            }}
+            computer={
+              isDesktopShell(shell) && folder.available
+                ? { target: localFolder, onChange: setLocalFolder, disabled: create.isPending }
+                : undefined
+            }
             enabled={open}
             error={errors.sandbox_connection_id}
           />
@@ -185,7 +185,12 @@ export function CreateProjectDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("cancel")}
           </Button>
-          <Button onClick={handleCreate} disabled={!name.trim() || create.isPending}>
+          <Button
+            onClick={handleCreate}
+            disabled={
+              !name.trim() || create.isPending || (sandbox === "computer" && localFolder === null)
+            }
+          >
             {t("create")}
           </Button>
         </DialogFooter>

@@ -963,7 +963,10 @@
     "openRouterEndpointHint": "Leave empty for the global OpenRouter API, or enter a regional URL such as https://eu.openrouter.ai/api/v1. EU routing requires an eligible OpenRouter plan; ZDR is configured separately on OpenRouter.",
     "defaultEndpoint": "Default API",
     "addSeparateModel": "Add separate model",
-    "separateEndpointHint": "Save this endpoint as a separate model to keep the current profile for other agents. “Update model” changes the shared profile wherever it is used."
+    "separateEndpointHint": "Save this endpoint as a separate model to keep the current profile for other agents. “Update model” changes the shared profile wherever it is used.",
+    "backendComputerLabel": "Computer",
+    "backendComputerDetail": "Use the person’s computer, approved separately in each desktop chat.",
+    "backendComputerConsent": "Each person chooses a folder or Whole computer in chat settings. This setting grants no access and stores no personal path. A hosted chat must use the desktop app for this workspace."
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -7992,8 +7995,8 @@
       "example1": "Clean up a spreadsheet and hand back the result",
       "example2": "Write a script, run it and fix it until it works",
       "example3": "Keep a draft report it updates over several days",
-      "needs": "A sandbox. A standard deployment sets one up on its own; otherwise an administrator adds one under Sandboxes.",
-      "never": "Never reaches your computer or other company systems. Changing files and running commands wait for a person's approval, unless you change that."
+      "needs": "A stored workspace, a registered sandbox connection, or a paired desktop computer approved in chat.",
+      "never": "Reaches your computer only after you choose and approve it in the desktop app. File changes and commands follow the agent’s approval rules, plus the chosen native access mode."
     },
     "skills": {
       "name": "Skills",
@@ -8927,7 +8930,9 @@
       "progress": "{copied} of {total} files copied",
       "paused": "You can read existing files. New runs and file changes resume when the transfer finishes.",
       "moveFailed": "The transfer did not finish. The previous workspace is still selected. You can try again.",
-      "moved": "Files verified and the new workspace activated."
+      "moved": "Files verified and the new workspace activated.",
+      "computer": "Computer · your files",
+      "computerHint": "Use a folder on this computer for your chats. This is your personal choice; other project members keep using the shared project workspace."
     }
   },
   "voiceGlow": {

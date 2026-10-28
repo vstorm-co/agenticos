@@ -695,6 +695,11 @@ class SandboxWorkspaceService:
             return await self._open_local(
                 ctx, local, conversation_id=identity.conversation_id, on_wait=on_wait
             )
+        if config.backend == "local":
+            raise BadRequestError(
+                message="This agent uses your computer. In desktop chat settings, choose a folder or Whole computer and approve access.",
+                details={"target": "local"},
+            )
         scope = scope_override or config.session_scope
         if scope == "project":
             from app.services.project_workspace_guard import project_for_workspace

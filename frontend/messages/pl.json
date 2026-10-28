@@ -963,7 +963,10 @@
     "openRouterEndpointHint": "Puste pole oznacza globalne API OpenRouter. Możesz podać regionalny URL, np. https://eu.openrouter.ai/api/v1. Routing EU wymaga odpowiedniego planu OpenRouter; ZDR ustawia się osobno w OpenRouter.",
     "defaultEndpoint": "Domyślne API",
     "addSeparateModel": "Dodaj osobny model",
-    "separateEndpointHint": "Zapisz ten endpoint jako osobny model, aby zachować obecny profil dla innych agentów. „Zaktualizuj model” zmienia wspólny profil wszędzie, gdzie jest używany."
+    "separateEndpointHint": "Zapisz ten endpoint jako osobny model, aby zachować obecny profil dla innych agentów. „Zaktualizuj model” zmienia wspólny profil wszędzie, gdzie jest używany.",
+    "backendComputerLabel": "Komputer",
+    "backendComputerDetail": "Używaj komputera użytkownika, zatwierdzanego osobno w czacie desktopowym.",
+    "backendComputerConsent": "Każda osoba wybiera folder lub Cały komputer w ustawieniach czatu. To ustawienie nie przyznaje dostępu i nie zapisuje prywatnej ścieżki. Ten obszar roboczy wymaga aplikacji desktopowej."
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",
@@ -7767,8 +7770,8 @@
       "example1": "Uporządkować arkusz i oddać wynik",
       "example2": "Napisać skrypt, uruchomić go i poprawiać, aż zadziała",
       "example3": "Prowadzić szkic raportu aktualizowany przez kilka dni",
-      "needs": "Sandbox. Standardowe wdrożenie konfiguruje go samo; w innym razie administrator dodaje go w sekcji Sandboxy.",
-      "never": "Nigdy nie sięga do twojego komputera ani innych systemów firmy. Zmiana plików i uruchamianie poleceń czekają na zatwierdzenie przez człowieka, chyba że to zmienisz."
+      "needs": "Obszar plików, zarejestrowany sandbox lub sparowany komputer zatwierdzony w czacie.",
+      "never": "Sięga twojego komputera dopiero po wyborze i zatwierdzeniu w aplikacji desktopowej. Zmiany plików i polecenia podlegają regułom zatwierdzania agenta oraz wybranemu trybowi dostępu."
     },
     "skills": {
       "name": "Skille",
@@ -8712,7 +8715,9 @@
       "progress": "Skopiowano {copied} z {total} plików",
       "paused": "Możesz czytać istniejące pliki. Nowe runy i zmiany plików wrócą po zakończeniu transferu.",
       "moveFailed": "Transfer nie został zakończony. Dotychczasowy warsztat nadal jest wybrany. Możesz spróbować ponownie.",
-      "moved": "Pliki sprawdzone, nowy warsztat aktywny."
+      "moved": "Pliki sprawdzone, nowy warsztat aktywny.",
+      "computer": "Komputer · Twoje pliki",
+      "computerHint": "Używaj folderu na tym komputerze w swoich czatach. To wybór osobisty; inni członkowie projektu nadal korzystają ze wspólnego obszaru roboczego."
     }
   },
   "voiceGlow": {

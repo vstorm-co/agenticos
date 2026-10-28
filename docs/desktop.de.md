@@ -1,5 +1,5 @@
 ---
-source_sha: "7bc5ea5e3adf"
+source_sha: "016e4a5eac3c"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -153,7 +153,7 @@ fragt macOS nach Bildschirmaufnahme, die nach einem Neustart greift.
 
 ## Auf diesem Computer arbeiten { #work-on-this-computer }
 
-Das eine, was ein Browser nicht kann: Ein Chat, dessen Agent eine Sandbox hat,
+Das eine, was ein Browser nicht kann: Ein Desktop-Chat
 kann statt in der Cloud in einem Ordner auf dem Computer arbeiten, auf dem die App
 läuft. Die Datei- und Shell-Werkzeuge des Agents - auflisten, lesen, schreiben,
 bearbeiten, ausführen - erreichen diesen Ordner über die App.
@@ -207,6 +207,12 @@ Sitzung und macht dann weiter. Solange eine Operation eines Runs läuft, sagt de
 Tray, dass ein Agent auf diesem Computer arbeitet.
 
 Der Server prüft die Sitzung vor jeder lokalen Operation. Widerrufene oder abgelaufene Sitzungen verweigern neue Arbeit; der Heartbeat schließt auch inaktive Verbindungen. Laufende Operationen werden beim Schließen der Desktop-Verbindung abgebrochen.
+
+Im Builder speichert **Sandbox → Computer** `backend: local` ohne Pfad oder
+native Zustimmung. Jede Person erlaubt ihr eigenes Ziel im Desktop-Chat. Ohne
+Auswahl bittet der Run darum, statt eine Cloud-Sandbox zu öffnen. Beim Erstellen
+eines Projekts öffnet **Projekt-Sandbox → Computer · Ihre Dateien** die persönliche
+Ordnerauswahl; andere Mitglieder behalten den gemeinsamen Projekt-Workspace.
 
 **Gesamter Computer.** Im Desktop-Chat ist **Gesamter Computer** ohne
 Ordnerauswahl verfügbar. Eine native Warnung erlaubt den Zugriff für dieses Gespräch:

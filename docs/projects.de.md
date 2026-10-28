@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "2c827331be86"
+source_sha: "20fad851d8d5"
 ---
 
 # Projekte { #projects }
@@ -152,6 +152,11 @@ Quelltext und Vorschau bearbeitet, wie die eines Agents im Agent Builder, über
 Name, Beschreibung und Standard-Agent des Projekts.
 
 ## Lokale Ordner in der Desktop-App { #local-folders-in-the-desktop-app }
+
+Beim Erstellen eines Desktop-Projekts wählen Sie **Projekt-Sandbox → Computer · Ihre Dateien**
+und erlauben dann einen Ordner. Erst nach dieser nativen Auswahl kann das Projekt
+erstellt werden. Der gemeinsame Workspace bleibt für andere Mitglieder verfügbar;
+diese Auswahl ist persönlich.
 
 Wählen Sie unter **Neues Projekt** oder im Tab **Dateien** eines Projekts
 **Ordner verbinden**. Der native Dialog bestätigt den Zugriff, anfangs nur lesend.

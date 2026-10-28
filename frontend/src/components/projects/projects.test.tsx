@@ -719,6 +719,9 @@ describe("native project folders", () => {
     const created = vi.fn();
     wrap(<CreateProjectDialog open onOpenChange={vi.fn()} onCreated={created} />);
     await userEvent.type(screen.getByLabelText("Name"), "Local project");
+    await userEvent.click(screen.getByRole("combobox", { name: "Project sandbox" }));
+    await userEvent.click(screen.getByRole("option", { name: "Computer · your files" }));
+    expect(screen.getByRole("button", { name: "Create" })).toBeDisabled();
     await userEvent.click(screen.getByRole("button", { name: "Approve folder" }));
     expect(nativeProject.bind).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "Create" }));

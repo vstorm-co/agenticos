@@ -7,6 +7,27 @@ import { ProjectSandboxChoice, ProjectSandboxSummary } from "./project-sandbox-c
 import { listSandboxConnections } from "@/lib/sandbox-connections-api";
 
 vi.mock("@/lib/sandbox-connections-api", () => ({ listSandboxConnections: vi.fn() }));
+const computer = vi.hoisted(() => ({ enabled: false, bind: vi.fn() }));
+vi.mock("@/hooks/use-shell", () => ({
+  useShell: () =>
+    computer.enabled
+      ? { platform: "macos", window: "main", version: "0.2.0", vibrancy: false }
+      : null,
+}));
+vi.mock("@/hooks/use-project-folder", () => ({
+  useProjectFolder: () => ({ target: null, available: computer.enabled, bind: computer.bind }),
+}));
+vi.mock("./project-folder-choice", () => ({
+  ProjectFolderChoice: ({
+    onChange,
+  }: {
+    onChange: (target: { folder: string; mode: "read_only" }) => void;
+  }) => (
+    <button onClick={() => onChange({ folder: "/approved", mode: "read_only" })}>
+      Approve folder
+    </button>
+  ),
+}));
 const moveWorkspace = { isPending: false, mutateAsync: vi.fn() };
 vi.mock("@/hooks/use-projects", () => ({ useProject: () => ({ moveWorkspace }) }));
 const project = {
@@ -43,6 +64,7 @@ function mount() {
 beforeEach(() => {
   vi.clearAllMocks();
   allowed = true;
+  computer.enabled = false;
   vi.mocked(listSandboxConnections).mockResolvedValue([
     {
       id: "local",
@@ -231,4 +253,28 @@ it("acknowledges a verified activation and refuses moving to the already selecte
   expect(screen.getByRole("status")).toHaveTextContent("new workspace activated");
   await userEvent.click(screen.getByRole("button", { name: "Change sandbox" }));
   expect(screen.getByRole("button", { name: "Move project files" })).toBeDisabled();
+});
+
+it("offers Computer for an existing desktop project without moving shared files", async () => {
+  computer.enabled = true;
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <ProjectSandboxSummary
+        project={{
+          ...project,
+          backend: "state",
+          sandbox_connection_id: null,
+          sandbox_connection_name: null,
+          runtime: null,
+          workspace_move: null,
+        }}
+      />
+    </QueryClientProvider>,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Change sandbox" }));
+  await userEvent.click(screen.getByRole("combobox", { name: "Project sandbox" }));
+  await userEvent.click(screen.getByRole("option", { name: "Computer · your files" }));
+  await userEvent.click(screen.getByRole("button", { name: "Approve folder" }));
+  expect(computer.bind).toHaveBeenCalledWith("p1", { folder: "/approved", mode: "read_only" });
+  expect(moveWorkspace.mutateAsync).not.toHaveBeenCalled();
 });

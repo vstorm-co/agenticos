@@ -236,6 +236,16 @@ async def _sandbox_problems(db: AsyncSession, ctx: AuthContext, spec: AgentSpec)
         return []
 
     problems: list[str] = []
+    if config.backend == "local":
+        if config.connection_id is not None or config.runtime is not None:
+            problems.append(
+                "A local computer has no sandbox connection or container runtime. Clear both fields."
+            )
+        if config.session_scope != "conversation":
+            problems.append(
+                "Local computer access is personal to a conversation. Choose conversation scope."
+            )
+        return problems
     if config.backend == "state":
         if config.runtime is not None:
             problems.append(
@@ -294,7 +304,7 @@ def _coding_agent_problems(spec: AgentSpec) -> list[str]:
     if not any(binding.id == CODING_AGENT_ID and binding.enabled for binding in spec.capabilities):
         return []
     config = sandbox_config(spec)
-    if config is None or config.backend != "service" or not config.include_execute:
+    if config is None or config.backend not in {"service", "local"} or not config.include_execute:
         return [
             "The coding agent runs in the agent's sandbox, so it needs the Sandbox "
             "capability on a sandbox connection with shell commands allowed."

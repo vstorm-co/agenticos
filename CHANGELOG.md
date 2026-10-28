@@ -19,12 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
-### Fixed
-
-- Automatic desktop attachment snapshots no longer ask to run an internal shell command.
-
 
 ### Added
+
+- **Computer** in the Builder’s workspace settings selects a paired desktop without
+  embedding personal paths or permissions in the spec. Project creation offers a
+  personal **Computer** folder alongside shared workspace choices.
+
 
 - Desktop chat can opt into local browser and file tools without changing the agent
   in the Builder. Whole-computer access asks once in a native dialog per conversation,
@@ -338,6 +339,8 @@ Two things are versioned separately from this file and worth knowing about:
   shorter motion without per-word blur.
 
 ### Fixed
+
+- Automatic desktop attachment snapshots no longer ask to run an internal shell command.
 
 - Preserve desktop sessions through temporary backend failures and window restarts
   with a shared persistent console profile. Retry session checks on reconnect or

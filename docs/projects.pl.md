@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "2c827331be86"
+source_sha: "20fad851d8d5"
 ---
 
 # Projekty { #projects }
@@ -141,6 +141,10 @@ otworzyć. **Instrukcje** edytuje się w Markdownie, ze Źródłem i Podglądem,
 instrukcje agenta w Agent Builderze, nad nazwą, opisem i domyślnym agentem projektu.
 
 ## Lokalne foldery w aplikacji desktopowej { #local-folders-in-the-desktop-app }
+
+Tworząc projekt w desktopie, wybierz **Sandbox projektu → Komputer · Twoje pliki**,
+a potem zatwierdź folder. Utworzenie projektu wymaga tego natywnego wyboru.
+Wspólny obszar projektu pozostaje dostępny dla innych członków; ten wybór jest osobisty.
 
 W formularzu **Nowy projekt** lub na karcie **Pliki** istniejącego projektu wybierz
 **Podłącz folder**. Natywne okno potwierdza dostęp; początkowo tylko do odczytu.
