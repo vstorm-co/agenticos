@@ -278,10 +278,10 @@ describe("the detail page's way into Improve", () => {
     allowed = new Set([Perm.runsView]);
     await mount();
     const improve = await screen.findByRole("button", { name: "Improve" });
-    expect(improve).not.toHaveClass("bg-primary");
+    expect(improve).not.toHaveClass("bg-action");
     expect(improve.querySelector("svg.lucide-trending-up")).toBeInTheDocument();
     expect(improve.className).toBe(screen.getByRole("button", { name: "Share" }).className);
-    expect(screen.getByRole("button", { name: "Publish" })).toHaveClass("bg-primary");
+    expect(screen.getByRole("button", { name: "Publish" })).toHaveClass("bg-action");
   });
 
   it("says why when people rated answers down, without taking the lead from Publish", async () => {
@@ -291,9 +291,9 @@ describe("the detail page's way into Improve", () => {
     const improve = await screen.findByRole("button", {
       name: "Needs attention: 7 answers rated down, 1 failed run. Improve this agent",
     });
-    expect(improve).not.toHaveClass("bg-primary");
+    expect(improve).not.toHaveClass("bg-action");
     expect(improve.className).toBe(screen.getByRole("button", { name: "Share" }).className);
-    expect(screen.getByRole("button", { name: "Publish" })).toHaveClass("bg-primary");
+    expect(screen.getByRole("button", { name: "Publish" })).toHaveClass("bg-action");
   });
 
   it("is linked from the agent's knowledge gaps", async () => {

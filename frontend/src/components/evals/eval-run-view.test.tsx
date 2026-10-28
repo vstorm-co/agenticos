@@ -267,7 +267,7 @@ describe("EvalRunView", () => {
         name: /Draft fixes 1 case that failed on v6, every time it was asked: “How long do I have to return it\?” \(2 of 2\)/,
       }),
     ).toBeVisible();
-    expect(screen.getByRole("link", { name: "Publish" }).className).toContain("bg-primary");
+    expect(screen.getByRole("link", { name: "Publish" }).className).toContain("bg-action");
     unmount();
 
     // A case the draft never finished answering is no reason to publish either.
@@ -277,7 +277,7 @@ describe("EvalRunView", () => {
       run: evalRun({ arms: [{ ...draft!, summary: { ...SUMMARY, incomplete: 1 } }, base!] }),
     };
     const unfinished = render(<EvalRunView agentId="agent-1" runId="run-1" />);
-    expect(screen.getByRole("link", { name: "Publish" }).className).not.toContain("bg-primary");
+    expect(screen.getByRole("link", { name: "Publish" }).className).not.toContain("bg-action");
     unfinished.unmount();
 
     // A confirmed regression is a reason not to publish, beside any number of fixes.
@@ -292,7 +292,7 @@ describe("EvalRunView", () => {
     expect(
       screen.getByRole("heading", { name: /Mixed: Draft breaks 3 cases and fixes 1 against v6/ }),
     ).toBeVisible();
-    expect(screen.getByRole("link", { name: "Publish" }).className).not.toContain("bg-primary");
+    expect(screen.getByRole("link", { name: "Publish" }).className).not.toContain("bg-action");
   });
 
   it("says which cases a check left out, and leads back to the suggestions it checked", () => {
@@ -674,7 +674,7 @@ describe("EvalRunView", () => {
         "2 cases of Draft were not graded: “$700 TV, can I return it?” and 1 more. Grade again before deciding.",
       ),
     ).toBeVisible();
-    expect(screen.getByRole("link", { name: "Publish" }).className).not.toContain("bg-primary");
+    expect(screen.getByRole("link", { name: "Publish" }).className).not.toContain("bg-action");
   });
 
   it("says a run is confirming its flips once every first answer is in", () => {

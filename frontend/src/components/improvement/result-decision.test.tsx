@@ -76,7 +76,7 @@ function show(
 }
 
 const primary = (name: string | RegExp) =>
-  expect(screen.getByRole("button", { name })).toHaveClass("bg-primary");
+  expect(screen.getByRole("button", { name })).toHaveClass("bg-action");
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -93,7 +93,7 @@ it("leads with the better attempt and sends the person to accept it", async () =
   primary("Review and accept the changes");
   await userEvent.click(screen.getByRole("button", { name: "Review and accept the changes" }));
   expect(onAccept).toHaveBeenCalledOnce();
-  expect(screen.getByRole("button", { name: "Try again" })).not.toHaveClass("bg-primary");
+  expect(screen.getByRole("button", { name: "Try again" })).not.toHaveClass("bg-action");
 });
 
 it("names a chosen attempt that was not better, and holds Accept while the selection changed", () => {
@@ -116,7 +116,7 @@ it("says no attempt helped and which broke, and leads to the missing topics", ()
   ).toBeInTheDocument();
   const topics = screen.getByRole("link", { name: "Draft the ones you need" });
   expect(topics).toHaveAttribute("href", "#improvement-documents");
-  expect(topics).toHaveClass("bg-primary");
+  expect(topics).toHaveClass("bg-action");
   expect(screen.getByRole("button", { name: "End without changes" })).toHaveClass("border");
   expect(screen.queryByRole("button", { name: /Try again|Improve again/ })).toBeNull();
   expect(screen.getByText("Topic list").parentElement).toHaveAttribute(
@@ -152,7 +152,7 @@ it("makes trying again the primary action while attempts are left", () => {
   expect(screen.getByText(/^The attempt did not make Refund desk better\./)).toBeInTheDocument();
   primary("Try again");
   expect(screen.getByRole("link", { name: "Draft the ones you need" })).not.toHaveClass(
-    "bg-primary",
+    "bg-action",
   );
 });
 

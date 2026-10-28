@@ -336,7 +336,7 @@ it("draws Previous step exactly like Next step, each with its arrow", async () =
   const previous = screen.getByRole("button", { name: "Previous step" });
   const next = screen.getByRole("button", { name: "Next step" });
   expect(previous.className).toBe(next.className);
-  expect(previous).not.toHaveClass("bg-primary");
+  expect(previous).not.toHaveClass("bg-action");
   expect(previous.querySelector("svg.lucide-chevron-left")).toHaveAttribute("aria-hidden", "true");
   expect(next.querySelector("svg.lucide-chevron-right")).toHaveAttribute("aria-hidden", "true");
 });
@@ -674,7 +674,7 @@ it("keeps one row of actions on the result: no Next step beside Accept and Try a
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
   expect(screen.queryByRole("button", { name: "Next step" })).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Review and accept the changes" })).toHaveClass(
-    "bg-primary",
+    "bg-action",
   );
   await userEvent.click(screen.getByRole("button", { name: "Understand" }));
   expect(screen.queryByRole("button", { name: "Previous step" })).not.toBeInTheDocument();
@@ -963,18 +963,16 @@ describe("accepting an attempt", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByLabelText(/Check these questions automatically/)).not.toBeChecked();
-    expect(screen.getByRole("button", { name: "Keep as draft" })).toHaveClass("bg-primary");
-    expect(screen.getByRole("button", { name: "Accept and publish" })).not.toHaveClass(
-      "bg-primary",
-    );
+    expect(screen.getByRole("button", { name: "Keep as draft" })).toHaveClass("bg-action");
+    expect(screen.getByRole("button", { name: "Accept and publish" })).not.toHaveClass("bg-action");
   });
 
   it("leads with publishing and the standing check when the attempt was better", async () => {
     await openAccept();
     expect(screen.queryByText(/with no measured gain/)).toBeNull();
     expect(screen.getByLabelText(/Check these questions automatically/)).toBeChecked();
-    expect(screen.getByRole("button", { name: "Accept and publish" })).toHaveClass("bg-primary");
-    expect(screen.getByRole("button", { name: "Keep as draft" })).not.toHaveClass("bg-primary");
+    expect(screen.getByRole("button", { name: "Accept and publish" })).toHaveClass("bg-action");
+    expect(screen.getByRole("button", { name: "Keep as draft" })).not.toHaveClass("bg-action");
   });
 });
 
