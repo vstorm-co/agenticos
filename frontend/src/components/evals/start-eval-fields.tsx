@@ -1,7 +1,6 @@
 "use client";
 
 import { useId } from "react";
-import { ChevronRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -13,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
+import { MoreOptions } from "@/components/ui/more-options";
 import { useAgentEnvironments } from "@/hooks/use-agent-environments";
 import { cn } from "@/lib/utils";
 import type { Dataset } from "@/types/datasets";
@@ -140,12 +140,8 @@ export function StartEvalFields({
         </Select>
       </div>
 
-      <details className="group border-border rounded-lg border">
-        <summary className="flex cursor-pointer list-none items-center gap-1.5 p-3 text-sm">
-          <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" />
-          {t("advanced")}
-        </summary>
-        <div className="space-y-4 border-t p-3">
+      <MoreOptions label={t("advanced")}>
+        <div className="space-y-4">
           <div className="space-y-1.5">
             <Label>{t("environment")}</Label>
             <Select
@@ -195,7 +191,7 @@ export function StartEvalFields({
             <p className="text-muted-foreground text-xs">{t("rerunsHint")}</p>
           </div>
         </div>
-      </details>
+      </MoreOptions>
     </div>
   );
 }

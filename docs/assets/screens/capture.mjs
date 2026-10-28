@@ -5,6 +5,7 @@
  *     node docs/assets/screens/capture.mjs dashboard chat   # just these
  *     BASE_URL=http://localhost:3000 THEMES=light node docs/assets/screens/capture.mjs
  *     ORG="Northwind Labs" AGENT="Finance Analyst" CHAT="Attached is" node docs/assets/screens/capture.mjs
+ *     ORG="Demo" AGENT="Refund desk" GAPS_AGENT="Refund desk (audit)" node docs/assets/screens/capture.mjs datasets improve-result
  *
  * Signs in as the seeded owner, walks the manifest below and writes
  * `<theme>/<name>.webp` beside this file: a 1600x1000 window at device scale 2,
@@ -14,7 +15,10 @@
  * script works on any deployment. `ORG`, `AGENT` and `CHAT` choose which
  * organization, agent and conversation (by the start of its title) are shown;
  * left out, it is the first organization that is not a personal one, the
- * Claude Code like agent and the newest conversation with an agent in it.
+ * Claude Code like agent and the newest conversation with an agent in it. The
+ * evals screens show that agent's largest dataset, newest eval run and newest
+ * finished Improve session; `GAPS_AGENT` picks the agent whose knowledge gaps
+ * are shown.
  *
  * Playwright and ImageMagick come from the developer's machine, like the README
  * figures beside it.
@@ -40,6 +44,7 @@ const ORG = process.env.ORG;
 const AGENT = process.env.AGENT ?? "Claude Code like";
 const CHAT = process.env.CHAT;
 const HERO_CHAT = process.env.HERO_CHAT ?? "Chart our 2026 MRR";
+const GAPS_AGENT = process.env.GAPS_AGENT;
 
 /** Open a tab of the page by its name. */
 const tab = (name) => async (page) => {
@@ -127,6 +132,30 @@ const SCREENS = [
       await button("Parse options")(page);
     },
   },
+  { name: "datasets", path: "/datasets" },
+  { name: "dataset-cases", path: (ids) => `/datasets/${ids.dataset}` },
+  { name: "dataset-grading", path: (ids) => `/datasets/${ids.dataset}?tab=grading` },
+  { name: "dataset-evals", path: (ids) => `/datasets/${ids.dataset}?tab=evals` },
+  { name: "eval-run", path: (ids) => `/agents/${ids.agent}/evals/${ids.evalRun}` },
+  { name: "agent-evals", path: (ids) => `/agents/${ids.agent}?tab=evals` },
+  { name: "improve-start", path: (ids) => `/agents/${ids.agent}/improve/new` },
+  {
+    name: "improve-understand",
+    path: (ids) => `/agents/${ids.agent}/improve/${ids.improvement}?step=understand`,
+  },
+  { name: "improve-changes", path: (ids) => `/agents/${ids.agent}/improve/${ids.improvement}?step=changes` },
+  { name: "improve-result", path: (ids) => `/agents/${ids.agent}/improve/${ids.improvement}?step=result` },
+  { name: "knowledge-gaps", path: (ids) => `/agents/${ids.gapsAgent}?tab=gaps` },
+  {
+    name: "ai-assistance",
+    path: (ids) => `/orgs/${ids.org}/members?tab=governance`,
+    then: async (page) => {
+      await page
+        .locator("main")
+        .getByRole("heading", { name: "AI assistance", exact: true })
+        .evaluate((element) => element.scrollIntoView({ block: "start" }));
+    },
+  },
   { name: "documents", path: "/documents" },
   { name: "activity", path: "/runs" },
   { name: "run-detail", path: "/runs", then: click("table tbody tr") },
@@ -159,7 +188,11 @@ async function dismissChecklist(page) {
   if (await card.count()) await card.getByRole("button").last().click().catch(() => {});
 }
 
-/** What the routes need from this deployment: the organization, an agent, a conversation, an app. */
+/**
+ * What the routes need from this deployment: the organization, an agent, a
+ * conversation, an app, and the agent's largest dataset, newest eval run and
+ * newest finished Improve session.
+ */
 async function lookUp(page) {
   const orgs = (await (await page.request.get(`${BASE}/api/orgs`)).json()).items;
   const org = orgs.find((item) => (ORG ? item.name === ORG : !item.is_personal)) ?? orgs[0];
@@ -173,7 +206,23 @@ async function lookUp(page) {
     conversations[0];
   const apps = (await get("/apps?limit=1")).items;
   const hero = conversations.find((item) => item.title?.startsWith(HERO_CHAT)) ?? conversation;
-  return { agent: agent?.id, conversation: conversation?.id, hero: hero?.id, org: org.id, app: apps[0]?.id };
+  const datasets = agent ? (await get(`/datasets?agent=${agent.id}&limit=20`)).items : [];
+  datasets.sort((a, b) => b.case_count - a.case_count);
+  const runs = agent ? (await get(`/agents/${agent.id}/eval-runs?skip=0&limit=1`)).items : [];
+  const sessions = agent ? await get(`/agents/${agent.id}/improvements`) : [];
+  const finished = sessions.find((item) => ["published", "accepted"].includes(item.status)) ?? sessions[0];
+  const gapsAgent = agents.find((item) => item.name === GAPS_AGENT) ?? agent;
+  return {
+    agent: agent?.id,
+    conversation: conversation?.id,
+    hero: hero?.id,
+    org: org.id,
+    app: apps[0]?.id,
+    dataset: datasets[0]?.id,
+    evalRun: runs[0]?.id,
+    improvement: finished?.id,
+    gapsAgent: gapsAgent?.id,
+  };
 }
 
 /** The address, in the organization chosen: the console adopts `?org=` on arrival. */

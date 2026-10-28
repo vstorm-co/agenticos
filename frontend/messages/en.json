@@ -8561,11 +8561,11 @@
     "anotherMember": "another member",
     "checkingSource": "Checking source privacy…",
     "improvementSplit": {
-      "share": "Holdout share for new questions (%)",
-      "shareHint": "The split is assigned once per question. This setting affects new questions; existing questions keep their part across edits and versions. Improve needs at least five gradable held-out questions.",
-      "counts": "{train} train · {holdout} holdout",
-      "train": "Train",
-      "holdout": "Holdout",
+      "share": "Share of new questions kept aside (%)",
+      "shareHint": "The split is assigned once per question. This setting affects new questions; existing questions keep their part across edits and versions. Improve needs at least five gradable questions kept aside.",
+      "counts": "{train} help write the changes · {holdout} kept aside",
+      "train": "Helps write the changes",
+      "holdout": "Kept aside",
       "shareInvalid": "Enter a percentage from 0 to 100 in steps of 0.1."
     },
     "lengthRange": "A length check's least is above its most.",
@@ -9984,8 +9984,8 @@
       "corrected": "Corrected by a person",
       "askedOnly": "Showing the one case you opened.",
       "partition": {
-        "train": "Train",
-        "holdout": "Holdout",
+        "train": "Helps write the changes",
+        "holdout": "Kept aside",
         "excluded": "Evidence copy"
       }
     },

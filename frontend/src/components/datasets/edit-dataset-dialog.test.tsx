@@ -111,7 +111,7 @@ describe("EditDatasetDialog", () => {
   it("changes the split only for future questions and refuses invalid percentages", async () => {
     const { mutateAsync } = mount();
     expect(screen.getByText(/existing questions keep their part/)).toBeInTheDocument();
-    const share = screen.getByLabelText("Holdout share for new questions (%)");
+    const share = screen.getByLabelText("Share of new questions kept aside (%)");
     await userEvent.clear(share);
     await userEvent.type(share, "101");
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
