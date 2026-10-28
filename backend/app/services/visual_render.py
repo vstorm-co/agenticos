@@ -171,7 +171,10 @@ async def picture_of_turn(
         if tool in VISUAL_TOOLS and result is not None and result.startswith(visuals.DREW)
     }
     last = next((call_id for call_id, *_ in reversed(called) if call_id in in_turn), None)
-    if last is None or not available():
+    if last is None:
+        return None
+    if not available():
+        logger.warning("visual_reply_renderer_unavailable")
         return None
 
     async def lookup(call_id: str) -> ToolCallArgs | None:

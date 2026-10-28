@@ -240,6 +240,45 @@ class TestTheReplyAChannelTurnBuilds:
     """
 
     @pytest.mark.anyio
+    @pytest.mark.parametrize("path", ["answer", "answer_default"])
+    async def test_a_missing_visual_is_reported_on_both_channel_paths(self, path: str) -> None:
+        async def execute(
+            *args: object, tool_calls: list[RecordedToolCall], **kwargs: object
+        ) -> tuple[str, MagicMock]:
+            tool_calls.append(_call("Drew 'Flow' as visual `v`.", name="draw"))
+            return "The diagram is ready.", MagicMock()
+
+        with (
+            patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.channels.mentions.agent_repo") as agents,
+            patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
+            patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
+            patch(
+                "app.services.channels.mentions.visual_render.picture_of_turn",
+                new=AsyncMock(return_value=None),
+            ),
+        ):
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.MEMBER))
+            agents.get_by_slug = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
+            exposures.get_for_bot = AsyncMock(return_value=MagicMock(is_active=True))
+            exposures.list_active_for_bot = AsyncMock(
+                return_value=[(MagicMock(), MagicMock(id=uuid.uuid4(), slug="support"))]
+            )
+            runner_cls.return_value.execute = AsyncMock(side_effect=execute)
+            router = ChannelAgentRouter(MagicMock())
+            answer = router.answer if path == "answer" else router.answer_default
+            answered = await answer(
+                "@support draw a diagram" if path == "answer" else "draw a diagram",
+                platform="mattermost",
+                organization_id=uuid.uuid4(),
+                bot_id=uuid.uuid4(),
+                user_id=uuid.uuid4(),
+            )
+        assert answered.image_png is None
+        assert len(answered.refused) == 1
+        assert "could not be attached" in answered.refused[0]
+
+    @pytest.mark.anyio
     async def test_a_mention_that_drew_a_chart_answers_with_the_picture(self):
         with (
             patch("app.services.channels.mentions.member_repo") as members,
@@ -342,6 +381,30 @@ class TestTheReplyAChannelTurnBuilds:
 
 class TestTheTurnsPicture:
     """A reply carries one picture: the last a turn made, chart or visual."""
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("fallback", [False, True])
+    async def test_a_visual_without_a_picture_explains_the_missing_attachment(
+        self, fallback: bool
+    ) -> None:
+        from app.services.channels.mentions import drawn_picture
+
+        refused: list[str] = []
+        calls = [_call(_spec().model_dump_json())] if fallback else []
+        calls.append(_call("Drew 'Flow' as visual `v`.", name="draw"))
+        with patch(
+            "app.services.channels.mentions.visual_render.picture_of_turn",
+            new=AsyncMock(return_value=None),
+        ):
+            png = await drawn_picture(
+                calls,
+                organization_id=uuid.uuid4(),
+                conversation_id=None,
+                refused=refused,
+            )
+        assert (png is not None) is fallback
+        assert len(refused) == 1
+        assert "could not be attached" in refused[0]
 
     @pytest.mark.anyio
     async def test_a_visual_that_failed_leaves_the_chart_before_it_as_the_picture(self) -> None:

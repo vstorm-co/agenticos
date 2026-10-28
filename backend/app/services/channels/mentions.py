@@ -124,12 +124,17 @@ def drawn_chart(called: list[RecordedToolCall]) -> bytes | None:
 
 
 async def drawn_picture(
-    called: list[RecordedToolCall], *, organization_id: UUID, conversation_id: UUID | None
+    called: list[RecordedToolCall],
+    *,
+    organization_id: UUID,
+    conversation_id: UUID | None,
+    refused: list[str] | None = None,
 ) -> bytes | None:
     """The last picture this turn made: a chart, or a visual the deployment's browser drew.
 
     A reply carries one image, so it is the *last* of either kind. A visual with
-    no browser to draw it with gives none, and the answer goes without it.
+    no browser to draw it with gives none, and records a delivery notice in
+    `refused` so the channel does not silently confirm a missing picture.
     """
     for call in reversed(called):
         if call.result is None:
@@ -146,6 +151,14 @@ async def drawn_picture(
             )
             if picture is not None:
                 return picture
+            if refused is not None:
+                refused.append(
+                    "The visual could not be attached to this reply. It is saved in the "
+                    "conversation in AgenticOS. Ask the deployment operator to check the "
+                    "visual renderer."
+                )
+                # One failed render already covered all this turn's visuals.
+                refused = None
     return None
 
 
@@ -435,7 +448,10 @@ class ChannelAgentRouter:
             attachments=produced,
             refused=refused,
             image_png=await drawn_picture(
-                called, organization_id=run.organization_id, conversation_id=run.conversation_id
+                called,
+                organization_id=run.organization_id,
+                conversation_id=run.conversation_id,
+                refused=refused,
             ),
             awaiting_approval_run_id=(
                 run.id if run.status == RunStatus.AWAITING_APPROVAL else None
@@ -549,7 +565,10 @@ class ChannelAgentRouter:
             attachments=produced,
             refused=refused,
             image_png=await drawn_picture(
-                called, organization_id=run.organization_id, conversation_id=run.conversation_id
+                called,
+                organization_id=run.organization_id,
+                conversation_id=run.conversation_id,
+                refused=refused,
             ),
             awaiting_approval_run_id=(
                 run.id if run.status == RunStatus.AWAITING_APPROVAL else None

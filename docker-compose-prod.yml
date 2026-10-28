@@ -116,6 +116,7 @@ services:
       --ws websockets-sansio
     networks:
       data:
+      visuals:
       edge:
         aliases:
           - backend
@@ -283,6 +284,7 @@ services:
     networks:
       - data
       - edge
+      - visuals
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -398,7 +400,27 @@ services:
       - data
     restart: unless-stopped
 
+  # Enabled by scripts/deploy.sh when VISUAL_RENDER_CDP_URL names this service.
+  # Isolated from the internet, the proxy and data services. The renderer serves
+  # the drawing and its libraries through CDP; Chromium needs no outbound route.
+  visual-render:
+    logging: *logging
+    image: ghcr.io/vstorm-co/agenticos-browser:${AGENTICOS_VERSION:-latest}
+    profiles: [visuals]
+    shm_size: 512mb
+    networks:
+      - visuals
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+
 networks:
+  visuals:
+    driver: bridge
+    internal: true
   # Named so `docker-compose-prod.frontend.yml`, a project of its own, can join
   # `edge` as an external network. Two stacks on one host set
   # AGENTICOS_DATA_NETWORK and AGENTICOS_EDGE_NETWORK apart in backend/.env -

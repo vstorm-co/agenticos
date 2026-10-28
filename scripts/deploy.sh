@@ -113,6 +113,13 @@ if [ -n "$(env_value SANDBOXD_TOKEN)" ]; then
   export DOCKER_GID
 fi
 
+# Keep the isolated visual renderer running across deploys, like the sandbox.
+case "$(env_value VISUAL_RENDER_CDP_URL)" in
+  http://visual-render:9222|http://visual-render:9222/)
+    PROFILES+=(--profile visuals)
+    ;;
+esac
+
 say "Fetching $SHA"
 git fetch --prune --quiet origin
 git checkout --quiet --detach "$SHA"
