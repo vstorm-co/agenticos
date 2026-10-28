@@ -120,7 +120,9 @@ export function ChatControls({
         >
           <FolderOpen className="h-3.5 w-3.5 shrink-0" aria-hidden />
           <span className="max-w-28 truncate">
-            {target.folder.split(/[\\/]/).filter(Boolean).at(-1) ?? target.folder}
+            {target.computer_grant
+              ? tWork("wholeComputer")
+              : (target.folder.split(/[\\/]/).filter(Boolean).at(-1) ?? target.folder)}
           </span>
           <span className="hidden shrink-0 xl:inline">{tWork(`mode.${target.mode}`)}</span>
         </button>

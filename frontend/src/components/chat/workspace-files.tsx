@@ -78,7 +78,8 @@ export function WorkspaceFiles({
   // only the desktop app can list (#2305); everywhere else it is the server's.
   const shell = useShell();
   const target = useWorkOnStore((state) => state.targetFor(conversationId));
-  const localRoot = isDesktopShell(shell) && target !== null ? target.folder : null;
+  const localRoot =
+    isDesktopShell(shell) && target !== null && !target.computer_grant ? target.folder : null;
   const cloud = useConversationWorkspace(localRoot === null ? conversationId : null);
   const local = useLocalWorkspace(
     localRoot,

@@ -1,5 +1,5 @@
 ---
-source_sha: "5d41b58425a4"
+source_sha: "7bc5ea5e3adf"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -195,6 +195,21 @@ operacja runa jest w toku, zasobnik mówi, że agent pracuje na tym komputerze.
 
 Serwer sprawdza sesję przed przekazaniem każdej lokalnej operacji. Odwołana lub wygasła sesja odmawia nowej pracy; heartbeat zamyka też bezczynne połączenia. Operacje już w toku są anulowane po zamknięciu połączenia desktopu.
 
+**Cały komputer.** Czat desktopowy oferuje też **Cały komputer**, bez wyboru
+folderu. Jedno natywne ostrzeżenie zatwierdza dostęp dla tej rozmowy: narzędzia
+plików mogą korzystać ze ścieżek bezwzględnych wszędzie, gdzie sięga twoje konto,
+a polecenia działają jako ty, bez osobnych natywnych potwierdzeń. Uprawnienia systemu
+i reguły zatwierdzania agenta nadal obowiązują. **Cofnij dostęp do całego komputera**
+lub wybór **Chmura** blokuje nowe operacje; działające polecenia nie są przerywane.
+Zgoda przetrwa restart aplikacji i dotyczy tego serwera oraz rozmowy; nowy szkic
+wiąże ją przy pierwszej operacji. Nowy czat wymaga własnej zgody. Ten tryb nie
+przeszukuje katalogu domowego ani nie zbiera automatycznie załączników.
+
+Lokalna przeglądarka i narzędzia plików są dostępne w czacie desktopowym także bez
+funkcji Browser lub Sandbox w agencie. Wybór dodaje funkcję tylko do uruchomienia,
+zachowuje ograniczenia domen i reguły zatwierdzania oraz nie zmienia opublikowanego
+agenta. Wewnętrzne migawki załączników używają list plików zamiast poleceń powłoki.
+
 ## Ekran { #the-screen }
 
 [Computer use](reference/capabilities.md) może sterować ekranem tego komputera. W
@@ -264,11 +279,9 @@ ktoś to zmienił - i co do własnego publicznego adresu.
   oknie, bo przepływ OAuth - podłączanie serwera MCP - musi wrócić do tego samego
   webview, żeby jego ciasteczko trafiło na miejsce. Tytuł okna nazywa każdy inny
   host, który pokazuje.
-- **Brak lokalnego runa bez sandboxa.** Praca na tym komputerze zmienia miejsce,
-  gdzie działają narzędzia sandboxa agenta; agent bez sandboxa nie ma takich
-  narzędzi do przeniesienia.
+
 - **Brak stałego dostępu.** Połączenie komputera samo niczego nie daje: run sięga
-  tylko wybranych przez ciebie folderów, w wybranych trybach, a ekranu dopiero po
+  tylko zatwierdzonych folderów lub całego komputera po osobnej zgodzie dla rozmowy, a ekranu dopiero po
   twojej zgodzie.
 
 ## Gdzie to jest w drzewie { #where-it-sits-in-the-tree }
@@ -288,7 +301,8 @@ ktoś to zmienił - i co do własnego publicznego adresu.
 Po sparowaniu aplikacji wybierz **Przeglądarka → Lokalna przeglądarka**, aby
 nadpisać ustawienie agenta dla tej rozmowy. Ten wybór jest niezależny od **Pracuj na**:
 nie wymaga folderu ani funkcji Sandbox i zachowuje sandbox agenta w chmurze. Lokalne
-modele i usługi MCP nadal wymagają zatwierdzonego folderu i sandboxa. Aplikacja telefonu
+modele i usługi MCP wymagają zatwierdzonego folderu lub dostępu do całego komputera;
+run otrzymuje własną funkcję Sandbox. Aplikacja telefonu
 nie wywołuje komend desktopowych.
 
 Usługi dodaje się w **Ustawienia → Aplikacja desktopowa → Usługi lokalne**. Każde

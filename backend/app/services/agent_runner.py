@@ -1612,6 +1612,27 @@ async def _with_exposure_prompt(
     return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{added}"})
 
 
+def _with_local_capabilities(spec: AgentSpec, local: LocalTarget | None) -> AgentSpec:
+    """Opt-in tools for this run, retaining the author's limits and approval gates."""
+    if local is None:
+        return spec
+    requested: dict[str, dict[str, object]] = {}
+    if local.folder is not None:
+        requested[SANDBOX_CAPABILITY_ID] = {}
+    if local.browser:
+        requested[BROWSER_CAPABILITY_ID] = {"connection": "local"}
+    bindings = list(spec.capabilities)
+    for capability_id, config in requested.items():
+        own = next((entry for entry in bindings if entry.id == capability_id), None)
+        binding = (
+            own.model_copy(update={"enabled": True, "config": {**own.config, **config}})
+            if own is not None
+            else CapabilityBindingSpec(id=capability_id, config=config)
+        )
+        bindings = [entry for entry in bindings if entry.id != capability_id] + [binding]
+    return spec.model_copy(update={"capabilities": bindings})
+
+
 def _in_project(spec: AgentSpec, project: Project) -> AgentSpec:
     """The spec as it runs in a project: in the project's container, told about it.
 
@@ -2968,7 +2989,9 @@ class AgentRunnerService:
         that created it - at the run's own agent (agenticos#175) and inside a nested
         delegate (agenticos#254) alike.
         """
-        spec = await self.registry.with_assistant_guidance(agent, spec)
+        spec = _with_local_capabilities(
+            await self.registry.with_assistant_guidance(agent, spec), local
+        )
 
         # Whose ChatGPT sign-in the run's models may run on: the person the run
         # is for. On a resume `ctx` is the approver's, and releasing somebody's

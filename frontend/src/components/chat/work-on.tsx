@@ -13,7 +13,9 @@ import {
 } from "@/hooks/use-desktop";
 import { isDesktopShell } from "@/lib/desktop/shell";
 import { useShell } from "@/hooks/use-shell";
-import type { LocalMode } from "@/lib/desktop/commands";
+import { allowWholeComputer, revokeWholeComputer, type LocalMode } from "@/lib/desktop/commands";
+import { reportShellFailure } from "@/lib/desktop/shell";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useConversationStore } from "@/stores";
@@ -116,6 +118,32 @@ function ComputerWorkOn() {
   const target = useWorkOnStore((store) => store.targetFor(conversationId));
   const setTarget = useWorkOnStore((store) => store.set);
   const onComputer = target !== null;
+  const wholeComputer = target?.computer_grant !== undefined;
+  const fail = (error: Error) => {
+    reportShellFailure("changing computer access", error);
+    toast.error(t("computerFailed"));
+  };
+  const computer = useMutation({
+    mutationFn: async (choice: {
+      conversationId: string | null;
+      linked: boolean;
+      target: LocalTarget | null;
+    }) => {
+      if (!choice.linked && !(await link.mutateAsync()).linked) return null;
+      return allowWholeComputer(choice.conversationId);
+    },
+    onSuccess: (grant, choice) => {
+      if (grant) setTarget(choice.conversationId, { ...choice.target, ...grant });
+    },
+    onError: fail,
+  });
+  const clearComputer = useMutation({
+    mutationFn: async (choice: { conversationId: string | null; target: LocalTarget | null }) => {
+      if (choice.target?.computer_grant) await revokeWholeComputer(choice.target.computer_grant);
+    },
+    onSuccess: (_, choice) => setTarget(choice.conversationId, null),
+    onError: fail,
+  });
 
   const linked = device?.linked === true;
   const grants = state.data?.grants ?? [];
@@ -136,7 +164,10 @@ function ComputerWorkOn() {
         const status = await link.mutateAsync();
         if (!status.linked) return null;
       }
-      return pick.mutateAsync(choice.mode);
+      const grant = await pick.mutateAsync(choice.mode);
+      if (grant && choice.target?.computer_grant)
+        await revokeWholeComputer(choice.target.computer_grant);
+      return grant;
     },
     onSuccess: (grant, choice) => {
       if (grant)
@@ -144,6 +175,7 @@ function ComputerWorkOn() {
           ...choice.target,
           folder: grant.path,
           mode: grant.mode,
+          computer_grant: undefined,
         });
     },
   });
@@ -151,7 +183,8 @@ function ComputerWorkOn() {
     selection.mutate({ mode, linked, conversationId, target });
 
   const chooseCloud = () => {
-    setTarget(conversationId, null);
+    if (wholeComputer) clearComputer.mutate({ conversationId, target });
+    else setTarget(conversationId, null);
   };
 
   const chooseComputer = () => {
@@ -204,12 +237,32 @@ function ComputerWorkOn() {
           </button>
         ))}
       </div>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="mt-2 w-full"
+        disabled={device === undefined || computer.isPending || clearComputer.isPending}
+        onClick={() =>
+          wholeComputer
+            ? clearComputer.mutate({ conversationId, target })
+            : computer.mutate({ conversationId, linked, target })
+        }
+      >
+        <Laptop aria-hidden />
+        {t(wholeComputer ? "revokeComputer" : "wholeComputer")}
+      </Button>
+      {wholeComputer && (
+        <p role="status" className="text-muted-foreground mt-2 text-xs leading-relaxed">
+          {t("computerConsent")}
+        </p>
+      )}
       {!linked && <p className="text-muted-foreground mt-2 text-xs">{t("notLinked")}</p>}
       {linked && device?.connected === false && (
         <p className="text-muted-foreground mt-2 text-xs">{t("offline")}</p>
       )}
 
-      {onComputer && linked && (
+      {onComputer && linked && !wholeComputer && (
         <div className="mt-3 space-y-1">
           {grants.length > 0 && (
             <div role="radiogroup" aria-label={t("folders")} className="space-y-1">

@@ -1,5 +1,5 @@
 ---
-source_sha: "5d41b58425a4"
+source_sha: "7bc5ea5e3adf"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -208,6 +208,22 @@ Tray, dass ein Agent auf diesem Computer arbeitet.
 
 Der Server prüft die Sitzung vor jeder lokalen Operation. Widerrufene oder abgelaufene Sitzungen verweigern neue Arbeit; der Heartbeat schließt auch inaktive Verbindungen. Laufende Operationen werden beim Schließen der Desktop-Verbindung abgebrochen.
 
+**Gesamter Computer.** Im Desktop-Chat ist **Gesamter Computer** ohne
+Ordnerauswahl verfügbar. Eine native Warnung erlaubt den Zugriff für dieses Gespräch:
+Dateiwerkzeuge erreichen absolute Pfade im Rahmen Ihres Kontos; Befehle laufen als
+Sie, ohne einzelne native Bestätigungen. Systemberechtigungen und Freigaberegeln des
+Agents gelten weiterhin. **Zugriff auf den gesamten Computer widerrufen** oder
+**Cloud** blockiert neue Operationen; laufende Befehle werden nicht abgebrochen.
+Die Zustimmung übersteht Neustarts, gilt für diesen Server und dieses Gespräch und
+wird bei einem Entwurf mit der ersten Operation gebunden. Ein neuer Chat braucht
+eine eigene Zustimmung. Dieser Modus durchsucht das Heimatverzeichnis nicht und
+sammelt Dateien nicht automatisch als Anhänge.
+
+Lokale Browser- und Dateiwerkzeuge sind im Desktop-Chat auch ohne Browser- oder
+Sandbox-Bindung des Agents verfügbar. Die Auswahl ergänzt nur diesen Run, erhält
+Domainbeschränkungen und Freigaberegeln und ändert den veröffentlichten Agent nicht.
+Interne Anhang-Snapshots verwenden Dateilisten statt Shell-Befehle.
+
 ## Der Bildschirm { #the-screen }
 
 [Computer Use](reference/capabilities.md) kann den Bildschirm dieses Computers
@@ -285,9 +301,7 @@ seiner eigenen öffentlichen Adresse.
   öffnet sich im Fenster, weil ein OAuth-Ablauf - das Verbinden eines MCP-Servers -
   zur selben Webview zurückkehren muss, damit sein Cookie ankommt. Der Fenstertitel
   nennt jeden anderen Host, den es zeigt.
-- **Kein lokaler Run ohne Sandbox.** Arbeiten auf diesem Computer verlegt, wo die
-  Sandbox-Werkzeuge eines Agents laufen; ein Agent ohne Sandbox hat keine solchen
-  Werkzeuge zu verlegen.
+
 - **Kein dauerhafter Zugriff.** Das Verknüpfen des Computers gewährt für sich
   nichts: Ein Run erreicht nur die Ordner, die Sie gewählt haben, in den Modi, die
   Sie gewählt haben, und den Bildschirm erst nach Ihrer Erlaubnis.
@@ -312,7 +326,7 @@ Nach dem Koppeln lässt sich unter **Browser → Lokaler Browser** die Einstellu
 des Agents für dieses Gespräch überschreiben. Die Wahl ist unabhängig von **Work on**:
 Sie benötigt weder Ordnerfreigabe noch Sandbox-Fähigkeit und behält die Cloud-Sandbox
 des Agents bei. Lokale Modelle und MCP-Dienste benötigen weiterhin einen freigegebenen
-Ordner und eine Sandbox-Bindung. Die Telefon-App ruft keine Desktop-Befehle auf.
+Ordner oder eine Freigabe des gesamten Computers; der Run erhält seine Sandbox-Bindung. Die Telefon-App ruft keine Desktop-Befehle auf.
 
 Dienste werden unter **Settings → Desktop app → Local services** hinzugefügt.
 Ein nativer Dialog bestätigt jede Freigabe. Modelle verwenden einen Ollama- oder

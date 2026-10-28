@@ -261,3 +261,19 @@ describe("paired device and folder grants", () => {
     ).toThrow();
   });
 });
+
+it("validates whole-computer native consent and keeps cancellation explicit", async () => {
+  invoke.mockResolvedValue(null);
+  await expect(commands.allowWholeComputer(null)).resolves.toBeNull();
+  expect(invoke).toHaveBeenLastCalledWith("local_allow_computer", { conversationId: null });
+  invoke.mockResolvedValue({ path: "/home/person", id: "consent" });
+  await expect(commands.allowWholeComputer("chat")).resolves.toEqual({
+    folder: "/home/person",
+    mode: "full_access",
+    computer_grant: "consent",
+  });
+  await commands.revokeWholeComputer("consent");
+  expect(invoke).toHaveBeenLastCalledWith("local_revoke_computer", { id: "consent" });
+  invoke.mockResolvedValue({ path: "/home/person" });
+  await expect(commands.allowWholeComputer("chat")).rejects.toThrow("malformed");
+});

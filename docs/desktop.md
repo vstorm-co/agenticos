@@ -137,7 +137,7 @@ Screen Recording, which takes effect after a restart.
 
 ## Work on this computer
 
-The one thing a browser cannot do: a chat whose agent has a sandbox can work in a
+The one thing a browser cannot do: a desktop chat can work in a
 folder on the computer the app runs on instead of in the cloud. The agent's file
 and shell tools - list, read, write, edit, run - reach that folder through the app.
 
@@ -186,6 +186,21 @@ minutes for it to come back on the same session, then carries on. While a run's
 operation is in flight, the tray says an agent is working on this computer.
 
 The server checks the sign-in before forwarding each local operation. Revoked or expired sessions refuse new work; the heartbeat also closes idle connections. Operations already in progress are cancelled when the desktop socket closes.
+
+**Whole computer.** Desktop chat also offers **Whole computer** without a folder
+picker. One native warning grants access for this conversation: file tools can reach
+absolute paths anywhere your account can access and commands run as you, without
+individual native prompts. Operating system permissions and the agent's approval
+rules still apply. **Revoke whole-computer access** or choosing **Cloud** blocks new
+operations; commands already running are not interrupted. Consent survives app
+restarts, is scoped to this server and conversation, and a draft binds on its first
+operation. A new chat needs its own consent. This mode does not crawl the home
+directory or automatically collect files as attachments.
+
+Local browser and file tools are available in desktop chat even when the agent has
+no Browser or Sandbox binding. Selection adds the binding only to this run, keeps
+existing domain restrictions and approval rules, and does not change the published
+agent. Internal attachment snapshots use file listings rather than running a shell.
 
 ## The screen
 
@@ -257,10 +272,9 @@ and about its own public address.
   window, because an OAuth flow - connecting an MCP server - has to come back to
   the same webview for its cookie to land. The window's title names any other host
   it shows.
-- **No local run without a sandbox.** Working on this computer replaces where an
-  agent's sandbox tools run; an agent with no sandbox has no such tools to move.
+
 - **No standing access.** Linking the computer grants nothing on its own: a run
-  reaches only the folders you picked, in the modes you picked, and the screen only
+  reaches only approved folders or a separately approved whole-computer conversation, and the screen only
   after you allow it.
 
 ## Where it sits in the tree
@@ -280,7 +294,8 @@ and about its own public address.
 After pairing the desktop app, select **Browser → Local browser** to override
 the agent's browser for this conversation. This choice is independent of **Work on**:
 it needs no folder grant or Sandbox capability and keeps the agent's cloud sandbox.
-Local models and MCP services still require an approved folder and sandbox binding.
+Local models and MCP services require an approved folder or whole-computer target;
+the run receives its own Sandbox binding.
 Phone apps do not invoke desktop commands.
 
 Add services under **Settings → Desktop app → Local services**. A native dialog

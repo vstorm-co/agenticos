@@ -15,6 +15,7 @@
 
 mod appearance;
 mod blobby;
+mod computer_access;
 mod console;
 mod context;
 mod device;
@@ -1284,6 +1285,8 @@ pub fn run() {
             device::device_status,
             device::device_link,
             device::device_unlink,
+            computer_access::local_allow_computer,
+            computer_access::local_revoke_computer,
             local_work::local_grants,
             local_work::local_pick_folder,
             local_work::local_revoke,
@@ -1301,6 +1304,7 @@ pub fn run() {
         .manage(context::CapturedFiles::default())
         .manage(dropped::Dropped::default())
         .manage(device::Device::default())
+        .manage(computer_access::Access::default())
         .setup(|app| {
             let handle = app.handle();
             let (mut settings, unreadable) = settings::load_or_quarantine(handle);

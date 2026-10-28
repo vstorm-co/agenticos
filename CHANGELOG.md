@@ -19,7 +19,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Automatic desktop attachment snapshots no longer ask to run an internal shell command.
+
+
 ### Added
+
+- Desktop chat can opt into local browser and file tools without changing the agent
+  in the Builder. Whole-computer access asks once in a native dialog per conversation,
+  persists across restarts, and can be revoked in chat settings. It permits paths
+  outside a selected folder and does not automatically crawl or collect home files.
+
 
 - A `launch` action in `computer_act` opens an application by name instead of
   hunting for its icon, and a new `computer_apps` tool lists the names it takes.

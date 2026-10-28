@@ -692,7 +692,9 @@ class SandboxWorkspaceService:
                 )
             return None
         if local is not None and local.folder is not None:
-            return await self._open_local(ctx, local, on_wait=on_wait)
+            return await self._open_local(
+                ctx, local, conversation_id=identity.conversation_id, on_wait=on_wait
+            )
         scope = scope_override or config.session_scope
         if scope == "project":
             from app.services.project_workspace_guard import project_for_workspace
@@ -709,7 +711,12 @@ class SandboxWorkspaceService:
         )
 
     async def _open_local(
-        self, ctx: AuthContext, local: LocalTarget, *, on_wait: SandboxWaitSink | None = None
+        self,
+        ctx: AuthContext,
+        local: LocalTarget,
+        *,
+        conversation_id: UUID | None = None,
+        on_wait: SandboxWaitSink | None = None,
     ) -> OpenWorkspace:
         """A workspace on one of the caller's own computers.
 
@@ -745,7 +752,11 @@ class SandboxWorkspaceService:
                 details={"target": "local"},
             )
         return OpenWorkspace(
-            workspace=Workspace(DeviceWorkspace(device.session_id, ctx.user_id, local)),
+            workspace=Workspace(
+                DeviceWorkspace(
+                    device.session_id, ctx.user_id, local, conversation_id=conversation_id
+                )
+            ),
             kind="service",
             scope="run",
             scope_key=f"local:{device.session_id}:{local.folder}",
@@ -761,8 +772,13 @@ class SandboxWorkspaceService:
                         "there; anything outside it is read only."
                     ),
                     "full_access": (
-                        "You have full access to the computer; every command is "
-                        "shown to the person for approval first."
+                        "The person approved whole-computer access for this conversation. "
+                        "You may use absolute paths outside the working directory. Commands "
+                        "run without individual native prompts until access is revoked. "
+                        "Files are not automatically collected from this computer."
+                        if local.computer_grant is not None
+                        else "Commands run as the person, with a native approval for each. "
+                        "File operations remain inside the selected folder."
                     ),
                 }[local.mode]
                 + " Treat it as their real machine: never delete what you did not create."

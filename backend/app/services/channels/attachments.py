@@ -385,6 +385,10 @@ async def workspace_snapshot(workspace: Workspace) -> set[str] | None:
     nothing. A remote host reached over HTTP is exactly what supplies a transient
     one.
     """
+    if isinstance(workspace.backend, DeviceWorkspace) and workspace.backend.whole_computer:
+        # A home directory is not an output folder. Never crawl or upload its
+        # contents implicitly when the person grants access to their computer.
+        return None
     try:
         return await _workspace_paths(workspace)
     except Exception:

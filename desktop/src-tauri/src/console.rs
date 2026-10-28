@@ -52,6 +52,8 @@ pub const GRANTS: &[(&str, &[&str])] = &[
             "allow-device-status",
             "allow-device-link",
             "allow-device-unlink",
+            "allow-local-allow-computer",
+            "allow-local-revoke-computer",
             "allow-local-grants",
             "allow-local-pick-folder",
             "allow-local-revoke",

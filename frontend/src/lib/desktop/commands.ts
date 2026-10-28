@@ -348,6 +348,7 @@ const isLocalMode = (value: unknown): value is LocalMode =>
 export interface LocalTarget {
   folder: string;
   mode: LocalMode;
+  computer_grant?: string;
   browser?: boolean;
   model_service?: string | null;
   mcp_services?: string[];
@@ -387,6 +388,24 @@ export async function getLocalState(): Promise<LocalState> {
 export async function pickLocalFolder(mode: LocalMode): Promise<LocalGrant | null> {
   const picked = await invokeShell("local_pick_folder", { mode });
   return picked === null ? null : parseLocalGrant(picked);
+}
+
+/** Explicit native consent, saved for one conversation; null when cancelled. */
+export async function allowWholeComputer(
+  conversationId: string | null,
+): Promise<LocalTarget | null> {
+  const result = await invokeShell("local_allow_computer", { conversationId });
+  if (result === null) return null;
+  const grant = record(result, "whole-computer consent");
+  return {
+    folder: field(grant, "path", isString),
+    mode: "full_access",
+    computer_grant: field(grant, "id", isString),
+  };
+}
+
+export async function revokeWholeComputer(id: string): Promise<void> {
+  await invokeShell("local_revoke_computer", { id });
 }
 
 export async function revokeLocalFolder(path: string): Promise<LocalState> {

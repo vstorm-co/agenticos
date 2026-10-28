@@ -157,3 +157,35 @@ async def test_automatic_snapshots_never_ask_to_run_a_command_on_the_persons_com
         ("answer.txt", b"done")
     ]
     assert set(operations) == {"fs.list", "fs.read"}
+
+
+async def test_whole_computer_never_collects_home_directory_as_attachments(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    grant, chat = uuid4(), uuid4()
+    target = LocalTarget(folder="/Users/person", mode="full_access", computer_grant=grant)
+    with pytest.raises(WorkspaceUnavailableError, match="conversation"):
+        module.DeviceWorkspace(uuid4(), uuid4(), target)
+    device = module.DeviceWorkspace(uuid4(), uuid4(), target, conversation_id=chat)
+    call = AsyncMock(return_value={"exists": True})
+    monkeypatch.setattr(module._hub, "call", call)
+    workspace = WrapperWorkspace(Workspace(device))
+    assert await workspace_snapshot(workspace) is None
+    assert not (await files_written(workspace, None)).attachments
+    call.assert_not_awaited()
+    assert await device.exists("/another/volume/file.txt")
+    args = call.call_args.args[2]
+    assert args["computer_grant"] == str(grant)
+    assert args["conversation_id"] == str(chat)
+    assert args["path"] == "/another/volume/file.txt"
+
+
+def test_whole_computer_target_requires_full_access_and_a_working_directory() -> None:
+    from pydantic import ValidationError
+
+    for payload in [
+        {"folder": "/home", "mode": "read_only"},
+        {"browser": True, "mode": "full_access"},
+    ]:
+        with pytest.raises(ValidationError, match="Whole-computer access"):
+            LocalTarget.model_validate({**payload, "computer_grant": str(uuid4())})

@@ -1,5 +1,5 @@
 ---
-source_sha: "5d41b58425a4"
+source_sha: "7bc5ea5e3adf"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -145,7 +145,7 @@ Grabación de pantalla, que funciona tras reiniciar.
 
 ## Trabajar en este ordenador { #work-on-this-computer }
 
-Lo único que un navegador no puede hacer: un chat cuyo agent tiene sandbox puede
+Lo único que un navegador no puede hacer: un chat de escritorio puede
 trabajar en una carpeta del ordenador donde corre la app, en vez de en la nube.
 Las herramientas de archivos y shell del agent - listar, leer, escribir, editar,
 ejecutar - llegan a esa carpeta a través de la app.
@@ -198,6 +198,23 @@ una operación de un run está en curso, la bandeja dice que un agent trabaja en
 ordenador.
 
 El servidor comprueba la sesión antes de reenviar cada operación local. Las sesiones revocadas o caducadas rechazan trabajo nuevo; el heartbeat también cierra conexiones inactivas. Las operaciones en curso se cancelan al cerrar el socket del escritorio.
+
+**Todo el equipo.** El chat de escritorio ofrece **Todo el equipo** sin
+selector de carpetas. Una advertencia nativa autoriza el acceso para esta conversación:
+las herramientas de archivos pueden usar rutas absolutas accesibles para tu cuenta
+y los comandos se ejecutan como tú, sin confirmaciones nativas individuales. Siguen
+vigentes los permisos del sistema y las reglas de aprobación del agente.
+**Revocar acceso a todo el equipo** o elegir **Nube** bloquea nuevas operaciones;
+los comandos en curso no se interrumpen. El consentimiento sobrevive a reinicios,
+se limita a este servidor y conversación, y un borrador se vincula en su primera
+operación. Un chat nuevo necesita su propio consentimiento. Este modo no recorre el
+directorio personal ni recoge archivos automáticamente como adjuntos.
+
+Las herramientas locales de navegador y archivos están disponibles en el chat de
+escritorio aunque el agente no tenga Browser o Sandbox. La elección añade la
+capacidad solo a esa ejecución, mantiene las restricciones de dominios y reglas de
+aprobación, y no modifica el agente publicado. Las instantáneas internas de adjuntos
+usan listados de archivos en lugar de comandos de shell.
 
 ## La pantalla { #the-screen }
 
@@ -272,9 +289,7 @@ despliegue tiene que coincidir en el esquema - `DESKTOP_DEEP_LINK_SCHEME`,
   en la ventana, porque un flujo OAuth - conectar un servidor MCP - tiene que volver
   al mismo webview para que su cookie llegue. El título de la ventana nombra
   cualquier otro host que muestre.
-- **Sin run local sin sandbox.** Trabajar en este ordenador cambia dónde se ejecutan
-  las herramientas de la sandbox de un agent; un agent sin sandbox no tiene esas
-  herramientas que mover.
+
 - **Sin acceso permanente.** Vincular el ordenador no concede nada por sí solo: un
   run llega solo a las carpetas que elegiste, en los modos que elegiste, y a la
   pantalla solo después de que lo permitas.
@@ -299,7 +314,7 @@ Tras emparejar la aplicación, selecciona **Navegador → Navegador local** para
 sobrescribir la configuración del agente en esta conversación. La elección es
 independiente de **Work on**: no requiere carpeta ni capacidad Sandbox y mantiene
 el sandbox del agente en la nube. Los modelos locales y servicios MCP siguen
-necesitando una carpeta autorizada y un sandbox. La aplicación del teléfono no
+necesitando una carpeta autorizada o acceso a todo el equipo; la ejecución recibe su propia capacidad Sandbox. La aplicación del teléfono no
 invoca comandos de escritorio.
 
 Añade servicios en **Settings → Desktop app → Local services**. Un diálogo nativo

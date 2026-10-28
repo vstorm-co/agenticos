@@ -42,6 +42,8 @@ const COMMANDS: &[&str] = &[
     "device_status",
     "device_link",
     "device_unlink",
+    "local_allow_computer",
+    "local_revoke_computer",
     "local_grants",
     "local_pick_folder",
     "local_revoke",

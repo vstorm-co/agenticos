@@ -21,6 +21,9 @@ class LocalTarget(BaseModel):
     mode: LocalMode = "workspace_write"
     """How far the run may reach: read only, write in the folder, or full access."""
 
+    computer_grant: UUID | None = None
+    """Native whole-computer consent, bound by the app to this conversation."""
+
     device_id: UUID | None = None
     """Which computer, when the person has several; empty takes the one most recently connected."""
 
@@ -37,6 +40,8 @@ class LocalTarget(BaseModel):
 
     @model_validator(mode="after")
     def require_work_or_browser(self) -> Self:
+        if self.computer_grant is not None and (self.folder is None or self.mode != "full_access"):
+            raise ValueError("Whole-computer access requires its home folder and full access")
         if self.folder is None and (
             not self.browser or self.model_service is not None or self.mcp_services
         ):

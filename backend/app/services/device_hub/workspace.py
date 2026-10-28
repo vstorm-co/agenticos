@@ -51,13 +51,28 @@ DEFAULT_SHELL_SECONDS = 600.0
 class DeviceWorkspace:
     """The workspace backend for one folder on one computer."""
 
-    def __init__(self, session_id: UUID, user_id: UUID, target: LocalTarget) -> None:
+    def __init__(
+        self,
+        session_id: UUID,
+        user_id: UUID,
+        target: LocalTarget,
+        *,
+        conversation_id: UUID | None = None,
+    ) -> None:
         if target.folder is None:
             raise WorkspaceUnavailableError("A local workspace needs an approved folder")
+        if target.computer_grant is not None and conversation_id is None:
+            raise WorkspaceUnavailableError("Whole-computer access requires a conversation")
+        self._conversation_id = conversation_id
         self._root = target.folder
         self._session_id = session_id
         self._user_id = user_id
         self._target = target
+
+    @property
+    def whole_computer(self) -> bool:
+        """Whether this workspace must never be crawled for automatic attachments."""
+        return self._target.computer_grant is not None
 
     @property
     def session_id(self) -> UUID:
@@ -78,6 +93,9 @@ class DeviceWorkspace:
         operation sent again once it is back: the run parks rather than fails.
         """
         payload = {"root": self._root, "mode": self._target.mode, **args}
+        if self._target.computer_grant is not None:
+            payload["computer_grant"] = str(self._target.computer_grant)
+            payload["conversation_id"] = str(self._conversation_id)
         try:
             try:
                 return await _hub.call(self._session_id, op, payload, timeout=timeout)

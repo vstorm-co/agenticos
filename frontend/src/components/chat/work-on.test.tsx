@@ -20,6 +20,12 @@ function render(ui: ReactElement) {
 const pick = vi.hoisted(() =>
   vi.fn<(mode: LocalMode, options: { onSuccess: (grant: LocalGrant | null) => void }) => void>(),
 );
+const computer = vi.hoisted(() => ({ allow: vi.fn(), revoke: vi.fn() }));
+vi.mock("@/lib/desktop/commands", async (original) => ({
+  ...(await original<typeof import("@/lib/desktop/commands")>()),
+  allowWholeComputer: computer.allow,
+  revokeWholeComputer: computer.revoke,
+}));
 const modeState = vi.hoisted(() => ({ ready: true }));
 const deviceState = vi.hoisted(() => ({
   linked: true,
@@ -76,6 +82,8 @@ vi.mock("@/hooks/use-desktop", () => ({
   }),
 }));
 beforeEach(() => {
+  computer.allow.mockReset();
+  computer.revoke.mockReset();
   pick.mockClear();
   link.mockReset();
   Object.assign(deviceState, { linked: true, connected: true, pending: false, ready: true });
@@ -282,4 +290,39 @@ it("selects a local browser while keeping the cloud sandbox and never asks for a
   expect(pick).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole("radio", { name: "Agent setting" }));
   expect(useWorkOnStore.getState().browserFor("chat")).toBe(false);
+});
+
+it("requires native consent for whole-computer access without picking a folder and revokes it", async () => {
+  const user = userEvent.setup();
+  const grant = { folder: "/Users/person", mode: "full_access", computer_grant: "native-consent" };
+  computer.allow.mockResolvedValueOnce(null).mockResolvedValueOnce(grant);
+  computer.revoke.mockResolvedValue(undefined);
+  render(<WorkOn />);
+  const before = useWorkOnStore.getState().targetFor("chat");
+  await user.click(screen.getByRole("button", { name: "Whole computer" }));
+  expect(computer.allow).toHaveBeenCalledWith("chat");
+  expect(useWorkOnStore.getState().targetFor("chat")).toEqual(before);
+  await user.click(screen.getByRole("button", { name: "Whole computer" }));
+  expect(
+    await screen.findByRole("button", { name: "Revoke whole-computer access" }),
+  ).toBeInTheDocument();
+  expect(useWorkOnStore.getState().targetFor("chat")).toMatchObject(grant);
+  expect(pick).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("button", { name: "Revoke whole-computer access" }));
+  expect(computer.revoke).toHaveBeenCalledWith("native-consent");
+  expect(useWorkOnStore.getState().targetFor("chat")).toBeNull();
+});
+
+it("keeps whole-computer access visible when revocation fails", async () => {
+  const user = userEvent.setup();
+  useWorkOnStore
+    .getState()
+    .set("chat", { folder: "/Users/person", mode: "full_access", computer_grant: "saved" });
+  computer.revoke.mockRejectedValue(new Error("Could not save"));
+  render(<WorkOn />);
+  await user.click(screen.getByRole("radio", { name: "Cloud" }));
+  expect(
+    await screen.findByRole("button", { name: "Revoke whole-computer access" }),
+  ).toBeInTheDocument();
+  expect(useWorkOnStore.getState().targetFor("chat")?.computer_grant).toBe("saved");
 });

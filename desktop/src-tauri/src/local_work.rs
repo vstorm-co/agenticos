@@ -46,6 +46,7 @@ pub struct Grant {
 }
 
 /// A refusal, with the kind the server turns into the error a tool expects.
+#[derive(Debug)]
 pub struct Refusal {
     pub kind: &'static str,
     pub message: String,
@@ -269,6 +270,14 @@ pub async fn run(app: &AppHandle, op: &str, args: &Map<String, Value>) -> Result
     let root = text(args, "root")?;
     let asked: Mode = serde_json::from_value(args.get("mode").cloned().unwrap_or(Value::Null))
         .map_err(|_| Refusal::new("denied", "No mode was named."))?;
+    if args.contains_key("computer_grant") {
+        crate::computer_access::check(app, args).map_err(|error| Refusal::new("denied", error))?;
+        let root = PathBuf::from(&root);
+        return match op {
+            "shell.run" => shell(app, &root, asked, args, true).await,
+            _ => files_unrestricted(op, &root, asked, args).await,
+        };
+    }
     let grant = settings::current(app)
         .local_grants
         .into_iter()
@@ -284,7 +293,7 @@ pub async fn run(app: &AppHandle, op: &str, args: &Map<String, Value>) -> Result
     }
     let root = PathBuf::from(&grant.path);
     match op {
-        "shell.run" => shell(app, &root, asked, args).await,
+        "shell.run" => shell(app, &root, asked, args, false).await,
         _ => files(op, &root, asked, args).await,
     }
 }
@@ -359,6 +368,28 @@ fn object(value: Value) -> Map<String, Value> {
     }
 }
 
+async fn files_unrestricted(
+    op: &str,
+    root: &Path,
+    mode: Mode,
+    args: &Map<String, Value>,
+) -> Result<Map<String, Value>, Refusal> {
+    let requested = PathBuf::from(text(args, "path")?);
+    let absolute = if requested.is_absolute() {
+        requested
+    } else {
+        root.join(requested)
+    };
+    // Use the path's own volume as the boundary, including other drives on Windows.
+    let boundary = absolute
+        .ancestors()
+        .last()
+        .ok_or_else(|| Refusal::new("denied", "No filesystem root."))?;
+    let mut args = args.clone();
+    args.insert("path".into(), absolute.to_string_lossy().into_owned().into());
+    files(op, boundary, mode, &args).await
+}
+
 async fn files(op: &str, root: &Path, mode: Mode, args: &Map<String, Value>) -> Result<Map<String, Value>, Refusal> {
     let asked = text(args, "path")?;
     let path = inside(root, &asked)?;
@@ -430,6 +461,7 @@ async fn shell(
     root: &Path,
     mode: Mode,
     args: &Map<String, Value>,
+    conversation_consent: bool,
 ) -> Result<Map<String, Value>, Refusal> {
     if mode == Mode::ReadOnly {
         return Err(Refusal::new("read_only", "Commands do not run in a read-only folder."));
@@ -444,7 +476,7 @@ async fn shell(
             .join(" "),
         _ => return Err(Refusal::new("denied", "No command was named.")),
     };
-    if mode == Mode::FullAccess && !allowed(app, root, &line).await {
+    if mode == Mode::FullAccess && !conversation_consent && !allowed(app, root, &line).await {
         return Err(Refusal::new("denied", "You did not allow that command."));
     }
     let timeout = args.get("timeout").and_then(Value::as_f64).unwrap_or(600.0);
@@ -609,6 +641,24 @@ mod tests {
         let path = std::env::temp_dir().join(format!("agenticos-files-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir(&path).unwrap();
         path.canonicalize().unwrap()
+    }
+
+    #[tokio::test]
+    async fn whole_computer_files_can_reach_outside_the_working_directory() {
+        let home = folder();
+        let elsewhere = folder();
+        let destination = elsewhere.join("answer.txt");
+        let args = object(serde_json::json!({"path": destination.to_string_lossy(), "data": "ZG9uZQ=="}));
+        assert!(files("fs.write", &home, Mode::FullAccess, &args).await.is_err());
+        files_unrestricted("fs.write", &home, Mode::FullAccess, &args)
+            .await
+            .unwrap();
+        let answer = files_unrestricted("fs.read", &home, Mode::FullAccess, &args)
+            .await
+            .unwrap();
+        assert_eq!(answer["data"], "ZG9uZQ==");
+        std::fs::remove_dir_all(home).unwrap();
+        std::fs::remove_dir_all(elsewhere).unwrap();
     }
 
     #[test]
