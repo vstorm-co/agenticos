@@ -90,7 +90,7 @@ def test_deploy_waits_for_the_renderer_manifest_only_when_enabled(enabled: bool)
 def test_deploy_checks_cdp_readiness_before_reporting_success() -> None:
     compose = yaml.safe_load((ROOT / "docker-compose-prod.yml").read_text())
     health = compose["services"]["visual-render"]["healthcheck"]
-    assert "/json/version" in health["test"][-1]
+    assert "GET /json/version HTTP/1.1" in health["test"][-1]
     assert "webSocketDebuggerUrl" in health["test"][-1]
     assert health["start_period"] == "30s"
     script = (ROOT / "scripts/deploy.sh").read_text()

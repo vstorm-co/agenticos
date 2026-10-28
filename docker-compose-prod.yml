@@ -408,7 +408,7 @@ services:
     image: ghcr.io/vstorm-co/agenticos-browser:${AGENTICOS_VERSION:-latest}
     profiles: [visuals]
     healthcheck:
-      test: ["CMD", "bash", "-ec", "exec 3<>/dev/tcp/127.0.0.1/9222; printf 'GET /json/version HTTP/1.0\r\nHost: localhost\r\n\r\n' >&3; timeout 5 cat <&3 | grep -q webSocketDebuggerUrl"]
+      test: ["CMD", "bash", "-ec", "exec 3<>/dev/tcp/127.0.0.1/9222; printf 'GET /json/version HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n' >&3; timeout 5 cat <&3 | grep -q webSocketDebuggerUrl"]
       interval: 10s
       timeout: 6s
       retries: 3
