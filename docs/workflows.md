@@ -395,6 +395,42 @@ payload - offers a **Field inside it** box under the source, where you type the 
 inside that value, such as `record_id` or `fields.Email`. The run checks that path
 when the step is dispatched, since only the run knows what the value holds.
 
+### Quick log { #quick-log }
+
+A quick log writes one line to the workflow's log each time a step finishes in a run,
+so you can see what a workflow did without opening each run. It is a setting of the
+step. Hover a card and choose **+ Log**: a **LOG** strip docks outside the card's right
+side, the step's output handles move to the strip's outer edge, and each output that
+is logged has a bar. Remove the quick log to stop logging that step.
+
+The **message** is a template of 1 to 500 characters, `{{step}} → {{outcome}}` by
+default. It can use `{{step}}`, the step's name, and `{{outcome}}`, the output the
+step left by. It can also use the step's output fields by their path, such as
+`{{record.id}}`, and `{{error.code}}` and `{{error.message}}` for a failure. A
+reference that does not resolve renders empty, and so does a list index: paths go
+through objects only.
+
+**Outputs** picks which outcomes write a line. By default every output does; tick
+fewer to log only those, and remove the quick log to log nothing. A quick log is not
+allowed on a **Loop item** or **Loop yield** step. Put it on the **For each** step
+itself: it writes a line, by its `done` output, when its loop closes. A step with no
+outputs logs its failures.
+
+Failures are always written. A failure that no `error` port routes is logged whatever
+outputs are ticked, because a run that failed silently is what a log is for. A
+failure routed by an `error` port follows the **Outputs** filter like any other
+outcome.
+
+No line is written for a step that was skipped, switched off or never started, or
+that a [retry from the failed step](#running-a-workflow) reused instead of running.
+A log never changes a run: a message that cannot be written is dropped and the run
+goes on as it would have. A test run writes its lines too, marked as a test, and a
+line from a step that handed on pinned test data is marked as pinned.
+
+Lines are kept with their run and removed with it when history retention removes the
+run (see [Workflow settings](#workflow-settings)). Read them on the
+[Logs page](#the-logs-page) or, per step, in the run view.
+
 ## Connections and foreach scope { #connections-and-foreach-scope }
 
 You draw an edge by connecting one node's output port to another node's input
@@ -681,7 +717,8 @@ API**. **Status**, **Version**, **Started by** and **Started** (the last hour, d
 30 days) narrow the runs, and the list answers a
 page at a time; each filter is kept in the address, so a filtered list can be
 linked. **Runs** on the workflows list shows every workflow's runs together. On a
-run's page, clicking a step shows its **Input** and **Output** from that run.
+run's page, clicking a step shows its **Input** and **Output** from that run. The lines a step's
+[quick log](#quick-log) wrote show under the step.
 
 **Retry from failed step** starts a new run of the same version and input in which
 each step that succeeded hands on what it handed on before, so only the failed
@@ -691,6 +728,19 @@ what each step outside a loop handed on in that run onto the draft's steps, so a
 test run starts from where that run was. Over the API, `POST
 /api/v1/workflow-runs/{id}/retry` retries, and `GET /api/v1/workflow-runs` takes
 `status`, `mode`, `triggered_by`, `created_after` and `created_before`.
+
+### The Logs page { #the-logs-page }
+
+**Logs**, under **More** in the editor's header, lists what the workflow's quick logs
+wrote across its runs, newest first: when, the step, its outcome and the message.
+Narrow the lines by **Step**, **Outcome** and **Written** (the last hour, day, week
+or 30 days), search the message, and turn on **Include test runs**, which are left
+out until you do. To see one run's lines, paste its id into **Run**, or type the
+first few characters of it (at least four); **Show only this run** on a line fills
+it in, and **See in Logs** on a run's page opens the log filtered to that run.
+A line opens the run that wrote it. In the run view, each step's
+own lines sit under it, in the order they were written. Both are for signed-in
+members only: an API key does not read them.
 
 ## Starting a workflow from outside the console { #starting-a-workflow-from-outside-the-console }
 

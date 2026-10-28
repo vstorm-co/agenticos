@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
 import { qk } from "@/lib/query-keys";
+import * as logsApi from "@/lib/workflows/logs-api";
 import * as api from "@/lib/workflows/runs-api";
 import type { WorkflowRunRead } from "@/lib/workflows/types";
 
@@ -21,6 +22,7 @@ vi.mock("@/lib/workflows/runs-api", () => ({
   listRunHistory: vi.fn(),
   retryWorkflowRun: vi.fn(),
 }));
+vi.mock("@/lib/workflows/logs-api", () => ({ listRunLogs: vi.fn() }));
 /** The options a routine confirmation goes out with (`toastDone`). */
 const routine = expect.objectContaining({ position: "bottom-center" });
 
@@ -35,7 +37,10 @@ function run(status: WorkflowRunRead["status"]): WorkflowRunRead {
   return { id: "r", status } as WorkflowRunRead;
 }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(logsApi.listRunLogs).mockResolvedValue({ items: [], total: 0 });
+});
 
 describe("useWorkflowRuns", () => {
   it("lists a workflow's runs and starts one", async () => {
@@ -135,9 +140,11 @@ describe("useWorkflowRun", () => {
     vi.mocked(api.listWorkflowRunFiles).mockResolvedValue({
       items: [{ id: "f1" } as never],
     });
+    vi.mocked(logsApi.listRunLogs).mockResolvedValue({ items: [{ id: "l1" } as never], total: 1 });
     const { result } = renderHook(() => useWorkflowRun("r"), { wrapper });
     await waitFor(() => expect(result.current.graph).not.toBeNull());
     await waitFor(() => expect(result.current.files).toHaveLength(1));
+    await waitFor(() => expect(result.current.logs).toHaveLength(1));
     expect(result.current.run?.status).toBe("running");
     await act(() => result.current.cancel.mutateAsync());
     await waitFor(() => expect(result.current.run?.status).toBe("cancelled"));
@@ -164,6 +171,8 @@ describe("useWorkflowRun", () => {
 
     await waitFor(() => expect(result.current.nodes[0]?.status).toBe("skipped"));
     expect(api.listWorkflowRunFiles).toHaveBeenCalledTimes(2);
+    // The lines a step wrote as it settled are read again with the rest.
+    await waitFor(() => expect(logsApi.listRunLogs).toHaveBeenCalledTimes(2));
   });
 
   it("reads an ended run's steps only once, though they answer before the run does", async () => {

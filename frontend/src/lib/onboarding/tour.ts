@@ -76,6 +76,9 @@ export const TABLE_DETAIL = "table-detail";
  */
 export const WORKFLOW_RUNS_DETAIL = "workflow-runs-detail";
 
+/** One workflow's log, `/workflows/<id>/logs`: "?"-only and shown in place, like its runs. */
+export const WORKFLOW_LOGS_DETAIL = "workflow-logs-detail";
+
 /**
  * An artifact's page, `/apps/<id>`, collapsed to one identity. It is the
  * viewer, outside the dashboard layout: its strip carries its own "?" and the
@@ -455,6 +458,8 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // who reached the page may see a workflow, which is all both stops need.
   { id: "workflow-stats", page: WORKFLOW_RUNS_DETAIL, target: "workflow-stats" },
   { id: "workflow-run-history", page: WORKFLOW_RUNS_DETAIL, target: "workflow-run-history" },
+  // One workflow's log, `/workflows/<id>/logs`: the lines its steps' quick logs wrote.
+  { id: "workflow-logs", page: WORKFLOW_LOGS_DETAIL, target: "workflow-logs" },
 
   // Published artifacts - pages agents wrote. Nothing to create here (a run
   // publishes one), so a single describing stop on the list, view-gated.
@@ -946,6 +951,7 @@ const SECTION_FLOWS: readonly (readonly string[])[] = [
 
 /** `/workflows/<id>/runs` - three segments, so every workflow's `/workflows/runs` is not one. */
 const WORKFLOW_RUNS_PATH = /^\/workflows\/[^/]+\/runs$/;
+const WORKFLOW_LOGS_PATH = /^\/workflows\/[^/]+\/logs$/;
 
 /** The page identity a real pathname belongs to; detail routes collapse onto their pseudo-page. */
 export function pageKey(path: string): string {
@@ -965,6 +971,7 @@ export function pageKey(path: string): string {
   if (path.startsWith(`${ROUTES.TABLES}/`)) return TABLE_DETAIL;
   if (path.startsWith(`${ROUTES.ARTIFACTS}/`)) return ARTIFACT_DETAIL;
   if (WORKFLOW_RUNS_PATH.test(path)) return WORKFLOW_RUNS_DETAIL;
+  if (WORKFLOW_LOGS_PATH.test(path)) return WORKFLOW_LOGS_DETAIL;
   return path;
 }
 

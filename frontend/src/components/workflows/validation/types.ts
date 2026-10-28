@@ -47,6 +47,11 @@ export type ValidationCode =
   | "merge-not-exclusive"
   // A name an author gave to an output the step already has.
   | "port-name-taken"
+  // A quick log naming an output its step does not have.
+  | "quick-log-output-unknown"
+  | "quick-log-not-here"
+  | "quick-log-no-outputs"
+  | "quick-log-error-reference"
   // Rule 6 — nested scope boundaries.
   | "edge-crosses-scope"
   | "binding-crosses-scope"
@@ -95,6 +100,10 @@ export const MESSAGE_KEYS: Record<ValidationCode, string> = {
   "merge-not-from-if": "validationMergeNotFromIf",
   "merge-not-exclusive": "validationMergeNotExclusive",
   "port-name-taken": "validationPortNameTaken",
+  "quick-log-output-unknown": "validationQuickLogOutputUnknown",
+  "quick-log-not-here": "validationQuickLogNotHere",
+  "quick-log-no-outputs": "validationQuickLogNoOutputs",
+  "quick-log-error-reference": "validationQuickLogErrorReference",
   "edge-crosses-scope": "validationEdgeCrossesScope",
   "binding-crosses-scope": "validationBindingCrossesScope",
   "node-in-cycle": "validationNodeInCycle",

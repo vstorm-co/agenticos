@@ -279,6 +279,8 @@ export default defineConfig({
         "src/components/workflows/node-visuals.ts",
         "src/components/workflows/node-tile.tsx",
         "src/components/workflows/runs/**/*.{ts,tsx}",
+        // A workflow's Logs page and a run's per-step lines.
+        "src/components/workflows/logs/**/*.{ts,tsx}",
         // The editor's Trigger sheet: the live trigger, a webhook's address and
         // secret, a schedule's next tick (#1792).
         "src/components/workflows/triggers/**/*.{ts,tsx}",

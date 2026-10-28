@@ -19,7 +19,7 @@ export type StepChange = "added" | "removed" | "changed";
 export type ChangedField =
   | { kind: "setting"; name: string }
   | { kind: "input"; name: string }
-  | { kind: "name" | "note" | "switchedOff" | "version" | "whenItFails" };
+  | { kind: "name" | "note" | "switchedOff" | "version" | "whenItFails" | "quickLog" };
 
 export interface StepDiff {
   change: StepChange;
@@ -72,6 +72,7 @@ function fieldsChanged(
   if ((before.notes ?? null) !== (after.notes ?? null)) fields.push({ kind: "note" });
   if (Boolean(before.disabled) !== Boolean(after.disabled)) fields.push({ kind: "switchedOff" });
   if (!same(before.policy ?? null, after.policy ?? null)) fields.push({ kind: "whenItFails" });
+  if (!same(before.quick_log ?? null, after.quick_log ?? null)) fields.push({ kind: "quickLog" });
   const settings = new Set([...Object.keys(before.config), ...Object.keys(after.config)]);
   for (const name of [...settings].sort()) {
     if (!same(before.config[name], after.config[name])) fields.push({ kind: "setting", name });

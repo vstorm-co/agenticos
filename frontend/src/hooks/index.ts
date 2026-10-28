@@ -158,6 +158,7 @@ export { useWorkflowTables, useWorkflowTable } from "./use-workflow-tables";
 export { useCausingRun, useRunHistory, useWorkflowRun, useWorkflowRuns } from "./use-workflow-runs";
 export { useWorkflowApprovalHistory, useWorkflowApprovals } from "./use-workflow-approvals";
 export { useWorkflowExposure } from "./use-workflow-exposure";
+export { useWorkflowLogs } from "./use-workflow-logs";
 export { useWorkflowStats } from "./use-workflow-stats";
 export { useWorkflowApprovalsSummary, useWorkflowsSummary } from "./use-workflows-summary";
 export { useStepEvals } from "./use-step-evals";

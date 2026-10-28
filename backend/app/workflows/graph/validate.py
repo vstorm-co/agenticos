@@ -99,6 +99,7 @@ from app.workflows.contracts.policy import ERROR_PORT
 from app.workflows.contracts.results import WorkflowError
 from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import Edge, NodeInstance, ScopeBoundary, WorkflowGraph
+from app.workflows.graph.quick_log import references, refused_reference
 from app.workflows.nodes._port_names import clash_message
 from app.workflows.nodes.control_foreach._handler import BODY_PORT, DONE_PORT
 
@@ -189,6 +190,7 @@ async def validate_graph(db: AsyncSession, ctx: AuthContext, graph: WorkflowGrap
     problems += _rule_11_loop_bodies(graph, definitions, node_scope)
     problems += _rule_12_policies(graph, definitions)
     problems += _rule_13_named_and_switched_off_steps(graph, definitions, ports)
+    problems += _quick_log_problems(graph, ports)
 
     if problems:
         raise GraphValidationError(problems)
@@ -1750,4 +1752,58 @@ def _rule_13_named_and_switched_off_steps(
                     "This reads a step that is switched off, so it would receive nothing",
                 )
             )
+    return problems
+
+
+def _quick_log_problems(graph: WorkflowGraph, ports: PortMap) -> Problems:
+    """A Quick Log logs only ports its step has, and reads nothing it may not.
+
+    `outputs` names output ports of the step as this graph configures it - `error`
+    among them when the step routes its errors. A message may read `{{step}}`,
+    `{{outcome}}`, the step's own output and `{{error.code}}` / `{{error.message}}`;
+    `error.details` and the rest of the error are refused. A reference with no value
+    on some run - an output field of a step that failed, an error of one that
+    succeeded - is not a problem: the line renders it empty.
+    """
+    problems: Problems = []
+    for node in graph.nodes:
+        quick_log = node.quick_log
+        if quick_log is None:
+            continue
+        if node.definition_id in (LOOP_ITEM, LOOP_YIELD):
+            problems.append(
+                (
+                    f"nodes.{node.id}.quick_log",
+                    "A quick log goes on the loop itself, not on its item or yield step",
+                )
+            )
+            continue
+        if quick_log.outputs == ():
+            problems.append(
+                (
+                    f"nodes.{node.id}.quick_log.outputs",
+                    "Name at least one output, or leave it unset to log every outcome; "
+                    "to log nothing, remove the quick log",
+                )
+            )
+        for path in references(quick_log.message):
+            if refused_reference(path):
+                problems.append(
+                    (
+                        f"nodes.{node.id}.quick_log.message",
+                        f"'{{{{{'.'.join(path)}}}}}' cannot be read: a log line may read "
+                        "only error.code and error.message of an error",
+                    )
+                )
+        if quick_log.outputs is None or node.id not in ports:
+            continue
+        outputs = {port.id for port in ports[node.id] if port.kind == "output"}
+        for index, name in enumerate(quick_log.outputs):
+            if name not in outputs:
+                problems.append(
+                    (
+                        f"nodes.{node.id}.quick_log.outputs.{index}",
+                        f"This step has no output '{name}'",
+                    )
+                )
     return problems

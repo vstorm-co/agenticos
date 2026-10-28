@@ -1,5 +1,5 @@
 ---
-source_sha: "211121201359"
+source_sha: "26c239a5c5b9"
 ---
 
 # Workflows { #workflows }
@@ -446,6 +446,48 @@ it**, in das Sie den Pfad innerhalb dieses Werts tippen, etwa `record_id` oder
 `fields.Email`. Der Run prüft diesen Pfad, wenn der Schritt ausgeführt wird, denn nur
 der Run weiß, was der Wert enthält.
 
+### Schnelles Log { #quick-log }
+
+Ein schnelles Log schreibt jedes Mal, wenn ein Schritt in einem Lauf endet, eine Zeile
+in das Log des Workflows, sodass Sie sehen, was ein Workflow getan hat, ohne jeden Lauf
+zu öffnen. Es ist eine Einstellung des Schritts. Fahren Sie über eine Karte und wählen
+Sie **+ Log**: Ein **LOG**-Streifen dockt außen an der rechten Seite der Karte an, die
+Ausgangs-Handles des Schritts wandern an seinen äußeren Rand, und jede protokollierte
+Ausgabe hat einen Balken. Entfernen Sie das schnelle Log, um den Schritt nicht mehr zu
+protokollieren.
+
+Die **Nachricht** ist eine Vorlage von 1 bis 500 Zeichen, standardmäßig
+`{{step}} → {{outcome}}`. Sie kann `{{step}}`, den Namen des Schritts, und
+`{{outcome}}`, die Ausgabe, über die der Schritt endete, verwenden. Außerdem die
+Ausgabefelder des Schritts über ihren Pfad, etwa `{{record.id}}`, sowie
+`{{error.code}}` und `{{error.message}}` bei einem Fehler. Ein Verweis, der sich nicht
+auflösen lässt, wird leer dargestellt, ebenso ein Listenindex: Pfade führen nur durch
+Objekte.
+
+**Outputs** wählt, welche Ergebnisse eine Zeile schreiben. Standardmäßig tut es jede
+Ausgabe; haken Sie weniger an, um nur diese zu protokollieren, und entfernen Sie das
+schnelle Log, um nichts zu protokollieren. Auf einem **Loop item**- oder
+**Loop yield**-Schritt ist ein schnelles Log nicht erlaubt. Setzen Sie es auf den
+**For each**-Schritt selbst: Er schreibt über seine Ausgabe `done` eine Zeile, wenn
+seine Schleife schließt. Ein Schritt ohne Ausgaben protokolliert seine Fehler.
+
+Fehler werden immer geschrieben. Ein Fehler, den kein `error`-Port weiterleitet, wird
+unabhängig von den angehakten Ausgaben protokolliert, denn ein Lauf, der still
+fehlschlug, ist genau das, wofür ein Log da ist. Ein Fehler, den ein `error`-Port
+weiterleitet, folgt dem **Outputs**-Filter wie jedes andere Ergebnis.
+
+Für einen übersprungenen, ausgeschalteten oder nie gestarteten Schritt wird keine Zeile
+geschrieben, ebenso nicht für einen, den eine [Wiederholung ab dem fehlgeschlagenen
+Schritt](#running-a-workflow) wiederverwendet statt ausgeführt hat. Ein Log verändert
+nie einen Lauf: Eine Nachricht, die sich nicht schreiben lässt, wird verworfen, und der
+Lauf geht weiter, wie er es sonst täte. Auch ein Test-Run schreibt Zeilen, als Test
+markiert, und eine Zeile von einem Schritt, der angeheftete Testdaten weitergab, ist als
+angeheftet markiert.
+
+Zeilen werden mit ihrem Lauf aufbewahrt und mit ihm entfernt, wenn die Aufbewahrung des
+Verlaufs den Lauf entfernt (siehe [Workflow-Einstellungen](#workflow-settings)). Sie
+lesen sie auf der [Logs-Seite](#the-logs-page) oder, je Schritt, in der Laufansicht.
+
 ## Verbindungen und foreach-Scope { #connections-and-foreach-scope }
 
 Sie ziehen eine Kante, indem Sie einen Ausgangs-Port eines Knotens mit einem
@@ -773,7 +815,8 @@ die letzte Woche oder 30 Tage) grenzen die Läufe ein, und die Liste
 antwortet seitenweise; jeder Filter steht in der Adresse, sodass sich eine
 gefilterte Liste verlinken lässt. **Runs** in der Workflow-Liste zeigt die Läufe
 aller Workflows zusammen. Auf der Seite eines Laufs zeigt ein Klick auf einen
-Schritt dessen **Input** und **Output** aus diesem Lauf.
+Schritt dessen **Input** und **Output** aus diesem Lauf. Die Zeilen, die das
+[schnelle Log](#quick-log) eines Schritts geschrieben hat, stehen unter dem Schritt.
 
 **Retry from failed step**
 startet einen neuen Lauf derselben Version mit derselben Eingabe, in dem jeder
@@ -785,6 +828,21 @@ Entwurfs, was jeder Schritt außerhalb einer Schleife in diesem Lauf weitergegeb
 hat, sodass ein Testlauf dort beginnt, wo jener war. Über die API wiederholt `POST
 /api/v1/workflow-runs/{id}/retry`, und `GET /api/v1/workflow-runs` nimmt `status`,
 `mode`, `triggered_by`, `created_after` und `created_before`.
+
+### Die Logs-Seite { #the-logs-page }
+
+**Logs** unter **More** in der Kopfzeile des Editors listet, was die schnellen Logs des
+Workflows über seine Läufe hinweg geschrieben haben, die neuesten zuerst: wann, der
+Schritt, sein Ergebnis und die Nachricht. Grenzen Sie die Zeilen nach **Step**,
+**Outcome** und **Written** (letzte Stunde, letzter Tag, letzte Woche oder 30 Tage) ein,
+durchsuchen Sie die Nachricht und schalten Sie **Include test runs** ein - bis dahin
+bleiben Test-Runs ausgeblendet. Für die Zeilen eines einzelnen Laufs fügen Sie seine ID
+in **Run** ein oder tippen die ersten Zeichen davon (mindestens vier); **Show only this
+run** an einer Zeile füllt das Feld aus, und **See in Logs** auf der Seite eines Laufs
+öffnet die auf diesen Lauf gefilterten Logs. Eine Zeile öffnet den Lauf, der sie
+geschrieben hat. In der Laufansicht stehen die Zeilen jedes Schritts unter ihm, in der
+Reihenfolge des Schreibens. Beides ist nur für angemeldete Mitglieder: Ein API-Schlüssel
+liest sie nicht.
 
 ## Einen Workflow von außerhalb der Konsole starten { #starting-a-workflow-from-outside-the-console }
 

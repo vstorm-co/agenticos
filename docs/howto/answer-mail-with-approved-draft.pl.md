@@ -1,7 +1,7 @@
 ---
 title: "Odpowiedz na pocztę zatwierdzonym szkicem"
 description: "Workflow czyta nową pocztę, przygotowuje odpowiedź, prosi człowieka o jej edycję i zatwierdzenie, a potem zostawia szkic w wątku albo wysyła ją przez własny serwer MCP dla Gmaila lub Microsoft 365."
-source_sha: "bc960ef3277b"
+source_sha: "cf7392e88a2b"
 ---
 
 # Odpowiedz na pocztę zatwierdzonym szkicem { #answer-mail-with-an-approved-draft }
@@ -103,7 +103,8 @@ jako szkic. Zbuduj go w tej kolejności.
    Ustaw **Ask for approval** obu kroków na **Never**. Człowiek zatwierdził dokładny
    tekst krok wcześniej i inaczej zostałby zapytany drugi raz.
 
-Aby zachować ślad, dodaj po którymś z tych kroków krok zapisu wiersza do
+Aby szybko zapisać ślad, dodaj do kroku [szybki log](../workflows.md#quick-log): zapisze
+linię na stronie Logs workflow. Aby zachować ślad w tabeli, dodaj po którymś z tych kroków krok zapisu wiersza do
 [tabeli](../virtual-tables.md), z kategorią, decyzją i wysłanym tekstem.
 
 !!! warning "Bezpośrednie wysłanie nie ma zabezpieczenia"

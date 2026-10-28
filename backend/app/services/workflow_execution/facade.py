@@ -39,8 +39,10 @@ from app.repositories import background_job as background_job_repo
 from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_approval as workflow_approval_repo
 from app.repositories import workflow_file as workflow_file_repo
+from app.repositories import workflow_log_entry as workflow_log_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.workflow import StoredWorkflowSettings
+from app.schemas.workflow_log_entry import WorkflowLogEntryList, WorkflowLogEntryRead
 from app.schemas.workflow_run import (
     WorkflowEventList,
     WorkflowEventRead,
@@ -818,6 +820,46 @@ class WorkflowExecutionService:
             by_run.setdefault(attempt.node_run_id, []).append(attempt)
         return WorkflowNodeRunList(
             items=[node_run_read(row, by_run.get(row.id, [])) for row in rows], total=total
+        )
+
+    async def workflow_logs(
+        self,
+        ctx: AuthContext,
+        workflow_id: UUID,
+        *,
+        filters: workflow_log_repo.LogFilters,
+        skip: int = 0,
+        limit: int = 50,
+    ) -> WorkflowLogEntryList:
+        """A workflow's log, newest first, for a caller who may view the workflow.
+
+        Raises:
+            NotFoundError: No such workflow, or this caller may not see it - the
+                answer its runs list gives.
+        """
+        await self._authorize(ctx, workflow_id, Perm.WORKFLOWS_VIEW)
+        rows, total = await workflow_log_repo.list_for_workflow(
+            self.db,
+            organization_id=ctx.organization_id,
+            workflow_id=workflow_id,
+            filters=filters,
+            skip=skip,
+            limit=limit,
+        )
+        return WorkflowLogEntryList(
+            items=[WorkflowLogEntryRead.model_validate(row) for row in rows], total=total
+        )
+
+    async def run_logs(
+        self, ctx: AuthContext, run_id: UUID, *, skip: int = 0, limit: int = 200
+    ) -> WorkflowLogEntryList:
+        """The lines a run's steps wrote, oldest first, for a caller who may view the run."""
+        run = await self._load(ctx, run_id, Perm.WORKFLOWS_VIEW)
+        rows, total = await workflow_log_repo.list_for_run(
+            self.db, organization_id=ctx.organization_id, run_id=run.id, skip=skip, limit=limit
+        )
+        return WorkflowLogEntryList(
+            items=[WorkflowLogEntryRead.model_validate(row) for row in rows], total=total
         )
 
     async def run_files(self, ctx: AuthContext, run_id: UUID) -> WorkflowFileList:

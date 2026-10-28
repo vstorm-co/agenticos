@@ -6,7 +6,7 @@
  * Keep keys hierarchical: broader prefixes invalidate everything beneath them.
  */
 import { canonicalFacet } from "@/lib/agent-facets";
-import type { RunHistoryQuery } from "@/lib/workflows/types";
+import type { LogQuery, RunHistoryQuery } from "@/lib/workflows/types";
 import type { SharingResourceType } from "@/types/sharing";
 
 export const qk = {
@@ -136,6 +136,9 @@ export const qk = {
         "history",
         query,
       ] as const,
+    // A workflow's log: a filtered page of its lines, and one run's own lines.
+    logs: (query: LogQuery) => ["workflows", query.workflowId, "logs", query] as const,
+    runLogs: (runId: string) => ["workflows", "run", runId, "logs"] as const,
     run: (runId: string) => ["workflows", "run", runId] as const,
     runNodes: (runId: string) => ["workflows", "run", runId, "nodes"] as const,
     runGraph: (runId: string) => ["workflows", "run", runId, "graph"] as const,

@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import { getErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
+import { listRunLogs } from "@/lib/workflows/logs-api";
 import {
   cancelWorkflowRun,
   getWorkflowRun,
@@ -113,6 +114,17 @@ export function useWorkflowRun(runId: string) {
     if (nodesBehind) void queryClient.invalidateQueries({ queryKey: qk.workflows.runNodes(runId) });
     if (filesBehind) void queryClient.invalidateQueries({ queryKey: qk.workflows.runFiles(runId) });
   }, [nodesBehind, filesBehind, queryClient, runId]);
+  // The lines the steps' quick logs wrote: one per settled step, so a live run's
+  // are read with its steps, and once more when its end was seen after them.
+  const logs = useQuery({
+    queryKey: qk.workflows.runLogs(runId),
+    queryFn: () => listRunLogs(runId),
+    refetchInterval: live(run.data) ? LIVE_POLL_MS : false,
+  });
+  const logsBehind = endedAt !== null && logs.dataUpdatedAt > 0 && logs.dataUpdatedAt < endedAt;
+  useEffect(() => {
+    if (logsBehind) void queryClient.invalidateQueries({ queryKey: qk.workflows.runLogs(runId) });
+  }, [logsBehind, queryClient, runId]);
   const graph = useQuery({
     queryKey: qk.workflows.runGraph(runId),
     queryFn: () => getWorkflowRunGraph(runId),
@@ -140,6 +152,8 @@ export function useWorkflowRun(runId: string) {
     isLoading: run.isLoading,
     nodes: nodes.data?.items ?? [],
     files: files.data?.items ?? [],
+    logs: logs.data?.items ?? [],
+    logsError: logs.error,
     graph: graph.data ?? null,
     cancel,
     retry,

@@ -116,6 +116,19 @@ export function formatDateTime(date: Date | string, locale: string): string {
   });
 }
 
+/** `formatDateTime` down to the second, for lines written within the same minute. */
+export function formatDateTimeSeconds(date: Date | string, locale: string): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return d.toLocaleString(locale, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
 /**
  * How long a run took, human-readable, or "-" when it has not finished.
  *

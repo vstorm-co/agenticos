@@ -92,6 +92,42 @@ def pinned_output_fits(value: dict[str, Any]) -> dict[str, Any]:
     return value
 
 
+DEFAULT_QUICK_LOG_MESSAGE = "{{step}} → {{outcome}}"
+MAX_QUICK_LOG_MESSAGE = 500
+
+
+class QuickLog(BaseModel):
+    """A step's Quick Log: after each run of the step, one line in the workflow's log.
+
+    Not a node and not a step of the run: the line is written in the transaction that
+    settles the step, never changes how the run goes, and costs nothing.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    message: str = Field(
+        default=DEFAULT_QUICK_LOG_MESSAGE,
+        min_length=1,
+        max_length=MAX_QUICK_LOG_MESSAGE,
+        description="The line written, a template. `{{step}}` is the step's name and "
+        "`{{outcome}}` the port it left by, or `error`; `{{field}}` and `{{a.b}}` read "
+        "the step's own output; `{{error.code}}` and `{{error.message}}` read the error "
+        "of a failed step (`error.details` is never available). A reference that has "
+        "no value on this run renders empty and never fails the run",
+    )
+    outputs: tuple[str, ...] | None = Field(
+        default=None,
+        description="The output ports that log, `error` among them when the step routes "
+        "its errors. Unset: every outcome of the step logs",
+    )
+
+    @field_validator("message")
+    @classmethod
+    def _message_fits(cls, value: str) -> str:
+        jsonb_value_fits(value)
+        return value
+
+
 class NodeInstance(BaseModel):
     """One node in the graph: which definition, pinned to which version, configured how."""
 
@@ -121,6 +157,11 @@ class NodeInstance(BaseModel):
         default=None,
         description="Data a test run hands on as this step's output instead of running "
         "it. A published version never carries it, so a real run always runs the step",
+    )
+
+    quick_log: QuickLog | None = Field(
+        default=None,
+        description="Writes a line to the workflow's log after each run of this step",
     )
 
     @field_validator("pinned_output")

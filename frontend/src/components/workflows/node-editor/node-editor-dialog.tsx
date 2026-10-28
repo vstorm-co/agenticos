@@ -244,7 +244,7 @@ export function NodeEditorDialog({
             {/* Every problem the canvas counts for this step, so the two agree; the
                 field's own message under it stays quiet until it was left. */}
             {nodeProblems.map((problem, index) => {
-              const text = problemText(problem, definition);
+              const text = problemText(problem, definition, t);
               const field = problem.field;
               return field === null ? (
                 <p key={index} className="text-destructive flex items-center gap-1.5 text-xs">

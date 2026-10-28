@@ -1,7 +1,7 @@
 ---
 title: "Responde al correo con un borrador aprobado"
 description: "Un workflow lee el correo nuevo, redacta una respuesta, pide a una persona que la edite y la apruebe, y luego deja un borrador en el hilo o la envía mediante un servidor MCP de Gmail o Microsoft 365 que ejecutas tú."
-source_sha: "bc960ef3277b"
+source_sha: "cf7392e88a2b"
 ---
 
 # Responde al correo con un borrador aprobado { #answer-mail-with-an-approved-draft }
@@ -105,7 +105,8 @@ borrador. Constrúyelo en este orden.
    Pon **Ask for approval** de los dos pasos en **Never**. Una persona aprobó el texto
    exacto un paso antes y, si no, se le preguntaría una segunda vez.
 
-Para llevar un registro, añade un paso de registro después de cualquiera de estos que
+Para un registro rápido, añade un [quick log](../workflows.md#quick-log) a un paso: escribe una
+línea en la página Logs del workflow. Para llevar un registro en una tabla, añade un paso de registro después de cualquiera de estos que
 escriba una fila en una [tabla](../virtual-tables.md), con la categoría, la decisión y
 el texto enviado.
 

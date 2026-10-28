@@ -68,6 +68,22 @@ describe("copySelection", () => {
     expect(copySelection(graph, select([], ["e1"]))).toBeNull();
   });
 
+  it("carries a step's quick log through a copy and a paste", () => {
+    const quickLog = { message: "{{step}} → {{outcome}}", outputs: ["out"] };
+    const graph: WorkflowGraph = {
+      entry_node_id: "a",
+      nodes: [{ ...node("a"), quick_log: quickLog }],
+      edges: [],
+      bindings: [],
+      scopes: [],
+    };
+    const clip = copySelection(graph, select(["a"]));
+    expect(clip?.nodes[0]?.quick_log).toEqual(quickLog);
+    let n = 0;
+    const pasted = pasteClipboard(clip as WorkflowClipboard, () => `new-${n++}`);
+    expect(pasted.clipboard.nodes[0]?.quick_log).toEqual(quickLog);
+  });
+
   it("copies the induced subgraph and leaves external references out", () => {
     const graph: WorkflowGraph = {
       entry_node_id: "a",

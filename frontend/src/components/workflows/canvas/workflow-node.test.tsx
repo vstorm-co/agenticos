@@ -584,6 +584,17 @@ describe("a node card's waits band", () => {
     expect(band(container, "h")?.className).toContain("--domain-admin");
   });
 
+  it("squares the band's top-right corner where a quick log's strip is docked", () => {
+    const container = draw([
+      instance("h", "human.approval"),
+      instance("l", "human.approval", { quick_log: { message: "seen", outputs: null } }),
+    ]);
+
+    expect(band(container, "h")?.className).toContain("rounded-t-[11px]");
+    expect(band(container, "l")?.className).toContain("rounded-tl-[11px]");
+    expect(band(container, "l")?.className).not.toContain("rounded-t-[11px]");
+  });
+
   it("says how long a wait lasts, in the largest whole unit", () => {
     const container = draw([
       instance("d", "flow.wait", { config: { seconds: 172_800 } }),
@@ -935,6 +946,21 @@ describe("a resizable node card", () => {
         ...(height !== undefined ? { height } : {}),
       },
     });
+
+  it("draws a selected step's ring on the card itself, and around card and strip when one is docked", () => {
+    const logged = { quick_log: { message: "seen", outputs: null } };
+    const plain = draw([sized()], ["a"]);
+    expect(card(plain, "a").className).toContain("ring-primary");
+    expect(plain.querySelector('[data-testid="card-ring"]')).toBeNull();
+    cleanup();
+
+    const container = draw([{ ...sized(), ...logged } as NodeInstance], ["a"]);
+    const overlay = container.querySelector('[data-testid="card-ring"]') as HTMLElement;
+    expect(card(container, "a").className).not.toContain("ring-primary");
+    expect(overlay.className).toContain("ring-primary");
+    expect(overlay.className).toContain("pointer-events-none");
+    expect(overlay.className).toContain("-right-5");
+  });
 
   it("shows handles on the right edge, the bottom edge and the corner of a selected step", () => {
     const container = draw([sized()], ["a"]);

@@ -257,10 +257,12 @@ export interface WorkflowEditorState {
   finishTesting: () => void;
   /** Pin each named step's data at once - one undoable edit. A step not in the graph is left out. */
   pinOutputs: (outputs: Record<Uuid, Record<string, unknown>>) => void;
-  /** Rename a step, note it, or switch it off - one undoable edit. */
+  /** Rename a step, note it, switch it off or set its quick log - one undoable edit. */
   updateNodeDetails: (
     nodeId: Uuid,
-    details: Partial<Pick<NodeInstance, "label" | "notes" | "disabled" | "pinned_output">>,
+    details: Partial<
+      Pick<NodeInstance, "label" | "notes" | "disabled" | "pinned_output" | "quick_log">
+    >,
   ) => void;
   /** Set (or replace) the binding on one node field. */
   upsertBinding: (binding: Binding) => void;

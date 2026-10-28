@@ -21,6 +21,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **A step can log its outcome with a Quick Log.** A step's `quick_log` setting
+  (`message`, and `outputs` for the ports that log; unset means all) writes one line
+  to the workflow's own log each time the step settles: its time, name, the port it
+  left by or `error`, status and a message that can read `{{step}}`, `{{outcome}}`,
+  the step's output fields and `{{error.code}}` / `{{error.message}}`. A reference
+  with no value renders empty and never changes the run; `error.details` is refused
+  at publish. Nothing is written for a skipped or switched-off step or one a retry
+  reuses. `GET /api/v1/workflows/{id}/logs` lists a workflow's lines (filters,
+  paging; test runs only with `include_test`) and
+  `GET /api/v1/workflow-runs/{id}/logs` a run's. Both routes are for signed-in
+  members only: API keys are refused. The Logs page also filters by run: paste a run
+  id or type its first characters into **Run** (the route's `run`: 4 or more
+  characters of the id, anything else a 422), fill it from **Show only this run** on
+  a line, or open it from **See in Logs** on a run's page. Lines go with their run when retention removes it.
+  Migration `0238_workflow_log_entries.py` adds `workflow_log_entries`.
 - **`human.approval` can offer the approver several ways to approve.** List up to
   five **Ways to approve**, each an `id` and a button label, such as keep a draft or
   send it now. The Approvals queue shows one button per choice in place of

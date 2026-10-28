@@ -9,6 +9,7 @@ import {
   History,
   MoreHorizontal,
   Pencil,
+  ScrollText,
   Settings2,
   Workflow,
   Zap,
@@ -258,6 +259,12 @@ export default function WorkflowEditorPage({ params }: PageProps) {
                 <DropdownMenuItem onSelect={() => setSettingsOpen(true)}>
                   <Settings2 className="h-4 w-4" />
                   {t("settings")}
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href={ROUTES.WORKFLOW_LOGS(workflow.id)}>
+                    <ScrollText className="h-4 w-4" />
+                    {t("logsTitle")}
+                  </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   disabled={exporting.isPending}

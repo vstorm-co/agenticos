@@ -87,6 +87,7 @@ from app.services.workflow_execution import (
     dispatch_queue,
     events,
     failure,
+    quick_log,
 )
 from app.services.workflow_execution.exceptions import (
     InvalidBindingError,
@@ -183,6 +184,11 @@ def _source_path(node_id: UUID, scope_path: ScopePath, node_scope: dict[UUID, UU
     return scope_path[: len(owner_chain(node_id, node_scope))]
 
 
+StandIn = Literal["disabled", "reused", "pinned"]
+"""Why a step's handler only hands data on: it is switched off, a retry run reuses what
+the step handed on, or a test run uses the output pinned on it."""
+
+
 @dataclass(frozen=True, slots=True)
 class BegunAttempt:
     """Everything `settle` needs, carried across the handler call."""
@@ -206,6 +212,8 @@ class BegunAttempt:
     this call's result. Carried across the handler call the same way the rest
     of this dataclass is, so a late settle can tell a reclaimed row from the
     one it actually still owns."""
+    stands_in: StandIn | None = None
+    """Why the handler is not the step's own, when it is not: `_ResolvedCall.stands_in`."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -620,6 +628,7 @@ class _ResolvedCall:
     config: BaseModel | None
     input: BaseModel | None
     arrived_output: dict[str, Any] | None
+    stands_in: StandIn | None = None
 
 
 async def _resolve_call(db: AsyncSession, *, run: WorkflowRun, node_run: NodeRun) -> _ResolvedCall:
@@ -654,16 +663,20 @@ async def _resolve_call(db: AsyncSession, *, run: WorkflowRun, node_run: NodeRun
             config=None,
             input=None,
             arrived_output=None,
+            stands_in="disabled",
         )
     # Known data stands in for the step, which is not called: what it handed on in
     # the run this one retries - so a side effect is not repeated - or, in a test
     # run, what is pinned on it. A step that decides the way always runs: its choice
     # is not data to hand on, and made again on the same data it is the same.
     known: dict[str, Any] | None = None
+    stands_in: StandIn | None = None
     if definition.kind != "control":
         known = await _reused_output(db, run=run, node_run=node_run)
+        stands_in = "reused"
         if known is None and run.mode == WorkflowRunMode.TEST.value:
             known = node.pinned_output
+            stands_in = "pinned"
     if known is not None:
         return _ResolvedCall(
             graph=graph,
@@ -673,6 +686,7 @@ async def _resolve_call(db: AsyncSession, *, run: WorkflowRun, node_run: NodeRun
             config=None,
             input=None,
             arrived_output=None,
+            stands_in=stands_in,
         )
     if definition.handler is None:
         raise NodeHandlerMissingError(node_id=node.definition_id, version=node.definition_version)
@@ -963,6 +977,7 @@ async def begin_attempt(
         timeout_seconds=node.policy.timeout_seconds if node.policy else None,
         retry_guarantee=guarantee,
         dispatch_token=token,
+        stands_in=call.stands_in,
     )
 
 
@@ -1550,7 +1565,13 @@ async def settle(
                 db, run=run, update_data={"webhook_response": outcome.webhook_response}
             )
         return await _settle_completed(
-            db, run=run, node_run=node_run, definition=begun.definition, result=result, now=now
+            db,
+            run=run,
+            node_run=node_run,
+            definition=begun.definition,
+            result=result,
+            stands_in=begun.stands_in,
+            now=now,
         )
     if isinstance(result, Failed):
         return await _settle_failed(
@@ -1651,6 +1672,7 @@ async def _settle_completed(
     node_run: NodeRun,
     definition: NodeDefinition,
     result: Completed[Any],
+    stands_in: StandIn | None,
     now: datetime,
 ) -> list[tuple[UUID, UUID]]:
     if definition.id == FOREACH:
@@ -1670,11 +1692,24 @@ async def _settle_completed(
         },
     )
     await events.append(db, run=run, kind=events.EventKind.NODE_COMPLETED, node_run_id=node_run.id)
+    graph = await _graph_or_none(db, run)
+    # A step switched off, or one a retry run reuses, did nothing to log.
+    if graph is not None and stands_in in (None, "pinned"):
+        await quick_log.log_completed(
+            db,
+            run=run,
+            graph=graph,
+            node_run=node_run,
+            definition=definition,
+            output=result.output.model_dump(mode="json"),
+            is_pinned=stands_in == "pinned",
+        )
     return await _advance(
         db,
         run=run,
         completed_node_instance_id=node_run.node_instance_id,
         scope_path=node_run.scope_path,
+        graph=graph,
     )
 
 
@@ -1901,6 +1936,12 @@ async def _fail_for_good(
     access, a spent budget - ends the run however the graph is wired.
     """
     node = graph.node_by_id.get(node_run.node_instance_id) if graph is not None else None
+    if graph is not None and node is not None:
+        # Only a failure that leaves by the `error` port follows the log's `outputs`.
+        routed = error.bypassable and node.routes_errors
+        await quick_log.log_failed(
+            db, run=run, graph=graph, node_run=node_run, error=error, routed=routed
+        )
     if graph is None or node is None or not error.bypassable:
         await _fail_node_and_run(db, run=run, node_run=node_run, error=error, now=now)
         return []
@@ -2380,6 +2421,16 @@ async def _close_loop(
         output=ForeachOutput(results=results, errors=errors, count=count),
     ):
         return []
+    loop_node = graph_nodes[loop_id]
+    await quick_log.log_completed(
+        db,
+        run=run,
+        graph=graph,
+        node_run=loop_run,
+        definition=_registry.get(loop_node.definition_id, loop_node.definition_version),
+        output=ForeachOutput(results=results, errors=errors, count=count).model_dump(mode="json"),
+        is_pinned=False,
+    )
     return await _advance(
         db,
         run=run,

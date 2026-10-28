@@ -1,7 +1,7 @@
 ---
 title: "E-Mails mit einem freigegebenen Entwurf beantworten"
 description: "Ein Workflow liest neue Mail, entwirft eine Antwort, lässt eine Person sie bearbeiten und freigeben und legt dann einen Entwurf im Thread an oder sendet sie über einen selbst betriebenen MCP-Server für Gmail oder Microsoft 365."
-source_sha: "bc960ef3277b"
+source_sha: "cf7392e88a2b"
 ---
 
 # E-Mails mit einem freigegebenen Entwurf beantworten { #answer-mail-with-an-approved-draft }
@@ -108,7 +108,8 @@ ob sie gesendet oder als Entwurf behalten wird. Bauen Sie ihn in dieser Reihenfo
    genauen Text einen Schritt zuvor freigegeben und würde sonst ein zweites Mal
    gefragt.
 
-Um festzuhalten, was geschehen ist, ergänzen Sie nach einem dieser Schritte einen
+Für einen schnellen Nachweis fügen Sie einem Schritt ein [schnelles Log](../workflows.md#quick-log)
+hinzu: Es schreibt eine Zeile auf die Logs-Seite des Workflows. Um festzuhalten, was geschehen ist, ergänzen Sie nach einem dieser Schritte einen
 Schritt, der einen Datensatz in eine [Tabelle](../virtual-tables.md) schreibt, mit der
 Kategorie, der Entscheidung und dem gesendeten Text.
 

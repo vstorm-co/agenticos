@@ -334,6 +334,15 @@ describe("the workflow editor page header", () => {
     expect(exporting.mutate).toHaveBeenCalledWith({ id: "w1", slug: "w" });
   });
 
+  it("opens the workflow's log from More", async () => {
+    await renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: "More" }));
+    expect(screen.getByRole("menuitem", { name: "Logs" })).toHaveAttribute(
+      "href",
+      "/workflows/w1/logs",
+    );
+  });
+
   it("keeps how it starts one click away, in More", async () => {
     await renderPage();
     await userEvent.click(await screen.findByRole("button", { name: "More" }));

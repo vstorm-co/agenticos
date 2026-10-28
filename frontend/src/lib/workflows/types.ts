@@ -193,6 +193,25 @@ export interface NodeInstance {
   disabled?: boolean;
   /** Data a test run hands on as this step's output instead of running it. */
   pinned_output?: Record<string, unknown> | null;
+  /** A line written to the workflow's log each time the step settles; null for none. */
+  quick_log?: QuickLog | null;
+}
+
+/** The longest message a quick log may have. */
+export const QUICK_LOG_MESSAGE_MAX = 500;
+
+/** What a quick log says unless the builder writes something else. */
+export const QUICK_LOG_DEFAULT_MESSAGE = "{{step}} → {{outcome}}";
+
+/** Mirrors `QuickLog`: a message template and the outputs that log, null for every one. */
+export interface QuickLog {
+  message: string;
+  outputs: string[] | null;
+}
+
+/** The steps a quick log cannot sit on: a loop's own item and yield steps. */
+export function canQuickLog(definitionId: string): boolean {
+  return definitionId !== "loop.item" && definitionId !== "loop.yield";
 }
 
 /** How many tries a failing step gets, and the wait between them. Mirrors `RetryPolicy`. */
@@ -587,6 +606,44 @@ export interface WorkflowNodeRunRead {
 export interface WorkflowNodeRunList {
   items: WorkflowNodeRunRead[];
   total: number;
+}
+
+/** One line a step's quick log wrote. Mirrors `WorkflowLogEntryRead`. */
+export interface WorkflowLogEntry {
+  id: Uuid;
+  workflow_id: Uuid;
+  run_id: Uuid;
+  node_instance_id: Uuid;
+  /** The step's name as it was when the line was written. */
+  step_label: string;
+  /** The port the step left by, or `error`. */
+  outcome: string;
+  status: string;
+  message: string;
+  is_test: boolean;
+  is_pinned: boolean;
+  created_at: string;
+}
+
+export interface WorkflowLogList {
+  items: WorkflowLogEntry[];
+  total: number;
+}
+
+/** What a workflow's Logs page is narrowed to, and which page of it. */
+export interface LogQuery {
+  workflowId: Uuid;
+  nodeInstanceId?: Uuid;
+  outcome?: string;
+  /** Only lines written at or after this instant, ISO 8601. */
+  from?: string;
+  /** Text in the message. */
+  q?: string;
+  /** A run id, or the start of one: only that run's lines. */
+  run?: string;
+  includeTest: boolean;
+  /** Zero-based. */
+  page: number;
 }
 
 /** A file one of the run's steps stored. Mirrors `WorkflowFileRead`. */

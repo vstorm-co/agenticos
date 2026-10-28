@@ -110,6 +110,7 @@ export function SearchInput({
   className,
   label,
   autoFocus = false,
+  maxLength,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -122,6 +123,8 @@ export function SearchInput({
    *  collapsed rail. Off everywhere else: a box that grabs the cursor on every
    *  page load takes it from whatever somebody was typing in. */
   autoFocus?: boolean;
+  /** The longest text the search accepts, where the server refuses more. */
+  maxLength?: number;
 }) {
   return (
     <div className={cn("relative w-full sm:w-64", className)}>
@@ -134,6 +137,7 @@ export function SearchInput({
         placeholder={placeholder}
         aria-label={label ?? placeholder}
         autoFocus={autoFocus}
+        maxLength={maxLength}
         className="border-foreground/12 h-8 rounded-lg border pl-8 md:text-[13px]"
       />
     </div>

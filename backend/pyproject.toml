@@ -1113,6 +1113,10 @@ include = [
     "app/repositories/workflow_approval.py",
     "app/schemas/workflow_approval.py",
     "app/api/routes/v1/workflow_approvals.py",
+    # A workflow's own log: the lines a step's Quick Log writes as it settles.
+    "app/db/models/workflow_log_entry.py",
+    "app/repositories/workflow_log_entry.py",
+    "app/schemas/workflow_log_entry.py",
     # A table's triggers (#1785): the workflows a record added to it starts,
     # and every refusal between the two - before activation, a filter miss, a
     # cycle, a revoked principal - is a run that must not start.
@@ -1740,6 +1744,10 @@ include = [
     "app/repositories/workflow_approval.py",
     "app/schemas/workflow_approval.py",
     "app/api/routes/v1/workflow_approvals.py",
+    # A workflow's own log: the lines a step's Quick Log writes as it settles.
+    "app/db/models/workflow_log_entry.py",
+    "app/repositories/workflow_log_entry.py",
+    "app/schemas/workflow_log_entry.py",
     # A table's triggers (#1785): the workflows a record added to it starts,
     # and every refusal between the two - before activation, a filter miss, a
     # cycle, a revoked principal - is a run that must not start.

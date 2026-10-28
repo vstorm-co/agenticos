@@ -14,6 +14,7 @@
  */
 
 import {
+  canQuickLog,
   outputRefs,
   type Binding,
   type JsonSchema,
@@ -275,6 +276,70 @@ export function portNameClashes(graph: WorkflowGraph, definitions: DefinitionMap
         edgeId: null,
         field: `${named.list}/${index}/${named.key}`,
         code: "port-name-taken",
+        params: { name },
+      });
+    });
+  }
+  return problems;
+}
+
+/** A reference in a quick log message, as the server reads it. */
+const QUICK_LOG_REFERENCE = /\{\{\s*([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)*)\s*\}\}/g;
+
+/**
+ * What a quick log may not say - the analog of `_quick_log_problems`: it goes on
+ * a loop itself, not its item or yield step; `outputs` is never empty and names
+ * only the step's own outputs (`error` when it routes errors); and a message reads
+ * nothing of an error but its code and message.
+ */
+export function quickLogProblems(graph: WorkflowGraph, definitions: DefinitionMap): RawProblem[] {
+  const problems: RawProblem[] = [];
+  for (const n of graph.nodes) {
+    const quickLog = n.quick_log;
+    if (quickLog == null) continue;
+    if (!canQuickLog(n.definition_id)) {
+      problems.push({
+        nodeId: n.id,
+        edgeId: null,
+        field: "quick_log",
+        code: "quick-log-not-here",
+      });
+      continue;
+    }
+    for (const [, reference] of quickLog.message.matchAll(QUICK_LOG_REFERENCE)) {
+      const path = (reference as string).split(".");
+      if (path[0] === "error" && !(path.length === 2 && ["code", "message"].includes(path[1]!))) {
+        problems.push({
+          nodeId: n.id,
+          edgeId: null,
+          field: "quick_log/message",
+          code: "quick-log-error-reference",
+          params: { reference: reference as string },
+        });
+      }
+    }
+    const logged = quickLog.outputs;
+    if (logged == null) continue;
+    if (logged.length === 0) {
+      problems.push({
+        nodeId: n.id,
+        edgeId: null,
+        field: "quick_log/outputs",
+        code: "quick-log-no-outputs",
+      });
+    }
+    const definition = definitionFor(definitions, n.id);
+    if (definition === null) continue;
+    const have = new Set(
+      definition.ports.filter((port) => port.kind === "output").map((port) => port.id),
+    );
+    logged.forEach((name, index) => {
+      if (have.has(name)) return;
+      problems.push({
+        nodeId: n.id,
+        edgeId: null,
+        field: `quick_log/outputs/${index}`,
+        code: "quick-log-output-unknown",
         params: { name },
       });
     });

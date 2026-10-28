@@ -1,5 +1,5 @@
 ---
-source_sha: "211121201359"
+source_sha: "26c239a5c5b9"
 ---
 
 # Workflows { #workflows }
@@ -407,6 +407,44 @@ triggera - oferuje pod źródłem pole **Field inside it**, w którym wpisujesz 
 wewnątrz tej wartości, na przykład `record_id` albo `fields.Email`. Run sprawdza tę
 ścieżkę, gdy krok zostaje wysłany do wykonania, bo tylko run wie, co zawiera wartość.
 
+### Szybki log { #quick-log }
+
+Szybki log zapisuje jedną linię w logu workflow za każdym razem, gdy krok kończy się w
+przebiegu, dzięki czemu widzisz, co zrobił workflow, bez otwierania każdego przebiegu.
+To ustawienie kroku. Najedź na kartę i wybierz **+ Log**: pasek **LOG** zadokuje się
+przy prawej stronie karty na zewnątrz, uchwyty wyjść kroku przesuną się na jego
+zewnętrzną krawędź, a każde logowane wyjście ma swój pasek. Usuń szybki log, aby
+przestać logować ten krok.
+
+**Wiadomość** to szablon o długości od 1 do 500 znaków, domyślnie
+`{{step}} → {{outcome}}`. Może używać `{{step}}`, czyli nazwy kroku, oraz
+`{{outcome}}`, czyli wyjścia, którym krok wyszedł. Może też używać pól wyjścia kroku
+przez ich ścieżkę, na przykład `{{record.id}}`, oraz `{{error.code}}` i
+`{{error.message}}` dla błędu. Odwołanie, które nie daje się rozwiązać, jest puste, tak
+samo jak indeks listy: ścieżki przechodzą tylko przez obiekty.
+
+**Outputs** wybiera, które wyniki zapisują linię. Domyślnie każde wyjście; zaznacz
+mniej, aby logować tylko je, a usuń szybki log, aby nie logować nic. Szybki log nie
+jest dozwolony na kroku **Loop item** ani **Loop yield**. Dodaj go do samego kroku
+**For each**: zapisuje linię przez wyjście `done`, gdy jego pętla się zamyka. Krok bez
+wyjść loguje swoje błędy.
+
+Błędy są zapisywane zawsze. Błąd, którego nie kieruje żaden port `error`, jest logowany
+niezależnie od zaznaczonych wyjść, bo log służy właśnie temu, by cichy błąd przebiegu
+nie przeszedł niezauważony. Błąd skierowany portem `error` podlega filtrowi **Outputs**
+jak każdy inny wynik.
+
+Linia nie jest zapisywana dla kroku pominiętego, wyłączonego lub nigdy nierozpoczętego,
+ani dla takiego, który [ponowienie od nieudanego kroku](#running-a-workflow) ponownie
+wykorzystało zamiast uruchomić. Log nigdy nie zmienia przebiegu: wiadomość, której nie
+da się zapisać, jest pomijana, a przebieg toczy się dalej tak, jak by się toczył. Przebieg
+testowy też zapisuje linie, oznaczone jako testowe, a linia z kroku, który przekazał
+przypięte dane testowe, jest oznaczona jako przypięta.
+
+Linie są przechowywane razem z przebiegiem i usuwane razem z nim, gdy retencja historii
+usuwa przebieg (zob. [Ustawienia workflow](#workflow-settings)). Czytasz je na
+[stronie Logs](#the-logs-page) albo, osobno dla każdego kroku, w widoku przebiegu.
+
 ## Połączenia i scope foreach { #connections-and-foreach-scope }
 
 Krawędź rysujesz, łącząc port wyjściowy jednego węzła z portem wejściowym innego
@@ -704,7 +742,7 @@ albo 30 dni) zawężają przebiegi, a lista odpowiada po
 jednej stronie naraz; każdy filtr trafia do adresu, więc przefiltrowaną listę można
 podlinkować. **Runs** na liście workflow pokazuje przebiegi wszystkich workflow
 razem. Na stronie przebiegu kliknięcie kroku pokazuje jego **Input** i **Output** z
-tego przebiegu.
+tego przebiegu. Linie, które zapisał [szybki log](#quick-log) kroku, widać pod krokiem.
 
 **Retry from failed step** uruchamia nowy przebieg tej samej wersji
 z tym samym wejściem, w którym każdy krok, który się udał, przekazuje to, co
@@ -715,6 +753,19 @@ roboczej to, co każdy krok poza pętlą przekazał w tym przebiegu, więc przeb
 testowy zaczyna od miejsca, w którym tamten był. Przez API ponawia `POST
 /api/v1/workflow-runs/{id}/retry`, a `GET /api/v1/workflow-runs` przyjmuje
 `status`, `mode`, `triggered_by`, `created_after` i `created_before`.
+
+### Strona Logs { #the-logs-page }
+
+**Logs**, w menu **More** w nagłówku edytora, wyświetla to, co szybkie logi workflow
+zapisały w jego przebiegach, od najnowszych: kiedy, krok, jego wynik i wiadomość. Zawęż
+linie po **Step**, **Outcome** i **Written** (ostatnia godzina, doba, tydzień albo 30
+dni), przeszukaj wiadomości i włącz **Include test runs** - dopóki tego nie zrobisz,
+przebiegi testowe są pominięte. Aby zobaczyć linie jednego przebiegu, wklej jego
+identyfikator w polu **Run** albo wpisz kilka pierwszych znaków (co najmniej cztery);
+**Show only this run** przy linii wypełnia to pole, a **See in Logs** na stronie
+przebiegu otwiera log przefiltrowany do tego przebiegu. Linia otwiera przebieg, który ją
+zapisał. W widoku przebiegu linie każdego kroku są pod nim, w kolejności zapisu. Oba
+widoki są tylko dla zalogowanych członków: klucz API ich nie odczytuje.
 
 ## Uruchamianie workflow spoza konsoli { #starting-a-workflow-from-outside-the-console }
 

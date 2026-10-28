@@ -14,6 +14,7 @@ import {
   ORG_ROLES,
   SETTINGS_DETAIL,
   TABLE_DETAIL,
+  WORKFLOW_LOGS_DETAIL,
   WORKFLOW_RUNS_DETAIL,
   WORKSPACE_DETAIL,
 } from "@/lib/onboarding/tour";
@@ -75,13 +76,14 @@ describe("useDetailTargets", () => {
     expect(result.current[ORG_ROLES]?.href).toBe("/orgs/org-1/roles");
     expect(result.current[ORG_GROUPS]?.href).toBe("/orgs/org-1/groups");
     expect(result.current[ORG_DIRECTORY]?.href).toBe("/orgs/org-1/directory");
-    // The five "?"-only sections need no fetch: settings resolves to its first
-    // page, a workspace, a table, a workflow's runs and an artifact to nothing to open, and
-    // none is ever pending.
+    // The "?"-only sections need no fetch: settings resolves to its first page, a
+    // workspace, a table, a workflow's runs and log and an artifact to nothing to
+    // open, and none is ever pending.
     expect(result.current[SETTINGS_DETAIL]).toEqual({ pending: false, href: "/settings/profile" });
     expect(result.current[WORKSPACE_DETAIL]).toEqual({ pending: false, href: null });
     expect(result.current[TABLE_DETAIL]).toEqual({ pending: false, href: null });
     expect(result.current[WORKFLOW_RUNS_DETAIL]).toEqual({ pending: false, href: null });
+    expect(result.current[WORKFLOW_LOGS_DETAIL]).toEqual({ pending: false, href: null });
     expect(result.current[ARTIFACT_DETAIL]).toEqual({ pending: false, href: null });
   });
 

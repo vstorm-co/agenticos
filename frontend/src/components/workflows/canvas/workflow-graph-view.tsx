@@ -300,11 +300,11 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
         ) ?? null;
       texts.set(problem.nodeId, [
         ...(texts.get(problem.nodeId) ?? []),
-        problemText(problem, definition),
+        problemText(problem, definition, t),
       ]);
     }
     return texts;
-  }, [problems, graph, catalog]);
+  }, [problems, graph, catalog, t]);
   const editNode = useWorkflowEditorStore((state) => state.editNode);
   const openNode = (_event: React.MouseEvent, node: { id: string; type?: string }) => {
     if (node.type !== "note") editNode(node.id);

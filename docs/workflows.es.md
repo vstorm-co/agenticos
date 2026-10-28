@@ -1,5 +1,5 @@
 ---
-source_sha: "211121201359"
+source_sha: "26c239a5c5b9"
 ---
 
 # Workflows { #workflows }
@@ -421,6 +421,44 @@ escribes la ruta dentro de ese valor, como `record_id` o `fields.Email`. El run
 comprueba esa ruta cuando el paso se despacha, porque solo el run sabe qué contiene
 el valor.
 
+### Quick log { #quick-log }
+
+Un quick log escribe una línea en el log del workflow cada vez que un paso termina en
+una ejecución, así que ves lo que hizo un workflow sin abrir cada ejecución. Es un
+ajuste del paso. Pasa el cursor sobre una tarjeta y elige **+ Log**: una franja **LOG**
+se acopla fuera del lado derecho de la tarjeta, los handles de salida del paso pasan a
+su borde exterior y cada salida registrada tiene una barra. Quita el quick log para
+dejar de registrar ese paso.
+
+El **mensaje** es una plantilla de 1 a 500 caracteres, por defecto
+`{{step}} → {{outcome}}`. Puede usar `{{step}}`, el nombre del paso, y `{{outcome}}`, la
+salida por la que salió el paso. También los campos de salida del paso por su ruta,
+como `{{record.id}}`, y `{{error.code}}` y `{{error.message}}` para un fallo. Una
+referencia que no se resuelve se muestra vacía, y un índice de lista también: las rutas
+solo atraviesan objetos.
+
+**Outputs** elige qué resultados escriben una línea. Por defecto lo hace cada salida;
+marca menos para registrar solo esas, y quita el quick log para no registrar nada. Un
+quick log no se admite en un paso **Loop item** ni **Loop yield**. Ponlo en el propio
+paso **For each**: escribe una línea, por su salida `done`, cuando su bucle se cierra.
+Un paso sin salidas registra sus fallos.
+
+Los fallos siempre se escriben. Un fallo que ningún puerto `error` encamina se registra
+sea cual sea la selección de salidas, porque una ejecución que falló en silencio es
+justo para lo que sirve un log. Un fallo encaminado por un puerto `error` sigue el
+filtro **Outputs** como cualquier otro resultado.
+
+No se escribe ninguna línea para un paso omitido, desactivado o que nunca empezó, ni
+para uno que un [reintento desde el paso fallido](#running-a-workflow) reutilizó en vez
+de ejecutar. Un log nunca cambia una ejecución: un mensaje que no se puede escribir se
+descarta y la ejecución sigue como habría seguido. Una ejecución de prueba también
+escribe líneas, marcadas como de prueba, y la línea de un paso que entregó datos de
+prueba fijados se marca como fijada.
+
+Las líneas se conservan con su ejecución y se eliminan con ella cuando la retención del
+historial elimina la ejecución (consulta [Ajustes del workflow](#workflow-settings)). Las
+lees en la [página Logs](#the-logs-page) o, por paso, en la vista de la ejecución.
+
 ## Conexiones y scope de foreach { #connections-and-foreach-scope }
 
 Dibujas una arista conectando el puerto de salida de un nodo con el puerto de entrada
@@ -725,6 +763,9 @@ se puede enlazar. **Runs** en la lista de workflows muestra juntas las ejecucion
 todos. En la página de una ejecución, hacer clic en un paso muestra su **Input** y su
 **Output** de esa ejecución.
 
+Las líneas que escribió el [quick log](#quick-log) de un
+paso aparecen debajo del paso.
+
 **Retry from failed step** inicia una ejecución nueva
 de la misma versión con la misma entrada, en la que cada paso que tuvo éxito
 entrega lo que entregó antes, así que solo se ejecutan el paso fallido y lo que no
@@ -734,6 +775,20 @@ en los pasos del borrador lo que cada paso fuera de un bucle entregó en esa
 ejecución, así que una ejecución de prueba empieza donde estaba aquella. Por la API,
 `POST /api/v1/workflow-runs/{id}/retry` reintenta, y `GET /api/v1/workflow-runs`
 acepta `status`, `mode`, `triggered_by`, `created_after` y `created_before`.
+
+### La página Logs { #the-logs-page }
+
+**Logs**, en **More** en la cabecera del editor, lista lo que los quick logs del
+workflow escribieron en sus ejecuciones, las más recientes primero: cuándo, el paso, su
+resultado y el mensaje. Acota las líneas por **Step**, **Outcome** y **Written** (la
+última hora, día, semana o 30 días), busca en el mensaje y activa **Include test runs**:
+hasta entonces las ejecuciones de prueba quedan fuera. Para ver las líneas de una sola
+ejecución, pega su id en **Run** o escribe los primeros caracteres (al menos cuatro);
+**Show only this run** en una línea rellena el campo, y **See in Logs** en la página de
+una ejecución abre los logs filtrados por esa ejecución. Una línea abre la ejecución que
+la escribió. En la vista de la ejecución, las líneas de cada paso están debajo de él, en
+el orden en que se escribieron. Ambas son solo para miembros con sesión iniciada: una
+clave de API no las lee.
 
 ## Iniciar un workflow desde fuera de la consola { #starting-a-workflow-from-outside-the-console }
 

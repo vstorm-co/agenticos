@@ -16,6 +16,9 @@ import {
 
 import { type Schema, humanise, labelOf } from "./schema-model";
 
+/** The `workflows` translator, as far as a field label needs it. */
+type Translate = (key: "quickLogTitle") => string;
+
 /**
  * The field-scoped messages for one node, keyed by `target_field` path — what the
  * form hands each `BindingField` and each scalar leaf for its `error` slot. The
@@ -46,8 +49,14 @@ export function stepProblems(
  * problem names the field the way the form above it does. A key bound on its own
  * (`arguments/email`) is named by its field.
  */
-export function problemFieldLabel(definition: NodeDefinition | null, field: string): string {
+export function problemFieldLabel(
+  definition: NodeDefinition | null,
+  field: string,
+  t: Translate,
+): string {
   const name = field.split("/")[0] as string;
+  // Not a config field: the step's quick log, named as the popover names it.
+  if (name === "quick_log") return t("quickLogTitle");
   for (const root of [definition?.config_schema, definition?.input_schema]) {
     const property = (root?.["properties"] as Record<string, Schema> | undefined)?.[name];
     if (property !== undefined) return labelOf(property, name);
@@ -56,10 +65,14 @@ export function problemFieldLabel(definition: NodeDefinition | null, field: stri
 }
 
 /** One problem as a sentence that stands on its own: a field's names the field. */
-export function problemText(problem: ValidationProblem, definition: NodeDefinition | null): string {
+export function problemText(
+  problem: ValidationProblem,
+  definition: NodeDefinition | null,
+  t: Translate,
+): string {
   return problem.field === null
     ? problem.message
-    : `${problemFieldLabel(definition, problem.field)}: ${problem.message}`;
+    : `${problemFieldLabel(definition, problem.field, t)}: ${problem.message}`;
 }
 
 /** How many problems, of any scope, a node has — the badge count. */

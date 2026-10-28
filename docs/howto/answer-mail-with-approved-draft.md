@@ -98,8 +98,10 @@ it as a draft. Build it in this order.
    Set both steps' **Ask for approval** to **Never**. A person approved the exact text a
    step ago and would otherwise be asked a second time.
 
-To keep a record, add a record step after any of these to write a row to a
-[table](../virtual-tables.md), with the category, the decision and the text sent.
+For a quick record, add a [quick log](../workflows.md#quick-log) to a step: it writes a
+line to the workflow's Logs page. To keep a record in a table, add a record step after
+any of these to write a row to a [table](../virtual-tables.md), with the category, the
+decision and the text sent.
 
 !!! warning "A direct send has no guard"
 

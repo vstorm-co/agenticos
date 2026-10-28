@@ -50,6 +50,7 @@ export const ROUTES = {
   WORKFLOW_DETAIL: (id: string) => `/workflows/${id}`,
   WORKFLOW_ALL_RUNS: "/workflows/runs",
   WORKFLOW_RUNS: (id: string) => `/workflows/${id}/runs`,
+  WORKFLOW_LOGS: (id: string) => `/workflows/${id}/logs`,
   WORKFLOW_RUN_DETAIL: (id: string, runId: string) => `/workflows/${id}/runs/${runId}`,
   RUNS: "/runs",
   ROUTINES: "/routines",

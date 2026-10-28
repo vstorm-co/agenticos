@@ -48,13 +48,29 @@ describe("problem selectors", () => {
       input_schema: { properties: { prompt: {} } },
     } as unknown as NodeDefinition;
     const named = (field: string | null) =>
-      problemText(problem({ nodeId: "N", field, message: "Required." }), definition);
+      problemText(
+        problem({ nodeId: "N", field, message: "Required." }),
+        definition,
+        () => "Quick log",
+      );
     expect(named("model_profile_id")).toBe("Model: Required.");
     // No title of its own: the name, made readable.
     expect(named("prompt")).toBe("Prompt: Required.");
     // One key of an open object is named by its field.
     expect(named("arguments/email")).toBe("Arguments: Required.");
     expect(named(null)).toBe("Required.");
+    // The quick log is not a config field: it goes by its own title, not "Quick log" humanised.
+    expect(named("quick_log/outputs/0")).toBe("Quick log: Required.");
+  });
+
+  it("names the quick log in the viewer's language, not as a humanised field", async () => {
+    const { default: de } = await import("../../../../messages/de.json");
+    const text = problemText(
+      problem({ nodeId: "N", field: "quick_log/outputs/0", message: "Weg." }),
+      null,
+      () => de.workflows.quickLogTitle,
+    );
+    expect(text).toBe("Schnelles Log: Weg.");
   });
 
   it("counts every problem for a node", () => {

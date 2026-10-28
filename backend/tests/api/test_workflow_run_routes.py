@@ -537,3 +537,171 @@ class TestFileListRoute:
                 response = await http.get(_url(f"/{run.id}/files"))
         assert response.status_code == 200
         assert response.json()["items"][0]["filename"] == "report.csv"
+
+
+def _log_row(**overrides: object):
+    row = MagicMock()
+    row.id = uuid.uuid4()
+    row.workflow_id = uuid.uuid4()
+    row.run_id = uuid.uuid4()
+    row.node_instance_id = uuid.uuid4()
+    row.step_label = "Send the mail"
+    row.outcome = "out"
+    row.status = "succeeded"
+    row.message = "Send the mail → out"
+    row.is_test = False
+    row.is_pinned = False
+    row.created_at = datetime.now(UTC)
+    for field, value in overrides.items():
+        setattr(row, field, value)
+    return row
+
+
+class TestRunLogsRoute:
+    async def test_a_runs_lines_are_listed_and_the_paging_reaches_the_repository(
+        self, owner_client: OpenClient
+    ):
+        run = _run_row()
+        workflow = _workflow(id=run.workflow_id)
+        listed = AsyncMock(return_value=([_log_row()], 1))
+        with (
+            patch(f"{FACADE_PATH}.workflow_run_repo.get_run", new=AsyncMock(return_value=run)),
+            patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(f"{FACADE_PATH}.workflow_log_repo.list_for_run", new=listed),
+        ):
+            async with owner_client() as http:
+                response = await http.get(_url(f"/{run.id}/logs?skip=2&limit=5"))
+        assert response.status_code == 200
+        body = response.json()
+        assert body["total"] == 1 and body["items"][0]["message"] == "Send the mail → out"
+        assert (listed.await_args.kwargs["skip"], listed.await_args.kwargs["limit"]) == (2, 5)
+
+    async def test_a_run_the_caller_cannot_reach_answers_404(self, owner_client: OpenClient):
+        run = _run_row()
+        with (
+            patch(f"{FACADE_PATH}.workflow_run_repo.get_run", new=AsyncMock(return_value=run)),
+            patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=_workflow())),
+            patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=False)),
+        ):
+            async with owner_client() as http:
+                response = await http.get(_url(f"/{run.id}/logs"))
+        assert response.status_code == 404
+
+    async def test_an_organization_key_may_not_call_it(self, owner_client: OpenClient):
+        from app.api.public_api import is_public_route
+        from app.api.routes.v1.workflow_runs import logs_router, router
+
+        by_path = {route.path: route for route in (*router.routes, *logs_router.routes)}
+        assert is_public_route(by_path["/{run_id}/nodes"])
+        assert not is_public_route(by_path["/{run_id}/logs"])
+        assert not is_public_route(by_path["/{workflow_id}/logs"])
+
+
+class TestWorkflowLogsRoute:
+    def _url(self, workflow_id: uuid.UUID, query: str = "") -> str:
+        return f"{settings.API_V1_STR}/workflows/{workflow_id}/logs{query}"
+
+    async def test_a_workflows_log_is_listed_with_its_filters_passed_on(
+        self, owner_client: OpenClient
+    ):
+        workflow = _workflow()
+        step = uuid.uuid4()
+        listed = AsyncMock(return_value=([_log_row(is_test=True)], 1))
+        with (
+            patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(f"{FACADE_PATH}.workflow_log_repo.list_for_workflow", new=listed),
+        ):
+            async with owner_client() as http:
+                response = await http.get(
+                    self._url(
+                        workflow.id,
+                        f"?node_instance_id={step}&outcome=error&q=mail&include_test=true"
+                        "&from=2026-10-01T00:00:00Z&to=2026-10-02T00:00:00Z&skip=3&limit=10",
+                    )
+                )
+        assert response.status_code == 200
+        assert response.json()["items"][0]["is_test"] is True
+        filters = listed.await_args.kwargs["filters"]
+        assert (filters.node_instance_id, filters.outcome, filters.query) == (step, "error", "mail")
+        assert filters.include_test is True
+        assert filters.created_from == datetime(2026, 10, 1, tzinfo=UTC)
+        assert filters.created_to == datetime(2026, 10, 2, tzinfo=UTC)
+        assert (listed.await_args.kwargs["skip"], listed.await_args.kwargs["limit"]) == (3, 10)
+
+    async def test_a_run_id_or_its_start_is_passed_on_and_anything_else_is_refused(
+        self, owner_client: OpenClient
+    ):
+        workflow = _workflow()
+        run = uuid.uuid4()
+        listed = AsyncMock(return_value=([], 0))
+        with (
+            patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(f"{FACADE_PATH}.workflow_log_repo.list_for_workflow", new=listed),
+        ):
+            async with owner_client() as http:
+                whole = await http.get(self._url(workflow.id, f"?run={run}"))
+                dashless = await http.get(self._url(workflow.id, f"?run={run.hex}"))
+                start = await http.get(self._url(workflow.id, "?run=3f2a1b9c-4"))
+                refused = [
+                    await http.get(self._url(workflow.id, f"?run={value}"))
+                    for value in (
+                        "3f2",
+                        "xyz123",
+                        f"{run}0",
+                        "3f2a%25",
+                        "3f2a" * 9,
+                        "3f2a" * 9 + "-",
+                        "3f2a3f2a3f",
+                        "3f2a-3f2a3f",
+                    )
+                ]
+        assert whole.status_code == dashless.status_code == start.status_code == 200
+        assert [call.kwargs["filters"].run for call in listed.await_args_list] == [
+            str(run),
+            run.hex,
+            "3f2a1b9c-4",
+        ]
+        for response in refused:
+            assert response.status_code == 422
+            problems = response.json()["error"]["details"]["fields"]
+            assert problems == [
+                {"field": "run", "message": "A run id, or its first 4 or more characters"}
+            ]
+            assert "pattern" not in response.text
+        assert listed.await_count == 3
+
+    async def test_test_runs_are_left_out_unless_asked_for(self, owner_client: OpenClient):
+        workflow = _workflow()
+        listed = AsyncMock(return_value=([], 0))
+        with (
+            patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(f"{FACADE_PATH}.workflow_log_repo.list_for_workflow", new=listed),
+        ):
+            async with owner_client() as http:
+                response = await http.get(self._url(workflow.id))
+        assert response.status_code == 200
+        assert listed.await_args.kwargs["filters"].include_test is False
+
+    async def test_a_workflow_the_caller_cannot_view_answers_404_like_its_runs(
+        self, owner_client: OpenClient
+    ):
+        workflow = _workflow()
+        with (
+            patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=False)),
+        ):
+            async with owner_client() as http:
+                logs = await http.get(self._url(workflow.id))
+                runs = await http.get(
+                    f"{settings.API_V1_STR}/workflow-runs?workflow_id={workflow.id}"
+                )
+        assert logs.status_code == runs.status_code == 404
+
+    async def test_a_limit_over_the_page_ceiling_is_refused(self, owner_client: OpenClient):
+        async with owner_client() as http:
+            response = await http.get(self._url(uuid.uuid4(), "?limit=101"))
+        assert response.status_code == 422

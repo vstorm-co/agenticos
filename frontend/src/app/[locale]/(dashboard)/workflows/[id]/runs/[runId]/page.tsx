@@ -10,6 +10,7 @@ import {
   Clock,
   ListChecks,
   RotateCcw,
+  ScrollText,
   Square,
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
@@ -34,6 +35,8 @@ import {
 } from "@/components/workflows/canvas";
 import { NodeEditorDialog } from "@/components/workflows/node-editor";
 import { RunAnswer } from "@/components/workflows/runs/run-answer";
+import { outcomeLabels } from "@/components/workflows/logs/outcome-labels";
+import { StepLogs } from "@/components/workflows/logs/step-logs";
 import { RunFiles } from "@/components/workflows/runs/run-files";
 import { NodeRunStatusLabel, WorkflowRunStatusBadge } from "@/components/workflows/runs/run-status";
 import {
@@ -76,7 +79,8 @@ export default function WorkflowRunPage({ params }: PageProps) {
   const { workflow } = useWorkflow(id);
   const { nodes: catalog, isLoading: catalogLoading } = useNodeCatalog();
   const router = useRouter();
-  const { run, isLoading, nodes, files, graph, cancel, retry } = useWorkflowRun(runId);
+  const { run, isLoading, nodes, files, logs, logsError, graph, cancel, retry } =
+    useWorkflowRun(runId);
   const { can } = usePermissions();
   const load = useWorkflowEditorStore((state) => state.load);
   const seedGraph = useWorkflowEditorStore((state) => state.seedGraph);
@@ -124,6 +128,19 @@ export default function WorkflowRunPage({ params }: PageProps) {
     );
   };
 
+  const labelsOf = (nodeId: string) => {
+    const instance = graph?.nodes.find((node) => node.id === nodeId);
+    return instance === undefined
+      ? new Map<string, string>()
+      : outcomeLabels(
+          instance,
+          catalog.find(
+            (entry) =>
+              entry.id === instance.definition_id && entry.version === instance.definition_version,
+          ),
+        );
+  };
+
   // As the editor does, the canvas waits for the catalog its cards are drawn from.
   if (isLoading || catalogLoading || run === null || !workflow) {
     return (
@@ -167,6 +184,15 @@ export default function WorkflowRunPage({ params }: PageProps) {
                 </Link>
               </Button>
             )}
+            <Button variant="outline" asChild>
+              {/* A test run's lines stay out of the log unless it is asked for them. */}
+              <Link
+                href={`${ROUTES.WORKFLOW_LOGS(id)}?run=${run.id}${run.mode === "test" ? "&test=1" : ""}`}
+              >
+                <ScrollText className="h-4 w-4" />
+                {t("runSeeInLogs")}
+              </Link>
+            </Button>
             {isRunRetryable(run.status) && can(Perm.workflowsRun) && (
               <Button
                 disabled={retry.isPending}
@@ -263,8 +289,13 @@ export default function WorkflowRunPage({ params }: PageProps) {
               <CardTitle className="text-sm">{t("runStepList")}</CardTitle>
             </CardHeader>
             <CardContent className="max-h-80 overflow-y-auto">
+              {logsError !== null && (
+                <p role="alert" className="text-destructive pb-2 text-xs">
+                  {t("runLogsFailed")}
+                </p>
+              )}
               <ul className="divide-border divide-y">
-                {nodes.map((node) => (
+                {nodes.map((node, index) => (
                   <li key={node.id} className="space-y-0.5 py-2">
                     <div className="flex items-center justify-between gap-2">
                       <span className="truncate text-sm">{nameOf(node.node_instance_id)}</span>
@@ -283,6 +314,18 @@ export default function WorkflowRunPage({ params }: PageProps) {
                       config={graph?.nodes.find((entry) => entry.id === node.node_instance_id)}
                       output={node.output}
                     />
+                    {/* A step's lines are one list, under its first row - a loop's
+                        iterations are rows of the same step. */}
+                    {nodes.findIndex(
+                      (entry) => entry.node_instance_id === node.node_instance_id,
+                    ) === index && (
+                      <StepLogs
+                        entries={logs.filter(
+                          (entry) => entry.node_instance_id === node.node_instance_id,
+                        )}
+                        labels={labelsOf(node.node_instance_id)}
+                      />
+                    )}
                   </li>
                 ))}
               </ul>

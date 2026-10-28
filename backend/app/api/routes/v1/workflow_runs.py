@@ -25,11 +25,14 @@ from app.api.deps import (
     limit_workflow_run,
     require,
 )
-from app.api.public_api import PUBLIC
+from app.api.public_api import INTERNAL, PUBLIC
 from app.api.routes.v1._stored_bytes import stored_file_response
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import NotFoundError, ValidationError
+from app.core.field_errors import field_details
 from app.core.permissions import Perm
 from app.db.models.workflow_run import WorkflowRunMode, WorkflowRunStatus, WorkflowRunTrigger
+from app.repositories.workflow_log_entry import LogFilters, is_run_filter
+from app.schemas.workflow_log_entry import WorkflowLogEntryList
 from app.schemas.workflow_run import (
     WorkflowEventList,
     WorkflowFileList,
@@ -45,6 +48,7 @@ from app.services.workflow_execution.resume import read_workflow_body, require_r
 
 router = APIRouter(dependencies=[PUBLIC])
 resume_router = APIRouter()
+logs_router = APIRouter()
 
 
 @router.post(
@@ -151,6 +155,18 @@ async def list_workflow_run_nodes(
     return await service.node_runs(ctx, run_id, skip=skip, limit=limit)
 
 
+@router.get("/{run_id}/logs", response_model=WorkflowLogEntryList, openapi_extra=INTERNAL)
+async def list_workflow_run_logs(
+    run_id: UUID,
+    service: WorkflowExecutionSvc,
+    ctx: Auth,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(200, ge=1, le=500),
+) -> Any:
+    """The lines this run's steps wrote with a Quick Log, in the order they were written."""
+    return await service.run_logs(ctx, run_id, skip=skip, limit=limit)
+
+
 @router.get("/{run_id}/files", response_model=WorkflowFileList)
 async def list_workflow_run_files(run_id: UUID, service: WorkflowExecutionSvc, ctx: Auth) -> Any:
     """Every file the run made, oldest first."""
@@ -203,3 +219,43 @@ async def resume_workflow_run(
     one that is not the run's answers `404` as if there were no run."""
     require_resume_token(run_id, token)
     return await service.resume(run_id, token, body=await read_workflow_body(request.stream()))
+
+
+@logs_router.get("/{workflow_id}/logs", response_model=WorkflowLogEntryList)
+async def list_workflow_logs(
+    workflow_id: UUID,
+    service: WorkflowExecutionSvc,
+    ctx: Auth,
+    node_instance_id: UUID | None = Query(default=None, description="Only this step's lines"),
+    outcome: str | None = Query(
+        default=None,
+        max_length=256,
+        description="Only lines with this outcome - a port, or `error`",
+    ),
+    from_: datetime | None = Query(default=None, alias="from", description="Written at or after"),
+    to: datetime | None = Query(default=None, description="Written before"),
+    q: str | None = Query(default=None, max_length=200, description="Text in the message"),
+    include_test: bool = Query(default=False, description="Lines written by test runs as well"),
+    run: str | None = Query(
+        default=None,
+        description="Only this run's lines: a run id, or the 4 or more characters it starts with",
+    ),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+) -> Any:
+    """A workflow's log, newest first: the lines its steps' Quick Logs wrote, narrowed by
+    step, outcome, run, time window and text. Test runs are left out unless asked for.
+    Gated like the workflow's runs: a workflow this caller cannot view answers 404."""
+    if run is not None and not is_run_filter(run):
+        message = "A run id, or its first 4 or more characters"
+        raise ValidationError(message=message, details=field_details("run", message))
+    filters = LogFilters(
+        node_instance_id=node_instance_id,
+        outcome=outcome,
+        created_from=from_,
+        created_to=to,
+        query=q,
+        include_test=include_test,
+        run=run,
+    )
+    return await service.workflow_logs(ctx, workflow_id, filters=filters, skip=skip, limit=limit)

@@ -16,6 +16,7 @@ import {
   stepsForPage,
   TOUR_STEPS,
   visibleTourSteps,
+  WORKFLOW_LOGS_DETAIL,
   WORKFLOW_RUNS_DETAIL,
   WORKSPACE_DETAIL,
   PROJECT_DETAIL,
@@ -111,6 +112,15 @@ describe("pageKey", () => {
     expect(stepsForPage(ROUTES.WORKFLOW_RUNS("wf-1"), () => true).map((s) => s.id)).toEqual([
       "workflow-stats",
       "workflow-run-history",
+    ]);
+  });
+});
+
+describe("a workflow's log page", () => {
+  it("collapses one workflow's log onto its identity and describes it", () => {
+    expect(pageKey(ROUTES.WORKFLOW_LOGS("wf-1"))).toBe(WORKFLOW_LOGS_DETAIL);
+    expect(stepsForPage(ROUTES.WORKFLOW_LOGS("wf-1"), () => true).map((s) => s.id)).toEqual([
+      "workflow-logs",
     ]);
   });
 });

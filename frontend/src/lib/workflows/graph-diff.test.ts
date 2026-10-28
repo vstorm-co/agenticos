@@ -64,6 +64,22 @@ describe("diffGraphs", () => {
     });
   });
 
+  it("reports a changed quick log as a change of that step", () => {
+    const plain = node("s", "debug.echo");
+    const logged = { ...plain, quick_log: { message: "m", outputs: null } };
+    const edited = { ...plain, quick_log: { message: "m", outputs: ["out"] } };
+    const steps = (a: typeof plain, b: typeof plain) =>
+      diffGraphs(graph({ entry: "s", nodes: [a] }), graph({ entry: "s", nodes: [b] })).steps;
+
+    expect(steps(plain, logged).get("s")).toEqual({
+      change: "changed",
+      fields: [{ kind: "quickLog" }],
+    });
+    expect(steps(logged, edited).get("s")?.fields).toEqual([{ kind: "quickLog" }]);
+    // No quick log and a null one are the same.
+    expect(steps(plain, { ...plain, quick_log: null }).size).toBe(0);
+  });
+
   it("leaves a removed step where it stood when nothing took its place", () => {
     const far = { ...node("far", "debug.echo"), layout: { x: 900, y: 0 } };
     const before = graph({ entry: "a", nodes: [node("a", "debug.echo"), far] });

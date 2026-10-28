@@ -37,6 +37,7 @@ import { RunPill } from "./run-pill";
 import { isErrorPort, type WorkflowFlowNode } from "./graph-adapter";
 import { ProblemBadge } from "./problem-badge";
 import { QuickAdd } from "./quick-add";
+import { QuickLogControl } from "./quick-log";
 import {
   cardHeight,
   MAX_NODE_HEIGHT,
@@ -236,14 +237,26 @@ export function nodeSummary(instance: NodeInstance, t: Translate): string | null
  */
 const RUN_CARD: Record<NodeRunState, string> = {
   pending: "border-warning border-dashed",
-  starting: "border-success ring-success/15 ring-4",
-  running: "border-success ring-success/15 ring-4",
-  waiting: "border-[var(--domain-admin)] ring-2 ring-[var(--domain-admin-line)]",
+  starting: "border-success",
+  running: "border-success",
+  waiting: "border-[var(--domain-admin)]",
   done: "border-success/60",
-  failed: "border-destructive ring-destructive/15 border-2 ring-4",
-  attention: "border-destructive ring-destructive/15 border-2 ring-4",
+  failed: "border-destructive border-2",
+  attention: "border-destructive border-2",
   skipped: "border-dotted opacity-40",
   notReached: "opacity-50",
+};
+
+/**
+ * The rings of a run's states, apart from the borders: with a quick log's strip
+ * docked they are drawn on an overlay around the card and the strip together.
+ */
+const RUN_RING: Partial<Record<NodeRunState, string>> = {
+  starting: "ring-success/15 ring-4",
+  running: "ring-success/15 ring-4",
+  waiting: "ring-2 ring-[var(--domain-admin-line)]",
+  failed: "ring-destructive/15 ring-4",
+  attention: "ring-destructive/15 ring-4",
 };
 
 /** How a card's name and summary are cut once they pass the lines the card gives them. */
@@ -338,6 +351,20 @@ export function WorkflowNode({ data, selected, height }: NodeProps<WorkflowFlowN
   const crashed = runState?.state === "failed" || runState?.state === "attention";
   const problems = runView ? [] : (problemTexts.get(instance.id) ?? []);
   const change = changes?.get(instance.id) ?? null;
+  // The ports a quick log writes for, null when the step has none.
+  const logged =
+    instance.quick_log == null
+      ? null
+      : new Set(instance.quick_log.outputs ?? outputs.map((port) => port.id));
+
+  // Every ring the card draws - selected, the run's, the change's - as one set, so
+  // a docked strip can be wrapped by them with the card instead of left outside.
+  const ring = cn(
+    selected && "ring-primary/60 ring-2",
+    runState !== null && RUN_RING[runState.state],
+    change === "added" && "ring-2 ring-emerald-500/25",
+    change === "changed" && "ring-2 ring-[var(--domain-use-line)]",
+  );
 
   const connectButton = (port: Port) =>
     !readOnly &&
@@ -367,10 +394,16 @@ export function WorkflowNode({ data, selected, height }: NodeProps<WorkflowFlowN
       .filter((edge) => edge.source_node_id === instance.id)
       .map((edge) => edge.source_port),
   );
-  const quickAdd = (port: Port) =>
+  // `beyondStrip`: placed against the card itself, so past a docked quick-log strip.
+  const quickAdd = (port: Port, beyondStrip = false) =>
     !readOnly &&
     !connecting && (
-      <span className="absolute top-1/2 -right-8 -translate-y-1/2">
+      <span
+        className={cn(
+          "absolute top-1/2 -translate-y-1/2",
+          beyondStrip ? "-right-[53px]" : "-right-8",
+        )}
+      >
         <QuickAdd
           catalog={catalog}
           nodeName={name}
@@ -389,12 +422,16 @@ export function WorkflowNode({ data, selected, height }: NodeProps<WorkflowFlowN
       className={cn(
         "group bg-card text-card-foreground relative rounded-xl border shadow-sm transition-shadow",
         sizedWidth == null ? "w-60" : "w-full",
+        // A quick log's strip is docked to the right side: the card's corners there give way to it.
+        logged !== null && "rounded-r-none",
         // Taller than it needs: the ports sit at the bottom, the text at the top. A row
         // the estimate misses (Connect to, run counts) grows the card, never spills out.
         sizedHeight != null && "flex min-h-full flex-col",
         // A run starts here: the card's left end is rounded like a start cap, in either style.
         family === "start" && "rounded-l-[2rem]",
-        selected ? "ring-primary/60 border-primary/40 ring-2" : "hover:shadow-md",
+        selected ? "border-primary/40" : "hover:shadow-md",
+        // Beside a docked strip the rings go on the overlay below, around both.
+        logged === null && ring,
         runState !== null && RUN_CARD[runState.state],
         // Moving only while it is watched: a run opened once it ended is still.
         runState?.watched &&
@@ -403,12 +440,25 @@ export function WorkflowNode({ data, selected, height }: NodeProps<WorkflowFlowN
         runState?.watched && crashed && "run-crash",
         // Switched off: still on the canvas, visibly out of the run.
         instance.disabled && "border-dashed opacity-60",
-        change === "added" && "border-emerald-500/60 ring-2 ring-emerald-500/25",
+        change === "added" && "border-emerald-500/60",
         change === "removed" && "border-destructive/50 border-dashed opacity-70",
         // Blue, the one hue no family and no selection uses, so "changed" never reads as either.
-        change === "changed" && "border-[var(--domain-use)] ring-2 ring-[var(--domain-use-line)]",
+        change === "changed" && "border-[var(--domain-use)]",
       )}
     >
+      {logged !== null && ring !== "" && (
+        // One rounded outline around the card and its strip, with no seam: the strip's
+        // 20px past the card's own edge.
+        <span
+          aria-hidden="true"
+          data-testid="card-ring"
+          className={cn("pointer-events-none absolute -inset-px -right-5 rounded-xl", ring)}
+        />
+      )}
+      {/* A step the catalog does not know has no outputs to log. */}
+      {(definition !== null || instance.quick_log != null) && (
+        <QuickLogControl instance={instance} outputs={outputs} name={name} readOnly={readOnly} />
+      )}
       {resizable && (
         // First, so the handles painted after it stay on top of its edges.
         <>
@@ -465,7 +515,9 @@ export function WorkflowNode({ data, selected, height }: NodeProps<WorkflowFlowN
           role="note"
           aria-label={t("waits.label", { what: t(`waits.${band.key}`, band.values) })}
           className={cn(
-            "flex h-[22px] items-center gap-1.5 rounded-t-[11px] px-3 text-[11px] font-semibold",
+            "flex h-[22px] items-center gap-1.5 px-3 text-[11px] font-semibold",
+            // Square where a docked strip meets the card, as the card's own corners are.
+            logged !== null ? "rounded-tl-[11px]" : "rounded-t-[11px]",
             band.tone === "person" && style === "colour"
               ? "bg-[var(--domain-admin-subtle)] text-[var(--domain-admin)]"
               : "bg-muted text-foreground",
@@ -626,11 +678,24 @@ export function WorkflowNode({ data, selected, height }: NodeProps<WorkflowFlowN
             <li
               key={port.id}
               className={cn(
-                "relative flex items-center justify-end gap-1 px-3 text-xs",
+                // Under a quick log the row reaches across the docked strip (20px and its
+                // border), so the handle and the "+" sit on the strip's outer edge.
+                "relative flex items-center justify-end gap-1 pl-3 text-xs",
+                logged === null ? "pr-3" : "-mr-[21px] pr-[33px]",
                 isErrorPort(port) ? "text-destructive" : "text-muted-foreground",
               )}
             >
               {connectButton(port)}
+              {logged?.has(port.id) && (
+                // In the LOG strip, on this output's row, at the card's side: a bar, so it is
+                // never read as a second handle.
+                <span
+                  role="img"
+                  aria-label={t("quickLogMark")}
+                  title={t("quickLogMark")}
+                  className="bg-primary absolute right-[13px] h-0.5 w-1.5 rounded-full"
+                />
+              )}
               <span>{port.label}</span>
               {quickAdd(port)}
               <Handle
@@ -652,12 +717,14 @@ export function WorkflowNode({ data, selected, height }: NodeProps<WorkflowFlowN
       ) : (
         outputs.map((port) => (
           <span key={port.id}>
-            {quickAdd(port)}
+            {quickAdd(port, logged !== null)}
             <Handle
               id={port.id}
               type="source"
               position={Position.Right}
               isConnectable={!readOnly}
+              // On the docked strip's outer edge, as the labelled rows' handles are.
+              style={logged === null ? undefined : { right: -21 }}
               data-port-id={port.id}
               data-port-variant="output"
               className={cn(

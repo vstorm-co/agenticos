@@ -129,6 +129,7 @@ v1_router.include_router(context_files.router, prefix="/context", tags=["context
 v1_router.include_router(virtual_tables.router, prefix="/tables", tags=["tables"])
 v1_router.include_router(workflows.router, prefix="/workflows", tags=["workflows"])
 v1_router.include_router(workflow_runs.router, prefix="/workflow-runs", tags=["workflow-runs"])
+v1_router.include_router(workflow_runs.logs_router, prefix="/workflows", tags=["workflows:logs"])
 v1_router.include_router(
     workflow_runs.resume_router, prefix="/workflow-resume", tags=["workflow-runs"]
 )
