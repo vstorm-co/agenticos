@@ -1,8 +1,12 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type DragEvent, type ReactNode } from "react";
 import { AlertTriangle, Download, Info, Search, Trash2 } from "lucide-react";
 
+import {
+  ProjectEntryActions,
+  PROJECT_PATH_DRAG,
+} from "@/components/projects/project-entry-actions";
 import { FileContent, FileIcon, PathTree, type PathTreeNode } from "@/components/files";
 import { Badge, BlankPeek, Button, DocPeek, Input, Skeleton } from "@/components/ui";
 import { hasSourceView, readsAsText, resolveFileKind } from "@/lib/file-kinds";
@@ -11,6 +15,10 @@ import { cn, formatBytes } from "@/lib/utils";
 import { workspaceFileAccess, type FileSource } from "@/lib/workspace-files";
 import type { WorkspaceFile, WorkspaceFiles } from "@/lib/sandbox-workspaces-api";
 import { useTranslations } from "next-intl";
+
+/** Match conversation actions: reclaim their space until hover or keyboard focus. */
+const FILE_ACTIONS_CLASS =
+  "flex w-0 shrink-0 items-center justify-end gap-1 overflow-hidden opacity-0 transition-[width,opacity] duration-150 motion-reduce:transition-none group-hover/file:w-14 group-hover/file:opacity-100 group-focus-within/file:w-14 group-focus-within/file:opacity-100 touch:w-14 touch:opacity-100";
 
 interface WorkspaceExplorerProps {
   workspaceId: string;
@@ -25,6 +33,8 @@ interface FileExplorerProps {
   toolbar?: ReactNode;
   /** Offered on every file and folder when given; a workspace an agent keeps has none. */
   onRemove?: (path: string) => void;
+  onMove?: (source: string, destination: string) => Promise<void>;
+  renderEditor?: (path: string) => ReactNode;
 }
 
 /** The path's segments, without the empties a leading slash produces. */
@@ -175,6 +185,8 @@ export function FileExplorer({
   error,
   toolbar,
   onRemove,
+  onMove,
+  renderEditor,
 }: FileExplorerProps) {
   const t = useTranslations("sandboxes.workspaces");
   const tc = useTranslations("common");
@@ -214,6 +226,73 @@ export function FileExplorer({
   );
   const tree = useMemo(() => treeOf(all), [all]);
   const opened = open ?? initiallyOpen(tree);
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
+  const folders: string[] = [];
+  const walkFolders = (nodes: TreeNode[]) => {
+    for (const node of nodes)
+      if (node.isDir) {
+        folders.push(node.path);
+        walkFolders(node.children);
+      }
+  };
+  walkFolders(tree);
+  async function moveEntry(origin: string, destination: string) {
+    if (onMove) {
+      await onMove(origin, destination);
+      const normalized = (value: string) => segments(value).join("/");
+      if (
+        selected &&
+        (normalized(selected) === normalized(origin) ||
+          normalized(selected).startsWith(normalized(origin) + "/"))
+      ) {
+        setSelected(destination + normalized(selected).slice(normalized(origin).length));
+      }
+      setOpen(
+        new Set([
+          ...Array.from(opened, (path) => {
+            const current = normalized(path),
+              from = normalized(origin);
+            return current === from || current.startsWith(from + "/")
+              ? normalized(destination) + current.slice(from.length)
+              : path;
+          }),
+          ...segments(destination)
+            .slice(0, -1)
+            .map((_, i) =>
+              segments(destination)
+                .slice(0, i + 1)
+                .join("/"),
+            ),
+        ]),
+      );
+    }
+  }
+  const dropIn = (event: DragEvent<HTMLElement>, folder: string) => {
+    if (!onMove || !event.dataTransfer.types.includes(PROJECT_PATH_DRAG)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setDropTarget(null);
+    const origin = event.dataTransfer.getData(PROJECT_PATH_DRAG);
+    const destination = [folder, segments(origin).at(-1)].filter(Boolean).join("/");
+    if (
+      !origin ||
+      segments(origin).join("/") === destination ||
+      destination.startsWith(segments(origin).join("/") + "/")
+    )
+      return;
+    void moveEntry(origin, destination).catch(() => {
+      /* Mutation owns the error toast. */
+    });
+  };
+  const actions = (node: TreeNode) =>
+    onMove ? (
+      <ProjectEntryActions
+        path={node.path}
+        folders={folders}
+        onMove={moveEntry}
+        onRemove={onRemove}
+      />
+    ) : null;
 
   if (!isLoading && error !== null)
     return (
@@ -223,7 +302,11 @@ export function FileExplorer({
       </div>
     );
 
-  const chosen = selected === null ? null : (all.find((file) => file.path === selected) ?? null);
+  const chosen =
+    selected === null
+      ? null
+      : (all.find((file) => segments(file.path).join("/") === segments(selected).join("/")) ??
+        null);
   const kind = chosen === null ? null : resolveFileKind(chosen.path);
 
   return (
@@ -247,11 +330,15 @@ export function FileExplorer({
         files !== null && (
           <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
             {toolbar}
-            <Badge variant="outline">
-              {files.backend === "state" ? t("stored") : t("container")}
-            </Badge>
-            <span>{files.owner_label}</span>
-            {files.backend === "state" && files.bytes_total > 0 && (
+            {source.kind !== "project" && (
+              <>
+                <Badge variant="outline">
+                  {files.backend === "state" ? t("stored") : t("container")}
+                </Badge>
+                <span>{files.owner_label}</span>
+              </>
+            )}
+            {source.kind !== "project" && files.backend === "state" && files.bytes_total > 0 && (
               <span>{t("bytesStored", { size: formatBytes(files.bytes_total) })}</span>
             )}
           </div>
@@ -297,6 +384,27 @@ export function FileExplorer({
             />
           </div>
 
+          {onMove && (
+            <button
+              type="button"
+              onClick={() => setSelected(null)}
+              onDragOver={(event) => {
+                if (event.dataTransfer.types.includes(PROJECT_PATH_DRAG)) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setDropTarget("");
+                }
+              }}
+              onDragLeave={() => setDropTarget(null)}
+              onDrop={(event) => dropIn(event, "")}
+              className={cn(
+                "text-muted-foreground rounded-lg px-2 py-2 text-left text-xs font-medium transition-colors",
+                dropTarget === "" && "bg-accent text-foreground ring-border ring-1",
+              )}
+            >
+              {tc("filesRoot")}
+            </button>
+          )}
           {isLoading ? (
             <div className="space-y-1" aria-hidden>
               {[0, 1, 2, 3].map((row) => (
@@ -315,6 +423,18 @@ export function FileExplorer({
                 selected={selected}
                 onSelect={choose}
                 onRemove={onRemove}
+                renderActions={
+                  onMove
+                    ? (file) => (
+                        <ProjectEntryActions
+                          path={file.path}
+                          folders={folders}
+                          onMove={moveEntry}
+                          onRemove={onRemove}
+                        />
+                      )
+                    : undefined
+                }
                 showFullPath
               />
             )
@@ -330,6 +450,33 @@ export function FileExplorer({
                down. */
             <PathTree
               nodes={tree}
+              rowInteractions={
+                onMove
+                  ? (node) => ({
+                      draggable: true,
+                      onDragStart: (event) => {
+                        event.stopPropagation();
+                        event.dataTransfer.effectAllowed = "move";
+                        event.dataTransfer.setData(PROJECT_PATH_DRAG, node.path);
+                      },
+                      onDragEnd: () => setDropTarget(null),
+                      onDragOver: (event) => {
+                        if (node.isDir && event.dataTransfer.types.includes(PROJECT_PATH_DRAG)) {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          event.dataTransfer.dropEffect = "move";
+                          setDropTarget(node.path);
+                        }
+                      },
+                      onDragLeave: () => setDropTarget(null),
+                      onDrop: (event) => node.isDir && dropIn(event, node.path),
+                      style:
+                        dropTarget === node.path
+                          ? { backgroundColor: "var(--accent)", borderRadius: "0.5rem" }
+                          : undefined,
+                    })
+                  : undefined
+              }
               label={t("folders")}
               selectedPath={selected}
               onSelect={(node) => choose(node.path)}
@@ -354,9 +501,16 @@ export function FileExplorer({
                  need it opened first, and the name is then all a reader hears
                  rather than the name and a size. */
               renderFileMeta={(node) => (
-                <>
+                <div
+                  className={cn(
+                    FILE_ACTIONS_CLASS,
+                    source.kind !== "project" &&
+                      "touch:w-28 group-focus-within/file:w-28 group-hover/file:w-28",
+                  )}
+                >
                   <span className="text-muted-foreground shrink-0 text-xs">
-                    {node.file?.size == null ? "—" : formatBytes(node.file.size)}
+                    {source.kind !== "project" &&
+                      (node.file?.size == null ? "—" : formatBytes(node.file.size))}
                   </span>
                   <button
                     type="button"
@@ -366,18 +520,26 @@ export function FileExplorer({
                   >
                     <Download className="h-3.5 w-3.5" aria-hidden />
                   </button>
-                  {onRemove && <RemoveButton path={node.path} onRemove={onRemove} />}
-                </>
+                  {onMove
+                    ? actions(node)
+                    : onRemove && <RemoveButton path={node.path} onRemove={onRemove} />}
+                </div>
               )}
               /* Everything under it, not the files immediately in it: `src`
                  holding only `src/components/widget.tsx` counted zero and then
                  opened to reveal a file, which is a row contradicting itself. */
               renderFolderMeta={(node) => (
                 <>
-                  <span className="text-muted-foreground shrink-0 pr-2 text-xs">
-                    {t("fileCount", { count: countFiles(node.children) })}
-                  </span>
-                  {onRemove && <RemoveButton path={node.path} onRemove={onRemove} />}
+                  {onMove ? (
+                    <div className={FILE_ACTIONS_CLASS}>{actions(node)}</div>
+                  ) : (
+                    <>
+                      <span className="text-muted-foreground shrink-0 pr-2 text-xs">
+                        {t("fileCount", { count: countFiles(node.children) })}
+                      </span>
+                      {onRemove && <RemoveButton path={node.path} onRemove={onRemove} />}
+                    </>
+                  )}
                 </>
               )}
             />
@@ -407,12 +569,14 @@ export function FileExplorer({
                   {chosen.path}
                 </span>
                 <span className="text-muted-foreground shrink-0 text-xs">
-                  {chosen.size == null ? "—" : formatBytes(chosen.size)}
+                  {source.kind !== "project" &&
+                    (chosen.size == null ? "—" : formatBytes(chosen.size))}
                 </span>
                 {/* Every format with two renderings, which `hasSourceView` is the
                     one answer to - HTML, CSV and JSON all have tags, delimiters or
                     unformatted text worth reading, and limiting this to markdown
                     took that away from the surface that replaced `FileViewer`. */}
+                {readsAsText(kind) && renderEditor?.(chosen.path)}
                 {hasSourceView(kind) && (
                   <Button
                     variant="ghost"
@@ -455,6 +619,7 @@ interface FileListProps {
   onSelect: (path: string) => void;
   onRemove?: (path: string) => void;
   showFullPath?: boolean;
+  renderActions?: (file: WorkspaceFile) => ReactNode;
 }
 
 /** Remove a file or a folder, named by its path so a reader hears which. */
@@ -479,19 +644,33 @@ function RemoveButton({ path, onRemove }: { path: string; onRemove: (path: strin
  * selecting a file reads it, and a 50 MB archive is a file somebody wants a copy of
  * without paying to load it first.
  */
-function FileList({ source, files, selected, onSelect, onRemove, showFullPath }: FileListProps) {
+function FileList({
+  source,
+  files,
+  selected,
+  onSelect,
+  onRemove,
+  showFullPath,
+  renderActions,
+}: FileListProps) {
   const tc = useTranslations("common");
   return (
     <ul className="space-y-0.5">
       {files.map((file) => (
-        <li key={file.path} className="flex items-center gap-1">
+        <li
+          key={file.path}
+          className={cn(
+            "group/file relative flex items-center rounded-md",
+            file.path === selected ? "bg-accent" : "hover:bg-accent/60",
+          )}
+        >
           <button
             type="button"
             onClick={() => onSelect(file.path)}
             aria-current={file.path === selected}
             className={cn(
               "flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left",
-              file.path === selected ? "bg-accent" : "hover:bg-accent/60",
+              "focus-visible:outline-offset-[-2px]",
             )}
             title={file.path}
           >
@@ -503,18 +682,28 @@ function FileList({ source, files, selected, onSelect, onRemove, showFullPath }:
               {showFullPath ? file.path : (file.path.split("/").pop() ?? file.path)}
             </span>
           </button>
-          <span className="text-muted-foreground shrink-0 text-xs">
-            {file.size == null ? "—" : formatBytes(file.size)}
-          </span>
-          <button
-            type="button"
-            aria-label={tc("downloadNamed", { name: file.path })}
-            onClick={() => void workspaceFileAccess(source, file.path).download()}
-            className="text-muted-foreground hover:text-foreground shrink-0 rounded-md p-1"
+          <div
+            className={cn(
+              FILE_ACTIONS_CLASS,
+              source.kind !== "project" &&
+                "touch:w-28 group-focus-within/file:w-28 group-hover/file:w-28",
+            )}
           >
-            <Download className="h-3.5 w-3.5" />
-          </button>
-          {onRemove && <RemoveButton path={file.path} onRemove={onRemove} />}
+            <span className="text-muted-foreground shrink-0 text-xs">
+              {source.kind !== "project" && (file.size == null ? "—" : formatBytes(file.size))}
+            </span>
+            <button
+              type="button"
+              aria-label={tc("downloadNamed", { name: file.path })}
+              onClick={() => void workspaceFileAccess(source, file.path).download()}
+              className="text-muted-foreground hover:text-foreground shrink-0 rounded-md p-1"
+            >
+              <Download className="h-3.5 w-3.5" />
+            </button>
+            {renderActions
+              ? renderActions(file)
+              : onRemove && <RemoveButton path={file.path} onRemove={onRemove} />}
+          </div>
         </li>
       ))}
     </ul>

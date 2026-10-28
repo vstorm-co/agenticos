@@ -91,13 +91,15 @@ describe("who answered in a conversation", () => {
     const { container, rerender } = render(
       <ConversationAgents agents={[agent("A"), agent("B")]} showName={false} />,
     );
-    const second = () => container.querySelectorAll(".ring-2")[1]!;
+    const second = () => container.querySelectorAll<HTMLElement>("[data-agent-avatar]")[1]!;
     expect(second().className).toContain("-ml-1.5");
 
     rerender(<ConversationAgents agents={[agent("A"), agent("B"), agent("C")]} showName={false} />);
     expect(second().className).toContain("-ml-3.5");
     expect(second().className).toContain("group-hover/stack:ml-0.5");
     // The first face never moves: the stack opens to the right of it.
-    expect(container.querySelectorAll(".ring-2")[0]!.className).not.toContain("-ml-");
+    expect(
+      container.querySelectorAll<HTMLElement>("[data-agent-avatar]")[0]!.className,
+    ).not.toContain("-ml-");
   });
 });

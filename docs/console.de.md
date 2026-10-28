@@ -1,5 +1,5 @@
 ---
-source_sha: "64d1331aaada"
+source_sha: "093be48b0e0d"
 ---
 
 # Die Konsole { #the-console }
@@ -14,12 +14,16 @@ Seite, deren Kopfzeile kein "?" trägt, hat keinen Rundgang abzuspielen. Der Cha
 hat keine Kopfzeile: Seine Tipps stehen in den Chat-Einstellungen, den Reglern
 neben dem Mikrofon.
 
+Ressourcenlisten, darunter Inbox und Routines, füllen auch im leeren Zustand die verbleibende Seitenhöhe. Routines bietet Vorlagen im Erstellungsformular statt in einem eigenen Ideenbereich an. Get started reserviert beim Laden der Checkliste seinen Platz, damit Briefing und die Karten darunter nicht springen.
+
+Im Chat sind Agentenporträts größer und ohne Ringe. Der Files-Schalter bleibt beim Öffnen und Schließen des Bereichs im Eingabefeld; reduzierte Bewegung wird berücksichtigt. Die Chat-Einstellungen zeigen zuerst das aktuelle Modell. Unter **Modell ändern** lassen sich vorausgefüllter Anbieter und Modell bearbeiten; erst die Bestätigung übernimmt die Änderung. Anhangskarten stehen ohne zusätzliches Schattenpanel über dem Eingabefeld.
+
 ## Das Dashboard { #the-dashboard }
 
 Die Startseite ist ein **anordenbares Raster aus Widgets**, und sie ist die
 Antwort auf die Frage "was passiert gerade", ohne fünf Seiten zu öffnen.
 
-Es gibt achtunddreißig Karten. Sie werden nicht alle davon sehen: **eine Karte
+Es gibt fünfundvierzig Karten. Sie werden nicht alle davon sehen: **eine Karte
 hängt an der Berechtigung, die ihre Daten verlangen**, also wird ein Widget, das
 Sie nicht lesen dürfen, nie eingehängt und seine Abfragen werden nie gestellt —
 außer Ihren eigenen Benachrichtigungen weiter unten, die nur verlangen, dass Sie
@@ -86,6 +90,21 @@ statt still den Snapshot zu überschreiben, den Sie behalten wollten.
     nichts sichtbar machen. Die Berechtigungsprüfung läuft, nachdem das Layout
     aufgelöst wurde, ganz gleich ob es aus der Voreinstellung oder aus Ihrer
     eigenen gespeicherten Anordnung stammt.
+
+## Routinen und Beobachtungen { #routines-and-watches }
+
+Routines hat zwei Tabs. **Agentenaufgaben** startet einen gewählten Agenten nach
+Zeitplan oder Ereignis mit seinen Werkzeugen; die Läufe erscheinen in Activity.
+**Meine Beobachtungen** liest nur persönliche verbundene Konten und sendet
+Ergebnisse in den privaten Posteingang. Jeder Tab hat eigene Erstellungsaktionen.
+`/routines?tab=watches` öffnet die Beobachtungen.
+
+Discover beginnt auf dem Dashboard mit illustrierten Fähigkeiten. Beim Überfahren
+einer Kurve in *Your period* erscheinen Zeitabschnitt und Wert; Ausgaben werden
+als Geldbetrag formatiert. Projekte zeigen Beschreibungen, Agentenzeilen dieselben
+Avatare wie im Chat.
+
+Dashboard-Karten verwenden einheitliche kompakte Zeilen, Dienstsymbole und Statusbezeichnungen. Kennzahlen und Diagramme passen sich der Kartenbreite an, auch in eigenen Anordnungen. Ladeplatzhalter entsprechen dem Inhaltstyp; ein nicht verfügbares Briefing bietet einen erneuten Versuch an, statt fälschlich keine Vorschläge zu melden.
 
 ## Der Posteingang { #the-inbox }
 
@@ -748,7 +767,7 @@ dem ein echtes Problem als ein stilles gelesen wird.
 
 ## Zusammenfassung { #recap }
 
-- Das Dashboard besteht aus **achtunddreißig Widgets**, die Sie selbst
+- Das Dashboard besteht aus **fünfundvierzig Widgets**, die Sie selbst
   anordnen, gespeichert pro Person und pro Organisation — alle außer Ihren
   eigenen Benachrichtigungen hängen an der Berechtigung, die ihre Daten
   verlangen.
@@ -765,3 +784,5 @@ dem ein echtes Problem als ein stilles gelesen wird.
   können die ausblenden, die Sie nicht nutzen.
 - Eine Seite, die "noch nichts da" zeigt, kann **eine fehlgeschlagene Anfrage**
   sein und keine leere Ressource.
+
+Die Seitenleistenfußzeile zeigt die Build-Version der Konsole neben Suche und Benachrichtigungen, auch in der eingeklappten Leiste und im mobilen Menü. Sie stammt aus der im Build eingebetteten Frontend-Paketversion und benötigt keine Netzwerkanfrage. Der Tooltip kennzeichnet sie als Konsolenversion; ein separat aktualisierter API-Prozess kann eine andere Version ausführen.

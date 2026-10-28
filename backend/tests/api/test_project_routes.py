@@ -209,3 +209,61 @@ async def test_an_upload_is_read_no_further_than_one_byte_past_the_ceiling(
             files={"file": ("big.bin", b"x" * (3 * 1024 * 1024))},
         )
     assert len(service.add_file.await_args.kwargs["data"]) == 1024 * 1024 + 1
+
+
+async def test_project_file_moves_and_text_edits_keep_their_contract(
+    client: OpenClient, service: MagicMock
+) -> None:
+    from app.schemas.project import ProjectFileText
+
+    text = ProjectFileText(content="  notes\n", revision="a" * 64)
+    service.move_path = AsyncMock(return_value="notes")
+    service.editable_file = AsyncMock(return_value=text)
+    service.edit_file = AsyncMock(return_value=text)
+    async with client() as http:
+        moved = await http.post(
+            f"/api/v1/projects/{PROJECT_ID}/files/move",
+            json={"source": "docs", "destination": "notes"},
+        )
+        read = await http.get(
+            f"/api/v1/projects/{PROJECT_ID}/files/text", params={"path": "notes/a.md"}
+        )
+        saved = await http.put(
+            f"/api/v1/projects/{PROJECT_ID}/files/text",
+            params={"path": "notes/a.md"},
+            json={"content": "  notes\n", "revision": "a" * 64},
+        )
+        invalid = await http.put(
+            f"/api/v1/projects/{PROJECT_ID}/files/text",
+            params={"path": "notes/a.md"},
+            json={"content": "notes", "revision": "invalid"},
+        )
+    assert moved.status_code == 200 and moved.json() == {"path": "notes"}
+    assert read.json()["content"] == "  notes\n"
+    assert saved.json()["content"] == "  notes\n"
+    assert service.edit_file.await_args.kwargs == {
+        "path": "notes/a.md",
+        "content": "  notes\n",
+        "revision": "a" * 64,
+    }
+    assert invalid.status_code == 422
+
+
+async def test_workspace_transfer_is_accepted_with_a_pollable_job(
+    client: OpenClient, monkeypatch
+) -> None:
+    from app.schemas.project import ProjectWorkspaceMoveRead
+    from app.services.project_workspace_transfer import ProjectWorkspaceTransferService
+
+    job_id = uuid.uuid4()
+    queued = AsyncMock(
+        return_value=ProjectWorkspaceMoveRead(job_id=job_id, status="queued", target_name="Cloud")
+    )
+    monkeypatch.setattr(ProjectWorkspaceTransferService, "queue", queued)
+    async with client() as http:
+        response = await http.post(
+            f"/api/v1/projects/{PROJECT_ID}/workspace-move", json={"backend": "state"}
+        )
+    assert response.status_code == 202
+    assert response.json()["job_id"] == str(job_id)
+    assert queued.call_args.args[2].backend == "state"

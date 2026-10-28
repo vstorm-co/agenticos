@@ -1,5 +1,5 @@
 ---
-source_sha: "513cb1cca129"
+source_sha: "9c24c603b89b"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1745,11 +1745,18 @@ Bots schaltbar:
   oder Mattermost-Dialog; die Antwort wird als Kommentar der Bewertung gespeichert.
   Telegram nimmt die Daumen ohne die Frage.
 
-Eine Bewertung braucht ein verknüpftes Mitglied, wie ein Druck auf eine Freigabe;
-die Daumen einer nicht verknüpften Person zählen nicht. Die Karte *Answer quality*
-auf dem Dashboard teilt den Anteil guter Antworten nach Oberfläche auf, sobald auf
-mehr als einer bewertet wurde - ein Agent, der in der Konsole gut und in Slack
-schlecht abschneidet, zeigt es.
+**Bewertungen in Mattermost benötigen kein AgenticOS-Konto.** Die vom Server
+signierte Teilnehmeridentität ist der Autor. Jeder kann seine Stimme ändern;
+die Schaltflächen bleiben für andere verfügbar, die Bestätigung ist privat.
+Ein Kommentar zur negativen Bewertung gehört demselben Teilnehmer. Slack und
+Telegram verlangen weiterhin eine verknüpfte Mitgliedschaft; auch die Freigabe
+eines Werkzeugaufrufs erfordert sie. Kanalbewertungen liefern `user_id: null`
+in der API statt einer Zuordnung zum Bot-Eigentümer. Aktualisiere die Datenbank
+vor dem Start dieser Version. Ein Downgrade entfernt Kanalbewertungen und
+behält Kontobewertungen.
+
+Die Dashboard-Karte *Answer quality* zählt diese Stimmen und trennt sie nach
+Oberfläche, damit Unterschiede zwischen Konsole und Mattermost sichtbar bleiben.
 
 ## Was jeder Kanal gemeinsam hat { #what-every-channel-shares }
 
@@ -2890,3 +2897,5 @@ flowchart TD
 - Eine **Delegation ist ein Panel**, keine Pause — und einen Handler daran zu
   hängen ändert den Transport, also wird er nur dort angehängt, wo eine Senke
   existiert.
+
+Eine Kanalnachricht, die nur die Bot-Erwähnung oder Leerraum enthält, wird nach dem Entfernen der Erwähnung ignoriert, bevor die Zustellung beansprucht oder ein Lauf gestartet wird. So erhält die Modell-API keine leere Nutzernachricht, deren Weglassen die vorherige Assistentenantwort als unzulässiges Prefill erscheinen lässt. Nachrichten mit ausschließlich Anhängen durchlaufen weiterhin die Anhangverarbeitung.

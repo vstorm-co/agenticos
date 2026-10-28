@@ -18,6 +18,7 @@ const data = vi.hoisted(() => ({
   connections: [] as unknown[],
   agents: [] as { status: string; owner_user_id?: string; slug?: string }[],
   loading: false,
+  organizationLoading: { knowledge: false, groups: false, members: false, channels: false },
   kbs: [] as unknown[],
   groups: [] as unknown[],
   members: [{}] as unknown[],
@@ -28,10 +29,10 @@ const data = vi.hoisted(() => ({
 vi.mock("@/hooks", () => ({
   usePermissions: () => ({ can: (perm: string) => data.perms.has(perm) }),
   useAgents: () => ({ agents: data.agents, isLoading: data.loading }),
-  useKnowledgeBases: () => ({ kbs: data.kbs }),
-  useGroups: () => ({ groups: data.groups }),
-  useMembers: () => ({ members: data.members }),
-  useChannelBots: () => ({ bots: data.bots }),
+  useKnowledgeBases: () => ({ kbs: data.kbs, isLoading: data.organizationLoading.knowledge }),
+  useGroups: () => ({ groups: data.groups, isLoading: data.organizationLoading.groups }),
+  useMembers: () => ({ members: data.members, isLoading: data.organizationLoading.members }),
+  useChannelBots: () => ({ bots: data.bots, isLoading: data.organizationLoading.channels }),
 }));
 vi.mock("@/hooks/use-dashboard-data", () => ({
   useRecentConversations: () => ({ conversations: data.conversations, isLoading: false }),
@@ -68,6 +69,7 @@ beforeEach(() => {
   data.connections = [];
   data.agents = [];
   data.loading = false;
+  data.organizationLoading = { knowledge: false, groups: false, members: false, channels: false };
   data.kbs = [];
   data.groups = [];
   data.members = [{}];
@@ -156,10 +158,36 @@ describe("the dashboard's start checklist", () => {
     expect(reader.container).toBeEmptyDOMElement();
   });
 
-  it("waits for what it reads before saying anything", () => {
+  it("keeps its card while personal progress loads without inventing a count", () => {
+    data.loading = true;
+    const { rerender } = render(<StartChecklist orgId="o1" />);
+    expect(screen.getByRole("heading", { name: "Get started" })).toBeVisible();
+    expect(screen.getByRole("status", { name: "Loading" })).toBeVisible();
+    expect(screen.queryByRole("progressbar")).toBeNull();
+    data.loading = false;
+    rerender(<StartChecklist orgId="o1" />);
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.getByRole("progressbar")).toBeVisible();
+  });
+
+  it.each(["knowledge", "groups", "members", "channels"] as const)(
+    "waits for the organization's %s before presenting the next step",
+    (key) => {
+      data.organizationLoading[key] = true;
+      const { rerender } = render(<StartChecklist orgId="o1" />);
+      expect(screen.getByRole("status", { name: "Loading" })).toBeVisible();
+      expect(screen.queryByRole("progressbar")).toBeNull();
+      data.organizationLoading[key] = false;
+      rerender(<StartChecklist orgId="o1" />);
+      expect(screen.queryByRole("status")).toBeNull();
+      expect(screen.getByRole("progressbar")).toBeVisible();
+    },
+  );
+
+  it("does not reserve a loading card for a dismissed checklist", () => {
+    window.localStorage.setItem("agenticos:start-checklist:o1", "dismissed");
     data.loading = true;
     const { container } = render(<StartChecklist orgId="o1" />);
-
     expect(container).toBeEmptyDOMElement();
   });
 

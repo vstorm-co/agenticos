@@ -68,20 +68,20 @@ beforeEach(() => {
 });
 
 describe("dropping files on the context page", () => {
-  it("opens the form prefilled from the file, mode still unanswered", async () => {
+  it("opens the library form with content and leaves usage settings to the agent", async () => {
     await mount();
 
     act(() => void window.dispatchEvent(drop([textFile("Refund Policy.md", "# Refunds")])));
 
     // The name is the handle, without the extension it carries in `format`.
     expect(await screen.findByDisplayValue("refund-policy")).toBeInTheDocument();
-    expect(screen.getByLabelText("Format")).toHaveTextContent("md");
+    expect(screen.queryByLabelText("Format")).not.toBeInTheDocument();
     // The dialog opens on the source, so the dropped bytes are in the editor
     // rather than in a rendering of them.
     expect(screen.getByLabelText(/source/i)).toHaveValue("# Refunds");
-    // Nothing was created: the mode question is on screen, unanswered.
+    // Importing prepares the library entry; agent-specific usage is not asked here.
     expect(post).not.toHaveBeenCalled();
-    expect(screen.getByLabelText("Mode")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Mode")).not.toBeInTheDocument();
   });
 
   it("takes the extension as the format, so a .txt is not called Markdown", async () => {
@@ -90,7 +90,14 @@ describe("dropping files on the context page", () => {
     act(() => void window.dispatchEvent(drop([textFile("notes.txt", "plain", "text/plain")])));
 
     expect(await screen.findByDisplayValue("notes")).toBeInTheDocument();
-    expect(screen.getByLabelText("Format")).toHaveTextContent("txt");
+    expect(screen.queryByLabelText("Format")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() =>
+      expect(post).toHaveBeenCalledWith(
+        "/context",
+        expect.objectContaining({ format: "txt", mode: "inject" }),
+      ),
+    );
   });
 
   it("queues the rest and says how many, one file at a time", async () => {

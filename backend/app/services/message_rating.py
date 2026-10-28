@@ -287,7 +287,7 @@ class MessageRatingService:
             self._csv_escape(str(item.id)),
             self._csv_escape(str(item.message_id)),
             self._csv_escape(str(item.conversation_id)) if item.conversation_id else "",
-            self._csv_escape(str(item.user_id)),
+            self._csv_escape(str(item.user_id)) if item.user_id else "",
             "Like" if item.rating == 1 else "Dislike",
             self._csv_escape(item.comment or ""),
             self._csv_escape(item.message_content or ""),

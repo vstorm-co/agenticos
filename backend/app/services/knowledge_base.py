@@ -37,6 +37,7 @@ from app.services.ingestion_config import (
     chosen_embedding,
     deployment_defaults,
 )
+from app.services.model_profile import validate_endpoint_url
 from app.services.rag import embedding_providers
 from app.services.resource_usage import agents_using, groups_sharing, shared_with_group
 from app.services.sharing import SharingService
@@ -427,6 +428,7 @@ class KnowledgeBaseService:
             )
             embedding_secret_id = shared.embedding_secret_id
             embedding_endpoint_id = shared.embedding_endpoint_id
+            embedding_base_url = shared.embedding_base_url
         else:
             embedding_model, embedding_dim = chosen_embedding(data.embedding_model)
             if data.embedding_provider is None:
@@ -441,6 +443,9 @@ class KnowledgeBaseService:
             _check_provider_fits_scope(provider, organization_id=org_id)
             embedding_secret_id = data.embedding_secret_id
             embedding_endpoint_id = data.embedding_endpoint_id
+            embedding_base_url = await self._embedding_url(
+                ctx, provider.provider, data.embedding_base_url
+            )
             if provider.keyless:
                 _refuse_key_for_keyless(provider, secret_id=embedding_secret_id)
                 if embedding_endpoint_id is None:
@@ -480,6 +485,7 @@ class KnowledgeBaseService:
             embedding_provider=provider.provider,
             embedding_secret_id=embedding_secret_id,
             embedding_endpoint_id=embedding_endpoint_id,
+            embedding_base_url=embedding_base_url,
         )
         if (data.group_ids or data.user_ids) and data.scope == KBScope.ORG.value:
             await SharingService(self.db).restrict_to(
@@ -526,6 +532,7 @@ class KnowledgeBaseService:
             "embedding_provider": (data.embedding_provider, held.embedding_provider),
             "embedding_secret_id": (data.embedding_secret_id, held.embedding_secret_id),
             "embedding_endpoint_id": (data.embedding_endpoint_id, held.embedding_endpoint_id),
+            "embedding_base_url": (data.embedding_base_url, held.embedding_base_url),
         }
         for field, (wanted, existing) in asked.items():
             if wanted is not None and wanted != existing:
@@ -536,6 +543,22 @@ class KnowledgeBaseService:
                     f"shares its embedding configuration.",
                 )
         return held
+
+    async def _embedding_url(self, ctx: AuthContext, provider: str, url: str | None) -> str | None:
+        if url is not None and not ctx.has(Perm.CONNECTIONS_MANAGE):
+            raise AuthorizationError(
+                message="Managing connections is required for a custom embedding endpoint"
+            )
+        if url is None:
+            return None
+        if provider != "openrouter":
+            raise refused_field(
+                "embedding_base_url", "A custom embedding endpoint is supported only for OpenRouter"
+            )
+        try:
+            return (await validate_endpoint_url(url.strip())).rstrip("/")
+        except BadRequestError as error:
+            raise refused_field("embedding_base_url", error.message) from error
 
     async def _check_embedding_secret(
         self,
@@ -607,6 +630,42 @@ class KnowledgeBaseService:
             model=kb.embedding_model,
             dim=kb.embedding_dim,
         )
+        url_named = "embedding_base_url" in data.model_fields_set
+        wanted_url = data.embedding_base_url if url_named else kb.embedding_base_url
+        if wanted_url is not None and provider.provider != "openrouter":
+            if url_named:
+                raise refused_field(
+                    "embedding_base_url",
+                    "A custom embedding endpoint is supported only for OpenRouter",
+                )
+            wanted_url = None
+            url_named = True
+        if url_named and wanted_url != kb.embedding_base_url:
+            if not ctx.has(Perm.CONNECTIONS_MANAGE):
+                raise AuthorizationError(
+                    message="Managing connections is required to change an embedding endpoint"
+                )
+            # Changing the destination lends the retained key to that host just
+            # as choosing a new key does. Managing connections alone is not
+            # authority to send a colleague's private credential elsewhere.
+            if (
+                kb.embedding_secret_id is not None
+                and data.embedding_secret_id is None
+                and not provider.keyless
+            ):
+                await self._check_embedding_secret(
+                    kb.embedding_secret_id,
+                    ctx=ctx,
+                    organization_id=kb.organization_id,
+                    provider=provider,
+                )
+            wanted_url = await self._embedding_url(ctx, provider.provider, wanted_url)
+            shared = await knowledge_base_repo.list_by_collection_name(self.db, kb.collection_name)
+            if any(row.id != kb.id and row.embedding_base_url != wanted_url for row in shared):
+                raise refused_field(
+                    "embedding_base_url",
+                    "This collection shares its embedding configuration with another knowledge base",
+                )
         if data.embedding_provider is not None:
             _check_provider_fits_scope(provider, organization_id=kb.organization_id)
         if provider.keyless:
@@ -642,6 +701,8 @@ class KnowledgeBaseService:
             embedding_provider=data.embedding_provider,
             embedding_secret_id=data.embedding_secret_id,
             embedding_endpoint_id=data.embedding_endpoint_id,
+            embedding_base_url=wanted_url,
+            set_embedding_base_url=url_named,
         )
 
     async def _check_embedding_endpoint(

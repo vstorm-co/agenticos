@@ -120,7 +120,7 @@ describe("WatchesCard", () => {
 
     state.connections = [{ id: "c-gh", authorized: true }];
     render(<WatchesCard onNew={onNew} />);
-    expect(screen.getByText("Nothing watched yet", { selector: "p" })).toBeInTheDocument();
+    expect(screen.getByText("No watches yet", { selector: "p" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "New watch" }));
     expect(onNew).toHaveBeenCalled();
   });
@@ -220,7 +220,7 @@ describe("useCanWatch", () => {
 it("does not present a failed watch read as a prompt to create a new watch", async () => {
   state.error = new Error("unavailable");
   render(<WatchesCard onNew={vi.fn()} />);
-  expect(screen.queryByText("Nothing watched yet")).toBeNull();
+  expect(screen.queryByText("No watches yet")).toBeNull();
   expect(screen.getByText("Something went wrong")).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Retry" }));
   expect(state.refetch).toHaveBeenCalledOnce();

@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { Button, Card, CardContent } from "@/components/ui";
+import { Button, Card, CardContent, Skeleton } from "@/components/ui";
 import {
   useAgents,
   useChannelBots,
@@ -62,6 +62,8 @@ interface Step {
   /** Where the step is done; a step with none is a question to the Architect. */
   href?: string;
 }
+
+const CHECKLIST_CLASS = "mt-6 flex h-[31rem] min-h-0 flex-col overflow-hidden";
 
 const dismissedKey = (orgId: string) => `agenticos:start-checklist:${orgId}`;
 
@@ -122,10 +124,10 @@ function BuilderChecklist({ orgId, className }: { orgId: string; className?: str
   const { can } = usePermissions();
   const channels = can(Perm.channelsManage);
   const { agents } = useAgents();
-  const { kbs } = useKnowledgeBases();
-  const { groups } = useGroups(orgId);
-  const { members } = useMembers(orgId);
-  const { bots } = useChannelBots(channels);
+  const { kbs, isLoading: knowledgeLoading } = useKnowledgeBases();
+  const { groups, isLoading: groupsLoading } = useGroups(orgId);
+  const { members, isLoading: membersLoading } = useMembers(orgId);
+  const { bots, isLoading: channelsLoading } = useChannelBots(channels);
   const organization: Step[] = [
     {
       id: "publish",
@@ -137,16 +139,71 @@ function BuilderChecklist({ orgId, className }: { orgId: string; className?: str
     { id: "teammate", done: members.length > 1, href: ROUTES.ORG_MEMBERS(orgId) },
     ...(channels ? [{ id: "channel" as const, done: bots.length > 0, href: ROUTES.CHANNELS }] : []),
   ];
-  return <Checklist orgId={orgId} more={organization} className={className} />;
+  return (
+    <Checklist
+      orgId={orgId}
+      more={organization}
+      moreLoading={
+        knowledgeLoading || groupsLoading || membersLoading || (channels && channelsLoading)
+      }
+      className={className}
+    />
+  );
+}
+
+function ChecklistLoading({ className }: { className?: string }) {
+  const t = useTranslations("dashboard.startChecklist");
+  const states = useTranslations("dashboard.states");
+  return (
+    <Card
+      role="status"
+      aria-label={states("loading")}
+      aria-busy
+      className={cn(CHECKLIST_CLASS, className)}
+    >
+      <CardContent className="flex min-h-0 flex-1 flex-col gap-5 p-5">
+        <div className="flex items-center gap-4">
+          <Skeleton className="size-12 shrink-0 rounded-full" />
+          <div className="space-y-2">
+            <h2 className="text-sm font-semibold tracking-tight">{t("title")}</h2>
+            <Skeleton className="h-3 w-20" />
+          </div>
+        </div>
+        <div aria-hidden className="bg-foreground/[0.03] flex items-start gap-3.5 rounded-xl p-4">
+          <Skeleton className="size-10 shrink-0 rounded-lg" />
+          <div className="flex-1 space-y-3">
+            <Skeleton className="h-3 w-16" />
+            <Skeleton className="h-4 w-3/5" />
+            <Skeleton className="h-3 w-4/5" />
+            <Skeleton className="h-8 w-20" />
+          </div>
+        </div>
+        <div aria-hidden className="space-y-4">
+          {[0, 1].map((index) => (
+            <div key={index} className="flex items-center gap-3">
+              <Skeleton className="size-7 shrink-0 rounded-lg" />
+              <Skeleton className="h-3 w-2/5" />
+            </div>
+          ))}
+        </div>
+        <div aria-hidden className="border-foreground/8 mt-auto space-y-3 border-t pt-4">
+          <Skeleton className="h-3 w-16" />
+          <Skeleton className="h-5 w-3/4" />
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
 
 function Checklist({
   orgId,
   more = [],
+  moreLoading = false,
   className,
 }: {
   orgId: string;
   more?: Step[];
+  moreLoading?: boolean;
   className?: string;
 }) {
   const t = useTranslations("dashboard.startChecklist");
@@ -156,7 +213,9 @@ function Checklist({
   const open = steps.filter((step) => !step.done);
   const [next, ...later] = open;
 
-  if (dismissed || personal.loading || !next) return null;
+  if (dismissed) return null;
+  if (personal.loading || moreLoading) return <ChecklistLoading className={className} />;
+  if (!next) return null;
 
   const dismiss = () => {
     setDismissed(true);
@@ -170,13 +229,13 @@ function Checklist({
   const NextIcon = ICONS[next.id];
 
   return (
-    <Card className={cn("mt-6 flex flex-col", className)}>
-      <CardContent className="flex flex-1 flex-col gap-5 p-5">
+    <Card className={cn(CHECKLIST_CLASS, className)}>
+      <CardContent className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-5">
         <div className="flex items-center gap-4">
           <ProgressRing done={done.length} total={steps.length} />
           <div className="min-w-0 flex-1">
-            <h2 className="text-base font-semibold tracking-tight">{t("title")}</h2>
-            <p className="text-muted-foreground text-sm">{t("left", { count: open.length })}</p>
+            <h2 className="text-sm font-semibold tracking-tight">{t("title")}</h2>
+            <p className="text-muted-foreground text-xs">{t("left", { count: open.length })}</p>
           </div>
           <Button
             variant="ghost"
@@ -190,15 +249,17 @@ function Checklist({
         </div>
 
         {/* The one thing to do now, said plainly and with its own button. */}
-        <div className="bg-muted/60 flex items-start gap-3.5 rounded-xl p-4">
-          <span className="bg-card text-foreground shadow-card flex h-10 w-10 shrink-0 items-center justify-center rounded-xl">
+        <div className="bg-foreground/[0.03] flex items-start gap-3.5 rounded-xl p-4">
+          <span className="bg-foreground/[0.04] text-muted-foreground flex h-10 w-10 shrink-0 items-center justify-center rounded-lg">
             <NextIcon className="h-5 w-5" aria-hidden />
           </span>
           <div className="min-w-0 flex-1 space-y-3">
             <div>
               <p className="text-muted-foreground text-xs">{t("next")}</p>
               <p className="text-sm font-semibold">{t(`steps.${next.id}`)}</p>
-              <p className="text-muted-foreground text-sm">{t(`hints.${next.id}`)}</p>
+              <p className="text-muted-foreground text-xs leading-relaxed">
+                {t(`hints.${next.id}`)}
+              </p>
             </div>
             <StepAction step={next} className="h-8">
               {t("start")}
@@ -233,7 +294,7 @@ function Checklist({
         )}
 
         {done.length > 0 && (
-          <div className="mt-auto space-y-2 border-t pt-4">
+          <div className="border-foreground/8 mt-auto space-y-2 border-t pt-4">
             <p className="text-muted-foreground text-xs">{t("doneHeading")}</p>
             <ul className="flex flex-wrap gap-1.5">
               {done.map((step) => (

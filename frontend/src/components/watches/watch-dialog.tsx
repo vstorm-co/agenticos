@@ -147,7 +147,7 @@ export function WatchDialog({
           description: t("createdWhere"),
           action: onRoutines
             ? undefined
-            : { label: t("seeIt"), onClick: () => router.push(ROUTES.ROUTINES) },
+            : { label: t("seeIt"), onClick: () => router.push(`${ROUTES.ROUTINES}?tab=watches`) },
         });
       }
       onOpenChange(false);

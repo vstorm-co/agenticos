@@ -322,6 +322,7 @@ export function CapabilityDetail({
 
       {definition.config_schema && !hideConfigForm && (
         <SchemaForm
+          hiddenFields={binding.id === "context" ? ["file_settings"] : undefined}
           idPrefix={binding.id}
           schema={definition.config_schema}
           value={binding.config}

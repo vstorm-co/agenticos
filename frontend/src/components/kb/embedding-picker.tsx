@@ -6,6 +6,7 @@ import { InlineLocalService } from "@/components/kb/inline-local-service";
 import { InlineSecret } from "@/components/vault/inline-secret";
 import { ProviderRow } from "@/components/vault/provider-row";
 import {
+  Input,
   Label,
   Select,
   SelectContent,
@@ -13,7 +14,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { useLocalServices, useSecrets } from "@/hooks";
+import { useLocalServices, usePermissions, useSecrets } from "@/hooks";
+import { Perm } from "@/types/permissions";
 import { apiClient } from "@/lib/api-client";
 import type { EmbeddingModels } from "@/types";
 import { useTranslations } from "next-intl";
@@ -58,6 +60,8 @@ export function EmbeddingProviderFields({
   provider,
   secretId,
   endpointId,
+  baseUrl,
+  onBaseUrl,
   onProvider,
   onSecretId,
   onEndpointId,
@@ -69,6 +73,8 @@ export function EmbeddingProviderFields({
   secretId: string | null;
   /** The chosen local service for a keyless provider, or null while none is. */
   endpointId: string | null;
+  baseUrl: string;
+  onBaseUrl: (url: string) => void;
   onProvider: (provider: string) => void;
   onSecretId: (secretId: string | null) => void;
   onEndpointId: (endpointId: string | null) => void;
@@ -77,6 +83,7 @@ export function EmbeddingProviderFields({
 }) {
   const t = useTranslations("kb");
   const { secrets } = useSecrets();
+  const { can } = usePermissions();
   const entry = models.providers.find((item) => item.provider === provider);
   const keyless = entry?.keyless === true;
   const { services } = useLocalServices(keyless);
@@ -98,6 +105,7 @@ export function EmbeddingProviderFields({
             // field exists to prevent. Cleared rather than kept and refused on save.
             if (secretId !== null) onSecretId(null);
             if (endpointId !== null) onEndpointId(null);
+            onBaseUrl("");
           }}
         >
           <SelectTrigger id={`${idPrefix}-provider`}>
@@ -112,6 +120,20 @@ export function EmbeddingProviderFields({
           </SelectContent>
         </Select>
       </div>
+      {provider === "openrouter" && (can(Perm.connectionsManage) || baseUrl !== "") && (
+        <div className="space-y-1.5">
+          <Label htmlFor={`${idPrefix}-url`}>{t("embeddingEndpoint")}</Label>
+          <Input
+            id={`${idPrefix}-url`}
+            type="url"
+            disabled={!can(Perm.connectionsManage)}
+            value={baseUrl}
+            onChange={(event) => onBaseUrl(event.target.value)}
+            placeholder="https://openrouter.ai/api/v1"
+          />
+          <p className="text-muted-foreground text-xs">{t("embeddingEndpointHint")}</p>
+        </div>
+      )}
       {keyless ? (
         <div className="space-y-1.5">
           <Label htmlFor={`${idPrefix}-server`}>{t("server")}</Label>

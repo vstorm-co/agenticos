@@ -84,8 +84,9 @@ export default function AccountSettingsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-1 flex-col space-y-6">
       <SectionCard
+        fill
         title={t("changePassword")}
         description={t("useStrongUniquePassword")}
         action={
@@ -98,7 +99,7 @@ export default function AccountSettingsPage() {
           </Button>
         }
       >
-        <div className="space-y-4">
+        <div className="flex flex-1 flex-col space-y-4">
           <FormField label={t("currentPassword")} htmlFor="current-pw">
             <Input
               id="current-pw"

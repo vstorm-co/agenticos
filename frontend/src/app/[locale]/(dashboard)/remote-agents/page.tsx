@@ -27,7 +27,7 @@ export default function RemoteAgentsPage() {
   const [registering, setRegistering] = useState(false);
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-1 flex-col space-y-6">
       <PageHeader
         title={t("title")}
         description={t("pageDescription")}
@@ -42,6 +42,7 @@ export default function RemoteAgentsPage() {
       />
 
       <ListCard
+        fill
         data-tour="remote-agents-list"
         title={t("listTitle")}
         counted={

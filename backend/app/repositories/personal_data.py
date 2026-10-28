@@ -158,7 +158,14 @@ async def ratings_of(db: AsyncSession, user_id: UUID) -> list[MessageRating]:
     """What they marked as good or bad, which is an opinion they expressed."""
     result = await db.execute(
         select(MessageRating)
-        .where(MessageRating.user_id == user_id)
+        .where(
+            or_(
+                MessageRating.user_id == user_id,
+                MessageRating.channel_identity_id.in_(
+                    select(ChannelIdentity.id).where(ChannelIdentity.user_id == user_id)
+                ),
+            )
+        )
         .order_by(MessageRating.created_at.desc())
     )
     return list(result.scalars().all())

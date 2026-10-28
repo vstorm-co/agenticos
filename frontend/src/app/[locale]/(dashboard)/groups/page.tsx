@@ -35,7 +35,7 @@ export default function GroupsPage() {
   const [templates, setTemplates] = useState(false);
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-1 flex-col space-y-6">
       <PageHeader
         title={t("departmentsTitle")}
         description={t("departmentsDescription")}
@@ -55,7 +55,7 @@ export default function GroupsPage() {
         }
       />
 
-      <div data-tour="groups-list">
+      <div data-tour="groups-list" className="flex flex-1 flex-col">
         <GroupList
           groups={groups}
           isLoading={isLoading}

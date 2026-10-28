@@ -10,7 +10,7 @@ import { useOrganizations } from "@/hooks";
 import { useSuggestions } from "@/hooks/use-suggestions";
 import { ROUTES } from "@/lib/constants";
 import { WidgetFrame } from "../widget-frame";
-import { WidgetEmptyBody } from "../widget-states";
+import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
 
 /** How many the card shows; the rest are a link away, in the inbox. */
@@ -23,14 +23,18 @@ const SHOWN = 4;
  */
 export function SuggestionsWidget({ title, hint, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.suggestions");
-  const { suggestions } = useSuggestions();
+  const { suggestions, isLoading, error, refetch } = useSuggestions();
   const { activeOrg } = useOrganizations();
   const first = urgentFirst(suggestions).slice(0, SHOWN);
   const on = activeOrg?.proactive_enabled === true || activeOrg?.proactive_watches_enabled === true;
 
   return (
     <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
-      {suggestions.length === 0 ? (
+      {isLoading ? (
+        <WidgetSkeleton />
+      ) : error ? (
+        <WidgetErrorBody onRetry={() => void refetch()} />
+      ) : suggestions.length === 0 ? (
         <WidgetEmptyBody
           icon={Sparkles}
           title={t("empty.title")}

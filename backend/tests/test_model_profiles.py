@@ -312,6 +312,18 @@ class TestProviderCatalog:
         assert model.profile.get("openrouter_supports_cache_control") is True
         assert model._build_cache_control("5m") == {"type": "ephemeral"}
 
+    def test_openrouter_custom_endpoint_keeps_native_cache_and_transport(self):
+        credential = ResolvedCredential(
+            provider="openrouter",
+            secret=ApiKeySecret(api_key="sk-or-test"),
+            base_url="https://eu.openrouter.ai/api/v1",
+        )
+        model = build_model(credential, "anthropic/claude-opus-4.1")
+        assert isinstance(model, OpenRouterModel)
+        assert str(model.client.base_url) == "https://eu.openrouter.ai/api/v1/"
+        assert model.profile.get("openrouter_supports_cache_control") is True
+        assert model._build_cache_control("5m") == {"type": "ephemeral"}
+
     @pytest.mark.parametrize(
         ("provider_id", "base_url", "expected"),
         [
@@ -810,7 +822,7 @@ class TestEditingAProfileInPlace:
     @pytest.mark.anyio
     async def test_an_endpoint_is_refused_for_a_provider_that_has_none(self):
         ctx = _ctx()
-        profile = _profile(ctx, provider="openrouter", model="openai/gpt-5")
+        profile = _profile(ctx, provider="groq", model="llama-3.3-70b-versatile")
         with pytest.raises(BadRequestError) as refused:
             await self._update(ctx, profile, {"base_url": "https://gateway.example/v1"})
         assert refused.value.details["fields"][0]["field"] == "base_url"
@@ -1610,15 +1622,15 @@ class TestAnEndpointOfItsOwn:
     async def test_an_endpoint_is_refused_for_a_provider_that_has_none(self):
         """Storing one would be storing a value the SDK drops in silence.
 
-        `openrouter` names no endpoint parameter, so a URL saved against it would
+        `groq` names no endpoint parameter, so a URL saved against it would
         look configured and change nothing about where the request went.
         """
         with pytest.raises(BadRequestError) as exc:
             await ModelProfileService(_db()).create_profile(
                 _ctx(),
                 label="Through a proxy",
-                provider="openrouter",
-                model="openai/gpt-4.1",
+                provider="groq",
+                model="llama",
                 secret_id=uuid.uuid4(),
                 base_url="https://proxy.example/v1",
             )

@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
  * on its own root does NOT stop this box's min-content from growing to the
  * transcript's height.
  */
-const OWN_SCROLL_PANE = /\/chat(?:\/|$)/;
+const OWN_SCROLL_PANE = /\/(?:chat|projects\/[^/]+)(?:\/|$)/;
 
 /**
  * Routes that place their own room under themselves, lower down.
@@ -31,7 +31,7 @@ const OWN_SCROLL_PANE = /\/chat(?:\/|$)/;
  *   the same `PAGE_CLEARANCE` one level in, on the list column, where it lands
  *   under the last row and leaves the row itself ending at the viewport.
  */
-const OWN_BOTTOM_ROOM = /\/(?:chat|runs)(?:\/|$)/;
+const OWN_BOTTOM_ROOM = /\/(?:chat|runs|projects\/[^/]+)(?:\/|$)/;
 
 export function PageTransition({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

@@ -165,7 +165,7 @@ export const MessageItem = memo(function MessageItem({
     <div
       className={cn(
         "z-10 flex flex-shrink-0 items-center justify-center overflow-hidden rounded-full",
-        compact ? "h-6 w-6" : "h-7 w-7",
+        compact ? "h-6 w-6" : isUser ? "h-7 w-7" : "h-9 w-9",
         // A fill only behind the fallback icon. A face or a picture brings its
         // own disc, and a dark one behind it showed as a thin ring wherever the
         // two edges did not quite meet.

@@ -16,7 +16,7 @@ keeps. The two that matter most:
 import enum
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from pydantic import JsonValue
@@ -800,3 +800,45 @@ def _finished_unless_queued() -> ColumnElement[datetime | None]:
         (_superseded(), func.now()),
         else_=None,
     )
+
+
+async def lock_workspace_attempt(
+    db: AsyncSession, job_id: UUID, *, attempt: int
+) -> BackgroundJob | None:
+    """Fence activation against cancellation, takeover and an expired lease."""
+    result = await db.execute(
+        select(BackgroundJob)
+        .where(
+            BackgroundJob.id == job_id,
+            BackgroundJob.status == "running",
+            BackgroundJob.attempts == attempt,
+            BackgroundJob.lease_until > datetime.now(UTC),
+        )
+        .execution_options(populate_existing=True)
+        .with_for_update()
+    )
+    return result.scalar_one_or_none()
+
+
+async def workspace_move_progress(
+    db: AsyncSession, job_id: UUID, *, attempt: int, result: dict[str, JsonValue]
+) -> bool:
+    changed = await db.execute(
+        update(BackgroundJob)
+        .where(
+            BackgroundJob.id == job_id,
+            BackgroundJob.status == "running",
+            BackgroundJob.attempts == attempt,
+            BackgroundJob.lease_until > datetime.now(UTC),
+        )
+        .values(result=result)
+        .returning(BackgroundJob.id)
+    )
+    return changed.scalar_one_or_none() is not None
+
+
+async def for_project_moves(db: AsyncSession, ids: list[UUID]) -> dict[UUID, BackgroundJob]:
+    if not ids:
+        return {}
+    rows = await db.execute(select(BackgroundJob).where(BackgroundJob.id.in_(ids)))
+    return {row.id: row for row in rows.scalars().all()}

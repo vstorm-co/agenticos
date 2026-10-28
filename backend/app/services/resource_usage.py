@@ -55,7 +55,15 @@ async def _visible_usage(
     visible = await accessible_ids(db, ctx, agents.values(), Perm.AGENTS_VIEW, resource_type=AGENT)
     return {
         resource_id: [
-            AgentUsage(id=agent.id, name=agent.name) for agent in bound if agent.id in visible
+            AgentUsage(
+                id=agent.id,
+                name=agent.name,
+                slug=agent.slug,
+                has_avatar=agent.has_avatar,
+                avatar_color=agent.avatar_color,
+            )
+            for agent in bound
+            if agent.id in visible
         ]
         for resource_id, bound in found.items()
     }

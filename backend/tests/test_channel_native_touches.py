@@ -179,7 +179,7 @@ class TestMattermostThumbsReactionsAndAgent:
         context = actions[0]["integration"]["context"]
         assert context["signature"] == sign_press("bot-1", context["value"])
 
-    async def test_a_rating_takes_the_thumbs_off(self) -> None:
+    async def test_a_rating_leaves_the_buttons_available_to_other_participants(self) -> None:
         adapter, http = _mattermost()
         press = IncomingPress(
             platform="mattermost",
@@ -193,10 +193,7 @@ class TestMattermostThumbsReactionsAndAgent:
 
         await adapter.settle_feedback("tok", press, True)
 
-        assert http.calls[0][2] == {
-            "message": "The answer\n**:+1: Rated helpful**",
-            "props": {"attachments": []},
-        }
+        assert http.calls == []
 
     async def test_the_question_gets_the_bot_s_reaction_as_the_bot(self) -> None:
         adapter, http = _mattermost()

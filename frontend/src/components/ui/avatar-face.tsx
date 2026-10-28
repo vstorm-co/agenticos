@@ -15,6 +15,8 @@ export interface AvatarFaceProps {
   colorSlot?: number | null;
   /** Draws the face mid-thought, for an agent that is working right now. */
   thinking?: boolean;
+  /** Omit the backdrop for compact agent portraits in chat. */
+  background?: boolean;
   className?: string;
 }
 
@@ -24,8 +26,8 @@ export interface AvatarFaceProps {
  * Generated from the seed rather than stored, so the same id always draws the
  * same face and a person or an agent is recognisable across every screen
  * without a row, a request or an upload. A disc behind it, because every avatar
- * in this product is already a circle and a bare silhouette inside one leaves a
- * ring of empty space where the fill used to be.
+ * normally sits in a circle. Chat omits the disc and enlarges the face to use
+ * the portrait area without another frame.
  *
  * Alive, everywhere. Every face blinks, breathes and looks around, and that is
  * a deliberate trade rather than a free one: motion is CSS acting on the shapes,
@@ -45,12 +47,18 @@ export interface AvatarFaceProps {
  * that can ask for it; it is also what honours `prefers-reduced-motion`, under
  * which every face here holds still.
  */
-export function AvatarFace({ seed, colorSlot, thinking: isThinking, className }: AvatarFaceProps) {
+export function AvatarFace({
+  seed,
+  colorSlot,
+  thinking: isThinking,
+  background = true,
+  className,
+}: AvatarFaceProps) {
   return (
     <Blobatar
       name={seed}
       hue={avatarHue(colorSlot)}
-      background="circle"
+      background={background ? "circle" : false}
       animate="always"
       expression={isThinking ? thinking : undefined}
       className={cn("h-full w-full", className)}

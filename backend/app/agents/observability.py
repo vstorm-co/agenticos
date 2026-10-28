@@ -26,6 +26,8 @@ from pydantic_ai.models import AbstractModel, Model
 from pydantic_ai.models.instrumented import InstrumentationSettings, instrument_model
 from pydantic_ai.tools import RunContext
 
+from app import __version__
+
 logger = logging.getLogger(__name__)
 
 _instances: dict[tuple[str, str, str], logfire.Logfire] = {}
@@ -88,6 +90,7 @@ def instrument_agent(
                 local=True,
                 token=token,
                 service_name=service_name,
+                service_version=__version__,
                 environment=environment or "",
                 send_to_logfire=True,
                 console=False,

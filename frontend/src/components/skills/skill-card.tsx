@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Tag, Trash2 } from "lucide-react";
+import { Tag, Trash2 } from "lucide-react";
 
 import { Badge, BlankPeek, Button, Card, DocPeek, TextPeek } from "@/components/ui";
 import { categoryLabel } from "@/components/skills/category-input";
@@ -51,20 +51,14 @@ export function SkillCard({ skill, canEdit, onOpen, onDelete }: SkillCardProps) 
         </DocPeek>
         <span className="flex flex-1 flex-col gap-1.5 p-4 pt-3.5 pb-12">
           <span className="flex items-center gap-2 pr-8">
-            <span className="text-foreground truncate font-mono text-sm font-medium">
-              {skill.name}
-            </span>
+            <span className="text-foreground truncate text-sm font-semibold">{skill.name}</span>
             {skill.built_in && <Badge variant="secondary">built-in</Badge>}
             {!skill.enabled && <Badge variant="outline">{t("disabled")}</Badge>}
           </span>
-          <span className="text-muted-foreground line-clamp-2 block text-sm">
+          <span className="text-muted-foreground line-clamp-2 min-h-10 text-sm">
             {skill.description}
           </span>
           <span className="text-muted-foreground mt-auto flex items-center gap-3 pt-1 text-xs">
-            <span className="flex items-center gap-1">
-              <FileText className="h-3.5 w-3.5 shrink-0" />
-              {t("fileCount", { count: skill.file_count })}
-            </span>
             {skill.category !== null && (
               <span className="flex min-w-0 items-center gap-1">
                 <Tag className="h-3.5 w-3.5 shrink-0" />

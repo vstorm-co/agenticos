@@ -283,7 +283,7 @@ inference cannot: **which credential shape a provider wants.**
 | OpenAI | `openai` | API key, or none | ✓ |
 | Anthropic | `anthropic` | API key | ✓ |
 | Google Gemini | `google` | API key | ✓ |
-| OpenRouter | `openrouter` | API key | |
+| OpenRouter | `openrouter` | API key |  ✓ |
 | Alibaba Cloud | `alibaba` | API key | ✓ |
 | Cerebras | `cerebras` | API key | |
 | DeepSeek | `deepseek` | API key | |
@@ -679,3 +679,9 @@ make platform-bootstrap BOOTSTRAP_API_KEY=sk-...
 ```
 
 does all three for a new deployment.
+
+For a regional OpenRouter API, keep **OpenRouter** as the provider and set **Endpoint** to `https://eu.openrouter.ai/api/v1` in the model form. The profile keeps its OpenRouter vault key, native model handling and cache controls. Model suggestions come from that endpoint and are cached separately; a failed regional listing does not fall back to the global catalog. For knowledge bases, set the embedding **Endpoint** separately when creating the collection or editing its embedding provider. Existing configurations keep the global endpoint. EU routing requires an eligible OpenRouter Business or Enterprise plan; [regional routing](https://openrouter.ai/docs/guides/get-started/sovereign-ai) and ZDR are separate OpenRouter policies.
+
+Upgrade every API and worker process before configuring regional endpoints. Earlier builds ignore the OpenRouter endpoint override.
+
+For another endpoint with the same provider and model, choose **Add separate model** in the Builder. Its automatic name includes the endpoint, and the existing profile stays unchanged. **Update model** edits the shared profile instead. Custom catalog downloads are limited to 2 MiB, 2,048 models and bounded field lengths, with at most 16 catalogs cached per process. A compressed or oversized response leaves the model ID editable without falling back to a global listing.

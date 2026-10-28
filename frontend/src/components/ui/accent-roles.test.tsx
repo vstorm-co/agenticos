@@ -13,9 +13,9 @@ import { Button, buttonVariants } from "./button";
  * that change expensive for no safety - the point of the token layer is that
  * the colour can move while the roles cannot.
  *
- * The roles being protected: the primary action is INK (`primary`, near-black
- * on light surfaces, white on dark ones), and the accent (`brand`) never
- * fills a button - it keeps the quieter jobs of links, selection and focus.
+ * The roles being protected: buttons use a neutral action surface; semantic
+ * controls and badges keep primary ink. The accent (`brand`) keeps the
+ * quieter jobs of links, selection and focus.
  * If a neutral variant grows a fill, or a fill grows the accent, the register
  * collapses and these fail.
  */
@@ -25,9 +25,9 @@ const classesOf = (value: string): string[] => value.split(/\s+/).filter(Boolean
 const NEUTRAL_VARIANTS = ["secondary", "outline", "ghost"] as const;
 
 describe("colour roles", () => {
-  it("fills the primary action with ink, never the accent", () => {
+  it("gives the primary action a neutral surface, distinct from semantic ink", () => {
     const classes = classesOf(buttonVariants({ variant: "default" }));
-    expect(classes).toContain("bg-primary");
+    expect(classes).toContain("bg-action");
     expect(classes).not.toContain("bg-brand");
   });
 
@@ -49,8 +49,8 @@ describe("colour roles", () => {
     // and darkens over a graphite one, so one class would drift in opposite
     // directions between the two themes.
     const classes = classesOf(buttonVariants({ variant: "default" }));
-    expect(classes).toContain("hover:bg-primary-hover");
-    expect(classes).toContain("active:bg-primary-active");
+    expect(classes).toContain("hover:bg-action-hover");
+    expect(classes).toContain("active:bg-action-active");
     expect(classes.filter((c) => c.startsWith("hover:bg-primary/"))).toHaveLength(0);
   });
 
@@ -67,22 +67,18 @@ describe("colour roles", () => {
     expect(new Set(rendered).size).toBe(variants.length);
   });
 
-  it("paints a default badge from the same ink tokens as the primary button", () => {
-    // The whole point of the exercise: comparable elements match because they
-    // name the same role, not because two class lists happen to agree.
+  it("keeps metadata badges quiet while buttons use action surfaces", () => {
     render(
       <>
         <Button>save</Button>
         <Badge>live</Badge>
       </>,
     );
-
     const button = classesOf(screen.getByRole("button").className);
     const badge = classesOf(screen.getByText("live").className);
-
-    for (const token of ["bg-primary", "text-primary-foreground"]) {
-      expect(button).toContain(token);
-      expect(badge).toContain(token);
-    }
+    expect(button).toContain("bg-action");
+    expect(button).toContain("text-action-foreground");
+    expect(badge).toContain("bg-foreground/8");
+    expect(badge).toContain("text-foreground");
   });
 });

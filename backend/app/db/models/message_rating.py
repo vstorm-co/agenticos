@@ -14,6 +14,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
+    from app.db.models.channel_identity import ChannelIdentity
     from app.db.models.conversation import Message
     from app.db.models.user import User
 
@@ -24,6 +25,10 @@ class MessageRating(Base, TimestampMixin):
     __tablename__ = "message_ratings"
     __table_args__ = (
         UniqueConstraint("message_id", "user_id", name="uq_message_user_rating"),
+        UniqueConstraint("message_id", "channel_identity_id", name="uq_message_channel_rating"),
+        CheckConstraint(
+            "(user_id IS NOT NULL) <> (channel_identity_id IS NOT NULL)", name="ck_rating_author"
+        ),
         CheckConstraint("rating IN (1, -1)", name="ck_rating_value"),
     )
 
@@ -34,12 +39,19 @@ class MessageRating(Base, TimestampMixin):
         nullable=False,
         index=True,
     )
-    user_id: Mapped[uuid.UUID] = mapped_column(
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
         index=True,
     )
+    channel_identity_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("channel_identities.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    channel_identity: Mapped[ChannelIdentity | None] = relationship("ChannelIdentity")
     rating: Mapped[int] = mapped_column(Integer, nullable=False)  # 1 or -1
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -47,7 +59,7 @@ class MessageRating(Base, TimestampMixin):
         "Message",
         foreign_keys="MessageRating.message_id",
     )
-    user: Mapped[User] = relationship(
+    user: Mapped[User | None] = relationship(
         "User",
         foreign_keys="MessageRating.user_id",
     )

@@ -20,6 +20,7 @@ export function AgentFace({ agentId, className }: { agentId: string; className?:
       agentId={agentId}
       slug={agent?.slug ?? agentId}
       hasAvatar={agent?.has_avatar ?? false}
+      colorSlot={agent?.avatar_color}
       size="sm"
       className={className}
     />

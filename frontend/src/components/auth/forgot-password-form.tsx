@@ -30,7 +30,7 @@ export function ForgotPasswordForm() {
       await apiClient.post("/auth/password-reset/request", { email });
     } catch (err) {
       // Treat "not found" the same as success to avoid email enumeration.
-      if (err instanceof ApiError && err.status >= 500) {
+      if (!(err instanceof ApiError) || err.status !== 404) {
         setError(t("somethingWentWrongPlease"));
         setIsLoading(false);
         return;
@@ -43,10 +43,7 @@ export function ForgotPasswordForm() {
   if (submitted) {
     return (
       <div className="space-y-7 text-center">
-        <div
-          className="bg-brand/15 mx-auto flex h-14 w-14 items-center justify-center rounded-full"
-          style={{ boxShadow: "0 0 32px oklch(from var(--color-brand) l c h / 0.35)" }}
-        >
+        <div className="bg-muted text-muted-foreground mx-auto flex h-14 w-14 items-center justify-center rounded-2xl">
           <Mail className="text-foreground h-6 w-6" />
         </div>
         <div className="space-y-2">
@@ -84,7 +81,7 @@ export function ForgotPasswordForm() {
         <p className="text-foreground/65 text-sm">{t("dropYourEmailBelow")}</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form onSubmit={handleSubmit} className="space-y-5" aria-busy={isLoading}>
         <div className="space-y-1.5">
           <Label htmlFor="email" className="text-foreground text-sm font-medium">
             {t("email")}
@@ -103,7 +100,10 @@ export function ForgotPasswordForm() {
         </div>
 
         {error && (
-          <p className="border-destructive/35 bg-destructive/[0.07] text-foreground rounded-lg border px-3 py-2 text-sm">
+          <p
+            role="alert"
+            className="border-destructive/35 bg-destructive/[0.07] text-foreground rounded-lg border px-3 py-2 text-sm"
+          >
             {error}
           </p>
         )}

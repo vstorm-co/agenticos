@@ -169,6 +169,7 @@ class TestToolDeclarations:
         # for the same reason the delegate below is at its widest.
         "context_files": [
             SimpleNamespace(
+                id=uuid4(),
                 name="glossary",
                 description="What the words mean.",
                 content="SLA: service level agreement.",

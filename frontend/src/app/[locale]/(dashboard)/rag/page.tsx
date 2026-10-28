@@ -91,7 +91,7 @@ export default function RAGPage() {
   const loading = isLoading && kbs.length === 0;
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-1 flex-col space-y-6">
       <PageHeader
         title={t("knowledgeBases")}
         description={t("groupRelatedDocumentsInto")}
@@ -111,7 +111,11 @@ export default function RAGPage() {
           panel with `aria-controls`, so a root closing after the list left those
           references dangling and the visible section with no `role="tabpanel"`.
           Pre-existing here; found reviewing the same change on the detail page. */}
-      <Tabs value={tab} onValueChange={(next) => setTab(next as RagTab)}>
+      <Tabs
+        className="flex flex-1 flex-col"
+        value={tab}
+        onValueChange={(next) => setTab(next as RagTab)}
+      >
         <TabsList data-tour="knowledge-tabs">
           <TabsTrigger value="bases">{t("knowledgeBases")}</TabsTrigger>
           <TabsTrigger value="search">{t("search")}</TabsTrigger>
@@ -127,7 +131,7 @@ export default function RAGPage() {
             failed search tab: handing it an empty array would have it say there
             is nothing to search, which is the list's own error wearing a fact's
             face. */}
-        <TabsContent value="search">
+        <TabsContent value="search" className="flex flex-1 flex-col">
           {loading ? (
             <Skeleton className="h-48 w-full rounded-xl" />
           ) : listError ? (
@@ -137,12 +141,13 @@ export default function RAGPage() {
               cta={{ label: t("retry"), onClick: () => fetchKBs() }}
             />
           ) : (
-            <SearchTab kbs={sorted} />
+            <SearchTab kbs={sorted} onCreate={mayEdit ? () => setCreateOpen(true) : undefined} />
           )}
         </TabsContent>
 
-        <TabsContent value="bases">
+        <TabsContent value="bases" className="flex-1 flex-col data-[state=active]:flex">
           <ListCard
+            fill
             namedByPage
             title={t("bases")}
             counted={loading || listError ? null : t("storedCount", { count: kbs.length })}
@@ -210,14 +215,17 @@ export default function RAGPage() {
             and cloned into each base that needs it. `targets` is the base list,
             so this tab needs it loaded - which is why it is the same query
             rather than a second one. */}
-        <TabsContent value="integrations" className="space-y-8">
-          <div data-tour="knowledge-integrations">
+        <TabsContent
+          value="integrations"
+          className="grid min-w-0 flex-1 grid-cols-1 gap-6 xl:grid-cols-2"
+        >
+          <div data-tour="knowledge-integrations" className="flex min-h-0 flex-col">
             <ReusableIntegrations targets={kbs} />
           </div>
           {/* Servers on the deployment's own network, registered once and chosen
               per collection - the same shape as the integrations above, and
               hidden by the same permission. */}
-          <div data-tour="knowledge-local-services">
+          <div data-tour="knowledge-local-services" className="flex min-h-0 flex-col">
             <LocalServices />
           </div>
         </TabsContent>

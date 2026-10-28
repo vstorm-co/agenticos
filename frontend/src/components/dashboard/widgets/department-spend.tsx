@@ -31,7 +31,7 @@ export function DepartmentSpendWidget({ title, hint, options }: DashboardWidgetP
   return (
     <WidgetFrame title={title} hint={hint} seeAll={ROUTES.GROUPS} options={options}>
       {isLoading ? (
-        <WidgetSkeleton />
+        <WidgetSkeleton variant="bars" />
       ) : error ? (
         <WidgetErrorBody onRetry={() => refetch()} />
       ) : rows.length === 0 ? (

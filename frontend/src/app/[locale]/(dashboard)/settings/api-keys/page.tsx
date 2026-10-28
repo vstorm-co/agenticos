@@ -5,7 +5,7 @@ import { ApiUsage } from "@/components/settings/api-usage";
 
 export default function ApiKeysSettingsPage() {
   return (
-    <div className="space-y-6">
+    <div className="flex flex-1 flex-col space-y-6">
       <ApiUsage />
       <ApiKeysManager />
     </div>

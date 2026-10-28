@@ -15,7 +15,8 @@ too; see `app.db.models.background_job`.
 import enum
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from uuid import UUID
+from typing import Literal
+from uuid import UUID, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
@@ -43,6 +44,27 @@ class Payload(BaseModel):
     """What a job carries: identifiers and primitives, never a row or a session."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
+
+
+class MoveProjectWorkspacePayload(Payload):
+    transfer_id: UUID
+    project_id: UUID
+    organization_id: UUID
+    user_id: UUID
+    api_key_id: UUID | None = None
+    source_backend: Literal["state", "service"]
+    source_connection_id: UUID | None
+    source_generation: UUID | None
+    source_workspace_id: UUID | None
+    target_backend: Literal["state", "service"]
+    target_connection_id: UUID | None
+    target_runtime: str | None
+    target_name: str
+
+
+def project_move_generation(transfer_id: UUID, attempt: int) -> UUID:
+    """Isolate each attempt, so a lost worker cannot write into the activated copy."""
+    return uuid5(transfer_id, str(attempt))
 
 
 class NoPayload(Payload):
@@ -337,9 +359,19 @@ WATCH_SWEEP = _sweep("watch-sweep")
 WEEKLY_USAGE_REPORT = _sweep("weekly-usage-report", timeout=timedelta(hours=1), max_attempts=3)
 MONTHLY_USAGE_REPORT = _sweep("monthly-usage-report", timeout=timedelta(hours=1), max_attempts=3)
 
+MOVE_PROJECT_WORKSPACE = Task(
+    kind="move-project-workspace",
+    payload_type=MoveProjectWorkspacePayload,
+    pool=Pool.INGEST,
+    max_attempts=3,
+    timeout=timedelta(minutes=30),
+    priority=Priority.INTERACTIVE,
+)
+
 TASKS: dict[str, TaskKind] = {
     task.kind: task
     for task in (
+        MOVE_PROJECT_WORKSPACE,
         INGEST_DOCUMENT,
         SYNC_COLLECTION,
         SYNC_SOURCE,

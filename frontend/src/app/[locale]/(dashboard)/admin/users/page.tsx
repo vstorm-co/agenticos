@@ -170,8 +170,9 @@ export default function AdminUsersPage() {
   );
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-1 flex-col space-y-4">
       <ListCard
+        fill
         namedByPage
         title={t("usersCard")}
         counted={isLoading && users.length === 0 ? null : t("totalCount", { count: total })}

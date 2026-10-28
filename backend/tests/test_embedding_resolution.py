@@ -35,6 +35,7 @@ def _kb(
     organization_id: uuid.UUID | None = _ORG,
     provider: str = "openrouter",
     endpoint_id: uuid.UUID | None = None,
+    base_url: str | None = None,
 ):
     return MagicMock(
         collection_name="handbook",
@@ -44,6 +45,7 @@ def _kb(
         organization_id=organization_id,
         embedding_provider=provider,
         embedding_endpoint_id=endpoint_id,
+        embedding_base_url=base_url,
     )
 
 
@@ -422,3 +424,13 @@ class TestWhereTheRequestGoes:
         assert "no longer in this build's catalog" in resolved.describe("handbook")
         assert "a-provider-that-left" in resolved.describe("handbook")
         secrets.get.assert_not_called()
+
+
+async def test_regional_openrouter_embeddings_keep_the_selected_endpoint():
+    resolved, _ = await _resolve(
+        _kb(secret_id=uuid.uuid4(), base_url="https://eu.openrouter.ai/api/v1"),
+        _sealed_key_row("sk-regional-test"),
+    )
+    assert resolved is not None
+    assert resolved.base_url == "https://eu.openrouter.ai/api/v1"
+    assert resolved.api_key == "sk-regional-test"

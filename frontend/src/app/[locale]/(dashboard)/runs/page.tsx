@@ -165,7 +165,7 @@ export default function RunsPage() {
     // table its rows: the figures and the period control took about 380px, so a
     // 900px viewport left a run history three rows deep inside its own scroll
     // box - a second scrollbar to reach what the page had room for all along.
-    <div className="flex flex-col">
+    <div className="flex flex-1 flex-col">
       <PageHeader title={t("activity2")} description={t("whatYourAgentsDid2")} />
 
       {/* Not until the permission set has answered. The strip's *shape* depends
@@ -226,14 +226,15 @@ export default function RunsPage() {
                 `items-start`, so the shorter of the two columns is its own
                 height rather than stretched to match the other: a run detail
                 beside a three-row table used to be a card of white space. */}
-            <div className="mt-2 flex items-start gap-4">
+            <div className="mt-2 flex flex-1 items-start gap-4">
               <div
                 className={cn(
                   // `overflow-hidden` is load-bearing: the run table carries a
                   // minimum width of its own, and without a clip here it ran on
                   // underneath the detail panel rather than scrolling inside its
                   // own column.
-                  "min-w-0 flex-1 overflow-hidden",
+                  "flex min-w-0 flex-1 flex-col overflow-hidden",
+                  focusedRunId === null && "self-stretch",
                   // The room under this page, declared here rather than by
                   // `PageTransition` - which is where every other page gets it.
                   // Padding on the box *around* this row shortens what the
@@ -258,7 +259,7 @@ export default function RunsPage() {
                   <TabsContent
                     value="approvals"
                     data-tour="activity-approvals"
-                    className="mt-0 min-h-0 flex-1 overflow-y-auto"
+                    className="mt-0 min-h-0 flex-1 flex-col data-[state=active]:flex"
                   >
                     <ApprovalsTab
                       period={period}
@@ -268,7 +269,11 @@ export default function RunsPage() {
                   </TabsContent>
                 )}
 
-                <TabsContent value="runs" data-tour="activity-runs" className="mt-0">
+                <TabsContent
+                  value="runs"
+                  data-tour="activity-runs"
+                  className="mt-0 flex-1 flex-col data-[state=active]:flex"
+                >
                   {/* The export lives on the tab's control row, beside the
                       filters it exports the result of - see RunHistoryTab. */}
                   <RunHistoryTab

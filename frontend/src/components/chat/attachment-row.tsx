@@ -55,7 +55,7 @@ export function AttachmentRow({
   function scrollBy(direction: -1 | 1): void {
     // A card and its gap, so a press moves by one card rather than by a
     // viewport-relative amount that lands mid-card.
-    row.current?.scrollBy({ left: direction * 184, behavior: "smooth" });
+    row.current?.scrollBy({ left: direction * 232, behavior: "smooth" });
   }
 
   return (
@@ -63,7 +63,7 @@ export function AttachmentRow({
     // the usage strip and the textarea, `Context 5.7% · $0.0471` and three file
     // cards read as one confused header; what is attached is a thing of its own,
     // and it sits above the box it will be sent from.
-    <div className="panel mb-2 flex items-center gap-1 rounded-2xl px-3 py-2 sm:px-4">
+    <div className="mb-2 flex items-center gap-2 px-1 py-1">
       {overflowing && (
         <Arrow direction="left" label={t("scrollAttachmentsLeft")} onClick={() => scrollBy(-1)} />
       )}

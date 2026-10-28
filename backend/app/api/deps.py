@@ -196,6 +196,17 @@ def get_channel_bot_service(db: DBSession) -> ChannelBotService:
 ChannelBotSvc = Annotated[ChannelBotService, Depends(get_channel_bot_service)]
 
 
+from app.services.channels.feedback import ChannelFeedback
+
+
+def get_channel_feedback_service(db: DBSession) -> ChannelFeedback:
+    """Record a signed channel rating in the callback request's transaction."""
+    return ChannelFeedback(db)
+
+
+ChannelFeedbackSvc = Annotated[ChannelFeedback, Depends(get_channel_feedback_service)]
+
+
 from app.services.channel_link import ChannelLinkService
 
 
@@ -1778,3 +1789,14 @@ def prefers_async(
 
 
 PrefersAsync = Annotated[bool, Depends(prefers_async)]
+
+from app.services.project_workspace_transfer import ProjectWorkspaceTransferService
+
+
+def get_project_transfer_service(db: DBSession) -> ProjectWorkspaceTransferService:
+    return ProjectWorkspaceTransferService(db)
+
+
+ProjectTransferSvc = Annotated[
+    ProjectWorkspaceTransferService, Depends(get_project_transfer_service)
+]

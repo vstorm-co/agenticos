@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { SidebarShell } from "./sidebar-shell";
+import { version } from "../../../package.json";
 
 /**
  * The blocks are stubbed because this is a test about arrangement, not about
@@ -109,4 +110,9 @@ describe("SidebarShell", () => {
 
     expect(screen.queryByRole("button", { name: "the collapse control" })).not.toBeInTheDocument();
   });
+});
+
+it.each([false, true])("shows the running console version with collapsed=%s", (collapsed) => {
+  renderShell({ collapsed });
+  expect(screen.getByLabelText(`Console version ${version}`)).toHaveTextContent(`v${version}`);
 });

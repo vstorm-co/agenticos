@@ -36,10 +36,7 @@ export default async function MagicLinkSentPage({ searchParams }: PageProps) {
 
   return (
     <div className="space-y-8 text-center">
-      <div
-        className="bg-brand/15 mx-auto flex h-16 w-16 items-center justify-center rounded-full"
-        style={{ boxShadow: "0 0 40px oklch(from var(--color-brand) l c h / 0.4)" }}
-      >
+      <div className="bg-muted text-muted-foreground mx-auto flex h-16 w-16 items-center justify-center rounded-2xl">
         <Mail className="text-foreground h-7 w-7" />
       </div>
 

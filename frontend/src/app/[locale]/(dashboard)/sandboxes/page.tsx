@@ -74,7 +74,7 @@ export default function SandboxesPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-1 flex-col space-y-6">
       <PageHeader
         title={t("sandboxes2")}
         description={t("pageDescription")}
@@ -94,6 +94,7 @@ export default function SandboxesPage() {
       />
 
       <Tabs
+        className="flex flex-1 flex-col"
         value={tab}
         onValueChange={(value) => setTabParam(value === "connections" ? null : value)}
       >
@@ -102,8 +103,9 @@ export default function SandboxesPage() {
           <TabsTrigger value="running">{t("tabRunning")}</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="connections">
+        <TabsContent value="connections" className="flex-1 flex-col data-[state=active]:flex">
           <ListCard
+            fill
             data-tour="sandboxes-connections"
             title={t("sandboxConnections")}
             // With the list refused or still loading, "0 connections" would
@@ -146,7 +148,7 @@ export default function SandboxesPage() {
           </ListCard>
         </TabsContent>
 
-        <TabsContent value="running">
+        <TabsContent value="running" className="flex flex-1 flex-col">
           {isLoading ? (
             <div className="space-y-3 p-5">
               {[0, 1].map((row) => (

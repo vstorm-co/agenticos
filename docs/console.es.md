@@ -1,5 +1,5 @@
 ---
-source_sha: "64d1331aaada"
+source_sha: "093be48b0e0d"
 ---
 
 # La consola { #the-console }
@@ -14,12 +14,16 @@ página cuya cabecera no lleva "?" no tiene recorrido que reproducir. El chat no
 tiene cabecera: sus consejos están en los ajustes del chat, los deslizadores junto
 al micrófono.
 
+Las listas de recursos, incluidas Inbox y Routines, ocupan la altura restante de la página incluso cuando están vacías. Las plantillas de Routines siguen en el formulario de creación, sin un panel de ideas aparte. Get started reserva su espacio mientras carga la lista para que Briefing y las tarjetas inferiores no salten.
+
+El chat usa retratos de agentes más grandes y sin marcos. El control Files permanece en el cuadro de mensaje al abrir y cerrar el panel; la animación respeta la preferencia de movimiento reducido. Los ajustes del chat muestran primero el modelo actual. **Change model** abre el formulario del proveedor y del modelo ya rellenados; el cambio solo se aplica al confirmarlo. Las tarjetas de adjuntos aparecen sobre el cuadro de mensaje sin otro panel con sombra.
+
 ## El dashboard { #the-dashboard }
 
 La página de inicio es una **cuadrícula de widgets que tú ordenas**, y es la
 respuesta a "qué está pasando" sin abrir cinco páginas.
 
-Existen treinta y ocho tarjetas. No las verás todas: **cada tarjeta está
+Existen cuarenta y cinco tarjetas. No las verás todas: **cada tarjeta está
 protegida por el permiso que necesitan sus datos**, así que un widget que no
 puedes leer nunca se monta y sus consultas nunca se lanzan — excepto tus
 propias notificaciones, más abajo, que solo necesitan que hayas iniciado
@@ -86,6 +90,21 @@ instantánea que querías conservar.
     Una disposición guardada puede reordenar y ocultar, pero no puede revelar. El
     filtrado por permisos corre después de resolver la disposición, venga esta de
     la de serie o de una que tú guardaste.
+
+## Rutinas y seguimientos { #routines-and-watches }
+
+Routines tiene dos pestañas. **Tareas de agentes** ejecuta un agente elegido por
+horario o evento con sus herramientas; las ejecuciones aparecen en Activity.
+**Mis seguimientos** solo consulta cuentas personales conectadas y envía hallazgos
+a la bandeja privada. Cada pestaña tiene sus acciones de creación.
+`/routines?tab=watches` abre los seguimientos.
+
+Discover comienza con capacidades ilustradas en el dashboard. Al pasar el puntero
+por una curva de *Your period* aparecen el intervalo y el valor; los costes se
+muestran como importes. Los proyectos muestran descripciones y los agentes usan
+los mismos avatares que en el chat.
+
+Las tarjetas del panel usan filas compactas coherentes, símbolos de servicios y etiquetas de estado. Las cifras y los gráficos se adaptan al ancho de la tarjeta, también en diseños personalizados. Los indicadores de carga reflejan el tipo de contenido; un resumen no disponible permite reintentar en vez de afirmar que no hay propuestas.
 
 ## La bandeja { #the-inbox }
 
@@ -705,7 +724,7 @@ que un problema real se lea como algo tranquilo.
 
 ## Recapitulación { #recap }
 
-- El dashboard son **treinta y ocho widgets** que ordenas tú, guardados por
+- El dashboard son **cuarenta y cinco widgets** que ordenas tú, guardados por
   persona y por organización — todos menos tus propias notificaciones
   protegidos por el permiso que necesitan sus datos.
 - Una disposición guardada **puede ocultar y reordenar, pero nunca revelar** — la
@@ -720,3 +739,5 @@ que un problema real se lea como algo tranquilo.
   los que no uses.
 - Una página que muestra "todavía nada" puede ser **una petición fallida**, no un
   recurso vacío.
+
+El pie de la barra lateral muestra la versión de compilación de la consola junto a la búsqueda y las notificaciones, también en la barra contraída y el menú móvil. Procede de la versión del paquete frontend incluida en la compilación y no requiere solicitudes de red. El texto emergente la identifica como versión de la consola; un proceso API actualizado por separado puede ejecutar otra versión.

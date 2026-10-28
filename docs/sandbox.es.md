@@ -1,5 +1,5 @@
 ---
-source_sha: "02a95e1f3647"
+source_sha: "ca8f4c0c2629"
 ---
 
 # La sandbox { #the-sandbox }
@@ -683,3 +683,5 @@ registro de auditoría.
   `SANDBOXD_WORKSPACE_TTL`. El uso de disco solo crece.
 
 El backend `state` incluye archivos y directorios vacíos en el límite de almacenamiento, también al fusionar cambios simultáneos. Si los documentos aceptados por separado no caben juntos, el documento compartido no cambia y el estado posterior se confirma como copia de recuperación en **Documents**. La ejecución registra un error con el identificador de la copia; una modificación del proyecto devuelve un conflicto en lugar de éxito. Las copias de proyectos requieren permisos de visualización y uso. Una clave foránea elimina la copia junto con su origen, incluso durante una eliminación de datos simultánea. Reducir el límite por debajo del tamaño de un documento existente permite seguir reduciendo ese documento.
+
+Las instrucciones de workbench explican que los comandos usan POSIX `/bin/sh`, no Bash. Por ejemplo, `mkdir -p sources inbox notes` crea tres carpetas; esta shell no expande `{sources,inbox,notes}`. Los archivos del proyecto pertenecen a `/workspace`; el directorio personal (`~`) queda fuera de los archivos compartidos. Cada comando inicia un proceso nuevo: las variables y los cambios de directorio no pasan a la siguiente llamada. Se indica al agente que revise los fallos y verifique los archivos antes de anunciar el éxito.

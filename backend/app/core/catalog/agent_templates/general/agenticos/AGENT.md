@@ -148,7 +148,7 @@ When somebody asks where something is, or would do better doing it themselves in
 | Place | Link |
 |---|---|
 | Their routines, and creating one | `/routines?highlight=routines-create` |
-| Ready-made routines, the Morning briefing among them | `/routines?highlight=routines-ideas` |
+| Scheduled tasks and agent routines | `/routines?highlight=routines-list` |
 | Connecting a service with their own account | `/mcp-servers?highlight=mcp-add` |
 | Knowledge bases, and creating one | `/rag?highlight=knowledge-new` |
 | Skills, and creating one | `/skills?highlight=skills-new` |

@@ -63,7 +63,7 @@ export function BudgetHeadroomWidget({ title, hint, options }: DashboardWidgetPr
       options={options}
     >
       {isLoading || organizations.isLoading ? (
-        <WidgetSkeleton />
+        <WidgetSkeleton variant="chart" />
       ) : error ? (
         <WidgetErrorBody onRetry={() => refetch()} />
       ) : cap === null ? (

@@ -23,7 +23,7 @@ export function OrgRatingsWidget({ title, hint, period, seeAll, options }: Dashb
   return (
     <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {isLoading ? (
-        <WidgetSkeleton />
+        <WidgetSkeleton variant="chart" />
       ) : error ? (
         <WidgetErrorBody onRetry={() => refetch()} />
       ) : !ratings || ratings.total_ratings === 0 ? (

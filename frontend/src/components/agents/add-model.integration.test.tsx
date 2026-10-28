@@ -41,6 +41,7 @@ const state = {
   purposes: [] as SecretPurpose[],
   catalog: [] as ProviderCapabilities[],
   secrets: [] as Secret[],
+  profiles: [] as { label: string }[],
   models: [] as { id: string; name: string; context_length?: number | null }[],
   refused: [] as string[],
   source: "live" as "live" | "curated" | null,
@@ -50,6 +51,7 @@ const state = {
   permissions: [] as Permission[],
 };
 
+const listingRequests = vi.fn();
 const onCreatedSecret = { handler: undefined as ((id: string) => void) | undefined };
 
 vi.mock("@/hooks", () => ({
@@ -57,15 +59,19 @@ vi.mock("@/hooks", () => ({
     createProfile: state.createProfile,
     updateProfile: state.updateProfile,
     catalog: state.catalog,
+    profiles: state.profiles,
   }),
   useSecretPurposes: () => ({ purposes: state.purposes }),
   useSecrets: () => ({ secrets: state.secrets }),
-  useProviderModels: () => ({
-    models: state.models,
-    refused: state.refused,
-    source: state.source,
-    isLoading: state.loadingModels,
-  }),
+  useProviderModels: (...args: [string, string?]) => {
+    listingRequests(...args);
+    return {
+      models: state.models,
+      refused: state.refused,
+      source: state.source,
+      isLoading: state.loadingModels,
+    };
+  },
   usePermissions: () => ({
     can: (permission: Permission) => state.permissions.includes(permission),
   }),
@@ -145,12 +151,13 @@ beforeEach(() => {
   state.purposes = [purpose("openai", "OpenAI"), purpose("openrouter", "OpenRouter")];
   // What each provider's SDK actually reads. `openai` takes an endpoint, is
   // keyless because OpenAI-compatible servers exist, and serves both of its
-  // APIs; `openrouter` does none of that.
+  // APIs; OpenRouter keeps its native API at a configurable endpoint.
   state.catalog = [
     capabilities("openai", "OpenAI", OPENAI_CAPABILITIES),
-    capabilities("openrouter", "OpenRouter"),
+    capabilities("openrouter", "OpenRouter", { supports_base_url: true }),
   ];
   state.secrets = [];
+  state.profiles = [];
   state.models = [{ id: "gpt-5", name: "GPT-5", context_length: 400_000 }];
   state.refused = [];
   state.source = "live";
@@ -615,8 +622,10 @@ describe("pointing a model somewhere other than the provider's own API", () => {
   it("offers none for a provider that would ignore it", async () => {
     // Storing one would look configured and change nothing about where the
     // request went, which is worse than not offering it at all.
+    state.purposes.push(purpose("groq", "Groq"));
+    state.catalog.push(capabilities("groq", "Groq"));
     mount();
-    await pickProvider("OpenRouter");
+    await pickProvider("Groq");
     expect(screen.queryByLabelText("Endpoint")).toBeNull();
   });
 
@@ -1374,6 +1383,32 @@ describe("the model the agent is already on", () => {
 
     expect(await screen.findByText("A model endpoint must include a host")).toBeInTheDocument();
   });
+  it.each([
+    [null, "https://eu.openrouter.ai/api/v1", "eu.openrouter.ai/api/v1"],
+    ["https://eu.openrouter.ai/api/v1", "", "Default API"],
+  ])(
+    "saves the same provider and model at a different endpoint as a separate profile",
+    async (oldEndpoint, endpoint, suffix) => {
+      state.profiles = [{ label: "Existing shared model" }];
+      state.secrets = [secret({ id: "s-1", purpose: "openrouter", name: "Router key" })];
+      state.createProfile.mutateAsync.mockResolvedValue({ id: "new-profile" });
+      const { onCreated } = mount({ selected: inUse({ base_url: oldEndpoint }) });
+      const field = screen.getByLabelText("Endpoint");
+      await userEvent.clear(field);
+      if (endpoint) await userEvent.type(field, endpoint);
+      await userEvent.click(screen.getByRole("button", { name: "Add separate model" }));
+      expect(state.createProfile.mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: "openrouter",
+          model: "openai/gpt-5.5",
+          base_url: endpoint || null,
+          label: `OpenRouter · openai/gpt-5.5 · ${suffix}`,
+        }),
+      );
+      expect(state.updateProfile.mutateAsync).not.toHaveBeenCalled();
+      expect(onCreated).toHaveBeenCalledWith(expect.objectContaining({ id: "new-profile" }));
+    },
+  );
 });
 
 describe("the endpoint field's example", () => {
@@ -1400,4 +1435,24 @@ describe("the endpoint field's example", () => {
       "http://localhost:11434/v1",
     );
   });
+});
+
+it("keeps an OpenRouter key and lists models at its selected regional endpoint", async () => {
+  state.secrets = [secret({ purpose: "openrouter", name: "OpenRouter prod" })];
+  state.models = [{ id: "anthropic/claude-test", name: "Claude test" }];
+  mount();
+  await pickProvider("OpenRouter");
+  await userEvent.type(screen.getByLabelText("Endpoint"), "https://eu.openrouter.ai/api/v1");
+  await userEvent.click(screen.getByLabelText("Model"));
+  await userEvent.click(screen.getByRole("option", { name: /Claude test/ }));
+  await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+  expect(listingRequests).toHaveBeenCalledWith("openrouter", "https://eu.openrouter.ai/api/v1");
+  expect(state.createProfile.mutateAsync).toHaveBeenCalledWith(
+    expect.objectContaining({
+      provider: "openrouter",
+      model: "anthropic/claude-test",
+      base_url: "https://eu.openrouter.ai/api/v1",
+      secret_id: "s-1",
+    }),
+  );
 });

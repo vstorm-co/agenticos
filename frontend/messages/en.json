@@ -959,7 +959,11 @@
     "newStarterPlaceholder": "What can you help me with?",
     "addStarter": "Add",
     "platformUngatedBadge": "your own setting, never asks",
-    "platformHeldBadge": "reads past conversations, asks first"
+    "platformHeldBadge": "reads past conversations, asks first",
+    "openRouterEndpointHint": "Leave empty for the global OpenRouter API, or enter a regional URL such as https://eu.openrouter.ai/api/v1. EU routing requires an eligible OpenRouter plan; ZDR is configured separately on OpenRouter.",
+    "defaultEndpoint": "Default API",
+    "addSeparateModel": "Add separate model",
+    "separateEndpointHint": "Save this endpoint as a separate model to keep the current profile for other agents. “Update model” changes the shared profile wherever it is used."
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -1312,7 +1316,9 @@
       "modelHasNoKey": "{model} is saved without a key, so this conversation cannot run on it. Give it a key in an agent's model panel first.",
       "provider": "Provider",
       "runModel": "Run on this model",
-      "thisChat": "Just this chat"
+      "thisChat": "Just this chat",
+      "changeModel": "Change model",
+      "profilesUnavailable": "Model settings could not be read. Retry before choosing another model."
     },
     "newChat": "New chat",
     "newConversation": "New conversation",
@@ -2110,7 +2116,8 @@
     "showLess": "Less",
     "copy": "Copy",
     "copied": "Copied",
-    "searchShortcut": "Ctrl K"
+    "searchShortcut": "Ctrl K",
+    "filesRoot": "Project files"
   },
   "dashboard": {
     "actions": {
@@ -3360,7 +3367,10 @@
     "whoCanSearchIt": "Who can search it",
     "parsingDetails": "Chunking, OCR and images",
     "moreOptions": "More options",
-    "citedFileGone": "This file is no longer in its knowledge base - it was deleted or replaced after it was cited."
+    "citedFileGone": "This file is no longer in its knowledge base - it was deleted or replaced after it was cited.",
+    "embeddingEndpoint": "Endpoint",
+    "embeddingEndpointHint": "Leave empty for the global OpenRouter API, or enter a regional URL such as https://eu.openrouter.ai/api/v1. EU routing requires an eligible OpenRouter plan; ZDR is configured separately on OpenRouter.",
+    "noConnectorsAvailable": "No source connectors are available. An administrator can enable a connector for this deployment."
   },
   "knowledgeBases": {
     "active": "Active",
@@ -3929,7 +3939,8 @@
     "backgroundJobs": "Background jobs",
     "loadingPage": "Opening the page",
     "inbox": "Inbox",
-    "inboxCount": "{count, plural, =1 {1 waiting} other {# waiting}}"
+    "inboxCount": "{count, plural, =1 {1 waiting} other {# waiting}}",
+    "consoleVersion": "Console version {version}"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -4529,10 +4540,6 @@
         "title": "By department",
         "body": "Narrow the list to what one group was given. A group is who something reaches, so it is also how the list is grouped."
       },
-      "routines-ideas": {
-        "title": "Or start from an idea",
-        "body": "Ready-made routines - a morning digest, a weekly summary, an hourly check - each with the time it would run. Pick one and the new schedule opens already filled in."
-      },
       "sign-in-to-site": {
         "title": "Sign in to a site",
         "body": "Open a browser on a site for you alone, sign in, and hand it back with Keep me signed in - your agents' browser starts signed in there from then on."
@@ -4702,7 +4709,7 @@
       "dislikes": "Dislikes",
       "eachRowSaysWhat": "Each row says what was checked. Auto-refreshes every 30s.",
       "everyCheckPassed": "Every check passed",
-      "everyStatusHereComes": "Every status here comes from a probe that ran when this page loaded. There is no uptime history: nothing records one, and a number that looks like one would be made up.",
+      "everyStatusHereComes": "Live checks from this deployment. Results refresh every 30 seconds while auto-refresh is on.",
       "failedFetchHealth": "Failed to fetch health",
       "failingServices": "Failing: {names}",
       "inspect": "Inspect",
@@ -4732,7 +4739,7 @@
       "serviceRedis": "Redis",
       "serviceRedisDetail": "Cache & queue broker",
       "serviceScheduler": "Scheduled jobs",
-      "serviceSchedulerDetail": "Triggers, emails and sweeps, via Prefect",
+      "serviceSchedulerDetail": "Triggers, emails and maintenance jobs",
       "serviceVectorStore": "Vector store",
       "serviceVectorStoreDetail": "pgvector, same database",
       "services": "Services",
@@ -5390,7 +5397,7 @@
       "activity2": "Activity",
       "agentColumn": "Agent",
       "agentFilter": "Filter by agent",
-      "agentsAreRunningWithout": "Agents are running without needing you.",
+      "agentsAreRunningWithout": "Requests that need your decision will appear here.",
       "answered": "They answered",
       "anyAgent": "All agents",
       "anyModel": "Any model",
@@ -5472,7 +5479,7 @@
       "nothingRecordedBecause": "The run never reached a model - stopped by a budget or a guardrail - or it ran before this was recorded.",
       "nothingRecordedForThisRun": "Nothing was recorded for this run",
       "nothingSpentYet": "Nothing spent yet.",
-      "nothingWaiting": "Nothing waiting",
+      "nothingWaiting": "No approvals pending",
       "openTheAgent": "Open the agent",
       "openTheChatBehind": "Open the chat this run happened in",
       "openTheRunItCame": "Open the run it came from",
@@ -5666,7 +5673,7 @@
       "displayName": "Display name",
       "email": "Email",
       "emailChannel": "Email",
-      "emailsAboutRunsNobody": "Emails about runs nobody is watching. Each switch is checked before the email is sent. These are your own opt-outs and only ever subtract: an agent decides who should hear about it, and switching one off here removes you from that list whatever the agent says. Who an agent tells is set on the agent, under Limits.",
+      "emailsAboutRunsNobody": "Choose the emails you receive about budgets, approvals and usage. Each agent’s Limits settings decide who is notified.",
       "failedDeleteAccount": "Failed to delete account",
       "failedLoadPreferences": "Failed to load notification preferences",
       "failedSavePreference": "Failed to save preference",
@@ -5739,7 +5746,7 @@
       "signOutFromAll": "Sign out from all devices?",
       "signedOutFromAll": "Signed out from all devices",
       "slashCommands": "Slash commands",
-      "squareImagesLookBest": "Square images look best. Up to 2MB. JPG, PNG, WEBP, or GIF.",
+      "squareImagesLookBest": "Your photo is cropped to a circle.",
       "transactionalEmailsWhatTriggers": "The transactional emails, what triggers each, and why none of them is optional.",
       "updatePassword": "Update password",
       "uploadAvatar3": "Upload avatar",
@@ -5784,7 +5791,8 @@
       "prefCapabilityRequested": "A capability asked for",
       "prefCapabilityRequestedTrigger": "Somebody asked for a capability one of your agents lacks. Sent to the agent's owner, once per person and capability.",
       "prefFinding": "Findings from your watches",
-      "prefFindingTrigger": "Something a watch was asked to say at once, and the morning briefing of the rest."
+      "prefFindingTrigger": "Something a watch was asked to say at once, and the morning briefing of the rest.",
+      "whoReceivesThis": "Who receives this?"
     },
     "skills": {
       "agentsBoundSkillWill": "Agents bound to this skill will run without it from their next run. This cannot be undone.",
@@ -5861,10 +5869,10 @@
     },
     "routines": {
       "title": "Routines",
-      "description": "Everything your agents do on their own - on a schedule, or on an event.",
-      "ideasTitle": "Ideas to start from",
-      "ideasHint": "Pick one and it opens as a new schedule, filled in - choose the agent, adjust anything, save.",
-      "newWatch": "New watch"
+      "description": "Agent routines carry out tasks. My watches check your connected accounts and bring findings to your private Inbox.",
+      "newWatch": "New watch",
+      "agentsTab": "Agent routines",
+      "watchesTab": "My watches"
     },
     "signIns": {
       "cancel": "Cancel",
@@ -6050,7 +6058,7 @@
       "button": "Search",
       "failedDescription": "The search request failed, so whether anything matches is unknown.",
       "failedTitle": "Couldn't run the search",
-      "noBases": "Nothing to search yet - create a knowledge base and upload a document first.",
+      "noBases": "Create a knowledge base and upload documents. Their content becomes searchable here.",
       "noResults": "No results found",
       "noResultsHint": "Try a different query or another knowledge base",
       "page": "p.{page}",
@@ -6059,7 +6067,11 @@
       "retry": "Try again",
       "scopeLabel": "Search scope",
       "searching": "Searching...",
-      "openFile": "Open {name}"
+      "openFile": "Open {name}",
+      "noBasesTitle": "Add knowledge to search",
+      "queryLabel": "Search query",
+      "idleTitle": "Find the source behind an answer",
+      "idleDescription": "Search by topic or ask a question. Results link back to the original document so you can check the source."
     },
     "skippedCount": "{count} skipped",
     "sourceName": "Source name",
@@ -6773,14 +6785,12 @@
     "modeLink": "linked",
     "modeInjectHint": "Spliced into the agent's instructions on every run.",
     "modeLinkHint": "Left out of the prompt; the agent reads it on demand.",
-    "sizeWithFormat": "{format} · {size}",
     "newContext": "New context file",
     "availableEveryAgentOrganization": "Choose below who can use it. An agent reads it once it is added to that agent.",
     "name": "Name",
     "howItIsReferredTo": "How this file is referred to; it cannot change afterwards.",
     "mode": "Mode",
     "format": "Format",
-    "formatHint": "A rendering hint, for example md or txt.",
     "description": "Description",
     "whatIsInIt": "What is in it, so a linked file can be chosen without opening it",
     "shownWhenLinked": "Shown beside the name when the file is linked.",
@@ -6800,7 +6810,10 @@
     "droppedTooLarge": "{count, plural, =1 {One file is over {max} - a document that large belongs in a knowledge collection} other {# files are over {max} - a document that large belongs in a knowledge collection}}",
     "moreFilesWaiting": "{count, plural, =1 {1 more file waiting} other {# more files waiting}}",
     "bodyPlaceholder": "# Glossary\n\nWhat a term means here, and what it does not.\n\n- **SLA** - the response time we promise, not the fix time.\n",
-    "whoCanUseIt": "Who can use it"
+    "whoCanUseIt": "Who can use it",
+    "useForAgent": "Use in this agent",
+    "usageForAgent": "How {name} is used",
+    "bindingSettingsHint": "Choose how each agent uses this file in its Builder → Context settings."
   },
   "memory": {
     "clearAction": "Clear memory",
@@ -6958,10 +6971,10 @@
     "runsCouldNotBeRead": "This trigger's runs could not be read.",
     "unit": "Unit",
     "activityTitle": "Routines",
-    "activityEmptyTitle": "Nothing runs on its own yet",
+    "activityEmptyTitle": "No agent routines yet",
     "searchRoutines": "Search routines",
     "noRoutineMatches": "No routine matches that.",
-    "routineCount": "{count, plural, =0 {No routines} =1 {1 routine} other {# routines}}",
+    "routineCount": "{count, plural, =1 {1 routine} other {# routines}}",
     "activityEmptyDescription": "When an agent is set to run itself, it shows here.",
     "agent": "Agent",
     "chooseAgent": "Choose an agent",
@@ -8037,6 +8050,10 @@
       "expose_read_tool": {
         "title": "Let the agent open linked files",
         "description": "Whether link-mode files are reachable through a read tool. Off means only injected files reach the model, and nothing is read on demand."
+      },
+      "file_settings": {
+        "title": "How each file is used",
+        "description": "Per-agent mode and availability for attached context files. An absent entry preserves the file's legacy defaults."
       }
     },
     "conversation_search": {
@@ -8630,7 +8647,57 @@
     "uploadFailed": "The upload failed",
     "noFilesYet": "Nothing in this project yet",
     "noFilesHint": "Drop files or a whole folder here, or upload them. Every chat in the project reads and works in them.",
-    "noFilesViewer": "Files added to the project will appear here."
+    "noFilesViewer": "Files added to the project will appear here.",
+    "fileManager": {
+      "actions": "Actions for {name}",
+      "rename": "Rename",
+      "move": "Move to folder",
+      "delete": "Delete",
+      "name": "Name",
+      "destination": "Destination folder",
+      "root": "Project files",
+      "moveFailed": "The entry could not be moved. Check the name and destination, then try again.",
+      "cancel": "Cancel",
+      "saving": "Saving…",
+      "confirm": "Confirm",
+      "edit": "Edit file",
+      "loading": "Loading file…",
+      "contents": "File contents",
+      "unsaved": "Unsaved changes",
+      "saved": "Saved",
+      "textOnly": "UTF-8 text files, up to 1 MiB",
+      "close": "Close",
+      "save": "Save changes",
+      "discardTitle": "Discard changes?",
+      "discardBody": "Your edits have not been saved. Close the editor and discard them?",
+      "discard": "Discard changes"
+    },
+    "sandbox": {
+      "label": "Project sandbox",
+      "automatic": "Automatic",
+      "automaticNamed": "Automatic · {name}",
+      "stored": "Stored files only",
+      "storedHint": "Files are stored by the platform. Agents can read and write them, but cannot execute code here.",
+      "sharedHint": "Every chat in this project shares these files and this workspace. It replaces the sandbox configured on the answering agent.",
+      "failed": "Could not load sandbox connections. Automatic selection and stored files are still available.",
+      "configured": "Configured sandbox",
+      "containerHint": "A dedicated container on this connection. It stays selected until you explicitly move the project’s files.",
+      "howItWorks": "How project files and code execution work",
+      "locationTitle": "Where files live",
+      "locationHelp": "Stored files stay in the platform database, without a shell. A sandbox connection provides a container on your infrastructure or a cloud sandbox. Automatic selects the organization’s default when the project is created.",
+      "sharingTitle": "One workspace for the whole project",
+      "sharingHelp": "Files persist across conversations and are shared with everyone who can access this project. Chats in this project use its workspace instead of the agent’s own sandbox connection.",
+      "executionTitle": "When an agent can run code",
+      "executionHelp": "In a container-backed project, agents receive the project’s Sandbox tools and can execute code in that environment. Existing tool approval requirements still apply. Stored files have no shell, so agents can read and write files but cannot run code there.",
+      "change": "Change sandbox",
+      "move": "Move project files",
+      "transferHint": "Copies existing files and empty folders, then verifies the copy before switching. New runs and file changes pause during the transfer. On failure, the current workspace remains selected. Up to 10,000 entries, 64 MiB per file and 1 GiB total; symbolic links must be removed first. Installed packages and running processes are not transferred.",
+      "moving": "Moving files to {name}",
+      "progress": "{copied} of {total} files copied",
+      "paused": "You can read existing files. New runs and file changes resume when the transfer finishes.",
+      "moveFailed": "The transfer did not finish. The previous workspace is still selected. You can try again.",
+      "moved": "Files verified and the new workspace activated."
+    }
   },
   "voiceGlow": {
     "title": "Voice glow",
@@ -8784,12 +8851,12 @@
       }
     },
     "signInAgain": "Sign in to it again",
-    "count": "{count, plural, =0 {Nothing watched yet} =1 {1 watch} other {# watches}}",
+    "count": "{count, plural, =1 {1 watch} other {# watches}}",
     "findings": "What they found",
     "offTitle": "Watches are off",
     "noConnectionsTitle": "Connect an account to watch",
     "connect": "Open MCP servers",
-    "emptyTitle": "Nothing watched yet",
+    "emptyTitle": "No watches yet",
     "emptyDescription": "Pick one of your accounts and say what to look for. What a watch finds lands in your inbox; the urgent things reach you at once.",
     "rowLooked": "{cadence} · looked {when}",
     "rowFirst": "{cadence} · first look within a minute",

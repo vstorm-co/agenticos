@@ -25,7 +25,7 @@ export function MySignIns() {
   const [signingIn, setSigningIn] = useState(false);
 
   return (
-    <div className="space-y-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       {available && (
         <div className="flex justify-end">
           <Button size="sm" onClick={() => setSigningIn(true)} data-tour="sign-in-to-site">
@@ -48,14 +48,21 @@ function SignInList() {
   if (isLoading) return <LoadingState variant="skeleton-list" rows={2} />;
   if (error) return <ErrorState />;
   if (signIns.length === 0) {
-    return <EmptyState icon={KeyRound} title={t("empty")} description={t("emptyHint")} />;
+    return (
+      <EmptyState
+        className="flex-1"
+        icon={KeyRound}
+        title={t("empty")}
+        description={t("emptyHint")}
+      />
+    );
   }
 
   const date = (stamp: string | null) =>
     stamp ? format.dateTime(new Date(stamp), { dateStyle: "medium" }) : null;
 
   return (
-    <Card className="divide-border divide-y" data-tour="my-sign-ins">
+    <Card className="divide-border min-h-0 flex-1 divide-y" data-tour="my-sign-ins">
       {signIns.map((signIn) => {
         const used = date(signIn.last_used_at);
         return (

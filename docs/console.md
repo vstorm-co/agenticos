@@ -9,12 +9,16 @@ header — it replays that page's walkthrough, and a page whose header carries n
 "?" has no walkthrough to replay. Chat has no header: its tips are under the chat
 settings, the sliders beside the microphone.
 
+Resource lists, including Inbox and Routines, fill the remaining page height even when empty. Routines keeps its templates in the creation form rather than a separate ideas panel. Get started reserves its space while checklist data loads, so Briefing and the cards below stay in place.
+
+Chat uses larger agent portraits without rings. Its Files toggle stays in the composer while the panel opens or closes, with reduced motion respected. Chat settings show the current model first. Expand **Change model** to edit the prefilled provider and model; the choice applies only after **Run on this model**. Attachment cards sit above the composer without an extra shadowed panel.
+
 ## The dashboard
 
 The landing page is an **arrangeable grid of widgets**, and it is the answer to
 "what is happening" without opening five pages.
 
-Thirty-eight cards exist. You will not see all of them: **a card is gated on the
+Forty-five cards exist. You will not see all of them: **a card is gated on the
 permission its data needs**, so a widget you may not read is never mounted and
 its queries are never issued — except your own notifications, below, which need
 only that you are signed in. An empty band disappears with its heading rather
@@ -75,6 +79,19 @@ snapshot you meant to keep.
     A saved arrangement can reorder and hide, but it cannot reveal. Permission
     filtering runs after the layout is resolved, whether the layout came from
     the default or from your own saved one.
+
+## Routines and watches
+
+Routines has two tabs. **Agent routines** runs a chosen agent on a schedule or
+event, with its configured tools; runs appear in Activity. **My watches** only
+reads your personal connected accounts and sends findings to your private Inbox.
+Each tab has its own creation controls. `/routines?tab=watches` opens watches.
+
+On the dashboard, Discover starts with illustrated capabilities. Hover over a
+*Your period* sparkline to read its bucket and value; spend is formatted as money.
+Projects show descriptions, and agent rows use the same avatars as chat.
+
+Dashboard cards use the same compact rows, service marks and status labels. Counts and charts adapt to the card width, including custom layouts. Loading placeholders follow the kind of content being loaded; an unavailable briefing shows a retry instead of claiming that no proposals exist.
 
 ## The inbox { #the-inbox }
 
@@ -664,7 +681,7 @@ quiet one.
 
 ## Recap
 
-- The dashboard is **thirty-eight widgets** you arrange yourself, saved per
+- The dashboard is **forty-five widgets** you arrange yourself, saved per
   person and per organization — all but your own notifications gated on the
   permission their data needs.
 - A saved arrangement **can hide and reorder but never reveal** — the gate runs
@@ -679,3 +696,5 @@ quiet one.
   ones you do not use.
 - A page showing "nothing yet" may be **a failed request**, not an empty
   resource.
+
+The sidebar footer shows the console build version beside search and notifications, including in the collapsed rail and mobile menu. It comes from the frontend package version embedded in that build, so checking it needs no network request. The tooltip identifies it as the console version; an API process upgraded separately can run another version.

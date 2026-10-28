@@ -29,7 +29,6 @@ const NAME_TAKEN = new ApiError(409, TAKEN, {
 
 const name = () => screen.getByLabelText("Name");
 const description = () => screen.getByLabelText("Description");
-const format = () => screen.getByLabelText("Format");
 // The body is the shared file pane, as the editor has it - editable only once
 // the pane is flipped to Source, and named from the file being created, so it is
 // asked for by role rather than by a name that moves as somebody types.
@@ -87,32 +86,18 @@ describe("CreateContextDialog", () => {
     expect(payload).toMatchObject({ description: null, format: "md" });
   });
 
-  it("takes the format from a closed list rather than from typing", async () => {
-    vi.mocked(apiClient.post).mockResolvedValue({ id: "c1", name: "notes" });
+  it("infers the renderer from the filename and leaves usage to the builder", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "c1", name: "notes.json" });
     mount();
-
-    await userEvent.type(name(), "notes");
-    await userEvent.click(format());
-    await userEvent.click(await screen.findByRole("option", { name: "txt" }));
+    await userEvent.type(name(), "notes.json");
+    expect(screen.queryByLabelText("Format")).toBeNull();
+    expect(screen.queryByLabelText("Mode")).toBeNull();
     await userEvent.click(create());
-
     await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
-    expect(vi.mocked(apiClient.post).mock.calls.at(-1)![1]).toMatchObject({ format: "txt" });
-  });
-
-  it("lets the author choose to link a file instead of injecting it", async () => {
-    vi.mocked(apiClient.post).mockResolvedValue({ id: "c1", name: "runbook" });
-    mount();
-
-    await userEvent.type(name(), "runbook");
-    await userEvent.click(screen.getByLabelText("Mode"));
-    await userEvent.click(await screen.findByRole("option", { name: "linked" }));
-    await openSource();
-    await userEvent.type(content(), "steps");
-    await userEvent.click(create());
-
-    await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
-    expect(vi.mocked(apiClient.post).mock.calls.at(-1)![1]).toMatchObject({ mode: "link" });
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/context",
+      expect.objectContaining({ format: "json", mode: "inject" }),
+    );
   });
 
   it("cannot be submitted without a name", () => {
@@ -144,7 +129,6 @@ describe("CreateContextDialog", () => {
         details: {
           fields: [
             { field: "description", message: "too long" },
-            { field: "format", message: "not a format" },
             { field: "content", message: "must be text" },
           ],
         },
@@ -158,7 +142,6 @@ describe("CreateContextDialog", () => {
 
     await waitFor(() => expect(screen.getByText("must be text")).toBeInTheDocument());
     expect(screen.getByText("too long")).toBeInTheDocument();
-    expect(screen.getByText("not a format")).toBeInTheDocument();
   });
 
   it("toasts a failure that names no field", async () => {

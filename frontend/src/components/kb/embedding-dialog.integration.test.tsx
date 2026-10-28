@@ -80,6 +80,7 @@ function wrapper({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
+let mayManage = false;
 const save = vi.fn();
 
 function show(kb: KnowledgeBase = KB) {
@@ -88,6 +89,7 @@ function show(kb: KnowledgeBase = KB) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mayManage = false;
   save.mockResolvedValue(undefined);
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     if (path === "/rag/embedding-models") return MODELS;
@@ -120,7 +122,7 @@ beforeEach(() => {
         organization_id: "org-1",
         role: "builder",
         is_app_admin: false,
-        permissions: [],
+        permissions: mayManage ? [{ permission: "connections:manage", scope: "all" }] : [],
       };
     return { items: [], total: 0 };
   });
@@ -238,4 +240,22 @@ describe("what this dialog will and will not change", () => {
 
     expect(await screen.findByText(/does not serve it at 1536/)).toBeInTheDocument();
   });
+});
+
+it("prefills a regional endpoint and lets a connection manager restore the default", async () => {
+  mayManage = true;
+  show({
+    ...KB,
+    embedding_provider: "openrouter",
+    embedding_secret_id: "openrouter-key",
+    embedding_base_url: "https://eu.openrouter.ai/api/v1",
+  });
+  const endpoint = await screen.findByLabelText("Endpoint");
+  expect(endpoint).toHaveValue("https://eu.openrouter.ai/api/v1");
+  await waitFor(() => expect(endpoint).toBeEnabled());
+  await userEvent.clear(endpoint);
+  await userEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() =>
+    expect(save).toHaveBeenCalledWith(expect.objectContaining({ embedding_base_url: null })),
+  );
 });
