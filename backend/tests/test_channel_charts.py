@@ -241,7 +241,11 @@ class TestTheReplyAChannelTurnBuilds:
 
     @pytest.mark.anyio
     @pytest.mark.parametrize("path", ["answer", "answer_default"])
-    async def test_a_missing_visual_is_reported_on_both_channel_paths(self, path: str) -> None:
+    @pytest.mark.parametrize("platform", ["mattermost", "slack", "teams", "telegram"])
+    @pytest.mark.parametrize("rendered", [None, b"png"])
+    async def test_visual_rendering_outcomes_reach_every_channel(
+        self, path: str, platform: str, rendered: bytes | None
+    ) -> None:
         async def execute(
             *args: object, tool_calls: list[RecordedToolCall], **kwargs: object
         ) -> tuple[str, MagicMock]:
@@ -255,7 +259,7 @@ class TestTheReplyAChannelTurnBuilds:
             patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
             patch(
                 "app.services.channels.mentions.visual_render.picture_of_turn",
-                new=AsyncMock(return_value=None),
+                new=AsyncMock(return_value=rendered),
             ),
         ):
             members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.MEMBER))
@@ -269,14 +273,17 @@ class TestTheReplyAChannelTurnBuilds:
             answer = router.answer if path == "answer" else router.answer_default
             answered = await answer(
                 "@support draw a diagram" if path == "answer" else "draw a diagram",
-                platform="mattermost",
+                platform=platform,
                 organization_id=uuid.uuid4(),
                 bot_id=uuid.uuid4(),
                 user_id=uuid.uuid4(),
             )
-        assert answered.image_png is None
-        assert len(answered.refused) == 1
-        assert "could not be attached" in answered.refused[0]
+        assert answered.image_png == rendered
+        if rendered is None:
+            assert len(answered.refused) == 1
+            assert "could not be attached" in answered.refused[0]
+        else:
+            assert answered.refused == []
 
     @pytest.mark.anyio
     async def test_a_mention_that_drew_a_chart_answers_with_the_picture(self):
