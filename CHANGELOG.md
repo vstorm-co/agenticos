@@ -29,6 +29,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Security:** publishing an agent on somebody else's ChatGPT sign-in is
+  refused. Publish, rollback, the Builder's draft check and promoting a version
+  to an environment now refuse a model - or one of its first three fallbacks,
+  a reviewer's, a capability's or a specialist's - that runs on a ChatGPT
+  sign-in the person doing it cannot see in the vault, and name the model
+  field. Before, a builder could publish on a colleague's private sign-in, and
+  its owner's and the admins' runs then spent that subscription. The rule is
+  the one runs already follow: the sign-in's owner, owners and admins, and
+  anybody it was shared with may. Agents already published on such a sign-in
+  keep running, but republishing, rolling back to or promoting that version
+  now takes somebody who can see it (#2546).
 - A knowledge base on a custom OpenRouter endpoint is offered only the
   embedding models that endpoint serves. The EU endpoint serves none of
   OpenAI's, so a collection created on the default model failed every upload

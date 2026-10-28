@@ -45,7 +45,12 @@ from app.db.models.resource_grant import GrantLevel, Visibility
 from app.schemas.agent import AgentCreate
 from app.schemas.deployment_settings import DeploymentLimits
 from app.services import agent_templates
-from app.services.agent_registry import AgentRegistryService, _tool_override_problems, slugify
+from app.services.agent_registry import (
+    AgentRegistryService,
+    _SpecProblems,
+    _tool_override_problems,
+    slugify,
+)
 
 REGISTRY_PATH = "app.services.agent_registry"
 
@@ -66,6 +71,14 @@ def _no_agent_is_the_assistant(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "app.services.agent_registry.organization_assistant_repo.for_agent",
         AsyncMock(return_value=None),
+    )
+
+
+@pytest.fixture(autouse=True)
+def _no_model_runs_on_a_sign_in(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The mocked database answers anything; `test_publish_sign_ins` covers the check."""
+    monkeypatch.setattr(
+        AgentRegistryService, "_sign_in_problems", AsyncMock(return_value=_SpecProblems())
     )
 
 

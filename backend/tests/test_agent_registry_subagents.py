@@ -39,6 +39,7 @@ from app.services.agent_registry import (
     DEFAULT_GRANTED_SCOPES,
     DELEGATION_CAPABILITY_ID,
     AgentRegistryService,
+    _SpecProblems,
     slugify,
 )
 from tests.test_agent_registry import _agent, _batch, _ctx, _db, _skill, _spec, _version
@@ -52,6 +53,14 @@ DELEGATE_SCOPE = "agents:delegate"
 def builtins_loaded():
     """The delegation capability has to be registered for its id to resolve."""
     load_builtins()
+
+
+@pytest.fixture(autouse=True)
+def no_model_runs_on_a_sign_in(monkeypatch):
+    """The mocked database answers anything; `test_publish_sign_ins` covers the check."""
+    monkeypatch.setattr(
+        AgentRegistryService, "_sign_in_problems", AsyncMock(return_value=_SpecProblems())
+    )
 
 
 @pytest.fixture(autouse=True)

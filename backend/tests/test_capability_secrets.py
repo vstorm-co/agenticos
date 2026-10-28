@@ -38,9 +38,18 @@ from app.core.secret_kinds import (
     SecretRequirement,
 )
 from app.db.models.resource_grant import GrantLevel, Visibility
-from app.services.agent_registry import AgentRegistryService
+from app.services.agent_registry import AgentRegistryService, _SpecProblems
 
 pytestmark = pytest.mark.security
+
+
+@pytest.fixture(autouse=True)
+def _no_model_runs_on_a_sign_in(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The mocked database answers anything; `test_publish_sign_ins` covers the check."""
+    monkeypatch.setattr(
+        AgentRegistryService, "_sign_in_problems", AsyncMock(return_value=_SpecProblems())
+    )
+
 
 CAPABILITY_ID = "test_needs_a_key"
 

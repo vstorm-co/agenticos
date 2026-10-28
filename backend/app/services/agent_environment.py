@@ -97,7 +97,8 @@ class AgentEnvironmentService:
                 named version is not this agent's.
             BadRequestError: If the agent has never been published - there is
                 no version to pin, so there is nothing an environment could
-                mean yet.
+                mean yet - or the version runs on a ChatGPT sign-in the caller
+                cannot use.
             AlreadyExistsError: If the name is taken on this agent.
         """
         agent = await self.agents.get(ctx, agent_id, perm=Perm.AGENTS_PUBLISH, for_update=True)
@@ -113,6 +114,7 @@ class AgentEnvironmentService:
                 details={"agent_id": str(agent.id), "name": data.name},
             )
         version = await self._version_of(ctx, agent, data.version_id or agent.current_version_id)
+        await self.agents.refuse_borrowed_sign_ins(ctx, version)
         if data.logfire_token_secret_id is not None:
             await self._check_logfire_secret(ctx, data.logfire_token_secret_id)
 
@@ -155,8 +157,9 @@ class AgentEnvironmentService:
             NotFoundError: If the environment is not this agent's, or the named
                 version is not.
             BadRequestError: If the target is the default environment being
-                renamed - its name is part of the publish contract - or the
-                update names nothing to change.
+                renamed - its name is part of the publish contract - the
+                update names nothing to change, or the version it moves to runs
+                on a ChatGPT sign-in the caller cannot use.
             AlreadyExistsError: If the new name is taken on this agent.
         """
         agent, environment = await self._get(ctx, agent_id, environment_id)
@@ -208,6 +211,8 @@ class AgentEnvironmentService:
             if newest is not None and newest.id != environment.version_id:
                 changes["version_id"] = newest.id
                 version = newest
+        if version is not None:
+            await self.agents.refuse_borrowed_sign_ins(ctx, version)
 
         environment = await agent_environment_repo.update(
             self.db, environment=environment, update_data=changes
