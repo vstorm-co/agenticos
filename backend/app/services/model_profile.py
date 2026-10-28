@@ -130,10 +130,9 @@ def usable_for_agents(profile: ModelProfile) -> bool:
     A chat model (#2487) with something to authenticate with (#2478). Publish
     refuses a profile that fails either half, so anything choosing a model on
     somebody's behalf - the organization assistant's first publish, a new
-    agent's only model (#2483) - takes only the ones this answers true for. It
-    cannot see a fallback chain or whether a ChatGPT sign-in is the caller's;
-    publish checks those. Choosing one for somebody else also needs
-    `choosable_for_others`.
+    agent's only model (#2483) - takes only the ones this answers true for, and
+    only those `choosable_for_others` also accepts. It cannot see a fallback
+    chain, which publish checks.
     """
     if not model_outputs(profile.provider, profile.model, base_url=profile.base_url).chat:
         return False
@@ -155,11 +154,12 @@ def choosable_for_others(profile: ModelProfile) -> bool:
     """Whether the platform may put this profile in an agent nobody chose it for.
 
     `usable_for_agents`, and not a ChatGPT sign-in: that is one person's
-    subscription, and every run of the agent, whoever starts it, would spend
-    it. The one rule for every model the platform picks rather than an author:
-    a new agent's only model (#2483) and the organization assistant's first
-    publish (#2535). An author may still pick a sign-in deliberately; publish
-    decides whether it is theirs to pick.
+    subscription. A run on it by anybody who may not see the sign-in is refused
+    (`_may_spend`), and a run by anybody who may - its owner, and the
+    organization's owners and admins - spends it. The one rule for every model
+    the platform picks rather than an author: a new agent's only model (#2483)
+    and the organization assistant's publish (#2535). An author may still pick
+    a sign-in deliberately and publish it themselves.
     """
     return usable_for_agents(profile) and not is_sign_in(profile)
 

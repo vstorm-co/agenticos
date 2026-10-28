@@ -201,37 +201,44 @@ class AssistantService:
         A text-to-speech or embedding profile is not one (#2487), and neither is a
         profile whose key was deleted (#2478): publish refuses both, so the
         assistant waits for a model it can run on. Nor is a ChatGPT sign-in
-        (#2535): it is one person's subscription, and every member's run of the
-        assistant would spend it, so the assistant waits for a model the
-        organization can share. A model already in the draft, a sign-in
-        included, is somebody's deliberate choice and is kept.
+        (#2535): it is one person's subscription, and the assistant serves the
+        whole organization, so the assistant waits for a model the organization
+        can share.
+
+        A model already in the draft is somebody's deliberate choice and is kept,
+        but published here only on the same terms: this runs for whoever opens
+        the console next, so a sign-in in the draft waits for somebody to press
+        Publish in the Builder themselves.
         """
-        profiles = [
-            profile
+        choosable = {
+            profile.id: profile
             for profile in await credential_repo.list_profiles(
                 self.db, organization_id=organization_id
             )
             if choosable_for_others(profile)
-        ]
-        if not profiles:
+        }
+        drafted = AgentSpec.model_validate(agent.draft_spec).model_profile_id
+        if not choosable or (drafted is not None and drafted not in choosable):
             return agent
         installer = await self._installer(organization_id)
-        for profile in profiles:
-            if not profile.fallback_profile_ids or not await self.registry.model_profile_problems(
-                installer, profile.id
-            ):
-                selected_id = profile.id
-                break
-        else:
-            return agent
         agent = await self.registry.get(installer, agent.id, perm=Perm.AGENTS_EDIT, for_update=True)
         if agent.current_version_id is not None:
             return agent
         spec = AgentSpec.model_validate(agent.draft_spec)
         if spec.model_profile_id is None:
-            spec = spec.model_copy(update={"model_profile_id": selected_id})
+            for profile in choosable.values():
+                if (
+                    not profile.fallback_profile_ids
+                    or not await self.registry.model_profile_problems(installer, profile.id)
+                ):
+                    break
+            else:
+                return agent
+            spec = spec.model_copy(update={"model_profile_id": profile.id})
             agent = await self.registry.save_draft(installer, agent.id, spec)
-        elif await self.registry.model_profile_problems(installer, spec.model_profile_id):
+        elif spec.model_profile_id not in choosable or await self.registry.model_profile_problems(
+            installer, spec.model_profile_id
+        ):
             # A deliberately selected model is the author's to replace.
             return agent
         await self.registry.publish(installer, agent.id, note="Installed")

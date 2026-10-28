@@ -76,12 +76,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 - The Architect, the organization's assistant, is no longer published on a
   model that runs on a ChatGPT sign-in (#2535). A sign-in is one person's
-  subscription, and every member's run of the Architect spent it. The Architect
-  now publishes on the first chat model publish accepts that is not a sign-in,
-  and with only a sign-in it waits for another model, as a new agent does
-  (#2483). An Architect already published on a sign-in is not changed: somebody
-  who may change the organization's settings moves it under **Build > Model**
-  and publishes it. See
+  subscription: on the Architect, runs by members who could not see it were
+  refused, and runs by the organization's owners and admins spent it. The
+  Architect now publishes on the first chat model publish accepts that is not a
+  sign-in, and with only a sign-in it waits for another model, as a new agent
+  does (#2483). A sign-in somebody picked in its draft stays there, but is
+  published only when they press **Publish** themselves. An Architect already
+  published on a sign-in is not changed: somebody who may change the
+  organization's settings moves it under **Build > Model** and publishes it. See
   [The model a new agent starts on](docs/models.md#the-model-a-new-agent-starts-on).
 - The Builder's Endpoint field no longer shows the local example
   `http://localhost:11434/v1` for a model that has a key (#2478). OpenAI is

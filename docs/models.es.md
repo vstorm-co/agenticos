@@ -1,5 +1,5 @@
 ---
-source_sha: "ec344f81b73c"
+source_sha: "40da287be741"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -115,11 +115,16 @@ y un especialista promovido.
 
 El Architect, el asistente de la organización, elige su propio modelo al publicarse:
 el primer modelo de chat que la publicación acepta, y nunca un modelo con un [inicio
-de sesión de ChatGPT](#running-on-a-chatgpt-subscription), porque cada ejecución del
-Architect por un miembro lo gastaría. Con solo un inicio de sesión, el Architect
-espera a otro modelo. Un Architect ya publicado con un inicio de sesión conserva ese
-modelo hasta que alguien que puede cambiar la configuración de la organización elige
-otro en **Build > Model** y lo publica.
+de sesión de ChatGPT](#running-on-a-chatgpt-subscription). El Architect sirve a toda
+la organización, y un inicio de sesión es la suscripción de una persona: las
+ejecuciones de los miembros que no pueden verlo se rechazan, y las de los
+propietarios y administradores de la organización la gastan. Con solo un inicio de
+sesión, el Architect espera a otro modelo.
+
+Un inicio de sesión que alguien elige en su borrador se queda ahí, pero solo se
+publica cuando esa persona pulsa **Publish**. Un Architect ya publicado con un
+inicio de sesión conserva ese modelo hasta que alguien que puede cambiar la
+configuración de la organización elige otro en **Build > Model** y lo publica.
 
 El modelo se escribe en el borrador, así que el agent se publica sin que nadie abra
 **Model**, y su historial muestra con qué modelo se publicó. Un spec que nombra un

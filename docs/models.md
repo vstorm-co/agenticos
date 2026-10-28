@@ -99,11 +99,15 @@ copy of a draft that has no model, and a promoted specialist.
 
 The Architect, the organization's assistant, chooses its own model when it
 publishes: the first chat model that publish accepts, and never a model on a
-[ChatGPT sign-in](#running-on-a-chatgpt-subscription), because every member's run of
-the Architect would spend it. With only a sign-in, the Architect waits for another
-model. An Architect that was already published on a sign-in keeps that model until
-somebody who may change the organization's settings picks another under **Build >
-Model** and publishes it.
+[ChatGPT sign-in](#running-on-a-chatgpt-subscription). The Architect serves the
+whole organization, and a sign-in is one person's subscription: runs by members who
+may not see it are refused, and runs by the organization's owners and admins spend
+it. With only a sign-in, the Architect waits for another model.
+
+A sign-in somebody picks in its draft stays there, but is published only when they
+press **Publish** themselves. An Architect already published on a sign-in keeps that
+model until somebody who may change the organization's settings picks another under
+**Build > Model** and publishes it.
 
 The model is written into the draft, so the agent publishes without anybody opening
 **Model**, and its history shows which model it was published on. A spec that names

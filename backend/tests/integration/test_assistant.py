@@ -9,18 +9,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.spec import AgentSpec, PlatformMcpServerRef
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
-from app.core.secret_kinds import OpenAICodexSecret, SecretKind, seal_secret
-from app.core.vault import VaultScope
 from app.db.models.agent import Agent
 from app.db.models.credential import ModelProfile
 from app.db.models.organization import Organization, OrganizationMember
-from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.user import User
 from app.repositories import agent_repo, organization_assistant_repo
 from app.schemas.assistant import AssistantUpdate
 from app.services.agent_registry import AgentRegistryService
 from app.services.assistant import AssistantService
-from tests.integration._keys import provider_key
+from tests.integration._keys import chatgpt_sign_in, provider_key
 
 pytestmark = pytest.mark.anyio
 
@@ -82,28 +79,6 @@ async def _model(
 
 async def _sign_in(db: AsyncSession, organization: Organization, owner: User) -> ModelProfile:
     """A model on the owner's own ChatGPT sign-in: private, and publishable by them."""
-    sealed = seal_secret(
-        OpenAICodexSecret(
-            access_token="codex-access-1234",
-            refresh_token="codex-refresh-1234",
-            account_id="account-1234",
-        ),
-        scope=VaultScope.organization(organization.id),
-    )
-    secret = OrganizationSecret(
-        id=uuid.uuid4(),
-        organization_id=organization.id,
-        name=f"my ChatGPT {uuid.uuid4().hex[:6]}",
-        purpose="openai_codex",
-        visibility="private",
-        owner_user_id=owner.id,
-        created_by_user_id=owner.id,
-        kind=SecretKind.OPENAI_CODEX.value,
-        sealed_secret=sealed.ciphertext,
-        hint=sealed.hint,
-    )
-    db.add(secret)
-    await db.flush()
     profile = ModelProfile(
         id=uuid.uuid4(),
         organization_id=organization.id,
@@ -111,7 +86,7 @@ async def _sign_in(db: AsyncSession, organization: Organization, owner: User) ->
         label="A my ChatGPT",
         provider="openai_codex",
         model="gpt-5.4",
-        secret_id=secret.id,
+        secret_id=await chatgpt_sign_in(db, organization.id, owner_id=owner.id),
     )
     db.add(profile)
     await db.flush()
@@ -217,13 +192,39 @@ async def test_a_chatgpt_sign_in_is_not_one_it_publishes_on(db: AsyncSession) ->
     assert AgentSpec.model_validate(agent.draft_spec).model_profile_id is None
 
     keyed = await _model(db, organization)
-    keyed.label = "B shared"
-    await db.flush()
     ready = await service.state(ctx)
 
     assert ready.status == "ready"
     await db.refresh(agent)
     assert AgentSpec.model_validate(agent.draft_spec).model_profile_id == keyed.id
+
+
+@pytest.mark.parametrize("beside_a_shared_model", [False, True])
+async def test_a_chatgpt_sign_in_picked_for_it_waits_for_its_author_to_publish(
+    db: AsyncSession, beside_a_shared_model: bool
+) -> None:
+    """The draft keeps the sign-in somebody chose, but the next person to open the
+    console does not publish it for them (#2535) - whether or not the organization
+    has a model it could share."""
+    organization, owner = await _organization(db)
+    ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
+    service = AssistantService(db)
+    installed = await service.state(ctx)
+    sign_in = await _sign_in(db, organization, owner)
+    agent = (await db.execute(select(Agent).where(Agent.id == installed.agent_id))).scalar_one()
+    spec = AgentSpec.model_validate(agent.draft_spec).model_copy(
+        update={"model_profile_id": sign_in.id}
+    )
+    await AgentRegistryService(db).save_draft(ctx, agent.id, spec)
+    if beside_a_shared_model:
+        await _model(db, organization)
+
+    state = await service.state(ctx)
+
+    assert state.status == "needs_model"
+    await db.refresh(agent)
+    assert agent.current_version_id is None
+    assert AgentSpec.model_validate(agent.draft_spec).model_profile_id == sign_in.id
 
 
 @pytest.mark.parametrize("has_valid_model", [False, True])
@@ -268,6 +269,30 @@ async def test_an_explicit_architect_draft_model_is_preserved(
     await db.flush()
     state = await service.state(ctx)
     assert state.status == ("ready" if compatible else "needs_model")
+    assert AgentSpec.model_validate(agent.draft_spec).model_profile_id == chosen.id
+
+
+async def test_a_drafted_model_publish_would_refuse_is_kept_unpublished(
+    db: AsyncSession,
+) -> None:
+    """A chat model whose fallback is a speech model is one it could choose, but
+    publish refuses the chain, so the author's choice waits rather than being swapped."""
+    organization, owner = await _organization(db)
+    ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
+    service = AssistantService(db)
+    installed = await service.state(ctx)
+    agent = (await db.execute(select(Agent).where(Agent.id == installed.agent_id))).scalar_one()
+    speech = await _model(db, organization, model="gpt-4o-mini-tts")
+    chosen = await _model(db, organization)
+    chosen.fallback_profile_ids = [str(speech.id)]
+    await db.flush()
+    spec = AgentSpec.model_validate(agent.draft_spec).model_copy(
+        update={"model_profile_id": chosen.id}
+    )
+    await AgentRegistryService(db).save_draft(ctx, agent.id, spec)
+
+    assert (await service.state(ctx)).status == "needs_model"
+    await db.refresh(agent)
     assert AgentSpec.model_validate(agent.draft_spec).model_profile_id == chosen.id
 
 
