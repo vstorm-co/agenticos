@@ -29,10 +29,23 @@ export interface ConsoleLink {
 /**
  * The console page an `href` names, or `null` for anything else - another
  * site, the API, a protocol-relative URL or a fragment stay ordinary links.
+ *
+ * Decided on the parsed URL, never the raw string (#2544): the returned `path`
+ * is the normalised one, and dot segments turn `/a/..//evil.example` into the
+ * pathname `//evil.example`, which `router.push` would follow off-site in this
+ * tab. The parser also reads `/\evil.example` and `/<tab>/evil.example` as
+ * another host. The `href` is model-written, so it is treated as hostile.
  */
 export function consoleLink(href: string | null, origin: string): ConsoleLink | null {
-  if (href === null || !href.startsWith("/") || href.startsWith("//")) return null;
-  const url = new URL(href, origin);
+  if (href === null || !href.startsWith("/")) return null;
+  let url: URL;
+  try {
+    url = new URL(href, origin);
+  } catch {
+    // `/\[` names a host that does not parse: not a console page either.
+    return null;
+  }
+  if (url.origin !== origin || url.pathname.startsWith("//")) return null;
   // The console's own route handlers are not pages to open.
   if (/^\/api\//.test(url.pathname)) return null;
   const anchor = url.searchParams.get(HIGHLIGHT);
