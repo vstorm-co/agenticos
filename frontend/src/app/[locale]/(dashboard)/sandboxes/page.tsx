@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Boxes, Plus } from "lucide-react";
+import { Boxes, Plus, Plug, Activity } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -99,8 +99,14 @@ export default function SandboxesPage() {
         onValueChange={(value) => setTabParam(value === "connections" ? null : value)}
       >
         <TabsList>
-          <TabsTrigger value="connections">{t("tabConnections")}</TabsTrigger>
-          <TabsTrigger value="running">{t("tabRunning")}</TabsTrigger>
+          <TabsTrigger value="connections">
+            <Plug className="size-4 shrink-0" aria-hidden />
+            {t("tabConnections")}
+          </TabsTrigger>
+          <TabsTrigger value="running">
+            <Activity className="size-4 shrink-0" aria-hidden />
+            {t("tabRunning")}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="connections" className="flex-1 flex-col data-[state=active]:flex">

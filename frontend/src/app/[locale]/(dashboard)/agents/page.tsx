@@ -14,7 +14,7 @@ import {
 import { AgentTemplateDialog } from "@/components/agents/agent-template-dialog";
 import { CreateAgentDialog } from "@/components/agents/create-agent-dialog";
 import { LabelFilter } from "@/components/agents/label-filter";
-import { PhoneFilters } from "@/components/ui/phone-filters";
+import { ListFilters } from "@/components/ui/list-filters";
 import { PageHeader } from "@/components/dashboard/page-header";
 import {
   Button,
@@ -160,7 +160,7 @@ export default function AgentsPage() {
         placeholder={t("searchAgents2")}
         className="min-w-0 flex-1 sm:flex-none"
       />
-      <PhoneFilters compact active={Number(filter !== "all") + categories.length + tags.length}>
+      <ListFilters compact active={Number(filter !== "all") + categories.length + tags.length}>
         <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center max-sm:[&>button]:w-full max-sm:[&>button]:justify-between">
           <Select value={filter} onValueChange={(value) => setFilter(value as Filter)}>
             <SelectTrigger size="sm" className="w-32 sm:w-36" aria-label={t("filterByStatus")}>
@@ -195,7 +195,7 @@ export default function AgentsPage() {
             max={MAX_AGENT_TAGS}
           />
         </div>
-      </PhoneFilters>
+      </ListFilters>
     </div>
   );
 

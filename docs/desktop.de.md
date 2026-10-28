@@ -1,5 +1,5 @@
 ---
-source_sha: "8a95b0f3cca2"
+source_sha: "6d23d87dfc5d"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -121,6 +121,8 @@ privaten `.env`; Anbieterschlüssel speichert der Servertresor. Der native Assis
 verwendet einen neutralen Tastaturfokus und fokussiert Auswahlknöpfe nicht automatisch.
 
 ## Verbindungseinrichtung und App-Bereitschaft { #connection-setup-and-app-readiness }
+
+Das Kontomenü öffnet **App-Bereitschaft** direkt, auch aus den Desktop-Einstellungen. Die Checkliste ersetzt den schwebenden Einrichtungszähler und verdeckt keine Bedienelemente.
 
 Die Verbindungsprüfung ist auf dem nativen Glasmaterial zentriert, auch wenn die
 Konsole einen undurchsichtigen Stil verwendet. Die Statuszeilen bleiben beim Prüfen
@@ -267,11 +269,11 @@ die native Ordnerauswahl erneut, um die neue Berechtigung zu bestätigen.
 Abbrechen behält die bisherige Auswahl bei. Ordner und Modus bleiben ausgewählt,
 wenn die Einstellungen geschlossen werden und ein neuer Chat seine ID erhält.
 
-| Modus | Was der Agent darf | Wie das durchgesetzt wird |
-|---|---|---|
-| Nur lesen | Dateien lesen; nichts wird geschrieben und kein Befehl läuft | Die App lehnt Schreibzugriffe und Befehle ab |
-| Im Ordner schreiben | Lesen, im Ordner schreiben, Befehle ausführen | Befehle laufen unter Seatbelt auf macOS und bubblewrap auf Linux, schreibbar nur im Ordner und in den temporären Verzeichnissen |
-| Vollzugriff | Befehle laufen als Sie, ohne Sandbox | Jeder Befehl wird zuerst in einem nativen Dialog zur Freigabe gezeigt |
+| Modus               | Was der Agent darf                                           | Wie das durchgesetzt wird                                                                                                       |
+| ------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| Nur lesen           | Dateien lesen; nichts wird geschrieben und kein Befehl läuft | Die App lehnt Schreibzugriffe und Befehle ab                                                                                    |
+| Im Ordner schreiben | Lesen, im Ordner schreiben, Befehle ausführen                | Befehle laufen unter Seatbelt auf macOS und bubblewrap auf Linux, schreibbar nur im Ordner und in den temporären Verzeichnissen |
+| Vollzugriff         | Befehle laufen als Sie, ohne Sandbox                         | Jeder Befehl wird zuerst in einem nativen Dialog zur Freigabe gezeigt                                                           |
 
 Windows bietet Nur lesen und Vollzugriff. Linux bietet Schreiben im Ordner nur,
 wenn `bwrap` installiert ist.
@@ -367,12 +369,12 @@ Was passiert, der Reihe nach:
 1. Das eigene `/api/oauth/<provider>/login` der Konsole läuft **im Fenster**, wo es
    das httpOnly-Cookie mit einer vorgemerkten Einladung lesen und anhängen kann.
 2. Das Fenster sieht dann eine Navigation zu `/api/v1/oauth/<provider>/login` des
-   *Deployments*, übergibt sie mit angehängtem `client=desktop` und frisch
+   _Deployments_, übergibt sie mit angehängtem `client=desktop` und frisch
    erzeugtem `desktop_nonce` an den System-Browser und folgt ihr nicht.
 3. Sie melden sich dort an, in einem echten Browser mit Ihren eigenen Passwörtern,
    Erweiterungen und welchem zweiten Faktor auch immer.
 4. Der Callback des Deployments erkennt, dass dieser Versuch ein Desktop-Versuch
-   war - zu *Beginn* in der Sitzung unter dem OAuth-`state` dieses Versuchs
+   war - zu _Beginn_ in der Sitzung unter dem OAuth-`state` dieses Versuchs
    vermerkt, nie aus der Rückkehr gelesen - und leitet nach
    `agenticos://auth/callback?code=…` weiter, mit einem Einmal-Code, der nach einer
    Minute abläuft, und der erhaltenen Nonce.
@@ -383,7 +385,7 @@ Was passiert, der Reihe nach:
 
 **Einen Deep Link kann jeder Prozess auf Ihrem Rechner auslösen**, also ist eng
 gefasst, was einer hier darf: die Konsole an einen Pfad schicken, auf dem Server,
-den *Sie* konfiguriert haben, mit einem Code, der genau einmal einlösbar ist - und
+den _Sie_ konfiguriert haben, mit einem Code, der genau einmal einlösbar ist - und
 nur einer mit der Nonce, die diese App für diesen Versuch erzeugt hat. Auf Windows
 und Linux gibt eine Einzelinstanz-Sperre die Argumente eines zweiten Starts an den
 ersten weiter. Das Deployment muss beim Schema übereinstimmen -
@@ -501,7 +503,6 @@ Store-Zugangsdaten verbleiben in CI; Jobs löschen temporäre Signaturdateien.
 TestFlight-Upload bleibt bis zur ausdrücklichen Aktivierung aus. Store-Freigabe,
 Provisioning und signierte Geräteauslieferung erfordern die Konten des Betreibers;
 ein unsignierter lokaler Build kann sie nicht bestätigen.
-
 
 ## Zusammenfassung { #recap }
 

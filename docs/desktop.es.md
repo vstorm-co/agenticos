@@ -1,5 +1,5 @@
 ---
-source_sha: "8a95b0f3cca2"
+source_sha: "6d23d87dfc5d"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -120,6 +120,8 @@ El asistente nativo usa un foco de teclado neutro y no enfoca automáticamente
 los botones de selección.
 
 ## Configuración de conexión y estado de la aplicación { #connection-setup-and-app-readiness }
+
+El menú de usuario también abre directamente el **Estado de la aplicación**, incluso desde los ajustes de escritorio. La lista sustituye al contador flotante y no tapa los controles de la página.
 
 La revisión de conexión está centrada sobre el material de cristal nativo, incluso
 si la consola tiene guardado un estilo opaco. Las filas permanecen visibles durante
@@ -260,11 +262,11 @@ a abrir el selector nativo de carpetas para confirmar el nuevo permiso. Cancelar
 conserva la elección anterior. La carpeta y el modo se mantienen al cerrar los
 ajustes y cuando un chat nuevo recibe su ID.
 
-| Modo | Qué puede hacer el agent | Cómo se le sujeta |
-|---|---|---|
-| Solo lectura | Leer archivos; no se escribe nada y no se ejecuta ningún comando | La app rechaza escrituras y comandos |
-| Escribir en la carpeta | Leer, escribir dentro de la carpeta, ejecutar comandos | Los comandos se ejecutan bajo Seatbelt en macOS y bubblewrap en Linux, con escritura solo en la carpeta y los directorios temporales |
-| Acceso completo | Los comandos se ejecutan como tú, sin aislamiento | Cada comando se muestra antes en un diálogo nativo para permitirlo |
+| Modo                   | Qué puede hacer el agent                                         | Cómo se le sujeta                                                                                                                    |
+| ---------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Solo lectura           | Leer archivos; no se escribe nada y no se ejecuta ningún comando | La app rechaza escrituras y comandos                                                                                                 |
+| Escribir en la carpeta | Leer, escribir dentro de la carpeta, ejecutar comandos           | Los comandos se ejecutan bajo Seatbelt en macOS y bubblewrap en Linux, con escritura solo en la carpeta y los directorios temporales |
+| Acceso completo        | Los comandos se ejecutan como tú, sin aislamiento                | Cada comando se muestra antes en un diálogo nativo para permitirlo                                                                   |
 
 Windows ofrece solo lectura y acceso completo. Linux ofrece escribir en la carpeta
 solo cuando `bwrap` está instalado.
@@ -360,12 +362,12 @@ Lo que ocurre, en orden:
 1. El `/api/oauth/<provider>/login` de la consola se ejecuta **en la ventana**,
    donde puede leer la cookie httpOnly con una invitación preparada y adjuntarla.
 2. La ventana ve entonces una navegación al `/api/v1/oauth/<provider>/login` del
-   *despliegue*, la pasa al navegador del sistema con `client=desktop` y un
+   _despliegue_, la pasa al navegador del sistema con `client=desktop` y un
    `desktop_nonce` recién generado y no la sigue.
 3. Inicias sesión allí, en un navegador de verdad con tus contraseñas, tus
    extensiones y el segundo factor que uses.
 4. El callback del despliegue ve que este intento era de escritorio - anotado en
-   la sesión al *principio* bajo el `state` OAuth de ese intento, nunca leído del
+   la sesión al _principio_ bajo el `state` OAuth de ese intento, nunca leído del
    retorno - y redirige a `agenticos://auth/callback?code=…` con un código de un
    solo uso que caduca en un minuto, más el nonce que recibió.
 5. El sistema operativo entrega ese enlace a la app. El shell envía la ventana de
@@ -374,7 +376,7 @@ Lo que ocurre, en orden:
 
 **Cualquier proceso de tu máquina puede lanzar un deep link**, así que lo que uno
 puede hacer aquí es estrecho: enviar la consola a una ruta, en el servidor que
-*tú* configuraste, con un código canjeable exactamente una vez - y solo uno con el
+_tú_ configuraste, con un código canjeable exactamente una vez - y solo uno con el
 nonce que esta app generó para este intento. En Windows y Linux un bloqueo de
 instancia única pasa los argumentos de un segundo arranque al primero. El
 despliegue tiene que coincidir en el esquema - `DESKTOP_DEEP_LINK_SCHEME`,
@@ -419,7 +421,6 @@ confirma cada permiso. Los modelos usan un endpoint HTTP de Ollama o compatible
 con OpenAI (por ejemplo `http://127.0.0.1:11434/v1`) y el ID de un modelo instalado.
 MCP requiere un servidor Streamable HTTP en ejecución
 (por ejemplo `http://127.0.0.1:8000/mcp`).
-
 
 Solo se aceptan direcciones loopback, sin
 redirecciones ni credenciales en la URL. El escritorio guarda la dirección; la API
@@ -495,7 +496,6 @@ Las credenciales de tienda permanecen en CI; los jobs borran archivos temporales
 de firma. TestFlight está desactivado hasta habilitarlo explícitamente. La
 aprobación de tienda, provisioning y entrega firmada a dispositivos requieren
 cuentas del operador; no pueden verificarse con un build local sin firma.
-
 
 ## Resumen { #recap }
 

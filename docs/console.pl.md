@@ -1,5 +1,5 @@
 ---
-source_sha: "3b09bed0fb0d"
+source_sha: "0072006e4426"
 ---
 
 # Konsola { #the-console }
@@ -17,6 +17,14 @@ Listy zasobów, w tym Inbox i Routines, wypełniają pozostałą wysokość stro
 
 Czat używa większych portretów agentów bez obwódek. Przełącznik Files pozostaje w polu wiadomości podczas otwierania i zamykania panelu; animacja respektuje ograniczenie ruchu. Ustawienia czatu pokazują najpierw bieżący model. Rozwiń **Zmień model**, aby edytować uzupełnionego dostawcę i model; wybór zaczyna działać po zatwierdzeniu. Karty załączników znajdują się nad polem wiadomości bez dodatkowego panelu z cieniem.
 
+Wprowadzenia do stron i objaśnienia ustawień są dostępne pod ikoną informacji obok nagłówka. Bieżące podsumowania i ostrzeżenia o nieodwracalnych działaniach pozostają widoczne.
+
+W Agentach, Skills, Context i historii uruchomień przycisk **Filtry** rozwija dodatkowe opcje niezależnie od rozmiaru ekranu i pokazuje liczbę aktywnych filtrów.
+
+Karty agentów pozostawiają status i dostęp na wierzchu, a uchwyt, etykiety, kanały i datę edycji przenoszą do **Szczegółów**. Karty Skills i Context najpierw pokazują nazwę i opis; **Szczegóły** rozwijają podgląd, odbiorców, użycie i akcje. Zakładki organizacji, kreatora agentów i projektów mają odpowiednie ikony. Wiersze budżetu pokazują avatary agentów.
+
+Generowane portrety korzystają z ograniczonego zestawu kształtów Blobatar 2.7 i jaśniejszych odcieni; animują się po najechaniu, a pracujący agenci zachowują animację myślenia. Wgrane zdjęcia pozostają bez zmian. Nowe zdjęcia agentów startowych należą do tej samej rodziny; istniejące zapisane obrazy nie są automatycznie zastępowane.
+
 ## Dashboard { #the-dashboard }
 
 Strona startowa to **układalna siatka widgetów** i jest odpowiedzią na pytanie
@@ -32,22 +40,22 @@ pusty.
 Przełącznik na górze mówi, czyj to dashboard, i oferuje tylko widoki, które
 możesz otworzyć. Każdy zaczyna od widoku **Ja**:
 
-| Widok | Odpowiada na |
-|---|---|
-| **Ja** | Powitanie i Twój okres w jednym zdaniu; Twoje runy, ile się skończyło, co na Ciebie czeka i ile to kosztowało; potem wywołania czekające na Ciebie, Twoje rozmowy, Twoi agenci i co Ci udostępniono |
-| **Organizacja** | Układalna strona opisana niżej |
-| **Grupa** | Członkowie jednej [grupy](departments.md) - ich runy, wydatki, modele, kiedy pracują i kto korzysta najwięcej. Grupę wybierasz obok przełącznika. Grupa, której członkowie nic nie uruchomili w okresie, mówi to raz, z przejściem do grupy, zamiast strony pustych kart |
-| **Wdrożenie** | Tylko dla [admina deploymentu](permissions.md) — sumy platformy, kondycja, najbardziej obciążeni najemcy, oceny |
+| Widok           | Odpowiada na                                                                                                                                                                                                                                                             |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Ja**          | Powitanie i Twój okres w jednym zdaniu; Twoje runy, ile się skończyło, co na Ciebie czeka i ile to kosztowało; potem wywołania czekające na Ciebie, Twoje rozmowy, Twoi agenci i co Ci udostępniono                                                                      |
+| **Organizacja** | Układalna strona opisana niżej                                                                                                                                                                                                                                           |
+| **Grupa**       | Członkowie jednej [grupy](departments.md) - ich runy, wydatki, modele, kiedy pracują i kto korzysta najwięcej. Grupę wybierasz obok przełącznika. Grupa, której członkowie nic nie uruchomili w okresie, mówi to raz, z przejściem do grupy, zamiast strony pustych kart |
+| **Wdrożenie**   | Tylko dla [admina deploymentu](permissions.md) — sumy platformy, kondycja, najbardziej obciążeni najemcy, oceny                                                                                                                                                          |
 
 Widok organizacji pokazuje karty, które odpowiadają danymi, pogrupowane w pasy.
 Reszta - integracje, kanały, rutyny, synchronizacja wiedzy, działy, członkowie,
 sandboxy - czeka w katalogu, jedno kliknięcie dalej pod **Customize**:
 
-| Pas | Odpowiada na |
-|---|---|
-| *(bez tytułu, na górze)* | Podsumowanie, runy w czasie i to, jak się skończyły |
-| **Needs attention** | Co czeka: [zatwierdzenia](governance.md#approvals), ostatnie błędy, zapas w budżecie, twoje najnowsze [powiadomienia](#the-bell) |
-| **Usage & cost** | Których agentów się używa, wydatki, [minuty rozmów](#voice-calls), kiedy dzieje się praca, skąd przychodzą runy, miks modeli, opóźnienia, jakość odpowiedzi, kto z tego korzysta |
+| Pas                      | Odpowiada na                                                                                                                                                                     |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| _(bez tytułu, na górze)_ | Podsumowanie, runy w czasie i to, jak się skończyły                                                                                                                              |
+| **Needs attention**      | Co czeka: [zatwierdzenia](governance.md#approvals), ostatnie błędy, zapas w budżecie, twoje najnowsze [powiadomienia](#the-bell)                                                 |
+| **Usage & cost**         | Których agentów się używa, wydatki, [minuty rozmów](#voice-calls), kiedy dzieje się praca, skąd przychodzą runy, miks modeli, opóźnienia, jakość odpowiedzi, kto z tego korzysta |
 
 Dashboard otwiera się kartą **Get started**, dopóki nie zrobisz wszystkich jej
 kroków: opowiedzieć agentom o sobie, zacząć rozmowę, podłączyć usługę własnym
@@ -95,7 +103,7 @@ prywatnego Inbox. Każda zakładka ma własne przyciski tworzenia.
 `/routines?tab=watches` otwiera obserwacje.
 
 Discover na dashboardzie zaczyna się od ilustrowanych możliwości. Najedź na wykres
-w *Your period*, aby zobaczyć przedział i wartość; koszty są kwotami. Projekty
+w _Your period_, aby zobaczyć przedział i wartość; koszty są kwotami. Projekty
 pokazują opisy, a wiersze agentów używają tych samych avatarów co chat.
 
 Karty dashboardu korzystają ze spójnych, zwartych wierszy, oznaczeń usług i etykiet statusu. Liczniki i wykresy dostosowują się do szerokości karty, również we własnych układach. Placeholdery odpowiadają rodzajowi ładowanej zawartości; niedostępny briefing pokazuje możliwość ponowienia zamiast informacji o braku propozycji.
@@ -159,7 +167,7 @@ to, co wciąż jest nieprzeczytane, a kolejne kliknięcie dokańcza resztę, zam
 
 Każde kliknięcie zawsze posuwa sprawę dalej, nawet gdy cała partia to wiersze,
 których czytający już nie widzi. Nigdy ich nie oznacza: sprawdzenie dotyczy
-*bieżących* uprawnień, więc ktoś zdegradowany na tydzień i przywrócony zastałby
+_bieżących_ uprawnień, więc ktoś zdegradowany na tydzień i przywrócony zastałby
 powiadomienia bezpieczeństwa z tego tygodnia już przeczytane. Zamiast tego
 ucięte zamiatanie mówi, gdzie się zatrzymało, a kolejne kliknięcie rusza stamtąd.
 
@@ -176,12 +184,12 @@ jako przeczytany, bo wiersz, do którego nic na ekranie już nie sięga, nie mo�
 dalej liczyć się do plakietki. Tak jak „Mark all read", jedno czyszczenie ma
 granicę — tysiąc wierszy — a dłuższa zaległość wymaga drugiego kliknięcia.
 
-Czego wyczyszczony wiersz *nie* robi, to nie wraca. Powiadomienie zostaje
+Czego wyczyszczony wiersz _nie_ robi, to nie wraca. Powiadomienie zostaje
 zachowane i przestaje być wypisywane, zamiast zostać usunięte, i właśnie to
 sprawia, że tak jest: skrzynka rozpoznaje powtórzenie po fakcie, który opisuje,
 więc usunięty wiersz to taki, który następne sprawdzenie budżetu albo następna
 próba zapisałyby ponownie. Odrzucenie alertu, którym się już zająłeś, jest więc
-ostateczne — dla tego wystąpienia; *nowy*, o nowym fakcie, nadal przyjdzie.
+ostateczne — dla tego wystąpienia; _nowy_, o nowym fakcie, nadal przyjdzie.
 Wiersze wychodzą też same z siebie: dziewięćdziesiąt dni po zapisaniu, jeśli
 zostały przeczytane, i rok niezależnie od tego.
 
@@ -430,20 +438,20 @@ ani pamięć JavaScript. Agent odczytuje nowe numery elementów.
 **Przejmowanie przeglądania.** Gdy przeglądanie trwa, **Przejmij** w pasku przeglądarki
 zatrzymuje agenta po bieżącym kroku i oddaje ci stronę, w tym samym oknie: klikaj, pisz,
 przewijaj, wklejaj. **Oddaj** i agent kontynuuje od miejsca, w którym skończyłeś. Gdy
-agent nie przejdzie strony sam - logowanie, captcha - przeglądarka mówi *Agent
-cię potrzebuje* i po co. Ktoś, kto może oglądać runy, ale nie edytować agenta, może
+agent nie przejdzie strony sam - logowanie, captcha - przeglądarka mówi _Agent
+cię potrzebuje_ i po co. Ktoś, kto może oglądać runy, ale nie edytować agenta, może
 patrzeć, ale nie sterować. To samo okno otwiera się na osobnej stronie z linku z kanału.
 Zobacz [Przeglądarka](reference/capabilities.md#browser-automation).
 
 **Wskazywanie na stronie.** Przycisk z dymkiem w pasku przeglądarki pozwala kliknąć
-miejsce na stronie i dopisać do niego notatkę - *ten przycisk, nie tamten*. **Add to
+miejsce na stronie i dopisać do niego notatkę - _ten przycisk, nie tamten_. **Add to
 message** wkłada stronę do Twojej wiadomości jako obrazek z zaznaczonym miejscem, razem
 z notatką i adresem strony, do wysłania albo dopisania reszty. Działa też po skończonym
 przeglądaniu, na jego ostatnim obrazie.
 
 **Zostajesz zalogowany.** Gdy przeglądanie działa w Twoim imieniu - Twój czat, Twoja
-wiadomość prywatna, Twój własny harmonogram - **Oddaj** proponuje *Zapamiętaj moje
-logowanie do* strony, na której jesteś. Zaznacz to po zalogowaniu, a kolejne
+wiadomość prywatna, Twój własny harmonogram - **Oddaj** proponuje _Zapamiętaj moje
+logowanie do_ strony, na której jesteś. Zaznacz to po zalogowaniu, a kolejne
 przeglądania w Twoim imieniu startują tam zalogowane: ciasteczka i dane strony są
 zapieczętowane w vault tylko dla Ciebie, nigdy nie są pokazywane i nie są używane dla
 odwiedzającego widget, wspólnego kanału, klucza API ani wyzwalacza zdarzeń.
@@ -646,24 +654,24 @@ rzadko: **Connections** (MCP servers, Channels, Remote agents, Vault, Sandboxes)
 **Organization** (Organizations, Groups). Zwinięta grupa otwiera się sama na
 każdej stronie, która do niej należy, i zostaje tak, jak ją zostawisz.
 
-| Obszar | Zawiera | Przeczytaj |
-|---|---|---|
-| **Agents** | Katalog, Builder, wersje, udostępnianie, testowanie, aktywność | [Twój pierwszy agent](first-agent.md) |
-| **Chat** | Rozmowa z opublikowanym agentem | [Powierzchnie](channels.md) |
-| **Knowledge** | Kolekcje, dokumenty, źródła synchronizacji, ustawienia ingestii | [Przetwarzanie plików](file-processing.md) |
-| **Skills** | Spisane procedury, które agent wczytuje na żądanie | [Skille](skills.md) |
-| **Context** | Stała wiedza przypięta do wielu agentów | [Pliki kontekstowe](context.md) |
-| **Routines** | Harmonogramy i wyzwalacze zdarzeń | [Wyzwalacze](triggers.md) |
-| **Runs** | Co się uruchomiło, ile kosztowało, czego dotknęło, czy zakończyło się błędem | [Nadzór](governance.md#audit) |
-| **Documents** | Wszystkie pliki, które agenci trzymają dla ciebie: to, co załączyłeś, i to, co napisali | [Sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
-| **Sandboxes** | Gdzie agenci uruchamiają kod: hosty, żywe sesje, polityka | [Sandbox](sandbox.md) |
-| **MCP servers** | Połączenia z zewnętrznymi narzędziami, osobiste i na całą organizację | [MCP](mcp.md) |
-| **Channels** | Boty Slacka, Teams, Telegrama i Mattermosta, widgety, hostowane strony | [Powierzchnie](channels.md) |
-| **Remote agents** | Agenci innych dostawców, zarejestrowani po ich agent card A2A, do których delegują agenci | [Capabilities](reference/capabilities.md#remote-agents) |
-| **Vault** | Poświadczenia, zapieczętowane per organizacja | [Sekrety](secrets.md) |
-| **Organizations** | Członkowie, role, zaproszenia | [Uprawnienia](permissions.md) |
-| **Settings** | Providerzy, domyślne ustawienia ingestii, powiadomienia, twój własny profil | [Konfiguracja](configuration.md) |
-| **Admin** | Sam deployment: użytkownicy, najemcy, system, zadania w tle, ustawienia deploymentu | [Deployment](deployment.md) |
+| Obszar            | Zawiera                                                                                   | Przeczytaj                                                               |
+| ----------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| **Agents**        | Katalog, Builder, wersje, udostępnianie, testowanie, aktywność                            | [Twój pierwszy agent](first-agent.md)                                    |
+| **Chat**          | Rozmowa z opublikowanym agentem                                                           | [Powierzchnie](channels.md)                                              |
+| **Knowledge**     | Kolekcje, dokumenty, źródła synchronizacji, ustawienia ingestii                           | [Przetwarzanie plików](file-processing.md)                               |
+| **Skills**        | Spisane procedury, które agent wczytuje na żądanie                                        | [Skille](skills.md)                                                      |
+| **Context**       | Stała wiedza przypięta do wielu agentów                                                   | [Pliki kontekstowe](context.md)                                          |
+| **Routines**      | Harmonogramy i wyzwalacze zdarzeń                                                         | [Wyzwalacze](triggers.md)                                                |
+| **Runs**          | Co się uruchomiło, ile kosztowało, czego dotknęło, czy zakończyło się błędem              | [Nadzór](governance.md#audit)                                            |
+| **Documents**     | Wszystkie pliki, które agenci trzymają dla ciebie: to, co załączyłeś, i to, co napisali   | [Sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
+| **Sandboxes**     | Gdzie agenci uruchamiają kod: hosty, żywe sesje, polityka                                 | [Sandbox](sandbox.md)                                                    |
+| **MCP servers**   | Połączenia z zewnętrznymi narzędziami, osobiste i na całą organizację                     | [MCP](mcp.md)                                                            |
+| **Channels**      | Boty Slacka, Teams, Telegrama i Mattermosta, widgety, hostowane strony                    | [Powierzchnie](channels.md)                                              |
+| **Remote agents** | Agenci innych dostawców, zarejestrowani po ich agent card A2A, do których delegują agenci | [Capabilities](reference/capabilities.md#remote-agents)                  |
+| **Vault**         | Poświadczenia, zapieczętowane per organizacja                                             | [Sekrety](secrets.md)                                                    |
+| **Organizations** | Członkowie, role, zaproszenia                                                             | [Uprawnienia](permissions.md)                                            |
+| **Settings**      | Providerzy, domyślne ustawienia ingestii, powiadomienia, twój własny profil               | [Konfiguracja](configuration.md)                                         |
+| **Admin**         | Sam deployment: użytkownicy, najemcy, system, zadania w tle, ustawienia deploymentu       | [Deployment](deployment.md)                                              |
 
 Katalog **Agents** można filtrować po **category** i **tag** — edytowalnych,
 lokalnych dla organizacji etykietach pokazywanych na karcie każdego agenta.

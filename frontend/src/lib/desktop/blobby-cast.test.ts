@@ -1,3 +1,4 @@
+import { AVATAR_TRAITS } from "@/lib/avatar-policy";
 import { describe, expect, it } from "vitest";
 
 import { avatarHue } from "@/lib/avatar-color";
@@ -29,14 +30,14 @@ describe("faceOf", () => {
   it("draws an agent from its handle in its colour, as AgentAvatar does", () => {
     expect(
       faceOf({ kind: "agent", agent_id: "a1", slug: "support", name: "Support", color_slot: 3 }),
-    ).toEqual({ seed: "support", hue: avatarHue(3), traits: undefined });
+    ).toEqual({ seed: "support", hue: avatarHue(3), traits: AVATAR_TRAITS });
   });
 
   it("draws a face of your own from its name", () => {
     expect(faceOf({ kind: "custom", seed: "kacper", color_slot: null })).toEqual({
       seed: "kacper",
       hue: undefined,
-      traits: undefined,
+      traits: AVATAR_TRAITS,
     });
   });
 });

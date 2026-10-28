@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
   EntityAvatar,
 } from "@/components/ui";
+import { DesktopSetupMenuItem } from "@/components/desktop/desktop-setup-menu-item";
 import { ServerSwitch } from "@/components/desktop/server-switch";
 import { useAuth } from "@/hooks";
 import { cn } from "@/lib/utils";
@@ -120,6 +121,7 @@ export function SidebarUser({ compact = false }: { compact?: boolean }) {
             {t("profileAndSettings")}
           </Link>
         </DropdownMenuItem>
+        <DesktopSetupMenuItem />
         <ServerSwitch />
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={logout} className="text-destructive focus:text-destructive">

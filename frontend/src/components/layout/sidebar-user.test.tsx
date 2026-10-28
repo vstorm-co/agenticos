@@ -96,3 +96,20 @@ it.each([false, true])(
     expect(desktop.change).toHaveBeenCalledOnce();
   },
 );
+
+it("opens the setup checklist from the account menu without navigating", async () => {
+  desktop.shell = MAC_MAIN;
+  currentUser.mockReturnValue(OWNER);
+  const open = vi.fn();
+  window.addEventListener("agenticos:open-desktop-setup", open);
+  try {
+    render(<SidebarUser />);
+    expect(screen.queryByRole("menuitem", { name: "title" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button"));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "title" }));
+    expect(open).toHaveBeenCalledOnce();
+    expect(desktop.change).not.toHaveBeenCalled();
+  } finally {
+    window.removeEventListener("agenticos:open-desktop-setup", open);
+  }
+});

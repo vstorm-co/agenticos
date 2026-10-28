@@ -143,7 +143,6 @@ export function AgentCard({
                   <h3 className="text-foreground line-clamp-2 font-medium break-words sm:truncate">
                     {agent.name}
                   </h3>
-                  <p className="text-muted-foreground truncate font-mono text-xs">@{agent.slug}</p>
                 </div>
                 <AgentStatusBadge status={agent.status} />
               </div>
@@ -152,43 +151,53 @@ export function AgentCard({
               </p>
               <div className="col-span-2 flex flex-wrap items-center gap-1.5 sm:mt-2">
                 <AccessChip agent={agent} />
-                {(agent.channels ?? []).map((channel) => (
-                  <Badge
-                    key={channel}
-                    variant="outline"
-                    className="text-muted-foreground font-normal"
-                  >
-                    {CHANNEL_LABEL[channel] ?? channel}
-                  </Badge>
-                ))}
-                {(agent.categories ?? []).map((label) => (
-                  <Badge
-                    key={`c:${label}`}
-                    variant="outline"
-                    className="text-muted-foreground font-normal"
-                  >
-                    {label}
-                  </Badge>
-                ))}
-                {(agent.tags ?? []).map((label) => (
-                  <Badge
-                    key={`t:${label}`}
-                    variant="outline"
-                    className="text-muted-foreground font-normal"
-                  >
-                    {label}
-                  </Badge>
-                ))}
               </div>
             </div>
           </div>
 
-          <div className="relative mt-auto flex items-center justify-between gap-2 border-t pt-3">
-            <span className="text-muted-foreground pointer-events-none text-xs">
-              {agent.updated_at
-                ? t("editedWhen", { when: formatDate(agent.updated_at, locale) })
-                : t("neverEdited")}
-            </span>
+          <div className="relative mt-auto flex items-start justify-between gap-2 border-t pt-3">
+            <details className="min-w-0 flex-1 text-xs">
+              <summary className="text-muted-foreground hover:text-foreground touch:min-h-11 cursor-pointer py-2">
+                {tc("details")}
+              </summary>
+              <div className="space-y-2 pt-2">
+                <p className="text-muted-foreground truncate font-mono">@{agent.slug}</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {(agent.channels ?? []).map((channel) => (
+                    <Badge
+                      key={channel}
+                      variant="outline"
+                      className="text-muted-foreground font-normal"
+                    >
+                      {CHANNEL_LABEL[channel] ?? channel}
+                    </Badge>
+                  ))}
+                  {(agent.categories ?? []).map((label) => (
+                    <Badge
+                      key={`c:${label}`}
+                      variant="outline"
+                      className="text-muted-foreground font-normal"
+                    >
+                      {label}
+                    </Badge>
+                  ))}
+                  {(agent.tags ?? []).map((label) => (
+                    <Badge
+                      key={`t:${label}`}
+                      variant="outline"
+                      className="text-muted-foreground font-normal"
+                    >
+                      {label}
+                    </Badge>
+                  ))}
+                </div>
+                <span className="text-muted-foreground pointer-events-none text-xs">
+                  {agent.updated_at
+                    ? t("editedWhen", { when: formatDate(agent.updated_at, locale) })
+                    : t("neverEdited")}
+                </span>
+              </div>
+            </details>
 
             {canEdit && (
               <div className="flex items-center gap-1">

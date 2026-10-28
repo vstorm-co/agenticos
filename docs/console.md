@@ -13,6 +13,16 @@ Resource lists, including Inbox and Routines, fill the remaining page height eve
 
 Chat uses larger agent portraits without rings. Its Files toggle stays in the composer while the panel opens or closes, with reduced motion respected. Chat settings show the current model first. Expand **Change model** to edit the prefilled provider and model; the choice applies only after **Run on this model**. Attachment cards sit above the composer without an extra shadowed panel.
 
+Page introductions and settings explanations are available from the information icon beside their heading. Live summaries and destructive-action warnings remain visible.
+
+In Agents, Skills, Context and run history, **Filters** reveals secondary controls on every screen size and shows how many filters are active.
+
+Agent cards keep status and access visible while moving handles, tags, channels and edit dates into **Details**. Skills and Context cards show the name and summary first; **Details** reveals the preview, audience, usage and actions.
+
+Organization, agent builder and project tabs carry matching icons. Budget headroom rows include agent portraits.
+
+Generated portraits use a constrained set of Blobatar 2.7 silhouettes and brighter tones; idle faces animate on hover, while working agents keep their thinking animation. Uploaded pictures are preserved. New starter-agent pictures use the same portrait family; existing stored uploads are not automatically replaced.
+
 ## The dashboard
 
 The landing page is an **arrangeable grid of widgets**, and it is the answer to
@@ -27,22 +37,22 @@ than sitting there empty.
 A switch at the top says whose dashboard it is, and offers only the views you
 may open. Everybody opens on **Me**:
 
-| View | Answers |
-|---|---|
-| **Me** | A greeting and your period in one sentence; your runs, how many finished, what is waiting on you and what it cost; then the calls waiting on you, your conversations, your agents and what was shared with you |
-| **Organization** | The arrangeable page below |
-| **Group** | One [group](departments.md)'s members - their runs, spend, models, when they work and who uses it most. Choose the group beside the switch. A group whose members ran nothing in the period says so once, with a way to the group, rather than showing a page of empty cards |
-| **Deployment** | Only for a [deployment admin](permissions.md) — platform totals, health, busiest tenants, ratings |
+| View             | Answers                                                                                                                                                                                                                                                                      |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Me**           | A greeting and your period in one sentence; your runs, how many finished, what is waiting on you and what it cost; then the calls waiting on you, your conversations, your agents and what was shared with you                                                               |
+| **Organization** | The arrangeable page below                                                                                                                                                                                                                                                   |
+| **Group**        | One [group](departments.md)'s members - their runs, spend, models, when they work and who uses it most. Choose the group beside the switch. A group whose members ran nothing in the period says so once, with a way to the group, rather than showing a page of empty cards |
+| **Deployment**   | Only for a [deployment admin](permissions.md) — platform totals, health, busiest tenants, ratings                                                                                                                                                                            |
 
 The organization's view shows the cards that answer with data, grouped into
 bands. The rest - integrations, channels, routines, knowledge sync, departments,
 members, sandboxes - wait in the catalog, one click away under **Customize**:
 
-| Band | Answers |
-|---|---|
-| *(untitled, at the top)* | The summary, runs over time and how they ended |
-| **Needs attention** | What is waiting: [approvals](governance.md#approvals), recent failures, budget headroom, your most recent [notifications](#the-bell) |
-| **Usage & cost** | Which agents are used, spend, [voice minutes](#voice-calls), when the work happens, where runs come from, model mix, latency, answer quality, who is using it |
+| Band                     | Answers                                                                                                                                                       |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| _(untitled, at the top)_ | The summary, runs over time and how they ended                                                                                                                |
+| **Needs attention**      | What is waiting: [approvals](governance.md#approvals), recent failures, budget headroom, your most recent [notifications](#the-bell)                          |
+| **Usage & cost**         | Which agents are used, spend, [voice minutes](#voice-calls), when the work happens, where runs come from, model mix, latency, answer quality, who is using it |
 
 The dashboard opens with **Get started** until each of its steps is done: tell
 agents about yourself, start a conversation, connect a service with your own
@@ -88,7 +98,7 @@ reads your personal connected accounts and sends findings to your private Inbox.
 Each tab has its own creation controls. `/routines?tab=watches` opens watches.
 
 On the dashboard, Discover starts with illustrated capabilities. Hover over a
-*Your period* sparkline to read its bucket and value; spend is formatted as money.
+_Your period_ sparkline to read its bucket and value; spend is formatted as money.
 Projects show descriptions, and agent rows use the same avatars as chat.
 
 Dashboard cards use the same compact rows, service marks and status labels. Counts and charts adapt to the card width, including custom layouts. Loading placeholders follow the kind of content being loaded; an unavailable briefing shows a retry instead of claiming that no proposals exist.
@@ -146,7 +156,7 @@ is still unread and a further click finishes it, rather than the badge claiming
 an inbox it only partly worked through.
 
 Each click always gets further, even where the whole batch was rows the reader
-can no longer see. It never marks those: the check is against *current*
+can no longer see. It never marks those: the check is against _current_
 permissions, so somebody demoted for a week and restored would find that week's
 security notices already read. Instead a truncated sweep says where it stopped,
 and the next click resumes from there.
@@ -164,11 +174,11 @@ also marks it read, because a row nothing on screen can reach must not go on
 counting towards the badge. Like "Mark all read", one clear is bounded - a
 thousand rows - and a longer backlog takes a second click.
 
-What a cleared row does *not* do is come back. The notification is kept and
+What a cleared row does _not_ do is come back. The notification is kept and
 stops being listed rather than being deleted, which is what makes that true:
 the inbox recognises a repeat by the fact it describes, so a deleted row is one
 the next budget check or the next retry would write again. Dismissing an alert
-you have dealt with is therefore final, for that occurrence - a *new* one, about
+you have dealt with is therefore final, for that occurrence - a _new_ one, about
 a new fact, still arrives. Rows also age out on their own: ninety days after
 being written if they were read, a year regardless.
 
@@ -414,18 +424,18 @@ not unsaved forms or JavaScript memory. The agent reads fresh element numbers.
 pauses the agent after its current step and hands you the page, in the same window:
 click, type, scroll, paste. **Hand it back** and the agent carries on from where you
 left it. When the agent cannot get past a page alone - a sign-in, a captcha - the browser
-says *The agent needs you* and what for. Someone who may view runs but
+says _The agent needs you_ and what for. Someone who may view runs but
 not edit the agent can watch, not drive. The same window opens on a page of its own
 from a channel's link. See [Web browser](reference/capabilities.md#browser-automation).
 
 **Pointing at the page.** The speech-bubble button in the browser's toolbar lets you
-click a spot on the page and write a note about it - *this button, not that one*.
+click a spot on the page and write a note about it - _this button, not that one_.
 **Add to message** puts the page into your message as a picture with the spot ringed,
 with your note and the page's address, for you to send or keep writing. It works on a
 finished browse too, from its last picture.
 
 **Staying signed in.** When the browse acts for you - your own chat, your direct
-message, your own schedule - **Hand it back** offers *Keep me signed in to* the site
+message, your own schedule - **Hand it back** offers _Keep me signed in to_ the site
 you are on. Tick it after signing in, and later browses acting for you start signed
 in there: the site's cookies and storage are sealed in the vault for you alone, never
 shown, and never used for a widget visitor, a shared room, an API key or an event
@@ -528,10 +538,11 @@ tabs: **Voice calls** and **Dictation**.
 sends the recording to a provider: **This agent's own** (the default) picks a
 pair from the catalog and the key to send it with - an API key for that provider
 that you can view, since publishing lends it to everybody who can run the agent
+
 - and, until you choose one, the organization's default is used and named.
-**Organization's** keeps the organization's provider, model and key. Off, or
-with no key to send it with, the browser transcribes instead, which costs
-nothing.
+  **Organization's** keeps the organization's provider, model and key. Off, or
+  with no key to send it with, the browser transcribes instead, which costs
+  nothing.
 
 The language is chosen on its own: inherit the organization's, or fix one - so a
 Polish agent can keep the organization's provider and key. The card is part of
@@ -622,24 +633,24 @@ visited rarely: **Connections** (MCP servers, Channels, Remote agents, Vault, Sa
 **Organization** (Organizations, Groups). A folded group opens by itself on any
 page inside it, and stays the way you left it.
 
-| Area | It holds | Read |
-|---|---|---|
-| **Agents** | The catalog, the Builder, versions, sharing, testing, activity | [Your first agent](first-agent.md) |
-| **Chat** | Talking to a published agent | [Surfaces](channels.md) |
-| **Knowledge** | Collections, documents, sync sources, ingestion settings | [File processing](file-processing.md) |
-| **Skills** | Written procedures an agent loads on demand | [Skills](skills.md) |
-| **Context** | Standing knowledge bound to many agents | [Context files](context.md) |
-| **Routines** | Schedules and event triggers | [Triggers](triggers.md) |
-| **Runs** | What ran, what it cost, what it touched, whether it failed | [Governance](governance.md#audit) |
-| **Documents** | Every file agents are keeping for you, what you attached and what they wrote | [The sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
-| **Sandboxes** | Where agents run code: hosts, live sessions, policy | [The sandbox](sandbox.md) |
-| **MCP servers** | Connections to external tools, personal and organization-wide | [MCP](mcp.md) |
-| **Channels** | Slack, Teams, Telegram and Mattermost bots, widgets, hosted pages | [Surfaces](channels.md) |
-| **Remote agents** | Other vendors' agents, registered by their A2A agent card, that agents delegate to | [Capabilities](reference/capabilities.md#remote-agents) |
-| **Vault** | Credentials, sealed per organization | [Secrets](secrets.md) |
-| **Organizations** | Members, roles, invitations | [Permissions](permissions.md) |
-| **Settings** | Providers, ingestion defaults, notifications, your own profile | [Configuration](configuration.md) |
-| **Admin** | The deployment itself: users, tenants, system, background jobs, deployment settings | [The deployment](deployment.md) |
+| Area              | It holds                                                                            | Read                                                                         |
+| ----------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| **Agents**        | The catalog, the Builder, versions, sharing, testing, activity                      | [Your first agent](first-agent.md)                                           |
+| **Chat**          | Talking to a published agent                                                        | [Surfaces](channels.md)                                                      |
+| **Knowledge**     | Collections, documents, sync sources, ingestion settings                            | [File processing](file-processing.md)                                        |
+| **Skills**        | Written procedures an agent loads on demand                                         | [Skills](skills.md)                                                          |
+| **Context**       | Standing knowledge bound to many agents                                             | [Context files](context.md)                                                  |
+| **Routines**      | Schedules and event triggers                                                        | [Triggers](triggers.md)                                                      |
+| **Runs**          | What ran, what it cost, what it touched, whether it failed                          | [Governance](governance.md#audit)                                            |
+| **Documents**     | Every file agents are keeping for you, what you attached and what they wrote        | [The sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
+| **Sandboxes**     | Where agents run code: hosts, live sessions, policy                                 | [The sandbox](sandbox.md)                                                    |
+| **MCP servers**   | Connections to external tools, personal and organization-wide                       | [MCP](mcp.md)                                                                |
+| **Channels**      | Slack, Teams, Telegram and Mattermost bots, widgets, hosted pages                   | [Surfaces](channels.md)                                                      |
+| **Remote agents** | Other vendors' agents, registered by their A2A agent card, that agents delegate to  | [Capabilities](reference/capabilities.md#remote-agents)                      |
+| **Vault**         | Credentials, sealed per organization                                                | [Secrets](secrets.md)                                                        |
+| **Organizations** | Members, roles, invitations                                                         | [Permissions](permissions.md)                                                |
+| **Settings**      | Providers, ingestion defaults, notifications, your own profile                      | [Configuration](configuration.md)                                            |
+| **Admin**         | The deployment itself: users, tenants, system, background jobs, deployment settings | [The deployment](deployment.md)                                              |
 
 The **Agents** catalog can be filtered by **category** and **tag** — the editable,
 organization-local labels shown on each agent's card. Each filter is a menu of the

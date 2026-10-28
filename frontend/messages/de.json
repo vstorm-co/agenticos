@@ -2186,7 +2186,9 @@
     "copied": "Kopiert",
     "searchShortcut": "Strg K",
     "filters": "Filter",
-    "filesRoot": "Projektdateien"
+    "filesRoot": "Projektdateien",
+    "moreInformation": "Weitere Informationen",
+    "details": "Details"
   },
   "dashboard": {
     "actions": {
@@ -8999,7 +9001,6 @@
       "welcomeHint": "Aktiviere die gewünschten Desktop-Funktionen. Optionale Schritte kannst du später abschließen.",
       "later": "Später",
       "done": "Weiter",
-      "remaining": "{count, plural, one {# Einrichtungspunkt offen} other {# Einrichtungspunkte offen}}",
       "retry": "Wiederholen",
       "enable": "Einrichten",
       "connect": "Verbinden",

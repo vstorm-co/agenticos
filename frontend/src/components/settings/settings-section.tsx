@@ -1,3 +1,4 @@
+import { ContextHelp } from "@/components/ui/context-help";
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
@@ -26,12 +27,10 @@ export function SectionCard({
     >
       <header className="border-border flex flex-wrap items-start justify-between gap-3 border-b px-5 py-4">
         <div className="min-w-0 flex-1">
-          <h2 className="text-foreground text-sm font-semibold">{title}</h2>
-          {description && (
-            <p className="text-muted-foreground mt-1 max-w-3xl text-xs leading-relaxed">
-              {description}
-            </p>
-          )}
+          <div className="flex items-center gap-1">
+            <h2 className="text-foreground text-sm font-semibold">{title}</h2>
+            {description && <ContextHelp>{description}</ContextHelp>}
+          </div>
         </div>
         {action && <div className="shrink-0">{action}</div>}
       </header>
@@ -71,15 +70,18 @@ export function SettingsSection({
         className={cn("flex flex-wrap items-start justify-between gap-3", children ? "mb-5" : "")}
       >
         <div className="min-w-0 flex-1">
-          <h2
-            className={cn(
-              "text-base font-semibold tracking-tight",
-              danger ? "text-destructive" : "text-foreground",
-            )}
-          >
-            {title}
-          </h2>
-          {description && (
+          <div className="flex items-center gap-1">
+            <h2
+              className={cn(
+                "text-base font-semibold tracking-tight",
+                danger ? "text-destructive" : "text-foreground",
+              )}
+            >
+              {title}
+            </h2>
+            {description && !danger && <ContextHelp>{description}</ContextHelp>}
+          </div>
+          {description && danger && (
             <p className="text-muted-foreground mt-1 text-sm leading-relaxed">{description}</p>
           )}
         </div>

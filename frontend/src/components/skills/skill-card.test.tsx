@@ -89,6 +89,7 @@ describe("SkillCard", () => {
 
   it("keeps deleting separate from opening", async () => {
     const { onOpen, onDelete } = renderCard();
+    await userEvent.click(screen.getByText("Details"));
     await userEvent.click(screen.getByRole("button", { name: "Delete refund-policy" }));
     expect(onDelete).toHaveBeenCalled();
     expect(onOpen).not.toHaveBeenCalled();
@@ -131,4 +132,14 @@ describe("SkillCard", () => {
     renderCard({ canEdit: false });
     expect(screen.getByText("add-to-agent skill skill-1")).toBeInTheDocument();
   });
+});
+
+it("keeps the excerpt behind Details without making the whole card an expand control", async () => {
+  const { onOpen } = renderCard();
+  const excerpt = screen.getByText("Refunds");
+  const details = excerpt.closest("details");
+  expect(details).not.toHaveAttribute("open");
+  await userEvent.click(screen.getByText("Details"));
+  expect(details).toHaveAttribute("open");
+  expect(onOpen).not.toHaveBeenCalled();
 });

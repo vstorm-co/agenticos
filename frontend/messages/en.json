@@ -2186,7 +2186,9 @@
     "copied": "Copied",
     "searchShortcut": "Ctrl K",
     "filters": "Filters",
-    "filesRoot": "Project files"
+    "filesRoot": "Project files",
+    "moreInformation": "More information",
+    "details": "Details"
   },
   "dashboard": {
     "actions": {
@@ -9255,7 +9257,6 @@
       "welcomeHint": "Enable the desktop features you want to use. You can finish the optional steps later.",
       "later": "Later",
       "done": "Continue",
-      "remaining": "{count, plural, one {# setup item remaining} other {# setup items remaining}}",
       "retry": "Retry",
       "enable": "Set up",
       "connect": "Connect",

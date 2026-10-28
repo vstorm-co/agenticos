@@ -79,6 +79,7 @@ describe("ContextCard", () => {
 
   it("keeps deleting separate from opening", async () => {
     const { onOpen, onDelete } = renderCard();
+    await userEvent.click(screen.getByText("Details"));
     await userEvent.click(screen.getByRole("button", { name: "Delete glossary" }));
     expect(onDelete).toHaveBeenCalled();
     expect(onOpen).not.toHaveBeenCalled();

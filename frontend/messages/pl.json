@@ -2186,7 +2186,9 @@
     "copied": "Skopiowano",
     "searchShortcut": "Ctrl K",
     "filters": "Filtry",
-    "filesRoot": "Pliki projektu"
+    "filesRoot": "Pliki projektu",
+    "moreInformation": "Więcej informacji",
+    "details": "Szczegóły"
   },
   "dashboard": {
     "actions": {
@@ -9040,7 +9042,6 @@
       "welcomeHint": "Włącz funkcje desktopowe, z których chcesz korzystać. Opcjonalne kroki możesz dokończyć później.",
       "later": "Później",
       "done": "Kontynuuj",
-      "remaining": "{count, plural, one {Pozostał # element konfiguracji} few {Pozostały # elementy konfiguracji} many {Pozostało # elementów konfiguracji} other {Pozostało # elementu konfiguracji}}",
       "retry": "Ponów",
       "enable": "Skonfiguruj",
       "connect": "Połącz",

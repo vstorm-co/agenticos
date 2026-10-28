@@ -6,7 +6,7 @@ import { FileText, Lock, Plus } from "lucide-react";
 
 import { toast } from "sonner";
 
-import { PhoneFilters } from "@/components/ui/phone-filters";
+import { ListFilters } from "@/components/ui/list-filters";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ContextCard } from "@/components/context/context-card";
 import { ContextEditor } from "@/components/context/context-editor";
@@ -233,7 +233,7 @@ export default function ContextPage() {
           placeholder={t("searchContext")}
           className="min-w-0 flex-1 sm:w-56 sm:flex-none"
         />
-        <PhoneFilters compact active={Number(groupId !== null) + Number(sort !== "name")}>
+        <ListFilters compact active={Number(groupId !== null) + Number(sort !== "name")}>
           <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
             <GroupFilter
               value={groupId}
@@ -264,7 +264,7 @@ export default function ContextPage() {
               </Chip>
             </div>
           </div>
-        </PhoneFilters>
+        </ListFilters>
       </div>
     ) : undefined;
 

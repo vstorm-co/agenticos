@@ -255,3 +255,13 @@ describe("AgentCard", () => {
     expect(container.querySelector(".bg-card")).toBe(card);
   });
 });
+
+it("keeps secondary metadata behind Details while access and actions stay available", async () => {
+  mount({ channels: ["slack"], categories: ["Sales"] });
+  expect(screen.getByText("Slack").closest("details")).not.toHaveAttribute("open");
+  expect(screen.getByText("Private")).toBeVisible();
+  expect(screen.getByRole("button", { name: "More actions for Support" })).toBeVisible();
+  await userEvent.click(screen.getByText("Details"));
+  expect(screen.getByText("Slack")).toBeVisible();
+  expect(screen.getByText("Sales")).toBeVisible();
+});

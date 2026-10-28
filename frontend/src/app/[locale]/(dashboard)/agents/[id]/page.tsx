@@ -5,6 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
+  SlidersHorizontal,
+  Wrench,
+  ShieldCheck,
   Archive,
   ArchiveRestore,
   Copy,
@@ -1308,21 +1311,27 @@ export default function AgentBuilderPage({ params }: PageProps) {
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList>
             <TabsTrigger value="build" data-tour="agent-tab-build">
+              <SlidersHorizontal className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("build")}
             </TabsTrigger>
             <TabsTrigger value="toolbox" data-tour="agent-tab-toolbox">
+              <Wrench className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("toolbox")}
             </TabsTrigger>
             <TabsTrigger value="mcp" data-tour="agent-tab-mcp">
+              <Plug className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("mcpServers")}
             </TabsTrigger>
             <TabsTrigger value="limits" data-tour="agent-tab-limits">
+              <ShieldCheck className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("limits")}
             </TabsTrigger>
             <TabsTrigger value="availability" data-tour="agent-tab-availability">
+              <Radio className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("availability")}
             </TabsTrigger>
             <TabsTrigger value="history" data-tour="agent-tab-history">
+              <History className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("history")}
             </TabsTrigger>
           </TabsList>

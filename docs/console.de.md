@@ -1,5 +1,5 @@
 ---
-source_sha: "3b09bed0fb0d"
+source_sha: "0072006e4426"
 ---
 
 # Die Konsole { #the-console }
@@ -18,6 +18,14 @@ Ressourcenlisten, darunter Inbox und Routines, füllen auch im leeren Zustand di
 
 Im Chat sind Agentenporträts größer und ohne Ringe. Der Files-Schalter bleibt beim Öffnen und Schließen des Bereichs im Eingabefeld; reduzierte Bewegung wird berücksichtigt. Die Chat-Einstellungen zeigen zuerst das aktuelle Modell. Unter **Modell ändern** lassen sich vorausgefüllter Anbieter und Modell bearbeiten; erst die Bestätigung übernimmt die Änderung. Anhangskarten stehen ohne zusätzliches Schattenpanel über dem Eingabefeld.
 
+Seiteneinführungen und Erläuterungen zu Einstellungen sind über das Informationssymbol neben der Überschrift erreichbar. Aktuelle Zusammenfassungen und Warnungen vor destruktiven Aktionen bleiben sichtbar.
+
+Bei Agenten, Skills, Context und im Ausführungsverlauf öffnet **Filter** zusätzliche Optionen auf jeder Bildschirmgröße und zeigt die Anzahl aktiver Filter.
+
+Agentenkarten zeigen Status und Zugriff direkt; Handle, Tags, Kanäle und Änderungsdatum stehen unter **Details**. Skills- und Context-Karten zeigen zunächst Name und Beschreibung; **Details** öffnet Vorschau, Zielgruppe, Nutzung und Aktionen. Organisations-, Agenten- und Projektregister haben passende Symbole. Budgetzeilen zeigen Agentenporträts.
+
+Generierte Porträts verwenden ausgewählte Blobatar-2.7-Formen und hellere Farbtöne; ruhende Gesichter bewegen sich beim Darüberfahren, arbeitende Agenten behalten ihre Denkanimation. Hochgeladene Bilder bleiben erhalten. Neue Starteragentenbilder gehören zur gleichen Familie; vorhandene gespeicherte Bilder werden nicht automatisch ersetzt.
+
 ## Das Dashboard { #the-dashboard }
 
 Die Startseite ist ein **anordenbares Raster aus Widgets**, und sie ist die
@@ -33,22 +41,22 @@ leer dazustehen.
 Ein Schalter oben sagt, wessen Dashboard es ist, und bietet nur die Ansichten
 an, die Sie öffnen dürfen. Alle starten in der Ansicht **Ich**:
 
-| Ansicht | Beantwortet |
-|---|---|
-| **Ich** | Eine Begrüßung und Ihr Zeitraum in einem Satz; Ihre Runs, wie viele fertig wurden, was auf Sie wartet und was es gekostet hat; dann die Aufrufe, die auf Sie warten, Ihre Unterhaltungen, Ihre Agents und was mit Ihnen geteilt wurde |
-| **Organisation** | Die anordenbare Seite unten |
-| **Gruppe** | Die Mitglieder einer [Gruppe](departments.md) - ihre Runs, Ausgaben, Modelle, wann sie arbeiten und wer es am meisten nutzt. Die Gruppe wählen Sie neben dem Schalter. Eine Gruppe, deren Mitglieder im Zeitraum nichts ausgeführt haben, sagt das einmal, mit einem Weg zur Gruppe, statt eine Seite leerer Karten zu zeigen |
-| **Deployment** | Nur für einen [Deployment-Admin](permissions.md) — Plattformsummen, Health, aktivste Tenants, Bewertungen |
+| Ansicht          | Beantwortet                                                                                                                                                                                                                                                                                                                   |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Ich**          | Eine Begrüßung und Ihr Zeitraum in einem Satz; Ihre Runs, wie viele fertig wurden, was auf Sie wartet und was es gekostet hat; dann die Aufrufe, die auf Sie warten, Ihre Unterhaltungen, Ihre Agents und was mit Ihnen geteilt wurde                                                                                         |
+| **Organisation** | Die anordenbare Seite unten                                                                                                                                                                                                                                                                                                   |
+| **Gruppe**       | Die Mitglieder einer [Gruppe](departments.md) - ihre Runs, Ausgaben, Modelle, wann sie arbeiten und wer es am meisten nutzt. Die Gruppe wählen Sie neben dem Schalter. Eine Gruppe, deren Mitglieder im Zeitraum nichts ausgeführt haben, sagt das einmal, mit einem Weg zur Gruppe, statt eine Seite leerer Karten zu zeigen |
+| **Deployment**   | Nur für einen [Deployment-Admin](permissions.md) — Plattformsummen, Health, aktivste Tenants, Bewertungen                                                                                                                                                                                                                     |
 
 Die Ansicht der Organisation zeigt die Karten, die mit Daten antworten, in
 Gruppen. Der Rest - Integrationen, Kanäle, Routinen, Wissens-Sync, Abteilungen,
 Mitglieder, Sandboxes - wartet im Katalog, einen Klick entfernt unter **Customize**:
 
-| Gruppe | Beantwortet |
-|---|---|
-| *(ohne Titel, ganz oben)* | Die Zusammenfassung, Runs im Zeitverlauf und wie sie ausgingen |
-| **Needs attention** | Was wartet: [Freigaben](governance.md#approvals), jüngste Fehlschläge, Budget-Spielraum, Ihre jüngsten [Benachrichtigungen](#the-bell) |
-| **Usage & cost** | Welche Agents genutzt werden, Ausgaben, [Anrufminuten](#voice-calls), wann gearbeitet wird, woher Runs kommen, Modellmix, Latenz, Antwortqualität, wer es nutzt |
+| Gruppe                    | Beantwortet                                                                                                                                                     |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| _(ohne Titel, ganz oben)_ | Die Zusammenfassung, Runs im Zeitverlauf und wie sie ausgingen                                                                                                  |
+| **Needs attention**       | Was wartet: [Freigaben](governance.md#approvals), jüngste Fehlschläge, Budget-Spielraum, Ihre jüngsten [Benachrichtigungen](#the-bell)                          |
+| **Usage & cost**          | Welche Agents genutzt werden, Ausgaben, [Anrufminuten](#voice-calls), wann gearbeitet wird, woher Runs kommen, Modellmix, Latenz, Antwortqualität, wer es nutzt |
 
 Das Dashboard öffnet mit **Erste Schritte**, bis jeder Schritt erledigt ist:
 Agents etwas über sich erzählen, ein Gespräch beginnen, einen Dienst mit dem
@@ -100,7 +108,7 @@ Ergebnisse in den privaten Posteingang. Jeder Tab hat eigene Erstellungsaktionen
 `/routines?tab=watches` öffnet die Beobachtungen.
 
 Discover beginnt auf dem Dashboard mit illustrierten Fähigkeiten. Beim Überfahren
-einer Kurve in *Your period* erscheinen Zeitabschnitt und Wert; Ausgaben werden
+einer Kurve in _Your period_ erscheinen Zeitabschnitt und Wert; Ausgaben werden
 als Geldbetrag formatiert. Projekte zeigen Beschreibungen, Agentenzeilen dieselben
 Avatare wie im Chat.
 
@@ -171,7 +179,7 @@ abgearbeitet hat.
 
 Jeder Klick kommt weiter, selbst wenn der ganze Stapel aus Zeilen bestand, die
 der Lesende nicht mehr sehen kann. Markiert werden sie nie: geprüft werden die
-*aktuellen* Rechte, und wer eine Woche lang herabgestuft und dann wieder
+_aktuellen_ Rechte, und wer eine Woche lang herabgestuft und dann wieder
 eingesetzt wird, fände die Sicherheitshinweise dieser Woche sonst bereits
 gelesen vor. Stattdessen sagt ein abgeschnittener Durchlauf, wo er aufgehört
 hat, und der nächste Klick setzt dort an.
@@ -190,13 +198,13 @@ die nichts auf dem Bildschirm mehr erreicht, darf nicht weiter auf das Badge
 zählen. Wie „Mark all read" ist ein Leeren begrenzt - tausend Zeilen - und ein
 längerer Rückstau braucht einen zweiten Klick.
 
-Was eine geleerte Zeile *nicht* tut, ist wiederkommen. Die Benachrichtigung
+Was eine geleerte Zeile _nicht_ tut, ist wiederkommen. Die Benachrichtigung
 wird behalten und nur nicht mehr gelistet, statt gelöscht zu werden, und genau
 das macht es wahr: der Posteingang erkennt eine Wiederholung an dem Sachverhalt,
 den sie beschreibt, eine gelöschte Zeile wäre also eine, die die nächste
 Budgetprüfung oder der nächste Versuch erneut schriebe. Einen Alarm zu
 verwerfen, um den Sie sich gekümmert haben, ist damit endgültig - für dieses
-Vorkommnis; ein *neuer*, über einen neuen Sachverhalt, kommt weiterhin an.
+Vorkommnis; ein _neuer_, über einen neuen Sachverhalt, kommt weiterhin an.
 Zeilen fallen auch von selbst heraus: neunzig Tage nach dem Schreiben, wenn sie
 gelesen wurden, und ein Jahr danach unabhängig davon.
 
@@ -367,9 +375,10 @@ Routine einrichtet.
 neuesten Antwort bis zu drei nächste Schritte als Schaltflächen an, und ein Klick
 sendet einen. Eine Zeile sagt, was er sich über Sie notiert oder vergessen hat,
 mit **Verwalten (Manage)** zu [den Notizen selbst](reference/capabilities.md#memory-files)
+
 - bitten Sie ihn, etwas zu vergessen, und er tut es. Braucht eine Anfrage eine
-Capability, die dem Agent fehlt, bietet eine Karte an, sie einzuschalten oder den
-Besitzer des Agents darum zu bitten ([wie](reference/capabilities.md)).
+  Capability, die dem Agent fehlt, bietet eine Karte an, sie einzuschalten oder den
+  Besitzer des Agents darum zu bitten ([wie](reference/capabilities.md)).
 
 **Eine Anfrage behalten, die funktioniert hat.** Fahren Sie über Ihre eigene
 Nachricht: Der Kalender macht daraus eine Routine - derselbe Prompt, standardmäßig
@@ -427,15 +436,16 @@ Mattermost behalten ihr eigenes Verhalten, beschrieben unter [Kanäle](channels.
 beenden Sie die App oder öffnen Sie eine andere Unterhaltung, und der Agent
 beendet die Antwort selbst: Sie landet in der Unterhaltung, und die Glocke - und
 eine E-Mail, wenn Sie sie für fertige oder gescheiterte Runs eingeschaltet lassen
+
 - sagt Ihnen, dass sie da ist, mit einem Link dorthin. Ein Turn, der nach einer
-Stunde ohne Zuschauer noch läuft, wird gestoppt, und Sie erfahren das
-([`CHAT_DETACHED_TURN_MINUTES`](configuration.md#a-chat-turn-left-running)). Einer,
-der auf eine Freigabe oder auf Ihre Antwort auf eine Frage wartet, meldet sich
-über diese.
-Kommen Sie zurück, solange er noch antwortet - in die Unterhaltung, aus einem
-anderen Tab, nach dem Neuladen -, nimmt der Chat die Antwort dort auf, wo sie
-steht, mit allem, was der Agent bis dahin getan hat, und zeichnet sie weiter, wie
-sie ankommt.
+  Stunde ohne Zuschauer noch läuft, wird gestoppt, und Sie erfahren das
+  ([`CHAT_DETACHED_TURN_MINUTES`](configuration.md#a-chat-turn-left-running)). Einer,
+  der auf eine Freigabe oder auf Ihre Antwort auf eine Frage wartet, meldet sich
+  über diese.
+  Kommen Sie zurück, solange er noch antwortet - in die Unterhaltung, aus einem
+  anderen Tab, nach dem Neuladen -, nimmt der Chat die Antwort dort auf, wo sie
+  steht, mit allem, was der Agent bis dahin getan hat, und zeichnet sie weiter, wie
+  sie ankommt.
 
 **Auf dem Telefon** verhält sich der Chat wie eine Messenger-App: Das
 Eingabefeld bleibt über der Tastatur und die Unterhaltung bei ihrer letzten
@@ -471,20 +481,20 @@ liest die Elementnummern erneut.
 der Symbolleiste des Browsers den Agent nach seinem laufenden Schritt und gibt Ihnen die
 Seite, im selben Fenster: klicken, tippen, scrollen, einfügen. **Zurückgeben**, und der
 Agent macht dort weiter, wo Sie aufgehört haben. Kommt der Agent allein nicht über eine
-Seite hinweg - eine Anmeldung, ein Captcha -, sagt der Browser *Der Agent
-braucht Sie* und wofür. Wer Runs sehen, aber den Agent nicht bearbeiten darf, kann
+Seite hinweg - eine Anmeldung, ein Captcha -, sagt der Browser _Der Agent
+braucht Sie_ und wofür. Wer Runs sehen, aber den Agent nicht bearbeiten darf, kann
 zusehen, nicht steuern. Dasselbe Fenster öffnet sich über den Link eines Kanals auf
 einer eigenen Seite. Siehe [Webbrowser](reference/capabilities.md#browser-automation).
 
 **Auf die Seite zeigen.** Mit der Sprechblase in der Werkzeugleiste des Browsers
-klickst du auf eine Stelle der Seite und schreibst eine Notiz dazu - *dieser Knopf,
-nicht der andere*. **Add to message** legt die Seite als Bild mit markierter Stelle in
+klickst du auf eine Stelle der Seite und schreibst eine Notiz dazu - _dieser Knopf,
+nicht der andere_. **Add to message** legt die Seite als Bild mit markierter Stelle in
 deine Nachricht, mit deiner Notiz und der Adresse der Seite, zum Senden oder
 Weiterschreiben. Das geht auch bei einem beendeten Browse, auf seinem letzten Bild.
 
 **Angemeldet bleiben.** Wenn der Browse für dich handelt - dein eigener Chat, deine
-Direktnachricht, dein eigener Zeitplan -, bietet **Zurückgeben** *Anmeldung bei …
-behalten* für die Seite an, auf der du bist. Hake es nach der Anmeldung an, und
+Direktnachricht, dein eigener Zeitplan -, bietet **Zurückgeben** _Anmeldung bei …
+behalten_ für die Seite an, auf der du bist. Hake es nach der Anmeldung an, und
 spätere Browses für dich starten dort angemeldet: Cookies und Speicher der Seite
 liegen versiegelt im Vault, nur für dich, werden nie angezeigt und nie für einen
 Widget-Besucher, einen geteilten Raum, einen API-Schlüssel oder einen Ereignis-Trigger
@@ -606,12 +616,13 @@ ohne Schlüssel, mit dem gesendet werden kann, transkribiert stattdessen der
 Browser, was nichts kostet.
 
 Die Sprache wird eigens gewählt: die der Organisation erben oder eine festlegen
+
 - so kann ein polnischer Agent Anbieter und Schlüssel der Organisation behalten.
-Die Karte ist Teil der Spec, wird mit dem Entwurf gespeichert und ist live,
-sobald der Agent veröffentlicht ist, und sie gilt für das
-[Diktieren](#dictation) an diesen Agent und für Sprachnachrichten, die seine
-Channel-Bots erben. [Die Reihenfolge](ml-services.md#which-engine-a-recording-reaches)
-hat den Rest.
+  Die Karte ist Teil der Spec, wird mit dem Entwurf gespeichert und ist live,
+  sobald der Agent veröffentlicht ist, und sie gilt für das
+  [Diktieren](#dictation) an diesen Agent und für Sprachnachrichten, die seine
+  Channel-Bots erben. [Die Reihenfolge](ml-services.md#which-engine-a-recording-reaches)
+  hat den Rest.
 
 ### Sprachanrufe { #voice-calls }
 
@@ -708,24 +719,24 @@ Remote agents, Vault, Sandboxes) und **Organization** (Organizations, Groups). E
 Gruppe öffnet sich auf jeder Seite in ihr von selbst und bleibt, wie Sie sie
 verlassen haben.
 
-| Bereich | Er hält | Lesen Sie |
-|---|---|---|
-| **Agents** | Den Katalog, den Builder, Versionen, Teilen, Testen, Aktivität | [Ihr erster Agent](first-agent.md) |
-| **Chat** | Das Gespräch mit einem veröffentlichten Agent | [Oberflächen](channels.md) |
-| **Knowledge** | Collections, Dokumente, Sync-Quellen, Ingestion-Einstellungen | [Dateiverarbeitung](file-processing.md) |
-| **Skills** | Geschriebene Abläufe, die ein Agent bei Bedarf lädt | [Skills](skills.md) |
-| **Context** | Dauerhaftes Wissen, das an viele Agents gebunden ist | [Context-Dateien](context.md) |
-| **Routines** | Zeitpläne und Ereignis-Trigger | [Trigger](triggers.md) |
-| **Runs** | Was lief, was es kostete, was es berührte, ob es fehlschlug | [Governance](governance.md#audit) |
-| **Documents** | Alle Dateien, die Agents für Sie aufbewahren - Angehängtes und Geschriebenes | [Die Sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
-| **Sandboxes** | Wo Agents Code ausführen: Hosts, laufende Sessions, Policy | [Die Sandbox](sandbox.md) |
-| **MCP servers** | Verbindungen zu externen Werkzeugen, persönlich und organisationsweit | [MCP](mcp.md) |
-| **Channels** | Slack-, Teams-, Telegram- und Mattermost-Bots, Widgets, gehostete Seiten | [Oberflächen](channels.md) |
-| **Remote agents** | Agents anderer Anbieter, über ihre A2A Agent Card registriert, an die Agents delegieren | [Capabilities](reference/capabilities.md#remote-agents) |
-| **Vault** | Zugangsdaten, pro Organisation versiegelt | [Secrets](secrets.md) |
-| **Organizations** | Mitglieder, Rollen, Einladungen | [Berechtigungen](permissions.md) |
-| **Settings** | Provider, Ingestion-Vorgaben, Benachrichtigungen, Ihr eigenes Profil | [Konfiguration](configuration.md) |
-| **Admin** | Das Deployment selbst: Nutzer, Tenants, System, Hintergrund-Jobs, Deployment-Einstellungen | [Das Deployment](deployment.md) |
+| Bereich           | Er hält                                                                                    | Lesen Sie                                                                    |
+| ----------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| **Agents**        | Den Katalog, den Builder, Versionen, Teilen, Testen, Aktivität                             | [Ihr erster Agent](first-agent.md)                                           |
+| **Chat**          | Das Gespräch mit einem veröffentlichten Agent                                              | [Oberflächen](channels.md)                                                   |
+| **Knowledge**     | Collections, Dokumente, Sync-Quellen, Ingestion-Einstellungen                              | [Dateiverarbeitung](file-processing.md)                                      |
+| **Skills**        | Geschriebene Abläufe, die ein Agent bei Bedarf lädt                                        | [Skills](skills.md)                                                          |
+| **Context**       | Dauerhaftes Wissen, das an viele Agents gebunden ist                                       | [Context-Dateien](context.md)                                                |
+| **Routines**      | Zeitpläne und Ereignis-Trigger                                                             | [Trigger](triggers.md)                                                       |
+| **Runs**          | Was lief, was es kostete, was es berührte, ob es fehlschlug                                | [Governance](governance.md#audit)                                            |
+| **Documents**     | Alle Dateien, die Agents für Sie aufbewahren - Angehängtes und Geschriebenes               | [Die Sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
+| **Sandboxes**     | Wo Agents Code ausführen: Hosts, laufende Sessions, Policy                                 | [Die Sandbox](sandbox.md)                                                    |
+| **MCP servers**   | Verbindungen zu externen Werkzeugen, persönlich und organisationsweit                      | [MCP](mcp.md)                                                                |
+| **Channels**      | Slack-, Teams-, Telegram- und Mattermost-Bots, Widgets, gehostete Seiten                   | [Oberflächen](channels.md)                                                   |
+| **Remote agents** | Agents anderer Anbieter, über ihre A2A Agent Card registriert, an die Agents delegieren    | [Capabilities](reference/capabilities.md#remote-agents)                      |
+| **Vault**         | Zugangsdaten, pro Organisation versiegelt                                                  | [Secrets](secrets.md)                                                        |
+| **Organizations** | Mitglieder, Rollen, Einladungen                                                            | [Berechtigungen](permissions.md)                                             |
+| **Settings**      | Provider, Ingestion-Vorgaben, Benachrichtigungen, Ihr eigenes Profil                       | [Konfiguration](configuration.md)                                            |
+| **Admin**         | Das Deployment selbst: Nutzer, Tenants, System, Hintergrund-Jobs, Deployment-Einstellungen | [Das Deployment](deployment.md)                                              |
 
 Der **Agents**-Katalog lässt sich nach **Category** und **Tag** filtern — den
 editierbaren, organisationslokalen Labels, die auf der Karte jedes Agents

@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 import { BookOpen, ChevronDown, Library, ListFilter, Lock, Plus } from "lucide-react";
 
-import { PhoneFilters } from "@/components/ui/phone-filters";
+import { ListFilters } from "@/components/ui/list-filters";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ProposedChanges } from "@/components/skills/proposed-changes";
 import { CreateSkillDialog } from "@/components/skills/create-skill-dialog";
@@ -199,7 +199,7 @@ export default function SkillsPage() {
           placeholder={t("searchSkills")}
           className="min-w-0 flex-1 sm:w-56 sm:flex-none"
         />
-        <PhoneFilters
+        <ListFilters
           compact
           active={selectedCategories.length + Number(groupId !== null) + Number(sort !== "name")}
         >
@@ -287,7 +287,7 @@ export default function SkillsPage() {
               </Chip>
             </div>
           </div>
-        </PhoneFilters>
+        </ListFilters>
       </div>
     ) : undefined;
 

@@ -7,6 +7,8 @@
  * and hue pinned, so it is the same creature on every machine.
  */
 
+import { AVATAR_TRAITS } from "@/lib/avatar-policy";
+import type { TraitOverrides } from "blobatar";
 import cast from "@/lib/desktop/blobby-cast.json";
 import { avatarHue } from "@/lib/avatar-color";
 import type { BlobbyCharacter } from "@/lib/desktop/commands";
@@ -25,7 +27,7 @@ export const BLOBBY_CAST: readonly CastMember[] = cast;
 export interface Face {
   seed: string;
   hue: number | undefined;
-  traits: { shape: number } | undefined;
+  traits: TraitOverrides;
 }
 
 export function faceOf(character: BlobbyCharacter): Face {
@@ -37,9 +39,9 @@ export function faceOf(character: BlobbyCharacter): Face {
     }
     case "agent":
       // The handle, as `AgentAvatar` draws it: the same face the agent wears everywhere.
-      return { seed: character.slug, hue: avatarHue(character.color_slot), traits: undefined };
+      return { seed: character.slug, hue: avatarHue(character.color_slot), traits: AVATAR_TRAITS };
     case "custom":
-      return { seed: character.seed, hue: avatarHue(character.color_slot), traits: undefined };
+      return { seed: character.seed, hue: avatarHue(character.color_slot), traits: AVATAR_TRAITS };
   }
 }
 

@@ -112,6 +112,8 @@ focus choice buttons automatically.
 
 ## Connection setup and app readiness
 
+The account menu also opens **App readiness** directly, including from Desktop settings. The checklist replaces the floating setup counter so it never covers page controls.
+
 The connection review is centered on the native glass material, even when the
 console uses an opaque saved look. Its status rows stay mounted while checking.
 Connecting and Continue show progress immediately; the dashboard is prefetched
@@ -243,11 +245,11 @@ selector shows that folder's approved mode; changing it opens the native folder
 picker again to confirm the new permission. Cancelling keeps the previous choice.
 The folder and mode stay selected when settings close and when a new chat gets its ID.
 
-| Mode | What the agent may do | How it is held to it |
-|---|---|---|
-| Read only | Read files; nothing is written and no command runs | The app refuses writes and commands |
-| Write in the folder | Read, write inside the folder, run commands | Commands run under Seatbelt on macOS and bubblewrap on Linux, writable only in the folder and the temporary directories |
-| Full access | Commands run as you, unsandboxed | Every command is shown in a native dialog to allow first |
+| Mode                | What the agent may do                              | How it is held to it                                                                                                    |
+| ------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Read only           | Read files; nothing is written and no command runs | The app refuses writes and commands                                                                                     |
+| Write in the folder | Read, write inside the folder, run commands        | Commands run under Seatbelt on macOS and bubblewrap on Linux, writable only in the folder and the temporary directories |
+| Full access         | Commands run as you, unsandboxed                   | Every command is shown in a native dialog to allow first                                                                |
 
 Windows offers read only and full access. Linux offers writing in the folder only
 when `bwrap` is installed.
@@ -335,14 +337,14 @@ What happens, in order:
 
 1. The console's own `/api/oauth/<provider>/login` runs **in the window**, where
    it can read the httpOnly cookie holding a staged invitation and attach it.
-2. The window then sees a navigation to the *deployment's*
+2. The window then sees a navigation to the _deployment's_
    `/api/v1/oauth/<provider>/login`, hands it to the system browser with
    `client=desktop` and a freshly minted `desktop_nonce` appended, and does not
    follow it.
 3. You sign in there, in a real browser with your own passwords, your own
    extensions and whatever second factor you use.
 4. The deployment's callback sees that this attempt was a desktop one - recorded
-   in the session at the *start* under that attempt's OAuth `state`, never read
+   in the session at the _start_ under that attempt's OAuth `state`, never read
    off the return - and redirects to `agenticos://auth/callback?code=…` with a
    single-use code that expires in a minute, plus the nonce it was given.
 5. The operating system hands that link to the app. The shell sends the console
@@ -350,7 +352,7 @@ What happens, in order:
    token pair server-to-server; the window's own cookies are set.
 
 **A deep link is something any process on your machine can fire**, so what one is
-allowed to do here is narrow: send the console to one path, on the server *you*
+allowed to do here is narrow: send the console to one path, on the server _you_
 configured, carrying a code that redeems exactly once - and only one carrying the
 nonce this app minted for this attempt. On Windows and Linux a single-instance lock
 hands a second launch's arguments to the first. The deployment has to agree about
@@ -466,7 +468,6 @@ Store credentials stay in CI; release jobs delete temporary signing files.
 TestFlight upload remains disabled until explicitly enabled. Store approval,
 provisioning and signed-device delivery require the operator's accounts and
 cannot be verified by an unsigned local build.
-
 
 ## Recap
 

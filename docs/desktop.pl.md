@@ -1,5 +1,5 @@
 ---
-source_sha: "8a95b0f3cca2"
+source_sha: "6d23d87dfc5d"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -115,6 +115,8 @@ sejf serwera. Natywny kreator używa neutralnego oznaczenia fokusu klawiatury i 
 ustawia automatycznie fokusu na przyciskach wyboru.
 
 ## Konfiguracja połączenia i gotowość aplikacji { #connection-setup-and-app-readiness }
+
+Menu użytkownika otwiera też bezpośrednio **Gotowość aplikacji**, również z ustawień desktopu. Lista kroków zastępuje pływający licznik konfiguracji i nie zasłania przycisków strony.
 
 Przegląd połączenia jest wycentrowany na natywnym materiale Glass także wtedy,
 gdy konsola ma zapisany nieprzezroczysty styl. Wiersze pozostają widoczne podczas
@@ -251,11 +253,11 @@ wyboru folderu, aby potwierdzić nowe uprawnienia. Anulowanie zachowuje poprzedn
 wybór. Folder i tryb pozostają wybrane po zamknięciu ustawień oraz po nadaniu
 nowemu czatowi identyfikatora.
 
-| Tryb | Co agent może | Jak jest tego pilnowane |
-|---|---|---|
-| Tylko odczyt | Czytać pliki; nic nie jest zapisywane i żadne polecenie się nie uruchamia | Aplikacja odrzuca zapisy i polecenia |
-| Zapis w folderze | Czytać, zapisywać w folderze, uruchamiać polecenia | Polecenia działają pod Seatbelt na macOS i bubblewrap na Linuksie, z zapisem tylko w folderze i katalogach tymczasowych |
-| Pełny dostęp | Polecenia działają jako ty, bez piaskownicy | Każde polecenie jest najpierw pokazane w natywnym oknie do zatwierdzenia |
+| Tryb             | Co agent może                                                             | Jak jest tego pilnowane                                                                                                 |
+| ---------------- | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Tylko odczyt     | Czytać pliki; nic nie jest zapisywane i żadne polecenie się nie uruchamia | Aplikacja odrzuca zapisy i polecenia                                                                                    |
+| Zapis w folderze | Czytać, zapisywać w folderze, uruchamiać polecenia                        | Polecenia działają pod Seatbelt na macOS i bubblewrap na Linuksie, z zapisem tylko w folderze i katalogach tymczasowych |
+| Pełny dostęp     | Polecenia działają jako ty, bez piaskownicy                               | Każde polecenie jest najpierw pokazane w natywnym oknie do zatwierdzenia                                                |
 
 Windows oferuje tylko odczyt i pełny dostęp. Linux oferuje zapis w folderze tylko
 wtedy, gdy jest zainstalowany `bwrap`.
@@ -275,8 +277,9 @@ folder swojego komputera w polu **Pracuj na** triggera.
 **Gdy komputera nie ma.** Run, który poprosił o ten komputer i zastał aplikację
 bez połączenia, czeka na nią do dziesięciu minut, a czat o tym mówi. Operacja,
 która zastanie aplikację rozłączoną w trakcie runa - zamknięta klapa, zmiana sieci
+
 - czeka do pięciu minut na jej powrót w tej samej sesji, a potem idzie dalej. Gdy
-operacja runa jest w toku, zasobnik mówi, że agent pracuje na tym komputerze.
+  operacja runa jest w toku, zasobnik mówi, że agent pracuje na tym komputerze.
 
 Serwer sprawdza sesję przed przekazaniem każdej lokalnej operacji. Odwołana lub wygasła sesja odmawia nowej pracy; heartbeat zamyka też bezczynne połączenia. Operacje już w toku są anulowane po zamknięciu połączenia desktopu.
 
@@ -343,13 +346,13 @@ Co się dzieje, po kolei:
 
 1. Własne `/api/oauth/<provider>/login` konsoli działa **w oknie**, gdzie może
    przeczytać ciasteczko httpOnly z przygotowanym zaproszeniem i je dołączyć.
-2. Okno widzi wtedy nawigację do `/api/v1/oauth/<provider>/login` *wdrożenia*,
+2. Okno widzi wtedy nawigację do `/api/v1/oauth/<provider>/login` _wdrożenia_,
    przekazuje ją systemowej przeglądarce z dopisanymi `client=desktop` i świeżo
    wybitym `desktop_nonce` i nie idzie za nią.
 3. Logujesz się tam, w prawdziwej przeglądarce z własnymi hasłami, własnymi
    rozszerzeniami i jakimkolwiek drugim składnikiem.
 4. Callback wdrożenia widzi, że ta próba była desktopowa - zapisane w sesji na
-   *początku* pod `state` OAuth tej próby, nigdy nie odczytywane z powrotu - i
+   _początku_ pod `state` OAuth tej próby, nigdy nie odczytywane z powrotu - i
    przekierowuje do `agenticos://auth/callback?code=…` z jednorazowym kodem, który
    wygasa po minucie, oraz otrzymanym nonce.
 5. System przekazuje ten link aplikacji. Powłoka wysyła okno konsoli do
@@ -358,7 +361,7 @@ Co się dzieje, po kolei:
 
 **Deep link może wywołać każdy proces na twoim komputerze**, więc to, co jeden
 może tu zrobić, jest wąskie: wysłać konsolę pod jedną ścieżkę, na serwerze, który
-*ty* skonfigurowałeś, z kodem wymienialnym dokładnie raz - i tylko taki, który
+_ty_ skonfigurowałeś, z kodem wymienialnym dokładnie raz - i tylko taki, który
 niesie nonce wybity przez tę aplikację dla tej próby. Na Windows i Linuksie blokada
 jednej instancji przekazuje argumenty drugiego uruchomienia pierwszemu. Wdrożenie
 musi zgadzać się co do schematu - `DESKTOP_DEEP_LINK_SCHEME`, `agenticos`, chyba że
@@ -473,7 +476,6 @@ Dane sklepów pozostają w CI, a zadania usuwają tymczasowe pliki podpisujące.
 Wysyłka do TestFlight jest wyłączona do jawnego włączenia. Zatwierdzenie sklepu,
 provisioning i dostarczenie na podpisane urządzenia wymagają kont operatora;
 nie potwierdzi ich niepodpisany lokalny build.
-
 
 ## Podsumowanie { #recap }
 

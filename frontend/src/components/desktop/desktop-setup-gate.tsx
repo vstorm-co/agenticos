@@ -14,7 +14,7 @@ import { useDesktopSetup } from "@/hooks/use-desktop-setup";
 import { useShellEvent } from "@/hooks/use-desktop";
 import { useDesktopPreferencesStore } from "@/stores/desktop-preferences-store";
 import { ReadinessPanel } from "./readiness-panel";
-import { useRouter } from "@/lib/locale-navigation";
+import { OPEN_DESKTOP_SETUP } from "./desktop-setup-menu-item";
 
 /** A connection review is per server/account/org and explicit connection revision, never user age. */
 export function DesktopSetupGate() {
@@ -32,7 +32,14 @@ export function DesktopSetupGate() {
   const offered = useRef(new Set<string>());
   const [requestedOpen, setOpen] = useState(false);
   const [repair, setRepair] = useState<string | null>(null);
-  const router = useRouter();
+  useEffect(() => {
+    const openSetup = () => {
+      setRepair(null);
+      setOpen(true);
+    };
+    window.addEventListener(OPEN_DESKTOP_SETUP, openSetup);
+    return () => window.removeEventListener(OPEN_DESKTOP_SETUP, openSetup);
+  }, []);
   const settled = setup.items.every((item) => item.state !== "checking");
   const needsSetup = setup.items.some((item) => item.state === "missing" || item.state === "error");
   const reviewDue =
@@ -60,17 +67,6 @@ export function DesktopSetupGate() {
   };
   return (
     <>
-      {!open && setup.items.some((item) => item.state === "missing" || item.state === "error") && (
-        <button
-          type="button"
-          className="bg-background text-muted-foreground fixed right-4 bottom-4 z-30 rounded-full border px-3 py-2 text-xs shadow-sm"
-          onClick={() => router.push("/settings/desktop")}
-        >
-          {t("remaining", {
-            count: setup.items.filter((i) => i.state === "missing" || i.state === "error").length,
-          })}
-        </button>
-      )}
       <Dialog
         open={open}
         onOpenChange={(value) => {
