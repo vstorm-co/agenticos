@@ -17,8 +17,8 @@ use tauri::{Theme, WebviewWindow};
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default, Debug)]
 #[serde(rename_all = "lowercase")]
 pub enum Look {
-    #[default]
     Standard,
+    #[default]
     Glass,
     Graphite,
     Midnight,
@@ -158,9 +158,9 @@ mod tests {
     }
 
     #[test]
-    fn an_appearance_saved_before_looks_existed_is_the_standard_system_one() {
+    fn a_missing_appearance_defaults_to_glass_and_system_theme() {
         let appearance: Appearance = serde_json::from_str("{}").unwrap();
-        assert_eq!(appearance.look, Look::Standard);
+        assert_eq!(appearance.look, Look::Glass);
         assert_eq!(appearance.mode, Mode::System);
     }
 

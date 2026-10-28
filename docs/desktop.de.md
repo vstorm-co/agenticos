@@ -1,5 +1,5 @@
 ---
-source_sha: "b2aa4d6283ee"
+source_sha: "858fbdfbef48"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -25,6 +25,9 @@ und denselben Mandantenprüfungen wie ein Browser-Tab. Sie ist eine
     davon läuft in einer Desktop-Binärdatei, also versucht es die Shell gar nicht:
     Sie öffnet die URL des Deployments wie ein Browser. Installiert wird das
     Deployment; die App ist der Weg, es zu öffnen.
+
+Ohne gespeicherte Auswahl startet die Desktop-App mit dem **System**-Modus und
+dem Stil **Glass**. Eine ausdrücklich gespeicherte Auswahl hat Vorrang.
 
 ## Starten { #running-it }
 

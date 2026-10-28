@@ -22,6 +22,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Desktop defaults to the system theme and Glass look when no preference has
+  been saved; explicit user choices take precedence.
+
 - Desktop connection readiness for new and existing accounts, with explicit macOS
   permission requests, contextual repair links and a persistent status panel.
   Notification preferences include hidden previews, per-conversation mute and

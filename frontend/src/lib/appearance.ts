@@ -19,6 +19,13 @@ export function isLook(value: unknown): value is Look {
   return typeof value === "string" && (LOOKS as readonly string[]).includes(value);
 }
 
+const DESKTOP_PLATFORMS = ["macos", "windows", "linux"] as const;
+
+/** Desktop starts with native glass; browser and phone keep their existing look. */
+export function defaultLook(platform: unknown): Look {
+  return DESKTOP_PLATFORMS.some((known) => known === platform) ? "glass" : "standard";
+}
+
 /** The `localStorage` key the theme store persists the theme and the look under. */
 export const THEME_STORAGE_KEY = "theme-storage";
 
@@ -44,15 +51,16 @@ export const VIBRANCY_ATTRIBUTE = "data-vibrancy";
  * theme store's persisted shape (`{"state":{"look":…}}`), the shell's
  * announcement (`window.__AGENTICOS_SHELL__`) and the Android app's measured
  * status bar (`window.AgenticOSInsets`), and `appearance.test.ts` runs it
- * against the same cases the store and `parseShellInfo` answer. Storage that
- * throws leaves the look to `ThemeProvider`, which sets it once the app hydrates.
+ * against the same cases the store and `parseShellInfo` answer. Unreadable storage
+ * keeps the platform default until the user chooses another look.
  */
 export const APPEARANCE_BOOTSTRAP_SCRIPT =
-  "(function(){var d=document.documentElement;try{" +
+  "(function(){var d=document.documentElement,h=window.__AGENTICOS_SHELL__;" +
+  `var l=${JSON.stringify(DESKTOP_PLATFORMS)}.indexOf(h&&h.platform)>=0?"glass":"standard";try{` +
   `var s=JSON.parse(localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)})||"{}").state;` +
-  `var l=s&&s.look;if(${JSON.stringify(LOOKS)}.indexOf(l)>0)d.setAttribute(${JSON.stringify(LOOK_ATTRIBUTE)},l)` +
-  "}catch(e){}" +
-  'var h=window.__AGENTICOS_SHELL__;if(h&&typeof h.platform==="string"){' +
+  `if(s&&${JSON.stringify(LOOKS)}.indexOf(s.look)>=0)l=s.look` +
+  `}catch(e){}if(l!=="standard")d.setAttribute(${JSON.stringify(LOOK_ATTRIBUTE)},l);` +
+  'if(h&&typeof h.platform==="string"){' +
   `d.setAttribute(${JSON.stringify(SHELL_ATTRIBUTE)},h.platform);` +
   `d.setAttribute(${JSON.stringify(SHELL_WINDOW_ATTRIBUTE)},String(h.window));` +
   `if(h.vibrancy===true)d.setAttribute(${JSON.stringify(VIBRANCY_ATTRIBUTE)},"")` +

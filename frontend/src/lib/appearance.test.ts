@@ -128,3 +128,18 @@ describe("the appearance bootstrap", () => {
     expect(() => boot()).not.toThrow();
   });
 });
+
+it("starts desktop glass before paint but respects an explicitly saved standard look", () => {
+  window.__AGENTICOS_SHELL__ = {
+    platform: "macos",
+    version: "test",
+    window: "main",
+    vibrancy: true,
+  };
+  boot();
+  expect(root().getAttribute(LOOK_ATTRIBUTE)).toBe("glass");
+  root().removeAttribute(LOOK_ATTRIBUTE);
+  localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify({ state: { look: "standard" } }));
+  boot();
+  expect(root().hasAttribute(LOOK_ATTRIBUTE)).toBe(false);
+});

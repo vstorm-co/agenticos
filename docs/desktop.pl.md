@@ -1,5 +1,5 @@
 ---
-source_sha: "b2aa4d6283ee"
+source_sha: "858fbdfbef48"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -25,6 +25,9 @@ tenanta co karta przeglądarki. To powłoka [Tauri](https://tauri.app) w
     działa wewnątrz binarki desktopowej, więc powłoka nawet nie próbuje: otwiera
     URL wdrożenia tak, jak zrobiłaby to przeglądarka. Instalujesz wdrożenie;
     aplikacja to sposób, w jaki je otwierasz.
+
+Bez zapisanej preferencji desktop uruchamia się z motywem **Systemowym** i stylem
+**Glass**. Wcześniejszy jawny wybór motywu lub stylu ma pierwszeństwo.
 
 ## Uruchamianie { #running-it }
 

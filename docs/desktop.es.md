@@ -1,5 +1,5 @@
 ---
-source_sha: "b2aa4d6283ee"
+source_sha: "858fbdfbef48"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -25,6 +25,9 @@ un shell de [Tauri](https://tauri.app) en `desktop/`.
     eso funciona dentro de un binario de escritorio, así que el shell no lo
     intenta: abre la URL del despliegue como lo haría un navegador. Lo que se
     instala es el despliegue; la app es la forma de abrirlo.
+
+Sin una preferencia guardada, la aplicación de escritorio usa el tema **Sistema**
+y el estilo **Glass**. Una elección explícita guardada tiene prioridad.
 
 ## Ejecutarla { #running-it }
 

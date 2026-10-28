@@ -21,6 +21,9 @@ permissions and the same tenant checks a browser tab would. It is a
     binary, so the shell does not try: it opens the deployment's URL the way a
     browser would. A deployment is what you install; the app is how you open it.
 
+Without a saved preference, the desktop starts with **System** theme and **Glass**
+look. An explicit saved theme or look takes precedence.
+
 ## Running it
 
 Before choosing a local installation or connecting to a server, the first-run wizard
