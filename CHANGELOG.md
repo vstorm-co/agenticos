@@ -29,12 +29,6 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- Security: a console link in an agent's answer can no longer send the console
-  tab to another site. A path such as `/a/..//evil.example` normalises to
-  `//evil.example`, and the console opened that in place as if it were one of
-  its own pages. Such a link is now an ordinary link and stays on the console.
-  Answers can be shaped by content the agent reads, so this was a phishing
-  route.
 - A knowledge base on a custom OpenRouter endpoint is offered only the
   embedding models that endpoint serves. The EU endpoint serves none of
   OpenAI's, so a collection created on the default model failed every upload
@@ -46,6 +40,15 @@ Two things are versioned separately from this file and worth knowing about:
 - Model pickers sort versions as numbers and keep a variant such as
   OpenRouter's `:batch` beside its model. Plain string order put
   `openai/gpt-5:batch` below every `gpt-5.6` model.
+
+### Security
+
+- A link in an agent's answer that looks like a console page can no longer send
+  the console tab to another site. A path such as `/a/..//evil.example`
+  normalises to `//evil.example`, and the console opened that in place as if it
+  were one of its own pages. Such a link is now an ordinary link and stays on
+  the console. Answers can be shaped by content the agent reads, so this was a
+  phishing route.
 
 ## [1.27.0] - 2026-10-27
 
