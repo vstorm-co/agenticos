@@ -1,5 +1,5 @@
 ---
-source_sha: "986e4ab82369"
+source_sha: "bfe294dfe43d"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1793,8 +1793,8 @@ rechazo nombra la lista.
 
 Un perfil sobre el
 [inicio de sesión de ChatGPT](../models.md#running-on-a-chatgpt-subscription) de
-alguien, o uno cuyos fallbacks llegan a uno, solo está en la lista cuando el spec del
-agente nombra exactamente ese perfil - su propio modelo, el de un revisor, el de un
+alguien, o uno cuyos tres primeros fallbacks llegan a uno, solo está en la lista
+cuando el spec del agent nombra exactamente ese perfil - su propio modelo, el de un revisor, el de un
 especialista inline o el de una capability activada -, porque un inicio de sesión es
 la suscripción de una persona. Un perfil que quien ejecuta el agente no puede usar
 se omite en vez de hacer fallar el run.

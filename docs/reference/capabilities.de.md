@@ -1,5 +1,5 @@
 ---
-source_sha: "986e4ab82369"
+source_sha: "bfe294dfe43d"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1872,8 +1872,8 @@ und die Ablehnung nennt die Liste.
 
 Ein Profil auf der
 [ChatGPT-Anmeldung](../models.md#running-on-a-chatgpt-subscription) einer Person,
-oder eines, dessen Fallbacks eine erreichen, steht nur dann auf der Liste, wenn die
-Spec des Agenten genau dieses Profil nennt - sein eigenes Modell, das eines
+oder eines, dessen erste drei Fallbacks eine erreichen, steht nur dann auf der Liste,
+wenn der Spec des Agents genau dieses Profil nennt - sein eigenes Modell, das eines
 Reviewers, eines Inline-Spezialisten oder einer eingeschalteten Capability -, denn
 eine Anmeldung ist das Abonnement einer Person. Ein Profil, das die Person, die den
 Agenten ausführt, nicht verwenden darf, wird ausgelassen, statt den Run scheitern zu

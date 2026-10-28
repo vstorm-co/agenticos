@@ -415,8 +415,8 @@ ohne seine Id zu ändern.
       [`allow_dynamic`](reference/capabilities.md#delegation) darf das Modell
       eines Runs das Modell eines Spezialisten aus den Profilen der Organisation
       wählen. Ein Profil auf einer Anmeldung, oder eines, dessen erste drei
-      Fallbacks eine erreichen, steht nur dann auf dieser Liste, wenn die Spec
-      des Agenten genau dieses Profil als eines der oben genannten Modelle nennt.
+      Fallbacks eine erreichen, steht nur dann auf dieser Liste, wenn der Spec
+      des Agents genau dieses Profil als eines der oben genannten Modelle nennt.
     - **Die angezeigten Ausgaben sind nicht Ihre Rechnung.** Ein Run wird zu den
       OpenAI-API-Preisen für dasselbe Modell bepreist, und damit kann ein
       [Budget](governance.md#budgets) rechnen. Das Abonnement selbst rechnet

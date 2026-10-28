@@ -33,6 +33,7 @@ from pydantic_ai import Agent
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
+from app.agents.audience import RunAudience
 from app.agents.capabilities.budget import SpendLedger
 from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE
 from app.agents.capabilities.subagents import SubagentsConfig
@@ -1176,9 +1177,11 @@ class TestASpecialistTheModelInvents:
     async def test_a_sign_in_the_spec_names_is_still_offered(self):
         """Its author chose it, and publish held them to being allowed to (#2546).
         The agent's own model, a pinned specialist's, and a profile whose fallback
-        is a sign-in when the spec names that profile."""
+        is a sign-in when the spec names that profile - though not the sign-in it
+        falls back to."""
         own, pinned = _sign_in("own codex"), _sign_in("pinned codex")
-        chained = _profile("fast, then codex", fallbacks=(own,))
+        elsewhere = _sign_in("somebody else's")
+        chained = _profile("fast, then codex", fallbacks=(elsewhere,))
         prepared = await _prepare(
             _delegating(
                 inline=[_specialist(model_profile_id=pinned.id)],
@@ -1186,12 +1189,110 @@ class TestASpecialistTheModelInvents:
                 model_profile_id=own.id,
                 reviewers=[{"name": "checker", "model_profile_id": str(chained.id)}],
             ),
-            profiles=[_profile("fast"), own, pinned, chained, _sign_in("somebody else's")],
+            profiles=[_profile("fast"), own, pinned, chained, elsewhere],
         )
 
         dynamic = prepared.runtime.dynamic
         assert dynamic is not None
         assert dynamic.allowed_models == ("fast", "own codex", "pinned codex", "fast, then codex")
+
+    async def test_with_no_model_left_to_offer_it_invents_none(self):
+        """The delegation library reads an empty list of allowed models as "any
+        model at all", and the builder then has nothing to build one on."""
+        prepared = await _prepare(_delegating(allow_dynamic=True), profiles=[_sign_in()])
+
+        assert prepared.runtime.dynamic is None
+
+    @pytest.mark.security
+    async def test_each_level_offers_the_sign_ins_its_own_author_named(self):
+        """A published delegate's own model is its author's choice, not its
+        caller's - and a profile resolved for one level is not unsealed again
+        for the next."""
+        fast, own_sign_in = _profile("fast"), _sign_in("child's codex")
+        child_id = uuid.uuid4()
+        child = _version(
+            child_id,
+            _delegating(name="Research Bot", allow_dynamic=True, model_profile_id=own_sign_in.id),
+        )
+        parent = _delegating(
+            subagents=[SubagentRef(agent_id=child_id, agent_version_id=child.id)],
+            allow_dynamic=True,
+            max_depth=2,
+        )
+
+        prepared = await _prepare(parent, versions={child.id: child}, profiles=[fast, own_sign_in])
+        nested = prepared.built("research-bot")["resources"][SUBAGENT_RUNTIME_RESOURCE]
+
+        assert prepared.runtime.dynamic is not None
+        assert prepared.runtime.dynamic.allowed_models == ("fast",)
+        assert nested.dynamic is not None
+        assert nested.dynamic.allowed_models == ("fast", "child's codex")
+        resolved = [call.kwargs["profile_id"] for call in prepared.resolved.await_args_list]
+        assert resolved.count(fast.id) == 1
+
+    @pytest.mark.security
+    async def test_a_sign_in_its_caller_shares_a_binding_on_is_not_the_delegates_choice(self):
+        """A shared browse binding lends the delegate its parent's step model,
+        which no delegated run reaches - and which nobody publishing the delegate
+        chose for a specialist to spend."""
+        step = _sign_in("parent's step codex")
+        child_id = uuid.uuid4()
+        child = _version(child_id, _delegating(name="Research Bot", allow_dynamic=True))
+        parent = _delegating(
+            subagents=[SubagentRef(agent_id=child_id, agent_version_id=child.id)],
+            max_depth=2,
+            share=["browser_use"],
+            capabilities=[
+                {
+                    "id": "browser_use",
+                    "config": {
+                        "cdp_url": "http://cdp:9222",
+                        "step_model_profile_id": str(step.id),
+                    },
+                }
+            ],
+        )
+
+        prepared = await _prepare(
+            parent, versions={child.id: child}, profiles=[_profile("fast"), step]
+        )
+        nested = prepared.built("research-bot")["resources"][SUBAGENT_RUNTIME_RESOURCE]
+
+        assert nested.dynamic is not None
+        assert nested.dynamic.allowed_models == ("fast",)
+
+    @pytest.mark.security
+    async def test_on_a_resume_every_model_in_the_tree_is_resolved_for_the_runs_own_person(
+        self,
+    ):
+        """On a resume `ctx` is the approver's. Resolving the delegates' models,
+        or the catalog, for them would lend a parked run the approver's ChatGPT
+        sign-in - or refuse it the owner's - as `_assemble` already avoids for the
+        run's own model."""
+        owner_id = uuid.uuid4()
+        child_id = uuid.uuid4()
+        child = _version(child_id, AgentSpec(name="Fact Checker"))
+        assemble = AgentRunnerService._assemble
+
+        async def resumed(self: AgentRunnerService, ctx: AuthContext, **kwargs: Any) -> Any:
+            return await assemble(
+                self, ctx, **{**kwargs, "restored_audience": RunAudience(user_id=owner_id)}
+            )
+
+        with patch.object(AgentRunnerService, "_assemble", new=resumed):
+            prepared = await _prepare(
+                _delegating(
+                    inline=[_specialist()],
+                    subagents=[SubagentRef(agent_id=child_id, agent_version_id=child.id)],
+                    allow_dynamic=True,
+                ),
+                versions={child.id: child},
+                profiles=[_profile("fast")],
+            )
+
+        assert prepared.runtime.dynamic is not None
+        whose = {call.args[0].user_id for call in prepared.resolved.await_args_list}
+        assert whose == {owner_id}
 
     async def test_a_speech_model_is_not_one_a_specialist_can_be_invented_on(self):
         """A text-to-speech profile is for text to speech; a model offered it as a

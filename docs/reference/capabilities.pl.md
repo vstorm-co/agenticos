@@ -1,5 +1,5 @@
 ---
-source_sha: "986e4ab82369"
+source_sha: "bfe294dfe43d"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1749,7 +1749,7 @@ podaje listę.
 
 Profil na czyimś
 [logowaniu do ChatGPT](../models.md#running-on-a-chatgpt-subscription) albo taki,
-którego fallbacki do niego docierają, jest na liście tylko wtedy, gdy spec agenta
+którego pierwsze trzy fallbacki do niego docierają, jest na liście tylko wtedy, gdy spec agenta
 nazywa dokładnie ten profil - własny model agenta, model recenzenta, wbudowanego
 specjalisty albo włączonej capability - bo logowanie to subskrypcja jednej osoby.
 Profil, którego osoba uruchamiająca agenta nie może użyć, jest pomijany, zamiast

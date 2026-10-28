@@ -1671,7 +1671,7 @@ names the list.
 
 A profile on somebody's
 [ChatGPT sign-in](../models.md#running-on-a-chatgpt-subscription), or one whose
-fallbacks reach one, is on the list only when the agent's spec names that exact
+first three fallbacks reach one, is on the list only when the agent's spec names that exact
 profile - its own model, a reviewer's, an inline specialist's or an enabled
 capability's - because a sign-in is one person's subscription. A profile the person
 running the agent may not use is left off rather than failing the run.

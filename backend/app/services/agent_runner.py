@@ -2048,7 +2048,7 @@ class _RunBudget:
 
 @dataclass
 class _ModelCatalog:
-    """The organization's chat models, listed once per run and resolved as needed.
+    """The organization's models, listed once per run and resolved as needed.
 
     Which of them a level offers depends on the spec delegating (a ChatGPT
     sign-in only when that spec names it), so the rows are kept rather than one
@@ -2074,6 +2074,14 @@ class _Delegation:
     """
 
     ctx: AuthContext
+    models_ctx: AuthContext
+    """Who the tree's models are resolved for - whose ChatGPT sign-in they may spend.
+
+    `ctx` except on a resume, where `ctx` is the approver's and this is the run's
+    own person, as `_assemble` resolves the run's own model: releasing somebody's
+    run must neither lend its delegates the approver's subscription nor refuse
+    them the owner's."""
+
     run: AgentRun
     surface: RunSurface
     """Where the run came from, for the briefing a delegate gets on a personal
@@ -3370,6 +3378,7 @@ class AgentRunnerService:
         )
         runtime = await self._delegation_runtime(
             ctx,
+            models_ctx=models_ctx,
             spec=spec,
             agent=agent,
             run=run,
@@ -3564,6 +3573,7 @@ class AgentRunnerService:
         self,
         ctx: AuthContext,
         *,
+        models_ctx: AuthContext,
         spec: AgentSpec,
         agent: Agent,
         run: AgentRun,
@@ -3591,6 +3601,8 @@ class AgentRunnerService:
         delegation from inside a tool call.
 
         Args:
+            models_ctx: Who every model in the tree is resolved for: see
+                `_Delegation.models_ctx`.
             resources: The run's own resource dict, from which a shared
                 capability's instance state travels to the delegates. Read, never
                 handed on: see :meth:`_delegate_resources`.
@@ -3623,6 +3635,7 @@ class AgentRunnerService:
         attribution: dict[UUID, ModelRequestSpec] = {}
         delegation = _Delegation(
             ctx=ctx,
+            models_ctx=models_ctx,
             run=run,
             surface=surface,
             agent_id=agent.id,
@@ -3669,11 +3682,21 @@ class AgentRunnerService:
             subagents,
             depth_remaining=depth_remaining,
             depth=0,
-            dynamic=await self._dynamic_specialists(delegation, config, spec=spec),
+            dynamic=await self._dynamic_specialists(
+                delegation,
+                config,
+                trace_content=spec.trace_content,
+                named=models_a_run_reaches(spec),
+            ),
         )
 
     async def _dynamic_specialists(
-        self, delegation: _Delegation, config: SubagentsConfig, *, spec: AgentSpec
+        self,
+        delegation: _Delegation,
+        config: SubagentsConfig,
+        *,
+        trace_content: TraceContent,
+        named: frozenset[UUID],
     ) -> DynamicSpecialists | None:
         """Whether one agent in the tree may invent specialists, and how it builds one.
 
@@ -3686,19 +3709,27 @@ class AgentRunnerService:
         the *result* off `SubagentRuntime.dynamic`. Two readers would be two
         answers to "may this agent invent a specialist", and the one that mattered
         would be whichever ran later.
+
+        `named` is the profiles this agent's own author chose (`_model_catalog`).
+        Also `None` when no model is left to invent one on - an override onto a
+        model elsewhere, with the one the spec names refused to this caller -
+        because the delegation library reads an empty list of allowed models as
+        "any model at all".
         """
         if not config.allow_dynamic:
             return None
-        profiles = await self._model_catalog(delegation, spec)
+        profiles = await self._model_catalog(delegation, named)
+        if not profiles:
+            return None
         return DynamicSpecialists(
-            build=_dynamic_builder(delegation, profiles=profiles, trace_content=spec.trace_content),
+            build=_dynamic_builder(delegation, profiles=profiles, trace_content=trace_content),
             allowed_models=tuple(profiles),
         )
 
     async def _model_catalog(
-        self, delegation: _Delegation, spec: AgentSpec
+        self, delegation: _Delegation, named: frozenset[UUID]
     ) -> Mapping[str, ModelRequestSpec]:
-        """Every model a dynamic specialist of `spec` may run on, resolved and keyed by label.
+        """Every model a dynamic specialist may run on, resolved and keyed by label.
 
         Resolved rather than listed, because a specialist has to be *built* from
         inside a tool call, on a session the whole run shares - so the credential
@@ -3730,8 +3761,10 @@ class AgentRunnerService:
         specialist the model invents would spend that person's plan on an agent
         nobody chose it for. A profile on a sign-in, or one whose fallbacks reach
         one (`reaches_a_sign_in`, since `resolve` follows them), is offered only
-        when `spec` names that exact profile (`models_a_run_reaches`): its author
-        chose it, and publish held them to being allowed to (#2546).
+        when it is in `named`: the profiles the delegating agent's own published
+        spec names (`models_a_run_reaches`), without what its parent shares with
+        it. Its author chose those, and publish held them to being allowed to
+        (#2546).
 
         A profile that does not resolve is left out with a warning rather than
         failing the run - its key deleted (`BadRequestError`), the row itself gone
@@ -3740,15 +3773,15 @@ class AgentRunnerService:
         key's holder, a widget visitor, a member it is not shared with). The
         alternative is one model in a catalog of ten stopping an agent that names
         none of it, which is the same reasoning `resolve` already applies to a
-        fallback chain. The delegating agent's own profile is not at risk from
-        this: it resolved before this method was reached, so the catalog holds at
-        least it and can never come back empty.
+        fallback chain. The result can be empty - see `_dynamic_specialists`.
+
+        Every profile is resolved for `_Delegation.models_ctx`, the run's own
+        person, so a resume does not resolve it for the approver.
         """
         catalog = delegation.catalog
         if catalog.rows is None:
             catalog.rows = await self.models.list_profiles(delegation.ctx)
         by_id = {profile.id: profile for profile in catalog.rows}
-        named = models_a_run_reaches(spec)
         offered: dict[str, ModelRequestSpec] = {}
         for profile in catalog.rows:
             # A specialist on a speech or embedding model would fail on its
@@ -3758,7 +3791,9 @@ class AgentRunnerService:
             if profile.id not in named and reaches_a_sign_in(profile, by_id):
                 continue
             if profile.id not in catalog.resolved:
-                catalog.resolved[profile.id] = await self._catalog_entry(delegation.ctx, profile)
+                catalog.resolved[profile.id] = await self._catalog_entry(
+                    delegation.models_ctx, profile
+                )
             if (resolved := catalog.resolved[profile.id]) is not None:
                 offered[profile.label] = resolved
         return offered
@@ -3928,7 +3963,9 @@ class AgentRunnerService:
             build=_delegate_builder(
                 delegation,
                 spec=spec,
-                model=await self.models.resolve(ctx, profile_id=spec.model_profile_id),
+                model=await self.models.resolve(
+                    delegation.models_ctx, profile_id=spec.model_profile_id
+                ),
                 agent_id=delegation.agent_id,
                 resources=own_resources,
                 secrets=await self.secrets.resolve_for_bindings(ctx, _secret_ids(spec)),
@@ -4038,7 +4075,8 @@ class AgentRunnerService:
                 },
             )
 
-        pinned = _with_shared(AgentSpec.model_validate(version.spec), shared)
+        published = AgentSpec.model_validate(version.spec)
+        pinned = _with_shared(published, shared)
         pinned = await self.registry.with_assistant_guidance(delegate, pinned)
         delegate_resources = await self._delegate_resources(
             ctx, pinned, shared=shared, parent_resources=resources
@@ -4082,8 +4120,15 @@ class AgentRunnerService:
                     # And its own trace-content mode, for the same reason: a
                     # published delegate carries an observability block of its
                     # own, so what a specialist it invents may record is its
-                    # author's answer rather than its caller's.
-                    dynamic=await self._dynamic_specialists(delegation, nested_config, spec=pinned),
+                    # author's answer rather than its caller's. And the sign-ins
+                    # its own author named, not those a binding its caller shares
+                    # runs on: nobody publishing this delegate chose them (#2546).
+                    dynamic=await self._dynamic_specialists(
+                        delegation,
+                        nested_config,
+                        trace_content=pinned.trace_content,
+                        named=models_a_run_reaches(published),
+                    ),
                 )
             else:
                 # The bound. Built without the capability rather than with one
@@ -4093,7 +4138,9 @@ class AgentRunnerService:
                 # other.
                 runnable = _without_delegation(pinned)
 
-        model = await self.models.resolve(ctx, profile_id=runnable.model_profile_id)
+        model = await self.models.resolve(
+            delegation.models_ctx, profile_id=runnable.model_profile_id
+        )
         # Recorded now so the child's run row can name the model that answered.
         delegation.attribution[ref.agent_version_id] = model
         resolved = await build_toolsets_for_agent(

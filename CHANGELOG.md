@@ -40,6 +40,10 @@ Two things are versioned separately from this file and worth knowing about:
   model in the organization, so a run by the sign-in's owner, an owner or an
   admin could spend that person's subscription on an agent nobody chose it for
   (#2546).
+- A run resumed after an approval resolves its delegates' and specialists'
+  models for the person whose run it is, as it already did for the agent's own
+  model. Before, they were resolved for the approver, so a resumed run could
+  spend the approver's ChatGPT sign-in, or lose its owner's (#2546).
 
 ### Fixed
 

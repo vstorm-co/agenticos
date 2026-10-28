@@ -9,16 +9,15 @@ the real `secrets:view` decision.
 """
 
 import uuid
-from typing import Any
 from unittest.mock import patch
 
 import pytest
 
 from app.agents.factory import build_agent
-from app.agents.spec import AgentSpec, CapabilityBindingSpec
+from app.agents.spec import AgentSpec, CapabilityBindingSpec, RunReviewerSpec
 from app.agents.subagent_runtime import SUBAGENT_RUNTIME_RESOURCE, SubagentRuntime
 from app.core.permissions import AuthContext, OrgRoleName
-from app.core.secret_kinds import ApiKeySecret, OpenAICodexSecret, seal_secret
+from app.core.secret_kinds import OpenAICodexSecret, seal_secret
 from app.core.vault import VaultScope
 from app.db.models.credential import ModelProfile
 from app.db.models.organization import Organization, OrganizationMember
@@ -27,6 +26,7 @@ from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
 from app.services.agent_registry import AgentRegistryService
 from app.services.agent_runner import AgentRunnerService
+from tests.integration._keys import provider_key
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
@@ -53,14 +53,13 @@ class _Org:
                 )
             )
         await db.flush()
-        key = await self._secret(ApiKeySecret(api_key="sk-test-key"), purpose="openai", owner=None)
-        sign_in = await self._secret(
+        key = await provider_key(db, self.org.id)
+        sign_in = await self._sign_in(
             OpenAICodexSecret(
                 access_token="access-token-1234",
                 refresh_token="refresh-token-1234",
                 account_id="acct",
             ),
-            purpose="openai_codex",
             owner=self.ada,
         )
         self.gpt = await self._profile("GPT", "openai", key)
@@ -70,8 +69,12 @@ class _Org:
         )
         return self
 
-    def ctx(self, user: User, role: OrgRoleName, **fields: Any) -> AuthContext:
-        return AuthContext(user_id=user.id, organization_id=self.org.id, role=role, **fields)
+    def ctx(
+        self, user: User, role: OrgRoleName, *, api_key_id: uuid.UUID | None = None
+    ) -> AuthContext:
+        return AuthContext(
+            user_id=user.id, organization_id=self.org.id, role=role, api_key_id=api_key_id
+        )
 
     async def _user(self) -> User:
         user = User(
@@ -84,17 +87,15 @@ class _Org:
         await self.db.flush()
         return user
 
-    async def _secret(
-        self, value: ApiKeySecret | OpenAICodexSecret, *, purpose: str, owner: User | None
-    ) -> uuid.UUID:
+    async def _sign_in(self, value: OpenAICodexSecret, *, owner: User) -> uuid.UUID:
         sealed = seal_secret(value, scope=VaultScope.organization(self.org.id))
         secret = OrganizationSecret(
             id=uuid.uuid4(),
             organization_id=self.org.id,
-            name=f"{purpose} {uuid.uuid4().hex[:6]}",
-            purpose=purpose,
-            visibility=(Visibility.PRIVATE if owner else Visibility.ORG).value,
-            owner_user_id=owner.id if owner else None,
+            name=f"ChatGPT {uuid.uuid4().hex[:6]}",
+            purpose="openai_codex",
+            visibility=Visibility.PRIVATE.value,
+            owner_user_id=owner.id,
             kind=value.kind.value,
             sealed_secret=sealed.ciphertext,
             hint=sealed.hint,
@@ -119,11 +120,24 @@ class _Org:
         await self.db.flush()
         return profile
 
-    async def published(self, publisher: AuthContext, model: ModelProfile) -> uuid.UUID:
+    async def published(
+        self, publisher: AuthContext, model: ModelProfile, *, reviewer: ModelProfile | None = None
+    ) -> uuid.UUID:
         """An agent on `model` that may invent specialists, published by `publisher`."""
         spec = AgentSpec(
             name="Desk",
             model_profile_id=model.id,
+            reviewers=(
+                []
+                if reviewer is None
+                else [
+                    RunReviewerSpec(
+                        name="checker",
+                        model_profile_id=reviewer.id,
+                        instructions="Check the answer cites a source.",
+                    )
+                ]
+            ),
             capabilities=[CapabilityBindingSpec(id="subagents", config={"allow_dynamic": True})],
         )
         registry = AgentRegistryService(self.db)
@@ -147,12 +161,27 @@ async def _catalog(db, ctx: AuthContext, agent_id: uuid.UUID) -> tuple[str, ...]
 
 
 async def test_an_api_key_run_is_not_failed_by_a_members_sign_in(db) -> None:
-    """A key's holder may spend nobody's sign-in, so `resolve` refuses Ada's -
-    which used to fail every API-key and widget run of an agent that names no
-    sign-in at all."""
+    """A key's holder may spend nobody's sign-in. Ada's is not offered at all,
+    so it is never resolved, and the run goes on."""
     org = await _Org().build(db)
     owner = org.ctx(org.owner, OrgRoleName.OWNER)
     agent_id = await org.published(owner, org.gpt)
+
+    catalog = await _catalog(
+        db, org.ctx(org.owner, OrgRoleName.OWNER, api_key_id=uuid.uuid4()), agent_id
+    )
+
+    assert catalog == ("GPT",)
+
+
+async def test_an_api_key_run_skips_a_sign_in_the_agent_names_for_somebody_else(db) -> None:
+    """Ada names her own sign-in as a reviewer's model, so it stays in her agent's
+    catalog - and `resolve` refuses it to a key's holder. That refusal used to fail
+    the run rather than leave the one model out."""
+    org = await _Org().build(db)
+    agent_id = await org.published(
+        org.ctx(org.ada, OrgRoleName.BUILDER), org.gpt, reviewer=org.codex
+    )
 
     catalog = await _catalog(
         db, org.ctx(org.owner, OrgRoleName.OWNER, api_key_id=uuid.uuid4()), agent_id

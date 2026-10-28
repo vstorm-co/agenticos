@@ -399,7 +399,7 @@ el secreto, que vuelve a iniciar sesión sin cambiar su id.
       puede elegir el modelo de un especialista entre los perfiles de la
       organización. Un perfil sobre un inicio de sesión, o uno cuyos tres
       primeros fallbacks llegan a uno, solo está en esa lista cuando el spec del
-      agente nombra exactamente ese perfil como uno de los modelos de arriba.
+      agent nombra exactamente ese perfil como uno de los modelos de arriba.
     - **El gasto mostrado no es tu factura.** Un run se tarifa a los precios de
       la API de OpenAI para el mismo modelo, que es lo que un
       [budget](governance.md#budgets) puede razonar. La suscripción en sí la
