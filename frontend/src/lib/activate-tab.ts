@@ -11,10 +11,17 @@
  * `preventScroll` because the caller does the scrolling; a second one here only
  * fights it.
  *
+ * `moveFocus: false` leaves focus where it is and relies on the `mousedown`
+ * alone, which selects a Radix tab in either mode: for a caller whose reader is
+ * typing elsewhere, such as in the Architect's panel.
+ *
  * Shared by the onboarding walkthrough and the Architect's "show me where"
  * (`assistant-highlight.ts`), so the two cannot drift apart again.
  */
-export function activateTab(trigger: HTMLElement): void {
+export function activateTab(
+  trigger: HTMLElement,
+  { moveFocus = true }: { moveFocus?: boolean } = {},
+): void {
   // A popover's trigger opens on a click, not a press: the chat's settings, whose
   // approval-mode and connection stops sit inside it, waited out their timeout
   // behind a closed popover and the walk stood still between them.
@@ -23,5 +30,5 @@ export function activateTab(trigger: HTMLElement): void {
     return;
   }
   trigger.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0 }));
-  trigger.focus({ preventScroll: true });
+  if (moveFocus) trigger.focus({ preventScroll: true });
 }

@@ -11,6 +11,7 @@
  */
 
 import { activateTab } from "@/lib/activate-tab";
+import { stripLocale } from "@/lib/active-route";
 import { glideOrJump } from "@/lib/motion";
 import { TOUR_STEPS } from "@/lib/onboarding/tour";
 
@@ -47,28 +48,39 @@ function find(anchor: string): HTMLElement | null {
   return document.querySelector<HTMLElement>(`[data-tour="${CSS.escape(anchor)}"]`);
 }
 
+/** Whether the browser is on `page` yet, whatever locale prefix the router added. */
+function arrivedAt(page: string): boolean {
+  return stripLocale(window.location.pathname) === new URL(page, window.location.origin).pathname;
+}
+
 /**
- * Point at `anchor` once the page draws it: reveal it, scroll it into view and
+ * Point at `anchor` once `page` draws it: reveal it, scroll it into view and
  * ring it. Resolves whether it was found; a page that never draws it - the
  * reader may not hold the permission the control needs - is simply not pointed at.
+ *
+ * `page` is the path the caller has just pushed. Nothing is looked for until
+ * the browser is on it: the page being left often holds the same anchor and the
+ * same tab trigger (every agent's Builder does), and switching its tab rewrites
+ * its URL, which cancels the navigation still in flight.
  */
-export async function pointAt(anchor: string): Promise<boolean> {
+export async function pointAt(anchor: string, page: string): Promise<boolean> {
   // By the step's id as well: a step may light its card's header while the
   // Architect names the card, and both sit behind the same tab.
   const tab = TOUR_STEPS.find((step) => step.target === anchor || step.id === anchor)?.activate;
   let revealed = false;
   for (let waited = 0; waited <= WAIT_MS; waited += POLL_MS) {
-    const element = find(anchor);
+    const element = arrivedAt(page) ? find(anchor) : null;
     if (element) {
       element.scrollIntoView({ block: "center", behavior: glideOrJump() });
       element.classList.add(HIGHLIGHT_CLASS);
       setTimeout(() => element.classList.remove(HIGHLIGHT_CLASS), RING_MS);
       return true;
     }
-    if (tab && !revealed) {
+    if (tab && !revealed && arrivedAt(page)) {
       const trigger = find(tab);
       if (trigger) {
-        activateTab(trigger);
+        // Focus stays where the reader was typing, in the Architect's panel.
+        activateTab(trigger, { moveFocus: false });
         revealed = true;
       }
     }

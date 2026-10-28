@@ -66,18 +66,6 @@ export function keepClearOf(element: Element, cover: Element | null): void {
 }
 
 /**
- * Resolve once `selector` is in the document, or with `null` if the wait is
- * aborted or `timeoutMs` elapses first.
- *
- * A step's target only exists after its page has mounted and its data has
- * settled, which is a navigation and a render or two away — so the engine cannot
- * query for it synchronously after telling the router to move. The
- * `MutationObserver` catches it the moment it appears; the timeout keeps a step
- * whose target never renders (a slow page, a control a permission hid) from
- * hanging the spotlight; and the abort signal drops the wait when the reader
- * moves to another step before this one's element arrived.
- */
-/**
  * Whether a key event landed somewhere the reader is composing text.
  *
  * Arrow keys step the walkthrough, but inside a create dialog the same keys move

@@ -37,6 +37,29 @@ describe("activateTab", () => {
     expect(screen.getByText("toolbox-panel")).toBeInTheDocument();
   });
 
+  it("can switch a tab without taking focus from where the reader is typing", () => {
+    render(
+      <>
+        <input aria-label="Architect" />
+        <Tabs defaultValue="build">
+          <TabsList>
+            <TabsTrigger value="build">Build</TabsTrigger>
+            <TabsTrigger value="toolbox">Toolbox</TabsTrigger>
+          </TabsList>
+          <TabsContent value="build">build-panel</TabsContent>
+          <TabsContent value="toolbox">toolbox-panel</TabsContent>
+        </Tabs>
+      </>,
+    );
+    const input = screen.getByRole("textbox", { name: "Architect" });
+    input.focus();
+
+    act(() => activateTab(screen.getByRole("tab", { name: "Toolbox" }), { moveFocus: false }));
+
+    expect(screen.getByText("toolbox-panel")).toBeInTheDocument();
+    expect(input).toHaveFocus();
+  });
+
   it("opens a popover, which a press alone leaves closed", () => {
     render(
       <Popover>

@@ -22,8 +22,9 @@ Two things are versioned separately from this file and worth knowing about:
 ### Fixed
 
 - When the Architect points at a control on a tab that is not open, the tab now
-  switches and the control is highlighted. The scroll to it also respects a
-  reduced-motion preference (#2536).
+  switches and the control is highlighted. A link to another page no longer
+  switches a tab on the page being left, keyboard focus stays in the Architect's
+  panel, and the scroll respects a reduced-motion preference (#2536).
 
 ## [1.27.0] - 2026-10-27
 
