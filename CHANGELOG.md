@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- When the Architect points at a control on a tab that is not open, the tab now
+  switches and the control is highlighted. The scroll to it also respects a
+  reduced-motion preference (#2536).
+
 ## [1.27.0] - 2026-10-27
 
 ### Added

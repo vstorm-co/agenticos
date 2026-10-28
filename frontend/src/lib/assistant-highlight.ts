@@ -6,9 +6,12 @@
  * `?highlight=<anchor>`, an anchor being a `data-tour` value - the same names the
  * onboarding walkthrough spotlights, so a control the tour can find, the
  * Architect can point at. An anchor behind a tab is revealed the way the tour
- * reveals it, by clicking the tab its step names.
+ * reveals it, by activating the tab its step names (`activateTab`: a Radix tab
+ * ignores a bare `click()`).
  */
 
+import { activateTab } from "@/lib/activate-tab";
+import { glideOrJump } from "@/lib/motion";
 import { TOUR_STEPS } from "@/lib/onboarding/tour";
 
 const HIGHLIGHT = "highlight";
@@ -57,7 +60,7 @@ export async function pointAt(anchor: string): Promise<boolean> {
   for (let waited = 0; waited <= WAIT_MS; waited += POLL_MS) {
     const element = find(anchor);
     if (element) {
-      element.scrollIntoView({ block: "center", behavior: "smooth" });
+      element.scrollIntoView({ block: "center", behavior: glideOrJump() });
       element.classList.add(HIGHLIGHT_CLASS);
       setTimeout(() => element.classList.remove(HIGHLIGHT_CLASS), RING_MS);
       return true;
@@ -65,7 +68,7 @@ export async function pointAt(anchor: string): Promise<boolean> {
     if (tab && !revealed) {
       const trigger = find(tab);
       if (trigger) {
-        trigger.click();
+        activateTab(trigger);
         revealed = true;
       }
     }
