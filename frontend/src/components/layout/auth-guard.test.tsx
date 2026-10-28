@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AuthGuard } from "./auth-guard";
-import { apiClient } from "@/lib/api-client";
+import { apiClient, ApiError } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
 import { useAuthStore } from "@/stores";
 
@@ -27,7 +27,8 @@ const adoptSession = vi.hoisted(() => vi.fn());
 // Whether a failed check leaves the apps signed in offline - `use-auth`'s rule,
 // tested there; here, what the guard does with its answer.
 const offline = vi.hoisted(() => ({ stays: false }));
-vi.mock("@/hooks/use-auth", () => ({
+vi.mock("@/hooks/use-auth", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/use-auth")>()),
   useAdoptSession: () => adoptSession,
   readSession: () => apiClient.get("/auth/me"),
   stayOffline: () => offline.stays,
@@ -64,6 +65,29 @@ describe("the dashboard guard, offline in the apps (#2097)", () => {
     renderGuard();
 
     expect(await screen.findByText("the dashboard")).toBeInTheDocument();
+    expect(replace).not.toHaveBeenCalled();
+  });
+});
+
+describe("a session check while the server is unavailable", () => {
+  it.each([429, 500, 503])("keeps the login cookie on a %i and offers a retry", async (status) => {
+    vi.mocked(apiClient.get).mockRejectedValueOnce(new ApiError(status, "Unavailable"));
+    renderGuard();
+    expect(await screen.findByText("Your session could not be checked")).toBeInTheDocument();
+    expect(replace).not.toHaveBeenCalled();
+    expect(screen.queryByText("the dashboard")).not.toBeInTheDocument();
+    vi.mocked(apiClient.get).mockResolvedValueOnce({
+      id: "u-1",
+      email: "person@example.com",
+      access_token: "fresh",
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await waitFor(() =>
+      expect(adoptSession).toHaveBeenCalledWith(
+        { id: "u-1", email: "person@example.com" },
+        "fresh",
+      ),
+    );
     expect(replace).not.toHaveBeenCalled();
   });
 });

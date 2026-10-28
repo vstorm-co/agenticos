@@ -110,7 +110,8 @@ section {
   width: 104px;
   height: 104px;
   margin-bottom: 1.25rem;
-  filter: drop-shadow(0 6px 14px rgb(0 0 0 / 18%)) drop-shadow(0 1px 2px rgb(0 0 0 / 12%));
+  filter: drop-shadow(0 6px 14px rgb(0 0 0 / 18%))
+    drop-shadow(0 1px 2px rgb(0 0 0 / 12%));
 }
 
 .busy .app-icon {
@@ -393,4 +394,34 @@ select {
   .steps li[data-state="active"]::before {
     animation: none;
   }
+}
+
+.permission-list {
+  width: 100%;
+  margin-block: 1rem;
+  text-align: start;
+}
+.permission-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding-block: 1rem;
+}
+.permission-row + .permission-row {
+  border-top: 1px solid var(--separator);
+}
+.permission-row > div {
+  flex: 1;
+  min-width: 0;
+}
+.permission-row p {
+  margin-block: 0.4rem;
+  color: var(--secondary);
+}
+[data-permission-status] {
+  font-size: 12px;
+  color: var(--secondary);
+}
+.permission-row button {
+  flex-shrink: 0;
 }

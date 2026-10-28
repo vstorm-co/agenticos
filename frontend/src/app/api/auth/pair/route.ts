@@ -8,7 +8,7 @@ import {
   forwardedFor,
   forwardRateLimit,
 } from "@/lib/server-api";
-import { secureCookies } from "@/lib/session-cookie";
+import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE, secureCookies } from "@/lib/session-cookie";
 
 interface TokenPair {
   access_token: string;
@@ -46,8 +46,8 @@ export async function POST(request: NextRequest) {
       sameSite: "lax",
       path: "/",
     } as const;
-    response.cookies.set("access_token", tokens.access_token, { ...options, maxAge: 60 * 15 });
-    response.cookies.set("refresh_token", tokens.refresh_token, {
+    response.cookies.set(ACCESS_TOKEN_COOKIE, tokens.access_token, { ...options, maxAge: 60 * 15 });
+    response.cookies.set(REFRESH_TOKEN_COOKIE, tokens.refresh_token, {
       ...options,
       maxAge: 60 * 60 * 24 * 7,
     });

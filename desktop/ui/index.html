@@ -11,14 +11,67 @@
          so this strip is what it is dragged by. -->
     <div class="titlebar" data-tauri-drag-region></div>
     <main>
-      <img class="app-icon" src="app-icon.png" alt="" width="104" height="104" />
+      <img
+        class="app-icon"
+        src="app-icon.png"
+        alt=""
+        width="104"
+        height="104"
+      />
 
       <section data-screen="welcome">
         <h1>Welcome to AgenticOS</h1>
         <p class="lead">
-          Your agents, a click away: on your desktop, in the menu bar, on a shortcut.
+          Your agents, a click away: on your desktop, in the menu bar, on a
+          shortcut.
         </p>
-        <button type="button" class="primary" data-go="where">Get started</button>
+        <button type="button" class="primary" data-go="permissions">
+          Get started
+        </button>
+      </section>
+
+      <section data-screen="permissions" hidden>
+        <h1>Make this computer ready</h1>
+        <p class="lead">
+          Optional permissions for desktop features. You can skip them and
+          enable them later in System Settings.
+        </p>
+        <div class="permission-list">
+          <div class="permission-row" data-permission="screen_capture">
+            <div>
+              <strong>Screen recording</strong>
+              <p>
+                Attach a selected screenshot to a chat. Nothing is captured
+                during setup.
+              </p>
+              <span data-permission-status role="status">Checking…</span>
+            </div>
+            <button type="button" class="secondary">Open settings</button>
+          </div>
+          <div class="permission-row" data-permission="accessibility">
+            <div>
+              <strong>Accessibility</strong>
+              <p>
+                Use selected text in Quick Ask and let an approved agent control
+                the mouse and keyboard.
+              </p>
+              <span data-permission-status role="status">Checking…</span>
+            </div>
+            <button type="button" class="secondary">Open settings</button>
+          </div>
+        </div>
+        <p class="hint">
+          macOS may require an app restart after enabling screen recording.
+          Agents still ask before using your screen. Microphone and folder
+          access are requested when you use those features.
+        </p>
+        <p class="error" role="alert" hidden></p>
+        <div class="actions">
+          <button type="button" class="link" data-go="welcome">Back</button
+          ><button type="button" class="primary" data-go="where">
+            Continue
+          </button>
+        </div>
       </section>
 
       <section data-screen="where" hidden>
@@ -34,7 +87,10 @@
             </span>
             <span class="choice-text">
               <span class="choice-title">On this computer</span>
-              <span class="choice-hint">Runs here in Docker. Your agents, files and keys never leave this machine.</span>
+              <span class="choice-hint"
+                >Runs here in Docker. Your agents, files and keys never leave
+                this machine.</span
+              >
             </span>
             <span class="chevron" aria-hidden="true"></span>
           </button>
@@ -48,7 +104,10 @@
             </span>
             <span class="choice-text">
               <span class="choice-title">On my organization's server</span>
-              <span class="choice-hint">Connect to the AgenticOS your company runs and sign in with your work account.</span>
+              <span class="choice-hint"
+                >Connect to the AgenticOS your company runs and sign in with
+                your work account.</span
+              >
             </span>
             <span class="chevron" aria-hidden="true"></span>
           </button>
@@ -84,14 +143,30 @@
           <button type="button" class="secondary" data-action="docker" hidden>
             Get Docker Desktop
           </button>
-          <button type="button" class="secondary" data-action="check" hidden>Check again</button>
-          <button type="button" class="primary" data-action="use" hidden>Use it</button>
+          <button type="button" class="secondary" data-action="check" hidden>
+            Check again
+          </button>
+          <button type="button" class="primary" data-action="use" hidden>
+            Use it
+          </button>
         </div>
         <form id="local-form" hidden>
           <label for="organization">Organization</label>
-          <input id="organization" name="organization" type="text" placeholder="Acme" required />
+          <input
+            id="organization"
+            name="organization"
+            type="text"
+            placeholder="Acme"
+            required
+          />
           <label for="email">Your email</label>
-          <input id="email" name="email" type="email" autocomplete="email" required />
+          <input
+            id="email"
+            name="email"
+            type="email"
+            autocomplete="email"
+            required
+          />
           <label for="password">Password</label>
           <input
             id="password"
@@ -108,7 +183,9 @@
             <option value="google">Google</option>
             <option value="openrouter">OpenRouter</option>
           </select>
-          <label for="api-key">API key <span class="optional">optional</span></label>
+          <label for="api-key"
+            >API key <span class="optional">optional</span></label
+          >
           <input
             id="api-key"
             name="api-key"
@@ -117,8 +194,8 @@
             spellcheck="false"
           />
           <p class="hint">
-            Without one your agents are created but cannot answer yet. Add it later under Settings,
-            AI providers. The key stays on this computer.
+            Without one your agents are created but cannot answer yet. Add it
+            later under Settings, AI providers. The key stays on this computer.
           </p>
           <p class="hint">Needs about 4 GB of disk and ports 3000 and 8000.</p>
           <p class="error" role="alert" hidden></p>
@@ -131,7 +208,10 @@
 
       <section data-screen="progress" hidden>
         <h1>Setting up AgenticOS</h1>
-        <p class="lead">The first download takes a few minutes. You can leave this window open.</p>
+        <p class="lead">
+          The first download takes a few minutes. You can leave this window
+          open.
+        </p>
         <ol class="steps">
           <li data-step="files">Preparing</li>
           <li data-step="download">Downloading AgenticOS</li>

@@ -1,3 +1,5 @@
+import { permissionStep } from "./permissions.js";
+
 /**
  * The first-run onboarding: where AgenticOS lives for this person - a stack the
  * app sets up on this computer, or an organization's server - and getting there.
@@ -23,10 +25,19 @@ function report(message) {
 window.addEventListener("error", (event) => report(event.message));
 window.addEventListener("unhandledrejection", (event) => report(event.reason));
 
+const permissions = document.querySelector('[data-screen="permissions"]');
+const refreshPermissions = permissionStep(permissions, invoke, () =>
+  show("where"),
+);
+window.addEventListener("focus", () => {
+  if (!permissions.hidden) void refreshPermissions();
+});
+
 function show(name) {
   for (const screen of screens) screen.hidden = screen.dataset.screen !== name;
   document.body.classList.toggle("busy", name === "progress");
   if (name === "local") void checkLocal();
+  if (name === "permissions") void refreshPermissions();
   const first = document.querySelector(
     `[data-screen="${name}"] input, [data-screen="${name}"] .primary`,
   );
@@ -68,7 +79,8 @@ const LOCAL = {
     actions: ["docker", "check"],
   },
   docker_stopped: {
-    message: "Docker is installed but not running. Open Docker Desktop, then check again.",
+    message:
+      "Docker is installed but not running. Open Docker Desktop, then check again.",
     actions: ["check"],
   },
   running: {
@@ -165,7 +177,10 @@ async function start() {
     currentStep = payload.step;
     markSteps(currentStep);
   });
-  const [state, notice] = await Promise.all([invoke("onboarding_state"), invoke("startup_notice")]);
+  const [state, notice] = await Promise.all([
+    invoke("onboarding_state"),
+    invoke("startup_notice"),
+  ]);
   if (state.server_url) serverField.value = state.server_url;
   // Somebody who has been through it - "Change Server…", or a server that
   // stopped answering - is asked where, not welcomed again.

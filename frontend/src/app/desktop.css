@@ -105,6 +105,12 @@
   block-size: 3rem;
 }
 
+/* Sign-in has no sidebar to reserve the traffic lights' space. Keep its brand
+   on the same title row, beyond the native controls, including before sign-in. */
+:root[data-shell="macos"][data-shell-window="main"] [data-auth-titlebar] {
+  padding-inline-start: 6.5rem;
+}
+
 /* The three native controls must still fit when navigation becomes a rail. */
 :root[data-shell="macos"][data-shell-window="main"] aside[data-collapsed] {
   width: 5.25rem;
@@ -123,6 +129,7 @@
     [data-shell="linux"]
   )[data-shell-window="main"]
   .window-drag-strip {
+  background: var(--color-background);
   display: block;
   flex-shrink: 0;
   block-size: 1.75rem;
@@ -351,4 +358,16 @@
     opacity: 1;
     transform: none;
   }
+}
+
+/* The dashboard scrolls this viewport, not html. Keep native trackpad momentum
+   and smooth keyboard/anchor navigation, respecting the person's motion choice. */
+:root[data-shell-window="main"] #main {
+  scroll-behavior: smooth;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+:root[data-shell-window="main"][data-motion="reduce"] #main {
+  scroll-behavior: auto;
 }

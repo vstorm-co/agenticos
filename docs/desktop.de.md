@@ -1,5 +1,5 @@
 ---
-source_sha: "f70dbf41fb0d"
+source_sha: "5d41b58425a4"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -27,6 +27,14 @@ und denselben Mandantenprüfungen wie ein Browser-Tab. Sie ist eine
     Deployment; die App ist der Weg, es zu öffnen.
 
 ## Starten { #running-it }
+
+Vor der lokalen Installation oder Serververbindung bietet der Einrichtungsassistent
+unter macOS optional Bildschirmaufnahme und Bedienungshilfen an. Jede Schaltfläche
+öffnet die zugehörigen Systemeinstellungen; die Einrichtung nimmt weder den Bildschirm
+auf noch steuert sie den Computer. Beide Berechtigungen lassen sich überspringen. Nach
+Rückkehr aus den Systemeinstellungen wird der Status aktualisiert; macOS kann einen App-
+Neustart verlangen. Mikrofon- und Ordnerzugriff werden weiterhin erst bei Nutzung
+angefragt.
 
 Voraussetzungen sind Rust über [rustup](https://rustup.rs) und die Webview der
 Plattform - WebKit auf macOS, WebView2 auf Windows, WebKitGTK auf Linux; Tauris
@@ -223,6 +231,21 @@ des Bildschirms dieses Computers gehört nur Ihnen, wer auch immer sonst Runs an
 darf.
 
 ## Anmelden { #signing-in }
+
+Konsole, Blobby und Quick Ask teilen ein benanntes dauerhaftes WebView-Profil; private
+Agent-Browser-Tabs bleiben isoliert. Der Wechsel von einem älteren Profil kann eine
+einmalige Anmeldung erfordern. Unter Glass entspricht der Ziehbereich dem
+Inhaltshintergrund. Das Dashboard glättet Tastaturnavigation und diskrete
+Mausradschritte, während feine Trackpad-Eingaben nativ bleiben; reduzierte Bewegung
+deaktiviert die Glättung.
+
+Die Konsole behält ihre Sitzung in dauerhaften HttpOnly-Cookies, einschließlich eines
+bei Nutzung erneuerten Refresh-Cookies. Beim erneuten Öffnen wird die noch gültige
+Sitzung wiederhergestellt. Vorübergehende Serverfehler und Ratenlimits behalten das
+Desktop-Konto; nach Wiederherstellung der Verbindung oder beim Aktivieren des Fensters
+wird die Sitzung erneut geprüft. Abgelehnte oder widerrufene Tokens erfordern weiterhin
+eine Anmeldung. Ohne lokal verfügbares Konto zeigt ein unerreichbarer Server eine
+Wiederholung statt der Anmeldeseite.
 
 Die eine Navigation, die das Konsolenfenster verweigert. Alles andere lädt im
 Fenster; ein Klick auf **Continue with Google** öffnet sich stattdessen in Ihrem

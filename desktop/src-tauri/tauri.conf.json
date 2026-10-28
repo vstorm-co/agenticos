@@ -36,6 +36,7 @@
       }
     },
     "updater": {
+      "pubkey": "",
       "endpoints": [
         "https://github.com/vstorm-co/agenticos/releases/latest/download/latest.json"
       ]

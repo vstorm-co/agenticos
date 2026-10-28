@@ -3500,7 +3500,10 @@
       "iosHint": "Um AgenticOS zu installieren, tippen Sie auf Teilen und dann auf Zum Home-Bildschirm.",
       "install": "Installieren",
       "dismiss": "Nicht mehr anzeigen"
-    }
+    },
+    "sessionUnavailable": "Die Sitzung konnte nicht geprüft werden",
+    "sessionUnavailableHint": "Der Server ist vorübergehend nicht erreichbar. Ihre gespeicherte Sitzung bleibt erhalten. Versuchen Sie es erneut, sobald die Verbindung wiederhergestellt ist.",
+    "retrySession": "Erneut versuchen"
   },
   "legal": {
     "acceptAll": "Alle akzeptieren",

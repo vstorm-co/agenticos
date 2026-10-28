@@ -23,6 +23,13 @@ permissions and the same tenant checks a browser tab would. It is a
 
 ## Running it
 
+Before choosing a local installation or connecting to a server, the first-run wizard
+offers optional Screen Recording and Accessibility permissions on macOS. Each button
+opens the relevant system settings; setup never captures the screen or controls the
+computer. Continue works without either permission. Returning from System Settings
+refreshes their status; macOS may require an app restart. Microphone and folder access
+remain requested when those features are used.
+
 Rust from [rustup](https://rustup.rs) and the platform's webview - WebKit on macOS,
 WebView2 on Windows, WebKitGTK on Linux - are the prerequisites; Tauri's own
 [prerequisites page](https://v2.tauri.app/start/prerequisites/) has the per-platform
@@ -200,6 +207,19 @@ run's live view, where **Take over** hands it to you between the agent's steps a
 whoever else may watch runs.
 
 ## Signing in
+
+The console, Blobby and Quick Ask share a named persistent WebView profile; private
+agent browser tabs remain isolated. Moving from an older profile may require one sign-
+in. In Glass, the drag strip uses the content background. The dashboard scrollport
+smooths keyboard navigation and discrete mouse-wheel steps while leaving fine trackpad
+input native; reduced motion disables the smoothing.
+
+The console keeps its session in persistent HttpOnly cookies, including a refresh cookie
+renewed as the session is used. Reopening the app restores that session while it remains
+valid. A temporary server failure or rate limit keeps the desktop account and retries
+its session check when the connection returns or the window regains focus. A rejected or
+revoked token still requires sign-in. If no account is available locally, an unavailable
+server shows a retry instead of sending you to sign in.
 
 The one navigation the console window refuses. Everything else loads in the
 window; a click on **Continue with Google** opens in your own browser instead,

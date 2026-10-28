@@ -1,5 +1,7 @@
 "use client";
 
+import { useDesktopSmoothScroll } from "@/hooks/use-desktop-smooth-scroll";
+
 import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
@@ -53,6 +55,7 @@ const APPROVALS_PATH = "/runs?tab=approvals";
  */
 export function DesktopBridge() {
   const shell = useShell();
+  useDesktopSmoothScroll(isDesktopShell(shell) && shell.window === "main");
   return isDesktopShell(shell) && shell.window === "main" ? <Bridge shell={shell} /> : null;
 }
 

@@ -26,7 +26,11 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         id="main"
         className="bg-card flex min-h-0 flex-col overflow-y-auto pb-[var(--safe-bottom)]"
       >
-        <header className="flex h-16 shrink-0 items-center px-6 sm:px-10">
+        <header
+          data-auth-titlebar
+          data-tauri-drag-region="deep"
+          className="flex h-16 shrink-0 items-center px-6 sm:px-10"
+        >
           {/* Not a link: the root redirects straight back here, so a brand mark
               that navigates would be a no-op. */}
           <span className="inline-flex items-center gap-2 text-base font-semibold tracking-tight">

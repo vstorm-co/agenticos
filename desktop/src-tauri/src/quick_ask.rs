@@ -11,9 +11,7 @@
 //! is: it takes the keyboard while the app you were in stays the active one,
 //! and the console window stays wherever it was.
 
-use tauri::{
-    AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
-};
+use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, Url, WebviewUrl, WebviewWindow};
 
 use crate::appearance::{self, Appearance, Surface};
 
@@ -34,7 +32,7 @@ const FROM_TOP: f64 = 0.2;
 pub fn prepare(app: &AppHandle, server: &Url, appearance: Appearance) -> tauri::Result<WebviewWindow> {
     let page = server.join(PATH).map_err(|e| tauri::Error::Anyhow(e.into()))?;
     let version = app.package_info().version.to_string();
-    let mut builder = WebviewWindowBuilder::new(app, WINDOW, WebviewUrl::External(page))
+    let mut builder = crate::webview_profile::window(app, WINDOW, WebviewUrl::External(page))?
         .title("Quick ask")
         .initialization_script(appearance::shell_script(&version, WINDOW))
         .inner_size(WIDTH, MIN_HEIGHT)

@@ -13,9 +13,7 @@ use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
 use tauri::menu::{CheckMenuItem, IsMenuItem, MenuItem, Submenu};
-use tauri::{
-    AppHandle, DragDropEvent, Emitter, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent, Wry,
-};
+use tauri::{AppHandle, DragDropEvent, Emitter, Manager, Url, WebviewUrl, WebviewWindow, WindowEvent, Wry};
 
 use crate::{appearance, dropped};
 
@@ -309,7 +307,7 @@ fn default_position(app: &AppHandle, size: (f64, f64)) -> Option<(f64, f64)> {
 pub fn open(app: &AppHandle, server: &Url, blobby: &BlobbySettings) -> tauri::Result<WebviewWindow> {
     let page = server.join(PATH).map_err(|e| tauri::Error::Anyhow(e.into()))?;
     let version = app.package_info().version.to_string();
-    let mut builder = WebviewWindowBuilder::new(app, WINDOW, WebviewUrl::External(page))
+    let mut builder = crate::webview_profile::window(app, WINDOW, WebviewUrl::External(page))?
         .title("Blobby")
         .initialization_script(appearance::shell_script(&version, WINDOW))
         .inner_size(window_size(blobby.size).0, window_size(blobby.size).1)

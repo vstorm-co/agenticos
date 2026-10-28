@@ -26,12 +26,14 @@ mod local_work;
 mod managed;
 mod native_browser;
 mod notify;
+mod onboarding_permissions;
 mod pinned;
 mod quick_ask;
 mod screen;
 mod settings;
 mod shortcuts;
 mod updater;
+mod webview_profile;
 
 #[cfg(target_os = "macos")]
 use std::fs;
@@ -50,9 +52,7 @@ use tauri::menu::{ContextMenu, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, S
 use tauri::tray::{TrayIcon, TrayIconBuilder};
 use tauri::webview::PageLoadEvent;
 use tauri::window::Color;
-use tauri::{
-    AppHandle, Emitter, Manager, Theme, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent, Wry,
-};
+use tauri::{AppHandle, Emitter, Manager, Theme, Url, WebviewUrl, WebviewWindow, WindowEvent, Wry};
 use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_opener::OpenerExt;
@@ -688,7 +688,7 @@ fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow>
     let handle = app.clone();
     let appearance = settings::current(app).appearance;
     let version = app.package_info().version.to_string();
-    let mut builder = WebviewWindowBuilder::new(app, WINDOW, url)
+    let mut builder = webview_profile::window(app, WINDOW, url)?
         .title("AgenticOS")
         .initialization_script(appearance::shell_script(&version, WINDOW))
         .inner_size(1280.0, 800.0)
@@ -1268,6 +1268,8 @@ pub fn run() {
             console::pin_agent,
             console::unpin_agent,
             onboarding_state,
+            onboarding_permissions::onboarding_permissions,
+            onboarding_permissions::request_onboarding_permission,
             local_status,
             set_up_local,
             use_local,

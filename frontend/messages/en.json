@@ -3500,7 +3500,10 @@
       "iosHint": "To install AgenticOS, tap Share, then Add to Home Screen.",
       "install": "Install",
       "dismiss": "Don't show again"
-    }
+    },
+    "sessionUnavailable": "Your session could not be checked",
+    "sessionUnavailableHint": "The server is temporarily unavailable. Your saved session has been kept. Try again when the connection returns.",
+    "retrySession": "Try again"
   },
   "legal": {
     "acceptAll": "Accept all",

@@ -1,5 +1,5 @@
 ---
-source_sha: "f70dbf41fb0d"
+source_sha: "5d41b58425a4"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -27,6 +27,13 @@ un shell de [Tauri](https://tauri.app) en `desktop/`.
     instala es el despliegue; la app es la forma de abrirlo.
 
 ## Ejecutarla { #running-it }
+
+Antes de elegir una instalación local o conectar con un servidor, el asistente inicial
+ofrece permisos opcionales de grabación de pantalla y accesibilidad en macOS. Cada botón
+abre los ajustes del sistema correspondientes; la configuración no captura la pantalla
+ni controla el equipo. Se puede continuar sin ambos permisos. Al volver de Ajustes se
+actualiza su estado; macOS puede requerir reiniciar la aplicación. El acceso al
+micrófono y las carpetas se solicita al usar esas funciones.
 
 Hacen falta Rust de [rustup](https://rustup.rs) y el webview de la plataforma -
 WebKit en macOS, WebView2 en Windows, WebKitGTK en Linux; la
@@ -214,6 +221,21 @@ pasos del agent y **Devolver** se lo devuelve. La vista en vivo de la pantalla d
 este ordenador es solo tuya, quien sea que pueda ver runs.
 
 ## Iniciar sesión { #signing-in }
+
+La consola, Blobby y Quick Ask comparten un perfil WebView persistente con nombre; las
+pestañas privadas del agent permanecen aisladas. El cambio desde un perfil anterior
+puede requerir iniciar sesión una vez. En Glass, la zona de arrastre usa el fondo del
+contenido. El dashboard suaviza la navegación por teclado y los pasos discretos de la
+rueda, conservando el desplazamiento fino nativo del trackpad; el movimiento reducido
+desactiva el suavizado.
+
+La consola conserva la sesión en cookies HttpOnly persistentes, incluida una cookie de
+actualización que se renueva al usar la sesión. Al abrir de nuevo la aplicación se
+restaura la sesión mientras siga siendo válida. Los fallos temporales del servidor y los
+límites de peticiones conservan la cuenta de escritorio; la sesión se comprueba de nuevo
+al recuperar la conexión o activar la ventana. Un token rechazado o revocado sigue
+requiriendo iniciar sesión. Si no hay una cuenta local, un servidor no disponible
+muestra una opción de reintento en lugar del formulario de acceso.
 
 La única navegación que la ventana de la consola rechaza. Todo lo demás se carga en
 la ventana; un clic en **Continue with Google** se abre en tu propio navegador, y

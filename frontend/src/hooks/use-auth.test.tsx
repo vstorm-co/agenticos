@@ -187,6 +187,23 @@ describe("checking the session without a network (#2097)", () => {
     await waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(false));
   });
 
+  it.each([429, 500, 502, 503])(
+    "keeps the desktop account after a %i and restores it on focus",
+    async (status) => {
+      device.keepsCopy = true;
+      useAuthStore.setState({ user: user(), isAuthenticated: true, isLoading: true });
+      vi.mocked(apiClient.get).mockRejectedValueOnce(new ApiError(status, "Server unavailable"));
+      renderHook(() => useAuth(), { wrapper });
+      await waitFor(() => expect(useAuthStore.getState().isLoading).toBe(false));
+      expect(useAuthStore.getState().isAuthenticated).toBe(true);
+      expect(useAuthStore.getState().user?.id).toBe("u-1");
+      vi.mocked(apiClient.get).mockResolvedValueOnce({ ...user(), access_token: "restored" });
+      act(() => window.dispatchEvent(new Event("focus")));
+      await waitFor(() => expect(useAuthStore.getState().accessToken).toBe("restored"));
+      expect(useAuthStore.getState().isAuthenticated).toBe(true);
+    },
+  );
+
   it("signs a browser tab out as before, since it keeps nothing to read", async () => {
     useAuthStore.setState({ user: user(), isAuthenticated: true });
     vi.mocked(apiClient.get).mockRejectedValue(new TypeError("Failed to fetch"));

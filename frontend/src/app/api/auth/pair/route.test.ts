@@ -40,8 +40,16 @@ describe("POST /api/auth/pair", () => {
       "x-forwarded-for": "10.0.0.9",
     });
     const cookies = response.headers.getSetCookie().join("\n");
-    expect(cookies).toContain("access_token=acc");
-    expect(cookies).toContain("refresh_token=ref");
+    expect(response.cookies.getAll().map((cookie) => cookie.name)).toEqual([
+      "agenticos_access_token",
+      "agenticos_refresh_token",
+    ]);
+    expect(response.cookies.get("agenticos_refresh_token")).toMatchObject({
+      value: "ref",
+      httpOnly: true,
+      maxAge: 604800,
+    });
+    expect(cookies).toContain("agenticos_access_token=acc");
   });
 
   it("refuses a request with no code before asking the backend", async () => {

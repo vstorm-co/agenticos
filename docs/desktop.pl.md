@@ -1,5 +1,5 @@
 ---
-source_sha: "f70dbf41fb0d"
+source_sha: "5d41b58425a4"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -27,6 +27,13 @@ tenanta co karta przeglądarki. To powłoka [Tauri](https://tauri.app) w
     aplikacja to sposób, w jaki je otwierasz.
 
 ## Uruchamianie { #running-it }
+
+Przed wyborem lokalnej instalacji lub połączeniem z serwerem kreator pierwszego
+uruchomienia oferuje opcjonalne uprawnienia Screen Recording i Accessibility na macOS.
+Każdy przycisk otwiera odpowiednie ustawienia systemowe; konfiguracja niczego nie
+przechwytuje ani nie steruje komputerem. Można kontynuować bez obu uprawnień. Powrót z
+ustawień odświeża ich status; macOS może wymagać restartu aplikacji. Dostęp do mikrofonu
+i folderów jest nadal żądany przy użyciu tych funkcji.
 
 Wymagane są Rust z [rustup](https://rustup.rs) i webview platformy - WebKit na
 macOS, WebView2 na Windows, WebKitGTK na Linuksie; listę dla każdej platformy ma
@@ -208,6 +215,19 @@ agenta, a **Oddaj** zwraca. Podgląd ekranu tego komputera jest tylko dla ciebie
 ktokolwiek inny może oglądać runy.
 
 ## Logowanie { #signing-in }
+
+Konsola, Blobby i Quick Ask współdzielą nazwany, trwały profil WebView; prywatne karty
+przeglądarki agenta pozostają odizolowane. Przejście ze starszego profilu może wymagać
+jednego logowania. W Glass obszar przeciągania ma tło zgodne z treścią. Panel dashboardu
+wygładza nawigację klawiaturą i skokowe ruchy kółka myszy, zachowując natywną obsługę
+precyzyjnego przewijania gładzikiem; ograniczenie ruchu wyłącza wygładzanie.
+
+Konsola zachowuje sesję w trwałych cookies HttpOnly, w tym cookie odświeżającym
+odnawianym podczas korzystania z sesji. Ponowne otwarcie aplikacji przywraca sesję,
+dopóki jest ważna. Chwilowa awaria serwera lub limit żądań zachowuje konto w desktopie;
+sprawdzenie sesji ponawia się po odzyskaniu połączenia lub aktywowaniu okna. Odrzucony
+lub unieważniony token nadal wymaga logowania. Gdy lokalnie nie ma konta, niedostępność
+serwera pokazuje możliwość ponowienia zamiast przekierowania do logowania.
 
 Jedyna nawigacja, której okno konsoli odmawia. Wszystko inne ładuje się w oknie;
 kliknięcie **Continue with Google** otwiera się zamiast tego w twojej własnej

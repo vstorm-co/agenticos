@@ -328,6 +328,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Preserve desktop sessions through temporary backend failures and window restarts
+  with a shared persistent console profile. Retry session checks on reconnect or
+  focus; revoked tokens still require sign-in. Keep private agent tabs isolated
+  and use app-scoped session cookie names when redeeming a pairing code.
+- Reserve macOS window controls in the sign-in header and give Glass's drag strip
+  the same background as its content. Smooth desktop keyboard scrolling and mouse
+  wheel notches while respecting reduced motion and native trackpad input.
+- Offer optional Screen Recording and Accessibility permissions in the initial
+  connection wizard, before choosing a server. Each is requested explicitly and
+  can be skipped; setup captures nothing and does not control the computer.
+
 - Browser transcript cards no longer duplicate after clicks, rereads or returning
   to a page. Each answer keeps one updated card per actual browser tab, live
   and after reopening the conversation.

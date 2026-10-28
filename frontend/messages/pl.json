@@ -3501,7 +3501,10 @@
       "iosHint": "Aby zainstalować AgenticOS, stuknij Udostępnij, a potem Do ekranu początkowego.",
       "install": "Zainstaluj",
       "dismiss": "Nie pokazuj ponownie"
-    }
+    },
+    "sessionUnavailable": "Nie udało się sprawdzić sesji",
+    "sessionUnavailableHint": "Serwer jest chwilowo niedostępny. Zapisana sesja została zachowana. Spróbuj ponownie po odzyskaniu połączenia.",
+    "retrySession": "Spróbuj ponownie"
   },
   "legal": {
     "acceptAll": "Zaakceptuj wszystkie",
