@@ -1,5 +1,5 @@
 ---
-source_sha: "59eb32f72c0d"
+source_sha: "2c6dbdb89849"
 ---
 
 # Skills { #skills }
@@ -196,6 +196,12 @@ tocó y uno que quiso borrar dejan la misma ausencia.
 Tres turnos de una conversación refinando el mismo skill dejan **una** propuesta,
 no tres. A un revisor al que se le hace la misma pregunta tres veces se le ha
 dado más trabajo, no más información.
+Las propuestas del workspace respetan los mismos límites que los skills
+almacenados: nombre de 1 a 64 caracteres y descripción de hasta 500. Una
+propuesta fuera de estos límites se omite con una advertencia; sus archivos
+originales permanecen intactos. Un savepoint aísla la escritura para que una
+propuesta rechazada no impida guardar el estado y el coste del turno.
+
 
 Un cambio registra la versión del skill para la que se escribió: en un run, la
 versión que ese run recibió, y un turno posterior que reescribe el cambio

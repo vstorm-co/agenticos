@@ -31,10 +31,11 @@ def ingest() -> Handlers:
     only the parsing and embedding stack - not the agent runtime the other pools
     need - is a quarter of its memory and half its start-up (#2229).
     """
-    from app.worker.tasks import rag_tasks
+    from app.worker.tasks import project_tasks, rag_tasks
 
     return by_kind(
         [
+            Handler(jobs.MOVE_PROJECT_WORKSPACE, project_tasks.move_project_workspace),
             Handler(jobs.INGEST_DOCUMENT, rag_tasks.ingest_document),
             Handler(jobs.SYNC_COLLECTION, rag_tasks.sync_collection),
             Handler(jobs.SYNC_SOURCE, rag_tasks.sync_source),
@@ -136,11 +137,20 @@ def _settler[P: Payload](task: Task[P], settle: Callable[[P, str], Awaitable[Non
 
 @cache
 def _settlers() -> dict[str, Settler]:
-    from app.worker.tasks import authoring_tasks, case_generation_tasks, eval_tasks, rag_tasks
+    from app.worker.tasks import (
+        authoring_tasks,
+        case_generation_tasks,
+        eval_tasks,
+        project_tasks,
+        rag_tasks,
+    )
 
     return {
         jobs.GENERATE_CASES.kind: _settler(
             jobs.GENERATE_CASES, case_generation_tasks.settle_lost_generation
+        ),
+        jobs.MOVE_PROJECT_WORKSPACE.kind: _settler(
+            jobs.MOVE_PROJECT_WORKSPACE, project_tasks.settle_project_copies
         ),
         jobs.INGEST_DOCUMENT.kind: _settler(jobs.INGEST_DOCUMENT, rag_tasks.settle_lost_ingest),
         jobs.SYNC_COLLECTION.kind: _settler(

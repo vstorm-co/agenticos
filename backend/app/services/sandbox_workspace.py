@@ -649,11 +649,18 @@ class SandboxWorkspaceService:
         config = sandbox_config(spec)
         if config is None:
             return None
+        scope = scope_override or config.session_scope
+        if scope == "project":
+            from app.services.project_workspace_guard import project_for_workspace
+
+            project = await project_for_workspace(self.db, ctx, identity.project_id)
+            config = project_sandbox(project)
+            identity = replace(identity, project_workspace_id=project.workspace_generation)
         return await self._open_config(
             config,
             ctx=ctx,
             identity=identity,
-            scope=scope_override or config.session_scope,
+            scope=scope,
             on_wait=on_wait,
         )
 
@@ -919,6 +926,7 @@ class SandboxWorkspaceService:
                 agent_id=None,
                 run_id=None,
                 project_id=project.id,
+                project_workspace_id=project.workspace_generation,
             ),
             scope="project",
         )
@@ -1298,6 +1306,35 @@ class SandboxWorkspaceService:
         if workspace.sandbox is None or ref is None:
             return  # never opened: nothing to remove
         await workspace.sandbox.destroy(ref)
+
+    async def retire_project_source(
+        self, ctx: AuthContext, *, source_id: UUID, project_id: UUID
+    ) -> None:
+        """Retire the verified source in the same transaction as target activation."""
+        source = await workspace_repo.get(self.db, source_id, organization_id=ctx.organization_id)
+        if source is None:
+            return
+        if source.project_id != project_id:
+            raise BadRequestError(
+                message="This workspace does not belong to the project", details={}
+            )
+        if source.backend != "state":
+            await self._purge_remote(ctx, source)
+        await workspace_repo.delete(self.db, workspace=source)
+
+    async def cleanup_project_copy(
+        self, ctx: AuthContext, *, connection_id: UUID, key: str
+    ) -> None:
+        """Queue durable cleanup for a private copy left by a lost attempt."""
+        await self._purge_remote(
+            ctx,
+            AgentWorkspace(
+                organization_id=ctx.organization_id,
+                connection_id=connection_id,
+                scope_key=key,
+                session_id=None,
+            ),
+        )
 
     async def purge_for_conversation(self, ctx: AuthContext, *, conversation_id: UUID) -> int:
         """Drop every workspace belonging to a conversation being deleted.
@@ -2022,7 +2059,9 @@ class SandboxWorkspaceService:
 
     async def _entries(self, ctx: AuthContext, row: AgentWorkspace) -> WorkspaceContents:
         if row.backend == "state":
-            return WorkspaceContents(entries=stored_entries(dict(row.files or {})))
+            return WorkspaceContents(
+                entries=stored_entries(dict(row.files or {}), row.directories or ())
+            )
         return await self._remote_entries(ctx, row)
 
     @staticmethod
@@ -2335,7 +2374,7 @@ def _absent(row: AgentWorkspace, contents: WorkspaceContents, path: str) -> bool
     return all(str(entry.get("path")) != path for entry in contents.entries)
 
 
-def stored_entries(files: dict[str, FileData]) -> list[FileInfo]:
+def stored_entries(files: dict[str, FileData], directories: Sequence[str] = ()) -> list[FileInfo]:
     """Every file in a stored workspace, dotfiles included.
 
     Read from the document's own keys rather than a glob, so `/​.env` and `/​.gitignore` are
@@ -2358,6 +2397,11 @@ def stored_entries(files: dict[str, FileData]) -> list[FileInfo]:
         for path, data in files.items()
         if not any(part.startswith(".") for part in PurePosixPath(path).parent.parts)
     ]
+    entries.extend(
+        FileInfo(name=PurePosixPath(path).name, path=path, is_dir=True, size=0)
+        for path in directories
+        if path != "/" and not any(part.startswith(".") for part in PurePosixPath(path).parts)
+    )
     return sorted(entries, key=lambda entry: entry["path"])
 
 

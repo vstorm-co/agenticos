@@ -38,14 +38,7 @@ vi.mock("@/components/triggers/trigger-form-dialog", () => ({
       </div>
     ) : null,
 }));
-vi.mock("@/components/triggers/routine-ideas", () => ({
-  RoutineIdeas: ({ onPick }: { onPick: (template: { key: string }) => void }) => (
-    <button type="button" onClick={() => onPick({ key: "daily-briefing" })}>
-      idea
-    </button>
-  ),
-}));
-// The card and the dialog have their own suites; the page only places them.
+
 vi.mock("@/components/watches/watches-card", () => ({
   useCanWatch: () => canWatch,
   WatchesCard: ({ onNew }: { onNew: () => void }) => (
@@ -93,20 +86,10 @@ describe("RoutinesPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("opens New schedule filled in from an idea, and forgets it once closed", async () => {
-    const user = userEvent.setup();
+  it("keeps the routines list without a separate recommendations panel", () => {
     render(<RoutinesPage />);
-
-    await user.click(screen.getByRole("button", { name: "idea" }));
-    expect(
-      screen.getByRole("dialog", { name: "schedule-dialog:schedule:daily-briefing" }),
-    ).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "close" }));
-    await user.click(screen.getByRole("button", { name: "New schedule" }));
-    expect(
-      screen.getByRole("dialog", { name: "schedule-dialog:schedule:blank" }),
-    ).toBeInTheDocument();
+    expect(screen.queryByText("Ideas to start from")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New schedule" })).toBeInTheDocument();
   });
 
   it("opens the portal picker dialog from New event trigger", async () => {
@@ -118,7 +101,7 @@ describe("RoutinesPage", () => {
     expect(screen.getByRole("dialog", { name: "event-dialog" })).toBeInTheDocument();
   });
 
-  it("hides both create buttons from a caller who may not run an agent", () => {
+  it("hides both create buttons from a caller who may not run an agent", async () => {
     // Runnability, not role: a caller with no runnable agent - none owned, none
     // shared with a run grant - reads `useCanCreateTrigger` false.
     canCreate = false;
@@ -128,14 +111,18 @@ describe("RoutinesPage", () => {
     expect(screen.queryByRole("button", { name: "New event trigger" })).toBeNull();
     // The list still shows - viewing is not gated on running.
     expect(screen.getByTestId("scheduled-tab")).toBeInTheDocument();
-    // A watch is the person's own, so it is offered all the same.
+    expect(screen.queryByRole("button", { name: "New watch" })).toBeNull();
+    await userEvent.click(screen.getByRole("tab", { name: "My watches" }));
     expect(screen.getByRole("button", { name: "New watch" })).toBeInTheDocument();
+    expect(screen.queryByTestId("scheduled-tab")).toBeNull();
   });
 
   it("starts a watch from the header or the card, and offers none where it cannot run", async () => {
     const user = userEvent.setup();
     const { unmount } = render(<RoutinesPage />);
 
+    await user.click(screen.getByRole("tab", { name: "My watches" }));
+    expect(new URL(window.location.href).searchParams.get("tab")).toBe("watches");
     await user.click(screen.getByRole("button", { name: "New watch" }));
     expect(screen.getByRole("dialog", { name: "watch-dialog" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "close watch" }));
@@ -149,4 +136,14 @@ describe("RoutinesPage", () => {
     render(<RoutinesPage />);
     expect(screen.queryByRole("button", { name: "New watch" })).toBeNull();
   });
+});
+
+it("keeps the same page heading and description across both tabs", async () => {
+  render(<RoutinesPage />);
+  const description = screen.getByText(
+    "Agent routines carry out tasks. My watches check your connected accounts and bring findings to your private Inbox.",
+  );
+  await userEvent.click(screen.getByRole("tab", { name: "My watches" }));
+  expect(screen.getByRole("heading", { level: 1, name: "Routines" })).toBeInTheDocument();
+  expect(description).toBeInTheDocument();
 });

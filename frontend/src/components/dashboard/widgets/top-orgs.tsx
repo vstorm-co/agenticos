@@ -16,7 +16,7 @@ export function TopOrgsWidget({ title, hint, seeAll, options }: DashboardWidgetP
   return (
     <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {isLoading ? (
-        <WidgetSkeleton />
+        <WidgetSkeleton variant="table" />
       ) : error ? (
         <WidgetErrorBody onRetry={() => refetch()} />
       ) : organizations.length === 0 ? (
@@ -41,7 +41,7 @@ export function TopOrgsWidget({ title, hint, seeAll, options }: DashboardWidgetP
           </thead>
           <tbody>
             {organizations.map((organization) => (
-              <tr key={organization.id} className="border-border border-t">
+              <tr key={organization.id} className="border-foreground/8 border-t">
                 <td className="text-foreground max-w-0 truncate py-1.5 pr-2">
                   {organization.name}
                 </td>

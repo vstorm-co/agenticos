@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "3ddef12560ae"
+source_sha: "1723f797c360"
 ---
 
 # Projekte { #projects }
@@ -97,6 +97,31 @@ beide dieselbe Datei geändert haben, gilt der spätere Schreibvorgang.
 Ein Projekt bleibt auf der Sandbox-Verbindung, auf der es angelegt wurde, darum
 lässt sich diese Verbindung nicht löschen, solange ein Projekt dort Dateien hält.
 
+Beim Erstellen wählst du unter **Projekt-Sandbox** eine registrierte Verbindung,
+die automatische Auswahl oder **Nur Dateien speichern**. Die automatische Auswahl
+behält die beim Erstellen gewählte Verbindung; ohne verfügbare Verbindung werden
+Dateien gespeichert. Eine benannte Verbindung erfordert `connections:view` und
+eine aktive Verbindung deiner Organisation. Die Projekteinstellungen zeigen
+Verbindungsnamen und Laufzeitumgebung. Alle Projektchats nutzen diese Umgebung
+anstelle der Agenten-Sandbox. Editoren können mit **Sandbox ändern** ein bestehendes Projekt samt Dateien übertragen.
+
+Ein dauerhaft gespeicherter Hintergrundauftrag kopiert Dateien und leere Ordner
+in einen isolierten Arbeitsbereich, prüft Datei-Hashes und Verzeichnisstruktur und
+aktiviert erst danach das Ziel. Aktive Läufe und ausstehende Entscheidungen müssen
+vorher enden. Neue Läufe, Dateiänderungen und Projektbearbeitung pausieren während
+der Übertragung; bestehende Dateien bleiben lesbar. Bei Fehlern bleibt die Quelle
+ausgewählt. Der Fortschritt steht in den Projekteinstellungen. Erst nach geprüfter
+Aktivierung wird die Quelle entfernt; ein dauerhafter Auftrag räumt den Container auf.
+
+Grenzen: 10.000 Einträge, 64 MiB pro Datei, 1 GiB insgesamt; symbolische Links vorher
+entfernen. Installierte Pakete und laufende Prozesse werden nicht kopiert. Beim Wechsel
+zu gespeicherten Dateien gilt zusätzlich das Größenlimit der Plattform.
+
+**Dateien und Codeausführung im Projekt** erklärt Speicherung, gemeinsame Nutzung
+und Ausführung neben der Auswahl. Das Projekt stellt Sandbox-Werkzeuge auch für
+Agenten ohne eigene Sandbox bereit. Container erlauben Codeausführung; gespeicherte
+Dateien haben keine Shell. Bestehende Werkzeugfreigaben gelten weiterhin.
+
 ## Dateien { #files }
 
 Der Reiter **Dateien** des Projekts ist der Container zum Durchsuchen: ein Baum
@@ -106,8 +131,13 @@ neben einer Ansicht, die Markdown, PDFs, Bilder, Tabellen und Code direkt öffne
   ab, ein Ordner behält seinen Baum. Jede Datei unterliegt dem Upload-Limit der
   Installation.
 - **Neuer Ordner** legt einen leeren Ordner an, den ein Agent füllen kann.
-- Der Papierkorb neben einer Datei oder einem Ordner entfernt sie - einen Ordner
-  mit allem darin - für jeden Chat und Agent im Projekt.
+- Im Menü **…** einer Datei oder eines Ordners kannst du umbenennen,
+  verschieben oder löschen. Ziehe einen Eintrag auf einen Ordner oder auf
+  **Projektdateien**, um ihn ins Stammverzeichnis zu verschieben. Ein bestehendes
+  Ziel wird nie überschrieben.
+- **Datei bearbeiten** öffnet vollständige UTF-8-Textdateien bis 1 MiB. Speichere
+  Änderungen oder bestätige das Verwerfen vor dem Schließen. Wurde die Datei
+  seit dem Öffnen geändert, wird das Speichern abgelehnt; öffne sie erneut.
 
 Das Verzeichnis `.agenticos` und die eigenen Ordner der Plattform sind hier nicht
 beschreibbar; ein Pfad außerhalb des Projekts wird abgelehnt, bevor etwas
@@ -131,7 +161,7 @@ Stufe.
 | Grant-Stufe | Berechtigung | Was sie erlaubt |
 |---|---|---|
 | `read` | `projects:view` | Das Projekt, seine Dateien und Anweisungen sehen |
-| `use` | `projects:use` | Darin chatten, hochladen, Ordner anlegen, Dateien entfernen |
+| `use` | `projects:use` | Darin chatten; Dateien hinzufügen, bearbeiten, umbenennen, verschieben und löschen |
 | `edit` | `projects:edit` | Anweisungen und Standard-Agent ändern, teilen, löschen |
 
 Rollen halten diese in den üblichen Bereichen: Owner und Admin erreichen jedes

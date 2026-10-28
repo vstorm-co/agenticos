@@ -6,16 +6,19 @@ import { InlineLocalService } from "@/components/kb/inline-local-service";
 import { InlineSecret } from "@/components/vault/inline-secret";
 import { ProviderRow } from "@/components/vault/provider-row";
 import {
+  Input,
   Label,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
+  useDebounced,
 } from "@/components/ui";
-import { useLocalServices, useSecrets } from "@/hooks";
+import { useLocalServices, usePermissions, useSecrets } from "@/hooks";
+import { Perm } from "@/types/permissions";
 import { apiClient } from "@/lib/api-client";
-import type { EmbeddingModels } from "@/types";
+import type { EmbeddingModels, EndpointEmbeddingModels } from "@/types";
 import { useTranslations } from "next-intl";
 
 /**
@@ -34,6 +37,43 @@ export function useEmbeddingProviders() {
     staleTime: Infinity,
   });
   return { models: data, unreadable: isError };
+}
+
+/**
+ * The embedding models a custom OpenRouter endpoint serves, once one is typed.
+ *
+ * A regional endpoint serves a subset of the catalog - OpenRouter's EU one has
+ * none of OpenAI's models - and a collection on a model its endpoint does not
+ * serve fails every upload. So the create form offers what the endpoint lists.
+ * Asked only by somebody who may set an endpoint, which the route requires, and
+ * debounced so typing an address is not a request per keystroke.
+ *
+ * `served` is undefined while there is nothing to ask or no answer yet; the
+ * caller then offers the provider's catalog, which is what the global address
+ * serves. `checking` is true from the first keystroke until the answer for the
+ * address now in the field arrives, and a form saving an endpoint waits on it.
+ */
+export function useEndpointEmbeddingModels(provider: string, baseUrl: string) {
+  const { can } = usePermissions();
+  const typed = baseUrl.trim().replace(/\/+$/, "");
+  const url = useDebounced(typed);
+  const mayAsk = provider === "openrouter" && can(Perm.connectionsManage);
+  const asks = mayAsk && url !== "";
+  const { data, isFetching } = useQuery({
+    queryKey: ["rag", "embedding-models", provider, url],
+    queryFn: () =>
+      apiClient.get<EndpointEmbeddingModels>(
+        `/rag/embedding-models/${provider}?base_url=${encodeURIComponent(url)}`,
+      ),
+    enabled: asks,
+    staleTime: 60 * 60 * 1000,
+    // A half-typed address is refused, and the next keystroke asks again.
+    retry: false,
+  });
+  // Still settling counts as checking, so a form cannot save the address it is
+  // about to warn about: the debounce has not caught up, or the answer is in flight.
+  const checking = mayAsk && typed !== "" && (typed !== url || isFetching);
+  return { served: asks && typed === url ? data : undefined, checking };
 }
 
 /**
@@ -58,6 +98,8 @@ export function EmbeddingProviderFields({
   provider,
   secretId,
   endpointId,
+  baseUrl,
+  onBaseUrl,
   onProvider,
   onSecretId,
   onEndpointId,
@@ -69,6 +111,8 @@ export function EmbeddingProviderFields({
   secretId: string | null;
   /** The chosen local service for a keyless provider, or null while none is. */
   endpointId: string | null;
+  baseUrl: string;
+  onBaseUrl: (url: string) => void;
   onProvider: (provider: string) => void;
   onSecretId: (secretId: string | null) => void;
   onEndpointId: (endpointId: string | null) => void;
@@ -77,6 +121,7 @@ export function EmbeddingProviderFields({
 }) {
   const t = useTranslations("kb");
   const { secrets } = useSecrets();
+  const { can } = usePermissions();
   const entry = models.providers.find((item) => item.provider === provider);
   const keyless = entry?.keyless === true;
   const { services } = useLocalServices(keyless);
@@ -98,6 +143,7 @@ export function EmbeddingProviderFields({
             // field exists to prevent. Cleared rather than kept and refused on save.
             if (secretId !== null) onSecretId(null);
             if (endpointId !== null) onEndpointId(null);
+            onBaseUrl("");
           }}
         >
           <SelectTrigger id={`${idPrefix}-provider`}>
@@ -112,6 +158,20 @@ export function EmbeddingProviderFields({
           </SelectContent>
         </Select>
       </div>
+      {provider === "openrouter" && (can(Perm.connectionsManage) || baseUrl !== "") && (
+        <div className="space-y-1.5">
+          <Label htmlFor={`${idPrefix}-url`}>{t("embeddingEndpoint")}</Label>
+          <Input
+            id={`${idPrefix}-url`}
+            type="url"
+            disabled={!can(Perm.connectionsManage)}
+            value={baseUrl}
+            onChange={(event) => onBaseUrl(event.target.value)}
+            placeholder="https://openrouter.ai/api/v1"
+          />
+          <p className="text-muted-foreground text-xs">{t("embeddingEndpointHint")}</p>
+        </div>
+      )}
       {keyless ? (
         <div className="space-y-1.5">
           <Label htmlFor={`${idPrefix}-server`}>{t("server")}</Label>

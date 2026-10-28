@@ -349,6 +349,7 @@ describe("organization settings tabs", () => {
     window.history.replaceState({}, "", "?tab=voice#org-voice");
     await userEvent.click(screen.getByRole("tab", { name: "Profile" }));
     expect(window.location.hash).toBe("");
+    expect(screen.getByTitle("Change organization avatar")).toHaveClass("rounded-full");
     const name = screen.getByDisplayValue("Acme");
     await userEvent.clear(name);
     await userEvent.type(name, "New workspace");

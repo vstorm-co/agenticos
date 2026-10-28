@@ -21,6 +21,7 @@ import {
   SelectValue,
   Switch,
 } from "@/components/ui";
+import { LocalServiceIcon } from "@/components/kb/local-service-icon";
 import { submitFailure } from "@/lib/api-error";
 import { DIALOG_FORM } from "@/lib/dialog-sizes";
 import {
@@ -105,8 +106,18 @@ export function LocalServiceDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="embedding">{t("embeddingServer")}</SelectItem>
-                <SelectItem value="ocr">{t("ocrServer")}</SelectItem>
+                <SelectItem value="embedding">
+                  <span className="flex items-center gap-2">
+                    <LocalServiceIcon kind="embedding" className="h-4 w-4" />
+                    {t("embeddingServer")}
+                  </span>
+                </SelectItem>
+                <SelectItem value="ocr">
+                  <span className="flex items-center gap-2">
+                    <LocalServiceIcon kind="ocr" className="h-4 w-4" />
+                    {t("ocrServer")}
+                  </span>
+                </SelectItem>
               </SelectContent>
             </Select>
             {errors.kind && <p className="text-destructive text-xs">{errors.kind}</p>}

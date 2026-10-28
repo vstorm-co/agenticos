@@ -35,8 +35,7 @@ body.
 
 ## Two modes, and the difference is cost
 
-Every context file carries a mode, and it decides how the file reaches the
-model.
+Each attached context file has a mode in the agent’s **Context** capability settings. The same shared file can be injected for one agent, linked for another, or switched off for a third.
 
 === "`inject` — always there"
 
@@ -81,7 +80,9 @@ That is the whole point, and the thing to be careful about: a change to an
 injected file is a change to every agent that carries it. Treat it as the
 shared, load-bearing text it is.
 
-The capability has one setting worth knowing. Turning **off** the read tool
+In the Builder, each selected file has **Use in this agent** and a mode selector. These settings belong to the agent draft and take effect when published. The library editor only changes shared content and description; its format follows the filename. Existing agent versions without per-file overrides retain their previous mode and availability.
+
+The capability also controls whether its read tool is available. Turning **off** the read tool
 means only injected files reach the model and nothing is read on demand — a
 reasonable choice when you want an agent's inputs entirely predictable.
 

@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 import pytest
 
+from app import __version__
 from app.core.config import settings
 from app.core.logfire_setup import WORKER_SERVICE_SUFFIX, setup_worker_observability
 
@@ -29,6 +30,7 @@ class TestTheWorkersOwnConfiguration:
         kwargs = logfire.configure.call_args.kwargs
         assert kwargs["service_name"] == f"{settings.LOGFIRE_SERVICE_NAME}{WORKER_SERVICE_SUFFIX}"
         assert kwargs["environment"] == settings.LOGFIRE_ENVIRONMENT
+        assert kwargs["service_version"] == __version__
         logfire.instrument_pydantic_ai.assert_called_once_with()
 
     def test_the_api_keeps_the_deployments_own_service_name(self):
@@ -39,3 +41,4 @@ class TestTheWorkersOwnConfiguration:
             setup_logfire()
 
         assert logfire.configure.call_args.kwargs["service_name"] == settings.LOGFIRE_SERVICE_NAME
+        assert logfire.configure.call_args.kwargs["service_version"] == __version__

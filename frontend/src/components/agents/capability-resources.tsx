@@ -21,6 +21,7 @@ import {
 import { takesSkillsOffOnly } from "@/lib/system-agents";
 import type { KnowledgeBase } from "@/types";
 import type { ContextFileSummary, SkillSummary } from "@/types/providers";
+import type { ContextSettings } from "@/lib/context-settings";
 import { useTranslations } from "next-intl";
 
 /**
@@ -88,7 +89,11 @@ export function CapabilityResources({
   resources,
   disabled,
   system,
+  fileSettings = {},
+  onFileSettingsChange,
 }: {
+  fileSettings?: ContextSettings;
+  onFileSettingsChange?: (settings: ContextSettings) => void;
   capabilityId: string;
   /** Whether the capability is granted - see the warning below. */
   enabled: boolean;
@@ -110,7 +115,7 @@ export function CapabilityResources({
       <ResourceGroup
         detail={t("contextFilesDetail")}
         note={sharedOnly}
-        warning={contextWarning(t, enabled, resources)}
+        warning={contextWarning(t, enabled, resources, fileSettings)}
       >
         <ContextGallery
           files={resources.contextFiles}
@@ -118,6 +123,8 @@ export function CapabilityResources({
           selectedIds={resources.contextIds}
           onToggle={resources.onContextToggle}
           disabled={disabled}
+          settings={fileSettings}
+          onSettingsChange={onFileSettingsChange}
         />
       </ResourceGroup>
     );
@@ -233,13 +240,19 @@ function contextWarning(
   t: (key: string) => string,
   enabled: boolean,
   resources: AgentResources,
+  settings: ContextSettings,
 ): string | null {
   if (resources.contextIds.length === 0) return null;
   if (!enabled) return t("contextOffButBound");
   const known = new Map(resources.contextFiles.map((file) => [file.id, file]));
   const bound = resources.contextIds.map((id) => known.get(id));
   if (bound.some((file) => file === undefined)) return null;
-  const reads = bound.some((file) => file?.mode === "link" && file.enabled);
+  const reads = bound.some(
+    (file) =>
+      file &&
+      (settings[file.id]?.mode ?? file.mode) === "link" &&
+      (settings[file.id]?.enabled ?? file.enabled),
+  );
   return reads ? null : t("contextInjectOnlyNoTools");
 }
 

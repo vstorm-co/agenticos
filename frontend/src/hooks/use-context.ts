@@ -127,9 +127,9 @@ export function useContextFiles({
 export interface ContextEdit {
   description: string | null;
   content: string;
-  format: string;
-  mode: ContextMode;
-  enabled: boolean;
+  format?: string;
+  mode?: ContextMode;
+  enabled?: boolean;
 }
 
 /**

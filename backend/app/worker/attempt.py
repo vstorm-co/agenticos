@@ -32,6 +32,14 @@ def running(attempt: Attempt | None) -> Generator[None]:
         _current.reset(token)
 
 
+def current_attempt_number() -> int:
+    """The fencing token supplied by the worker, required for transfer side effects."""
+    attempt = _current.get()
+    if attempt is None:
+        raise RuntimeError("A workspace transfer must run as a claimed job")
+    return attempt.number
+
+
 def is_final_attempt() -> bool:
     """Whether a failure now ends the job, rather than handing it to another attempt.
 

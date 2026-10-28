@@ -206,16 +206,15 @@
   --color-peek-well: oklch(95.5% 0.002 265);
   --color-peek-sheet: oklch(88.5% 0.004 265);
   --color-peek-paper: oklch(100% 0 0);
-  /* `primary` is INK, not the accent: the platform's primary action is a
-     near-black button (white in dark themes), the way OpenAI's and
-     ElevenLabs' consoles draw theirs. The accent keeps the quieter jobs -
-     links, selection, focus, charts - which is what keeps it legible as
-     "you are here" rather than "click me". Pointer states are explicit
-     steps, not alpha fades, for the same reason the brand ramp's are. */
+  /* Actions sit on a neutral raised surface; colour is reserved for meaning. */
   --color-primary: oklch(21% 0.01 250);
   --color-primary-foreground: oklch(98.5% 0 0);
   --color-primary-hover: oklch(30% 0.01 250);
   --color-primary-active: oklch(37% 0.012 250);
+  --color-action: oklch(95% 0 0);
+  --color-action-foreground: oklch(22% 0 0);
+  --color-action-hover: oklch(92% 0 0);
+  --color-action-active: oklch(89% 0 0);
   --color-secondary: oklch(95.5% 0.002 265);
   --color-secondary-foreground: oklch(22% 0.004 265);
   --color-muted: oklch(95.5% 0.002 265);
@@ -243,13 +242,9 @@
      the loudest. */
   --color-warning: oklch(64% 0.1 72);
   --color-success: oklch(58% 0.1 155);
-  /* Firmer than the 91.5% it replaces (1.29:1 on a white card, now about
-     1.45:1). The quieter edge read as washed out: cards, table rules and
-     dividers faded into the page, and a layout drawn in hairlines nobody can
-     see is not calm, it is unfinished. `input` stays darker than `border`,
-     because the edge of a field somebody has to find and click is doing a
-     different job from the edge of a panel. */
-  --color-border: oklch(84.5% 0.003 265);
+  /* Decorative edges stay quiet; input edges remain stronger so fields
+     remain easy to locate independently of the panel around them. */
+  --color-border: oklch(89% 0 0);
   --color-input: oklch(77% 0.005 265);
   /* The bright step, not the text step: a focused field ringed in the deep
      rust of `brand` read as a field in error. */
@@ -257,7 +252,7 @@
 
   /* Radius */
   --radius: 0.5rem;
-  --radius-card: 0.5rem;
+  --radius-card: 0.75rem;
   --radius-pill: 999px;
 
   /* Elevation. One soft step for resting cards - borders do the separating,
@@ -313,11 +308,15 @@
     /* Accent roles, dark mapping. The fill lightens - a bright accent reads as
        forward on near-black - and its foreground flips to near-black ink,
        which buys more contrast than white-on-blue reaches at any lightness.
-       Ink flips with it: the primary button goes white on graphite. */
+       Primary actions keep a neutral surface with light text. */
     --color-primary: oklch(96% 0.003 250);
     --color-primary-foreground: oklch(16% 0.01 250);
     --color-primary-hover: oklch(88% 0.004 250);
     --color-primary-active: oklch(81% 0.005 250);
+    --color-action: oklch(34% 0 0);
+    --color-action-foreground: oklch(96% 0 0);
+    --color-action-hover: oklch(38% 0 0);
+    --color-action-active: oklch(41% 0 0);
     --color-brand: var(--brand-400);
     --color-brand-hover: var(--brand-300);
     --color-brand-active: var(--brand-200);
@@ -331,7 +330,7 @@
     --color-muted-foreground: oklch(73.5% 0.006 265);
     --color-accent: oklch(32.5% 0.0025 265);
     --color-accent-foreground: oklch(95% 0 0);
-    --color-border: oklch(38.5% 0.003 265);
+    --color-border: oklch(34% 0 0);
     --color-input: oklch(47% 0.004 265);
     --color-chart: oklch(74% 0.14 277);
     --color-chart-fill: oklch(60% 0.16 277);
@@ -363,6 +362,10 @@
   --color-primary-foreground: oklch(16% 0.01 250);
   --color-primary-hover: oklch(88% 0.004 250);
   --color-primary-active: oklch(81% 0.005 250);
+  --color-action: oklch(34% 0 0);
+  --color-action-foreground: oklch(96% 0 0);
+  --color-action-hover: oklch(38% 0 0);
+  --color-action-active: oklch(41% 0 0);
   --color-brand: var(--brand-400);
   --color-brand-hover: var(--brand-300);
   --color-brand-active: var(--brand-200);
@@ -376,7 +379,7 @@
   --color-muted-foreground: oklch(73.5% 0.006 265);
   --color-accent: oklch(32.5% 0.0025 265);
   --color-accent-foreground: oklch(95% 0 0);
-  --color-border: oklch(38.5% 0.003 265);
+  --color-border: oklch(34% 0 0);
   --color-input: oklch(47% 0.004 265);
   --color-chart: oklch(74% 0.14 277);
   --color-chart-fill: oklch(60% 0.16 277);
@@ -402,13 +405,17 @@
   --color-card-foreground: oklch(15% 0 0);
   --color-muted: oklch(94% 0.004 250);
   --color-muted-foreground: oklch(44% 0 0);
-  --color-border: oklch(84.5% 0.004 250);
+  --color-border: oklch(89% 0 0);
   /* A pinned-light subtree inside a dark root needs the light accent mapping
      too, or its buttons and links keep the root theme's accent. */
   --color-primary: oklch(21% 0.01 250);
   --color-primary-foreground: oklch(98.5% 0 0);
   --color-primary-hover: oklch(30% 0.01 250);
   --color-primary-active: oklch(37% 0.012 250);
+  --color-action: oklch(95% 0 0);
+  --color-action-foreground: oklch(22% 0 0);
+  --color-action-hover: oklch(92% 0 0);
+  --color-action-active: oklch(89% 0 0);
   --color-brand: var(--brand-700);
   --color-brand-hover: var(--brand-800);
   --color-brand-active: var(--brand-900);
@@ -436,11 +443,15 @@
   --color-card-foreground: oklch(94.5% 0.003 265);
   --color-muted: oklch(30% 0.0025 265);
   --color-muted-foreground: oklch(73.5% 0.006 265);
-  --color-border: oklch(38.5% 0.003 265);
+  --color-border: oklch(34% 0 0);
   --color-primary: oklch(96% 0.003 250);
   --color-primary-foreground: oklch(16% 0.01 250);
   --color-primary-hover: oklch(88% 0.004 250);
   --color-primary-active: oklch(81% 0.005 250);
+  --color-action: oklch(34% 0 0);
+  --color-action-foreground: oklch(96% 0 0);
+  --color-action-hover: oklch(38% 0 0);
+  --color-action-active: oklch(41% 0 0);
   --color-brand: var(--brand-400);
   --color-brand-hover: var(--brand-300);
   --color-brand-active: var(--brand-200);

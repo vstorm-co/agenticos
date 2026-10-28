@@ -1,5 +1,5 @@
 ---
-source_sha: "59eb32f72c0d"
+source_sha: "2c6dbdb89849"
 ---
 
 # Skille { #skills }
@@ -191,6 +191,12 @@ dotknął, i taki, który zamierzał usunąć, zostawiają po sobie ten sam brak
 Trzy tury jednej rozmowy dopracowujące ten sam skill zostawiają **jedną**
 propozycję, nie trzy. Recenzent zapytany trzy razy o to samo dostał więcej pracy,
 a nie więcej informacji.
+Propozycje z workspace mają te same limity metadanych co zapisane skille: nazwa
+od 1 do 64 znaków i opis do 500 znaków. Zmiana poza limitem jest pomijana z
+ostrzeżeniem; oryginalne pliki pozostają bez zmian. Zapis propozycji używa
+savepointu, więc odrzucona propozycja nie wycofa tury ani nie zablokuje zapisania
+jej statusu i kosztu.
+
 
 Zmiana zapisuje wersję skilla, dla której powstała: przy runie jest to wersja,
 którą ten run dostał, a późniejsza tura, która ją nadpisuje, zapisuje swoją. Apply

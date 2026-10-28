@@ -32,6 +32,9 @@ export interface FigureProps {
   captionTone?: "muted" | "destructive";
   /** Recent points, drawn as a trend hint under the number. */
   spark?: number[];
+  /** Names and value formatting for inspecting an individual timeline bucket. */
+  sparkLabels?: string[];
+  sparkFormat?: (value: number) => string;
   /**
    * A share from 0 to 1, drawn as a bar along the foot of the figure - for the
    * figure that is a part of a whole and has no series behind it. Takes the
@@ -82,6 +85,8 @@ export function Figure({
   caption,
   captionTone = "muted",
   spark,
+  sparkLabels,
+  sparkFormat,
   meter,
   size = "md",
   tone,
@@ -136,7 +141,13 @@ export function Figure({
         // numbers the series becomes a chart rather than a 36px line floating
         // above an inch of nothing.
         <div className="min-h-9 w-full flex-1 pt-3">
-          <FigureSpark spark={spark} color={ink} />
+          <FigureSpark
+            spark={spark}
+            color={ink}
+            labels={sparkLabels}
+            formatValue={sparkFormat}
+            name={label}
+          />
         </div>
       ) : meter !== undefined ? (
         // At the foot, where a sparkline's baseline would be, so a row of

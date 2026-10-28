@@ -120,6 +120,7 @@ function row(
 ): StatusRow {
   const [pill, tone] = outcome(trigger, run, t);
   return {
+    id: trigger.id,
     label: trigger.name ?? trigger.agent_name ?? t("unnamed"),
     sub: [
       cadenceText(trigger, tt),

@@ -261,3 +261,19 @@ class TestWriting:
         await agent_workspace_repo.delete(session, workspace=row)
 
         assert session.deleted == [row]
+
+
+@pytest.mark.security
+async def test_project_file_mutations_refresh_the_snapshot_under_a_tenant_scoped_lock() -> None:
+    db = _RecordingSession(None)
+    organization, project = uuid.uuid4(), uuid.uuid4()
+    await agent_workspace_repo.lock_project_files(
+        db, project_id=project, organization_id=organization
+    )
+    statement = db.statements[0]
+    compiled = statement.compile(dialect=postgresql.dialect())
+    assert organization in compiled.params.values()
+    assert project in compiled.params.values()
+    assert "project" in compiled.params.values()
+    assert "FOR UPDATE" in str(compiled)
+    assert statement.get_execution_options()["populate_existing"] is True

@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "3ddef12560ae"
+source_sha: "1723f797c360"
 ---
 
 # Projekty { #projects }
@@ -92,6 +92,29 @@ zapisał, a gdy oba zmieniły ten sam plik, zostaje późniejszy zapis. Projekt 
 utworzono, więc tego połączenia nie da się usunąć, dopóki jakiś projekt trzyma na
 nim pliki.
 
+Przy tworzeniu projektu pole **Sandbox projektu** pozwala wybrać zarejestrowane
+połączenie, tryb automatyczny lub **Tylko przechowywanie plików**. Tryb automatyczny
+zapamiętuje połączenie wybrane przy tworzeniu; gdy żadnego nie ma, przechowuje pliki.
+Wybór konkretnego połączenia wymaga `connections:view` i aktywnego połączenia w
+organizacji. Ustawienia projektu pokazują nazwę połączenia i środowisko. Wszystkie
+czaty projektu używają go zamiast sandboxa agenta. Edytorzy mogą użyć **Zmień sandbox**, aby przenieść istniejący projekt wraz z plikami.
+
+Transfer jest trwałym zadaniem w tle. Kopiuje pliki i puste foldery do odrębnego
+warsztatu, sprawdza skróty plików i drzewo katalogów, a potem aktywuje cel. Przed
+rozpoczęciem muszą zakończyć się aktywne runy i oczekujące decyzje. Podczas transferu
+nowe runy, zapisy plików i edycja projektu czekają. Obecne pliki pozostają czytelne.
+Po błędzie pozostaje wybrane źródło. Postęp widać w ustawieniach projektu. Dopiero
+sprawdzona aktywacja usuwa źródłowy warsztat; zdalny kontener usuwa trwałe zadanie.
+
+Limity: 10 000 wpisów, 64 MiB na plik, 1 GiB łącznie; wcześniej usuń dowiązania
+symboliczne. Zainstalowane pakiety i działające procesy nie są kopiowane. Przeniesienie
+do samych plików musi też zmieścić się w limicie dokumentu przechowywanego przez platformę.
+
+Opis **Jak działają pliki i uruchamianie kodu w projekcie** objaśnia przechowywanie,
+współdzielenie i środowisko wykonawcze przy wyborze. Projekt udostępnia narzędzia
+Sandbox również agentowi bez własnego sandboxa. Kontener pozwala uruchamiać kod;
+same pliki nie mają powłoki. Wymagania zatwierdzania narzędzi nadal obowiązują.
+
 ## Pliki { #files }
 
 Zakładka **Pliki** projektu to przeglądarka kontenera: drzewo obok podglądu,
@@ -100,8 +123,12 @@ który otwiera Markdown, PDF-y, obrazy, arkusze i kod na miejscu.
 - **Prześlij pliki** i **Prześlij folder** wkładają pliki na górę projektu;
   folder zachowuje swoje drzewo. Każdy plik podlega limitowi wgrywania wdrożenia.
 - **Nowy folder** tworzy pusty folder do wypełnienia przez agenta.
-- Kosz obok pliku lub folderu usuwa go - folder razem z zawartością - dla
-  każdego czatu i agenta w projekcie.
+- Menu **…** pliku lub folderu pozwala zmienić nazwę, przenieść lub usunąć.
+  Przeciągnij element na folder albo na **Pliki projektu**, aby przenieść go do
+  katalogu głównego. Istniejący element docelowy nie zostanie nadpisany.
+- **Edytuj plik** otwiera cały plik tekstowy UTF-8 do 1 MiB. Zapisz zmiany lub
+  potwierdź ich odrzucenie przed zamknięciem. Zapis odrzuca wersję zmienioną od
+  otwarcia edytora; otwórz plik ponownie, aby sprawdzić nowszą wersję.
 
 Katalog `.agenticos` i własne foldery platformy nie są stąd zapisywalne; ścieżka
 poza projektem jest odrzucana, zanim cokolwiek zostanie zapisane.
@@ -122,7 +149,7 @@ oknem **Udostępnij**, którego używa agent czy skill: osobom,
 | Poziom grantu | Uprawnienie | Na co pozwala |
 |---|---|---|
 | `read` | `projects:view` | Widzieć projekt, jego pliki i instrukcje |
-| `use` | `projects:use` | Czatować w nim, wgrywać, tworzyć foldery, usuwać pliki |
+| `use` | `projects:use` | Czatować w nim; dodawać, edytować, przenosić i usuwać pliki |
 | `edit` | `projects:edit` | Zmieniać instrukcje i domyślnego agenta, udostępniać, usuwać |
 
 Role mają te uprawnienia w zwykłych zakresach: Owner i Admin sięgają każdego

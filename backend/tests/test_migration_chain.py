@@ -62,6 +62,10 @@ def test_no_two_migrations_claim_the_same_parent() -> None:
     # sibling still fails here, even if a later accidental head masks it.
     assert forked == {
         "0159_default_organization": ["0160_datasets", "0160_user_profile"],
+        "0175_profile_runs_without_key": [
+            "0176_channel_rating_authors",
+            "0189_console_milestones_merge",
+        ],
         "0178_eval_run_proposal_check": [
             "0174_case_score_agent_key",
             "0175_knowledge_gap_covered",
@@ -80,6 +84,11 @@ def test_no_two_migrations_claim_the_same_parent() -> None:
     assert console_merge is not None and console_merge.down_revision == (
         "0188_self_improvement_merge",
         "0175_profile_runs_without_key",
+    )
+    main_merge = chain.get_revision("0215_main_128_merge")
+    assert main_merge is not None and main_merge.down_revision == (
+        "0214_profile_key_column_again",
+        "0178_project_workspace_moves",
     )
 
 

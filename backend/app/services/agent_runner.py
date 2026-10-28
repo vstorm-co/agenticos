@@ -136,6 +136,7 @@ from app.agents.capabilities.context import (
     CONTEXT_BODIES_RESOURCE,
     CONTEXT_FILES_RESOURCE,
     ContextBody,
+    context_config,
 )
 from app.agents.capabilities.guardrails import (
     GuardrailBlocked,
@@ -3199,7 +3200,10 @@ class AgentRunnerService:
                 ctx, spec.skill_ids, projected=skill_bodies
             ),
             CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(
-                ctx, spec.context_ids, projected=context_bodies
+                ctx,
+                spec.context_ids,
+                projected=context_bodies,
+                config=context_config(spec.capabilities),
             ),
             SKILL_BODIES_RESOURCE: dict(skill_bodies or {}),
             CONTEXT_BODIES_RESOURCE: dict(context_bodies or {}),
@@ -4373,7 +4377,9 @@ class AgentRunnerService:
         resources: dict[str, Any] = {
             "kb_collection_names": list(collections),
             "skills": await self.skills.resolve_for_agent(ctx, spec.skill_ids),
-            CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(ctx, spec.context_ids),
+            CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(
+                ctx, spec.context_ids, config=context_config(spec.capabilities)
+            ),
         }
         parent_log = parent_resources.get(KNOWLEDGE_SEARCH_LOG_RESOURCE)
         if isinstance(parent_log, KnowledgeSearchLog):
@@ -4843,17 +4849,23 @@ class AgentRunnerService:
         state = prepared.materialised_skills
         if workspace is None or state is None or prepared.ctx is None or _untouched(workspace):
             return
+        run_id = str(prepared.run.id)
+        agent_id = prepared.agent.id
+        conversation_id = prepared.run.conversation_id
         try:
             changes = await collect_changes(workspace.workspace, state)
             if changes:
-                await self.proposals.record(
-                    prepared.ctx,
-                    changes,
-                    agent_id=prepared.agent.id,
-                    conversation_id=prepared.run.conversation_id,
-                )
+                # Optional proposals must not poison the transaction that still
+                # has to persist the run's terminal status and spend.
+                async with self.db.begin_nested():
+                    await self.proposals.record(
+                        prepared.ctx,
+                        changes,
+                        agent_id=agent_id,
+                        conversation_id=conversation_id,
+                    )
         except Exception:
-            logger.exception("skill_proposal_record_failed", extra={"run_id": str(prepared.run.id)})
+            logger.exception("skill_proposal_record_failed", extra={"run_id": run_id})
 
     async def keep_plan(self, prepared: PreparedRun, *, status: RunStatus) -> None:
         """Store the checklist the turn ended on, so the next turn starts from it.

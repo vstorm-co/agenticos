@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 import { AlertTriangle, FolderOpen, Info, X } from "lucide-react";
@@ -72,6 +73,9 @@ export function WorkspaceFiles({
   const { workspace, error, refresh } = useConversationWorkspace(conversationId);
   const openAttachment = useFilePreviewStore((state) => state.open);
   const [open, setOpen] = useState(false);
+  const panelId = useId();
+  const toggle = useRef<HTMLButtonElement>(null);
+  const reduceMotion = useReducedMotion();
   const [reading, setReading] = useState<ConversationFile | null>(null);
   // The chat addresses files through its conversation, not through the workspace's
   // id: that route authorises by fetching the conversation, so somebody this chat
@@ -125,159 +129,173 @@ export function WorkspaceFiles({
   });
   const count = files.length + unstored.length;
 
-  if (!open)
-    // Drawn where the composer keeps its controls rather than in the row: a
-    // strip in the row cost the transcript a margin for one icon, and a button
-    // floating over the row sat on whichever side panel was open.
-    return (
-      buttonSlot &&
-      createPortal(
-        <button
-          type="button"
-          aria-label={count === 0 ? t("show") : t("showWithCount", { count })}
-          title={count === 0 ? t("show") : t("showWithCount", { count })}
-          onClick={() => setOpen(true)}
-          className="text-muted-foreground hover:text-foreground hover:bg-accent/60 relative inline-flex h-8 w-8 items-center justify-center rounded-full"
-        >
-          <FolderOpen className="h-4 w-4" />
-          {count > 0 && (
-            <span className="bg-foreground text-background absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px]">
-              {count}
-            </span>
-          )}
-        </button>,
-        buttonSlot,
-      )
-    );
-
   return (
-    <aside
-      className={cn(
-        "border-border w-72 shrink-0 space-y-3 border-l p-4",
-        overlay &&
-          "bg-background absolute inset-y-0 right-0 z-20 max-w-[85%] scrollbar-thin overflow-y-auto shadow-xl",
-      )}
-    >
-      <div className="space-y-1">
-        <div className="flex items-center justify-between gap-2">
-          <p className="flex items-center gap-2 text-sm font-medium">
-            <FolderOpen className="h-4 w-4" aria-hidden />
-            {t("title")}
-          </p>
+    <>
+      {buttonSlot &&
+        createPortal(
           <button
+            ref={toggle}
             type="button"
-            aria-label={t("close")}
-            onClick={() => setOpen(false)}
-            className="text-muted-foreground hover:text-foreground rounded-md p-1"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        {workspace !== null && workspace.backend !== "none" && (
-          <p className="text-muted-foreground text-xs">
-            {workspace.owner_label}
-            {workspace.backend === "state" && workspace.bytes_total > 0 && (
-              <> · {t("storedSuffix", { size: formatBytes(workspace.bytes_total) })}</>
+            aria-label={open ? t("title") : count === 0 ? t("show") : t("showWithCount", { count })}
+            aria-controls={panelId}
+            aria-expanded={open}
+            title={open ? t("close") : count === 0 ? t("show") : t("showWithCount", { count })}
+            onClick={() => setOpen((current) => !current)}
+            className={cn(
+              "text-muted-foreground hover:text-foreground hover:bg-accent/60 relative inline-flex size-8 items-center justify-center rounded-lg transition-colors",
+              open && "bg-foreground/[0.06] text-foreground",
             )}
-          </p>
+          >
+            <FolderOpen className="size-4" aria-hidden />
+            {count > 0 && (
+              <span className="bg-foreground text-background absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px]">
+                {count}
+              </span>
+            )}
+          </button>,
+          buttonSlot,
         )}
-      </div>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.aside
+            id={panelId}
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: 288, opacity: 1 }}
+            exit={{ width: 0, opacity: 0 }}
+            transition={{ duration: reduceMotion ? 0 : 0.2, ease: "easeOut" }}
+            className={cn(
+              "h-full shrink-0 overflow-hidden",
+              overlay && "bg-background shadow-card absolute inset-y-0 right-0 z-20 max-w-[85%]",
+            )}
+          >
+            <div className="border-border h-full w-72 space-y-3 overflow-y-auto border-l p-4">
+              <div className="space-y-1">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="flex items-center gap-2 text-sm font-medium">
+                    <FolderOpen className="h-4 w-4" aria-hidden />
+                    {t("title")}
+                  </p>
+                  <button
+                    type="button"
+                    aria-label={t("close")}
+                    onClick={() => {
+                      setOpen(false);
+                      toggle.current?.focus();
+                    }}
+                    className="text-muted-foreground hover:text-foreground rounded-md p-1"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                {workspace !== null && workspace.backend !== "none" && (
+                  <p className="text-muted-foreground text-xs">
+                    {workspace.owner_label}
+                    {workspace.backend === "state" && workspace.bytes_total > 0 && (
+                      <> · {t("storedSuffix", { size: formatBytes(workspace.bytes_total) })}</>
+                    )}
+                  </p>
+                )}
+              </div>
 
-      {conversationId === null && (
-        <p className="text-muted-foreground text-xs">{t("beforeStart")}</p>
-      )}
+              {conversationId === null && (
+                <p className="text-muted-foreground text-xs">{t("beforeStart")}</p>
+              )}
 
-      {error !== null && (
-        <div className="text-destructive flex items-start gap-2 text-xs">
-          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-          <p>{error}</p>
-        </div>
-      )}
+              {error !== null && (
+                <div className="text-destructive flex items-start gap-2 text-xs">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                  <p>{error}</p>
+                </div>
+              )}
 
-      {/* Not red, and not beside "nothing yet". A host that keeps no files on disk
+              {/* Not red, and not beside "nothing yet". A host that keeps no files on disk
           is a configuration somebody chose, with a one-line fix this message names
           - and saying "no files" as well would be the second of two wrong answers. */}
-      {workspace?.unreadable_reason != null && (
-        <div className="text-muted-foreground flex items-start gap-2 text-xs">
-          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-          <p>{workspace.unreadable_reason}</p>
-        </div>
-      )}
+              {workspace?.unreadable_reason != null && (
+                <div className="text-muted-foreground flex items-start gap-2 text-xs">
+                  <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                  <p>{workspace.unreadable_reason}</p>
+                </div>
+              )}
 
-      {/* Two different answers, and they were one. "Nothing yet" is right for a
+              {/* Two different answers, and they were one. "Nothing yet" is right for a
           workspace that is empty; for an agent that has none it describes a wait
           that will never end, since no turn is going to put a file there. */}
-      {workspace !== null && workspace.unreadable_reason == null && count === 0 && (
-        <p className="text-muted-foreground text-xs">
-          {workspace.backend === "none" ? t("noWorkspace") : t("empty")}
-        </p>
-      )}
+              {workspace !== null && workspace.unreadable_reason == null && count === 0 && (
+                <p className="text-muted-foreground text-xs">
+                  {workspace.backend === "none" ? t("noWorkspace") : t("empty")}
+                </p>
+              )}
 
-      {/* Tiles rather than rows. The name is what somebody scans for and the icon
+              {/* Tiles rather than rows. The name is what somebody scans for and the icon
           says what kind of thing it is before the name is read, which a 288-pixel
           column of monospace paths did not. */}
-      {files.length > 0 && (
-        <ul className="rise-in grid grid-cols-2 gap-2">
-          {files.map((file) => (
-            <li key={file.path}>
-              <FileCard
-                name={file.path.split("/").filter(Boolean).pop() ?? file.path}
-                size={file.size}
-                preview={file.preview}
-                imageUrl={file.thumbnail}
-                onOpen={() => setReading(file)}
-                className="w-full"
-              />
-            </li>
-          ))}
-        </ul>
-      )}
+              {files.length > 0 && (
+                <ul className="rise-in grid grid-cols-2 gap-2">
+                  {files.map((file) => (
+                    <li key={file.path}>
+                      <FileCard
+                        name={file.path.split("/").filter(Boolean).pop() ?? file.path}
+                        size={file.size}
+                        preview={file.preview}
+                        imageUrl={file.thumbnail}
+                        onOpen={() => setReading(file)}
+                        className="w-full"
+                      />
+                    </li>
+                  ))}
+                </ul>
+              )}
 
-      {/* What people attached and the agent has no copy of. Its own group, under its
+              {/* What people attached and the agent has no copy of. Its own group, under its
           own heading, because where a file came from changes what it means: the agent
           wrote the ones above and can read them back, while these are only in the
           chat - so an agent with no workspace can be *shown* one and cannot open it.
           Opened through the shared preview panel, which is what the attachment chips
           on the messages already use, rather than the workspace viewer that would
           have nothing to read. */}
-      {unstored.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-muted-foreground text-xs font-medium">{t("attached")}</p>
-          <ul className="grid grid-cols-2 gap-2">
-            {unstored.map((file) => (
-              <li key={file.id}>
-                <FileCard
-                  name={file.filename}
-                  mimeType={file.mime_type}
-                  // An attachment is behind the same authenticated address the
-                  // viewer reads it from, so the card can draw the picture rather
-                  // than a grey glyph standing in for one. Nothing is fetched here
-                  // - the browser loads what an `img` points at, and a chat holds
-                  // a handful of attachments rather than a listing. Only a
-                  // render-safe type: a TIFF is an `image` kind no browser draws, so
-                  // it gets its glyph rather than a broken thumbnail (#1591).
-                  imageUrl={isRenderSafeImage(file.mime_type) ? getFileUrl(file.id) : null}
-                  onOpen={() => openAttachment(file)}
-                  className="w-full"
-                />
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+              {unstored.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-muted-foreground text-xs font-medium">{t("attached")}</p>
+                  <ul className="grid grid-cols-2 gap-2">
+                    {unstored.map((file) => (
+                      <li key={file.id}>
+                        <FileCard
+                          name={file.filename}
+                          mimeType={file.mime_type}
+                          // An attachment is behind the same authenticated address the
+                          // viewer reads it from, so the card can draw the picture rather
+                          // than a grey glyph standing in for one. Nothing is fetched here
+                          // - the browser loads what an `img` points at, and a chat holds
+                          // a handful of attachments rather than a listing. Only a
+                          // render-safe type: a TIFF is an `image` kind no browser draws, so
+                          // it gets its glyph rather than a broken thumbnail (#1591).
+                          imageUrl={isRenderSafeImage(file.mime_type) ? getFileUrl(file.id) : null}
+                          onOpen={() => openAttachment(file)}
+                          className="w-full"
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
-      {source !== null && reading !== null && (
-        <FileViewer
-          file={{
-            name: reading.path.split("/").filter(Boolean).pop() ?? reading.path,
-            path: reading.path,
-            size: reading.size,
-            modifiedAt: reading.modified_at,
-          }}
-          access={workspaceFileAccess(source, reading.path)}
-          onClose={() => setReading(null)}
-        />
-      )}
-    </aside>
+              {source !== null && reading !== null && (
+                <FileViewer
+                  file={{
+                    name: reading.path.split("/").filter(Boolean).pop() ?? reading.path,
+                    path: reading.path,
+                    size: reading.size,
+                    modifiedAt: reading.modified_at,
+                  }}
+                  access={workspaceFileAccess(source, reading.path)}
+                  onClose={() => setReading(null)}
+                />
+              )}
+            </div>
+          </motion.aside>
+        )}
+      </AnimatePresence>
+    </>
   );
 }

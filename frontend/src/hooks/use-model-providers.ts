@@ -233,10 +233,13 @@ interface ProviderModelList {
   source: "live" | "curated" | "unlisted";
 }
 
-function providerModelsQuery(providerId: string) {
+function providerModelsQuery(providerId: string, baseUrl?: string) {
   return queryOptions({
-    queryKey: qk.providers.models(providerId),
-    queryFn: () => apiClient.get<ProviderModelList>(`/providers/${providerId}/models`),
+    queryKey: qk.providers.models(providerId, baseUrl),
+    queryFn: () =>
+      apiClient.get<ProviderModelList>(
+        `/providers/${providerId}/models${baseUrl ? `?base_url=${encodeURIComponent(baseUrl)}` : ""}`,
+      ),
     staleTime: 60 * 60 * 1000,
     // An empty dropdown is the fallback the field is built for, so a provider
     // that cannot be reached must not retry three times behind an open form.
@@ -256,9 +259,9 @@ function providerModelsQuery(providerId: string) {
  * ships something, which is on the order of weeks, but a deployment that added
  * its first key should not have to reload to see a list.
  */
-export function useProviderModels(providerId: string) {
+export function useProviderModels(providerId: string, baseUrl?: string) {
   const { data, isFetching } = useQuery({
-    ...providerModelsQuery(providerId),
+    ...providerModelsQuery(providerId, baseUrl),
     enabled: providerId !== "",
   });
 

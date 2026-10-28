@@ -1068,7 +1068,11 @@
     "systemAgentKnowledgeHelp": "{kind, select, judge {Sprawdza fakty z odpowiedzi w bazach wiedzy ocenianego agenta, tam gdzie nie podaje ich odpowiedź wzorcowa.} generator {Przeszukuje bazy wiedzy, z których tworzysz przypadki, więc pytania trzymają się tego, co w nich naprawdę jest.} classifier {Zanim uzna pytanie za lukę, sprawdza, czy baza wiedzy już na nie odpowiada.} drafter {Przeszukuje bazę wiedzy luki, więc proponowana treść nie powtarza tego, co dokument już mówi.} improver {Czyta bazy wiedzy ulepszanego agenta, więc jego zmiany pasują do tego, co w nich jest.} other {Przeszukuje bazy wiedzy, które platforma wybiera dla każdego runu.}}",
     "systemAgentMaxSteps": "Maks. kroków",
     "systemAgentMaxStepsHint": "Każdy krok to płatne żądanie przy każdej odpowiedzi, którą czyta. Najwyżej {max}; puste pole oznacza {fallback}.",
-    "temperatureVariesVerdict": "{kind, select, judge {Powyżej 0 ta sama odpowiedź może za drugim razem dostać inną ocenę. 0 utrzymuje powtarzalne oceny.} other {Powyżej 0 ta sama odpowiedź może za drugim razem zostać inaczej sklasyfikowana. 0 utrzymuje powtarzalną klasyfikację.}}"
+    "temperatureVariesVerdict": "{kind, select, judge {Powyżej 0 ta sama odpowiedź może za drugim razem dostać inną ocenę. 0 utrzymuje powtarzalne oceny.} other {Powyżej 0 ta sama odpowiedź może za drugim razem zostać inaczej sklasyfikowana. 0 utrzymuje powtarzalną klasyfikację.}}",
+    "openRouterEndpointHint": "Puste pole oznacza globalne API OpenRouter. Możesz podać regionalny URL, np. https://eu.openrouter.ai/api/v1. Routing EU wymaga odpowiedniego planu OpenRouter; ZDR ustawia się osobno w OpenRouter.",
+    "defaultEndpoint": "Domyślne API",
+    "addSeparateModel": "Dodaj osobny model",
+    "separateEndpointHint": "Zapisz ten endpoint jako osobny model, aby zachować obecny profil dla innych agentów. „Zaktualizuj model” zmienia wspólny profil wszędzie, gdzie jest używany."
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",
@@ -1421,7 +1425,9 @@
       "modelHasNoKey": "{model} jest zapisany bez klucza, więc ta rozmowa nie może na nim działać. Najpierw przypisz mu klucz w panelu modelu agenta.",
       "provider": "Provider",
       "runModel": "Uruchom na tym modelu",
-      "thisChat": "Tylko ten czat"
+      "thisChat": "Tylko ten czat",
+      "changeModel": "Zmień model",
+      "profilesUnavailable": "Nie udało się odczytać ustawień modelu. Spróbuj ponownie przed wyborem innego modelu."
     },
     "newChat": "Nowy czat",
     "newConversation": "Nowa konwersacja",
@@ -2219,7 +2225,8 @@
     "showLess": "Mniej",
     "copy": "Kopiuj",
     "copied": "Skopiowano",
-    "searchShortcut": "Ctrl K"
+    "searchShortcut": "Ctrl K",
+    "filesRoot": "Pliki projektu"
   },
   "dashboard": {
     "actions": {
@@ -3566,6 +3573,11 @@
     "whereLiteparseStopsWhat": "Gdzie LiteParse się zatrzymuje. To ogranicza koszt jednego dokumentu - limit czasu ogranicza tylko czekanie.",
     "whoseAccountEachParse": "Na czyje konto naliczane jest każde parsowanie.",
     "widthIsFixed": "Szerokość wynika z modelu i kolekcja jest z nią tworzona.",
+    "checkingEndpointModels": "Sprawdzanie, jakie modele embeddingów obsługuje ten endpoint…",
+    "endpointModelsListed": "Lista zawiera tylko modele obsługiwane przez ten endpoint.",
+    "endpointModelsUnconfirmed": "Nie udało się sprawdzić, jakie modele obsługuje ten endpoint, więc lista zawiera wszystkie modele OpenRouter. Model, którego endpoint nie obsługuje, zawiedzie przy pierwszym uploadzie.",
+    "endpointServesNoModel": "Ten endpoint nie obsługuje żadnego modelu embeddingów oferowanego przez AgenticOS. Zostaw pole endpointu puste albo wybierz innego providera.",
+    "endpointLacksCollectionModel": "Ten endpoint nie obsługuje modelu {model}, którym utworzono wektory tej kolekcji. Zostaw pole endpointu puste albo podaj taki, który go obsługuje.",
     "localServices": "Usługi lokalne",
     "localServicesHint": "Serwery we własnej sieci wdrożenia - Ollama do embeddingów, sidecar OCR dla LiteParse - rejestrowane raz i wybierane per kolekcja. Nic wysłane do nich nie opuszcza wdrożenia.",
     "addServer": "Dodaj serwer",
@@ -3596,7 +3608,10 @@
     "whoCanSearchIt": "Kto może ją przeszukiwać",
     "parsingDetails": "Dzielenie na fragmenty, OCR i obrazy",
     "moreOptions": "Więcej opcji",
-    "citedFileGone": "Tego pliku nie ma już w bazie wiedzy - został usunięty albo zastąpiony po tym, jak go zacytowano."
+    "citedFileGone": "Tego pliku nie ma już w bazie wiedzy - został usunięty albo zastąpiony po tym, jak go zacytowano.",
+    "embeddingEndpoint": "Endpoint",
+    "embeddingEndpointHint": "Puste pole oznacza globalne API OpenRouter. Możesz podać regionalny URL, np. https://eu.openrouter.ai/api/v1. Routing EU wymaga odpowiedniego planu OpenRouter; ZDR ustawia się osobno w OpenRouter.",
+    "noConnectorsAvailable": "Brak dostępnych konektorów źródeł. Administrator może włączyć konektor w tej instalacji."
   },
   "knowledgeBases": {
     "active": "Aktywna",
@@ -3938,7 +3953,8 @@
     "backgroundJobs": "Zadania w tle",
     "loadingPage": "Otwieranie strony",
     "inbox": "Inbox",
-    "inboxCount": "{count, plural, =1 {1 czeka} few {# czekają} many {# czeka} other {# czeka}}"
+    "inboxCount": "{count, plural, =1 {1 czeka} few {# czekają} many {# czeka} other {# czeka}}",
+    "consoleVersion": "Wersja konsoli {version}"
   },
   "navigation": {
     "dashboard": "Panel",
@@ -4695,10 +4711,6 @@
         "title": "Po dziale",
         "body": "Zawęź listę do tego, co dostała jedna grupa. Grupa decyduje, do kogo coś trafia, więc według niej też grupuje się listę."
       },
-      "routines-ideas": {
-        "title": "Albo zacznij od pomysłu",
-        "body": "Gotowe rutyny - poranny przegląd, tygodniowe podsumowanie, cogodzinna kontrola - każda z porą, o której by działała. Wybierz jedną, a nowy harmonogram otworzy się już wypełniony."
-      },
       "sign-in-to-site": {
         "title": "Zaloguj się do strony",
         "body": "Otwórz przeglądarkę na stronie tylko dla siebie, zaloguj się i oddaj ją z Keep me signed in - przeglądarka Twoich agentów będzie tam odtąd startować zalogowana."
@@ -5016,7 +5028,7 @@
       "dislikes": "Łapki w dół",
       "eachRowSaysWhat": "Każdy wiersz mówi, co sprawdzono. Odświeża się co 30 s.",
       "everyCheckPassed": "Każde sprawdzenie przeszło",
-      "everyStatusHereComes": "Każdy status pochodzi z sondy uruchomionej przy wczytaniu tej strony. Nie ma historii dostępności: nic jej nie zapisuje, a liczba, która by ją udawała, byłaby wymyślona.",
+      "everyStatusHereComes": "Bieżące kontrole tej instalacji. Wyniki odświeżają się co 30 sekund, gdy automatyczne odświeżanie jest włączone.",
       "failedFetchHealth": "Nie udało się pobrać stanu",
       "failingServices": "Niedziałające: {names}",
       "inspect": "Sprawdź",
@@ -5046,7 +5058,7 @@
       "serviceRedis": "Redis",
       "serviceRedisDetail": "Cache i broker kolejki",
       "serviceScheduler": "Zadania zaplanowane",
-      "serviceSchedulerDetail": "Wyzwalacze, e-maile i czyszczenia, przez Prefect",
+      "serviceSchedulerDetail": "Wyzwalacze, e-maile i zadania utrzymaniowe",
       "serviceVectorStore": "Baza wektorowa",
       "serviceVectorStoreDetail": "pgvector, ta sama baza danych",
       "services": "Usługi",
@@ -5717,7 +5729,7 @@
       "activity2": "Aktywność",
       "agentColumn": "Agent",
       "agentFilter": "Filtruj według agenta",
-      "agentsAreRunningWithout": "Agenci działają, nie potrzebując Ciebie.",
+      "agentsAreRunningWithout": "Tutaj pojawią się prośby wymagające Twojej decyzji.",
       "answered": "Odpowiedzieli",
       "anyAgent": "Wszyscy agenci",
       "anyModel": "Dowolny model",
@@ -5804,7 +5816,7 @@
       "nothingRecordedBecause": "Run nie dotarł do modelu - zatrzymał go budget albo guardrail - albo odbył się, zanim zaczęto to zapisywać.",
       "nothingRecordedForThisRun": "Dla tego runu nic nie zapisano",
       "nothingSpentYet": "Jeszcze nic nie wydano.",
-      "nothingWaiting": "Nic nie czeka",
+      "nothingWaiting": "Brak oczekujących zatwierdzeń",
       "openTheAgent": "Otwórz agenta",
       "openTheChatBehind": "Otwórz czat, w którym odbył się ten run",
       "openTheRunItCame": "Otwórz run, z którego pochodzi",
@@ -6024,7 +6036,7 @@
       "displayName": "Wyświetlana nazwa",
       "email": "E-mail",
       "emailChannel": "E-mail",
-      "emailsAboutRunsNobody": "E-maile o runach, których nikt nie obserwuje. Każdy przełącznik jest sprawdzany przed wysłaniem. To Twoje własne rezygnacje i tylko odejmują: agent decyduje, kto ma się dowiedzieć, a wyłączenie tu usuwa Cię z tej listy niezależnie od tego, co mówi agent. Kogo agent powiadamia, ustawia się na agencie, w Limitach.",
+      "emailsAboutRunsNobody": "Wybierz e-maile o budżetach, zatwierdzeniach i zużyciu. Ustawienia Limits każdego agenta określają odbiorców.",
       "failedDeleteAccount": "Nie udało się usunąć konta",
       "failedLoadPreferences": "Nie udało się wczytać ustawień powiadomień",
       "failedSavePreference": "Nie udało się zapisać ustawienia",
@@ -6097,7 +6109,7 @@
       "signOutFromAll": "Wylogować ze wszystkich urządzeń?",
       "signedOutFromAll": "Wylogowano ze wszystkich urządzeń",
       "slashCommands": "Komendy slash",
-      "squareImagesLookBest": "Kwadratowe obrazy wyglądają najlepiej. Do 2 MB. JPG, PNG, WEBP lub GIF.",
+      "squareImagesLookBest": "Twoje zdjęcie jest przycinane do koła.",
       "transactionalEmailsWhatTriggers": "E-maile transakcyjne, co wywołuje każdy z nich i dlaczego żaden nie jest opcjonalny.",
       "updatePassword": "Zmień hasło",
       "uploadAvatar3": "Wgraj awatar",
@@ -6156,7 +6168,8 @@
       "prefImprovementFinished": "Sesja poprawy zakończona",
       "prefImprovementFinishedTrigger": "Rozpoczęta przez Ciebie sesja poprawy jest gotowa do przeglądu albo została zatrzymana.",
       "prefSuiteReevaluated": "Przeliczono wynik suity",
-      "prefSuiteReevaluatedTrigger": "Przegląd człowieka zmienił werdykt Twojej suity. Promocja nadal wymaga działania człowieka."
+      "prefSuiteReevaluatedTrigger": "Przegląd człowieka zmienił werdykt Twojej suity. Promocja nadal wymaga działania człowieka.",
+      "whoReceivesThis": "Kto otrzymuje powiadomienie?"
     },
     "skills": {
       "agentsBoundSkillWill": "Agenci związani z tym skillem będą od następnego runu działać bez niego. Tego nie da się cofnąć.",
@@ -6233,10 +6246,10 @@
     },
     "routines": {
       "title": "Rutyny",
-      "description": "Wszystko, co Twoi agenci robią sami - według harmonogramu lub w reakcji na zdarzenie.",
-      "ideasTitle": "Pomysły na start",
-      "ideasHint": "Wybierz jeden, a otworzy się jako nowy harmonogram, już wypełniony - wybierz agenta, popraw co chcesz, zapisz.",
-      "newWatch": "Nowa obserwacja"
+      "description": "Rutyny agentów wykonują zadania. Moje obserwacje sprawdzają podłączone konta i przekazują wyniki do Twojej prywatnej skrzynki.",
+      "newWatch": "Nowa obserwacja",
+      "agentsTab": "Zadania agentów",
+      "watchesTab": "Moje obserwacje"
     },
     "signIns": {
       "cancel": "Anuluj",
@@ -6423,7 +6436,7 @@
       "button": "Szukaj",
       "failedDescription": "Żądanie wyszukiwania nie powiodło się, więc nie wiadomo, czy cokolwiek pasuje.",
       "failedTitle": "Nie udało się wykonać wyszukiwania",
-      "noBases": "Nie ma jeszcze czego szukać - utwórz bazę wiedzy i wgraj dokument.",
+      "noBases": "Utwórz bazę wiedzy i prześlij dokumenty. Ich treść będzie można przeszukiwać tutaj.",
       "noResults": "Brak wyników",
       "noResultsHint": "Spróbuj innego zapytania albo innej bazy wiedzy",
       "page": "s.{page}",
@@ -6432,7 +6445,11 @@
       "retry": "Spróbuj ponownie",
       "scopeLabel": "Zakres wyszukiwania",
       "searching": "Szukam...",
-      "openFile": "Otwórz {name}"
+      "openFile": "Otwórz {name}",
+      "noBasesTitle": "Dodaj wiedzę do wyszukiwania",
+      "queryLabel": "Zapytanie",
+      "idleTitle": "Znajdź źródło odpowiedzi",
+      "idleDescription": "Wpisz temat lub zadaj pytanie. Wyniki prowadzą do oryginalnych dokumentów, aby można było sprawdzić źródło."
     },
     "skippedCount": "{count} pominiętych",
     "sourceName": "Nazwa źródła",
@@ -7166,14 +7183,12 @@
     "modeLink": "linkowany",
     "modeInjectHint": "Wklejany do instrukcji agenta przy każdym runie.",
     "modeLinkHint": "Pomijany w prompcie; agent czyta go na żądanie.",
-    "sizeWithFormat": "{format} · {size}",
     "newContext": "Nowy plik kontekstu",
     "availableEveryAgentOrganization": "Wybierz poniżej, kto może z niego korzystać. Agent czyta go, gdy zostanie do niego dodany.",
     "name": "Nazwa",
     "howItIsReferredTo": "Jak ten plik jest nazywany; później nie można tego zmienić.",
     "mode": "Tryb",
     "format": "Format",
-    "formatHint": "Wskazówka renderowania, na przykład md albo txt.",
     "description": "Opis",
     "whatIsInIt": "Co w nim jest, żeby linkowany plik dało się wybrać bez otwierania",
     "shownWhenLinked": "Pokazywany obok nazwy, gdy plik jest linkowany.",
@@ -7193,7 +7208,10 @@
     "droppedTooLarge": "{count, plural, one {Jeden plik ma ponad {max} - tak duży dokument należy do kolekcji wiedzy} few {# pliki mają ponad {max} - tak duże dokumenty należą do kolekcji wiedzy} many {# plików ma ponad {max} - tak duże dokumenty należą do kolekcji wiedzy} other {# pliku ma ponad {max} - tak duże dokumenty należą do kolekcji wiedzy}}",
     "moreFilesWaiting": "{count, plural, one {Czeka jeszcze 1 plik} few {Czekają jeszcze # pliki} many {Czeka jeszcze # plików} other {Czeka jeszcze # pliku}}",
     "bodyPlaceholder": "# Słowniczek\n\nCo dany termin tu znaczy, a czego nie.\n\n- **SLA** - czas reakcji, który obiecujemy, a nie czas naprawy.\n",
-    "whoCanUseIt": "Kto może z tego korzystać"
+    "whoCanUseIt": "Kto może z tego korzystać",
+    "useForAgent": "Używaj w tym agencie",
+    "usageForAgent": "Sposób użycia pliku {name}",
+    "bindingSettingsHint": "Sposób użycia pliku ustawisz osobno dla każdego agenta w Builderze → Context."
   },
   "memory": {
     "clearAction": "Wyczyść pamięć",
@@ -7315,6 +7333,11 @@
     "defaultEnvironment": "Domyślne",
     "environmentFollows": "podąża za publikacjami",
     "environmentBehind": "{count, plural, =1 {1 wersję za najnowszą} few {# wersje za najnowszą} other {# wersji za najnowszą}}",
+    "teamsPost": "Publikuj odpowiedź także w Teams",
+    "teamsPostHint": "Odpowiedź z każdego uruchomienia trafia do tego kanału lub czatu grupowego jako nowa wiadomość.",
+    "teamsPostNowhere": "Nie publikuj",
+    "teamsPostUnnamedChannel": "Kanał w Teams",
+    "teamsPostUnnamedGroup": "Czat grupowy w Teams",
     "environmentCaptionDefault": "Odpalenia używają tego, na co w danej chwili wskazuje środowisko domyślne.",
     "environmentCaptionPinned": "Następne odpalenie uruchomi v{version}.",
     "environmentCaptionTracking": "Następne odpalenie uruchomi v{version} - to środowisko podąża za publikacjami, więc kolejna publikacja zmieni, co się uruchamia.",
@@ -7348,10 +7371,10 @@
     "runsCouldNotBeRead": "Nie udało się odczytać uruchomień tego wyzwalacza.",
     "unit": "Jednostka",
     "activityTitle": "Rutyny",
-    "activityEmptyTitle": "Nic jeszcze nie dzieje się samo",
+    "activityEmptyTitle": "Nie ma jeszcze rutyn agentów",
     "searchRoutines": "Szukaj rutyn",
     "noRoutineMatches": "Żadna rutyna nie pasuje.",
-    "routineCount": "{count, plural, =0 {Brak rutyn} one {1 rutyna} few {# rutyny} many {# rutyn} other {# rutyny}}",
+    "routineCount": "{count, plural, one {# rutyna} few {# rutyny} many {# rutyn} other {# rutyny}}",
     "activityEmptyDescription": "Gdy agent zostanie ustawiony, by uruchamiał się sam, pojawi się tutaj.",
     "agent": "Agent",
     "chooseAgent": "Wybierz agenta",
@@ -7397,11 +7420,6 @@
       "queue": "Uruchamia się raz po zakończeniu poprzedniego, niezależnie od liczby pominiętych terminów.",
       "allow": "Startuje o czasie obok trwającego uruchomienia. Płacisz za oba."
     },
-    "teamsPost": "Publikuj odpowiedź także w Teams",
-    "teamsPostHint": "Odpowiedź z każdego uruchomienia trafia do tego kanału lub czatu grupowego jako nowa wiadomość.",
-    "teamsPostNowhere": "Nie publikuj",
-    "teamsPostUnnamedChannel": "Kanał w Teams",
-    "teamsPostUnnamedGroup": "Czat grupowy w Teams",
     "howOften": "Jak często",
     "choiceEvery15m": "Co 15 min",
     "choiceHourly": "Co godzinę",
@@ -9630,6 +9648,10 @@
       "expose_read_tool": {
         "title": "Pozwól agentowi otwierać podlinkowane pliki",
         "description": "Czy pliki w trybie linku są dostępne przez narzędzie do odczytu. Wyłączone oznacza, że do modelu trafiają tylko wstrzyknięte pliki i nic nie jest czytane na żądanie."
+      },
+      "file_settings": {
+        "title": "Sposób użycia plików",
+        "description": "Tryb i dostępność przypiętych plików kontekstu dla tego agenta. Brak wpisu zachowuje dotychczasowe ustawienia pliku."
       }
     },
     "conversation_search": {
@@ -9720,6 +9742,78 @@
       "aspect_ratio": {
         "title": "Proporcje",
         "description": "Proporcje obrazu, np. 16:9 lub 1:1."
+      }
+    },
+    "text_to_speech": {
+      "provider": {
+        "title": "Provider",
+        "description": "Czyje głosy mówią. Do wyboru są providerzy z `app/core/catalog/text_to_speech_models.json`, których klucz może przechowywać vault."
+      },
+      "model": {
+        "title": "Model mowy",
+        "description": "Który z modeli mowy tego providera mówi. Model spoza katalogu jest odrzucany tutaj, a nie w trakcie działania."
+      },
+      "voice": {
+        "title": "Głos",
+        "description": "Głos, który mówi, jeśli agent nie wybierze innego; puste oznacza pierwszy głos modelu. Głosy ElevenLabs należą do Twojego konta, więc dla ElevenLabs wklej id głosu ze swojej biblioteki głosów."
+      },
+      "voices": {
+        "title": "Dozwolone głosy",
+        "description": "Jedyne głosy, na które agent może przełączyć się zamiast powyższego, osobno dla każdego klipu - do dialogu albo dla narratora i postaci. Puste oznacza, że może wybrać dowolny głos modelu - dla ElevenLabs dowolne id głosu z Twojego konta."
+      },
+      "output_format": {
+        "title": "Format pliku",
+        "description": "mp3 jest mniejszy, wav nieskompresowany. Puste oznacza pierwszy format providera - Gemini zwraca tylko wav."
+      },
+      "max_characters": {
+        "title": "Najdłuższy tekst",
+        "description": "Najwięcej tekstu, jaki może wypowiedzieć jedno wywołanie, co ogranicza koszt pojedynczego wywołania."
+      }
+    },
+    "video_generation": {
+      "provider": {
+        "title": "Provider",
+        "description": "Czyj model tworzy wideo. Do wyboru są providerzy z `app/core/catalog/video_models.json`, których klucz może przechowywać vault."
+      },
+      "model": {
+        "title": "Model wideo",
+        "description": "Który z modeli wideo tego providera tworzy klip. Model spoza katalogu jest odrzucany tutaj, a nie w trakcie działania."
+      },
+      "resolution": {
+        "title": "Rozdzielczość",
+        "description": "Rozdzielczość, w której powstaje klip, jeśli agent nie poprosi o inną; puste oznacza pierwszą rozdzielczość modelu. Wyższa kosztuje więcej za sekundę."
+      },
+      "max_resolution": {
+        "title": "Najwyższa rozdzielczość",
+        "description": "Najwyższa rozdzielczość, o jaką może poprosić agent, co najmniej zwykła; ogranicza koszt sekundy. Puste oznacza, że agent może poprosić o każdą rozdzielczość, którą renderuje model."
+      },
+      "aspect_ratio": {
+        "title": "Proporcje obrazu",
+        "description": "Kształt klipu, chyba że agent poprosi o inny; puste oznacza pierwszy kształt modelu."
+      },
+      "seconds": {
+        "title": "Długość",
+        "description": "Ile sekund trwa klip, chyba że agent poprosi o inną długość; puste oznacza pięć albo najbliższą wartość, jaką robi model. Nie dla modelu, który sam decyduje o długości."
+      },
+      "max_seconds": {
+        "title": "Najdłuższy klip",
+        "description": "Najdłuższy klip, o jaki może poprosić agent, co ogranicza koszt jednego wywołania; puste oznacza własny limit modelu. Nie dla modelu, który sam decyduje o długości."
+      },
+      "audio": {
+        "title": "Dźwięk",
+        "description": "Czy klipy mają dźwięk, jeśli agent nie poprosi inaczej, tam gdzie model robi go opcjonalnym; puste oznacza domyślne ustawienie providera."
+      },
+      "alibaba_workspace": {
+        "title": "Workspace Alibaby",
+        "description": "Tylko Alibaba: id workspace'u Model Studio, przez który wywoływany jest Wan 3.0. Puste - wspólny endpoint DashScope, który Alibaba utrzymuje dla istniejących integracji."
+      },
+      "alibaba_region": {
+        "title": "Region Alibaby",
+        "description": "Tylko Alibaba: region, w którym jest workspace."
+      },
+      "timeout_seconds": {
+        "title": "Limit czasu",
+        "description": "Jak długo czekać na klip, w sekundach. Zadanie niezakończone do tego czasu jest anulowane, jeśli provider na to pozwala, i księgowane według szacunku."
       }
     },
     "knowledge": {
@@ -9946,78 +10040,6 @@
         "description": "Jak długo jedno zadanie może trwać, zanim zostanie przerwane."
       }
     },
-    "text_to_speech": {
-      "provider": {
-        "title": "Provider",
-        "description": "Czyje głosy mówią. Do wyboru są providerzy z `app/core/catalog/text_to_speech_models.json`, których klucz może przechowywać vault."
-      },
-      "model": {
-        "title": "Model mowy",
-        "description": "Który z modeli mowy tego providera mówi. Model spoza katalogu jest odrzucany tutaj, a nie w trakcie działania."
-      },
-      "voice": {
-        "title": "Głos",
-        "description": "Głos, który mówi, jeśli agent nie wybierze innego; puste oznacza pierwszy głos modelu. Głosy ElevenLabs należą do Twojego konta, więc dla ElevenLabs wklej id głosu ze swojej biblioteki głosów."
-      },
-      "voices": {
-        "title": "Dozwolone głosy",
-        "description": "Jedyne głosy, na które agent może przełączyć się zamiast powyższego, osobno dla każdego klipu - do dialogu albo dla narratora i postaci. Puste oznacza, że może wybrać dowolny głos modelu - dla ElevenLabs dowolne id głosu z Twojego konta."
-      },
-      "output_format": {
-        "title": "Format pliku",
-        "description": "mp3 jest mniejszy, wav nieskompresowany. Puste oznacza pierwszy format providera - Gemini zwraca tylko wav."
-      },
-      "max_characters": {
-        "title": "Najdłuższy tekst",
-        "description": "Najwięcej tekstu, jaki może wypowiedzieć jedno wywołanie, co ogranicza koszt pojedynczego wywołania."
-      }
-    },
-    "video_generation": {
-      "provider": {
-        "title": "Provider",
-        "description": "Czyj model tworzy wideo. Do wyboru są providerzy z `app/core/catalog/video_models.json`, których klucz może przechowywać vault."
-      },
-      "model": {
-        "title": "Model wideo",
-        "description": "Który z modeli wideo tego providera tworzy klip. Model spoza katalogu jest odrzucany tutaj, a nie w trakcie działania."
-      },
-      "resolution": {
-        "title": "Rozdzielczość",
-        "description": "Rozdzielczość, w której powstaje klip, jeśli agent nie poprosi o inną; puste oznacza pierwszą rozdzielczość modelu. Wyższa kosztuje więcej za sekundę."
-      },
-      "max_resolution": {
-        "title": "Najwyższa rozdzielczość",
-        "description": "Najwyższa rozdzielczość, o jaką może poprosić agent, co najmniej zwykła; ogranicza koszt sekundy. Puste oznacza, że agent może poprosić o każdą rozdzielczość, którą renderuje model."
-      },
-      "aspect_ratio": {
-        "title": "Proporcje obrazu",
-        "description": "Kształt klipu, chyba że agent poprosi o inny; puste oznacza pierwszy kształt modelu."
-      },
-      "seconds": {
-        "title": "Długość",
-        "description": "Ile sekund trwa klip, chyba że agent poprosi o inną długość; puste oznacza pięć albo najbliższą wartość, jaką robi model. Nie dla modelu, który sam decyduje o długości."
-      },
-      "max_seconds": {
-        "title": "Najdłuższy klip",
-        "description": "Najdłuższy klip, o jaki może poprosić agent, co ogranicza koszt jednego wywołania; puste oznacza własny limit modelu. Nie dla modelu, który sam decyduje o długości."
-      },
-      "audio": {
-        "title": "Dźwięk",
-        "description": "Czy klipy mają dźwięk, jeśli agent nie poprosi inaczej, tam gdzie model robi go opcjonalnym; puste oznacza domyślne ustawienie providera."
-      },
-      "alibaba_workspace": {
-        "title": "Workspace Alibaby",
-        "description": "Tylko Alibaba: id workspace'u Model Studio, przez który wywoływany jest Wan 3.0. Puste - wspólny endpoint DashScope, który Alibaba utrzymuje dla istniejących integracji."
-      },
-      "alibaba_region": {
-        "title": "Region Alibaby",
-        "description": "Tylko Alibaba: region, w którym jest workspace."
-      },
-      "timeout_seconds": {
-        "title": "Limit czasu",
-        "description": "Jak długo czekać na klip, w sekundach. Zadanie niezakończone do tego czasu jest anulowane, jeśli provider na to pozwala, i księgowane według szacunku."
-      }
-    },
     "follow_ups": {
       "model_profile_id": {
         "title": "Model do następnych kroków",
@@ -10223,7 +10245,57 @@
     "uploadFailed": "Przesyłanie się nie udało",
     "noFilesYet": "W tym projekcie nie ma jeszcze plików",
     "noFilesHint": "Upuść tu pliki albo cały folder, albo je prześlij. Każdy czat w projekcie je czyta i na nich pracuje.",
-    "noFilesViewer": "Pliki dodane do projektu pojawią się tutaj."
+    "noFilesViewer": "Pliki dodane do projektu pojawią się tutaj.",
+    "fileManager": {
+      "actions": "Działania dla {name}",
+      "rename": "Zmień nazwę",
+      "move": "Przenieś do folderu",
+      "delete": "Usuń",
+      "name": "Nazwa",
+      "destination": "Folder docelowy",
+      "root": "Pliki projektu",
+      "moveFailed": "Nie udało się przenieść. Sprawdź nazwę i folder docelowy, a następnie spróbuj ponownie.",
+      "cancel": "Anuluj",
+      "saving": "Zapisywanie…",
+      "confirm": "Potwierdź",
+      "edit": "Edytuj plik",
+      "loading": "Wczytywanie pliku…",
+      "contents": "Treść pliku",
+      "unsaved": "Niezapisane zmiany",
+      "saved": "Zapisano",
+      "textOnly": "Pliki tekstowe UTF-8, do 1 MiB",
+      "close": "Zamknij",
+      "save": "Zapisz zmiany",
+      "discardTitle": "Odrzucić zmiany?",
+      "discardBody": "Zmiany nie zostały zapisane. Zamknąć edytor i je odrzucić?",
+      "discard": "Odrzuć zmiany"
+    },
+    "sandbox": {
+      "label": "Sandbox projektu",
+      "automatic": "Automatycznie",
+      "automaticNamed": "Automatycznie · {name}",
+      "stored": "Tylko przechowywanie plików",
+      "storedHint": "Platforma przechowuje pliki. Agenci mogą je czytać i zapisywać, ale nie wykonują tu kodu.",
+      "sharedHint": "Wszystkie czaty projektu współdzielą te pliki i środowisko. Zastępuje ono sandbox ustawiony u odpowiadającego agenta.",
+      "failed": "Nie udało się wczytać połączeń sandboxa. Nadal możesz wybrać tryb automatyczny lub przechowywanie plików.",
+      "configured": "Skonfigurowany sandbox",
+      "containerHint": "Dedykowany kontener na tym połączeniu. Pozostaje wybrany do jawnego przeniesienia plików projektu.",
+      "howItWorks": "Jak działają pliki i uruchamianie kodu w projekcie",
+      "locationTitle": "Gdzie są pliki",
+      "locationHelp": "Same pliki są przechowywane w bazie platformy, bez powłoki. Połączenie sandboxa zapewnia kontener na Twojej infrastrukturze lub sandbox w chmurze. Wybór automatyczny przypina domyślne połączenie organizacji podczas tworzenia projektu.",
+      "sharingTitle": "Wspólny warsztat projektu",
+      "sharingHelp": "Pliki zostają między rozmowami i są wspólne dla osób z dostępem do projektu. Rozmowy w projekcie korzystają z tego warsztatu zamiast z połączenia sandboxa agenta.",
+      "executionTitle": "Kiedy agent może uruchamiać kod",
+      "executionHelp": "W projekcie z kontenerem agenci dostają narzędzia Sandbox projektu i mogą uruchamiać w nim kod. Dotychczasowe wymagania zatwierdzania narzędzi nadal obowiązują. Tryb samych plików nie ma powłoki: agent może czytać i zapisywać pliki, ale nie uruchomi kodu.",
+      "change": "Zmień sandbox",
+      "move": "Przenieś pliki projektu",
+      "transferHint": "Kopiuje istniejące pliki i puste foldery, sprawdza kopię, a dopiero potem przełącza projekt. Na czas transferu nowe runy i zmiany plików czekają. Po błędzie pozostaje dotychczasowy warsztat. Limit: 10 000 wpisów, 64 MiB na plik, 1 GiB łącznie; najpierw usuń dowiązania symboliczne. Zainstalowane pakiety i działające procesy nie są przenoszone.",
+      "moving": "Przenoszenie plików do {name}",
+      "progress": "Skopiowano {copied} z {total} plików",
+      "paused": "Możesz czytać istniejące pliki. Nowe runy i zmiany plików wrócą po zakończeniu transferu.",
+      "moveFailed": "Transfer nie został zakończony. Dotychczasowy warsztat nadal jest wybrany. Możesz spróbować ponownie.",
+      "moved": "Pliki sprawdzone, nowy warsztat aktywny."
+    }
   },
   "voiceGlow": {
     "title": "Animacja dyktowania",
@@ -10755,12 +10827,12 @@
       }
     },
     "signInAgain": "Zaloguj się ponownie",
-    "count": "{count, plural, =0 {Jeszcze nic nie obserwujesz} =1 {1 obserwacja} few {# obserwacje} many {# obserwacji} other {# obserwacji}}",
+    "count": "{count, plural, one {# obserwacja} few {# obserwacje} many {# obserwacji} other {# obserwacji}}",
     "findings": "Co znalazły",
     "offTitle": "Obserwacje są wyłączone",
     "noConnectionsTitle": "Połącz konto, żeby je obserwować",
     "connect": "Otwórz serwery MCP",
-    "emptyTitle": "Jeszcze nic nie obserwujesz",
+    "emptyTitle": "Nie masz jeszcze obserwacji",
     "emptyDescription": "Wybierz jedno ze swoich kont i powiedz, czego szukać. To, co obserwacja znajdzie, trafia do twojego inboksu; pilne rzeczy dostajesz od razu.",
     "rowLooked": "{cadence} · sprawdzono {when}",
     "rowFirst": "{cadence} · pierwsze sprawdzenie w ciągu minuty",

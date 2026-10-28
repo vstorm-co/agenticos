@@ -151,7 +151,7 @@ export interface ConversationWithMessages extends Conversation {
 export interface MessageRating {
   id: string;
   message_id: string;
-  user_id: string;
+  user_id: string | null;
   rating: RatingValue;
   comment: string | null;
   created_at: string;

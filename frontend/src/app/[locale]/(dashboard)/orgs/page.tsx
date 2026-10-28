@@ -32,7 +32,7 @@ import { useTranslations } from "next-intl";
 function WorkspacesCard({ count, children }: { count: number | null; children: ReactNode }) {
   const t = useTranslations("pages.orgs");
   return (
-    <Card>
+    <Card className="flex flex-1 flex-col">
       <CardHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-4">
         <div className="space-y-1">
           <CardTitle className="text-sm">{t("workspaces")}</CardTitle>
@@ -43,7 +43,7 @@ function WorkspacesCard({ count, children }: { count: number | null; children: R
           </CardDescription>
         </div>
       </CardHeader>
-      <CardContent className="p-4">{children}</CardContent>
+      <CardContent className="flex-1 p-4">{children}</CardContent>
     </Card>
   );
 }
@@ -75,7 +75,7 @@ export default function OrgsPage() {
   }, [fetchOrgs, searchParams]);
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-1 flex-col space-y-6">
       <PageHeader
         title={t("organizations")}
         description={t("switchBetweenWorkspacesManage")}
@@ -95,7 +95,7 @@ export default function OrgsPage() {
             {[0, 1].map((tile) => (
               <div key={tile} className="border-border flex flex-col gap-4 rounded-xl border p-5">
                 <div className="flex items-start gap-3">
-                  <Skeleton className="h-11 w-11 shrink-0 rounded-xl" />
+                  <Skeleton className="h-11 w-11 shrink-0 rounded-full" />
                   <div className="min-w-0 flex-1 space-y-2">
                     <Skeleton className="h-4 w-32" />
                     <Skeleton className="h-3 w-24" />
@@ -161,8 +161,7 @@ export default function OrgsPage() {
                       imageSrc={`/api/orgs/${org.id}/avatar?v=${org.updated_at ?? ""}`}
                       hasImage={!!org.avatar_url}
                       colorSlot={org.avatar_color}
-                      kind="org"
-                      className="h-11 w-11 shrink-0 rounded-xl text-sm"
+                      className="h-11 w-11 shrink-0 rounded-full text-sm"
                     />
 
                     <div className="min-w-0 flex-1">

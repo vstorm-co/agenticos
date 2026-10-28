@@ -124,7 +124,7 @@ export default function ProfileSettingsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-1 flex-col space-y-6">
       <SectionCard title={t("avatar")} description={t("squareImagesLookBest")}>
         <div className="flex items-center gap-5">
           <button
@@ -133,7 +133,7 @@ export default function ProfileSettingsPage() {
             disabled={avatarUploading}
             aria-label={user.avatar_url ? t("replaceAvatar3") : t("uploadAvatar3")}
             className={cn(
-              "border-border hover:bg-accent group relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border transition-colors",
+              "border-border hover:bg-accent group relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border transition-colors",
               user.avatar_url && "bg-muted",
             )}
           >
@@ -192,6 +192,7 @@ export default function ProfileSettingsPage() {
       </SectionCard>
 
       <SectionCard
+        fill
         title={t("personalInfo")}
         description={t("visibleTeammatesSharedOrganizations")}
         action={
@@ -200,7 +201,7 @@ export default function ProfileSettingsPage() {
           </Button>
         }
       >
-        <div className="space-y-4">
+        <div className="flex flex-1 flex-col space-y-4">
           <FormField label={t("displayName")} htmlFor="profile-name">
             <Input
               id="profile-name"

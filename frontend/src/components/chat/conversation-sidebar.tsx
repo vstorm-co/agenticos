@@ -154,10 +154,10 @@ function ConversationItem({
           thread by. */}
       <span className="relative shrink-0">
         {agents.length > 0 ? (
-          <ConversationAgents agents={agents} showName={false} />
+          <ConversationAgents agents={agents} showName={false} size="md" unframed />
         ) : (
           // A box the size of a face, so every title starts at the same x.
-          <span className="block size-6" aria-hidden />
+          <span className="block size-9" aria-hidden />
         )}
         {/* An answer arrived while the reader was elsewhere: a badge on the face,
             as a count sits on an app icon - part of the row's own mark rather
@@ -1139,7 +1139,12 @@ function CollapsedSidebar({
                     >
                       <span className="relative">
                         {conversation.agents && conversation.agents.length > 0 ? (
-                          <ConversationAgents agents={conversation.agents} showName={false} />
+                          <ConversationAgents
+                            agents={conversation.agents}
+                            showName={false}
+                            size="md"
+                            unframed
+                          />
                         ) : (
                           <span className="flex size-6 items-center justify-center">
                             <MessageSquare className="text-muted-foreground h-4 w-4" aria-hidden />

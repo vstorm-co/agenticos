@@ -136,6 +136,7 @@ export default function AdminOrganizationsPage() {
 
   return (
     <ListCard
+      fill
       namedByPage
       title={t("organizations2")}
       counted={isLoading && organizations.length === 0 ? null : t("totalCount", { count: total })}

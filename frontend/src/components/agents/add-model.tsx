@@ -190,6 +190,29 @@ function markable(acceptsEndpoint: boolean): { fields: readonly string[] } {
   return { fields: acceptsEndpoint ? ["model", "base_url", "secret_id"] : ["model", "secret_id"] };
 }
 
+/** Keep endpoint variants readable and respect the profile label's 128-character limit. */
+export function endpointProfileLabel(
+  base: string,
+  endpoint: string,
+  existing: readonly string[],
+  defaultEndpoint: string,
+): string {
+  const location = (
+    endpoint
+      .trim()
+      .replace(/^https?:\/\//, "")
+      .replace(/\/+$/, "") || defaultEndpoint
+  ).slice(0, 64);
+  const desired = `${base.slice(0, 125 - location.length)} · ${location}`;
+  let result = desired;
+  let index = 2;
+  while (existing.includes(result)) {
+    const suffix = ` (${index++})`;
+    result = `${desired.slice(0, 128 - suffix.length)}${suffix}`;
+  }
+  return result;
+}
+
 export function AddModel({
   onCreated,
   onCreationPendingChange,
@@ -203,7 +226,7 @@ export function AddModel({
   // `placeholderWords`. The chat's picker resolves the same keys from its own
   // namespace, so they cannot be relative to either caller's.
   const tRoot = useTranslations();
-  const { createProfile, updateProfile, catalog } = useModelProviders();
+  const { createProfile, updateProfile, catalog, profiles = [] } = useModelProviders();
   const { purposes } = useSecretPurposes();
   const { secrets } = useSecrets();
   const { can } = usePermissions();
@@ -291,7 +314,10 @@ export function AddModel({
     refused,
     source,
     isLoading: loadingModels,
-  } = useProviderModels(providerId);
+  } = useProviderModels(
+    providerId,
+    providerId === "openrouter" ? baseUrl.trim().replace(/\/+$/, "") || undefined : undefined,
+  );
   const derivedLabel =
     provider && model.trim() ? `${provider.label} · ${model.trim()}` : t("howAgentsReferModel");
 
@@ -335,6 +361,11 @@ export function AddModel({
     model.trim() === selected.model &&
     label.trim() === "";
 
+  const endpointChanged =
+    selected !== undefined &&
+    provider?.id === selected.provider &&
+    model.trim() === selected.model &&
+    baseUrl.trim().replace(/\/+$/, "") !== (selected.base_url ?? "").replace(/\/+$/, "");
   const customEndpoint = acceptsEndpoint && baseUrl.trim() !== "";
   // Whether this model cannot run without an endpoint: a keyless provider with
   // no key to use. Only then is the field a question with an Ollama address for
@@ -379,7 +410,7 @@ export function AddModel({
     }
   };
 
-  const submit = async () => {
+  const submit = async (separate = false) => {
     /* v8 ignore next -- the id comes from the list this select was built from */
     if (provider === undefined) return;
     setFailure(NO_FAILURE);
@@ -395,8 +426,22 @@ export function AddModel({
     }
     onCreationPendingChange?.(true);
     try {
+      const baseLabel = `${provider.label} · ${model.trim()}`;
+      const labels = [
+        ...profiles.map((profile) => profile.label),
+        ...(selected ? [selected.label] : []),
+      ];
+      const automaticLabel =
+        separate || labels.includes(baseLabel)
+          ? endpointProfileLabel(
+              baseLabel,
+              customEndpoint ? baseUrl : "",
+              labels,
+              t("defaultEndpoint"),
+            )
+          : baseLabel;
       const profile = await createProfile.mutateAsync({
-        label: label.trim() || `${provider.label} · ${model.trim()}`,
+        label: label.trim() || automaticLabel,
         provider: provider.id,
         model: model.trim(),
         // `null`, not `""`: the API distinguishes "no key, this is self-hosted"
@@ -593,7 +638,13 @@ export function AddModel({
           htmlFor="add-model-endpoint"
           label={t("endpoint")}
           error={failure.fields.base_url}
-          description={endpointRequired ? t("gatewayLitellmProxyModel") : t("optionalPointModelAt")}
+          description={
+            providerId === "openrouter"
+              ? t("openRouterEndpointHint")
+              : endpointRequired
+                ? t("gatewayLitellmProxyModel")
+                : t("optionalPointModelAt")
+          }
         >
           <Input
             id="add-model-endpoint"
@@ -668,13 +719,27 @@ export function AddModel({
 
       {/* Said before the button rather than after the save: the change reaches
           every agent on this model, not only the one being built. */}
-      {editing && selected !== undefined && (
+      {editing && selected !== undefined && !endpointChanged && (
         <p className="text-muted-foreground text-xs">
           {t("updateModelHint", { label: selected.label })}
         </p>
       )}
 
-      <div className="flex items-center gap-2 pt-1">
+      {editing && endpointChanged && (
+        <p className="text-muted-foreground text-xs">{t("separateEndpointHint")}</p>
+      )}
+      <div className="flex flex-wrap items-center gap-2 pt-1">
+        {editing && endpointChanged && (
+          <Button
+            type="button"
+            size="sm"
+            disabled={disabled || !canSubmit || createProfile.isPending}
+            onClick={() => void submit(true)}
+          >
+            <Plus className="h-4 w-4" />
+            {t("addSeparateModel")}
+          </Button>
+        )}
         {unchanged && (
           // A state, not an action: there is nothing to add until a field changes.
           <span className="text-muted-foreground inline-flex h-8 items-center gap-1.5 text-sm">
@@ -686,6 +751,7 @@ export function AddModel({
           <Button
             type="button"
             size="sm"
+            variant={endpointChanged ? "outline" : "default"}
             disabled={disabled || !canSubmit || updateProfile.isPending}
             onClick={update}
           >
@@ -698,7 +764,7 @@ export function AddModel({
             type="button"
             size="sm"
             disabled={disabled || !canSubmit || createProfile.isPending}
-            onClick={submit}
+            onClick={() => void submit()}
           >
             <Plus className="h-4 w-4" />
             {t("addModel")}

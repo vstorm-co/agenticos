@@ -539,3 +539,30 @@ describe("useSpeechToTextProviders", () => {
     expect(result.current.languages).toEqual([]);
   });
 });
+
+it("keeps a regional OpenRouter listing separate from the global list", async () => {
+  vi.mocked(apiClient.get).mockImplementation(async (path) => ({
+    items: [
+      { id: String(path).includes("base_url") ? "vendor/eu" : "vendor/global", name: "Test" },
+    ],
+    total: 1,
+    source: "live",
+  }));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  function localWrapper({ children }: { children: ReactNode }) {
+    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  }
+  const initialEndpoint: { url: string | undefined } = { url: undefined };
+  const { result, rerender } = renderHook(
+    ({ url }: { url: string | undefined }) => useProviderModels("openrouter", url),
+    { wrapper: localWrapper, initialProps: initialEndpoint },
+  );
+  await waitFor(() => expect(result.current.models[0]?.id).toBe("vendor/global"));
+  rerender({ url: "https://eu.openrouter.ai/api/v1" });
+  await waitFor(() => expect(result.current.models[0]?.id).toBe("vendor/eu"));
+  expect(apiClient.get).toHaveBeenCalledWith(
+    "/providers/openrouter/models?base_url=https%3A%2F%2Feu.openrouter.ai%2Fapi%2Fv1",
+  );
+  rerender({ url: undefined });
+  await waitFor(() => expect(result.current.models[0]?.id).toBe("vendor/global"));
+});

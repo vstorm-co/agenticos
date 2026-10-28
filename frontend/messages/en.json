@@ -1068,7 +1068,11 @@
     "systemAgentKnowledgeHelp": "{kind, select, judge {Checks facts in an answer against the knowledge bases of the agent it grades, where no reference answer states them.} generator {Searches the knowledge bases you draft cases from, so questions follow what they really say.} classifier {Checks whether the knowledge base already answers a question before calling it a gap.} drafter {Searches the gap's knowledge base, so a draft does not repeat what a document already says.} improver {Reads the knowledge bases of the agent it improves, so its changes fit what they hold.} other {Searches the knowledge bases the platform picks for each run.}}",
     "systemAgentMaxSteps": "Max steps",
     "systemAgentMaxStepsHint": "Each step is a paid request on every answer it reads. At most {max}; left empty, {fallback}.",
-    "temperatureVariesVerdict": "{kind, select, judge {Above 0, the same answer can be graded differently twice. 0 keeps grades repeatable.} other {Above 0, the same answer can be labelled differently twice. 0 keeps labels repeatable.}}"
+    "temperatureVariesVerdict": "{kind, select, judge {Above 0, the same answer can be graded differently twice. 0 keeps grades repeatable.} other {Above 0, the same answer can be labelled differently twice. 0 keeps labels repeatable.}}",
+    "openRouterEndpointHint": "Leave empty for the global OpenRouter API, or enter a regional URL such as https://eu.openrouter.ai/api/v1. EU routing requires an eligible OpenRouter plan; ZDR is configured separately on OpenRouter.",
+    "defaultEndpoint": "Default API",
+    "addSeparateModel": "Add separate model",
+    "separateEndpointHint": "Save this endpoint as a separate model to keep the current profile for other agents. “Update model” changes the shared profile wherever it is used."
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -1328,6 +1332,10 @@
     "editMeans": "Edit lets them rename, archive and delete this conversation, and add turns to it.",
     "empty": {
       "commandPalette": "command palette",
+      "capabilitiesPrompt": "What can you do for me here? Show me with an example from my kind of work.",
+      "capabilitiesTitle": "What can you do?",
+      "routinePrompt": "Every Monday at 9:00, send me a short summary of last week's most important AI news.",
+      "routineTitle": "Set up a routine",
       "docsPrompt": "Summarize the key points from my latest documents.",
       "docsTitle": "Summarize my docs",
       "greeting": "How can I help, {name}?",
@@ -1344,11 +1352,7 @@
       "visualToolTitle": "Make a calculator",
       "visualToolPrompt": "Make me a bill splitter: the total, the tip and how many people, recalculated as I type.",
       "visualMapTitle": "Plan a trip on a map",
-      "visualMapPrompt": "Plan five days in Japan on a map: numbered stops in order, and what to do at each.",
-      "capabilitiesPrompt": "What can you do for me here? Show me with an example from my kind of work.",
-      "capabilitiesTitle": "What can you do?",
-      "routinePrompt": "Every Monday at 9:00, send me a short summary of last week's most important AI news.",
-      "routineTitle": "Set up a routine"
+      "visualMapPrompt": "Plan five days in Japan on a map: numbered stops in order, and what to do at each."
     },
     "failedArchiveConversation": "Failed to archive conversation",
     "failedCreateConversation": "Failed to create conversation",
@@ -1421,7 +1425,9 @@
       "modelHasNoKey": "{model} is saved without a key, so this conversation cannot run on it. Give it a key in an agent's model panel first.",
       "provider": "Provider",
       "runModel": "Run on this model",
-      "thisChat": "Just this chat"
+      "thisChat": "Just this chat",
+      "changeModel": "Change model",
+      "profilesUnavailable": "Model settings could not be read. Retry before choosing another model."
     },
     "newChat": "New chat",
     "newConversation": "New conversation",
@@ -1728,8 +1734,6 @@
       "reviseVisual": "Revised a visual",
       "readingVisual": "Reading a visual",
       "readVisual": "Read a visual",
-      "workingInText": "Working on it in text",
-      "workedInText": "Worked on it in text",
       "generateSpeech": "Speech",
       "generatingSpeech": "Recording speech",
       "speechNotStored": "The speech was recorded but not saved.",
@@ -1737,6 +1741,8 @@
       "generateVideo": "Video",
       "generatingVideo": "Making a video",
       "videoNotStored": "The video was made but not saved.",
+      "workingInText": "Working on it in text",
+      "workedInText": "Worked on it in text",
       "suggestingNextSteps": "Suggesting next steps",
       "nextSteps": "Next steps",
       "requestingCapability": "Asking for a capability",
@@ -2219,7 +2225,8 @@
     "showLess": "Less",
     "copy": "Copy",
     "copied": "Copied",
-    "searchShortcut": "Ctrl K"
+    "searchShortcut": "Ctrl K",
+    "filesRoot": "Project files"
   },
   "dashboard": {
     "actions": {
@@ -3567,6 +3574,11 @@
     "whereLiteparseStopsWhat": "Where LiteParse stops. This is what bounds the cost of one document - the timeout only bounds the wait.",
     "whoseAccountEachParse": "Whose account each parse is billed to.",
     "widthIsFixed": "The width comes with the model, and the collection is created at it.",
+    "checkingEndpointModels": "Asking this endpoint which embedding models it serves…",
+    "endpointModelsListed": "Only the models this endpoint serves are listed.",
+    "endpointModelsUnconfirmed": "This endpoint could not be asked which models it serves, so every OpenRouter model is listed. A model it does not serve will fail on the first upload.",
+    "endpointServesNoModel": "This endpoint serves none of the embedding models AgenticOS offers. Leave the endpoint empty, or choose another provider.",
+    "endpointLacksCollectionModel": "This endpoint does not serve {model}, the model this collection's vectors were made with. Leave the endpoint empty, or choose one that serves it.",
     "localServices": "Local services",
     "localServicesHint": "Servers on the deployment's own network - an Ollama that embeds, an OCR sidecar for LiteParse - registered once and chosen per collection. Nothing sent to one leaves the deployment.",
     "addServer": "Add server",
@@ -3597,7 +3609,10 @@
     "whoCanSearchIt": "Who can search it",
     "parsingDetails": "Chunking, OCR and images",
     "moreOptions": "More options",
-    "citedFileGone": "This file is no longer in its knowledge base - it was deleted or replaced after it was cited."
+    "citedFileGone": "This file is no longer in its knowledge base - it was deleted or replaced after it was cited.",
+    "embeddingEndpoint": "Endpoint",
+    "embeddingEndpointHint": "Leave empty for the global OpenRouter API, or enter a regional URL such as https://eu.openrouter.ai/api/v1. EU routing requires an eligible OpenRouter plan; ZDR is configured separately on OpenRouter.",
+    "noConnectorsAvailable": "No source connectors are available. An administrator can enable a connector for this deployment."
   },
   "knowledgeBases": {
     "active": "Active",
@@ -4169,7 +4184,8 @@
     "backgroundJobs": "Background jobs",
     "loadingPage": "Opening the page",
     "inbox": "Inbox",
-    "inboxCount": "{count, plural, =1 {1 waiting} other {# waiting}}"
+    "inboxCount": "{count, plural, =1 {1 waiting} other {# waiting}}",
+    "consoleVersion": "Console version {version}"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -4926,10 +4942,6 @@
         "title": "By department",
         "body": "Narrow the list to what one group was given. A group is who something reaches, so it is also how the list is grouped."
       },
-      "routines-ideas": {
-        "title": "Or start from an idea",
-        "body": "Ready-made routines - a morning digest, a weekly summary, an hourly check - each with the time it would run. Pick one and the new schedule opens already filled in."
-      },
       "sign-in-to-site": {
         "title": "Sign in to a site",
         "body": "Open a browser on a site for you alone, sign in, and hand it back with Keep me signed in - your agents' browser starts signed in there from then on."
@@ -5247,7 +5259,7 @@
       "dislikes": "Dislikes",
       "eachRowSaysWhat": "Each row says what was checked. Auto-refreshes every 30s.",
       "everyCheckPassed": "Every check passed",
-      "everyStatusHereComes": "Every status here comes from a probe that ran when this page loaded. There is no uptime history: nothing records one, and a number that looks like one would be made up.",
+      "everyStatusHereComes": "Live checks from this deployment. Results refresh every 30 seconds while auto-refresh is on.",
       "failedFetchHealth": "Failed to fetch health",
       "failingServices": "Failing: {names}",
       "inspect": "Inspect",
@@ -5277,7 +5289,7 @@
       "serviceRedis": "Redis",
       "serviceRedisDetail": "Cache & queue broker",
       "serviceScheduler": "Scheduled jobs",
-      "serviceSchedulerDetail": "Triggers, emails and sweeps, via Prefect",
+      "serviceSchedulerDetail": "Triggers, emails and maintenance jobs",
       "serviceVectorStore": "Vector store",
       "serviceVectorStoreDetail": "pgvector, same database",
       "services": "Services",
@@ -5947,7 +5959,7 @@
       "activity2": "Activity",
       "agentColumn": "Agent",
       "agentFilter": "Filter by agent",
-      "agentsAreRunningWithout": "Agents are running without needing you.",
+      "agentsAreRunningWithout": "Requests that need your decision will appear here.",
       "answered": "They answered",
       "anyAgent": "All agents",
       "anyModel": "Any model",
@@ -6029,7 +6041,7 @@
       "nothingRecordedBecause": "The run never reached a model - stopped by a budget or a guardrail - or it ran before this was recorded.",
       "nothingRecordedForThisRun": "Nothing was recorded for this run",
       "nothingSpentYet": "Nothing spent yet.",
-      "nothingWaiting": "Nothing waiting",
+      "nothingWaiting": "No approvals pending",
       "openTheAgent": "Open the agent",
       "openTheChatBehind": "Open the chat this run happened in",
       "openTheRunItCame": "Open the run it came from",
@@ -6255,7 +6267,7 @@
       "displayName": "Display name",
       "email": "Email",
       "emailChannel": "Email",
-      "emailsAboutRunsNobody": "Emails about runs nobody is watching. Each switch is checked before the email is sent. These are your own opt-outs and only ever subtract: an agent decides who should hear about it, and switching one off here removes you from that list whatever the agent says. Who an agent tells is set on the agent, under Limits.",
+      "emailsAboutRunsNobody": "Choose the emails you receive about budgets, approvals and usage. Each agent’s Limits settings decide who is notified.",
       "failedDeleteAccount": "Failed to delete account",
       "failedLoadPreferences": "Failed to load notification preferences",
       "failedSavePreference": "Failed to save preference",
@@ -6328,7 +6340,7 @@
       "signOutFromAll": "Sign out from all devices?",
       "signedOutFromAll": "Signed out from all devices",
       "slashCommands": "Slash commands",
-      "squareImagesLookBest": "Square images look best. Up to 2MB. JPG, PNG, WEBP, or GIF.",
+      "squareImagesLookBest": "Your photo is cropped to a circle.",
       "transactionalEmailsWhatTriggers": "The transactional emails, what triggers each, and why none of them is optional.",
       "updatePassword": "Update password",
       "uploadAvatar3": "Upload avatar",
@@ -6387,7 +6399,8 @@
       "prefImprovementFinished": "Improvement session finished",
       "prefImprovementFinishedTrigger": "An improvement session you started is ready to review or stopped.",
       "prefSuiteReevaluated": "Suite result re-evaluated",
-      "prefSuiteReevaluatedTrigger": "A human review changed the verdict of a suite you own. Promotion still requires a person."
+      "prefSuiteReevaluatedTrigger": "A human review changed the verdict of a suite you own. Promotion still requires a person.",
+      "whoReceivesThis": "Who receives this?"
     },
     "skills": {
       "agentsBoundSkillWill": "Agents bound to this skill will run without it from their next run. This cannot be undone.",
@@ -6464,10 +6477,10 @@
     },
     "routines": {
       "title": "Routines",
-      "description": "Everything your agents do on their own - on a schedule, or on an event.",
-      "ideasTitle": "Ideas to start from",
-      "ideasHint": "Pick one and it opens as a new schedule, filled in - choose the agent, adjust anything, save.",
-      "newWatch": "New watch"
+      "description": "Agent routines carry out tasks. My watches check your connected accounts and bring findings to your private Inbox.",
+      "newWatch": "New watch",
+      "agentsTab": "Agent routines",
+      "watchesTab": "My watches"
     },
     "signIns": {
       "cancel": "Cancel",
@@ -6654,7 +6667,7 @@
       "button": "Search",
       "failedDescription": "The search request failed, so whether anything matches is unknown.",
       "failedTitle": "Couldn't run the search",
-      "noBases": "Nothing to search yet - create a knowledge base and upload a document first.",
+      "noBases": "Create a knowledge base and upload documents. Their content becomes searchable here.",
       "noResults": "No results found",
       "noResultsHint": "Try a different query or another knowledge base",
       "page": "p.{page}",
@@ -6663,7 +6676,11 @@
       "retry": "Try again",
       "scopeLabel": "Search scope",
       "searching": "Searching...",
-      "openFile": "Open {name}"
+      "openFile": "Open {name}",
+      "noBasesTitle": "Add knowledge to search",
+      "queryLabel": "Search query",
+      "idleTitle": "Find the source behind an answer",
+      "idleDescription": "Search by topic or ask a question. Results link back to the original document so you can check the source."
     },
     "skippedCount": "{count} skipped",
     "sourceName": "Source name",
@@ -7397,14 +7414,12 @@
     "modeLink": "linked",
     "modeInjectHint": "Spliced into the agent's instructions on every run.",
     "modeLinkHint": "Left out of the prompt; the agent reads it on demand.",
-    "sizeWithFormat": "{format} · {size}",
     "newContext": "New context file",
     "availableEveryAgentOrganization": "Choose below who can use it. An agent reads it once it is added to that agent.",
     "name": "Name",
     "howItIsReferredTo": "How this file is referred to; it cannot change afterwards.",
     "mode": "Mode",
     "format": "Format",
-    "formatHint": "A rendering hint, for example md or txt.",
     "description": "Description",
     "whatIsInIt": "What is in it, so a linked file can be chosen without opening it",
     "shownWhenLinked": "Shown beside the name when the file is linked.",
@@ -7424,7 +7439,10 @@
     "droppedTooLarge": "{count, plural, =1 {One file is over {max} - a document that large belongs in a knowledge collection} other {# files are over {max} - a document that large belongs in a knowledge collection}}",
     "moreFilesWaiting": "{count, plural, =1 {1 more file waiting} other {# more files waiting}}",
     "bodyPlaceholder": "# Glossary\n\nWhat a term means here, and what it does not.\n\n- **SLA** - the response time we promise, not the fix time.\n",
-    "whoCanUseIt": "Who can use it"
+    "whoCanUseIt": "Who can use it",
+    "useForAgent": "Use in this agent",
+    "usageForAgent": "How {name} is used",
+    "bindingSettingsHint": "Choose how each agent uses this file in its Builder → Context settings."
   },
   "memory": {
     "clearAction": "Clear memory",
@@ -7544,6 +7562,11 @@
     "defaultEnvironment": "Default",
     "environmentFollows": "follows publishes",
     "environmentBehind": "{count, plural, =1 {1 version behind} other {# versions behind}}",
+    "teamsPost": "Also post the answer to Teams",
+    "teamsPostHint": "Each fire's answer goes to this channel or group chat as a new message.",
+    "teamsPostNowhere": "Don't post",
+    "teamsPostUnnamedChannel": "A Teams channel",
+    "teamsPostUnnamedGroup": "A Teams group chat",
     "environmentCaptionDefault": "Fires run whatever the default environment points at when they fire.",
     "environmentCaptionPinned": "The next fire runs v{version}.",
     "environmentCaptionTracking": "The next fire runs v{version} - this environment follows publishes, so the next publish changes what runs.",
@@ -7577,10 +7600,10 @@
     "runsCouldNotBeRead": "This trigger's runs could not be read.",
     "unit": "Unit",
     "activityTitle": "Routines",
-    "activityEmptyTitle": "Nothing runs on its own yet",
+    "activityEmptyTitle": "No agent routines yet",
     "searchRoutines": "Search routines",
     "noRoutineMatches": "No routine matches that.",
-    "routineCount": "{count, plural, =0 {No routines} =1 {1 routine} other {# routines}}",
+    "routineCount": "{count, plural, =1 {1 routine} other {# routines}}",
     "activityEmptyDescription": "When an agent is set to run itself, it shows here.",
     "agent": "Agent",
     "chooseAgent": "Choose an agent",
@@ -7624,11 +7647,6 @@
       "queue": "Runs once the previous run ends, however many times were missed.",
       "allow": "Starts on time alongside the run still going. Both runs are paid for."
     },
-    "teamsPost": "Also post the answer to Teams",
-    "teamsPostHint": "Each fire's answer goes to this channel or group chat as a new message.",
-    "teamsPostNowhere": "Don't post",
-    "teamsPostUnnamedChannel": "A Teams channel",
-    "teamsPostUnnamedGroup": "A Teams group chat",
     "howOften": "How often",
     "choiceEvery15m": "Every 15 min",
     "choiceHourly": "Hourly",
@@ -9307,6 +9325,10 @@
       "expose_read_tool": {
         "title": "Let the agent open linked files",
         "description": "Whether link-mode files are reachable through a read tool. Off means only injected files reach the model, and nothing is read on demand."
+      },
+      "file_settings": {
+        "title": "How each file is used",
+        "description": "Per-agent mode and availability for attached context files. An absent entry preserves the file's legacy defaults."
       }
     },
     "conversation_search": {
@@ -9397,6 +9419,78 @@
       "aspect_ratio": {
         "title": "Aspect ratio",
         "description": "Aspect ratio, e.g. 16:9 or 1:1."
+      }
+    },
+    "text_to_speech": {
+      "provider": {
+        "title": "Provider",
+        "description": "Whose voices speak. Offered: the providers in `app/core/catalog/text_to_speech_models.json` whose key the vault can hold."
+      },
+      "model": {
+        "title": "Speech model",
+        "description": "Which of that provider's speech models speaks. A model outside the catalog is refused here rather than mid-run."
+      },
+      "voice": {
+        "title": "Voice",
+        "description": "The voice that speaks unless the agent chooses another; left empty, the model's first. ElevenLabs voices belong to your account, so for ElevenLabs paste the voice id from your voice library."
+      },
+      "voices": {
+        "title": "Allowed voices",
+        "description": "The only voices the agent may switch to instead of the one above, per clip - for a dialogue, or a narrator and a character. Left empty, it may choose any voice the model offers - for ElevenLabs, any voice id in your account."
+      },
+      "output_format": {
+        "title": "File format",
+        "description": "mp3 is smaller, wav is uncompressed. Left empty, the provider's first format - Gemini returns wav only."
+      },
+      "max_characters": {
+        "title": "Longest text",
+        "description": "The most text one call may speak, which caps what a single call can cost."
+      }
+    },
+    "video_generation": {
+      "provider": {
+        "title": "Provider",
+        "description": "Whose model makes the video. Offered: the providers in `app/core/catalog/video_models.json` whose key the vault can hold."
+      },
+      "model": {
+        "title": "Video model",
+        "description": "Which of that provider's video models makes the clip. A model outside the catalog is refused here rather than mid-run."
+      },
+      "resolution": {
+        "title": "Resolution",
+        "description": "The resolution a clip is made at unless the agent asks for another; left empty, the model's first. Higher costs more per second."
+      },
+      "max_resolution": {
+        "title": "Highest resolution",
+        "description": "The highest resolution the agent may ask for, at least the usual one; it caps what a second can cost. Left empty, the agent may ask for any resolution the model renders."
+      },
+      "aspect_ratio": {
+        "title": "Aspect ratio",
+        "description": "The shape a clip takes unless the agent asks for another; left empty, the model's first."
+      },
+      "seconds": {
+        "title": "Length",
+        "description": "Seconds a clip runs unless the agent asks for another length; left empty, five, or the nearest the model makes. Not for a model that decides its own length."
+      },
+      "max_seconds": {
+        "title": "Longest clip",
+        "description": "The longest clip the agent may ask for, which caps what one call can cost; left empty, the model's own limit. Not for a model that decides its own length."
+      },
+      "audio": {
+        "title": "Sound",
+        "description": "Whether clips carry sound unless the agent asks otherwise, where the model makes it optional; left empty, the provider's default."
+      },
+      "alibaba_workspace": {
+        "title": "Alibaba workspace",
+        "description": "Alibaba only: the Model Studio workspace id, which Wan 3.0 is called through. Left empty, the shared DashScope endpoint, which Alibaba keeps for existing integrations."
+      },
+      "alibaba_region": {
+        "title": "Alibaba region",
+        "description": "Alibaba only: the region the workspace is in."
+      },
+      "timeout_seconds": {
+        "title": "Time limit",
+        "description": "How long to wait for a clip, in seconds. A job not finished by then is cancelled where the provider allows it and booked at its estimate."
       }
     },
     "knowledge": {
@@ -9621,78 +9715,6 @@
       "timeout_minutes": {
         "title": "Time limit (minutes)",
         "description": "How long one task may run before it is stopped."
-      }
-    },
-    "text_to_speech": {
-      "provider": {
-        "title": "Provider",
-        "description": "Whose voices speak. Offered: the providers in `app/core/catalog/text_to_speech_models.json` whose key the vault can hold."
-      },
-      "model": {
-        "title": "Speech model",
-        "description": "Which of that provider's speech models speaks. A model outside the catalog is refused here rather than mid-run."
-      },
-      "voice": {
-        "title": "Voice",
-        "description": "The voice that speaks unless the agent chooses another; left empty, the model's first. ElevenLabs voices belong to your account, so for ElevenLabs paste the voice id from your voice library."
-      },
-      "voices": {
-        "title": "Allowed voices",
-        "description": "The only voices the agent may switch to instead of the one above, per clip - for a dialogue, or a narrator and a character. Left empty, it may choose any voice the model offers - for ElevenLabs, any voice id in your account."
-      },
-      "output_format": {
-        "title": "File format",
-        "description": "mp3 is smaller, wav is uncompressed. Left empty, the provider's first format - Gemini returns wav only."
-      },
-      "max_characters": {
-        "title": "Longest text",
-        "description": "The most text one call may speak, which caps what a single call can cost."
-      }
-    },
-    "video_generation": {
-      "provider": {
-        "title": "Provider",
-        "description": "Whose model makes the video. Offered: the providers in `app/core/catalog/video_models.json` whose key the vault can hold."
-      },
-      "model": {
-        "title": "Video model",
-        "description": "Which of that provider's video models makes the clip. A model outside the catalog is refused here rather than mid-run."
-      },
-      "resolution": {
-        "title": "Resolution",
-        "description": "The resolution a clip is made at unless the agent asks for another; left empty, the model's first. Higher costs more per second."
-      },
-      "max_resolution": {
-        "title": "Highest resolution",
-        "description": "The highest resolution the agent may ask for, at least the usual one; it caps what a second can cost. Left empty, the agent may ask for any resolution the model renders."
-      },
-      "aspect_ratio": {
-        "title": "Aspect ratio",
-        "description": "The shape a clip takes unless the agent asks for another; left empty, the model's first."
-      },
-      "seconds": {
-        "title": "Length",
-        "description": "Seconds a clip runs unless the agent asks for another length; left empty, five, or the nearest the model makes. Not for a model that decides its own length."
-      },
-      "max_seconds": {
-        "title": "Longest clip",
-        "description": "The longest clip the agent may ask for, which caps what one call can cost; left empty, the model's own limit. Not for a model that decides its own length."
-      },
-      "audio": {
-        "title": "Sound",
-        "description": "Whether clips carry sound unless the agent asks otherwise, where the model makes it optional; left empty, the provider's default."
-      },
-      "alibaba_workspace": {
-        "title": "Alibaba workspace",
-        "description": "Alibaba only: the Model Studio workspace id, which Wan 3.0 is called through. Left empty, the shared DashScope endpoint, which Alibaba keeps for existing integrations."
-      },
-      "alibaba_region": {
-        "title": "Alibaba region",
-        "description": "Alibaba only: the region the workspace is in."
-      },
-      "timeout_seconds": {
-        "title": "Time limit",
-        "description": "How long to wait for a clip, in seconds. A job not finished by then is cancelled where the provider allows it and booked at its estimate."
       }
     },
     "follow_ups": {
@@ -10440,7 +10462,57 @@
     "uploadFailed": "The upload failed",
     "noFilesYet": "Nothing in this project yet",
     "noFilesHint": "Drop files or a whole folder here, or upload them. Every chat in the project reads and works in them.",
-    "noFilesViewer": "Files added to the project will appear here."
+    "noFilesViewer": "Files added to the project will appear here.",
+    "fileManager": {
+      "actions": "Actions for {name}",
+      "rename": "Rename",
+      "move": "Move to folder",
+      "delete": "Delete",
+      "name": "Name",
+      "destination": "Destination folder",
+      "root": "Project files",
+      "moveFailed": "The entry could not be moved. Check the name and destination, then try again.",
+      "cancel": "Cancel",
+      "saving": "Saving…",
+      "confirm": "Confirm",
+      "edit": "Edit file",
+      "loading": "Loading file…",
+      "contents": "File contents",
+      "unsaved": "Unsaved changes",
+      "saved": "Saved",
+      "textOnly": "UTF-8 text files, up to 1 MiB",
+      "close": "Close",
+      "save": "Save changes",
+      "discardTitle": "Discard changes?",
+      "discardBody": "Your edits have not been saved. Close the editor and discard them?",
+      "discard": "Discard changes"
+    },
+    "sandbox": {
+      "label": "Project sandbox",
+      "automatic": "Automatic",
+      "automaticNamed": "Automatic · {name}",
+      "stored": "Stored files only",
+      "storedHint": "Files are stored by the platform. Agents can read and write them, but cannot execute code here.",
+      "sharedHint": "Every chat in this project shares these files and this workspace. It replaces the sandbox configured on the answering agent.",
+      "failed": "Could not load sandbox connections. Automatic selection and stored files are still available.",
+      "configured": "Configured sandbox",
+      "containerHint": "A dedicated container on this connection. It stays selected until you explicitly move the project’s files.",
+      "howItWorks": "How project files and code execution work",
+      "locationTitle": "Where files live",
+      "locationHelp": "Stored files stay in the platform database, without a shell. A sandbox connection provides a container on your infrastructure or a cloud sandbox. Automatic selects the organization’s default when the project is created.",
+      "sharingTitle": "One workspace for the whole project",
+      "sharingHelp": "Files persist across conversations and are shared with everyone who can access this project. Chats in this project use its workspace instead of the agent’s own sandbox connection.",
+      "executionTitle": "When an agent can run code",
+      "executionHelp": "In a container-backed project, agents receive the project’s Sandbox tools and can execute code in that environment. Existing tool approval requirements still apply. Stored files have no shell, so agents can read and write files but cannot run code there.",
+      "change": "Change sandbox",
+      "move": "Move project files",
+      "transferHint": "Copies existing files and empty folders, then verifies the copy before switching. New runs and file changes pause during the transfer. On failure, the current workspace remains selected. Up to 10,000 entries, 64 MiB per file and 1 GiB total; symbolic links must be removed first. Installed packages and running processes are not transferred.",
+      "moving": "Moving files to {name}",
+      "progress": "{copied} of {total} files copied",
+      "paused": "You can read existing files. New runs and file changes resume when the transfer finishes.",
+      "moveFailed": "The transfer did not finish. The previous workspace is still selected. You can try again.",
+      "moved": "Files verified and the new workspace activated."
+    }
   },
   "voiceGlow": {
     "title": "Voice glow",
@@ -10972,12 +11044,12 @@
       }
     },
     "signInAgain": "Sign in to it again",
-    "count": "{count, plural, =0 {Nothing watched yet} =1 {1 watch} other {# watches}}",
+    "count": "{count, plural, =1 {1 watch} other {# watches}}",
     "findings": "What they found",
     "offTitle": "Watches are off",
     "noConnectionsTitle": "Connect an account to watch",
     "connect": "Open MCP servers",
-    "emptyTitle": "Nothing watched yet",
+    "emptyTitle": "No watches yet",
     "emptyDescription": "Pick one of your accounts and say what to look for. What a watch finds lands in your inbox; the urgent things reach you at once.",
     "rowLooked": "{cadence} · looked {when}",
     "rowFirst": "{cadence} · first look within a minute",

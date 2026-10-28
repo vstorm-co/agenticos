@@ -35,6 +35,7 @@ import { useTranslations } from "next-intl";
 const UNSET = "__unset__";
 
 interface SchemaFormProps {
+  hiddenFields?: readonly string[];
   schema: JsonSchema;
   value: Record<string, unknown>;
   onChange: (value: Record<string, unknown>) => void;
@@ -78,6 +79,7 @@ interface SchemaFormProps {
  * secret payload, and every `SecretStr` in it.
  */
 export function SchemaForm({
+  hiddenFields = [],
   schema,
   value,
   onChange,
@@ -90,7 +92,10 @@ export function SchemaForm({
     // A field with exactly one legal value is not a question. Rendering it
     // would offer a control whose every other answer the server refuses, and
     // for a secret payload that control is the `kind` the caller already chose.
-    ([, property]) => property.const === undefined && visible(property, schema, value),
+    ([key, property]) =>
+      !hiddenFields.includes(key) &&
+      property.const === undefined &&
+      visible(property, schema, value),
   );
   if (properties.length === 0) return null;
 

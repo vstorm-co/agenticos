@@ -137,6 +137,7 @@ export interface KnowledgeBase {
    * `embedding`. Null for a keyed provider, whose address is the vendor's.
    */
   embedding_endpoint_id: string | null;
+  embedding_base_url?: string | null;
   created_at: string;
   updated_at: string | null;
   /**
@@ -196,6 +197,7 @@ export interface CreateKnowledgeBaseInput {
   embedding_secret_id?: string;
   /** The local service a keyless provider is reached at. Required for one. */
   embedding_endpoint_id?: string;
+  embedding_base_url?: string | null;
 }
 
 /**
@@ -208,6 +210,7 @@ export interface EmbeddingProviderInput {
   embedding_provider?: string;
   embedding_secret_id?: string;
   embedding_endpoint_id?: string;
+  embedding_base_url?: string | null;
 }
 
 /** One provider a collection can embed through, from `GET /rag/embedding-models`. */
@@ -225,6 +228,18 @@ export interface EmbeddingProvider {
 
 export interface EmbeddingModels {
   providers: EmbeddingProvider[];
+}
+
+/**
+ * The models one custom endpoint serves, from `GET /rag/embedding-models/{provider}`.
+ *
+ * `live` is the endpoint's own listing narrowed to this build's catalog, and may
+ * be empty; `curated` is the whole catalog, because the endpoint could not be asked.
+ */
+export interface EndpointEmbeddingModels {
+  provider: string;
+  models: EmbeddingProvider["models"];
+  source: "live" | "curated";
 }
 
 /** A single document tracked in a KB's underlying vector collection. */

@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { FolderPlus, FolderUp, Upload } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { ProjectFileEditor } from "./project-file-editor";
 import { FileDropZone } from "@/components/rag/file-drop-zone";
 import { UploadProgressList } from "@/components/rag/upload-progress-list";
 import { FileExplorer } from "@/components/sandboxes/workspace-explorer";
@@ -29,7 +30,7 @@ import type { Project } from "@/types/projects";
  */
 export function ProjectFiles({ project }: { project: Project }) {
   const t = useTranslations("projects");
-  const { files, isLoading, error, upload, uploads, addFolder, remove } = useProjectFiles(
+  const { files, isLoading, error, upload, uploads, addFolder, move, remove } = useProjectFiles(
     project.id,
   );
   const source = useMemo<FileSource>(() => ({ kind: "project", id: project.id }), [project.id]);
@@ -44,7 +45,9 @@ export function ProjectFiles({ project }: { project: Project }) {
     if (chosen.length > 0) upload.mutate({ files: chosen, folder: "" });
   }
 
-  const toolbar = project.can_use ? (
+  const writable =
+    project.can_use && !["queued", "running"].includes(project.workspace_move?.status ?? "");
+  const toolbar = writable ? (
     <span className="mr-auto flex flex-wrap items-center gap-1.5" data-tour="project-files-add">
       <Button size="sm" onClick={() => filesInput.current?.click()} disabled={upload.isPending}>
         <Upload className="h-4 w-4" />
@@ -95,20 +98,20 @@ export function ProjectFiles({ project }: { project: Project }) {
   const empty = files !== null && files.total === 0 && uploads.length === 0;
 
   const explorer = empty ? (
-    <div className="border-border flex min-h-[24rem] flex-1 flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed px-6 py-12 text-center">
+    <div className="border-border flex min-h-0 flex-1 flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed px-6 py-12 text-center">
       <span className="bg-muted text-foreground grid h-14 w-14 place-items-center rounded-xl">
         <Upload className="h-6 w-6" aria-hidden />
       </span>
       <div className="max-w-md space-y-1">
         <p className="text-foreground text-base font-semibold">{t("noFilesYet")}</p>
         <p className="text-muted-foreground text-sm">
-          {project.can_use ? t("noFilesHint") : t("noFilesViewer")}
+          {writable ? t("noFilesHint") : t("noFilesViewer")}
         </p>
       </div>
       {toolbar && <div className="flex justify-center [&>span]:mr-0">{toolbar}</div>}
     </div>
   ) : (
-    <div className="flex min-h-[32rem] flex-1 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <UploadProgressList uploads={uploads} />
       <FileExplorer
         source={source}
@@ -116,7 +119,17 @@ export function ProjectFiles({ project }: { project: Project }) {
         isLoading={isLoading}
         error={error}
         toolbar={toolbar}
-        onRemove={project.can_use ? setPendingRemove : undefined}
+        onRemove={writable ? setPendingRemove : undefined}
+        onMove={
+          writable
+            ? async (source, destination) => {
+                await move.mutateAsync({ source, destination });
+              }
+            : undefined
+        }
+        renderEditor={
+          writable ? (path) => <ProjectFileEditor projectId={project.id} path={path} /> : undefined
+        }
       />
     </div>
   );
@@ -124,10 +137,18 @@ export function ProjectFiles({ project }: { project: Project }) {
   return (
     // Down to the bottom of the screen, as the folder page's reader is: the files
     // are what the tab is for, and a fixed floor left half the screen empty.
-    <div className="flex min-h-[calc(100dvh-17rem)] flex-1 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
+      {project.can_use && !writable && (
+        <p
+          role="status"
+          className="text-muted-foreground bg-muted/50 mb-3 rounded-xl px-4 py-3 text-sm"
+        >
+          {t("sandbox.paused")}
+        </p>
+      )}
       {/* A file dropped anywhere on the tab lands in the project, as one dropped
           on a knowledge base lands in it - for whoever may add files. */}
-      {project.can_use ? (
+      {writable ? (
         <FileDropZone
           collectionName={project.name}
           onFiles={picked}
@@ -146,6 +167,7 @@ export function ProjectFiles({ project }: { project: Project }) {
           </DialogHeader>
           <FormField label={t("folderName")} htmlFor="project-folder-name">
             <Input
+              id="project-folder-name"
               value={folderName}
               onChange={(event) => setFolderName(event.target.value)}
               placeholder={t("folderPlaceholder")}

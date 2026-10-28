@@ -12,6 +12,9 @@ class AgentUsage(BaseSchema):
 
     id: UUID
     name: str
+    slug: str
+    has_avatar: bool = False
+    avatar_color: int | None = None
 
 
 class ReachedAgent(BaseSchema):

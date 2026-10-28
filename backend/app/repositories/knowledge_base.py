@@ -145,6 +145,7 @@ async def create(
     is_default: bool = False,
     embedding_secret_id: UUID | None = None,
     embedding_endpoint_id: UUID | None = None,
+    embedding_base_url: str | None = None,
     visibility: str | None = None,
 ) -> KnowledgeBase:
     """Create a knowledge base.
@@ -173,6 +174,7 @@ async def create(
         embedding_provider=embedding_provider,
         embedding_secret_id=embedding_secret_id,
         embedding_endpoint_id=embedding_endpoint_id,
+        embedding_base_url=embedding_base_url,
         **({"visibility": visibility} if visibility is not None else {}),
     )
     db.add(kb)
@@ -193,6 +195,8 @@ async def update(
     embedding_provider: str | None = None,
     embedding_secret_id: UUID | None = None,
     embedding_endpoint_id: UUID | None = None,
+    embedding_base_url: str | None = None,
+    set_embedding_base_url: bool = False,
 ) -> KnowledgeBase:
     """Apply what an update named, leaving what it did not alone.
 
@@ -214,6 +218,8 @@ async def update(
         db_kb.embedding_secret_id = embedding_secret_id
     if embedding_endpoint_id is not None:
         db_kb.embedding_endpoint_id = embedding_endpoint_id
+    if set_embedding_base_url:
+        db_kb.embedding_base_url = embedding_base_url
     await db.flush()
     await db.refresh(db_kb)
     return db_kb

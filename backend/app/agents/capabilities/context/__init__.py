@@ -1,8 +1,14 @@
 """Context capability - an organization's standing context, injected or linked."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Literal
+from uuid import UUID
 
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from app.agents.spec import CapabilityBindingSpec
 
 from app.agents.capabilities._registry import (
     CapabilityBuildContext,
@@ -42,8 +48,29 @@ class ContextBody:
     """A named body is a run-only file, never a stored context-file replacement."""
 
 
+class ContextFileSettings(BaseModel):
+    """How one agent uses a shared file; independent of every other agent."""
+
+    mode: Literal["inject", "link"] = Field(
+        default="inject",
+        title="How to use it",
+        description="Include in every answer, or read on demand.",
+    )
+    enabled: bool = Field(
+        default=True,
+        title="Use this file",
+        description="Whether this agent may use the attached file.",
+    )
+
+
 class ContextConfig(BaseModel):
     """How the agent uses its bound context files."""
+
+    file_settings: dict[UUID, ContextFileSettings] = Field(
+        default_factory=dict,
+        title="How each file is used",
+        description="Per-agent mode and availability for attached context files. An absent entry preserves the file's legacy defaults.",
+    )
 
     expose_read_tool: bool = Field(
         title="Let the agent open linked files",
@@ -53,6 +80,12 @@ class ContextConfig(BaseModel):
             "only injected files reach the model, and nothing is read on demand."
         ),
     )
+
+
+def context_config(bindings: Sequence[CapabilityBindingSpec]) -> ContextConfig:
+    """The context policy on this agent, with old empty configurations preserved."""
+    binding = next((item for item in bindings if item.id == "context"), None)
+    return ContextConfig.model_validate(binding.config) if binding is not None else ContextConfig()
 
 
 @register(
@@ -92,10 +125,13 @@ def _build(ctx: CapabilityBuildContext) -> Context | None:
             name=file.name,
             description=file.description if body is None else body.description,
             content=file.content if body is None else body.content,
-            mode=file.mode,
+            mode=config.file_settings[file.id].mode
+            if file.id in config.file_settings
+            else file.mode,
             format=file.format,
         )
         for file in files
+        if file.id not in config.file_settings or config.file_settings[file.id].enabled
         for body in (bodies.get(file.id) if bodies else None,)
     )
     capability = Context(items=items, expose_read_tool=config.expose_read_tool)

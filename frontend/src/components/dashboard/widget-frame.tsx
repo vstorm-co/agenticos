@@ -39,12 +39,8 @@ interface WidgetFrameProps {
  * The card shell every widget renders in: title, optional explanation and
  * "see all" link, then the body.
  *
- * Built on `Card` rather than on its own border and radius, so a widget is the
- * same object as a `ListCard` on Skills or a figure on Activity - same corner,
- * same elevation, same divider under the heading. It carried `rounded-xl` and
- * no shadow while every other surface in the product carried `rounded-2xl` and
- * one, which reads as a different product on the one page that shows all of
- * them at once.
+ * Uses the console's card surface and spacing, without an internal header rule.
+ * Lists and charts share the shell while keeping their own content structure.
  *
  * `h-full` so a card stretched by a taller row sibling fills its cell instead
  * of leaving slack under the border.
@@ -74,14 +70,11 @@ export function WidgetFrame({
       // a card that is waiting reads as waiting rather than as disabled.
       className={cn(
         CARD_SURFACE,
-        "dash-widget group flex h-full min-w-0 flex-col overflow-hidden shadow-none",
+        "dash-widget group @container/widget flex h-full min-w-0 flex-col overflow-hidden shadow-none",
         className,
       )}
     >
-      {/* The rule under the heading is the card's own edge tone, not the page's
-          border: on a translucent surface `border-border` is a hard grey line
-          drawn across a panel. */}
-      <div className="border-foreground/8 flex items-center justify-between gap-2 border-b px-5 py-3.5">
+      <div className="flex items-center justify-between gap-2 px-5 pt-4 pb-0">
         <div className="flex min-w-0 items-center gap-1.5">
           <h3 className="text-foreground truncate text-sm font-semibold tracking-tight">{title}</h3>
           {hint ? <WidgetHint title={title} text={hint} /> : null}
@@ -101,7 +94,7 @@ export function WidgetFrame({
           otherwise be silently cut off at the border with nothing to say so. */}
       <div
         ref={body}
-        className={cn("flex min-h-0 flex-1 flex-col overflow-y-auto p-5", SCROLL_FADE_Y)}
+        className={cn("flex min-h-0 flex-1 flex-col overflow-y-auto px-5 pt-4 pb-5", SCROLL_FADE_Y)}
       >
         {children}
       </div>

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -586,4 +586,54 @@ it("keeps both file explorer panes while the listing loads", () => {
   rerender(<WorkspaceExplorer workspaceId="ws-1" />);
   expect(Array.from(grid?.children ?? [])).toEqual(panes);
   expect(screen.getByRole("textbox")).toBeEnabled();
+});
+
+it("moves a file into a folder and back to the project root through drag and drop", async () => {
+  const move = vi.fn().mockResolvedValue(undefined);
+  const files = listing([file("notes", { is_dir: true }), file("brief.md")]);
+  render(
+    <FileExplorer
+      source={{ kind: "project", id: "p-1" }}
+      files={files}
+      isLoading={false}
+      error={null}
+      onMove={move}
+    />,
+  );
+  const dataTransfer = {
+    types: ["application/x-agenticos-project-path"],
+    getData: () => "brief.md",
+    setData: vi.fn(),
+    effectAllowed: "",
+    dropEffect: "",
+  };
+  const row = screen.getByRole("button", { name: "brief.md" }).closest("li");
+  if (!row) throw new Error("Missing file row");
+  await userEvent.click(screen.getByRole("button", { name: "brief.md" }));
+  fireEvent.dragStart(row, { dataTransfer });
+  expect(dataTransfer.setData).toHaveBeenCalledWith(
+    "application/x-agenticos-project-path",
+    "brief.md",
+  );
+  const folder = screen.getByRole("button", { name: "notes" }).parentElement;
+  if (!folder) throw new Error("Missing folder row");
+  fireEvent.dragOver(folder, { dataTransfer });
+  fireEvent.drop(folder, { dataTransfer });
+  await waitFor(() => expect(move).toHaveBeenCalledWith("brief.md", "notes/brief.md"));
+  fireEvent.dragLeave(folder, { dataTransfer });
+  fireEvent.dragEnd(row, { dataTransfer });
+  fireEvent.dragOver(screen.getByRole("button", { name: "Project files" }), { dataTransfer });
+  fireEvent.drop(screen.getByRole("button", { name: "Project files" }), {
+    dataTransfer: { ...dataTransfer, getData: () => "notes/brief.md" },
+  });
+  await waitFor(() => expect(move).toHaveBeenCalledWith("notes/brief.md", "brief.md"));
+  fireEvent.dragLeave(screen.getByRole("button", { name: "Project files" }), { dataTransfer });
+  await userEvent.click(screen.getByRole("button", { name: "Project files" }));
+  fireEvent.drop(folder, { dataTransfer: { ...dataTransfer, types: ["Files"] } });
+  fireEvent.drop(folder, { dataTransfer: { ...dataTransfer, getData: () => "notes" } });
+  move.mockRejectedValueOnce(new Error("conflict"));
+  fireEvent.drop(folder, { dataTransfer });
+  await waitFor(() => expect(move).toHaveBeenCalledTimes(3));
+  await userEvent.type(screen.getByRole("textbox", { name: "Search files by name" }), "brief");
+  expect(screen.getByRole("button", { name: "Actions for brief.md" })).toBeInTheDocument();
 });

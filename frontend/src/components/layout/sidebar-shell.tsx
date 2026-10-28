@@ -11,8 +11,8 @@
  *
  * The order is not arbitrary:
  *
- * - **Search and the bell are the footer's actions**, and the only things in
- *   that row. It held four icons: those two plus the language and the theme,
+ * - **Search and the bell are the footer's actions**, with the console
+ *   version beside them. It held four icons: those two plus the language and the theme,
  *   which put "find anything in this organization" beside "switch to German"
  *   under four unlabelled glyphs. Both settings are named rows in the account
  *   menu now, where somebody looks for a preference.
@@ -37,6 +37,9 @@
  */
 
 import type { ReactNode } from "react";
+import { useTranslations } from "next-intl";
+
+import { version } from "../../../package.json";
 
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { SidebarSearch } from "@/components/layout/sidebar-search";
@@ -50,6 +53,8 @@ export function SidebarShell({
   children: ReactNode;
   collapsed?: boolean;
 }) {
+  const t = useTranslations("nav");
+
   return (
     <>
       <div className="min-h-0 flex-1 scrollbar-thin overflow-y-auto">{children}</div>
@@ -60,13 +65,23 @@ export function SidebarShell({
           collapsed ? "items-center px-1" : "px-3",
         )}
       >
-        {/* Two actions, and only actions. The language and the theme used to be
+        {/* The language and the theme used to be
             here too, which filed "set this once" beside "find something" under
             four unlabelled glyphs; they are named rows in the account menu
             below now. */}
         <div className={cn("flex items-center gap-0.5", collapsed && "flex-col")}>
           <SidebarSearch variant="icon" />
           <NotificationBell variant="icon" />
+          <span
+            aria-label={t("consoleVersion", { version })}
+            title={t("consoleVersion", { version })}
+            className={cn(
+              "text-muted-foreground font-mono text-[11px] tabular-nums select-all",
+              !collapsed && "ml-auto pr-2",
+            )}
+          >
+            v{version}
+          </span>
         </div>
         <SidebarUser compact={collapsed} />
       </div>

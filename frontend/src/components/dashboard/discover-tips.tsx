@@ -30,20 +30,8 @@ interface Tip {
 }
 
 const TIPS: readonly Tip[] = [
-  // The two keys that open up the chat, first: everybody chats, and neither is
-  // something a person finds by looking.
-  { id: "mentions", href: ROUTES.CHAT, key: "@" },
-  { id: "commands", href: ROUTES.CHAT, key: "/" },
-  {
-    id: "mcp",
-    href: ROUTES.SETTINGS_MCP,
-    brands: [
-      { name: "claude", color: "#D97757" },
-      { name: "cursor", color: "currentColor" },
-    ],
-  },
-  { id: "subagents", href: ROUTES.AGENTS, art: "subagents", gate: Perm.agentsEdit },
   { id: "sandbox", href: ROUTES.AGENTS, art: "sandbox", gate: Perm.agentsEdit },
+  { id: "subagents", href: ROUTES.AGENTS, art: "subagents", gate: Perm.agentsEdit },
   { id: "apps", href: ROUTES.ARTIFACTS, art: "artifacts", gate: Perm.artifactsView },
   { id: "routines", href: ROUTES.ROUTINES, art: "clock", gate: Perm.agentsEdit },
   {
@@ -60,6 +48,17 @@ const TIPS: readonly Tip[] = [
   { id: "browser", href: ROUTES.AGENTS, art: "browser_use", gate: Perm.agentsEdit },
   { id: "knowledge", href: ROUTES.RAG, art: "knowledge", gate: Perm.agentsEdit },
   { id: "skills", href: ROUTES.SKILLS, art: "skills", gate: Perm.agentsEdit },
+  // Keyboard tips remain available after the illustrated product examples.
+  { id: "mentions", href: ROUTES.CHAT, key: "@" },
+  { id: "commands", href: ROUTES.CHAT, key: "/" },
+  {
+    id: "mcp",
+    href: ROUTES.SETTINGS_MCP,
+    brands: [
+      { name: "claude", color: "#D97757" },
+      { name: "cursor", color: "currentColor" },
+    ],
+  },
 ];
 
 const DISMISSED_KEY = "agenticos:discover-tips:dismissed";

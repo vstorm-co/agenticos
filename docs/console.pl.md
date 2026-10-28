@@ -1,5 +1,5 @@
 ---
-source_sha: "b01ff1a6200d"
+source_sha: "8596c1f8e04c"
 ---
 
 # Konsola { #the-console }
@@ -13,12 +13,16 @@ odtwarza on przewodnik po tej stronie, a strona, w której nagłówku nie ma "?"
 nie ma przewodnika do odtworzenia. Czat nie ma nagłówka: jego wskazówki są w
 ustawieniach czatu, pod suwakami obok mikrofonu.
 
+Listy zasobów, w tym Inbox i Routines, wypełniają pozostałą wysokość strony również wtedy, gdy są puste. Szablony Routines pozostają w formularzu tworzenia zamiast osobnego panelu pomysłów. Get started rezerwuje miejsce podczas pobierania checklisty, aby Briefing i karty poniżej nie przeskakiwały.
+
+Czat używa większych portretów agentów bez obwódek. Przełącznik Files pozostaje w polu wiadomości podczas otwierania i zamykania panelu; animacja respektuje ograniczenie ruchu. Ustawienia czatu pokazują najpierw bieżący model. Rozwiń **Zmień model**, aby edytować uzupełnionego dostawcę i model; wybór zaczyna działać po zatwierdzeniu. Karty załączników znajdują się nad polem wiadomości bez dodatkowego panelu z cieniem.
+
 ## Dashboard { #the-dashboard }
 
 Strona startowa to **układalna siatka widgetów** i jest odpowiedzią na pytanie
 "co się dzieje" bez otwierania pięciu stron.
 
-Istnieje pięćdziesiąt jeden kart. Nie zobaczysz wszystkich: **karta jest
+Istnieją pięćdziesiąt trzy karty. Nie zobaczysz wszystkich: **karta jest
 bramkowana uprawnieniem, którego wymagają jej dane**, więc widget, którego nie
 możesz odczytać, nigdy się nie montuje, a jego zapytania nigdy nie wychodzą —
 poza twoimi własnymi powiadomieniami, niżej, które wymagają tylko tego, żebyś
@@ -93,6 +97,20 @@ migawkę, którą chciałeś zachować.
     Zapisany układ może zmieniać kolejność i ukrywać, ale nie może odsłaniać.
     Filtrowanie po uprawnieniach dzieje się po rozwiązaniu układu — niezależnie
     od tego, czy układ pochodzi z domyślnego, czy z twojego zapisanego.
+
+## Rutyny i obserwacje { #routines-and-watches }
+
+Routines ma dwie zakładki. **Zadania agentów** uruchamiają wybranego agenta według
+harmonogramu lub zdarzenia, z jego narzędziami; runy widać w Activity.
+**Moje obserwacje** tylko odczytują osobiste połączenia i przekazują znaleziska do
+prywatnego Inbox. Każda zakładka ma własne przyciski tworzenia.
+`/routines?tab=watches` otwiera obserwacje.
+
+Discover na dashboardzie zaczyna się od ilustrowanych możliwości. Najedź na wykres
+w *Your period*, aby zobaczyć przedział i wartość; koszty są kwotami. Projekty
+pokazują opisy, a wiersze agentów używają tych samych avatarów co chat.
+
+Karty dashboardu korzystają ze spójnych, zwartych wierszy, oznaczeń usług i etykiet statusu. Liczniki i wykresy dostosowują się do szerokości karty, również we własnych układach. Placeholdery odpowiadają rodzajowi ładowanej zawartości; niedostępny briefing pokazuje możliwość ponowienia zamiast informacji o braku propozycji.
 
 ## Inbox { #the-inbox }
 
@@ -734,7 +752,7 @@ problem zostaje odczytany jako cisza.
 
 ## Podsumowanie { #recap }
 
-- Dashboard to **pięćdziesiąt jeden widgetów**, które układasz sam, zapisywanych
+- Dashboard to **pięćdziesiąt trzy widgety**, które układasz sam, zapisywanych
   per osoba i per organizacja — wszystkie poza twoimi własnymi powiadomieniami
   bramkowane uprawnieniem, którego wymagają ich dane.
 - Zapisany układ **może ukrywać i zmieniać kolejność, ale nigdy nie odsłania** —
@@ -749,3 +767,5 @@ problem zostaje odczytany jako cisza.
   korzystasz, możesz ukryć.
 - Strona pokazująca "nic jeszcze nie ma" może być **nieudanym żądaniem**, a nie
   pustym zasobem.
+
+Stopka panelu bocznego pokazuje wersję kompilacji konsoli obok wyszukiwania i powiadomień, także w zwiniętym panelu i menu mobilnym. Numer pochodzi z wersji pakietu frontendu zapisanej w kompilacji, więc jego odczyt nie wymaga żądania sieciowego. Podpowiedź określa go jako wersję konsoli; osobno aktualizowany proces API może mieć inną wersję.

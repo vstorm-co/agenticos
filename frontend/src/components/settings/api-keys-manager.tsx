@@ -107,7 +107,10 @@ export function ApiKeysManager() {
   ];
 
   return (
-    <section className="border-border bg-card rounded-xl border" data-tour="api-keys">
+    <section
+      className="border-border bg-card flex min-h-0 flex-1 flex-col rounded-xl border"
+      data-tour="api-keys"
+    >
       <header className="border-border flex flex-wrap items-start justify-between gap-3 border-b px-5 py-4">
         <div className="min-w-0 flex-1">
           <h2 className="text-foreground text-sm font-semibold">{t("title")}</h2>
@@ -120,23 +123,32 @@ export function ApiKeysManager() {
           </Button>
         )}
       </header>
-      <div className="px-5 py-5">
-        <DataTable
-          columns={columns}
-          rows={keys}
-          getRowKey={(key) => key.id}
-          loading={isLoading}
-          error={
-            error ? (
-              <ErrorState
-                title={t("couldNotLoad")}
-                cta={{ label: tc("retry"), onClick: () => void refetch() }}
-              />
-            ) : undefined
-          }
-          empty={<EmptyState icon={KeyRound} title={t("emptyTitle")} description={t("emptyWhy")} />}
+      {!isLoading && !error && keys.length === 0 ? (
+        <EmptyState
+          icon={KeyRound}
+          title={t("emptyTitle")}
+          description={t("emptyWhy")}
+          className="flex-1 border-0 bg-transparent"
         />
-      </div>
+      ) : (
+        <div className="px-5 py-5">
+          <DataTable
+            className="rounded-none border-0"
+            columns={columns}
+            rows={keys}
+            getRowKey={(key) => key.id}
+            loading={isLoading}
+            error={
+              error ? (
+                <ErrorState
+                  title={t("couldNotLoad")}
+                  cta={{ label: tc("retry"), onClick: () => void refetch() }}
+                />
+              ) : undefined
+            }
+          />
+        </div>
+      )}
       {catalog && (
         <CreateApiKeyDialog
           open={creating}

@@ -35,6 +35,7 @@ from app.repositories import (
     channel_link_request_repo,
     channel_session_repo,
     member_repo,
+    message_rating_repo,
     user_repo,
 )
 from app.schemas.channel_bot import LinkedAgent, LinkedPlace
@@ -179,6 +180,9 @@ class ChannelLinkService:
                 self.db, db_identity=identity, update_data={"user_id": user_id}
             )
 
+        await message_rating_repo.adopt_channel_ratings(
+            self.db, identity_id=identity.id, user_id=user_id
+        )
         return request
 
     async def link_vouched(self, identity: ChannelIdentity, email: str) -> bool:
@@ -196,6 +200,9 @@ class ChannelLinkService:
             return False
         await channel_identity_repo.update(
             self.db, db_identity=identity, update_data={"user_id": user.id}
+        )
+        await message_rating_repo.adopt_channel_ratings(
+            self.db, identity_id=identity.id, user_id=user.id
         )
         return True
 

@@ -19,23 +19,17 @@ import {
   DialogTitle,
   Input,
   Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
 } from "@/components/ui";
 import { FileEditor } from "@/components/files";
 import {
   DEFAULT_FORMAT,
-  FORMATS,
+  inferContextFormat,
   displayName,
   type ContextDraft,
 } from "@/components/context/file-name";
 import { useContextFiles } from "@/hooks/use-context";
 import { submitFailure } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
-import type { ContextMode } from "@/types/providers";
 import { useTranslations } from "next-intl";
 import { DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 
@@ -43,7 +37,7 @@ import { DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 const MAX_NAME = 64;
 const MAX_DESCRIPTION = 500;
 
-type Field = "name" | "description" | "format" | "content";
+type Field = "name" | "description" | "content";
 
 interface CreateContextDialogProps {
   open: boolean;
@@ -53,7 +47,7 @@ interface CreateContextDialogProps {
    *
    * Seeded into the state once, so the caller mounts this keyed by draft: the
    * name, format and body are then somebody's to edit like any other, and the
-   * one decision a drop must not make for them - `mode` - is still asked.
+   * usage policy is chosen when the file is attached to an agent.
    */
   initial?: ContextDraft;
   /** How many more dropped files follow this one, for the note in the footer. */
@@ -73,9 +67,8 @@ interface CreateContextDialogProps {
  * same pane a skill's is written in, so what somebody types here looks like what
  * they will read afterwards.
  *
- * The one decision that is never implicit is `mode`: it is a select rather than a
- * default, because injecting into every run and reading on demand are different
- * enough that the author should choose rather than discover.
+ * This edits the library entry. Whether it is injected or read on demand is
+ * chosen separately when the file is attached to an agent.
  */
 export function CreateContextDialog({
   open,
@@ -89,16 +82,14 @@ export function CreateContextDialog({
   const { create } = useContextFiles();
   const [name, setName] = useState(initial?.name ?? "");
   const [description, setDescription] = useState("");
-  const [format, setFormat] = useState<string>(initial?.format ?? DEFAULT_FORMAT);
+  const format = inferContextFormat(name, initial?.format ?? DEFAULT_FORMAT);
   const [audience, setAudience] = useState<Audience>(EVERYONE);
-  const [mode, setMode] = useState<ContextMode>("inject");
   const [content, setContent] = useState(initial?.content ?? "");
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
 
   const setters: Record<Field, (value: string) => void> = {
     name: setName,
     description: setDescription,
-    format: setFormat,
     content: setContent,
   };
 
@@ -116,13 +107,11 @@ export function CreateContextDialog({
         description: description.trim() === "" ? null : description.trim(),
         content,
         format: format.trim() || DEFAULT_FORMAT,
-        mode,
+        mode: "inject",
         ...audiencePayload(audience),
       });
       setName("");
       setDescription("");
-      setFormat(DEFAULT_FORMAT);
-      setMode("inject");
       setContent("");
       setAudience(EVERYONE);
       setErrors({});
@@ -130,7 +119,7 @@ export function CreateContextDialog({
     } catch (error) {
       const failure = submitFailure(
         error,
-        { fields: ["name", "description", "format", "content"], identifiedBy: "name" },
+        { fields: ["name", "description", "content"], identifiedBy: "name" },
         tErrors,
       );
       setErrors(failure.fields);
@@ -160,7 +149,7 @@ export function CreateContextDialog({
               width, so a short row above it read as a dialog missing its right
               hand side - and the wider the sheet, the bigger the hole. Name
               takes the slack because a name is the field that can be long. */}
-          <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+          <div className="grid grid-cols-1 items-start gap-4">
             <div className="min-w-0 space-y-1.5">
               <Label htmlFor="new-context-name">{t("name")}</Label>
               <Input
@@ -173,35 +162,6 @@ export function CreateContextDialog({
                 aria-invalid={errors.name ? true : undefined}
               />
               <FieldNote error={errors.name}>{t("howItIsReferredTo")}</FieldNote>
-            </div>
-            <div className="min-w-0 space-y-1.5">
-              <Label htmlFor="new-context-mode">{t("mode")}</Label>
-              <Select value={mode} onValueChange={(value) => setMode(value as ContextMode)}>
-                <SelectTrigger id="new-context-mode">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="inject">{t("modeInject")}</SelectItem>
-                  <SelectItem value="link">{t("modeLink")}</SelectItem>
-                </SelectContent>
-              </Select>
-              <FieldNote>{t(mode === "inject" ? "modeInjectHint" : "modeLinkHint")}</FieldNote>
-            </div>
-            <div className="min-w-0 space-y-1.5">
-              <Label htmlFor="new-context-format">{t("format")}</Label>
-              <Select value={format} onValueChange={(value) => edit("format", value)}>
-                <SelectTrigger id="new-context-format" className="font-mono">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {FORMATS.map((option) => (
-                    <SelectItem key={option} value={option} className="font-mono">
-                      {option}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FieldNote error={errors.format}>{t("formatHint")}</FieldNote>
             </div>
           </div>
 

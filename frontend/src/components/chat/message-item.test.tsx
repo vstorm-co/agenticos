@@ -829,25 +829,32 @@ describe("what a person attached", () => {
     expect(screen.queryByRole("link")).toBeNull();
   });
 
-  it("keeps a person's face beside their message while their picture loads, or if it fails", () => {
+  it("keeps readable initials beside a message while its picture loads or fails", () => {
     // jsdom never loads an image, which is what a missing file looks like: a
     // bare <img> left an empty circle there (#2248).
     useAuthStore.setState({
-      user: { id: "u-1", email: "k@example.com", avatar_url: "/api/users/avatar/u-1" } as never,
+      user: {
+        id: "u-1",
+        full_name: "Kacper W",
+        email: "k@example.com",
+        avatar_url: "/api/users/avatar/u-1",
+      } as never,
       avatarVersion: 2,
     });
 
-    const { container } = item({ role: "user", content: "x" });
+    item({ role: "user", content: "x" });
 
-    expect(container.querySelector("g.mo-root")).toBeInTheDocument();
+    expect(screen.getByText("KW")).toBeVisible();
   });
 
-  it("draws a person who uploaded nothing the face generated from their id", () => {
-    useAuthStore.setState({ user: { id: "u-1", email: "k@example.com" } as never });
+  it("draws initials for a person who uploaded no picture", () => {
+    useAuthStore.setState({
+      user: { id: "u-1", full_name: "Kacper W", email: "k@example.com" } as never,
+    });
 
-    const { container } = item({ role: "user", content: "x" });
+    item({ role: "user", content: "x" });
 
-    expect(container.querySelector("g.mo-root")).toBeInTheDocument();
+    expect(screen.getByText("KW")).toBeVisible();
   });
 
   it("names a teammate's turn in a project's chat by them, not as You", () => {

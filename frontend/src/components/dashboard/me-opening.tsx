@@ -19,9 +19,9 @@ export function MeOpening({ orgId, period }: { orgId: string | null; period: Per
   const t = useTranslations("dashboard.widgets.suggestions");
   const { can } = usePermissions();
   return (
-    // `h-auto` over the widget frame's `h-full`: a fixed height is not stretched,
-    // so the Briefing stopped short of the checklist beside it.
-    <div className="mt-6 flex flex-col gap-6 lg:flex-row [&>*]:h-auto [&>*]:min-w-0 [&>*]:flex-1">
+    // Reserve the checklist before its queries settle. Only the briefing stretches
+    // beside it; overriding every child's height erased the checklist's slot.
+    <div className="mt-6 flex flex-col gap-6 lg:flex-row [&>*]:min-w-0 [&>*]:shrink-0 lg:[&>*]:flex-1 [&>.dash-widget]:h-56 [&>.dash-widget]:min-h-56 lg:[&>.dash-widget]:h-[31rem]">
       {orgId && <StartChecklist orgId={orgId} className="mt-0" />}
       {can(Perm.agentsRun) && (
         <SuggestionsWidget

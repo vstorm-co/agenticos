@@ -602,6 +602,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
   return (
     <>
       <ListCard
+        fill
         namedByPage
         headerTour="mcp-catalog"
         title={t("servers")}

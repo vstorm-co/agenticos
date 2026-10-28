@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from openai import OpenAI
+from openai import NotFoundError, OpenAI
 from pydantic_ai.usage import RequestUsage
 
 from app.agents.capabilities.budget import record_ambient_usage
@@ -123,7 +123,21 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
         return self._client
 
     def embed_queries(self, texts: list[str]) -> list[list[float]]:
-        response = self.client.embeddings.create(model=self.model, input=texts)
+        try:
+            response = self.client.embeddings.create(model=self.model, input=texts)
+        except NotFoundError as error:
+            # A 404 from `/embeddings` is about the model or the address, never
+            # the key - OpenRouter's EU endpoint answers it for every model it
+            # has no regional host for. Stored on the document row, the SDK's
+            # class name alone sent people to check the credential.
+            raise ConfigurationError(
+                message=(
+                    f"The collection's embedding endpoint does not serve '{self.model}', or "
+                    "is not an embeddings API. Choose a model that endpoint lists for a new "
+                    "collection, or move this one to an endpoint that serves its model."
+                ),
+                details={"model": self.model},
+            ) from error
         # Embedding tokens are spend like any other: booked to whichever run or
         # ingestion job is metering, priced by the same lookup as chat models.
         # This used to be dropped on the floor, which made every knowledge

@@ -25,6 +25,7 @@ import logging
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any
+from uuid import UUID
 
 from pydantic_ai import Agent as PydanticAgent
 from pydantic_ai.capabilities import AbstractCapability, CombinedCapability, WrapperCapability
@@ -60,6 +61,7 @@ _DOCUMENTATION_STUB: dict[str, Any] = {
     # `read_context` - the two tools whose text somebody wrote and nobody sees.
     "context_files": [
         SimpleNamespace(
+            id=UUID("00000000-0000-4000-8000-000000000001"),
             name="documentation_probe",
             description="Stands in for a context file so the context toolset builds.",
             content="",
