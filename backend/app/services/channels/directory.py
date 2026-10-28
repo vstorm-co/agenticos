@@ -7,6 +7,7 @@ here, from the row the message arrived on, before the agent is built.
 """
 
 from dataclasses import dataclass
+from typing import Literal
 
 from app.agents.capabilities.channel_tools import (
     ChannelDetails,
@@ -14,9 +15,10 @@ from app.agents.capabilities.channel_tools import (
     ChannelPost,
     ChannelSummary,
 )
-from app.services.channels.base import ChannelAdapter
+from app.services.channels.base import ChannelAdapter, OutgoingAttachment, OutgoingMessage
 
 TOOL_METHODS: dict[str, str] = {
+    "send_channel_file": "send_message",
     "get_channel_info": "channel_details",
     "list_channel_members": "channel_members",
     "search_channels": "search_channels",
@@ -31,12 +33,14 @@ without something naming the method that would answer it.
 
 PLATFORM_TOOLS: dict[str, tuple[str, ...]] = {
     "slack": (
+        "send_channel_file",
         "get_channel_info",
         "list_channel_members",
         "search_channels",
         "read_channel_history",
     ),
     "mattermost": (
+        "send_channel_file",
         "get_channel_info",
         "list_channel_members",
         "search_channels",
@@ -48,10 +52,10 @@ PLATFORM_TOOLS: dict[str, tuple[str, ...]] = {
     # this list is what the Builder offers, and offering a checkbox whose only
     # effect is a tool that says "Telegram cannot do that" is a worse answer
     # than not offering it.
-    "telegram": ("get_channel_info", "list_channel_members"),
+    "telegram": ("get_channel_info", "list_channel_members", "send_channel_file"),
     # The Bot Connector answers a conversation's roster, and nothing that would
     # search a tenant's channels or read what was said before the bot was asked.
-    "teams": ("get_channel_info", "list_channel_members"),
+    "teams": ("get_channel_info", "list_channel_members", "send_channel_file"),
 }
 """What each platform can actually answer, as the Builder offers it.
 
@@ -93,6 +97,7 @@ class BoundChannelDirectory:
     bot_token: str
     channel_id: str
     api_base_url: str | None = None
+    private_chat: bool = False
     thread_id: str | None = None
     """The thread this run is answering in, where the platform has threads.
 
@@ -100,6 +105,24 @@ class BoundChannelDirectory:
     `history`: a model that could name the thread could name another one, and the
     conversation an agent may read is the one it was spoken to in.
     """
+
+    async def send_file(self, *, filename: str, content: bytes, mime_type: str) -> str:
+        teams_file = self.adapter.platform == "teams" and not mime_type.startswith("image/")
+        if teams_file and not self.private_chat:
+            return "File delivery refused: Teams accepts ordinary bot files only in a personal chat. Ask the user to request it there."
+        await self.adapter.send_message(
+            self.bot_token,
+            OutgoingMessage(
+                platform_chat_id=self.channel_id + (":" + self.thread_id if self.thread_id else ""),
+                text="",
+                attachments=[OutgoingAttachment(filename, content, mime_type)],
+                api_base_url=self.api_base_url,
+            ),
+        )
+
+        if teams_file:
+            return f"Offered {filename!r} in this personal Teams chat. The recipient must accept it before upload; do not claim delivery yet."
+        return f"Submitted {filename!r} to this conversation; the platform accepted the attachment."
 
     async def details(self) -> ChannelDetails:
         return await self.adapter.channel_details(
@@ -120,11 +143,13 @@ class BoundChannelDirectory:
             limit=limit,
         )
 
-    async def history(self, *, limit: int) -> list[ChannelPost]:
+    async def history(
+        self, *, limit: int, scope: Literal["thread", "channel"] = "thread"
+    ) -> list[ChannelPost]:
         return await self.adapter.channel_history(
             self.bot_token,
             self.channel_id,
             api_base_url=self.api_base_url,
             limit=limit,
-            thread_id=self.thread_id,
+            thread_id=self.thread_id if scope == "thread" else None,
         )

@@ -4291,7 +4291,10 @@ class TestWhoTheRunSaysItIs:
         assert create_run.call_args.kwargs["user_id"] is None
 
     @pytest.mark.anyio
-    async def test_a_channel_run_records_the_chat_account_that_asked(self):
+    @pytest.mark.parametrize(
+        "surface", [RunSurface.SLACK, RunSurface.TELEGRAM, RunSurface.MATTERMOST, RunSurface.TEAMS]
+    )
+    async def test_a_channel_run_records_the_chat_account_that_asked(self, surface):
         """Who asked and who it ran as are different questions in a room (#639).
 
         The row carries both, so a turn from a chat account nobody has linked is
@@ -4326,8 +4329,9 @@ class TestWhoTheRunSaysItIs:
             ) as create_run,
             patch("app.services.agent_runner.build_agent"),
         ):
-            await service.prepare(ctx, agent.id, surface=RunSurface.MATTERMOST)
+            prepared = await service.prepare(ctx, agent.id, surface=surface)
 
+        assert prepared.automatic_outbound is False
         assert create_run.call_args.kwargs["channel_identity_id"] == identity_id
 
     @pytest.mark.anyio
@@ -5338,7 +5342,7 @@ class TestTellingTheAgentWhatItCannotReach:
         assert self._SERVERS not in text
 
     @pytest.mark.parametrize(
-        "surface", [RunSurface.SLACK, RunSurface.TELEGRAM, RunSurface.MATTERMOST]
+        "surface", [RunSurface.SLACK, RunSurface.TELEGRAM, RunSurface.MATTERMOST, RunSurface.TEAMS]
     )
     def test_a_channel_reader_gets_the_absolute_link_since_they_are_not_in_the_app(self, surface):
         """A Slack reader has no session to navigate from, so the absolute link is
@@ -5352,7 +5356,7 @@ class TestTellingTheAgentWhatItCannotReach:
         assert self._CONNECT not in text
 
     @pytest.mark.parametrize(
-        "surface", [RunSurface.SLACK, RunSurface.TELEGRAM, RunSurface.MATTERMOST]
+        "surface", [RunSurface.SLACK, RunSurface.TELEGRAM, RunSurface.MATTERMOST, RunSurface.TEAMS]
     )
     def test_an_unlinked_chat_account_is_told_to_link_before_connecting(self, surface):
         """Connecting a Notion needs an account here to hold it; the link comes
@@ -5360,7 +5364,7 @@ class TestTellingTheAgentWhatItCannotReach:
         sign-in wall."""
         text = self._briefed("nobody_to_speak_as", surface)
 
-        assert "send /link to this bot" in text
+        assert "`link` (without a slash)" in text
         assert self._CONNECT not in text
 
     @pytest.mark.parametrize("surface", [RunSurface.API, RunSurface.EMBED, RunSurface.SCHEDULE])
@@ -6418,3 +6422,14 @@ class TestCancelParkedRun:
             await service.can_stop_parked(replace(ctx, api_key_id=uuid.uuid4()), uuid.uuid4())
             is False
         )
+
+
+@pytest.mark.anyio
+async def test_channel_creation_does_not_automatically_attach_workspace_files():
+    prepared = _prepared()
+    prepared.workspace = MagicMock()
+    prepared.automatic_outbound = False
+    with patch("app.services.agent_runner.files_written", new_callable=AsyncMock) as written:
+        await AgentRunnerService._collect_outbound(prepared)
+    written.assert_not_awaited()
+    assert prepared.outbound == []

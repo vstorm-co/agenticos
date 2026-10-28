@@ -261,8 +261,13 @@ from app.services.api_key import mint_for_run
 from app.services.approvals import ApprovalService
 from app.services.attachments import AttachmentRouter
 from app.services.channel_link import mcp_servers_link
-from app.services.channels.attachments import files_written, workspace_snapshot
+from app.services.channels.attachments import (
+    channel_file_sender,
+    files_written,
+    workspace_snapshot,
+)
 from app.services.channels.base import OutgoingAttachment
+from app.services.channels.formatting import LINK_ACCOUNT_INSTRUCTION
 from app.services.channels.prompt_variables import resolve as resolve_prompt_variables
 from app.services.context import ContextService
 from app.services.conversation import ConversationService
@@ -1291,6 +1296,7 @@ class PreparedRun:
     every file already in the workspace read as the turn's own output.
     """
 
+    automatic_outbound: bool = True
     outbound: list[OutgoingAttachment] = field(default_factory=list)
     """Files the turn produced, read in `finish` before the workspace closes.
 
@@ -1677,7 +1683,9 @@ def _with_workspace_briefing(spec: AgentSpec, workspace: OpenWorkspace) -> Agent
     return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{workspace.briefing}"})
 
 
-_CHANNEL_SURFACES = frozenset({RunSurface.SLACK, RunSurface.TELEGRAM, RunSurface.MATTERMOST})
+_CHANNEL_SURFACES = frozenset(
+    {RunSurface.SLACK, RunSurface.TELEGRAM, RunSurface.MATTERMOST, RunSurface.TEAMS}
+)
 
 _INTERRUPTED = frozenset(
     {
@@ -1941,8 +1949,7 @@ def _personal_gap_briefing(
             return (
                 f"{bound}, and this message came from a chat account nobody has linked to a "
                 f"person here, so the {gap.name} tools are not available for it. If asked for "
-                f"anything in {gap.name}, say so and tell them to send /link to this bot first, "
-                "then ask again."
+                f"anything in {gap.name}, explain: {LINK_ACCOUNT_INSTRUCTION}"
             )
         if sender_present:
             return (
@@ -3515,6 +3522,7 @@ class AgentRunnerService:
             materialised_skills=materialised,
             mcp_origins=resolved.origins,
             workspace_at_start=started_with,
+            automatic_outbound=surface not in _CHANNEL_SURFACES and channel_directory is None,
             # Only personal gaps reach the chat's connect card - a prefix collision
             # is the agent author's to fix by renaming a connection, not something
             # the person talking connects an account for (#1442). Nor does one the
@@ -3541,6 +3549,10 @@ class AgentRunnerService:
                 subject_is_publisher_fallback=subject_is_publisher_fallback,
             ),
         )
+        if channel_directory is not None:
+            built.deps.send_channel_file = channel_file_sender(
+                None if workspace is None else workspace.workspace, channel_directory
+            )
         if workspace is not None and isinstance(workspace.workspace, RecordingWorkspace):
             _start_turn_on_first_use(workspace.workspace, prepared, resources["skills"])
         return prepared
@@ -4442,14 +4454,9 @@ class AgentRunnerService:
 
     @staticmethod
     async def _collect_outbound(prepared: PreparedRun) -> None:
-        """Read what the turn wrote, for a surface that can deliver it.
-
-        Read for every run rather than only for the channels that use it, because
-        the alternative is a flag threaded from three surfaces into `prepare` to
-        decide whether a glob happens - and a glob of a workspace the process is
-        already holding is cheaper than that plumbing. A surface with nowhere to
-        put a file simply ignores the list.
-        """
+        """Collect files for surfaces with automatic delivery; channels use an explicit action."""
+        if not prepared.automatic_outbound:
+            return
         if prepared.workspace is None or _untouched(prepared.workspace):
             return
         delivered = await files_written(prepared.workspace.workspace, prepared.workspace_at_start)

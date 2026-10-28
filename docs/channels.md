@@ -2380,18 +2380,7 @@ not that succeeded
 A turn that actually ran keeps its files — they fed it, and the run is in the
 transcript.
 
-**Outbound** is what the agent wrote this turn, compared against a snapshot taken
-when the workspace opened. Not a diff of everything: `/uploads` is the user's own
-file — posting it back is quoting somebody their own attachment — and `/skills` is
-know-how the platform materialised, not the agent's work. A file it *overwrote* is
-not sent either: rewriting a script it is iterating on is ordinary, and posting it
-every turn would fill the channel with the same attachment.
-
-**If that snapshot could not be taken, nothing is posted.** The comparison is
-"everything now, minus everything then", so treating an unreadable workspace as an
-empty one would make every file already in it read as this turn's output — and under
-`agent` or `channel` scope those files belong to other people. A missing attachment
-is the failure worth having; a colleague's spreadsheet in a shared channel is not.
+**Outbound** files are sent only through `send_channel_file`, when the user asks to receive or download a file. Creating, reading or editing a workspace file does not attach it. Grant the tool per bot binding under *Where this agent is available*. Existing bindings keep their chosen tools; enable this action explicitly after upgrading. The tool is side-effecting and follows the normal approval policy. It sends only the named workspace file, refuses internal paths and files over 8 MB, and permits at most three attempts per turn. Platform failures are reported instead of claiming delivery. Teams may require acceptance in a personal chat. Charts and requested visuals keep their separate picture delivery.
 
 Each file carries the type its name implies rather than a flat
 `application/octet-stream`, so a chart an agent wrote arrives as a picture on the
@@ -2507,7 +2496,7 @@ up for, or what was said in it ten minutes ago — so *"who should I ask about
 billing?"* and *"summarise what we decided above"* are questions it can only
 answer by guessing.
 
-Four tools change that, and each is granted **per binding**, under
+Five tools change that, and each is granted **per binding**, under
 *Where this agent is available*:
 
 | Tool | Answers | Slack | Telegram | Mattermost | Teams |
@@ -2515,7 +2504,10 @@ Four tools change that, and each is granted **per binding**, under
 | `get_channel_info` | Name, purpose, topic, size | ✅ | ✅ | ✅ | ✅ |
 | `list_channel_members` | Who is here | ✅ | admins only | ✅ | ✅ |
 | `search_channels` | Which other channels exist | ✅ | — | ✅ | — |
-| `read_channel_history` | What was said recently, **in the thread it is answering in** | ✅ | — | ✅ | — |
+| `read_channel_history` | Recent messages in this channel, or `scope="thread"` for this thread | ✅ | — | ✅ | — |
+| `send_channel_file` | Send a requested workspace file | ✅ | ✅ | ✅ | ✅ |
+
+Use a direct message containing plain `link` (without a slash) to connect an account. Open the private connection link while signed in to AgenticOS, then return to the channel. When earlier thread files require linking, the bot explains this without downloading them and retries after connection. Channel pictures use twice the CSS resolution; very wide horizontal Mermaid flowcharts receive a vertical layout for the PNG only.
 
 Per binding rather than per agent, because an organization can bind one agent to
 two Mattermost servers and three Slack workspaces — and *"may it read what was
@@ -2535,13 +2527,7 @@ Three things worth knowing before granting them:
 - **The bot's membership is the whole permission boundary.** Every call goes
   through the bot's own token, so the agent sees exactly what the bot sees. There
   is no allow-list of ours to get out of step with the platform's own.
-- **The model never names a channel, or a thread.** The tools are bound
-  server-side to the channel the message arrived in, and `read_channel_history`
-  to the thread as well: a thread and its channel are two transcripts, and the
-  one the agent was spoken to in is the thread. Bound to the channel alone,
-  *"summarise what we decided above"* summarised whatever else the room had been
-  saying. An argument for either would turn *"who is in this channel"* into
-  *"read any channel this bot is in"*, asked from a conversation somewhere else.
+- **The model never names a channel or thread ID.** `read_channel_history` defaults to `scope="channel"` for recent messages in the current channel; `scope="thread"` reads only the bound thread. Neither can read a different channel. Results are a bounded recent window, not evidence that older messages do not exist. Automatic context backfill remains thread-only.
 - **`read_channel_history` is the one worth gating.** It is a read, so it does
   not ask by default, but it puts other people's messages into a run transcript
   somebody reads weeks later. A `tool_approval` override on the binding is how

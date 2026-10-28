@@ -6,14 +6,15 @@ up for, or what was said in it ten minutes ago — so "who should I ask about
 billing?" and "summarise what we decided above" are questions it can only
 answer by guessing.
 
-This capability is those four questions, and only those four:
+This capability provides channel lookups and an explicitly granted file action:
 
 | Tool | Answers |
 |---|---|
 | `get_channel_info` | Name, purpose, topic, size |
 | `list_channel_members` | Who is here |
 | `search_channels` | Which other channels exist, by name and purpose |
-| `read_channel_history` | What was said recently |
+| `read_channel_history` | Recent channel messages, or `scope="thread"` for this thread |
+| `send_channel_file` | Send a workspace file when the user requests delivery |
 
 ## One contract, three implementations
 
@@ -71,3 +72,18 @@ Nowhere except a channel run. `_build` returns `None` when the run has no bound
 directory, which is every run from the dashboard, the API, the widget and a
 schedule. The binding stays valid on such an agent — the same published agent
 answers in a browser and on Mattermost, and only one of those is a channel.
+
+
+## Explicit file delivery
+
+Creating or editing a workspace file does not post it to a channel. The operator
+must grant `send_channel_file` on the bot binding. The side-effecting action reads
+one named workspace file through a server-bound callback and submits it through
+the adapter immediately, so a later parked call cannot lose a queued attachment.
+Provider failures are returned as failures; Teams can require acceptance in a
+personal chat. Delegates do not inherit the callback. Requested chart and visual
+pictures retain their separate delivery path.
+
+History defaults to the current channel's recent messages and supports the bound
+thread as an explicit scope. Neither accepts a channel or thread ID. Automatic
+thread context backfill continues to use only the bound thread.

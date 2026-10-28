@@ -1056,3 +1056,96 @@ class TestATypedAnswerIsNotATurn:
         router._receive_files.assert_not_awaited()
         router._answer_mention.assert_not_awaited()
         assert rows == []
+
+
+class TestExplicitFileDelivery:
+    async def test_only_requested_file_is_queued_including_an_existing_file(self):
+        from app.services.channels.attachments import queue_channel_file
+
+        workspace = document_workspace()
+        await workspace.write_bytes("/main.py", b'print("Hello, world!")')
+        await workspace.write_bytes("/notes.txt", b"private working notes")
+        outbound = []
+        result = await queue_channel_file(workspace, outbound, "/main.py")
+        assert "Queued" in result and "pending" in result
+        assert [item.filename for item in outbound] == ["main.py"]
+        assert outbound[0].content == b'print("Hello, world!")'
+
+    @pytest.mark.parametrize(
+        "path", ["../secret", "/etc/passwd", "uploads/a.txt", "skills/a.txt", "missing.txt"]
+    )
+    async def test_refused_paths_are_not_attached(self, path):
+        from app.services.channels.attachments import queue_channel_file
+
+        outbound = []
+        result = await queue_channel_file(document_workspace(), outbound, path)
+        assert "refused" in result
+        assert outbound == []
+
+    async def test_oversized_files_and_too_many_files_are_refused(self):
+        from app.services.channels.attachments import queue_channel_file
+
+        workspace = document_workspace()
+        await workspace.write_bytes("/big.txt", b"x" * (MAX_OUTBOUND_BYTES + 1))
+        outbound = []
+        assert "size limit" in await queue_channel_file(workspace, outbound, "big.txt")
+        assert outbound == []
+        outbound = [MagicMock()] * MAX_OUTBOUND_FILES
+        assert "at most" in await queue_channel_file(workspace, outbound, "big.txt")
+
+    async def test_workspace_failure_is_reported_without_provider_details(self):
+        from app.services.channels.attachments import queue_channel_file
+
+        workspace = document_workspace()
+        await workspace.write_bytes("/main.py", b"ok")
+        with patch.object(
+            workspace, "read_bytes", AsyncMock(side_effect=RuntimeError("secret endpoint"))
+        ):
+            outbound = []
+            result = await queue_channel_file(workspace, outbound, "main.py")
+        assert "failed" in result and "secret" not in result
+        assert outbound == []
+
+
+async def test_send_action_reports_confirmation_and_provider_failure():
+    from app.services.channels.attachments import channel_file_sender
+
+    workspace = document_workspace()
+    await workspace.write_bytes("/main.py", b"hello")
+    directory = MagicMock()
+    directory.send_file = AsyncMock(return_value="Submitted")
+    send = channel_file_sender(workspace, directory)
+    assert "Submitted" in await send("main.py")
+    directory.send_file.assert_awaited_once_with(
+        filename="main.py", content=b"hello", mime_type="text/x-python"
+    )
+    directory.send_file.side_effect = RuntimeError("secret endpoint")
+    result = await send("main.py")
+    assert "failed" in result and "secret" not in result
+    assert "refused" in await send("missing.py")
+    assert "limit" in await send("main.py")
+    assert "no workspace" in await channel_file_sender(None, directory)("main.py")
+
+
+async def test_unlinked_thread_files_are_detected_without_download_and_remain_retryable():
+    incoming = _incoming("what do you see")
+    incoming.platform_chat_id = "C1:T1"
+    incoming.message_id = "P2"
+    bot = MagicMock()
+    identity = MagicMock(user_id=None)
+    adapter = _adapter()
+    adapter.thread_attachments = AsyncMock(
+        return_value=[_attachment(filename="screen.png", mime_type="image/png")]
+    )
+    with (
+        patch("app.services.channels.router.get_adapter", return_value=adapter),
+        patch("app.services.channels.router.unseal_bot_token", return_value="tok"),
+        patch("app.services.channels.router.ChannelAttachmentService") as service,
+    ):
+        files, notices, complete = await ChannelMessageRouter()._thread_files(
+            MagicMock(), bot, incoming, identity
+        )
+    assert files == [] and complete is False
+    assert "direct message" in notices[0] and "without a slash" in notices[0]
+    service.assert_not_called()
+    adapter.download_attachment.assert_not_awaited()

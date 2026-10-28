@@ -1,5 +1,5 @@
 ---
-source_sha: "9c24c603b89b"
+source_sha: "55bd448ecec8"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -2514,19 +2514,7 @@ salió bien como si no
 Un turno que sí llegó a ejecutarse conserva sus ficheros — lo alimentaron, y el run
 está en la transcripción.
 
-**La salida** es lo que el agent escribió en este turno, comparado con una instantánea
-tomada cuando se abrió el workspace. No un diff de todo: `/uploads` es el fichero
-propio del usuario — devolverlo es citarle a alguien su propio adjunto — y `/skills`
-es saber hacer que materializó la plataforma, no trabajo del agent. Un fichero que
-*sobrescribió* tampoco se envía: reescribir un script sobre el que está iterando es lo
-normal, y publicarlo en cada turno llenaría el canal con el mismo adjunto.
-
-**Si esa instantánea no se pudo tomar, no se publica nada.** La comparación es «todo
-lo de ahora, menos todo lo de entonces», así que tratar un workspace ilegible como uno
-vacío haría que todos los ficheros que ya hubiera en él se leyeran como la salida de
-este turno — y bajo alcance `agent` o `channel` esos ficheros son de otras personas.
-Un adjunto que falta es el fallo que merece la pena tener; la hoja de cálculo de un
-compañero en un canal compartido no lo es.
+**La salida** de ficheros se envía solo mediante `send_channel_file`, cuando el usuario pide recibir o descargar el fichero. Crearlo, leerlo o editarlo no lo adjunta. Conceda la herramienta por vinculación del bot en *Dónde está disponible este agent*. Las vinculaciones existentes conservan su selección; active esta acción explícitamente tras actualizar. La herramienta tiene efectos secundarios y sigue la política normal de aprobación. Envía solo el fichero indicado del workspace, rechaza rutas internas y ficheros de más de 8 MB y permite hasta tres intentos por turno. Los fallos de la plataforma se comunican sin afirmar que se entregó. Teams puede requerir aceptación en un chat personal. Los gráficos y las visualizaciones solicitadas mantienen su entrega separada como imagen.
 
 Cada fichero lleva el tipo que su nombre implica y no un `application/octet-stream`
 plano, así que un gráfico que escribió un agent llega como una imagen en las
@@ -2654,7 +2642,10 @@ Cuatro herramientas cambian eso, y cada una se concede **por vinculación**, baj
 | `get_channel_info` | Nombre, propósito, tema, tamaño | ✅ | ✅ | ✅ | ✅ |
 | `list_channel_members` | Quién está aquí | ✅ | solo admins | ✅ | ✅ |
 | `search_channels` | Qué otros canales existen | ✅ | — | ✅ | — |
-| `read_channel_history` | Qué se dijo hace poco, **en el hilo en el que está respondiendo** | ✅ | — | ✅ | — |
+| `read_channel_history` | Mensajes recientes del canal o de este hilo con `scope="thread"` | ✅ | — | ✅ | — |
+| `send_channel_file` | Enviar un fichero solicitado del workspace | ✅ | ✅ | ✅ | ✅ |
+
+Para conectar la cuenta, envíe al bot un mensaje directo con solo `link`, sin barra. Abra el enlace privado tras iniciar sesión en AgenticOS y vuelva al canal. Si los ficheros anteriores del hilo requieren conexión, el bot lo explica sin descargarlos y vuelve a intentarlo tras conectar. Las imágenes del canal usan el doble de resolución CSS; los diagramas Mermaid horizontales muy anchos reciben una disposición vertical solo en el PNG.
 
 Por vinculación y no por agent, porque una organización puede vincular un agent a dos
 servidores de Mattermost y tres workspaces de Slack — y *«¿puede leer lo que se dijo
@@ -2675,13 +2666,7 @@ Tres cosas que merece la pena saber antes de concederlas:
   con el token propio del bot, así que el agent ve exactamente lo que ve el bot. No
   hay ninguna lista de permitidos nuestra que pueda desincronizarse de la de la
   plataforma.
-- **El modelo nunca nombra un canal, ni un hilo.** Las herramientas se atan en el
-  servidor al canal en el que llegó el mensaje, y `read_channel_history` también al
-  hilo: un hilo y su canal son dos transcripciones, y aquella en la que se le habló al
-  agent es el hilo. Atada solo al canal, *«resume lo que decidimos arriba»* resumía
-  cualquier otra cosa que la sala hubiera estado diciendo. Un argumento para
-  cualquiera de las dos convertiría *«quién está en este canal»* en *«lee cualquier
-  canal en el que esté este bot»*, preguntado desde una conversación de otro sitio.
+- **El modelo no indica un ID de canal ni de hilo.** `read_channel_history` usa `scope="channel"` por defecto para los mensajes recientes del canal actual; `scope="thread"` lee solo el hilo vinculado. Ningún alcance accede a otro canal. El resultado es una ventana reciente limitada, no una prueba de que no existan mensajes anteriores. El contexto automático sigue limitado al hilo.
 - **`read_channel_history` es la que merece la pena poner tras una puerta.** Es una
   lectura, así que no pregunta por defecto, pero mete los mensajes de otras personas
   en una transcripción de run que alguien lee semanas después. Una anulación de

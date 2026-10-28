@@ -1,5 +1,5 @@
 ---
-source_sha: "9141585ed1b2"
+source_sha: "a4eb76e940aa"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -92,7 +92,7 @@ guarda archivos. El navegador web apunta al servicio de navegador del despliegue
 | `media` | Imágenes fuera del historial | utility | ninguna, a propósito | — | — | sin efecto |
 | `tool_output_limits` | Límites de resultados de herramientas | utility | `read_tool_result` | — | — | tal cual |
 | `artifacts` | Aplicaciones | utility | `publish_artifact`, `read_artifact` | — | — | tal cual |
-| `channel_tools` | Información del canal de chat | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — | no disponible |
+| `channel_tools` | Información del canal de chat | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` | — | — | no disponible |
 | `ask_user` | Preguntar al usuario | utility | `ask_user_question` | — | — | en pantalla |
 | `follow_ups` | Follow-ups | utility | `suggest_next_steps`, `propose_setup` | — | — | no disponible |
 
@@ -2460,6 +2460,9 @@ una única puerta.
 `list_channel_members` — *Lista las personas de este canal.*
 `search_channels` — *Encuentra otros canales por nombre o por propósito, sin leerlos.*
 `read_channel_history` — *Lee los mensajes más recientes de este canal, el más nuevo al final.*
+`send_channel_file` — *Enviar un fichero solicitado del workspace.*
+
+Para conectar la cuenta, envíe al bot un mensaje directo con solo `link`, sin barra. Abra el enlace privado tras iniciar sesión en AgenticOS y vuelva al canal. Si los ficheros anteriores del hilo requieren conexión, el bot lo explica sin descargarlos y vuelve a intentarlo tras conectar. Las imágenes del canal usan el doble de resolución CSS; los diagramas Mermaid horizontales muy anchos reciben una disposición vertical solo en el PNG.
 
 La única capability que el spec de un agent no puede vincular. Se concede **por
 vinculación**, en el Builder bajo *Where this agent is available*, porque una

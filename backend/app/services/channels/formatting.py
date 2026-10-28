@@ -14,6 +14,13 @@ that goes out on one. A binding's own prompt is appended after it, so an operato
 can say something more specific without having to restate any of this.
 """
 
+LINK_ACCOUNT_INSTRUCTION = (
+    "To connect your account, open a direct message with this bot and send `link` (without a slash). "
+    "Open the private connection link while signed in to AgenticOS, then return "
+    "here and ask again. Do not post the connection link in a channel."
+)
+
+
 _MATTERMOST = """
 You are answering in Mattermost. It renders Markdown, including headings, tables,
 fenced code blocks and task lists.
@@ -85,4 +92,16 @@ written against.
 
 def house_style(surface: str) -> str:
     """What to tell an agent about the surface it is answering on."""
-    return HOUSE_STYLE.get(surface, "")
+    style = HOUSE_STYLE.get(surface, "")
+    if not style:
+        return ""
+    return (
+        style
+        + "\n\n"
+        + (
+            "Creating, reading or editing a workspace file does not attach it to the reply. "
+            "Use send_channel_file only when the user asks to receive or download that file, "
+            "and only if the tool is available. Report a delivery failure honestly. "
+            "For diagrams, prefer a balanced layout with readable labels over long horizontal chains."
+        )
+    )

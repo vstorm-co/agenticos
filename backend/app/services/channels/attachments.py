@@ -16,23 +16,24 @@ The size is checked twice, deliberately. Once against what the platform *claims*
 before anything is fetched, because downloading a gigabyte to then reject it is
 the attack; and once against the bytes, because a claim is not a measurement.
 
-**Outbound is what the agent wrote this turn.** Not a diff of the whole workspace:
-`/uploads` is what the *user* sent - posting it back is quoting somebody their own
-file - and `/skills` is materialised know-how the platform put there, not the
-agent's work. What is left is what the turn produced, capped, with anything too
-large named in the reply rather than silently dropped: an agent told its file was
-delivered when it was not will confidently tell the user the same.
+**Outbound channel files are explicit actions.** Creating or editing a workspace
+file does not post it. A per-binding tool reads only the requested workspace
+file and submits it to the bound conversation, reporting provider failure.
+The snapshot collector remains available for other surfaces.
+
 """
 
 import logging
 import mimetypes
 import posixpath
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from uuid import UUID
 
 from pydantic_ai.workspaces import SupportsCommands, Workspace
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.channel_tools import ChannelDirectory
 from app.agents.capabilities.tool_output_limits import OVERFLOW_PREFIX
 from app.db.models.chat_file import ChatFile
 from app.services.channels.base import (
@@ -297,6 +298,76 @@ def _why(attachment: IncomingAttachment, error: str | None) -> str:
     if attachment.mime_type.startswith("video/"):
         return "I cannot watch videos - type it out, or send a file."
     return error or "not supported."
+
+
+def channel_file_sender(
+    workspace: Workspace | None, directory: ChannelDirectory
+) -> Callable[[str], Awaitable[str]]:
+    """A run-local send action; the destination and workspace are server-bound."""
+    attempts = 0
+
+    async def send(path: str) -> str:
+        nonlocal attempts
+        if workspace is None:
+            return "File delivery is unavailable: this run has no workspace."
+        if attempts >= MAX_OUTBOUND_FILES:
+            return "File delivery refused: the per-turn attachment limit was reached."
+        # Reserve before awaiting: parallel calls cannot exceed the limit.
+        attempts += 1
+        pending: list[OutgoingAttachment] = []
+        try:
+            result = await queue_channel_file(workspace, pending, path)
+            if not pending:
+                return result
+            attachment = pending[0]
+            return await directory.send_file(
+                filename=attachment.filename,
+                content=attachment.content,
+                mime_type=attachment.mime_type,
+            )
+        except Exception:
+            logger.exception("requested_channel_file_delivery_failed")
+            return "File delivery failed: the platform did not confirm the attachment. Do not claim it was sent."
+
+    return send
+
+
+async def queue_channel_file(
+    workspace: Workspace, outbound: list[OutgoingAttachment], path: str
+) -> str:
+    """Queue one explicitly requested workspace file, bounded like other attachments."""
+    root = (await workspace.working_dir()).rstrip("/")
+    relative = path.removeprefix(root + "/") if path.startswith(root + "/") else path
+    if relative.startswith("/") or ".." in relative.split("/"):
+        return "File delivery refused: choose a file inside the workspace."
+    normalized = posixpath.normpath(relative)
+    if normalized in (".", "") or normalized.startswith(_NOT_THE_AGENTS):
+        return "File delivery refused: this path is reserved for internal or uploaded files."
+    if len(outbound) >= MAX_OUTBOUND_FILES:
+        return f"File delivery refused: at most {MAX_OUTBOUND_FILES} files per reply."
+    try:
+        # Inventory excludes symlinks on command workspaces and binds the lookup
+        # to the working directory, rather than a model-chosen filesystem root.
+        paths = await _workspace_paths(workspace)
+        candidates = {posixpath.normpath(item.removeprefix(root + "/")): item for item in paths}
+        actual = candidates.get(normalized)
+        if actual is None:
+            return "File delivery refused: that file is not in the workspace."
+        data = await workspace.read_bytes(actual)
+    except Exception:
+        logger.warning("requested_channel_file_unreadable", exc_info=True)
+        return "File delivery failed: the workspace file could not be read."
+    if len(data) > MAX_OUTBOUND_BYTES:
+        return "File delivery refused: the file exceeds the attachment size limit."
+    filename = posixpath.basename(normalized)
+    outbound.append(
+        OutgoingAttachment(
+            filename=filename,
+            content=data,
+            mime_type=mimetypes.guess_type(filename)[0] or "application/octet-stream",
+        )
+    )
+    return f"Queued {filename!r} for attachment with the final reply; delivery is pending."
 
 
 async def files_written(workspace: Workspace, before: set[str] | None) -> DeliveredFiles:

@@ -19,6 +19,29 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Explicit `send_channel_file` actions on channel bot bindings. Grant the tool
+  per binding to let users request a workspace file; creating or editing a file
+  no longer posts it automatically. Existing bindings require enabling the new
+  action. The tool follows approval policy and reports platform failures.
+- A separate production `browser` profile with proxy-only public web access.
+  Keep the isolated visual renderer for drawing; configure interactive browsing
+  with `BROWSER_SIGN_IN_CDP_URL=http://browser:9222`,
+  `BROWSER_EGRESS_PROXY=http://browser-egress:3128` and allowed CDP hosts for both.
+  Point each agent's browser capability at `http://browser:9222` and republish.
+
+### Fixed
+
+- Channel history tools default to recent messages of the current channel and
+  support an explicit thread scope; automatic context backfill stays thread-only.
+- Channel pictures render at twice the CSS resolution and reflow very wide
+  horizontal Mermaid flowcharts for readable PNG labels.
+- Account connection instructions use plain `link` in a direct message, avoiding
+  native slash-command conflicts. Earlier thread files that require linking are
+  reported and retried after connection, rather than treated as absent forever.
+- Chromium network failures no longer appear as domain allowlist refusals.
+
 ## [1.28.1] - 2026-10-28
 
 ### Fixed

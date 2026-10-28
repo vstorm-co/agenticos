@@ -1,5 +1,5 @@
 ---
-source_sha: "9c24c603b89b"
+source_sha: "55bd448ecec8"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -2664,21 +2664,7 @@ wird gesendet, ob das gelungen ist oder nicht
 Eine Runde, die tatsächlich lief, behält ihre Dateien — sie haben sie gespeist, und
 der Run steht im Transkript.
 
-**Ausgehend** ist das, was der Agent in dieser Runde geschrieben hat, verglichen
-mit einem Schnappschuss, der beim Öffnen des Workspace genommen wurde. Kein Diff
-von allem: `/uploads` ist die eigene Datei des Nutzers — sie zurückzuposten hieße,
-jemandem seinen eigenen Anhang zu zitieren —, und `/skills` ist Know-how, das die
-Plattform materialisiert hat, nicht die Arbeit des Agents. Eine Datei, die er
-*überschrieben* hat, wird auch nicht gesendet: ein Skript neu zu schreiben, an dem
-er iteriert, ist gewöhnlich, und es jede Runde zu posten würde den Channel mit
-demselben Anhang füllen.
-
-**Wenn dieser Schnappschuss nicht genommen werden konnte, wird nichts gepostet.**
-Der Vergleich ist „alles jetzt, minus allem damals", also würde einen unlesbaren
-Workspace als leeren zu behandeln jede Datei, die schon darin ist, als Ausgabe
-dieser Runde lesen lassen — und unter dem Scope `agent` oder `channel` gehören
-diese Dateien anderen Leuten. Ein fehlender Anhang ist der Fehlschlag, den man
-haben will; die Tabelle eines Kollegen in einem geteilten Channel ist es nicht.
+**Ausgehend** werden Dateien nur über `send_channel_file` gesendet, wenn der Nutzer die Datei erhalten oder herunterladen möchte. Erstellen, Lesen oder Bearbeiten hängt keine Datei an. Gewähren Sie das Tool pro Bot-Bindung unter *Wo dieser Agent verfügbar ist*. Bestehende Bindungen behalten ihre Auswahl; aktivieren Sie diese Aktion nach dem Upgrade ausdrücklich. Das Tool hat Seiteneffekte und folgt der üblichen Freigaberichtlinie. Es sendet nur die benannte Workspace-Datei, verweigert interne Pfade und Dateien über 8 MB und erlaubt höchstens drei Versuche pro Runde. Plattformfehler werden gemeldet statt als Zustellung ausgegeben. Teams kann die Annahme im persönlichen Chat verlangen. Diagramme und angeforderte Visualisierungen behalten ihre separate Bildzustellung.
 
 Jede Datei trägt den Typ, den ihr Name nahelegt, statt eines flachen
 `application/octet-stream`, sodass ein Diagramm, das ein Agent geschrieben hat, auf
@@ -2811,7 +2797,10 @@ Vier Tools ändern das, und jedes wird **pro Bindung** gewährt, unter
 | `get_channel_info` | Name, Zweck, Thema, Größe | ✅ | ✅ | ✅ | ✅ |
 | `list_channel_members` | Wer hier ist | ✅ | nur Admins | ✅ | ✅ |
 | `search_channels` | Welche anderen Channels es gibt | ✅ | — | ✅ | — |
-| `read_channel_history` | Was zuletzt gesagt wurde, **in dem Thread, in dem er antwortet** | ✅ | — | ✅ | — |
+| `read_channel_history` | Aktuelle Channel-Nachrichten oder dieser Thread mit `scope="thread"` | ✅ | — | ✅ | — |
+| `send_channel_file` | Angeforderte Workspace-Datei senden | ✅ | ✅ | ✅ | ✅ |
+
+Verbinden Sie das Konto mit einer direkten Nachricht an den Bot: nur `link` ohne Schrägstrich. Öffnen Sie den privaten Verbindungslink nach der Anmeldung bei AgenticOS und kehren Sie zum Channel zurück. Benötigen frühere Thread-Dateien eine Kontoverbindung, erklärt der Bot dies ohne Download und versucht es nach der Verbindung erneut. Channel-Bilder verwenden die doppelte CSS-Auflösung; sehr breite horizontale Mermaid-Flussdiagramme erhalten nur für das PNG eine vertikale Anordnung.
 
 Pro Bindung statt pro Agent, denn eine Organisation kann einen Agent an zwei
 Mattermost-Server und drei Slack-Workspaces binden — und *„darf er lesen, was in
@@ -2834,15 +2823,7 @@ Drei Dinge, die es vor dem Gewähren zu wissen lohnt:
   geht über das eigene Token des Bots, also sieht der Agent genau das, was der Bot
   sieht. Es gibt keine Allow-Liste von uns, die mit der der Plattform aus dem Tritt
   geraten könnte.
-- **Das Modell benennt nie einen Channel oder einen Thread.** Die Tools sind
-  serverseitig an den Channel gebunden, in dem die Nachricht ankam, und
-  `read_channel_history` zusätzlich an den Thread: ein Thread und sein Channel sind
-  zwei Transkripte, und dasjenige, in dem der Agent angesprochen wurde, ist der
-  Thread. Allein an den Channel gebunden fasste *„fasse zusammen, was wir oben
-  entschieden haben"* zusammen, was der Raum sonst so gesagt hatte. Ein Argument
-  für eines von beidem würde *„wer ist in diesem Channel"* in *„lies jeden Channel,
-  in dem dieser Bot ist"* verwandeln, gefragt aus einer Unterhaltung irgendwo
-  anders.
+- **Das Modell benennt keine Channel- oder Thread-ID.** `read_channel_history` verwendet standardmäßig `scope="channel"` für aktuelle Nachrichten dieses Channels; `scope="thread"` liest nur den gebundenen Thread. Kein Modus erreicht einen anderen Channel. Das Ergebnis ist ein begrenztes aktuelles Fenster, kein Beleg dafür, dass ältere Nachrichten fehlen. Die automatische Kontextergänzung bleibt auf den Thread begrenzt.
 - **`read_channel_history` ist das eine, das eine Freigabe verdient.** Es ist ein
   Lesevorgang, also fragt es nicht standardmäßig nach, aber es setzt die Nachrichten
   anderer Leute in ein Run-Transkript, das jemand Wochen später liest. Ein

@@ -75,7 +75,7 @@ def test_deploy_waits_for_the_renderer_manifest_only_when_enabled(enabled: bool)
     script = source[start:end] + '\nprintf "%s\\n" "${IMAGES[@]}"'
     result = subprocess.run(
         [shutil.which("bash") or "/bin/bash", "-c", script],
-        env={"VISUAL_RENDERER": "true" if enabled else "false"},
+        env={"VISUAL_RENDERER": "true" if enabled else "false", "INTERACTIVE_BROWSER": "false"},
         capture_output=True,
         text=True,
         check=True,
@@ -98,3 +98,22 @@ def test_deploy_checks_cdp_readiness_before_reporting_success() -> None:
     assert 'if "$VISUAL_RENDERER"; then' in readiness
     assert 'wait_healthy visual-render "${BACKEND[@]}" "${PROFILES[@]}"' in readiness
     assert readiness.index("wait_healthy visual-render") < readiness.index('say "Deployed')
+
+
+def test_interactive_browser_has_only_proxy_egress_and_is_separate_from_renderer():
+    compose = yaml.safe_load((ROOT / "docker-compose-prod.yml").read_text())
+    services = compose["services"]
+    assert services["browser"]["networks"] == ["browser"]
+    assert compose["networks"]["browser"]["internal"] is True
+    assert set(services["browser-egress"]["networks"]) == {"browser", "browser-egress"}
+    assert not services["browser"].get("ports")
+    assert services["visual-render"]["networks"] == ["visuals"]
+    for runner in ("app", "worker"):
+        assert "browser" in services[runner]["networks"]
+
+
+def test_interactive_browser_waits_for_a_working_proxy():
+    services = yaml.safe_load((ROOT / "docker-compose-prod.yml").read_text())["services"]
+    assert services["browser"]["depends_on"]["browser-egress"]["condition"] == "service_healthy"
+    assert "grep -q '403'" in services["browser-egress"]["healthcheck"]["test"][-1]
+    assert "wait_healthy browser-egress" in (ROOT / "scripts/deploy.sh").read_text()

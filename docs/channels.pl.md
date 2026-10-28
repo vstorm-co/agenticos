@@ -1,5 +1,5 @@
 ---
-source_sha: "9c24c603b89b"
+source_sha: "55bd448ecec8"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -2492,20 +2492,7 @@ niezależnie od tego, czy to się powiodło
 Tura, która faktycznie się wykonała, zachowuje swoje pliki — nakarmiły ją, a run
 jest w zapisie rozmowy.
 
-**Wychodzące** to to, co agent zapisał w tej turze, porównane ze zrzutem zrobionym
-przy otwarciu workspace'u. Nie różnica wszystkiego: `/uploads` to własny plik
-użytkownika — odesłanie go to cytowanie komuś jego własnego załącznika —
-a `/skills` to know-how zmaterializowane przez platformę, a nie praca agenta. Plik,
-który agent *nadpisał*, też nie jest wysyłany: przepisywanie skryptu, nad którym
-iteruje, jest czymś zwyczajnym, a wrzucanie go w każdej turze zapełniłoby kanał
-tym samym załącznikiem.
-
-**Jeśli tego zrzutu nie dało się zrobić, nic nie jest wrzucane.** Porównanie brzmi
-„wszystko teraz minus wszystko wtedy", więc potraktowanie nieczytelnego
-workspace'u jako pustego sprawiłoby, że każdy plik już w nim leżący czytałby się
-jako wyjście tej tury — a w zakresie `agent` albo `channel` te pliki należą do
-innych ludzi. Brakujący załącznik to ta porażka, którą warto mieć; arkusz kolegi
-na współdzielonym kanale nie.
+**Wychodzące** pliki są wysyłane wyłącznie narzędziem `send_channel_file`, gdy użytkownik poprosi o otrzymanie lub pobranie pliku. Utworzenie, odczyt ani edycja pliku w workspace nie dołącza go do odpowiedzi. Przyznaj narzędzie na powiązaniu bota w *Gdzie agent jest dostępny*. Istniejące powiązania zachowują wybrane narzędzia; po aktualizacji włącz tę akcję jawnie. Narzędzie ma skutki uboczne i podlega zwykłym zatwierdzeniom. Wysyła wyłącznie wskazany plik, odrzuca ścieżki wewnętrzne i pliki powyżej 8 MB oraz dopuszcza do trzech prób na turę. Błędy platformy są zgłaszane zamiast zapewnienia o dostarczeniu. Teams może wymagać akceptacji w rozmowie prywatnej. Wykresy i zamówione grafiki zachowują osobną wysyłkę obrazów.
 
 Każdy plik niesie typ, który wynika z jego nazwy, a nie płaskie
 `application/octet-stream`, więc wykres zapisany przez agenta przychodzi jako
@@ -2633,7 +2620,10 @@ Zmieniają to cztery narzędzia i każde jest przyznawane **per powiązanie**, p
 | `get_channel_info` | Nazwa, cel, temat, rozmiar | ✅ | ✅ | ✅ | ✅ |
 | `list_channel_members` | Kto tu jest | ✅ | tylko administratorzy | ✅ | ✅ |
 | `search_channels` | Jakie inne kanały istnieją | ✅ | — | ✅ | — |
-| `read_channel_history` | Co powiedziano ostatnio, **w wątku, w którym odpowiada** | ✅ | — | ✅ | — |
+| `read_channel_history` | Ostatnie wiadomości kanału lub tego wątku przy `scope="thread"` | ✅ | — | ✅ | — |
+| `send_channel_file` | Wyślij zamówiony plik z workspace | ✅ | ✅ | ✅ | ✅ |
+
+Aby połączyć konto, wyślij botowi w wiadomości prywatnej samo `link` (bez ukośnika). Otwórz prywatny link po zalogowaniu do AgenticOS, a następnie wróć na kanał. Jeśli wcześniejsze pliki wątku wymagają połączenia konta, bot wyjaśnia to bez pobierania plików i ponawia odczyt po połączeniu. Obrazy kanałów mają dwukrotną rozdzielczość CSS; bardzo szerokie poziome diagramy Mermaid otrzymują układ pionowy tylko w PNG.
 
 Per powiązanie, a nie per agent, bo organizacja może podpiąć jednego agenta do
 dwóch serwerów Mattermosta i trzech workspace'ów Slacka — a *„czy może czytać to,
@@ -2654,14 +2644,7 @@ Trzy rzeczy warte wiedzy przed ich przyznaniem:
 - **Członkostwo bota jest całą granicą uprawnień.** Każde wywołanie idzie przez
   własny token bota, więc agent widzi dokładnie to, co widzi bot. Nie ma żadnej
   naszej listy dozwolonych, która mogłaby rozjechać się z listą samej platformy.
-- **Model nigdy nie nazywa kanału ani wątku.** Narzędzia są wiązane po stronie
-  serwera z kanałem, na który przyszła wiadomość, a `read_channel_history` także
-  z wątkiem: wątek i jego kanał to dwa zapisy rozmowy, a ten, w którym mówiono do
-  agenta, to wątek. Związane z samym kanałem, *„podsumuj, co ustaliliśmy
-  powyżej"* podsumowywało cokolwiek innego, co pokój akurat mówił. Argument dla
-  któregokolwiek z nich zamieniłby *„kto jest na tym kanale"* w *„przeczytaj
-  dowolny kanał, na którym jest ten bot"*, zapytane z rozmowy toczącej się gdzie
-  indziej.
+- **Model nie podaje identyfikatora kanału ani wątku.** `read_channel_history` domyślnie używa `scope="channel"` do odczytu ostatnich wiadomości bieżącego kanału; `scope="thread"` czyta wyłącznie przypisany wątek. Żaden zakres nie otwiera innego kanału. Wynik to ograniczone okno ostatnich wiadomości, a nie dowód braku starszych. Automatyczne uzupełnianie kontekstu pozostaje ograniczone do wątku.
 - **`read_channel_history` to to jedno, które warto bramkować.** Jest odczytem,
   więc domyślnie nie pyta, ale wkłada cudze wiadomości do zapisu runa, który ktoś
   czyta tygodnie później. Nadpisanie `tool_approval` na powiązaniu to sposób, by
