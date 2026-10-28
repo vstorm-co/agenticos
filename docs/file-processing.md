@@ -574,6 +574,21 @@ credential to another vendor's address. The catalog is also what
 provider can actually serve — it used to offer every model this build knew a
 *width* for, three of them sentence-transformer weights nothing here can call.
 
+An OpenRouter collection can name its own **endpoint** (`embedding_base_url`),
+such as the regional `https://eu.openrouter.ai/api/v1`. A regional endpoint
+serves a subset of the catalog, and only it knows which, so
+`GET /rag/embedding-models/openrouter?base_url=…` asks it and answers with the
+catalog's models it lists. The catalog still supplies the width, because the
+listing states none. The create form offers that narrower list, and the service
+refuses a collection whose model the endpoint leaves out, on `embedding_model`
+when it is created and on `embedding_base_url` when an existing one is moved.
+
+An endpoint that cannot be asked is not taken as a refusal: the form lists the
+whole catalog and says it is unconfirmed. A model the endpoint does not serve
+used to be accepted and then failed every upload with OpenRouter's "No endpoints
+found supporting your data region", stored as a generic hint to check the key;
+a 404 from an embedding endpoint is now stored as the model it does not serve.
+
 The key is validated at creation. A key another organization holds, one of the wrong
 purpose, or one the chooser cannot themselves see is refused there, where the person
 choosing can fix it.

@@ -29,7 +29,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { EmbeddingProviderFields, useEmbeddingProviders } from "@/components/kb/embedding-picker";
+import {
+  EmbeddingProviderFields,
+  useEmbeddingProviders,
+  useEndpointEmbeddingModels,
+} from "@/components/kb/embedding-picker";
 import { IngestionSettings, ParserCards } from "@/components/kb/ingestion-settings";
 import { ProviderRow } from "@/components/vault/provider-row";
 import { useKnowledgeBases } from "@/hooks";
@@ -83,7 +87,13 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
   // beside them stays empty until somebody chooses one.
   const provider = embeddingProvider ?? embeddingModels?.providers[0]?.provider ?? "";
   const providerEntry = embeddingModels?.providers.find((item) => item.provider === provider);
-  const offered = providerEntry?.models ?? [];
+  // A custom endpoint narrows the catalog to what it lists, which for
+  // OpenRouter's EU endpoint is none of the OpenAI models the catalog starts on.
+  const { served: endpointModels, checking: checkingEndpoint } = useEndpointEmbeddingModels(
+    provider,
+    embeddingBaseUrl,
+  );
+  const offered = endpointModels?.models ?? providerEntry?.models ?? [];
   const firstOffered = offered[0]?.model ?? "";
   const model = offered.some((entry) => entry.model === embeddingModel)
     ? (embeddingModel ?? firstOffered)
@@ -167,6 +177,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
             "name",
             "description",
             "embedding_provider",
+            "embedding_model",
             "embedding_secret_id",
             "embedding_endpoint_id",
             "embedding_base_url",
@@ -294,6 +305,20 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                       </SelectContent>
                     </Select>
                     <p className="text-muted-foreground text-xs">{t("widthIsFixed")}</p>
+                    {checkingEndpoint ? (
+                      <p className="text-muted-foreground text-xs">{t("checkingEndpointModels")}</p>
+                    ) : endpointModels?.source === "curated" ? (
+                      <p className="text-muted-foreground text-xs">
+                        {t("endpointModelsUnconfirmed")}
+                      </p>
+                    ) : endpointModels !== undefined && offered.length === 0 ? (
+                      <p className="text-destructive text-xs">{t("endpointServesNoModel")}</p>
+                    ) : endpointModels !== undefined ? (
+                      <p className="text-muted-foreground text-xs">{t("endpointModelsListed")}</p>
+                    ) : null}
+                    {errors.embedding_model !== undefined && (
+                      <p className="text-destructive text-xs">{errors.embedding_model}</p>
+                    )}
                   </div>
                 </>
               )}

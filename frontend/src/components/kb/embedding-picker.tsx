@@ -13,11 +13,12 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  useDebounced,
 } from "@/components/ui";
 import { useLocalServices, usePermissions, useSecrets } from "@/hooks";
 import { Perm } from "@/types/permissions";
 import { apiClient } from "@/lib/api-client";
-import type { EmbeddingModels } from "@/types";
+import type { EmbeddingModels, EndpointEmbeddingModels } from "@/types";
 import { useTranslations } from "next-intl";
 
 /**
@@ -36,6 +37,36 @@ export function useEmbeddingProviders() {
     staleTime: Infinity,
   });
   return { models: data, unreadable: isError };
+}
+
+/**
+ * The embedding models a custom OpenRouter endpoint serves, once one is typed.
+ *
+ * A regional endpoint serves a subset of the catalog - OpenRouter's EU one has
+ * none of OpenAI's models - and a collection on a model its endpoint does not
+ * serve fails every upload. So the create form offers what the endpoint lists.
+ * Asked only by somebody who may set an endpoint, which the route requires, and
+ * debounced so typing an address is not a request per keystroke.
+ *
+ * `served` is undefined while there is nothing to ask or no answer yet; the
+ * caller then offers the provider's catalog, which is what the global address serves.
+ */
+export function useEndpointEmbeddingModels(provider: string, baseUrl: string) {
+  const { can } = usePermissions();
+  const url = useDebounced(baseUrl.trim().replace(/\/+$/, ""));
+  const asks = provider === "openrouter" && url !== "" && can(Perm.connectionsManage);
+  const { data, isFetching } = useQuery({
+    queryKey: ["rag", "embedding-models", provider, url],
+    queryFn: () =>
+      apiClient.get<EndpointEmbeddingModels>(
+        `/rag/embedding-models/${provider}?base_url=${encodeURIComponent(url)}`,
+      ),
+    enabled: asks,
+    staleTime: 60 * 60 * 1000,
+    // A half-typed address is refused, and the next keystroke asks again.
+    retry: false,
+  });
+  return { served: asks ? data : undefined, checking: asks && isFetching };
 }
 
 /**
