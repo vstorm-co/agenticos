@@ -134,3 +134,20 @@ Composer follow-up: use a 32 px one-line input (24 px line plus 4 px top/bottom
 padding), matching the adjacent 32 px attachment and send controls. Remove their
 extra bottom margins. The textarea can still grow for multiple lines, leaving
 controls at its bottom edge. Header actions share a 32 px height.
+
+
+## Desktop drop delivery correction
+
+The earlier DOM-only tests missed the native handoff. Tauri's default Wry drag
+handler returns true after emitting its native event, consuming the macOS drop;
+the main console did not subscribe to that event. The console window now disables
+that handler, as Quick Ask already does, leaving DOM uploads and moves in control.
+Blobby and Dock still use their existing native handlers. This is based on the
+installed Tauri/Wry implementation, rather than an inferred CSS problem.
+
+Blank areas of both file panes now target the project root. Dropping on a file
+uses its containing folder, so its visible row is no longer a dead target. Invalid
+moves stop bubbling and show a refused cursor. The upload hint is a small corner
+label instead of a banner over the tree. Focused regression tests cover these
+additional targets, along with existing nested/drop-cancellation behavior. Native
+packaging checks the builder change; no Computer Use was performed.

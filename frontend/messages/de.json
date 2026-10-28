@@ -5156,7 +5156,6 @@
       "everyMinutes": "alle {minutes} Min.",
       "filedUnder": "Abgelegt unter {unit}",
       "filedUnderNext": "Die nächsten Dateien, die Sie hinzufügen, werden unter <strong>{unit}</strong> abgelegt.",
-      "filesWillBeAddedTo": "Dateien werden zu <strong>{name}</strong> hinzugefügt",
       "groupRelatedDocumentsInto": "Dokumente, aus denen ein Agent antwortet. Legen Sie eine Datenbank an, laden Sie Dateien hoch und fügen Sie sie einem Agenten hinzu – auf der Seite der Datenbank oder im Builder des Agenten.",
       "howDocumentsAreRead": "Wie Dokumente gelesen werden",
       "images": "+ Bilder",

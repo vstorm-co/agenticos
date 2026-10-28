@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "c297fe934e1b"
+source_sha: "3f798c416272"
 ---
 
 # Proyectos { #projects }
@@ -150,6 +150,11 @@ de los chats del proyecto, y **Apps** las apps que publicó un run en uno de ell
   nombre, la descripción y el agent por defecto del proyecto.
 
 Suelta archivos externos sobre una carpeta para cargarlos allí, o en otro lugar de la pestaña Archivos para añadirlos a la raíz del proyecto. Una pausa sobre una carpeta cerrada la abre. La indicación permanece en el área de archivos, las acciones mantienen su espacio y las carpetas no muestran contadores. Las colas largas muestran las tres primeras entradas y el número pendiente. Los iconos distinguen código, JSON, marcado, documentos, hojas de cálculo y multimedia en proyectos, adjuntos del chat, RAG y archivos de skills.
+
+La consola de escritorio envía los archivos arrastrados a los mismos destinos que la
+aplicación web. Al soltarlos sobre un archivo se usa su carpeta; el espacio vacío de
+cualquiera de los dos paneles usa la raíz del proyecto. Blobby y el Dock conservan su
+función de adjuntar al chat.
 
 ## Carpetas locales en la aplicación de escritorio { #local-folders-in-the-desktop-app }
 

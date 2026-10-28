@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "c297fe934e1b"
+source_sha: "3f798c416272"
 ---
 
 # Projekty { #projects }
@@ -140,6 +140,11 @@ otworzyć. **Instrukcje** edytuje się w Markdownie, ze Źródłem i Podglądem,
 instrukcje agenta w Agent Builderze, nad nazwą, opisem i domyślnym agentem projektu.
 
 Upuść pliki z komputera na folder, aby przesłać je do niego, albo w innym miejscu zakładki Pliki, aby dodać je do głównego katalogu projektu. Zatrzymanie przeciąganego elementu nad zwiniętym folderem rozwija go po krótkiej chwili. Podpowiedź pozostaje w obszarze plików, akcje wiersza mają stałe miejsce, a foldery nie pokazują liczników. Długa kolejka przesyłania pokazuje pierwsze trzy pozycje i liczbę oczekujących. Ikony rozróżniają kod, JSON, markup, dokumenty, arkusze i multimedia w projektach, załącznikach czatu, RAG oraz plikach skilli.
+
+Desktop przekazuje przeciągane pliki do tych samych celów co aplikacja webowa.
+Upuszczenie na plik wybiera folder, w którym się on znajduje, a upuszczenie na pusty
+obszar dowolnego panelu wybiera główny katalog projektu. Blobby i Dock zachowują
+osobne dodawanie plików do czatu.
 
 ## Lokalne foldery w aplikacji desktopowej { #local-folders-in-the-desktop-app }
 

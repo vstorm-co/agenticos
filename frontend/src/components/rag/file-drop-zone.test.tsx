@@ -95,3 +95,16 @@ describe("the file drop zone", () => {
     expect(internal.dropEffect).toBe("move");
   });
 });
+
+it("does not navigate away when a file misses the project drop area", () => {
+  const { onFiles } = zone();
+  const drop = createEvent.drop(window, {
+    dataTransfer: { types: ["Files"], files: [new File(["x"], "missed.pdf")] },
+  });
+  fireEvent(window, drop);
+  expect(drop.defaultPrevented).toBe(true);
+  expect(onFiles).not.toHaveBeenCalled();
+  const text = createEvent.drop(window, { dataTransfer: { types: ["text/plain"], files: [] } });
+  fireEvent(window, text);
+  expect(text.defaultPrevented).toBe(false);
+});

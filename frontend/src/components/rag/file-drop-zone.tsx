@@ -62,12 +62,17 @@ export function FileDropZone({
       dragCounter.current = 0;
       setIsDragging(false);
     };
+    const dropped = (event: DragEvent) => {
+      // A missed drop must not replace the console with the dragged file.
+      if (event.dataTransfer?.types.includes(DRAGGED_FILES)) event.preventDefault();
+      clear();
+    };
     window.addEventListener("dragend", clear);
-    window.addEventListener("drop", clear);
+    window.addEventListener("drop", dropped);
     window.addEventListener("blur", clear);
     return () => {
       window.removeEventListener("dragend", clear);
-      window.removeEventListener("drop", clear);
+      window.removeEventListener("drop", dropped);
       window.removeEventListener("blur", clear);
     };
   }, []);
@@ -119,19 +124,11 @@ export function FileDropZone({
           data-testid="project-file-drop-overlay"
           className="border-foreground/30 bg-foreground/[0.025] pointer-events-none absolute inset-0 z-20 rounded-xl border-2 border-dashed"
         >
-          <div className="bg-card text-foreground animate-in fade-in-0 slide-in-from-top-2 absolute top-3 left-1/2 flex w-max max-w-[calc(100%-1.5rem)] -translate-x-1/2 items-center gap-3 rounded-xl border px-4 py-3 shadow-lg">
-            <span className="bg-muted flex size-9 shrink-0 items-center justify-center rounded-lg">
-              <Upload className="size-4" />
+          <div className="bg-popover text-foreground animate-in fade-in-0 absolute bottom-3 left-3 flex max-w-[calc(100%-1.5rem)] items-center gap-2 rounded-lg border px-3 py-2 shadow-sm">
+            <Upload className="size-4 shrink-0" />
+            <span className="min-w-0 truncate text-xs font-medium">
+              {t("dropUpload")} · {collectionName}
             </span>
-            <div className="min-w-0">
-              <p className="text-sm font-medium">{t("dropUpload")}</p>
-              <p className="text-muted-foreground mt-0.5 text-xs break-words">
-                {t.rich("filesWillBeAddedTo", {
-                  name: collectionName,
-                  strong: (chunks) => <span className="text-foreground font-medium">{chunks}</span>,
-                })}
-              </p>
-            </div>
           </div>
         </div>
       )}

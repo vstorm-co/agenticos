@@ -5278,7 +5278,6 @@
       "everyMinutes": "every {minutes}m",
       "filedUnder": "Filed under {unit}",
       "filedUnderNext": "The next files you add are filed under <strong>{unit}</strong>.",
-      "filesWillBeAddedTo": "Files will be added to <strong>{name}</strong>",
       "groupRelatedDocumentsInto": "Documents an agent answers from. Create a base, upload files into it, then add it to an agent - from the base's page or in the agent's Builder.",
       "howDocumentsAreRead": "How documents are read",
       "images": "+ images",

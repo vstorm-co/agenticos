@@ -757,6 +757,9 @@ fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow>
     let version = app.package_info().version.to_string();
     let mut builder = webview_profile::window(app, WINDOW, url)?
         .title("AgenticOS")
+        // The console uploads and moves files through DOM drop targets. Tauri's
+        // native handler consumes these drops without forwarding them to the page.
+        .disable_drag_drop_handler()
         .initialization_script(appearance::shell_script(&version, WINDOW))
         .inner_size(1280.0, 800.0)
         .min_inner_size(900.0, 600.0)

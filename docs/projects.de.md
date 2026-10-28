@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "c297fe934e1b"
+source_sha: "3f798c416272"
 ---
 
 # Projekte { #projects }
@@ -151,6 +151,11 @@ Quelltext und Vorschau bearbeitet, wie die eines Agents im Agent Builder, über
 Name, Beschreibung und Standard-Agent des Projekts.
 
 Lassen Sie externe Dateien auf einem Ordner fallen, um sie dort hochzuladen, oder anderswo im Reiter Dateien für das Projektstammverzeichnis. Ein kurzer Halt über einem geschlossenen Ordner öffnet ihn. Der Hinweis bleibt im Dateibereich, Zeilenaktionen behalten ihren Platz, und Ordner zeigen keine Anzahlen. Lange Upload-Warteschlangen zeigen die ersten drei Einträge und die Anzahl der übrigen. Dateitypsymbole unterscheiden Quellcode, JSON, Markup, Dokumente, Tabellen und Medien in Projekten, Chat-Anhängen, RAG und Skill-Dateien.
+
+Die Desktop-Konsole leitet Datei-Drags an dieselben Ziele wie die Web-App weiter. Ein
+Drop auf eine Datei verwendet deren Ordner; freie Flächen beider Bereiche verwenden
+das Projektverzeichnis. Blobby und das Dock behalten ihre eigene Übergabe an den
+Chat.
 
 ## Lokale Ordner in der Desktop-App { #local-folders-in-the-desktop-app }
 

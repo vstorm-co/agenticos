@@ -375,6 +375,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Desktop project drops now reach the console instead of being consumed by the
+  native window. File rows target their containing folder; empty pane space
+  accepts root uploads and moves. Drop feedback no longer covers the file tree.
+
 - Opening the agent picker no longer gives its first row a clipped focus outline;
   keyboard navigation retains a visible inset indicator.
 

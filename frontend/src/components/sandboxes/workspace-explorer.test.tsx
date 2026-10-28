@@ -710,3 +710,58 @@ it("opens a collapsed destination after hovering, and cancels a hover on leave",
     vi.useRealTimers();
   }
 });
+
+it("uses the file's containing folder as a drop destination", async () => {
+  const upload = vi.fn();
+  const move = vi.fn().mockResolvedValue(undefined);
+  render(
+    <FileExplorer
+      source={{ kind: "project", id: "p-1" }}
+      files={listing([file("notes/existing.md"), file("brief.md")])}
+      isLoading={false}
+      error={null}
+      onUpload={upload}
+      onMove={move}
+    />,
+  );
+  const target = screen.getByRole("button", { name: "existing.md" });
+  const dragged = new File(["new"], "new.txt");
+  fireEvent.dragOver(target, {
+    dataTransfer: { types: ["Files"], files: [dragged], dropEffect: "" },
+  });
+  fireEvent.drop(target, { dataTransfer: { types: ["Files"], files: [dragged] } });
+  expect(upload).toHaveBeenCalledExactlyOnceWith([dragged], "notes");
+  fireEvent.drop(target, {
+    dataTransfer: { types: ["application/x-agenticos-project-path"], getData: () => "brief.md" },
+  });
+  await waitFor(() => expect(move).toHaveBeenCalledExactlyOnceWith("brief.md", "notes/brief.md"));
+});
+
+it("accepts root drops on empty space in either pane instead of requiring the root label", async () => {
+  const upload = vi.fn();
+  const move = vi.fn().mockResolvedValue(undefined);
+  render(
+    <FileExplorer
+      source={{ kind: "project", id: "p-1" }}
+      files={listing([file("notes/brief.md")])}
+      isLoading={false}
+      error={null}
+      onUpload={upload}
+      onMove={move}
+    />,
+  );
+  const tree = screen.getByRole("tree");
+  const pane = tree.parentElement;
+  const grid = pane?.parentElement;
+  if (!pane || !grid) throw new Error("Missing file panes");
+  const dragged = new File(["new"], "new.txt");
+  fireEvent.drop(pane, { dataTransfer: { types: ["Files"], files: [dragged] } });
+  expect(upload).toHaveBeenCalledExactlyOnceWith([dragged], "");
+  fireEvent.drop(grid.lastElementChild ?? grid, {
+    dataTransfer: {
+      types: ["application/x-agenticos-project-path"],
+      getData: () => "notes/brief.md",
+    },
+  });
+  await waitFor(() => expect(move).toHaveBeenCalledExactlyOnceWith("notes/brief.md", "brief.md"));
+});

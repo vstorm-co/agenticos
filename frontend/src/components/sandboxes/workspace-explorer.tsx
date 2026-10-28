@@ -258,11 +258,17 @@ export function FileExplorer({
     setDropTarget(null);
   };
   const hoverTarget = (event: DragEvent<HTMLElement>, folder: string) => {
+    if (!event.dataTransfer) return;
     const internal = onMove && event.dataTransfer.types.includes(PROJECT_PATH_DRAG);
     const external = onUpload && event.dataTransfer.types.includes("Files");
     if (!internal && !external) return;
     const origin = draggedPath.current;
-    if (internal && origin && moveDestination(origin, folder) === null) return;
+    if (internal && origin && moveDestination(origin, folder) === null) {
+      event.stopPropagation();
+      event.dataTransfer.dropEffect = "none";
+      setDropTarget(null);
+      return;
+    }
     event.preventDefault();
     event.stopPropagation();
     event.dataTransfer.dropEffect = external ? "copy" : "move";
@@ -309,6 +315,7 @@ export function FileExplorer({
     }
   }
   const dropIn = (event: DragEvent<HTMLElement>, folder: string) => {
+    if (!event.dataTransfer) return;
     if (onUpload && event.dataTransfer.types.includes("Files")) {
       event.preventDefault();
       event.stopPropagation();
@@ -411,7 +418,15 @@ export function FileExplorer({
           where two columns would each be too narrow to read a path in. */}
       {/* `min-h-0` on both the grid and its children, or a flex child's default
           minimum is its content and the panes grow the page instead of scrolling. */}
-      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[20rem_1fr]">
+      <div
+        role="presentation"
+        onDragOver={(event) => hoverTarget(event, "")}
+        onDragLeave={(event) => {
+          if (event.target === event.currentTarget) leaveTarget(event);
+        }}
+        onDrop={(event) => dropIn(event, "")}
+        className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[20rem_1fr]"
+      >
         <div className="border-border bg-card flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto rounded-xl border p-3">
           <div className="relative">
             <Search
@@ -428,7 +443,7 @@ export function FileExplorer({
             />
           </div>
 
-          {onMove && (
+          {(onMove || onUpload) && (
             <button
               type="button"
               onClick={() => setSelected(null)}
@@ -503,11 +518,17 @@ export function FileExplorer({
                         draggedPath.current = null;
                         setDropTarget(null);
                       },
-                      onDragOver: (event) => {
-                        if (node.isDir) hoverTarget(event, node.path);
-                      },
+                      onDragOver: (event) =>
+                        hoverTarget(
+                          event,
+                          node.isDir ? node.path : segments(node.path).slice(0, -1).join("/"),
+                        ),
                       onDragLeave: leaveTarget,
-                      onDrop: (event) => node.isDir && dropIn(event, node.path),
+                      onDrop: (event) =>
+                        dropIn(
+                          event,
+                          node.isDir ? node.path : segments(node.path).slice(0, -1).join("/"),
+                        ),
                       style:
                         dropTarget === node.path
                           ? {

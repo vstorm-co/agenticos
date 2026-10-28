@@ -5049,7 +5049,6 @@
       "everyMinutes": "co {minutes} min",
       "filedUnder": "Przypisane do {unit}",
       "filedUnderNext": "Kolejne dodane pliki zostaną przypisane do <strong>{unit}</strong>.",
-      "filesWillBeAddedTo": "Pliki zostaną dodane do <strong>{name}</strong>",
       "groupRelatedDocumentsInto": "Dokumenty, na podstawie których odpowiada agent. Utwórz bazę, wgraj do niej pliki, a potem dodaj ją do agenta - ze strony bazy albo w Builderze agenta.",
       "howDocumentsAreRead": "Jak dokumenty są czytane",
       "images": "+ obrazy",
