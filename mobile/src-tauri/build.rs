@@ -7,6 +7,7 @@ fn main() {
         tauri_build::Attributes::new().app_manifest(tauri_build::AppManifest::new().commands(&[
             "server_url",
             "mobile_settings",
+            "mobile_servers",
             "bind_push_session",
             "open_mobile_settings",
             "set_mobile_lock",

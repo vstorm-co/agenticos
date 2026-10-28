@@ -86,11 +86,11 @@ Promise.all([invoke("server_url"), invoke("startup_notice")])
   .catch((message) => say(welcomeError, message));
 
 // Build labels with textContent: a saved name is user input, never HTML.
-invoke("mobile_settings")
-  .then((settings) => {
+Promise.all([invoke("mobile_settings"), invoke("mobile_servers")])
+  .then(([settings, servers]) => {
     const list = document.getElementById("saved-servers");
-    list.hidden = settings.servers.length === 0;
-    for (const server of settings.servers) {
+    list.hidden = servers.length === 0;
+    for (const server of servers) {
       const row = document.createElement("div");
       const open = document.createElement("button");
       open.className = "saved-server";

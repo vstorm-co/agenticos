@@ -410,16 +410,13 @@ struct MobileSettings {
 }
 
 #[tauri::command]
-async fn mobile_settings(app: AppHandle, window: WebviewWindow) -> Result<MobileSettings, String> {
+async fn mobile_settings(app: AppHandle) -> Result<MobileSettings, String> {
     let mut stored = settings(&app);
     stored.migrate();
     let policy = managed(&app);
-    let caller = window.url().map_err(|e| e.to_string())?;
-    let local = caller.scheme() == "tauri" || caller.host_str() == Some("tauri.localhost");
-    // A remote deployment may label its own connection, never enumerate the
-    // other organizations' servers saved on this phone. The picker is local.
+    // The full list has a separate command granted only to the bundled picker.
     let servers = stored
-        .visible_servers(local)
+        .visible_servers(false)
         .into_iter()
         .filter(|s| policy.allows(&s.url))
         .collect();
@@ -437,6 +434,18 @@ async fn mobile_settings(app: AppHandle, window: WebviewWindow) -> Result<Mobile
         biometric_managed: policy.biometric_lock.is_some(),
         biometric_available: available,
     })
+}
+
+#[tauri::command]
+fn mobile_servers(app: AppHandle) -> Vec<settings::Server> {
+    let mut stored = settings(&app);
+    stored.migrate();
+    let policy = managed(&app);
+    stored
+        .visible_servers(true)
+        .into_iter()
+        .filter(|s| policy.allows(&s.url))
+        .collect()
 }
 
 #[tauri::command]
@@ -781,6 +790,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             server_url,
             mobile_settings,
+            mobile_servers,
             bind_push_session,
             open_mobile_settings,
             set_mobile_lock,
