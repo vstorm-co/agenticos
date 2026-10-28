@@ -311,13 +311,12 @@ test("test questions, review and improvement publish keep a guarded environment 
   const testQuestions = page.getByLabel("Test questions", { exact: true });
   const questionSet = page.getByRole("option", { name: String(dataset.name), exact: true });
   // Every spec's question sets are listed, so on a phone the one wanted can sit
-  // below the viewport; typing its name selects it wherever it is.
+  // outside the viewport; focused and chosen with Enter, it is picked wherever it is.
   await expect(async () => {
     if (await questionSet.isVisible()) await page.keyboard.press("Escape");
     await testQuestions.scrollIntoViewIfNeeded();
     await testQuestions.click({ timeout: 2_000 });
-    await expect(questionSet).toBeVisible({ timeout: 2_000 });
-    await page.keyboard.type(String(dataset.name));
+    await questionSet.focus({ timeout: 2_000 });
     await page.keyboard.press("Enter");
     await expect(testQuestions).toContainText(String(dataset.name), { timeout: 2_000 });
   }).toPass({ timeout: 30_000 });
