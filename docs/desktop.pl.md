@@ -1,5 +1,5 @@
 ---
-source_sha: "fec71634958b"
+source_sha: "cf9bf28042c4"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -80,6 +80,35 @@ Linuksie. Plik, który przestał się parsować, jest odkładany jako
 **Zmień serwer…** jest też stałym przyciskiem nad kontem w pasku bocznym konsoli.
 Otwiera bezpośrednio formularz połączenia; zwinięty pasek pokazuje jego ikonę
 serwera. Możesz zmienić adres bez używania blobby.
+
+### Docker i wiele lokalnych instancji { #docker-and-multiple-local-instances }
+
+Na macOS **Download Docker Desktop** pobiera oficjalny instalator dla Apple silicon
+lub Intela, pokazuje postęp i otwiera obraz dysku. Dokończ instalację w oknie
+systemowym, a potem wybierz **Open Docker Desktop** i **Check again**. Aplikacja
+wykrywa też CLI Dockera zainstalowane dla użytkownika. Na innych systemach otwiera
+stronę pobierania Dockera. Samo sprawdzenie stanu nie uruchamia instalacji.
+
+Wybierz **New instance**, nadaj nazwę i podaj organizację oraz konto właściciela.
+Aplikacja przydziela wolne porty loopback i tworzy osobny projekt Compose z własną
+bazą, wolumenem plików, siecią, katalogiem roboczym i kluczami wdrożenia. Cookies
+sesji mają osobną przestrzeń nazw dla każdej instancji, więc przełączenie nie
+zastępuje logowania innej instalacji. Obrazy frontendu muszą zawierać tę obsługę;
+konfiguracja odrzuca starszy obraz przed utworzeniem właściciela i otwarciem sesji.
+
+Ekran lokalny pokazuje zapisane instancje, adresy i stan uruchomienia. **Start and
+connect** uruchamia wybraną instancję; **Finish setup** ponawia przerwaną instalację
+z zachowaniem jej plików i kluczy. Start, Stop i Update w menu dotyczą połączonej,
+zarządzanej instancji. Połączenie do samodzielnie uruchomionego stosu deweloperskiego
+nie przekazuje aplikacji zarządzania nim.
+
+Metadane znajdują się w `local-instances.json` w katalogu konfiguracji; pliki nowych
+instancji w `local-stacks/<id>/` w katalogu danych aplikacji. Istniejące instalacje
+`local-stack/` zachowują projekt Compose i dane. Hasła oraz klucze dostawców trafiają
+do bootstrapu bez zapisywania w tych plikach ani umieszczania w argumentach Dockera.
+Klucze wdrożenia pozostają w prywatnym `.env` instancji, a klucze dostawców zapisuje
+sejf serwera. Natywny kreator używa neutralnego oznaczenia fokusu klawiatury i nie
+ustawia automatycznie fokusu na przyciskach wyboru.
 
 ## Konfiguracja połączenia i gotowość aplikacji { #connection-setup-and-app-readiness }
 

@@ -22,6 +22,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Multiple named local desktop instances with separate Compose projects, ports,
+  volumes, networks, deployment keys and login cookies; interrupted setup can
+  resume without replacing its data. The local list starts and connects instances,
+  while menu controls target the connected managed installation.
+- Docker Desktop installer downloads with progress on macOS, an explicit launch
+  action and detection of per-user Docker CLI installations. Setup focus is neutral
+  and choice buttons no longer receive an automatic focus outline.
+
 - Centered desktop connection setup with a persistent native glass surface,
   local-computer status card and immediate feedback while connecting or opening
   the workspace. Readiness preloads the dashboard and respects reduced motion.

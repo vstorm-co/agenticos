@@ -47,7 +47,7 @@ function show(name) {
       `[data-screen="${name}"] input, [data-screen="${name}"] button`,
     ),
   ].find((control) => !control.closest("[hidden]") && !control.disabled);
-  first?.focus();
+  if (first?.matches("input")) first.focus();
 }
 
 function showError(container, message) {
@@ -103,6 +103,8 @@ localForm.addEventListener("submit", async (event) => {
   hideError(localForm);
   const data = new FormData(localForm);
   const owner = {
+    instance_name: String(data.get("instance-name")),
+    instance_id: String(data.get("instance-id")) || null,
     organization: String(data.get("organization")),
     email: String(data.get("email")),
     password: String(data.get("password")),
@@ -125,6 +127,15 @@ localForm.addEventListener("submit", async (event) => {
 });
 
 async function start() {
+  await listen("docker:download", ({ payload }) => {
+    const label = document.querySelector("[data-local-message]");
+    if (payload && typeof payload.received === "number") {
+      label.textContent =
+        payload.total > 0
+          ? `Downloading Docker Desktop… ${Math.min(100, Math.floor((payload.received / payload.total) * 100))}%`
+          : `Downloading Docker Desktop… ${Math.floor(payload.received / 1024 / 1024)} MB`;
+    }
+  });
   await listen("local:progress", ({ payload }) => {
     currentStep = payload.step;
     markSteps(currentStep);

@@ -76,6 +76,36 @@ tray menu, or by launching with `--server <address>`.
 sidebar. It opens the connection form directly; a collapsed sidebar shows its
 server icon. You can change the address without using blobby.
 
+### Docker and multiple local instances
+
+On macOS, **Download Docker Desktop** downloads the official installer for Apple
+silicon or Intel, shows progress and opens the disk image. Finish installation
+in the system window, then choose **Open Docker Desktop** and **Check again**.
+The app also finds Docker's per-user CLI installation. Other operating systems
+open Docker's download page. No installation starts from a status check alone.
+
+Choose **New instance**, name it and enter its organization and owner. The app
+assigns free loopback ports and creates a separate Compose project with its own
+database, media volume, network, workspace directory and deployment keys. Local
+session cookies have an instance namespace so switching installations does not
+replace another one's login. The frontend images must include this support;
+setup refuses an older image before creating the owner or opening a session.
+
+The local screen lists saved instances, their addresses and whether they are
+running. **Start and connect** starts the selected instance; **Finish setup**
+retries an interrupted installation using its existing files and keys. The menu
+bar's Start, Stop and Update act on the connected managed instance. Connecting
+to an externally started development stack does not make it managed by the app.
+
+Metadata lives in `local-instances.json` in the configuration directory; new
+instance files are under `local-stacks/<id>/` in the app's data directory. Existing
+`local-stack/` installations keep their original Compose project and data.
+Passwords and provider keys are passed to bootstrap without storing them in
+these files or putting them on the Docker command line. Deployment keys stay
+in the instance's private `.env`; provider keys are stored by the server's vault.
+The native setup controls use a neutral keyboard focus indicator and do not
+focus choice buttons automatically.
+
 ## Connection setup and app readiness
 
 The connection review is centered on the native glass material, even when the

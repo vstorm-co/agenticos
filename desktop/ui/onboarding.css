@@ -14,7 +14,7 @@
   --field-border: rgb(0 0 0 / 14%);
   --ink: #1d1d1f;
   --ink-fg: #ffffff;
-  --focus: rgb(0 122 255 / 45%);
+  --focus: rgb(0 0 0 / 30%);
   --error: #d70015;
   --success: #248a3d;
   --shadow: 0 1px 2px rgb(0 0 0 / 6%), 0 0 0 0.5px rgb(0 0 0 / 6%);
@@ -33,7 +33,7 @@
     --field-border: rgb(255 255 255 / 12%);
     --ink: #f5f5f7;
     --ink-fg: #1d1d1f;
-    --focus: rgb(10 132 255 / 55%);
+    --focus: rgb(255 255 255 / 35%);
     --error: #ff453a;
     --success: #30d158;
     --shadow: 0 0 0 0.5px rgb(255 255 255 / 8%);
@@ -157,7 +157,7 @@ button:active {
 button:focus-visible,
 input:focus-visible,
 select:focus-visible {
-  outline: 3px solid var(--focus);
+  outline: 2px solid var(--focus);
   outline-offset: 1px;
 }
 
@@ -313,6 +313,7 @@ select {
   margin-top: 1.5rem;
   display: flex;
   justify-content: flex-end;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
 }
@@ -500,4 +501,34 @@ select {
   .primary[data-busy]::before {
     animation: none;
   }
+}
+.instance-list {
+  inline-size: 100%;
+  margin-block-start: 1rem;
+  background: var(--fill);
+  box-shadow: var(--shadow);
+  border-radius: 12px;
+  text-align: start;
+}
+.instance-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.9rem;
+}
+.instance-row + .instance-row {
+  border-block-start: 1px solid var(--separator);
+}
+.instance-row > div {
+  flex: 1;
+  min-inline-size: 0;
+}
+.instance-row p {
+  margin: 0.2rem 0 0;
+  color: var(--secondary);
+  overflow-wrap: anywhere;
+  font-size: 0.8rem;
+}
+.instance-row button {
+  flex: none;
 }

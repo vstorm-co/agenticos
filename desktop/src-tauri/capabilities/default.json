@@ -16,8 +16,11 @@
     "allow-onboarding-permissions",
     "allow-request-onboarding-permission",
     "allow-local-status",
+    "allow-local-instances",
     "allow-set-up-local",
     "allow-use-local",
-    "allow-open-docker-download"
+    "allow-open-docker-download",
+    "allow-download-docker",
+    "allow-open-docker"
   ]
 }

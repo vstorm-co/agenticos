@@ -1,5 +1,5 @@
 ---
-source_sha: "fec71634958b"
+source_sha: "cf9bf28042c4"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -84,6 +84,36 @@ geändert.
 Seitenleiste der Konsole. Sie öffnet direkt das Verbindungsformular; die
 eingeklappte Seitenleiste zeigt das Serversymbol. Sie können die Adresse ohne
 blobby ändern.
+
+### Docker und mehrere lokale Instanzen { #docker-and-multiple-local-instances }
+
+Unter macOS lädt **Download Docker Desktop** den offiziellen Installer für Apple
+silicon oder Intel herunter, zeigt den Fortschritt und öffnet das Disk-Image.
+Schließe die Installation im Systemfenster ab und wähle **Open Docker Desktop**
+und **Check again**. Die App findet auch eine benutzerspezifische Docker-CLI.
+Andere Betriebssysteme öffnen Dockers Downloadseite. Eine Statusprüfung allein
+startet keine Installation.
+
+Wähle **New instance**, gib einen Namen sowie Organisation und Eigentümerkonto an.
+Die App vergibt freie Loopback-Ports und erstellt ein eigenes Compose-Projekt mit
+Datenbank, Dateivolume, Netzwerk, Arbeitsverzeichnis und Bereitstellungsschlüsseln.
+Sitzungscookies erhalten einen Instanz-Namensraum, damit ein Wechsel die Anmeldung
+einer anderen Installation nicht ersetzt. Die Frontend-Images müssen dies
+unterstützen; ältere Images werden vor der Kontoerstellung und Sitzung abgelehnt.
+
+Die lokale Ansicht zeigt gespeicherte Instanzen, Adressen und ihren Laufstatus.
+**Start and connect** startet die gewählte Instanz; **Finish setup** wiederholt eine
+unterbrochene Installation mit ihren vorhandenen Dateien und Schlüsseln. Start,
+Stop und Update im Menü betreffen die verbundene verwaltete Instanz. Die Verbindung
+zu einem extern gestarteten Entwicklungsstack macht diesen nicht appverwaltet.
+
+Metadaten liegen in `local-instances.json` im Konfigurationsverzeichnis; neue
+Instanzdateien unter `local-stacks/<id>/` im Datenverzeichnis. Bestehende
+`local-stack/`-Installationen behalten ihr Compose-Projekt und ihre Daten.
+Passwörter und Anbieterschlüssel gelangen zum Bootstrap, ohne in diesen Dateien
+oder Docker-Befehlsargumenten zu stehen. Bereitstellungsschlüssel bleiben in der
+privaten `.env`; Anbieterschlüssel speichert der Servertresor. Der native Assistent
+verwendet einen neutralen Tastaturfokus und fokussiert Auswahlknöpfe nicht automatisch.
 
 ## Verbindungseinrichtung und App-Bereitschaft { #connection-setup-and-app-readiness }
 

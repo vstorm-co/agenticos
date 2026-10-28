@@ -88,8 +88,7 @@
             <span class="choice-text">
               <span class="choice-title">On this computer</span>
               <span class="choice-hint"
-                >Runs here in Docker. Your agents, files and keys never leave
-                this machine.</span
+                >Runs locally in Docker, with your own files and settings.</span
               >
             </span>
             <span class="chevron" aria-hidden="true"></span>
@@ -160,16 +159,39 @@
         <div class="actions" data-local-actions hidden>
           <button type="button" class="link" data-go="where">Back</button>
           <button type="button" class="secondary" data-action="docker" hidden>
-            Get Docker Desktop
+            Download Docker Desktop
+          </button>
+          <button
+            type="button"
+            class="secondary"
+            data-action="open-docker"
+            hidden
+          >
+            Open Docker Desktop
           </button>
           <button type="button" class="secondary" data-action="check" hidden>
             Check again
+          </button>
+          <button type="button" class="secondary" data-action="create" hidden>
+            New instance
           </button>
           <button type="button" class="primary" data-action="use" hidden>
             Connect and continue
           </button>
         </div>
+        <div class="instance-list" data-instance-list hidden></div>
+        <p class="error" role="alert" data-instance-error hidden></p>
         <form id="local-form" hidden>
+          <input type="hidden" id="instance-id" name="instance-id" value="" />
+          <label for="instance-name">Instance name</label>
+          <input
+            id="instance-name"
+            name="instance-name"
+            type="text"
+            placeholder="Work, Personal, Testing…"
+            maxlength="80"
+            required
+          />
           <label for="organization">Organization</label>
           <input
             id="organization"
@@ -214,9 +236,13 @@
           />
           <p class="hint">
             Without one your agents are created but cannot answer yet. Add it
-            later under Settings, AI providers. The key stays on this computer.
+            later under Settings, AI providers. The key is stored in this
+            instance’s vault.
           </p>
-          <p class="hint">Needs about 4 GB of disk and ports 3000 and 8000.</p>
+          <p class="hint">
+            Each instance has its own data and automatically assigned local
+            ports. Downloads need several GB of disk.
+          </p>
           <p class="error" role="alert" hidden></p>
           <div class="actions">
             <button type="button" class="link" data-go="where">Back</button>

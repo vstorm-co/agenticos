@@ -324,6 +324,21 @@ mod tests {
     use super::{origin_pattern, GRANTS, WINDOW};
 
     #[test]
+    fn installers_and_instance_creation_belong_only_to_local_setup() {
+        let setup: serde_json::Value = serde_json::from_str(include_str!("../capabilities/default.json")).unwrap();
+        let permissions = setup["permissions"].as_array().unwrap();
+        for permission in [
+            "allow-download-docker",
+            "allow-open-docker",
+            "allow-local-instances",
+            "allow-set-up-local",
+        ] {
+            assert!(permissions.iter().any(|value| value.as_str() == Some(permission)));
+            assert!(GRANTS.iter().all(|(_, grants)| !grants.contains(&permission)));
+        }
+    }
+
+    #[test]
     fn a_grant_covers_the_servers_origin_and_nothing_wider() {
         let server = Url::parse("https://agenticos.acme.com/pl/chat?id=1").unwrap();
         assert_eq!(origin_pattern(&server), "https://agenticos.acme.com/*");

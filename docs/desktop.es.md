@@ -1,5 +1,5 @@
 ---
-source_sha: "fec71634958b"
+source_sha: "cf9bf28042c4"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -81,6 +81,38 @@ de la bandeja o arrancando con `--server <address>`.
 lateral de la consola. Abre directamente el formulario de conexión; la barra
 lateral contraída muestra su icono de servidor. Puedes cambiar la dirección sin
 usar blobby.
+
+### Docker y varias instancias locales { #docker-and-multiple-local-instances }
+
+En macOS, **Download Docker Desktop** descarga el instalador oficial para Apple
+silicon o Intel, muestra el progreso y abre la imagen de disco. Termina la
+instalación en la ventana del sistema y elige **Open Docker Desktop** y **Check
+again**. La aplicación también detecta la CLI de Docker instalada para el usuario.
+Otros sistemas abren la página de descarga de Docker. Una comprobación de estado
+por sí sola no inicia la instalación.
+
+Elige **New instance**, asígnale un nombre e introduce la organización y su
+propietario. La aplicación asigna puertos loopback libres y crea un proyecto Compose
+separado con base de datos, volumen de archivos, red, directorio de trabajo y claves
+propias. Las cookies de sesión tienen un espacio de nombres por instancia, por lo
+que cambiar no sustituye el inicio de sesión de otra instalación. Las imágenes del
+frontend deben admitirlo; se rechazan las antiguas antes de crear al propietario
+o abrir una sesión.
+
+La pantalla local muestra las instancias guardadas, sus direcciones y estado.
+**Start and connect** inicia la elegida; **Finish setup** reintenta una instalación
+interrumpida conservando archivos y claves. Start, Stop y Update del menú actúan
+sobre la instancia administrada conectada. Conectarse a un entorno de desarrollo
+iniciado externamente no lo convierte en una instancia administrada.
+
+Los metadatos están en `local-instances.json` en el directorio de configuración;
+los archivos nuevos en `local-stacks/<id>/` en el directorio de datos. Las
+instalaciones `local-stack/` existentes conservan su proyecto Compose y sus datos.
+Las contraseñas y claves de proveedores se pasan al bootstrap sin guardarlas en
+estos archivos ni en argumentos de Docker. Las claves del despliegue permanecen
+en su `.env` privado; las de proveedores se guardan en la bóveda del servidor.
+El asistente nativo usa un foco de teclado neutro y no enfoca automáticamente
+los botones de selección.
 
 ## Configuración de conexión y estado de la aplicación { #connection-setup-and-app-readiness }
 

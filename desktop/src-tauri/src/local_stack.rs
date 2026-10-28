@@ -9,10 +9,9 @@
 //! server and wrong for a laptop on a café's network with a fresh owner
 //! password.
 //!
-//! Docker is the one thing it needs, and it is the person's: the app finds the
-//! CLI, asks whether the daemon answers, and says what is missing rather than
-//! installing anything. Every command it runs is one of a fixed few, with no part
-//! of it taken from a page.
+//! Each instance has a separate Compose project, private configuration, ports,
+//! keys and volumes. Setup probes Docker first; its explicit download action is
+//! implemented in `docker_install`. Commands come from this module, never a page.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -20,23 +19,11 @@ use std::process::{Command, Output, Stdio};
 use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, Manager, Url};
+use tauri::{AppHandle, Emitter, Url};
 
-/// The compose project, so the stack's containers and volumes are named for it
-/// and never collide with a `make dev` checkout's.
-const PROJECT: &str = "agenticos-local";
+use crate::local_instances::{self, Instance};
+static OPERATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 const COMPOSE: &str = include_str!("../../../docker-compose.yml");
-/// Loopback only. `!override` replaces the list rather than appending to it,
-/// which plain merging would do - and an appended `127.0.0.1:3000:3000` beside
-/// the original `3000:3000` fails as a port bound twice.
-const OVERRIDE: &str = "services:
-  app:
-    ports: !override
-      - \"127.0.0.1:8000:8000\"
-  frontend:
-    ports: !override
-      - \"127.0.0.1:3000:3000\"
-";
 pub const CONSOLE: &str = "http://localhost:3000/";
 pub const PROGRESS_EVENT: &str = "local:progress";
 const DOCKER_DOWNLOAD: &str = "https://www.docker.com/products/docker-desktop/";
@@ -63,9 +50,11 @@ pub fn docker() -> Option<PathBuf> {
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
+    let user_cli = std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".docker/bin").join(docker_name()));
     DOCKER_CANDIDATES
         .iter()
         .map(PathBuf::from)
+        .chain(user_cli)
         .chain(on_path)
         .find(|candidate| candidate.is_file())
 }
@@ -111,13 +100,17 @@ pub fn status(console_answers: bool) -> Status {
 }
 
 /// The owner and organization onboarding creates, and the model they start on.
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct Owner {
     pub email: String,
     pub password: String,
     pub organization: String,
     pub provider: String,
     pub api_key: Option<String>,
+    #[serde(default)]
+    pub instance_name: Option<String>,
+    #[serde(default)]
+    pub instance_id: Option<String>,
 }
 
 impl std::fmt::Debug for Owner {
@@ -150,6 +143,13 @@ pub fn validate(owner: &Owner) -> Result<(), String> {
     if !PROVIDERS.contains(&owner.provider.as_str()) {
         return Err(format!("{} is not a provider AgenticOS can start on.", owner.provider));
     }
+    if owner
+        .instance_name
+        .as_ref()
+        .is_some_and(|name| name.trim().is_empty() || name.chars().count() > 80 || name.chars().any(char::is_control))
+    {
+        return Err("Name this instance using 1–80 characters.".into());
+    }
     Ok(())
 }
 
@@ -171,35 +171,31 @@ pub struct Progress {
     pub detail: Option<String>,
 }
 
-fn stack_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("No data directory for this account: {e}"))?
-        .join("local-stack");
+/// Refresh Compose files without replacing an instance's durable keys.
+fn write_files(app: &AppHandle, instance: &Instance) -> Result<PathBuf, String> {
+    let dir = instance.dir(app)?;
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    #[cfg(unix)]
+    if instance.id != "legacy" {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&dir, fs::Permissions::from_mode(0o700)).map_err(|e| e.to_string())?;
+    }
+    fs::write(dir.join("docker-compose.yml"), COMPOSE).map_err(|e| e.to_string())?;
+    fs::write(
+        dir.join("docker-compose.desktop.yml"),
+        local_instances::overrides(instance),
+    )
+    .map_err(|e| e.to_string())?;
+    if instance.id != "legacy" {
+        local_instances::write_environment(&dir, instance)?;
+    }
     Ok(dir)
 }
-
-/// Write the compose file and the override, replacing older copies: an app
-/// update brings the compose file of its own release.
-fn write_files(dir: &Path) -> Result<(), String> {
-    fs::create_dir_all(dir).map_err(|e| format!("Cannot create {}: {e}", dir.display()))?;
-    for (name, body) in [
-        ("docker-compose.yml", COMPOSE),
-        ("docker-compose.desktop.yml", OVERRIDE),
-    ] {
-        let path = dir.join(name);
-        fs::write(&path, body).map_err(|e| format!("Cannot write {}: {e}", path.display()))?;
-    }
-    Ok(())
-}
-
-/// `docker compose` for this project, in its directory, with its two files.
-fn compose(docker: &Path, dir: &Path) -> Command {
+fn compose(docker: &Path, dir: &Path, instance: &Instance) -> Command {
     let mut command = Command::new(docker);
     command
         .current_dir(dir)
-        .args(["compose", "--project-name", PROJECT])
+        .args(["compose", "--project-name", &instance.project()])
         .args(["--file", "docker-compose.yml", "--file", "docker-compose.desktop.yml"]);
     command
 }
@@ -223,7 +219,7 @@ fn report(app: &AppHandle, step: Step, detail: Option<String>) {
 }
 
 /// Wait until the console answers, or the deadline passes.
-fn wait_for_console(console: &Url) -> Result<(), String> {
+pub fn wait_for_console(console: &Url) -> Result<(), String> {
     let started = Instant::now();
     while started.elapsed() < READY_DEADLINE {
         if crate::reachable(console).is_ok() {
@@ -237,30 +233,90 @@ fn wait_for_console(console: &Url) -> Result<(), String> {
     )
 }
 
+/// A published image must support the namespace before credentials are sent or a session opens.
+pub fn verify_instance_sessions(instance: &Instance) -> Result<(), String> {
+    if instance.id == "legacy" {
+        return Ok(());
+    }
+    #[derive(Deserialize)]
+    struct Answer {
+        session_cookie_namespace: Option<String>,
+    }
+    tauri::async_runtime::block_on(async {
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(10))
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .map_err(|e| e.to_string())?;
+        let endpoint = instance.url().join("api/public/endpoints").map_err(|e| e.to_string())?;
+        let answer: Answer = client
+            .get(endpoint)
+            .send()
+            .await
+            .and_then(reqwest::Response::error_for_status)
+            .map_err(|e| format!("Cannot verify this local instance: {e}"))?
+            .json()
+            .await
+            .map_err(|_| "The local frontend did not provide instance session settings.".to_string())?;
+        if answer.session_cookie_namespace.as_deref() != Some(instance.id.as_str()) {
+            return Err("These AgenticOS images do not support isolated local instances yet. Update to images containing desktop multi-instance support, then retry setup.".into());
+        }
+        Ok(())
+    })
+}
+
 /// Set the stack up and create its owner, reporting each step. Blocking: run it
 /// off the main thread.
 pub fn set_up(app: &AppHandle, owner: &Owner) -> Result<Url, String> {
     validate(owner)?;
+    let _operation = OPERATIONS
+        .try_lock()
+        .map_err(|_| "Another local instance operation is still running.")?;
     let docker = docker().ok_or("Docker is not installed.")?;
-    let dir = stack_dir(app)?;
-    let console = Url::parse(CONSOLE).expect("a literal URL parses");
+    let mut version = Command::new(&docker);
+    version.args(["compose", "version"]);
+    run(
+        version,
+        "check Docker Compose; update Docker Desktop if Compose is missing",
+    )?;
+    let mut instances = local_instances::load(app)?;
+    let instance = if let Some(id) = owner.instance_id.as_ref().filter(|id| !id.is_empty()) {
+        let instance = instances
+            .iter()
+            .find(|i| &i.id == id)
+            .ok_or("This instance no longer exists.")?;
+        if instance.installed {
+            return Err("This instance is already installed. Connect to it instead.".into());
+        }
+        instance.clone()
+    } else {
+        let name = owner.instance_name.as_deref().unwrap_or(owner.organization.trim());
+        let instance = local_instances::allocate(&instances, name)?;
+        crate::managed::check(app, &instance.url())?;
+        instances.push(instance.clone());
+        local_instances::save(app, &instances)?;
+        instance
+    };
+    crate::managed::check(app, &instance.url())?;
+    let console = instance.url();
 
     report(app, Step::Files, None);
-    write_files(&dir)?;
+    let dir = write_files(app, &instance)?;
 
     report(app, Step::Download, None);
-    let mut pull = compose(&docker, &dir);
+    let mut pull = compose(&docker, &dir, &instance);
     pull.args(["pull", "--quiet"]);
     run(pull, "download AgenticOS")?;
 
     report(app, Step::Start, None);
-    let mut up = compose(&docker, &dir);
+    let mut up = compose(&docker, &dir, &instance);
     up.args(["up", "--detach"]);
     run(up, "start AgenticOS")?;
     wait_for_console(&console)?;
+    verify_instance_sessions(&instance)?;
 
     report(app, Step::Owner, None);
-    let mut bootstrap = compose(&docker, &dir);
+    let mut bootstrap = compose(&docker, &dir, &instance);
     bootstrap.args(["exec", "-T"]);
     // The key travels in the environment, named here and valued only in the
     // Docker CLI's own, so it is never on a command line.
@@ -269,13 +325,15 @@ pub fn set_up(app: &AppHandle, owner: &Owner) -> Result<Url, String> {
             .env("BOOTSTRAP_API_KEY", key)
             .args(["-e", "BOOTSTRAP_API_KEY"]);
     }
-    bootstrap
-        .args(["app", "agenticos", "cmd", "bootstrap"])
-        .args(["--email", owner.email.trim()])
-        .args(["--password", &owner.password])
-        .args(["--org", owner.organization.trim()])
-        .args(["--provider", &owner.provider]);
+    // All owner fields travel only through the exec environment, never host argv or files.
+    bootstrap.env("AGENTICOS_BOOTSTRAP_OWNER", serde_json::to_string(owner).map_err(|e| e.to_string())?)
+        .args(["-e", "AGENTICOS_BOOTSTRAP_OWNER", "app", "python", "-c",
+            "import json,os; from app.commands.bootstrap import bootstrap; o=json.loads(os.environ['AGENTICOS_BOOTSTRAP_OWNER']); bootstrap.main(args=['--email',o['email'].strip(),'--password',o['password'],'--org',o['organization'].strip(),'--provider',o['provider']])"]);
     run(bootstrap, "create your organization")?;
+    if let Some(saved) = instances.iter_mut().find(|i| i.id == instance.id) {
+        saved.installed = true;
+    }
+    local_instances::save(app, &instances)?;
 
     report(app, Step::Done, None);
     Ok(console)
@@ -291,25 +349,32 @@ pub enum Control {
 
 /// Start, stop or update the stack. Blocking.
 pub fn control(app: &AppHandle, control: Control) -> Result<(), String> {
+    let instance = local_instances::selected(app)?.ok_or("Choose a managed local instance first.")?;
+    control_instance(app, &instance, control)
+}
+
+pub fn control_instance(app: &AppHandle, instance: &Instance, control: Control) -> Result<(), String> {
+    let _operation = OPERATIONS
+        .try_lock()
+        .map_err(|_| "Another local instance operation is still running.")?;
     let docker = docker().ok_or("Docker is not installed.")?;
-    let dir = stack_dir(app)?;
-    write_files(&dir)?;
+    let dir = write_files(app, instance)?;
     match control {
         Control::Start => {
-            let mut up = compose(&docker, &dir);
+            let mut up = compose(&docker, &dir, instance);
             up.args(["up", "--detach"]);
             run(up, "start AgenticOS").map(|_| ())
         }
         Control::Stop => {
-            let mut stop = compose(&docker, &dir);
+            let mut stop = compose(&docker, &dir, instance);
             stop.arg("stop");
             run(stop, "stop AgenticOS").map(|_| ())
         }
         Control::Update => {
-            let mut pull = compose(&docker, &dir);
+            let mut pull = compose(&docker, &dir, instance);
             pull.args(["pull", "--quiet"]);
             run(pull, "download the new version")?;
-            let mut up = compose(&docker, &dir);
+            let mut up = compose(&docker, &dir, instance);
             up.args(["up", "--detach"]);
             run(up, "restart AgenticOS").map(|_| ())
         }
@@ -323,7 +388,7 @@ pub fn docker_download() -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{validate, Owner, COMPOSE, OVERRIDE};
+    use super::{validate, Owner, COMPOSE};
 
     fn owner() -> Owner {
         Owner {
@@ -332,6 +397,61 @@ mod tests {
             organization: "Vstorm".into(),
             provider: "anthropic".into(),
             api_key: Some("sk-secret".into()),
+            instance_name: None,
+            instance_id: None,
+        }
+    }
+
+    #[test]
+    fn published_frontends_must_advertise_the_matching_session_namespace() {
+        use std::io::{Read, Write};
+        use std::net::TcpListener;
+        for compatible in [true, false] {
+            let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+            listener.set_nonblocking(true).unwrap();
+            let port = listener.local_addr().unwrap().port();
+            let id = uuid::Uuid::new_v4().to_string();
+            let body = if compatible {
+                format!(r#"{{"session_cookie_namespace":"{id}"}}"#)
+            } else {
+                "{}".into()
+            };
+            let server = std::thread::spawn(move || {
+                let started = std::time::Instant::now();
+                loop {
+                    match listener.accept() {
+                        Ok((mut stream, _)) => {
+                            stream
+                                .set_read_timeout(Some(std::time::Duration::from_secs(2)))
+                                .unwrap();
+                            let mut bytes = [0; 4096];
+                            let read = stream.read(&mut bytes).unwrap();
+                            let request = String::from_utf8_lossy(&bytes[..read]);
+                            assert!(request.starts_with("GET /api/public/endpoints "));
+                            assert!(!request.to_ascii_lowercase().contains("authorization:"));
+                            write!(stream,"HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n{}",body.len(),body).unwrap();
+                            return;
+                        }
+                        Err(error)
+                            if error.kind() == std::io::ErrorKind::WouldBlock
+                                && started.elapsed() < std::time::Duration::from_secs(3) =>
+                        {
+                            std::thread::sleep(std::time::Duration::from_millis(10))
+                        }
+                        Err(error) => panic!("Metadata probe did not arrive: {error}"),
+                    }
+                }
+            });
+            let instance = crate::local_instances::Instance {
+                id,
+                name: "Test".into(),
+                frontend_port: port,
+                api_port: 8100,
+                installed: false,
+            };
+            let result = super::verify_instance_sessions(&instance);
+            server.join().unwrap();
+            assert_eq!(result.is_ok(), compatible);
         }
     }
 
@@ -356,6 +476,8 @@ mod tests {
                 organization: organization.into(),
                 provider: provider.into(),
                 api_key: None,
+                instance_name: None,
+                instance_id: None,
             };
             assert!(validate(&candidate).is_err(), "{email} {organization} {provider}");
         }
@@ -380,8 +502,16 @@ mod tests {
             COMPOSE.contains("\"8000:8000\""),
             "the override replaces the API's port"
         );
-        assert!(OVERRIDE.contains("127.0.0.1:3000:3000"));
-        assert!(OVERRIDE.contains("127.0.0.1:8000:8000"));
-        assert_eq!(OVERRIDE.matches("!override").count(), 2);
+        let instance = crate::local_instances::Instance {
+            id: "legacy".into(),
+            name: "Existing".into(),
+            frontend_port: 3000,
+            api_port: 8000,
+            installed: true,
+        };
+        let config = crate::local_instances::overrides(&instance);
+        assert!(config.contains("127.0.0.1:3000:3000"));
+        assert!(config.contains("127.0.0.1:8000:8000"));
+        assert_eq!(config.matches("!override").count(), 2);
     }
 }

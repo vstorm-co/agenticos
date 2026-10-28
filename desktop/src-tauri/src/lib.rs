@@ -20,8 +20,10 @@ mod computer_access;
 mod console;
 mod context;
 mod device;
+mod docker_install;
 mod dropped;
 mod local_browser;
+mod local_instances;
 mod local_services;
 mod local_stack;
 mod local_work;
@@ -463,7 +465,7 @@ fn arrive(app: &AppHandle, window: &WebviewWindow, server: Url, deployment: Depl
     retarget_companions(app, &server)?;
     start_companions(app, &server, &settings);
     app.state::<ShellMenu>()
-        .reflect_deployment(settings.deployment)
+        .reflect_local_instance(local_instances::selected(app)?.is_some())
         .map_err(|e| e.to_string())
 }
 
@@ -496,6 +498,33 @@ async fn local_status() -> Result<local_stack::Status, String> {
     .map_err(|e| e.to_string())
 }
 
+#[derive(serde::Serialize)]
+struct LocalInstanceView {
+    id: String,
+    name: String,
+    url: String,
+    installed: bool,
+    running: bool,
+}
+#[tauri::command]
+async fn local_instances(app: AppHandle) -> Result<Vec<LocalInstanceView>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        local_instances::load(&app).map(|rows| {
+            rows.into_iter()
+                .map(|row| LocalInstanceView {
+                    running: reachable(&row.url()).is_ok(),
+                    url: row.url().to_string(),
+                    id: row.id,
+                    name: row.name,
+                    installed: row.installed,
+                })
+                .collect()
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Set AgenticOS up on this computer and sign the console in to it.
 #[tauri::command]
 async fn set_up_local(app: AppHandle, window: WebviewWindow, owner: local_stack::Owner) -> Result<(), String> {
@@ -510,8 +539,27 @@ async fn set_up_local(app: AppHandle, window: WebviewWindow, owner: local_stack:
 
 /// Use the AgenticOS already answering on this computer - a `make dev` stack, or one set up before.
 #[tauri::command]
-async fn use_local(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
-    let console = Url::parse(local_stack::CONSOLE).expect("a literal URL parses");
+async fn use_local(app: AppHandle, window: WebviewWindow, instance_id: Option<String>) -> Result<(), String> {
+    let console = if let Some(id) = instance_id {
+        let instance = local_instances::find(&app, &id)?;
+        if !instance.installed {
+            return Err("Finish setting up this instance first.".into());
+        }
+        managed::check(&app, &instance.url())?;
+        let handle = app.clone();
+        let url = instance.url();
+        let destination = url.clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            local_stack::control_instance(&handle, &instance, local_stack::Control::Start)?;
+            local_stack::wait_for_console(&url)?;
+            local_stack::verify_instance_sessions(&instance)
+        })
+        .await
+        .map_err(|e| e.to_string())??;
+        destination
+    } else {
+        Url::parse(local_stack::CONSOLE).expect("a literal URL parses")
+    };
     let probed = console.clone();
     tauri::async_runtime::spawn_blocking(move || reachable(&probed))
         .await
@@ -858,7 +906,7 @@ pub struct ShellMenu {
 
 impl ShellMenu {
     fn build(app: &AppHandle, settings: &Settings) -> tauri::Result<Self> {
-        let local = settings.deployment == Some(Deployment::Local);
+        let local = local_instances::selected(app).is_ok_and(|instance| instance.is_some());
         Ok(Self {
             blobby: blobby::BlobbyMenu::build(app, &settings.blobby)?,
             open_console: MenuItem::with_id(app, OPEN_CONSOLE, "Open AgenticOS", true, None::<&str>)?,
@@ -898,9 +946,9 @@ impl ShellMenu {
     }
 
     /// The local stack's controls are live only while the app runs one.
-    fn reflect_deployment(&self, deployment: Option<Deployment>) -> tauri::Result<()> {
+    fn reflect_local_instance(&self, available: bool) -> tauri::Result<()> {
         for item in &self.local {
-            item.set_enabled(deployment == Some(Deployment::Local))?;
+            item.set_enabled(available)?;
         }
         Ok(())
     }
@@ -1301,9 +1349,12 @@ pub fn run() {
             onboarding_permissions::onboarding_permissions,
             onboarding_permissions::request_onboarding_permission,
             local_status,
+            local_instances,
             set_up_local,
             use_local,
             open_docker_download,
+            docker_install::download_docker,
+            docker_install::open_docker,
             finish_onboarding,
             shortcuts::set_shortcut,
             quick_ask::resize_quick_ask,
