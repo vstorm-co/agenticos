@@ -12,9 +12,12 @@ The store now stamps each chunk with the knowledge base it was ingested for
 no base falls back to the tenant rule, so this migration files the chunks that
 already exist, once:
 
-* Builds the `knowledge_base_id` hash index `_ensure_collection` now builds on
-  first write, so collections nobody re-ingests into are read by base at O(1),
-  the same reasoning as `0058_backfill_rag_lookup_indexes`.
+* Builds the `knowledge_base_id` index `_ensure_collection` now builds on first
+  write, so collections nobody re-ingests into are read by base through it, the
+  same reasoning as `0058_backfill_rag_lookup_indexes`. A btree, not a hash like
+  the other keys: a table holds few bases, and a hash bucket of one value grows an
+  overflow chain every insert walks. Built after the backfill, so the backfill
+  does not maintain it row by row.
 * Files a chunk under a base **only where `rag_documents` says so without
   ambiguity**: every tracking row for its `vector_document_id` in that collection
   is filed under one existing knowledge base of that collection name. A chunk
@@ -98,12 +101,6 @@ _UNAMBIGUOUS = (
 def upgrade() -> None:
     conn = op.get_bind()
     tables = _runtime_vector_tables(conn)
-    for table in tables:
-        # The table name is a reflected identifier, not caller input.
-        op.execute(
-            f"CREATE INDEX IF NOT EXISTS {table}{_KB_SUFFIX} "
-            f"ON {table} USING hash ((metadata->>'knowledge_base_id'))"
-        )
     for collection in _tracked_collections(conn):
         table = f"{_TABLE_PREFIX}{collection}"
         if table not in tables:
@@ -117,6 +114,12 @@ def upgrade() -> None:
                 "AND t.metadata->>'knowledge_base_id' IS NULL"
             ),
             {"collection": collection},
+        )
+    for table in tables:
+        # The table name is a reflected identifier, not caller input.
+        op.execute(
+            f"CREATE INDEX IF NOT EXISTS {table}{_KB_SUFFIX} "
+            f"ON {table} ((metadata->>'knowledge_base_id'))"
         )
 
 

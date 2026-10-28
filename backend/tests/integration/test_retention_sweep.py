@@ -27,6 +27,7 @@ from app.db.models.background_job import BackgroundJob
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Conversation, Message
 from app.db.models.deployment_settings import DeploymentSettings
+from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.rag_document import DocumentStatus, RAGDocument
@@ -385,10 +386,10 @@ class TestTheOtherClasses:
             row.created_at = NOW - timedelta(days=200)
         organization.retention_days = {"knowledge_documents": 30}
         await db.flush()
-        removed_vectors: list[tuple[str, str, uuid.UUID | None]] = []
+        removed_vectors: list[tuple[str, str, VectorScope]] = []
 
-        async def remove(collection: str, document_id: str, tenant: uuid.UUID | None) -> bool:
-            removed_vectors.append((collection, document_id, tenant))
+        async def remove(collection: str, document_id: str, scope: VectorScope) -> bool:
+            removed_vectors.append((collection, document_id, scope))
             return True
 
         storage = MagicMock()
@@ -404,6 +405,49 @@ class TestTheOtherClasses:
         storage.delete.assert_not_awaited()
         job = (await db.scalars(select(BackgroundJob))).one()
         assert job.payload["required_paths"] == ["uploads/report.pdf"]
+
+    @pytest.mark.security
+    async def test_an_expired_documents_vectors_go_under_its_own_base(self, db: AsyncSession):
+        """The scope comes off the base the row is filed under - its tenant and
+        the base itself - so the sweep removes exactly that base's chunks and
+        none of a same-named base of the same organization (#2537)."""
+        organization, _ = await _tenant(db)
+        kb = KnowledgeBase(
+            id=uuid.uuid4(),
+            name="kb_main",
+            scope=KBScope.ORG.value,
+            collection_name="kb_main",
+            embedding_model="text-embedding-3-small",
+            embedding_dim=1536,
+            organization_id=organization.id,
+        )
+        db.add(kb)
+        await db.flush()
+        uploaded = RAGDocument(
+            organization_id=organization.id,
+            knowledge_base_id=kb.id,
+            collection_name="kb_main",
+            filename="report.pdf",
+            filetype="pdf",
+            status=DocumentStatus.DONE,
+            vector_document_id="vec-1",
+        )
+        db.add(uploaded)
+        await db.flush()
+        uploaded.created_at = NOW - timedelta(days=200)
+        organization.retention_days = {"knowledge_documents": 30}
+        await db.flush()
+        removed_vectors: list[tuple[str, str, VectorScope]] = []
+
+        async def remove(collection: str, document_id: str, scope: VectorScope) -> bool:
+            removed_vectors.append((collection, document_id, scope))
+            return True
+
+        await RetentionService(db, remove_vectors=remove).sweep(now=NOW)
+
+        assert removed_vectors == [
+            ("kb_main", "vec-1", VectorScope(tenant=organization.id, knowledge_base_id=kb.id))
+        ]
 
     @pytest.mark.security
     async def test_a_document_still_being_ingested_is_left_alone(self, db: AsyncSession):

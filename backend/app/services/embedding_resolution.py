@@ -32,7 +32,7 @@ row. So the source travels *with* the resolution, and both surfaces name it.
 """
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
 from uuid import UUID
 
@@ -160,7 +160,7 @@ class ResolvedEmbeddings:
     # the place that maps a caller's organization to the one knowledge base it may
     # read for a shared name (#913), so the scope rides home with the key rather
     # than being resolved a second time.
-    vector_scope: VectorScope = field(default_factory=lambda: VectorScope(tenant=None))
+    vector_scope: VectorScope
 
     def __repr__(self) -> str:
         return (

@@ -335,3 +335,59 @@ class TestUnfiledChunks:
         await _unfiled(store, doc_id="theirs", tenant=uuid.uuid4())
 
         assert await _searched(store, org_base) == {"ours"}
+
+
+async def _filed(
+    store: PgVectorStore, *, doc_id: str, kb: KnowledgeBase, tenant: uuid.UUID | None
+) -> None:
+    """A chunk filed under `kb`, carrying `tenant` - which need not be the base's."""
+    meta = {"knowledge_base_id": str(kb.id), "filename": f"{doc_id}.pdf"}
+    if tenant is not None:
+        meta["organization_id"] = str(tenant)
+    async with store.async_session() as session:
+        await session.execute(
+            text(
+                f"INSERT INTO {TABLE} (id, parent_doc_id, content, embedding, metadata) "  # noqa: S608
+                "VALUES (:id, :pid, :content, CAST('[0.1,0.2,0.3]' AS vector), "
+                "CAST(:meta AS jsonb))"
+            ),
+            {"id": f"{doc_id}-0", "pid": doc_id, "content": doc_id, "meta": json.dumps(meta)},
+        )
+        await session.commit()
+
+
+async def test_deleting_a_personal_document_also_removes_its_unfiled_chunks(
+    engine: AsyncEngine,
+) -> None:
+    """A personal base outside any organization reads no unfiled chunks, but a
+    document it tracks may still have some - written before chunks recorded their
+    base, or left unfiled by the upgrade. Its delete names the document by id, so
+    those go too; left behind, a same-named app base would serve them to every
+    organization with nothing tracking them."""
+    app = _kb(KBScope.APP, None)
+    personal = _kb(KBScope.PERSONAL, None)
+    store = _store(engine)
+    await store._ensure_collection(COLLECTION)
+    await _unfiled(store, doc_id="mine", tenant=None)
+    assert await _searched(store, app) == {"mine"}
+
+    await store.delete_document(COLLECTION, "mine", personal.vector_scope)
+
+    assert await _searched(store, app) == set()
+
+
+async def test_a_chunk_filed_under_the_base_with_another_tenant_stays_out(
+    engine: AsyncEngine,
+) -> None:
+    """After an organization purge a personal base has no tenant, and the purge
+    re-stamps only its surviving documents. A chunk of a document deleted before
+    that - its cleanup lost - is still filed under the base but carries the purged
+    organization, and must not come back into the person's search."""
+    personal = _kb(KBScope.PERSONAL, None)
+    store = _store(engine)
+    await store._ensure_collection(COLLECTION)
+    await _filed(store, doc_id="restamped", kb=personal, tenant=None)
+    await _filed(store, doc_id="deleted-before-purge", kb=personal, tenant=uuid.uuid4())
+
+    assert await _searched(store, personal) == {"restamped"}
+    assert await _counted(store, personal) == 1

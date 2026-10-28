@@ -162,6 +162,7 @@ class TestResolution:
             key_source=EmbeddingKeySource.ORGANIZATION,
             base_url="https://api.openai.com/v1",
             provider="openai",
+            vector_scope=VectorScope(tenant=None),
         )
 
         assert "sk-secret" not in repr(resolved)
@@ -371,6 +372,7 @@ class TestSayingWhichKeyPaid:
             key_source=EmbeddingKeySource.SECRET_MISSING,
             base_url="https://openrouter.ai/api/v1",
             provider="openrouter",
+            vector_scope=VectorScope(tenant=None),
         )
 
         described = resolved.describe("handbook")

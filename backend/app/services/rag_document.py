@@ -130,9 +130,9 @@ class RAGDocumentService:
 
         `kb` is the knowledge base the caller was authorized through, and the
         count is that base's rows (`rag_document_repo.in_collection_scope`), the
-        ones the document listing shows for it. `total_vectors` is scoped by the
-        base's vector tenant, which a personal base outside any organization
-        shares with an app-scoped one of the same name.
+        ones the document listing shows for it. `total_vectors` is counted by the
+        caller in the base's own vector scope, so a same-named base of the same
+        tenant is not summed in (#2537).
         """
         counts = await rag_document_repo.ingestion_counts(self.db, scope=CollectionScope.of(kb))
         return RAGCollectionInfo(
@@ -629,7 +629,7 @@ class RAGDocumentService:
         )
         return updated
 
-    async def _vector_scope(self, doc: RAGDocument) -> VectorScope:
+    async def vector_scope(self, doc: RAGDocument) -> VectorScope:
         """The scope this document's chunks are stamped and read under (#1684, #2537).
 
         Off the knowledge base the document is tracked under, not `organization_id`
@@ -683,7 +683,7 @@ class RAGDocumentService:
         # own - so the vector delete is confined to them and cannot reach another
         # org's or base's document in a collection whose name they share (#1684,
         # #2537). Read now, before the row is deleted.
-        scope = await self._vector_scope(doc)
+        scope = await self.vector_scope(doc)
         await rag_document_repo.delete(self.db, doc.id)
 
         from app.core.background import spawn_after_commit
@@ -841,7 +841,7 @@ class RAGDocumentService:
             )
 
         chunks = await vector_store.get_document_chunks(
-            doc.collection_name, doc.vector_document_id, await self._vector_scope(doc)
+            doc.collection_name, doc.vector_document_id, await self.vector_scope(doc)
         )
 
         pages: list[RAGParsedPage] = []

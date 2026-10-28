@@ -68,6 +68,11 @@ class IngestionService:
         # caller will (the trap #992 was).
         self._scope = scope if scope is not None else VectorScope(tenant=None)
 
+    @property
+    def scope(self) -> VectorScope:
+        """The knowledge base this ingester writes for, as the store scopes it."""
+        return self._scope
+
     async def _emit(self, event: str, data: dict[str, object]) -> None:
         if self._on_event:
             try:

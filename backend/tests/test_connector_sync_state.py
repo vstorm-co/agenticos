@@ -29,6 +29,7 @@ import pytest
 
 from app.core.secret_kinds import StorableSecret
 from app.db.models.rag_document import DocumentStatus
+from app.db.vector_tables import VectorScope
 from app.services.rag.connectors import (
     BaseSyncConnector,
     ConnectorConfig,
@@ -102,10 +103,19 @@ OPENED_ID = uuid.uuid4()
 
 
 def _row(
-    name: str, *, vector_id: str | None = None, status: str = DocumentStatus.PROCESSING
+    name: str,
+    *,
+    vector_id: str | None = None,
+    status: str = DocumentStatus.PROCESSING,
+    knowledge_base_id: uuid.UUID | None = KB_ID,
 ) -> MagicMock:
+    # Filed under the base these syncs resolve to unless a test says otherwise.
     return MagicMock(
-        id=uuid.uuid4(), source_path=f"{ROOT}{name}", vector_document_id=vector_id, status=status
+        id=uuid.uuid4(),
+        source_path=f"{ROOT}{name}",
+        vector_document_id=vector_id,
+        status=status,
+        knowledge_base_id=knowledge_base_id,
     )
 
 
@@ -244,7 +254,10 @@ async def _sync(
             "_knowledge_base_for",
             new=AsyncMock(
                 return_value=MagicMock(
-                    id=KB_ID, ingestion_config={}, embedding_model="openai:text-embedding-3-small"
+                    id=KB_ID,
+                    ingestion_config={},
+                    embedding_model="openai:text-embedding-3-small",
+                    vector_scope=VectorScope(tenant=None, knowledge_base_id=KB_ID),
                 )
             ),
         ),
@@ -391,6 +404,27 @@ class TestWhatADeadRunLeftIsSettledFirst:
         assert store.removed == ["new"]
         assert run.forgotten == [str(stale.id), str(replaced.id)]
         run.documents.add_claims.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_a_row_filed_under_another_base_is_not_taken_for_gone(self) -> None:
+        """The address was read in the base this run writes for, so a row filed
+        under another base - the one the sync resolved to before a base was
+        created or deleted - is missing from it whether or not its vectors are
+        there. Forgetting it would leave them searchable with nothing tracking
+        them (#2537)."""
+        stale = _row("a.md")
+        elsewhere = _row(
+            "a.md", vector_id="old", status=DocumentStatus.DONE, knowledge_base_id=uuid.uuid4()
+        )
+
+        run = await _sync(
+            _Connector(files=["a.md"]),
+            stale=[stale],
+            settled=[elsewhere],
+            store=_Store(at={f"{ROOT}a.md": ["new"]}),
+        )
+
+        assert str(elsewhere.id) not in run.forgotten
 
     async def test_another_sources_claim_on_a_dropped_row_moves_to_the_new_one(self) -> None:
         """The other source lists the address too. Dropped with the dead row, its

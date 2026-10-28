@@ -140,24 +140,6 @@ class TestTheLookupStaysInsideTheOrganization:
         resolved = await knowledge_base_repo.get_for_collection(db, "shared", org_c.id)
         assert resolved is not None and resolved.id == kb_app.id
 
-    @pytest.mark.security
-    async def test_the_organizations_base_wins_over_a_members_older_personal_one(self, db) -> None:
-        """Both carry the organization, so an agent of the organization searching by
-        name - and the organization's sync - reach the organization's base, never
-        a member's personal one, whichever was created first (#2537)."""
-        org_a, member = await _org(db, name="Alpha")
-        personal = _kb(org_a.id, "shared", scope=KBScope.PERSONAL.value)
-        personal.owner_user_id = member.id
-        db.add(personal)
-        await db.flush()
-        kb_org = _kb(org_a.id, "shared")
-        db.add(kb_org)
-        await db.flush()
-
-        resolved = await knowledge_base_repo.get_for_collection(db, "shared", org_a.id)
-
-        assert resolved is not None and resolved.id == kb_org.id
-
     async def test_a_members_personal_base_is_the_organizations_only_base_by_the_name(
         self, db
     ) -> None:

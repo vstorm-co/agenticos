@@ -30,7 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # happens to reach the models first: on an empty metadata the collision check
 # answers "nothing collides" with no error to say so.
 import app.db.models  # noqa: F401
-from app.core.exceptions import AlreadyExistsError, NotFoundError
+from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.base import Base
 from app.db.locks import LockScope, hold_name
@@ -104,18 +104,6 @@ def _as_uuid(value: str) -> UUID | None:
         return None
 
 
-def _same_tenant(target: KnowledgeBase, kb: KnowledgeBase) -> bool:
-    """Whether a sync writing under `target` writes into `kb`'s share of the name.
-
-    Bases of one organization share its tenant, and with it the rows. Bases with
-    no tenant - an app-scoped one, and a personal one outside any organization -
-    are each someone else's, so only the base itself is the same.
-    """
-    if kb.vector_tenant is None:
-        return target.id == kb.id
-    return target.vector_tenant == kb.vector_tenant
-
-
 def _feeds(source: SyncSource, kb: KnowledgeBase, candidates: Sequence[KnowledgeBase]) -> bool:
     """Whether a sync source feeds this knowledge base - the one rule for sources.
 
@@ -123,14 +111,15 @@ def _feeds(source: SyncSource, kb: KnowledgeBase, candidates: Sequence[Knowledge
     so it feeds the base its sync writes under: its organization's base by that
     name, else an app-scoped one (`knowledge_base_repo.choose_for_collection`,
     the choice the sync itself makes). `candidates` are the bases claiming the
-    name, oldest first. Bases of one organization share its sources; a base with
-    no tenant (see :func:`_same_tenant`) reaches only the sources that resolve
-    to itself.
+    name, oldest first. Only that base: bases of one organization used to share
+    their sources because they shared their rows, and they no longer share rows
+    (#2537) - a second base of the name would list and run a source whose
+    documents it never holds.
     """
     if source.collection_name != kb.collection_name:
         return False
     target = knowledge_base_repo.choose_for_collection(candidates, source.organization_id)
-    return target is not None and _same_tenant(target, kb)
+    return target is not None and target.id == kb.id
 
 
 def _no_collection(name: str) -> NotFoundError:
@@ -385,6 +374,29 @@ class CollectionAccessService:
                 details={"kb_id": kb.id, "source_id": source_id},
             )
         return source
+
+    async def new_source_feeds(self, ctx: AuthContext, kb: KnowledgeBase) -> None:
+        """Refuse a sync source on a base its sync would not write into.
+
+        A source records an organization and a collection name, not a base, so
+        its sync writes into the base :func:`_feeds` resolves - the caller
+        organization's oldest base by the name, else an app-scoped one. A source
+        added to another same-named base would sync into that one, and would not
+        be listed under the base it was added to (#2537).
+
+        Raises:
+            BadRequestError: The sync would write into a different base.
+        """
+        candidates = await knowledge_base_repo.list_by_collection_name(self.db, kb.collection_name)
+        target = knowledge_base_repo.choose_for_collection(candidates, ctx.organization_id)
+        if target is None or target.id != kb.id:
+            raise BadRequestError(
+                message=(
+                    "A sync source here would sync into another knowledge base named "
+                    f"'{kb.collection_name}'. Add it to that knowledge base instead."
+                ),
+                details={"kb_id": str(kb.id), "collection": kb.collection_name},
+            )
 
     async def kb_sync_sources(self, ctx: AuthContext, kb: KnowledgeBase) -> list[SyncSource]:
         """The caller organization's sync sources feeding this knowledge base, newest first.

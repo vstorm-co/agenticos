@@ -160,6 +160,30 @@ class TestKnowledgeSearchGuards:
         service.retrieve.assert_awaited_once()
 
     @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_bound_base_is_searched_rather_than_its_name_resolved(self):
+        """An agent bound to a member's personal base must search it, not the
+        organization's base that shares its name and resolves first (#2537)."""
+        org, kb = uuid4(), uuid4()
+        bound = VectorScope(tenant=org, knowledge_base_id=kb)
+        service = MagicMock()
+        service.resolve_scope = AsyncMock(side_effect=AssertionError("must not resolve"))
+        service.retrieve = AsyncMock(return_value=[])
+        with patch(
+            "app.agents.capabilities.knowledge._search.get_retrieval_service",
+            return_value=service,
+        ):
+            await search_knowledge_base(
+                query="x",
+                kb_collection_names=["kb_a"],
+                kb_vector_scopes={"kb_a": bound},
+                organization_id=org,
+            )
+        assert service.retrieve.await_args.kwargs["scope"] == TenantScope(
+            organization_id=org, knowledge_base_id=kb
+        )
+
+    @pytest.mark.anyio
     async def test_several_collections_use_the_multi_path(self):
         service = MagicMock()
         service.resolve_scope = AsyncMock(return_value=MagicMock())

@@ -1,5 +1,5 @@
 ---
-source_sha: "dc6d25176855"
+source_sha: "d52e0c90a257"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -612,11 +612,15 @@ seine Zugangsdaten laufen lassen
 löst daher die eigene Konfiguration jeder Organisation auf, mit Rückfall auf
 eine app-weite Collection, aber nie auf die eines dritten Tenants.
 
-Innerhalb der
-Organisation geht ihre eigene Organisations-Basis der persönlichen Basis eines
-Mitglieds mit demselben Namen vor, und der Rückfall ist ausschließlich eine app-weite
-Basis: Eine persönliche Basis außerhalb jeder Organisation hat ebenfalls keine
-Organisation, gehört aber einer einzelnen Person ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+Der Rückfall ist ausschließlich eine app-weite Basis: Eine persönliche Basis
+außerhalb jeder Organisation hat ebenfalls keine Organisation, gehört aber einer
+einzelnen Person ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
+Eine Sync-Quelle hält eine Organisation und einen Collection-Namen fest, keine
+Wissensbasis, also schreibt ihr Sync in die Basis, die diese Auflösung wählt. Eine
+Quelle einer anderen Basis desselben Namens hinzuzufügen, wird mit 400
+abgelehnt, denn ihre Dokumente landeten in der anderen Basis, und die Quelle
+stünde nicht dort, wo sie hinzugefügt wurde.
 
 !!! warning "Ein Collection-Name ist ein Embedding-Raum"
 

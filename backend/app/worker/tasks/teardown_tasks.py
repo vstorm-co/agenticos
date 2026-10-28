@@ -171,9 +171,11 @@ async def cleanup_external_state(
 
     `restamps` are the personal bases an organization purge orphaned: each
     untags that org's rows for that base's own
-    surviving documents on a table the base still keeps alive, so its new
-    `vector_tenant=None` reaches them again rather than leaving them stranded behind
-    the `IS NULL` read scope (#1684). The base's surviving `parent_doc_id`s are
+    surviving documents on a table the base still keeps alive, and files them
+    under the base, so its new `vector_tenant=None` reaches them again rather than
+    leaving them stranded behind the `IS NULL` read scope (#1684) - and a
+    same-named app-scoped base, which reads the unfiled rows with no tenant, does
+    not (#2537). The base's surviving `parent_doc_id`s are
     resolved inside the store's one update statement, from `rag_documents` - so a
     document deleted before or concurrently with this run is no longer among them
     and its rows are left stamped (untagging them would un-delete it) rather than

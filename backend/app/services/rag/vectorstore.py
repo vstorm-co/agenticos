@@ -1,5 +1,6 @@
 import logging
 from abc import ABC, abstractmethod
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -465,9 +466,12 @@ def _vector_scope_clause(scope: VectorScope, *, prefix: str = "") -> tuple[str, 
     alone cannot tell an app-scoped base from a personal base outside any
     organization, nor an organization's base from a personal one in it, so a
     chunk filed under the base (`metadata->>'knowledge_base_id'`) matches, a
-    chunk filed under another base never does, and an unfiled one falls back to
-    the tenant rule only when the scope `takes_unfiled` - the rule
-    `rag_document_repo.in_collection_scope` applies to document rows.
+    chunk filed under another base never does, and an unfiled one matches only
+    when the scope `takes_unfiled` - the rule
+    `rag_document_repo.in_collection_scope` applies to document rows. The tenant
+    rule still holds for a filed chunk: a base's chunks carry its tenant, and a
+    chunk that does not - a document deleted before an organization purge
+    re-stamped the base's survivors - stays out rather than coming back.
 
     Built from literals alone; every value is bound, under `prefix` so a caller
     composing it with other conjuncts can keep the names apart.
@@ -480,13 +484,10 @@ def _vector_scope_clause(scope: VectorScope, *, prefix: str = "") -> tuple[str, 
     if scope.knowledge_base_id is None:
         return tenant_clause, params
     filed = f"(metadata->>'knowledge_base_id') = :{prefix}kb"
-    kb_params = {f"{prefix}kb": str(scope.knowledge_base_id)}
-    if not scope.takes_unfiled:
-        return filed, kb_params
-    return (
-        f"({filed} OR ((metadata->>'knowledge_base_id') IS NULL AND {tenant_clause}))",
-        {**params, **kb_params},
-    )
+    params[f"{prefix}kb"] = str(scope.knowledge_base_id)
+    if scope.takes_unfiled:
+        filed = f"({filed} OR (metadata->>'knowledge_base_id') IS NULL)"
+    return f"{tenant_clause} AND {filed}", params
 
 
 def _scope_conjuncts(scope: RetrievalScope) -> tuple[list[str], dict[str, Any]]:
@@ -748,16 +749,13 @@ class PgVectorStore(BaseVectorStore):
                 (VECTOR_SOURCE_PATH_INDEX_SUFFIX, "source_path"),
                 (VECTOR_FILENAME_INDEX_SUFFIX, "filename"),
                 (VECTOR_CONTENT_HASH_INDEX_SUFFIX, "content_hash"),
-                # The tenant key every row-level op scopes by (#1684), the base
-                # key it narrows that to (#2537), plus the FA-039 equality filter
-                # dimensions. Same hash-index shape and
+                # The tenant key every row-level op scopes by (#1684), plus the
+                # FA-039 equality filter dimensions. Same hash-index shape and
                 # reasoning as the lookup keys above: equality only, a value may
                 # be unbounded in length, and `0086_scope_rag_rows_by_org`
                 # backfills the collections created before `organization_id`
-                # existed, `0179_stamp_rag_rows_by_base` those created before
-                # `knowledge_base_id`.
+                # existed.
                 (VECTOR_ORG_INDEX_SUFFIX, "organization_id"),
-                (VECTOR_KB_INDEX_SUFFIX, "knowledge_base_id"),
                 (VECTOR_SOURCE_INDEX_SUFFIX, "source"),
                 (VECTOR_DOCTYPE_INDEX_SUFFIX, "document_type"),
                 (VECTOR_ORGUNIT_INDEX_SUFFIX, "organizational_unit"),
@@ -768,6 +766,18 @@ class PgVectorStore(BaseVectorStore):
                         f"ON {table} USING hash ((metadata->>'{key}'))"
                     )
                 )
+            # The base key the scope narrows to (#2537). A btree rather than a hash:
+            # the value is a UUID, so bounded, and one table usually holds a
+            # handful of bases - a hash bucket of one value grows an overflow
+            # chain every insert walks, where a btree deduplicates it. It also
+            # answers the `IS NULL` arm of an unfiled-chunk scope.
+            # `0179_stamp_rag_rows_by_base` builds it on collections that predate it.
+            await session.execute(
+                text(
+                    f"CREATE INDEX IF NOT EXISTS {table}{VECTOR_KB_INDEX_SUFFIX} "
+                    f"ON {table} ((metadata->>'knowledge_base_id'))"
+                )
+            )
             # The date dimension is a range, so a partial btree on the identical
             # safe expression the WHERE predicate uses, `WHERE` the result is
             # non-NULL - so the index build cannot raise on a bad legacy row
@@ -872,8 +882,8 @@ class PgVectorStore(BaseVectorStore):
         SQL `WHERE` (not a Python post-filter), so top-k is computed over already
         restricted rows. The tenant conjunct is mandatory for a `TenantScope`
         (`metadata->>'organization_id' = :scope_org`) or an `AppScope`
-        (`... IS NULL`), and absent only for the explicit unscoped maintenance
-        marker. `query_filter.organization_id` also scopes which tenant's
+        (`... IS NULL`), narrowed to the scope's knowledge base when it names one
+        (#2537), and absent only for the explicit unscoped maintenance marker. `query_filter.organization_id` also scopes which tenant's
         knowledge base the query embeds through, so a name shared across
         organizations does not embed on another tenant's key (#913).
         """
@@ -1002,6 +1012,12 @@ class PgVectorStore(BaseVectorStore):
     ) -> None:
         table = self._table(collection_name)
         sanitized = self._sanitize_id(document_id)
+        # The document is named by its own id, so its unfiled chunks - written
+        # before chunks recorded their base, or left unfiled by the upgrade - go
+        # with it even from a base that reads no unfiled chunks. Left behind, a
+        # personal base's document would stay readable through a same-named
+        # app-scoped base with nothing tracking it (#2537).
+        scope = replace(scope, takes_unfiled=True)
         # The scope conjunct is what stops one org deleting another's document
         # from the shared table (#1684): matching a `parent_doc_id` alone reaches
         # every tenant's rows under that id, which is how the replace path could

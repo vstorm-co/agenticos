@@ -326,21 +326,38 @@ class TestTheScopeClause:
         clause, params = _vector_scope_clause(SCOPE_A)
 
         assert clause == (
+            "(metadata->>'organization_id') = :org AND "
             "((metadata->>'knowledge_base_id') = :kb OR "
-            "((metadata->>'knowledge_base_id') IS NULL AND "
-            "(metadata->>'organization_id') = :org))"
+            "(metadata->>'knowledge_base_id') IS NULL)"
         )
         assert params == {"org": str(ORG_A), "kb": str(KB_A)}
 
     def test_a_base_that_takes_no_unfiled_chunks_reads_only_its_own(self):
         """A personal base outside any organization: an unfiled chunk with no
-        tenant is the app scope's, never the person's (#2537)."""
+        tenant is the app scope's, never the person's (#2537). The tenant rule
+        still applies, so a filed chunk still carrying a purged organization's
+        tag - a document deleted before the re-stamp - stays out."""
         scope = VectorScope(tenant=None, knowledge_base_id=KB_A, takes_unfiled=False)
 
         clause, params = _vector_scope_clause(scope)
 
-        assert clause == "(metadata->>'knowledge_base_id') = :kb"
+        assert clause == (
+            "(metadata->>'organization_id') IS NULL AND (metadata->>'knowledge_base_id') = :kb"
+        )
         assert params == {"kb": str(KB_A)}
+
+    async def test_a_delete_by_id_also_removes_the_documents_unfiled_chunks(self):
+        """Even from a base that reads no unfiled chunks: the document is named
+        by its own id, and its unfiled chunks left behind would be read through a
+        same-named app-scoped base with nothing tracking them (#2537)."""
+        execute = AsyncMock()
+        store = TestPgVectorStoreScopesEveryRowOp._store_over(execute)
+        scope = VectorScope(tenant=None, knowledge_base_id=KB_A, takes_unfiled=False)
+
+        await store.delete_document("kb", "doc-1", scope)
+
+        statement = str(execute.await_args.args[0])
+        assert "(metadata->>'knowledge_base_id') IS NULL" in statement
 
     def test_a_prefix_keeps_the_bound_names_apart(self):
         clause, params = _vector_scope_clause(SCOPE_A, prefix="scope_")

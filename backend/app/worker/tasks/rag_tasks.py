@@ -653,12 +653,12 @@ async def _run_sync(
                         # the filename fallback, and the row and the vector would
                         # now disagree about which file this is (#996).
                         source_path=source_path,
-                        # The origin only. Which tenant these chunks carry is not
-                        # decided here and never from the path: it is the
-                        # destination base's own `vector_tenant`, bound on the
+                        # The origin only. Which tenant and base these chunks carry
+                        # is not decided here and never from the path: it is the
+                        # destination base's own `vector_scope`, bound on the
                         # ingester above - an organization's id for an org or
                         # personal base, `None` for an app-scoped one, which
-                        # `AppScope` is what reads back (FA-039 R5, #1684).
+                        # `AppScope` is what reads back (FA-039 R5, #1684, #2537).
                         source=Source.LOCAL,
                         doc_date=iso_doc_date(stat_result.st_mtime),
                     )
@@ -1008,8 +1008,13 @@ async def _remove_unlisted(
             doc = await documents.release_claim(row_id, sync_source_id=source_id)
             if doc is None:
                 continue
+            # Under the base the row is filed under, not the ingester's: the base a
+            # sync resolves to can change - an app-scoped base created, a base
+            # deleted - and a delete under another base's scope matches none of
+            # this document's chunks while the row below is forgotten, leaving
+            # them searchable with nothing tracking them (#992, #2537).
             if doc.vector_document_id and not await ingester.remove_document(
-                collection_name, doc.vector_document_id
+                collection_name, doc.vector_document_id, await documents.vector_scope(doc)
             ):
                 unremoved += 1
                 continue
@@ -1080,6 +1085,11 @@ async def _reconcile_stale_rows(
                 tracked = await documents.tracked_vector_ids(
                     collection_name=collection_name, vector_document_ids=stored
                 )
+                # Only rows filed under the base this run writes for: `stored` was
+                # read in its scope, so a row filed under another base - the
+                # base the sync resolved to before one was created or deleted -
+                # is absent from it whether or not its vectors are there, and
+                # forgetting it would strand them (#2537).
                 gone = [
                     str(row.id)
                     for row in await documents.settled_at(
@@ -1087,7 +1097,9 @@ async def _reconcile_stale_rows(
                         collection_name=collection_name,
                         source_path=source_path,
                     )
-                    if row.vector_document_id and row.vector_document_id not in stored
+                    if row.vector_document_id
+                    and row.vector_document_id not in stored
+                    and row.knowledge_base_id == ingester.scope.knowledge_base_id
                 ]
             cleared = True
             for vector_document_id in sorted(stored - tracked):

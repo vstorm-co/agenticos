@@ -554,11 +554,14 @@ running this organization's text through their credential
 therefore resolves each organization's own configuration, falling back to an
 app-scoped collection but never to a third tenant's.
 
-Within the organization its
-own organization base comes before a member's personal base of the same name, and
-the fallback is an app-scoped base only: a personal base outside any organization
-has no organization either, but it is one person's
+The fallback is an app-scoped base only: a personal base outside any
+organization has no organization either, but it is one person's
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
+A sync source records an organization and a collection name, not a knowledge
+base, so its sync writes into the base that resolution picks. Adding a source to
+another base of the same name is refused with 400, since its documents would
+land in the other base and the source would not be listed where it was added.
 
 !!! warning "One collection name is one embedding space"
 

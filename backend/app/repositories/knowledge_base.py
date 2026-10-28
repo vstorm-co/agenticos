@@ -247,8 +247,9 @@ async def list_personal_carrying_org(
     left to the `organization_id` `ON DELETE SET NULL`, which flips their
     `vector_tenant` to `None` while their rows stay stamped with the now-deleted
     organization - stranding them behind the read side's `IS NULL` scope (#1684).
-    The purge re-stamps their rows to untagged so they match again; this is how it
-    finds them, read before the org row (and the `SET NULL`) goes.
+    The purge re-stamps their rows to untagged, filed under the base, so they match
+    again (#2537); this is how it finds them, read before the org row (and the
+    `SET NULL`) goes.
     """
     result = await db.execute(
         select(KnowledgeBase).where(
@@ -325,10 +326,9 @@ async def get_for_collection(
     per-collection resolution reaches for: the column is not unique, so picking
     whichever row the database orders first resolves another tenant's embedding
     config and unseals their vault key when two organizations share a name (#913).
-    This narrows to the caller's own organization first - its organization-scoped
-    base before a member's personal one - then to an `app`-scoped row (owned by no
-    organization, deployment-wide by design), and never to a third organization's
-    row, nor to a personal base outside any organization (#2537).
+    This narrows to the caller's own organization first, then to an `app`-scoped
+    row (owned by no organization, deployment-wide by design), and never to a third
+    organization's row, nor to a personal base outside any organization (#2537).
 
     `organization_id=None` is a caller with no organization in hand - a
     deployment-level operation, a local-directory sync - and keeps the first-match
@@ -354,18 +354,12 @@ def choose_for_collection(
     so a caller resolving many rows against one name - a base's sync sources -
     loads the candidates once and decides each row the way the sync does.
 
-    Within the organization, its organization-scoped base wins over a member's
-    personal base of the same name, whichever is older: the vector store keeps
-    the two bases' chunks apart (#2537), so the choice decides whose chunks an
-    agent of the organization searches and which base an organization's sync
-    writes into, and a person's base is not the organization's. The fallback is
-    an app-scoped base only. "No organization" is not enough: a personal base
-    outside any organization has none either, and resolving to it would embed and
-    search through one person's base for every organization without its own.
+    The fallback is an app-scoped base only. "No organization" is not enough: a
+    personal base outside any organization has none either, and resolving to it
+    would sync into and embed through one person's base for every organization
+    without a base of its own (#2537).
     """
-    if organization_id is None:
-        return next(iter(candidates), None)
-    own = [kb for kb in candidates if kb.organization_id == organization_id]
-    if own:
-        return next((kb for kb in own if kb.scope == KBScope.ORG.value), own[0])
+    for kb in candidates:
+        if organization_id is None or kb.organization_id == organization_id:
+            return kb
     return next((kb for kb in candidates if kb.scope == KBScope.APP.value), None)

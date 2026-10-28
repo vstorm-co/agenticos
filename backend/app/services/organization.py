@@ -702,8 +702,9 @@ class OrganizationService:
         `ck_knowledge_bases_org_scope_has_org` (#9). Personal collections that
         merely carry this org's id are left to the `SET NULL` - but that flips
         their `vector_tenant` to `None` while their rows stay stamped with the
-        deleted org, so the deferred cleanup re-stamps those rows to untagged,
-        matching the `None` read scope again rather than stranding them (#1684).
+        deleted org, so the deferred cleanup re-stamps those rows to untagged and
+        filed under their base, matching the `None` read scope again rather than
+        stranding them (#1684, #2537).
 
         Two locks, in one order. Each doomed collection's `COLLECTION_TEARDOWN`
         lock is taken first, from a snapshot read without the row lock, and only
@@ -769,8 +770,8 @@ class OrganizationService:
         # A personal base carrying this org's id is left standing by the `SET NULL`,
         # which flips its `vector_tenant` to `None` while its rows stay stamped with
         # the org - stranding them behind the read side's `IS NULL` scope. Each is
-        # handed to the deferred cleanup, which untags that base's own rows so they
-        # match again. Identified here, under the org lock, before the `SET NULL`:
+        # handed to the deferred cleanup, which untags that base's own rows - and
+        # files them under it (#2537) - so they match again. Identified here, under the org lock, before the `SET NULL`:
         # the cleanup re-stamps by the base's own `parent_doc_id`s (resolved at run
         # time), so it touches only its own documents even on a table it shares with
         # this org's own torn-down collection, and never another tenant's rows (#1684).

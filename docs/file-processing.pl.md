@@ -1,5 +1,5 @@
 ---
-source_sha: "dc6d25176855"
+source_sha: "d52e0c90a257"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -581,11 +581,15 @@ poświadczenie
 rozwiązuje więc własną konfigurację każdej organizacji, spadając na kolekcję
 o zasięgu app, ale nigdy na kolekcję trzeciego tenanta.
 
-W obrębie organizacji jej
-własna baza organizacyjna ma pierwszeństwo przed bazą osobistą członka o tej samej
-nazwie, a jedynym rozwiązaniem zapasowym jest baza o zasięgu app: baza osobista poza
+Rozwiązaniem zapasowym jest wyłącznie baza o zasięgu app: baza osobista poza
 jakąkolwiek organizacją też nie ma organizacji, ale należy do jednej osoby
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
+Źródło synchronizacji zapisuje organizację i nazwę kolekcji, a nie bazę wiedzy,
+więc jego synchronizacja pisze do bazy, którą wybiera to rozwiązywanie. Dodanie
+źródła do innej bazy o tej samej nazwie jest odrzucane z kodem 400, bo jego
+dokumenty trafiłyby do tamtej bazy, a źródło nie byłoby widoczne tam, gdzie je
+dodano.
 
 !!! warning "Jedna nazwa kolekcji to jedna przestrzeń embeddingów"
 

@@ -26,15 +26,23 @@ Two things are versioned separately from this file and worth knowing about:
   or an organization's base and a member's personal base in it, no longer return,
   count, replace or delete each other's chunks: every chunk records the knowledge
   base it was ingested for, and every vector read and write is confined to the
-  base. Resolving a collection name for an organization now prefers its own
-  organization base over a member's personal one and falls back only to an
-  app-scoped base, never to a personal base outside any organization (#2537).
+  base. An agent searches the bases it is bound to rather than whichever base of
+  that name resolves first. Resolving a collection name for an organization with
+  no base of its own falls back only to an app-scoped base, never to a personal
+  base outside any organization, and a sync source can only be added to the base
+  its sync writes into (#2537).
   **Upgrade action:** migration `0179_stamp_rag_rows_by_base` files existing
-  chunks under their knowledge base from `rag_documents` and adds an index to
-  every `rag_<collection>` table. It rewrites each tracked chunk once, so it takes
-  longer on large collections. Chunks it cannot attribute to one base stay matched
-  by their tenant, as before; re-ingest a personal base outside any organization
-  if some of its older documents no longer appear in search.
+  chunks under their knowledge base from `rag_documents` and indexes the new key
+  on every `rag_<collection>` table. It rewrites every tracked chunk once, in one
+  transaction that holds each table's rows until it commits, so on large
+  collections plan a maintenance window, keep free disk for about the size of the
+  largest `rag_<collection>` table, and run `VACUUM ANALYZE` on those tables
+  afterwards. A chunk it cannot attribute to exactly one base - untracked, or
+  tracked under no base or under several - stays matched by its tenant as
+  before, so a same-named app-scoped base and personal base outside any
+  organization still share those chunks. `SELECT count(*) FROM rag_<collection>
+  WHERE metadata->>'knowledge_base_id' IS NULL` finds them; delete the documents
+  they belong to and upload them again.
 
 ## [1.27.0] - 2026-10-27
 

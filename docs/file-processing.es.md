@@ -1,5 +1,5 @@
 ---
-source_sha: "dc6d25176855"
+source_sha: "d52e0c90a257"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -588,10 +588,15 @@ organización pasa por ella
 resuelve así la configuración de cada una, cayendo a una colección de ámbito app,
 nunca a la de un tercero.
 
-Dentro de la organización, su propia base de organización va
-antes que la base personal de un miembro con el mismo nombre, y el recurso es solo una
-base de ámbito app: una base personal fuera de toda organización tampoco tiene
-organización, pero es de una sola persona ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+El recurso es solo una base de ámbito app: una base personal fuera de toda
+organización tampoco tiene organización, pero es de una sola persona
+([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
+Una fuente de sincronización registra una organización y un nombre de colección,
+no una base de conocimiento, así que su sincronización escribe en la base que
+elige esa resolución. Añadir una fuente a otra base del mismo nombre se rechaza
+con 400, porque sus documentos acabarían en la otra base y la fuente no
+aparecería donde se añadió.
 
 !!! warning "Un nombre de colección es un espacio de embeddings"
 

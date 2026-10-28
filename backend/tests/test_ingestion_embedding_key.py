@@ -54,6 +54,7 @@ def _resolved(key_source: EmbeddingKeySource, *, api_key: str = "") -> ResolvedE
         key_source=key_source,
         base_url=_OPENROUTER.base_url,
         provider=_OPENROUTER.provider,
+        vector_scope=VectorScope(tenant=None),
     )
 
 

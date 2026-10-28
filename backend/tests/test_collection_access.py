@@ -814,6 +814,34 @@ class TestResolvingASyncSourceInAKnowledgeBase:
         assert refusal.value.message == "Sync source not found"
 
 
+class TestAddingASyncSourceToAKnowledgeBase:
+    """`new_source_feeds`: a source names a collection, not a base, so it may only
+    be added to the base its sync writes into (#2537)."""
+
+    async def test_the_base_its_sync_writes_into_takes_it(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        kb = _kb("handbook")
+        rows.collections = [kb]
+
+        await service.new_source_feeds(_ctx(), kb)
+
+    @pytest.mark.security
+    async def test_a_newer_same_named_base_is_refused(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        """Bases of one organization no longer share rows, so a source added to
+        the newer base would sync into the older one and not be listed here."""
+        older = _kb("handbook")
+        mine = _kb("handbook", scope=KBScope.PERSONAL, owner_user_id=CALLER)
+        rows.collections = [older, mine]
+
+        with pytest.raises(BadRequestError) as refusal:
+            await service.new_source_feeds(_ctx(), mine)
+
+        assert refusal.value.details == {"kb_id": str(mine.id), "collection": "handbook"}
+
+
 class TestListingAKnowledgeBasesSyncSources:
     """`kb_sync_sources`: the listing applies the rule `kb_sync_source` does."""
 

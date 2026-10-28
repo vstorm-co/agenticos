@@ -460,6 +460,11 @@ class TestPrepare:
             await service.prepare(ctx, agent.id)
 
         assert build.call_args.kwargs["resources"]["kb_collection_names"] == ["kb_live"]
+        # The bound base itself travels beside its name, so the search reads that
+        # base and never a same-named one the name resolves to first (#2537).
+        assert build.call_args.kwargs["resources"]["kb_vector_scopes"] == {
+            "kb_live": collections[live_id].vector_scope
+        }
 
     @pytest.mark.anyio
     async def test_preparing_a_run_resolves_every_collection_in_one_query(self):

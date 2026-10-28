@@ -170,6 +170,8 @@ class TenantScope(BaseModel):
 
     `organization_id` is non-null by construction — the store ANDs it into
     every query, and there is no default and no fallback to an unscoped search.
+    `knowledge_base_id` narrows that to one base's chunks (#2537), with the
+    unfiled ones of the tenant when `takes_unfiled`.
     `authorized_document_ids` is the FA-037 per-document authorization slot:
     `None` means the slot is unset (no per-document narrowing), while a
     **populated-but-empty** set means match nothing (empty-denies-all), so a
@@ -207,9 +209,14 @@ class AppScope(BaseModel):
     equality, so it narrows exactly as `TenantScope` does and reads no other
     organization's rows.
 
+    It is also the shape of a personal base outside any organization, which has
+    no tenant either: `knowledge_base_id` keeps the two apart, and such a base has
+    `takes_unfiled` off, since the unfiled rows with no tenant are the app
+    scope's (#2537).
+
     Unlike `UnscopedScope`, this is reachable by an ordinary caller - whenever the
     knowledge base it resolved to (through `CollectionAccessService`, or the
-    store's own `resolve_scope`) is app-scoped - not only the named maintenance
+    store's own `resolve_scope`) has no tenant - not only the named maintenance
     paths.
     """
 

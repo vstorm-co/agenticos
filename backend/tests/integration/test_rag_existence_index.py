@@ -104,14 +104,15 @@ async def test_ensure_collection_builds_an_index_per_lookup_key(engine: AsyncEng
         VECTOR_SOURCE_PATH_INDEX_SUFFIX,
         VECTOR_FILENAME_INDEX_SUFFIX,
         VECTOR_CONTENT_HASH_INDEX_SUFFIX,
-        # The tenant key every row-level op scopes by (#1684), and the base key
-        # it narrows to (#2537).
+        # The tenant key every row-level op scopes by (#1684).
         VECTOR_ORG_INDEX_SUFFIX,
-        VECTOR_KB_INDEX_SUFFIX,
     ):
         name = f"{TABLE}{suffix}"
         assert name in defs
         assert "USING hash" in defs[name]
+    # The base key the scope narrows to (#2537): a bounded UUID, few distinct
+    # values per table, so a btree - which a hash bucket of one value is not.
+    assert "USING btree" in defs[f"{TABLE}{VECTOR_KB_INDEX_SUFFIX}"]
 
 
 async def test_source_path_wins_and_returns_that_documents_own_hash(engine: AsyncEngine) -> None:

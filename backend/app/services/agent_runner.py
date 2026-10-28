@@ -228,6 +228,7 @@ from app.db.models.project import Project
 from app.db.models.run_manifest import RunManifest
 from app.db.models.skill import Skill
 from app.db.session import get_db_context, get_worker_db_context
+from app.db.vector_tables import VectorScope
 from app.repositories import (
     agent_environment_repo,
     agent_exposure_repo,
@@ -2294,7 +2295,12 @@ def _dynamic_builder(
             ),
             model=profiles[model],
             agent_id=delegation.agent_id,
-            resources={"kb_collection_names": [], "skills": [], CONTEXT_FILES_RESOURCE: []},
+            resources={
+                "kb_collection_names": [],
+                "kb_vector_scopes": {},
+                "skills": [],
+                CONTEXT_FILES_RESOURCE: [],
+            },
             secrets={},
             extra_toolsets=[],
         )()
@@ -2577,14 +2583,18 @@ class AgentRunnerService:
         owner = await self._run_owner_context(ctx, existing_run)
         return None if owner is None else await mint_for_run(owner)
 
-    async def _collection_names(self, spec: AgentSpec, ctx: AuthContext) -> list[str]:
-        """Vector-store collection names for the agent's bound collections.
+    async def _bound_collections(self, spec: AgentSpec, ctx: AuthContext) -> dict[str, Any]:
+        """The agent's bound collections, as the `resources` entries that carry them.
 
         Resolved server-side and passed through deps: the model asks *what* to
-        search, never *where*.
+        search, never *where*. `kb_collection_names` are the vector-store names;
+        `kb_vector_scopes` the bound base behind each, because a name is not
+        unique and resolving it again would search whichever same-named base of
+        the organization comes first rather than the one bound here (#2537).
         """
         found = await knowledge_base_repo.get_by_ids(self.db, spec.collection_ids)
         names: list[str] = []
+        scopes: dict[str, VectorScope] = {}
         for collection_id in spec.collection_ids:
             collection = found.get(collection_id)
             if collection is None or collection.organization_id != ctx.organization_id:
@@ -2597,7 +2607,8 @@ class AgentRunnerService:
                 )
                 continue
             names.append(collection.collection_name)
-        return names
+            scopes[collection.collection_name] = collection.vector_scope
+        return {"kb_collection_names": names, "kb_vector_scopes": scopes}
 
     async def _recorded_conversation_state(self, conversation_id: UUID | None) -> _RecordedState:
         """What an earlier turn of this thread recorded, in one read.
@@ -3009,7 +3020,7 @@ class AgentRunnerService:
         # Everything a capability needs but must not fetch itself. Resolved once,
         # server-side, so the model cannot influence what an agent reaches.
         resources: dict[str, Any] = {
-            "kb_collection_names": await self._collection_names(spec, ctx),
+            **await self._bound_collections(spec, ctx),
             "skills": await self.skills.resolve_for_agent(ctx, spec.skill_ids),
             CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(
                 ctx, spec.context_ids, config=context_config(spec.capabilities)
@@ -3903,6 +3914,7 @@ class AgentRunnerService:
             preferred_mode=specialist.preferred_mode,
             workspace=_delegate_workspace(spec, shared),
             collection_names=tuple(own_resources["kb_collection_names"]),
+            collection_scopes=tuple(own_resources["kb_vector_scopes"].items()),
         )
 
     async def _resolve_delegate(
@@ -4106,6 +4118,7 @@ class AgentRunnerService:
             # replaces those deps with a clone of the parent's - see
             # `ResolvedSubagent.collection_names`.
             collection_names=tuple(delegate_resources["kb_collection_names"]),
+            collection_scopes=tuple(delegate_resources["kb_vector_scopes"].items()),
         )
 
     async def _delegate_resources(
@@ -4142,7 +4155,7 @@ class AgentRunnerService:
         delegate reaches a durable workspace at all.
         """
         resources: dict[str, Any] = {
-            "kb_collection_names": await self._collection_names(spec, ctx),
+            **await self._bound_collections(spec, ctx),
             "skills": await self.skills.resolve_for_agent(ctx, spec.skill_ids),
             CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(
                 ctx, spec.context_ids, config=context_config(spec.capabilities)

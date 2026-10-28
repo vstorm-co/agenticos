@@ -223,6 +223,54 @@ class TestWhatTheUploadPathRecords:
             attempt=1,
         )
 
+    @pytest.mark.security
+    async def test_an_upload_is_written_under_the_base_it_is_filed_under(self):
+        """The ingester is bound to the tracked row's own base - its tenant and
+        the base itself - so the chunks are filed under it and no same-named base
+        of the same tenant reads them (#2537)."""
+        kb_id = uuid.uuid4()
+        scope = VectorScope(tenant=uuid.uuid4(), knowledge_base_id=kb_id)
+        record = MagicMock(
+            organization_id=uuid.uuid4(), ingestion_config={}, knowledge_base_id=kb_id
+        )
+        documents = MagicMock(
+            get_document=AsyncMock(return_value=record), complete_ingestion=AsyncMock()
+        )
+        bound: list[object] = []
+
+        @asynccontextmanager
+        async def _worker_db():
+            yield MagicMock()
+
+        @asynccontextmanager
+        async def _pipeline(**kwargs: object) -> AsyncIterator[MagicMock]:
+            bound.append(kwargs["scope"])
+            yield MagicMock(
+                ingest_file=AsyncMock(
+                    return_value=MagicMock(
+                        status=IngestionStatus.DONE,
+                        document_id="vector-doc",
+                        chunk_count=1,
+                        replaced_document_id=None,
+                    )
+                )
+            )
+
+        with (
+            patch("app.worker.tasks.rag_tasks.get_worker_db_context", _worker_db),
+            patch("app.services.rag_document.RAGDocumentService", return_value=documents),
+            patch("app.worker.tasks.rag_tasks.assert_organization_within_budget", new=AsyncMock()),
+            patch(
+                "app.worker.tasks.rag_tasks.knowledge_base_repo.get_by_id",
+                new=AsyncMock(return_value=MagicMock(vector_scope=scope)),
+            ),
+            patch("app.worker.tasks.rag_tasks._ingestion_service", new=_pipeline),
+            patch("app.worker.tasks.rag_tasks._record_embedding_spend", new=AsyncMock()),
+        ):
+            await _run_ingestion(str(uuid.uuid4()), "docs", "queued/a.md", "a.md", False, 1)
+
+        assert bound == [scope]
+
     @pytest.mark.parametrize("name", ["chunk_count", "replaced_document_id", "attempt"])
     def test_recording_an_ingest_cannot_omit_what_it_must_report(self, name):
         """The signature is the guard. Four call sites took a `chunk_count=0`
