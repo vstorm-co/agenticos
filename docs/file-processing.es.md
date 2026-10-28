@@ -1,5 +1,5 @@
 ---
-source_sha: "586980bd59b8"
+source_sha: "38e525cbb635"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -142,15 +142,19 @@ abre desde `uploads/` si tiene workspace.
 ligado al mensaje con el que llegó antes de que empiece el run, así que no se puede
 adjuntar de nuevo. Si el run que respondía a ese mensaje terminó sin completarse
 — con un fallo, cancelado, detenido por un presupuesto, un guardrail o el guardián
-de bucles —, el siguiente turno del mismo agente en esa conversación vuelve a
-escribir el archivo en `uploads/` (con su texto extraído, donde el workspace no
-puede leer el original) antes de usar el workspace por primera vez: enseguida en un
-workspace almacenado, en el primer uso en un sandbox. Solo se reponen los archivos
-de la propia persona, solo de los turnos de ese agente desde el último que completó,
-como mucho los 50 más recientes, y al run se le indica que liste `uploads/` antes de
-decir que falta un archivo. Un archivo eliminado después de un turno completado
-sigue eliminado, y un prompt cuyo run nunca se abrió no pertenece a ningún agente,
-así que sus archivos no se reponen.
+de bucles —, el siguiente turno del mismo agente para esa persona en esa
+conversación vuelve a escribir el archivo en `uploads/` (con su texto extraído,
+donde el workspace no puede leer el original) antes de usar el workspace por
+primera vez: enseguida en un workspace almacenado, en el primer uso en un sandbox.
+Al run se le indica que liste `uploads/` antes de decir que falta un archivo.
+
+Solo se reponen los archivos de la propia persona, solo de los turnos interrumpidos
+de ese agente, como mucho los 50 más recientes, y solo hasta que ese agente complete
+para la misma persona un turno que empezó después de que terminara el interrumpido.
+Un archivo eliminado después sigue eliminado. Algunos archivos no se reponen: los de
+un prompt cuyo run nunca se abrió, que no pertenece a ningún agente; los de un turno
+ejecutado con una clave de API o para un visitante del widget; y los cuyo turno
+siguiente se completó sin usar nunca su sandbox.
 
 **El texto extraído lo acompaña solo cuando nada puede leer el original.** Antes
 se escribía un `.txt` del parseo junto a cada PDF, `.docx` y hoja de cálculo,

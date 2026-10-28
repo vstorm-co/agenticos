@@ -587,10 +587,9 @@ class AttachmentRouter:
                 data = await get_file_storage().load(chat_file.storage_path)
                 await workspace.write_bytes(path, data)
                 await self._write_extracted_text(workspace, chat_file, path)
-            except Exception as refused:
-                logger.info(
-                    "attachment_not_restored",
-                    extra={"file_id": str(chat_file.id), "reason": refused.__class__.__name__},
+            except Exception:
+                logger.warning(
+                    "attachment_not_restored", extra={"file_id": str(chat_file.id)}, exc_info=True
                 )
 
     async def _sibling_present(
@@ -784,8 +783,8 @@ async def restore_earlier_attachments(
         for file_id, path in earlier.paths.items():
             if not await workspace.exists(path):
                 missing.append(file_id)
-    except Exception as unreachable:
-        logger.info("attachments_not_checked", extra={"reason": unreachable.__class__.__name__})
+    except Exception:
+        logger.warning("attachments_not_checked", exc_info=True)
         return
     if not missing:
         return

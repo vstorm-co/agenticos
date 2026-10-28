@@ -1,5 +1,5 @@
 ---
-source_sha: "586980bd59b8"
+source_sha: "38e525cbb635"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -146,16 +146,20 @@ hat.
 wird vor dem Start des Runs an die Nachricht gebunden, mit der sie kam, und kann
 deshalb nicht erneut angehängt werden. Endete der Run zu dieser Nachricht, ohne
 abzuschließen — mit einem Fehler, abgebrochen, gestoppt durch ein Budget, eine
-Guardrail oder den Schleifenwächter —, schreibt der nächste Zug desselben Agenten in
-dieser Unterhaltung die Datei zurück nach `uploads/` (mit ihrem extrahierten Text,
-wo der Workspace das Original nicht lesen kann), bevor er den Workspace zum ersten
-Mal nutzt: sofort bei einem gespeicherten Workspace, beim ersten Zugriff bei einer
-Sandbox. Zurückgelegt werden nur die eigenen Dateien der Person, nur aus Zügen
-dieses Agenten seit seinem letzten abgeschlossenen, höchstens die 50 neuesten, und
-der Run wird angewiesen, `uploads/` aufzulisten, bevor er sagt, dass eine Datei
-fehlt. Eine nach einem abgeschlossenen Zug entfernte Datei bleibt entfernt, und ein
-Prompt, dessen Run nie geöffnet wurde, gehört keinem Agenten, also kommen seine
-Dateien nicht zurück.
+Guardrail oder den Schleifenwächter —, schreibt der nächste Zug desselben Agenten
+für diese Person in dieser Unterhaltung die Datei zurück nach `uploads/` (mit ihrem
+extrahierten Text, wo der Workspace das Original nicht lesen kann), bevor er den
+Workspace zum ersten Mal nutzt: sofort bei einem gespeicherten Workspace, beim
+ersten Zugriff bei einer Sandbox. Der Run wird angewiesen, `uploads/` aufzulisten,
+bevor er sagt, dass eine Datei fehlt.
+
+Zurückgelegt werden nur die eigenen Dateien der Person, nur aus abgebrochenen Zügen
+dieses Agenten, höchstens die 50 neuesten, und nur, bis dieser Agent für dieselbe
+Person einen Zug abschließt, der nach dem Ende des abgebrochenen begann. Eine danach
+entfernte Datei bleibt entfernt. Manche Dateien kommen nicht zurück: die eines
+Prompts, dessen Run nie geöffnet wurde und der keinem Agenten gehört; Dateien eines
+Zugs mit einem API-Schlüssel oder für einen Widget-Besucher; und Dateien, deren
+nächster Zug abgeschlossen wurde, ohne die Sandbox je zu nutzen.
 
 **Der extrahierte Text kommt nur dort mit, wo nichts das Original lesen kann.**
 Eine `.txt` des Parsens wurde früher neben jedes PDF, jede `.docx` und jede

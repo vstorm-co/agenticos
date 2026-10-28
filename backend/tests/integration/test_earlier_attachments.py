@@ -100,9 +100,16 @@ class _Thread:
         self.conversation = conversation
         self.turns = 0
 
-    async def turn(self, author: User, agent: Agent, status: RunStatus) -> Message:
-        """A prompt and the run that answered it, linked the way the chat links them."""
+    async def turn(
+        self, author: User, agent: Agent, status: RunStatus, *, ended_after: int = 0
+    ) -> Message:
+        """A prompt and the run that answered it, linked the way the chat links them.
+
+        `ended_after` is how many minutes the run went on for, so a later turn can
+        start before it ended.
+        """
         self.turns += 1
+        started = _START + timedelta(minutes=self.turns)
         run = AgentRun(
             id=uuid.uuid4(),
             organization_id=self.conversation.organization_id,
@@ -110,7 +117,8 @@ class _Thread:
             user_id=author.id,
             conversation_id=self.conversation.id,
             status=status.value,
-            created_at=_START + timedelta(minutes=self.turns),
+            created_at=started,
+            ended_at=started + timedelta(minutes=ended_after, seconds=30),
         )
         self.db.add(run)
         await self.db.flush()
@@ -268,6 +276,54 @@ class TestWhatATurnMayPutBack:
 
         assert await _left(db, world.thread, world.person, world.agent) == []
         assert await _left(db, world.thread, world.person, other) == ["report.csv"]
+
+    async def test_another_persons_finished_turn_closes_nothing(self, db, world) -> None:
+        """It never put this person's files back, so it is not their chance gone."""
+        colleague = await _member(db)
+        failed = await world.thread.turn(world.person, world.agent, RunStatus.FAILED)
+        await _attached(db, world.person, failed)
+        await world.thread.turn(colleague, world.agent, RunStatus.COMPLETED)
+
+        assert await _left(db, world.thread, world.person, world.agent) == ["report.csv"]
+
+    async def test_a_turn_already_running_when_this_one_stopped_closes_nothing(
+        self, db, world
+    ) -> None:
+        """It looked for interrupted turns while this one was still running."""
+        failed = await world.thread.turn(
+            world.person, world.agent, RunStatus.FAILED, ended_after=10
+        )
+        await _attached(db, world.person, failed)
+        await world.thread.turn(world.person, world.agent, RunStatus.COMPLETED)
+
+        assert await _left(db, world.thread, world.person, world.agent) == ["report.csv"]
+
+    async def test_an_id_from_elsewhere_is_not_read_by_id(self, db, world) -> None:
+        """The second read repeats every condition rather than trusting the ids it is
+        handed - a file of another agent, person or organization stays out."""
+        stranger = await _member(db)
+        other_org = await _organization(db)
+        their_thread = _Thread(db, await _conversation(db, stranger, other_org))
+        theirs = await _attached(
+            db,
+            stranger,
+            await their_thread.turn(stranger, await _agent(db, other_org), RunStatus.FAILED),
+        )
+        other_agent = await _agent(db, world.organization)
+        mine_elsewhere = await _attached(
+            db, world.person, await world.thread.turn(world.person, other_agent, RunStatus.FAILED)
+        )
+
+        rows = await chat_file_repo.get_many_left_by_interrupted_turns(
+            db,
+            [theirs.id, mine_elsewhere.id],
+            conversation_id=world.thread.conversation.id,
+            organization_id=world.organization.id,
+            user_id=world.person.id,
+            agent_id=world.agent.id,
+        )
+
+        assert rows == []
 
     async def test_another_members_file_on_a_shared_thread_stays_theirs(self, db, world) -> None:
         colleague = await _member(db)

@@ -23,9 +23,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 - A file attached to a chat turn that stopped before completing (failed,
   cancelled or stopped by a limit) is now written back to `uploads/` by the same
-  agent's next turn in that conversation, instead of staying missing until a new
-  conversation and upload. Only the person's own files from that agent's turns
-  since its last completed one are restored.
+  agent's next turn for that person in that conversation, instead of staying
+  missing until a new conversation and upload. Only the person's own files are
+  restored, until that agent completes a later turn for them.
 
 ## [1.27.0] - 2026-10-27
 

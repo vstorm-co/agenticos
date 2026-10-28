@@ -2036,7 +2036,7 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
                 "user_id": ctx.user_id,
                 "agent_id": agent.id,
             }
-        return prepared, build.call_args.args[0].instructions, prepared_only, restored
+        return prepared, build.call_args.args[0].instructions, prepared_only, restored, find
 
     @pytest.mark.anyio
     async def test_a_sandbox_puts_them_back_on_first_use_before_its_snapshot(self):
@@ -2045,7 +2045,7 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
         as something this turn made."""
         sandbox = _sandbox(StateBackend())
 
-        prepared, instructions, while_preparing, restored = await self._prepare(
+        prepared, instructions, while_preparing, restored, _ = await self._prepare(
             sandbox, earlier=MagicMock()
         )
 
@@ -2065,7 +2065,7 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
             row_id=None,
         )
 
-        prepared, instructions, while_preparing, _ = await self._prepare(
+        prepared, instructions, while_preparing, _, _ = await self._prepare(
             stored, earlier=MagicMock()
         )
 
@@ -2076,7 +2076,9 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
 
     @pytest.mark.anyio
     async def test_a_thread_without_any_is_told_nothing(self):
-        _, instructions, _, restored = await self._prepare(_sandbox(StateBackend()), earlier=None)
+        _, instructions, _, restored, _ = await self._prepare(
+            _sandbox(StateBackend()), earlier=None
+        )
 
         assert restored == []
         assert "stopped before it finished" not in instructions
@@ -2087,17 +2089,19 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
         [
             replace(_ctx(), api_key_id=uuid.uuid4()),
             replace(_ctx(), subject_is_publisher_fallback=True),
+            replace(_ctx(), user_id=None),
         ],
-        ids=["api-key", "publisher-for-a-visitor"],
+        ids=["api-key", "publisher-for-a-visitor", "nobody-signed-in"],
     )
     async def test_a_caller_who_did_not_attach_the_files_puts_nothing_back(self, ctx: AuthContext):
         """A key's holder, or a publisher standing in for a visitor, is not the
         person whose attachments these are - the workspace identity refuses both
         subjects for the same reason (#2027)."""
-        _, instructions, _, restored = await self._prepare(
+        _, instructions, _, restored, find = await self._prepare(
             _sandbox(StateBackend()), earlier=MagicMock(), ctx=ctx
         )
 
+        find.assert_not_awaited()
         assert restored == []
         assert "stopped before it finished" not in instructions
 

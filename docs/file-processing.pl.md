@@ -1,5 +1,5 @@
 ---
-source_sha: "586980bd59b8"
+source_sha: "38e525cbb635"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -139,14 +139,18 @@ agent, który musi znów na niego spojrzeć, prosi o niego albo otwiera go z
 wiadomości, z którą przyszedł, zanim run się zacznie, więc nie da się go załączyć
 ponownie. Jeśli run odpowiadający na tę wiadomość skończył się bez ukończenia —
 błędem, anulowaniem, zatrzymaniem przez budżet, guardrail albo strażnika pętli —
-następna tura tego samego agenta w tej rozmowie zapisuje plik z powrotem w
-`uploads/` (z wyciągniętym tekstem tam, gdzie workspace nie umie przeczytać
-oryginału), zanim pierwszy raz użyje workspace'u: od razu dla workspace'u
-zapisanego, przy pierwszym użyciu dla sandboxa. Wracają tylko pliki tej osoby, tylko
-z tur tego agenta od jego ostatniej ukończonej, najwyżej 50 najnowszych, a run
-dostaje polecenie, by wylistować `uploads/`, zanim powie, że pliku brakuje. Plik
-usunięty po ukończonej turze zostaje usunięty, a prompt, którego run nigdy się nie
-otworzył, nie należy do żadnego agenta, więc jego pliki nie wracają.
+następna tura tego samego agenta dla tej osoby w tej rozmowie zapisuje plik z
+powrotem w `uploads/` (z wyciągniętym tekstem tam, gdzie workspace nie umie
+przeczytać oryginału), zanim pierwszy raz użyje workspace'u: od razu dla
+workspace'u zapisanego, przy pierwszym użyciu dla sandboxa. Run dostaje polecenie,
+by wylistować `uploads/`, zanim powie, że pliku brakuje.
+
+Wracają tylko własne pliki tej osoby, tylko z przerwanych tur tego agenta, najwyżej
+50 najnowszych, i tylko do chwili, gdy ten agent ukończy dla tej samej osoby turę,
+która zaczęła się po zakończeniu przerwanej. Plik usunięty później zostaje usunięty.
+Niektóre pliki nie wracają: pliki promptu, którego run nigdy się nie otworzył — nie
+należy on do żadnego agenta; pliki z tury uruchomionej kluczem API albo dla gościa
+widgetu; oraz pliki, których następna tura ukończyła się, nie używając sandboxa.
 
 **Wyciągnięty tekst idzie w parze z plikiem tylko tam, gdzie nic nie umie
 przeczytać oryginału.** Kiedyś `.txt` z parsowania zapisywany był obok każdego

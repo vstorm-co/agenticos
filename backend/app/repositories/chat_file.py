@@ -3,9 +3,10 @@
 from collections.abc import Iterable
 from uuid import UUID
 
-from sqlalchemy import Select, func, or_, select
+from sqlalchemy import Select, func, select
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.chat_file import ChatFile
@@ -108,23 +109,16 @@ async def left_by_interrupted_turns(
     The run's status is what says the file may never have reached the workspace.
     A completed turn routed its files, and one the workspace refused was named
     to the model as unstored; a missing file there was removed, and is left
-    removed. And only the turns after this agent's last completed one: a turn
-    that finished has had its chance to put a lost file back, so a file somebody
-    deleted after that stays deleted.
+    removed. And only until this agent completes a turn for the same person
+    that started after the interrupted one ended: that turn has had its chance
+    to put a lost file back, so a file somebody deleted after it stays deleted.
+    Another person's turn closes nothing - it never puts this person's files
+    back - and neither does one that was already running when this one stopped.
 
     Two columns rather than rows: a row carries the file's parsed text, up to a
     million characters, and the caller needs the text only for a file its
     workspace turns out to be missing.
     """
-    last_completed = (
-        select(func.max(AgentRun.created_at))
-        .where(
-            AgentRun.conversation_id == conversation_id,
-            AgentRun.agent_id == agent_id,
-            AgentRun.status == RunStatus.COMPLETED.value,
-        )
-        .scalar_subquery()
-    )
     result = await db.execute(
         _left_by_interrupted_turns(
             select(ChatFile.id, ChatFile.filename),
@@ -133,7 +127,6 @@ async def left_by_interrupted_turns(
             user_id=user_id,
             agent_id=agent_id,
         )
-        .where(or_(last_completed.is_(None), AgentRun.created_at > last_completed))
         .order_by(ChatFile.created_at.desc())
         .limit(limit)
     )
@@ -149,7 +142,7 @@ async def get_many_left_by_interrupted_turns(
     user_id: UUID,
     agent_id: UUID,
 ) -> list[ChatFile]:
-    """These files, as whole rows, under `left_by_interrupted_turns`'s boundaries.
+    """These files, as whole rows, under exactly `left_by_interrupted_turns`'s conditions.
 
     Asked again rather than read by id: the ids were found in another session,
     and the boundaries are what makes writing a file into this run's workspace
@@ -180,7 +173,24 @@ def _left_by_interrupted_turns[*Ts](
     user_id: UUID,
     agent_id: UUID,
 ) -> Select[*Ts]:
-    """The boundaries both reads share - see `left_by_interrupted_turns`."""
+    """The conditions both reads share - see `left_by_interrupted_turns`.
+
+    The completed turn that closes the window is asked about per candidate,
+    correlated on the candidate's own run, so a thread whose turns all finished
+    pays nothing for it.
+    """
+    closing = aliased(AgentRun)
+    closed = (
+        select(closing.id)
+        .where(
+            closing.conversation_id == conversation_id,
+            closing.agent_id == agent_id,
+            closing.user_id == user_id,
+            closing.status == RunStatus.COMPLETED.value,
+            closing.created_at > func.coalesce(AgentRun.ended_at, AgentRun.created_at),
+        )
+        .exists()
+    )
     return (
         statement.join(Message, Message.id == ChatFile.message_id)
         .join(AgentRun, AgentRun.id == Message.run_id)
@@ -191,6 +201,7 @@ def _left_by_interrupted_turns[*Ts](
             AgentRun.agent_id == agent_id,
             AgentRun.status.in_(_INTERRUPTED),
             ChatFile.user_id == user_id,
+            ~closed,
         )
     )
 
