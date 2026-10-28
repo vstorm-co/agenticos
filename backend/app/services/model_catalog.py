@@ -25,6 +25,7 @@ hour is politeness rather than necessity: the lists move on the order of weeks.
 import asyncio
 import json
 import logging
+import re
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field, replace
@@ -56,6 +57,14 @@ listing this platform can read *and* have no curated entry, so they answered
 provider that offers plenty. `unlisted` says the platform cannot enumerate
 this one and the id has to be typed, which is true (#923).
 """
+
+
+class MalformedCatalog(ValueError):
+    """A provider answered with something that is not a model catalog.
+
+    A ValueError like the other malformed answers - bad JSON, oversized fields -
+    so a caller can tell a provider's bad response from a defect here by type.
+    """
 
 
 @dataclass(frozen=True, slots=True)
@@ -221,9 +230,12 @@ def cached_listing(provider: str) -> tuple[CatalogModel, ...]:
 
 def _read_listing(payload: Any, spec: ListingSpec, *, bounded: bool = False) -> list[CatalogModel]:
     """Turn one provider's response into models, skipping rows it cannot read."""
-    rows = payload if spec.array_path == "" else payload.get(spec.array_path)
+    if spec.array_path == "":
+        rows = payload
+    else:
+        rows = payload.get(spec.array_path) if isinstance(payload, dict) else None
     if not isinstance(rows, list):
-        raise TypeError(f"Expected a list at {spec.array_path or '<root>'}")
+        raise MalformedCatalog(f"Expected a list at {spec.array_path or '<root>'}")
 
     if bounded and len(rows) > MAX_CATALOG_MODELS:
         raise ValueError("The model catalog has too many entries")
@@ -253,7 +265,23 @@ def _read_listing(payload: Any, spec: ListingSpec, *, bounded: bool = False) -> 
                 output_modalities=modalities,
             )
         )
-    return sorted(models, key=lambda entry: entry.id)
+    return sorted(models, key=lambda entry: listing_order(entry.id))
+
+
+def listing_order(model_id: str) -> tuple[tuple[tuple[int, int | str], ...], str]:
+    """Where a model sorts in a picker: by name, versions as numbers, variants last.
+
+    Plain string order put `:` after `.` and `-`, so OpenRouter's
+    `openai/gpt-5:batch` landed below every `gpt-5.6-terra-*` rather than beside
+    `gpt-5`, and `gpt-5.10` would sort before `gpt-5.9`. A variant suffix is split
+    off and ordered after its base, and each run of digits compares as a number.
+    """
+    base, _, variant = model_id.lower().partition(":")
+    parts = (part for part in re.split(r"([0-9]+)", base) if part)
+    return (
+        tuple((0, int(part)) if re.fullmatch(r"[0-9]+", part) else (1, part) for part in parts),
+        variant,
+    )
 
 
 def _modalities(row: dict[str, Any], path: str | None) -> tuple[str, ...]:
@@ -398,16 +426,8 @@ async def models_for(
     if spec is None or (spec.auth_header is not None and api_key is None):
         return _fallback(curated)
 
-    # Public provider and endpoint identify a catalog. Credentials never form
-    # cache keys; a regional catalog cannot inherit the global response.
-    async with _lock:
-        entry = _cache.get(cache_key)
-        if entry is not None and time.monotonic() - entry.fetched_at < CACHE_TTL_SECONDS:
-            _cache.move_to_end(cache_key)
-            return list(entry.models), "live"
-
     try:
-        models = await _fetch(spec, api_key, custom=base_url is not None)
+        models = await _listed(cache_key, spec, api_key, custom=base_url is not None)
     except Exception:
         # What is said has to match what is answered: for a provider with no
         # curated entry there is no list to fall back to, and a log line during
@@ -421,10 +441,64 @@ async def models_for(
 
     if not models:
         return _fallback(curated)
-
-    async with _lock:
-        _cache[cache_key] = _Entry(models=tuple(models), fetched_at=time.monotonic())
-        _cache.move_to_end(cache_key)
-        while len(_cache) > MAX_CACHED_CATALOGS:
-            _cache.popitem(last=False)
     return models, "live"
+
+
+async def embedding_models_at(base_url: str) -> tuple[CatalogModel, ...] | None:
+    """The embedding models an OpenRouter endpoint lists, or None when it cannot be asked.
+
+    OpenRouter's `/models` leaves embedding models out unless asked for them by
+    output modality, and a regional endpoint serves far fewer than the global
+    one: `eu.openrouter.ai` lists three, none of them OpenAI's. A collection on
+    a model its endpoint does not serve fails every upload with "No endpoints
+    found supporting your data region", so the create form offers only what the
+    endpoint lists and the service refuses the rest.
+
+    An empty tuple is an answer - the endpoint serves no embedding model - and
+    None is the absence of one, which the caller must not read as "serves
+    nothing". Only a failed request or a malformed response is None.
+
+    Args:
+        base_url: A validated OpenRouter endpoint, authorized by the caller.
+    """
+    endpoint = base_url.rstrip("/")
+    spec = replace(LISTINGS["openrouter"], url=f"{endpoint}/models?output_modalities=embeddings")
+    try:
+        models = await _listed(f"openrouter:embeddings:{endpoint}", spec, None, custom=True)
+    except httpx.HTTPError, ValueError:
+        # Unreachable, refused, or answered with something that is not a
+        # catalog - the endpoint's problem, and an unanswered question. Anything
+        # else is a defect here and propagates: read as "unconfirmed" it would
+        # let the validation this answer feeds wave every model through.
+        logger.warning("Could not list the embedding models of a custom OpenRouter endpoint")
+        return None
+    return tuple(models)
+
+
+async def _listed(
+    cache_key: str, spec: ListingSpec, api_key: str | None, *, custom: bool
+) -> list[CatalogModel]:
+    """One listing, from the cache while it is fresh, fetched and cached otherwise.
+
+    An empty answer is not cached, so a provider that answered nothing once is
+    asked again on the next call rather than for an hour.
+
+    Raises:
+        Exception: Whatever the fetch raised; the caller decides what a failure means.
+    """
+    # Public provider and endpoint identify a catalog. Credentials never form
+    # cache keys; a regional catalog cannot inherit the global response.
+    async with _lock:
+        entry = _cache.get(cache_key)
+        if entry is not None and time.monotonic() - entry.fetched_at < CACHE_TTL_SECONDS:
+            _cache.move_to_end(cache_key)
+            return list(entry.models)
+
+    models = await _fetch(spec, api_key, custom=custom)
+    if models:
+        async with _lock:
+            _cache[cache_key] = _Entry(models=tuple(models), fetched_at=time.monotonic())
+            _cache.move_to_end(cache_key)
+            while len(_cache) > MAX_CACHED_CATALOGS:
+                _cache.popitem(last=False)
+    return models

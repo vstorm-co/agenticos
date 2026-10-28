@@ -1,5 +1,5 @@
 ---
-source_sha: "38e525cbb635"
+source_sha: "34949daefd8c"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -627,6 +627,22 @@ a la dirección de otro. El catálogo es además con lo que responde
 que un provider puede servir de verdad — antes ofrecía todos los modelos de los
 que este build conocía la *anchura*, tres de ellos pesos de sentence-transformers
 que aquí nada puede llamar.
+
+Una colección en OpenRouter puede indicar su propio **endpoint**
+(`embedding_base_url`), como el regional `https://eu.openrouter.ai/api/v1`. Un
+endpoint regional sirve solo una parte del catálogo, y solo él sabe cuál, así que
+`GET /rag/embedding-models/openrouter?base_url=…` se lo pregunta y responde con
+los modelos del catálogo que lista. La anchura sigue saliendo del catálogo,
+porque la lista no la indica. El formulario de creación ofrece esa lista más
+corta, y el servicio rechaza una colección cuyo modelo el endpoint no sirve: en
+`embedding_model` al crearla y en `embedding_base_url` al mover una existente.
+
+Un endpoint al que no se puede preguntar no se toma como un rechazo: el formulario
+muestra todo el catálogo e indica que no está confirmado. Antes se aceptaba un
+modelo que el endpoint no sirve, y luego cada subida fallaba con "No endpoints
+found supporting your data region" de OpenRouter, guardado como una indicación
+genérica de revisar la clave. Ahora un 404 de un endpoint de embeddings se guarda
+como el modelo que no sirve.
 
 La clave se valida al crear. Una clave que tiene otra organización, una de
 propósito equivocado o una que quien elige no puede ver se rechaza ahí, donde la
