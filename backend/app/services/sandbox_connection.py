@@ -143,9 +143,11 @@ class SandboxConnectionService:
         )
         return [to_read(row) for row in rows]
 
-    async def get(self, ctx: AuthContext, connection_id: UUID) -> SandboxConnection:
+    async def get(
+        self, ctx: AuthContext, connection_id: UUID, *, for_update: bool = False
+    ) -> SandboxConnection:
         row = await sandbox_connection_repo.get(
-            self.db, connection_id, organization_id=ctx.organization_id
+            self.db, connection_id, organization_id=ctx.organization_id, for_update=for_update
         )
         if row is None:
             raise NotFoundError(
@@ -210,7 +212,14 @@ class SandboxConnectionService:
     async def update(
         self, ctx: AuthContext, connection_id: UUID, data: SandboxConnectionUpdate
     ) -> SandboxConnectionRead:
-        row = await self.get(ctx, connection_id)
+        row = await self.get(ctx, connection_id, for_update=True)
+        if await project_repo.active_moves_for_connection(
+            self.db, connection_id=connection_id, organization_id=ctx.organization_id
+        ):
+            raise BadRequestError(
+                message="This sandbox is involved in a project transfer. Wait for it to finish.",
+                details={"connection_id": str(connection_id)},
+            )
         changes = writable(data, over=SandboxConnection)
 
         if "name" in changes and changes["name"] != row.name:
@@ -251,7 +260,14 @@ class SandboxConnectionService:
         the connection could never be deleted. How many were forgotten goes in
         the audit entry.
         """
-        row = await self.get(ctx, connection_id)
+        row = await self.get(ctx, connection_id, for_update=True)
+        if await project_repo.active_moves_for_connection(
+            self.db, connection_id=connection_id, organization_id=ctx.organization_id
+        ):
+            raise BadRequestError(
+                message="This sandbox is involved in a project transfer. Wait for it to finish.",
+                details={"connection_id": str(connection_id)},
+            )
         projects = await project_repo.names_on_connection(
             self.db, organization_id=ctx.organization_id, connection_id=row.id
         )

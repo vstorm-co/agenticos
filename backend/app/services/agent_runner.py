@@ -132,7 +132,7 @@ from app.agents.capabilities.channel_tools import (
     ChannelDirectory,
 )
 from app.agents.capabilities.coding_agent import CODING_AGENT_ID
-from app.agents.capabilities.context import CONTEXT_FILES_RESOURCE
+from app.agents.capabilities.context import CONTEXT_FILES_RESOURCE, context_config
 from app.agents.capabilities.guardrails import (
     GuardrailBlocked,
     GuardrailsConfig,
@@ -3011,7 +3011,9 @@ class AgentRunnerService:
         resources: dict[str, Any] = {
             "kb_collection_names": await self._collection_names(spec, ctx),
             "skills": await self.skills.resolve_for_agent(ctx, spec.skill_ids),
-            CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(ctx, spec.context_ids),
+            CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(
+                ctx, spec.context_ids, config=context_config(spec.capabilities)
+            ),
         }
         # What an earlier turn of this thread wrote down. Read here rather than
         # beside the build below, because one of the three is a resource.
@@ -4142,7 +4144,9 @@ class AgentRunnerService:
         resources: dict[str, Any] = {
             "kb_collection_names": await self._collection_names(spec, ctx),
             "skills": await self.skills.resolve_for_agent(ctx, spec.skill_ids),
-            CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(ctx, spec.context_ids),
+            CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(
+                ctx, spec.context_ids, config=context_config(spec.capabilities)
+            ),
         }
         if any(binding.id == SANDBOX_CAPABILITY_ID for binding in shared):
             resources[WORKSPACE_RESOURCE] = parent_resources.get(WORKSPACE_RESOURCE)
@@ -4469,17 +4473,23 @@ class AgentRunnerService:
         state = prepared.materialised_skills
         if workspace is None or state is None or prepared.ctx is None or _untouched(workspace):
             return
+        run_id = str(prepared.run.id)
+        agent_id = prepared.agent.id
+        conversation_id = prepared.run.conversation_id
         try:
             changes = await collect_changes(workspace.workspace, state)
             if changes:
-                await self.proposals.record(
-                    prepared.ctx,
-                    changes,
-                    agent_id=prepared.agent.id,
-                    conversation_id=prepared.run.conversation_id,
-                )
+                # Optional proposals must not poison the transaction that still
+                # has to persist the run's terminal status and spend.
+                async with self.db.begin_nested():
+                    await self.proposals.record(
+                        prepared.ctx,
+                        changes,
+                        agent_id=agent_id,
+                        conversation_id=conversation_id,
+                    )
         except Exception:
-            logger.exception("skill_proposal_record_failed", extra={"run_id": str(prepared.run.id)})
+            logger.exception("skill_proposal_record_failed", extra={"run_id": run_id})
 
     async def keep_plan(self, prepared: PreparedRun, *, status: RunStatus) -> None:
         """Store the checklist the turn ended on, so the next turn starts from it.

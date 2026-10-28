@@ -165,8 +165,8 @@ describe("deciding a parked call", () => {
 
     render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
 
-    expect(await screen.findByText("Nothing waiting")).toBeVisible();
-    expect(screen.getByText("Agents are running without needing you.")).toBeVisible();
+    expect(await screen.findByText("No approvals pending")).toBeVisible();
+    expect(screen.getByText("Requests that need your decision will appear here.")).toBeVisible();
   });
 
   it("disables both buttons while a decision is in flight, so a double-click sends one POST", async () => {

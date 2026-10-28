@@ -90,6 +90,30 @@ they wrote, and where both changed one file, the later write stands. A project s
 created on, so that connection cannot be deleted while a project keeps its files
 there.
 
+When creating a project, **Project sandbox** lets you choose a registered sandbox
+connection, automatic selection, or **Stored files only**. Automatic selection pins
+the connection chosen at creation; if none is available, it uses stored files.
+Choosing a named connection requires `connections:view` and an active connection
+in your organization. The project's settings show its connection name and runtime;
+all project chats use this workspace in place of the agent's own sandbox. Editors can use **Change sandbox** to move an existing project, including its files.
+
+The transfer is a durable background job. It copies files and empty folders into
+an isolated workspace, verifies file hashes and the directory tree, then activates
+the target. New runs, decisions awaiting continuation, file changes and project
+edits must finish before a transfer starts; new writes and runs wait while it is
+queued or running. Existing files remain readable. A failed transfer keeps the
+source selected. Progress appears in the project's settings. Only a verified
+activation retires the source, with durable cleanup of its remote container.
+
+Transfers support 10,000 entries, 64 MiB per file and 1 GiB total; remove symbolic
+links first. Installed packages and running processes are not copied. Moving to
+stored files also has to fit the platform's stored-workspace size limit.
+
+**How project files and code execution work** explains storage, sharing and the
+execution environment beside the selector. A project supplies Sandbox tools even
+to an agent without its own sandbox. Container-backed projects support execution;
+stored files have no shell. Existing tool approval requirements remain in force.
+
 ## Files
 
 The project's **Files** tab is the container, browsable: a tree beside a reader
@@ -98,8 +122,12 @@ that opens Markdown, PDFs, images, spreadsheets and code in place.
 - **Upload files** and **Upload folder** put files at the top of the project, a
   folder keeping its tree. Each file is held to the deployment's upload limit.
 - **New folder** makes an empty folder for an agent to fill.
-- The bin beside a file or folder removes it, with everything inside a folder, for
-  every chat and agent in the project.
+- Use the **…** menu on a file or folder to rename, move or delete it. Drag an
+  entry onto a folder to move it, or onto **Project files** to move it to the root.
+  An existing destination is never overwritten.
+- **Edit file** opens a complete UTF-8 text file up to 1 MiB. Save your changes or
+  confirm discarding them before closing. Saving refuses a revision that changed
+  since the editor opened; reopen the file to review the newer version.
 
 The `.agenticos` directory and the platform's own folders are not writable from
 here; a path outside the project is refused before anything is written.
@@ -120,7 +148,7 @@ or the whole organization, each at a level.
 | Grant level | Permission | What it allows |
 |---|---|---|
 | `read` | `projects:view` | See the project, its files and its instructions |
-| `use` | `projects:use` | Chat in it, upload, make folders, remove files |
+| `use` | `projects:use` | Chat in it; add, edit, rename, move and remove files |
 | `edit` | `projects:edit` | Change its instructions and default agent, share it, delete it |
 
 Roles hold these at the usual scopes: an Owner or Admin reaches every project, a

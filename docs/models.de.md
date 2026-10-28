@@ -1,5 +1,5 @@
 ---
-source_sha: "d6bead12fc91"
+source_sha: "91887e7e39b0"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -338,7 +338,7 @@ Zugangsdaten ein Provider verlangt.**
 | OpenAI | `openai` | API-Key, oder keine | ✓ |
 | Anthropic | `anthropic` | API-Key | ✓ |
 | Google Gemini | `google` | API-Key | ✓ |
-| OpenRouter | `openrouter` | API-Key | |
+| OpenRouter | `openrouter` | API-Key |  ✓ |
 | Alibaba Cloud | `alibaba` | API-Key | ✓ |
 | Cerebras | `cerebras` | API-Key | |
 | DeepSeek | `deepseek` | API-Key | |
@@ -774,3 +774,9 @@ make platform-bootstrap BOOTSTRAP_API_KEY=sk-...
 ```
 
 erledigt alle drei Schritte für ein neues Deployment.
+
+Für eine regionale OpenRouter-API bleibt **OpenRouter** der Anbieter. Trage im Modellformular unter **Endpoint** `https://eu.openrouter.ai/api/v1` ein. Das Profil behält seinen OpenRouter-Schlüssel aus dem Vault, die native Modellverarbeitung und die Cache-Steuerung. Modellvorschläge stammen von diesem Endpunkt und werden separat zwischengespeichert; eine fehlgeschlagene regionale Abfrage wechselt nicht zum globalen Katalog. Lege für Wissensbasen den Embedding-Endpunkt beim Erstellen oder Bearbeiten des Embedding-Anbieters separat fest. Bestehende Konfigurationen behalten den globalen Endpunkt. EU-Routing erfordert einen passenden OpenRouter-Business- oder Enterprise-Tarif; [regionales Routing](https://openrouter.ai/docs/guides/get-started/sovereign-ai) und ZDR sind getrennte OpenRouter-Richtlinien.
+
+Aktualisiere alle API- und Worker-Prozesse, bevor du regionale Endpunkte konfigurierst. Ältere Versionen ignorieren den überschriebenen OpenRouter-Endpunkt.
+
+Für einen weiteren Endpunkt mit demselben Anbieter und Modell wählen Sie im Builder **Separates Modell hinzufügen**. Der automatische Name enthält den Endpunkt; das vorhandene Profil bleibt unverändert. **Modell aktualisieren** bearbeitet stattdessen das gemeinsame Profil. Benutzerdefinierte Kataloge sind auf 2 MiB, 2.048 Modelle und begrenzte Feldlängen beschränkt; jeder Prozess speichert höchstens 16 Kataloge. Bei komprimierten oder übergroßen Antworten bleibt die Modell-ID frei eingebbar, ohne auf eine globale Liste auszuweichen.

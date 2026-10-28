@@ -184,6 +184,12 @@ Three turns of one conversation refining the same skill leave **one** proposal, 
 three. A reviewer asked the same question three times has been given more work
 rather than more information.
 
+Workspace proposals use the same metadata limits as stored skills: a name of
+1–64 characters and a description up to 500 characters. A change outside these
+limits is skipped with a warning; its original workspace files stay intact.
+Proposal writes run in a savepoint, so a refused proposal cannot roll back the
+turn or prevent its status and spend from being recorded.
+
 ## Getting skills into an organization
 
 **Write one.** Skills → New, in the UI. This is the normal path.

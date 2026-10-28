@@ -66,12 +66,18 @@ async def test_each_resource_names_the_agents_binding_it_in_name_order(db: Async
     _, owner = await _organization(db)
     refunds, unused = uuid.uuid4(), uuid.uuid4()
     await _agent(db, owner, "Support", skill_ids=[refunds])
-    await _agent(db, owner, "Billing", skill_ids=[refunds])
+    billing = await _agent(db, owner, "Billing", skill_ids=[refunds])
+    billing.avatar_url = "test/agent-avatar.png"
+    billing.avatar_color = 4
+    await db.flush()
     await _agent(db, owner, "Sales")
 
     used = await agents_using(db, owner, field="skill_ids", resource_ids=[refunds, unused])
 
     assert [agent.name for agent in used[refunds]] == ["Billing", "Support"]
+    assert used[refunds][0].slug == billing.slug
+    assert used[refunds][0].has_avatar is True
+    assert used[refunds][0].avatar_color == 4
     assert used[unused] == []
 
 

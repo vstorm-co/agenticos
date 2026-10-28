@@ -45,7 +45,7 @@ export default function AdminOrganizationDetailPage() {
       </Link>
 
       {isLoading ? (
-        <div className="space-y-6" role="status" aria-label={ts("loading")}>
+        <div className="flex flex-1 flex-col space-y-6" role="status" aria-label={ts("loading")}>
           <Skeleton className="h-7 w-64" />
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             {[0, 1, 2, 3, 4, 5].map((field) => (

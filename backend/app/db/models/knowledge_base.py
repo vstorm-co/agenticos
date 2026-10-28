@@ -58,6 +58,8 @@ class KnowledgeBase(TimestampMixin, Base):
     # `EmbeddingService` - which is why an organization holding an OpenAI key
     # could not use it and a rotated key meant re-ingesting the collection.
     # Values are ids from `app/core/catalog/embedding_providers.json`.
+    embedding_base_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+
     embedding_provider: Mapped[str] = mapped_column(
         String(32), nullable=False, server_default="openrouter"
     )

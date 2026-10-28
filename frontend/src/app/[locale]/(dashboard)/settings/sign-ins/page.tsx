@@ -16,7 +16,7 @@ export default function SignInsPage() {
   const t = useTranslations("pages.signIns");
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-1 flex-col space-y-6">
       <SectionHeading title={t("title")} description={t("description")} />
       <MySignIns />
     </div>

@@ -44,6 +44,7 @@ const projects = {
   query: vi.fn(),
 };
 const project = {
+  moveWorkspace: { isPending: false, mutateAsync: vi.fn() },
   update: { mutate: vi.fn(), isPending: false },
   remove: { mutateAsync: vi.fn(), isPending: false },
 };
@@ -51,6 +52,7 @@ const files = {
   listing: vi.fn(),
   upload: { mutate: vi.fn(), isPending: false },
   addFolder: { mutateAsync: vi.fn(), isPending: false },
+  move: { mutateAsync: vi.fn(), isPending: false },
   remove: { mutateAsync: vi.fn(), isPending: false },
 };
 const chats = vi.fn();
@@ -75,6 +77,7 @@ vi.mock("@/hooks/use-projects", () => ({
     upload: files.upload,
     uploads: [],
     addFolder: files.addFolder,
+    move: files.move,
     remove: files.remove,
   }),
   useProjectChats: () => chats(),
@@ -470,12 +473,14 @@ describe("ProjectFiles", () => {
   it("removes a file once confirmed, and not before", async () => {
     files.remove.mutateAsync.mockResolvedValue(undefined);
     wrap(<ProjectFiles project={aProject()} />);
-    await userEvent.click(screen.getByRole("button", { name: "Remove brief.md" }));
+    await userEvent.click(screen.getByRole("button", { name: "Actions for brief.md" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
     expect(screen.getByText("Remove brief.md?")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Remove" }));
     expect(files.remove.mutateAsync).toHaveBeenCalledWith("brief.md");
 
-    await userEvent.click(screen.getByRole("button", { name: "Remove brief.md" }));
+    await userEvent.click(screen.getByRole("button", { name: "Actions for brief.md" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
     await userEvent.keyboard("{Escape}");
     expect(files.remove.mutateAsync).toHaveBeenCalledTimes(1);
   });
@@ -649,4 +654,57 @@ describe("ProjectPickerDialog", () => {
       "true",
     );
   });
+});
+
+it("offers the project editor and wires a rename to the project's mutation", async () => {
+  files.move.mutateAsync.mockResolvedValue({ path: "renamed.md" });
+  wrap(<ProjectFiles project={aProject()} />);
+  await userEvent.click(screen.getByRole("button", { name: "brief.md" }));
+  expect(screen.getByRole("button", { name: "Edit file" })).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Actions for brief.md" }));
+  await userEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
+  const input = screen.getByRole("textbox", { name: "Name" });
+  await userEvent.clear(input);
+  await userEvent.type(input, "renamed.md");
+  await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+  await waitFor(() =>
+    expect(files.move.mutateAsync).toHaveBeenCalledWith({
+      source: "brief.md",
+      destination: "renamed.md",
+    }),
+  );
+});
+
+it("can create a files-only project instead of silently choosing a container", async () => {
+  projects.create.mutateAsync.mockResolvedValue(aProject({ backend: "state" }));
+  wrap(<CreateProjectDialog open onOpenChange={vi.fn()} onCreated={vi.fn()} />);
+  await userEvent.type(screen.getByLabelText("Name"), "Notes");
+  await userEvent.click(screen.getByRole("combobox", { name: "Project sandbox" }));
+  await userEvent.click(screen.getByRole("option", { name: "Stored files only" }));
+  await userEvent.click(screen.getByRole("button", { name: "Create" }));
+  expect(projects.create.mutateAsync).toHaveBeenCalledWith(
+    expect.objectContaining({ backend: "state", name: "Notes" }),
+  );
+});
+
+it("keeps files readable and explains why changes pause during a workspace transfer", () => {
+  wrap(
+    <ProjectFiles
+      project={aProject({
+        workspace_move: {
+          job_id: "j",
+          status: "running",
+          target_name: "Cloud",
+          copied_files: 0,
+          total_files: 1,
+          copied_bytes: 0,
+        },
+      })}
+    />,
+  );
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "New runs and file changes resume when the transfer finishes",
+  );
+  expect(screen.queryByRole("button", { name: "Upload files" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "brief.md" })).toBeInTheDocument();
 });

@@ -203,6 +203,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
   const messagesAbortRef = useRef<AbortController | null>(null);
   // Which re-read is the latest; an older one answering after it is dropped.
   const rereadRef = useRef(0);
+  const readTickets = useRef(new Map<string, number>());
 
   /**
    * Whether the account the caller started as is still the one signed in.
@@ -641,21 +642,76 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     [queryClient],
   );
 
-  /**
-   * Record that the reader has this conversation open, so it is no longer unread.
-   * The mark goes at once; a refusal puts it back, with no toast - the thread is
-   * still on screen, and the next listing says the same either way.
-   */
+  /** Mark the open thread read without letting an older list or failed write revive its badge. */
   const markRead = useCallback(
     async (id: string) => {
+      const ticket = (readTickets.current.get(id) ?? 0) + 1;
+      readTickets.current.set(id, ticket);
+      const account = useAuthStore.getState().user?.id;
+      const organization = tenant;
+      await queryClient.cancelQueries({
+        queryKey: qk.conversations.list(),
+        // An initial fetch is also where the open chat learns its agent and run
+        // state. Cancelling it leaves the observer with neither data nor a retry.
+        predicate: (query) => query.state.data !== undefined,
+      });
+      if (!stillSameAccount(account) || !stillSameTenant(organization)) return;
+      const before = queryClient.getQueriesData<ConversationListResponse>({
+        queryKey: qk.conversations.list(),
+      });
       patchUnread(id, false);
       try {
         await apiClient.post(`/conversations/${id}/read`, {});
+        // A refresh can start while the write is pending and still see the old
+        // read marker. Discard it once the committed marker is acknowledged.
+        if (
+          readTickets.current.get(id) !== ticket ||
+          !stillSameAccount(account) ||
+          !stillSameTenant(organization)
+        )
+          return;
+        await queryClient.cancelQueries({
+          queryKey: qk.conversations.list(),
+          predicate: (query) => query.state.data !== undefined,
+        });
+        // Join any initial list still in flight before applying the committed
+        // marker. Refetching with no cached data joins its existing promise.
+        if (stillSameAccount(account) && stillSameTenant(organization)) {
+          await queryClient.refetchQueries({
+            queryKey: qk.conversations.list(),
+            type: "active",
+            predicate: (query) => query.state.data === undefined,
+          });
+        }
+        if (
+          readTickets.current.get(id) === ticket &&
+          stillSameAccount(account) &&
+          stillSameTenant(organization)
+        )
+          patchUnread(id, false);
       } catch {
-        patchUnread(id, true);
+        if (
+          readTickets.current.get(id) !== ticket ||
+          !stillSameAccount(account) ||
+          !stillSameTenant(organization)
+        )
+          return;
+        for (const [key, previous] of before) {
+          const original = previous?.items.find((item) => item.id === id)?.unread;
+          queryClient.setQueryData<ConversationListResponse>(key, (current) =>
+            current === undefined
+              ? current
+              : {
+                  ...current,
+                  items: current.items.map((item) =>
+                    item.id === id ? { ...item, unread: original } : item,
+                  ),
+                },
+          );
+        }
       }
     },
-    [patchUnread],
+    [patchUnread, queryClient, tenant, stillSameTenant],
   );
 
   const setFavourite = useCallback(

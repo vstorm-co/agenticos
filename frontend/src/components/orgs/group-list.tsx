@@ -121,6 +121,7 @@ export function GroupList({
 
   return (
     <ListCard
+      fill
       namedByPage
       title={t("title")}
       counted={isLoading || error ? null : t("groupCount", { count: groups.length })}

@@ -2,8 +2,7 @@
 
 import { FileText, Trash2 } from "lucide-react";
 
-import { Badge, BlankPeek, Button, Card, DocPeek, TextPeek } from "@/components/ui";
-import { formatBytes } from "@/lib/utils";
+import { BlankPeek, Button, Card, DocPeek, TextPeek } from "@/components/ui";
 import type { ContextFileSummary } from "@/types/providers";
 import { AddToAgent } from "@/components/agents/add-to-agent";
 import { UsedBy } from "@/components/agents/used-by";
@@ -18,16 +17,8 @@ interface ContextCardProps {
   onDelete: () => void;
 }
 
-/**
- * One context file in the list.
- *
- * The mode badge is the one thing that is never implicit: `inject` and `link`
- * behave differently enough - one spends tokens every run, the other is read on
- * demand - that a reader must not have to open the file to tell which it is. A
- * `disabled` badge marks a file agents are currently skipping.
- */
+/** Shared content and its users; each agent's Context binding owns its usage policy. */
 export function ContextCard({ file, canEdit, onOpen, onDelete }: ContextCardProps) {
-  const t = useTranslations("context");
   const tc = useTranslations("common");
   return (
     <Card className="peek-card group hover:border-foreground/20 relative h-full overflow-hidden">
@@ -49,22 +40,14 @@ export function ContextCard({ file, canEdit, onOpen, onDelete }: ContextCardProp
         </DocPeek>
         <span className="flex flex-1 flex-col gap-1.5 p-4 pt-3.5 pb-12">
           <span className="flex items-center gap-2 pr-8">
-            <span className="text-foreground truncate font-mono text-sm font-medium">
-              {file.name}
-            </span>
-            <Badge variant={file.mode === "inject" ? "secondary" : "outline"}>
-              {t(file.mode === "inject" ? "modeInject" : "modeLink")}
-            </Badge>
-            {!file.enabled && <Badge variant="outline">{t("disabled")}</Badge>}
+            <span className="text-foreground truncate text-sm font-semibold">{file.name}</span>
           </span>
-          {file.description !== null && (
-            <span className="text-muted-foreground line-clamp-2 block text-sm">
-              {file.description}
-            </span>
-          )}
+          <span className="text-muted-foreground line-clamp-2 min-h-10 text-sm">
+            {file.description}
+          </span>
           <span className="text-muted-foreground mt-auto flex items-center gap-1 pt-1 text-xs">
             <FileText className="h-3.5 w-3.5 shrink-0" />
-            {t("sizeWithFormat", { format: file.format, size: formatBytes(file.size_bytes) })}
+            {file.format.toUpperCase()}
           </span>
           <AudienceChip visibility={file.visibility} groups={file.shared_groups} />
           <UsedBy agents={file.used_by} />

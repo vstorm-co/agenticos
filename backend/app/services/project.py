@@ -6,15 +6,22 @@ container in place of the agent's own, its instructions after the agent's - is
 the runner's, through :meth:`ProjectService.for_run`.
 """
 
+import hashlib
 import logging
 import posixpath
 from uuid import UUID
 
+from pydantic_ai_backends import StateBackend
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
 from app.core.config import settings
-from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+)
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent, AgentStatus
@@ -29,8 +36,16 @@ from app.repositories import (
     organization_assistant_repo,
     project_repo,
     resource_grant_repo,
+    sandbox_connection_repo,
 )
-from app.schemas.project import ProjectCreate, ProjectList, ProjectRead, ProjectUpdate
+from app.repositories import background_job as job_repo
+from app.schemas.project import (
+    ProjectCreate,
+    ProjectFileText,
+    ProjectList,
+    ProjectRead,
+    ProjectUpdate,
+)
 from app.services.access import (
     AGENT,
     PROJECT,
@@ -39,6 +54,7 @@ from app.services.access import (
     visible_resource_ids,
 )
 from app.services.conversation import ConversationService
+from app.services.project_workspace_guard import require_available, workspace_move_read
 from app.services.resource_usage import groups_sharing, shared_with_group
 from app.services.sandbox_connection import SandboxConnectionService
 from app.services.sandbox_workspace import (
@@ -64,6 +80,8 @@ def project_path(path: str) -> str:
         BadRequestError: For a path that leaves the directory, or one in a
             directory the platform keeps.
     """
+    if any(ord(char) < 32 for char in path):
+        raise BadRequestError(message="A path cannot contain control characters", details={})
     cleaned = path.strip().strip("/")
     normal = posixpath.normpath(cleaned) if cleaned else ""
     if not normal or normal == "." or normal.startswith(".."):
@@ -102,11 +120,20 @@ class ProjectService:
     ) -> Project:
         """One project, when the caller may `perm` it.
 
+        Use/edit callers retain the project's row lock until transaction end.
+        This serializes file mutations and transfer registration with run startup;
+        the workspace snapshot lock is an additional guard, not their only lock.
+
         Raises:
             NotFoundError: If there is no such project or the caller may not see it.
             AuthorizationError: If the caller sees it and may not `perm` it.
         """
-        project = await project_repo.get(self.db, project_id, organization_id=ctx.organization_id)
+        project = await project_repo.get(
+            self.db,
+            project_id,
+            organization_id=ctx.organization_id,
+            for_update=perm is not Perm.PROJECTS_VIEW,
+        )
         missing = NotFoundError(message="Project not found", details={"project_id": project_id})
         if project is None or not await resolve_access(
             self.db, ctx, project, Perm.PROJECTS_VIEW, resource_type=PROJECT
@@ -124,6 +151,8 @@ class ProjectService:
                 ),
                 details={"project_id": project_id},
             )
+        if perm is not Perm.PROJECTS_VIEW:
+            await require_available(self.db, project)
         return project
 
     async def list_projects(
@@ -189,6 +218,23 @@ class ProjectService:
         runnable_agents = await self._answering(
             [agent for agent in agents.values() if agent.id in runnable_agents]
         )
+        moves = await job_repo.for_project_moves(
+            self.db,
+            [
+                project.workspace_move_job_id
+                for project in projects
+                if project.workspace_move_job_id is not None
+            ],
+        )
+        connection_names = await sandbox_connection_repo.names_for_ids(
+            self.db,
+            organization_id=ctx.organization_id,
+            ids=[
+                project.sandbox_connection_id
+                for project in projects
+                if project.sandbox_connection_id is not None
+            ],
+        )
         reads = []
         for project in projects:
             count, last = activity.get(project.id, (0, None))
@@ -197,6 +243,12 @@ class ProjectService:
             reads.append(
                 ProjectRead.model_validate(project).model_copy(
                     update={
+                        "sandbox_connection_name": connection_names.get(
+                            project.sandbox_connection_id
+                        ),
+                        "workspace_move": workspace_move_read(
+                            moves.get(project.workspace_move_job_id), project
+                        ),
                         "chat_count": count,
                         "last_active_at": last,
                         "shared_groups": groups[project.id],
@@ -224,9 +276,31 @@ class ProjectService:
         # the platform keeps where it has none; decided now, so the project does
         # not change what it is because somebody registered a host later - and on
         # that host, so a new organization default does not open it an empty one.
-        connection = await SandboxConnectionService(self.db).ensure_local_connection(
-            ctx.organization_id
-        )
+        connection = None
+        if data.backend == "state":
+            if data.sandbox_connection_id is not None:
+                raise refused_field(
+                    "sandbox_connection_id", "Stored files do not use a sandbox connection"
+                )
+        else:
+            connections = SandboxConnectionService(self.db)
+            if data.sandbox_connection_id is not None:
+                if not ctx.has(Perm.CONNECTIONS_VIEW):
+                    raise AuthorizationError(
+                        message="Viewing connections is required to choose a sandbox"
+                    )
+                connection = await connections.get(ctx, data.sandbox_connection_id)
+                if not connection.is_active:
+                    raise refused_field(
+                        "sandbox_connection_id", "Choose an active sandbox connection"
+                    )
+            else:
+                connection = await connections.ensure_local_connection(ctx.organization_id)
+            if data.backend == "service" and connection is None:
+                raise refused_field(
+                    "sandbox_connection_id",
+                    "No sandbox is available; connect one or choose stored files",
+                )
         narrowed = bool(data.group_ids or data.user_ids)
         project = await project_repo.create(
             self.db,
@@ -325,7 +399,7 @@ class ProjectService:
         ):
             return None
         project = await project_repo.get(
-            self.db, conversation.project_id, organization_id=ctx.organization_id
+            self.db, conversation.project_id, organization_id=ctx.organization_id, for_update=True
         )
         if project is None:
             return None
@@ -336,6 +410,7 @@ class ProjectService:
                 message="This chat is in a project you can no longer work in",
                 details={"project_id": project.id},
             )
+        await require_available(self.db, project)
         return project
 
     async def check_can_start(self, ctx: AuthContext, project_id: UUID) -> Project:
@@ -378,6 +453,99 @@ class ProjectService:
         if _in_platform_folder(path):
             raise NotFoundError(message="No such file", details={"path": path})
         return await self.workspaces.project_bytes(ctx, project, path=path)
+
+    async def editable_file(
+        self, ctx: AuthContext, project_id: UUID, *, path: str
+    ) -> ProjectFileText:
+        """A complete UTF-8 file and its revision, never a shortened preview."""
+        await self.get(ctx, project_id, perm=Perm.PROJECTS_USE)
+        data = await self.file_bytes(ctx, project_id, path=project_path(path))
+        return ProjectFileText(
+            content=_editable_text(data), revision=hashlib.sha256(data).hexdigest()
+        )
+
+    async def edit_file(
+        self, ctx: AuthContext, project_id: UUID, *, path: str, content: str, revision: str
+    ) -> ProjectFileText:
+        """Save text only if the file still matches what the editor opened."""
+        project = await self.get(ctx, project_id, perm=Perm.PROJECTS_USE)
+        target = project_path(path)
+        data = content.encode("utf-8")
+        _editable_text(data)
+        await agent_workspace_repo.lock_project_files(
+            self.db, project_id=project.id, organization_id=ctx.organization_id
+        )
+        opened = await self.workspaces.open_project(ctx, project)
+        completed = False
+        try:
+            current = await opened.workspace.read_bytes(target)
+            _editable_text(current)
+            if hashlib.sha256(current).hexdigest() != revision:
+                raise AlreadyExistsError(
+                    message="This file changed since you opened it. Reopen it before saving.",
+                    details={"path": target},
+                )
+            await opened.workspace.write_bytes(target, data)
+            completed = True
+        except FileNotFoundError as exc:
+            raise NotFoundError(message="No such file", details={"path": target}) from exc
+        finally:
+            result = await self.workspaces.close(opened)
+            if completed and isinstance(result, WorkspaceFlushFailure):
+                raise result.error
+        await self._touched(ctx, project, "project.file_edited", target)
+        return ProjectFileText(content=content, revision=hashlib.sha256(data).hexdigest())
+
+    async def move_path(
+        self, ctx: AuthContext, project_id: UUID, *, source: str, destination: str
+    ) -> str:
+        """Rename or move one entry without replacing another entry."""
+        project = await self.get(ctx, project_id, perm=Perm.PROJECTS_USE)
+        origin, target = project_path(source), project_path(destination)
+        if target == origin or target.startswith(f"{origin}/"):
+            raise BadRequestError(
+                message="Choose a different folder or name", details={"path": target}
+            )
+        await agent_workspace_repo.lock_project_files(
+            self.db, project_id=project.id, organization_id=ctx.organization_id
+        )
+        opened = await self.workspaces.open_project(ctx, project)
+        completed = False
+        try:
+            if not await opened.workspace.exists(origin):
+                raise NotFoundError(message="No such file or folder", details={"path": origin})
+            if await opened.workspace.exists(target):
+                raise AlreadyExistsError(
+                    message="That name already exists", details={"path": target}
+                )
+            parent = posixpath.dirname(target) or "."
+            if (
+                not await opened.workspace.exists(parent)
+                or not (await opened.workspace.stat(parent)).is_dir
+            ):
+                raise BadRequestError(
+                    message="Choose an existing destination folder", details={"path": parent}
+                )
+            if opened.document is not None:
+                _move_stored_path(opened.document, origin, target)
+            else:
+                # No shell interpolation and no replacement, even if another writer
+                # creates the destination after the existence check above.
+                moved = await opened.workspace.run(
+                    ["mv", "-T", "-n", "--", origin, target], timeout=60
+                )
+                if moved.exit_code != 0 or await opened.workspace.exists(origin):
+                    raise BadRequestError(
+                        message="Could not move the file or folder; refresh and try again",
+                        details={"path": origin},
+                    )
+            completed = True
+        finally:
+            result = await self.workspaces.close(opened)
+            if completed and isinstance(result, WorkspaceFlushFailure):
+                raise result.error
+        await self._touched(ctx, project, "project.path_moved", target)
+        return target
 
     async def add_file(self, ctx: AuthContext, project_id: UUID, *, path: str, data: bytes) -> str:
         """Put a file in the project's container, where every agent in it finds it.
@@ -508,3 +676,33 @@ class ProjectService:
                 "Choose a published agent, not one archived or switched off - a new chat "
                 "starts with it",
             )
+
+
+def _editable_text(data: bytes) -> str:
+    if len(data) > 1_048_576 or b"\x00" in data:
+        raise BadRequestError(message="Only text files up to 1 MiB can be edited here", details={})
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise BadRequestError(message="This file is not UTF-8 text", details={}) from exc
+
+
+def _move_stored_path(document: StateBackend, origin: str, target: str) -> None:
+    source, destination = f"/{origin}", f"/{target}"
+    files = {
+        path: value
+        for path, value in document.files.items()
+        if path == source or path.startswith(source + "/")
+    }
+    directories = {
+        path for path in document.directories if path == source or path.startswith(source + "/")
+    }
+    # Re-key metadata rather than copying bytes: empty folders and binary files
+    # survive, timestamps stay intact, and there is no partial recursive copy.
+    for path in files:
+        del document.files[path]
+    document.files.update(
+        {destination + path[len(source) :]: value for path, value in files.items()}
+    )
+    document.directories.difference_update(directories)
+    document.directories.update(destination + path[len(source) :] for path in directories)

@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { AnimatedAmount, AnimatedTally, Figure } from "@/components/ui";
 import { useUsageStats } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
-import { timelineOf } from "@/lib/dashboard/timeline";
+import { bucketLabeller, timelineOf } from "@/lib/dashboard/timeline";
 import { completedShare, formatCompletedShare, statusTally } from "@/lib/run-outcomes";
 import { formatUsd } from "../format";
 import { WidgetFrame } from "../widget-frame";
@@ -31,19 +31,23 @@ export function MySummaryWidget({ title, hint, period, seeAll, options }: Dashbo
     { scope: "own" },
   );
 
+  const locale = useLocale();
+  const labels = timelineOf(usage).map(bucketLabeller(usage, locale));
+
   return (
     <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {isLoading ? (
-        <WidgetSkeleton />
+        <WidgetSkeleton variant="metrics" />
       ) : error ? (
         <WidgetErrorBody onRetry={() => refetch()} />
       ) : (
-        <div className="grid flex-1 grid-cols-2 gap-5 lg:grid-cols-4">
+        <div className="grid flex-1 grid-cols-2 gap-5 @[40rem]/widget:grid-cols-4">
           <Figure
             tone="indigo"
             label={t("runs")}
             value={<AnimatedTally value={usage?.total_runs ?? 0} />}
             spark={timelineOf(usage).map((step) => step.runs)}
+            sparkLabels={labels}
           />
           <Figure
             tone="teal"
@@ -51,6 +55,7 @@ export function MySummaryWidget({ title, hint, period, seeAll, options }: Dashbo
             value={formatCompletedShare(completedShare(statusTally(usage?.by_status ?? [])))}
             caption={t("finishedOf", { total: usage?.total_runs ?? 0 })}
             spark={timelineOf(usage).map((step) => step.completed)}
+            sparkLabels={labels}
           />
           <Figure
             tone="amber"
@@ -79,6 +84,8 @@ export function MySummaryWidget({ title, hint, period, seeAll, options }: Dashbo
               />
             }
             spark={timelineOf(usage).map((step) => Number(step.cost_usd))}
+            sparkLabels={labels}
+            sparkFormat={formatUsd}
           />
         </div>
       )}

@@ -34,6 +34,7 @@ import type {
   ExternalAgentRef,
   SubagentRef,
 } from "@/types/agents";
+import { contextSettings } from "@/lib/context-settings";
 import { useTranslations } from "next-intl";
 
 /**
@@ -267,6 +268,16 @@ export function CapabilityWorkbench({
               // the first tab and the panel opens on it.
               resources={panelResources(focused.id, t, () => (
                 <CapabilityResources
+                  fileSettings={contextSettings(bound?.config.file_settings)}
+                  onFileSettingsChange={
+                    bound === undefined
+                      ? undefined
+                      : (file_settings) =>
+                          onChange({
+                            ...bound,
+                            config: { ...bound.config, file_settings },
+                          })
+                  }
                   capabilityId={focused.id}
                   enabled={isOn}
                   resources={resources}

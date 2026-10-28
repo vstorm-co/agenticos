@@ -158,7 +158,7 @@ export default function DeploymentSettingsPage() {
 
   return (
     <LoadingForm loading={isLoading}>
-      <div className="space-y-6">
+      <div className="flex flex-1 flex-col space-y-6">
         <ListCard title={t("brandingIdentity")} counted={t("brandingIdentityHint")}>
           <div className="space-y-5">
             <FormField

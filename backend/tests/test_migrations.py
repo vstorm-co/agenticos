@@ -555,3 +555,74 @@ class TestMessageClientCorrelation:
                 )
         finally:
             engine.dispose()
+
+
+class TestChannelRatingAuthors:
+    def test_account_votes_survive_and_channel_authors_are_constrained(self):
+        reset = _alembic("downgrade", "base")
+        assert reset.returncode == 0, reset.stderr
+        before = _alembic("upgrade", "0174_message_client_id")
+        assert before.returncode == 0, before.stderr
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        message_id, user_id, original_id, identity_id = (uuid4() for _ in range(4))
+        try:
+            with engine.begin() as connection:
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                connection.execute(
+                    text(
+                        "INSERT INTO message_ratings (id, message_id, user_id, rating) VALUES (:id, :message, :user, 1)"
+                    ),
+                    {"id": original_id, "message": message_id, "user": user_id},
+                )
+            upgraded = _alembic("upgrade", "head")
+            assert upgraded.returncode == 0, upgraded.stderr
+            with engine.begin() as connection:
+                row = connection.execute(
+                    text("SELECT user_id, channel_identity_id FROM message_ratings WHERE id=:id"),
+                    {"id": original_id},
+                ).one()
+                assert tuple(row) == (user_id, None)
+                connection.execute(
+                    text(
+                        "INSERT INTO channel_identities (id, platform, platform_user_id, is_active) VALUES (:id, 'mattermost', 'participant', true)"
+                    ),
+                    {"id": identity_id},
+                )
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                connection.execute(
+                    text(
+                        "INSERT INTO message_ratings (id, message_id, channel_identity_id, rating) VALUES (:id, :message, :identity, -1)"
+                    ),
+                    {"id": uuid4(), "message": message_id, "identity": identity_id},
+                )
+            from sqlalchemy.exc import IntegrityError
+
+            for user, identity in [(None, None), (user_id, identity_id)]:
+                with pytest.raises(IntegrityError), engine.begin() as connection:
+                    connection.execute(text("SET LOCAL session_replication_role = replica"))
+                    connection.execute(
+                        text(
+                            "INSERT INTO message_ratings (id, message_id, user_id, channel_identity_id, rating) VALUES (:id, :message, :user, :identity, 1)"
+                        ),
+                        {"id": uuid4(), "message": uuid4(), "user": user, "identity": identity},
+                    )
+            with pytest.raises(IntegrityError), engine.begin() as connection:
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                connection.execute(
+                    text(
+                        "INSERT INTO message_ratings (id, message_id, channel_identity_id, rating) VALUES (:id, :message, :identity, 1)"
+                    ),
+                    {"id": uuid4(), "message": message_id, "identity": identity_id},
+                )
+            back = _alembic("downgrade", "0174_message_client_id")
+            assert back.returncode == 0, back.stderr
+            with engine.connect() as connection:
+                assert connection.execute(
+                    text("SELECT id, user_id FROM message_ratings")
+                ).all() == [(original_id, user_id)]
+            restored = _alembic("upgrade", "head")
+            assert restored.returncode == 0, restored.stderr
+            check = _alembic("check")
+            assert check.returncode == 0, check.stderr + check.stdout
+        finally:
+            engine.dispose()

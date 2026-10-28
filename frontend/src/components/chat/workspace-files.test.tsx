@@ -25,6 +25,7 @@ function draw(node: ReactNode) {
 /** The panel is closed by default; every test about its contents opens it. */
 async function openPanel() {
   await userEvent.click(await screen.findByRole("button", { name: /^Show the files/ }));
+  await waitFor(() => expect(screen.getByRole("complementary")).toHaveStyle({ opacity: "1" }));
 }
 
 function workspace(overrides: Record<string, unknown> = {}) {
@@ -543,7 +544,7 @@ describe("the workspace panel", () => {
     );
 
     expect(await screen.findByRole("button", { name: /^Show the files/ })).toBeVisible();
-    expect(screen.queryByText("report.csv")).toBeNull();
+    await waitFor(() => expect(screen.queryByText("report.csv")).toBeNull());
   });
 
   it("says on the button how many files there are to see", async () => {
@@ -576,6 +577,27 @@ describe("the workspace panel", () => {
     expect(await screen.findByRole("button", { name: "Show the files" })).toBeVisible();
   });
 
+  it("keeps the composer toggle present while open and closes from that toggle", async () => {
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        attachments={[]}
+        revision={0}
+      />,
+    );
+    await openPanel();
+    const toggle = screen.getByRole("button", { name: "Files" });
+    expect(toggle).toBeVisible();
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await userEvent.click(toggle);
+    await waitFor(() => expect(screen.queryByRole("complementary")).toBeNull());
+    expect(screen.getByRole("button", { name: /^Show the files/ })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+  });
+
   it("closes again", async () => {
     draw(
       <WorkspaceFiles
@@ -590,7 +612,8 @@ describe("the workspace panel", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Close the file panel" }));
 
-    expect(screen.queryByText("report.csv")).toBeNull();
+    await waitFor(() => expect(screen.queryByText("report.csv")).toBeNull());
+    expect(screen.getByRole("button", { name: /^Show the files/ })).toHaveFocus();
   });
 
   it("explains a host that keeps no files on disk instead of alarming somebody", async () => {

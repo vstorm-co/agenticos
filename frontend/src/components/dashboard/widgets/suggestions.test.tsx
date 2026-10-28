@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SuggestionsWidget } from "./suggestions";
@@ -9,6 +9,9 @@ import { SuggestionsWidget } from "./suggestions";
  */
 
 const state = vi.hoisted(() => ({
+  isLoading: false,
+  error: null as Error | null,
+  refetch: vi.fn(),
   suggestions: [] as { id: string; urgent?: boolean }[],
   org: {} as { proactive_enabled?: boolean; proactive_watches_enabled?: boolean },
   shown: [] as { id: string }[],
@@ -16,7 +19,12 @@ const state = vi.hoisted(() => ({
 
 vi.mock("@/hooks", () => ({ useOrganizations: () => ({ activeOrg: state.org }) }));
 vi.mock("@/hooks/use-suggestions", () => ({
-  useSuggestions: () => ({ suggestions: state.suggestions }),
+  useSuggestions: () => ({
+    suggestions: state.suggestions,
+    isLoading: state.isLoading,
+    error: state.error,
+    refetch: state.refetch,
+  }),
 }));
 vi.mock("@/components/inbox/suggestion-rows", () => ({
   SuggestionRows: ({ items, dense }: { items: { id: string }[]; dense?: boolean }) => {
@@ -38,11 +46,29 @@ const props = {
 
 beforeEach(() => {
   state.suggestions = [];
+  state.isLoading = false;
+  state.error = null;
+  state.refetch.mockReset();
   state.org = {};
   state.shown = [];
 });
 
 describe("SuggestionsWidget", () => {
+  it("waits for the briefing instead of reporting no proposals", () => {
+    state.isLoading = true;
+    render(<SuggestionsWidget {...props} />);
+    expect(screen.getByRole("status", { name: "Loading" })).toBeInTheDocument();
+    expect(screen.queryByText("Nothing proposed yet")).not.toBeInTheDocument();
+  });
+
+  it("keeps a failed briefing distinct from an empty one and can retry", () => {
+    state.error = new Error("offline");
+    render(<SuggestionsWidget {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(state.refetch).toHaveBeenCalledOnce();
+    expect(screen.queryByText("Nothing proposed yet")).not.toBeInTheDocument();
+  });
+
   it("shows the inbox's own rows, tightened", () => {
     state.suggestions = [{ id: "s1" }];
     render(<SuggestionsWidget {...props} />);

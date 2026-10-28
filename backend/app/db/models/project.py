@@ -68,6 +68,16 @@ class Project(Base, TimestampMixin):
         index=True,
     )
     """Which connection the container runs on; `None` takes the organization's default."""
+    workspace_generation: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), nullable=True
+    )
+    """Null retains the legacy key. A transfer activates its own isolated generation."""
+    workspace_move_job_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("background_jobs.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     runtime: Mapped[str | None] = mapped_column(String(64), nullable=True)
     """Which environment the container runs; `None` takes the connection's default."""
 

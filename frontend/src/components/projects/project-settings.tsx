@@ -22,6 +22,7 @@ import {
 import { useProject } from "@/hooks/use-projects";
 import { ROUTES } from "@/lib/constants";
 import type { Project } from "@/types/projects";
+import { ProjectSandboxSummary } from "./project-sandbox-choice";
 import { DefaultAgentSelect } from "./default-agent-select";
 
 /**
@@ -43,7 +44,8 @@ export function ProjectSettings({ project }: { project: Project }) {
   const [agentId, setAgentId] = useState(project.default_agent_id);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [mode, setMode] = useState<MarkdownMode>(project.can_edit ? "source" : "preview");
-  const editable = project.can_edit;
+  const editable =
+    project.can_edit && !["queued", "running"].includes(project.workspace_move?.status ?? "");
   const changed =
     name !== project.name ||
     description !== (project.description ?? "") ||
@@ -75,6 +77,7 @@ export function ProjectSettings({ project }: { project: Project }) {
         </CardContent>
       </Card>
 
+      <ProjectSandboxSummary project={project} />
       <Card>
         <CardHeader>
           <CardTitle>{t("details")}</CardTitle>
@@ -108,30 +111,29 @@ export function ProjectSettings({ project }: { project: Project }) {
               disabled={!editable}
             />
           </FormField>
+          {/* One save for both cards: they are one record, written in one request. */}
+          {editable && (
+            <div className="flex justify-end">
+              <Button
+                disabled={!changed || !name.trim() || update.isPending}
+                onClick={() =>
+                  update.mutate({
+                    name: name.trim(),
+                    description: description.trim() || null,
+                    instructions,
+                    // Only when it was changed: a default agent this reader may
+                    // not see reaches them as none, and saving the instructions
+                    // must not clear it.
+                    ...(agentId !== project.default_agent_id && { default_agent_id: agentId }),
+                  })
+                }
+              >
+                {t("save")}
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
-
-      {/* One save for both cards: they are one record, written in one request. */}
-      {editable && (
-        <div className="flex justify-end">
-          <Button
-            disabled={!changed || !name.trim() || update.isPending}
-            onClick={() =>
-              update.mutate({
-                name: name.trim(),
-                description: description.trim() || null,
-                instructions,
-                // Only when it was changed: a default agent this reader may
-                // not see reaches them as none, and saving the instructions
-                // must not clear it.
-                ...(agentId !== project.default_agent_id && { default_agent_id: agentId }),
-              })
-            }
-          >
-            {t("save")}
-          </Button>
-        </div>
-      )}
 
       {editable && (
         <Card>

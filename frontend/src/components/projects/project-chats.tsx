@@ -46,6 +46,7 @@ export function ProjectChats({ project }: { project: Project }) {
 
   return (
     <ListCard
+      fill
       title={t("chats")}
       counted={error ? null : t("chatCount", { count: total })}
       controls={newChat}

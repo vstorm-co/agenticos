@@ -3,6 +3,7 @@
 import { useState } from "react";
 import {
   Bell,
+  ChevronRight,
   CircleDollarSign,
   FileCheck2,
   FileText,
@@ -246,7 +247,7 @@ export default function NotificationsSettingsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-1 flex-col space-y-6">
       <SectionCard title={t("agentActivity")} description={t("emailsAboutRunsNobody")}>
         <ul className="divide-border divide-y">
           {OPTIONAL_EMAILS.map((email) => (
@@ -259,9 +260,16 @@ export default function NotificationsSettingsPage() {
                 <p className="text-muted-foreground text-xs leading-relaxed">
                   {t(`${email.words}Trigger`)}
                 </p>
-                <p className="text-muted-foreground text-xs leading-relaxed">
-                  {t(`${email.words}Audience`)}
-                </p>
+                <details className="group/audience text-muted-foreground pt-1 text-xs">
+                  <summary className="hover:text-foreground flex w-fit cursor-pointer list-none items-center gap-1 py-1 [&::-webkit-details-marker]:hidden">
+                    <ChevronRight
+                      className="h-3 w-3 transition-transform group-open/audience:rotate-90 motion-reduce:transition-none"
+                      aria-hidden
+                    />
+                    {t("whoReceivesThis")}
+                  </summary>
+                  <p className="max-w-2xl pt-1 leading-relaxed">{t(`${email.words}Audience`)}</p>
+                </details>
               </div>
               <Switch
                 aria-label={t(email.words)}
@@ -288,7 +296,7 @@ export default function NotificationsSettingsPage() {
             {PREFERENCE_EVENTS.map((event) => (
               <li
                 key={event.eventType}
-                className="flex items-start gap-3 py-4 first:pt-0 last:pb-0"
+                className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-3 py-4 first:pt-0 last:pb-0 sm:flex"
               >
                 <span className="bg-muted text-muted-foreground inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
                   <event.icon className="h-4 w-4" />
@@ -299,7 +307,7 @@ export default function NotificationsSettingsPage() {
                     {t(`${event.words}Trigger`)}
                   </p>
                 </div>
-                <div className="flex shrink-0 items-center gap-4">
+                <div className="col-start-2 flex shrink-0 items-center gap-6 sm:gap-4">
                   {event.channels.map((channel) => {
                     const pendingKey = `${event.eventType}:${channel}`;
                     const label = `${t(event.words)} - ${t(

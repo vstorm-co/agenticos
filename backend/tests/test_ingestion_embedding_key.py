@@ -194,6 +194,7 @@ class TestTheCollectionsKeyPays:
                     embedding_dim=_DIM,
                     embedding_secret_id=uuid.uuid4(),
                     embedding_provider="openai",
+                    embedding_base_url=None,
                     organization_id=_ORG,
                 )
             )

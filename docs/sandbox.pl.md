@@ -1,5 +1,5 @@
 ---
-source_sha: "02a95e1f3647"
+source_sha: "ca8f4c0c2629"
 ---
 
 # Sandbox { #the-sandbox }
@@ -665,3 +665,5 @@ zapomniane, a ich liczba trafi do logu audytu.
   Zużycie dysku tylko rośnie.
 
 Backend `state` wlicza pliki i puste katalogi do limitu przechowywania, również przy końcowym scalaniu równoległych zmian. Jeśli osobno zaakceptowane dokumenty nie mieszczą się razem, wspólny dokument pozostaje bez zmian, a późniejszy zapis trafia do kopii odzyskiwania w **Documents**. Run zapisuje błąd z identyfikatorem kopii; operacja na projekcie zwraca konflikt zamiast sukcesu. Kopie projektów wymagają uprawnień do przeglądania i używania projektu. Klucz obcy usuwa kopię wraz ze źródłem, także przy równoczesnym usuwaniu danych. Obniżenie limitu poniżej rozmiaru istniejącego dokumentu nadal pozwala go zmniejszać.
+
+Instrukcje workbench wyjaśniają agentom, że polecenia działają w POSIX `/bin/sh`, a nie w Bashu. Na przykład `mkdir -p sources inbox notes` tworzy trzy foldery; ta powłoka nie rozwija `{sources,inbox,notes}`. Pliki projektu należą do `/workspace`; katalog domowy (`~`) znajduje się poza współdzielonymi plikami. Każde polecenie uruchamia nowy proces, więc zmienne powłoki i zmiany katalogu nie przechodzą do kolejnego wywołania. Agent ma sprawdzać błędy i pliki przed zgłoszeniem powodzenia.

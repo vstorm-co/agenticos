@@ -43,6 +43,7 @@ describe("the dashboard's discover tips", () => {
     );
     expect(within(tile("Shortcuts with /")).getByText("/")).toBeInTheDocument();
     expect(screen.getAllByRole("article")).toHaveLength(11);
+    expect(screen.getAllByRole("article")[0]).toHaveAccessibleName(/computer/i);
   });
 
   it("leaves out what the reader cannot use", () => {

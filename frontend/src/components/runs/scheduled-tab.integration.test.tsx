@@ -90,7 +90,7 @@ describe("ScheduledTab", () => {
     serveOrg([]);
     render(<ScheduledTab />, { wrapper });
 
-    expect(await screen.findByText("Nothing runs on its own yet")).toBeVisible();
+    expect(await screen.findByText("No agent routines yet")).toBeVisible();
     // No button off to the agents list - the header's New schedule and the ideas
     // under this line are the way in - and no card to frame the absence.
     expect(screen.queryByRole("button")).toBeNull();
@@ -160,7 +160,7 @@ describe("ScheduledTab", () => {
     await user.type(await screen.findByPlaceholderText("Search routines"), "zzz");
 
     expect(screen.getByText("No routine matches that.")).toBeVisible();
-    expect(screen.queryByText("Nothing runs on its own yet")).toBeNull();
+    expect(screen.queryByText("No agent routines yet")).toBeNull();
   });
 
   it("shows no row actions on a trigger the caller may not manage", async () => {

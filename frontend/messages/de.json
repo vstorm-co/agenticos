@@ -959,7 +959,11 @@
     "newStarterPlaceholder": "Wobei kannst du mir helfen?",
     "addStarter": "Hinzufügen",
     "platformUngatedBadge": "eigene Einstellung, ohne Freigabe",
-    "platformHeldBadge": "liest frühere Unterhaltungen, fragt vorher"
+    "platformHeldBadge": "liest frühere Unterhaltungen, fragt vorher",
+    "openRouterEndpointHint": "Leer lassen für die globale OpenRouter-API oder eine regionale URL wie https://eu.openrouter.ai/api/v1 eingeben. EU-Routing erfordert einen passenden OpenRouter-Tarif; ZDR wird separat bei OpenRouter konfiguriert.",
+    "defaultEndpoint": "Standard-API",
+    "addSeparateModel": "Separates Modell hinzufügen",
+    "separateEndpointHint": "Speichern Sie diesen Endpunkt als separates Modell, damit andere Agenten ihr bisheriges Profil behalten. „Modell aktualisieren“ ändert das gemeinsame Profil überall, wo es verwendet wird."
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -1312,7 +1316,9 @@
       "modelHasNoKey": "{model} ist ohne Schlüssel gespeichert, daher kann diese Unterhaltung nicht darauf laufen. Geben Sie ihm zuerst im Modellbereich eines Agents einen Schlüssel.",
       "provider": "Provider",
       "runModel": "Auf diesem Modell ausführen",
-      "thisChat": "Nur dieser Chat"
+      "thisChat": "Nur dieser Chat",
+      "changeModel": "Modell ändern",
+      "profilesUnavailable": "Die Modelleinstellungen konnten nicht geladen werden. Versuche es erneut, bevor du ein anderes Modell auswählst."
     },
     "newChat": "Neuer Chat",
     "newConversation": "Neue Unterhaltung",
@@ -2110,7 +2116,8 @@
     "showLess": "Weniger",
     "copy": "Kopieren",
     "copied": "Kopiert",
-    "searchShortcut": "Strg K"
+    "searchShortcut": "Strg K",
+    "filesRoot": "Projektdateien"
   },
   "dashboard": {
     "actions": {
@@ -3360,7 +3367,10 @@
     "whoCanSearchIt": "Wer sie durchsuchen kann",
     "parsingDetails": "Chunking, OCR und Bilder",
     "moreOptions": "Weitere Optionen",
-    "citedFileGone": "Diese Datei ist nicht mehr in ihrer Wissensdatenbank - sie wurde nach dem Zitieren gelöscht oder ersetzt."
+    "citedFileGone": "Diese Datei ist nicht mehr in ihrer Wissensdatenbank - sie wurde nach dem Zitieren gelöscht oder ersetzt.",
+    "embeddingEndpoint": "Endpunkt",
+    "embeddingEndpointHint": "Leer lassen für die globale OpenRouter-API oder eine regionale URL wie https://eu.openrouter.ai/api/v1 eingeben. EU-Routing erfordert einen passenden OpenRouter-Tarif; ZDR wird separat bei OpenRouter konfiguriert.",
+    "noConnectorsAvailable": "Keine Quell-Konnektoren verfügbar. Ein Administrator kann einen Konnektor für diese Installation aktivieren."
   },
   "knowledgeBases": {
     "active": "Aktiv",
@@ -3811,7 +3821,8 @@
     "backgroundJobs": "Hintergrund-Jobs",
     "loadingPage": "Seite wird geöffnet",
     "inbox": "Posteingang",
-    "inboxCount": "{count, plural, =1 {1 wartet} other {# warten}}"
+    "inboxCount": "{count, plural, =1 {1 wartet} other {# warten}}",
+    "consoleVersion": "Konsolenversion {version}"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -4411,10 +4422,6 @@
         "title": "Nach Abteilung",
         "body": "Schränken Sie die Liste auf das ein, was eine Gruppe bekommen hat. Eine Gruppe entscheidet, wen etwas erreicht, und gruppiert damit auch die Liste."
       },
-      "routines-ideas": {
-        "title": "Oder mit einer Idee beginnen",
-        "body": "Fertige Routinen - ein Morgenüberblick, eine Wochenzusammenfassung, eine stündliche Prüfung - jeweils mit der Uhrzeit, zu der sie liefe. Wählen Sie eine, und der neue Zeitplan öffnet sich bereits ausgefüllt."
-      },
       "sign-in-to-site": {
         "title": "Bei einer Website anmelden",
         "body": "Öffne einen Browser auf einer Website nur für dich, melde dich an und gib ihn mit Keep me signed in zurück - der Browser deiner Agents startet dort ab dann angemeldet."
@@ -4584,7 +4591,7 @@
       "dislikes": "Negative Bewertungen",
       "eachRowSaysWhat": "Jede Zeile sagt, was geprüft wurde. Aktualisiert sich alle 30 Sek.",
       "everyCheckPassed": "Jede Prüfung bestanden",
-      "everyStatusHereComes": "Jeder Status hier stammt aus einer Prüfung, die beim Laden dieser Seite lief. Es gibt keine Verfügbarkeitshistorie: Nichts zeichnet eine auf, und eine Zahl, die wie eine aussähe, wäre erfunden.",
+      "everyStatusHereComes": "Aktuelle Prüfungen dieser Installation. Bei aktivierter automatischer Aktualisierung werden die Ergebnisse alle 30 Sekunden erneuert.",
       "failedFetchHealth": "Zustand konnte nicht abgerufen werden",
       "failingServices": "Fehlerhaft: {names}",
       "inspect": "Untersuchen",
@@ -4614,7 +4621,7 @@
       "serviceRedis": "Redis",
       "serviceRedisDetail": "Cache & Queue-Broker",
       "serviceScheduler": "Geplante Jobs",
-      "serviceSchedulerDetail": "Trigger, E-Mails und Sweeps, über Prefect",
+      "serviceSchedulerDetail": "Trigger, E-Mails und Wartungsaufgaben",
       "serviceVectorStore": "Vektorspeicher",
       "serviceVectorStoreDetail": "pgvector, dieselbe Datenbank",
       "services": "Dienste",
@@ -5272,7 +5279,7 @@
       "activity2": "Aktivität",
       "agentColumn": "Agent",
       "agentFilter": "Nach Agent filtern",
-      "agentsAreRunningWithout": "Agents laufen, ohne Sie zu brauchen.",
+      "agentsAreRunningWithout": "Anfragen, die deine Entscheidung benötigen, erscheinen hier.",
       "answered": "Antwort erhalten",
       "anyAgent": "Alle Agents",
       "anyModel": "Beliebiges Modell",
@@ -5354,7 +5361,7 @@
       "nothingRecordedBecause": "Der Run hat nie ein Modell erreicht – von einem Budget oder einem Guardrail gestoppt – oder er lief, bevor dies aufgezeichnet wurde.",
       "nothingRecordedForThisRun": "Für diesen Run wurde nichts aufgezeichnet",
       "nothingSpentYet": "Noch nichts ausgegeben.",
-      "nothingWaiting": "Nichts wartet",
+      "nothingWaiting": "Keine ausstehenden Freigaben",
       "openTheAgent": "Den Agent öffnen",
       "openTheChatBehind": "Den Chat öffnen, in dem dieser Run stattfand",
       "openTheRunItCame": "Den Run öffnen, aus dem er stammt",
@@ -5548,7 +5555,7 @@
       "displayName": "Anzeigename",
       "email": "E-Mail",
       "emailChannel": "E-Mail",
-      "emailsAboutRunsNobody": "E-Mails über Runs, die niemand beobachtet. Jeder Schalter wird geprüft, bevor die E-Mail gesendet wird. Das sind Ihre eigenen Abmeldungen und sie nehmen immer nur weg: Ein Agent entscheidet, wer von ihm erfahren soll, und einen hier abzuschalten nimmt Sie von dieser Liste, was der Agent auch sagt. Wem ein Agent Bescheid gibt, wird am Agent unter Limits gesetzt.",
+      "emailsAboutRunsNobody": "Wähle E-Mails zu Budgets, Freigaben und Nutzung. Die Limits-Einstellungen des jeweiligen Agenten bestimmen die Empfänger.",
       "failedDeleteAccount": "Konto konnte nicht gelöscht werden",
       "failedLoadPreferences": "Benachrichtigungseinstellungen konnten nicht geladen werden",
       "failedSavePreference": "Einstellung konnte nicht gespeichert werden",
@@ -5621,7 +5628,7 @@
       "signOutFromAll": "Von allen Geräten abmelden?",
       "signedOutFromAll": "Von allen Geräten abgemeldet",
       "slashCommands": "Slash-Befehle",
-      "squareImagesLookBest": "Quadratische Bilder wirken am besten. Bis zu 2 MB. JPG, PNG, WEBP oder GIF.",
+      "squareImagesLookBest": "Dein Foto wird kreisförmig zugeschnitten.",
       "transactionalEmailsWhatTriggers": "Die transaktionalen E-Mails, was jede auslöst und warum keine davon optional ist.",
       "updatePassword": "Passwort aktualisieren",
       "uploadAvatar3": "Avatar hochladen",
@@ -5666,7 +5673,8 @@
       "prefCapabilityRequested": "Eine Capability angefragt",
       "prefCapabilityRequestedTrigger": "Jemand hat eine Capability angefragt, die einem Ihrer Agents fehlt. An den Besitzer des Agents, einmal pro Person und Capability.",
       "prefFinding": "Funde Ihrer Beobachtungen",
-      "prefFindingTrigger": "Was eine Beobachtung sofort melden sollte, und das Morgen-Briefing für den Rest."
+      "prefFindingTrigger": "Was eine Beobachtung sofort melden sollte, und das Morgen-Briefing für den Rest.",
+      "whoReceivesThis": "Wer erhält diese Nachricht?"
     },
     "skills": {
       "agentsBoundSkillWill": "An diesen Skill gebundene Agents laufen ab ihrem nächsten Run ohne ihn. Das lässt sich nicht rückgängig machen.",
@@ -5743,10 +5751,10 @@
     },
     "routines": {
       "title": "Routinen",
-      "description": "Alles, was Ihre Agents von allein tun - nach Zeitplan oder auf ein Ereignis.",
-      "ideasTitle": "Ideen zum Starten",
-      "ideasHint": "Wählen Sie eine, und sie öffnet sich als neuer Zeitplan, schon ausgefüllt - Agent wählen, anpassen, speichern.",
-      "newWatch": "Neue Beobachtung"
+      "description": "Agentenroutinen führen Aufgaben aus. Meine Beobachtungen prüfen verbundene Konten und liefern Ergebnisse in deinen privaten Posteingang.",
+      "newWatch": "Neue Beobachtung",
+      "agentsTab": "Agentenaufgaben",
+      "watchesTab": "Meine Beobachtungen"
     },
     "signIns": {
       "cancel": "Abbrechen",
@@ -5932,7 +5940,7 @@
       "button": "Suchen",
       "failedDescription": "Die Suchanfrage ist fehlgeschlagen, ob etwas passt, ist also unbekannt.",
       "failedTitle": "Suche konnte nicht ausgeführt werden",
-      "noBases": "Noch nichts zu durchsuchen – legen Sie zuerst eine Wissensdatenbank an und laden Sie ein Dokument hoch.",
+      "noBases": "Erstelle eine Wissensdatenbank und lade Dokumente hoch. Ihre Inhalte lassen sich hier durchsuchen.",
       "noResults": "Keine Ergebnisse gefunden",
       "noResultsHint": "Versuchen Sie eine andere Suchanfrage oder eine andere Wissensdatenbank",
       "page": "S. {page}",
@@ -5941,7 +5949,11 @@
       "retry": "Erneut versuchen",
       "scopeLabel": "Suchbereich",
       "searching": "Wird gesucht …",
-      "openFile": "{name} öffnen"
+      "openFile": "{name} öffnen",
+      "noBasesTitle": "Wissen zum Durchsuchen hinzufügen",
+      "queryLabel": "Suchanfrage",
+      "idleTitle": "Die Quelle einer Antwort finden",
+      "idleDescription": "Suche nach einem Thema oder stelle eine Frage. Die Ergebnisse verlinken auf das Originaldokument, damit du die Quelle prüfen kannst."
     },
     "skippedCount": "{count} übersprungen",
     "sourceName": "Name der Quelle",
@@ -6656,14 +6668,12 @@
     "modeLink": "verknüpft",
     "modeInjectHint": "Wird bei jedem Run in die Instruktionen des Agents eingefügt.",
     "modeLinkHint": "Bleibt aus dem Prompt heraus; der Agent liest sie bei Bedarf.",
-    "sizeWithFormat": "{format} · {size}",
     "newContext": "Neue Kontextdatei",
     "availableEveryAgentOrganization": "Wählen Sie unten, wer sie nutzen darf. Ein Agent liest sie, sobald sie ihm hinzugefügt wurde.",
     "name": "Name",
     "howItIsReferredTo": "Wie diese Datei referenziert wird; das lässt sich später nicht mehr ändern.",
     "mode": "Modus",
     "format": "Format",
-    "formatHint": "Ein Hinweis zur Darstellung, zum Beispiel md oder txt.",
     "description": "Beschreibung",
     "whatIsInIt": "Was darin steht, damit eine verknüpfte Datei gewählt werden kann, ohne sie zu öffnen",
     "shownWhenLinked": "Wird neben dem Namen angezeigt, wenn die Datei verknüpft ist.",
@@ -6683,7 +6693,10 @@
     "droppedTooLarge": "{count, plural, =1 {Eine Datei ist größer als {max} – ein so großes Dokument gehört in eine Wissens-Collection} other {# Dateien sind größer als {max} – ein so großes Dokument gehört in eine Wissens-Collection}}",
     "moreFilesWaiting": "{count, plural, =1 {1 weitere Datei wartet} other {# weitere Dateien warten}}",
     "bodyPlaceholder": "# Glossar\n\nWas ein Begriff hier bedeutet und was nicht.\n\n- **SLA** - die Reaktionszeit, die wir zusagen, nicht die Behebungszeit.\n",
-    "whoCanUseIt": "Wer es nutzen darf"
+    "whoCanUseIt": "Wer es nutzen darf",
+    "useForAgent": "In diesem Agenten verwenden",
+    "usageForAgent": "Verwendung von {name}",
+    "bindingSettingsHint": "Die Verwendung dieser Datei wird für jeden Agenten im Builder unter Context eingestellt."
   },
   "memory": {
     "clearAction": "Gedächtnis leeren",
@@ -6841,10 +6854,10 @@
     "runsCouldNotBeRead": "Die Runs dieses Triggers konnten nicht gelesen werden.",
     "unit": "Einheit",
     "activityTitle": "Routinen",
-    "activityEmptyTitle": "Noch läuft nichts von allein",
+    "activityEmptyTitle": "Noch keine Agentenroutinen",
     "searchRoutines": "Routinen suchen",
     "noRoutineMatches": "Keine Routine passt dazu.",
-    "routineCount": "{count, plural, =0 {Keine Routinen} =1 {1 Routine} other {# Routinen}}",
+    "routineCount": "{count, plural, one {# Routine} other {# Routinen}}",
     "activityEmptyDescription": "Sobald ein Agent sich selbst ausführen soll, erscheint er hier.",
     "agent": "Agent",
     "chooseAgent": "Agent wählen",
@@ -7920,6 +7933,10 @@
       "expose_read_tool": {
         "title": "Verlinkte Dateien öffnen lassen",
         "description": "Ob Dateien im Link-Modus über ein Lese-Tool erreichbar sind. Aus bedeutet, dass nur eingefügte Dateien das Modell erreichen und nichts bei Bedarf gelesen wird."
+      },
+      "file_settings": {
+        "title": "Verwendung je Datei",
+        "description": "Modus und Verfügbarkeit angehängter Kontextdateien für diesen Agenten. Ohne Eintrag bleiben die bisherigen Dateivorgaben erhalten."
       }
     },
     "conversation_search": {
@@ -8513,7 +8530,57 @@
     "uploadFailed": "Der Upload ist fehlgeschlagen",
     "noFilesYet": "Noch nichts in diesem Projekt",
     "noFilesHint": "Legen Sie Dateien oder einen ganzen Ordner hier ab, oder laden Sie sie hoch. Jeder Chat im Projekt liest sie und arbeitet damit.",
-    "noFilesViewer": "Dateien, die dem Projekt hinzugefügt werden, erscheinen hier."
+    "noFilesViewer": "Dateien, die dem Projekt hinzugefügt werden, erscheinen hier.",
+    "fileManager": {
+      "actions": "Aktionen für {name}",
+      "rename": "Umbenennen",
+      "move": "In Ordner verschieben",
+      "delete": "Löschen",
+      "name": "Name",
+      "destination": "Zielordner",
+      "root": "Projektdateien",
+      "moveFailed": "Verschieben fehlgeschlagen. Namen und Ziel prüfen und erneut versuchen.",
+      "cancel": "Abbrechen",
+      "saving": "Wird gespeichert…",
+      "confirm": "Bestätigen",
+      "edit": "Datei bearbeiten",
+      "loading": "Datei wird geladen…",
+      "contents": "Dateiinhalt",
+      "unsaved": "Ungespeicherte Änderungen",
+      "saved": "Gespeichert",
+      "textOnly": "UTF-8-Textdateien bis 1 MiB",
+      "close": "Schließen",
+      "save": "Änderungen speichern",
+      "discardTitle": "Änderungen verwerfen?",
+      "discardBody": "Die Änderungen wurden nicht gespeichert. Editor schließen und Änderungen verwerfen?",
+      "discard": "Änderungen verwerfen"
+    },
+    "sandbox": {
+      "label": "Projekt-Sandbox",
+      "automatic": "Automatisch",
+      "automaticNamed": "Automatisch · {name}",
+      "stored": "Nur Dateien speichern",
+      "storedHint": "Die Plattform speichert die Dateien. Agenten können sie lesen und schreiben, hier aber keinen Code ausführen.",
+      "sharedHint": "Alle Chats dieses Projekts teilen Dateien und Arbeitsumgebung. Sie ersetzt die Sandbox des antwortenden Agenten.",
+      "failed": "Sandbox-Verbindungen konnten nicht geladen werden. Automatische Auswahl und Dateispeicherung bleiben verfügbar.",
+      "configured": "Konfigurierte Sandbox",
+      "containerHint": "Ein eigener Container auf dieser Verbindung. Sie bleibt ausgewählt, bis die Projektdateien ausdrücklich übertragen werden.",
+      "howItWorks": "Dateien und Codeausführung im Projekt",
+      "locationTitle": "Wo Dateien liegen",
+      "locationHelp": "Gespeicherte Dateien liegen ohne Shell in der Plattformdatenbank. Eine Sandbox-Verbindung stellt einen Container auf Ihrer Infrastruktur oder eine Cloud-Sandbox bereit. Automatisch wählt beim Erstellen den Organisationsstandard.",
+      "sharingTitle": "Ein gemeinsamer Arbeitsbereich",
+      "sharingHelp": "Dateien bleiben über Gespräche hinweg erhalten und sind für Personen mit Projektzugriff gemeinsam verfügbar. Projektchats verwenden diesen Arbeitsbereich statt der Sandbox-Verbindung des Agenten.",
+      "executionTitle": "Wann ein Agent Code ausführen kann",
+      "executionHelp": "In einem Projekt mit Container erhalten Agenten die Sandbox-Werkzeuge des Projekts und können dort Code ausführen. Bestehende Werkzeugfreigaben gelten weiterhin. Gespeicherte Dateien haben keine Shell: Agenten können Dateien lesen und schreiben, aber keinen Code ausführen.",
+      "change": "Sandbox ändern",
+      "move": "Projektdateien übertragen",
+      "transferHint": "Kopiert Dateien und leere Ordner und prüft die Kopie vor dem Wechsel. Neue Läufe und Dateiänderungen pausieren währenddessen. Bei Fehlern bleibt der bisherige Arbeitsbereich ausgewählt. Bis 10.000 Einträge, 64 MiB pro Datei und 1 GiB insgesamt; symbolische Links vorher entfernen. Installierte Pakete und laufende Prozesse werden nicht übertragen.",
+      "moving": "Dateien nach {name} übertragen",
+      "progress": "{copied} von {total} Dateien kopiert",
+      "paused": "Vorhandene Dateien bleiben lesbar. Neue Läufe und Änderungen sind nach Abschluss wieder möglich.",
+      "moveFailed": "Die Übertragung wurde nicht abgeschlossen. Der bisherige Arbeitsbereich bleibt ausgewählt. Versuchen Sie es erneut.",
+      "moved": "Dateien geprüft und neuer Arbeitsbereich aktiviert."
+    }
   },
   "voiceGlow": {
     "title": "Diktieranimation",
@@ -8667,12 +8734,12 @@
       }
     },
     "signInAgain": "Erneut anmelden",
-    "count": "{count, plural, =0 {Noch nichts beobachtet} =1 {1 Beobachtung} other {# Beobachtungen}}",
+    "count": "{count, plural, one {# Beobachtung} other {# Beobachtungen}}",
     "findings": "Was sie gefunden haben",
     "offTitle": "Beobachtungen sind aus",
     "noConnectionsTitle": "Verbinden Sie ein Konto, um es zu beobachten",
     "connect": "MCP-Server öffnen",
-    "emptyTitle": "Noch nichts beobachtet",
+    "emptyTitle": "Noch keine Beobachtungen",
     "emptyDescription": "Wählen Sie eines Ihrer Konten und sagen Sie, wonach gesucht werden soll. Was eine Beobachtung findet, landet in Ihrem Posteingang; Dringendes erreicht Sie sofort.",
     "rowLooked": "{cadence} · geprüft {when}",
     "rowFirst": "{cadence} · erste Prüfung innerhalb einer Minute",

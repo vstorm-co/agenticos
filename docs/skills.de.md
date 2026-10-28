@@ -1,5 +1,5 @@
 ---
-source_sha: "bb644bc0a7d4"
+source_sha: "aaecb17bca0b"
 ---
 
 # Skills { #skills }
@@ -200,6 +200,12 @@ Abwesenheit.
 Drei Runden einer Unterhaltung, die denselben Skill verfeinern, hinterlassen
 **einen** Vorschlag, nicht drei. Wer dreimal dieselbe Frage gestellt bekommt, hat
 mehr Arbeit bekommen statt mehr Information.
+Vorschläge aus dem Workspace haben dieselben Metadatenlimits wie gespeicherte
+Skills: 1–64 Zeichen für den Namen und höchstens 500 für die Beschreibung.
+Änderungen außerhalb dieser Grenzen werden mit einer Warnung übersprungen;
+die ursprünglichen Dateien bleiben erhalten. Ein Savepoint schützt den Lauf:
+ein abgelehnter Vorschlag verhindert weder Status- noch Kostenaufzeichnung.
+
 
 ## Skills in eine Organisation bekommen { #getting-skills-into-an-organization }
 

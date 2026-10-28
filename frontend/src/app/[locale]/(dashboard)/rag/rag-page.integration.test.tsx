@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -170,6 +170,31 @@ describe("a failed list renders an error, not an empty state (#32)", () => {
 });
 
 describe("search", () => {
+  it("offers creation from an empty search only to an editor", async () => {
+    mockApi([]);
+    perms.add("collections:edit");
+    render(<RAGPage />, { wrapper });
+    await openSearchTab();
+
+    const empty = await screen.findByText("rag.search.noBasesTitle");
+    const region = empty.parentElement!;
+    await userEvent.click(
+      within(region).getByRole("button", { name: "pages.kb.newKnowledgeBase" }),
+    );
+    expect(await screen.findByRole("dialog")).toBeVisible();
+  });
+
+  it("keeps the empty search readable without offering creation to a viewer", async () => {
+    mockApi([]);
+    render(<RAGPage />, { wrapper });
+    await openSearchTab();
+
+    expect(await screen.findByText("rag.search.noBasesTitle")).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "pages.kb.newKnowledgeBase" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("searches every readable base by default, deduplicating shared collections", async () => {
     mockApi([
       kb("kb-1", "Handbook", "handbook", true),

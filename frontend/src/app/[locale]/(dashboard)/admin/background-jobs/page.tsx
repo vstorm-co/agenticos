@@ -36,7 +36,7 @@ export default function BackgroundJobsPage() {
   }
   const { counts, kinds, workers, schedules } = overview.data ?? {};
   return (
-    <div className="space-y-6" aria-busy={overview.isPending}>
+    <div className="flex flex-1 flex-col space-y-6" aria-busy={overview.isPending}>
       {overview.isPending && (
         <span role="status" className="sr-only">
           {ts("loading")}

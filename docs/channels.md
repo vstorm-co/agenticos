@@ -1579,10 +1579,17 @@ settings:
   asks **what was wrong?** in a Slack modal or a Mattermost dialog; the reply is
   kept as the rating's comment. Telegram takes the thumbs without the question.
 
-A rating needs a linked member, as a press on an approval does; an unlinked
-person's thumbs are not counted. The dashboard's *Answer quality* card splits
-the share of good answers by surface once more than one has been rated, so an
-agent that does well in the console and badly in Slack shows it.
+**Mattermost does not require an AgenticOS account to rate.** The server-signed
+participant identity owns the vote. Each participant can change their vote;
+buttons stay available to everybody, and confirmation is private. A thumbs-down
+comment belongs to the same participant. Slack and Telegram retain their
+linked-member requirement; approving a tool call still requires membership.
+Channel-authored ratings have a null `user_id` in API responses, rather than
+being attributed to the bot owner. Upgrade the database before enabling this
+version. A downgrade removes channel-authored ratings and keeps account votes.
+
+The dashboard's *Answer quality* card includes these votes and splits them by
+surface, so a difference between the console and Mattermost remains visible.
 
 ## What every channel shares
 
@@ -2586,3 +2593,5 @@ flowchart TD
 - What is recorded is **what the person wrote**, not the prompt assembled around it.
 - A **delegation is a panel**, not a pause — and attaching a handler to one changes
   the transport, so it is attached only where a sink exists.
+
+A channel post containing only the bot mention or whitespace is ignored after mention removal, before claiming delivery or starting a run. This avoids sending an empty user message to model APIs that drop it and then reject the preceding assistant answer as prefill. A post containing only attachments still follows the attachment pipeline.

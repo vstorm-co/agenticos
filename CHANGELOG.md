@@ -8,7 +8,7 @@ in a MINOR release. Read a minor release's notes before upgrading.
 
 Two things are versioned separately from this file and worth knowing about:
 
-- **`SPEC_VERSION`** — the agent spec format, currently **11**. A published agent
+- **`SPEC_VERSION`** — the agent spec format, currently **13**. A published agent
   and a client's exported YAML both carry it, so it only ever moves forward with a
   migration that keeps old documents loading. See
   [the spec reference](docs/reference/spec.md).
@@ -18,6 +18,97 @@ Two things are versioned separately from this file and worth knowing about:
   that still exists. Schema changes are listed here by what they do.
 
 ## [Unreleased]
+
+## [1.27.0] - 2026-10-27
+
+### Added
+
+- Show the running console build version in the sidebar footer, including the
+  collapsed rail and mobile navigation.
+
+- Projects can choose a sandbox connection or stored files when created. Settings
+  show the connection used by their shared workspace and explain sharing and code
+  execution. Existing projects can transfer files between connections or stored
+  files through a verified background copy, with progress and write protection.
+
+- Project file management: rename folders and files, move entries by drag and drop
+  or a folder picker, and edit UTF-8 text with revision and unsaved-change checks.
+
+- Create separate model profiles for the same provider and model on different
+  endpoints, with automatic endpoint labels and an explicit choice to update the
+  shared profile instead.
+
+- Configure custom OpenRouter endpoints for agent models and knowledge-base
+  embeddings, including the regional EU API. Native OpenRouter keys and cache
+  controls are retained. Model suggestions come from the chosen endpoint;
+  regional listing failures never fall back to the global catalog. Apply the
+  database migration for the optional embedding endpoint when upgrading. Upgrade
+  all API and worker processes before configuring regional endpoints; older
+  processes ignore the override.
+- Set Context file mode and availability separately for each agent in the
+  Builder. Shared library editors keep content and descriptions; existing
+  agent versions retain their prior usage until an override is published.
+
+- Let verified Mattermost participants rate answers and leave comments without
+  an AgenticOS account. Votes from unlinked participants use their channel identity; linking an
+  account merges its votes with web ratings so each person has one vote per
+  answer. Shared buttons stay available after the first vote. **API change:** a rating's
+  `user_id` can now be null for a channel participant. Apply the database migration
+  when upgrading; downgrading removes channel-authored votes.
+
+### Changed
+
+- Explain the sandbox’s POSIX shell, shared `/workspace` directory and per-command
+  process lifetime to agents, preventing Bash-only directory creation and writes
+  outside the shared project.
+
+- Refine empty states, metadata badges and mobile settings across the console.
+  Knowledge search offers a clear starting point and permission-aware creation;
+  narrow integration panels keep their controls visible. Approval history uses
+  a compact queue status, member actions fit small screens, and urgent Inbox
+  badges remain legible in dark mode. Password-reset failures stay retryable
+  instead of claiming an email was sent.
+- Keep chat model changes collapsed behind the current model summary. File-row
+  actions reveal on hover or keyboard focus without cutting filenames; long
+  project files scroll inside their preview. Inbox finding titles link to
+  their source and actions sit beside each finding.
+- Prevent delayed conversation refreshes and failed read requests from restoring
+  already-read badges.
+- Keep dashboard checklist loading in a stable slot. Resource lists fill the
+  page height; Routines drops the separate ideas panel. Chat keeps its animated
+  Files toggle visible, prefills model settings, enlarges agent portraits and
+  simplifies attachment cards.
+- Refine console headers, neutral action buttons and sidebar glyphs. Skills and
+  context galleries use compact, consistently sized cards without nested panels.
+  People use photos or initials; organizations keep round, cropped avatars.
+  Local server controls show Ollama and LlamaIndex marks in both themes.
+- Separate agent routines from personal connection watches in two Routines tabs.
+  Lead dashboard discovery with illustrated capabilities, show bucket values on
+  summary chart hover, and simplify project and agent widgets.
+- Unify dashboard list rows, status indicators, shared-resource counts and
+  loading states across the widget catalog. Summary columns follow card width
+  in custom layouts. Briefing failures now offer Retry instead of appearing empty.
+
+### Fixed
+
+- Include the installed AgenticOS version in deployment, worker and per-agent
+  Logfire traces so production incidents can be matched to their release.
+
+- Invalid metadata in agent-written skills no longer breaks turn completion.
+  Proposal writes use a savepoint and preserve the run’s status and spend (#2516).
+
+- Changing a knowledge base embedding endpoint now requires access to its retained
+  vault key, including when resetting the endpoint to the provider default.
+
+- Marking a chat as read preserves its initial conversation fetch, so the chosen
+  agent and a turn still running remain visible when reopening it.
+
+- Ignore empty channel prompts after removing the bot mention, while preserving
+  attachment-only messages, so Anthropic does not reject an empty turn as prefill.
+- Bound custom model catalog downloads, parsed fields and cached endpoints to
+  prevent an untrusted gateway from exhausting API process memory.
+
+## [1.26.0] - 2026-10-27
 
 ### Added
 
@@ -17116,7 +17207,9 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.25.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.27.0...HEAD
+[1.27.0]: https://github.com/vstorm-co/agenticos/compare/v1.26.0...v1.27.0
+[1.26.0]: https://github.com/vstorm-co/agenticos/compare/v1.25.0...v1.26.0
 [1.25.0]: https://github.com/vstorm-co/agenticos/compare/v1.24.0...v1.25.0
 [1.24.0]: https://github.com/vstorm-co/agenticos/compare/v1.23.0...v1.24.0
 [1.23.0]: https://github.com/vstorm-co/agenticos/compare/v1.22.0...v1.23.0

@@ -69,7 +69,7 @@ describe("SuggestionRows", () => {
       />,
     );
 
-    const rows = screen.getAllByRole("group");
+    const rows = screen.getAllByRole("listitem");
     expect(rows.map((row) => row.getAttribute("aria-label"))).toEqual([
       "Title eng",
       "Title idea",
@@ -77,7 +77,7 @@ describe("SuggestionRows", () => {
     ]);
     expect(rows[0]).toHaveTextContent("Urgent");
     expect(rows[0]).toHaveTextContent("Linear · just now");
-    expect(within(rows[0]!).getByRole("link", { name: "Open" })).toHaveAttribute(
+    expect(within(rows[0]!).getByRole("link", { name: "Title eng" })).toHaveAttribute(
       "href",
       "https://linear.app/x/ENG-1",
     );
@@ -100,4 +100,30 @@ describe("SuggestionRows", () => {
     await userEvent.click(screen.getByRole("button", { name: "Not now" }));
     expect(state.dismiss).toHaveBeenCalledWith("idea");
   });
+});
+
+it.each([
+  "javascript:alert(1)",
+  "data:text/html,unsafe",
+  "/relative",
+  "not a URL",
+  "https://user:password@example.com",
+])("does not turn an unsafe source URL into a clickable title: %s", (url) => {
+  render(<SuggestionRows items={[item("unsafe", { kind: "finding", payload: { url } })]} />);
+  expect(screen.queryByRole("link", { name: "Title unsafe" })).not.toBeInTheDocument();
+  expect(screen.getByText("Title unsafe")).toBeInTheDocument();
+});
+
+it("opens an internal web service over HTTP as well", () => {
+  render(
+    <SuggestionRows
+      items={[
+        item("internal", { kind: "finding", payload: { url: "http://intranet.example/task/1" } }),
+      ]}
+    />,
+  );
+  expect(screen.getByRole("link", { name: "Title internal" })).toHaveAttribute(
+    "href",
+    "http://intranet.example/task/1",
+  );
 });

@@ -1,5 +1,5 @@
 ---
-source_sha: "d6bead12fc91"
+source_sha: "91887e7e39b0"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -309,7 +309,7 @@ provider.**
 | OpenAI | `openai` | klucz API albo brak | ✓ |
 | Anthropic | `anthropic` | klucz API | ✓ |
 | Google Gemini | `google` | klucz API | ✓ |
-| OpenRouter | `openrouter` | klucz API | |
+| OpenRouter | `openrouter` | klucz API |  ✓ |
 | Alibaba Cloud | `alibaba` | klucz API | ✓ |
 | Cerebras | `cerebras` | klucz API | |
 | DeepSeek | `deepseek` | klucz API | |
@@ -720,3 +720,9 @@ make platform-bootstrap BOOTSTRAP_API_KEY=sk-...
 ```
 
 robi wszystkie trzy rzeczy dla nowego deploymentu.
+
+Aby użyć regionalnego API OpenRouter, pozostaw dostawcę **OpenRouter** i wpisz `https://eu.openrouter.ai/api/v1` w polu **Endpoint** formularza modelu. Profil zachowuje klucz OpenRouter z sejfu, natywną obsługę modeli i ustawienia pamięci podręcznej. Lista modeli pochodzi z tego endpointu i ma osobną pamięć podręczną; awaria regionalnej listy nie przełącza jej na globalny katalog. W bazach wiedzy ustaw **Endpoint** embeddingów osobno podczas tworzenia kolekcji lub edycji dostawcy embeddingów. Istniejące konfiguracje zachowują globalny endpoint. Routing EU wymaga odpowiedniego planu OpenRouter Business lub Enterprise; [routing regionalny](https://openrouter.ai/docs/guides/get-started/sovereign-ai) i ZDR są osobnymi politykami OpenRouter.
+
+Przed ustawieniem regionalnych endpointów zaktualizuj wszystkie procesy API i workerów. Starsze wersje ignorują nadpisanie endpointu OpenRouter.
+
+Aby użyć innego endpointu z tym samym dostawcą i modelem, wybierz w Builderze **Dodaj osobny model**. Automatyczna nazwa zawiera endpoint, a istniejący profil pozostaje bez zmian. **Aktualizuj model** edytuje wspólny profil. Pobieranie niestandardowego katalogu ma limit 2 MiB, 2048 modeli i długości pól; proces przechowuje maksymalnie 16 katalogów. Skompresowana lub zbyt duża odpowiedź pozostawia możliwość wpisania identyfikatora modelu bez przechodzenia na globalną listę.

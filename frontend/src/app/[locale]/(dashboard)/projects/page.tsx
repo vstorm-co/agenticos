@@ -65,7 +65,7 @@ export default function ProjectsPage() {
 
   if (!isLoadingPermissions && !can(Perm.projectsView)) {
     return (
-      <div className="space-y-6">
+      <div className="flex flex-1 flex-col space-y-6">
         {header}
         <EmptyState icon={Lock} title={t("cannotSee")} description={t("askForAccess")} />
       </div>
@@ -73,9 +73,10 @@ export default function ProjectsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-1 flex-col space-y-6">
       {header}
       <ListCard
+        fill
         data-tour="projects-list"
         namedByPage
         title={t("title")}

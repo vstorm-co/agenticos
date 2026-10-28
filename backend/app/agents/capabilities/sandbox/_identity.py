@@ -96,6 +96,7 @@ class WorkspaceIdentity:
     of ours because it has to be stable across the threads inside it, and a
     `ChannelSession` is created per thread.
     """
+    project_workspace_id: UUID | None = None
     project_id: UUID | None = None
     """The project the conversation belongs to, which a `project` scope keys on.
     Every agent answering in the project shares it, so it carries no agent."""
@@ -164,7 +165,7 @@ def _subject(identity: WorkspaceIdentity, scope: SessionScope) -> str:
             raise WorkspaceScopeUnavailable(
                 "This run is not in a project, so a project workspace has nothing to attach to."
             )
-        return identity.project_id.hex
+        return (identity.project_workspace_id or identity.project_id).hex
     agent_id = identity.agent_id
     if agent_id is None or identity.run_id is None:
         raise WorkspaceScopeUnavailable(

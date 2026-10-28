@@ -217,12 +217,14 @@ export default function OrgMembersPage({ params }: PageProps) {
                 className="h-8 w-8 shrink-0 text-[11px]"
                 ariaHidden
               />
-              <div className="min-w-0">
+              <div className="max-w-28 min-w-0 sm:max-w-xs">
                 <p className="text-foreground truncate text-sm font-medium">
                   {m.full_name || m.email.split("@")[0]}
                   {isSelf && <span className="text-muted-foreground font-normal"> {t("you")}</span>}
                 </p>
-                <p className="text-muted-foreground truncate text-xs">{m.email}</p>
+                <p className="text-muted-foreground truncate text-xs" title={m.email}>
+                  {m.email}
+                </p>
               </div>
             </div>
           );
@@ -252,7 +254,7 @@ export default function OrgMembersPage({ params }: PageProps) {
               <div className="flex items-center gap-2">
                 <Select value={m.role} onValueChange={(v) => changeRole(m.user_id, v as OrgRole)}>
                   <SelectTrigger
-                    className="h-8 w-32 capitalize"
+                    className="h-8 w-24 capitalize sm:w-32"
                     aria-label={t("roleFor", { email: m.email })}
                   >
                     <SelectValue />
@@ -294,6 +296,7 @@ export default function OrgMembersPage({ params }: PageProps) {
       {
         key: "joined",
         header: t("joined"),
+        hideBelow: "md",
         cell: (m) => (
           <span className="text-muted-foreground text-sm">{formatDate(m.joined_at, locale)}</span>
         ),
@@ -310,7 +313,7 @@ export default function OrgMembersPage({ params }: PageProps) {
           const isSelf = m.user_id === user?.id;
           const isOwner = m.role === "owner";
           return (
-            <div className="flex items-center justify-end gap-1">
+            <div className="flex flex-col items-center justify-end gap-1 sm:flex-row">
               {/* Offered for the owner and for yourself too: erasing what agents
                   wrote about somebody is not a change to their standing in the
                   organization the way removing them is. */}
@@ -336,7 +339,7 @@ export default function OrgMembersPage({ params }: PageProps) {
   }, [canManage, user?.id, assignable, changeRole, removeMember, tDirectory]);
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-1 flex-col space-y-6">
       <PageHeader
         title={org?.name ?? t("members")}
         description={t("membersDescription", { count: total })}
@@ -403,6 +406,7 @@ export default function OrgMembersPage({ params }: PageProps) {
       />
 
       <Tabs
+        className="flex flex-1 flex-col"
         value={tab}
         onValueChange={(next) => {
           setTabParam(next === "members" ? null : next);
@@ -427,13 +431,14 @@ export default function OrgMembersPage({ params }: PageProps) {
           value="members"
           hidden={tab !== "members"}
           forceMount
-          className="space-y-6 data-[state=inactive]:hidden"
+          className="flex-1 flex-col space-y-6 data-[state=active]:flex"
         >
           {/* The table draws its own skeleton from the same column definitions, so
           the header and every column width are already right while it loads -
           a stand-in list could only approximate them. The shared list card
           keeps the page's shape whether it is empty, loading or full. */}
           <ListCard
+            fill
             data-tour="org-members"
             title={t("membersCard")}
             counted={
@@ -559,7 +564,7 @@ export default function OrgMembersPage({ params }: PageProps) {
                 onClick={() => avatarInputRef.current?.click()}
                 disabled={!canManage || avatarUploading}
                 className={cn(
-                  "group relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl disabled:cursor-default",
+                  "group relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full disabled:cursor-default",
                   org.avatar_url
                     ? "bg-muted text-foreground"
                     : avatarPalette(org.id, org.avatar_color).bg,

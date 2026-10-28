@@ -38,19 +38,19 @@ describe("ContextCard", () => {
     expect(screen.getByText(FILE.description!)).toBeInTheDocument();
   });
 
-  it("marks an injected file so the mode is never implicit", () => {
+  it("leaves per-agent injected mode out of the shared library", () => {
     renderCard();
-    expect(screen.getByText("injected")).toBeInTheDocument();
+    expect(screen.queryByText("injected")).not.toBeInTheDocument();
   });
 
-  it("marks a linked file", () => {
+  it("leaves per-agent linked mode out of the shared library", () => {
     renderCard({ file: { ...FILE, mode: "link" } });
-    expect(screen.getByText("linked")).toBeInTheDocument();
+    expect(screen.queryByText("linked")).not.toBeInTheDocument();
   });
 
-  it("marks a file agents are currently skipping", () => {
+  it("leaves legacy availability out of the shared library", () => {
     renderCard({ file: { ...FILE, enabled: false } });
-    expect(screen.getByText("disabled")).toBeInTheDocument();
+    expect(screen.queryByText("disabled")).not.toBeInTheDocument();
   });
 
   it("stays quiet about an enabled file", () => {
@@ -58,9 +58,10 @@ describe("ContextCard", () => {
     expect(screen.queryByText("disabled")).not.toBeInTheDocument();
   });
 
-  it("shows the format and size", () => {
+  it("shows the format without repeating file size", () => {
     renderCard();
-    expect(screen.getByText(/md · 2.0 KB/)).toBeInTheDocument();
+    expect(screen.getByText("MD")).toBeInTheDocument();
+    expect(screen.queryByText(/KB/)).toBeNull();
   });
 
   it("renders without a description when there is none", () => {
