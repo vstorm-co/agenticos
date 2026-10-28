@@ -8992,7 +8992,10 @@
       "dismissHint": "Schließen (Esc)",
       "sendHint": "Enter sendet · Shift+Enter für neue Zeile",
       "mentionHint": "@ erwähnt eine Ressource",
-      "offline": "Offline · Nachrichten warten"
+      "offline": "Offline · Nachrichten warten",
+      "pin": "Quick Ask auf dem Bildschirm halten",
+      "unpin": "Quick Ask lösen",
+      "pinFailed": "Quick Ask konnte nicht angeheftet werden. Versuche es erneut."
     },
     "readiness": {
       "title": "App-Bereitschaft",

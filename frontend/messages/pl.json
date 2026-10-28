@@ -8988,7 +8988,10 @@
       "dismissHint": "Zamknij (Esc)",
       "sendHint": "Enter wysyła · Shift+Enter dodaje wiersz",
       "mentionHint": "@ wstawia zasób",
-      "offline": "Offline · wiadomości poczekają"
+      "offline": "Offline · wiadomości poczekają",
+      "pin": "Przypnij Quick Ask na ekranie",
+      "unpin": "Odepnij Quick Ask",
+      "pinFailed": "Nie udało się zmienić przypięcia Quick Ask. Spróbuj ponownie."
     },
     "notifications": {
       "approvalTitle": "{agent} chce uruchomić {tool}",

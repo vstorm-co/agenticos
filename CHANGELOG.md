@@ -21,6 +21,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Quick Ask accepts picked, pasted and dropped attachments, supports file-only
+  messages and can stay pinned above other applications.
+
 - Mobile connection readiness for existing accounts, configurable biometric app
   lock, named saved servers with session-preserving switching, and server-side
   push preview privacy, conversation muting and expiring active-chat
@@ -371,6 +374,9 @@ Two things are versioned separately from this file and worth knowing about:
   shorter motion without per-word blur.
 
 ### Fixed
+
+- Opening the agent picker no longer gives its first row a clipped focus outline;
+  keyboard navigation retains a visible inset indicator.
 
 - Reduce the desktop heading gap while retaining a separate native drag strip. Keep file drag feedback within the project, preserve folder highlights across child rows, support uploading directly into folders and hover-to-expand, stabilize file actions, remove folder counters, and use distinct file-type icons across projects, chat, RAG and skill/context files.
 

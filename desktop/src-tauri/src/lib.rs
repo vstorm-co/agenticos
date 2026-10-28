@@ -1365,6 +1365,9 @@ pub fn run() {
             shortcuts::set_shortcut,
             quick_ask::resize_quick_ask,
             quick_ask::hide_quick_ask,
+            quick_ask::quick_ask_pinned,
+            quick_ask::set_quick_ask_pinned,
+            quick_ask::set_quick_ask_picker_open,
             context::take_context_files,
             context::open_accessibility_settings,
             dropped::take_shared,
@@ -1388,6 +1391,7 @@ pub fn run() {
         .manage(notify::Delivered::default())
         .manage(activity::Activity::default())
         .manage(shortcuts::Bindings::default())
+        .manage(quick_ask::PanelState::default())
         .manage(context::CapturedFiles::default())
         .manage(dropped::Dropped::default())
         .manage(device::Device::default())

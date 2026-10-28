@@ -1,5 +1,5 @@
 ---
-source_sha: "403c6ff7ce7a"
+source_sha: "13435e904b2e"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -235,6 +235,18 @@ Las aprobaciones, preguntas del agente y solicitudes de conexión se resuelven e
 el panel. El texto en espera sin conexión sigue visible y el botón de parada
 detiene la ejecución. Los adjuntos y fuentes citadas se abren en el panel; al
 desplazarte hacia arriba se pausa el seguimiento automático hasta volver al final.
+
+Selecciona archivos con el clip, pega una imagen del portapapeles o arrastra
+archivos a Quick Ask. Los adjuntos aparecen antes de enviar y pueden quitarse por
+separado. Se aplica el mismo límite de subida que en el chat. El envío y la creación
+de una conversación esperan a que terminen las subidas; un fallo conserva el
+borrador del mensaje. Puedes enviar un archivo sin añadir texto.
+
+El botón de fijar mantiene Quick Ask visible sobre otras aplicaciones al hacer
+clic fuera de la ventana. Desfíjalo para volver a ocultarlo cuando pierda el foco.
+El botón de cerrar, Escape en el campo del mensaje y el atajo de Quick Ask siguen
+ocultando el panel fijado. La fijación dura durante la sesión actual de escritorio,
+incluso si se recarga la página.
 
 ## Trabajar en este ordenador { #work-on-this-computer }
 

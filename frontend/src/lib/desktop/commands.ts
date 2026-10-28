@@ -493,3 +493,18 @@ export async function saveLocalService(service: LocalService): Promise<LocalServ
 export async function removeLocalService(id: string): Promise<LocalService[]> {
   return parseLocalServices(await invokeShell("local_remove_service", { id }));
 }
+
+/** Native focus policy: a pinned panel stays above other applications. */
+export async function quickAskPinned(): Promise<boolean> {
+  const result = await invokeShell("quick_ask_pinned");
+  if (typeof result !== "boolean") throw new ShellError("malformed", "quick_ask_pinned");
+  return result;
+}
+
+export async function setQuickAskPinned(pinned: boolean): Promise<void> {
+  await invokeShell("set_quick_ask_pinned", { pinned });
+}
+
+export async function setQuickAskPickerOpen(open: boolean): Promise<void> {
+  await invokeShell("set_quick_ask_picker_open", { open });
+}

@@ -1,5 +1,5 @@
 ---
-source_sha: "403c6ff7ce7a"
+source_sha: "13435e904b2e"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -227,6 +227,17 @@ obsłużyć zatwierdzenia, pytania agenta i prośby o połączenie. Tekst oczeku
 pozostaje widoczny, a przycisk zatrzymania kończy uruchomienie. Załączniki i cytowane
 źródła otwierają się w panelu; przewinięcie w górę wstrzymuje automatyczne przewijanie
 aż do powrotu na dół.
+
+Kliknij spinacz, aby wybrać pliki, wklej obraz ze schowka albo upuść pliki na
+Quick Ask. Załączniki są widoczne przed wysłaniem i można je usuwać pojedynczo.
+Obowiązuje ten sam limit rozmiaru co w czacie. Wysyłanie i rozpoczęcie nowej rozmowy
+czekają na zakończenie przesyłania; błąd przesyłania zachowuje szkic wiadomości.
+Możesz wysłać plik bez dopisywania tekstu.
+
+Przycisk przypięcia utrzymuje Quick Ask nad innymi aplikacjami po kliknięciu poza
+oknem. Odepnij je, aby przywrócić chowanie przy utracie fokusu. Krzyżyk, Escape w
+polu wiadomości i skrót Quick Ask nadal mogą schować przypięty panel. Przypięcie
+obowiązuje podczas bieżącej sesji aplikacji, także po przeładowaniu strony.
 
 ## Praca na tym komputerze { #work-on-this-computer }
 

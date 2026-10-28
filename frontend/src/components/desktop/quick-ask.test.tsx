@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -10,6 +10,7 @@ import type { Mentionable } from "@/types/mention";
 import type { ToolCall, PendingApproval, Decision, QueuedMessage } from "@/types";
 
 const env = vi.hoisted(() => ({
+  toastError: vi.fn(),
   mentionables: [] as Mentionable[],
   auth: { isAuthenticated: true, isLoading: false },
   chat: {
@@ -42,6 +43,9 @@ const env = vi.hoisted(() => ({
     agent: undefined as string | null | undefined,
   },
   commands: {
+    quickAskPinned: vi.fn(async () => false),
+    setQuickAskPinned: vi.fn(async () => {}),
+    setQuickAskPickerOpen: vi.fn(async () => {}),
     hideQuickAsk: vi.fn(async () => {}),
     openInConsole: vi.fn(async () => {}),
     resizeQuickAsk: vi.fn(async () => {}),
@@ -60,6 +64,7 @@ const env = vi.hoisted(() => ({
   })),
   resize: null as null | ((entries: { contentRect: { height: number } }[]) => void),
 }));
+vi.mock("sonner", () => ({ toast: { error: env.toastError } }));
 vi.mock("@/hooks/use-organizations", () => ({ useTenantId: () => "org" }));
 vi.mock("@/hooks/use-mentionables", () => ({
   useMentionables: () => ({ items: env.mentionables, isLoading: false, isError: false }),
@@ -532,4 +537,160 @@ it("offers a visible dismiss action and leaves an existing conversation intact",
   expect(env.commands.hideQuickAsk).toHaveBeenCalledOnce();
   expect(env.chat.clearMessages).not.toHaveBeenCalled();
   expect(question()).toHaveValue("keep this draft");
+});
+
+describe("Quick Ask attachments and pin", () => {
+  it("uploads a picked file, sends without text and clears the attachment", async () => {
+    render(<QuickAsk />);
+    const file = new File(["print(1)"], "example.py", { type: "text/x-python" });
+    await userEvent.upload(screen.getByLabelText("Attach file", { selector: "input" }), file);
+    expect(await screen.findByText("example.py")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Send message" }));
+    expect(env.chat.sendMessage).toHaveBeenCalledWith(
+      "Analyze the attached file(s)",
+      ["f-example.py"],
+      [expect.objectContaining({ filename: "example.py" })],
+    );
+    expect(screen.queryByText("example.py")).not.toBeInTheDocument();
+  });
+
+  it("pastes images and allows removing them without sending", async () => {
+    render(<QuickAsk />);
+    const image = new File(["png"], "clipboard.png", { type: "image/png" });
+    fireEvent.paste(question(), { clipboardData: { files: [image] } });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /Remove.*clipboard.png/ })).toBeInTheDocument(),
+    );
+    await userEvent.click(screen.getByRole("button", { name: /Remove.*clipboard.png/ }));
+    expect(screen.queryByText("clipboard.png")).not.toBeInTheDocument();
+    expect(env.chat.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("pins the native panel and can unpin it", async () => {
+    render(<QuickAsk />);
+    const pin = screen.getByRole("button", { name: "Keep Quick Ask on screen" });
+    await userEvent.click(pin);
+    expect(env.commands.setQuickAskPinned).toHaveBeenCalledWith(true);
+    expect(await screen.findByRole("button", { name: "Unpin Quick Ask" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Unpin Quick Ask" }));
+    expect(env.commands.setQuickAskPinned).toHaveBeenLastCalledWith(false);
+  });
+});
+
+it("keeps the draft when an attachment fails and reports the failure", async () => {
+  env.upload.mockRejectedValueOnce(new Error("upload failed"));
+  render(<QuickAsk />);
+  await userEvent.type(question(), "Keep this question");
+  await userEvent.upload(
+    screen.getByLabelText("Attach file", { selector: "input" }),
+    new File(["x"], "failed.txt"),
+  );
+  await waitFor(() => expect(screen.queryByText("failed.txt")).not.toBeInTheDocument());
+  expect(question()).toHaveValue("Keep this question");
+  expect(env.toastError).toHaveBeenCalledWith(expect.stringContaining("failed.txt"));
+  expect(env.chat.sendMessage).not.toHaveBeenCalled();
+});
+
+it("blocks send and new chat until uploads finish, then allows starting fresh", async () => {
+  let finish: ((file: Awaited<ReturnType<typeof env.upload>>) => void) | undefined;
+  env.upload.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  render(<QuickAsk />);
+  await userEvent.type(question(), "Draft");
+  await userEvent.upload(
+    screen.getByLabelText("Attach file", { selector: "input" }),
+    new File(["x"], "pending.txt"),
+  );
+  expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "New chat" })).toBeDisabled();
+  await userEvent.keyboard("{Enter}");
+  expect(env.chat.sendMessage).not.toHaveBeenCalled();
+  await act(async () => {
+    finish?.({
+      id: "f1",
+      filename: "pending.txt",
+      mime_type: "text/plain",
+      size: 1,
+      file_type: "text",
+      preview: null,
+    });
+  });
+  await userEvent.click(screen.getByRole("button", { name: "New chat" }));
+  expect(screen.queryByText("pending.txt")).not.toBeInTheDocument();
+  expect(question()).toHaveValue("");
+});
+
+it("does not carry an in-flight upload into another account", async () => {
+  let finish: ((file: Awaited<ReturnType<typeof env.upload>>) => void) | undefined;
+  env.upload.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const view = render(<QuickAsk />);
+  fireEvent.paste(question(), { clipboardData: { files: [new File(["x"], "private.txt")] } });
+  env.auth = { isAuthenticated: false, isLoading: false };
+  view.rerender(<QuickAsk />);
+  await act(async () => {
+    finish?.({
+      id: "f1",
+      filename: "private.txt",
+      mime_type: "text/plain",
+      size: 1,
+      file_type: "text",
+      preview: null,
+    });
+  });
+  expect(screen.queryByText("private.txt")).not.toBeInTheDocument();
+  expect(env.chat.sendMessage).not.toHaveBeenCalled();
+});
+
+it("accepts files dropped on the panel", async () => {
+  render(<QuickAsk />);
+  fireEvent.drop(window, {
+    dataTransfer: { types: ["Files"], files: [new File(["{}"], "data.json")] },
+  });
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: /Remove.*data.json/ })).toBeInTheDocument(),
+  );
+  expect(env.upload).toHaveBeenCalledWith(expect.objectContaining({ name: "data.json" }));
+});
+
+it("rejects oversized files before reading or uploading them", async () => {
+  render(<QuickAsk />);
+  const file = new File(["x"], "huge.zip");
+  Object.defineProperty(file, "size", { value: 1024 * 1024 * 1024 });
+  fireEvent.paste(question(), { clipboardData: { files: [file] } });
+  expect(env.upload).not.toHaveBeenCalled();
+  expect(env.toastError).toHaveBeenCalledWith(expect.stringContaining("huge.zip"));
+});
+
+it("keeps a pin failure visible and does not pretend the window is pinned", async () => {
+  env.commands.setQuickAskPinned.mockRejectedValueOnce(new Error("refused"));
+  render(<QuickAsk />);
+  const button = screen.getByRole("button", { name: "Keep Quick Ask on screen" });
+  await waitFor(() => expect(button).toBeEnabled());
+  await userEvent.click(button);
+  expect(button).toHaveAttribute("aria-pressed", "false");
+  expect(env.toastError).toHaveBeenCalled();
+});
+
+it("guards the native file chooser and clears the guard on cancellation", async () => {
+  render(<QuickAsk />);
+  await userEvent.click(screen.getByRole("button", { name: "Attach file" }));
+  expect(env.commands.setQuickAskPickerOpen).toHaveBeenCalledWith(true);
+  fireEvent(
+    screen.getByLabelText("Attach file", { selector: "input" }),
+    new Event("cancel", { bubbles: true }),
+  );
+  expect(env.commands.setQuickAskPickerOpen).toHaveBeenLastCalledWith(false);
+  expect(question()).toHaveFocus();
 });

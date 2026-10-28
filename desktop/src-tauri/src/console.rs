@@ -103,6 +103,9 @@ pub const GRANTS: &[(&str, &[&str])] = &[
             "allow-desktop-activity",
             "allow-resize-quick-ask",
             "allow-hide-quick-ask",
+            "allow-quick-ask-pinned",
+            "allow-set-quick-ask-pinned",
+            "allow-set-quick-ask-picker-open",
             "allow-take-context-files",
             "allow-open-accessibility-settings",
             "allow-open-in-console",
@@ -359,6 +362,19 @@ mod tests {
                     manifest.contains(&format!("\"{command}\"")),
                     "{window} is granted {permission}, which build.rs does not declare"
                 );
+            }
+        }
+    }
+
+    #[test]
+    fn only_quick_ask_may_change_its_focus_policy() {
+        for (window, permissions) in GRANTS {
+            for permission in [
+                "allow-quick-ask-pinned",
+                "allow-set-quick-ask-pinned",
+                "allow-set-quick-ask-picker-open",
+            ] {
+                assert_eq!(permissions.contains(&permission), *window == crate::quick_ask::WINDOW);
             }
         }
     }

@@ -222,6 +222,17 @@ questions and connection requests can be handled in the panel. Queued offline te
 stays visible and the stop button stops the run. Attachments and cited sources open
 in the panel; scrolling up pauses automatic following until you return to the bottom.
 
+Use the paperclip to select files, paste an image from the clipboard, or drop files
+onto Quick Ask. Attachments appear before sending and can be removed individually.
+The deployment's chat upload limit applies here too. Sending and starting a new chat
+wait for uploads to finish; a failed upload keeps your draft. You can send a file
+without adding text.
+
+The pin button keeps Quick Ask above other applications when you click elsewhere.
+Unpin it to restore automatic dismissal on loss of focus. The close button, Escape
+in the composer and the Quick Ask shortcut can still hide a pinned panel. The pin
+lasts for the current desktop session, including page reloads.
+
 ## Work on this computer
 
 The one thing a browser cannot do: a desktop chat can work in a

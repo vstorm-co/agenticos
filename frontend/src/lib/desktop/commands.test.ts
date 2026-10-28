@@ -283,3 +283,14 @@ it("validates whole-computer native consent and keeps cancellation explicit", as
   invoke.mockResolvedValue({ path: "/home/person" });
   await expect(commands.allowWholeComputer("chat")).rejects.toThrow("malformed");
 });
+
+it("checks native pin state and sends the pin and file picker policies", async () => {
+  invoke.mockResolvedValue(true);
+  await expect(commands.quickAskPinned()).resolves.toBe(true);
+  await commands.setQuickAskPinned(false);
+  expect(invoke).toHaveBeenLastCalledWith("set_quick_ask_pinned", { pinned: false });
+  await commands.setQuickAskPickerOpen(true);
+  expect(invoke).toHaveBeenLastCalledWith("set_quick_ask_picker_open", { open: true });
+  invoke.mockResolvedValue("true");
+  await expect(commands.quickAskPinned()).rejects.toThrow("malformed");
+});

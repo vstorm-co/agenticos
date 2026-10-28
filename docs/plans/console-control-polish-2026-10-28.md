@@ -101,3 +101,36 @@ batch and a 49-test drag regression recheck passed. Frontend lint and typing,
 translation fingerprints, generated Architect guide checks and CSS compilation
 passed. The local project route returned HTTP 200. These checks do not establish
 physical-device drag performance or full visual QA.
+
+
+## Quick Ask attachments and focus
+
+The small panel now shares the existing chat file API and attachment chips. A
+paperclip, image paste and file drop feed the same upload path. Pending cards
+reserve their place; sending and New chat wait for completion. Upload errors keep
+the draft and name the failed file. Files can be removed or sent without text.
+Account and organization changes invalidate in-flight results. Upload size uses
+the deployment's public chat limit.
+
+The native panel remains always on top; pinning changes only dismissal on blur.
+The pin survives page reloads within the current app session. Explicit close,
+Escape in the composer and the global shortcut still hide it. The system file
+chooser temporarily holds the panel open, including on cancellation. Focus-policy
+commands are granted only to Quick Ask and verify the calling window. HTML file
+drops are enabled for this panel rather than interpreted as native file paths.
+
+The agent menu now focuses its group on opening. Deliberate arrow/Home/End
+navigation moves to agent options with an inset keyboard indicator; no clipped
+outline is applied automatically to the first row. Existing selection and default
+agent actions remain separate.
+
+Verification: 96 focused frontend tests cover uploads, image paste, file drops,
+removal, file-only sending, cancellation, failed/oversized uploads, account changes,
+pinning failures and keyboard selection. Native focus-policy and capability tests,
+Clippy, frontend lint and debug packaging complete the code checks. No browser or
+Computer Use was performed; the native UI remains available for manual assessment.
+
+Composer follow-up: use a 32 px one-line input (24 px line plus 4 px top/bottom
+padding), matching the adjacent 32 px attachment and send controls. Remove their
+extra bottom margins. The textarea can still grow for multiple lines, leaving
+controls at its bottom edge. Header actions share a 32 px height.

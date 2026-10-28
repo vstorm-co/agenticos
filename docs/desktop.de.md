@@ -1,5 +1,5 @@
 ---
-source_sha: "403c6ff7ce7a"
+source_sha: "13435e904b2e"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -241,6 +241,18 @@ Freigaben, Rückfragen und Verbindungsanfragen lassen sich im Panel beantworten.
 Offline wartender Text bleibt sichtbar; die Stopptaste beendet den Run. Anhänge und
 zitierte Quellen öffnen sich im Panel. Nach oben scrollen pausiert das automatische
 Folgen, bis Sie zum Ende zurückkehren.
+
+Wählen Sie Dateien über die Büroklammer, fügen Sie ein Bild aus der Zwischenablage
+ein oder ziehen Sie Dateien auf Quick Ask. Anhänge erscheinen vor dem Senden und
+lassen sich einzeln entfernen. Es gilt dieselbe Upload-Grenze wie im Chat. Senden
+und ein neuer Chat warten, bis alle Uploads abgeschlossen sind. Ein fehlgeschlagener
+Upload erhält den Nachrichtenentwurf. Dateien lassen sich auch ohne Text senden.
+
+Die Stecknadel hält Quick Ask über anderen Anwendungen sichtbar, wenn Sie außerhalb
+des Fensters klicken. Lösen Sie die Stecknadel, um das automatische Ausblenden bei
+Fokusverlust wiederherzustellen. Schließen, Escape im Eingabefeld und das Quick-Ask-
+Tastenkürzel können das angeheftete Panel weiterhin ausblenden. Die Einstellung gilt
+für die aktuelle Desktop-Sitzung, auch nach einem Neuladen der Seite.
 
 ## Auf diesem Computer arbeiten { #work-on-this-computer }
 

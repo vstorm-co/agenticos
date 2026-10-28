@@ -9203,7 +9203,10 @@
       "dismissHint": "Close (Esc)",
       "sendHint": "Enter to send · Shift+Enter for a new line",
       "mentionHint": "@ to mention a resource",
-      "offline": "Offline · messages will wait"
+      "offline": "Offline · messages will wait",
+      "pin": "Keep Quick Ask on screen",
+      "unpin": "Unpin Quick Ask",
+      "pinFailed": "Could not change the Quick Ask pin. Try again."
     },
     "notifications": {
       "approvalTitle": "{agent} wants to run {tool}",

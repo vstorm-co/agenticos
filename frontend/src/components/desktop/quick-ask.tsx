@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 import { useTranslations } from "next-intl";
 import {
   ArrowUpRight,
@@ -14,7 +22,16 @@ import {
   Quote,
   ShieldCheck,
   Square,
+  Paperclip,
+  Pin,
+  PinOff,
 } from "lucide-react";
+
+import { toast } from "sonner";
+import { usePublicConfig } from "@/components/public-config/public-config-provider";
+import { getErrorMessage } from "@/lib/api-error";
+import { AttachmentCard, PendingAttachmentCard } from "@/components/chat/attachment-card";
+import { useFileDrop } from "@/hooks/use-file-drop";
 
 import { useConversationStore } from "@/stores";
 import { useAuthStore } from "@/stores";
@@ -48,7 +65,15 @@ import { useChanged } from "@/hooks/use-changed";
 import { useChat } from "@/hooks/use-chat";
 import { useShellEvent } from "@/hooks/use-desktop";
 import { publishDesktopActivity } from "@/lib/desktop/readiness";
-import { hideQuickAsk, openInConsole, resizeQuickAsk, showConsole } from "@/lib/desktop/commands";
+import {
+  hideQuickAsk,
+  openInConsole,
+  resizeQuickAsk,
+  showConsole,
+  quickAskPinned,
+  setQuickAskPinned,
+  setQuickAskPickerOpen,
+} from "@/lib/desktop/commands";
 import {
   openAccessibilitySettings,
   parseActiveContext,
@@ -93,6 +118,43 @@ export function QuickAsk() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [question, setQuestion] = useState("");
   const input = useRef<HTMLTextAreaElement>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [pinned, setPinned] = useState(false);
+  const [pinBusy, setPinBusy] = useState(true);
+  const [files, setFiles] = useState<FileUploadResponse[]>([]);
+  const [pendingFiles, setPendingFiles] = useState<{ key: number; name: string; size: number }[]>(
+    [],
+  );
+  const uploadGeneration = useRef(0);
+  const nextUpload = useRef(0);
+  const uploadCount = useRef(0);
+  const { chatMaxUploadSizeMb } = usePublicConfig();
+  const tErrors = useTranslations("errors");
+  useEffect(() => {
+    let alive = true;
+    void quickAskPinned()
+      .then((value) => {
+        if (alive) setPinned(value);
+      })
+      .catch((error: unknown) => reportShellFailure("reading Quick Ask pin", error))
+      .finally(() => {
+        if (alive) setPinBusy(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  if (useChanged(`${account}:${tenant}:${isAuthenticated}`)) {
+    setFiles([]);
+    setPendingFiles([]);
+  }
+  useEffect(() => {
+    uploadCount.current = 0;
+    uploadGeneration.current += 1;
+    return () => {
+      uploadGeneration.current += 1;
+    };
+  }, [account, tenant, isAuthenticated]);
   const panel = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const scrolledUp = useRef(false);
@@ -261,6 +323,74 @@ export function QuickAsk() {
     }
   });
 
+  const uploadFiles = async (incoming: File[]) => {
+    if (!isAuthenticated || attaching) return;
+    const generation = uploadGeneration.current;
+    const accepted = incoming.filter((file) => {
+      if (file.size <= chatMaxUploadSizeMb * 1024 * 1024) return true;
+      toast.error(tInput("fileTooLarge", { file: file.name, max: chatMaxUploadSizeMb }));
+      return false;
+    });
+    const queued = accepted.map((file) => ({
+      key: nextUpload.current++,
+      name: file.name,
+      size: file.size,
+    }));
+    uploadCount.current += accepted.length;
+    setPendingFiles((current) => [...current, ...queued]);
+    for (const [index, file] of accepted.entries()) {
+      if (generation !== uploadGeneration.current) break;
+      try {
+        const result = await uploadFile(file);
+        if (generation === uploadGeneration.current) setFiles((current) => [...current, result]);
+      } catch (error) {
+        if (generation === uploadGeneration.current)
+          toast.error(`${file.name}: ${getErrorMessage(error, tErrors, tInput("uploadFailed"))}`);
+      } finally {
+        if (generation === uploadGeneration.current) {
+          uploadCount.current -= 1;
+          setPendingFiles((current) => current.filter((item) => item.key !== queued[index]?.key));
+        }
+      }
+    }
+  };
+  const { isDragging } = useFileDrop({
+    onFiles: (incoming) => {
+      void uploadFiles(incoming);
+    },
+    disabled: !isAuthenticated || attaching,
+  });
+  const chooseFiles = async () => {
+    try {
+      await setQuickAskPickerOpen(true);
+      fileInput.current?.click();
+    } catch (error) {
+      reportShellFailure("opening Quick Ask file picker", error);
+      toast.error(tInput("uploadFailed"));
+    }
+  };
+  const finishPicking = useCallback(() => {
+    run("closing Quick Ask file picker", () => setQuickAskPickerOpen(false));
+    input.current?.focus();
+  }, []);
+  useEffect(() => {
+    const node = fileInput.current;
+    node?.addEventListener("cancel", finishPicking);
+    return () => node?.removeEventListener("cancel", finishPicking);
+  }, [finishPicking]);
+  const togglePin = async () => {
+    setPinBusy(true);
+    try {
+      await setQuickAskPinned(!pinned);
+      setPinned(!pinned);
+    } catch (error) {
+      reportShellFailure("pinning Quick Ask", error);
+      toast.error(t("pinFailed"));
+    } finally {
+      setPinBusy(false);
+    }
+  };
+
   const source = context?.app
     ? context.window
       ? `${context.app} - ${context.window}`
@@ -273,11 +403,13 @@ export function QuickAsk() {
       !selectedAgentId ||
       isProcessing ||
       attaching ||
+      uploadCount.current > 0 ||
       phase === "requesting" ||
       phase === "recording" ||
       phase === "transcribing"
     )
       return;
+    const generation = uploadGeneration.current;
     const passages: ContextPassage[] = [];
     if (context?.selection && include.selection) {
       passages.push({ heading: t("context.selectedIn", { source }), text: context.selection });
@@ -285,11 +417,14 @@ export function QuickAsk() {
     if (context?.clipboard && include.clipboard) {
       passages.push({ heading: t("context.fromClipboard"), text: context.clipboard });
     }
-    let attached: FileUploadResponse[] = [];
+    let attached: FileUploadResponse[] = [...files];
     if (context && include.files && context.files.length > 0) {
       setAttaching(true);
       try {
-        attached = await Promise.all((await takeContextFiles()).map(uploadFile));
+        attached = [
+          ...attached,
+          ...(await Promise.all((await takeContextFiles()).map(uploadFile))),
+        ];
       } catch (error) {
         // Asked without the files it was meant to carry is a different question.
         setAttachFailed(true);
@@ -299,7 +434,8 @@ export function QuickAsk() {
         setAttaching(false);
       }
     }
-    const content = withContext(text, passages);
+    if (generation !== uploadGeneration.current) return;
+    const content = withContext(text || tInput("analyzeFiles"), passages);
     const named = stillMentioned(text, picked);
     scrolledUp.current = false;
     if (named.length)
@@ -317,6 +453,7 @@ export function QuickAsk() {
       );
     else sendMessage(content);
     setQuestion("");
+    setFiles([]);
     setPicked([]);
     setMentionQuery(null);
     setContext(null);
@@ -344,9 +481,17 @@ export function QuickAsk() {
 
   const resetConversation = useConversationStore((s) => s.reset);
   const startOver = () => {
-    if (attaching || phase === "requesting" || phase === "recording" || phase === "transcribing")
+    if (
+      attaching ||
+      uploadCount.current > 0 ||
+      phase === "requesting" ||
+      phase === "recording" ||
+      phase === "transcribing"
+    )
       return;
     if (isProcessing && !conversationId) return;
+    uploadGeneration.current += 1;
+    setFiles([]);
     clearQueued();
     resetConversation();
     setContext(null);
@@ -396,7 +541,7 @@ export function QuickAsk() {
     } else if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       const text = question.trim();
-      if (!text || isProcessing || attaching) return;
+      if ((!text && !files.length) || isProcessing || attaching || uploadCount.current > 0) return;
       void ask(text);
     } else if (event.key.toLowerCase() === "n" && command) {
       event.preventDefault();
@@ -408,6 +553,25 @@ export function QuickAsk() {
 
   return (
     <div ref={panel} className="quick-ask-panel relative flex max-h-[560px] flex-col">
+      {isDragging && (
+        <div className="border-ring bg-popover/95 pointer-events-none absolute inset-1 z-50 flex items-center justify-center gap-2 rounded-xl border-2 border-dashed text-sm">
+          <Paperclip className="size-5" aria-hidden />
+          {tInput("dropFilesAttach")}
+        </div>
+      )}
+      <input
+        ref={fileInput}
+        type="file"
+        multiple
+        className="hidden"
+        aria-label={tInput("attachFile")}
+        onChange={(event) => {
+          const incoming = Array.from(event.currentTarget.files ?? []);
+          event.currentTarget.value = "";
+          finishPicking();
+          void uploadFiles(incoming);
+        }}
+      />
       <header className="flex shrink-0 items-center gap-2 px-3 py-2" data-tauri-drag-region="deep">
         <span className="text-muted-foreground mr-1 text-xs font-medium">{t("title")}</span>
         {!signedOut && <AgentPicker />}
@@ -418,6 +582,7 @@ export function QuickAsk() {
             onClick={startOver}
             disabled={
               attaching ||
+              pendingFiles.length > 0 ||
               listening ||
               phase === "transcribing" ||
               (isProcessing && !conversationId)
@@ -425,7 +590,7 @@ export function QuickAsk() {
             // i18n-exempt: WAI-ARIA machine-readable key combinations
             aria-keyshortcuts="Meta+N Control+N"
             title={t("newConversationHint")}
-            className="text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-ring flex shrink-0 items-center gap-1 rounded-md px-2 py-1.5 text-xs outline-none focus-visible:ring-2 disabled:opacity-50"
+            className="text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-ring flex h-8 shrink-0 items-center gap-1 rounded-lg px-2 text-xs outline-none focus-visible:ring-2 disabled:opacity-50"
           >
             <Plus className="size-3.5" aria-hidden />
             {t("newConversation")}
@@ -443,6 +608,26 @@ export function QuickAsk() {
             <ArrowUpRight className="size-4" aria-hidden />
           </button>
         )}
+        <button
+          type="button"
+          onClick={() => {
+            void togglePin();
+          }}
+          disabled={pinBusy}
+          aria-label={pinned ? t("unpin") : t("pin")}
+          aria-pressed={pinned}
+          title={pinned ? t("unpin") : t("pin")}
+          className={cn(
+            "hover:bg-muted focus-visible:ring-ring rounded-md p-2 outline-none focus-visible:ring-2 disabled:opacity-50",
+            pinned ? "text-foreground bg-muted" : "text-muted-foreground",
+          )}
+        >
+          {pinned ? (
+            <PinOff className="size-4" aria-hidden />
+          ) : (
+            <Pin className="size-4" aria-hidden />
+          )}
+        </button>
         <button
           type="button"
           onClick={() => run("could not put quick ask away", hideQuickAsk)}
@@ -512,7 +697,33 @@ export function QuickAsk() {
         )}
       </div>
 
+      {(files.length > 0 || pendingFiles.length > 0) && (
+        <div className="mx-3 mb-2 flex shrink-0 gap-2 overflow-x-auto py-1">
+          {files.map((file) => (
+            <AttachmentCard
+              key={file.id}
+              file={file}
+              onRemove={() => setFiles((current) => current.filter((item) => item.id !== file.id))}
+            />
+          ))}
+          {pendingFiles.map((file) => (
+            <PendingAttachmentCard key={file.key} name={file.name} size={file.size} />
+          ))}
+        </div>
+      )}
       <div className="focus-within:ring-ring/30 border-border bg-background/70 mx-3 mb-2 flex shrink-0 items-end gap-2 rounded-xl border px-3 py-2 focus-within:ring-2">
+        <button
+          type="button"
+          onClick={() => {
+            void chooseFiles();
+          }}
+          disabled={!isAuthenticated || attaching}
+          aria-label={tInput("attachFile")}
+          title={tInput("attachFileHint")}
+          className="text-muted-foreground hover:bg-muted hover:text-foreground shrink-0 rounded-lg p-2 disabled:opacity-30"
+        >
+          <Paperclip className="size-4" aria-hidden />
+        </button>
         <textarea
           ref={input}
           rows={1}
@@ -533,13 +744,22 @@ export function QuickAsk() {
           aria-activedescendant={
             mentionOpen && matches.length ? `${mentionMenuId}-${mentionIndex}` : undefined
           }
+          onPaste={(event) => {
+            const incoming = Array.from(event.clipboardData.files);
+            if (!incoming.length || !isAuthenticated) return;
+            event.preventDefault();
+            void uploadFiles(incoming);
+          }}
           onKeyDown={onKeyDown}
           placeholder={signedOut ? t("signedOut") : t("placeholder")}
           aria-label={t("placeholder")}
-          className="text-foreground placeholder:text-muted-foreground field-sizing-content max-h-28 min-h-12 flex-1 resize-none bg-transparent py-1.5 text-base outline-none"
+          className="text-foreground placeholder:text-muted-foreground field-sizing-content max-h-28 min-h-8 min-w-0 flex-1 resize-none bg-transparent py-1 text-base leading-6 outline-none"
         />
         {listening ? (
-          <Mic className="text-destructive mt-2 size-4 animate-pulse" aria-label={t("listening")} />
+          <Mic
+            className="text-destructive mb-2 size-4 shrink-0 animate-pulse"
+            aria-label={t("listening")}
+          />
         ) : null}
         {isProcessing ? (
           <button
@@ -547,7 +767,7 @@ export function QuickAsk() {
             onClick={stopGeneration}
             disabled={isStopping}
             aria-label={tInput("stopGenerating")}
-            className="text-muted-foreground hover:bg-muted hover:text-foreground mb-1 rounded-md p-2 disabled:opacity-50"
+            className="text-muted-foreground hover:bg-muted hover:text-foreground shrink-0 rounded-lg p-2 disabled:opacity-50"
           >
             <Square className="size-4" aria-hidden />
           </button>
@@ -558,16 +778,17 @@ export function QuickAsk() {
             disabled={
               signedOut ||
               !selectedAgentId ||
-              !question.trim() ||
+              (!question.trim() && !files.length) ||
+              pendingFiles.length > 0 ||
               attaching ||
               listening ||
               phase === "transcribing"
             }
             onClick={() => {
               const text = question.trim();
-              if (text && !attaching) void ask(text);
+              if ((text || files.length) && !attaching) void ask(text);
             }}
-            className="bg-foreground text-background focus-visible:ring-ring mb-1 shrink-0 rounded-lg p-2 outline-none focus-visible:ring-2 disabled:opacity-30"
+            className="bg-foreground text-background focus-visible:ring-ring shrink-0 rounded-lg p-2 outline-none focus-visible:ring-2 disabled:opacity-30"
           >
             <ArrowUp className="size-4" aria-hidden />
           </button>

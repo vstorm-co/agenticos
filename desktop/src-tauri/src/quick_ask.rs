@@ -11,6 +11,8 @@
 //! is: it takes the keyboard while the app you were in stays the active one,
 //! and the console window stays wherever it was.
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, Url, WebviewUrl, WebviewWindow};
 
 use crate::appearance::{self, Appearance, Surface};
@@ -28,12 +30,26 @@ pub const MAX_HEIGHT: f64 = 560.0;
 /// How far down the screen it sits, as Spotlight's does.
 const FROM_TOP: f64 = 0.2;
 
+/// Focus policy belongs to the native window, so page reloads retain the pin.
+#[derive(Default)]
+pub struct PanelState {
+    pinned: AtomicBool,
+    picking: AtomicBool,
+}
+
+impl PanelState {
+    fn dismiss_on_blur(&self) -> bool {
+        !self.pinned.load(Ordering::Relaxed) && !self.picking.load(Ordering::Relaxed)
+    }
+}
+
 /// Build the panel hidden, ready for the shortcut.
 pub fn prepare(app: &AppHandle, server: &Url, appearance: Appearance) -> tauri::Result<WebviewWindow> {
     let page = server.join(PATH).map_err(|e| tauri::Error::Anyhow(e.into()))?;
     let version = app.package_info().version.to_string();
     let mut builder = crate::webview_profile::window(app, WINDOW, WebviewUrl::External(page))?
         .title("Quick ask")
+        .disable_drag_drop_handler()
         .initialization_script(appearance::shell_script(&version, WINDOW))
         .inner_size(WIDTH, MIN_HEIGHT)
         .transparent(true)
@@ -57,11 +73,11 @@ pub fn prepare(app: &AppHandle, server: &Url, appearance: Appearance) -> tauri::
         // used on the main thread, where AppKit requires it.
         window.run_on_main_thread(move || unsafe { mac::make_panel(ns_window) })?;
     }
-    // A panel that loses focus has been dismissed: clicking elsewhere is how
-    // every launcher on every platform is put away.
+    // A pinned panel stays visible. File dialogs temporarily take focus without
+    // dismissing the draft they belong to.
     let handle = window.clone();
     window.on_window_event(move |event| {
-        if let tauri::WindowEvent::Focused(false) = event {
+        if matches!(event, tauri::WindowEvent::Focused(false)) && handle.state::<PanelState>().dismiss_on_blur() {
             if let Err(e) = handle.hide() {
                 eprintln!("quick ask: {e}");
             }
@@ -225,9 +241,49 @@ pub fn hide_quick_ask(window: WebviewWindow) -> Result<(), String> {
     window.hide().map_err(|e| e.to_string())
 }
 
+/// Only this panel can change its focus policy.
+fn panel_state(window: &WebviewWindow) -> Result<tauri::State<'_, PanelState>, String> {
+    if window.label() != WINDOW {
+        return Err("Quick Ask window required".into());
+    }
+    Ok(window.state::<PanelState>())
+}
+
+#[tauri::command]
+pub fn quick_ask_pinned(window: WebviewWindow) -> Result<bool, String> {
+    Ok(panel_state(&window)?.pinned.load(Ordering::Relaxed))
+}
+
+#[tauri::command]
+pub fn set_quick_ask_pinned(window: WebviewWindow, pinned: bool) -> Result<(), String> {
+    panel_state(&window)?.pinned.store(pinned, Ordering::Relaxed);
+    Ok(())
+}
+
+/// The native file chooser may temporarily take focus from an unpinned panel.
+#[tauri::command]
+pub fn set_quick_ask_picker_open(window: WebviewWindow, open: bool) -> Result<(), String> {
+    panel_state(&window)?.picking.store(open, Ordering::Relaxed);
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{clamp_height, MAX_HEIGHT, MIN_HEIGHT};
+    use super::{clamp_height, PanelState, MAX_HEIGHT, MIN_HEIGHT};
+    use std::sync::atomic::Ordering;
+
+    #[test]
+    fn pin_and_file_chooser_keep_the_panel_visible_until_explicitly_dismissed() {
+        let state = PanelState::default();
+        assert!(state.dismiss_on_blur());
+        state.pinned.store(true, Ordering::Relaxed);
+        assert!(!state.dismiss_on_blur());
+        state.picking.store(true, Ordering::Relaxed);
+        state.pinned.store(false, Ordering::Relaxed);
+        assert!(!state.dismiss_on_blur());
+        state.picking.store(false, Ordering::Relaxed);
+        assert!(state.dismiss_on_blur());
+    }
 
     #[test]
     fn the_panel_never_shrinks_past_its_question_or_grows_past_its_ceiling() {
