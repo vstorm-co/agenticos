@@ -1,5 +1,5 @@
 ---
-source_sha: "eaabf21a65fd"
+source_sha: "6e082228f717"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
@@ -176,6 +176,13 @@ tagu:
     ściągnął to, co działało wczoraj, a nie cokolwiek wydano dziś rano.
     `scripts/deploy.sh` przypina za ciebie - do tagu `sha-` commita, który wdraża -
     dokładnie na czas trwania wdrożenia.
+
+    Przypinaj je z checkoutu tego wydania: `git checkout v0.0.380` obok zmiennej.
+    Obraz usługi sandboksa jest przypięty w pliku compose, w wersji, którą mówi
+    backend z tego samego commita, więc starszy backend uruchomiony z nowszego
+    checkoutu trafia na nowszy `sandboxd` - a `latest` ze starego checkoutu to ta
+    sama niezgodność w drugą stronę. `scripts/deploy.sh` robi checkout commita,
+    który wdraża, więc skryptowe wdrożenie albo wycofanie trzyma oba razem.
 
 Oba pakiety ściągają się anonimowo. Jeśli pobranie odpowiada `unauthorized`,
 pakiet został ustawiony jako prywatny albo stare `docker login ghcr.io` stoi na

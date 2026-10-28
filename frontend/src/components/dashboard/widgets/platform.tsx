@@ -17,7 +17,7 @@ export function PlatformWidget({ title, hint, seeAll, options }: DashboardWidget
   return (
     <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {isLoading ? (
-        <WidgetSkeleton />
+        <WidgetSkeleton variant="metrics" />
       ) : error ? (
         <WidgetErrorBody onRetry={() => refetch()} />
       ) : !stats || !stats.total_organizations ? (

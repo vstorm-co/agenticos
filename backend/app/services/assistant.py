@@ -38,7 +38,7 @@ from app.repositories.agent_run import RunFilters
 from app.schemas.assistant import AssistantRead, AssistantSignals, AssistantUpdate
 from app.services import agent_templates
 from app.services.agent_registry import AgentRegistryService, slugify
-from app.services.model_outputs import model_outputs
+from app.services.model_profile import usable_for_agents
 from app.services.sandbox_connection import SandboxConnectionService
 
 logger = logging.getLogger(__name__)
@@ -194,15 +194,16 @@ class AssistantService:
     async def _publish_when_possible(self, organization_id: UUID, agent: Agent) -> Agent:
         """Publish the draft on the organization's first chat model, once it has one.
 
-        A text-to-speech or embedding profile is not one: publish refuses it
-        (#2487), so the assistant waits for a model it can run on.
+        A text-to-speech or embedding profile is not one (#2487), and neither is a
+        profile whose key was deleted (#2478): publish refuses both, so the
+        assistant waits for a model it can run on.
         """
         profiles = [
             profile
             for profile in await credential_repo.list_profiles(
                 self.db, organization_id=organization_id
             )
-            if model_outputs(profile.provider, profile.model, base_url=profile.base_url).chat
+            if usable_for_agents(profile)
         ]
         if not profiles:
             return agent

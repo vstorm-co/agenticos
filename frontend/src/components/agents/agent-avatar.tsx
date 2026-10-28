@@ -46,6 +46,8 @@ export interface AgentAvatarProps {
    * where a turn is actually in flight - it costs inline SVG per face.
    */
   thinking?: boolean;
+  /** Unframed portrait treatment shared across the console. */
+  unframed?: boolean;
   className?: string;
 }
 
@@ -72,11 +74,15 @@ export function AgentAvatar({
   version,
   thinking,
   className,
+  unframed = true,
 }: AgentAvatarProps) {
   const wearsMark = useArchitectMarkStore((state) => state.agentId === agentId);
   if (wearsMark) return <ArchitectMark className={cn(SIZES[size], className)} />;
   return (
-    <Avatar className={cn(SIZES[size], "border-border shrink-0 border", className)}>
+    <Avatar
+      data-agent-avatar={agentId}
+      className={cn(SIZES[size], "shrink-0", className, unframed && "ring-0")}
+    >
       {hasAvatar && (
         <AvatarImage
           src={`/api/agents/${agentId}/avatar${version ? `?v=${version}` : ""}`}
@@ -93,7 +99,13 @@ export function AgentAvatar({
         className="bg-transparent"
         delayMs={hasAvatar ? FALLBACK_DELAY_MS : undefined}
       >
-        <AvatarFace seed={slug} colorSlot={colorSlot} thinking={thinking} />
+        <AvatarFace
+          seed={slug}
+          colorSlot={colorSlot}
+          thinking={thinking}
+          background={!unframed}
+          className={unframed ? "scale-125" : undefined}
+        />
       </AvatarFallback>
     </Avatar>
   );

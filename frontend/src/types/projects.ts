@@ -6,7 +6,17 @@ import type { Visibility } from "./sharing";
  * Its chats, files and instructions are everybody's the project is shared with:
  * `chat_count` counts every chat in it, whoever started it.
  */
+export interface ProjectWorkspaceMove {
+  job_id: string;
+  status: "queued" | "running" | "succeeded" | "dead" | "cancelled";
+  target_name: string;
+  copied_files: number;
+  total_files: number;
+  copied_bytes: number;
+}
+
 export interface Project {
+  workspace_move?: ProjectWorkspaceMove | null;
   id: string;
   name: string;
   description: string | null;
@@ -19,6 +29,8 @@ export interface Project {
   /** `service` - a container with a shell - or `state`, files the platform stores. */
   backend: "service" | "state";
   runtime: string | null;
+  sandbox_connection_id?: string | null;
+  sandbox_connection_name?: string | null;
   chat_count: number;
   last_active_at: string | null;
   shared_groups: string[];
@@ -36,6 +48,8 @@ export interface ProjectList {
 }
 
 export interface ProjectCreate {
+  backend?: "auto" | "service" | "state";
+  sandbox_connection_id?: string | null;
   name: string;
   description?: string | null;
   instructions?: string;

@@ -5,7 +5,14 @@ import { apiClient } from "./api-client";
 import { postWithProgress } from "./upload-with-progress";
 
 vi.mock("./api-client", () => ({
-  apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn(), raw: vi.fn() },
+  apiClient: {
+    get: vi.fn(),
+    put: vi.fn(),
+    post: vi.fn(),
+    patch: vi.fn(),
+    delete: vi.fn(),
+    raw: vi.fn(),
+  },
 }));
 vi.mock("./upload-with-progress", () => ({ postWithProgress: vi.fn() }));
 
@@ -78,5 +85,36 @@ describe("the projects client", () => {
     expect(apiClient.post).toHaveBeenLastCalledWith("/projects/p-1/folders", { path: "docs" });
     await api.removeProjectPath("p-1", "docs/old.md");
     expect(apiClient.delete).toHaveBeenLastCalledWith("/projects/p-1/files?path=docs%2Fold.md");
+  });
+});
+
+it("moves project entries and edits a complete revision without losing whitespace", async () => {
+  await api.moveProjectPath("p-1", "docs", "notes");
+  expect(apiClient.post).toHaveBeenLastCalledWith("/projects/p-1/files/move", {
+    source: "docs",
+    destination: "notes",
+  });
+  await api.readEditableProjectFile("p-1", "notes/a b.md");
+  expect(apiClient.get).toHaveBeenLastCalledWith("/projects/p-1/files/text?path=notes%2Fa+b.md");
+  await api.saveProjectFile("p-1", "notes/a b.md", {
+    content: " text\n",
+    revision: "a".repeat(64),
+  });
+  expect(apiClient.put).toHaveBeenLastCalledWith("/projects/p-1/files/text?path=notes%2Fa+b.md", {
+    content: " text\n",
+    revision: "a".repeat(64),
+  });
+});
+
+it("posts an explicit connection or stored-files destination for a project transfer", async () => {
+  await api.moveProjectWorkspace("p-1", "cloud");
+  expect(apiClient.post).toHaveBeenLastCalledWith("/projects/p-1/workspace-move", {
+    backend: "service",
+    sandbox_connection_id: "cloud",
+  });
+  await api.moveProjectWorkspace("p-1", "state");
+  expect(apiClient.post).toHaveBeenLastCalledWith("/projects/p-1/workspace-move", {
+    backend: "state",
+    sandbox_connection_id: null,
   });
 });

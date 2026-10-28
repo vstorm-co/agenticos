@@ -8,7 +8,7 @@ in a MINOR release. Read a minor release's notes before upgrading.
 
 Two things are versioned separately from this file and worth knowing about:
 
-- **`SPEC_VERSION`** — the agent spec format, currently **11**. A published agent
+- **`SPEC_VERSION`** — the agent spec format, currently **13**. A published agent
   and a client's exported YAML both carry it, so it only ever moves forward with a
   migration that keeps old documents loading. See
   [the spec reference](docs/reference/spec.md).
@@ -414,6 +414,178 @@ Two things are versioned separately from this file and worth knowing about:
   recorded as the image's Python representation, bytes and all, in the run's
   history and the chat's tool row. The row says which kind of picture it
   was instead.
+## [1.27.0] - 2026-10-27
+
+### Added
+
+- Show the running console build version in the sidebar footer, including the
+  collapsed rail and mobile navigation.
+
+- Projects can choose a sandbox connection or stored files when created. Settings
+  show the connection used by their shared workspace and explain sharing and code
+  execution. Existing projects can transfer files between connections or stored
+  files through a verified background copy, with progress and write protection.
+
+- Project file management: rename folders and files, move entries by drag and drop
+  or a folder picker, and edit UTF-8 text with revision and unsaved-change checks.
+
+- Create separate model profiles for the same provider and model on different
+  endpoints, with automatic endpoint labels and an explicit choice to update the
+  shared profile instead.
+
+- Configure custom OpenRouter endpoints for agent models and knowledge-base
+  embeddings, including the regional EU API. Native OpenRouter keys and cache
+  controls are retained. Model suggestions come from the chosen endpoint;
+  regional listing failures never fall back to the global catalog. Apply the
+  database migration for the optional embedding endpoint when upgrading. Upgrade
+  all API and worker processes before configuring regional endpoints; older
+  processes ignore the override.
+- Set Context file mode and availability separately for each agent in the
+  Builder. Shared library editors keep content and descriptions; existing
+  agent versions retain their prior usage until an override is published.
+
+- Let verified Mattermost participants rate answers and leave comments without
+  an AgenticOS account. Votes from unlinked participants use their channel identity; linking an
+  account merges its votes with web ratings so each person has one vote per
+  answer. Shared buttons stay available after the first vote. **API change:** a rating's
+  `user_id` can now be null for a channel participant. Apply the database migration
+  when upgrading; downgrading removes channel-authored votes.
+
+### Changed
+
+- Explain the sandbox’s POSIX shell, shared `/workspace` directory and per-command
+  process lifetime to agents, preventing Bash-only directory creation and writes
+  outside the shared project.
+
+- Refine empty states, metadata badges and mobile settings across the console.
+  Knowledge search offers a clear starting point and permission-aware creation;
+  narrow integration panels keep their controls visible. Approval history uses
+  a compact queue status, member actions fit small screens, and urgent Inbox
+  badges remain legible in dark mode. Password-reset failures stay retryable
+  instead of claiming an email was sent.
+- Keep chat model changes collapsed behind the current model summary. File-row
+  actions reveal on hover or keyboard focus without cutting filenames; long
+  project files scroll inside their preview. Inbox finding titles link to
+  their source and actions sit beside each finding.
+- Prevent delayed conversation refreshes and failed read requests from restoring
+  already-read badges.
+- Keep dashboard checklist loading in a stable slot. Resource lists fill the
+  page height; Routines drops the separate ideas panel. Chat keeps its animated
+  Files toggle visible, prefills model settings, enlarges agent portraits and
+  simplifies attachment cards.
+- Refine console headers, neutral action buttons and sidebar glyphs. Skills and
+  context galleries use compact, consistently sized cards without nested panels.
+  People use photos or initials; organizations keep round, cropped avatars.
+  Local server controls show Ollama and LlamaIndex marks in both themes.
+- Separate agent routines from personal connection watches in two Routines tabs.
+  Lead dashboard discovery with illustrated capabilities, show bucket values on
+  summary chart hover, and simplify project and agent widgets.
+- Unify dashboard list rows, status indicators, shared-resource counts and
+  loading states across the widget catalog. Summary columns follow card width
+  in custom layouts. Briefing failures now offer Retry instead of appearing empty.
+
+### Fixed
+
+- Include the installed AgenticOS version in deployment, worker and per-agent
+  Logfire traces so production incidents can be matched to their release.
+
+- Invalid metadata in agent-written skills no longer breaks turn completion.
+  Proposal writes use a savepoint and preserve the run’s status and spend (#2516).
+
+- Changing a knowledge base embedding endpoint now requires access to its retained
+  vault key, including when resetting the endpoint to the provider default.
+
+- Marking a chat as read preserves its initial conversation fetch, so the chosen
+  agent and a turn still running remain visible when reopening it.
+
+- Ignore empty channel prompts after removing the bot mention, while preserving
+  attachment-only messages, so Anthropic does not reject an empty turn as prefill.
+- Bound custom model catalog downloads, parsed fields and cached endpoints to
+  prevent an untrusted gateway from exhausting API process memory.
+
+## [1.26.0] - 2026-10-27
+
+### Added
+
+- Change a model's key, endpoint, API, settings or name in place with
+  `PATCH /providers/model-profiles/{id}` (#2478). The profile keeps its id, so
+  every agent on it uses the change from its next run, with no republish. The
+  Builder's model panel saves a key, endpoint or API change on the model in use
+  as this edit, under **Update model**, and says that every agent on the model
+  switches with it. **Add model** stays for another provider or model. The edit
+  is gated on `connections:manage`, which therefore moves every agent on the
+  model. A new key, or a new endpoint for the stored key, must be a key the
+  caller can see in the organization's vault for the profile's provider. The
+  edit is audited as `model_profile.updated` with the changed field names only.
+  See
+  [Changing a profile's key or endpoint](docs/models.md#changing-a-profiles-key-or-endpoint).
+
+### Changed
+
+- Deleting a model profile that agents use is refused with `409 IN_USE`
+  (#2478). `details.agents` names each agent the caller can see and marks the
+  archived ones, and `details.hidden_agents` counts the rest. A profile counts as in use when an
+  agent's draft, served version or an environment's pinned version names it
+  anywhere as a JSON value, including reviewers, specialists and capability
+  settings, and archived agents count too. The check and the delete hold off
+  concurrent draft saves, publishes and promotions in the organization. The Builder
+  shows the refusal with the agent names. **Upgrade action:** a script that
+  deletes profiles must move the agents on them first, or edit the profile
+  instead.
+- A model profile whose key was deleted from the vault is listed with
+  `missing_key: true` (#2478). Agent and chat model pickers no longer offer it,
+  the Builder marks it **no key** and says how to fix it, and publish refuses it
+  by name, and refuses a profile whose first three fallbacks include one. A
+  profile saved with no key on purpose (a self-hosted model, a gateway that
+  authenticates nothing) records that as `runs_without_key` and is not affected;
+  a gateway profile that had a key and lost it now reads as missing one. The
+  migration `0175_profile_runs_without_key` marks every existing keyless profile
+  with an endpoint as running without a key, so nothing that resolves today
+  stops.
+- Creating a model profile now also requires that the caller can see its key in
+  the vault, the same rule as a capability's secret (#2478).
+
+### Fixed
+
+- The Builder's Endpoint field no longer shows the local example
+  `http://localhost:11434/v1` for a model that has a key (#2478). OpenAI is
+  marked `keyless` because OpenAI-compatible servers exist, and the field showed
+  the Ollama example as grey placeholder text, which read as an endpoint filled
+  in after a key was switched. The example now shows only when the endpoint is
+  required. A self-hosted model is no longer badged **no key** either.
+- Document how to pin or roll back a release by hand without pairing its
+  backend with another release's sandbox service (#2484). The `sandboxd` image
+  is pinned in the compose file, so a host that sets `AGENTICOS_VERSION` by hand
+  checks out that release's tag as well; `scripts/deploy.sh` already does. An
+  install without a checkout, from `scripts/quickstart.sh`, downloads that
+  release's `docker-compose.yml` beside the pin.
+- An API key added from the coding agent's card for Codex is stored as an
+  OpenAI key, so the Builder no longer offers it to Claude Code after a harness
+  switch, where it published and then failed at run time (#2485). Keys added for
+  Claude Code, or behind a gateway, are still stored as custom.
+- An app-scoped collection and an organization's knowledge base with the same
+  name keep their documents apart. Through the app collection, members of
+  other organizations could list the organization's documents
+  (`GET /rag/documents`) and download, read or delete them (`/rag/documents/{id}`
+  and `/kb/{kb_id}/documents/{doc_id}`). The organization's sync sources were
+  also reachable through the app base's `/kb/{kb_id}/sync-sources/{source_id}`
+  routes. Those documents also counted toward the app collection in
+  `GET /rag/collections/{name}/info`, where they could hold `indexing_status`
+  at `indexing`. A document filed under the app base now belongs to the app
+  collection, whichever organization uploaded it. The organization's listing
+  and counts leave it out. The same held for a personal knowledge base outside
+  any organization that shares its name with an app collection: every member
+  of every organization could list and download its owner's documents through
+  the app collection. A document now belongs to the knowledge base it is filed
+  under, in listings, counts and per-document checks (#2486).
+  `GET /kb` counted documents by collection name, so each base reported the
+  other's `document_count`, `indexed_count` and `chunk_count`; each base now
+  counts its own. `GET /kb/{kb_id}/sync-sources` and `GET /rag/sync/logs`
+  listed a private base's sync sources and runs to a member who reads only the
+  app base of the same name, and `DELETE /rag/sync/{sync_id}` let a writer of
+  one base cancel a run feeding the other. A sync source and its runs now
+  belong to the base its sync writes under. A run with no sync source is still
+  matched by its collection name.
 
 ## [1.25.0] - 2026-10-27
 
@@ -17405,7 +17577,9 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.25.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.27.0...HEAD
+[1.27.0]: https://github.com/vstorm-co/agenticos/compare/v1.26.0...v1.27.0
+[1.26.0]: https://github.com/vstorm-co/agenticos/compare/v1.25.0...v1.26.0
 [1.25.0]: https://github.com/vstorm-co/agenticos/compare/v1.24.0...v1.25.0
 [1.24.0]: https://github.com/vstorm-co/agenticos/compare/v1.23.0...v1.24.0
 [1.23.0]: https://github.com/vstorm-co/agenticos/compare/v1.22.0...v1.23.0

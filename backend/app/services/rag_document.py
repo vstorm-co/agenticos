@@ -21,7 +21,7 @@ from app.services.rag.ingestion import IngestionService
 from app.services.rag.models import CollectionInfo
 from app.services.rag.vectorstore import BaseVectorStore
 from app.repositories import collection_teardown_repo, knowledge_base_repo, rag_document_repo
-from app.repositories.rag_document import IngestionCounts
+from app.repositories.rag_document import CollectionScope, IngestionCounts
 from app.schemas.rag import (
     RAGCollectionInfo,
     RAGIngestionStatus,
@@ -92,14 +92,15 @@ class RAGDocumentService:
         self.db = db
 
     async def list_documents(
-        self, *, scopes: list[tuple[str, UUID | None]], skip: int = 0, limit: int = 50
+        self, *, scopes: list[CollectionScope], skip: int = 0, limit: int = 50
     ) -> RAGTrackedDocumentList:
         """List a page of tracked RAG documents in the given collections.
 
-        `scopes` - (collection, organization) pairs, see `rag_document_repo.get_all`
-        - is required and takes no default on purpose: the caller decides which
-        collections it is entitled to see, and there is no way to ask for "all of
-        them" by forgetting to say. An empty list is an empty answer.
+        `scopes` - the knowledge bases the caller reads, see
+        `rag_document_repo.get_all` - is required and takes no default on
+        purpose: the caller decides which collections it is entitled to see, and
+        there is no way to ask for "all of them" by forgetting to say. An empty
+        list is an empty answer.
         """
         rows, total = await rag_document_repo.get_all(
             self.db, scopes=scopes, skip=skip, limit=limit
@@ -122,16 +123,17 @@ class RAGDocumentService:
         )
 
     async def collection_info(
-        self, info: CollectionInfo, *, organization_id: UUID | None
+        self, info: CollectionInfo, *, kb: KnowledgeBase
     ) -> RAGCollectionInfo:
         """The vector store's statistics, with where the collection's documents stand.
 
-        `organization_id` is the knowledge base's, which scopes the count the way
-        `get_all` scopes a listing.
+        `kb` is the knowledge base the caller was authorized through, and the
+        count is that base's rows (`rag_document_repo.in_collection_scope`), the
+        ones the document listing shows for it. `total_vectors` is scoped by the
+        base's vector tenant, which a personal base outside any organization
+        shares with an app-scoped one of the same name.
         """
-        counts = await rag_document_repo.ingestion_counts(
-            self.db, collection_name=info.name, organization_id=organization_id
-        )
+        counts = await rag_document_repo.ingestion_counts(self.db, scope=CollectionScope.of(kb))
         return RAGCollectionInfo(
             name=info.name,
             total_vectors=info.total_vectors,
@@ -484,7 +486,7 @@ class RAGDocumentService:
         Every ingest path creates a fresh `rag_documents` row, including the
         replacing one - the upload, the CLI and the sync all do - while the
         vector store keeps one document. So the old row outlives the vectors it
-        describes: `counts_by_collection` sums its `chunk_count` into the
+        describes: `counts_by_scope` sums its `chunk_count` into the
         collection's total, its "view parsed content" reads a document that is
         gone, and a directory synced nightly accumulates one dead row per file
         per run.

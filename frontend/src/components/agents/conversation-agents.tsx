@@ -32,12 +32,14 @@ export function ConversationAgents({
   agents,
   size = "sm",
   showName = true,
+  unframed = true,
   className,
 }: {
   agents: ConversationAgent[] | undefined;
   size?: "sm" | "md";
   /** Off where the row is tight and the pictures carry it alone. */
   showName?: boolean;
+  unframed?: boolean;
   className?: string;
 }) {
   const t = useTranslations("agents");
@@ -60,8 +62,10 @@ export function ConversationAgents({
             hasAvatar={agent.has_avatar}
             colorSlot={agent.avatar_color}
             size={size}
+            unframed={unframed}
             className={cn(
-              "ring-background ring-2 transition-[margin] duration-200 ease-out motion-reduce:transition-none",
+              "transition-[margin] duration-200 ease-out motion-reduce:transition-none",
+              !unframed && "ring-background ring-2",
               index > 0 && [shown.length > 2 ? TUCK.more : TUCK.two, SPREAD],
             )}
           />

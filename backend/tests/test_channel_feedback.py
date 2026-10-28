@@ -1,13 +1,15 @@
 """Thumbs under a channel answer become the presser's rating of it (#2084)."""
 
 import uuid
+from contextlib import ExitStack
+from dataclasses import replace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from app.services.channels.base import FeedbackComment, IncomingPress, feedback_value
-from app.services.channels.feedback import ChannelFeedback
+from app.services.channels.feedback import ChannelFeedback, FeedbackOutcome
 from app.worker.background.channel import process_channel_press, process_feedback_comment
 
 pytestmark = pytest.mark.anyio
@@ -242,3 +244,73 @@ async def test_a_thumbs_press_goes_to_the_rating_and_a_prompt_press_to_the_promp
 
     feedback.return_value.rate.assert_awaited_once()
     prompts.return_value.press.assert_awaited_once()
+
+
+async def test_an_unlinked_presser_gets_a_refusal_and_can_retry_after_linking() -> None:
+    world = _World()
+    with ExitStack() as stack:
+        mocks = {one.attribute: stack.enter_context(one) for one in world.patches()}
+        mocks["linked_member"].return_value = None
+        service = ChannelFeedback(MagicMock())
+        assert await service.rate_result(_press()) == FeedbackOutcome.LINK_REQUIRED
+        mocks["create_rating"].assert_not_awaited()
+        world.adapter.settle_feedback.assert_not_awaited()
+        mocks["linked_member"].return_value = world.ctx
+        assert await service.rate_result(_press()) == FeedbackOutcome.SAVED
+        mocks["create_rating"].assert_awaited_once()
+        world.adapter.settle_feedback.assert_awaited_once()
+
+
+async def test_a_verified_mattermost_participant_can_rate_without_an_application_account() -> None:
+    world = _World()
+    world.ctx = None
+    identity_id = uuid.uuid4()
+    with (
+        patch(
+            f"{MODULE}.channel_identity_repo.get_or_create",
+            AsyncMock(return_value=MagicMock(id=identity_id)),
+        ) as identity,
+        patch(f"{MODULE}.rating_repo.upsert_channel_rating", AsyncMock()) as save,
+    ):
+        rated, mocks = await _rate(world, replace(_press(), platform="mattermost"))
+    assert rated
+    mocks["linked_member"].assert_not_awaited()
+    mocks["create_rating"].assert_not_awaited()
+    assert identity.await_args.kwargs == {"platform": "mattermost", "platform_user_id": "U1"}
+    assert save.await_args.kwargs == {
+        "message_id": world.answer.id,
+        "channel_identity_id": identity_id,
+        "rating": 1,
+        "comment": None,
+    }
+
+
+async def test_a_mattermost_comment_uses_the_same_channel_author_without_requiring_a_link() -> None:
+    world = _World()
+    world.ctx = None
+    identity_id = uuid.uuid4()
+    with (
+        patch(
+            f"{MODULE}.channel_identity_repo.get_or_create",
+            AsyncMock(return_value=MagicMock(id=identity_id)),
+        ),
+        patch(f"{MODULE}.rating_repo.upsert_channel_rating", AsyncMock()) as save,
+    ):
+        kept, mocks = await _comment(world, replace(_said(), platform="mattermost"))
+    assert kept
+    mocks["linked_member"].assert_not_awaited()
+    assert save.await_args.kwargs["channel_identity_id"] == identity_id
+    assert save.await_args.kwargs["rating"] is None
+    assert save.await_args.kwargs["comment"] == "Wrong dates"
+
+
+async def test_a_mattermost_vote_without_a_verified_participant_is_not_saved() -> None:
+    world = _World()
+    with (
+        patch(f"{MODULE}.channel_identity_repo.get_or_create", AsyncMock()) as identity,
+        patch(f"{MODULE}.rating_repo.upsert_channel_rating", AsyncMock()) as save,
+    ):
+        rated, _ = await _rate(world, replace(_press(), platform="mattermost", platform_user_id=""))
+    assert not rated
+    identity.assert_not_awaited()
+    save.assert_not_awaited()

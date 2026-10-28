@@ -136,7 +136,7 @@ describe("WatchDialog", () => {
       "It is under Routines, and what it finds lands in your inbox.",
     );
     options.action.onClick();
-    expect(state.push).toHaveBeenCalledWith("/routines");
+    expect(state.push).toHaveBeenCalledWith("/routines?tab=watches");
   });
 
   it("names each account by its server, and offers no way to Routines from Routines", async () => {

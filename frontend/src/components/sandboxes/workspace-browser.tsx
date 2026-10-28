@@ -138,7 +138,7 @@ function FlatFiles() {
 
   if (listing.items.length === 0)
     return (
-      <ListCard namedByPage title={t("workspaces.allFiles")} counted={null} empty>
+      <ListCard fill namedByPage title={t("workspaces.allFiles")} counted={null} empty>
         <ListCardEmpty
           icon={FolderOpen}
           title={t("noAgentHoldingFile")}
@@ -149,7 +149,7 @@ function FlatFiles() {
     );
 
   return (
-    <div className="space-y-5">
+    <div className="flex flex-1 flex-col space-y-5">
       <div className="flex flex-wrap items-center gap-2">
         <SearchInput value={list.query} onChange={list.setQuery} placeholder={t("searchFiles")} />
         <Select value={origin} onValueChange={(value) => setOrigin(value as Origin)}>

@@ -1,5 +1,5 @@
 ---
-source_sha: "e084d213e2b5"
+source_sha: "b2690527c166"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -1486,8 +1486,10 @@ de ingesta de la base de conocimiento y elige un perfil de modelo con visión. E
 selector es el del builder de agents: un provider, un modelo y su clave se
 definen sin salir del diálogo — un deployment sin perfiles de modelo no es un
 callejón sin salida. Lo que no ofrece es borrar un perfil: eso va donde se
-gestionan los modelos de una organización, porque cada agent apuntado a uno lo
-pierde. Las descripciones generadas se incluyen en el texto del documento, para
+gestionan los modelos de una organización, y un perfil que usan agents no se
+puede borrar.
+
+Las descripciones generadas se incluyen en el texto del documento, para
 mejor búsqueda semántica.
 
 ## Desde un canal { #from-a-channel }

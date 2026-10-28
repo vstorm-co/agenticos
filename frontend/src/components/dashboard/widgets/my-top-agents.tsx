@@ -4,7 +4,6 @@ import { useTranslations } from "next-intl";
 
 import { useUsageStats } from "@/hooks";
 import { AgentFace } from "../agent-face";
-import { BarList } from "../primitives/bar-list";
 import { WidgetFrame } from "../widget-frame";
 import { Bot } from "lucide-react";
 
@@ -22,22 +21,21 @@ export function MyTopAgentsWidget({ title, hint, period, seeAll, options }: Dash
   return (
     <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {isLoading ? (
-        <WidgetSkeleton />
+        <WidgetSkeleton variant="bars" />
       ) : error ? (
         <WidgetErrorBody onRetry={() => refetch()} />
       ) : !usage || !usage.total_runs ? (
         <WidgetEmptyBody icon={Bot} title={t("empty.title")} description={t("empty.description")} />
       ) : (
-        <div className="flex h-full flex-col justify-between gap-2">
-          <BarList
-            items={(usage.by_agent ?? []).slice(0, 4).map((row) => ({
-              label: row.name,
-              value: row.runs,
-              icon: <AgentFace agentId={row.agent_id} className="size-5" />,
-            }))}
-          />
-          <p className="text-muted-foreground text-xs">{t("subline")}</p>
-        </div>
+        <ul className="divide-border/60 divide-y">
+          {(usage.by_agent ?? []).slice(0, 3).map((row) => (
+            <li key={row.agent_id} className="flex items-center gap-3 py-2 first:pt-0 last:pb-0">
+              <AgentFace agentId={row.agent_id} className="size-9" />
+              <span className="min-w-0 flex-1 truncate text-sm font-medium">{row.name}</span>
+              <span className="text-foreground text-sm font-semibold tabular-nums">{row.runs}</span>
+            </li>
+          ))}
+        </ul>
       )}
     </WidgetFrame>
   );

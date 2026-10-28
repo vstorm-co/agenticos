@@ -4,6 +4,9 @@
  * destinations; notifications and account stay within reach below them. */
 
 import type { ReactNode } from "react";
+import { useTranslations } from "next-intl";
+
+import { version } from "../../../package.json";
 
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { ServerSwitch } from "@/components/desktop/server-switch";
@@ -18,6 +21,8 @@ export function SidebarShell({
   children: ReactNode;
   collapsed?: boolean;
 }) {
+  const t = useTranslations("nav");
+
   return (
     <>
       {!collapsed && (
@@ -35,14 +40,24 @@ export function SidebarShell({
           collapsed ? "items-center px-1" : "px-3",
         )}
       >
-        {collapsed ? (
-          <div className="flex flex-col items-center gap-1">
-            <SidebarSearch variant="icon" />
-            <NotificationBell variant="icon" />
-          </div>
-        ) : (
-          <NotificationBell variant="row" />
-        )}
+        {/* The language and the theme used to be
+            here too, which filed "set this once" beside "find something" under
+            four unlabelled glyphs; they are named rows in the account menu
+            below now. */}
+        <div className={cn("flex items-center gap-0.5", collapsed && "flex-col")}>
+          {collapsed && <SidebarSearch variant="icon" />}
+          <NotificationBell variant="icon" />
+          <span
+            aria-label={t("consoleVersion", { version })}
+            title={t("consoleVersion", { version })}
+            className={cn(
+              "text-muted-foreground font-mono text-[11px] tabular-nums select-all",
+              !collapsed && "ml-auto pr-2",
+            )}
+          >
+            v{version}
+          </span>
+        </div>
         <ServerSwitch compact={collapsed} />
         <SidebarUser compact={collapsed} />
       </div>

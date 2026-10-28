@@ -33,7 +33,7 @@ export function VoiceMinutesWidget({ title, hint, period, options }: DashboardWi
   return (
     <WidgetFrame title={title} hint={hint} seeAll={calls()} options={options}>
       {isLoading ? (
-        <WidgetSkeleton />
+        <WidgetSkeleton variant="chart" />
       ) : error || usage === null ? (
         <WidgetErrorBody onRetry={() => refetch()} />
       ) : usage.calls === 0 ? (
@@ -43,7 +43,7 @@ export function VoiceMinutesWidget({ title, hint, period, options }: DashboardWi
           description={t("empty.description")}
         />
       ) : (
-        <div className="flex h-full flex-col justify-between gap-3">
+        <div className="flex h-full flex-col gap-4">
           <Figure
             value={t("minutes", { minutes: Math.round(usage.seconds / 60) })}
             caption={t("calls", { count: usage.calls })}
@@ -69,9 +69,17 @@ export function VoiceMinutesWidget({ title, hint, period, options }: DashboardWi
                     ) : (
                       <Link
                         href={calls(agent.agent_id)}
-                        className="hover:bg-accent/40 flex justify-between gap-2 rounded-sm"
+                        className="hover:bg-muted/60 focus-visible:ring-ring flex items-center gap-3 rounded-lg px-1 py-2 outline-none focus-visible:ring-2"
                       >
-                        <span className="text-muted-foreground truncate">{agent.agent_name}</span>
+                        <span
+                          className="bg-foreground/[0.04] text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-lg"
+                          aria-hidden
+                        >
+                          <AudioLines className="size-4" />
+                        </span>
+                        <span className="text-foreground min-w-0 flex-1 truncate font-medium">
+                          {agent.agent_name}
+                        </span>
                         {minutes}
                       </Link>
                     )}

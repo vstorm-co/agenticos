@@ -31,7 +31,7 @@ export function KnowledgeWidget({ title, hint, seeAll, options }: DashboardWidge
   if (isLoading) {
     return (
       <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
-        <WidgetSkeleton />
+        <WidgetSkeleton variant="metrics" columns={3} />
       </WidgetFrame>
     );
   }

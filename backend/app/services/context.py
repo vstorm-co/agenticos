@@ -12,6 +12,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.context import ContextConfig
 from app.core.audit import record_audit
 from app.core.exceptions import AlreadyExistsError, NotFoundError
 from app.core.excerpt import excerpt
@@ -165,7 +166,7 @@ class ContextService:
         )
 
     async def resolve_for_agent(
-        self, ctx: AuthContext, context_ids: list[UUID]
+        self, ctx: AuthContext, context_ids: list[UUID], *, config: ContextConfig | None = None
     ) -> list[ContextFile]:
         """The enabled context files an agent is bound to.
 
@@ -191,7 +192,8 @@ class ContextService:
         resolved = []
         for context_id in context_ids:
             file = found.get(context_id)
-            if file is None or not file.enabled:
+            setting = config.file_settings.get(context_id) if config is not None else None
+            if file is None or not (setting.enabled if setting is not None else file.enabled):
                 logger.warning(
                     "Agent references context file %s which is disabled, deleted, or not org %s's",
                     context_id,

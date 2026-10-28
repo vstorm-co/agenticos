@@ -326,6 +326,11 @@ class ChannelMessageRouter:
         counts, which is why the handler is `BaseException`: a pod draining
         mid-run is the case the claim would otherwise outlive.
         """
+        # Adapters remove the bot's own mention after their initial empty-post
+        # check. A mention alone is no prompt: Anthropic drops its empty user
+        # block and rejects the preceding assistant answer as a prefill.
+        if not incoming.text.strip() and not incoming.attachments:
+            return
         if not await claim_delivery(incoming):
             logger.info(
                 "Duplicate channel delivery ignored: bot=%s platform=%s message=%s",

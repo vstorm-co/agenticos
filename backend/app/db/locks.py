@@ -71,6 +71,13 @@ class LockScope(IntEnum):
     ACCOUNT_BOOTSTRAP = 12
     #: One mailbox poll, independent of its separately committed OAuth refresh.
     PORTAL_POLL = 13
+    #: One organization's model profiles against the agent specs that name them
+    #: (#2478). Deleting a profile checks that no draft, served or pinned version
+    #: names it and then deletes it; a draft save, a publish or a promotion
+    #: committing in between would name a profile that is gone. Every such write
+    #: takes this *shared*, so they never wait for each other; the delete takes it
+    #: exclusive, so it waits for those in flight and they wait for it.
+    MODEL_PROFILE_REFERENCES = 14
 
 
 def _key(subject: UUID) -> int:
@@ -98,6 +105,23 @@ async def hold_subject(db: AsyncSession, scope: LockScope, subject: UUID) -> Non
     """
     await db.execute(
         select(func.pg_advisory_xact_lock(cast(scope.value, Integer), cast(_key(subject), Integer)))
+    )
+
+
+async def hold_subject_shared(db: AsyncSession, scope: LockScope, subject: UUID) -> None:
+    """Take the shared side of a subject's lock, until this transaction ends.
+
+    Shared holders never wait for each other; they wait only while a
+    transaction holds the same lock through :func:`hold_subject`, and that one
+    waits for every shared holder in flight. The key is the same two integers,
+    so the two sides meet.
+    """
+    await db.execute(
+        select(
+            func.pg_advisory_xact_lock_shared(
+                cast(scope.value, Integer), cast(_key(subject), Integer)
+            )
+        )
     )
 
 

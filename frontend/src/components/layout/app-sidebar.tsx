@@ -93,12 +93,12 @@ function InboxCount({ collapsed }: { collapsed: boolean }) {
   const label = t("inboxCount", { count: suggestions.length });
   return collapsed ? (
     <span
-      className="bg-foreground absolute top-1 right-1 h-1.5 w-1.5 rounded-full"
+      className="bg-muted-foreground absolute top-1 right-1 h-1.5 w-1.5 rounded-full"
       aria-label={label}
     />
   ) : (
     <span
-      className="bg-foreground text-background ml-auto rounded-full px-1.5 text-[11px] leading-4 font-semibold tabular-nums"
+      className="text-muted-foreground ml-auto px-1 text-xs font-medium tabular-nums"
       aria-label={label}
     >
       {suggestions.length}
@@ -115,7 +115,7 @@ function NavIcon({ icon: Icon }: { icon: NavItem["icon"] }) {
   return pending ? (
     <Loader2 className="h-4 w-4 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden />
   ) : (
-    <Icon className="h-4 w-4 shrink-0" aria-hidden />
+    <Icon className="h-4 w-4 shrink-0" strokeWidth={1.7} aria-hidden />
   );
 }
 

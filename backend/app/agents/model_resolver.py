@@ -49,6 +49,7 @@ from uuid import UUID
 from pydantic_ai.models import Model, infer_model
 from pydantic_ai.models.fallback import FallbackModel
 from pydantic_ai.providers import Provider, infer_provider_class
+from pydantic_ai.providers.openrouter import OpenRouterProvider
 
 from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import (
@@ -121,6 +122,18 @@ class ProviderSpec:
         return self.native_api if base_url is None else "chat"
 
 
+class _EndpointOpenRouterProvider(OpenRouterProvider):
+    """Keep OpenRouter's native model handling and SDK-owned client lifecycle."""
+
+    def __init__(self, *, api_key: str, base_url: str) -> None:
+        self._endpoint = base_url
+        super().__init__(api_key=api_key)
+
+    @property
+    def base_url(self) -> str:
+        return self._endpoint
+
+
 def _api_key(
     id: str,  # noqa: A002 - the field is called `id` everywhere it is read
     name: str,
@@ -157,7 +170,7 @@ PROVIDERS: dict[str, ProviderSpec] = {
         ),
         _api_key("anthropic", "Anthropic", base_url_param="base_url"),
         _api_key("google", "Google Gemini", base_url_param="base_url"),
-        _api_key("openrouter", "OpenRouter"),
+        _api_key("openrouter", "OpenRouter", base_url_param="base_url"),
         _api_key("alibaba", "Alibaba Cloud", base_url_param="base_url"),
         _api_key("cerebras", "Cerebras"),
         _api_key("deepseek", "DeepSeek"),
@@ -232,6 +245,33 @@ def get_provider(provider: str) -> ProviderSpec:
             details={"supported": sorted(PROVIDERS)},
         )
     return spec
+
+
+def lacks_key(
+    provider: str,
+    *,
+    secret_id: UUID | None,
+    base_url: str | None,
+    runs_without_key: bool,
+) -> bool:
+    """Whether a profile has nothing to authenticate with and cannot run (#2478).
+
+    A profile with no `secret_id` is usable only when it was saved to run with no
+    key (`runs_without_key`) on a keyless provider that names an endpoint: an
+    Ollama or a LiteLLM proxy on this network, an OpenAI-compatible gateway that
+    authenticates nothing. Every other one is a profile whose key was never set
+    or was deleted from the vault, which the foreign key's `ON DELETE SET NULL`
+    makes an ordinary state. The provider and the endpoint cannot tell those two
+    apart - `keyless` is true of `openai`, and a gateway profile that had a key
+    keeps its endpoint when the key goes - which is why the intent is stored.
+
+    One rule for every reader: the profile listing's `missing_key`, publish, and
+    the resolver that refuses the run.
+    """
+    if secret_id is not None:
+        return False
+    spec = PROVIDERS.get(provider)
+    return not (runs_without_key and spec is not None and spec.keyless and base_url)
 
 
 @dataclass(frozen=True)
@@ -313,6 +353,10 @@ def _build_provider(spec: ProviderSpec, credential: ResolvedCredential) -> Provi
         raise BadRequestError(
             message="This secret cannot authenticate a model provider",
             details={"kind": secret.kind.value, "provider": spec.id},
+        )
+    if spec.id == "openrouter" and credential.base_url is not None:
+        return _EndpointOpenRouterProvider(
+            api_key=secret.api_key.get_secret_value(), base_url=credential.base_url
         )
     return provider_class(
         # Every provider reached here takes `api_key`, but the inferred class is

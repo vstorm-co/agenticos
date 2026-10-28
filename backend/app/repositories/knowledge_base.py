@@ -127,6 +127,7 @@ async def create(
     is_default: bool = False,
     embedding_secret_id: UUID | None = None,
     embedding_endpoint_id: UUID | None = None,
+    embedding_base_url: str | None = None,
     visibility: str | None = None,
 ) -> KnowledgeBase:
     """Create a knowledge base.
@@ -153,6 +154,7 @@ async def create(
         embedding_provider=embedding_provider,
         embedding_secret_id=embedding_secret_id,
         embedding_endpoint_id=embedding_endpoint_id,
+        embedding_base_url=embedding_base_url,
         **({"visibility": visibility} if visibility is not None else {}),
     )
     db.add(kb)
@@ -171,6 +173,8 @@ async def update(
     embedding_provider: str | None = None,
     embedding_secret_id: UUID | None = None,
     embedding_endpoint_id: UUID | None = None,
+    embedding_base_url: str | None = None,
+    set_embedding_base_url: bool = False,
 ) -> KnowledgeBase:
     """Apply what an update named, leaving what it did not alone.
 
@@ -190,6 +194,8 @@ async def update(
         db_kb.embedding_secret_id = embedding_secret_id
     if embedding_endpoint_id is not None:
         db_kb.embedding_endpoint_id = embedding_endpoint_id
+    if set_embedding_base_url:
+        db_kb.embedding_base_url = embedding_base_url
     await db.flush()
     await db.refresh(db_kb)
     return db_kb
@@ -290,6 +296,26 @@ async def list_by_collection_name(db: AsyncSession, collection_name: str) -> lis
     return list(result.scalars().all())
 
 
+async def list_by_collection_names(
+    db: AsyncSession, collection_names: Sequence[str]
+) -> dict[str, list[KnowledgeBase]]:
+    """:func:`list_by_collection_name` for several names in one query, keyed by name.
+
+    A name no base claims is absent from the map.
+    """
+    if not collection_names:
+        return {}
+    result = await db.execute(
+        select(KnowledgeBase)
+        .where(KnowledgeBase.collection_name.in_(collection_names))
+        .order_by(KnowledgeBase.created_at)
+    )
+    by_name: dict[str, list[KnowledgeBase]] = {}
+    for kb in result.scalars():
+        by_name.setdefault(kb.collection_name, []).append(kb)
+    return by_name
+
+
 async def get_for_collection(
     db: AsyncSession, collection_name: str, organization_id: UUID | None
 ) -> KnowledgeBase | None:
@@ -313,7 +339,20 @@ async def get_for_collection(
     answers the same way. `KnowledgeBaseService._shared_embedding` is what holds
     that true.
     """
-    candidates = await list_by_collection_name(db, collection_name)
+    return choose_for_collection(
+        await list_by_collection_name(db, collection_name), organization_id
+    )
+
+
+def choose_for_collection(
+    candidates: Sequence[KnowledgeBase], organization_id: UUID | None
+) -> KnowledgeBase | None:
+    """:func:`get_for_collection`'s choice among the bases claiming one name.
+
+    `candidates` are :func:`list_by_collection_name`'s rows, oldest first. Apart
+    so a caller resolving many rows against one name - a base's sync sources -
+    loads the candidates once and decides each row the way the sync does.
+    """
     for kb in candidates:
         if organization_id is None or kb.organization_id == organization_id:
             return kb

@@ -6,7 +6,10 @@
 # The images are pulled, not built: `ghcr.io/vstorm-co/agenticos-backend` at
 # the `AGENTICOS_VERSION` in `backend/.env` - a release, `latest` when unset,
 # or the `sha-<short>` a commit published, which is what `scripts/deploy.sh`
-# pins. Pin a release rather than tracking `latest` on a host you care about.
+# pins. Pin a release rather than tracking `latest` on a host you care about,
+# and pin it from that release's checkout (`git checkout v<version>`): the
+# sandboxd image below is pinned in this file, at the version that release's
+# backend speaks, so this file and the backend tag must come from one commit.
 #
 # Prerequisites:
 #   1. `backend/.env` with real secrets. The same file serves every environment;

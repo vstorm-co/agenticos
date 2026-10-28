@@ -61,6 +61,7 @@ function AgentsCard({
   const t = useTranslations("pages.agents");
   return (
     <ListCard
+      fill
       namedByPage
       title={t("catalog")}
       counted={
@@ -199,7 +200,7 @@ export default function AgentsPage() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-1 flex-col space-y-6">
       <PageHeader
         title={t("agents")}
         description={t("agentConfigurationNotCode")}

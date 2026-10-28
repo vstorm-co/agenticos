@@ -22,7 +22,7 @@ import {
  */
 export function useSuggestions() {
   const client = useQueryClient();
-  const { data } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.suggestions.mine(),
     queryFn: listSuggestions,
   });
@@ -32,6 +32,9 @@ export function useSuggestions() {
 
   return {
     suggestions: data ?? ([] as Suggestion[]),
+    isLoading,
+    error,
+    refetch,
     accept: accept.mutateAsync,
     dismiss: dismiss.mutateAsync,
   };
@@ -53,7 +56,7 @@ export function usePersonalStarters(): string[] {
  */
 export function useSuggestionHistory() {
   const client = useQueryClient();
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.suggestions.history(),
     queryFn: listSuggestionHistory,
   });
@@ -64,6 +67,8 @@ export function useSuggestionHistory() {
   return {
     history: data ?? ([] as Suggestion[]),
     isLoading,
+    error,
+    refetch,
     restore: restore.mutateAsync,
   };
 }

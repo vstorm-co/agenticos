@@ -47,6 +47,7 @@ from collections.abc import Awaitable, Callable, Coroutine, Mapping, Sequence
 from typing import TYPE_CHECKING, TypeVar
 from uuid import UUID
 
+import httpx
 from pydantic_ai.workspaces import (
     CommandResult,
     FileEntry,
@@ -55,6 +56,8 @@ from pydantic_ai.workspaces import (
     WorkspaceUnavailableError,
     WrapperWorkspace,
 )
+
+from app.core.exceptions import ExternalServiceError
 
 if TYPE_CHECKING:  # pragma: no cover - imported for typing only
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -247,6 +250,11 @@ class RecordingWorkspace(WrapperWorkspace):
         Other errors keep their original loss state, including legacy attach
         conflicts: the service still holds their session.
         """
+        if isinstance(exc, httpx.RequestError):
+            return ExternalServiceError(
+                message="The sandbox service is unreachable. Try again once its connection is restored.",
+                details={"service": "sandbox"},
+            )
         explained: Exception | None = None
         try:
             if self._explain_unavailable is not None:

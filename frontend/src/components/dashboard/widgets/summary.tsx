@@ -33,7 +33,7 @@ export function SummaryWidget({ title, hint, period, seeAll, options }: Dashboar
 
   return (
     <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
-      <UsageBody period={period} emptyKey="summary" options={options}>
+      <UsageBody period={period} emptyKey="summary" loadingVariant="metrics" options={options}>
         {(usage) => {
           const runs = usage.total_runs ?? 0;
           const runsDelta = deltaPercent(runs, usage.previous_total_runs ?? 0);

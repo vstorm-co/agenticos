@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "1.25.0"
+version = "1.27.0"
 description = "OS for your agents."
 requires-python = ">=3.15"
 license = { text = "Apache-2.0" }
@@ -899,6 +899,9 @@ include = [
     "app/services/context.py",
     "app/repositories/project.py",
     "app/services/project.py",
+    "app/services/project_workspace_guard.py",
+    "app/services/project_workspace_transfer.py",
+    "app/worker/tasks/project_tasks.py",
     "app/api/routes/v1/projects.py",
     "app/api/routes/v1/context.py",
     "app/db/models/artifact.py",
@@ -1453,6 +1456,9 @@ include = [
     "app/services/context.py",
     "app/repositories/project.py",
     "app/services/project.py",
+    "app/services/project_workspace_guard.py",
+    "app/services/project_workspace_transfer.py",
+    "app/worker/tasks/project_tasks.py",
     "app/api/routes/v1/projects.py",
     "app/api/routes/v1/context.py",
     "app/db/models/artifact.py",

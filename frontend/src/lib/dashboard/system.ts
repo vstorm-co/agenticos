@@ -23,8 +23,8 @@
  * pixels of each other, which is why five bands read as one undifferentiated
  * mass. A band now sits four times further from its neighbour than a card does.
  *
- * Card chrome - the header's `px-5 py-3.5` and the body's `p-5` - belongs to
- * `WidgetFrame` and to nothing else. A widget body sets its own *inner* rhythm
+ * Card chrome - the header and body spacing - belongs to `WidgetFrame`
+ * and to nothing else. A widget body sets its own *inner* rhythm
  * and never its outer padding.
  *
  * ## Data ink — one accent, quieter

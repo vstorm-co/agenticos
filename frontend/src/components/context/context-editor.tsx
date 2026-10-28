@@ -1,27 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { AlertTriangle } from "lucide-react";
 
-import {
-  Alert,
-  AlertDescription,
-  Button,
-  DialogFooter,
-  Input,
-  Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Switch,
-} from "@/components/ui";
+import { Alert, AlertDescription, Button, DialogFooter, Input, Label } from "@/components/ui";
 import { FileEditor } from "@/components/files";
 import { ShareResourceButton } from "@/components/sharing/share-resource-button";
-import { DEFAULT_FORMAT, FORMATS, displayName } from "@/components/context/file-name";
+import { displayName } from "@/components/context/file-name";
 import type { ContextEdit } from "@/hooks/use-context";
-import type { ContextFile, ContextMode } from "@/types/providers";
+import type { ContextFile } from "@/types/providers";
 import { useTranslations } from "next-intl";
 
 interface ContextEditorProps {
@@ -54,34 +41,10 @@ interface ContextEditorProps {
 export function ContextEditor({ file, canEdit, isSaving, onSave, onCancel }: ContextEditorProps) {
   const t = useTranslations("context");
   const [description, setDescription] = useState(file.description ?? "");
-  const [mode, setMode] = useState<ContextMode>(file.mode);
-  const [format, setFormat] = useState(file.format);
   const [content, setContent] = useState(file.content);
-  const [enabled, setEnabled] = useState(file.enabled);
-
-  /**
-   * What the format select offers.
-   *
-   * The catalog, plus whatever this file already holds when that is something
-   * else. The column took free text until this became a select, so a file may
-   * say `html` or `markdown` - and a `<Select>` whose value matches no option
-   * renders empty, which reads as a file with no format at all. Keeping the
-   * stored value as an option also keeps opening a file from counting as an
-   * edit, which is what deciding it "really means md" would have done.
-   */
-  const formats = useMemo(() => {
-    const stored = file.format.trim();
-    return (FORMATS as readonly string[]).includes(stored) ? FORMATS : [...FORMATS, stored];
-  }, [file.format]);
 
   const editedDescription = description.trim() === "" ? null : description.trim();
-  const editedFormat = format.trim() || DEFAULT_FORMAT;
-  const changed =
-    editedDescription !== file.description ||
-    content !== file.content ||
-    editedFormat !== file.format ||
-    mode !== file.mode ||
-    enabled !== file.enabled;
+  const changed = editedDescription !== file.description || content !== file.content;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
@@ -94,57 +57,6 @@ export function ContextEditor({ file, canEdit, isSaving, onSave, onCancel }: Con
           lines and pushes the pane down - it needs the width, and the controls
           do not. */}
       <div className="space-y-4 rounded-md border p-3">
-        <div className="flex flex-wrap items-start gap-4">
-          <div className="w-40 shrink-0 space-y-1.5">
-            <Label htmlFor="context-mode">{t("mode")}</Label>
-            <Select
-              value={mode}
-              onValueChange={(value) => setMode(value as ContextMode)}
-              disabled={!canEdit}
-            >
-              <SelectTrigger id="context-mode">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="inject">{t("modeInject")}</SelectItem>
-                <SelectItem value="link">{t("modeLink")}</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-muted-foreground text-xs">
-              {t(mode === "inject" ? "modeInjectHint" : "modeLinkHint")}
-            </p>
-          </div>
-          <div className="w-32 shrink-0 space-y-1.5">
-            <Label htmlFor="context-format">{t("format")}</Label>
-            <Select value={format} onValueChange={setFormat} disabled={!canEdit}>
-              <SelectTrigger id="context-format" className="font-mono">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {formats.map((option) => (
-                  <SelectItem key={option} value={option} className="font-mono">
-                    {option}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-muted-foreground text-xs">{t("formatHint")}</p>
-          </div>
-          <div className="shrink-0 space-y-1.5">
-            <Label htmlFor="context-enabled">{t("enabled")}</Label>
-            {/* Centred on the input row: the switch is shorter than an input, and
-                sitting on the row's top edge it reads as misplaced. */}
-            <div className="flex h-9 items-center">
-              <Switch
-                id="context-enabled"
-                checked={enabled}
-                onCheckedChange={setEnabled}
-                disabled={!canEdit}
-              />
-            </div>
-          </div>
-        </div>
-
         <div className="space-y-1.5">
           <Label htmlFor="context-description">{t("description")}</Label>
           <Input
@@ -159,9 +71,10 @@ export function ContextEditor({ file, canEdit, isSaving, onSave, onCancel }: Con
         </div>
       </div>
 
+      <p className="text-muted-foreground text-xs">{t("bindingSettingsHint")}</p>
       <FileEditor
         initialMode="source"
-        name={displayName(file.name, format)}
+        name={displayName(file.name, file.format)}
         content={content}
         canEdit={canEdit}
         onChange={setContent}
@@ -192,9 +105,6 @@ export function ContextEditor({ file, canEdit, isSaving, onSave, onCancel }: Con
               onSave({
                 description: editedDescription,
                 content,
-                format: editedFormat,
-                mode,
-                enabled,
               })
             }
             disabled={!changed || isSaving}

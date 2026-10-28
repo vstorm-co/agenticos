@@ -228,7 +228,7 @@ async def embeddings_for_collection(
             base_url, key_source = await _endpoint_for(db, kb)
         else:
             api_key, key_source = await _api_key_for(db, kb)
-            base_url = provider.base_url or ""
+            base_url = kb.embedding_base_url or provider.base_url or ""
         return ResolvedEmbeddings(
             model=kb.embedding_model,
             # The recorded width, not a fresh lookup: the table was created at

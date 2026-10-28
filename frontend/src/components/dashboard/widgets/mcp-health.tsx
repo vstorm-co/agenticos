@@ -2,6 +2,7 @@
 
 import { useLocale, useTranslations } from "next-intl";
 
+import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
 import { useOrgMcpConnections } from "@/hooks";
 import { timeAgo } from "@/lib/utils";
 import { StatusList } from "../primitives/status-list";
@@ -37,6 +38,15 @@ export function McpHealthWidget({ title, hint, seeAll, options }: DashboardWidge
       ) : (
         <StatusList
           rows={connections.map((connection) => ({
+            id: connection.id,
+            icon: (
+              <McpServerIcon
+                icon={null}
+                name={connection.name}
+                url={connection.url}
+                className="size-4"
+              />
+            ),
             label: connection.name,
             sub:
               connection.last_status === "error" ? (connection.last_error ?? undefined) : undefined,

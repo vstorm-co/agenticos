@@ -352,12 +352,17 @@ class TestLinkingWhoTheDirectoryVouchesFor:
             patch(
                 "app.services.channel_link.channel_identity_repo.update", new=AsyncMock()
             ) as update,
+            patch(
+                "app.services.channel_link.message_rating_repo.adopt_channel_ratings",
+                new=AsyncMock(),
+            ) as adopted,
         ):
             assert (
                 await ChannelLinkService(MagicMock()).link_vouched(identity, "ada@acme.com")
                 is linked
             )
         assert update.await_count == int(linked)
+        assert adopted.await_count == int(linked)
 
     async def test_the_router_links_whom_the_platform_vouches_for(self) -> None:
         adapter = MagicMock(vouched_email=AsyncMock(return_value="ada@acme.com"))

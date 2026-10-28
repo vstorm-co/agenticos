@@ -38,7 +38,7 @@ const META: Record<string, { words: string; icon: LucideIcon }> = {
 };
 
 const STATUS_DOT: Record<CheckStatus, string> = {
-  healthy: "bg-chart",
+  healthy: "bg-success",
   unhealthy: "bg-destructive",
   unconfigured: "bg-muted-foreground",
   not_checked: "bg-muted-foreground",
@@ -73,6 +73,7 @@ export default function SystemHealthPage() {
   const {
     data: health = null,
     isPending: loading,
+    isFetching,
     error,
     refetch,
   } = useQuery({
@@ -105,7 +106,7 @@ export default function SystemHealthPage() {
   }, [checks]);
 
   return (
-    <div className="space-y-6" aria-busy={loading && !health}>
+    <div className="flex flex-1 flex-col space-y-6" aria-busy={loading && !health}>
       {loading && !health && (
         <span role="status" className="sr-only">
           {ts("loading")}
@@ -151,7 +152,11 @@ export default function SystemHealthPage() {
                       aria-hidden
                       className={cn(
                         "h-2 w-2 rounded-full",
-                        summary.tone === "bad" ? "bg-destructive" : "bg-chart",
+                        summary.tone === "bad"
+                          ? "bg-destructive"
+                          : summary.tone === "good"
+                            ? "bg-success"
+                            : "bg-warning",
                       )}
                     />
                     <p className="text-foreground text-base font-semibold">{summary.label}</p>
@@ -168,19 +173,22 @@ export default function SystemHealthPage() {
                   size="sm"
                   variant="outline"
                   onClick={() => setAuto((a) => !a)}
+                  aria-pressed={auto}
                   className={cn(auto && "bg-muted")}
                 >
                   <span
                     aria-hidden
                     className={cn(
                       "h-1.5 w-1.5 rounded-full",
-                      auto ? "bg-chart" : "bg-muted-foreground",
+                      auto ? "bg-success" : "bg-muted-foreground",
                     )}
                   />
                   {t(auto ? "autoRefreshOn" : "autoRefreshOff")}
                 </Button>
-                <Button size="sm" variant="outline" onClick={load}>
-                  <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+                <Button size="sm" variant="outline" onClick={load} disabled={isFetching}>
+                  <RefreshCw
+                    className={cn("h-3.5 w-3.5", isFetching && "motion-safe:animate-spin")}
+                  />
                   {t("refresh2")}
                 </Button>
               </div>

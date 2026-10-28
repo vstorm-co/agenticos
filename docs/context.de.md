@@ -1,5 +1,5 @@
 ---
-source_sha: "e32baf02f7e8"
+source_sha: "caab99f82fc1"
 ---
 
 # Context-Dateien { #context-files }
@@ -41,8 +41,7 @@ ganzen Inhalt.
 
 ## Zwei Modi, und der Unterschied sind die Kosten { #two-modes-and-the-difference-is-cost }
 
-Jede Context-Datei trägt einen Modus, und der entscheidet, wie die Datei das
-Modell erreicht.
+Jede angehängte Context-Datei hat einen Modus in den **Context**-Einstellungen des Agents. Dieselbe gemeinsame Datei kann bei einem Agent injiziert, bei einem anderen verlinkt und bei einem dritten deaktiviert sein.
 
 === "`inject` — immer da"
 
@@ -89,7 +88,9 @@ Das ist der ganze Sinn und zugleich das, womit man vorsichtig sein muss: Eine
 Änderung an einer injizierten Datei ist eine Änderung an jedem Agent, der sie
 trägt. Behandeln Sie sie als den gemeinsamen, tragenden Text, der sie ist.
 
-Die Capability hat eine Einstellung, die zu kennen lohnt. Das Lese-Tool
+Im Builder hat jede ausgewählte Datei einen Schalter **In diesem Agent verwenden** und eine Modusauswahl. Diese Einstellungen gehören zum Agent-Entwurf und gelten nach der Veröffentlichung. Der Bibliothekseditor ändert nur gemeinsamen Inhalt und Beschreibung; das Format folgt dem Dateinamen. Bestehende Agent-Versionen ohne individuelle Einstellungen behalten ihren bisherigen Modus und ihre Verfügbarkeit.
+
+Die Capability steuert außerdem das Lese-Tool. Das Lese-Tool
 **abzuschalten** heißt, dass nur injizierte Dateien das Modell erreichen und
 nichts auf Anforderung gelesen wird — eine vernünftige Wahl, wenn Sie die Eingaben
 eines Agents vollständig vorhersehbar haben wollen.

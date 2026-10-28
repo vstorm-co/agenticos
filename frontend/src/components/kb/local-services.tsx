@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Cpu, ScanText, Server, Trash2 } from "lucide-react";
+import { Server, Trash2 } from "lucide-react";
 
+import { LocalServiceIcon } from "@/components/kb/local-service-icon";
+import { ErrorState } from "@/components/states";
 import { LocalServiceDialog } from "@/components/kb/local-service-dialog";
 import {
   AlertDialog,
@@ -15,6 +17,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
   Button,
+  Skeleton,
 } from "@/components/ui";
 import { useLocalServices, usePermissions } from "@/hooks";
 import type { LocalServiceRecord } from "@/lib/local-services-api";
@@ -46,11 +49,13 @@ export function LocalServices() {
   if (!mayManage) return null;
 
   return (
-    <section className="space-y-3">
-      <div className="flex flex-wrap items-end justify-between gap-2">
-        <div>
+    <section className="border-border bg-card flex min-h-64 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border">
+      <div className="border-border flex min-h-28 flex-col items-start justify-between gap-3 border-b px-5 py-4 sm:flex-row">
+        <div className="min-w-0 flex-1">
           <h2 className="text-foreground text-sm font-semibold">{t("localServices")}</h2>
-          <p className="text-muted-foreground mt-0.5 text-xs">{t("localServicesHint")}</p>
+          <p className="text-muted-foreground mt-1 line-clamp-2 text-xs leading-relaxed">
+            {t("localServicesHint")}
+          </p>
         </div>
         <Button
           data-tour="knowledge-add-local-service"
@@ -64,15 +69,25 @@ export function LocalServices() {
       </div>
 
       {error ? (
-        <p className="text-destructive text-xs">{error}</p>
+        <ErrorState description={error} className="m-4 border-0 py-8" />
       ) : isLoading ? (
-        <p className="text-muted-foreground text-xs">{t("loadingLocalServices")}</p>
+        <div role="status" aria-label={t("loadingLocalServices")} className="space-y-4 p-4">
+          {[0, 1].map((index) => (
+            <div key={index} className="flex items-center gap-3" aria-hidden>
+              <Skeleton className="size-8 shrink-0 rounded-lg" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-2/3" />
+                <Skeleton className="h-3 w-4/5" />
+              </div>
+            </div>
+          ))}
+        </div>
       ) : services.length === 0 ? (
-        <p className="text-muted-foreground border-border rounded-xl border border-dashed px-4 py-3 text-xs">
+        <p className="text-muted-foreground flex flex-1 items-center justify-center px-5 py-12 text-center text-sm">
           {t("noLocalServicesYet")}
         </p>
       ) : (
-        <ul className="border-border bg-card divide-border divide-y overflow-hidden rounded-xl border">
+        <ul className="divide-border flex-1 divide-y">
           {services.map((service) => (
             <LocalServiceRow
               key={service.id}
@@ -107,11 +122,10 @@ function LocalServiceRow({
 }) {
   const t = useTranslations("kb");
   const tc = useTranslations("common");
-  const Icon = service.kind === "embedding" ? Cpu : ScanText;
   return (
     <li className="hover:bg-accent flex items-center gap-3 px-4 py-3 transition-colors">
       <span className="bg-muted text-muted-foreground inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
-        <Icon className="h-4 w-4" />
+        <LocalServiceIcon kind={service.kind} className="h-5 w-5" />
       </span>
       <div className="min-w-0 flex-1">
         <p className="text-foreground truncate text-sm font-medium">

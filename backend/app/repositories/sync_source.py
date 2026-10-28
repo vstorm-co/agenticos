@@ -37,6 +37,21 @@ async def get_all(
     return list(result.scalars().all())
 
 
+async def list_for_collections(db: AsyncSession, collection_names: list[str]) -> list[SyncSource]:
+    """Every organization's sync sources writing into any of these collections.
+
+    Unfiltered by organization on purpose: the caller decides which of them
+    feed a base it may read (`CollectionAccessService`), by the base each
+    source's sync resolves to.
+    """
+    if not collection_names:
+        return []
+    result = await db.execute(
+        select(SyncSource).where(SyncSource.collection_name.in_(collection_names))
+    )
+    return list(result.scalars().all())
+
+
 async def get_due_for_sync(db: AsyncSession) -> list[SyncSource]:
     """Active scheduled sources that are due for sync."""
     now = datetime.now(UTC)

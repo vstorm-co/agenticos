@@ -168,7 +168,7 @@ async def test_project_recovery_discovery_and_downloads_follow_real_grants(
         agent_id=None,
         project_id=project.id,
         scope="project",
-        scope_key=f"source-{uuid4().hex}",
+        scope_key=f"dp-{project.id.hex}",
         backend="state",
     )
     recovery = await repository.create(

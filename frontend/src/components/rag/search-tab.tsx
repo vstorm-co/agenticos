@@ -14,10 +14,11 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Skeleton,
 } from "@/components/ui";
 import { FileIcon } from "@/components/files";
 import { SourceViewer, type CitedFile } from "@/components/kb/source-viewer";
-import { ErrorState } from "@/components/states";
+import { EmptyState, ErrorState } from "@/components/states";
 import { useChanged } from "@/hooks/use-changed";
 import { ROUTES } from "@/lib/constants";
 import { searchDocuments, type RAGSearchResult } from "@/lib/rag-api";
@@ -32,6 +33,7 @@ type SearchStatus = "idle" | "searching" | "done" | "error";
 interface SearchTabProps {
   /** The knowledge bases the caller can read; the search scope options. */
   kbs: KnowledgeBase[];
+  onCreate?: () => void;
 }
 
 /**
@@ -42,8 +44,9 @@ interface SearchTabProps {
  * base it came from, its source document, page and score - enough for a human
  * to judge the chunk without opening anything.
  */
-export function SearchTab({ kbs }: SearchTabProps) {
+export function SearchTab({ kbs, onCreate }: SearchTabProps) {
   const t = useTranslations("rag.search");
+  const tKb = useTranslations("pages.kb");
   const orgId = useOrgStore((state) => state.activeOrgId) ?? "";
   const [query, setQuery] = useState("");
   const [scope, setScope] = useState<string>(ALL_BASES);
@@ -111,22 +114,30 @@ export function SearchTab({ kbs }: SearchTabProps) {
 
   if (kbs.length === 0) {
     return (
-      <div className="border-border bg-card text-muted-foreground flex flex-col items-center justify-center rounded-xl border py-16 text-center">
-        <Database className="mb-3 h-8 w-8" />
-        <p className="text-sm">{t("noBases")}</p>
-      </div>
+      <EmptyState
+        icon={Database}
+        title={t("noBasesTitle")}
+        description={t("noBases")}
+        cta={onCreate ? { label: tKb("newKnowledgeBase"), onClick: onCreate } : undefined}
+        className="flex-1"
+      />
     );
   }
 
   return (
-    <div className="space-y-4">
-      <div className="border-border bg-card rounded-xl border p-4">
+    <div className="border-border bg-card flex flex-1 flex-col gap-4 rounded-xl border p-4">
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          void runSearch();
+        }}
+      >
         <div className="flex flex-col gap-2 sm:flex-row">
           <Input
             placeholder={t("placeholder")}
+            aria-label={t("queryLabel")}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && runSearch()}
             className="rounded-xl"
           />
           <div className="flex gap-2">
@@ -144,7 +155,7 @@ export function SearchTab({ kbs }: SearchTabProps) {
               </SelectContent>
             </Select>
             <Button
-              onClick={runSearch}
+              type="submit"
               disabled={status === "searching" || !query.trim()}
               className="rounded-xl"
             >
@@ -153,7 +164,28 @@ export function SearchTab({ kbs }: SearchTabProps) {
             </Button>
           </div>
         </div>
-      </div>
+      </form>
+
+      {status === "idle" && (
+        <EmptyState
+          icon={Search}
+          title={t("idleTitle")}
+          description={t("idleDescription")}
+          className="flex-1 border-0 bg-transparent"
+        />
+      )}
+
+      {status === "searching" && (
+        <div className="space-y-3" role="status" aria-label={t("searching")}>
+          {[0, 1, 2].map((index) => (
+            <div key={index} className="space-y-3 rounded-xl border p-4">
+              <Skeleton className="h-4 w-40 max-w-full" />
+              <Skeleton className="h-3 w-full" />
+              <Skeleton className="h-3 w-3/4" />
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* A failed search and an empty answer are different facts, and only one
           of them should suggest rephrasing the query. */}
@@ -172,14 +204,15 @@ export function SearchTab({ kbs }: SearchTabProps) {
       )}
 
       {status === "done" && results.length === 0 && (
-        <div className="border-border bg-card flex flex-col items-center justify-center rounded-xl border py-12 text-center">
-          <Search className="text-muted-foreground mb-3 h-8 w-8" />
-          <p className="text-foreground text-sm font-medium">{t("noResults")}</p>
-          <p className="text-muted-foreground mt-1 text-xs">{t("noResultsHint")}</p>
-        </div>
+        <EmptyState
+          icon={Search}
+          title={t("noResults")}
+          description={t("noResultsHint")}
+          className="flex-1 border-0 bg-transparent"
+        />
       )}
 
-      {results.length > 0 && (
+      {status === "done" && results.length > 0 && (
         <div className="space-y-2">
           {results.map((result, i) => {
             const source = baseFor(result.metadata?.collection);

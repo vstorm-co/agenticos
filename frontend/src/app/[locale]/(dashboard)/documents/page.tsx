@@ -19,9 +19,9 @@ import { useTranslations } from "next-intl";
 export default function DocumentsPage() {
   const t = useTranslations("pages.workspaces");
   return (
-    <div className="space-y-6">
+    <div className="flex flex-1 flex-col space-y-6">
       <PageHeader title={t("workspaces")} description={t("pageDescription")} />
-      <div data-tour="workspaces-browser">
+      <div data-tour="workspaces-browser" className="flex flex-1 flex-col">
         <WorkspaceBrowser />
       </div>
     </div>

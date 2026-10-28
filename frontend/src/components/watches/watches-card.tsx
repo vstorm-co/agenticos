@@ -62,6 +62,8 @@ export function WatchesCard({ onNew }: { onNew: () => void }) {
 
   return (
     <ListCard
+      fill
+      namedByPage
       title={t("title")}
       counted={isLoading || error ? null : t("count", { count: watches.length })}
       contentClassName="p-0"

@@ -1378,7 +1378,9 @@ configuration and pick a vision-capable model profile there. The picker is the
 one the agent builder uses, so a provider, a model and its key can be defined
 without leaving the dialog — a deployment with no model profiles yet is not a
 dead end. What it does not offer is deleting a profile: that belongs where an
-organization's models are managed, because every agent pointed at one loses it.
+organization's models are managed, and a profile that agents use cannot be
+deleted at all.
+
 The generated descriptions are included in the document text for better semantic
 search.
 

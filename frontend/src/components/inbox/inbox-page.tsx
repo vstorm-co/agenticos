@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
   CheckCheck,
   CircleAlert,
@@ -13,6 +12,8 @@ import {
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { ErrorState, LoadingState } from "@/components/states";
+import { useUrlState } from "@/hooks/use-url-state";
 import { SuggestionMark } from "@/components/chat/suggestion-actions";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ChoiceGroup } from "@/components/settings/choice-group";
@@ -56,18 +57,20 @@ function initialFilter(param: string | null): Filter {
  */
 export function InboxPage() {
   const t = useTranslations("inbox");
-  const { suggestions } = useSuggestions();
-  const asked = useSearchParams().get("filter");
-  const [filter, setFilter] = useState<Filter>(() => initialFilter(asked));
+  const ts = useTranslations("common");
+  const { suggestions, isLoading, error, refetch } = useSuggestions();
+  const [asked, setFilter] = useUrlState("filter");
+  const filter = initialFilter(asked);
   const open = filter === "done" ? [] : suggestions.filter(KEEPS[filter]);
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-1 flex-col space-y-6">
       <PageHeader title={t("title")} description={t("description")} />
       <ListCard
+        fill
         namedByPage
         title={t("title")}
-        counted={t("waiting", { count: suggestions.length })}
+        counted={isLoading ? null : error ? "—" : t("waiting", { count: suggestions.length })}
         contentClassName="p-0"
         headerTour="inbox-filters"
         controls={
@@ -78,7 +81,7 @@ export function InboxPage() {
             <ChoiceGroup<Filter>
               labelledBy="inbox-filter-label"
               value={filter}
-              onChange={setFilter}
+              onChange={(next) => setFilter(next === "all" ? null : next)}
               options={FILTERS.map((value) => ({
                 value,
                 label: t(`filter.${value}`),
@@ -90,6 +93,13 @@ export function InboxPage() {
       >
         {filter === "done" ? (
           <Decided />
+        ) : isLoading ? (
+          <LoadingState variant="skeleton-list" rows={3} className="p-5" />
+        ) : error ? (
+          <ErrorState
+            className="m-5 flex-1"
+            cta={{ label: ts("retry"), onClick: () => void refetch() }}
+          />
         ) : open.length === 0 ? (
           <Nothing filter={filter} />
         ) : (
@@ -111,7 +121,10 @@ function Nothing({ filter }: { filter: Exclude<Filter, "done"> }) {
       description={t("empty.description")}
       cta={
         filter === "all" || filter === "watches"
-          ? { label: t("empty.watches"), onClick: () => router.push(ROUTES.ROUTINES) }
+          ? {
+              label: t("empty.watches"),
+              onClick: () => router.push(`${ROUTES.ROUTINES}?tab=watches`),
+            }
           : undefined
       }
     />
@@ -125,7 +138,16 @@ function Decided() {
   const tErrors = useTranslations("errors");
   const tTime = useTranslations("time");
   const locale = useLocale();
-  const { history, restore } = useSuggestionHistory();
+  const ts = useTranslations("common");
+  const { history, restore, isLoading, error, refetch } = useSuggestionHistory();
+  if (isLoading) return <LoadingState variant="skeleton-list" rows={3} className="p-5" />;
+  if (error)
+    return (
+      <ErrorState
+        className="m-5 flex-1"
+        cta={{ label: ts("retry"), onClick: () => void refetch() }}
+      />
+    );
   const decided = history.filter((item) => item.status !== "open");
   if (decided.length === 0) {
     return <ListCardEmpty icon={InboxIcon} title={t("doneEmpty")} />;

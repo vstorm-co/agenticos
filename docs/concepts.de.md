@@ -1,5 +1,5 @@
 ---
-source_sha: "3687810ec1b7"
+source_sha: "524eb90cfc8c"
 ---
 
 # Begriffe { #concepts }
@@ -652,7 +652,10 @@ Profil statt an vierzig Specs.
 
 Ein Profil ohne Credential dahinter ist überall, wo es erscheint, mit `no key`
 markiert, denn das ist die eine Tatsache, die darüber entscheidet, ob der Agent
-überhaupt laufen kann.
+überhaupt laufen kann. Die Auswahllisten bieten es nicht an, und das
+Veröffentlichen lehnt es ab, bis es wieder einen Schlüssel hat. Ein Profil, das
+Agents nutzen, lässt sich nicht löschen; siehe
+[Schlüssel oder Endpunkt eines Profils ändern](models.md#changing-a-profiles-key-or-endpoint).
 
 Die Preise kommen von
 [`genai-prices`](https://github.com/pydantic/genai-prices), das Pydantic pflegt,

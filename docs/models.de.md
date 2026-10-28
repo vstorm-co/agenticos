@@ -1,5 +1,5 @@
 ---
-source_sha: "0a268874d05a"
+source_sha: "170ba004f22c"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -102,6 +102,83 @@ Bildbeschreibung bei der Konfiguration und im Worker. Alte Konfigurationen laden
 weiterhin; ein inkompatibles Modell muss vor der Nutzung ersetzt werden. Das
 Ausschalten bleibt möglich. Azure-Deployment-Namen werden nicht anhand der
 Basismodell-IDs des Katalogs klassifiziert.
+
+### Schlüssel oder Endpunkt eines Profils ändern { #changing-a-profiles-key-or-endpoint }
+
+Agents verweisen über die id auf ein Profil. Um ein Modell auf einen anderen
+Schlüssel, einen anderen Endpunkt oder die andere OpenAI-API umzustellen,
+bearbeiten Sie das Profil an Ort und Stelle: `PATCH /providers/model-profiles/{id}`
+ändert `secret_id`, `base_url`, `api`, `params` oder `label` und behält die id.
+Jeder Agent auf dem Profil nutzt die Änderung ab seinem nächsten Run. Niemand
+muss etwas neu veröffentlichen.
+
+Ändern Sie im Modellbereich des Builders den Schlüssel, den Endpunkt oder die API
+des verwendeten Modells. Die Schaltfläche heißt dann **Modell aktualisieren**,
+und der Bereich sagt, dass jeder Agent auf diesem Modell mitwechselt. **Modell
+hinzufügen** bleibt die Schaltfläche für einen anderen Provider oder ein anderes
+Modell und für ein Modell, dem Sie einen eigenen Namen geben. Mit **Nennen Sie
+ihn anders** erhält nur dieser Agent ein eigenes Modell.
+
+Eine Bearbeitung folgt denselben Regeln wie das Anlegen und braucht dieselbe
+Berechtigung `connections:manage`. Ein neuer Schlüssel muss im Vault dieser
+Organisation liegen, für Sie sichtbar sein und für den Provider des Profils
+gespeichert sein. Ein neuer Endpunkt prüft den gespeicherten Schlüssel genauso,
+denn an den Endpunkt wird der Schlüssel gesendet. Ein Provider, der einen
+Schlüssel braucht, kann ihn nicht verlieren. Ein Provider ohne Schlüsselpflicht
+(keyless) ohne Schlüssel behält einen Endpunkt. Ein Label muss eindeutig bleiben.
+
+Ändern Sie den Endpunkt ohne `api`, wechselt eine API, die nur der Standard des
+alten Endpunkts war, auf den Standard des neuen; eine bewusst gewählte API
+bleibt. Das Audit-Log speichert
+`model_profile.updated` mit den Namen der geänderten Felder, nicht mit ihren
+Werten. Provider und Modell-id können Sie nicht ändern. Ein anderes Modell ist
+ein anderes Profil.
+
+`connections:manage` ist damit die Befugnis, jeden Agent auf einem Modell
+umzustellen, auch Agents, die Sie nicht bearbeiten dürfen: ein neuer Endpunkt
+erhält ihre Anfragen ab dem nächsten Run. Vergeben Sie sie an die Personen, die
+die Modelle der Organisation verwalten.
+
+### Ein Profil ohne Schlüssel { #a-profile-without-a-key }
+
+Wenn Sie einen Schlüssel aus dem Vault löschen, bleiben seine Profile mit
+`secret_id` auf null bestehen, und `GET /providers/model-profiles` markiert sie
+mit `missing_key: true`. Ein Profil, das absichtlich ohne Schlüssel gespeichert
+wurde, ist etwas anderes: ein selbst gehostetes Modell oder ein Gateway, das
+nichts authentifiziert, auf einem keyless Provider mit Endpunkt, etwa ein Ollama
+in Ihrem Netz oder ein OpenAI-kompatibler Server. Es speichert das als
+`runs_without_key` und läuft weiter. Ein Gateway-Profil, das einen Schlüssel hatte
+und ihn verloren hat, wird wie jedes andere mit `missing_key` markiert. Dann:
+
+- Die Modellauswahl für Agents und Chat bietet es nicht an. Verweist ein Agent
+  bereits darauf, zeigt der Builder es mit dem Hinweis **kein Schlüssel** und
+  fordert Sie auf, ihm einen Schlüssel zu geben.
+- Das Veröffentlichen lehnt es ab und nennt das Modell. Es lehnt auch ein Profil
+  ab, unter dessen ersten drei Fallbacks eines ohne Schlüssel ist, weil ein Run es
+  überspringen würde. Ein Run darauf scheitert
+  mit „no key configured“.
+- Zum Reparieren öffnen Sie einen Agent auf diesem Modell, wählen unter **Modell**
+  einen Schlüssel und klicken auf **Modell aktualisieren**. Jeder Agent auf dem
+  Modell funktioniert wieder.
+
+### Ein Profil löschen { #deleting-a-profile }
+
+`DELETE /providers/model-profiles/{id}` lehnt ein Profil ab, das Agents nutzen.
+Die Antwort ist `409 IN_USE`, und `details.agents` listet jeden Agent, den Sie
+sehen können, mit id und Namen. `details.hidden_agents` zählt die Agents, die Sie
+nicht sehen. Ein Profil ist in Gebrauch, wenn der Entwurf eines Agents, seine
+ausgelieferte Version oder eine von einer Umgebung gepinnte Version das Profil
+irgendwo nennt: als Modell des Agents, eines Reviewers oder eines Spezialisten
+oder in einer Capability, etwa als Follow-up-Modell oder als Modell für
+Browser-Schritte.
+
+Archivierte Agents zählen, denn das Wiederherstellen aus dem
+Archiv stellt die Version wieder her, die sie ausgeliefert haben. Die Ablehnung
+markiert sie mit `archived`: Ein archivierter Agent kann nicht veröffentlichen,
+also löschen Sie ihn, oder stellen Sie ihn wieder her und verschieben Sie ihn.
+Alte Versionen, die nichts ausliefert, zählen nicht. Verschieben Sie die übrigen
+Agents zuerst auf ein anderes Modell. Um nur
+den Schlüssel zu ändern, bearbeiten Sie stattdessen das Profil.
 
 ### Fallbacks { #fallbacks }
 
@@ -208,7 +285,7 @@ Zugangsdaten ein Provider verlangt.**
 | OpenAI | `openai` | API-Key, oder keine | ✓ |
 | Anthropic | `anthropic` | API-Key | ✓ |
 | Google Gemini | `google` | API-Key | ✓ |
-| OpenRouter | `openrouter` | API-Key | |
+| OpenRouter | `openrouter` | API-Key |  ✓ |
 | Alibaba Cloud | `alibaba` | API-Key | ✓ |
 | Cerebras | `cerebras` | API-Key | |
 | DeepSeek | `deepseek` | API-Key | |
@@ -644,3 +721,9 @@ make platform-bootstrap BOOTSTRAP_API_KEY=sk-...
 ```
 
 erledigt alle drei Schritte für ein neues Deployment.
+
+Für eine regionale OpenRouter-API bleibt **OpenRouter** der Anbieter. Trage im Modellformular unter **Endpoint** `https://eu.openrouter.ai/api/v1` ein. Das Profil behält seinen OpenRouter-Schlüssel aus dem Vault, die native Modellverarbeitung und die Cache-Steuerung. Modellvorschläge stammen von diesem Endpunkt und werden separat zwischengespeichert; eine fehlgeschlagene regionale Abfrage wechselt nicht zum globalen Katalog. Lege für Wissensbasen den Embedding-Endpunkt beim Erstellen oder Bearbeiten des Embedding-Anbieters separat fest. Bestehende Konfigurationen behalten den globalen Endpunkt. EU-Routing erfordert einen passenden OpenRouter-Business- oder Enterprise-Tarif; [regionales Routing](https://openrouter.ai/docs/guides/get-started/sovereign-ai) und ZDR sind getrennte OpenRouter-Richtlinien.
+
+Aktualisiere alle API- und Worker-Prozesse, bevor du regionale Endpunkte konfigurierst. Ältere Versionen ignorieren den überschriebenen OpenRouter-Endpunkt.
+
+Für einen weiteren Endpunkt mit demselben Anbieter und Modell wählen Sie im Builder **Separates Modell hinzufügen**. Der automatische Name enthält den Endpunkt; das vorhandene Profil bleibt unverändert. **Modell aktualisieren** bearbeitet stattdessen das gemeinsame Profil. Benutzerdefinierte Kataloge sind auf 2 MiB, 2.048 Modelle und begrenzte Feldlängen beschränkt; jeder Prozess speichert höchstens 16 Kataloge. Bei komprimierten oder übergroßen Antworten bleibt die Modell-ID frei eingebbar, ohne auf eine globale Liste auszuweichen.

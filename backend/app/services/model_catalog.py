@@ -23,9 +23,11 @@ hour is politeness rather than necessity: the lists move on the order of weeks.
 """
 
 import asyncio
+import json
 import logging
 import time
-from dataclasses import dataclass, field
+from collections import OrderedDict
+from dataclasses import dataclass, field, replace
 from typing import Any, Literal
 
 import httpx
@@ -38,6 +40,10 @@ logger = logging.getLogger(__name__)
 
 CACHE_TTL_SECONDS = 60 * 60
 LISTING_TIMEOUT_SECONDS = 6.0
+MAX_LISTING_BYTES = 2 * 1024 * 1024
+MAX_CATALOG_MODELS = 2048
+MAX_CATALOG_FIELD = 256
+MAX_CACHED_CATALOGS = 16
 
 CatalogSource = Literal["live", "curated", "unlisted"]
 """Where a picker's suggestions came from, and it is three answers rather than two.
@@ -198,7 +204,7 @@ class _Entry:
     fetched_at: float
 
 
-_cache: dict[str, _Entry] = {}
+_cache: OrderedDict[str, _Entry] = OrderedDict()
 _lock = asyncio.Lock()
 
 
@@ -213,12 +219,14 @@ def cached_listing(provider: str) -> tuple[CatalogModel, ...]:
     return () if entry is None else entry.models
 
 
-def _read_listing(payload: Any, spec: ListingSpec) -> list[CatalogModel]:
+def _read_listing(payload: Any, spec: ListingSpec, *, bounded: bool = False) -> list[CatalogModel]:
     """Turn one provider's response into models, skipping rows it cannot read."""
     rows = payload if spec.array_path == "" else payload.get(spec.array_path)
     if not isinstance(rows, list):
         raise TypeError(f"Expected a list at {spec.array_path or '<root>'}")
 
+    if bounded and len(rows) > MAX_CATALOG_MODELS:
+        raise ValueError("The model catalog has too many entries")
     models: list[CatalogModel] = []
     for row in rows:
         if not isinstance(row, dict):
@@ -229,12 +237,20 @@ def _read_listing(payload: Any, spec: ListingSpec) -> list[CatalogModel]:
         model_id = raw.removeprefix(spec.id_prefix)
         name = row.get(spec.name_field) if spec.name_field else None
         context = row.get(spec.context_field) if spec.context_field else None
+        modalities = _modalities(row, spec.modalities_path)
+        if bounded and (
+            len(raw) > MAX_CATALOG_FIELD
+            or (isinstance(name, str) and len(name) > MAX_CATALOG_FIELD)
+            or len(modalities) > 16
+            or any(len(entry) > 32 for entry in modalities)
+        ):
+            raise ValueError("The model catalog has oversized fields")
         models.append(
             CatalogModel(
                 id=model_id,
                 name=name if isinstance(name, str) and name else model_id,
                 context_length=context if isinstance(context, int) else None,
-                output_modalities=_modalities(row, spec.modalities_path),
+                output_modalities=modalities,
             )
         )
     return sorted(models, key=lambda entry: entry.id)
@@ -305,12 +321,31 @@ async def close_listing_client() -> None:
     _listing_loop = None
 
 
-async def _fetch(spec: ListingSpec, api_key: str | None) -> list[CatalogModel]:
+async def _fetch(
+    spec: ListingSpec, api_key: str | None, *, custom: bool = False
+) -> list[CatalogModel]:
     headers = dict(spec.extra_headers)
     if spec.auth_header is not None:
         if api_key is None:
             raise ValueError("This provider's listing needs a key")
         headers[spec.auth_header] = spec.auth_template.format(key=api_key)
+    if custom:
+        # Enforce the limit on uncompressed wire bytes too: an arbitrary gateway
+        # must not allocate an unbounded decompressed chunk before the cap runs.
+        headers["Accept-Encoding"] = "identity"
+        async with _client().stream(
+            "GET", spec.url, headers=headers, timeout=LISTING_TIMEOUT_SECONDS
+        ) as response:
+            response.raise_for_status()
+            if response.headers.get("content-encoding", "identity").lower() != "identity":
+                raise ValueError("Custom model catalogs must use identity encoding")
+            body = bytearray()
+            async for chunk in response.aiter_bytes(chunk_size=65536):
+                if len(body) + len(chunk) > MAX_LISTING_BYTES:
+                    raise ValueError("The model catalog response is too large")
+                body.extend(chunk)
+            payload: object = json.loads(body)
+            return _read_listing(payload, spec, bounded=True)
     response = await _client().get(spec.url, headers=headers, timeout=LISTING_TIMEOUT_SECONDS)
     response.raise_for_status()
     return _read_listing(response.json(), spec)
@@ -332,7 +367,7 @@ def _fallback(curated: list[CatalogModel]) -> tuple[list[CatalogModel], CatalogS
 
 
 async def models_for(
-    provider: str, *, api_key: str | None = None
+    provider: str, *, api_key: str | None = None, base_url: str | None = None
 ) -> tuple[list[CatalogModel], CatalogSource]:
     """What this provider offers, and where the answer came from.
 
@@ -345,22 +380,34 @@ async def models_for(
         provider: The provider id, as `PROVIDERS` spells it.
         api_key: A key for the provider, where its listing needs one. Only
             OpenRouter's is public.
+        base_url: A validated OpenRouter endpoint, authorized by the caller.
+            Its catalog never uses the global curated fallback.
     """
     spec = LISTINGS.get(provider)
     curated = list(curated_models(provider))
+    cache_key = provider
+    if base_url is not None:
+        if provider != "openrouter" or spec is None:
+            raise ValueError("Custom model listing endpoints are supported only for OpenRouter")
+        # Regional catalogs must never inherit the global fallback or cache.
+        endpoint = base_url.rstrip("/")
+        spec = replace(spec, url=f"{endpoint}/models")
+        curated = []
+        cache_key = f"{provider}:{endpoint}"
 
     if spec is None or (spec.auth_header is not None and api_key is None):
         return _fallback(curated)
 
-    # Keyed on the provider alone, not on the key: two keys for one provider see
-    # the same catalog, and keying on the key would put a secret in a cache key.
+    # Public provider and endpoint identify a catalog. Credentials never form
+    # cache keys; a regional catalog cannot inherit the global response.
     async with _lock:
-        entry = _cache.get(provider)
+        entry = _cache.get(cache_key)
         if entry is not None and time.monotonic() - entry.fetched_at < CACHE_TTL_SECONDS:
+            _cache.move_to_end(cache_key)
             return list(entry.models), "live"
 
     try:
-        models = await _fetch(spec, api_key)
+        models = await _fetch(spec, api_key, custom=base_url is not None)
     except Exception:
         # What is said has to match what is answered: for a provider with no
         # curated entry there is no list to fall back to, and a log line during
@@ -376,5 +423,8 @@ async def models_for(
         return _fallback(curated)
 
     async with _lock:
-        _cache[provider] = _Entry(models=tuple(models), fetched_at=time.monotonic())
+        _cache[cache_key] = _Entry(models=tuple(models), fetched_at=time.monotonic())
+        _cache.move_to_end(cache_key)
+        while len(_cache) > MAX_CACHED_CATALOGS:
+            _cache.popitem(last=False)
     return models, "live"

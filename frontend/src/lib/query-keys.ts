@@ -182,7 +182,10 @@ export const qk = {
     // What one provider offers, for the model field's suggestions. Keyed per
     // provider because that is what is fetched - a shared key would make
     // switching provider serve the previous one's list.
-    models: (providerId: string) => ["providers", providerId, "models"] as const,
+    models: (providerId: string, baseUrl?: string) =>
+      baseUrl
+        ? (["providers", providerId, "models", baseUrl] as const)
+        : (["providers", providerId, "models"] as const),
     // Which providers can draw an image and what each may be asked to draw with.
     // One request rather than the catalog plus a listing per provider: which
     // models qualify is a rule the SDK enforces, so the server answers it.

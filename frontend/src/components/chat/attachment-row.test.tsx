@@ -81,6 +81,6 @@ describe("the composer's attachment row", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Later attachments" }));
 
-    expect(scrollBy).toHaveBeenCalledWith({ left: 184, behavior: "smooth" });
+    expect(scrollBy).toHaveBeenCalledWith({ left: 232, behavior: "smooth" });
   });
 });

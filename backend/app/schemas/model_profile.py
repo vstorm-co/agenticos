@@ -15,7 +15,7 @@ from uuid import UUID
 
 from pydantic import Field, computed_field
 
-from app.agents.model_resolver import ModelApi
+from app.agents.model_resolver import ModelApi, lacks_key
 from app.core.secret_kinds import SecretKind
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.services.model_outputs import listed_model_outputs
@@ -95,6 +95,58 @@ class ModelProfileCreate(BaseSchema):
     fallback_profile_ids: list[UUID] = Field(default_factory=list)
 
 
+class ModelProfileUpdate(BaseSchema):
+    """A change to a model profile, applied in place so its id stays (#2478).
+
+    Every agent names its model by profile id, so changing the key or the
+    endpoint here moves every agent on the profile at once - the reason to edit
+    rather than add a second profile and repoint each agent. The provider and the
+    model id are not editable: another model is another profile.
+
+    Partial: only the fields sent change. For `secret_id`, `base_url` and `api`
+    an explicit `null` clears the value, under the same rules creation applies;
+    `label` and `params` cannot be cleared, and `null` leaves them as they are.
+    """
+
+    label: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=128,
+        description="A new name, unique in the organization. `null` keeps the current one.",
+    )
+    secret_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The vault secret to key the model with. It has to be this organization's, "
+            "visible to the caller, and stored for the profile's provider. `null` is "
+            "accepted only for a keyless provider that keeps an endpoint. A new "
+            "`base_url` checks the stored key the same way: the endpoint is where the "
+            "key is sent."
+        ),
+    )
+    base_url: str | None = Field(
+        default=None,
+        max_length=512,
+        description=(
+            "Where to send the request. `null` returns the profile to the provider's own "
+            "API, which a keyless profile with no key cannot do."
+        ),
+    )
+    api: ModelApi | None = Field(
+        default=None,
+        description=(
+            "`responses` or `chat`, for a provider whose catalog entry lists `apis`. "
+            "`null` stores the default for the endpoint. Omitted, the stored choice "
+            "stays, unless it was the old endpoint's default and `base_url` changes - "
+            "then it moves to the new endpoint's default, as on creation."
+        ),
+    )
+    params: dict[str, Any] | None = Field(
+        default=None,
+        description="Replaces the profile's default model settings. `null` keeps them.",
+    )
+
+
 class ModelProfileRead(BaseSchema, TimestampSchema):
     id: UUID
     label: str
@@ -111,6 +163,14 @@ class ModelProfileRead(BaseSchema, TimestampSchema):
     base_url: str | None = None
     #: Null for every provider that serves one API.
     api: ModelApi | None = None
+    runs_without_key: bool = Field(
+        default=False,
+        description=(
+            "Whether the profile was saved to run with no key - a self-hosted model or a "
+            "gateway that authenticates nothing. False on a profile whose key was deleted, "
+            "which `missing_key` then reports."
+        ),
+    )
     params: dict[str, Any] = Field(default_factory=dict)
     fallback_profile_ids: list[str] = Field(default_factory=list)
     context_length: int | None = Field(
@@ -148,6 +208,23 @@ class ModelProfileRead(BaseSchema, TimestampSchema):
         with a `base_url`: the catalogs describe the vendor's API, not that server.
         """
         return listed_model_outputs(self.provider, self.model, base_url=self.base_url).chat
+
+    @computed_field  # type: ignore[prop-decorator]  # pydantic's documented form
+    @property
+    def missing_key(self) -> bool:
+        """Whether the profile has nothing to authenticate with, so no run can use it (#2478).
+
+        True when its key was deleted from the vault or never set, on any provider
+        that needs one. A keyless provider with an endpoint - an Ollama on this
+        network - is false. Agent and chat model pickers leave such a profile out
+        and mark it "no key"; publish refuses it until it gets a key.
+        """
+        return lacks_key(
+            self.provider,
+            secret_id=self.secret_id,
+            base_url=self.base_url,
+            runs_without_key=self.runs_without_key,
+        )
 
 
 class ModelProfileList(BaseSchema):

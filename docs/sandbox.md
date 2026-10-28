@@ -57,6 +57,12 @@ Bump the lock, the compose files and the inventory in one change. A new pin is
 a tag the host does not have yet, so `make dev` and `scripts/deploy.sh` pull it
 on the next start.
 
+The pin lives in the checkout, not in `AGENTICOS_VERSION`, so a host that pins
+or rolls back the backend by hand checks out that release's tag as well
+([Pin a release](deploy.md#the-images)). An install without a checkout, as
+`scripts/quickstart.sh` sets one up, downloads that release's `docker-compose.yml`
+instead ([Install](install.md)).
+
 A moving tag broke this before (#2484). A cached `sandboxd:0.2` served an older
 API than the client spoke, and every command failed as `sandboxd session '…' is
 gone`, although the session was alive. The platform now tells the two apart. When
@@ -677,3 +683,5 @@ reap.
   only grows.
 
 The `state` backend counts files and empty directories against its storage ceiling, including the final concurrent merge. If individually accepted snapshots cannot fit together, the shared document stays unchanged and the later snapshot is committed as a recovery copy in **Documents**. The run records a failure with the recovery workspace ID; a project mutation returns a conflict instead of success. Project copies require both view and use access. A source foreign key removes each copy when its source is deleted, including concurrent erasure. Lowering the setting below an existing document still allows that document to shrink.
+
+The workbench briefing tells agents that commands run under POSIX `/bin/sh`, not Bash. For example, `mkdir -p sources inbox notes` creates three folders; `{sources,inbox,notes}` is not expanded by this shell. Project files belong under `/workspace`; the user home (`~`) is outside the shared files. Each command starts a new process, so shell variables and changes of directory do not carry into the next call. Agents are instructed to inspect failures and verify files before reporting success.
