@@ -138,6 +138,8 @@ apps a run in one of them published - those the reader may open.
 **Instructions** edits them in Markdown with Source and Preview, as the Agent
 Builder does an agent's, above the project's name, description and default agent.
 
+Drop external files onto a folder to upload into it, or elsewhere on the Files tab to upload at the project root. Holding a drag over a collapsed folder opens it after a short delay. The drop hint stays within the file area, row actions keep their space, and folders show no item counts. Large upload queues show the first three entries and the number waiting. File-type icons distinguish source code, JSON, markup, documents, spreadsheets and media across projects, chat attachments, RAG and skill files.
+
 ## Local folders in the desktop app
 
 The **Files** tab separates **Shared project files** from **This computer**. A folder approved during project creation opens automatically on this installation; otherwise Shared project files opens first. Select This computer to connect a folder. Once connected, **Folder settings** changes or disconnects it; its path and access mode stay visible without repeating the setup form.

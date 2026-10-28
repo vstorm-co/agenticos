@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Upload } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -53,6 +53,24 @@ export function FileDropZone({
   const t = useTranslations("pages.kb");
   const [isDragging, setIsDragging] = useState(false);
   const dragCounter = useRef(0);
+  const reset = () => {
+    dragCounter.current = 0;
+    setIsDragging(false);
+  };
+  useEffect(() => {
+    const clear = () => {
+      dragCounter.current = 0;
+      setIsDragging(false);
+    };
+    window.addEventListener("dragend", clear);
+    window.addEventListener("drop", clear);
+    window.addEventListener("blur", clear);
+    return () => {
+      window.removeEventListener("dragend", clear);
+      window.removeEventListener("drop", clear);
+      window.removeEventListener("blur", clear);
+    };
+  }, []);
 
   return (
     <div
@@ -63,30 +81,51 @@ export function FileDropZone({
           setIsDragging(true);
         }
       }}
-      onDragLeave={() => {
+      onDragLeave={(event) => {
         dragCounter.current = Math.max(0, dragCounter.current - 1);
-        if (dragCounter.current === 0) setIsDragging(false);
+        if (event.relatedTarget instanceof Node) {
+          if (event.currentTarget.contains(event.relatedTarget)) return;
+          reset();
+        } else {
+          // WebKit can omit relatedTarget while crossing a child boundary.
+          const rect = event.currentTarget.getBoundingClientRect();
+          if (
+            event.clientX >= rect.left &&
+            event.clientX < rect.right &&
+            event.clientY >= rect.top &&
+            event.clientY < rect.bottom
+          )
+            return;
+          if (dragCounter.current === 0) setIsDragging(false);
+        }
       }}
       onDragOver={(e) => {
-        if (mayCarryFiles(e.dataTransfer)) e.preventDefault();
+        if (mayCarryFiles(e.dataTransfer)) {
+          e.preventDefault();
+          if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+        }
       }}
+      onDropCapture={reset}
       onDrop={(e) => {
+        if (!mayCarryFiles(e.dataTransfer)) return;
         e.preventDefault();
-        dragCounter.current = 0;
-        setIsDragging(false);
         const files = e.dataTransfer?.files;
         if (files && files.length > 0) onFiles(files);
       }}
     >
       {isDragging && (
-        <div className="bg-background/80 fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm">
-          <div className="border-foreground/30 bg-card flex flex-col items-center gap-4 rounded-xl border-2 border-dashed px-12 py-16">
-            <span className="bg-muted text-foreground inline-flex h-14 w-14 items-center justify-center rounded-xl">
-              <Upload className="h-6 w-6" />
+        <div
+          aria-hidden="true"
+          data-testid="project-file-drop-overlay"
+          className="border-foreground/30 bg-foreground/[0.025] pointer-events-none absolute inset-0 z-20 rounded-xl border-2 border-dashed"
+        >
+          <div className="bg-card text-foreground animate-in fade-in-0 slide-in-from-top-2 absolute top-3 left-1/2 flex w-max max-w-[calc(100%-1.5rem)] -translate-x-1/2 items-center gap-3 rounded-xl border px-4 py-3 shadow-lg">
+            <span className="bg-muted flex size-9 shrink-0 items-center justify-center rounded-lg">
+              <Upload className="size-4" />
             </span>
-            <div className="text-center">
-              <p className="text-foreground text-lg font-semibold">{t("dropUpload")}</p>
-              <p className="text-muted-foreground mt-1 text-sm">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">{t("dropUpload")}</p>
+              <p className="text-muted-foreground mt-0.5 text-xs break-words">
                 {t.rich("filesWillBeAddedTo", {
                   name: collectionName,
                   strong: (chunks) => <span className="text-foreground font-medium">{chunks}</span>,

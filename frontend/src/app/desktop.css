@@ -102,7 +102,7 @@
 :root[data-shell="macos"][data-shell-window="main"] .macos-window-controls {
   display: block;
   flex-shrink: 0;
-  block-size: 3rem;
+  block-size: 2rem;
 }
 
 /* Sign-in has no sidebar to reserve the traffic lights' space. Keep its brand
@@ -133,6 +133,18 @@
   display: block;
   flex-shrink: 0;
   block-size: 1.75rem;
+}
+
+/* The reserved drag strip already provides 28px above the page. Adding the
+   browser's 32px page inset left a second title-bar-sized gap. A 16px inset
+   keeps the heading aligned with the sidebar brand below the native controls. */
+:root:is(
+    [data-shell="macos"],
+    [data-shell="windows"],
+    [data-shell="linux"]
+  )[data-shell-window="main"]
+  #main {
+  padding-block-start: 1rem;
 }
 
 /* --- Blobby and quick ask: pages that are a window's whole content -------- */

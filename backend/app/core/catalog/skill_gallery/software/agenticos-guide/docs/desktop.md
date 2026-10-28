@@ -316,6 +316,8 @@ whoever else may watch runs.
 
 ## Signing in
 
+The desktop main window reserves its drag strip separately from a compact 16px content inset. On macOS the window controls have a 32px reserved row, keeping the sidebar brand and page heading aligned without the browser layout’s extra top gap.
+
 The console, Blobby and Quick Ask share a named persistent WebView profile; private
 agent browser tabs remain isolated. Moving from an older profile may require one sign-
 in. In Glass, the drag strip uses the content background. The dashboard scrollport

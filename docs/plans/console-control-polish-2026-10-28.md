@@ -67,3 +67,37 @@ keyboard/click activation, mixed checkboxes, locale output, progress semantics,
 label association and upload completion. The full suites and their coverage gates
 remain CI work. A visual review remains outstanding under the no-Computer-Use
 constraint.
+
+
+## File browsing follow-up
+
+The project drop hint is now local and ignores pointer hit testing. Capture-phase
+drop cleanup also clears it when a folder consumes the drop. Window drop, drag
+end and blur clean up cancelled drags. Child transitions preserve folder
+highlighting, including a coordinate fallback when WebKit supplies no related
+target. A collapsed destination opens after 600ms; leaving cancels its timer.
+External files can be uploaded directly into a folder, while internal paths
+still use the move endpoint and reject self/descendant destinations.
+
+The tree reserves its action columns instead of animating their width. File
+and folder glyphs align at each depth; names use readable body type. Folder
+counts are removed. The first upload keeps the empty-project layout until real
+files arrive, and the queue shows three entries plus its remaining count.
+
+The shared FileIcon now separates source code, JSON, markup, PDF, text documents,
+spreadsheets, archives, media and unknown formats. RAG document rows, retrieval
+results, legacy chat attachments, context mentions/cards and skill trees use the
+same renderer as modern attachment cards and workspace files. This reuses
+Lucide marks and the existing FileKind classifier, without an icon dependency
+or a second extension registry.
+
+Desktop spacing uses the existing 28px main drag strip plus a 16px content inset,
+instead of 32px. The macOS controls row is 32px instead of 48px. These are CSS
+token calculations; the supplied screenshot motivated the change, and no
+computer automation was used to inspect its rendered result.
+
+Verification: 136 focused file-workflow tests, a separate 311-test file/chat/icon
+batch and a 49-test drag regression recheck passed. Frontend lint and typing,
+translation fingerprints, generated Architect guide checks and CSS compilation
+passed. The local project route returned HTTP 200. These checks do not establish
+physical-device drag performance or full visual QA.

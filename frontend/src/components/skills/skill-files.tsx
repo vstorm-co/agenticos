@@ -17,9 +17,9 @@
  */
 
 import { useMemo, useState } from "react";
-import { FileText, Upload } from "lucide-react";
+import { Upload } from "lucide-react";
 
-import { FileEditor, PathTree, type PathTreeNode } from "@/components/files";
+import { FileEditor, FileIcon, PathTree, type PathTreeNode } from "@/components/files";
 import { Button, Input, Label, Textarea } from "@/components/ui";
 import { useSkillResource } from "@/hooks";
 import { folderPaths, type TreeNode } from "@/lib/file-tree";
@@ -79,8 +79,8 @@ export function FileTree({
       }
       renderFile={(node) => (
         <>
-          <FileText className="text-muted-foreground h-3.5 w-3.5 shrink-0" aria-hidden />
-          <span className="truncate font-mono text-xs">{node.label}</span>
+          <FileIcon name={node.label} className="text-muted-foreground size-4 shrink-0" />
+          <span className="truncate text-[13px]">{node.label}</span>
         </>
       )}
     />

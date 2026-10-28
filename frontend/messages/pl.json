@@ -5114,7 +5114,8 @@
       "vectorCountLoaded": "{count, plural, one {1 wektor} few {# wektory} many {# wektorów} other {# wektora}} we wczytanych dokumentach",
       "indexingInProgress": "{count, plural, one {Indeksowanie: 1 dokument w toku} few {Indeksowanie: # dokumenty w toku} many {Indeksowanie: # dokumentów w toku} other {Indeksowanie: # dokumentu w toku}}",
       "indexingComplete": "Indeksowanie zakończone",
-      "indexingFailed": "{count, plural, one {1 dokument z błędem} few {# dokumenty z błędem} many {# dokumentów z błędem} other {# dokumentu z błędem}}"
+      "indexingFailed": "{count, plural, one {1 dokument z błędem} few {# dokumenty z błędem} many {# dokumentów z błędem} other {# dokumentu z błędem}}",
+      "moreUploads": "{count, plural, one {Jeszcze # plik w kolejce przesyłania} few {Jeszcze # pliki w kolejce przesyłania} many {Jeszcze # plików w kolejce przesyłania} other {Jeszcze # pliku w kolejce przesyłania}}"
     },
     "mcp-servers": {
       "catalogCompiledIntoBackend": "Katalog jest wkompilowany w backend, a nikt nie dodał własnego serwera. Pusta lista oznacza tutaj, że ten deployment nie dostarcza żadnego.",

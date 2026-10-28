@@ -372,6 +372,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Reduce the desktop heading gap while retaining a separate native drag strip. Keep file drag feedback within the project, preserve folder highlights across child rows, support uploading directly into folders and hover-to-expand, stabilize file actions, remove folder counters, and use distinct file-type icons across projects, chat, RAG and skill/context files.
+
 - Refine console control spacing, keyboard focus, touch targets and anchored overlay motion; preserve action labels during saving, keep skill creation busy through uploads, localize calendar labels, and expose form requirements and progress values to assistive technology.
 
 - Restore document previews and visible Add to an agent actions on Skills and Context cards; spread automatic avatar colors across a continuous clean hue range and preserve archived portrait colors.

@@ -1,5 +1,5 @@
 ---
-source_sha: "6d23d87dfc5d"
+source_sha: "403c6ff7ce7a"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -324,6 +324,8 @@ agenta, a **Oddaj** zwraca. Podgląd ekranu tego komputera jest tylko dla ciebie
 ktokolwiek inny może oglądać runy.
 
 ## Logowanie { #signing-in }
+
+Główne okno desktopowe ma osobny pasek przeciągania i zwarty górny odstęp treści 16px. Na macOS przyciski okna mają zarezerwowany wiersz 32px, dzięki czemu marka w pasku bocznym i nagłówek strony pozostają wyrównane bez dodatkowej przerwy z układu przeglądarkowego.
 
 Konsola, Blobby i Quick Ask współdzielą nazwany, trwały profil WebView; prywatne karty
 przeglądarki agenta pozostają odizolowane. Przejście ze starszego profilu może wymagać

@@ -1,5 +1,5 @@
 ---
-source_sha: "6d23d87dfc5d"
+source_sha: "403c6ff7ce7a"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -344,6 +344,8 @@ des Bildschirms dieses Computers gehört nur Ihnen, wer auch immer sonst Runs an
 darf.
 
 ## Anmelden { #signing-in }
+
+Das Desktop-Hauptfenster reserviert die Ziehleiste getrennt von einem kompakten oberen Inhaltsabstand von 16px. Unter macOS haben die Fensterknöpfe eine reservierte Zeile von 32px. So bleiben die Marke in der Seitenleiste und die Seitenüberschrift ohne den zusätzlichen oberen Abstand des Browserlayouts ausgerichtet.
 
 Konsole, Blobby und Quick Ask teilen ein benanntes dauerhaftes WebView-Profil; private
 Agent-Browser-Tabs bleiben isoliert. Der Wechsel von einem älteren Profil kann eine

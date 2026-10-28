@@ -1,7 +1,9 @@
 "use client";
 
-import { FileText, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { FileIcon } from "@/components/files/file-icon";
+import { displayName } from "./file-name";
 import { BlankPeek, Button, Card, DocPeek, TextPeek } from "@/components/ui";
 import { AddToAgent } from "@/components/agents/add-to-agent";
 import { UsedBy } from "@/components/agents/used-by";
@@ -56,7 +58,7 @@ export function ContextCard({ file, canEdit, onOpen, onDelete }: ContextCardProp
           </summary>
           <div className="space-y-2 pt-2 pb-1">
             <span className="flex items-center gap-1">
-              <FileText className="size-3.5" aria-hidden />
+              <FileIcon name={displayName(file.name, file.format)} className="size-3.5" />
               {file.format.toUpperCase()}
             </span>
             <AudienceChip visibility={file.visibility} groups={file.shared_groups} />

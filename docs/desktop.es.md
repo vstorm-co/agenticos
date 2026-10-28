@@ -1,5 +1,5 @@
 ---
-source_sha: "6d23d87dfc5d"
+source_sha: "403c6ff7ce7a"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -337,6 +337,8 @@ pasos del agent y **Devolver** se lo devuelve. La vista en vivo de la pantalla d
 este ordenador es solo tuya, quien sea que pueda ver runs.
 
 ## Iniciar sesión { #signing-in }
+
+La ventana principal de escritorio reserva la franja de arrastre por separado de un margen superior de contenido compacto de 16px. En macOS los controles de ventana tienen una fila reservada de 32px, alineando la marca lateral y el encabezado sin el espacio superior adicional del diseño del navegador.
 
 La consola, Blobby y Quick Ask comparten un perfil WebView persistente con nombre; las
 pestañas privadas del agent permanecen aisladas. El cambio desde un perfil anterior

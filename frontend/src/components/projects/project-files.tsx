@@ -227,7 +227,7 @@ function SharedProjectFiles({ project }: { project: Project }) {
   // A project with nothing in it is a place to put the first files, not two
   // empty panes - a folder tree saying it is empty beside a viewer with nothing
   // to show.
-  const empty = files !== null && files.total === 0 && uploads.length === 0;
+  const empty = files !== null && files.total === 0;
 
   const explorer = empty ? (
     <div className="border-border flex min-h-0 flex-1 flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed px-6 py-12 text-center">
@@ -255,7 +255,6 @@ function SharedProjectFiles({ project }: { project: Project }) {
     </div>
   ) : (
     <div className="flex min-h-0 flex-1 flex-col">
-      <UploadProgressList uploads={uploads} />
       <FileExplorer
         source={source}
         files={files}
@@ -263,6 +262,7 @@ function SharedProjectFiles({ project }: { project: Project }) {
         error={error}
         toolbar={toolbar}
         onRemove={writable ? setPendingRemove : undefined}
+        onUpload={writable ? (files, folder) => upload.mutate({ files, folder }) : undefined}
         onMove={
           writable
             ? async (source, destination) => {
@@ -275,6 +275,13 @@ function SharedProjectFiles({ project }: { project: Project }) {
         }
       />
     </div>
+  );
+
+  const content = (
+    <>
+      <UploadProgressList uploads={uploads} limit={3} />
+      {explorer}
+    </>
   );
 
   return (
@@ -297,10 +304,10 @@ function SharedProjectFiles({ project }: { project: Project }) {
           onFiles={picked}
           className="flex min-h-0 flex-1 flex-col"
         >
-          {explorer}
+          {content}
         </FileDropZone>
       ) : (
-        explorer
+        content
       )}
 
       <Dialog open={folderOpen} onOpenChange={setFolderOpen}>

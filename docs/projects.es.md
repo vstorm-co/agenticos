@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "33ca3c1657e3"
+source_sha: "c297fe934e1b"
 ---
 
 # Proyectos { #projects }
@@ -148,6 +148,8 @@ de los chats del proyecto, y **Apps** las apps que publicó un run en uno de ell
 - las que el lector puede abrir. Las **Instrucciones** se editan en Markdown, con
   Fuente y Vista previa, como las de un agent en el Agent Builder, encima del
   nombre, la descripción y el agent por defecto del proyecto.
+
+Suelta archivos externos sobre una carpeta para cargarlos allí, o en otro lugar de la pestaña Archivos para añadirlos a la raíz del proyecto. Una pausa sobre una carpeta cerrada la abre. La indicación permanece en el área de archivos, las acciones mantienen su espacio y las carpetas no muestran contadores. Las colas largas muestran las tres primeras entradas y el número pendiente. Los iconos distinguen código, JSON, marcado, documentos, hojas de cálculo y multimedia en proyectos, adjuntos del chat, RAG y archivos de skills.
 
 ## Carpetas locales en la aplicación de escritorio { #local-folders-in-the-desktop-app }
 
