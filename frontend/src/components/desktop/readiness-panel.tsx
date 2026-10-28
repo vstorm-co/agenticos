@@ -1,8 +1,26 @@
 "use client";
-import { Check, CircleAlert, RefreshCw } from "lucide-react";
+import {
+  Accessibility,
+  Bell,
+  Bot,
+  Check,
+  CircleAlert,
+  CircleDashed,
+  Cpu,
+  Keyboard,
+  LoaderCircle,
+  Mic,
+  Minus,
+  Monitor,
+  RefreshCw,
+  ScanLine,
+  ShieldCheck,
+  UserRound,
+  type LucideIcon,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
-import { useDesktopSetup } from "@/hooks/use-desktop-setup";
+import { type SetupKey, type SetupState, useDesktopSetup } from "@/hooks/use-desktop-setup";
 import { useShell } from "@/hooks/use-shell";
 import { retryDesktopScreenshot, SYSTEM_PERMISSIONS } from "@/lib/desktop/readiness";
 import { isDesktopShell } from "@/lib/desktop/shell";
@@ -10,6 +28,25 @@ import { useRouter } from "@/lib/locale-navigation";
 import { useMutation } from "@tanstack/react-query";
 import { reportShellFailure } from "@/lib/desktop/shell";
 import { cn } from "@/lib/utils";
+
+const ITEM_ICONS: Record<SetupKey, LucideIcon> = {
+  account: UserRound,
+  device: Monitor,
+  agent: Bot,
+  model: Cpu,
+  screen_capture: ScanLine,
+  accessibility: Accessibility,
+  microphone: Mic,
+  notifications: Bell,
+  shortcuts: Keyboard,
+};
+const STATUS_ICONS: Record<SetupState, LucideIcon> = {
+  ready: Check,
+  missing: CircleDashed,
+  checking: LoaderCircle,
+  error: CircleAlert,
+  unsupported: Minus,
+};
 
 export function ReadinessPanel({ repair }: { repair?: string | null }) {
   const shell = useShell();
@@ -37,6 +74,8 @@ function ReadyItems({ repair }: { repair?: string | null }) {
       </div>
       <ul className="divide-border divide-y rounded-xl border px-4">
         {setup.items.map((item) => {
+          const Icon = ITEM_ICONS[item.key];
+          const StatusIcon = STATUS_ICONS[item.state];
           const permission = SYSTEM_PERMISSIONS.find((key) => key === item.key);
           const repairable = item.state === "missing" || item.state === "error";
           const manage = item.state === "error" || item.key !== "model" || item.href !== undefined;
@@ -48,14 +87,26 @@ function ReadyItems({ repair }: { repair?: string | null }) {
                 repair === item.key && "bg-accent -mx-4 px-4",
               )}
             >
-              {item.state === "ready" ? (
-                <Check className="size-4 shrink-0" aria-hidden />
-              ) : (
-                <CircleAlert className="text-muted-foreground size-4 shrink-0" aria-hidden />
-              )}
+              <Icon
+                className="text-muted-foreground size-5 shrink-0"
+                strokeWidth={1.75}
+                aria-hidden
+              />
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium">{t(`items.${item.key}`)}</p>
-                <p role="status" className="text-muted-foreground text-xs">
+                <p
+                  role="status"
+                  className="text-muted-foreground mt-0.5 flex items-center gap-1.5 text-xs"
+                >
+                  <StatusIcon
+                    aria-hidden
+                    className={cn(
+                      "size-3 shrink-0",
+                      item.state === "ready" && "text-green-600 dark:text-green-400",
+                      item.state === "checking" && "animate-spin motion-reduce:animate-none",
+                      item.state === "error" && "text-destructive",
+                    )}
+                  />
                   {t(`state.${item.state}`)}
                 </p>
                 {item.key === "model" && item.state === "missing" && !manage && (
@@ -94,7 +145,10 @@ function ReadyItems({ repair }: { repair?: string | null }) {
           );
         })}
       </ul>
-      <p className="text-muted-foreground text-xs">{t("permissionNote")}</p>
+      <p className="text-muted-foreground flex items-start gap-2 text-xs leading-relaxed">
+        <ShieldCheck className="mt-0.5 size-4 shrink-0" aria-hidden />
+        <span>{t("permissionNote")}</span>
+      </p>
       {repair === "screen_capture" && setup.native.status.data?.screen_capture === "granted" && (
         <Button disabled={retryScreenshot.isPending} onClick={() => retryScreenshot.mutate()}>
           {t("retryScreenshot")}
