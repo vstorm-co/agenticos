@@ -116,17 +116,15 @@ async function seedImprovableAgent(page: Page) {
   }
   expect(train).toBeGreaterThanOrEqual(3);
   expect(holdout).toBeGreaterThanOrEqual(5);
-  // A question no change fixes, among those the helper learns from: once the first
-  // attempt fixes the rest, another attempt still has an answer to learn from.
-  let unfixable = false;
-  for (let n = 0; n < 20 && !unfixable; n++) {
-    const question = await write(api, "post", `/datasets/${id(dataset)}/cases`, headers, {
+  // Questions no change fixes. Each attempt draws its own learning half, and with
+  // eight of these one is all but certain to land there, so another attempt still
+  // has an answer to learn from once the first fixes the rest.
+  for (let n = 0; n < 8; n++) {
+    await write(api, "post", `/datasets/${id(dataset)}/cases`, headers, {
       input: `Return policy exception ${n + 1}`,
       checks: [{ type: "equals", value: "An answer no change gives" }],
     });
-    unfixable = question.improvement_partition === "train";
   }
-  expect(unfixable).toBeTruthy();
   const initial = await write(api, "post", `/agents/${id(agent)}/eval-runs`, headers, {
     dataset_id: id(dataset),
     reruns: 0,
