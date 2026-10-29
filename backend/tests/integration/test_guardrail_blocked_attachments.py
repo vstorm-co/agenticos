@@ -9,7 +9,7 @@ for the next turn of the conversation to open.
 """
 
 import uuid
-from typing import Any
+from pathlib import Path
 
 import pytest
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
@@ -119,7 +119,7 @@ async def _attached(
     return chat_file
 
 
-async def _stored_files(db: AsyncSession, conversation_id: uuid.UUID) -> dict[str, Any]:
+async def _stored_files(db: AsyncSession, conversation_id: uuid.UUID) -> dict[str, object]:
     """What the conversation's workspace holds once its turns have closed, by
     workspace path - the document keys its files from the root, `/uploads/...`."""
     rows = await db.execute(
@@ -134,14 +134,14 @@ async def _stored_files(db: AsyncSession, conversation_id: uuid.UUID) -> dict[st
 
 
 @pytest.fixture
-def storage(tmp_path, monkeypatch) -> LocalFileStorage:
+def storage(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> LocalFileStorage:
     store = LocalFileStorage(base_dir=tmp_path)
     monkeypatch.setattr(attachments_module, "get_file_storage", lambda: store)
     return store
 
 
 @pytest.fixture
-def model_calls(monkeypatch) -> list[list[ModelMessage]]:
+def model_calls(monkeypatch: pytest.MonkeyPatch) -> list[list[ModelMessage]]:
     """Every request that reached the model; a refused turn adds none."""
     calls: list[list[ModelMessage]] = []
 
@@ -155,7 +155,7 @@ def model_calls(monkeypatch) -> list[list[ModelMessage]]:
 
 class TestARefusedAttachmentStaysOutOfTheConversationWorkspace:
     async def test_a_guardrail_blocked_turn_leaves_no_file_for_the_next_turn(
-        self, db: AsyncSession, storage: LocalFileStorage, model_calls: list
+        self, db: AsyncSession, storage: LocalFileStorage, model_calls: list[list[ModelMessage]]
     ) -> None:
         """The issue's sequence: the turn carrying the refused file is blocked,
         and the conversation's workspace - the one the next turn opens - has no
@@ -183,7 +183,7 @@ class TestARefusedAttachmentStaysOutOfTheConversationWorkspace:
         assert not any(path.startswith("uploads/") for path in stored)
 
     async def test_a_clean_file_in_the_same_conversation_still_lands(
-        self, db: AsyncSession, storage: LocalFileStorage, model_calls: list
+        self, db: AsyncSession, storage: LocalFileStorage, model_calls: list[list[ModelMessage]]
     ) -> None:
         """The control: screening first does not stop an allowed file being written."""
         ctx = await _owner(db)

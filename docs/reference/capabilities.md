@@ -2279,12 +2279,15 @@ person typed it, personal data included. Anyone who can read the conversation ca
 read that message.
 
 **The input edge screens an attachment before it is written.** An attached file
-reaches the prompt as its name, its path and its first 20 lines, and the input edge
-reads them with the person's message. An agent with a workspace has that text
-screened before the file is copied to `uploads/`, so a turn the edge blocks writes
-nothing, and a later turn in a `conversation`-, `user`- or `agent`-scoped workspace
-has no refused file to open. The edge reads only those opening lines, so a blocked
-term further down the file is not caught here; screen tool results for that.
+reaches the prompt as its name, its path and its first 20 lines (at most 2,000
+characters), and the input edge reads them with the person's message. An agent with
+a workspace has that text screened before the file is copied to `uploads/`, so a
+turn the edge blocks writes nothing, and a later turn in a `conversation`-, `user`-
+or `agent`-scoped workspace has no refused file to open. The edge reads only those
+opening lines, so a blocked term further down the file is not caught here; screen
+tool results for that. A picture sent inline is the exception: the edge also reads
+its bytes, and a block on those bytes alone is not foreseen, so that picture is
+still written.
 
 **Tool-result screening is the reason this edge matters most.** It is the only guard
 on untrusted content entering the loop — a fetched page, a file, an MCP server's

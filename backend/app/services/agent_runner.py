@@ -4969,8 +4969,9 @@ class AgentRunnerService:
             draft=draft,
         )
         prepared.built.deps.steering = steering
+        input_edge = input_screen_for(prepared.spec)
         if steering is not None:
-            steering.screen = input_screen_for(prepared.spec)
+            steering.screen = input_edge
         if parks_questions:
             prepared.built.deps.ask_questions = park_the_question
             prepared.built.deps.parks_questions = True
@@ -4988,7 +4989,7 @@ class AgentRunnerService:
                 can_parse=prepared.workspace is not None and prepared.workspace.parses_documents,
                 # Screened before a file is written, not only once the run starts
                 # (#2559): a refused file must not outlive its turn.
-                screen=input_screen_for(prepared.spec),
+                screen=input_edge,
             )
             assembled = await router.build_prompt(prompt, attachments)
             attachment_context = router.context or None

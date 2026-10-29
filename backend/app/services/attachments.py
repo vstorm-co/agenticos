@@ -28,7 +28,6 @@ from uuid import UUID
 
 from pydantic_ai.messages import BinaryContent
 from pydantic_ai.workspaces import Workspace, WorkspaceError
-from pydantic_ai_harness import GuardrailResult
 
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.core.blocking import run_blocking
@@ -38,6 +37,7 @@ from app.services.file_storage import get_file_storage
 from app.services.file_upload import TiffConversion, cap_text, tiff_pages_to_png
 
 if TYPE_CHECKING:
+    from pydantic_ai_harness import GuardrailResult
     from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
@@ -490,6 +490,12 @@ class AttachmentRouter:
         the same text again and the turn ends `guardrail_blocked` the way it
         always did. Screened only with a workspace: without one nothing is
         written, and the edge alone decides.
+
+        Text only. On a turn that inlines a picture the edge reads the prompt
+        list's repr, image bytes included, and can refuse on those bytes alone -
+        a long digit run under PII redaction, a keyword the repr happens to
+        contain. That refusal is about no content anybody wrote, and it is not
+        predicted here, so such a picture is still written.
         """
         if self._screen is None or self._workspace is None:
             return None

@@ -13,7 +13,9 @@ from uuid import uuid4
 
 import pytest
 from pydantic_ai.messages import BinaryContent
+from pydantic_ai_harness import GuardrailResult
 
+from app.agents.capabilities.guardrails import GuardrailBlocked, GuardrailsConfig, input_screen
 from app.agents.capabilities.sandbox._capped import CappedStateBackend
 from app.services import attachments as attachments_module
 from app.services.attachments import AttachmentRouter, safe_name, workspace_path
@@ -923,8 +925,6 @@ class TestWhenTheWorkspaceWillNotTakeAWrite:
 
 def _blocking(word: str = "XYZZY"):
     """The input edge's own detector, blocking `word` - the one the harness runs."""
-    from app.agents.capabilities.guardrails import GuardrailsConfig, input_screen
-
     screen = input_screen(GuardrailsConfig(blocked_keywords_in=word))
     assert screen is not None
     return screen
@@ -959,8 +959,6 @@ class TestTheInputEdgeScreensBeforeAnythingIsWritten:
         prompt = await AttachmentRouter(
             document_workspace(_document()), screen=screen
         ).build_prompt("summarise", [_file(parsed_content="month,total\nXYZZY,10")])
-
-        from app.agents.capabilities.guardrails import GuardrailBlocked
 
         assert isinstance(prompt, str)
         assert "XYZZY" in prompt
@@ -1002,8 +1000,6 @@ class TestTheInputEdgeScreensBeforeAnythingIsWritten:
         assert document.files == {}
 
     async def test_a_screen_that_answers_block_rather_than_raising_stops_it_too(self, storage):
-        from pydantic_ai_harness import GuardrailResult
-
         document = _document()
 
         await AttachmentRouter(
@@ -1025,8 +1021,6 @@ class TestTheInputEdgeScreensBeforeAnythingIsWritten:
 
     async def test_a_redacting_screen_does_not_stop_the_write(self, storage):
         """Only a refusal stops the turn; a redaction is the edge's to apply."""
-        from pydantic_ai_harness import GuardrailResult
-
         document = _document()
         chat_file = _file()
 
@@ -1044,3 +1038,17 @@ class TestTheInputEdgeScreensBeforeAnythingIsWritten:
 
         assert isinstance(prompt, str)
         assert "XYZZY" in prompt
+
+    async def test_what_is_screened_is_what_a_clean_turn_sends(self, storage):
+        """The screen predicts the edge only while both read the same text: a
+        reference worded differently in one place would let a refused head through."""
+        chat_file = _file()
+        clean = await AttachmentRouter(document_workspace(_document())).build_prompt(
+            "summarise", [chat_file]
+        )
+
+        refused = await AttachmentRouter(
+            document_workspace(_document()), screen=lambda _text: GuardrailResult.block("no")
+        ).build_prompt("summarise", [chat_file])
+
+        assert refused == clean
