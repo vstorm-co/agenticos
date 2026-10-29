@@ -1,5 +1,5 @@
 ---
-source_sha: "7b914c4d0807"
+source_sha: "7eb7fc89ff7d"
 ---
 
 # Konsola { #the-console }
@@ -768,3 +768,5 @@ Chat controls zapamiętuje model, tryb zatwierdzania i lokalne narzędzia dla ko
 Wyciszanie powiadomień ma ikonę dzwonka; pole wiadomości nie powtarza już plakietki folderu i dostępu. Avatary wielu agentów zachodzą na siebie bez zmiany rozmiaru, a w rozwiniętej liście delikatnie rozsuwają się po najechaniu.
 
 Stopki list pozostają przy dolnej krawędzi panelu, ze spójnymi odstępami i kryjącym tłem. Stronicowane tabele administracyjne przewijają same wiersze, zachowując widoczne nagłówki kolumn i paginację. Puste wyniki i błędy pozostają w tym samym obszarze przewijania.
+
+Lista organizacji w administracji pokazuje wgrane zdjęcie albo inicjały w wybranym kolorze, jeśli zdjęcia nie ustawiono. Dostęp do obrazów w tym widoku mają tylko administratorzy wdrożenia; zwykły endpoint avatarów organizacji nadal wymaga członkostwa.

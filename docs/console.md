@@ -741,3 +741,5 @@ Chat controls remember the model, permission mode and desktop tool preferences f
 Muting notifications has a bell icon; the composer no longer repeats the local folder/access badge. Multi-agent portraits overlap at full size and spread slightly on hover in the expanded chat list.
 
 List footers stay at the bottom of their panel, with a solid background and consistent spacing. Paged administration tables scroll their rows independently while keeping column headers and pagination visible. Empty and failed reads stay inside the same scroll area.
+
+The administration organization directory shows the uploaded organization picture, or initials in its chosen color when no image is set. Image access is limited to deployment administrators; the regular organization avatar route continues to require membership.

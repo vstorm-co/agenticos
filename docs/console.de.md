@@ -1,5 +1,5 @@
 ---
-source_sha: "7b914c4d0807"
+source_sha: "7eb7fc89ff7d"
 ---
 
 # Die Konsole { #the-console }
@@ -837,3 +837,5 @@ Chat controls merkt sich Modell, Freigabemodus und lokale Werkzeuge pro Konto un
 Die Benachrichtigungsstummschaltung hat ein Glockensymbol; das Eingabefeld wiederholt die Ordner- und Zugriffsanzeige nicht mehr. Agentenporträts überlappen in voller Größe und spreizen sich in der erweiterten Chatliste beim Darüberfahren leicht auf.
 
 Listenfußzeilen bleiben am unteren Rand ihres Panels mit einheitlichen Abständen und deckendem Hintergrund. Paginierte Verwaltungstabellen scrollen ihre Zeilen unabhängig, während Spaltenüberschriften und Seitennavigation sichtbar bleiben. Leere Ergebnisse und Fehler bleiben im selben Scrollbereich.
+
+Das Organisationsverzeichnis der Administration zeigt das hochgeladene Bild oder Initialen in der gewählten Farbe, wenn kein Bild hinterlegt ist. Der Bildzugriff in diesem Bereich bleibt auf Deployment-Administratoren beschränkt; der reguläre Avatar-Endpunkt verlangt weiterhin eine Mitgliedschaft.

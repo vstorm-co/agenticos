@@ -1,5 +1,5 @@
 ---
-source_sha: "7b914c4d0807"
+source_sha: "7eb7fc89ff7d"
 ---
 
 # La consola { #the-console }
@@ -789,3 +789,5 @@ Chat controls recuerda el modelo, el modo de aprobación y las herramientas loca
 Silenciar notificaciones tiene un icono de campana; el compositor ya no repite la insignia de carpeta y acceso. Los avatares se superponen a tamaño completo y se separan ligeramente al pasar el cursor en la lista de chats expandida.
 
 Los pies de lista permanecen en el borde inferior del panel, con espaciado uniforme y fondo opaco. Las tablas de administración paginadas desplazan sus filas de forma independiente, manteniendo visibles las cabeceras y la paginación. Los resultados vacíos y los errores permanecen en la misma zona de desplazamiento.
+
+El directorio de organizaciones de administración muestra la imagen cargada o las iniciales en el color elegido si no hay imagen. El acceso a las imágenes en esta vista se limita a administradores del despliegue; el endpoint normal de avatares sigue requiriendo pertenencia a la organización.

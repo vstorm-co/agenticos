@@ -6,6 +6,7 @@ import { ErrorState } from "@/components/states";
 import {
   Badge,
   DataTable,
+  EntityAvatar,
   ListCard,
   ListCardFootRow,
   PaginationBar,
@@ -88,14 +89,26 @@ export default function AdminOrganizationsPage() {
         className: "pl-5",
         sortable: true,
         cell: (org) => (
-          <>
-            <span className="text-foreground font-medium">{org.name}</span>
-            {org.is_personal && (
-              <Badge variant="outline" className="ml-2 text-xs">
-                {t("personal")}
-              </Badge>
-            )}
-          </>
+          <div className="flex min-w-0 items-center gap-3">
+            <EntityAvatar
+              seed={org.id}
+              name={org.name}
+              imageSrc={`/api/admin/organizations/${org.id}/avatar`}
+              hasImage={org.has_avatar === true}
+              colorSlot={org.avatar_color}
+              size="md"
+              ariaHidden
+              className="shrink-0"
+            />
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <span className="text-foreground font-medium">{org.name}</span>
+              {org.is_personal && (
+                <Badge variant="outline" className="text-xs">
+                  {t("personal")}
+                </Badge>
+              )}
+            </div>
+          </div>
         ),
       },
       {

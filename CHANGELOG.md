@@ -385,6 +385,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Show uploaded organization avatars and chosen-color initials in the administration directory.
+
 - Keep list pagination at the panel bottom and scroll paged administration table rows independently of headers and footer.
 
 - Explain why Approve everything is unavailable and link authorized users to organization approval settings.
