@@ -61,6 +61,58 @@ Two things are versioned separately from this file and worth knowing about:
   written, and the newer base no longer finds that synced content in search.
   Create the newer base under a name of its own to give it sources of its own.
 
+## [1.29.0] - 2026-10-29
+
+### Added
+
+- Automatic channel context and conversation guidance across Mattermost, Slack,
+  Teams and Telegram: channel details, a bounded member snapshot, deployment
+  identity and precise organization versus personal MCP connection instructions.
+  Metadata is lower-trust conversation data, outside system instructions.
+  `{channel_members}` is the roster placeholder; `{member_list}` stays an alias.
+  Slack rosters use member IDs without per-person profile requests.
+- An opt-in group mention switch per bot. Existing bots default to direct
+  invocations; Teams packages request conversation-message consent only when
+  enabled. Telegram text aliases require message delivery and its bot identity
+  is resolved before deciding whether a group message addresses it.
+- Explicit `send_channel_file` actions on channel bot bindings. Grant the tool
+  per binding to let users request a workspace file; creating or editing a file
+  no longer posts it automatically. Existing bindings require enabling the new
+  action. The tool requires approval and reports platform failures.
+- A separate production `browser` profile with proxy-only public web access.
+  Keep the isolated visual renderer for drawing; configure interactive browsing
+  with `BROWSER_SIGN_IN_CDP_URL=http://browser:9222`,
+  `BROWSER_EGRESS_PROXY=http://browser-egress:3128` and allowed CDP hosts for both.
+  Point each agent's browser capability at `http://browser:9222` and republish.
+
+### Changed
+
+- All MCP calls in chat apps now require explicit approval, including reads
+  through personal, organization and platform connections. Linking an account does not authorize publishing its private results
+  into a conversation. This applies to resumed and delegated calls too.
+
+### Fixed
+
+- Slack roster entries use native user references without profile fan-out;
+  Telegram bot identity refreshes within five minutes after a username change.
+  Capped Teams rosters report an unknown count rather than an exact 500.
+- Channel history tools default to recent messages of the current channel and
+  support an explicit thread scope; automatic context backfill stays thread-only.
+- Channel pictures render at twice the CSS resolution and reflow very wide
+  horizontal Mermaid flowcharts for readable PNG labels.
+- Account connection instructions use plain `link` in a direct message, avoiding
+  native slash-command conflicts. Earlier thread files that require linking are
+  reported and retried after connection, rather than treated as absent forever.
+- Chromium network failures no longer appear as domain allowlist refusals.
+  Production browsing also receives the configured browser locale and time zone.
+- Approved channel file actions restore the original bot, channel and workspace
+  on resume, with current credentials and without borrowing the approver's account.
+  Exports apply workspace secret rules and check file size before reading bytes.
+  Attachment-attempt limits survive approval continuations.
+- Teams generated pictures fit its inline image dimensions and payload limit.
+  Unsupported image formats and larger explicit files require personal-chat
+  file consent instead of being reported as delivered inline.
+
 ## [1.28.1] - 2026-10-28
 
 ### Fixed

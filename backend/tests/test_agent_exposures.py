@@ -790,8 +790,9 @@ class TestWhatTheAgentMayLookUpHere:
         assert [tool.id for tool in telegram.available_tools] == [
             "get_channel_info",
             "list_channel_members",
+            "send_channel_file",
         ]
-        assert len(mattermost.available_tools) == 4
+        assert len(mattermost.available_tools) == 5
         assert mattermost.tools == ["get_channel_info"]
 
     async def test_the_form_reads_the_registry_s_own_words(self):

@@ -1,5 +1,5 @@
 ---
-source_sha: "9c24c603b89b"
+source_sha: "aa20fd56e2b8"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -2012,28 +2012,17 @@ więc różnica między konsolą a Mattermost pozostaje widoczna.
   i oznacza bota na stronie kanałów jako niedziałającego: „inny proces odpytuje
   token tego bota”. Ten proces jest poza wdrożeniem, zwykle to drugie wdrożenie
   albo skrypt z tym samym tokenem, i zatrzymać go może tylko jego właściciel.
-- **Instrukcje powiązania mogą wołać to, co wie tylko platforma.**
-  `{channel_name}`, `{channel_purpose}`, `{channel_topic}`, `{member_count}`,
-  `{member_list}` — wypełniane przy starcie runa, z tych samych wywołań, których
-  używają odpytania o kanał, więc Telegram oferuje wszystkie pięć, choć oferuje
-  dwa z czterech narzędzi. Builder wylicza pod polem te, na które ta platforma
-  potrafi odpowiedzieć, i wstawia wybrane w miejscu kursora, każde z prawdziwym
-  opisem narzędzia — tym samym, który czyta model, zanim zdecyduje się je
-  wywołać, a nie skróconą parafrazą z katalogu, bez znaczników, których model
-  sam używa, by odróżnić streszczenie od kształtu odpowiedzi.
+- **Kontekst kanału jest dodawany automatycznie przy każdym runie.** Runy z Mattermosta, Slacka, Teams i Telegrama otrzymują nazwę, cel, temat, widoczność, zgłaszaną liczbę członków i ograniczoną listę widocznych osób, także dla istniejących lub wyczyszczonych promptów powiązania. `{channel_members}` to czytelna nazwa listy; `{member_list}` pozostaje aliasem. Pozostałe zmienne to `{channel_name}`, `{channel_purpose}`, `{channel_topic}`, `{channel_visibility}` i `{member_count}`.
 
-    Rozwiązywane przy każdym runie i nigdy nie cache'owane: członkostwo kanału
-    się zmienia, a nieaktualna lista w prompcie jest gorsza niż żadna, bo agent
-    podaje ją jako fakt. Pobierane jest tylko to, o co prosi proza, więc
-    powiązanie, które nie woła żadnego placeholdera, nie kosztuje nic.
-    Placeholder, na który platforma nie potrafiła odpowiedzieć, staje się
-    `(unavailable)`, zamiast kosztować kogoś jego odpowiedź.
+    Każde źródło jest odpytywane raz na run, bez cache między turami: do 50 widocznych osób i 2000 znaków na wartość. Telegram zwraca administratorów, a nie wszystkich członków. Każde źródło ma limit pięciu sekund; niedostępne wartości pozostają nieznane. Wartości są spłaszczane i przekazywane jako niezaufane dane rozmowy, poza instrukcjami systemowymi. Slack zwraca identyfikatory członków bez pobierania profilu każdej osoby. Edytowalny tekst powiązania dodaje wskazówki obok tego kontekstu.
 
-    Prompt, który którykolwiek z nich wypełnił, zyskuje zdanie mówiące, że
-    podstawione wartości są informacją, a nie poleceniami, a każda wartość ma
-    spłaszczone łamania linii i nawiasy klamrowe. `purpose` kanału może
-    edytować każdy, kto może edytować kanał, a jest on wklejany do instrukcji
-    agenta.
+- **Wybierz, czy wzmianki grupowe uruchamiają run.** W tworzeniu i edycji bota przełącznik *Reaguj na wzmianki grupowe* jest domyślnie wyłączony. Bezpośrednie wywołania nadal działają. Po włączeniu reaguje też na `@all`, `@here` i `@channel` w Mattermoście, natywne wzmianki grupowe Slacka oraz strukturalne wzmianki o kanale lub zespole Teams. Nadal obowiązują tożsamość nadawcy, reguły dostępu i limity. Wzmianki w kodzie i o innych osobach nie wystarczają.
+
+    Teams wymaga instalacji lub aktualizacji nowego pakietu aplikacji w danym zespole albo czacie i zgody właściciela na `ChannelMessage.Read.Group` oraz `ChatMessage.Read.Chat`. Pakiet prosi o nie tylko po włączeniu przełącznika. Telegram używa tekstowych aliasów `@all`, `@here`, `@channel` i `@everyone`; nie powiadamiają one grupy. Bot musi otrzymywać wiadomości grupy, więc sprawdź tryb prywatności w BotFather. Wzmianki, komendy i odpowiedzi są porównywane z rzeczywistą tożsamością bota Telegrama.
+
+- **Wysyłka pliku z workspace na żądanie również wymaga zatwierdzenia.** Nadanie `send_channel_file` udostępnia narzędzie; przesłanie bajtów do rozmowy nadal czeka na wyraźne potwierdzenie.
+- **Wszystkie narzędzia MCP wymagają zatwierdzenia w komunikatorach, także odczyty oraz połączenia organizacyjne i platformowe.** Powiązanie konta wskazuje, czyje połączenie jest używane; nie daje automatycznej zgody na publikowanie prywatnych wyników w rozmowie. Reguła obejmuje też delegatów i wznowione wywołania.
+- **Agent wie, gdzie odpowiada i czyje konto jest dostępne.** Wskazówki runtime podają komunikator i konsolę wdrożenia, wyjaśniają zarządzany workspace oraz odróżniają organizacyjne połączenia MCP od usług osobistych. Te ostatnie wymagają zarówno powiązanej tożsamości nadawcy, jak i jego autoryzowanego połączenia z usługą. Łączenie zaczyna się od samego `link` w wiadomości prywatnej; prywatny URL połączenia nie trafia na kanał. Agent relacjonuje rzeczywiste wyniki narzędzi i wskazuje jeden konkretny następny krok, jeśli brakuje autoryzacji lub możliwości.
 - **Ponownie dostarczona wiadomość dostaje odpowiedź raz.** Każda platforma
   dostarcza co najmniej raz: route'y webhooków odpowiadają 200 przed jakąkolwiek
   pracą, żeby wolny handler nigdy nie wyzwolił ponowienia, ale 200 zgubione po
@@ -2492,20 +2481,7 @@ niezależnie od tego, czy to się powiodło
 Tura, która faktycznie się wykonała, zachowuje swoje pliki — nakarmiły ją, a run
 jest w zapisie rozmowy.
 
-**Wychodzące** to to, co agent zapisał w tej turze, porównane ze zrzutem zrobionym
-przy otwarciu workspace'u. Nie różnica wszystkiego: `/uploads` to własny plik
-użytkownika — odesłanie go to cytowanie komuś jego własnego załącznika —
-a `/skills` to know-how zmaterializowane przez platformę, a nie praca agenta. Plik,
-który agent *nadpisał*, też nie jest wysyłany: przepisywanie skryptu, nad którym
-iteruje, jest czymś zwyczajnym, a wrzucanie go w każdej turze zapełniłoby kanał
-tym samym załącznikiem.
-
-**Jeśli tego zrzutu nie dało się zrobić, nic nie jest wrzucane.** Porównanie brzmi
-„wszystko teraz minus wszystko wtedy", więc potraktowanie nieczytelnego
-workspace'u jako pustego sprawiłoby, że każdy plik już w nim leżący czytałby się
-jako wyjście tej tury — a w zakresie `agent` albo `channel` te pliki należą do
-innych ludzi. Brakujący załącznik to ta porażka, którą warto mieć; arkusz kolegi
-na współdzielonym kanale nie.
+**Wychodzące** pliki są wysyłane wyłącznie narzędziem `send_channel_file`, gdy użytkownik poprosi o otrzymanie lub pobranie pliku. Utworzenie, odczyt ani edycja pliku w workspace nie dołącza go do odpowiedzi. Przyznaj narzędzie na powiązaniu bota w *Gdzie agent jest dostępny*. Istniejące powiązania zachowują wybrane narzędzia; po aktualizacji włącz tę akcję jawnie. Narzędzie ma skutki uboczne i podlega zwykłym zatwierdzeniom. Wysyła wyłącznie wskazany plik, odrzuca ścieżki wewnętrzne i pliki powyżej 8 MB oraz dopuszcza do trzech prób na turę. Błędy platformy są zgłaszane zamiast zapewnienia o dostarczeniu. Teams może wymagać akceptacji w rozmowie prywatnej. Wykresy i zamówione grafiki zachowują osobną wysyłkę obrazów.
 
 Każdy plik niesie typ, który wynika z jego nazwy, a nie płaskie
 `application/octet-stream`, więc wykres zapisany przez agenta przychodzi jako
@@ -2633,7 +2609,10 @@ Zmieniają to cztery narzędzia i każde jest przyznawane **per powiązanie**, p
 | `get_channel_info` | Nazwa, cel, temat, rozmiar | ✅ | ✅ | ✅ | ✅ |
 | `list_channel_members` | Kto tu jest | ✅ | tylko administratorzy | ✅ | ✅ |
 | `search_channels` | Jakie inne kanały istnieją | ✅ | — | ✅ | — |
-| `read_channel_history` | Co powiedziano ostatnio, **w wątku, w którym odpowiada** | ✅ | — | ✅ | — |
+| `read_channel_history` | Ostatnie wiadomości kanału lub tego wątku przy `scope="thread"` | ✅ | — | ✅ | — |
+| `send_channel_file` | Wyślij zamówiony plik z workspace | ✅ | ✅ | ✅ | ✅ |
+
+Aby połączyć konto, wyślij botowi w wiadomości prywatnej samo `link` (bez ukośnika). Otwórz prywatny link po zalogowaniu do AgenticOS, a następnie wróć na kanał. Jeśli wcześniejsze pliki wątku wymagają połączenia konta, bot wyjaśnia to bez pobierania plików i ponawia odczyt po połączeniu. Obrazy kanałów mają dwukrotną rozdzielczość CSS; bardzo szerokie poziome diagramy Mermaid otrzymują układ pionowy tylko w PNG.
 
 Per powiązanie, a nie per agent, bo organizacja może podpiąć jednego agenta do
 dwóch serwerów Mattermosta i trzech workspace'ów Slacka — a *„czy może czytać to,
@@ -2654,23 +2633,13 @@ Trzy rzeczy warte wiedzy przed ich przyznaniem:
 - **Członkostwo bota jest całą granicą uprawnień.** Każde wywołanie idzie przez
   własny token bota, więc agent widzi dokładnie to, co widzi bot. Nie ma żadnej
   naszej listy dozwolonych, która mogłaby rozjechać się z listą samej platformy.
-- **Model nigdy nie nazywa kanału ani wątku.** Narzędzia są wiązane po stronie
-  serwera z kanałem, na który przyszła wiadomość, a `read_channel_history` także
-  z wątkiem: wątek i jego kanał to dwa zapisy rozmowy, a ten, w którym mówiono do
-  agenta, to wątek. Związane z samym kanałem, *„podsumuj, co ustaliliśmy
-  powyżej"* podsumowywało cokolwiek innego, co pokój akurat mówił. Argument dla
-  któregokolwiek z nich zamieniłby *„kto jest na tym kanale"* w *„przeczytaj
-  dowolny kanał, na którym jest ten bot"*, zapytane z rozmowy toczącej się gdzie
-  indziej.
+- **Model nie podaje identyfikatora kanału ani wątku.** `read_channel_history` domyślnie używa `scope="channel"` do odczytu ostatnich wiadomości bieżącego kanału; `scope="thread"` czyta wyłącznie przypisany wątek. Żaden zakres nie otwiera innego kanału. Wynik to ograniczone okno ostatnich wiadomości, a nie dowód braku starszych. Automatyczne uzupełnianie kontekstu pozostaje ograniczone do wątku.
 - **`read_channel_history` to to jedno, które warto bramkować.** Jest odczytem,
   więc domyślnie nie pyta, ale wkłada cudze wiadomości do zapisu runa, który ktoś
   czyta tygodnie później. Nadpisanie `tool_approval` na powiązaniu to sposób, by
   kazać mu pytać.
 
-To celowo *nie* jest to samo co wkładanie listy członków kanału i jego celu
-w każdy system prompt. To inna funkcja z innym trybem awarii — `purpose` napisany
-przez kogokolwiek, kto może edytować kanał, wklejony do instrukcji, jest prompt
-injection z publicznym przyciskiem edycji.
+Automatyczny kontekst kanału zawiera nazwę, cel i ograniczoną listę widocznych osób, oznaczone jako dane zamiast instrukcji. Narzędzia przyznawane per powiązanie umożliwiają dodatkowe odczyty i jawną wysyłkę plików; cofnięcie narzędzia nie usuwa automatycznego kontekstu.
 
 ## Wybór { #choosing }
 

@@ -27,6 +27,7 @@ for every bot.
 import base64
 import hashlib
 import html
+import io
 import logging
 import mimetypes
 import re
@@ -37,6 +38,7 @@ from typing import Any
 
 import httpx
 import httpx2
+from PIL import Image, UnidentifiedImageError
 
 from app.agents.capabilities.channel_tools import ChannelDetails, ChannelMember
 from app.clients.redis import RedisClient
@@ -95,6 +97,40 @@ def configure(redis: RedisClient | None) -> None:
     """
     global _pending_files
     _pending_files = redis
+
+
+INLINE_IMAGE_MAX_BYTES = 1_000_000
+INLINE_IMAGE_MAX_SIDE = 1024
+
+
+def inline_image_supported(content: bytes, mime_type: str) -> bool:
+    """Teams accepts only bounded PNG, JPEG or GIF pictures inline."""
+    formats = {"image/png": "PNG", "image/jpeg": "JPEG", "image/gif": "GIF"}
+    if mime_type not in formats or len(content) > INLINE_IMAGE_MAX_BYTES:
+        return False
+    try:
+        with Image.open(io.BytesIO(content)) as image:
+            return image.format == formats[mime_type] and max(image.size) <= INLINE_IMAGE_MAX_SIDE
+    except UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError:
+        return False
+
+
+def _rendered_picture(content: bytes, filename: str) -> OutgoingAttachment:
+    """Fit a generated diagram to Teams' physical pixel and payload limits."""
+    with Image.open(io.BytesIO(content)) as source:
+        source.thumbnail((INLINE_IMAGE_MAX_SIDE, INLINE_IMAGE_MAX_SIDE))
+        image = source.convert("RGBA")
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG", optimize=True)
+    if buffer.tell() <= INLINE_IMAGE_MAX_BYTES:
+        return OutgoingAttachment(filename, buffer.getvalue(), "image/png")
+    background = Image.new("RGB", image.size, "white")
+    background.paste(image, mask=image.getchannel("A"))
+    buffer = io.BytesIO()
+    background.save(buffer, format="JPEG", quality=85)
+    if buffer.tell() > INLINE_IMAGE_MAX_BYTES:
+        raise ChannelNotConfigured("The generated Teams picture exceeds the inline image limit")
+    return OutgoingAttachment(filename.rsplit(".", 1)[0] + ".jpg", buffer.getvalue(), "image/jpeg")
 
 
 def conversation_key(conversation_id: str) -> str:
@@ -342,9 +378,9 @@ class TeamsAdapter(ChannelAdapter):
         files: list[OutgoingAttachment] = []
         pictures = list(msg.attachments)
         if msg.image_png is not None:
-            pictures.insert(0, OutgoingAttachment(msg.image_filename, msg.image_png, "image/png"))
+            pictures.insert(0, _rendered_picture(msg.image_png, msg.image_filename))
         for attachment in pictures:
-            if attachment.mime_type.startswith("image/"):
+            if inline_image_supported(attachment.content, attachment.mime_type):
                 encoded = base64.b64encode(attachment.content).decode("ascii")
                 images.append(
                     {
@@ -624,7 +660,7 @@ class TeamsAdapter(ChannelAdapter):
             channel_id=channel_id,
             name=ref.name or ref.conversation_type,
             is_private=ref.conversation_type != "channel",
-            member_count=len(members),
+            member_count=len(members) if len(members) < 500 else None,
         )
 
     async def channel_members(
@@ -756,6 +792,25 @@ class TeamsAdapter(ChannelAdapter):
         if chat_id is None or not user_id:
             return None
         recipient = (raw_payload.get("recipient") or {}).get("id")
+        channel_data = raw_payload.get("channelData") or {}
+        room_ids = {
+            str(value)
+            for value in (
+                (channel_data.get("team") or {}).get("id"),
+                (channel_data.get("channel") or {}).get("id"),
+                (raw_payload.get("conversation") or {}).get("id"),
+            )
+            if value
+        }
+        room_mentions = []
+        for entity in raw_payload.get("entities") or []:
+            if entity.get("type") != "mention":
+                continue
+            mentioned = entity.get("mentioned") or {}
+            conversation = mentioned.get("conversation") or {}
+            target = conversation.get("id") or mentioned.get("id")
+            if target in room_ids and entity.get("text"):
+                room_mentions.append(str(entity["text"]))
         bot_mentions = [
             str(entity.get("text") or "")
             for entity in raw_payload.get("entities") or []
@@ -783,6 +838,7 @@ class TeamsAdapter(ChannelAdapter):
             # Teams sends a bot a channel or group message only when it is
             # mentioned, unless the app was granted every message in the team.
             addressed=None if personal else bool(bot_mentions),
+            broadcast_mention=bool(room_mentions),
             attachments=attachments,
         )
 
