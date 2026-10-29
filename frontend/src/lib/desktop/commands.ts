@@ -509,3 +509,7 @@ export async function setQuickAskPinned(pinned: boolean): Promise<void> {
 export async function setQuickAskPickerOpen(open: boolean): Promise<void> {
   await invokeShell("set_quick_ask_picker_open", { open });
 }
+
+export async function newQuickAskWindow(): Promise<void> {
+  await invokeShell("new_quick_ask_window");
+}

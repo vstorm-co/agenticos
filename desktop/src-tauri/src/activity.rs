@@ -62,7 +62,7 @@ pub fn desktop_activity(
         uuid::Uuid::parse_str(value).map_err(|_| "Invalid account context.")?;
     }
     let source = webview.label();
-    if source != crate::WINDOW && source != crate::quick_ask::WINDOW {
+    if source != crate::WINDOW && !crate::quick_ask::is_panel(source) {
         return Err("This window cannot publish activity.".into());
     }
     app.state::<Activity>()
@@ -254,4 +254,11 @@ pub fn conversation(app: &AppHandle, label: &str) -> Option<String> {
         .get(label)
         .cloned()
         .flatten()
+}
+
+pub fn remove_source(app: &AppHandle, source: &str) -> Result<(), String> {
+    let state = app.state::<Activity>();
+    state.entries.lock().map_err(|e| e.to_string())?.remove(source);
+    state.conversations.lock().map_err(|e| e.to_string())?.remove(source);
+    refresh(app)
 }

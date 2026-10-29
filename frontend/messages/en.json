@@ -9220,7 +9220,19 @@
       "offline": "Offline · messages will wait",
       "pin": "Keep Quick Ask on screen",
       "unpin": "Unpin Quick Ask",
-      "pinFailed": "Could not change the Quick Ask pin. Try again."
+      "pinFailed": "Could not change the Quick Ask pin. Try again.",
+      "tabs": "Conversations",
+      "closeTab": "Close tab: {title}",
+      "newTab": "New tab",
+      "history": "Recent conversations",
+      "searchHistory": "Search conversations…",
+      "loadingHistory": "Loading conversations…",
+      "retryHistory": "Could not load conversations. Try again",
+      "emptyHistory": "No conversations found",
+      "newWindow": "New window",
+      "windowFailed": "Could not open another window. Up to eight Quick Ask windows can be open.",
+      "tabLimit": "You can open up to eight tabs in one window.",
+      "earlierMessages": "Load earlier messages"
     },
     "notifications": {
       "approvalTitle": "{agent} wants to run {tool}",

@@ -103,6 +103,7 @@ pub const GRANTS: &[(&str, &[&str])] = &[
             "allow-desktop-activity",
             "allow-resize-quick-ask",
             "allow-hide-quick-ask",
+            "allow-new-quick-ask-window",
             "allow-quick-ask-pinned",
             "allow-set-quick-ask-pinned",
             "allow-set-quick-ask-picker-open",
@@ -141,6 +142,15 @@ pub fn grant(app: &AppHandle, server: &Url) -> Result<(), String> {
         app.add_capability(capability).map_err(|e| e.to_string())?;
     }
     Ok(())
+}
+
+pub fn grant_quick_ask_window(app: &AppHandle, server: &Url, label: &str) -> Result<(), String> {
+    let (_, permissions) = GRANTS
+        .iter()
+        .find(|(window, _)| *window == quick_ask::WINDOW)
+        .ok_or("Quick Ask permissions unavailable")?;
+    app.add_capability(capability_for(label, permissions, &origin_pattern(server)))
+        .map_err(|e| e.to_string())
 }
 
 fn capability_for(webview: &str, permissions: &[&str], pattern: &str) -> CapabilityBuilder {
@@ -206,6 +216,11 @@ pub fn set_appearance(app: AppHandle, appearance: Appearance) -> Result<(), Stri
             } else {
                 appearance::apply(&window, surface, appearance).map_err(|e| e.to_string())?;
             }
+        }
+    }
+    for (label, panel) in app.webview_windows() {
+        if label != quick_ask::WINDOW && quick_ask::is_panel(&label) {
+            appearance::apply(&panel, Surface::Panel, appearance).map_err(|e| e.to_string())?;
         }
     }
     let settings = settings::current(&app);

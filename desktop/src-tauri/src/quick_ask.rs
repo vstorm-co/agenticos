@@ -11,7 +11,9 @@
 //! is: it takes the keyboard while the app you were in stays the active one,
 //! and the console window stays wherever it was.
 
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 
 use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, Url, WebviewUrl, WebviewWindow};
 
@@ -37,6 +39,16 @@ pub struct PanelState {
     picking: AtomicBool,
 }
 
+#[derive(Default)]
+pub struct Panels(Mutex<HashMap<String, Arc<PanelState>>>);
+
+pub fn is_panel(label: &str) -> bool {
+    label == WINDOW
+        || label
+            .strip_prefix("quick-ask-")
+            .is_some_and(|id| uuid::Uuid::parse_str(id).is_ok())
+}
+
 impl PanelState {
     fn dismiss_on_blur(&self) -> bool {
         !self.pinned.load(Ordering::Relaxed) && !self.picking.load(Ordering::Relaxed)
@@ -45,9 +57,13 @@ impl PanelState {
 
 /// Build the panel hidden, ready for the shortcut.
 pub fn prepare(app: &AppHandle, server: &Url, appearance: Appearance) -> tauri::Result<WebviewWindow> {
+    prepare_named(app, server, appearance, WINDOW)
+}
+
+fn prepare_named(app: &AppHandle, server: &Url, appearance: Appearance, label: &str) -> tauri::Result<WebviewWindow> {
     let page = server.join(PATH).map_err(|e| tauri::Error::Anyhow(e.into()))?;
     let version = app.package_info().version.to_string();
-    let mut builder = crate::webview_profile::window(app, WINDOW, WebviewUrl::External(page))?
+    let mut builder = crate::webview_profile::window(app, label, WebviewUrl::External(page))?
         .title("Quick ask")
         .disable_drag_drop_handler()
         .initialization_script(appearance::shell_script(&version, WINDOW))
@@ -56,7 +72,7 @@ pub fn prepare(app: &AppHandle, server: &Url, appearance: Appearance) -> tauri::
         .decorations(false)
         .always_on_top(true)
         .visible_on_all_workspaces(true)
-        .skip_taskbar(true)
+        .skip_taskbar(label == WINDOW)
         .resizable(false)
         .maximizable(false)
         .minimizable(false)
@@ -76,10 +92,28 @@ pub fn prepare(app: &AppHandle, server: &Url, appearance: Appearance) -> tauri::
     // A pinned panel stays visible. File dialogs temporarily take focus without
     // dismissing the draft they belong to.
     let handle = window.clone();
+    let state = Arc::new(PanelState::default());
+    if label != WINDOW {
+        state.pinned.store(true, Ordering::Relaxed);
+    }
+    window
+        .state::<Panels>()
+        .0
+        .lock()
+        .map_err(|e| std::io::Error::other(e.to_string()))?
+        .insert(label.to_owned(), state.clone());
     window.on_window_event(move |event| {
-        if matches!(event, tauri::WindowEvent::Focused(false)) && handle.state::<PanelState>().dismiss_on_blur() {
+        if handle.label() == WINDOW && matches!(event, tauri::WindowEvent::Focused(false)) && state.dismiss_on_blur() {
             if let Err(e) = handle.hide() {
                 eprintln!("quick ask: {e}");
+            }
+        }
+        if matches!(event, tauri::WindowEvent::Destroyed) {
+            if let Err(error) = crate::activity::remove_source(handle.app_handle(), handle.label()) {
+                eprintln!("quick ask activity: {error}");
+            }
+            if let Ok(mut panels) = handle.state::<Panels>().0.lock() {
+                panels.remove(handle.label());
             }
         }
     });
@@ -238,15 +272,45 @@ pub fn resize_quick_ask(window: WebviewWindow, height: f64) -> Result<(), String
 
 #[tauri::command]
 pub fn hide_quick_ask(window: WebviewWindow) -> Result<(), String> {
-    window.hide().map_err(|e| e.to_string())
+    if window.label() == WINDOW {
+        window.hide()
+    } else {
+        window.close()
+    }
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn new_quick_ask_window(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
+    panel_state(&window)?;
+    if app.webview_windows().keys().filter(|label| is_panel(label)).count() >= 8 {
+        return Err("Quick Ask supports up to eight windows.".into());
+    }
+    let settings = crate::settings::current(&app);
+    let server = settings.server_url.as_ref().ok_or("Connect to a server first.")?;
+    let label = format!("quick-ask-{}", uuid::Uuid::new_v4());
+    crate::console::grant_quick_ask_window(&app, server, &label)?;
+    let next = prepare_named(&app, server, settings.appearance, &label).map_err(|e| e.to_string())?;
+    if let Err(error) = place(&app, &next).and_then(|_| present(&next)) {
+        let _ = next.destroy();
+        return Err(error);
+    }
+    Ok(())
 }
 
 /// Only this panel can change its focus policy.
-fn panel_state(window: &WebviewWindow) -> Result<tauri::State<'_, PanelState>, String> {
-    if window.label() != WINDOW {
+fn panel_state(window: &WebviewWindow) -> Result<Arc<PanelState>, String> {
+    if !is_panel(window.label()) {
         return Err("Quick Ask window required".into());
     }
-    Ok(window.state::<PanelState>())
+    window
+        .state::<Panels>()
+        .0
+        .lock()
+        .map_err(|e| e.to_string())?
+        .get(window.label())
+        .cloned()
+        .ok_or("Quick Ask panel is unavailable".into())
 }
 
 #[tauri::command]
@@ -256,6 +320,9 @@ pub fn quick_ask_pinned(window: WebviewWindow) -> Result<bool, String> {
 
 #[tauri::command]
 pub fn set_quick_ask_pinned(window: WebviewWindow, pinned: bool) -> Result<(), String> {
+    if window.label() != WINDOW {
+        window.set_always_on_top(pinned).map_err(|e| e.to_string())?;
+    }
     panel_state(&window)?.pinned.store(pinned, Ordering::Relaxed);
     Ok(())
 }
@@ -269,8 +336,16 @@ pub fn set_quick_ask_picker_open(window: WebviewWindow, open: bool) -> Result<()
 
 #[cfg(test)]
 mod tests {
-    use super::{clamp_height, PanelState, MAX_HEIGHT, MIN_HEIGHT};
+    use super::{clamp_height, is_panel, PanelState, MAX_HEIGHT, MIN_HEIGHT};
     use std::sync::atomic::Ordering;
+
+    #[test]
+    fn only_owned_panel_labels_are_accepted() {
+        assert!(is_panel("quick-ask"));
+        assert!(is_panel(&format!("quick-ask-{}", uuid::Uuid::new_v4())));
+        assert!(!is_panel("quick-ask-settings"));
+        assert!(!is_panel("main"));
+    }
 
     #[test]
     fn pin_and_file_chooser_keep_the_panel_visible_until_explicitly_dismissed() {

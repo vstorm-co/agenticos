@@ -575,6 +575,7 @@ describe("Quick Ask attachments and pin", () => {
       "aria-pressed",
       "true",
     );
+    env.commands.quickAskPinned.mockResolvedValueOnce(true);
     await userEvent.click(screen.getByRole("button", { name: "Unpin Quick Ask" }));
     expect(env.commands.setQuickAskPinned).toHaveBeenLastCalledWith(false);
   });
@@ -693,4 +694,12 @@ it("guards the native file chooser and clears the guard on cancellation", async 
   );
   expect(env.commands.setQuickAskPickerOpen).toHaveBeenLastCalledWith(false);
   expect(question()).toHaveFocus();
+});
+
+it("keeps background tabs from handling shortcuts or resizing the native window", () => {
+  render(<QuickAsk active={false} />);
+  act(() => env.listeners.get("desktop:dictate")?.("start"));
+  act(() => env.listeners.get("desktop:quick-ask")?.());
+  expect(env.dictation.actions.start).not.toHaveBeenCalled();
+  expect(env.commands.resizeQuickAsk).not.toHaveBeenCalled();
 });

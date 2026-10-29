@@ -113,14 +113,14 @@ pub struct Focus {
 /// Check both conversation windows, rather than the web document's focus state.
 #[tauri::command]
 pub fn desktop_is_focused(app: AppHandle) -> Result<Focus, String> {
-    for label in [crate::WINDOW, crate::quick_ask::WINDOW] {
-        if let Some(window) = app.get_webview_window(label) {
-            if window.is_focused().map_err(|e| e.to_string())? {
-                return Ok(Focus {
-                    focused: true,
-                    conversation_id: crate::activity::conversation(&app, label),
-                });
-            }
+    for (label, window) in app.webview_windows() {
+        if (label == crate::WINDOW || crate::quick_ask::is_panel(&label))
+            && window.is_focused().map_err(|e| e.to_string())?
+        {
+            return Ok(Focus {
+                focused: true,
+                conversation_id: crate::activity::conversation(&app, &label),
+            });
         }
     }
     Ok(Focus {

@@ -1,5 +1,5 @@
 ---
-source_sha: "e1b7adc58dca"
+source_sha: "dff06766c718"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -527,3 +527,5 @@ cuentas del operador; no pueden verificarse con un build local sin firma.
   modos que eliges, aislados por el sistema operativo y solo para tus propios runs.
 - **Y en su pantalla** - preguntando primero, enmarcados mientras actúan y
   detenidos con un atajo.
+
+Quick Ask admite hasta ocho pestañas independientes por ventana. Cada una conserva su borrador, adjuntos, agente y respuestas en curso. Conversaciones recientes abre una lista con búsqueda y reutiliza una pestaña ya abierta; los chats guardados recuperan mensajes e historial anterior. Las pestañas inactivas no capturan archivos, atajos de dictado ni el foco. **Nueva ventana** abre otro panel, hasta ocho ventanas, con fijación independiente. Las ventanas adicionales permanecen abiertas al cambiar el foco; desfijarlas desactiva su posición sobre otras apps. Cerrar una ventana adicional destruye su vista; el panel del atajo solo se oculta. Cambiar de servidor elimina los paneles adicionales y su actividad.

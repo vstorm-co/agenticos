@@ -1,5 +1,5 @@
 ---
-source_sha: "e1b7adc58dca"
+source_sha: "dff06766c718"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -506,3 +506,5 @@ nie potwierdzi ich niepodpisany lokalny build.
   wybranych trybach, w piaskownicy systemu i tylko dla twoich własnych runów.
 - **I na jego ekranie** - najpierw pytają, są obramowane, gdy działają, i
   zatrzymywane jednym skrótem.
+
+Quick Ask obsługuje do ośmiu niezależnych zakładek w oknie. Każda zachowuje własny szkic, załączniki, wybranego agenta i trwającą odpowiedź. Ostatnie rozmowy otwiera przeszukiwaną listę i przełącza na istniejącą zakładkę, jeśli rozmowa jest już otwarta; zapisane rozmowy wczytują wiadomości i wcześniejszą historię. Nieaktywne zakładki nie przechwytują plików, skrótów dyktowania ani fokusu. **Nowe okno** otwiera osobny panel, do ośmiu okien, z własnym przypinaniem. Dodatkowe okna pozostają otwarte po zmianie fokusu; odpięcie wyłącza utrzymywanie nad innymi aplikacjami. Zamknięcie dodatkowego okna usuwa jego widok, a panel skrótu zostaje ukryty. Zmiana serwera usuwa dodatkowe panele i ich aktywność.

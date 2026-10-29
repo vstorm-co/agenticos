@@ -878,6 +878,12 @@ fn retarget_companions<R: tauri::Runtime>(app: &AppHandle<R>, server: &Url) -> R
             window.navigate(page).map_err(|e| e.to_string())?;
         }
     }
+    // Extra panels belong to the old server and must not retain its documents.
+    for (label, window) in app.webview_windows() {
+        if label != quick_ask::WINDOW && quick_ask::is_panel(&label) {
+            window.destroy().map_err(|e| e.to_string())?;
+        }
+    }
     Ok(())
 }
 
@@ -1368,6 +1374,7 @@ pub fn run() {
             shortcuts::set_shortcut,
             quick_ask::resize_quick_ask,
             quick_ask::hide_quick_ask,
+            quick_ask::new_quick_ask_window,
             quick_ask::quick_ask_pinned,
             quick_ask::set_quick_ask_pinned,
             quick_ask::set_quick_ask_picker_open,
@@ -1394,7 +1401,7 @@ pub fn run() {
         .manage(notify::Delivered::default())
         .manage(activity::Activity::default())
         .manage(shortcuts::Bindings::default())
-        .manage(quick_ask::PanelState::default())
+        .manage(quick_ask::Panels::default())
         .manage(context::CapturedFiles::default())
         .manage(dropped::Dropped::default())
         .manage(device::Device::default())

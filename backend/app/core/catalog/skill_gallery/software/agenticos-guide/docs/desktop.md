@@ -497,3 +497,5 @@ cannot be verified by an unsigned local build.
   pick, sandboxed by the operating system, and only for your own runs.
 - **And on its screen**, asked first, framed while it acts and stopped with one
   shortcut.
+
+Quick Ask supports up to eight independent tabs in each window. The tab bar keeps drafts, attachments, selected agents and running answers separate. Recent conversations opens a searchable list and reuses an already open tab; saved chats restore messages and offer earlier history. Inactive tabs do not capture file drops, dictation shortcuts or focus. **New window** opens another panel, up to eight windows, with its own pin state. Extra windows stay open when focus changes; unpinning removes their always-on-top behavior. Closing an extra window destroys its view, while closing the shortcut panel hides it. Changing servers destroys extra panels and clears their activity entries.

@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
+  type ReactNode,
 } from "react";
 import { useTranslations } from "next-intl";
 import {
@@ -109,13 +110,37 @@ function run(what: string, command: () => Promise<void>) {
  * agent, and on release the words are written into the question - the agent's
  * own dictation, as the composer's microphone records it.
  */
-export function QuickAsk() {
+export interface QuickAskTabState {
+  conversationId: string | null;
+  title: string;
+  processing: boolean;
+  agentId: string | null;
+}
+export function QuickAsk({
+  active = true,
+  initialConversationId = null,
+  toolbar,
+  historyControl,
+  minWindowHeight = 64,
+  onNewConversation,
+  newDisabled = false,
+  onTabState,
+}: {
+  active?: boolean;
+  initialConversationId?: string | null;
+  toolbar?: ReactNode;
+  historyControl?: ReactNode;
+  minWindowHeight?: number;
+  onNewConversation?: () => void;
+  newDisabled?: boolean;
+  onTabState?: (state: QuickAskTabState) => void;
+} = {}) {
   const t = useTranslations("desktop.quickAsk");
   const account = useAuthStore((s) => s.user?.id);
   const tenant = useTenantId();
   const tInput = useTranslations("chat.input");
   const { isAuthenticated, isLoading } = useAuth();
-  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [conversationId, setConversationId] = useState<string | null>(initialConversationId);
   const [question, setQuestion] = useState("");
   const input = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -131,6 +156,7 @@ export function QuickAsk() {
   const { chatMaxUploadSizeMb } = usePublicConfig();
   const tErrors = useTranslations("errors");
   useEffect(() => {
+    if (!active) return;
     let alive = true;
     void quickAskPinned()
       .then((value) => {
@@ -143,7 +169,7 @@ export function QuickAsk() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [active]);
   if (useChanged(`${account}:${tenant}:${isAuthenticated}`)) {
     setFiles([]);
     setPendingFiles([]);
@@ -191,6 +217,7 @@ export function QuickAsk() {
   }, [messages, pendingApproval, pendingQuestions, pendingConnection, queuedMessages]);
 
   useEffect(() => {
+    if (!active) return;
     const entries =
       !signedOut && conversationId && (isProcessing || pendingQuestions?.length || pendingApproval)
         ? [
@@ -208,6 +235,7 @@ export function QuickAsk() {
       organization: tenant,
     }).catch((e: unknown) => reportShellFailure("publishing Quick Ask activity", e));
   }, [
+    active,
     conversationId,
     isProcessing,
     pendingQuestions,
@@ -219,13 +247,22 @@ export function QuickAsk() {
   ]);
   useEffect(
     () => () => {
+      if (!active) return;
       void publishDesktopActivity([], null).catch((e: unknown) =>
         reportShellFailure("clearing Quick Ask activity", e),
       );
     },
-    [],
+    [active],
   );
   const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
+  const title =
+    messages
+      .find((message) => message.role === "user")
+      ?.content.trim()
+      .slice(0, 70) || t("newConversation");
+  useEffect(() => {
+    onTabState?.({ conversationId, title, processing: isProcessing, agentId: selectedAgentId });
+  }, [conversationId, title, isProcessing, selectedAgentId, onTabState]);
   const mentionMenuId = useId();
   const [picked, setPicked] = useState<Mentionable[]>([]);
   const [mentionQuery, setMentionQuery] = useState<MentionQuery | null>(null);
@@ -234,7 +271,7 @@ export function QuickAsk() {
   const matches =
     mentionQuery && selectedAgentId ? matching(offered.items, mentionQuery.query) : [];
   const mentions = stillMentioned(question, picked);
-  const mentionOpen = !signedOut && mentionQuery !== null && selectedAgentId !== null;
+  const mentionOpen = active && !signedOut && mentionQuery !== null && selectedAgentId !== null;
   const caretAfterPick = useRef<number | null>(null);
   if (useChanged(selectedAgentId ?? "")) {
     if (picked.length) setPicked([]);
@@ -266,6 +303,7 @@ export function QuickAsk() {
   const held = useRef(false);
   const [noDictation, setNoDictation] = useState(false);
   useShellEvent(SHELL_EVENTS.dictate, (payload) => {
+    if (!active) return;
     if (payload === "start") {
       held.current = true;
       input.current?.focus();
@@ -282,6 +320,12 @@ export function QuickAsk() {
   useEffect(() => {
     if (phase === "recording" && !held.current) stopDictation();
   }, [phase, stopDictation]);
+  useEffect(() => {
+    if (!active) {
+      held.current = false;
+      stopDictation();
+    }
+  }, [active, stopDictation]);
   // The words, once per transcript, after whatever is already typed.
   const transcript = dictation.state.transcript;
   if (useChanged(transcript?.id ?? null) && transcript !== null) {
@@ -293,8 +337,8 @@ export function QuickAsk() {
   // Built hidden, then shown on the shortcut: the question field is where the
   // hands go, on the first showing and every one after it.
   useEffect(() => {
-    input.current?.focus();
-  }, []);
+    if (active && document.activeElement?.getAttribute("role") !== "tab") input.current?.focus();
+  }, [active]);
 
   const [context, setContext] = useState<ActiveContext | null>(null);
   const [include, setInclude] = useState({ selection: false, clipboard: false, files: false });
@@ -306,6 +350,7 @@ export function QuickAsk() {
   // The panel was summoned: the question field is where the hands go, and
   // what was in front a moment ago is offered beside it.
   useShellEvent(SHELL_EVENTS.quickAsk, (payload) => {
+    if (!active) return;
     input.current?.focus();
     input.current?.select();
     setAttachFailed(false);
@@ -358,7 +403,7 @@ export function QuickAsk() {
     onFiles: (incoming) => {
       void uploadFiles(incoming);
     },
-    disabled: !isAuthenticated || attaching,
+    disabled: !active || !isAuthenticated || attaching,
   });
   const chooseFiles = async () => {
     try {
@@ -381,8 +426,9 @@ export function QuickAsk() {
   const togglePin = async () => {
     setPinBusy(true);
     try {
-      await setQuickAskPinned(!pinned);
-      setPinned(!pinned);
+      const current = await quickAskPinned();
+      await setQuickAskPinned(!current);
+      setPinned(!current);
     } catch (error) {
       reportShellFailure("pinning Quick Ask", error);
       toast.error(t("pinFailed"));
@@ -464,14 +510,16 @@ export function QuickAsk() {
   useEffect(() => {
     const node = panel.current;
     /* v8 ignore next -- the panel renders unconditionally, so it is mounted by the time this runs */
-    if (!node) return;
+    if (!node || !active) return;
     const observer = new ResizeObserver(([entry]) => {
       if (entry)
-        run("could not size quick ask", () => resizeQuickAsk(Math.ceil(entry.contentRect.height)));
+        run("could not size quick ask", () =>
+          resizeQuickAsk(Math.max(minWindowHeight, Math.ceil(entry.contentRect.height))),
+        );
     });
     observer.observe(node);
     return () => observer.disconnect();
-  }, []);
+  }, [active, minWindowHeight]);
 
   const openConversation = () => {
     if (!conversationId) return;
@@ -545,7 +593,7 @@ export function QuickAsk() {
       void ask(text);
     } else if (event.key.toLowerCase() === "n" && command) {
       event.preventDefault();
-      startOver();
+      if (!newDisabled) (onNewConversation ?? startOver)();
     }
   };
 
@@ -574,13 +622,14 @@ export function QuickAsk() {
       />
       <header className="flex shrink-0 items-center gap-2 px-3 py-2" data-tauri-drag-region="deep">
         <span className="text-muted-foreground mr-1 text-xs font-medium">{t("title")}</span>
-        {!signedOut && <AgentPicker />}
+        {!signedOut && active && <AgentPicker />}
         <div className="flex-1" />
         {!signedOut && (
           <button
             type="button"
-            onClick={startOver}
+            onClick={onNewConversation ?? startOver}
             disabled={
+              newDisabled ||
               attaching ||
               pendingFiles.length > 0 ||
               listening ||
@@ -638,13 +687,15 @@ export function QuickAsk() {
           <X className="size-4" aria-hidden />
         </button>
       </header>
+      {toolbar}
       <div
         ref={scroller}
-        hidden={(!asked && !(queuedMessages?.length > 0)) || signedOut}
+        hidden={(!asked && !initialConversationId && !(queuedMessages?.length > 0)) || signedOut}
         role="region"
         aria-label={t("conversation")}
         className="border-border min-h-0 flex-1 overflow-y-auto overscroll-contain border-t px-4 py-3 text-sm"
       >
+        {historyControl}
         <LiveBrowsesProvider value={{ browses }}>
           <ConversationVisualsProvider
             messages={messages}
@@ -673,7 +724,7 @@ export function QuickAsk() {
             waitingForNetwork={!isConnected}
           />
         )}
-        {pendingApproval && (
+        {active && pendingApproval && (
           <ToolApprovalDialog
             actionRequests={pendingApproval.actionRequests}
             reviewConfigs={pendingApproval.reviewConfigs}
@@ -681,14 +732,14 @@ export function QuickAsk() {
             disabled={!isConnected || isStopping}
           />
         )}
-        {pendingQuestions && pendingQuestions.length > 0 && (
+        {active && pendingQuestions && pendingQuestions.length > 0 && (
           <QuestionPrompt
             questions={pendingQuestions}
             onComplete={sendAskUserResponses}
             disabled={!isConnected || isStopping}
           />
         )}
-        {pendingConnection && (
+        {active && pendingConnection && (
           <ConnectAccountPrompt
             request={pendingConnection}
             onRespond={sendConnectionResponse}
@@ -861,9 +912,13 @@ export function QuickAsk() {
           <span>{!isConnected ? t("offline") : t("mentionHint")}</span>
         </div>
       )}
-      <FilePreviewDialog />
-      <SourcesPanel contained />
-      <BrowserPanel browses={browses} />
+      {active && (
+        <>
+          <FilePreviewDialog />
+          <SourcesPanel contained />
+          <BrowserPanel browses={browses} />
+        </>
+      )}
     </div>
   );
 }

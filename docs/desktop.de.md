@@ -1,5 +1,5 @@
 ---
-source_sha: "e1b7adc58dca"
+source_sha: "dff06766c718"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -537,3 +537,5 @@ ein unsignierter lokaler Build kann sie nicht bestätigen.
   Runs.
 - **Und auf seinem Bildschirm** - erst gefragt, umrahmt während sie handeln und mit
   einem Kürzel gestoppt.
+
+Quick Ask unterstützt bis zu acht unabhängige Tabs pro Fenster. Jeder behält Entwurf, Anhänge, Agentenauswahl und laufende Antworten. Letzte Unterhaltungen öffnet eine durchsuchbare Liste und verwendet einen bereits offenen Tab erneut; gespeicherte Chats laden Nachrichten und frühere Beiträge. Inaktive Tabs übernehmen weder Dateiabgaben noch Diktiershortcuts oder Fokus. **Neues Fenster** öffnet ein weiteres Panel, bis zu acht Fenster, mit eigenem Anheften. Zusätzliche Fenster bleiben beim Fokuswechsel offen; Loslösen deaktiviert die Anzeige über anderen Apps. Schließen zerstört zusätzliche Ansichten, während das Shortcut-Panel ausgeblendet wird. Ein Serverwechsel entfernt zusätzliche Panels und ihre Aktivität.

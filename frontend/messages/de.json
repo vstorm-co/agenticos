@@ -9009,7 +9009,19 @@
       "offline": "Offline · Nachrichten warten",
       "pin": "Quick Ask auf dem Bildschirm halten",
       "unpin": "Quick Ask lösen",
-      "pinFailed": "Quick Ask konnte nicht angeheftet werden. Versuche es erneut."
+      "pinFailed": "Quick Ask konnte nicht angeheftet werden. Versuche es erneut.",
+      "tabs": "Unterhaltungen",
+      "closeTab": "Tab schließen: {title}",
+      "newTab": "Neuer Tab",
+      "history": "Letzte Unterhaltungen",
+      "searchHistory": "Unterhaltungen suchen…",
+      "loadingHistory": "Unterhaltungen werden geladen…",
+      "retryHistory": "Unterhaltungen konnten nicht geladen werden. Erneut versuchen",
+      "emptyHistory": "Keine Unterhaltungen gefunden",
+      "newWindow": "Neues Fenster",
+      "windowFailed": "Weiteres Fenster konnte nicht geöffnet werden. Bis zu acht Quick-Ask-Fenster sind möglich.",
+      "tabLimit": "Bis zu acht Tabs können in einem Fenster geöffnet werden.",
+      "earlierMessages": "Frühere Nachrichten laden"
     },
     "readiness": {
       "title": "App-Bereitschaft",

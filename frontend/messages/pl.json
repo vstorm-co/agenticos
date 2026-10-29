@@ -9005,7 +9005,19 @@
       "offline": "Offline · wiadomości poczekają",
       "pin": "Przypnij Quick Ask na ekranie",
       "unpin": "Odepnij Quick Ask",
-      "pinFailed": "Nie udało się zmienić przypięcia Quick Ask. Spróbuj ponownie."
+      "pinFailed": "Nie udało się zmienić przypięcia Quick Ask. Spróbuj ponownie.",
+      "tabs": "Rozmowy",
+      "closeTab": "Zamknij zakładkę: {title}",
+      "newTab": "Nowa zakładka",
+      "history": "Ostatnie rozmowy",
+      "searchHistory": "Szukaj rozmów…",
+      "loadingHistory": "Wczytywanie rozmów…",
+      "retryHistory": "Nie udało się wczytać rozmów. Spróbuj ponownie",
+      "emptyHistory": "Nie znaleziono rozmów",
+      "newWindow": "Nowe okno",
+      "windowFailed": "Nie udało się otworzyć okna. Możesz otworzyć do ośmiu okien Quick Ask.",
+      "tabLimit": "W jednym oknie możesz otworzyć do ośmiu zakładek.",
+      "earlierMessages": "Wczytaj wcześniejsze wiadomości"
     },
     "notifications": {
       "approvalTitle": "{agent} chce uruchomić {tool}",
