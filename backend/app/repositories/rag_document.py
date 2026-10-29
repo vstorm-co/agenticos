@@ -680,8 +680,8 @@ async def delete_by_collection(db: AsyncSession, collection_name: str) -> list[s
     that physical collection, in every organization. Only for a name no base
     other than the one being cleared holds - the last holder's drop, under the
     teardown lock - where every row left is one nothing can read once the table
-    is dropped; a base of its own goes by `delete_by_knowledge_base` (#913,
-    #2560). The
+    is dropped; a base of its own goes by `delete_by_knowledge_base`
+    (#913, #2560). The
     returned `storage_path`s are the uploads the caller still has to unlink; a
     `NULL` one (nothing was stored) is dropped. The bulk delete used to return
     only a rowcount, so the files were orphaned on disk (#1265).
@@ -705,13 +705,7 @@ async def delete_by_knowledge_base(db: AsyncSession, kb_id: UUID) -> list[str]:
     still has to delete from storage - a `NULL` one (nothing was stored) is
     dropped from the list (#1116).
     """
-    result = await db.execute(
-        sql_delete(RAGDocument)
-        .where(RAGDocument.knowledge_base_id == kb_id)
-        .returning(RAGDocument.storage_path)
-    )
-    await db.flush()
-    return [path for path in result.scalars().all() if path]
+    return (await delete_by_knowledge_base_with_vectors(db, kb_id)).storage_paths
 
 
 @dataclass(frozen=True)

@@ -1154,8 +1154,8 @@ class TestADeletedBasesChunksOnAKeptTable:
             other_org = await _org(s, other)
             default = _org_collection(org.id, collection)
             default.is_default = True
-            kept = _org_collection(other_org.id, collection)
-            s.add_all([default, kept])
+            sibling = _org_collection(other_org.id, collection)
+            s.add_all([default, sibling])
             await s.flush()
             old = _kb_document(collection, default.id, org.id, "drop-default/old.txt")
             old.vector_document_id = "old-doc"
@@ -1166,7 +1166,7 @@ class TestADeletedBasesChunksOnAKeptTable:
                 )
             )
             await _document_chunk(s, table, "old-0", "old-doc", default.id)
-            await _document_chunk(s, table, "kept-0", "kept-doc", kept.id)
+            await _document_chunk(s, table, "sibling-0", "sibling-doc", sibling.id)
             await s.commit()
             default_id, old_id = default.id, old.id
 
@@ -1184,7 +1184,7 @@ class TestADeletedBasesChunksOnAKeptTable:
             async with factory() as s:
                 assert await s.get(KnowledgeBase, default_id) is not None
                 assert await s.get(RAGDocument, old_id) is None
-                assert await _chunk_ids(s, table) == {"new-0", "kept-0"}
+                assert await _chunk_ids(s, table) == {"new-0", "sibling-0"}
         finally:
             async with factory() as s:
                 await s.execute(text(f"DROP TABLE IF EXISTS {table}"))

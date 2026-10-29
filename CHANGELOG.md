@@ -58,10 +58,11 @@ Two things are versioned separately from this file and worth knowing about:
   base predicate, so a drop also removed the documents of another organization
   whose base shared the name and queued their files for deletion. When another
   base still holds the name, the shared vector table stays and the cleanup job
-  now removes the dropped base's chunks from it; for a default base, whose row is
-  kept, only the chunks of the documents the drop deleted. Document rows filed
-  under no base, from before documents recorded their base, then stay, as they do
-  when a knowledge base is deleted (#2560).
+  now removes the dropped base's chunks from it. A default base keeps its row and
+  takes uploads again, so the job removes only the chunks of the documents the
+  drop deleted; chunks with no document row are not removed from it. Document
+  rows filed under no base, from before documents recorded their base, then stay,
+  as they do when a knowledge base is deleted (#2560).
 
 ## [1.28.1] - 2026-10-28
 

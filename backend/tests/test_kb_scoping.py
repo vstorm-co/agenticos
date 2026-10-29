@@ -681,6 +681,35 @@ class TestKBAccessControl:
         )
 
     @pytest.mark.anyio
+    async def test_a_large_cleared_defaults_purge_is_split_across_entries(
+        self, mock_db, monkeypatch
+    ):
+        """One entry per 500 documents, so the queue spreads a large default's
+        purge across jobs; a default with no ingested document purges nothing."""
+        from app.services import knowledge_base as kb_module
+
+        kb = _kb("org", is_default=True)
+        kb.collection_name = "docs"
+        dispatch = _patch_dispatch(monkeypatch)
+        repos = self._drop_repos(monkeypatch, holders=[kb, _kb("org")])
+        ids = [f"doc-{i}" for i in range(kb_module._PURGE_IDS_PER_ENTRY + 1)]
+        repos["by_kept_base"].return_value = DeletedDocuments(
+            storage_paths=[], vector_document_ids=ids
+        )
+
+        await KnowledgeBaseService(mock_db).delete_for_rag_collection(kb)
+
+        purges = dispatch.await_args.kwargs["base_purges"]
+        assert [purge.vector_document_ids for purge in purges] == [ids[:-1], ids[-1:]]
+
+        repos["by_kept_base"].return_value = DeletedDocuments(
+            storage_paths=[], vector_document_ids=[]
+        )
+        await KnowledgeBaseService(mock_db).delete_for_rag_collection(kb)
+
+        assert dispatch.await_args.kwargs["base_purges"] == []
+
+    @pytest.mark.anyio
     async def test_dropping_a_rag_collection_a_sibling_still_holds_keeps_the_table(
         self, mock_db, monkeypatch
     ):

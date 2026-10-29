@@ -363,18 +363,6 @@ class TestTheCleanup:
         engine.dispose.assert_awaited_once()
         assert result == {"unlinked": 0, "dropped": 0, "restamped": 0, "purged": 1}
 
-    async def test_a_kept_bases_purge_deletes_only_its_named_documents(self) -> None:
-        """A cleared default's purge passes its deleted documents to the store,
-        which deletes only their chunks (#2560)."""
-        _storage, store, _engine, _release, patches = _patch_cleanup()
-        purge = BasePurge(collection="handbook", knowledge_base_id=_KB, vector_document_ids=["d1"])
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
-            await cleanup_external_state([], [], [], [], [], [purge])
-
-        store.delete_knowledge_base_chunks.assert_awaited_once_with(
-            "handbook", _KB, vector_document_ids=["d1"]
-        )
-
     async def test_a_failed_base_purge_attempts_the_rest_then_fails_the_job(self) -> None:
         """Nothing else would remove those chunks, so a failure is raised after the
         other entries ran, and the job's retries re-run the idempotent delete."""

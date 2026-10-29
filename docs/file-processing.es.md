@@ -1,5 +1,5 @@
 ---
-source_sha: "27194be908cf"
+source_sha: "2ed9c486a670"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -926,10 +926,13 @@ fragmentos asignados a la base borrada. Borrar una organización y borrar una cu
 hacen lo mismo con las bases que eliminan, y también eliminar una colección
 (`DELETE /rag/collections/{name}`), que además borra solo las filas de documentos de
 esa base; en una base predeterminada conservada quita solo los fragmentos de los
-documentos borrados, así que una subida hecha después conserva los suyos
-([#2560](https://github.com/vstorm-co/agenticos/issues/2560)). Los fragmentos sin
-asignar se quedan y coinciden por su tenant, igual que las filas de documentos sin
-asignar ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+documentos borrados, así que una subida hecha después conserva los suyos, y un
+fragmento sin fila de documento se queda
+([#2560](https://github.com/vstorm-co/agenticos/issues/2560)).
+
+Los fragmentos sin asignar se quedan y coinciden por su tenant, y las filas de
+documentos sin asignar siguen listadas en las bases de su tenant
+([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 Un agente busca en las bases de conocimiento a las que está vinculado con su propio
 ámbito, sin volver a resolver sus nombres. Un agente vinculado a dos bases con el

@@ -143,7 +143,7 @@ class BaseVectorStore(ABC):
         *,
         vector_document_ids: list[str] | None = None,
     ) -> None:
-        """Remove every chunk filed under a deleted knowledge base.
+        """Remove the chunks filed under a deleted knowledge base, or a cleared one.
 
         For a base deleted while another base still holds its collection name, so
         the shared table is kept (#913): the chunks filed under it are no longer

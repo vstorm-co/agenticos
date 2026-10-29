@@ -858,8 +858,11 @@ the deleted base. An organization purge and an account deletion do the same for 
 bases they remove, and so does dropping a collection (`DELETE /rag/collections/{name}`),
 which also deletes only that base's document rows; for a kept default it removes
 only the chunks of the documents it deleted, so an upload made after the drop keeps
-its own ([#2560](https://github.com/vstorm-co/agenticos/issues/2560)). Unfiled
-chunks stay, matched by their tenant, and so do unfiled document rows
+its own, and a chunk with no document row stays
+([#2560](https://github.com/vstorm-co/agenticos/issues/2560)).
+
+Unfiled chunks stay, matched by their tenant, and unfiled document rows stay listed
+under the bases of their tenant
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 An agent searches the knowledge bases it is bound to under their own scopes, not by

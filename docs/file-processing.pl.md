@@ -1,5 +1,5 @@
 ---
-source_sha: "27194be908cf"
+source_sha: "2ed9c486a670"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -909,9 +909,12 @@ do usuniętej bazy. Usunięcie organizacji i usunięcie konta robią to samo dla
 które usuwają, i tak samo usunięcie kolekcji (`DELETE /rag/collections/{name}`),
 które kasuje też tylko wiersze dokumentów tej bazy; dla zachowanej domyślnej bazy
 usuwa tylko chunki usuniętych dokumentów, więc upload wykonany po usunięciu zachowuje
-swoje ([#2560](https://github.com/vstorm-co/agenticos/issues/2560)). Nieprzypisane
-chunki zostają i pasują po swoim tenancie, podobnie jak nieprzypisane wiersze
-dokumentów ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+swoje, a chunk bez wiersza dokumentu zostaje
+([#2560](https://github.com/vstorm-co/agenticos/issues/2560)).
+
+Nieprzypisane chunki zostają i pasują po swoim tenancie, a nieprzypisane wiersze
+dokumentów nadal są listowane w bazach swojego tenanta
+([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 Agent przeszukuje bazy wiedzy, do których jest przypięty, w ich własnych zakresach,
 a nie przez ponowne rozwiązywanie ich nazw. Agent przypięty do dwóch baz o tej samej

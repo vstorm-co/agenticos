@@ -143,6 +143,10 @@ def _with_counts(kb: KnowledgeBase, counts: CollectionCounts | None) -> Knowledg
     )
 
 
+# The deleted documents one `BasePurge` of a kept base names.
+_PURGE_IDS_PER_ENTRY = 500
+
+
 class KnowledgeBaseService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
@@ -335,12 +339,16 @@ class KnowledgeBaseService:
         if others and kb.is_default:
             deleted = await rag_document_repo.delete_by_knowledge_base_with_vectors(self.db, kb.id)
             storage_paths = deleted.storage_paths
+            ids = deleted.vector_document_ids
+            # Split, so a large default's purge spreads across entries and jobs
+            # rather than one payload and one array holding every document.
             base_purges = [
                 BasePurge(
                     collection=collection,
                     knowledge_base_id=kb.id,
-                    vector_document_ids=deleted.vector_document_ids,
+                    vector_document_ids=ids[i : i + _PURGE_IDS_PER_ENTRY],
                 )
+                for i in range(0, len(ids), _PURGE_IDS_PER_ENTRY)
             ]
         elif others:
             storage_paths = await rag_document_repo.delete_by_knowledge_base(self.db, kb.id)
