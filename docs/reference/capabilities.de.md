@@ -1,5 +1,5 @@
 ---
-source_sha: "bfe294dfe43d"
+source_sha: "c009f12941c5"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -93,7 +93,7 @@ hält er nur Dateien. Der Webbrowser zeigt auf den Browser-Dienst der Installati
 | `media` | Bilder auslagern | utility | keine, mit Absicht | — | — | ohne Wirkung |
 | `tool_output_limits` | Grenzen für Tool-Ergebnisse | utility | `read_tool_result` | — | — | unverändert |
 | `artifacts` | Apps | utility | `publish_artifact`, `read_artifact` | — | — | unverändert |
-| `channel_tools` | Infos zum Chat-Kanal | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — | nicht verfügbar |
+| `channel_tools` | Infos zum Chat-Kanal | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` | — | — | nicht verfügbar |
 | `ask_user` | Rückfragen | utility | `ask_user_question` | — | — | auf dem Bildschirm |
 | `follow_ups` | Nächste Schritte | utility | `suggest_next_steps`, `propose_setup` | — | — | nicht verfügbar |
 
@@ -2589,6 +2589,9 @@ Mechanismus ist das, was eine einzige Tür vermeidet.
 `list_channel_members` — *Listet die Personen in diesem Kanal auf.*
 `search_channels` — *Findet andere Kanäle nach Namen oder Zweck, ohne sie zu lesen.*
 `read_channel_history` — *Liest die jüngsten Nachrichten in diesem Kanal, die neuesten zuletzt.*
+`send_channel_file` — *Angeforderte Workspace-Datei senden.*
+
+Verbinden Sie das Konto mit einer direkten Nachricht an den Bot: nur `link` ohne Schrägstrich. Öffnen Sie den privaten Verbindungslink nach der Anmeldung bei AgenticOS und kehren Sie zum Channel zurück. Benötigen frühere Thread-Dateien eine Kontoverbindung, erklärt der Bot dies ohne Download und versucht es nach der Verbindung erneut. Channel-Bilder verwenden die doppelte CSS-Auflösung; sehr breite horizontale Mermaid-Flussdiagramme erhalten nur für das PNG eine vertikale Anordnung.
 
 Die eine Capability, die der Spec eines Agents nicht binden darf. Sie wird **pro
 Bindung** gewährt, im Builder unter *Where this agent is available*, denn eine

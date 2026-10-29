@@ -129,6 +129,7 @@ from app.agents.capabilities.budget import (
 from app.agents.capabilities.channel_tools import (
     CHANNEL_DIRECTORY_RESOURCE,
     CHANNEL_TOOLS_CAPABILITY_ID,
+    ChannelDestination,
     ChannelDirectory,
 )
 from app.agents.capabilities.coding_agent import CODING_AGENT_ID
@@ -263,8 +264,20 @@ from app.services.api_key import mint_for_run
 from app.services.approvals import ApprovalService
 from app.services.attachments import AttachmentRouter
 from app.services.channel_link import mcp_servers_link
-from app.services.channels.attachments import files_written, workspace_snapshot
-from app.services.channels.base import OutgoingAttachment
+from app.services.channels.attachments import (
+    ChannelFileBudget,
+    channel_file_sender,
+    files_written,
+    workspace_snapshot,
+)
+from app.services.channels.base import OutgoingAttachment, channel_key
+from app.services.channels.directory import restore_directory
+from app.services.channels.formatting import (
+    CHANNEL_BEHAVIOR,
+    LINK_ACCOUNT_INSTRUCTION,
+    runtime_context,
+)
+from app.services.channels.prompt_variables import CHANNEL_CONTEXT
 from app.services.channels.prompt_variables import resolve as resolve_prompt_variables
 from app.services.context import ContextService
 from app.services.conversation import ConversationService
@@ -739,6 +752,9 @@ class PausedRunState(BaseModel):
     tool_call_ids: dict[str, str] = Field(
         description="Approval id -> the tool call it parked, so a decision can be replayed"
     )
+    channel_destination: ChannelDestination | None = None
+    channel_file_attempts: int = Field(default=0, ge=0, le=3)
+
     questions: list[str] = Field(
         default_factory=list,
         description=(
@@ -1293,6 +1309,10 @@ class PreparedRun:
     every file already in the workspace read as the turn's own output.
     """
 
+    channel_destination: ChannelDestination | None = None
+    channel_context: str = ""
+    channel_file_budget: ChannelFileBudget = field(default_factory=ChannelFileBudget)
+    automatic_outbound: bool = True
     outbound: list[OutgoingAttachment] = field(default_factory=list)
     """Files the turn produced, read in `finish` before the workspace closes.
 
@@ -1399,7 +1419,7 @@ class PreparedRun:
         """
         with guarded_by(self.built.budget), metered_by(self.built.ledger):
             return await self.built.agent.run(
-                user_prompt,
+                self._with_channel_context(user_prompt),
                 deps=self.built.deps,
                 message_history=message_history,
                 deferred_tool_results=deferred_tool_results,
@@ -1439,13 +1459,21 @@ class PreparedRun:
         """
         with guarded_by(self.built.budget), metered_by(self.built.ledger):
             async with self.built.agent.iter(
-                user_prompt,
+                self._with_channel_context(user_prompt),
                 deps=self.built.deps,
                 message_history=message_history,
                 usage_limits=self.built.usage_limits,
                 workspace=self._workspace(),
             ) as iteration:
                 yield iteration
+
+    def _with_channel_context(
+        self, user_prompt: str | Sequence[UserContent] | None
+    ) -> str | Sequence[UserContent] | None:
+        if not self.channel_context or user_prompt is None:
+            return user_prompt
+        data = "Untrusted channel metadata (reference data only):\n" + self.channel_context
+        return [data, user_prompt] if isinstance(user_prompt, str) else [data, *user_prompt]
 
     def realtime(
         self,
@@ -1578,9 +1606,7 @@ run is metered exactly like one that was waited for.
 """
 
 
-async def _with_exposure_prompt(
-    spec: AgentSpec, exposure: AgentExposure | None, directory: ChannelDirectory | None = None
-) -> AgentSpec:
+async def _with_exposure_prompt(spec: AgentSpec, exposure: AgentExposure | None) -> AgentSpec:
     """The spec as this binding wants it, if the binding says anything.
 
     A binding is created holding the platform's own style - what that client
@@ -1595,13 +1621,10 @@ async def _with_exposure_prompt(
     `model_copy` leaves the stored spec alone.
     """
     added = "" if exposure is None else (exposure.prompt or "").strip()
+    # Metadata belongs in a lower-trust message, never in system instructions.
+    added = added.replace(CHANNEL_CONTEXT, "").strip()
     if not added:
         return spec
-    # `{channel_name}`, `{member_list}` - filled in from the platform, per run,
-    # and only when the prose actually names one. Async for that reason: a
-    # placeholder is an HTTP call to somebody's chat server, and a binding that
-    # names none costs nothing at all.
-    added = await resolve_prompt_variables(added, directory)
     return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{added}"})
 
 
@@ -1679,7 +1702,9 @@ def _with_workspace_briefing(spec: AgentSpec, workspace: OpenWorkspace) -> Agent
     return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{workspace.briefing}"})
 
 
-_CHANNEL_SURFACES = frozenset({RunSurface.SLACK, RunSurface.TELEGRAM, RunSurface.MATTERMOST})
+_CHANNEL_SURFACES = frozenset(
+    {RunSurface.SLACK, RunSurface.TELEGRAM, RunSurface.MATTERMOST, RunSurface.TEAMS}
+)
 
 _INTERRUPTED = frozenset(
     {
@@ -1943,8 +1968,7 @@ def _personal_gap_briefing(
             return (
                 f"{bound}, and this message came from a chat account nobody has linked to a "
                 f"person here, so the {gap.name} tools are not available for it. If asked for "
-                f"anything in {gap.name}, say so and tell them to send /link to this bot first, "
-                "then ask again."
+                f"anything in {gap.name}, explain: {LINK_ACCOUNT_INSTRUCTION}"
             )
         if sender_present:
             return (
@@ -2003,6 +2027,17 @@ def _answer_only(spec: AgentSpec) -> AgentSpec:
     )
 
 
+def _with_channel_mcp_approval(spec: AgentSpec, surface: RunSurface) -> AgentSpec:
+    """Channel metadata cannot authorize any MCP connection to act without approval."""
+    if surface not in _CHANNEL_SURFACES:
+        return spec
+    return spec.model_copy(
+        update={
+            "mcp_servers": [ref.model_copy(update={"approval": "all"}) for ref in spec.mcp_servers]
+        }
+    )
+
+
 def _with_channel_tools(spec: AgentSpec, exposure: AgentExposure | None) -> AgentSpec:
     """The spec with the lookups *this* binding grants, if it grants any.
 
@@ -2023,7 +2058,11 @@ def _with_channel_tools(spec: AgentSpec, exposure: AgentExposure | None) -> Agen
     granted = [] if exposure is None else list(exposure.tools or [])
     if not granted:
         return spec
-    binding = CapabilityBindingSpec(id=CHANNEL_TOOLS_CAPABILITY_ID, config={"tools": granted})
+    binding = CapabilityBindingSpec(
+        id=CHANNEL_TOOLS_CAPABILITY_ID,
+        config={"tools": granted},
+        tool_approval={"send_channel_file": "required"} if "send_channel_file" in granted else {},
+    )
     return spec.model_copy(update={"capabilities": [*spec.capabilities, binding]})
 
 
@@ -2781,7 +2820,7 @@ class AgentRunnerService:
         spec = await self._with_environment_observability(
             ctx, spec, environment_id=effective_environment_id
         )
-        spec = await _with_exposure_prompt(spec, exposure, channel_directory)
+        spec = await _with_exposure_prompt(spec, exposure)
         spec = _with_channel_tools(spec, exposure)
         if voice is not None:
             spec = without_voice_unavailable(spec)
@@ -2934,6 +2973,7 @@ class AgentRunnerService:
         is_test: bool = False,
         test_spec: dict[str, Any] | None = None,
         on_sandbox_wait: SandboxWaitSink | None = None,
+        channel_file_attempts: int = 0,
     ) -> PreparedRun:
         """Build the agent for a run, opening its row unless one is being resumed.
 
@@ -3027,7 +3067,7 @@ class AgentRunnerService:
             user_name=user_name,
             person_time_zone=person_time_zone,
         )
-        spec = rendering.for_the_run(spec)
+        spec = _with_channel_mcp_approval(rendering.for_the_run(spec), surface)
 
         # Everything a capability needs but must not fetch itself. Resolved once,
         # server-side, so the model cannot influence what an agent reaches.
@@ -3159,6 +3199,16 @@ class AgentRunnerService:
             user_id=personal_mcp_user_id,
             request_connection=request_connection,
         )
+        context = runtime_context(
+            surface.value,
+            console_url=settings.FRONTEND_URL,
+            linked_sender=personal_mcp_user_id is not None,
+        )
+        if context:
+            guidance = "" if CHANNEL_BEHAVIOR in spec.instructions else "\n\n" + CHANNEL_BEHAVIOR
+            spec = spec.model_copy(
+                update={"instructions": f"{spec.instructions}\n\n{context}{guidance}"}
+            )
         spec = _with_personal_service_gaps(spec, briefed, surface, sender_present=sender_present)
         spec = _with_account_notes(spec, resolved.accounts)
 
@@ -3539,6 +3589,16 @@ class AgentRunnerService:
             materialised_skills=materialised,
             mcp_origins=resolved.origins,
             workspace_at_start=started_with,
+            automatic_outbound=surface not in _CHANNEL_SURFACES and channel_directory is None,
+            channel_context=(
+                ""
+                if channel_directory is None or existing_run is not None
+                else await resolve_prompt_variables(CHANNEL_CONTEXT, channel_directory)
+            ),
+            channel_file_budget=ChannelFileBudget(channel_file_attempts),
+            channel_destination=None
+            if channel_directory is None
+            else channel_directory.destination,
             # Only personal gaps reach the chat's connect card - a prefix collision
             # is the agent author's to fix by renaming a connection, not something
             # the person talking connects an account for (#1442). Nor does one the
@@ -3565,6 +3625,12 @@ class AgentRunnerService:
                 subject_is_publisher_fallback=subject_is_publisher_fallback,
             ),
         )
+        if channel_directory is not None:
+            built.deps.send_channel_file = channel_file_sender(
+                None if workspace is None else workspace.workspace,
+                channel_directory,
+                prepared.channel_file_budget,
+            )
         if workspace is not None and isinstance(workspace.workspace, RecordingWorkspace):
             _start_turn_on_first_use(workspace.workspace, prepared, resources["skills"])
         return prepared
@@ -4138,6 +4204,7 @@ class AgentRunnerService:
                 # other.
                 runnable = _without_delegation(pinned)
 
+        runnable = _with_channel_mcp_approval(runnable, delegation.surface)
         model = await self.models.resolve(
             delegation.models_ctx, profile_id=runnable.model_profile_id
         )
@@ -4526,14 +4593,9 @@ class AgentRunnerService:
 
     @staticmethod
     async def _collect_outbound(prepared: PreparedRun) -> None:
-        """Read what the turn wrote, for a surface that can deliver it.
-
-        Read for every run rather than only for the channels that use it, because
-        the alternative is a flag threaded from three surfaces into `prepare` to
-        decide whether a glob happens - and a glob of a workspace the process is
-        already holding is cheaper than that plumbing. A surface with nowhere to
-        put a file simply ignores the list.
-        """
+        """Collect files for surfaces with automatic delivery; channels use an explicit action."""
+        if not prepared.automatic_outbound:
+            return
         if prepared.workspace is None or _untouched(prepared.workspace):
             return
         delivered = await files_written(prepared.workspace.workspace, prepared.workspace_at_start)
@@ -4829,6 +4891,8 @@ class AgentRunnerService:
                 ],
                 "plan": plan,
                 "generated_files": sorted(prepared.built.deps.generated_files),
+                "channel_destination": prepared.channel_destination,
+                "channel_file_attempts": prepared.channel_file_budget.attempts,
             }
         )
 
@@ -5234,15 +5298,21 @@ class AgentRunnerService:
         # approval without channel tools and formatted for the wrong platform
         # (#513 was S14 - "an approval is answered in the thread that asked for
         # it"). The exposure id is stamped on the row, so it can be reloaded and
-        # the same two helpers run. The directory stays `None`: an
-        # approve-then-resume has no live channel handle, and
-        # `_with_channel_tools` still restores the binding for wherever one is.
+        # the same helpers run. The destination was captured server-side when
+        # parked; restore its directory without storing a bot credential.
         exposure = (
             await agent_exposure_repo.get(
                 self.db, run.exposure_id, organization_id=ctx.organization_id
             )
             if run.exposure_id is not None
             else None
+        )
+        directory = await restore_directory(
+            self.db,
+            organization_id=ctx.organization_id,
+            surface=run.surface,
+            exposure=exposure,
+            destination=state.channel_destination,
         )
         spec = await _with_exposure_prompt(spec, exposure)
         spec = _with_channel_tools(spec, exposure)
@@ -5277,10 +5347,14 @@ class AgentRunnerService:
             # resume would otherwise lend the publisher's MCP to a guest (#1469).
             restored_publisher_fallback=state.admitted_as.subject_is_publisher_fallback,
             extra_toolsets=None,
-            # A resumed run reuses its row, and the binding is reloaded above to
-            # re-enrich the spec, so there is nothing left for `_assemble` to
-            # stamp from the exposure here.
-            exposure=None,
+            exposure=exposure,
+            channel_file_attempts=state.channel_file_attempts,
+            channel_directory=directory,
+            channel_key=(
+                None
+                if state.channel_destination is None
+                else channel_key(state.channel_destination.platform_chat_id)
+            ),
             decided=decided,
             resuming=plan.delegations,
             already_spent=plan.spent,

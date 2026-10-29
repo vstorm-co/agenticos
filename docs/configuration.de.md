@@ -1,5 +1,5 @@
 ---
-source_sha: "cab5ae5fc22f"
+source_sha: "2521b4441b6c"
 ---
 
 # Konfiguration { #configuration }
@@ -79,6 +79,8 @@ Die Konfiguration lehnt einen nicht gesetzten `VAULT_MASTER_KEY` außerhalb von 
 | `DEFAULT_ORG_MONTHLY_BUDGET_USD` | `100` | Die monatliche Ausgabenobergrenze, mit der eine **neue** Organisation startet, in USD, damit sie nicht einen entlaufenen Agent von einer überraschenden Rechnung entfernt ist. Gilt nur bei der Erstellung; bestehende Organisationen bleiben unberührt, und jede Organisation lässt sich danach wieder auf kein Cap zurücksetzen. Muss positiv sein; lassen Sie den Wert **leer**, damit Organisationen ohne Cap starten (die ältere Opt-in-Haltung) |
 
 Für Bilder in Produktionskanälen setzen Sie `VISUAL_RENDER_CDP_URL=http://visual-render:9222` und `BROWSER_CDP_ALLOWED_HOSTS=["visual-render"]` in `backend/.env`. `scripts/deploy.sh` aktiviert dann das Profil `visuals` in `docker-compose-prod.yml`; beim manuellen Start ergänzen Sie `--profile visuals`.
+
+Öffentliches Browsen benötigt einen separaten Browser: setzen Sie `BROWSER_SIGN_IN_CDP_URL=http://browser:9222`, `BROWSER_EGRESS_PROXY=http://browser-egress:3128` und `BROWSER_CDP_ALLOWED_HOSTS=["browser","visual-render"]`. Das Deployment aktiviert das Profil `browser`. Setzen Sie `browser_use.cdp_url` des Agents auf `http://browser:9222` und veröffentlichen Sie seinen Entwurf. Nur der Proxy erlaubt ausgehenden Verkehr; Squid verweigert private und Metadaten-Adressen. Behalten Sie `VISUAL_RENDER_CDP_URL=http://visual-render:9222` für isoliertes Zeichnen. Ohne Domain-Einschränkung sind öffentliche Seiten erlaubt; eine ausdrückliche Domain-Liste gilt weiterhin.
 
 Der Renderer veröffentlicht keinen Port, hat keinen Internetzugang, bedient API und Worker und ist auf 1 CPU und 1 GiB RAM begrenzt. Veröffentlichte Backend-Images enthalten das Extra `browser`; eigene Images benötigen `EXTRAS="--extra browser"`. Schlägt das Rendern fehl, erklärt die Kanalantwort ausdrücklich, dass das Bild nicht angehängt werden konnte. Jeder Rendervorgang erlaubt höchstens 256 Anfragen und 32 ausstehende Antworten; Kartenkacheln teilen zusätzlich `RATE_LIMIT_MAP_TILES_PER_MINUTE` zwischen Renderern.
 

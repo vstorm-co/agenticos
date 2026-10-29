@@ -61,7 +61,9 @@ from app.services.channels.base import (
     IncomingPress,
     OutgoingMessage,
     PromptMessage,
+    broadcast_mentioned,
     feedback_value,
+    mentionable_text,
     split_thread,
     supervise_stream,
     thread_key,
@@ -1200,7 +1202,19 @@ class MattermostAdapter(ChannelAdapter):
             platform_display_name=data.get("sender_name") or None,
             message_id=post.get("id"),
             attachments=attachments,
-            addressed=self._addressed(data, bot_id),
+            broadcast_mention=broadcast_mentioned(self.platform, text),
+            addressed=self._direct_addressed(data, bot_id, text),
+        )
+
+    def _direct_addressed(self, data: dict[str, Any], bot_id: str, text: str) -> bool | None:
+        addressed = self._addressed(data, bot_id)
+        if not broadcast_mentioned(self.platform, text):
+            return addressed
+        own = self._own_names.get(bot_id)
+        return bool(
+            addressed is True
+            and own
+            and re.search(rf"(?<!\w)@{re.escape(own)}(?![\w.-])", mentionable_text(text), re.I)
         )
 
     def _addressed(self, data: dict[str, Any], bot_id: str) -> bool | None:
@@ -1428,5 +1442,8 @@ class MattermostAdapter(ChannelAdapter):
             platform_display_name=str(payload.get("user_name") or "") or None,
             message_id=str(payload.get("post_id") or "") or None,
             attachments=attachments,
-            addressed=bool(str(payload.get("trigger_word") or "").strip()),
+            broadcast_mention=broadcast_mentioned(self.platform, text),
+            addressed=bool(str(payload.get("trigger_word") or "").strip())
+            and str(payload.get("trigger_word") or "").strip().lstrip("@").casefold()
+            not in {"all", "here", "channel", "everyone"},
         )
