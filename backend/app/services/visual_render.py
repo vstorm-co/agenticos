@@ -160,8 +160,22 @@ def available() -> bool:
     return True
 
 
+def compact_flowchart(content: str) -> str | None:
+    """An alternate vertical layout for horizontal Mermaid flowcharts only."""
+    declaration = re.compile(r"\A((?:\s|%%[^\n]*\n)*)(flowchart|graph)([ \t]+)(LR|RL)\b")
+    if not declaration.search(content):
+        return None
+    return declaration.sub(r"\1\2\3TD", content, count=1)
+
+
 async def render_png(
-    kind: VisualKind, content: str, *, title: str, width: int = 1000, aspect: float | None = None
+    kind: VisualKind,
+    content: str,
+    *,
+    title: str,
+    width: int = 1000,
+    aspect: float | None = None,
+    channel: bool = False,
 ) -> bytes:
     """The drawing as a PNG, `width` CSS pixels wide.
 
@@ -174,8 +188,21 @@ async def render_png(
     """
     cdp_url = allowed_endpoint(settings.VISUAL_RENDER_CDP_URL)
     document = rendered_document(kind, content, title=title).encode("utf-8")
-    async with asyncio.timeout(RENDER_TIMEOUT):
-        return await _photograph(cdp_url, document, width=width, aspect=aspect)
+    alternate = compact_flowchart(content) if channel and kind == "mermaid" else None
+    alternate_document = (
+        rendered_document(kind, alternate, title=title).encode("utf-8")
+        if alternate is not None
+        else None
+    )
+    async with asyncio.timeout(RENDER_TIMEOUT * (2 if channel else 1)):
+        return await _photograph(
+            cdp_url,
+            document,
+            width=width,
+            aspect=aspect,
+            pixel_ratio=2 if channel else 1,
+            alternate_document=alternate_document,
+        )
 
 
 async def picture_of_turn(
@@ -223,6 +250,7 @@ async def picture_of_turn(
             content,
             title=visual.title,
             aspect=visuals.svg_aspect(content) if visual.kind == "svg" else None,
+            channel=True,
         )
     except Exception:
         logger.exception("Could not draw a visual for a reply")
@@ -239,7 +267,13 @@ async def _resolve(host: str) -> str | None:  # pragma: no cover - needs a resol
 
 
 async def _photograph(  # pragma: no cover - needs a live browser
-    cdp_url: str, document: bytes, *, width: int, aspect: float | None
+    cdp_url: str,
+    document: bytes,
+    *,
+    width: int,
+    aspect: float | None,
+    pixel_ratio: int,
+    alternate_document: bytes | None,
 ) -> bytes:
     """Open a tab in a context of its own, serve it the drawing, wait, and take the picture."""
     import httpx
@@ -316,7 +350,7 @@ async def _photograph(  # pragma: no cover - needs a live browser
             params={
                 "width": width,
                 "height": min(height, MAX_HEIGHT),
-                "deviceScaleFactor": 1,
+                "deviceScaleFactor": pixel_ratio,
                 "mobile": False,
             },
             session_id=session,
@@ -332,16 +366,38 @@ async def _photograph(  # pragma: no cover - needs a live browser
             params={"source": _RENDERED_FLAG}, session_id=session
         )
         await client.send.Page.navigate(params={"url": page_url()}, session_id=session)
-        while True:
-            if budget.exceeded:
-                raise RenderUnavailableError("The drawing exceeded its request limit.")
-            flag = await client.send.Runtime.evaluate(
-                params={"expression": "window.__agenticosRendered === true", "returnByValue": True},
+
+        async def wait_rendered() -> None:
+            while True:
+                if budget.exceeded:
+                    raise RenderUnavailableError("The drawing exceeded its request limit.")
+                flag = await client.send.Runtime.evaluate(
+                    params={
+                        "expression": "window.__agenticosRendered === true",
+                        "returnByValue": True,
+                    },
+                    session_id=session,
+                )
+                if flag.get("result", {}).get("value") is True:
+                    break
+                await asyncio.sleep(0.2)
+
+        await wait_rendered()
+        if alternate_document is not None:
+            measured_ratio = await client.send.Runtime.evaluate(
+                params={
+                    "expression": "(() => { const s = document.querySelector('.mermaid svg'); return s && s.viewBox.baseVal.height ? s.viewBox.baseVal.width / s.viewBox.baseVal.height : 0; })()",
+                    "returnByValue": True,
+                },
                 session_id=session,
             )
-            if flag.get("result", {}).get("value") is True:
-                break
-            await asyncio.sleep(0.2)
+            if (measured_ratio.get("result", {}).get("value") or 0) > 3:
+                document = alternate_document
+                await client.send.Runtime.evaluate(
+                    params={"expression": "window.__agenticosRendered = false"}, session_id=session
+                )
+                await client.send.Page.reload(params={"ignoreCache": True}, session_id=session)
+                await wait_rendered()
         if not aspect:
             measured = await client.send.Runtime.evaluate(
                 params={
@@ -355,7 +411,7 @@ async def _photograph(  # pragma: no cover - needs a live browser
                 params={
                     "width": width,
                     "height": max(1, min(height, MAX_HEIGHT)),
-                    "deviceScaleFactor": 1,
+                    "deviceScaleFactor": pixel_ratio,
                     "mobile": False,
                 },
                 session_id=session,

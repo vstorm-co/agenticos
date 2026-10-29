@@ -2837,3 +2837,13 @@ async def _routed(
     )
     async with toolset:
         yield toolset
+
+
+@pytest.mark.parametrize("url", ["https://example.com", "http://example.org", "about:blank"])
+def test_regular_pages_are_not_load_error_pages(url):
+    _endpoint.check_navigation(url)
+
+
+def test_chromium_network_errors_do_not_claim_the_domain_was_refused():
+    with pytest.raises(_endpoint.EndpointError, match="could not load"):
+        _endpoint.check_navigation("chrome-error://chromewebdata/")
