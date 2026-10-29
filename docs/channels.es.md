@@ -1,5 +1,5 @@
 ---
-source_sha: "aa20fd56e2b8"
+source_sha: "d78f843db70f"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -2634,6 +2634,8 @@ Cuatro herramientas cambian eso, y cada una se concede **por vinculación**, baj
 | `send_channel_file` | Enviar un fichero solicitado del workspace | ✅ | ✅ | ✅ | ✅ |
 
 Para conectar la cuenta, envíe al bot un mensaje directo con solo `link`, sin barra. Abra el enlace privado tras iniciar sesión en AgenticOS y vuelva al canal. Si los ficheros anteriores del hilo requieren conexión, el bot lo explica sin descargarlos y vuelve a intentarlo tras conectar. Las imágenes del canal usan el doble de resolución CSS; los diagramas Mermaid horizontales muy anchos reciben una disposición vertical solo en el PNG.
+
+Las imágenes solicitadas mediante `generate_image` se adjuntan a las respuestas en las cuatro plataformas de chat, además de los gráficos y diagramas. Las imágenes guardadas se leen dentro de la organización de la ejecución, se limitan a 8 MiB y 16 megapíxeles y se convierten a PNG; las imágenes ausentes, no válidas o demasiado grandes generan un aviso de entrega fallida. Teams también ajusta las imágenes a sus propios límites. Crear un fichero normal en el espacio de trabajo sigue sin enviarlo: requiere `send_channel_file`. El contexto del hilo conserva las fechas originales; las expresiones de tiempo relativo se refieren a esas fechas, no al momento en que el agente entra en el hilo.
 
 Por vinculación y no por agent, porque una organización puede vincular un agent a dos
 servidores de Mattermost y tres workspaces de Slack — y *«¿puede leer lo que se dijo

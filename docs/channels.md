@@ -2500,6 +2500,8 @@ Five tools change that, and each is granted **per binding**, under
 
 Use a direct message containing plain `link` (without a slash) to connect an account. Open the private connection link while signed in to AgenticOS, then return to the channel. When earlier thread files require linking, the bot explains this without downloading them and retries after connection. Channel pictures use twice the CSS resolution; very wide horizontal Mermaid flowcharts receive a vertical layout for the PNG only.
 
+Images requested through `generate_image` are attached to replies on all four chat platforms, alongside the existing chart and diagram support. Stored images are read within the run's organization, limited to 8 MiB and 16 megapixels, and converted to PNG; missing, invalid or oversized images produce a delivery notice. Teams additionally fits inline pictures to its own limits. Creating an ordinary workspace file still does not send it: that requires `send_channel_file`. Thread context preserves the original message timestamps; relative times refer to those timestamps, not to when the agent joins the thread.
+
 Per binding rather than per agent, because an organization can bind one agent to
 two Mattermost servers and three Slack workspaces — and *"may it read what was
 said in this channel"* has a different answer on the internal one and the

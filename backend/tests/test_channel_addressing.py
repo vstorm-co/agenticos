@@ -539,6 +539,31 @@ class TestReadingTheThreadWeWereBroughtInto:
         assert "U1: co tu widzisz?" in prompt
         assert "U2: looks like a chart" in prompt
 
+    async def test_thread_context_preserves_the_original_time_and_speaker(self) -> None:
+        directory = self._directory(
+            [
+                ChannelPost(
+                    author="Aga",
+                    text="I'll arrive in four minutes; @Luke @Mike",
+                    posted_at=datetime(2026, 10, 29, 10, tzinfo=UTC),
+                ),
+                ChannelPost(
+                    author="Luke",
+                    text="On my way",
+                    posted_at=datetime(2026, 10, 29, 10, 1, tzinfo=UTC),
+                ),
+            ]
+        )
+        found = await self._backfill(
+            self._incoming(chat_id="C1:old-thread", message_id="new-question"), directory
+        )
+        prompt = found[0].parts[0].content
+        assert "[2026-10-29T10:00:00+00:00] Aga:" in prompt
+        assert "[2026-10-29T10:01:00+00:00] Luke: On my way" in prompt
+        assert "context was fetched at" in prompt
+        assert "not from now" in prompt
+        assert "not to everyone mentioned" in prompt
+
     async def test_it_is_one_request_rather_than_a_turn_per_message(self):
         """Replaying other people's messages as alternating turns would put words
         in the agent's mouth it never said - the reason a widget's greeting is

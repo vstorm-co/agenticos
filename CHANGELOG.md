@@ -19,6 +19,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Deliver model-generated photos on Mattermost, Slack, Teams and Telegram,
+  including after channel approval; report missing or invalid media instead of
+  silently posting only a success message. Ordinary workspace files still need
+  an explicit send action.
+- Preserve original timestamps and authors in channel thread context so old
+  relative-time requests are not presented as current events. Existing threads
+  refresh their backfill once on the next turn after migration.
+
 ## [1.29.0] - 2026-10-29
 
 ### Added
