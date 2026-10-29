@@ -26,7 +26,7 @@ Two things are versioned separately from this file and worth knowing about:
   file's opening lines before the file is copied to `uploads/`, so a later turn
   in a `conversation`-, `user`- or `agent`-scoped workspace cannot open it. The
   blocked turn still ends as `guardrail_blocked`. A picture sent inline is still
-  written when the edge blocks the turn only on the picture's bytes (#2559).
+  written when the edge blocks the turn because of the picture's bytes (#2559).
 
 ## [1.28.1] - 2026-10-28
 

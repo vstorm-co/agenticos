@@ -1,5 +1,5 @@
 ---
-source_sha: "870b6cbbac01"
+source_sha: "8d299889ab94"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -2451,8 +2451,8 @@ workspace con alcance `conversation`, `user` o `agent` no tiene ningún archivo
 rechazado que abrir. El borde solo lee esas primeras líneas, así que un término
 bloqueado más abajo en el archivo no se detecta aquí; para eso está la revisión de
 los resultados de las herramientas. Una imagen enviada en línea es la excepción: el
-borde también lee sus bytes, y un bloqueo debido solo a esos bytes no se prevé, así
-que esa imagen se sigue escribiendo.
+borde también lee sus bytes, y un bloqueo que causan esos bytes no se prevé, así que
+esa imagen se sigue escribiendo.
 
 **El filtrado de los resultados de herramienta es la razón de que este borde sea el que
 más importa.** Es la única guarda sobre el contenido no confiable que entra en el

@@ -492,10 +492,14 @@ class AttachmentRouter:
         written, and the edge alone decides.
 
         Text only. On a turn that inlines a picture the edge reads the prompt
-        list's repr, image bytes included, and can refuse on those bytes alone -
-        a long digit run under PII redaction, a keyword the repr happens to
-        contain. That refusal is about no content anybody wrote, and it is not
-        predicted here, so such a picture is still written.
+        list's repr, image bytes included, and can refuse because of those
+        bytes - a long digit run under PII redaction, a keyword the repr happens
+        to contain. That refusal is about no content anybody wrote, and it is
+        not predicted here, so such a picture is still written.
+
+        Every file's reference is screened, including one the turn's text budget
+        would drop: a refusal there fails closed, and the edge refuses the same
+        text again.
         """
         if self._screen is None or self._workspace is None:
             return None

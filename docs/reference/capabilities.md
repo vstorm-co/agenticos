@@ -2286,8 +2286,8 @@ turn the edge blocks writes nothing, and a later turn in a `conversation`-, `use
 or `agent`-scoped workspace has no refused file to open. The edge reads only those
 opening lines, so a blocked term further down the file is not caught here; screen
 tool results for that. A picture sent inline is the exception: the edge also reads
-its bytes, and a block on those bytes alone is not foreseen, so that picture is
-still written.
+its bytes, and a block those bytes cause is not foreseen, so that picture is still
+written.
 
 **Tool-result screening is the reason this edge matters most.** It is the only guard
 on untrusted content entering the loop — a fetched page, a file, an MCP server's

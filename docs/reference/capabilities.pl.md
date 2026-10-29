@@ -1,5 +1,5 @@
 ---
-source_sha: "870b6cbbac01"
+source_sha: "8d299889ab94"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -2390,8 +2390,8 @@ zablokowana przez krawędź nic nie zapisuje, a późniejsza tura w workspace'ie
 zakresie `conversation`, `user` lub `agent` nie ma odrzuconego pliku do otwarcia.
 Krawędź czyta tylko te początkowe linie, więc zablokowane słowo dalej w pliku nie
 jest tu wychwytywane; do tego służy sprawdzanie wyników narzędzi. Wyjątkiem jest
-obraz wysłany bezpośrednio: krawędź czyta też jego bajty, a blokada wynikająca tylko
-z tych bajtów nie jest przewidywana, więc taki obraz nadal zostaje zapisany.
+obraz wysłany bezpośrednio: krawędź czyta też jego bajty, a blokada, którą wywołują
+te bajty, nie jest przewidywana, więc taki obraz nadal zostaje zapisany.
 
 **Prześwietlanie wyników narzędzi jest powodem, dla którego ta krawędź znaczy
 najwięcej.** Jest jedynym strażnikiem nad niezaufaną treścią wchodzącą do pętli —

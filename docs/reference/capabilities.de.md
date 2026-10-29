@@ -1,5 +1,5 @@
 ---
-source_sha: "870b6cbbac01"
+source_sha: "8d299889ab94"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -2568,8 +2568,8 @@ nichts, und ein späterer Zug in einem Workspace mit Scope `conversation`, `user
 oder `agent` hat keine abgelehnte Datei zum Öffnen. Die Kante liest nur diese ersten
 Zeilen, ein blockierter Begriff weiter unten in der Datei wird hier also nicht
 erkannt; dafür gibt es die Prüfung der Tool-Ergebnisse. Ein direkt mitgesendetes
-Bild ist die Ausnahme: Die Kante liest auch seine Bytes, und eine Blockade allein
-wegen dieser Bytes wird nicht vorhergesehen, also wird ein solches Bild trotzdem
+Bild ist die Ausnahme: Die Kante liest auch seine Bytes, und eine Blockade, die
+diese Bytes auslösen, wird nicht vorhergesehen, also wird ein solches Bild trotzdem
 geschrieben.
 
 **Die Prüfung von Tool-Ergebnissen ist der Grund, warum diese Kante am meisten
