@@ -1,5 +1,5 @@
 ---
-source_sha: "34949daefd8c"
+source_sha: "1a7b97672009"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -145,21 +145,27 @@ hat.
 **Eine Datei aus einem abgebrochenen Zug legt der nächste Zug zurück.** Eine Datei
 wird vor dem Start des Runs an die Nachricht gebunden, mit der sie kam, und kann
 deshalb nicht erneut angehängt werden. Endete der Run zu dieser Nachricht, ohne
-abzuschließen — mit einem Fehler, abgebrochen, gestoppt durch ein Budget, eine
-Guardrail oder den Schleifenwächter —, schreibt der nächste Zug desselben Agenten
-für diese Person in dieser Unterhaltung die Datei zurück nach `uploads/` (mit ihrem
-extrahierten Text, wo der Workspace das Original nicht lesen kann), bevor er den
-Workspace zum ersten Mal nutzt: sofort bei einem gespeicherten Workspace, beim
-ersten Zugriff bei einer Sandbox. Der Run wird angewiesen, `uploads/` aufzulisten,
-bevor er sagt, dass eine Datei fehlt.
+abzuschließen — mit einem Fehler, abgebrochen oder gestoppt durch ein Budget oder
+den Schleifenwächter —, schreibt der nächste Zug desselben Agenten für diese Person
+in dieser Unterhaltung die Datei zurück nach `uploads/` (mit ihrem extrahierten
+Text, wo der Workspace das Original nicht lesen kann, und nur den Text, wenn nur er
+fehlt), bevor er den Workspace zum ersten Mal nutzt: sofort bei einem gespeicherten
+Workspace, beim ersten Zugriff bei einer Sandbox. Der Run wird angewiesen,
+`uploads/` aufzulisten, bevor er sagt, dass eine Datei fehlt, und zu sagen, dass sie
+nicht zurückgelegt werden konnte, wenn sie dann noch fehlt.
 
 Zurückgelegt werden nur die eigenen Dateien der Person, nur aus abgebrochenen Zügen
 dieses Agenten, höchstens die 50 neuesten, und nur, bis dieser Agent für dieselbe
-Person einen Zug abschließt, der nach dem Ende des abgebrochenen begann. Eine danach
-entfernte Datei bleibt entfernt. Manche Dateien kommen nicht zurück: die eines
-Prompts, dessen Run nie geöffnet wurde und der keinem Agenten gehört; Dateien eines
-Zugs mit einem API-Schlüssel oder für einen Widget-Besucher; und Dateien, deren
-nächster Zug abgeschlossen wurde, ohne die Sandbox je zu nutzen.
+Person einen Zug abschließt, der nach dem Ende des abgebrochenen begann. Ein Zug mit
+einem API-Schlüssel, für einen Widget-Besucher oder von jemand anderem aus einer
+Freigabe entlassen beendet diesen Zeitraum nicht. Eine danach entfernte Datei bleibt
+entfernt.
+
+Manche Dateien kommen nicht zurück: die eines Zugs, den eine Guardrail blockiert
+hat, weil die Eingabe-Guardrail abgelehnt hat, was er mitbrachte; die eines Prompts,
+dessen Run nie geöffnet wurde und der keinem Agenten gehört; Dateien eines Zugs mit
+einem API-Schlüssel oder für einen Widget-Besucher; und Dateien, deren nächster Zug
+abgeschlossen wurde, ohne die Sandbox je zu nutzen.
 
 **Der extrahierte Text kommt nur dort mit, wo nichts das Original lesen kann.**
 Eine `.txt` des Parsens wurde früher neben jedes PDF, jede `.docx` und jede

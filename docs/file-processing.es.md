@@ -1,5 +1,5 @@
 ---
-source_sha: "34949daefd8c"
+source_sha: "1a7b97672009"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -141,20 +141,26 @@ abre desde `uploads/` si tiene workspace.
 **El archivo de un turno interrumpido lo repone el siguiente.** Un archivo queda
 ligado al mensaje con el que llegó antes de que empiece el run, así que no se puede
 adjuntar de nuevo. Si el run que respondía a ese mensaje terminó sin completarse
-— con un fallo, cancelado, detenido por un presupuesto, un guardrail o el guardián
-de bucles —, el siguiente turno del mismo agente para esa persona en esa
-conversación vuelve a escribir el archivo en `uploads/` (con su texto extraído,
-donde el workspace no puede leer el original) antes de usar el workspace por
-primera vez: enseguida en un workspace almacenado, en el primer uso en un sandbox.
-Al run se le indica que liste `uploads/` antes de decir que falta un archivo.
+— con un fallo, cancelado o detenido por un presupuesto o el guardián de bucles —,
+el siguiente turno del mismo agente para esa persona en esa conversación vuelve a
+escribir el archivo en `uploads/` (con su texto extraído, donde el workspace no
+puede leer el original, y solo ese texto si es lo único que falta) antes de usar el
+workspace por primera vez: enseguida en un workspace almacenado, en el primer uso en
+un sandbox. Al run se le indica que liste `uploads/` antes de decir que falta un
+archivo, y que diga que no se pudo reponer si sigue sin estar.
 
 Solo se reponen los archivos de la propia persona, solo de los turnos interrumpidos
 de ese agente, como mucho los 50 más recientes, y solo hasta que ese agente complete
 para la misma persona un turno que empezó después de que terminara el interrumpido.
-Un archivo eliminado después sigue eliminado. Algunos archivos no se reponen: los de
-un prompt cuyo run nunca se abrió, que no pertenece a ningún agente; los de un turno
-ejecutado con una clave de API o para un visitante del widget; y los cuyo turno
-siguiente se completó sin usar nunca su sandbox.
+Un turno ejecutado con una clave de API, para un visitante del widget o liberado de
+una aprobación por otra persona no cierra ese plazo. Un archivo eliminado después
+sigue eliminado.
+
+Algunos archivos no se reponen: los de un turno que bloqueó un guardrail, porque el
+guardrail de entrada rechazó lo que llevaba; los de un prompt cuyo run nunca se
+abrió, que no pertenece a ningún agente; los de un turno ejecutado con una clave de
+API o para un visitante del widget; y los cuyo turno siguiente se completó sin usar
+nunca su sandbox.
 
 **El texto extraído lo acompaña solo cuando nada puede leer el original.** Antes
 se escribía un `.txt` del parseo junto a cada PDF, `.docx` y hoja de cálculo,

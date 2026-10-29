@@ -1754,15 +1754,19 @@ def _untouched(workspace: OpenWorkspace) -> bool:
 
 
 _EARLIER_ATTACHMENTS_BRIEFING = (
-    "An earlier turn of this conversation stopped before it finished, and a file "
-    f"attached to it is written back to `{UPLOAD_DIR}/` before your first use of the "
-    "workspace this turn - even where an earlier message says it could not be written "
-    f"or processed. List `{UPLOAD_DIR}/` before saying a file is missing."
+    "An earlier turn of this conversation stopped before it finished. Files attached "
+    f"to it that are missing from `{UPLOAD_DIR}/` are put back there before your first "
+    "use of the workspace this turn, where the workspace takes them - so one may be "
+    "there even where an earlier message says it could not be written or processed. "
+    f"List `{UPLOAD_DIR}/` before saying a file is missing, and if it is still not "
+    "there, say it could not be put back."
 )
 """What a run is told when an interrupted turn of its thread left attachments behind (#2481).
 
 The earlier message's own note is history and cannot be rewritten, and it says
-there is no file to open; this is what tells the model to look again."""
+there is no file to open; this is what tells the model to look again. Said before
+the writes can have happened - on a sandbox they wait for its first use - so it
+does not claim they succeeded: a write can still be refused, and is only logged."""
 
 
 def _with_earlier_attachments_briefing(spec: AgentSpec) -> AgentSpec:
@@ -3353,16 +3357,23 @@ class AgentRunnerService:
             # And the files of this agent's turns that stopped before writing them,
             # put back (#2481) - on the same first use, or here for a `state`
             # workspace, and before the snapshot either way so a file put back is
-            # not read as this turn's output. Only on a fresh run by a person:
-            # a resume's `ctx` is its approver's, and a publisher standing in for
-            # a visitor or a key's holder is not whoever attached the file - the
-            # same subjects the workspace identity above refuses.
+            # not read as this turn's output. Only on a run by a person, in a
+            # session: a publisher standing in for a visitor or a key's holder is
+            # not whoever attached the file - the same subjects the workspace
+            # identity above refuses. A resume looks again only when its own
+            # person continues it, since a sandbox may first be used after the
+            # park; one released by another approver opens the approver's
+            # workspace, and `chat_file_repo` does not let that run's finishing
+            # close the window.
             if (
-                existing_run is None
-                and conversation_id is not None
+                conversation_id is not None
                 and ctx.user_id is not None
                 and ctx.api_key_id is None
                 and not subject_is_publisher_fallback
+                and (
+                    existing_run is None
+                    or (existing_run.user_id == ctx.user_id and _started_by_a_person(existing_run))
+                )
             ):
                 earlier = await find_earlier_attachments(
                     self.db,

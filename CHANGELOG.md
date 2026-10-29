@@ -22,10 +22,12 @@ Two things are versioned separately from this file and worth knowing about:
 ### Fixed
 
 - A file attached to a chat turn that stopped before completing (failed,
-  cancelled or stopped by a limit) is now written back to `uploads/` by the same
-  agent's next turn for that person in that conversation, instead of staying
-  missing until a new conversation and upload. Only the person's own files are
-  restored, until that agent completes a later turn for them.
+  cancelled, or stopped by a budget or the loop guard) is now written back to
+  `uploads/` by the same agent's next turn for that person in that
+  conversation, instead of staying missing until a new conversation and upload.
+  Only the person's own files are restored, until that agent completes a later
+  turn for them that looked for them. Files of a turn a guardrail blocked are
+  not restored.
 
 ## [1.28.1] - 2026-10-28
 

@@ -23,7 +23,13 @@ import pytest
 
 from app.core.exceptions import BadRequestError
 from app.db.models.agent import Agent
-from app.db.models.agent_run import AgentRun, RunStatus
+from app.db.models.agent_run import (
+    AgentRun,
+    ApprovalDecidedVia,
+    ApprovalStatus,
+    RunStatus,
+    ToolApproval,
+)
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Conversation, Message
 from app.db.models.organization import Organization
@@ -101,12 +107,20 @@ class _Thread:
         self.turns = 0
 
     async def turn(
-        self, author: User, agent: Agent, status: RunStatus, *, ended_after: int = 0
+        self,
+        author: User,
+        agent: Agent,
+        status: RunStatus,
+        *,
+        ended_after: int = 0,
+        key_scopes: list[str] | None = None,
+        publisher_fallback: bool = False,
     ) -> Message:
         """A prompt and the run that answered it, linked the way the chat links them.
 
         `ended_after` is how many minutes the run went on for, so a later turn can
-        start before it ended.
+        start before it ended. `key_scopes` makes it a key's run, and
+        `publisher_fallback` the publisher's standing in for a visitor.
         """
         self.turns += 1
         started = _START + timedelta(minutes=self.turns)
@@ -119,6 +133,8 @@ class _Thread:
             status=status.value,
             created_at=started,
             ended_at=started + timedelta(minutes=ended_after, seconds=30),
+            key_scopes=key_scopes,
+            initiated_by_publisher_fallback=publisher_fallback,
         )
         self.db.add(run)
         await self.db.flush()
@@ -166,10 +182,27 @@ async def _left(db, thread: _Thread, person: User, agent: Agent, **overrides) ->
     }
     found = await chat_file_repo.left_by_interrupted_turns(db, limit=50, **scope)
     rows = await chat_file_repo.get_many_left_by_interrupted_turns(
-        db, [file_id for file_id, _ in found], **scope
+        db, [file.id for file in found], **scope
     )
-    assert sorted(row.id for row in rows) == sorted(file_id for file_id, _ in found)
-    return [filename for _, filename in found]
+    assert sorted(row.id for row in rows) == sorted(file.id for file in found)
+    return [file.filename for file in found]
+
+
+async def _released(db, message: Message, *, by: User | None) -> None:
+    """A click on an approval the turn's run parked on - `None` for an expiry."""
+    run = await db.get(AgentRun, message.run_id)
+    db.add(
+        ToolApproval(
+            organization_id=run.organization_id,
+            run_id=run.id,
+            agent_id=run.agent_id,
+            tool_id="send_email",
+            status=ApprovalStatus.APPROVED.value if by else ApprovalStatus.EXPIRED.value,
+            decided_by_user_id=by.id if by else None,
+            decided_via=ApprovalDecidedVia.CLICK.value,
+        )
+    )
+    await db.flush()
 
 
 @pytest.fixture
@@ -264,9 +297,64 @@ class TestWhatATurnMayPutBack:
             "budget_exceeded.csv",
             "cancelled.csv",
             "failed.csv",
-            "guardrail_blocked.csv",
             "loop_stopped.csv",
         ]
+
+    async def test_a_turn_a_guardrail_blocked_leaves_its_file_where_it_was(self, db, world) -> None:
+        """The input edge screened the file's opening lines with the prompt and
+        refused the turn: writing the file into the next turn's workspace would hand
+        the model what the policy turned away."""
+        blocked = await world.thread.turn(world.person, world.agent, RunStatus.GUARDRAIL_BLOCKED)
+        await _attached(db, world.person, blocked)
+
+        assert await _left(db, world.thread, world.person, world.agent) == []
+        assert (
+            await find_earlier_attachments(
+                db,
+                conversation_id=world.thread.conversation.id,
+                organization_id=world.organization.id,
+                user_id=world.person.id,
+                agent_id=world.agent.id,
+            )
+            is None
+        )
+
+    async def test_a_completed_turn_that_looked_for_the_files_closes_the_window(
+        self, db, world
+    ) -> None:
+        """A session's run, released by its own person's click, put them back."""
+        failed = await world.thread.turn(world.person, world.agent, RunStatus.FAILED)
+        await _attached(db, world.person, failed)
+        done = await world.thread.turn(world.person, world.agent, RunStatus.COMPLETED)
+        await _released(db, done, by=world.person)
+
+        assert await _left(db, world.thread, world.person, world.agent) == []
+
+    @pytest.mark.parametrize(
+        "closing",
+        ["api-key", "publisher-for-a-visitor", "released-by-another", "expired"],
+    )
+    async def test_a_completed_turn_that_never_looked_closes_nothing(
+        self, db, world, closing: str
+    ) -> None:
+        """`AgentRunnerService._assemble` skips the look for a key's run, a publisher
+        standing in for a visitor and a resume by another approver - so that run
+        finishing is not this person's chance gone."""
+        failed = await world.thread.turn(world.person, world.agent, RunStatus.FAILED)
+        await _attached(db, world.person, failed)
+        done = await world.thread.turn(
+            world.person,
+            world.agent,
+            RunStatus.COMPLETED,
+            key_scopes=["agents:run"] if closing == "api-key" else None,
+            publisher_fallback=closing == "publisher-for-a-visitor",
+        )
+        if closing == "released-by-another":
+            await _released(db, done, by=await _member(db))
+        if closing == "expired":
+            await _released(db, done, by=None)
+
+        assert await _left(db, world.thread, world.person, world.agent) == ["report.csv"]
 
     async def test_another_agents_turn_is_not_this_agents_to_put_back(self, db, world) -> None:
         """Its workspace may be one everybody who runs this agent shares."""
@@ -368,4 +456,4 @@ class TestWhatATurnMayPutBack:
             limit=1,
         )
 
-        assert found == [(newest.id, "new.csv")]
+        assert found == [(newest.id, "new.csv", "text", True)]

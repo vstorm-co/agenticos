@@ -15,6 +15,7 @@ import pytest
 from pydantic_ai.messages import BinaryContent
 
 from app.agents.capabilities.sandbox._capped import CappedStateBackend
+from app.repositories import chat_file as chat_file_repo
 from app.services import attachments as attachments_module
 from app.services.attachments import AttachmentRouter, safe_name, workspace_path
 from tests.workspaces import ShellFailing, document_workspace
@@ -937,6 +938,14 @@ class TestALaterTurnPutsBackWhatAFailedTurnLost:
             user_id=uuid4(),
             agent_id=uuid4(),
             paths={f.id: workspace_path(f) for f in files},
+            text_bearing=frozenset(
+                f.id
+                for f in files
+                if f.parsed_content and f.file_type in attachments_module._TEXT_BEARING
+            ),
+            lit_readable=frozenset(
+                f.id for f in files if f.file_type in attachments_module._LIT_READABLE
+            ),
         )
 
     @staticmethod
@@ -990,6 +999,37 @@ class TestALaterTurnPutsBackWhatAFailedTurnLost:
         read.assert_not_awaited()
         storage.assert_not_awaited()
         assert await workspace.read_bytes(workspace_path(chat_file)) == b"already here"
+
+    async def test_text_the_turn_stopped_before_writing_is_put_back_alone(
+        self, storage, monkeypatch
+    ):
+        """The turn can stop between the original's write and its text's: the
+        original is there, so only the sibling is missing - and only it is written."""
+        chat_file = _file(filename="report.pdf", file_type="pdf", parsed_content="page one")
+        workspace = document_workspace(_document())
+        await workspace.write_bytes(workspace_path(chat_file), b"%PDF already here")
+        self._rows(monkeypatch, chat_file)
+
+        await attachments_module.restore_earlier_attachments(
+            workspace, self._earlier(chat_file), can_parse=False
+        )
+
+        storage.assert_not_awaited()
+        assert await workspace.read_bytes(workspace_path(chat_file)) == b"%PDF already here"
+        assert await workspace.read_text(f"{workspace_path(chat_file)}.txt") == "page one"
+
+    async def test_no_sibling_is_missed_where_lit_reads_the_original(self, storage, monkeypatch):
+        """A runtime carrying `lit` never gets one, so its absence is not a loss."""
+        chat_file = _file(filename="report.pdf", file_type="pdf", parsed_content="page one")
+        workspace = document_workspace(_document())
+        await workspace.write_bytes(workspace_path(chat_file), b"%PDF")
+        read = self._rows(monkeypatch, chat_file)
+
+        await attachments_module.restore_earlier_attachments(
+            workspace, self._earlier(chat_file), can_parse=True
+        )
+
+        read.assert_not_awaited()
 
     async def test_a_row_the_scope_does_not_return_is_not_written(self, storage, monkeypatch):
         """Whatever the paths said, only a row the scoped read hands back is written."""
@@ -1110,8 +1150,14 @@ class TestALaterTurnPutsBackWhatAFailedTurnLost:
 
     async def test_the_thread_is_asked_as_the_caller_in_their_organization(self, monkeypatch):
         conversation, organization, caller = uuid4(), uuid4(), uuid4()
-        file_id = uuid4()
-        found = AsyncMock(return_value=[(file_id, "raport.csv")])
+        file_id, pdf_id, scan_id = uuid4(), uuid4(), uuid4()
+        found = AsyncMock(
+            return_value=[
+                chat_file_repo.InterruptedFile(file_id, "raport.csv", "text", True),
+                chat_file_repo.InterruptedFile(pdf_id, "umowa.pdf", "pdf", True),
+                chat_file_repo.InterruptedFile(scan_id, "skan.pdf", "pdf", False),
+            ]
+        )
         monkeypatch.setattr(attachments_module.chat_file_repo, "left_by_interrupted_turns", found)
 
         agent = uuid4()
@@ -1124,7 +1170,10 @@ class TestALaterTurnPutsBackWhatAFailedTurnLost:
         )
 
         assert earlier is not None
-        assert earlier.paths == {file_id: f"uploads/{file_id.hex[:8]}-raport.csv"}
+        assert earlier.paths[file_id] == f"uploads/{file_id.hex[:8]}-raport.csv"
+        # Only a document with text gets a sibling; `lit` reads both PDFs itself.
+        assert earlier.text_bearing == {pdf_id}
+        assert earlier.lit_readable == {pdf_id, scan_id}
         assert found.await_args.kwargs == {
             "conversation_id": conversation,
             "organization_id": organization,

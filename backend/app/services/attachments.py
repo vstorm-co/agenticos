@@ -208,6 +208,11 @@ def _shown_once(filename: str) -> str:
     )
 
 
+def _skips_sibling(file_type: str, *, can_parse: bool) -> bool:
+    """`AttachmentRouter._skips_sibling`, from the column it reads."""
+    return can_parse and file_type in _LIT_READABLE
+
+
 def _text_sibling(chat_file: ChatFile, path: str) -> str | None:
     """Where this file's extracted text sits, when one was written beside it.
 
@@ -217,8 +222,13 @@ def _text_sibling(chat_file: ChatFile, path: str) -> str | None:
     still there.
     """
     if chat_file.file_type in _TEXT_BEARING and chat_file.parsed_content:
-        return f"{path}.txt"
+        return _sibling_of(path)
     return None
+
+
+def _sibling_of(path: str) -> str:
+    """Where a file's extracted text is written beside it."""
+    return f"{path}.txt"
 
 
 def _referenced(chat_file: ChatFile, path: str, *, sibling: str | None) -> str:
@@ -566,7 +576,7 @@ class AttachmentRouter:
         return AttachmentPlan(reference=reference, inline=result.images)
 
     async def restore(self, files: list[ChatFile]) -> None:
-        """Write each of `files`, which the caller found missing, with its text beside it.
+        """Write each of `files`, which the caller found missing, or its text beside it.
 
         For a later turn, after the one a file arrived with stopped before putting
         it there. Nothing else ever writes an attachment, and the file cannot be
@@ -584,8 +594,11 @@ class AttachmentRouter:
         for chat_file in files:
             path = workspace_path(chat_file)
             try:
-                data = await get_file_storage().load(chat_file.storage_path)
-                await workspace.write_bytes(path, data)
+                # Missing may mean only its text: the turn can stop between the
+                # two writes, and the original is not loaded again for that.
+                if not await workspace.exists(path):
+                    data = await get_file_storage().load(chat_file.storage_path)
+                    await workspace.write_bytes(path, data)
                 await self._write_extracted_text(workspace, chat_file, path)
             except Exception:
                 logger.warning(
@@ -618,7 +631,7 @@ class AttachmentRouter:
         itself. An `email` (`.msg`) is never skipped: `lit` reads office documents
         but not Outlook messages, so its extracted text is the only readable form
         (#1591, §5 #7)."""
-        return self._can_parse and chat_file.file_type in _LIT_READABLE
+        return _skips_sibling(chat_file.file_type, can_parse=self._can_parse)
 
     async def _write_extracted_text(
         self, workspace: Workspace, chat_file: ChatFile, path: str
@@ -733,6 +746,10 @@ class EarlierAttachments:
     agent_id: UUID
     paths: dict[UUID, str]
     """Each file's workspace path, by its id."""
+    text_bearing: frozenset[UUID] = frozenset()
+    """The files with parsed text a sibling may be written from - see `_text_sibling`."""
+    lit_readable: frozenset[UUID] = frozenset()
+    """The files a runtime carrying `lit` reads itself, so it has no sibling there."""
 
 
 async def find_earlier_attachments(
@@ -763,14 +780,21 @@ async def find_earlier_attachments(
         organization_id=organization_id,
         user_id=user_id,
         agent_id=agent_id,
-        paths={file_id: upload_path(file_id, filename) for file_id, filename in found},
+        paths={file.id: upload_path(file.id, file.filename) for file in found},
+        text_bearing=frozenset(
+            file.id for file in found if file.has_text and file.file_type in _TEXT_BEARING
+        ),
+        lit_readable=frozenset(
+            file.id for file in found if _skips_sibling(file.file_type, can_parse=True)
+        ),
     )
 
 
 async def restore_earlier_attachments(
     workspace: Workspace, earlier: EarlierAttachments, *, can_parse: bool
 ) -> None:
-    """Put back what the workspace is missing of `earlier` (#2481).
+    """Put back what the workspace is missing of `earlier` (#2481) - a file, or
+    the extracted text a turn stopped before writing beside it.
 
     The paths are asked about first and the rows read only for a missing file,
     because the rows carry each file's parsed text. Read in a session of its
@@ -781,7 +805,11 @@ async def restore_earlier_attachments(
     missing: list[UUID] = []
     try:
         for file_id, path in earlier.paths.items():
-            if not await workspace.exists(path):
+            if not await workspace.exists(path) or (
+                file_id in earlier.text_bearing
+                and not (can_parse and file_id in earlier.lit_readable)
+                and not await workspace.exists(_sibling_of(path))
+            ):
                 missing.append(file_id)
     except Exception:
         logger.warning("attachments_not_checked", exc_info=True)

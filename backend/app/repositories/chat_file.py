@@ -1,6 +1,7 @@
 """Chat file repository."""
 
 from collections.abc import Iterable
+from typing import NamedTuple
 from uuid import UUID
 
 from sqlalchemy import Select, func, select
@@ -8,7 +9,7 @@ from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from app.db.models.agent_run import AgentRun, RunStatus
+from app.db.models.agent_run import AgentRun, ApprovalDecidedVia, RunStatus, ToolApproval
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Message
 
@@ -16,11 +17,23 @@ _INTERRUPTED = [
     RunStatus.FAILED.value,
     RunStatus.CANCELLED.value,
     RunStatus.BUDGET_EXCEEDED.value,
-    RunStatus.GUARDRAIL_BLOCKED.value,
     RunStatus.LOOP_STOPPED.value,
 ]
 """The endings of a turn that may have stopped before its files reached the
-workspace - every one but completing, parking and still running."""
+workspace - every one but completing, parking, still running and a guardrail's
+block. A blocked turn was refused for what it carried, and its attachment's
+opening lines are part of what the input edge screened: putting the file back
+would hand a later turn what the policy turned away."""
+
+
+class InterruptedFile(NamedTuple):
+    """What `left_by_interrupted_turns` reads of a file - enough to find it on disk."""
+
+    id: UUID
+    filename: str
+    file_type: str
+    has_text: bool
+    """Whether it has parsed text, which decides whether a text sibling is due."""
 
 
 async def get_by_id(db: AsyncSession, file_id: UUID) -> ChatFile | None:
@@ -96,8 +109,8 @@ async def left_by_interrupted_turns(
     user_id: UUID,
     agent_id: UUID,
     limit: int,
-) -> list[tuple[UUID, str]]:
-    """The id and filename of `user_id`'s files on this agent's turns that did not
+) -> list[InterruptedFile]:
+    """Where to look for `user_id`'s files on this agent's turns that did not
     finish here, since its last turn that did - newest first (#2481).
 
     Every predicate is a boundary. The file hangs on a prompt message of this
@@ -115,13 +128,18 @@ async def left_by_interrupted_turns(
     Another person's turn closes nothing - it never puts this person's files
     back - and neither does one that was already running when this one stopped.
 
-    Two columns rather than rows: a row carries the file's parsed text, up to a
-    million characters, and the caller needs the text only for a file its
+    A few columns rather than rows: a row carries the file's parsed text, up to
+    a million characters, and the caller needs the text only for a file its
     workspace turns out to be missing.
     """
     result = await db.execute(
         _left_by_interrupted_turns(
-            select(ChatFile.id, ChatFile.filename),
+            select(
+                ChatFile.id,
+                ChatFile.filename,
+                ChatFile.file_type,
+                func.coalesce(func.length(ChatFile.parsed_content), 0) > 0,
+            ),
             conversation_id=conversation_id,
             organization_id=organization_id,
             user_id=user_id,
@@ -130,7 +148,7 @@ async def left_by_interrupted_turns(
         .order_by(ChatFile.created_at.desc())
         .limit(limit)
     )
-    return [(file_id, filename) for file_id, filename in result.all()]
+    return [InterruptedFile(*row) for row in result.all()]
 
 
 async def get_many_left_by_interrupted_turns(
@@ -177,9 +195,22 @@ def _left_by_interrupted_turns[*Ts](
 
     The completed turn that closes the window is asked about per candidate,
     correlated on the candidate's own run, so a thread whose turns all finished
-    pays nothing for it.
+    pays nothing for it. Only a turn that looked for these files closes it - one
+    the person started themselves, in a session, and not continued by somebody
+    else: a key's run, a publisher standing in for a visitor and a run resumed
+    by another approver all skip the look (`AgentRunnerService._assemble`), so
+    their finishing proves nothing.
     """
     closing = aliased(AgentRun)
+    released_by_another = (
+        select(ToolApproval.id)
+        .where(
+            ToolApproval.run_id == closing.id,
+            ToolApproval.decided_via == ApprovalDecidedVia.CLICK.value,
+            ToolApproval.decided_by_user_id.is_distinct_from(closing.user_id),
+        )
+        .exists()
+    )
     closed = (
         select(closing.id)
         .where(
@@ -188,6 +219,11 @@ def _left_by_interrupted_turns[*Ts](
             closing.user_id == user_id,
             closing.status == RunStatus.COMPLETED.value,
             closing.created_at > func.coalesce(AgentRun.ended_at, AgentRun.created_at),
+            # A key's run records the key's scopes as an array; a session's
+            # records none, as SQL or as JSON null.
+            func.jsonb_typeof(closing.key_scopes).is_distinct_from("array"),
+            closing.initiated_by_publisher_fallback.is_(False),
+            ~released_by_another,
         )
         .exists()
     )

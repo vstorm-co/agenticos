@@ -1979,11 +1979,22 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
 
     @staticmethod
     async def _prepare(
-        workspace: OpenWorkspace, earlier: object | None, ctx: AuthContext | None = None
+        workspace: OpenWorkspace,
+        earlier: object | None,
+        ctx: AuthContext | None = None,
+        *,
+        resumed: MagicMock | None = None,
     ):
+        """`prepare`, or with `resumed` the same assembly continuing that parked run."""
         service = AgentRunnerService(_db())
         agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
         restored: list[str] = []
+        assemble = service._assemble
+
+        async def continuing(*args, **kwargs):
+            if resumed is not None:
+                kwargs["existing_run"] = resumed
+            return await assemble(*args, **kwargs)
 
         async def restore(target, found, *, can_parse: bool) -> None:
             restored.append("restored")
@@ -2020,6 +2031,7 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
             patch("app.services.agent_runner.restore_earlier_attachments", new=restore),
             patch("app.services.agent_runner.build_agent") as build,
             patch.object(service.workspaces, "open", new=AsyncMock(return_value=workspace)),
+            patch.object(service, "_assemble", new=continuing),
         ):
             ctx = ctx or _ctx()
             conversation_id = uuid.uuid4()
@@ -2104,6 +2116,58 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
         find.assert_not_awaited()
         assert restored == []
         assert "stopped before it finished" not in instructions
+
+    @pytest.mark.anyio
+    async def test_the_briefing_does_not_claim_the_files_are_back(self):
+        """On a sandbox it is said before the writes run, and a write can be refused -
+        so it says where to look and what to say if a file is not there."""
+        _, instructions, _, _, _ = await self._prepare(
+            _sandbox(StateBackend()), earlier=MagicMock()
+        )
+
+        assert "is written back" not in instructions
+        assert "if it is still not there, say it could not be put back" in instructions
+
+    @pytest.mark.anyio
+    async def test_a_run_its_own_person_resumes_looks_again(self):
+        """Its sandbox may first be used after the park, when the fresh half's
+        first-use set-up never ran - and the run then completes, closing the window
+        on files it never put back."""
+        ctx = _ctx()
+        resumed = MagicMock(
+            user_id=ctx.user_id, key_scopes=None, initiated_by_publisher_fallback=False
+        )
+
+        _, instructions, _, restored, find = await self._prepare(
+            _sandbox(StateBackend()), earlier=MagicMock(), ctx=ctx, resumed=resumed
+        )
+
+        find.assert_awaited_once()
+        assert restored == ["restored"]
+        assert "stopped before it finished" in instructions
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        "resumed",
+        [
+            MagicMock(user_id=uuid.uuid4(), key_scopes=None, initiated_by_publisher_fallback=False),
+            MagicMock(key_scopes=["agents:run"], initiated_by_publisher_fallback=False),
+        ],
+        ids=["released-by-another-approver", "started-by-a-key"],
+    )
+    async def test_a_resume_for_somebody_else_puts_nothing_back(self, resumed: MagicMock):
+        """An approver's resume opens the approver's workspace, and a key's run never
+        looked in the first place."""
+        ctx = _ctx()
+        if resumed.key_scopes is not None:
+            resumed.user_id = ctx.user_id
+
+        _, _, _, restored, find = await self._prepare(
+            _sandbox(StateBackend()), earlier=MagicMock(), ctx=ctx, resumed=resumed
+        )
+
+        find.assert_not_awaited()
+        assert restored == []
 
 
 class TestSkillChangesARunProposed:
