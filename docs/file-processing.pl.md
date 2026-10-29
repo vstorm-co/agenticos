@@ -1,5 +1,5 @@
 ---
-source_sha: "69eec1229ce8"
+source_sha: "7172a3172675"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -907,8 +907,8 @@ które usuwają. Nieprzypisane chunki zostają i pasują po swoim tenancie
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 Przesłanie lub synchronizacja, która wciąż indeksuje plik dla bazy w chwili jej
-usunięcia, nie zostawia chunków. Zapis bierze blokadę wiersza, którą bierze
-usunięcie, w transakcji wstawiającej chunki: zapis, który przychodzi drugi, nie
+usunięcia, nie zostawia chunków. Zapis bierze blokadę wiersza bazy, która koliduje
+z blokadą usunięcia, w transakcji wstawiającej chunki: zapis, który przychodzi drugi, nie
 znajduje bazy, niczego nie zapisuje i kończy się błędem na etapie indeksowania, a
 zapis, który przychodzi pierwszy, zatwierdza się przed usunięciem, którego
 porządkowanie usuwa potem jego chunki

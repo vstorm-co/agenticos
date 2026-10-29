@@ -43,7 +43,9 @@ async def hold_key_share(db: AsyncSession, kb_id: UUID) -> bool:
     reads or removes (#2561).
     """
     result = await db.execute(
-        select(KnowledgeBase.id).where(KnowledgeBase.id == kb_id).with_for_update(key_share=True)
+        select(KnowledgeBase.id)
+        .where(KnowledgeBase.id == kb_id)
+        .with_for_update(read=True, key_share=True)
     )
     return result.first() is not None
 

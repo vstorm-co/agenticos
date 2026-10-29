@@ -1,5 +1,5 @@
 ---
-source_sha: "69eec1229ce8"
+source_sha: "7172a3172675"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -966,8 +966,9 @@ entfernen. Nicht zugeordnete Chunks bleiben und passen über ihren Tenant
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 Ein Upload oder eine Synchronisierung, die beim Löschen der Basis noch eine Datei
-für sie indexiert, hinterlässt keine Chunks. Der Schreibvorgang nimmt die
-Zeilensperre, die das Löschen nimmt, in der Transaktion, die die Chunks einfügt:
+für sie indexiert, hinterlässt keine Chunks. Der Schreibvorgang nimmt eine
+Sperre auf der Zeile der Basis, die mit der des Löschens kollidiert, in der
+Transaktion, die die Chunks einfügt:
 Ein Schreibvorgang, der als zweiter kommt, findet die Basis nicht mehr, schreibt
 nichts und schlägt im Indexierungsschritt fehl, und ein Schreibvorgang, der als
 erster kommt, wird vor dem Löschen festgeschrieben, dessen Aufräumen seine Chunks

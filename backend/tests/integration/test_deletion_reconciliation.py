@@ -1284,3 +1284,25 @@ class TestAnIngestRacingItsBasesDelete:
                 with pytest.raises(DBAPIError, match="lock timeout"):
                     await knowledge_base_repo.lock(deleting, base.id)
             await writing.rollback()
+
+    async def test_two_writes_into_one_base_do_not_wait_for_each_other(
+        self, engine: AsyncEngine
+    ) -> None:
+        """The hold is the foreign key's own share lock, not an exclusive one: a
+        second ingest into the same base must not queue behind the first's insert."""
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as s:
+            owner = _user()
+            s.add(owner)
+            await s.flush()
+            org = await _org(s, owner)
+            base = _org_collection(org.id, f"kbrace{uuid.uuid4().hex[:12]}")
+            s.add(base)
+            await s.commit()
+
+        async with factory() as first, factory() as second:
+            assert await knowledge_base_repo.hold_key_share(first, base.id)
+            await second.execute(text("SET LOCAL lock_timeout = '200ms'"))
+            assert await knowledge_base_repo.hold_key_share(second, base.id)
+            await second.rollback()
+            await first.rollback()

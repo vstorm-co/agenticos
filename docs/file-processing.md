@@ -856,8 +856,8 @@ bases they remove. Unfiled chunks stay, matched by their tenant
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 An upload or a sync still indexing a file for the base when it is deleted leaves
-no chunks behind. The write takes the row lock the delete takes, in the transaction
-that inserts the chunks: a write that comes second finds the base gone, writes
+no chunks behind. The write takes a lock on the base's row that conflicts with the
+delete's, in the transaction that inserts the chunks: a write that comes second finds the base gone, writes
 nothing and fails at the index step, and a write that comes first commits before
 the delete, whose cleanup then removes its chunks
 ([#2561](https://github.com/vstorm-co/agenticos/issues/2561)).

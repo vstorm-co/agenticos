@@ -1,5 +1,5 @@
 ---
-source_sha: "69eec1229ce8"
+source_sha: "7172a3172675"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -924,8 +924,8 @@ coinciden por su tenant
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 Una subida o una sincronización que aún indexa un archivo para la base cuando se
-borra no deja fragmentos. La escritura toma el bloqueo de fila que toma el borrado,
-en la transacción que inserta los fragmentos: una escritura que llega segunda no
+borra no deja fragmentos. La escritura toma un bloqueo sobre la fila de la base que
+choca con el del borrado, en la transacción que inserta los fragmentos: una escritura que llega segunda no
 encuentra la base, no escribe nada y falla en el paso de indexación, y una escritura
 que llega primera se confirma antes del borrado, cuya limpieza elimina después sus
 fragmentos
