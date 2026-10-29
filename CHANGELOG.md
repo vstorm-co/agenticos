@@ -40,6 +40,17 @@ Two things are versioned separately from this file and worth knowing about:
   `model_profile_id` in `details.fields` (#2483). The Builder shows **Go to
   Model** beside it, which opens the Model card on the Build tab.
 
+## [1.28.1] - 2026-10-28
+
+### Fixed
+
+- Channel visuals no longer disappear silently when their PNG cannot be rendered.
+  Replies name the missing attachment, and drawing tools no longer claim delivery
+  without confirmation. Published backend images include the rendering client;
+  production deployments can run the isolated `visual-render` service with
+  `VISUAL_RENDER_CDP_URL=http://visual-render:9222` and
+  `BROWSER_CDP_ALLOWED_HOSTS=["visual-render"]`.
+
 ## [1.28.0] - 2026-10-28
 
 ### Added
