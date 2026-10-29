@@ -1,5 +1,5 @@
 ---
-source_sha: "11703a5c27cb"
+source_sha: "9bb1c0d1c454"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -30,6 +30,22 @@ Bez zapisanej preferencji desktop uruchamia się z motywem **Systemowym** i styl
 **Glass**. Wcześniejszy jawny wybór motywu lub stylu ma pierwszeństwo.
 
 W **Chat controls → Computer use** wybierz **Lokalny komputer**, aby udostępnić tej rozmowie narzędzia zrzutów ekranu, myszy i klawiatury, nawet jeśli agent nie ma zdolności Computer use. Wybór jest niezależny od Browser i Work on: nie daje dostępu do folderu ani komend i nie zmienia opublikowanego agenta. Osoba rozpoczynająca pracę musi mieć połączone własne, sparowane urządzenie; nadal obowiązują natywna zgoda na ekran i uprawnienia systemu operacyjnego.
+
+## Instalacja aplikacji { #installing-the-app }
+
+Pobierz paczkę dla swojego komputera z [wydania na GitHubie](https://github.com/vstorm-co/agenticos/releases/latest). Instalacja wydania nie wymaga Rusta ani narzędzi programistycznych.
+
+- **macOS:** wybierz Apple silicon lub Intel, otwórz `.dmg` i przeciągnij AgenticOS do **Applications** zgodnie ze strzałką. Uruchom aplikację z Applications i wysuń obraz dysku.
+- **Windows:** otwórz instalator `setup.exe`. Wybierze język systemu i zainstaluje aplikację dla Twojego użytkownika bez uprawnień administratora. Uruchom AgenticOS z menu Start. Pakiet `.msi` jest również dostępny dla zarządzanych wdrożeń.
+- **Linux:** otwórz `.deb` lub `.rpm` w instalatorze oprogramowania swojej dystrybucji. W wersji przenośnej nadaj plikowi `.AppImage` prawo wykonywania we właściwościach i otwórz go.
+
+Pierwsze uruchomienie prowadzi przez połączenie z serwerem lub stworzenie lokalnej instancji. Docker jest potrzebny tylko lokalnej instancji; kreator wykrywa go i proponuje pobranie, jeśli go brakuje. Instalacja nie przyznaje dostępu do ekranu ani mikrofonu.
+
+### Widgety na pulpicie macOS { #desktop-widgets-on-macos }
+
+Na macOS 14 lub nowszym uruchom zainstalowaną aplikację raz, kliknij pulpit prawym przyciskiem, wybierz **Edytuj widżety** i wyszukaj **AgenticOS**. Mały widget otwiera Quick Ask, a średni również Chat, Inbox i Activity. Widgety korzystają z wyglądu systemowego i zawierają tylko skróty, bez danych konta. Kliknięcie widgetu nigdy nie rozpoczyna nagrywania ani połączenia.
+
+CI wydania buduje natywne paczki dla Maca (Apple silicon i Intel), Windowsa i Linuksa. Publiczne paczki macOS wymagają danych podpisu Developer ID i notaryzacji w środowisku wydania. Lokalny build deweloperski z podpisem ad-hoc nie jest publicznym, notaryzowanym wydaniem.
 
 ## Uruchamianie { #running-it }
 

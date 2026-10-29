@@ -1,5 +1,5 @@
 ---
-source_sha: "11703a5c27cb"
+source_sha: "9bb1c0d1c454"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -30,6 +30,22 @@ Ohne gespeicherte Auswahl startet die Desktop-App mit dem **System**-Modus und
 dem Stil **Glass**. Eine ausdrücklich gespeicherte Auswahl hat Vorrang.
 
 Unter **Chat controls → Computer use** bietet **Lokaler Computer** dieser Unterhaltung Screenshot-, Maus- und Tastaturwerkzeuge, auch wenn der Agent keine Computer-use-Fähigkeit hat. Die Auswahl ist unabhängig von Browser und Work on: Sie gewährt weder Ordner- noch Befehlszugriff und ändert den veröffentlichten Agenten nicht. Die Person muss ihr eigenes gekoppeltes Gerät verbunden haben; die native Bildschirmzustimmung und Betriebssystemberechtigungen gelten weiterhin.
+
+## Die App installieren { #installing-the-app }
+
+Lade das Paket für deinen Computer aus dem [GitHub-Release](https://github.com/vstorm-co/agenticos/releases/latest) herunter. Für die Installation eines Releases brauchst du weder Rust noch Entwicklungswerkzeuge.
+
+- **macOS:** Wähle Apple silicon oder Intel, öffne die `.dmg` und ziehe AgenticOS entlang des Pfeils nach **Applications**. Starte die App aus Applications und wirf das Disk-Image aus.
+- **Windows:** Öffne den Installer `setup.exe`. Er verwendet die Systemsprache und installiert für deinen Benutzer ohne Administratorrechte. Starte AgenticOS aus dem Startmenü. Für verwaltete Installationen steht auch `.msi` bereit.
+- **Linux:** Öffne `.deb` oder `.rpm` im Software-Installer deiner Distribution. Für eine portable Installation erlaube das Ausführen der `.AppImage` in ihren Dateieigenschaften und öffne sie.
+
+Beim ersten Start führt dich der Assistent zur Serververbindung oder einer lokalen Instanz. Nur lokale Instanzen benötigen Docker; der Assistent erkennt es und bietet bei Bedarf einen Download an. Die Installation gewährt keinen Bildschirm- oder Mikrofonzugriff.
+
+### Desktop-Widgets unter macOS { #desktop-widgets-on-macos }
+
+Starte unter macOS 14 oder neuer die installierte App einmal. Klicke dann mit der rechten Maustaste auf den Schreibtisch, wähle **Widgets bearbeiten** und suche nach **AgenticOS**. Das kleine Widget öffnet Quick Ask; das mittlere zusätzlich Chat, Inbox und Activity. Widgets folgen dem Systemdesign und enthalten nur Verknüpfungen ohne Kontodaten. Ein Klick startet niemals eine Aufnahme oder einen Anruf.
+
+Die Release-CI baut native Pakete für Mac (Apple silicon und Intel), Windows und Linux. Öffentliche macOS-Pakete benötigen Developer-ID-Signierung und Beglaubigungszugangsdaten in der Release-Umgebung. Ein lokaler Ad-hoc-Entwicklungsbuild ist kein öffentliches beglaubigtes Release.
 
 ## Starten { #running-it }
 

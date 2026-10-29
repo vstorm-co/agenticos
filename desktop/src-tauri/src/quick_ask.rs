@@ -131,6 +131,15 @@ fn panel(app: &AppHandle, server: Option<&Url>, appearance: Appearance) -> Resul
     }
 }
 
+/// Show without capturing selection or clipboard, as a desktop widget requests.
+pub fn show(app: &AppHandle, server: Option<&Url>, appearance: Appearance) -> Result<(), String> {
+    let window = panel(app, server, appearance)?;
+    place(app, &window)?;
+    present(&window)?;
+    app.emit_to(WINDOW, "desktop:quick-focus", ())
+        .map_err(|e| e.to_string())
+}
+
 /// The shortcut: show the panel where the cursor is, or put it away if it is up.
 pub fn toggle(app: &AppHandle, server: Option<&Url>, appearance: Appearance) -> Result<(), String> {
     let window = panel(app, server, appearance)?;

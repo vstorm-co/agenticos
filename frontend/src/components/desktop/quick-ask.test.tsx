@@ -223,6 +223,9 @@ describe("QuickAsk", () => {
     question().blur();
     act(() => env.listeners.get("desktop:quick-ask")?.());
     expect(question()).toHaveFocus();
+    question().blur();
+    act(() => env.listeners.get("desktop:quick-focus")?.());
+    expect(question()).toHaveFocus();
   });
 
   it("grows its window with the panel", () => {

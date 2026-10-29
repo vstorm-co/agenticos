@@ -39,6 +39,7 @@ mod settings;
 mod shortcuts;
 mod updater;
 mod webview_profile;
+mod widgets;
 
 #[cfg(target_os = "macos")]
 use std::fs;
@@ -1459,6 +1460,17 @@ pub fn run() {
             // to one path on the server the user already chose.
             let deep_link_handle = handle.clone();
             app.deep_link().on_open_url(move |event| {
+                let links = event.urls();
+                for link in &links {
+                    match widgets::handle(&deep_link_handle, link) {
+                        Ok(true) => return,
+                        Ok(false) => {}
+                        Err(error) => {
+                            eprintln!("widget: {error}");
+                            return;
+                        }
+                    }
+                }
                 let chosen = settings::load(&deep_link_handle).ok().and_then(|s| s.server_url);
                 // The nonce this shell minted when it opened the browser. Taken
                 // out of the slot whether the link matches or not: a sign-in is
@@ -1470,7 +1482,7 @@ pub fn run() {
                     .lock()
                     .ok()
                     .and_then(|mut slot| slot.take());
-                for link in event.urls() {
+                for link in links {
                     if let Some(destination) = deep_link_return(chosen.as_ref(), expected.as_deref(), link.as_str()) {
                         if let Some(console) = deep_link_handle.get_webview_window(WINDOW) {
                             if let Err(e) = console.navigate(destination) {
@@ -1483,6 +1495,13 @@ pub fn run() {
                     }
                 }
             });
+            if let Ok(Some(links)) = app.deep_link().get_current() {
+                for link in links {
+                    if let Err(error) = widgets::handle(handle, &link) {
+                        eprintln!("widget launch: {error}");
+                    }
+                }
+            }
             Ok(())
         })
         .build(tauri::generate_context!())

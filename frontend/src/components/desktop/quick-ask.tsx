@@ -351,6 +351,9 @@ export function QuickAsk({
 
   // The panel was summoned: the question field is where the hands go, and
   // what was in front a moment ago is offered beside it.
+  useShellEvent(SHELL_EVENTS.quickAskFocus, () => {
+    if (active) input.current?.focus();
+  });
   useShellEvent(SHELL_EVENTS.quickAsk, (payload) => {
     if (!active) return;
     input.current?.focus();

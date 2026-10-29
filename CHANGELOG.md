@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Branded desktop installers: a guided macOS disk image and localized Windows setup for the current user. The macOS app bundles small and medium launcher widgets for Quick Ask, Chat, Inbox and Activity.
+
 - Add direct dictation and live agent voice calls to Quick Ask, with shared captions, approvals and conversation history.
 
 - Give Quick Ask independent conversation tabs, searchable recent chats and multiple windows with per-window pinning.

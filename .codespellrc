@@ -50,4 +50,4 @@ ignore-words-list = dependant,nam,adres,ue,couldn,re-use,re-declaring,selectin,a
 # only to the walk, because that prefix is how codespell names a file while
 # walking. The three prefixed entries are therefore repeated in
 # `.pre-commit-config.yaml`, and the bare ones do not have to be.
-skip = *THIRD_PARTY_NOTICES.md,./frontend/licenses/texts,*.lock,*.min.js,*.svg,*.pl.md,*.de.md,*.es.md,./site,./backend/media,./frontend/node_modules,./backend/.venv,./frontend/src/lib/mcp-logos.generated.ts,./frontend/messages/pl.json,./frontend/messages/de.json,./docs/howto/translate.md,*/values-pl/*,*/values-de/*,*.xcstrings
+skip = *THIRD_PARTY_NOTICES.md,./frontend/licenses/texts,*.lock,*.min.js,*.svg,*.pl.md,*.de.md,*.es.md,./site,./backend/media,./frontend/node_modules,./backend/.venv,./frontend/src/lib/mcp-logos.generated.ts,./frontend/messages/pl.json,./frontend/messages/de.json,./docs/howto/translate.md,*/values-pl/*,*/values-de/*,*.xcstrings,*/widgets/Strings.json
