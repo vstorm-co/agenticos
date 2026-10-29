@@ -19,6 +19,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Discord bots (#2079). A bot connects over Discord's Gateway, so a deployment
+  needs no public address for it. It answers direct messages, @mentions and
+  replies in a thread it opens on the question. It also answers `/ask` and
+  **Apps → Ask the agent** on any message. Answers stream by editing the
+  message in place, with text the guardrails have already screened.
+  Approvals and questions are buttons, or selects for more than 25 options.
+  `/link`, `/unlink`, `/agents`, `/new` and `/help` work as on the other
+  platforms. Register one under **Channels → Add channel** with the bot token
+  and the Message Content Intent switched on. A Discord bot takes no webhook,
+  and setting one is refused. A bot in more than 2,500 servers stops and says
+  Discord requires sharding, which is not supported yet.
+
 ## [1.28.1] - 2026-10-28
 
 ### Fixed

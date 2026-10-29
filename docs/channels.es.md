@@ -1,5 +1,5 @@
 ---
-source_sha: "9c24c603b89b"
+source_sha: "3d018adddfb9"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1534,10 +1534,67 @@ grupo de la organización: la respuesta de cada ejecución se publica entonces a
 un mensaje nuevo, con el nombre del trigger. Nunca se ofrece un chat personal — es de
 alguien.
 
+## Discord { #discord }
+
+Un bot de Discord es una aplicación del Discord Developer Portal, a la que se habla
+por el Gateway y la API REST propios de Discord, sin ninguna biblioteca en medio
+(#2079). Los mensajes, los comandos slash y las pulsaciones de botones llegan todos
+por la única conexión de Gateway del bot, así que **un despliegue no necesita
+dirección pública para Discord**, y un bot de Discord no tiene modo webhook.
+
+1. En el [Developer Portal](https://discord.com/developers/applications), crea una
+   aplicación. En **Bot**, restablece y copia el **token**, y activa **Message
+   Content Intent**. Sin él Discord rechaza la conexión, y la fila del bot dice qué
+   interruptor activar.
+2. En **OAuth2 → URL Generator**, marca los scopes `bot` y `applications.commands`
+   y los permisos **View Channels**, **Send Messages**, **Send Messages in
+   Threads**, **Create Public Threads** y **Read Message History**, y abre la URL
+   para añadir el bot a un servidor.
+3. Regístralo: **Canales → Añadir canal**, plataforma `discord`, con el token.
+
+El bot registra sus comandos al conectarse: `/ask`, `/agents`, `/new`, `/link`,
+`/unlink` y `/help`, y **Ask the agent** en *Apps* sobre cualquier mensaje. Discord
+puede tardar un rato en mostrar los comandos nuevos en todos los servidores.
+
+| Dónde | Cuándo responde |
+|---|---|
+| Un mensaje directo | A cada mensaje. El mensaje directo es una conversación, y `/new` la empieza de nuevo |
+| Un canal de servidor | Cuando se le @menciona o un mensaje le responde. La respuesta abre un hilo sobre la pregunta, y el hilo es la conversación |
+| Un hilo que abrió el bot | A cada mensaje del hilo |
+| `/ask` | En cualquier sitio: se publica la pregunta y la respuesta va en un hilo debajo |
+| *Apps → Ask the agent* | Sobre cualquier mensaje: se pregunta al agent por ese mensaje, en un hilo sobre él |
+
+`/agents`, `/link` y los demás comandos responden en privado, solo a quien los
+ejecutó. En un canal donde el bot no puede abrir hilos, la respuesta es en cambio
+una respuesta a la pregunta.
+
+**La respuesta se escribe en su sitio.** El bot publica un mensaje y lo edita a
+medida que la respuesta llega, y pasados 2000 caracteres continúa en mensajes
+siguientes. Solo se escribe texto que los guardrails ya han revisado, así que un
+secreto redactado no se muestra nunca, ni por un momento. Nada de lo que publica el
+bot puede notificar a nadie: `@everyone` y las menciones de roles en una respuesta
+quedan como texto plano.
+
+**Las aprobaciones y las preguntas son botones**, o listas de selección para una
+pregunta con más de 25 opciones. Debajo de cada respuesta hay pulgares, y un pulgar
+abajo abre un formulario de Discord que pregunta qué estaba mal. Discord no tiene
+reacción sobre la pregunta.
+
+**Quién habla** es el ID de usuario de Discord, vinculado a un miembro con `/link`
+como en todas las plataformas. Una conversación de un canal de servidor se muestra
+en la consola a quienes todavía pueden ver ese canal, según los roles del servidor
+y las sobrescrituras de permisos del canal, que es lo que significa estar en un
+canal en Discord.
+
+Todavía no: una conexión sirve a un bot en como mucho 2500 servidores, por encima
+de los cuales Discord exige sharding y el bot se detiene con ese motivo. Las
+herramientas de directorio no se ofrecen en Discord, y los roles de un servidor no
+se asignan a grupos de la organización.
+
 ## Un bot que no puede arrancar se detiene, en vez de reintentar { #a-bot-that-cannot-start-stops-rather-than-retrying }
 
-El polling de Telegram, el Socket Mode de Slack y el stream de events de Mattermost
-corren todos bajo un mismo supervisor que reconecta una sesión caída. Un valor de
+El polling de Telegram, el Socket Mode de Slack, el stream de events de Mattermost
+y el Gateway de Discord corren todos bajo un mismo supervisor que reconecta una sesión caída. Un valor de
 configuración que falta o que se rechaza no es una sesión caída, y el supervisor lo
 trata de otra manera: registra el bot como caído con el motivo, lo escribe en el
 log una vez y se detiene. Nada de lo que haga cambiaría la fila — un operador tiene
@@ -1558,14 +1615,14 @@ Una sesión caída es otra cosa: esa sí se reintenta, esperando cinco segundos 
 doblando hasta un minuto, así que a un servidor caído durante una hora no lo
 machacan 720 veces todos los bots que hay en él. Una sesión que terminó
 limpiamente vuelve a empezar la escalera. La línea registrada antes de cada espera
-nombra el retardo que va a esperar, y el mismo bucle sirve a las tres plataformas,
+nombra el retardo que va a esperar, y el mismo bucle sirve a todas estas plataformas,
 así que la política no puede desviarse entre ellas.
 
 ---
 
 ## Aprobaciones y preguntas como botones { #approvals-and-questions-as-buttons }
 
-Un run iniciado en Slack, Teams, Telegram o Mattermost puede detenerse por una persona:
+Un run iniciado en Slack, Teams, Telegram, Mattermost o Discord puede detenerse por una persona:
 una llamada a herramienta con aprobación espera una decisión, o el agent hace una
 pregunta `ask_user`. El chat recibe las opciones donde está — un mensaje por
 aprobación con **Approve** y **Reject**, un mensaje por pregunta con sus opciones

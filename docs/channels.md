@@ -1460,10 +1460,63 @@ remembered, and a trigger can name one of the organization's team channels or
 group chats: every fire's answer is then posted there as a new message, under the
 trigger's name. A personal chat is never offered — it is somebody's own.
 
+## Discord
+
+A Discord bot is an application in the Discord Developer Portal, spoken to over
+Discord's own Gateway and REST API with no library between (#2079). Messages,
+slash commands and button presses all arrive over the bot's one Gateway
+connection, so **a deployment needs no public address for Discord**, and a
+Discord bot has no webhook mode.
+
+1. In the [Developer Portal](https://discord.com/developers/applications), create
+   an application. Under **Bot**, reset and copy the **token**, and switch on
+   **Message Content Intent**. Without it Discord refuses the connection, and the
+   bot's row says which switch to turn on.
+2. Under **OAuth2 → URL Generator**, tick the `bot` and `applications.commands`
+   scopes and the permissions **View Channels**, **Send Messages**, **Send
+   Messages in Threads**, **Create Public Threads** and **Read Message History**,
+   then open the URL to add the bot to a server.
+3. Register it: **Channels → Add channel**, platform `discord`, with the token.
+
+The bot registers its commands when it connects: `/ask`, `/agents`, `/new`,
+`/link`, `/unlink` and `/help`, and **Ask the agent** under *Apps* on any message.
+Discord can take a while to show new commands in every server.
+
+| Where | When it answers |
+|---|---|
+| A direct message | Every message. The direct message is one conversation, and `/new` starts it over |
+| A server channel | When it is @mentioned or a message replies to it. The answer opens a thread on the question, and the thread is the conversation |
+| A thread the bot opened | Every message in it |
+| `/ask` | Anywhere: the question is posted and the answer is threaded under it |
+| *Apps → Ask the agent* | On any message: the agent is asked about that message, in a thread on it |
+
+`/agents`, `/link` and the other commands answer privately, to whoever ran them.
+In a channel where the bot may not open threads, the answer is a reply to the
+question instead.
+
+**The answer is written in place.** The bot posts one message and edits it as the
+answer streams, running past 2,000 characters into further messages. Only text the
+guardrails have already screened is written, so a redacted secret is never shown,
+even for a moment. Nothing the bot posts can ping anybody: `@everyone` and role
+mentions in an answer stay plain text.
+
+**Approvals and questions are buttons**, or selects for a question with more than
+25 options. Thumbs go under every answer, and a thumbs-down opens a Discord form
+asking what was wrong. Discord has no reaction on the question.
+
+**Who is speaking** is the Discord user ID, linked to a member with `/link` as on
+every platform. A conversation from a server channel is shown in the console to
+those who can still see that channel, by the server's roles and the channel's
+permission overwrites, which is what being in a channel means on Discord.
+
+Not yet: one connection serves a bot in at most 2,500 servers, past which Discord
+asks for sharding and the bot stops with that reason. The directory tools are not
+offered on Discord, and a server's roles are not mapped to organization groups.
+
 ## A bot that cannot start stops, rather than retrying
 
-Telegram polling, Slack Socket Mode and the Mattermost event stream all run
-under one supervisor that reconnects a dropped session. A missing or rejected
+Telegram polling, Slack Socket Mode, the Mattermost event stream and the Discord
+Gateway all run under one supervisor that reconnects a dropped session. A missing or rejected
 configuration value is not a dropped session, and the supervisor treats it
 differently: it records the bot as down with the reason, logs once and stops.
 Nothing it does would change the row — an operator has to add the Slack `xapp-`
@@ -1482,13 +1535,13 @@ A dropped session is different: that one is retried, waiting five seconds and
 doubling to a minute, so a server down for an hour is not hammered 720 times by
 every bot on it. A session that ended cleanly starts the ladder over. The line
 logged before each wait names the delay it is about to wait, and the same loop
-serves all three platforms, so the policy cannot drift between them.
+serves every one of these platforms, so the policy cannot drift between them.
 
 ---
 
 ## Approvals and questions as buttons
 
-A run started in Slack, Telegram, Mattermost or Teams can stop for a person: a gated
+A run started in Slack, Telegram, Mattermost, Teams or Discord can stop for a person: a gated
 tool call waits for a decision, or the agent asks an `ask_user` question. The
 chat is offered the choices where it is — a message per approval with
 **Approve** and **Reject**, a message per question with its options and **Skip**.

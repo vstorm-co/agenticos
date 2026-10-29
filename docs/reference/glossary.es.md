@@ -1,5 +1,5 @@
 ---
-source_sha: "6e9ccd7fcca1"
+source_sha: "d0e031f9c3a0"
 ---
 
 # Glosario { #glossary }
@@ -36,7 +36,7 @@ tal como se ven en pantalla.
 | En la consola | Qué es | En la API y el spec |
 |---|---|---|
 | Chat | La conversación web con un agent | `conversation` |
-| Channel | Slack, Telegram o Mattermost, donde las personas hablan con un agent | `channel_bot` |
+| Channel | Slack, Telegram, Mattermost o Discord, donde las personas hablan con un agent | `channel_bot` |
 | Routine | Un agent que se ejecuta solo, con un horario o un evento | `trigger` |
 | Run | Una vez que un agent respondió, con su coste y sus pasos | `agent_run` |
 | Environment | Una etapa con nombre, como producción, que apunta a una versión | `environment` |

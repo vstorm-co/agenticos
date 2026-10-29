@@ -1,5 +1,5 @@
 ---
-source_sha: "9c24c603b89b"
+source_sha: "3d018adddfb9"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1505,10 +1505,64 @@ grupowych organizacji: odpowiedź z każdego uruchomienia jest wtedy publikowana
 jako nowa wiadomość, pod nazwą triggera. Czat osobisty nigdy nie jest proponowany —
 należy do kogoś.
 
+## Discord { #discord }
+
+Bot Discorda to aplikacja w Discord Developer Portal, z którą wdrożenie rozmawia
+przez własny Gateway i REST API Discorda, bez biblioteki pośrodku (#2079).
+Wiadomości, komendy slash i naciśnięcia przycisków przychodzą jednym połączeniem
+Gateway bota, więc **wdrożenie nie potrzebuje publicznego adresu dla Discorda**, a
+bot Discorda nie ma trybu webhooka.
+
+1. W [Developer Portal](https://discord.com/developers/applications) utwórz
+   aplikację. W sekcji **Bot** zresetuj i skopiuj **token** oraz włącz **Message
+   Content Intent**. Bez niego Discord odrzuca połączenie, a wiersz bota mówi,
+   który przełącznik włączyć.
+2. W **OAuth2 → URL Generator** zaznacz scope'y `bot` i `applications.commands`
+   oraz uprawnienia **View Channels**, **Send Messages**, **Send Messages in
+   Threads**, **Create Public Threads** i **Read Message History**, a potem otwórz
+   ten URL, żeby dodać bota do serwera.
+3. Zarejestruj go: **Kanały → Dodaj kanał**, platforma `discord`, z tokenem.
+
+Bot rejestruje swoje komendy, gdy się łączy: `/ask`, `/agents`, `/new`, `/link`,
+`/unlink` i `/help`, a do tego **Ask the agent** w menu *Apps* każdej wiadomości.
+Discord potrafi chwilę zwlekać, zanim pokaże nowe komendy na każdym serwerze.
+
+| Gdzie | Kiedy odpowiada |
+|---|---|
+| Wiadomość prywatna | Na każdą wiadomość. Wiadomość prywatna to jedna rozmowa, a `/new` zaczyna ją od nowa |
+| Kanał serwera | Gdy zostanie @wspomniany albo wiadomość na niego odpowiada. Odpowiedź otwiera wątek na pytaniu, a wątek jest rozmową |
+| Wątek otwarty przez bota | Na każdą wiadomość w nim |
+| `/ask` | Wszędzie: pytanie zostaje opublikowane, a odpowiedź trafia do wątku pod nim |
+| *Apps → Ask the agent* | Na każdej wiadomości: agent jest pytany o tę wiadomość, w wątku na niej |
+
+`/agents`, `/link` i pozostałe komendy odpowiadają prywatnie, tylko temu, kto je
+wywołał. Na kanale, gdzie bot nie może otwierać wątków, odpowiedź jest zamiast tego
+odpowiedzią na pytanie.
+
+**Odpowiedź jest pisana w miejscu.** Bot publikuje jedną wiadomość i edytuje ją w
+miarę, jak odpowiedź spływa, przechodząc po 2000 znakach do kolejnych wiadomości.
+Zapisywany jest tylko tekst, który guardraile już sprawdziły, więc zredagowany
+sekret nie pojawia się nawet na moment. Nic, co publikuje bot, nikogo nie
+powiadamia: `@everyone` i wzmianki o rolach w odpowiedzi zostają zwykłym tekstem.
+
+**Zatwierdzenia i pytania to przyciski**, a dla pytania z więcej niż 25 opcjami
+listy wyboru. Pod każdą odpowiedzią są kciuki, a kciuk w dół otwiera formularz
+Discorda z pytaniem, co było nie tak. Na Discordzie pytanie nie dostaje reakcji.
+
+**Kto mówi**, to identyfikator użytkownika Discorda, łączony z członkiem przez
+`/link` jak na każdej platformie. Rozmowa z kanału serwera jest pokazywana w
+konsoli tym, którzy nadal widzą ten kanał, według ról serwera i nadpisań uprawnień
+kanału, bo tym na Discordzie jest bycie na kanale.
+
+Jeszcze nie: jedno połączenie obsługuje bota na najwyżej 2500 serwerach, powyżej
+których Discord wymaga shardingu, a bot zatrzymuje się z tym powodem. Narzędzia
+katalogu nie są oferowane na Discordzie, a role serwera nie są mapowane na grupy
+organizacji.
+
 ## Bot, który nie może wystartować, zatrzymuje się, zamiast ponawiać { #a-bot-that-cannot-start-stops-rather-than-retrying }
 
-Polling Telegrama, Socket Mode Slacka i strumień eventów Mattermosta chodzą pod
-jednym supervisorem, który ponownie łączy zerwaną sesję. Brakująca albo odrzucona
+Polling Telegrama, Socket Mode Slacka, strumień eventów Mattermosta i Gateway
+Discorda chodzą pod jednym supervisorem, który ponownie łączy zerwaną sesję. Brakująca albo odrzucona
 wartość konfiguracyjna nie jest zerwaną sesją i supervisor traktuje ją inaczej:
 zapisuje bota jako położonego wraz z powodem, loguje raz i zatrzymuje się. Nic,
 co by zrobił, nie zmieniłoby tego wiersza — operator musi dodać slackowy token
@@ -1528,14 +1582,14 @@ Zerwana sesja to co innego: ta jest ponawiana, z odczekaniem pięciu sekund
 podwajanym do minuty, więc serwer położony na godzinę nie jest młócony 720 razy
 przez każdego bota na nim. Sesja, która skończyła się czysto, zaczyna drabinę od
 nowa. Linia logowana przed każdym czekaniem podaje opóźnienie, które za chwilę
-odczeka, a ta sama pętla obsługuje wszystkie trzy platformy, więc polityka nie
+odczeka, a ta sama pętla obsługuje każdą z tych platform, więc polityka nie
 może się między nimi rozjechać.
 
 ---
 
 ## Akceptacje i pytania jako przyciski { #approvals-and-questions-as-buttons }
 
-Run uruchomiony w Slacku, Teams, Telegramie lub Mattermoście może zatrzymać się dla
+Run uruchomiony w Slacku, Teams, Telegramie, Mattermoście lub na Discordzie może zatrzymać się dla
 człowieka: wywołanie narzędzia z bramką czeka na decyzję albo agent zadaje pytanie
 `ask_user`. Czat dostaje wybory tam, gdzie jest — wiadomość na każdą akceptację z
 **Approve** i **Reject**, wiadomość na każde pytanie z jego opcjami i **Skip**.

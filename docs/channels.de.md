@@ -1,5 +1,5 @@
 ---
-source_sha: "9c24c603b89b"
+source_sha: "3d018adddfb9"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1615,10 +1615,70 @@ Organisation nennen: Die Antwort jeder Ausführung wird dann dort als neue Nachr
 gepostet, unter dem Namen des Triggers. Ein persönlicher Chat wird nie angeboten — er
 gehört jemandem.
 
+## Discord { #discord }
+
+Ein Discord-Bot ist eine Anwendung im Discord Developer Portal, angesprochen über
+Discords eigenes Gateway und die REST-API, ohne Bibliothek dazwischen (#2079).
+Nachrichten, Slash-Befehle und Schaltflächen-Klicks kommen alle über die eine
+Gateway-Verbindung des Bots, sodass **ein Deployment für Discord keine öffentliche
+Adresse braucht** und ein Discord-Bot keinen Webhook-Modus hat.
+
+1. Erstellen Sie im [Developer Portal](https://discord.com/developers/applications)
+   eine Anwendung. Setzen Sie unter **Bot** das **Token** zurück, kopieren Sie es
+   und schalten Sie **Message Content Intent** ein. Ohne den lehnt Discord die
+   Verbindung ab, und die Zeile des Bots sagt, welcher Schalter fehlt.
+2. Kreuzen Sie unter **OAuth2 → URL Generator** die Scopes `bot` und
+   `applications.commands` an sowie die Berechtigungen **View Channels**, **Send
+   Messages**, **Send Messages in Threads**, **Create Public Threads** und **Read
+   Message History**, und öffnen Sie dann die URL, um den Bot einem Server
+   hinzuzufügen.
+3. Registrieren Sie ihn: **Channels → Channel hinzufügen**, Plattform `discord`,
+   mit dem Token.
+
+Der Bot registriert seine Befehle beim Verbinden: `/ask`, `/agents`, `/new`,
+`/link`, `/unlink` und `/help`, dazu **Ask the agent** unter *Apps* auf jeder
+Nachricht. Discord kann eine Weile brauchen, bis neue Befehle auf jedem Server
+erscheinen.
+
+| Wo | Wann er antwortet |
+|---|---|
+| Eine Direktnachricht | Auf jede Nachricht. Die Direktnachricht ist eine Unterhaltung, und `/new` beginnt sie neu |
+| Ein Serverkanal | Wenn er @erwähnt wird oder eine Nachricht auf ihn antwortet. Die Antwort öffnet einen Thread auf der Frage, und der Thread ist die Unterhaltung |
+| Ein Thread, den der Bot geöffnet hat | Auf jede Nachricht darin |
+| `/ask` | Überall: die Frage wird gepostet und die Antwort im Thread darunter gegeben |
+| *Apps → Ask the agent* | Auf jeder Nachricht: der Agent wird zu dieser Nachricht gefragt, in einem Thread darauf |
+
+`/agents`, `/link` und die anderen Befehle antworten privat, nur dem, der sie
+ausgeführt hat. In einem Kanal, in dem der Bot keine Threads öffnen darf, ist die
+Antwort stattdessen eine Antwort auf die Frage.
+
+**Die Antwort wird an Ort und Stelle geschrieben.** Der Bot postet eine Nachricht
+und bearbeitet sie, während die Antwort einströmt, und läuft nach 2.000 Zeichen in
+weitere Nachrichten über. Geschrieben wird nur Text, den die Guardrails schon
+geprüft haben, sodass ein geschwärztes Geheimnis nie zu sehen ist, auch nicht für
+einen Moment. Nichts, was der Bot postet, kann jemanden anpingen: `@everyone` und
+Rollenerwähnungen in einer Antwort bleiben einfacher Text.
+
+**Freigaben und Fragen sind Schaltflächen**, bei einer Frage mit mehr als 25
+Optionen Auswahllisten. Unter jeder Antwort stehen Daumen, und ein Daumen nach
+unten öffnet ein Discord-Formular, das fragt, was falsch war. Eine Reaktion auf die
+Frage gibt es auf Discord nicht.
+
+**Wer spricht**, ist die Discord-Benutzer-ID, mit `/link` wie auf jeder Plattform
+mit einem Mitglied verknüpft. Eine Unterhaltung aus einem Serverkanal wird in der
+Konsole denen gezeigt, die den Kanal noch sehen können, nach den Rollen des Servers
+und den Berechtigungsüberschreibungen des Kanals, denn das heißt auf Discord, in
+einem Kanal zu sein.
+
+Noch nicht: eine Verbindung bedient einen Bot auf höchstens 2.500 Servern, darüber
+verlangt Discord Sharding und der Bot hält mit diesem Grund an. Die
+Verzeichnis-Tools werden auf Discord nicht angeboten, und die Rollen eines Servers
+werden nicht auf Gruppen der Organisation abgebildet.
+
 ## Ein Bot, der nicht starten kann, hört auf, statt es erneut zu versuchen { #a-bot-that-cannot-start-stops-rather-than-retrying }
 
-Telegram-Polling, Slack Socket Mode und der Mattermost-Event-Stream laufen alle
-unter einem Supervisor, der eine abgerissene Session neu verbindet. Ein fehlender
+Telegram-Polling, Slack Socket Mode, der Mattermost-Event-Stream und das
+Discord-Gateway laufen alle unter einem Supervisor, der eine abgerissene Session neu verbindet. Ein fehlender
 oder zurückgewiesener Konfigurationswert ist keine abgerissene Session, und der
 Supervisor behandelt ihn anders: er vermerkt den Bot mit dem Grund als
 ausgefallen, protokolliert einmal und hört auf. Nichts, was er tut, würde die
@@ -1640,14 +1700,14 @@ Sekunden Wartezeit, verdoppelt bis zu einer Minute, sodass ein Server, der eine
 Stunde ausfällt, nicht von jedem Bot darauf 720-mal bearbeitet wird. Eine Session,
 die sauber endete, beginnt die Leiter von vorn. Die Zeile, die vor jedem Warten
 protokolliert wird, benennt die Verzögerung, die sie gleich abwartet, und dieselbe
-Schleife bedient alle drei Plattformen, sodass die Regel zwischen ihnen nicht
+Schleife bedient jede dieser Plattformen, sodass die Regel zwischen ihnen nicht
 auseinanderlaufen kann.
 
 ---
 
 ## Freigaben und Fragen als Schaltflächen { #approvals-and-questions-as-buttons }
 
-Ein in Slack, Teams, Telegram oder Mattermost gestarteter Run kann für einen Menschen
+Ein in Slack, Teams, Telegram, Mattermost oder Discord gestarteter Run kann für einen Menschen
 anhalten: Ein freigabepflichtiger Tool-Aufruf wartet auf eine Entscheidung, oder
 der Agent stellt eine `ask_user`-Frage. Der Chat bekommt die Auswahl dort, wo er
 ist — eine Nachricht pro Freigabe mit **Approve** und **Reject**, eine Nachricht
