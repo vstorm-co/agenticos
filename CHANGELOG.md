@@ -385,6 +385,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Keep list pagination at the panel bottom and scroll paged administration table rows independently of headers and footer.
+
 - Explain why Approve everything is unavailable and link authorized users to organization approval settings.
 
 - Chat fills the desktop content area without the empty top strip; its list

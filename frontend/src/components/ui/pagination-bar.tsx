@@ -36,8 +36,8 @@ export function PaginationBar({
   const end = Math.min(total, (page + 1) * pageSize);
 
   return (
-    <div className="flex items-center justify-between">
-      <span className="text-muted-foreground text-sm">
+    <div className="flex min-h-9 shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      <span className="text-muted-foreground text-[13px] tabular-nums">
         {tc("rangeOfTotal", { start, end, total })}
       </span>
       <div className="flex items-center gap-1">
@@ -50,7 +50,11 @@ export function PaginationBar({
         >
           <ChevronLeft className="h-4 w-4" />
         </Button>
-        <span className="text-muted-foreground px-2 text-sm">
+        <span
+          className="text-foreground/80 min-w-12 px-2 text-center text-[13px] font-medium tabular-nums"
+          aria-live="polite"
+          aria-atomic="true"
+        >
           {page + 1} / {pageCount}
         </span>
         <Button

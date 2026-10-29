@@ -1,5 +1,5 @@
 ---
-source_sha: "e2879c5149f0"
+source_sha: "7b914c4d0807"
 ---
 
 # Die Konsole { #the-console }
@@ -835,3 +835,5 @@ Nach der Anmeldung zeigt **Was ist neu** einmal pro Konto auf diesem Gerät die 
 Chat controls merkt sich Modell, Freigabemodus und lokale Werkzeuge pro Konto und Organisation über Chats hinweg. Projektdateieinstellungen haben Vorrang. Die Zustimmung zum gesamten Computer gilt weiterhin nur für eine Unterhaltung. Das Überspringen von Freigaben benötigt weiterhin die aktuelle Berechtigung und Organisationsrichtlinie. Agent setting (oder Cloud für Dateien) ist deaktiviert, wenn dem veröffentlichten Agenten diese Fähigkeit fehlt; lokale Alternativen werden nicht automatisch aktiviert. Ein Klick auf die ausgewählte lokale Option schaltet sie aus.
 
 Die Benachrichtigungsstummschaltung hat ein Glockensymbol; das Eingabefeld wiederholt die Ordner- und Zugriffsanzeige nicht mehr. Agentenporträts überlappen in voller Größe und spreizen sich in der erweiterten Chatliste beim Darüberfahren leicht auf.
+
+Listenfußzeilen bleiben am unteren Rand ihres Panels mit einheitlichen Abständen und deckendem Hintergrund. Paginierte Verwaltungstabellen scrollen ihre Zeilen unabhängig, während Spaltenüberschriften und Seitennavigation sichtbar bleiben. Leere Ergebnisse und Fehler bleiben im selben Scrollbereich.

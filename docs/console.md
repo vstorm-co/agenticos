@@ -739,3 +739,5 @@ After sign-in, **What’s new** shows the installed version’s public GitHub re
 Chat controls remember the model, permission mode and desktop tool preferences for this account and organization across chats. Project file settings take precedence. Whole-computer consent remains specific to one conversation. Approval waivers still require the current permission and organization policy. Agent setting (or Cloud for files) is disabled when the published agent lacks that capability; no local alternative is enabled automatically. Local tools can be switched off by clicking their selected option.
 
 Muting notifications has a bell icon; the composer no longer repeats the local folder/access badge. Multi-agent portraits overlap at full size and spread slightly on hover in the expanded chat list.
+
+List footers stay at the bottom of their panel, with a solid background and consistent spacing. Paged administration tables scroll their rows independently while keeping column headers and pagination visible. Empty and failed reads stay inside the same scroll area.

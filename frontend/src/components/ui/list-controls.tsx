@@ -214,7 +214,7 @@ export function Pager({
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2">
+    <div className="mt-auto flex shrink-0 flex-wrap items-center justify-between gap-2">
       <p className="text-muted-foreground text-xs">
         {matched === total
           ? t("pagerAll", { counted, page: page + 1, pageCount })

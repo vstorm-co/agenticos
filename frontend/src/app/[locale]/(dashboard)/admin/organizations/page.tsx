@@ -160,6 +160,7 @@ export default function AdminOrganizationsPage() {
       contentClassName="p-0"
     >
       <DataTable<AdminOrganization>
+        fillHeight
         columns={columns}
         rows={organizations}
         getRowKey={(org) => org.id}

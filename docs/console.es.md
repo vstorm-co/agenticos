@@ -1,5 +1,5 @@
 ---
-source_sha: "e2879c5149f0"
+source_sha: "7b914c4d0807"
 ---
 
 # La consola { #the-console }
@@ -787,3 +787,5 @@ Tras iniciar sesión, **Novedades** muestra las notas públicas de GitHub de la 
 Chat controls recuerda el modelo, el modo de aprobación y las herramientas locales por cuenta y organización entre chats. Los ajustes de archivos del proyecto tienen prioridad. El consentimiento para todo el ordenador sigue siendo exclusivo de una conversación. Omitir aprobaciones requiere el permiso actual y la política de la organización. Agent setting (o Cloud para archivos) se desactiva si el agente publicado no tiene esa capacidad; ninguna alternativa local se activa automáticamente. Pulsar la opción local seleccionada la desactiva.
 
 Silenciar notificaciones tiene un icono de campana; el compositor ya no repite la insignia de carpeta y acceso. Los avatares se superponen a tamaño completo y se separan ligeramente al pasar el cursor en la lista de chats expandida.
+
+Los pies de lista permanecen en el borde inferior del panel, con espaciado uniforme y fondo opaco. Las tablas de administración paginadas desplazan sus filas de forma independiente, manteniendo visibles las cabeceras y la paginación. Los resultados vacíos y los errores permanecen en la misma zona de desplazamiento.

@@ -76,3 +76,9 @@ describe("the page transition wrapper", () => {
     expect(rootClasses("/en/runsomething")).toContain(PAGE_CLEARANCE);
   });
 });
+
+it("bounds paged admin lists without constraining organization detail pages", () => {
+  expect(rootClasses("/en/admin/users")).toContain("min-h-0");
+  expect(rootClasses("/pl/admin/organizations")).toContain("min-h-0");
+  expect(rootClasses("/en/admin/organizations/org-id")).not.toContain("min-h-0");
+});

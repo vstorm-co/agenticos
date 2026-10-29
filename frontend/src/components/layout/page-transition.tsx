@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
  * on its own root does NOT stop this box's min-content from growing to the
  * transcript's height.
  */
-const OWN_SCROLL_PANE = /\/(?:chat|projects\/[^/]+)(?:\/|$)/;
+const OWN_SCROLL_PANE = /\/(?:chat|projects\/[^/]+)(?:\/|$)|\/admin\/(?:users|organizations)\/?$/;
 
 /**
  * Routes that place their own room under themselves, lower down.

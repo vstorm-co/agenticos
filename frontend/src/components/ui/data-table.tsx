@@ -294,21 +294,21 @@ export function DataTable<T>({
               ))}
           </tbody>
         </table>
+
+        {showError && (
+          <div className="text-destructive px-4 py-12 text-center text-sm" role="alert">
+            {error}
+          </div>
+        )}
+
+        {showEmpty && (
+          // The table is the frame: an empty state that brings its own border and
+          // fill is drawn without them here.
+          <div className="text-muted-foreground px-4 py-12 text-center text-sm [&>*]:border-0 [&>*]:bg-transparent">
+            {empty ?? t("noResults")}
+          </div>
+        )}
       </div>
-
-      {showError && (
-        <div className="text-destructive px-4 py-12 text-center text-sm" role="alert">
-          {error}
-        </div>
-      )}
-
-      {showEmpty && (
-        // The table is the frame: an empty state that brings its own border and
-        // fill is drawn without them here.
-        <div className="text-muted-foreground px-4 py-12 text-center text-sm [&>*]:border-0 [&>*]:bg-transparent">
-          {empty ?? t("noResults")}
-        </div>
-      )}
     </div>
   );
 }

@@ -290,3 +290,15 @@ it("leaves a read-only row out of the keyboard action order", () => {
   renderTable({ rows: [{ id: "1", name: "Billing clerk" }] });
   expect(screen.getByRole("row", { name: "Billing clerk" })).not.toHaveAttribute("tabindex");
 });
+
+it("keeps an empty or failed full-height table inside its row scrollport", () => {
+  const view = renderTable({ fillHeight: true, rows: [], empty: "No ratings" });
+  const scroller = view.container.querySelector(".overflow-y-auto");
+  expect(scroller).toHaveClass("min-h-0", "flex-1");
+  expect(scroller).toContainElement(screen.getByText("No ratings"));
+  view.unmount();
+  const failed = renderTable({ fillHeight: true, error: "Read failed" });
+  expect(failed.container.querySelector(".overflow-y-auto")).toContainElement(
+    screen.getByRole("alert"),
+  );
+});
