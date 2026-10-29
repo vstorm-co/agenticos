@@ -140,8 +140,14 @@ def _variables_for(surface: ExposureSurface) -> list[ExposureVariable]:
     """
     available = PLATFORM_TOOLS.get(surface.value, ())
     answered = {
-        "get_channel_info": {"channel_name", "channel_purpose", "channel_topic", "member_count"},
-        "list_channel_members": {"member_list"},
+        "get_channel_info": {
+            "channel_name",
+            "channel_purpose",
+            "channel_topic",
+            "member_count",
+            "channel_visibility",
+        },
+        "list_channel_members": {"member_list", "channel_members"},
     }
     fillable = {name for tool, names in answered.items() if tool in available for name in names}
     return [

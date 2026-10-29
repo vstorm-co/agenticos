@@ -60,6 +60,7 @@ from app.services.access import publisher_context
 from app.services.agent_runner import AgentRunnerService, RunStream
 from app.services.channels.base import ROOM_HANDLES, OutgoingAttachment, channel_key
 from app.services.channels.chart_png import render_chart_png
+from app.services.channels.formatting import LINK_ACCOUNT_INSTRUCTION
 from app.services.channels.next_steps import next_steps_of
 from app.services.channels.steering import current_steering, is_asked_aside
 from app.services.transcript import RecordedToolCall
@@ -124,12 +125,17 @@ def drawn_chart(called: list[RecordedToolCall]) -> bytes | None:
 
 
 async def drawn_picture(
-    called: list[RecordedToolCall], *, organization_id: UUID, conversation_id: UUID | None
+    called: list[RecordedToolCall],
+    *,
+    organization_id: UUID,
+    conversation_id: UUID | None,
+    notices: list[str] | None = None,
 ) -> bytes | None:
     """The last picture this turn made: a chart, or a visual the deployment's browser drew.
 
     A reply carries one image, so it is the *last* of either kind. A visual with
-    no browser to draw it with gives none, and the answer goes without it.
+    no browser to draw it with gives none, and records a delivery notice in
+    `notices` so the channel does not silently confirm a missing picture.
     """
     for call in reversed(called):
         if call.result is None:
@@ -146,13 +152,21 @@ async def drawn_picture(
             )
             if picture is not None:
                 return picture
+            if notices is not None:
+                notices.append(
+                    "The visual could not be attached to this reply. It is saved in the "
+                    "conversation in AgenticOS. Ask the deployment operator to check the "
+                    "visual renderer."
+                )
+                # One failed render already covered all this turn's visuals.
+                notices = None
     return None
 
 
 _CHART_TOOL = "create_chart"
 """What the charts capability registers. One name, read in one place."""
 
-_LINK_FIRST = "Link your account before talking to an agent - send /link to this bot."
+_LINK_FIRST = LINK_ACCOUNT_INSTRUCTION
 
 # Said when the handle names a real agent that nobody has made available here.
 # Deliberately *not* the same answer a typo gets: the bindings are new, so the
@@ -199,13 +213,14 @@ def parse_mention(text: str) -> Mention | None:
     addressing an agent, which makes this a property of the parser rather than a
     refusal further down.
     """
-    match = _MENTION.match(text)
-    if match is None:
-        return None
-    slug, prompt = match.group(1), match.group(2).strip()
-    if not prompt or slug in ROOM_HANDLES:
-        return None
-    return Mention(slug=slug, prompt=prompt)
+    while match := _MENTION.match(text):
+        slug, prompt = match.group(1), match.group(2).strip()
+        if not prompt:
+            return None
+        if slug not in ROOM_HANDLES:
+            return Mention(slug=slug, prompt=prompt)
+        text = prompt
+    return None
 
 
 class UnaddressedMessage(Exception):
@@ -229,6 +244,9 @@ class AnsweredTurn:
     attachments: list[OutgoingAttachment] = field(default_factory=list)
     refused: list[str] = field(default_factory=list)
     """Produced files the reply names instead of carrying."""
+
+    delivery_notices: list[str] = field(default_factory=list)
+    """Delivery failures, already phrased for the reader rather than as file paths."""
 
     awaiting_approval_run_id: UUID | None = None
     """The run parked on a decision, when that is how the turn ended.
@@ -388,6 +406,7 @@ class ChannelAgentRouter:
 
         produced: list[OutgoingAttachment] = []
         refused: list[str] = []
+        notices: list[str] = []
         called: list[RecordedToolCall] = []
         answer, run = await self.runner.execute(
             ctx,
@@ -434,8 +453,12 @@ class ChannelAgentRouter:
             ),
             attachments=produced,
             refused=refused,
+            delivery_notices=notices,
             image_png=await drawn_picture(
-                called, organization_id=run.organization_id, conversation_id=run.conversation_id
+                called,
+                organization_id=run.organization_id,
+                conversation_id=run.conversation_id,
+                notices=notices,
             ),
             awaiting_approval_run_id=(
                 run.id if run.status == RunStatus.AWAITING_APPROVAL else None
@@ -508,6 +531,7 @@ class ChannelAgentRouter:
         )
         produced: list[OutgoingAttachment] = []
         refused: list[str] = []
+        notices: list[str] = []
         called: list[RecordedToolCall] = []
         answer, run = await self.runner.execute(
             ctx,
@@ -548,8 +572,12 @@ class ChannelAgentRouter:
             ),
             attachments=produced,
             refused=refused,
+            delivery_notices=notices,
             image_png=await drawn_picture(
-                called, organization_id=run.organization_id, conversation_id=run.conversation_id
+                called,
+                organization_id=run.organization_id,
+                conversation_id=run.conversation_id,
+                notices=notices,
             ),
             awaiting_approval_run_id=(
                 run.id if run.status == RunStatus.AWAITING_APPROVAL else None

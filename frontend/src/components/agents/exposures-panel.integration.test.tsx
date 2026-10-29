@@ -393,7 +393,7 @@ describe("ExposuresPanel", () => {
     );
     await mount();
 
-    expect(await screen.findByText("What this agent may look up on Slack")).toBeInTheDocument();
+    expect(await screen.findByText("What this agent may do on Slack")).toBeInTheDocument();
     expect(screen.getByLabelText("Describe it.")).toBeChecked();
     expect(screen.getByLabelText("Read it.")).not.toBeChecked();
   });

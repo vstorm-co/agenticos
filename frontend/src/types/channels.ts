@@ -36,7 +36,18 @@ export interface UsageReporting {
   every_n: number;
 }
 
+export interface ChannelAccessPolicy {
+  mode: "open" | "whitelist" | "jwt_linked" | "group_only";
+  whitelist: string[];
+  allowed_groups: string[];
+  require_link: boolean;
+  rate_limit_rpm: number;
+  denied_message: string;
+  respond_to_broadcasts?: boolean;
+}
+
 export interface ChannelBot extends AnswerStyle {
+  access_policy: ChannelAccessPolicy;
   id: string;
   platform: ChannelPlatform;
   name: string;
@@ -147,6 +158,7 @@ export interface ChannelBotList {
 }
 
 export interface ChannelBotCreate {
+  access_policy?: Partial<ChannelAccessPolicy>;
   platform: ChannelPlatform;
   name: string;
   /** The bot token as issued by the platform. Encrypted at rest, never read back. */
@@ -213,6 +225,7 @@ export interface TeamsConversation {
  * typed into is sent.
  */
 export interface ChannelBotUpdate {
+  access_policy?: ChannelAccessPolicy;
   name?: string;
   /** A replacement bot token. Sealed at rest like the first one. */
   token?: string;
