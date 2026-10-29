@@ -811,7 +811,9 @@ class ChannelMessageRouter:
             )
             return True
 
-        answer = self._with_notes(answered.text, file_refusals, _kept_back(answered.refused))
+        answer = self._with_notes(
+            answered.text, file_refusals, _kept_back(answered.refused), answered.delivery_notices
+        )
         await self._deliver(bot, incoming, answer, answered, handle(), streamed)
         # What the run stopped for - a decision, a question - offered here as
         # buttons rather than as a link to the console (#2064, #2067).
@@ -1287,9 +1289,9 @@ class ChannelMessageRouter:
         believes its attachment was delivered will tell them it was.
         """
         lines = [line for group in notes for line in group]
-        if not lines or not answer:
+        if not lines:
             return answer
-        return answer + "\n\n" + "\n".join(lines)
+        return "\n\n".join(part for part in (answer, "\n".join(lines)) if part)
 
     @staticmethod
     def _parse_policy(bot: ChannelBot) -> dict[str, Any]:
