@@ -1181,6 +1181,7 @@ async def test_file_size_is_checked_before_download_and_after_a_changed_file():
         assert "size limit" in await queue_channel_file(workspace, [], "large.txt")
 
 
+@pytest.mark.security
 async def test_attachment_attempt_budget_survives_sender_reassembly():
     from app.services.channels.attachments import ChannelFileBudget, channel_file_sender
 

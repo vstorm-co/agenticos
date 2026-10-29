@@ -160,6 +160,7 @@ async def test_untrusted_metadata_never_reaches_system_instructions_through_cust
 
 
 @pytest.mark.parametrize("surface", ["mattermost", "slack", "teams", "telegram"])
+@pytest.mark.security
 def test_personal_mcp_reads_require_explicit_approval_on_every_chat_app(surface):
     from app.db.models.agent_run import RunSurface
     from app.services.agent_runner import _with_channel_mcp_approval
@@ -176,6 +177,7 @@ def test_personal_mcp_reads_require_explicit_approval_on_every_chat_app(surface)
     assert _with_channel_mcp_approval(spec, RunSurface.WEB) is spec
 
 
+@pytest.mark.security
 def test_channel_mcp_approval_includes_organization_and_platform_connections():
     from uuid import uuid4
 
@@ -198,6 +200,7 @@ def test_channel_mcp_approval_includes_organization_and_platform_connections():
     "granted",
     [["send_channel_file"], ["get_channel_info", "send_channel_file"], ["get_channel_info"], []],
 )
+@pytest.mark.security
 def test_file_delivery_requires_approval_only_when_granted(granted):
     from app.agents.capabilities.approval import approval_required_tools
     from app.services.agent_runner import _with_channel_tools
