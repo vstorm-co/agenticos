@@ -107,6 +107,9 @@ class AgentDeps:
     # - a drawing - has to say so rather than claim the person can see it.
     delegated: bool = False
 
+    # Bound to the current channel and workspace; delegates cannot send files.
+    send_channel_file: Callable[[str], Awaitable[str]] | None = None
+
     # Set when the surface can hold a run for human approval. A tool that needs
     # approval and finds this None must refuse rather than proceed unattended.
     request_approval: ApprovalCallback | None = None
