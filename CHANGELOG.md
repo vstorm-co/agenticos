@@ -27,7 +27,8 @@ Two things are versioned separately from this file and worth knowing about:
   conversation, instead of staying missing until a new conversation and upload.
   Only the person's own files are restored, until that agent completes a later
   turn for them that looked for them. Files of a turn a guardrail blocked are
-  not restored.
+  not restored, and on an agent with an input guardrail each file is screened
+  first: a file the guardrail refuses is not written back.
 
 ## [1.28.1] - 2026-10-28
 

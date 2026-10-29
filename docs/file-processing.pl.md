@@ -1,5 +1,5 @@
 ---
-source_sha: "1a7b97672009"
+source_sha: "d5c067d3409c"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -157,6 +157,13 @@ wejścia odrzucił to, co niosła; pliki promptu, którego run nigdy się nie ot
 nie należy on do żadnego agenta; pliki z tury uruchomionej kluczem API albo dla
 gościa widgetu; oraz pliki, których następna tura ukończyła się, nie używając
 sandboxa.
+
+Gdy agent ma guardrail wejścia, każdy plik jest też sprawdzany, zanim wróci, na
+tym, co guardrail by z niego przeczytał: nazwie, ścieżce i pierwszych liniach. Tura
+może się zatrzymać, zanim guardrail przeczyta jej wejście, na przykład na budżecie,
+więc plik odrzucony przez guardrail nie jest zapisywany, a log podaje tylko jego
+identyfikator. Gdy odrzucone są wszystkie pliki, run nie dostaje informacji, że
+któryś może wrócić. Bez guardraila wejścia nic się nie zmienia.
 
 **Wyciągnięty tekst idzie w parze z plikiem tylko tam, gdzie nic nie umie
 przeczytać oryginału.** Kiedyś `.txt` z parsowania zapisywany był obok każdego

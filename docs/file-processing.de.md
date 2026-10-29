@@ -1,5 +1,5 @@
 ---
-source_sha: "1a7b97672009"
+source_sha: "d5c067d3409c"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -166,6 +166,14 @@ hat, weil die Eingabe-Guardrail abgelehnt hat, was er mitbrachte; die eines Prom
 dessen Run nie geöffnet wurde und der keinem Agenten gehört; Dateien eines Zugs mit
 einem API-Schlüssel oder für einen Widget-Besucher; und Dateien, deren nächster Zug
 abgeschlossen wurde, ohne die Sandbox je zu nutzen.
+
+Hat der Agent eine Eingabe-Guardrail, wird jede Datei vor dem Zurücklegen auch
+daraufhin geprüft, was die Guardrail von ihr lesen würde: ihren Namen, ihren Pfad
+und ihre ersten Zeilen. Ein Zug kann stoppen, bevor die Guardrail seine Eingabe
+liest, etwa an einem Budget. Eine Datei, die die Guardrail ablehnt, wird daher
+nicht geschrieben, und das Log nennt nur ihre ID. Werden alle Dateien abgelehnt,
+erfährt der Run nicht, dass eine zurück sein könnte. Ohne Eingabe-Guardrail ändert
+sich nichts.
 
 **Der extrahierte Text kommt nur dort mit, wo nichts das Original lesen kann.**
 Eine `.txt` des Parsens wurde früher neben jedes PDF, jede `.docx` und jede

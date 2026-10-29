@@ -180,7 +180,9 @@ async def _left(db, thread: _Thread, person: User, agent: Agent, **overrides) ->
         "agent_id": agent.id,
         **overrides,
     }
-    found = await chat_file_repo.left_by_interrupted_turns(db, limit=50, **scope)
+    found = await chat_file_repo.left_by_interrupted_turns(
+        db, limit=50, opening_chars=attachments_module._OPENING_CHARS, **scope
+    )
     rows = await chat_file_repo.get_many_left_by_interrupted_turns(
         db, [file.id for file in found], **scope
     )
@@ -263,6 +265,8 @@ class TestTheTurnAfterAFailedOne:
             organization_id=world.organization.id,
             user_id=world.person.id,
             agent_id=world.agent.id,
+            can_parse=False,
+            screen=None,
         )
         assert earlier is not None
         await restore_earlier_attachments(workspace, earlier, can_parse=False)
@@ -315,6 +319,8 @@ class TestWhatATurnMayPutBack:
                 organization_id=world.organization.id,
                 user_id=world.person.id,
                 agent_id=world.agent.id,
+                can_parse=False,
+                screen=None,
             )
             is None
         )
@@ -454,6 +460,7 @@ class TestWhatATurnMayPutBack:
             user_id=world.person.id,
             agent_id=world.agent.id,
             limit=1,
+            opening_chars=attachments_module._OPENING_CHARS,
         )
 
-        assert found == [(newest.id, "new.csv", "text", True)]
+        assert found == [(newest.id, "new.csv", "text", len(CSV), CSV.decode())]

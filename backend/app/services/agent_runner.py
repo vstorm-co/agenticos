@@ -3381,6 +3381,10 @@ class AgentRunnerService:
                     organization_id=ctx.organization_id,
                     user_id=ctx.user_id,
                     agent_id=agent.id,
+                    can_parse=workspace.parses_documents,
+                    # A file the input edge would refuse is never put back
+                    # (#2481): its turn may have stopped before the edge ran.
+                    screen=input_screen_for(spec),
                 )
             if earlier is not None:
                 spec = _with_earlier_attachments_briefing(spec)

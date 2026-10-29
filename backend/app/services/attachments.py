@@ -20,6 +20,7 @@ the bytes twice stops being worth it.
 import functools
 import logging
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any
@@ -28,6 +29,7 @@ from uuid import UUID
 from pydantic_ai.messages import BinaryContent
 from pydantic_ai.workspaces import Workspace, WorkspaceError
 
+from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.core.blocking import run_blocking
 from app.core.config import settings
 from app.db.models.chat_file import ChatFile
@@ -37,6 +39,7 @@ from app.services.file_storage import get_file_storage
 from app.services.file_upload import TiffConversion, cap_text, tiff_pages_to_png
 
 if TYPE_CHECKING:
+    from pydantic_ai_harness import GuardrailResult
     from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
@@ -735,6 +738,11 @@ EARLIER_ATTACHMENTS_RESTORED = 50
 The files are only those of the agent's turns that stopped since its last
 completed one, so this bounds a thread that kept failing, not an ordinary one."""
 
+_OPENING_CHARS = 2 * (HEAD_CHARS + 1)
+"""How much of a file's parsed text `_head` can read: each character it keeps
+comes from at most two (a `\r\n` becomes one `\n`), so this prefix has the
+same head as the whole text."""
+
 
 @dataclass(frozen=True)
 class EarlierAttachments:
@@ -759,11 +767,19 @@ async def find_earlier_attachments(
     organization_id: UUID,
     user_id: UUID,
     agent_id: UUID,
+    can_parse: bool,
+    screen: Callable[[str], GuardrailResult] | None,
 ) -> EarlierAttachments | None:
     """The person's files a turn of this agent may have stopped before writing (#2481).
 
     `None` when there are none, which is every thread whose turns finished -
     see `chat_file_repo.left_by_interrupted_turns` for which files qualify and why.
+
+    `screen` is the agent's input edge (`input_screen_for`), or `None` without
+    one. A turn the edge would refuse can still end interrupted rather than
+    blocked - a budget is checked before the edge reads anything - so each file
+    is screened here over what the edge would read of it, and one it refuses is
+    left out: never written, and never counted as something to put back.
     """
     found = await chat_file_repo.left_by_interrupted_turns(
         db,
@@ -772,7 +788,10 @@ async def find_earlier_attachments(
         user_id=user_id,
         agent_id=agent_id,
         limit=EARLIER_ATTACHMENTS_RESTORED,
+        opening_chars=_OPENING_CHARS,
     )
+    if screen is not None:
+        found = [file for file in found if not _refused_on_restore(file, screen, can_parse)]
     if not found:
         return None
     return EarlierAttachments(
@@ -782,12 +801,44 @@ async def find_earlier_attachments(
         agent_id=agent_id,
         paths={file.id: upload_path(file.id, file.filename) for file in found},
         text_bearing=frozenset(
-            file.id for file in found if file.has_text and file.file_type in _TEXT_BEARING
+            file.id for file in found if file.opening and file.file_type in _TEXT_BEARING
         ),
         lit_readable=frozenset(
             file.id for file in found if _skips_sibling(file.file_type, can_parse=True)
         ),
     )
+
+
+def _refused_on_restore(
+    file: chat_file_repo.InterruptedFile,
+    screen: Callable[[str], GuardrailResult],
+    can_parse: bool,
+) -> bool:
+    """Whether the input edge refuses what it would read of this file once it
+    is back: its name, path and opening lines (`_referenced`), the extracted
+    text named as if its write had landed. Logged without its content."""
+    path = upload_path(file.id, file.filename)
+    # Never added to a session: only the columns `_referenced` reads, so the
+    # screen sees the same text the edge would without loading the whole parse.
+    referenced = ChatFile(
+        id=file.id,
+        filename=file.filename,
+        file_type=file.file_type,
+        size=file.size,
+        parsed_content=file.opening or None,
+    )
+    sibling = (
+        None
+        if _skips_sibling(file.file_type, can_parse=can_parse)
+        else _text_sibling(referenced, path)
+    )
+    try:
+        refused = screen(_referenced(referenced, path, sibling=sibling)).action == "block"
+    except GuardrailBlocked:
+        refused = True
+    if refused:
+        logger.warning("attachment_not_restored_refused", extra={"file_id": str(file.id)})
+    return refused
 
 
 async def restore_earlier_attachments(

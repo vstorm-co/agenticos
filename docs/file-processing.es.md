@@ -1,5 +1,5 @@
 ---
-source_sha: "1a7b97672009"
+source_sha: "d5c067d3409c"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -161,6 +161,14 @@ guardrail de entrada rechazó lo que llevaba; los de un prompt cuyo run nunca se
 abrió, que no pertenece a ningún agente; los de un turno ejecutado con una clave de
 API o para un visitante del widget; y los cuyo turno siguiente se completó sin usar
 nunca su sandbox.
+
+Cuando el agente tiene un guardrail de entrada, cada archivo se revisa además antes
+de reponerlo, sobre lo que el guardrail leería de él: su nombre, su ruta y sus
+primeras líneas. Un turno puede detenerse antes de que el guardrail lea su entrada,
+por ejemplo por un presupuesto, así que un archivo que el guardrail rechaza no se
+escribe, y el registro solo indica su identificador. Si se rechazan todos los
+archivos, al run no se le dice que alguno pueda estar de vuelta. Sin un guardrail
+de entrada, nada cambia.
 
 **El texto extraído lo acompaña solo cuando nada puede leer el original.** Antes
 se escribía un `.txt` del parseo junto a cada PDF, `.docx` y hoja de cálculo,

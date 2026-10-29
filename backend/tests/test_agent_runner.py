@@ -1984,6 +1984,7 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
         ctx: AuthContext | None = None,
         *,
         resumed: MagicMock | None = None,
+        spec: AgentSpec | None = None,
     ):
         """`prepare`, or with `resumed` the same assembly continuing that parked run."""
         service = AgentRunnerService(_db())
@@ -2005,7 +2006,11 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
                 service.registry,
                 "get_runnable_spec",
                 new=AsyncMock(
-                    return_value=(agent, AgentSpec(name="Books"), agent.current_version_id)
+                    return_value=(
+                        agent,
+                        spec or AgentSpec(name="Books"),
+                        agent.current_version_id,
+                    )
                 ),
             ),
             patch.object(
@@ -2042,13 +2047,37 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
             await workspace.workspace.exists("anything")
 
         if find.await_count:
-            assert find.await_args.kwargs == {
+            kwargs = dict(find.await_args.kwargs)
+            screen = kwargs.pop("screen")
+            # Without a guardrail, nothing is screened.
+            assert (screen is None) == (spec is None)
+            assert kwargs == {
                 "conversation_id": conversation_id,
                 "organization_id": ctx.organization_id,
                 "user_id": ctx.user_id,
                 "agent_id": agent.id,
+                "can_parse": workspace.parses_documents,
             }
         return prepared, build.call_args.args[0].instructions, prepared_only, restored, find
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_they_are_looked_for_with_the_agents_input_edge(self):
+        """A turn the edge would refuse can still end interrupted, so what is put
+        back is screened with the same guardrail the edge runs."""
+        guarded = AgentSpec(
+            name="Books",
+            capabilities=[
+                CapabilityBindingSpec(id="guardrails", config={"blocked_keywords_in": "salary"})
+            ],
+        )
+
+        *_, find = await self._prepare(_sandbox(StateBackend()), earlier=None, spec=guarded)
+
+        screen = find.await_args.kwargs["screen"]
+        with pytest.raises(GuardrailBlocked):
+            screen("the salary table")
+        assert screen("the sales table").action != "block"
 
     @pytest.mark.anyio
     async def test_a_sandbox_puts_them_back_on_first_use_before_its_snapshot(self):

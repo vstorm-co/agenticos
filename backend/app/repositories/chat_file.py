@@ -32,8 +32,11 @@ class InterruptedFile(NamedTuple):
     id: UUID
     filename: str
     file_type: str
-    has_text: bool
-    """Whether it has parsed text, which decides whether a text sibling is due."""
+    size: int
+    opening: str
+    """The start of its parsed text, empty without any - whether there is text
+    decides whether a text sibling is due, and its first lines are part of what
+    the input edge would read of the file."""
 
 
 async def get_by_id(db: AsyncSession, file_id: UUID) -> ChatFile | None:
@@ -109,6 +112,7 @@ async def left_by_interrupted_turns(
     user_id: UUID,
     agent_id: UUID,
     limit: int,
+    opening_chars: int,
 ) -> list[InterruptedFile]:
     """Where to look for `user_id`'s files on this agent's turns that did not
     finish here, since its last turn that did - newest first (#2481).
@@ -130,7 +134,7 @@ async def left_by_interrupted_turns(
 
     A few columns rather than rows: a row carries the file's parsed text, up to
     a million characters, and the caller needs the text only for a file its
-    workspace turns out to be missing.
+    workspace turns out to be missing - and its first `opening_chars` of it.
     """
     result = await db.execute(
         _left_by_interrupted_turns(
@@ -138,7 +142,8 @@ async def left_by_interrupted_turns(
                 ChatFile.id,
                 ChatFile.filename,
                 ChatFile.file_type,
-                func.coalesce(func.length(ChatFile.parsed_content), 0) > 0,
+                ChatFile.size,
+                func.coalesce(func.substr(ChatFile.parsed_content, 1, opening_chars), ""),
             ),
             conversation_id=conversation_id,
             organization_id=organization_id,

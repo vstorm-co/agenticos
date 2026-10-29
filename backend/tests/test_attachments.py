@@ -1153,9 +1153,9 @@ class TestALaterTurnPutsBackWhatAFailedTurnLost:
         file_id, pdf_id, scan_id = uuid4(), uuid4(), uuid4()
         found = AsyncMock(
             return_value=[
-                chat_file_repo.InterruptedFile(file_id, "raport.csv", "text", True),
-                chat_file_repo.InterruptedFile(pdf_id, "umowa.pdf", "pdf", True),
-                chat_file_repo.InterruptedFile(scan_id, "skan.pdf", "pdf", False),
+                chat_file_repo.InterruptedFile(file_id, "raport.csv", "text", 10, "a,b"),
+                chat_file_repo.InterruptedFile(pdf_id, "umowa.pdf", "pdf", 10, "Umowa"),
+                chat_file_repo.InterruptedFile(scan_id, "skan.pdf", "pdf", 10, ""),
             ]
         )
         monkeypatch.setattr(attachments_module.chat_file_repo, "left_by_interrupted_turns", found)
@@ -1167,6 +1167,8 @@ class TestALaterTurnPutsBackWhatAFailedTurnLost:
             organization_id=organization,
             user_id=caller,
             agent_id=agent,
+            can_parse=False,
+            screen=None,
         )
 
         assert earlier is not None
@@ -1180,6 +1182,7 @@ class TestALaterTurnPutsBackWhatAFailedTurnLost:
             "user_id": caller,
             "agent_id": agent,
             "limit": attachments_module.EARLIER_ATTACHMENTS_RESTORED,
+            "opening_chars": attachments_module._OPENING_CHARS,
         }
 
     async def test_a_thread_with_no_attachments_has_nothing_to_put_back(self, monkeypatch):
@@ -1196,6 +1199,126 @@ class TestALaterTurnPutsBackWhatAFailedTurnLost:
                 organization_id=uuid4(),
                 user_id=uuid4(),
                 agent_id=uuid4(),
+                can_parse=False,
+                screen=None,
             )
             is None
         )
+
+
+class TestAFileTheInputEdgeRefusesIsNotPutBack:
+    """A turn whose input the guardrail would refuse can still end interrupted -
+    a budget is checked before the edge reads anything - and putting its file back
+    would hand a later turn what the policy turns away (#2481)."""
+
+    @staticmethod
+    async def _find(monkeypatch, *found, screen, can_parse: bool = False):
+        monkeypatch.setattr(
+            attachments_module.chat_file_repo,
+            "left_by_interrupted_turns",
+            AsyncMock(return_value=list(found)),
+        )
+        return await attachments_module.find_earlier_attachments(
+            object(),
+            conversation_id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            agent_id=uuid4(),
+            can_parse=can_parse,
+            screen=screen,
+        )
+
+    @staticmethod
+    def _keyword(word: str, seen: list[str] | None = None):
+        from app.agents.capabilities.guardrails import GuardrailsConfig, input_screen
+
+        screen = input_screen(GuardrailsConfig(blocked_keywords_in=word))
+        assert screen is not None
+
+        def recording(text: str):
+            if seen is not None:
+                seen.append(text)
+            return screen(text)
+
+        return recording
+
+    @pytest.mark.security
+    async def test_a_refused_file_is_left_out_and_the_rest_put_back(self, monkeypatch, caplog):
+        refused, allowed = uuid4(), uuid4()
+
+        earlier = await self._find(
+            monkeypatch,
+            chat_file_repo.InterruptedFile(refused, "plan.csv", "text", 10, "salary,2026"),
+            chat_file_repo.InterruptedFile(allowed, "sales.csv", "text", 10, "month,total"),
+            screen=self._keyword("salary"),
+        )
+
+        assert earlier is not None
+        assert set(earlier.paths) == {allowed}
+        assert [
+            record.file_id
+            for record in caplog.records
+            if record.name == attachments_module.__name__
+        ] == [str(refused)]
+        # The log names the file, never what is in it.
+        assert "salary" not in caplog.text
+
+    @pytest.mark.security
+    async def test_a_thread_whose_every_file_is_refused_has_nothing_to_put_back(self, monkeypatch):
+        """And so no briefing telling the model a file may be back."""
+        earlier = await self._find(
+            monkeypatch,
+            chat_file_repo.InterruptedFile(uuid4(), "salary.pdf", "pdf", 10, ""),
+            screen=self._keyword("salary"),
+        )
+
+        assert earlier is None
+
+    @pytest.mark.security
+    async def test_a_screen_that_raises_its_refusal_refuses(self, monkeypatch):
+        from app.agents.capabilities.guardrails import GuardrailBlocked
+
+        def raising(text: str):
+            raise GuardrailBlocked(edge="input", message="Refused.")
+
+        earlier = await self._find(
+            monkeypatch,
+            chat_file_repo.InterruptedFile(uuid4(), "a.csv", "text", 10, "x"),
+            screen=raising,
+        )
+
+        assert earlier is None
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(("can_parse", "sibling"), [(False, True), (True, False)])
+    async def test_the_edge_reads_what_it_would_read_of_the_file(
+        self, monkeypatch, can_parse: bool, sibling: bool
+    ):
+        """Its name, path and opening lines, and its extracted text named where a
+        runtime without `lit` gets it - `_referenced`, as on the turn it came with."""
+        file_id = uuid4()
+        seen: list[str] = []
+
+        await self._find(
+            monkeypatch,
+            chat_file_repo.InterruptedFile(file_id, "umowa.pdf", "pdf", 4096, "Umowa\nStrona 1"),
+            screen=self._keyword("unused", seen),
+            can_parse=can_parse,
+        )
+
+        path = f"uploads/{file_id.hex[:8]}-umowa.pdf"
+        (text,) = seen
+        assert f"Attached file: umowa.pdf (4 KB, pdf), in your workspace at {path}" in text
+        assert "Umowa\nStrona 1" in text
+        assert (f"{path}.txt" in text) is sibling
+
+    def test_the_opening_read_has_the_head_of_the_whole_text(self):
+        """Only a prefix of the parsed text is read for the screen, and it must
+        show the edge the same first lines - `\r\n` lines halve what a prefix holds."""
+        head_chars = attachments_module.HEAD_CHARS
+        crlf = "\r\n" * (head_chars + 5)
+        long_lines = "\r\n".join(["x" * 300] * 30)
+
+        for text in (crlf, long_lines, "a\rb\nc" * 2000):
+            prefix = text[: attachments_module._OPENING_CHARS]
+            assert attachments_module._head(prefix) == attachments_module._head(text)

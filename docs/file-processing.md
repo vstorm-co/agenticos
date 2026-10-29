@@ -147,6 +147,13 @@ guardrail refused what that turn carried; those of a prompt whose run was never
 opened, which belongs to no agent; files on a turn run with an API key or for a
 widget visitor; and files whose next turn completed without ever using its sandbox.
 
+When the agent has an input guardrail, each file is also screened before it is put
+back, over what the guardrail would read of it: its name, its path and its first
+lines. A turn can stop before the guardrail reads its input, for example on a
+budget, so a file the guardrail refuses is not written, and the log names its id
+only. When every file is refused, the run is not told that any may be back.
+Without an input guardrail, nothing changes.
+
 **The extracted text comes with it only where nothing can read the original.** A
 `.txt` of the parse used to be written next to every PDF, `.docx` and spreadsheet,
 on the reasoning that a shell has no library for any of them — `read_file` on an
