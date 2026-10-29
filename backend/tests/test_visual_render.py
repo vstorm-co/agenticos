@@ -141,7 +141,12 @@ class TestWhatTheBrowserIsGiven:
             png = await visual_render.render_png("svg", SVG, title="T", width=640, aspect=0.5)
         assert png == b"png"
         assert photograph.await_args.args[0] == "http://browser:9222"
-        assert photograph.await_args.kwargs == {"width": 640, "aspect": 0.5}
+        assert photograph.await_args.kwargs == {
+            "width": 640,
+            "aspect": 0.5,
+            "pixel_ratio": 1,
+            "alternate_document": None,
+        }
 
 
 class TestTheTurnsPicture:
@@ -254,3 +259,25 @@ class TestTheTurnsPicture:
                 )
                 is None
             )
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        ("flowchart LR\n A --> B", "flowchart TD\n A --> B"),
+        ("%% A comment\n graph RL\n A --> B", "%% A comment\n graph TD\n A --> B"),
+        ("flowchart TD\n A --> B", None),
+        ("sequenceDiagram\n A->>B: flowchart LR", None),
+    ],
+)
+def test_only_horizontal_flowchart_directions_have_a_compact_alternative(source, expected):
+    assert visual_render.compact_flowchart(source) == expected
+
+
+async def test_channel_pictures_are_high_resolution_with_a_compact_option(browser):
+    with patch(
+        "app.services.visual_render._photograph", new=AsyncMock(return_value=b"png")
+    ) as photograph:
+        await visual_render.render_png("mermaid", "flowchart LR\n A --> B", title="T", channel=True)
+    assert photograph.await_args.kwargs["pixel_ratio"] == 2
+    assert b"flowchart TD" in photograph.await_args.kwargs["alternate_document"]

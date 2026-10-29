@@ -85,7 +85,7 @@ browser is pointed at the deployment's browser service
 | `media` | Media offload | utility | none, by design | — | — | no effect |
 | `tool_output_limits` | Tool output limits | utility | `read_tool_result` | — | — | as-is |
 | `artifacts` | Apps | utility | `publish_artifact`, `read_artifact` | — | — | as-is |
-| `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — | not available |
+| `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` | — | — | not available |
 | `ask_user` | Ask the user | utility | `ask_user_question` | — | — | on screen |
 | `follow_ups` | Follow-ups | utility | `suggest_next_steps`, `propose_setup` | — | — | not available |
 
@@ -2294,6 +2294,9 @@ what a single door avoids.
 `list_channel_members` — *List the people in this channel.*
 `search_channels` — *Find other channels by name or purpose, without reading them.*
 `read_channel_history` — *Read the most recent messages in this channel, newest last.*
+`send_channel_file` — *Send a requested workspace file.*
+
+Use a direct message containing plain `link` (without a slash) to connect an account. Open the private connection link while signed in to AgenticOS, then return to the channel. When earlier thread files require linking, the bot explains this without downloading them and retries after connection. Channel pictures use twice the CSS resolution; very wide horizontal Mermaid flowcharts receive a vertical layout for the PNG only.
 
 The one capability an agent's spec may not bind. It is granted **per binding**,
 in the Builder under *Where this agent is available*, because an organization can

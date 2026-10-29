@@ -288,7 +288,7 @@ class TestAnswer:
                 user_id=None,
             )
 
-        assert "/link" in refused.value.message
+        assert "`link` (without a slash)" in refused.value.message
         agents.get_by_slug.assert_not_called()
 
     async def test_a_linked_sender_who_left_the_organization_is_refused_the_same_way(self):
@@ -309,7 +309,7 @@ class TestAnswer:
                     user_id=uuid.uuid4(),
                 )
 
-        assert "/link" in refused.value.message
+        assert "`link` (without a slash)" in refused.value.message
 
     async def test_a_deactivated_linked_member_does_not_run_a_channel_turn_at_their_old_role(
         self,
@@ -338,7 +338,7 @@ class TestAnswer:
                     user_id=uuid.uuid4(),
                 )
 
-        assert "/link" in refused.value.message
+        assert "`link` (without a slash)" in refused.value.message
         agents.get_by_slug.assert_not_called()
         runner_cls.return_value.execute.assert_not_called()
 
@@ -677,7 +677,7 @@ class TestAnswerDefault:
                     user_id=None,
                 )
 
-        assert "/link" in refused.value.message
+        assert "`link` (without a slash)" in refused.value.message
         runner_cls.return_value.execute.assert_not_called()
 
     async def test_the_only_exposed_agent_runs_the_whole_message_with_its_thread(self):
@@ -957,7 +957,7 @@ class TestWhatARoomRunsAs:
                     admit_unlinked=False,
                 )
 
-        assert "/link" in refused.value.message
+        assert "`link` (without a slash)" in refused.value.message
         runner_cls.return_value.execute.assert_not_called()
 
     async def test_a_mention_in_a_room_runs_under_the_binding_too(self):
