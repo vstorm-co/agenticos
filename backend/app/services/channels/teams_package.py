@@ -36,7 +36,7 @@ def teams_manifest(bot: ChannelBot) -> dict[str, Any]:
         for name, description in CHANNEL_COMMANDS
         if name not in {"start"}
     ]
-    return {
+    manifest: dict[str, Any] = {
         "$schema": MANIFEST_SCHEMA,
         "manifestVersion": MANIFEST_VERSION,
         "version": "1.0.0",
@@ -71,6 +71,24 @@ def teams_manifest(bot: ChannelBot) -> dict[str, Any]:
         "permissions": ["identity", "messageTeamMembers"],
         "validDomains": [host],
     }
+    if (bot.access_policy or {}).get("respond_to_broadcasts") is True:
+        manifest["webApplicationInfo"] = {
+            "id": bot.teams_app_id,
+            "resource": f"api://{bot.teams_app_id}",
+        }
+        manifest["authorization"] = {
+            "permissions": {
+                "resourceSpecific": [
+                    {"name": "ChannelMessage.Read.Group", "type": "Application"},
+                    {"name": "ChatMessage.Read.Chat", "type": "Application"},
+                ]
+            }
+        }
+        manifest["description"]["full"] += (
+            " With owner consent it receives conversation messages to respond to group mentions; "
+            "unaddressed messages are ignored before an agent run starts."
+        )
+    return manifest
 
 
 def _icon(size: int, *, outline: bool, initial: str) -> bytes:

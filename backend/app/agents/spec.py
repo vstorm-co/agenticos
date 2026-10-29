@@ -202,7 +202,7 @@ class CapabilityBindingSpec(BaseModel):
         default="default",
         description=(
             "The default for every tool this capability contributes; "
-            "'default' follows the capability's side_effecting flag"
+            "'default' leaves tools ungated unless a per-tool override requires approval"
         ),
     )
     tool_approval: dict[str, ApprovalMode] = Field(

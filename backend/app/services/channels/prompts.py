@@ -48,6 +48,7 @@ from app.services.channels.base import (
     press_value,
     read_press,
 )
+from app.services.channels.formatting import LINK_ACCOUNT_INSTRUCTION
 from app.services.channels.next_steps import offer_after_resume
 
 logger = logging.getLogger(__name__)
@@ -56,7 +57,7 @@ APPROVE = "Approve"
 REJECT = "Reject"
 SKIP = "Skip"
 DONE = "Done"
-LINK_FIRST = "Link your account first - send /link to this bot - and press again."
+LINK_FIRST = LINK_ACCOUNT_INSTRUCTION
 ALREADY = "That has already been answered."
 NOT_YOURS = "Only somebody who may approve tool calls can decide this one."
 NOT_ASKED = "This question was asked of somebody else."

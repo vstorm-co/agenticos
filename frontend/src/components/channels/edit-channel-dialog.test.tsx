@@ -12,6 +12,14 @@ function bot(overrides: Partial<ChannelBot> = {}): ChannelBot {
     webhook_mode: false,
     webhook_url: null,
     api_base_url: null,
+    access_policy: {
+      mode: "open",
+      whitelist: [],
+      allowed_groups: [],
+      require_link: false,
+      rate_limit_rpm: 10,
+      denied_message: "Denied",
+    },
     has_webhook_secret: false,
     has_slack_signing_secret: false,
     has_slack_app_token: false,
@@ -42,6 +50,7 @@ function draft(overrides: Partial<ChannelBotDraft> = {}): ChannelBotDraft {
     appToken: "",
     commandToken: "",
     webhookMode: false,
+    respondToBroadcasts: false,
     answerStyle: {
       ack_reaction: null,
       stream_answers: true,
@@ -316,5 +325,24 @@ describe("the transcription half of an edited bot's patch", () => {
       speech_to_text_model: "whisper-large-v3",
       speech_to_text_secret_id: "key-groq",
     });
+  });
+});
+
+it("changes group mention participation without replacing access restrictions", () => {
+  const current = bot();
+  current.access_policy = {
+    mode: "whitelist",
+    whitelist: ["alice"],
+    allowed_groups: ["team"],
+    require_link: true,
+    rate_limit_rpm: 3,
+    denied_message: "Restricted",
+  };
+  expect(botPatch(current, draft({ respondToBroadcasts: true }))).toEqual({
+    access_policy: { ...current.access_policy, respond_to_broadcasts: true },
+  });
+  current.access_policy.respond_to_broadcasts = true;
+  expect(botPatch(current, draft())).toEqual({
+    access_policy: { ...current.access_policy, respond_to_broadcasts: false },
   });
 });
