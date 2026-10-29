@@ -1,5 +1,5 @@
 ---
-source_sha: "9141585ed1b2"
+source_sha: "67bbf65bbc4b"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -2441,6 +2441,16 @@ través de la API HTTP, así que su modelo debe admitir streaming.
 censurado llega al modelo limpio, pero la conversación guarda el mensaje tal como lo
 escribió la persona, datos personales incluidos. Quien pueda leer la conversación
 puede leer ese mensaje.
+
+**El borde de entrada revisa un adjunto antes de escribirlo.** Un archivo adjunto
+llega al prompt como su nombre, su ruta y sus primeras 20 líneas, y el borde de
+entrada las lee junto con el mensaje de la persona. En un agent con workspace ese
+texto se revisa antes de copiar el archivo a `uploads/`, así que un turno que el
+borde bloquea no escribe nada, y un turno posterior en un workspace con alcance
+`conversation`, `user` o `agent` no tiene ningún archivo rechazado que abrir. El
+borde solo lee esas primeras líneas, así que un término bloqueado más abajo en el
+archivo no se detecta aquí; para eso está la revisión de los resultados de las
+herramientas.
 
 **El filtrado de los resultados de herramienta es la razón de que este borde sea el que
 más importa.** Es la única guarda sobre el contenido no confiable que entra en el

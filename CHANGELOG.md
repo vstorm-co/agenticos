@@ -19,6 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- A file attached to a turn that the input guardrail blocks is no longer written
+  to the agent's workspace. The input edge now screens the message and each
+  file's opening lines before the file is copied to `uploads/`, so a later turn
+  in a `conversation`-, `user`- or `agent`-scoped workspace cannot open it. The
+  blocked turn still ends as `guardrail_blocked` (#2559).
+
 ## [1.28.1] - 2026-10-28
 
 ### Fixed

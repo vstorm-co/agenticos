@@ -4986,6 +4986,9 @@ class AgentRunnerService:
                 # from the briefing: a briefing is a best effort and this decides
                 # whether the extracted text is written at all.
                 can_parse=prepared.workspace is not None and prepared.workspace.parses_documents,
+                # Screened before a file is written, not only once the run starts
+                # (#2559): a refused file must not outlive its turn.
+                screen=input_screen_for(prepared.spec),
             )
             assembled = await router.build_prompt(prompt, attachments)
             attachment_context = router.context or None

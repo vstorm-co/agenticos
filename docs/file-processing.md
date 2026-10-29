@@ -174,6 +174,11 @@ had just written and kept trying — `ls`, then a `curl` of a `data:` URI, then
 three workarounds offered to the person, across two turns. One sentence now says
 the workspace is unavailable and that another attempt will fail the same way.
 
+**A turn the input guardrail blocks writes nothing.** The reference and its head
+are screened by the agent's input edge before the file is written, so a file in a
+blocked turn never reaches `uploads/` and a later turn cannot open it. See
+[Guardrails](reference/capabilities.md#guardrails).
+
 The reference is what the model actually reads:
 
 ```

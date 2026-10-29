@@ -1,5 +1,5 @@
 ---
-source_sha: "a2d3374dd0ae"
+source_sha: "732eb0c7d00c"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -195,6 +195,12 @@ geschrieben hatte, und versuchte es weiter — `ls`, dann ein `curl` auf eine
 `data:`-URI, dann drei Behelfslösungen, der Person angeboten, über zwei Runden
 hinweg. Ein Satz sagt jetzt, dass der Workspace nicht verfügbar ist und dass ein
 weiterer Versuch auf dieselbe Weise scheitern wird.
+
+**Ein Zug, den der Eingabe-Guardrail blockiert, schreibt nichts.** Der Verweis
+und sein Kopf werden von der Eingabekante des Agents geprüft, bevor die Datei
+geschrieben wird. Eine Datei aus einem blockierten Zug erreicht `uploads/` also nie,
+und ein späterer Zug kann sie nicht öffnen. Siehe
+[Schutzregeln](reference/capabilities.md#guardrails).
 
 Die Referenz ist das, was das Modell tatsächlich liest:
 

@@ -560,6 +560,9 @@ class ChatAgentRunner:
             router = AttachmentRouter(
                 prepared.workspace.workspace if prepared.workspace is not None else None,
                 can_parse=prepared.workspace is not None and prepared.workspace.parses_documents,
+                # Screened before a file is written, not only once the run starts
+                # (#2559): a refused file must not outlive its turn.
+                screen=input_screen_for(prepared.spec),
             )
             user_input = await router.build_prompt(_as_text(user_input), attachments)
             # Kept on the prompt's row so the next turn's history still carries

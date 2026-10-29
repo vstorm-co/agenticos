@@ -1,5 +1,5 @@
 ---
-source_sha: "a2d3374dd0ae"
+source_sha: "732eb0c7d00c"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -183,6 +183,11 @@ porażkę jako problem z poleceniem, które właśnie napisała, i próbowała d
 `ls`, potem `curl` na URI `data:`, potem trzy obejścia zaproponowane
 człowiekowi, przez dwie tury. Teraz jedno zdanie mówi, że workspace jest
 niedostępny i że kolejna próba zawiedzie tak samo.
+
+**Tura zablokowana przez guardrail wejścia nic nie zapisuje.** Odwołanie i jego
+nagłówek są sprawdzane przez krawędź wejścia agenta, zanim plik zostanie zapisany,
+więc plik z zablokowanej tury nigdy nie trafia do `uploads/` i późniejsza tura nie
+może go otworzyć. Zobacz [Zabezpieczenia](reference/capabilities.md#guardrails).
 
 Referencja jest tym, co model faktycznie czyta:
 

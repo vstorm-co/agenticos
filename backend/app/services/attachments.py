@@ -20,6 +20,7 @@ the bytes twice stops being worth it.
 import functools
 import logging
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any
@@ -27,7 +28,9 @@ from uuid import UUID
 
 from pydantic_ai.messages import BinaryContent
 from pydantic_ai.workspaces import Workspace, WorkspaceError
+from pydantic_ai_harness import GuardrailResult
 
+from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.core.blocking import run_blocking
 from app.core.config import settings
 from app.db.models.chat_file import ChatFile
@@ -384,8 +387,12 @@ class AttachmentRouter:
         workspace: Workspace | None = None,
         *,
         can_parse: bool = False,
+        screen: Callable[[str], GuardrailResult] | None = None,
     ) -> None:
         self._workspace = workspace
+        # The agent's input edge (`input_screen_for`), run over the turn before
+        # anything is written - see `_refused_by_the_input_edge`.
+        self._screen = screen
         self.context = ""
         """What the last `build_prompt` appended to the person's message.
 
@@ -406,6 +413,12 @@ class AttachmentRouter:
         """The user's message, with everything they attached folded in."""
         if not files:
             return user_message
+        refused_turn = self._refused_by_the_input_edge(user_message, files)
+        if refused_turn is not None:
+            # Nothing routed, so nothing to replay: a later turn told the file is
+            # in its workspace would go looking for one that was never written.
+            self.context = ""
+            return refused_turn
 
         text_parts: list[str] = []
         inline: list[BinaryContent] = []
@@ -460,6 +473,36 @@ class AttachmentRouter:
         if inline:
             return [full_text, *inline]
         return full_text
+
+    def _refused_by_the_input_edge(self, user_message: str, files: list[ChatFile]) -> str | None:
+        """The turn as the input edge will read it, when the edge will refuse it.
+
+        Routing writes each file into the workspace, and the edge screens the
+        prompt only on the first model request - after the writes. A refused turn
+        then left its file in a `conversation`, `user` or `agent` workspace for
+        any later turn to open (#2559). So the turn is screened here first, with
+        the same detector, over what the edge would read of each file: its name,
+        path and opening lines (`_referenced`), the extracted-text sibling named
+        as if its write had landed.
+
+        On a refusal the caller gets that text back, unrouted - no write, no
+        sandbox session opened - and hands it to the run, where the edge refuses
+        the same text again and the turn ends `guardrail_blocked` the way it
+        always did. Screened only with a workspace: without one nothing is
+        written, and the edge alone decides.
+        """
+        if self._screen is None or self._workspace is None:
+            return None
+        previewed = user_message
+        for chat_file in files:
+            path = workspace_path(chat_file)
+            sibling = None if self._skips_sibling(chat_file) else _text_sibling(chat_file, path)
+            previewed += _referenced(chat_file, path, sibling=sibling)
+        try:
+            refused = self._screen(previewed).action == "block"
+        except GuardrailBlocked:
+            refused = True
+        return previewed if refused else None
 
     async def route(
         self, chat_file: ChatFile, *, inline_budget: int | None = None

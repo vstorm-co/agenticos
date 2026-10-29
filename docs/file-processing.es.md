@@ -1,5 +1,5 @@
 ---
-source_sha: "a2d3374dd0ae"
+source_sha: "732eb0c7d00c"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -187,6 +187,12 @@ fallo como un problema con el comando que acababa de escribir y siguió
 intentándolo — `ls`, luego un `curl` de una URI `data:`, luego tres soluciones
 propuestas a la persona, a lo largo de dos turnos. Ahora una sola frase dice que
 el workspace no está disponible y que otro intento fallará igual.
+
+**Un turno que el guardrail de entrada bloquea no escribe nada.** La referencia y
+su cabecera las revisa el borde de entrada del agent antes de escribir el archivo,
+así que un archivo de un turno bloqueado nunca llega a `uploads/` y un turno
+posterior no puede abrirlo. Consulta
+[Reglas de protección](reference/capabilities.md#guardrails).
 
 La referencia es lo que el modelo lee de verdad:
 
