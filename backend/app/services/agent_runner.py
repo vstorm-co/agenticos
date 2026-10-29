@@ -2025,18 +2025,13 @@ def _answer_only(spec: AgentSpec) -> AgentSpec:
     )
 
 
-def _with_channel_personal_approval(spec: AgentSpec, surface: RunSurface) -> AgentSpec:
-    """Personal data may leave a channel only after an explicit approval."""
+def _with_channel_mcp_approval(spec: AgentSpec, surface: RunSurface) -> AgentSpec:
+    """Channel metadata cannot authorize any MCP connection to act without approval."""
     if surface not in _CHANNEL_SURFACES:
         return spec
     return spec.model_copy(
         update={
-            "mcp_servers": [
-                ref.model_copy(update={"approval": "all"})
-                if isinstance(ref, PersonalMcpServerRef)
-                else ref
-                for ref in spec.mcp_servers
-            ]
+            "mcp_servers": [ref.model_copy(update={"approval": "all"}) for ref in spec.mcp_servers]
         }
     )
 
@@ -3045,7 +3040,7 @@ class AgentRunnerService:
             user_name=user_name,
             person_time_zone=person_time_zone,
         )
-        spec = _with_channel_personal_approval(rendering.for_the_run(spec), surface)
+        spec = _with_channel_mcp_approval(rendering.for_the_run(spec), surface)
 
         # Everything a capability needs but must not fetch itself. Resolved once,
         # server-side, so the model cannot influence what an agent reaches.
@@ -4123,7 +4118,7 @@ class AgentRunnerService:
                 # other.
                 runnable = _without_delegation(pinned)
 
-        runnable = _with_channel_personal_approval(runnable, delegation.surface)
+        runnable = _with_channel_mcp_approval(runnable, delegation.surface)
         model = await self.models.resolve(ctx, profile_id=runnable.model_profile_id)
         # Recorded now so the child's run row can name the model that answered.
         delegation.attribution[ref.agent_version_id] = model

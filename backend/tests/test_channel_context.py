@@ -162,7 +162,7 @@ async def test_untrusted_metadata_never_reaches_system_instructions_through_cust
 @pytest.mark.parametrize("surface", ["mattermost", "slack", "teams", "telegram"])
 def test_personal_mcp_reads_require_explicit_approval_on_every_chat_app(surface):
     from app.db.models.agent_run import RunSurface
-    from app.services.agent_runner import _with_channel_personal_approval
+    from app.services.agent_runner import _with_channel_mcp_approval
 
     spec = AgentSpec(
         name="A",
@@ -170,18 +170,25 @@ def test_personal_mcp_reads_require_explicit_approval_on_every_chat_app(surface)
             {"account": "personal", "catalog_key": "notion", "approval": "none"},
         ],
     )
-    result = _with_channel_personal_approval(spec, RunSurface(surface))
+    result = _with_channel_mcp_approval(spec, RunSurface(surface))
     assert result.mcp_servers[0].approval == "all"
     assert spec.mcp_servers[0].approval == "none"
-    assert _with_channel_personal_approval(spec, RunSurface.WEB) is spec
+    assert _with_channel_mcp_approval(spec, RunSurface.WEB) is spec
 
 
-def test_channel_personal_approval_preserves_organization_connection_policy():
+def test_channel_mcp_approval_includes_organization_and_platform_connections():
     from uuid import uuid4
 
     from app.db.models.agent_run import RunSurface
-    from app.services.agent_runner import _with_channel_personal_approval
+    from app.services.agent_runner import _with_channel_mcp_approval
 
-    spec = AgentSpec(name="A", mcp_servers=[{"connection_id": uuid4(), "approval": "writes"}])
-    result = _with_channel_personal_approval(spec, RunSurface.SLACK)
-    assert result.mcp_servers[0].approval == "writes"
+    spec = AgentSpec(
+        name="A",
+        mcp_servers=[
+            {"connection_id": uuid4(), "approval": "writes"},
+            {"account": "platform", "approval": "none"},
+        ],
+    )
+    result = _with_channel_mcp_approval(spec, RunSurface.SLACK)
+    assert [ref.approval for ref in result.mcp_servers] == ["all", "all"]
+    assert [ref.approval for ref in spec.mcp_servers] == ["writes", "none"]

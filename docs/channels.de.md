@@ -1,5 +1,5 @@
 ---
-source_sha: "71934ba4ef54"
+source_sha: "e4be208a93e1"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -2165,7 +2165,7 @@ Oberfläche, damit Unterschiede zwischen Konsole und Mattermost sichtbar bleiben
 
     Teams benötigt das aktualisierte App-Paket im Zielteam oder Chat und die Zustimmung des Besitzers zu `ChannelMessage.Read.Group` und `ChatMessage.Read.Chat`. Das Paket fordert sie nur bei eingeschaltetem Schalter an. Telegram verwendet die Text-Aliase `@all`, `@here`, `@channel` und `@everyone`; diese benachrichtigen nicht die Gruppe. Der Bot muss Gruppennachrichten erhalten; prüfen Sie den Datenschutzmodus in BotFather. Eigene Erwähnungen, Befehle und Antworten werden anhand der tatsächlichen Telegram-Bot-Identität geprüft.
 
-- **Persönliche MCP-Aufrufe benötigen in Chat-Apps eine Genehmigung, auch Lesezugriffe.** Die Kontoverknüpfung bestimmt die verwendete Verbindung; sie erlaubt keine automatische Veröffentlichung persönlicher Ergebnisse. Die Regel gilt auch für Delegierte und fortgesetzte Aufrufe.
+- **Alle MCP-Aufrufe benötigen in Chat-Apps eine Genehmigung, auch Lesezugriffe und Organisations- oder Plattformverbindungen.** Die Kontoverknüpfung bestimmt die verwendete Verbindung; sie erlaubt keine automatische Veröffentlichung persönlicher Ergebnisse. Die Regel gilt auch für Delegierte und fortgesetzte Aufrufe.
 - **Der Agent kennt den Ort und das verfügbare Konto.** Laufzeitinstruktionen nennen Plattform und Deployment-Konsole, erklären den verwalteten Workspace und unterscheiden organisatorische MCP-Verbindungen von persönlichen Diensten. Persönliche Dienste benötigen eine verknüpfte Absenderidentität und deren autorisierte Dienstverbindung. Die Verknüpfung beginnt mit `link` ohne Schrägstrich in einer Direktnachricht; der private Verbindungslink gehört nicht in einen Channel. Der Agent nennt tatsächliche Tool-Ergebnisse und einen konkreten nächsten Schritt bei fehlender Anmeldung oder Funktion.
 - **Eine erneut zugestellte Nachricht wird einmal beantwortet.** Jede Plattform
   liefert mindestens einmal: die Webhook-Routen antworten mit 200, bevor

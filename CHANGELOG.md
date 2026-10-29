@@ -43,8 +43,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
-- Personal MCP calls in chat apps now require explicit approval, including
-  reads. Linking an account does not authorize publishing its private results
+- All MCP calls in chat apps now require explicit approval, including reads
+  through personal, organization and platform connections. Linking an account does not authorize publishing its private results
   into a conversation. This applies to resumed and delegated calls too.
 
 ### Fixed
