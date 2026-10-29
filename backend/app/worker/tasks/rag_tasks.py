@@ -529,6 +529,13 @@ async def _run_sync(
             if knowledge_base_id is None
             else await knowledge_base_repo.get_by_id(db, UUID(knowledge_base_id))
         )
+        if knowledge_base_id is not None and kb is None:
+            # Deleted while the job waited. Falling through would write its files
+            # under the deployment-wide scope below, unfiled where any same-named
+            # app-scoped base reads them and no base's purge removes them (#2561).
+            reason = "The knowledge base was deleted before this sync ran"
+            await _update_sync_log(sync_log_id, "error", error_message=reason)
+            return {"status": "error", "message": reason}
         organization_id = None if kb is None else kb.organization_id
         scope = VectorScope(tenant=None) if kb is None else kb.vector_scope
         resolved_kb_id = None if kb is None else kb.id

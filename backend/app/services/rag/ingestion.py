@@ -234,9 +234,7 @@ class IngestionService:
                     scope=self._scope,
                 )
             except KnowledgeBaseRemovedError as exc:
-                # The gate above answered before the base was deleted; the store
-                # checked it again under the delete's row lock and wrote nothing
-                # (#2561). An expected outcome of the race, not an error to trace.
+                # Lost the race with the base's delete (#2561): expected, no traceback.
                 logger.info("Skipping index for %s: its knowledge base is gone", filepath.name)
                 return self._failed(exc, stage=IngestionStage.INDEX, filename=filepath.name)
 

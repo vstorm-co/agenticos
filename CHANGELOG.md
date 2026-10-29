@@ -25,7 +25,9 @@ Two things are versioned separately from this file and worth knowing about:
   while another base keeps its collection name no longer writes chunks after the
   cleanup job has removed the base's chunks. The write checks that the base
   exists under the row lock the delete takes, in the transaction that inserts the
-  chunks; the file fails at the index step instead (#2561).
+  chunks; the file fails at the index step instead. A local directory sync queued
+  for a base deleted before it runs now ends with an error instead of writing its
+  files into the deployment-wide scope (#2561).
 - Knowledge bases that share a collection name and a vector tenant keep their
   chunks apart. An app-scoped base and a personal base outside any organization,
   or an organization's base and a member's personal base in it, no longer return,

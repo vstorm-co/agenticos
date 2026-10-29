@@ -1,5 +1,5 @@
 ---
-source_sha: "25f94a18fe82"
+source_sha: "69eec1229ce8"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -905,10 +905,18 @@ tabelę, a zadanie porządkowe zakolejkowane razem z usunięciem usuwa chunki pr
 do usuniętej bazy. Usunięcie organizacji i usunięcie konta robią to samo dla baz,
 które usuwają. Nieprzypisane chunki zostają i pasują po swoim tenancie
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
 Przesłanie lub synchronizacja, która wciąż indeksuje plik dla bazy w chwili jej
-usunięcia, niczego nie zapisuje: zapis sprawdza, czy baza istnieje, pod blokadą
-wiersza, którą bierze usunięcie, w transakcji wstawiającej chunki, a plik kończy się
-błędem na etapie indeksowania ([#2561](https://github.com/vstorm-co/agenticos/issues/2561)).
+usunięcia, nie zostawia chunków. Zapis bierze blokadę wiersza, którą bierze
+usunięcie, w transakcji wstawiającej chunki: zapis, który przychodzi drugi, nie
+znajduje bazy, niczego nie zapisuje i kończy się błędem na etapie indeksowania, a
+zapis, który przychodzi pierwszy, zatwierdza się przed usunięciem, którego
+porządkowanie usuwa potem jego chunki
+([#2561](https://github.com/vstorm-co/agenticos/issues/2561)).
+
+Lokalna synchronizacja zakolejkowana dla bazy usuniętej przed jej uruchomieniem
+kończy się błędem i niczego nie zapisuje
+([#2561](https://github.com/vstorm-co/agenticos/issues/2561)).
 
 Agent przeszukuje bazy wiedzy, do których jest przypięty, w ich własnych zakresach,
 a nie przez ponowne rozwiązywanie ich nazw. Agent przypięty do dwóch baz o tej samej

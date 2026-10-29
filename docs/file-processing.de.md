@@ -1,5 +1,5 @@
 ---
-source_sha: "25f94a18fe82"
+source_sha: "69eec1229ce8"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -964,10 +964,19 @@ entfernt die Chunks, die der gelöschten Basis zugeordnet sind. Das Löschen ein
 Organisation und das Löschen eines Kontos tun dasselbe für die Basen, die sie
 entfernen. Nicht zugeordnete Chunks bleiben und passen über ihren Tenant
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
 Ein Upload oder eine Synchronisierung, die beim Löschen der Basis noch eine Datei
-für sie indexiert, schreibt nichts: Der Schreibvorgang prüft unter der Zeilensperre,
-die das Löschen nimmt, in der Transaktion, die die Chunks einfügt, ob die Basis noch
-existiert, und die Datei schlägt im Indexierungsschritt fehl ([#2561](https://github.com/vstorm-co/agenticos/issues/2561)).
+für sie indexiert, hinterlässt keine Chunks. Der Schreibvorgang nimmt die
+Zeilensperre, die das Löschen nimmt, in der Transaktion, die die Chunks einfügt:
+Ein Schreibvorgang, der als zweiter kommt, findet die Basis nicht mehr, schreibt
+nichts und schlägt im Indexierungsschritt fehl, und ein Schreibvorgang, der als
+erster kommt, wird vor dem Löschen festgeschrieben, dessen Aufräumen seine Chunks
+danach entfernt
+([#2561](https://github.com/vstorm-co/agenticos/issues/2561)).
+
+Eine lokale Synchronisierung, die für eine vor ihrem Start gelöschte Basis
+eingereiht ist, endet mit einem Fehler und schreibt nichts
+([#2561](https://github.com/vstorm-co/agenticos/issues/2561)).
 
 Ein Agent durchsucht die Wissensbasen, an die er gebunden ist, in ihrem eigenen
 Scope, statt ihre Namen erneut aufzulösen. Ein Agent, der an zwei Basen desselben

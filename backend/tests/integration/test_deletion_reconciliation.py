@@ -1208,10 +1208,8 @@ async def _filed_under(s, table: str, kb_id: uuid.UUID) -> int:
 
 class TestAnIngestRacingItsBasesDelete:
     """An ingest that passed its `still_wanted` gate before its base was deleted
-    beside a sibling that keeps the name (#2561). The delete reserves nothing, so
-    the gate cannot see it, and the cleanup job's purge (#2537) may already have
-    run when the chunks are written. The write checks the base under the row lock
-    the delete takes, in the transaction that inserts the chunks."""
+    beside a sibling that keeps the name, which reserves nothing the gate reads
+    (#2561). `knowledge_base_repo.hold_key_share` has the reasoning."""
 
     async def test_a_base_deleted_after_the_parse_gets_no_chunks(self, engine: AsyncEngine) -> None:
         store = _store_embedding_in_3d(engine)
@@ -1229,7 +1227,6 @@ class TestAnIngestRacingItsBasesDelete:
             s.add_all([doomed, kept])
             await s.commit()
             ctx = AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER)
-        await store.insert_document(collection, _parsed("kept"), kept.vector_scope)
 
         async def deleted_between_the_parse_and_the_write() -> bool:
             # The gate answers yes, and the delete commits and its cleanup job
@@ -1245,6 +1242,7 @@ class TestAnIngestRacingItsBasesDelete:
         ingester = IngestionService(processor, store, scope=doomed.vector_scope)
 
         try:
+            await store.insert_document(collection, _parsed("kept"), kept.vector_scope)
             result = await ingester.ingest_file(
                 Path("doomed.md"),
                 collection,
@@ -1253,6 +1251,9 @@ class TestAnIngestRacingItsBasesDelete:
             )
 
             assert result.status is IngestionStatus.ERROR
+            assert result.error_message == (
+                "The knowledge base was deleted while this file was being indexed"
+            )
             async with factory() as s:
                 assert await _filed_under(s, table, doomed.id) == 0
                 assert await _filed_under(s, table, kept.id) == 1
@@ -1277,7 +1278,7 @@ class TestAnIngestRacingItsBasesDelete:
             await s.commit()
 
         async with store.async_session() as writing:
-            await store._hold_base(writing, base.id)
+            assert await knowledge_base_repo.hold_key_share(writing, base.id)
             async with factory() as deleting:
                 await deleting.execute(text("SET LOCAL lock_timeout = '200ms'"))
                 with pytest.raises(DBAPIError, match="lock timeout"):
