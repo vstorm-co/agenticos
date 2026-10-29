@@ -168,6 +168,13 @@ class BasePurge(Payload):
 
     collection: str
     knowledge_base_id: UUID
+    vector_document_ids: list[str] | None = Field(
+        default=None, exclude_if=lambda vector_document_ids: vector_document_ids is None
+    )
+    """Only these documents' chunks, for a base that is kept: a cleared default
+    takes uploads again under the same id once its drop commits, so a purge of
+    every chunk filed under it would take theirs too (#2560). `None` purges the
+    whole base. Left out of the dump when `None`, as `prefixes` is."""
 
 
 class CleanupExternalState(Payload):

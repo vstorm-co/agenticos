@@ -856,9 +856,10 @@ Deleting a knowledge base whose collection name another base still holds keeps t
 shared table, and the cleanup job queued with the delete removes the chunks filed under
 the deleted base. An organization purge and an account deletion do the same for the
 bases they remove, and so does dropping a collection (`DELETE /rag/collections/{name}`),
-which also deletes only that base's document rows
-([#2560](https://github.com/vstorm-co/agenticos/issues/2560)). Unfiled chunks and
-document rows stay, matched by their tenant
+which also deletes only that base's document rows; for a kept default it removes
+only the chunks of the documents it deleted, so an upload made after the drop keeps
+its own ([#2560](https://github.com/vstorm-co/agenticos/issues/2560)). Unfiled
+chunks stay, matched by their tenant, and so do unfiled document rows
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 An agent searches the knowledge bases it is bound to under their own scopes, not by

@@ -1024,6 +1024,20 @@ async def _filed_table(s, table: str, chunks: dict[str, uuid.UUID]) -> None:
         )
 
 
+async def _document_chunk(
+    s, table: str, chunk_id: str, parent_doc_id: str, kb_id: uuid.UUID
+) -> None:
+    """One chunk of a document, filed under a base, in a table `parent_doc_id` keys."""
+    await s.execute(
+        text(f"INSERT INTO {table} VALUES (:id, :doc, CAST(:meta AS jsonb))"),  # noqa: S608
+        {
+            "id": chunk_id,
+            "doc": parent_doc_id,
+            "meta": json.dumps({"knowledge_base_id": str(kb_id)}),
+        },
+    )
+
+
 async def _chunk_ids(s, table: str) -> set[str]:
     return set((await s.execute(text(f"SELECT id FROM {table}"))).scalars())  # noqa: S608
 
@@ -1118,6 +1132,60 @@ class TestADeletedBasesChunksOnAKeptTable:
             assert await storage.exists(theirs_file)
         finally:
             await storage.delete(theirs_file)
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()
+
+    async def test_clearing_a_kept_default_spares_an_upload_made_after_the_drop(
+        self, engine: AsyncEngine
+    ) -> None:
+        """A cleared default keeps its row, so it takes uploads again once the drop
+        commits, filed under the same id. Its purge removes the chunks of the
+        documents the drop deleted, not every chunk filed under the base - which
+        would take an upload ingested before the cleanup job ran (#2560)."""
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbshare{uuid.uuid4().hex[:12]}"
+        table = f"rag_{collection}"
+        async with factory() as s:
+            owner, other = _user(), _user()
+            s.add_all([owner, other])
+            await s.flush()
+            org = await _org(s, owner)
+            other_org = await _org(s, other)
+            default = _org_collection(org.id, collection)
+            default.is_default = True
+            kept = _org_collection(other_org.id, collection)
+            s.add_all([default, kept])
+            await s.flush()
+            old = _kb_document(collection, default.id, org.id, "drop-default/old.txt")
+            old.vector_document_id = "old-doc"
+            s.add(old)
+            await s.execute(
+                text(
+                    f"CREATE TABLE {table} (id text PRIMARY KEY, parent_doc_id text, metadata jsonb)"
+                )
+            )
+            await _document_chunk(s, table, "old-0", "old-doc", default.id)
+            await _document_chunk(s, table, "kept-0", "kept-doc", kept.id)
+            await s.commit()
+            default_id, old_id = default.id, old.id
+
+        try:
+            async with factory() as s:
+                kb = await s.get(KnowledgeBase, default_id)
+                await KnowledgeBaseService(s).delete_for_rag_collection(kb)
+                await s.commit()
+                # An upload into the kept default, ingested before the job runs.
+                await _document_chunk(s, table, "new-0", "new-doc", default_id)
+                await s.commit()
+                start_deferred(s)
+            await drain()
+
+            async with factory() as s:
+                assert await s.get(KnowledgeBase, default_id) is not None
+                assert await s.get(RAGDocument, old_id) is None
+                assert await _chunk_ids(s, table) == {"new-0", "kept-0"}
+        finally:
             async with factory() as s:
                 await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
                 await s.commit()

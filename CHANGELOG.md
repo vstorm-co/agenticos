@@ -53,12 +53,15 @@ Two things are versioned separately from this file and worth knowing about:
   written, and the newer base no longer finds that synced content in search.
   Create the newer base under a name of its own to give it sources of its own.
 - Dropping a collection (`DELETE /api/v1/rag/collections/{name}`) deletes only the
-  document rows and stored files of the knowledge base it resolved to. It deleted
-  every document row under the collection name, with no organization or base
-  predicate, so a drop also removed the documents of another organization whose
-  base shared the name and queued their files for deletion. When another base
-  still holds the name, the shared vector table stays and the cleanup job now
-  removes the dropped base's chunks from it (#2560).
+  document rows and stored files of the knowledge base it resolved to. Before, it
+  deleted every document row under the collection name, with no organization or
+  base predicate, so a drop also removed the documents of another organization
+  whose base shared the name and queued their files for deletion. When another
+  base still holds the name, the shared vector table stays and the cleanup job
+  now removes the dropped base's chunks from it; for a default base, whose row is
+  kept, only the chunks of the documents the drop deleted. Document rows filed
+  under no base, from before documents recorded their base, then stay, as they do
+  when a knowledge base is deleted (#2560).
 
 ## [1.28.1] - 2026-10-28
 

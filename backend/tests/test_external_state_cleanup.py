@@ -102,6 +102,14 @@ class TestQueueing:
             {"collection": "handbook", "knowledge_base_id": str(_KB)}
         ]
 
+    async def test_a_kept_bases_purge_carries_its_documents(self) -> None:
+        """A cleared default is purged by the documents its drop deleted, not by
+        its id alone, which later uploads share (#2560); a whole-base purge keeps
+        the shape it had."""
+        named = BasePurge(collection="handbook", knowledge_base_id=_KB, vector_document_ids=[])
+        assert named.model_dump(mode="json")["vector_document_ids"] == []
+        assert "vector_document_ids" not in _purge().model_dump(mode="json")
+
     async def test_prefixes_ride_the_first_job_only(self) -> None:
         """An organization's generated media goes by prefix, in the purge's own
         transaction, rather than in a task the commit could outlive (#2310)."""
@@ -348,10 +356,24 @@ class TestTheCleanup:
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
             result = await cleanup_external_state([], [], [], [], [], [_purge()])
 
-        store.delete_knowledge_base_chunks.assert_awaited_once_with("handbook", _KB)
+        store.delete_knowledge_base_chunks.assert_awaited_once_with(
+            "handbook", _KB, vector_document_ids=None
+        )
         store.delete_collection.assert_not_awaited()
         engine.dispose.assert_awaited_once()
         assert result == {"unlinked": 0, "dropped": 0, "restamped": 0, "purged": 1}
+
+    async def test_a_kept_bases_purge_deletes_only_its_named_documents(self) -> None:
+        """A cleared default's purge passes its deleted documents to the store,
+        which deletes only their chunks (#2560)."""
+        _storage, store, _engine, _release, patches = _patch_cleanup()
+        purge = BasePurge(collection="handbook", knowledge_base_id=_KB, vector_document_ids=["d1"])
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
+            await cleanup_external_state([], [], [], [], [], [purge])
+
+        store.delete_knowledge_base_chunks.assert_awaited_once_with(
+            "handbook", _KB, vector_document_ids=["d1"]
+        )
 
     async def test_a_failed_base_purge_attempts_the_rest_then_fails_the_job(self) -> None:
         """Nothing else would remove those chunks, so a failure is raised after the

@@ -678,9 +678,10 @@ async def delete_by_collection(db: AsyncSession, collection_name: str) -> list[s
 
     Keyed on `collection_name`, so it removes every knowledge base's rows for
     that physical collection, in every organization. Only for a name no base
-    holds any more - the last holder's drop, under the teardown lock - where
-    every row left is one nothing can read once the table is dropped; a base
-    of its own goes by `delete_by_knowledge_base` (#913, #2560). The
+    other than the one being cleared holds - the last holder's drop, under the
+    teardown lock - where every row left is one nothing can read once the table
+    is dropped; a base of its own goes by `delete_by_knowledge_base` (#913,
+    #2560). The
     returned `storage_path`s are the uploads the caller still has to unlink; a
     `NULL` one (nothing was stored) is dropped. The bulk delete used to return
     only a rowcount, so the files were orphaned on disk (#1265).
@@ -711,3 +712,32 @@ async def delete_by_knowledge_base(db: AsyncSession, kb_id: UUID) -> list[str]:
     )
     await db.flush()
     return [path for path in result.scalars().all() if path]
+
+
+@dataclass(frozen=True)
+class DeletedDocuments:
+    """What a base's deleted document rows leave behind outside the database."""
+
+    storage_paths: list[str]
+    vector_document_ids: list[str]
+
+
+async def delete_by_knowledge_base_with_vectors(db: AsyncSession, kb_id: UUID) -> DeletedDocuments:
+    """`delete_by_knowledge_base`, also returning the deleted rows' vector document ids.
+
+    For a base that is kept: its chunks are removed by these ids rather than by
+    the base's, which a document uploaded after the delete is filed under too
+    (#2560). Taken from the delete itself, so a row updated between a read and
+    the delete cannot be missed. A row whose ingest never completed has none.
+    """
+    result = await db.execute(
+        sql_delete(RAGDocument)
+        .where(RAGDocument.knowledge_base_id == kb_id)
+        .returning(RAGDocument.storage_path, RAGDocument.vector_document_id)
+    )
+    await db.flush()
+    rows = result.all()
+    return DeletedDocuments(
+        storage_paths=[path for path, _ in rows if path],
+        vector_document_ids=[doc_id for _, doc_id in rows if doc_id],
+    )

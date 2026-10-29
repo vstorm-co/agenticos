@@ -1,5 +1,5 @@
 ---
-source_sha: "f3a26485ec77"
+source_sha: "27194be908cf"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -925,9 +925,11 @@ la tabla compartida, y el trabajo de limpieza encolado con el borrado elimina lo
 fragmentos asignados a la base borrada. Borrar una organización y borrar una cuenta
 hacen lo mismo con las bases que eliminan, y también eliminar una colección
 (`DELETE /rag/collections/{name}`), que además borra solo las filas de documentos de
-esa base ([#2560](https://github.com/vstorm-co/agenticos/issues/2560)). Los fragmentos
-y las filas de documentos sin asignar se quedan y coinciden por su tenant
-([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+esa base; en una base predeterminada conservada quita solo los fragmentos de los
+documentos borrados, así que una subida hecha después conserva los suyos
+([#2560](https://github.com/vstorm-co/agenticos/issues/2560)). Los fragmentos sin
+asignar se quedan y coinciden por su tenant, igual que las filas de documentos sin
+asignar ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 Un agente busca en las bases de conocimiento a las que está vinculado con su propio
 ámbito, sin volver a resolver sus nombres. Un agente vinculado a dos bases con el

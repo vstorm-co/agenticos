@@ -1,5 +1,5 @@
 ---
-source_sha: "f3a26485ec77"
+source_sha: "27194be908cf"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -967,9 +967,11 @@ behält die gemeinsame Tabelle, und der mit dem Löschen eingereihte Aufräum-Jo
 entfernt die Chunks, die der gelöschten Basis zugeordnet sind. Das Löschen einer
 Organisation und das Löschen eines Kontos tun dasselbe für die Basen, die sie
 entfernen, und ebenso das Löschen einer Collection (`DELETE /rag/collections/{name}`),
-das auch nur die Dokumentzeilen dieser Basis löscht
+das auch nur die Dokumentzeilen dieser Basis löscht; bei einer behaltenen
+Standardbasis entfernt es nur die Chunks der gelöschten Dokumente, sodass ein Upload
+nach dem Löschen seine eigenen behält
 ([#2560](https://github.com/vstorm-co/agenticos/issues/2560)). Nicht zugeordnete
-Chunks und Dokumentzeilen bleiben und passen über ihren Tenant
+Chunks bleiben und passen über ihren Tenant, ebenso nicht zugeordnete Dokumentzeilen
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 Ein Agent durchsucht die Wissensbasen, an die er gebunden ist, in ihrem eigenen

@@ -12,7 +12,7 @@ from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundErr
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.resource_grant import GrantLevel, Visibility
-from app.repositories.rag_document import CollectionCounts, CollectionScope
+from app.repositories.rag_document import CollectionCounts, CollectionScope, DeletedDocuments
 from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseUpdate
 from app.services.ingestion_config import deployment_defaults
 from app.services.knowledge_base import KnowledgeBaseService, _with_counts
@@ -587,8 +587,16 @@ class TestKBAccessControl:
             monkeypatch.setattr(knowledge_base_repo, name, mock)
         repos["by_name"] = AsyncMock(return_value=["rag/docs/legacy.txt"])
         repos["by_base"] = AsyncMock(return_value=["rag/docs/ours.txt"])
+        repos["by_kept_base"] = AsyncMock(
+            return_value=DeletedDocuments(
+                storage_paths=["rag/docs/ours.txt"], vector_document_ids=["doc-1"]
+            )
+        )
         monkeypatch.setattr(rag_document_repo, "delete_by_collection", repos["by_name"])
         monkeypatch.setattr(rag_document_repo, "delete_by_knowledge_base", repos["by_base"])
+        monkeypatch.setattr(
+            rag_document_repo, "delete_by_knowledge_base_with_vectors", repos["by_kept_base"]
+        )
         return repos
 
     @pytest.mark.anyio
@@ -645,8 +653,9 @@ class TestKBAccessControl:
     ):
         """The name is not tenant-unique: a sibling (or another org) still holding it
         backs a table their chunks live in too, so clearing this default must not drop
-        it from under them (#913). Only the default's own documents go, and its
-        chunks are purged from the kept table by its id (#2560)."""
+        it from under them (#913). Only the default's own documents go, and the
+        purge names them: the default takes uploads again under the same id once
+        this commits, and a purge of the whole base would take theirs (#2560)."""
         from app.repositories import collection_teardown_repo
 
         kb = _kb("org", is_default=True)
@@ -660,13 +669,15 @@ class TestKBAccessControl:
 
         repos["delete"].assert_not_awaited()  # the default row is kept
         repos["by_name"].assert_not_awaited()  # the sibling's documents stay
-        repos["by_base"].assert_awaited_once_with(mock_db, kb.id)
+        repos["by_kept_base"].assert_awaited_once_with(mock_db, kb.id)
         reserve.assert_not_awaited()  # a sibling holds the name, so it is not reserved
         dispatch.assert_awaited_once_with(  # the shared table is kept
             mock_db,
             ["rag/docs/ours.txt"],
             [],
-            base_purges=[BasePurge(collection="docs", knowledge_base_id=kb.id)],
+            base_purges=[
+                BasePurge(collection="docs", knowledge_base_id=kb.id, vector_document_ids=["doc-1"])
+            ],
         )
 
     @pytest.mark.anyio

@@ -294,11 +294,14 @@ class KnowledgeBaseService:
         base *other than this one* still holds it. If one does, the table backs
         its chunks too and stays; only this base's document rows are deleted, by
         its id, and the chunks filed under it are purged from the kept table by
-        the cleanup job (#2537). Deleting by name reached every base's rows under
-        it, another organization's included, and queued their files for
-        unlinking (#2560). If none does, every row under the name goes - the
-        unfiled ones from before documents recorded their base included, since
-        nothing could read them once the table is dropped - and so does the table.
+        the cleanup job (#2537) - for a kept default, only the deleted documents'
+        chunks, since it takes uploads again under the same id. Deleting by name
+        reached every base's rows under it, another organization's included, and
+        queued their files for unlinking (#2560). Unfiled rows stay then, as they
+        do when a base is deleted: other bases of the tenant take them too. If no
+        other base holds the name, every row under it goes - unfiled ones
+        included, since nothing could read them once the table is dropped - and
+        so does the table.
 
         The stored files, the purge and the drop are a cleanup job queued in this
         transaction (`queue_external_state_cleanup`), not run in the request, so
@@ -319,9 +322,7 @@ class KnowledgeBaseService:
         # sync inserting a row cannot slip in between the delete and the commit and
         # survive detached under `ON DELETE SET NULL` (#1266).
         await knowledge_base_repo.lock(self.db, kb.id)
-        # A default keeps its own row, so filter it out by id: the table is dropped
-        # only when no base *other* than the one being cleared still references the
-        # name, so a shared name a sibling holds is not dropped from under it (#913).
+        # A default keeps its own row, so it is filtered out by id.
         others = [
             ref
             for ref in await knowledge_base_repo.list_by_collection_name(self.db, collection)
@@ -331,7 +332,17 @@ class KnowledgeBaseService:
         base_purges: list[BasePurge] = []
         # The documents go before the KB row: `ON DELETE SET NULL` would unfile
         # them first, and a delete by the base's id would then find nothing.
-        if others:
+        if others and kb.is_default:
+            deleted = await rag_document_repo.delete_by_knowledge_base_with_vectors(self.db, kb.id)
+            storage_paths = deleted.storage_paths
+            base_purges = [
+                BasePurge(
+                    collection=collection,
+                    knowledge_base_id=kb.id,
+                    vector_document_ids=deleted.vector_document_ids,
+                )
+            ]
+        elif others:
             storage_paths = await rag_document_repo.delete_by_knowledge_base(self.db, kb.id)
             base_purges = [BasePurge(collection=collection, knowledge_base_id=kb.id)]
         else:

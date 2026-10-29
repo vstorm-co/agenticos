@@ -285,7 +285,9 @@ async def cleanup_external_state(
             for purge in base_purges:
                 try:
                     await store.delete_knowledge_base_chunks(
-                        purge.collection, purge.knowledge_base_id
+                        purge.collection,
+                        purge.knowledge_base_id,
+                        vector_document_ids=purge.vector_document_ids,
                     )
                 except SQLAlchemyError as exc:
                     logger.warning("Failed to purge collection %s: %s", purge.collection, exc)
